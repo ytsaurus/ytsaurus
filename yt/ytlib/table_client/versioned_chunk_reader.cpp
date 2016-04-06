@@ -636,7 +636,7 @@ protected:
 
     std::vector<TFuture<TSharedRef>> RequestedBlocks_;
 
-    void ResetExaustedColumns()
+    void ResetExhaustedColumns()
     {
         for (int i = 0; i < RequestedBlocks_.size(); ++i) {
             if (RequestedBlocks_[i]) {
@@ -650,7 +650,7 @@ protected:
         RequestedBlocks_.clear();
     }
 
-    i64 GetLowerRowIndex(const TKey& key) const
+    i64 GetLowerRowIndex(TKey key) const
     {
         auto it = std::lower_bound(
             ChunkMeta_->BlockLastKeys().begin(),
@@ -1009,7 +1009,7 @@ public:
         }
 
         if (!Initialized_) {
-            ResetExaustedColumns();
+            ResetExhaustedColumns();
             Initialize();
             Initialized_ = true;
         }
@@ -1019,7 +1019,7 @@ public:
         }
 
         while (rows->size() < rows->capacity()) {
-            ResetExaustedColumns();
+            ResetExhaustedColumns();
 
             // Define how many to read.
             i64 rowLimit = std::min(HardUpperRowIndex_ - RowIndex_, static_cast<i64>(rows->capacity()));
@@ -1305,7 +1305,7 @@ public:
         }
 
         while (rows->size() < rows->capacity()) {
-            ResetExaustedColumns();
+            ResetExhaustedColumns();
 
             if (RowIndexes_[NextKeyIndex_] < ChunkMeta_->Misc().row_count()) {
                 const auto& key = Keys_[NextKeyIndex_];
