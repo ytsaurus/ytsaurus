@@ -789,7 +789,6 @@ class TestTables(YTEnvSetup):
         tabular_data = read_table("//tmp/t1", output_format=yson.loads("<columns=[column2;column3]>schemaful_dsv"))
         assert tabular_data == "value12\tvalue13\nvalue22\tvalue23\n"
 
-<<<<<<< HEAD
 ##################################################################
 
 class TestTablesMulticell(TestTables):
