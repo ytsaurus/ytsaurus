@@ -1967,9 +1967,9 @@ void TSortedDynamicStore::OnMemoryUsageUpdated()
     SetMemoryUsage(GetUncompressedDataSize() + hashTableSize);
 }
 
-void TDynamicMemoryStore::InsertIntoLookupHashTable(
+void TSortedDynamicStore::InsertIntoLookupHashTable(
     const TUnversionedValue* keyBegin,
-    TDynamicRow dynamicRow)
+    TSortedDynamicRow dynamicRow)
 {
     if (LookupHashTable_) {
         if (GetKeyCount() >= LookupHashTable_->GetSize()) {

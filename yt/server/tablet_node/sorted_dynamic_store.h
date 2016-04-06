@@ -278,7 +278,7 @@ private:
 
     void OnMemoryUsageUpdated();
 
-    void InsertIntoLookupHashTable(const TUnversionedValue* keyBegin, TDynamicRow dynamicRow);
+    void InsertIntoLookupHashTable(const TUnversionedValue* keyBegin, TSortedDynamicRow dynamicRow);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortedDynamicStore)
