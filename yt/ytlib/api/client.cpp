@@ -97,7 +97,6 @@ using namespace NTabletClient::NProto;
 using namespace NSecurityClient;
 using namespace NQueryClient;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using namespace NScheduler;
 using namespace NHive;
 using namespace NHydra;
@@ -2076,6 +2075,8 @@ private:
         const TYPath& dstPath,
         TConcatenateNodesOptions options)
     {
+        using NChunkClient::NProto::TDataStatistics;
+
         try {
             // Get objects ids.
             std::vector<TObjectId> srcIds;
@@ -2251,17 +2252,17 @@ private:
 
                 chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
             }
-            
+
             // Attach chunks to chunk list.
             TDataStatistics dataStatistics;
             {
                 auto proxy = CreateWriteProxy(dstCellTag);
-                
+
                 auto req = TChunkListYPathProxy::Attach(FromObjectId(chunkListId));
                 ToProto(req->mutable_children_ids(), flatChunkIds);
                 req->set_request_statistics(true);
                 GenerateMutationId(req, options);
-            
+
                 auto rspOrError = WaitFor(proxy->Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error attaching chunks to %v", dstPath);
                 const auto& rsp = rspOrError.Value();
@@ -2277,7 +2278,7 @@ private:
                 *req->mutable_statistics() = dataStatistics;
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
                 GenerateMutationId(req, options);
-                
+
                 auto rspOrError = WaitFor(proxy->Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error finishing upload to %v", dstPath);
             }
