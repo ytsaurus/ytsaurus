@@ -41,7 +41,11 @@ TClientReader::TClientReader(
     CreateRequest(true);
 }
 
-bool TClientReader::OnStreamError(const yexception& e, ui32 rangeIndex, ui64 rowIndex)
+bool TClientReader::OnStreamError(
+    const yexception& e,
+    bool keepRanges,
+    ui32 rangeIndex,
+    ui64 rowIndex)
 {
     LOG_ERROR("RSP %s - %s",
         ~Request_->GetRequestId(), e.what());
@@ -50,7 +54,7 @@ bool TClientReader::OnStreamError(const yexception& e, ui32 rangeIndex, ui64 row
         return false;
     }
 
-    CreateRequest(false, rangeIndex, rowIndex);
+    CreateRequest(keepRanges, rangeIndex, rowIndex);
     return true;
 }
 
@@ -59,7 +63,7 @@ size_t TClientReader::DoRead(void* buf, size_t len)
     return Input_->Read(buf, len);
 }
 
-void TClientReader::CreateRequest(bool initial, ui32 rangeIndex, ui64 rowIndex)
+void TClientReader::CreateRequest(bool keepRanges, ui32 rangeIndex, ui64 rowIndex)
 {
     const int retryCount = TConfig::Get()->RetryCount;
 
@@ -84,7 +88,7 @@ void TClientReader::CreateRequest(bool initial, ui32 rangeIndex, ui64 rowIndex)
                 }
             }
 
-            if (!initial) {
+            if (!keepRanges) {
                 auto& ranges = Path_.Ranges_;
                 if (ranges.empty()) {
                     ranges.push_back(TReadRange());

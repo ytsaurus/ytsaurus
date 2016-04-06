@@ -24,7 +24,12 @@ public:
         EDataStreamFormat format,
         const TTableReaderOptions& options);
 
-    bool OnStreamError(const yexception& e, ui32 rangeIndex, ui64 rowIndex) override;
+    bool OnStreamError(
+        const yexception& e,
+        bool keepRanges,
+        ui32 rangeIndex,
+        ui64 rowIndex) override;
+
     bool HasRangeIndices() const override { return true; }
 
 protected:

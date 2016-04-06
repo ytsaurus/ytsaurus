@@ -282,33 +282,34 @@ void TNodeTableReader::Next()
     while (true) {
         Row_ = RowQueue_.Dequeue();
         if (Row_->Type == TRowElement::ROW) {
-            if (Row_->Node.IsEntity()) {
-                for (auto& entry : Row_->Node.GetAttributes().AsMap()) {
-                    if (entry.first == "key_switch") {
-                        Valid_ = false;
-                        break;
-                    } else if (entry.first == "table_index") {
-                        TableIndex_ = static_cast<ui32>(entry.second.AsInt64());
-                    } else if (entry.first == "row_index") {
-                        rowIndex = static_cast<ui64>(entry.second.AsInt64());
-                    } else if (entry.first == "range_index") {
-                        rangeIndex = static_cast<ui64>(entry.second.AsInt64());
-                    }
+            if (!Row_->Node.IsEntity()) {
+                break;
+            }
+
+            for (auto& entry : Row_->Node.GetAttributes().AsMap()) {
+                if (entry.first == "key_switch") {
+                    Valid_ = false;
+                } else if (entry.first == "table_index") {
+                    TableIndex_ = static_cast<ui32>(entry.second.AsInt64());
+                } else if (entry.first == "row_index") {
+                    rowIndex = static_cast<ui64>(entry.second.AsInt64());
+                } else if (entry.first == "range_index") {
+                    rangeIndex = static_cast<ui32>(entry.second.AsInt64());
                 }
-                if (!Valid_) {
-                    break;
-                }
-            } else {
-                if (rowIndex) {
-                    if (Input_->HasRangeIndices()) {
-                        if (rangeIndex) {
-                            RowIndex_ = rowIndex;
-                            RangeIndex_ = rangeIndex;
-                        }
-                    } else {
+            }
+
+            if (rowIndex) {
+                if (Input_->HasRangeIndices()) {
+                    if (rangeIndex) {
                         RowIndex_ = rowIndex;
+                        RangeIndex_ = rangeIndex;
                     }
+                } else {
+                    RowIndex_ = rowIndex;
                 }
+            }
+
+            if (!Valid_) {
                 break;
             }
 
@@ -359,9 +360,11 @@ void TNodeTableReader::PrepareParsing()
 
 void TNodeTableReader::OnStreamError()
 {
-    if (Input_->OnStreamError(Exception_,
+    if (Input_->OnStreamError(Exception_, !RowIndex_.Defined(),
         RangeIndex_.GetOrElse(0ul), RowIndex_.GetOrElse(0ull)))
     {
+        RowIndex_.Clear();
+        RangeIndex_.Clear();
         PrepareParsing();
         RetryPrepared_.Signal();
     } else {
