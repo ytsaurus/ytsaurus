@@ -11,10 +11,8 @@ class CountedRLock(object):
 
     def _acquire(self, blocking):
         if blocking:
-            if self._lock.acquire(blocking=0):
-                self._counter += 1
-            else:
-                self._lock.acquire(blocking=1)
+            self._lock.acquire(blocking=1)
+            self._counter += 1
         else:
             if self._lock.acquire(blocking=0):
                 self._counter += 1
