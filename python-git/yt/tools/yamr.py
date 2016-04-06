@@ -199,7 +199,7 @@ class Yamr(object):
                 # NB: shared transasction is not supported.
                 command = '{timeout} curl {logging} "http://{proxy}/table/{1}?subkey=1&lenval=1&startindex={2}&endindex={3}"'\
                         .format(
-                            timeout=timeout,
+                            timeout=timeout_str,
                             logging=logging_str,
                             proxy=self.proxies[i % len(self.proxies)],
                             table=quote_plus(table),
@@ -210,7 +210,7 @@ class Yamr(object):
                 if enable_logging:
                     logging_str = "-stderrlevel 11"
                 shared_tx_str = ("-sharedtransactionid " + transaction_id) if self.supports_shared_transactions else ""
-                command = '{timeout} {opts} MR_USER={mr_user} USER=yt '\
+                command = '{opts} MR_USER={mr_user} USER=yt {timeout} '\
                           './{binary} -server {server} {fastbone_option} -read "{table}:[{start},{end}]" -lenval -subkey {shared_tx} {logging}\n'\
                         .format(
                             timeout=timeout_str,
