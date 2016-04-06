@@ -33,7 +33,7 @@ def init_md5():
     return []
 
 def calc_md5_from_file(filename):
-    with open(filename, mode='rb') as fin:
+    with open(filename, mode="rb") as fin:
         h = hashlib.md5()
         for buf in chunk_iter_stream(fin, 1024):
             h.update(buf)
@@ -217,7 +217,7 @@ def create_modules_archive_default(tempfiles_manager, client):
                     dir=get_config(client)["local_temp_directory"],
                     prefix="__init__.py")
 
-                with open(init_file, "w") as f:
+                with open(init_file, "wb") as f:
                     f.write("#")  # Should not be empty. Empty comment is ok.
 
                 module_name_parts = module.__name__.split(".") + ["__init__.py"]
@@ -302,13 +302,13 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
 
     pickler = Pickler(get_config(client)["pickling"]["framework"])
 
-    with open(function_filename, "w") as fout:
+    with open(function_filename, "wb") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
         pickler.dump((function, attributes, operation_type, input_format, output_format, group_by, get_python_version()), fout)
 
     config_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
                                                         prefix="config_dump")
-    with open(config_filename, "w") as fout:
+    with open(config_filename, "wb") as fout:
         Pickler(config.DEFAULT_PICKLING_FRAMEWORK).dump(get_config(client), fout)
 
     modules_info = create_modules_archive(tempfiles_manager, client)
@@ -329,7 +329,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
 
     modules_info_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
                                                               prefix="_modules")
-    with open(modules_info_filename, "w") as fout:
+    with open(modules_info_filename, "wb") as fout:
         standard_pickle.dump(modules_info, fout)
 
     main_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,

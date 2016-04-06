@@ -14,7 +14,7 @@ except ImportError:
 from cStringIO import StringIO
 
 def read_config(path):
-    driver_config = yson.load(open(path))
+    driver_config = yson.load(open(path, "r"))
     if "logging" in driver_config:
         yt_driver_bindings.configure_logging(driver_config["logging"])
     if "tracing" in driver_config:

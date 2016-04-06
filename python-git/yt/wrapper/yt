@@ -852,7 +852,7 @@ def main():
     aliases_filename = os.path.join(os.path.expanduser("~"), ".yt/aliases")
     if os.path.isfile(aliases_filename):
         aliases = {}
-        for line in open(aliases_filename):
+        for line in open(aliases_filename, "r"):
             line = line.strip()
             if not line or line.startswith("#"):
                 continue

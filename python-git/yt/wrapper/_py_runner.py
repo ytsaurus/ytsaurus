@@ -20,7 +20,7 @@ def main():
         __main_module_name = sys.argv[5]
         __main_module_type = sys.argv[6]
 
-        with open(__modules_info_filename) as fin:
+        with open(__modules_info_filename, "rb") as fin:
             modules_info = standard_pickle.load(fin)
 
         for info in modules_info:
@@ -35,9 +35,9 @@ def main():
         sys.path = ["./modules", "./tmpfs/modules"] + sys.path
 
         main_module = imp.load_module(__main_module_name,
-                                      open(__main_filename, 'rU'),
+                                      open(__main_filename, 'rb'),
                                       __main_filename,
-                                      ('', 'rU', imp.__dict__[__main_module_type]))
+                                      ('', 'rb', imp.__dict__[__main_module_type]))
 
         for name in dir(main_module):
             globals()[name] = main_module.__dict__[name]
@@ -47,7 +47,7 @@ def main():
     from yt.wrapper.format import YsonFormat, extract_key
     from yt.wrapper.pickling import Unpickler
     yt.wrapper.config.config = \
-        Unpickler(yt.wrapper.config.DEFAULT_PICKLING_FRAMEWORK).load(open(__config_dump_filename))
+        Unpickler(yt.wrapper.config.DEFAULT_PICKLING_FRAMEWORK).load(open(__config_dump_filename, "rb"))
 
     import yt.wrapper.py_runner_helpers
     yt.wrapper.py_runner_helpers.check_job_environment_variables()
@@ -55,7 +55,7 @@ def main():
     unpickler = Unpickler(yt.wrapper.config.config["pickling"]["framework"])
 
     __operation, __attributes, __operation_type, __input_format, __output_format, __group_by_keys, __python_version = \
-        unpickler.load(open(__operation_dump))
+        unpickler.load(open(__operation_dump, "rb"))
 
     if yt.wrapper.config["pickling"]["enable_job_statistics"]:
         try:

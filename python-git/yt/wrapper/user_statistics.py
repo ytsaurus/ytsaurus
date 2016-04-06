@@ -17,13 +17,13 @@ def write_statistics(dict):
         sys.stderr.write("Failed to write user statistics")
 
 def _get_field(path, name):
-    data = open(path).read()
+    data = open(path, "rb").read()
     for line in data.split("\n"):
         if line.startswith(name):
             return int(line.split()[1])
 
 def _get_value(path):
-    return int(open(path).read())
+    return int(open(path, "rb").read())
 
 def get_blkio_cgroup_statistics():
     """ Return map with blkio statistics from cgroups """

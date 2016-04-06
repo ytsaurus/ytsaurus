@@ -28,8 +28,9 @@ def _get_file_size(fstream):
     fstream.seek(0, os.SEEK_SET)
     return size
 
+# TODO(ignat): avoid copypaste (same function presented in py_wrapper.py)
 def md5sum(filename):
-    with open(filename, mode='rb') as fin:
+    with open(filename, mode="rb") as fin:
         h = hashlib.md5()
         for buf in chunk_iter_stream(fin, 1024):
             h.update(buf)
@@ -183,7 +184,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     def upload_with_check(path):
         require(not exists(path, client=client),
                 lambda: YtError("Cannot upload file to '{0}', node already exists".format(path)))
-        write_file(path, open(filename), client=client)
+        write_file(path, open(filename, "rb"), client=client)
 
     require(os.path.isfile(filename),
             lambda: YtError("Upload: %s should be file" % filename))
