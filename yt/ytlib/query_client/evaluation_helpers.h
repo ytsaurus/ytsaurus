@@ -105,8 +105,6 @@ struct TExpressionContext
 #ifndef NDEBUG
     size_t StackSizeGuardHelper;
 #endif
-    const std::vector<TSharedRange<TRow>>* LiteralRows;
-
     TRowBufferPtr IntermediateBuffer;
 };
 
@@ -133,10 +131,8 @@ struct TExecutionContext
     // Limit from LIMIT clause.
     i64 Limit;
 
-    std::vector<TJoinEvaluator> JoinEvaluators;
     TExecuteQuery ExecuteCallback;
 
-    std::deque<TFunctionContext> FunctionContexts;
 };
 
 class TTopCollector
@@ -187,16 +183,54 @@ private:
 
 };
 
-struct TCGVariables
+class TCGVariables
 {
-    TRowBuilder ConstantsRowBuilder;
-    std::vector<TSharedRange<TRow>> LiteralRows;
-    std::vector<TJoinEvaluator> JoinEvaluators;
-    std::vector<std::vector<bool>> AllLiteralArgs;
+public:
+    template <class T, class... Args>
+    size_t AddObject(Args... args)
+    {
+        T* object = reinterpret_cast<T*>(new char[sizeof(T)]);
+
+        auto index = OpaqueValues.size();
+        try {
+            new(object) T(std::forward<Args>(args)...);
+        } catch (...) {
+            delete[] reinterpret_cast<char*>(object);
+        }
+
+        auto deleter = [] (void* ptr) {
+            static_cast<T*>(ptr)->~T();
+            delete[] static_cast<char*>(ptr);
+        };
+
+        std::unique_ptr<void, void(*)(void*)> ptr(object, deleter);
+
+        // Allocate memory after constructing unique_ptr
+
+        OpaqueValues.push_back(std::move(ptr));
+        OpaquePointers.push_back(object);
+
+        return index;
+    }
+
+    void* const* GetOpaqueData() const
+    {
+        return OpaquePointers.data();
+    }
+
+    size_t GetOpaqueCount() const
+    {
+        return OpaqueValues.size();
+    }
+
+private:
+    std::vector<std::unique_ptr<void, void(*)(void*)>> OpaqueValues;
+    std::vector<void*> OpaquePointers;
+
 };
 
-typedef void (TCGQuerySignature)(TRow, TExecutionContext*, TFunctionContext**);
-typedef void (TCGExpressionSignature)(TValue*, TRow, TRow, TExpressionContext*, TFunctionContext**);
+typedef void (TCGQuerySignature)(void* const*, TExecutionContext*);
+typedef void (TCGExpressionSignature)(void* const*, TValue*, TRow, TExpressionContext*);
 typedef void (TCGAggregateInitSignature)(TExecutionContext*, TValue*);
 typedef void (TCGAggregateUpdateSignature)(TExecutionContext*, TValue*, const TValue*, const TValue*);
 typedef void (TCGAggregateMergeSignature)(TExecutionContext*, TValue*, const TValue*, const TValue*);

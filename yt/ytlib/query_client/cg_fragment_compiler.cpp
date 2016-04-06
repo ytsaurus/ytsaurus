@@ -437,13 +437,17 @@ TCodegenExpression MakeCodegenLiteralExpr(
             index,
             type
         ] (TCGContext& builder, Value* row) {
-            return TCGValue::CreateFromRow(
+            auto valuePtr = builder.CreatePointerCast(
+                builder.GetOpaqueValue(index),
+                TypeBuilder<TValue*, false>::get(builder.getContext()));
+
+            return TCGValue::CreateFromLlvmValue(
                 builder,
-                builder.GetConstantsRows(),
-                index,
+                valuePtr,
                 type,
                 "literal." + Twine(index))
                 .Steal();
+
         };
 }
 
@@ -472,7 +476,7 @@ TCodegenValue MakeCodegenFunctionContext(
     return [
             index
         ] (TCGContext& builder) {
-            return builder.GetFunctionContextPtr(index);
+            return builder.GetOpaqueValue(index);
         };
 }
 
@@ -883,7 +887,7 @@ TCodegenExpression MakeCodegenInOpExpr(
                 executionContextPtrRef,
                 CodegenRowComparerFunction(keyTypes, *builder.Module),
                 newRowRef,
-                builder.getInt32(arrayIndex)
+                builder.GetOpaqueValue(arrayIndex)
             });
 
         return TCGValue::CreateFromValue(
@@ -1024,7 +1028,7 @@ TCodegenSource MakeCodegenJoinOp(
             builder.Module->GetRoutine("JoinOpHelper"),
             {
                 builder.GetExecutionContextPtr(),
-                builder.getInt32(index),
+                builder.GetOpaqueValue(index),
 
                 CodegenGroupHasherFunction(lookupKeyTypes, *builder.Module),
                 CodegenGroupComparerFunction(lookupKeyTypes, *builder.Module),
@@ -1517,8 +1521,7 @@ TCodegenSource MakeCodegenOrderOp(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGQueryCallback CodegenEvaluate(
-    TCodegenSource codegenSource)
+TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValuesCount)
 {
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
     auto& context = module->GetContext();
@@ -1535,16 +1538,15 @@ TCGQueryCallback CodegenEvaluate(
     module->ExportSymbol(entryFunctionName);
 
     auto args = function->arg_begin();
-    Value* constants = args; constants->setName("constants");
+    Value* opaqueValues = args; opaqueValues->setName("opaqueValues");
     Value* executionContextPtr = ++args; executionContextPtr->setName("passedFragmentParamsPtr");
-    Value* functionContextsPtr = ++args; functionContextsPtr->setName("functionContextsPtr");
     YCHECK(++args == function->arg_end());
 
     TCGContext builder(
         module,
-        constants,
+        opaqueValues,
+        opaqueValuesCount,
         executionContextPtr,
-        functionContextsPtr,
         BasicBlock::Create(context, "entry", function));
 
     codegenSource(
@@ -1560,7 +1562,7 @@ TCGQueryCallback CodegenEvaluate(
     return module->GetCompiledFunction<TCGQuerySignature>(entryFunctionName);
 }
 
-TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression)
+TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression, size_t opaqueValuesCount)
 {
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
     auto& context = module->GetContext();
@@ -1577,18 +1579,17 @@ TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression)
     module->ExportSymbol(entryFunctionName);
 
     auto args = function->arg_begin();
-    Value* resultPtr = args; resultPtr->setName("resultPtr");
+    Value* opaqueValues = args; opaqueValues->setName("opaqueValues");
+    Value* resultPtr = ++args; resultPtr->setName("resultPtr");
     Value* inputRow = ++args; inputRow->setName("inputRow");
-    Value* constants = ++args; constants->setName("constants");
     Value* executionContextPtr = ++args; executionContextPtr->setName("passedFragmentParamsPtr");
-    Value* functionContextsPtr = ++args; functionContextsPtr->setName("functionContextsPtr");
     YCHECK(++args == function->arg_end());
 
     TCGContext builder(
         module,
-        constants,
+        opaqueValues,
+        opaqueValuesCount,
         executionContextPtr,
-        functionContextsPtr,
         BasicBlock::Create(context, "entry", function));
 
     auto result = codegenExpression(builder, inputRow);
@@ -1622,7 +1623,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         Value* resultPtr = ++args; resultPtr->setName("resultPtr");
         YCHECK(++args == function->arg_end());
 
-        TCGContext builder(module, nullptr, executionContextPtr, nullptr, BasicBlock::Create(context, "entry", function));
+        TCGContext builder(module, nullptr, 0, executionContextPtr, BasicBlock::Create(context, "entry", function));
         auto result = codegenAggregate.Initialize(builder, nullptr);
         result.StoreToValue(builder, resultPtr, 0, "writeResult");
         builder.CreateRetVoid();
@@ -1647,7 +1648,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         Value* newValuePtr = ++args; resultPtr->setName("newValuePtr");
         YCHECK(++args == function->arg_end());
 
-        TCGContext builder(module, nullptr, executionContextPtr, nullptr, BasicBlock::Create(context, "entry", function));
+        TCGContext builder(module, nullptr, 0, executionContextPtr, BasicBlock::Create(context, "entry", function));
         auto result = codegenAggregate.Update(builder, statePtr, newValuePtr);
         result.StoreToValue(builder, resultPtr, 0, "writeResult");
         builder.CreateRetVoid();
@@ -1672,7 +1673,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         Value* statePtr = ++args; resultPtr->setName("statePtr");
         YCHECK(++args == function->arg_end());
 
-        TCGContext builder(module, nullptr, executionContextPtr, nullptr, BasicBlock::Create(context, "entry", function));
+        TCGContext builder(module, nullptr, 0, executionContextPtr, BasicBlock::Create(context, "entry", function));
         auto result = codegenAggregate.Merge(builder, dstStatePtr, statePtr);
         result.StoreToValue(builder, resultPtr, 0, "writeResult");
         builder.CreateRetVoid();
@@ -1696,7 +1697,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         Value* statePtr = ++args; resultPtr->setName("statePtr");
         YCHECK(++args == function->arg_end());
 
-        TCGContext builder(module, nullptr, executionContextPtr, nullptr, BasicBlock::Create(context, "entry", function));
+        TCGContext builder(module, nullptr, 0, executionContextPtr, BasicBlock::Create(context, "entry", function));
         auto result = codegenAggregate.Finalize(builder, statePtr);
         result.StoreToValue(builder, resultPtr, 0, "writeResult");
         builder.CreateRetVoid();

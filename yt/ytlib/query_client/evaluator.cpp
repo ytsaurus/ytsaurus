@@ -104,7 +104,6 @@ public:
                 TExecutionContext executionContext;
                 executionContext.Reader = reader;
 
-                executionContext.LiteralRows = &fragmentParams.LiteralRows;
                 executionContext.PermanentBuffer = permanentBuffer;
                 executionContext.OutputBuffer = outputBuffer;
                 executionContext.IntermediateBuffer = intermediateBuffer;
@@ -117,16 +116,7 @@ public:
                 executionContext.JoinRowLimit = query->OutputRowLimit;
                 executionContext.Limit = query->Limit;
 
-                std::vector<TFunctionContext*> functionContexts;
-                for (auto& literalArgs : fragmentParams.AllLiteralArgs) {
-                    executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
-                }
-                for (auto& functionContext : executionContext.FunctionContexts) {
-                    functionContexts.push_back(&functionContext);
-                }
-
                 // Used in joins
-                executionContext.JoinEvaluators = fragmentParams.JoinEvaluators;
                 executionContext.ExecuteCallback = executeCallback;
 
                 if (!query->JoinClauses.empty()) {
@@ -138,9 +128,8 @@ public:
                 try {
                     CallCGQueryPtr(
                         cgQuery,
-                        fragmentParams.ConstantsRowBuilder.GetRow(),
-                        &executionContext,
-                        functionContexts.data());
+                        fragmentParams.GetOpaqueData(),
+                        &executionContext);
                 } catch (const TInterruptedIncompleteException&) {
                     // Set incomplete and continue
                     executionContext.Statistics->IncompleteOutput = true;
@@ -246,22 +235,20 @@ private:
 
     static void CallCGQuery(
         const TCGQueryCallback& cgQuery,
-        TRow constants,
-        TExecutionContext* executionContext,
-        TFunctionContext** functionContexts)
+        void* const* opaqueValues,
+        TExecutionContext* executionContext)
     {
 #ifndef NDEBUG
         int dummy;
         executionContext->StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
-        cgQuery(constants, executionContext, functionContexts);
+        cgQuery(opaqueValues, executionContext);
     }
 
     void(*volatile CallCGQueryPtr)(
         const TCGQueryCallback& cgQuery,
-        TRow constants,
-        TExecutionContext* executionContext,
-        TFunctionContext**) = CallCGQuery;
+        void* const* opaqueValues,
+        TExecutionContext* executionContext) = CallCGQuery;
 
 };
 

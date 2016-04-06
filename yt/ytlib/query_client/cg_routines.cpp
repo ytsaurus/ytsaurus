@@ -207,7 +207,7 @@ void SaveJoinRow(
 
 void JoinOpHelper(
     TExecutionContext* context,
-    int index,
+    TJoinEvaluator* joinEvaluator,
     THasherFunction* lookupHasher,
     TComparerFunction* lookupEqComparer,
     TComparerFunction* lookupLessComparer,
@@ -249,7 +249,7 @@ void JoinOpHelper(
 
     std::vector<TRow> joinedRows;
     try {
-        context->JoinEvaluators[index](
+        (*joinEvaluator)(
             context,
             lookupHasher,
             lookupEqComparer,
@@ -398,11 +398,12 @@ char IsRowInArray(
     TExpressionContext* context,
     TComparerFunction* comparer,
     TRow row,
-    int index)
+    TSharedRange<TRow>* rows)
 {
+    CHECK_STACK();
+
     // TODO(lukyan): check null
-    const auto& rows = (*context->LiteralRows)[index];
-    return std::binary_search(rows.Begin(), rows.End(), row, comparer);
+    return std::binary_search(rows->Begin(), rows->End(), row, comparer);
 }
 
 size_t StringHash(

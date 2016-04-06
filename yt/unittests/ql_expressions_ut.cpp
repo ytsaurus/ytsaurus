@@ -681,7 +681,6 @@ TEST_P(TArithmeticTest, Evaluate)
 
     // NB: function contexts need to be destroyed before callback since it hosts destructors.
     TExecutionContext executionContext;
-    executionContext.LiteralRows = &variables.LiteralRows;
     executionContext.PermanentBuffer = permanentBuffer;
     executionContext.OutputBuffer = outputBuffer;
     executionContext.IntermediateBuffer = intermediateBuffer;
@@ -691,15 +690,7 @@ TEST_P(TArithmeticTest, Evaluate)
     executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
 
-    std::vector<TFunctionContext*> functionContexts;
-    for (auto& literalArgs : variables.AllLiteralArgs) {
-        executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
-    }
-    for (auto& functionContext : executionContext.FunctionContexts) {
-        functionContexts.push_back(&functionContext);
-    }
-
-    callback(&result, row, variables.ConstantsRowBuilder.GetRow(), &executionContext, &functionContexts[0]);
+    callback(variables.GetOpaqueData(), &result, row, &executionContext);
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -787,17 +778,7 @@ TEST_P(TCompareWithNullTest, Simple)
     executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
 
-    executionContext.LiteralRows = &variables.LiteralRows;
-
-    std::vector<TFunctionContext*> functionContexts;
-    for (auto& literalArgs : variables.AllLiteralArgs) {
-        executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
-    }
-    for (auto& functionContext : executionContext.FunctionContexts) {
-        functionContexts.push_back(&functionContext);
-    }
-
-    callback(&result, row, variables.ConstantsRowBuilder.GetRow(), &executionContext, &functionContexts[0]);
+    callback(variables.GetOpaqueData(), &result, row, &executionContext);
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(rowString) << std::endl
@@ -948,7 +929,6 @@ void EvaluateExpression(
     TQueryStatistics statistics;
     // NB: function contexts need to be destroyed before callback since it hosts destructors.
     TExecutionContext executionContext;
-    executionContext.LiteralRows = &variables.LiteralRows;
     executionContext.PermanentBuffer = buffer;
     executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
@@ -958,15 +938,7 @@ void EvaluateExpression(
     executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
 
-    std::vector<TFunctionContext*> functionContexts;
-    for (auto& literalArgs : variables.AllLiteralArgs) {
-        executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
-    }
-    for (auto& functionContext : executionContext.FunctionContexts) {
-        functionContexts.push_back(&functionContext);
-    }
-
-    callback(result, row, variables.ConstantsRowBuilder.GetRow(), &executionContext, &functionContexts[0]);
+    callback(variables.GetOpaqueData(), result, row, &executionContext);
 }
 
 class TEvaluateExpressionTest

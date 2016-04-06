@@ -128,7 +128,7 @@ TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const 
         Fold(static_cast<int>(EFoldingObjectType::LiteralExpr));
         Fold(static_cast<ui16>(TValue(literalExpr->Value).Type));
 
-        int index = Variables_->ConstantsRowBuilder.AddValue(TValue(literalExpr->Value));
+        int index = Variables_->AddObject<TOwningValue>(literalExpr->Value);
 
         return MakeCodegenLiteralExpr(index, literalExpr->Type);
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
@@ -152,8 +152,7 @@ TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const 
             literalArgs.push_back(argument->As<TLiteralExpression>() != nullptr);
         }
 
-        int index =  Variables_->AllLiteralArgs.size();
-        Variables_->AllLiteralArgs.push_back(std::move(literalArgs));
+        int index = Variables_->AddObject<TFunctionContext>(std::move(literalArgs));
 
         const auto& function = FunctionProfilers_->GetFunction(functionExpr->FunctionName);
 
@@ -191,8 +190,7 @@ TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const 
             codegenArgs.push_back(Profile(argument, schema));
         }
 
-        int index = Variables_->LiteralRows.size();
-        Variables_->LiteralRows.push_back(inOp->Values);
+        int index = Variables_->AddObject<TSharedRange<TRow>>(inOp->Values);
 
         return MakeCodegenInOpExpr(codegenArgs, index);
     }
@@ -256,19 +254,19 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
             }
         }
 
+        int index = Variables_->AddObject<TJoinEvaluator>(GetJoinEvaluator(
+            *joinClause,
+            query->WhereClause,
+            schema));
+
         codegenSource = MakeCodegenJoinOp(
-            Variables_->JoinEvaluators.size(),
+            index,
             selfKeys,
             schema,
             std::move(codegenSource),
             joinClause->KeyPrefix,
             joinClause->EquationByIndex,
             evaluatedColumns);
-
-        Variables_->JoinEvaluators.push_back(GetJoinEvaluator(
-            *joinClause,
-            query->WhereClause,
-            schema));
 
         schema = joinClause->JoinedTableSchema;
     }
@@ -448,10 +446,13 @@ TCGExpressionCallbackGenerator Profile(
 {
     TExpressionProfiler profiler(id, variables, functionProfilers);
 
+    auto codegenExpr = profiler.Profile(expr, schema);
+
     return [
-            codegenExpr = profiler.Profile(expr, schema)
+            MOVE(codegenExpr),
+            opaqueValuesCount = variables->GetOpaqueCount()
         ] () {
-            return CodegenExpression(std::move(codegenExpr));
+            return CodegenExpression(std::move(codegenExpr), opaqueValuesCount);
         };
 }
 
@@ -464,10 +465,13 @@ TCGQueryCallbackGenerator Profile(
 {
     TQueryProfiler profiler(id, variables, functionProfilers, aggregateProfilers);
 
+    auto codegenSource = profiler.Profile(query);
+
     return [
-            codegenSource = profiler.Profile(query)
+            MOVE(codegenSource),
+            opaqueValuesCount = variables->GetOpaqueCount()
         ] () {
-            return CodegenEvaluate(std::move(codegenSource));
+            return CodegenEvaluate(std::move(codegenSource), opaqueValuesCount);
         };
 }
 
