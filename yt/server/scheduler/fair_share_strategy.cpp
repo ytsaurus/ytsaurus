@@ -1634,6 +1634,8 @@ public:
         ISchedulerStrategyHost* host)
         : Config(config)
         , Host(host)
+        , NonPreemptiveProfilingCounters("/non_preemptive")
+        , PreemptiveProfilingCounters("/preemptive")
     {
         Host->SubscribeOperationRegistered(BIND(&TFairShareStrategy::OnOperationRegistered, this));
         Host->SubscribeOperationUnregistered(BIND(&TFairShareStrategy::OnOperationUnregistered, this));
@@ -1705,30 +1707,33 @@ public:
 
         // First-chance scheduling.
         LOG_DEBUG("Scheduling new jobs");
-        PROFILE_TIMING ("/non_preemptive/preschedule_job_time") {
+        PROFILE_AGGREGATED_TIMING(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
             RootElement->PrescheduleJob(context, false);
         }
 
         auto profileTimings = [&] (
-            const Stroka& prefix,
+            TProfilingCounters& counters,
             int scheduleJobCount,
             TDuration scheduleJobDurationWithoutControllers)
         {
-            Profiler.Enqueue(prefix + "/strategy_schedule_job_time",
+            Profiler.Update(
+                counters.StrategyScheduleJobTimeCounter,
                 scheduleJobDurationWithoutControllers.MicroSeconds());
 
-            Profiler.Enqueue(prefix + "/controller_schedule_job_time/total",
+            Profiler.Update(
+                counters.TotalControllerScheduleJobTimeCounter,
                 context.TotalScheduleJobDuration.MicroSeconds());
 
-            Profiler.Enqueue(prefix + "/controller_schedule_job_time/exec",
+            Profiler.Update(
+                counters.ExecControllerScheduleJobTimeCounter,
                 context.ExecScheduleJobDuration.MicroSeconds());
 
-            Profiler.Enqueue(prefix + "/schedule_job_count", scheduleJobCount);
+            Profiler.Update(counters.ScheduleJobCallCounter, scheduleJobCount);
 
             for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-                Profiler.Enqueue(prefix + "/controller_schedule_job_fail",
-                    context.FailedScheduleJob[reason],
-                    GetFailReasonProfilingTags(reason));
+                Profiler.Update(
+                    counters.ControllerScheduleJobFailCounter[reason],
+                    context.FailedScheduleJob[reason]);
             }
         };
 
@@ -1742,7 +1747,7 @@ public:
                 }
             }
             profileTimings(
-                "/non_preemptive",
+                NonPreemptiveProfilingCounters,
                 nonPreemptiveScheduleJobCount,
                 timer.GetElapsed() - context.TotalScheduleJobDuration);
         }
@@ -1782,7 +1787,7 @@ public:
         // Second-chance scheduling.
         // NB: Schedule at most one job.
         LOG_DEBUG("Scheduling new jobs with preemption");
-        PROFILE_TIMING ("/preemptive/preschedule_job_time") {
+        PROFILE_AGGREGATED_TIMING(PreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
             RootElement->PrescheduleJob(context, true);
         }
 
@@ -1802,7 +1807,7 @@ public:
                 }
             }
             profileTimings(
-                "/preemptive",
+                PreemptiveProfilingCounters,
                 preemptiveScheduleJobCount,
                 timer.GetElapsed() - context.TotalScheduleJobDuration);
         }
@@ -2053,6 +2058,35 @@ private:
 
     std::vector<int> FreeAttributesIndices;
     int MaxUsedAttributesIndex = GlobalAttributesIndex;
+
+    struct TProfilingCounters
+    {
+        TProfilingCounters(const Stroka& prefix)
+            : PrescheduleJobTimeCounter(prefix + "/preschedule_job_time")
+            , TotalControllerScheduleJobTimeCounter(prefix + "/controller_schedule_job_time/total")
+            , ExecControllerScheduleJobTimeCounter(prefix + "/controller_schedule_job_time/exec")
+            , StrategyScheduleJobTimeCounter(prefix + "/strategy_schedule_job_time")
+            , ScheduleJobCallCounter(prefix + "/schedule_job_count")
+        {
+            for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues())
+            {
+                ControllerScheduleJobFailCounter[reason] = NProfiling::TSimpleCounter(
+                    prefix + "/controller_schedule_job_fail",
+                    GetFailReasonProfilingTags(reason));
+            }
+        }
+
+        NProfiling::TAggregateCounter PrescheduleJobTimeCounter;
+        NProfiling::TAggregateCounter TotalControllerScheduleJobTimeCounter;
+        NProfiling::TAggregateCounter ExecControllerScheduleJobTimeCounter;
+        NProfiling::TAggregateCounter StrategyScheduleJobTimeCounter;
+        NProfiling::TAggregateCounter ScheduleJobCallCounter;
+
+        TEnumIndexedVector<NProfiling::TSimpleCounter, EScheduleJobFailReason> ControllerScheduleJobFailCounter;
+    };
+
+    TProfilingCounters NonPreemptiveProfilingCounters;
+    TProfilingCounters PreemptiveProfilingCounters;
 
     bool IsJobPreemptable(const TJobPtr& job)
     {
