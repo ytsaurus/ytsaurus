@@ -1,19 +1,24 @@
 from client import TransferManager
 
-from yt.common import get_value
+from yt.common import YtError
 
 import os
 
 _tm_client = None
 
-def init_client(url=None, token=None):
+def init_client(*args, **kwargs):
     global _tm_client
-    backend_url = get_value(url, os.environ.get("YT_TRANSFER_MANAGER_URL", None))
-    _tm_client = TransferManager(url=backend_url, token=token)
+
+    url = kwargs.pop("url", None)
+    if url is None:
+        url = os.environ.get("YT_TRANSFER_MANAGER_URL", None)
+    kwargs["url"] = url
+
+    _tm_client = TransferManager(*args, **kwargs)
 
 def _get_client():
     if _tm_client is None:
-        init_client()
+        raise YtError("Client is not initialized")
     return _tm_client
 
 def add_task(*args, **kwargs):

@@ -136,6 +136,11 @@ def add_get_config_subparser(subparsers):
 def main():
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument("--url", help="backend url")
+    options_parser.add_argument("--disable-http-retries", action="store_true", help="toogle http retries off")
+    options_parser.add_argument("--http-retry-count", type=int, default=6,
+                                help="number of http retries for each request (default: 6)")
+    options_parser.add_argument("--http-request-timeout", type=int, default=10000,
+                                help="http request timeout in ms (default: 10000)")
 
     parser = argparse.ArgumentParser(parents=[options_parser],
                                      formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -155,7 +160,13 @@ def main():
     options, remaining_args = options_parser.parse_known_args()
     args = dict(vars(parser.parse_args(remaining_args)))
 
-    init_client(options.url, args.pop("token", None))
+    enable_retries = not options.disable_http_retries
+    init_client(
+        url=options.url,
+        token=args.pop("token", None),
+        http_request_timeout=options.http_request_timeout,
+        enable_retries=enable_retries,
+        retry_count=options.http_retry_count)
 
     for key in dict(vars(options)):
         args.pop(key)
