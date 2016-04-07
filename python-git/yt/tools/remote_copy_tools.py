@@ -275,6 +275,7 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
                   compression_codec=None, erasure_codec=None):
     copy_spec_template = get_value(copy_spec_template, {})
 
+    src = yt.TablePath(src, client=source_client)
     compressed_data_size = source_client.get_attribute(src, "compressed_data_size")
     chunk_count = source_client.get_attribute(src, "chunk_count")
 
