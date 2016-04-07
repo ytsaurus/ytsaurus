@@ -55,6 +55,23 @@ class TDynamicAttributesMap;
 
 ////////////////////////////////////////////////////////////////////
 
+NProfiling::TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
+{
+    static std::unordered_map<Stroka, NProfiling::TTagId> tagId;
+
+    auto reasonAsString = ToString(reason);
+    auto it = tagId.find(reasonAsString);
+    if (it == tagId.end()) {
+        it = tagId.emplace(
+            reasonAsString,
+            NProfiling::TProfileManager::Get()->RegisterTag("reason", reasonAsString)
+        ).first;
+    }
+    return {it->second};
+};
+
+////////////////////////////////////////////////////////////////////
+
 struct TSchedulableAttributes
 {
     EResourceType DominantResource = EResourceType::Cpu;
@@ -1688,7 +1705,7 @@ public:
 
         // First-chance scheduling.
         LOG_DEBUG("Scheduling new jobs");
-        PROFILE_TIMING ("/non_preemptive_preschedule_job_time") {
+        PROFILE_TIMING ("/non_preemptive/preschedule_job_time") {
             RootElement->PrescheduleJob(context, false);
         }
 
@@ -1709,12 +1726,9 @@ public:
             Profiler.Enqueue(prefix + "/schedule_job_count", scheduleJobCount);
 
             for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-                NProfiling::TTagIdList tagIds{
-                    NProfiling::TProfileManager::Get()->RegisterTag("reason", ToString(reason))
-                };
                 Profiler.Enqueue(prefix + "/controller_schedule_job_fail",
                     context.FailedScheduleJob[reason],
-                    tagIds);
+                    GetFailReasonProfilingTags(reason));
             }
         };
 
@@ -1768,7 +1782,7 @@ public:
         // Second-chance scheduling.
         // NB: Schedule at most one job.
         LOG_DEBUG("Scheduling new jobs with preemption");
-        PROFILE_TIMING ("/preemptive_preschedule_job_time") {
+        PROFILE_TIMING ("/preemptive/preschedule_job_time") {
             RootElement->PrescheduleJob(context, true);
         }
 
