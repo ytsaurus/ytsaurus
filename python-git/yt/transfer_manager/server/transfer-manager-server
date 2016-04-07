@@ -57,7 +57,7 @@ import traceback
 import subprocess
 import pwd
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import defaultdict, deque
 from subprocess32 import TimeoutExpired
 from threading import RLock, Thread, current_thread
@@ -362,8 +362,8 @@ class Application(object):
         self._requests_in_progress = set()
         self._requests_in_progress_mutex = RLock()
 
-        # Add rules
         self._add_rule("/", 'main', methods=["GET"], depends_on_lock=False)
+        # User rules
         self._add_rule("/tasks/", 'get_tasks', methods=["GET"], is_heavy=True)
         self._add_rule("/tasks/", 'add_task', methods=["POST"], is_mutating=True, is_heavy=True)
         self._add_rule("/tasks/", 'delete_tasks', methods=["DELETE"], is_mutating=True, is_heavy=True)
@@ -371,7 +371,9 @@ class Application(object):
         self._add_rule("/tasks/<id>/", 'delete_task', methods=["DELETE"], is_mutating=True, is_heavy=True)
         self._add_rule("/tasks/<id>/abort/", 'abort_task', methods=["POST"], is_mutating=True, is_heavy=True)
         self._add_rule("/tasks/<id>/restart/", 'restart_task', methods=["POST"], is_mutating=True, is_heavy=True)
-        self._add_rule("/tasks/<id>/ping/", 'ping_task', methods=["POST"], is_heavy=True)
+        self._add_rule("/tasks/<id>/ping/", 'ping_task', methods=["POST"])
+        self._add_rule("/tasks/<id>/ping_and_get/", 'ping_and_get_task', methods=["POST"])
+        # Service rules
         self._add_rule("/config/", 'config', methods=["GET"])
         self._add_rule("/ping/", 'ping', methods=["GET"])
         self._add_rule("/match/", 'match', methods=["POST"])
@@ -1644,6 +1646,10 @@ class Application(object):
         self._renew_lease(id)
 
         return jsonify(**task_description)
+
+    def ping_and_get_task(self, id):
+        self.ping_task(id)
+        return self.get_task(id)
 
     def ping_task(self, id):
         if id not in self._tasks:

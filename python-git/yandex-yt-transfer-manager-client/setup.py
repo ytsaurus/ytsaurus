@@ -24,6 +24,10 @@ def main():
     scripts, data_files = prepare_files(["yt/transfer_manager/client/transfer-manager",
                                          "yt/transfer_manager/client/transfer-manager-check"])
 
+    version = get_version()
+    with open("yt/transfer_manager/client/version.py", "w") as v_out:
+        v_out.write("VERSION='{0}'".format(version))
+
     setup(
         name = "yandex-yt-transfer-manager-client",
         version = get_version(),
