@@ -274,7 +274,7 @@ void TBlockFetcher::MarkFailedBlocks(const std::vector<int>& windowIndexes, cons
 
 void TBlockFetcher::ReleaseBlock(int windowIndex)
 {
-    Window_[windowIndex].AsyncSemaphoreGuard.release();
+    Window_[windowIndex].AsyncSemaphoreGuard.reset();
     Window_[windowIndex].Block.Reset();
     LOG_DEBUG("Releasing block (WindowIndex: %v, WindowSize: %v)", 
         windowIndex, 
