@@ -67,9 +67,9 @@ class TestTablets(YTEnvSetup):
         return [tablet["pivot_key"] for tablet in tablets]
 
     def test_sticky_tablet_transactions(self):
-        self._sync_create_cells(1, 1)
+        self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
-        self._sync_mount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
 
         def _keys(i, j):
             return [{"key": x} for x in range(i, j)]
