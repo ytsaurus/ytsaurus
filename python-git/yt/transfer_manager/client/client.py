@@ -20,6 +20,13 @@ TM_HEADERS = {
     "Content-Type": "application/json"
 }
 
+def get_version():
+    try:
+        from version import VERSION
+        return VERSION
+    except:
+        return "unknown"
+
 class TransferManagerUnavailableError(YtError):
     pass
 
@@ -49,9 +56,9 @@ def _raise_for_status(response):
     raise YtError(**response_json)
 
 class Poller(object):
-    def __init__(self, poll_period, running_tasks_limit, get_task_info_func):
+    def __init__(self, poll_period, running_tasks_limit, ping_task_and_get_func):
         self.poll_period = poll_period
-        self.get_task_info_func = get_task_info_func
+        self.ping_task_and_get_func = ping_task_and_get_func
 
         self._thread = Thread(target=self._poll_tasks)
         self._thread.daemon = True
@@ -90,7 +97,7 @@ class Poller(object):
             tasks_to_remove = []
 
             for task in running_tasks:
-                state = self.get_task_info_func(task)["state"]
+                state = self.ping_task_and_get_func(task)["state"]
                 if state == "completed":
                     logger.info("Task %s completed", task)
                 elif state == "skipped":
@@ -171,6 +178,10 @@ class TransferManager(object):
     def get_task_info(self, task_id):
         return self._make_request("GET", "{0}/tasks/{1}/".format(self.backend_url, task_id)).json()
 
+    def ping_task_and_get(self, task_id):
+        url = "{0}/tasks/{1}/ping_and_get/".format(self.backend_url, task_id)
+        return self._make_request("POST", url).json()
+
     def get_tasks(self, user=None, fields=None):
         params = {}
         if user is not None:
@@ -200,6 +211,8 @@ class TransferManager(object):
     def _make_request(self, method, url, is_mutating=False, **kwargs):
         headers = kwargs.get("headers", {})
         update(headers, TM_HEADERS)
+
+        headers["User-Agent"] = "Transfer Manager client " + get_version()
 
         if method == "POST":
             require(self.token is not None, lambda: YtError("YT token is not specified"))
@@ -274,7 +287,7 @@ class TransferManager(object):
         tasks = []
 
         if sync:
-            poller = Poller(poll_period, running_tasks_limit, self.get_task_info)
+            poller = Poller(poll_period, running_tasks_limit, self.ping_task_and_get)
 
         for source_table, destination_table in src_dst_pairs:
             if sync:
