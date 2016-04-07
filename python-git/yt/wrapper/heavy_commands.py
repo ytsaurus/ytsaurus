@@ -3,7 +3,7 @@
 import yt.logger as logger
 import config
 from config import get_option, get_config, get_total_request_timeout, get_single_request_timeout, get_request_retry_count
-from common import get_backoff, chunk_iter_blobs
+from common import get_backoff, chunk_iter_blobs, YtError
 from errors import YtResponseError, YtRetriableError
 from table import to_table, to_name
 from transaction import Transaction
@@ -26,6 +26,9 @@ class FakeTransaction(object):
 
     def __nonzero__(self):
         return False
+
+    def is_running(self):
+        return True
 
     def abort(self):
         pass
@@ -123,7 +126,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
 
         if get_config(client)["read_retries"]["create_transaction_and_take_snapshot_lock"]:
             title = "Python wrapper: read {0}".format(to_name(path, client=client))
-            tx = Transaction(attributes={"title": title}, client=client)
+            tx = Transaction(attributes={"title": title}, interrupt_on_failed=False, client=client)
         else:
             tx = FakeTransaction()
 
@@ -132,6 +135,8 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 for attempt in xrange(retry_count):
                     try:
                         for elem in iter():
+                            if not tx.is_running():
+                                raise YtError("Transaction pinger failed, read interrupted")
                             yield elem
                             # NB: We should possible raise error only after row yielded.
                             if get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
@@ -155,24 +160,34 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 self.response = None
                 self.iterator = iter_with_retries(self.execute_read)
 
-            def execute_read(self):
-                params = self.retriable_state.prepare_params_for_retry()
-                # XXX(ignat): special hack to correctly process zero legnth file reads.
-                if params.get("length") == 0:
-                    return
-                make_request = lambda: _make_transactional_request(
-                    command_name,
-                    params,
-                    return_content=False,
-                    use_heavy_proxy=True,
-                    client=client)
-                if tx:
-                    with Transaction(transaction_id=tx.transaction_id, client=client):
+                self.start_response = self.get_response()
+                process_response_action(self.start_response)
+
+            def get_response(self):
+                if self.response is None:
+                    params = self.retriable_state.prepare_params_for_retry()
+                    make_request = lambda: _make_transactional_request(
+                        command_name,
+                        params,
+                        return_content=False,
+                        use_heavy_proxy=True,
+                        client=client)
+
+                    if tx:
+                        with Transaction(transaction_id=tx.transaction_id, client=client):
+                            self.response = make_request()
+                    else:
                         self.response = make_request()
-                else:
-                    self.response = make_request()
-                for elem in self.retriable_state.iterate(self.response):
-                    yield elem
+
+                self.last_response = self.response
+                return self.response
+
+            def execute_read(self):
+                try:
+                    for elem in self.retriable_state.iterate(self.get_response()):
+                        yield elem
+                finally:
+                    self.response = None
 
             def next(self):
                 return self.iterator.next()
@@ -181,8 +196,8 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 return self
 
             def close(self):
-                if self.response is not None:
-                    self.response.close()
+                if self.last_response is not None:
+                    self.last_response.close()
                 tx.abort()
 
         try:
@@ -191,11 +206,11 @@ def make_read_request(command_name, path, params, process_response_action, retri
                     lock(path, mode="snapshot", client=client)
             iterator = Iterator()
             return ResponseStream(
-                get_response=lambda: iterator.response,
+                get_response=lambda: iterator.last_response,
                 iter_content=iterator,
-                close=iterator.close,
-                process_error=lambda response: iterator.response._process_error(iterator.response._get_response()),
-                get_response_parameters=lambda: None)
+                close=lambda: iterator.close(),
+                process_error=lambda response: iterator.last_response._process_error(iterator.last_response._get_response()),
+                get_response_parameters=lambda: iterator.start_response.response_parameters)
         except:
             tx.abort()
             raise

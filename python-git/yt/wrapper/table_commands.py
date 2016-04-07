@@ -10,9 +10,6 @@ Python wrapper has some improvements over bare YT operations:
 
 * delete files after
 
-**Heavy commands** have deprecated parameter `response_type`:  one of \
-"iter_lines" (default), "iter_content", "raw", "string". It specifies response type.
-
 .. _operation_parameters:
 
 Common operations parameters
@@ -23,9 +20,6 @@ Common operations parameters
 
 * **job_io** : (dict) spec for job io of all stages of operation \
 <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#write>`_.
-
-* **strategy** : (`yt.wrapper.operation_commands.WaitStrategy`) (Deprecated!) \
-strategy of waiting result, `yt.wrapper.get_config(client).DEFAULT_STRATEGY` by default
 
 * **replication_factor** : (Deprecated!) (integer) number of output data replicas
 
@@ -61,7 +55,7 @@ from cypress_commands import exists, remove, remove_with_empty_dirs, get_attribu
                              move, mkdir, find_free_subpath, create, get, get_type, \
                              _make_formatted_transactional_request, has_attribute, join_paths
 from file_commands import smart_upload_file
-from operation_commands import Operation, WaitStrategy
+from operation_commands import Operation
 from transaction_commands import _make_transactional_request, abort_transaction
 from transaction import Transaction, null_transaction_id
 from format import create_format, YsonFormat, YamrFormat
@@ -378,7 +372,7 @@ def _add_job_io_spec(job_types, job_io, table_writer, spec):
             spec = update({job_type: job_io}, spec)
     return spec
 
-def _make_operation_request(command_name, spec, strategy, sync,
+def _make_operation_request(command_name, spec, sync,
                             finalizer=None, verbose=False, client=None):
     def _manage_operation(finalizer):
         operation_id = run_with_retries(
@@ -389,14 +383,10 @@ def _make_operation_request(command_name, spec, strategy, sync,
             exceptions=(YtConcurrentOperationsLimitExceeded,))
 
 
-        if strategy is not None:
-            get_value(strategy, WaitStrategy()).process_operation(command_name, operation_id,
-                                                                           finalizer, client=client)
-        else:
-            operation = Operation(command_name, operation_id, finalizer, client=client)
-            if sync:
-                operation.wait()
-            return operation
+        operation = Operation(command_name, operation_id, finalizer, client=client)
+        if sync:
+            operation.wait()
+        return operation
 
 
     if get_config(client)["detached"]:
@@ -552,13 +542,11 @@ def write_table(table, input_stream, format=None, table_writer=None,
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and is_empty(table, client=client):
         _remove_tables([table], client=client)
 
-def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None, response_type=None, raw=None, response_parameters=None, read_transaction=None, client=None):
+def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None, raw=None, response_parameters=None, read_transaction=None, client=None):
     """Read rows from table and parse (optionally).
 
     :param table: string or :py:class:`yt.wrapper.table.TablePath`
     :param table_reader: (dict) spec of "read" operation
-    :param response_type: output type, line generator by default. ["iter_lines", "iter_content", \
-                          "raw", "string"]
     :param raw: (bool) don't parse response to rows
     :return: if `raw` is specified -- string or :class:`yt.wrapper.driver.ResponseStream`,\
              else -- rows generator (python dict or :class:`yt.wrapper.yamr_record.Record`)
@@ -569,8 +557,6 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
-    if response_type is not None:
-        logger.info("Option response_type is deprecated and ignored")
 
     table = to_table(table, client=client)
     format = _prepare_format(format, raw, client)
@@ -1083,7 +1069,7 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
 # Operations.
 
 @forbidden_inside_job
-def run_erase(table, spec=None, strategy=None, sync=True, client=None):
+def run_erase(table, spec=None, sync=True, client=None):
     """Erase table or part of it.
 
     Erase differs from remove command.
@@ -1091,7 +1077,6 @@ def run_erase(table, spec=None, strategy=None, sync=True, client=None):
 
     :param table: (string or `TablePath`)
     :param spec: (dict)
-    :param strategy: standard operation parameter
 
     .. seealso::  :ref:`operation_parameters`.
     """
@@ -1100,11 +1085,11 @@ def run_erase(table, spec=None, strategy=None, sync=True, client=None):
         return
     spec = update({"table_path": table.to_yson_type()}, get_value(spec, {}))
     spec = _configure_spec(spec, client)
-    return _make_operation_request("erase", spec, strategy, sync, client=client)
+    return _make_operation_request("erase", spec, sync, client=client)
 
 @forbidden_inside_job
 def run_merge(source_table, destination_table, mode=None,
-              strategy=None, sync=True, job_io=None, table_writer=None,
+              sync=True, job_io=None, table_writer=None,
               replication_factor=None, compression_codec=None,
               job_count=None, spec=None, client=None):
     """Merge source tables to destination table.
@@ -1115,7 +1100,6 @@ def run_merge(source_table, destination_table, mode=None,
                  of output tables, mode `ordered` is about chunk magic, not for ordinary users.
                  In 'auto' mode system chooses proper mode depending on the table sortedness.
     :param job_count:  (integer) recommendation how many jobs should run.
-    :param strategy: standard operation parameter
     :param job_io: job io specification
     :param table_writer: standard operation parameter
     :param replication_factor: (int) number of destination table replicas.
@@ -1146,11 +1130,11 @@ def run_merge(source_table, destination_table, mode=None,
         lambda _: get_value(_, {})
     )(spec)
 
-    return _make_operation_request("merge", spec, strategy, sync, finalizer=None, client=client)
+    return _make_operation_request("merge", spec, sync, finalizer=None, client=client)
 
 @forbidden_inside_job
 def run_sort(source_table, destination_table=None, sort_by=None,
-             strategy=None, sync=True, job_io=None, table_writer=None, replication_factor=None,
+             sync=True, job_io=None, table_writer=None, replication_factor=None,
              compression_codec=None, spec=None, client=None):
     """Sort source tables to destination table.
 
@@ -1181,7 +1165,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     if get_config(client)["run_merge_instead_of_sort_if_input_tables_are_sorted"] \
             and all(sort_by == get_sorted_by(table.name, [], client=client) for table in source_table):
         run_merge(source_table, destination_table, "sorted",
-                  strategy=strategy, job_io=job_io, table_writer=table_writer, sync=sync, spec=spec, client=client)
+                  job_io=job_io, table_writer=table_writer, sync=sync, spec=spec, client=client)
         return
 
     spec = compose(
@@ -1192,7 +1176,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         lambda _: get_value(_, {})
     )(spec)
 
-    return _make_operation_request("sort", spec, strategy, sync, finalizer=None, client=client)
+    return _make_operation_request("sort", spec, sync, finalizer=None, client=client)
 
 class Finalizer(object):
     """Entity for operation finalizing: checking size of result chunks, deleting of \
@@ -1265,7 +1249,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    format=None,
                    map_input_format=None, map_output_format=None,
                    reduce_input_format=None, reduce_output_format=None,
-                   strategy=None, sync=True, job_io=None, table_writer=None, spec=None,
+                   sync=True, job_io=None, table_writer=None, spec=None,
                    replication_factor=None, compression_codec=None,
                    map_files=None, map_file_paths=None,
                    map_local_files=None, map_yt_files=None,
@@ -1291,7 +1275,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     :param map_output_format: (string or descendant of `yt.wrapper.format.Format`)
     :param reduce_input_format: (string or descendant of `yt.wrapper.format.Format`)
     :param reduce_output_format: (string or descendant of `yt.wrapper.format.Format`)
-    :param strategy:  standard operation parameter
     :param job_io: job io specification
     :param table_writer: (dict) standard operation parameter
     :param spec: (dict) standard operation parameter
@@ -1367,7 +1350,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         lambda _: get_value(_, {})
     )(spec)
 
-    return _make_operation_request("map_reduce", spec, strategy, sync,
+    return _make_operation_request("map_reduce", spec, sync,
                                    finalizer=Finalizer(local_files_to_remove, destination_table, client=client),
                                    client=client)
 
@@ -1376,7 +1359,7 @@ def _run_operation(binary, source_table, destination_table,
                   files=None, file_paths=None,
                   local_files=None, yt_files=None,
                   format=None, input_format=None, output_format=None,
-                  strategy=None, sync=True,
+                  sync=True,
                   job_io=None,
                   table_writer=None,
                   replication_factor=None,
@@ -1457,7 +1440,6 @@ def _run_operation(binary, source_table, destination_table,
                     compression_codec=compression_codec,
                     reducer_memory_limit=memory_limit,
                     sync=sync,
-                    strategy=strategy,
                     spec=spec,
                     client=client)
                 return
@@ -1505,7 +1487,7 @@ def _run_operation(binary, source_table, destination_table,
             lambda _: get_value(_, {})
         )(spec)
 
-        return _make_operation_request(op_name, spec, strategy, sync,
+        return _make_operation_request(op_name, spec, sync,
                                        finalizer=Finalizer(local_files_to_remove, destination_table, client=client),
                                        client=client)
     finally:
@@ -1543,7 +1525,7 @@ def run_join_reduce(binary, source_table, destination_table, **kwargs):
 
 def run_remote_copy(source_table, destination_table,
                     cluster_name=None, network_name=None, cluster_connection=None, copy_attributes=None,
-                    spec=None, strategy=None, sync=True, client=None):
+                    spec=None, sync=True, client=None):
     """Copy source table from remote cluster to destination table on current cluster.
 
     :param source_table: (list of string or `TablePath`)
@@ -1552,7 +1534,6 @@ def run_remote_copy(source_table, destination_table,
     :param network_name: (string)
     :param spec: (dict)
     :param copy_attributes: (bool) copy attributes source_table to destination_table
-    :param strategy: standard operation parameter
 
     .. note:: For atomicity you should specify just one item in `source_table` \
     in case attributes copying.
@@ -1578,4 +1559,4 @@ def run_remote_copy(source_table, destination_table,
         lambda _: get_value(spec, {})
     )(spec)
 
-    return _make_operation_request("remote_copy", spec, strategy, sync, client=client)
+    return _make_operation_request("remote_copy", spec, sync, client=client)

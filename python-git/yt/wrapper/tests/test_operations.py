@@ -412,7 +412,6 @@ class TestOperations(object):
         yt.config["tabular_data_format"] = yt.format.YamrFormat(has_subkey=True)
 
         # Enable progress printing in this test
-        yt.config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=True)
         old_level = logger.LOGGER.level
         logger.LOGGER.setLevel(logging.INFO)
         try:
@@ -422,7 +421,6 @@ class TestOperations(object):
                    ["k=0\ts=a\tv=A\n", "k=1\ts=b\tv=B\n"]
         finally:
             yt.config["tabular_data_format"] = yt.format.DsvFormat()
-            yt.config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
             logger.LOGGER.setLevel(old_level)
 
         yt.config["tabular_data_format"] = None
@@ -783,29 +781,4 @@ if __name__ == "__main__":
                 time.sleep(0.2)
 
             assert "Did you forget to surround" in yt.read_file(stderr_path).read()
-
-    # TODO(ignat): replace timeout with scheduler-side option
-    #def test_wait_strategy_timeout(self):
-    #    records = ["x=1\n", "y=2\n", "z=3\n"]
-    #    pause = 3.0
-    #    sleeep = "sleep {0}; cat > /dev/null".format(pause)
-    #    desired_timeout = 1.0
-
-    #    table = TEST_DIR + "/table"
-    #    yt.write_table(table, records)
-
-    #    # skip long loading time
-    #    yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(), job_count=1)
-
-    #    start = time.time()
-    #    yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(), job_count=1)
-    #    usual_time = time.time() - start
-    #    loading_time = usual_time - pause
-
-    #    start = time.time()
-    #    with pytest.raises(yt.YtTimeoutError):
-    #        yt.run_map(sleeep, table, "//tmp/1",
-    #                   strategy=yt.WaitStrategy(timeout=desired_timeout), job_count=1)
-    #    timeout_time = time.time() - start
-    #    self.assertAlmostEqual(timeout_time, desired_timeout, delta=loading_time)
 

@@ -49,7 +49,7 @@ class TestTableCommands(object):
         check(["y=1\n"], yt.read_table(table))
 
         response_parameters = {}
-        yt.read_table(table, response_parameters=response_parameters)
+        list(yt.read_table(table, response_parameters=response_parameters))
         assert {"start_row_index": 0, "approximate_row_count": 1} == response_parameters
 
         yt.write_table(table, [{"y": "1"}], raw=False)
@@ -331,7 +331,8 @@ class TestTableCommands(object):
         assert yt.row_count(dst_table_a) == len_a
         assert yt.row_count(dst_table_ab) == len_a + len_b
         for table in (dst_table_a, dst_table_b, dst_table_ab):
-            row = yt.read_table(table, raw=False).next()
+            rsp = yt.read_table(table, raw=False)
+            row = rsp.next()
             for field in ("@table_index", "TableIndex", "_table_index_"):
                 assert field not in row
 

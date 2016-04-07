@@ -13,7 +13,7 @@ def hide_token(headers):
     return headers
 
 class YtOperationFailedError(YtError):
-    """Operation failed during WaitStrategy.process_operation."""
+    """Operation failed during waiting completion."""
     def __init__(self, id, state, error, stderrs, url):
         message = "Operation {0} {1}".format(id, state)
         attributes = {
@@ -29,7 +29,7 @@ class YtOperationFailedError(YtError):
         super(YtOperationFailedError, self).__init__(message, attributes=attributes, inner_errors=inner_errors)
 
 class YtTimeoutError(YtError):
-    """WaitStrategy timeout expired."""
+    """Operation waiting timeout expired."""
     pass
 
 class YtResponseError(yt.common.YtResponseError):

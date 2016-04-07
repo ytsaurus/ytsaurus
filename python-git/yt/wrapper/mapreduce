@@ -773,7 +773,8 @@ Examples:
     if args.track is not None:
         config["detached"] = True
         config["operation_tracker"]["abort_on_sigint"] = False
-        yt.WaitStrategy().process_operation("unknown", args.track)
+        operation = yt.Operation("unknown", args.track)
+        operation.wait()
 
 if __name__ == "__main__":
     run_main(main)
