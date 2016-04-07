@@ -125,8 +125,9 @@ TFuture<TSharedRef> TBlockFetcher::FetchBlock(int blockIndex)
 
     YCHECK(windowSlot.RemainingFetches > 0);
     if (!windowSlot.FetchStarted.test_and_set()) {
-        LOG_DEBUG("Fetching block out of turn (Block: %v)",
-            blockIndex);
+        LOG_DEBUG("Fetching block out of turn (BlockIndex: %v, WindowIndex: %v)",
+            blockIndex,
+            windowIndex);
         
         windowSlot.AsyncSemaphoreGuard = std::make_unique<TAsyncSemaphoreGuard>(
             TAsyncSemaphoreGuard::Acquire(
@@ -175,8 +176,9 @@ void TBlockFetcher::DecompressBlocks(
         int blockIndex = blockInfo.Index;
         TBlockId blockId(ChunkReader_->GetChunkId(), blockInfo.Index);
 
-        LOG_DEBUG("Started decompressing block (Block: %v)",
-            blockIndex);
+        LOG_DEBUG("Started decompressing block (BlockIndex: %v, WindowIndex: %v)",
+            blockIndex, 
+            windowIndex);
 
         auto uncompressedBlock = Codec_->Decompress(compressedBlock);
         YCHECK(uncompressedBlock.Size() == blockInfo.UncompressedDataSize);
@@ -193,8 +195,9 @@ void TBlockFetcher::DecompressBlocks(
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlock.Size();
 
-        LOG_DEBUG("Finished decompressing block (Block: %v, CompressedSize: %v, UncompressedSize: %v)",
+        LOG_DEBUG("Finished decompressing block (BlockIndex: %v, WindowIndex: %v, CompressedSize: %v, UncompressedSize: %v)",
             blockIndex,
+            windowIndex,
             compressedBlock.Size(),
             uncompressedBlock.Size());
 
@@ -216,6 +219,9 @@ void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
         if (windowIndexes.empty() || uncompressedSize + blockInfo.UncompressedDataSize < availableSlots) {
             if (Window_[FirstUnfetchedWindowIndex_].FetchStarted.test_and_set()) {
                 // This block has been already requested out of order.
+                LOG_DEBUG("Skipping out of turn block (BlockIndex: %v, WindowIndex: %v)",
+                    blockIndex,
+                    FirstUnfetchedWindowIndex_);
                 ++FirstUnfetchedWindowIndex_;
                 continue;
             }
@@ -251,8 +257,7 @@ void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
 
     if (TotalRemainingSize_ > 0) {
         AsyncSemaphore_->AsyncAcquire(
-            BIND(&TBlockFetcher::FetchNextGroup,
-                MakeWeak(this)),
+            BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this)),
             TDispatcher::Get()->GetReaderInvoker(),
             std::min(static_cast<i64>(TotalRemainingSize_), Config_->GroupSize));
     }
@@ -271,6 +276,9 @@ void TBlockFetcher::ReleaseBlock(int windowIndex)
 {
     Window_[windowIndex].AsyncSemaphoreGuard.release();
     Window_[windowIndex].Block.Reset();
+    LOG_DEBUG("Releasing block (WindowIndex: %v, WindowSize: %v)", 
+        windowIndex, 
+        AsyncSemaphore_->GetFree());
 }
 
 void TBlockFetcher::RequestBlocks(
