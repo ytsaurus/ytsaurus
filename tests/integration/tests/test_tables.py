@@ -831,13 +831,3 @@ class TestTablesMulticell(TestTables):
         concatenate(["//tmp/t2", "//tmp/t1"], "<append=true>//tmp/union")
         assert read_table("//tmp/union") == [{"key": "y"}, {"key": "x"}]
         assert get("//tmp/union/@sorted", "false")
-
-    def test_setting_key_columns_via_schema(self):
-        create("table", "//tmp/t1")
-        set("//tmp/t1/@schema", [{"name": "a", "type": "int64", "sort_order": "ascending"}, {"name": "b", "type": "string"}])
-        assert get("//tmp/t1/@key_columns") == ["a"]
-
-        create("table", "//tmp/t2")
-        set("//tmp/t2/@key_columns", ["a", "b"])
-        set("//tmp/t2/@schema", [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}])
-        assert get("//tmp/t2/@key_columns") == ["a", "b"]
