@@ -634,20 +634,21 @@ protected:
 
     TFuture<void> ReadyEvent_ = VoidFuture;
 
-    std::vector<TFuture<TSharedRef>> RequestedBlocks_;
+    std::vector<TFuture<TSharedRef>> PendingBlocks_;
 
     void ResetExhaustedColumns()
     {
-        for (int i = 0; i < RequestedBlocks_.size(); ++i) {
-            if (RequestedBlocks_[i]) {
-                YCHECK(RequestedBlocks_[i].IsSet());
+        for (int i = 0; i < PendingBlocks_.size(); ++i) {
+            if (PendingBlocks_[i]) {
+                YCHECK(PendingBlocks_[i].IsSet());
+                YCHECK(PendingBlocks_[i].Get().IsOK());
                 Columns_[i].ColumnReader->ResetBlock(
-                    RequestedBlocks_[i].Get().Value(),
+                    PendingBlocks_[i].Get().Value(),
                     Columns_[i].PendingBlockIndex_);
             }
         }
 
-        RequestedBlocks_.clear();
+        PendingBlocks_.clear();
     }
 
     i64 GetLowerRowIndex(TKey key) const
@@ -1022,7 +1023,7 @@ public:
             ResetExhaustedColumns();
 
             // Define how many to read.
-            i64 rowLimit = std::min(HardUpperRowIndex_ - RowIndex_, static_cast<i64>(rows->capacity()));
+            i64 rowLimit = std::min(HardUpperRowIndex_ - RowIndex_, static_cast<i64>(rows->capacity() - rows->size()));
             for (const auto& column : Columns_) {
                 rowLimit = std::min(column.ColumnReader->GetReadyUpperRowIndex() - RowIndex_, rowLimit);
             }
@@ -1190,47 +1191,43 @@ private:
 
     void RequestFirstBlocks()
     {
-        std::vector<TFuture<void>> unfetched;
-        RequestedBlocks_.clear();
+        std::vector<TFuture<void>> blockFetchResult;
+        PendingBlocks_.clear();
         for (auto& column : Columns_) {
-            RequestedBlocks_.push_back(BlockFetcher_->FetchBlock(column.BlockIndexSequence.front()));
+            PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.BlockIndexSequence.front()));
             column.PendingBlockIndex_ = column.BlockIndexSequence.front();
-            if (!RequestedBlocks_.back().IsSet()) {
-                unfetched.push_back(RequestedBlocks_.back().template As<void>());
-            }
+            blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
         }
 
-        if (!unfetched.empty()) {
-            ReadyEvent_ = Combine(unfetched);
+        if (!blockFetchResult.empty()) {
+            ReadyEvent_ = Combine(blockFetchResult);
         }
     }
 
     bool TryFetchNextRow()
     {
-        std::vector<TFuture<void>> unfetched;
-        YASSERT(RequestedBlocks_.empty());
+        std::vector<TFuture<void>> blockFetchResult;
+        YCHECK(PendingBlocks_.empty());
         for (int i = 0; i < Columns_.size(); ++i) {
             auto& column = Columns_[i];
             if (column.ColumnReader->GetCurrentRowIndex() == column.ColumnReader->GetBlockUpperRowIndex()) {
-                while (RequestedBlocks_.size() < i) {
-                    RequestedBlocks_.emplace_back();
+                while (PendingBlocks_.size() < i) {
+                    PendingBlocks_.emplace_back();
                 }
 
                 auto nextBlockIndex = column.ColumnReader->GetNextBlockIndex();
                 YCHECK(nextBlockIndex);
                 column.PendingBlockIndex_ = *nextBlockIndex;
-                RequestedBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
-                if (!RequestedBlocks_.back().IsSet()) {
-                    unfetched.push_back(RequestedBlocks_.back().template As<void>());
-                }
+                PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
+                blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
             }
         }
 
-        if (!unfetched.empty()) {
-            ReadyEvent_ = Combine(unfetched);
+        if (!blockFetchResult.empty()) {
+            ReadyEvent_ = Combine(blockFetchResult);
         }
 
-        return RequestedBlocks_.empty();
+        return PendingBlocks_.empty();
     }
 };
 
@@ -1389,28 +1386,28 @@ private:
             return true;
         }
 
-        std::vector<TFuture<void>> unfetched;
-        RequestedBlocks_.clear();
+        std::vector<TFuture<void>> blockFetchResult;
+        PendingBlocks_.clear();
         for (int i = 0; i < Columns_.size(); ++i) {
             auto& column = Columns_[i];
             if (column.ColumnReader->GetCurrentBlockIndex() != column.BlockIndexSequence[NextKeyIndex_]) {
-                while (RequestedBlocks_.size() < i) {
-                    RequestedBlocks_.emplace_back();
+                while (PendingBlocks_.size() < i) {
+                    PendingBlocks_.emplace_back();
                 }
 
                 column.PendingBlockIndex_ = column.BlockIndexSequence[NextKeyIndex_];
-                RequestedBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
-                if (!RequestedBlocks_.back().IsSet()) {
-                    unfetched.push_back(RequestedBlocks_.back().As<void>());
+                PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
+                if (!PendingBlocks_.back().IsSet()) {
+                    blockFetchResult.push_back(PendingBlocks_.back().As<void>());
                 }
             }
         }
 
-        if (!unfetched.empty()) {
-            ReadyEvent_ = Combine(unfetched);
+        if (!blockFetchResult.empty()) {
+            ReadyEvent_ = Combine(blockFetchResult);
         }
 
-        return RequestedBlocks_.empty();
+        return PendingBlocks_.empty();
     }
 
     TMutableVersionedRow ReadRow(i64 rowIndex)
