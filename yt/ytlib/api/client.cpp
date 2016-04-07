@@ -2854,6 +2854,11 @@ private:
             return InvokePromise_;
         }
 
+        const TTabletInfoPtr& GetTabletInfo()
+        {
+            return TabletInfo_;
+        }
+
     private:
         const TTransactionId TransactionId_;
         const TTabletInfoPtr TabletInfo_;
@@ -2963,7 +2968,7 @@ private:
 
     typedef TIntrusivePtr<TTabletCommitSession> TTabletSessionPtr;
 
-    yhash_map<TTabletInfoPtr, TTabletSessionPtr> TabletToSession_;
+    yhash_map<TTabletId, TTabletSessionPtr> TabletToSession_;
 
     std::vector<TFuture<void>> AsyncTransactionStartResults_;
 
@@ -2983,11 +2988,12 @@ private:
 
     TTabletCommitSession* GetTabletSession(const TTabletInfoPtr& tabletInfo, const TTableMountInfoPtr& tableInfo)
     {
-        auto it = TabletToSession_.find(tabletInfo);
+        const auto& tabletId = tabletInfo->TabletId;
+        auto it = TabletToSession_.find(tabletId);
         if (it == TabletToSession_.end()) {
             AsyncTransactionStartResults_.push_back(Transaction_->AddTabletParticipant(tabletInfo->CellId));
             it = TabletToSession_.insert(std::make_pair(
-                tabletInfo,
+                tabletId,
                 New<TTabletCommitSession>(
                     this,
                     tabletInfo,
@@ -3010,8 +3016,8 @@ private:
 
             std::vector<TFuture<void>> asyncResults;
             for (const auto& pair : TabletToSession_) {
-                const auto& tabletInfo = pair.first;
                 const auto& session = pair.second;
+                const auto& tabletInfo = session->GetTabletInfo();
                 auto channel = Client_->GetTabletChannel(tabletInfo->CellId);
                 asyncResults.push_back(session->Invoke(std::move(channel)));
             }
