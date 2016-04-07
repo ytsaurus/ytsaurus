@@ -222,9 +222,11 @@ class Task(object):
 
         self._last_ping_time = None
 
-
-    def get_queue_id(self):
+    def get_direction_id(self):
         return self.queue_name, self.source_cluster, self.destination_cluster
+
+    def get_direction_id_with_user(self):
+        return self.queue_name, self.user, self.source_cluster, self.destination_cluster
 
     def get_source_client(self, clusters):
         if self.source_cluster not in clusters:
@@ -339,7 +341,9 @@ class Application(object):
         # Tasks cache
         self._cache_tasks_mutex = RLock()
         self._cache_tasks_response = None
-        self._cache_tasks_time = 0
+        self._last_tasks_cache_update_time = 0
+        self._tasks_cache_expiration_timeout = \
+            self._config["tasks_cache_expiration_timeout"] / 1000.0
 
         # Incoming requests counter
         self._incoming_requests_counter_mutex = RLock()
@@ -720,15 +724,17 @@ class Application(object):
         self._tasks = {}
 
         # From ... to task ids
-        self._running_tasks_queues = defaultdict(lambda: [])
+        self._running_tasks_per_direction = defaultdict(list)
         self._runned_during_heartbeat = set()
         self._last_scheduled_time = defaultdict(lambda: datetime(year=1970, month=1, day=1))
+
+        self._running_tasks_per_user_and_direction = defaultdict(list)
 
         # List of tasks sorted by creation time
         self._pending_tasks = []
 
         # Number of pending tasks per user
-        self._pending_tasks_per_user = defaultdict(lambda: 0)
+        self._pending_tasks_per_user = defaultdict(int)
 
         running_tasks = []
 
@@ -998,7 +1004,13 @@ class Application(object):
         #    return False
         #if datetime.now() - self._last_scheduled_time[task.get_queue_id()] < timedelta(seconds=self._config["scheduling_backoff"]):
         #    return False
-        if len(self._running_tasks_queues[task.get_queue_id()]) >= self._config["running_tasks_limit_per_direction"]:
+        direction_running_task_count = len(self._running_tasks_per_direction[task.get_direction_id()])
+        if direction_running_task_count >= self._config["running_tasks_limit_per_direction"]:
+            return False
+
+        direction_and_user_running_task_count = \
+            len(self._running_tasks_per_user_and_direction[task.get_direction_id_with_user()])
+        if direction_and_user_running_task_count >= self._config["running_tasks_limit_per_user_and_direction"]:
             return False
 
         client, _ = self._get_active_and_passive_clients(task, self._get_clusters_configuration())
@@ -1182,7 +1194,8 @@ class Application(object):
                             self._change_task_state(id, complete_type)
 
                         self._dump_task(id)
-                        self._running_tasks_queues[self._tasks[id].get_queue_id()].remove(id)
+                        self._running_tasks_per_direction[self._tasks[id].get_direction_id()].remove(id)
+                        self._running_tasks_per_user_and_direction[self._tasks[id].get_direction_id_with_user()].remove(id)
                         remove_file(process.temporary_config, force=True)
                         _, queue = self._task_processes[id]
                         queue.delete()
@@ -1201,10 +1214,13 @@ class Application(object):
                         self._change_task_state(id, "failed")
                         continue
 
-                    queue_id = self._tasks[id].get_queue_id()
-                    self._last_scheduled_time[queue_id] = datetime.now()
-                    self._running_tasks_queues[queue_id].append(id)
-                    self._runned_during_heartbeat.add(queue_id)
+                    direction_id = self._tasks[id].get_direction_id()
+                    self._last_scheduled_time[direction_id] = datetime.now()
+                    self._running_tasks_per_direction[direction_id].append(id)
+                    self._runned_during_heartbeat.add(direction_id)
+
+                    user_and_direction = self._tasks[id].get_direction_id_with_user()
+                    self._running_tasks_per_user_and_direction[user_and_direction].append(id)
                     self._pending_tasks_per_user[self._tasks[id].user] -= 1
 
                     self._tasks[id].start_time = now_str()
@@ -1430,13 +1446,13 @@ class Application(object):
 
     def _get_task_description(self, task):
         task_description = task.dict(hide_token=True)
-        queue_index = 1
+        direction_index = 1
         with self._mutex:
             for id in self._pending_tasks:
                 if id == task.id:
-                    task_description["queue_index"] = queue_index
-                if self._tasks[id].get_queue_id() == task.get_queue_id():
-                    queue_index += 1
+                    task_description["direction_index"] = direction_index
+                if self._tasks[id].get_direction_id() == task.get_direction_id():
+                    direction_index += 1
         return task_description
 
     def _abort_running_operations(self, running_tasks):
@@ -1683,23 +1699,33 @@ class Application(object):
     def get_tasks(self):
         start_time = time.time()
 
+        user = request.args.get("user")
+        fields = request.args.getlist("fields[]")
+        allow_cache = parse_bool(request.args.get("allow_cache", "true"))
+        if not fields:
+            fields = None
+
+        if user is not None or fields is not None:
+            allow_cache = False
+
+        if allow_cache:
+            with self._cache_tasks_mutex:
+                if start_time - self._last_cache_update_time < self._tasks_cache_expiration_timeout:
+                    logger.info("Get tasks responded from cache")
+                    return Response(self._cache_tasks_response, mimetype="application/json")
+
         # Thread safe method to save copies of dict and list shared among threads .
         tasks = dict(self._tasks.items())
         pending_tasks = self._pending_tasks[:]
 
         copy_finished_time = time.time()
 
-        user = request.args.get("user")
-        fields = request.args.getlist("fields[]")
-        if not fields:
-            fields = None
-
-        tasks_queue_indexes = {}
+        tasks_direction_indexes = {}
         queue_sizes = defaultdict(int)
         for id in pending_tasks:
             queue_id = tasks[id].get_queue_id()
             queue_sizes[queue_id] += 1
-            tasks_queue_indexes[id] = queue_sizes[queue_id]
+            tasks_direction_indexes[id] = queue_sizes[queue_id]
 
         if user is not None:
             tasks = dict([(id, task) for id, task in tasks.iteritems() if task.user == user])
@@ -1707,8 +1733,8 @@ class Application(object):
         tasks_descriptions = []
         for id, task in tasks.iteritems():
             description = task.dict(hide_token=True, fields=fields)
-            if id in tasks_queue_indexes:
-                description["queue_index"] = tasks_queue_indexes[id]
+            if id in tasks_direction_indexes:
+                description["direction_index"] = tasks_direction_indexes[id]
 
             try:
                 json.dumps(description)
@@ -1719,6 +1745,12 @@ class Application(object):
             tasks_descriptions.append(description)
 
         data = json.dumps(tasks_descriptions)
+
+        if user is None and fields is None:
+            with self._cache_tasks_mutex:
+                self._last_tasks_cache_update_time = start_time
+                self._cache_tasks_response = data
+                logger.info("Updated tasks cache")
 
         logger.info("Get tasks finished timings: total=%.2lf, copy=%.2lf, processing=%.2lf",
                     time.time() - start_time, copy_finished_time - start_time, time.time() - copy_finished_time)
