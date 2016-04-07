@@ -193,8 +193,11 @@ void TYaMRTableReader::Next()
             while (value < 0) {
                 switch (value) {
                     case CONTROL_ATTR_KEY_SWITCH:
-                        Valid_ = false;
-                        return;
+                        if (!AtStart_) {
+                            Valid_ = false;
+                            return;
+                        }
+                        break;
 
                     case CONTROL_ATTR_TABLE_INDEX: {
                         ui32 tmp = 0;
@@ -244,6 +247,8 @@ void TYaMRTableReader::Next()
             ReadInteger(&value);
             ReadField(&Value_, value);
             Row_.Value = Value_;
+
+            AtStart_ = false;
 
         } catch (TRetryException& e) {
             continue;
