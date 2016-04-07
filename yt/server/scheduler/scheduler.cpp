@@ -438,15 +438,20 @@ public:
                 operation->GetState());
             return operation->GetFinished();
         }
+        if (operation->GetState() != EOperationState::Running) {
+            return MakeFuture(TError(
+                EErrorCode::InvalidOperationState,
+                "Operation is not running. Its state %Qlv",
+                operation->GetState()));
+        }
 
         LOG_INFO(error, "Completing operation (OperationId: %v, State: %v)",
             operation->GetId(),
             operation->GetState());
 
         auto controller = operation->GetController();
-        if (controller) {
-            controller->Complete();
-        }
+        YCHECK(controller);
+        controller->Complete();
 
         return operation->GetFinished();
     }
