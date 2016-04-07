@@ -930,18 +930,16 @@ public:
     {
         auto rowBuffer = New<TRowBuffer>();
         auto capturedKeys = rowBuffer->Capture(keys);
-        return Execute(
-            "LookupRows",
-            options,
-            BIND(
-                &TClient::DoLookupRows,
-                MakeStrong(this),
-                path,
-                std::move(nameTable),
-                MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer)),
-                options));
+        auto sharedKeys = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
+        return LookupRows(path, std::move(nameTable), std::move(sharedKeys), options);
     }
 
+    IMPLEMENT_METHOD(IRowsetPtr, LookupRows, (
+        const TYPath& path,
+        TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TKey> keys,
+        const TLookupRowsOptions& options),
+        (path, std::move(nameTable), std::move(keys), options))
     IMPLEMENT_METHOD(TSelectRowsResult, SelectRows, (
         const Stroka& query,
         const TSelectRowsOptions& options),
@@ -2486,6 +2484,12 @@ public:
         const TYPath& path,
         TNameTablePtr nameTable,
         const std::vector<NTableClient::TKey>& keys,
+        const TLookupRowsOptions& options),
+        (path, nameTable, keys, options))
+    DELEGATE_TIMESTAMPED_METHOD(TFuture<IRowsetPtr>, LookupRows, (
+        const TYPath& path,
+        TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TKey> keys,
         const TLookupRowsOptions& options),
         (path, nameTable, keys, options))
 
