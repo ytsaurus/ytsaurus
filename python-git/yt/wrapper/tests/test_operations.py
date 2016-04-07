@@ -503,9 +503,13 @@ class TestOperations(object):
         assert op.get_state() == "aborted"
 
     def test_complete_operation(self):
+        if yt.config["api_version"] == "v2":
+            pytest.skip()
         table = TEST_DIR + "/table"
         yt.write_table(table, ["x=1\n"])
         op = yt.run_map("sleep 15; cat", table, table, sync=False)
+        while not op.get_state().is_running():
+            time.sleep(0.2)
         op.complete()
         assert op.get_state() == "completed"
 
