@@ -168,6 +168,8 @@ default_config = {
         "poll_period": 5000,
         # Log level used for print stderr messages.
         "stderr_logging_level": "INFO",
+        # Log level used for printing operation progress.
+        "progress_logging_level": "INFO",
         # Ignore failures during stderr downloads.
         "ignore_stderr_if_download_failed": False,
         # Abort operation when SIGINT is received while waiting for the operation to finish.
@@ -212,7 +214,7 @@ default_config = {
 
     # Retries for read request. This type of retries parse data stream, if it is enabled, reading may be much slower.
     "read_retries": {
-        "enable": False,
+        "enable": True,
         "allow_multiple_ranges": False,
         "retry_count": 30,
         "create_transaction_and_take_snapshot_lock": True

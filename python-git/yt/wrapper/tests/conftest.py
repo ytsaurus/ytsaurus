@@ -93,7 +93,6 @@ class YtTestEnvironment(object):
 
         self.config = update(get_default_config(), config)
         self.config["operation_tracker"]["poll_period"] = 100
-        self.config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
         self.config["proxy"]["url"] = "localhost:" + self.env.get_proxy_address().split(":", 1)[1]
         # NB: to decrease probability of retries test failure.
         self.config["proxy"]["request_retry_count"] = 10

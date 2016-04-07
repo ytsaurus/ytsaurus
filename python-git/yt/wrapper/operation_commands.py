@@ -50,7 +50,7 @@ class OperationState(object):
 
 
 class TimeWatcher(object):
-    """Class for proper sleeping in `WaitStrategy.process_operation`."""
+    """Class for proper sleeping in waiting operation."""
     def __init__(self, min_interval, max_interval, slowdown_coef, timeout=None):
         """
         Initialise time watcher.
@@ -171,23 +171,26 @@ class PrintOperationInfo(object):
         self.formatter = OperationProgressFormatter(start_time=local_creation_time)
 
         self.client = client
+        self.level = logging._levelNames[get_config(self.client)["operation_tracker"]["progress_logging_level"]]
 
     def __call__(self, state):
-        logger.set_formatter(self.formatter)
-
         if state.is_running():
             progress = get_operation_progress(self.operation, client=self.client)
             if progress != self.progress:
-                logger.info(
+                self.log(
                     "operation %s: %s",
                     self.operation,
                     "\t".join("{0}={1}".format(k, v) for k, v in order_progress(progress)))
             self.progress = progress
         elif state != self.state:
-            logger.info("operation %s %s", self.operation, state)
+            self.log("operation %s %s", self.operation, state)
         self.state = state
 
-        logger.set_formatter(logger.BASIC_FORMATTER)
+    def log(self, *args, **kwargs):
+        if logger.LOGGER.isEnabledFor(self.level):
+            logger.set_formatter(self.formatter)
+            logger.log(self.level, *args, **kwargs)
+            logger.set_formatter(logger.BASIC_FORMATTER)
 
 def abort_operation(operation, client=None):
     """Abort operation.
@@ -432,16 +435,4 @@ class Operation(object):
             stderrs = get_stderrs(self.id, only_failed_jobs=False, client=self.client)
             if stderrs:
                 logger.log(stderr_level, "\n" + format_operation_stderrs(stderrs))
-
-class WaitStrategy(object):
-    """Deprecated! Strategy synchronously wait operation, print current progress and finalize at the completion."""
-    def __init__(self, check_result=True, print_progress=True, timeout=None):
-        self.check_result = check_result
-        self.print_progress = print_progress
-        self.timeout = timeout
-
-    def process_operation(self, type, operation, finalize=None, client=None):
-        """Track running operation."""
-        operation = Operation(type, operation, finalize, client)
-        operation.wait(self.check_result, self.print_progress, self.timeout)
 

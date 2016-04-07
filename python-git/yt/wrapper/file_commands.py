@@ -36,7 +36,7 @@ def md5sum(filename):
             h.update(buf)
     return h.hexdigest()
 
-def read_file(path, response_type=None, file_reader=None, offset=None, length=None, client=None):
+def read_file(path, file_reader=None, offset=None, length=None, client=None):
     """Download file from path in Cypress to local machine.
 
     :param path: (string of `TablePath`) path to file in Cypress
@@ -46,9 +46,6 @@ def read_file(path, response_type=None, file_reader=None, offset=None, length=No
     :param length: (int) length in bytes of desired part of input file, all file without offset by default
     :return: some stream over downloaded file, string generator by default
     """
-    if response_type is not None:
-        logger.info("Option response_type is deprecated and ignored")
-
     path = to_table(path, client=client)
     params = {"path": path.to_yson_type()}
     if file_reader is not None:
@@ -92,11 +89,11 @@ def read_file(path, response_type=None, file_reader=None, offset=None, length=No
         retriable_state_class=RetriableState,
         client=client)
 
-def download_file(path, response_type=None, file_reader=None, offset=None, length=None, client=None):
+def download_file(path, file_reader=None, offset=None, length=None, client=None):
     """Download file from path in Cypress to local machine. Deprecated!
     .. seealso::  :py:func:`yt.wrapper.file_commands.read_file`.
     """
-    return read_file(path=path, response_type=response_type, file_reader=file_reader,
+    return read_file(path=path, file_reader=file_reader,
                      offset=offset, length=length, client=client)
 
 def write_file(destination, stream, file_writer=None, client=None):

@@ -651,10 +651,11 @@ def add_resume_op_parser(add_parser):
 
 def track_op(**args):
     yt.config["operation_tracker"]["abort_on_sigint"] = False
-    yt.WaitStrategy().process_operation("unknown", args["operation"])
+    operation = yt.Operation("unknown", args["operation"])
+    operation.wait()
 
 def add_track_op_parser(add_parser):
-    parser = add_parser("track-op", yt.WaitStrategy.process_operation)
+    parser = add_parser("track-op", yt.Operation.wait)
     operation_id_args(parser)
     parser.set_defaults(func=track_op)
 

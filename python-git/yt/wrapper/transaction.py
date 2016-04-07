@@ -68,7 +68,7 @@ class Transaction(object):
     .. seealso:: `transactions on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions>`_
     """
 
-    def __init__(self, timeout=None, attributes=None, ping=True, transaction_id=None,
+    def __init__(self, timeout=None, attributes=None, ping=True, interrupt_on_failed=True, transaction_id=None,
                  ping_ancestor_transactions=False, type="master", sticky=False,
                  client=None):
         timeout = get_value(timeout, get_total_request_timeout(client))
@@ -103,7 +103,7 @@ class Transaction(object):
 
         if self._ping and self._started:
             delay = (timeout / 1000.0) / max(2, get_request_retry_count(self._client))
-            self._ping_thread = PingTransaction(self.transaction_id, delay, client=self._client)
+            self._ping_thread = PingTransaction(self.transaction_id, delay, interrupt_on_failed=interrupt_on_failed, client=self._client)
             self._ping_thread.start()
 
     def abort(self):
@@ -123,6 +123,11 @@ class Transaction(object):
         self._stop_pinger()
         commit_transaction(self.transaction_id, client=self._client)
         self._finished = True
+
+    def is_running(self):
+        if self._ping:
+            return not self._ping_thread.failed
+        return True
 
     def __enter__(self):
         self._stack.append(self.transaction_id, self._ping_ancestor_transactions)
@@ -179,13 +184,15 @@ class PingTransaction(Thread):
 
     Ping transaction in background thread.
     """
-    def __init__(self, transaction, delay, client=None):
+    def __init__(self, transaction, delay, interrupt_on_failed=True, client=None):
         """
         :param delay: delay in seconds
         """
         super(PingTransaction, self).__init__()
         self.transaction = transaction
         self.delay = delay
+        self.interrupt_on_failed = interrupt_on_failed
+        self.failed = False
         self.is_running = True
         self.daemon = True
         self.step = min(self.delay, get_config(client)["transaction_sleep_period"] / 1000.0) # in seconds
@@ -213,16 +220,23 @@ class PingTransaction(Thread):
             try:
                 ping_transaction(self.transaction, client=self._client)
             except:
-                logger.exception("Ping failed")
-                if get_config(self._client)["transaction_use_signal_if_ping_failed"]:
-                    os.kill(os.getpid(), signal.SIGUSR1)
+                self.failed = True
+                if self.interrupt_on_failed:
+                    logger.exception("Ping failed")
+                    if get_config(self._client)["transaction_use_signal_if_ping_failed"]:
+                        os.kill(os.getpid(), signal.SIGUSR1)
+                    else:
+                        interrupt_main()
                 else:
-                    interrupt_main()
+                    logger.warning("Ping failed of transaction %s, pinger stopped", self.transaction)
             start_time = datetime.now()
             while datetime.now() - start_time < timedelta(seconds=self.delay):
                 sleep(self.step)
                 if not self.is_running:
                     return
+
+    def __del__(self):
+        self.stop()
 
 class PingableTransaction(Transaction):
     """Self-pinged transaction"""
