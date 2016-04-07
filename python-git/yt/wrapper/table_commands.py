@@ -1561,12 +1561,9 @@ def run_remote_copy(source_table, destination_table,
     """
 
     def get_input_name(table):
-        return to_table(table, client=client).to_yson_type()
+        return table.to_yson_type()
 
-    # TODO(ignat): use base string in other places
-    if isinstance(source_table, basestring):
-        source_table = [source_table]
-
+    source_table = _prepare_source_tables(source_table, client=client)
     destination_table = unlist(_prepare_destination_tables(destination_table, None, None,
                                                            client=client))
     spec = compose(

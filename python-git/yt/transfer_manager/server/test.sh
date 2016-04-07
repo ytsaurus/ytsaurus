@@ -231,6 +231,27 @@ test_copy_table_range() {
         "$(yt2 read //tmp/test_table_from_smith --proxy plato.yt.yandex.net --format yamr)"
 }
 
+test_copy_table_range_with_codec() {
+    echo "Test copy table with specified range and codecs"
+
+    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
+
+    id=$(run_task '{"source_table": "//tmp/test_table[#1:#2]", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "plato", "pool" : "ignat", "copy_method": "proxy", "destination_compression_codec": "zlib9"}')
+    wait_task $id
+
+    check \
+        "c\td\n" \
+        "$(yt2 read //tmp/test_table_from_smith --proxy plato.yt.yandex.net --format yamr)"
+
+    # Remote copy do not support ranges.
+    #id=$(run_task '{"source_table": "//tmp/test_table[#1:#2]", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "plato", "pool" : "ignat", "destination_compression_codec": "zlib9"}')
+    #wait_task $id
+
+    #check \
+    #    "c\td\n" \
+    #    "$(yt2 read //tmp/test_table_from_smith --proxy plato.yt.yandex.net --format yamr)"
+}
+
 test_copy_table_attributes() {
     echo "Importing from Smith to Plato (attributes copying test)"
 
@@ -444,6 +465,7 @@ test_incorrect_copy_to_yamr
 test_lease
 test_abort_restart_task
 test_copy_table_range
+test_copy_table_range_with_codec
 test_copy_table_attributes
 test_copy_to_yamr_table_with_spaces_in_name
 test_recursive_path_creation
