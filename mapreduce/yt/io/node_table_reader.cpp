@@ -283,12 +283,15 @@ void TNodeTableReader::Next()
         Row_ = RowQueue_.Dequeue();
         if (Row_->Type == TRowElement::ROW) {
             if (!Row_->Node.IsEntity()) {
+                AtStart_ = false;
                 break;
             }
 
             for (auto& entry : Row_->Node.GetAttributes().AsMap()) {
                 if (entry.first == "key_switch") {
-                    Valid_ = false;
+                    if (!AtStart_) {
+                        Valid_ = false;
+                    }
                 } else if (entry.first == "table_index") {
                     TableIndex_ = static_cast<ui32>(entry.second.AsInt64());
                 } else if (entry.first == "row_index") {
