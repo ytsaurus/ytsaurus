@@ -100,9 +100,9 @@ private:
     {
         TPromise<TSharedRef> Block = NewPromise<TSharedRef>();
         std::atomic<int> RemainingFetches = { 0 };
-        std::unique_ptr<NConcurrency::TAsyncSemaphoreGuard> AsyncSemaphoreGuard = nullptr;
+        std::unique_ptr<NConcurrency::TAsyncSemaphoreGuard> AsyncSemaphoreGuard;
         bool Cached = false;
-        std::atomic_flag FetchStarted;
+        std::atomic_flag FetchStarted = ATOMIC_FLAG_INIT;
     };
 
     yhash_map<int, int> BlockIndexToWindowIndex_;
