@@ -1495,7 +1495,7 @@ class Application(object):
                 if client.check_permission(task.user, "write",
                                            "{0}/queues/{1}".format(self._path, task.queue_name))["action"] != "allow":
                     raise RequestFailed("There is not permission to create task in queue {0}".format(task.queue_name))
-            except yt.YtError() as err:
+            except yt.YtError as err:
                 if err.is_resolve_error():
                     raise RequestFailed("Queue {0} is missing".format(task.queue_name))
 
