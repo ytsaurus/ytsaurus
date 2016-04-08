@@ -14,6 +14,7 @@
 #include <yt/core/yson/public.h>
 
 #include <memory>
+#include <limits>
 
 namespace NYT {
 namespace NFormats {
@@ -85,8 +86,9 @@ private:
     int RangeIndexId_ = -1;
     int TableIndexId_ = -1;
 
-    i64 RangeIndex_ = -1;
-    i64 TableIndex_ = -1;
+    i64 RangeIndex_ = std::numeric_limits<i64>::min();
+    i64 TableIndex_ = std::numeric_limits<i64>::min();
+    i64 RowIndex_ = std::numeric_limits<i64>::min();
 
     bool EnableRowControlAttributes_;
 

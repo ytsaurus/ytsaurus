@@ -186,6 +186,8 @@ void TSchemalessFormatWriterBase::WriteControlAttributes(TUnversionedRow row)
         return;
     }
 
+    ++RowIndex_;
+
     TNullable<i64> tableIndex;
     TNullable<i64> rangeIndex;
     TNullable<i64> rowIndex;
@@ -215,8 +217,12 @@ void TSchemalessFormatWriterBase::WriteControlAttributes(TUnversionedRow row)
         needRowIndex = true;
     }
 
-    if (ControlAttributesConfig_->EnableRowIndex && needRowIndex && rowIndex) {
-        WriteRowIndex(*rowIndex);
+    if (rowIndex) {
+        needRowIndex = needRowIndex || (*rowIndex != RowIndex_);
+        RowIndex_ = *rowIndex;
+        if (ControlAttributesConfig_->EnableRowIndex && needRowIndex) {
+            WriteRowIndex(*rowIndex);
+        }
     }
 }
 
