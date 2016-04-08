@@ -170,7 +170,6 @@ protected:
     int TotalEstimatedInputChunkCount = 0;
     i64 TotalEstimatedInputDataSize = 0;
     i64 TotalEstimatedInputRowCount = 0;
-    i64 TotalEstimatedInputValueCount = 0;
     i64 TotalEstimatedCompressedDataSize = 0;
 
     int ChunkLocatedCallCount = 0;
@@ -206,7 +205,7 @@ protected:
     {
         //! Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
-        std::vector<NChunkClient::TRefCountedChunkSpecPtr> Chunks;
+        std::vector<NChunkClient::TInputChunkPtr> Chunks;
         NTableClient::TKeyColumns KeyColumns;
 
         bool IsForeign() const
@@ -726,7 +725,7 @@ protected:
     struct TInputChunkDescriptor
     {
         SmallVector<TStripeDescriptor, 1> InputStripes;
-        SmallVector<NChunkClient::TRefCountedChunkSpecPtr, 1> ChunkSpecs;
+        SmallVector<NChunkClient::TInputChunkPtr, 1> InputChunks;
         EInputChunkState State;
 
         TInputChunkDescriptor()
@@ -813,10 +812,15 @@ protected:
         int key,
         TOutputTable* outputTable);
 
+    void RegisterBoundaryKeys(
+        const NTableClient::TBoundaryKeys& boundaryKeys,
+        int key,
+        TOutputTable* outputTable);
+
     virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary);
 
     void RegisterOutput(
-        NChunkClient::TRefCountedChunkSpecPtr chunkSpec,
+        NChunkClient::TInputChunkPtr chunkSpec,
         int key,
         int tableIndex);
 
@@ -840,10 +844,10 @@ protected:
     void ClearInputChunkBoundaryKeys();
 
     //! Returns the list of all input chunks collected from all primary input tables.
-    std::vector<NChunkClient::TRefCountedChunkSpecPtr> CollectPrimaryInputChunks() const;
+    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryInputChunks() const;
 
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
-    std::vector<std::deque<NChunkClient::TRefCountedChunkSpecPtr>> CollectForeignInputChunks() const;
+    std::vector<std::deque<NChunkClient::TInputChunkPtr>> CollectForeignInputChunks() const;
 
     //! Converts a list of input chunks into a list of chunk stripes for further
     //! processing. Each stripe receives exactly one chunk (as suitable for most
@@ -853,7 +857,7 @@ protected:
     //! list contains less than |jobCount| stripes then |jobCount| is decreased
     //! appropriately.
     std::vector<TChunkStripePtr> SliceChunks(
-        const std::vector<NChunkClient::TRefCountedChunkSpecPtr>& chunkSpecs,
+        const std::vector<NChunkClient::TInputChunkPtr>& chunkSpecs,
         i64 maxSliceDataSize,
         int* jobCount);
 
@@ -921,8 +925,8 @@ private:
     //! it cannot be serialized that easily.
     yhash_map<TJobId, TJobletPtr> JobletMap;
 
-    //! Used to distinguish already seen ChunkSpecs while building #InputChunkMap.
-    yhash_set<NChunkClient::TRefCountedChunkSpecPtr> InputChunkSpecs;
+    //! Used to distinguish already seen InputChunks while building #InputChunkMap.
+    yhash_set<NChunkClient::TInputChunkPtr> InputChunkSpecs;
 
     NChunkClient::TChunkScraperPtr InputChunkScraper;
 

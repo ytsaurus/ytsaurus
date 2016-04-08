@@ -695,7 +695,8 @@ protected:
             bool memoryReserveEnabled) const
         {
             if (Controller->SimpleSort) {
-                i64 valueCount = Controller->GetValueCountEstimate(stat.DataSize);
+                // Value count estimate has been remove, using 0 instead.
+                i64 valueCount = 0;
                 return Controller->GetSimpleSortResources(
                     stat,
                     valueCount);
@@ -1551,13 +1552,6 @@ protected:
         }
         i64 totalRowCount = partition->ChunkPoolOutput->GetTotalRowCount();
         return static_cast<i64>((double) totalRowCount * dataSize / totalDataSize);
-    }
-
-    // TODO(babenko): this is the input estimate, not the partitioned one!
-    // Should get rid of this "value count" stuff completely.
-    i64 GetValueCountEstimate(i64 dataSize) const
-    {
-        return static_cast<i64>((double) TotalEstimatedInputValueCount * dataSize / TotalEstimatedInputDataSize);
     }
 
     // Returns compression ratio of input data.

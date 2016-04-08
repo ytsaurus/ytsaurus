@@ -10,6 +10,28 @@ using NChunkClient::EChunkType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+size_t TBoundaryKeys::SpaceUsed() const
+{
+    return
+       sizeof(*this) +
+       MinKey.GetSpaceUsed() - sizeof(MinKey) +
+       MaxKey.GetSpaceUsed() - sizeof(MaxKey);
+}
+
+void TBoundaryKeys::Persist(NPhoenix::TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, MinKey);
+    Persist(context, MaxKey);
+}
+
+Stroka ToString(const TBoundaryKeys& keys)
+{
+    return Format("MinKey: %v, MaxKey: %v", keys.MinKey, keys.MaxKey);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool TryGetBoundaryKeys(const TChunkMeta& chunkMeta, TOwningKey* minKey, TOwningKey* maxKey)
 {
     if (chunkMeta.version() == static_cast<int>(ETableChunkFormat::Old)) {
@@ -28,6 +50,15 @@ bool TryGetBoundaryKeys(const TChunkMeta& chunkMeta, TOwningKey* minKey, TOwning
         FromProto(maxKey, boundaryKeys->max());
     }
     return true;
+}
+
+std::unique_ptr<TBoundaryKeys> GetBoundaryKeys(const TChunkMeta& chunkMeta)
+{
+    std::unique_ptr<TBoundaryKeys> keys(new TBoundaryKeys());
+    if (!TryGetBoundaryKeys(chunkMeta, &keys->MinKey, &keys->MaxKey)) {
+        keys.reset();
+    }
+    return keys;
 }
 
 TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, int partitionTag)

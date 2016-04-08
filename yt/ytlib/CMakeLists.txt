@@ -54,6 +54,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/file_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/format.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_chunk.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_slice.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/job.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_writer.cpp
