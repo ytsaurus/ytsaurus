@@ -158,6 +158,15 @@ llvm::Type* TCGIRBuilder::getSizeType() const
     return TypeBuilder<size_t, false>::get(getContext());
 }
 
+llvm::AllocaInst* TCGIRBuilder::CreateAlignedAlloca(
+    llvm::Type *type,
+    unsigned align,
+    llvm::Value* arraySize,
+    const llvm::Twine& name)
+{
+    return Insert(new llvm::AllocaInst(type, arraySize, align), name);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
