@@ -85,6 +85,13 @@ void TOperation::UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDur
     ControllerTimeStatistics_.AddSample(name, value.MicroSeconds());
 }
 
+bool TOperation::HasControllerProgress() const
+{
+    return (State_ == EOperationState::Running || IsFinishedState()) &&
+        Controller_ &&
+        Controller_->HasProgress();
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

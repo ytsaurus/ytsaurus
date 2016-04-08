@@ -2435,13 +2435,13 @@ private:
     {
         auto controller = operation->GetController();
         auto state = operation->GetState();
-        bool hasProgress = (state == EOperationState::Running) || IsOperationFinished(state);
+        bool hasControllerProgress = operation->HasControllerProgress();
         BuildYsonMapFluently(consumer)
             .Item(ToString(operation->GetId())).BeginMap()
                 // Include the complete list of attributes.
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
-                    .DoIf(hasProgress, BIND([=] (IYsonConsumer* consumer) {
+                    .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
                         WaitFor(
                             BIND(&IOperationController::BuildProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
@@ -2450,7 +2450,7 @@ private:
                     .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_.get(), operation->GetId()))
                 .EndMap()
                 .Item("brief_progress").BeginMap()
-                    .DoIf(hasProgress, BIND([=] (IYsonConsumer* consumer) {
+                    .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
                         WaitFor(
                             BIND(&IOperationController::BuildBriefProgress, controller)
                                 .AsyncVia(controller->GetInvoker())

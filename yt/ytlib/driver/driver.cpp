@@ -9,7 +9,11 @@
 #include "table_commands.h"
 #include "transaction_commands.h"
 
+#include <yt/ytlib/api/transaction.h>
+
 #include <yt/core/yson/null_consumer.h>
+
+#include <yt/core/misc/lease_manager.h>
 
 namespace NYT {
 namespace NDriver {
@@ -203,13 +207,15 @@ private:
 
     yhash_map<Stroka, TCommandEntry> Commands;
 
-    void RegisterCommand(TExecuteCallback executeCallback, const TCommandDescriptor& descriptor)
+    struct TTransactionEntry
     {
-        TCommandEntry entry;
-        entry.Descriptor = descriptor;
-        entry.Execute = std::move(executeCallback);
-        YCHECK(Commands.insert(std::make_pair(descriptor.CommandName, entry)).second);
-    }
+        ITransactionPtr Transaction;
+        TLease Lease;
+    };
+
+    TSpinLock TransactionsLock_;
+    yhash_map<TTransactionId, TTransactionEntry> Transactions_;
+
 
     template <class TCommand>
     void RegisterCommand(const TCommandDescriptor& descriptor)
@@ -258,6 +264,64 @@ private:
         WaitFor(context->Terminate());
 
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+
+
+    void PinTransaction(ITransactionPtr transaction, TDuration timeout)
+    {
+        const auto& transactionId = transaction->GetId();
+
+        LOG_DEBUG("Pinning transaction (TransactionId: %v, Timeout: %v)",
+            transactionId,
+            timeout);
+
+        auto lease = TLeaseManager::CreateLease(
+            timeout,
+            BIND(IgnoreResult(&TDriver::UnpinTransaction), MakeWeak(this), transactionId));
+
+        {
+            TGuard<TSpinLock> guard(TransactionsLock_);
+            YCHECK(Transactions_.insert(std::make_pair(
+                transactionId,
+                TTransactionEntry{std::move(transaction), std::move(lease)})).second);
+        }
+    }
+
+    bool UnpinTransaction(TTransactionId transactionId)
+    {
+        ITransactionPtr transaction;
+        if (transactionId) {
+            TGuard<TSpinLock> guard(TransactionsLock_);
+            auto it = Transactions_.find(transactionId);
+            if (it != Transactions_.end()) {
+                transaction = std::move(it->second.Transaction);
+                TLeaseManager::CloseLease(std::move(it->second.Lease));
+                Transactions_.erase(it);
+            }
+        }
+        if (transaction) {
+            LOG_DEBUG("Unpinning transaction (TransactionId: %v)",
+                transactionId);
+        }
+        return static_cast<bool>(transaction);
+    }
+
+    ITransactionPtr FindAndTouchTransaction(TTransactionId transactionId)
+    {
+        ITransactionPtr transaction;
+        if (transactionId) {
+            TGuard<TSpinLock> guard(TransactionsLock_);
+            auto it = Transactions_.find(transactionId);
+            if (it != Transactions_.end()) {
+                transaction = it->second.Transaction;
+                TLeaseManager::RenewLease(it->second.Lease);
+            }
+        }
+        if (transaction) {
+            LOG_DEBUG("Touched pinned transaction (TransactionId: %v)",
+                transactionId);
+        }
+        return transaction;
     }
 
     class TCommandContext
@@ -341,9 +405,25 @@ private:
             Serialize(yson, consumer.get());
         }
 
+        virtual void PinTransaction(ITransactionPtr transaction, TDuration timeout) override
+        {
+            Driver_->PinTransaction(std::move(transaction), timeout);
+        }
+
+        virtual bool UnpinTransaction(const TTransactionId& transactionId) override
+        {
+            return Driver_->UnpinTransaction(transactionId);
+        }
+
+        virtual ITransactionPtr FindAndTouchTransaction(const TTransactionId& transactionId) override
+        {
+            return Driver_->FindAndTouchTransaction(transactionId);
+        }
+
     private:
         const TDriverPtr Driver_;
         const TCommandDescriptor Descriptor_;
+
         const TDriverRequest Request_;
 
         TNullable<TFormat> InputFormat_;
