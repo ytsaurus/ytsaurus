@@ -188,6 +188,11 @@ class YtStuff:
             self._log("Start local YT, attempt %d.", i)
             if self._start_local_yt():
                 break
+            else:
+                MAX_WAIT_TIME = 60
+                FAIL_PENALTY = 5
+                time_to_sleep = min(i * FAIL_PENALTY, MAX_WAIT_TIME)
+                time.sleep(time_to_sleep)
         else:
             self._save_logs(save_yt_all=True)
             raise Exception("Can't start local YT for %d attempts." % max_retries)
