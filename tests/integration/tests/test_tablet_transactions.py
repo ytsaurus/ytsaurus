@@ -25,6 +25,7 @@ class TestTabletTransactions(YTEnvSetup):
                schema=[{"name": "key", "type": "int64", "sort_order": "ascending"},
                        {"name": "value", "type": "string"}])
 
+    @pytest.mark.skipif("True")
     def test_sticky_tablet_transactions(self):
         self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
