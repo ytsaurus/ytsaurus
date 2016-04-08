@@ -114,19 +114,17 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create("table", "//tmp/out")
 
         op = reduce(
-            dont_track=True,
             in_=["//tmp/in1", "//tmp/in2"],
             out="<sorted_by=[key]>//tmp/out",
             command="cat > /dev/stderr",
             spec={
                 "reducer" : {"format" : yson.loads("<format=text>yson")},
-                "job_io" :
-                    {"control_attributes" :
-                        {"enable_table_index" : "true",
-                         "enable_row_index" : "true"}},
+                "job_io" : {
+                    "control_attributes" : {
+                        "enable_table_index" : "true",
+                        "enable_row_index" : "true"}
+                    },
                 "job_count" : 1})
-
-        op.track()
 
         job_ids = ls("//sys/operations/{0}/jobs".format(op.id))
         assert len(job_ids) == 1
@@ -136,6 +134,25 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 {"key"=1;"value"=6;};
 <"table_index"=0;>#;
 <"row_index"=0;>#;
+{"key"=4;"value"=3;};
+"""
+
+        # Test only one row index with only one input table.
+        op = reduce(
+            in_=["//tmp/in1"],
+            out="<sorted_by=[key]>//tmp/out",
+            command="cat > /dev/stderr",
+            spec={
+                "reducer" : {"format" : yson.loads("<format=text>yson")},
+                "job_io" : {
+                    "control_attributes" : { "enable_row_index" : "true" }
+                },
+                "job_count" : 1})
+
+        job_ids = ls("//sys/operations/{0}/jobs".format(op.id))
+        assert len(job_ids) == 1
+        assert read_file("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, job_ids[0])) == \
+"""<"row_index"=0;>#;
 {"key"=4;"value"=3;};
 """
 
