@@ -7,7 +7,7 @@
 #include "job_memory.h"
 #include "operation_controller_detail.h"
 
-#include <yt/ytlib/chunk_client/chunk_slice.h>
+#include <yt/ytlib/chunk_client/input_slice.h>
 
 #include <yt/ytlib/table_client/config.h>
 
@@ -225,13 +225,13 @@ protected:
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
-            std::vector<TRefCountedChunkSpecPtr> mergedChunks;
+            std::vector<TInputChunkPtr> mergedChunks;
 
             for (const auto& chunkSpec : CollectPrimaryInputChunks()) {
-                if (IsTeleportChunk(*chunkSpec)) {
+                if (IsTeleportChunk(chunkSpec)) {
                     // Chunks not requiring merge go directly to the output chunk list.
                     LOG_TRACE("Teleport chunk added (ChunkId: %v, Partition: %v)",
-                        FromProto<TChunkId>(chunkSpec->chunk_id()),
+                        chunkSpec->ChunkId(),
                         currentPartitionIndex);
 
                     // Place the chunk directly to the output table.
@@ -239,9 +239,7 @@ protected:
                     ++currentPartitionIndex;
                 } else {
                     mergedChunks.push_back(chunkSpec);
-                    i64 dataSize;
-                    GetStatistics(*chunkSpec, &dataSize);
-                    totalDataSize += dataSize;
+                    totalDataSize += chunkSpec->GetUncompressedDataSize();
                 }
             }
 
@@ -329,7 +327,8 @@ protected:
     }
 
     //! Returns |true| if the chunk can be included into the output as-is.
-    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const {
+    virtual bool IsTeleportChunk(const TInputChunkPtr& chunkSpec) const
+    {
         return false;
     }
 
@@ -525,15 +524,15 @@ private:
 
     //! Returns |true| if the chunk can be included into the output as-is.
     //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
-    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
+    virtual bool IsTeleportChunk(const TInputChunkPtr& chunkSpec) const override
     {
-        if (Spec->ForceTransform || chunkSpec.has_channel()) {
+        if (Spec->ForceTransform || chunkSpec->Channel()) {
             return false;
         }
 
         return Spec->CombineChunks
-            ? IsLargeCompleteChunk(chunkSpec, Spec->JobIO->TableWriter->DesiredChunkSize)
-            : IsCompleteChunk(chunkSpec);
+            ? chunkSpec->IsLargeCompleteChunk(Spec->JobIO->TableWriter->DesiredChunkSize)
+            : chunkSpec->IsCompleteChunk();
     }
 };
 

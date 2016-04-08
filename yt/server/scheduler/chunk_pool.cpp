@@ -1,7 +1,7 @@
 #include "chunk_pool.h"
 #include "private.h"
 
-#include <yt/ytlib/chunk_client/chunk_slice.h>
+#include <yt/ytlib/chunk_client/input_slice.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -50,8 +50,7 @@ void AddStripeToList(
     list->TotalChunkCount += stripe->ChunkSlices.size();
     for (const auto& chunkSlice : stripe->ChunkSlices) {
         bool isLocal = false;
-        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
-            auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
+        for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
             if (replica.GetNodeId() == nodeId) {
                 i64 locality = chunkSlice->GetLocality(replica.GetIndex());
                 if (locality > 0) {
@@ -75,7 +74,7 @@ TChunkStripe::TChunkStripe(bool foreign)
     : Foreign(foreign)
 { }
 
-TChunkStripe::TChunkStripe(TChunkSlicePtr chunkSlice, bool foreign)
+TChunkStripe::TChunkStripe(TInputSlicePtr chunkSlice, bool foreign)
     : Foreign(foreign)
 {
     ChunkSlices.emplace_back(std::move(chunkSlice));
@@ -532,8 +531,7 @@ private:
     void UpdateLocality(TChunkStripePtr stripe, int delta)
     {
         for (const auto& chunkSlice : stripe->ChunkSlices) {
-            for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
-                auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
+            for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
                 i64 localityDelta = chunkSlice->GetLocality(replica.GetIndex()) * delta;
                 NodeIdToLocality[replica.GetNodeId()] += localityDelta;
             }
@@ -978,9 +976,7 @@ private:
 
         auto stripe = suspendableStripe.GetStripe();
         for (const auto& chunkSlice : stripe->ChunkSlices) {
-            for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
-                auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
-
+            for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
                 auto locality = chunkSlice->GetLocality(replica.GetIndex());
                 if (locality > 0) {
                     auto& entry = NodeIdToEntry[replica.GetNodeId()];
@@ -1002,8 +998,7 @@ private:
 
         auto stripe = suspendableStripe.GetStripe();
         for (const auto& chunkSlice : stripe->ChunkSlices) {
-            for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
-                auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
+            for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
                 auto locality = chunkSlice->GetLocality(replica.GetIndex());
                 if (locality > 0) {
                     auto& entry = NodeIdToEntry[replica.GetNodeId()];
@@ -1154,13 +1149,12 @@ public:
             auto elementaryStripe = New<TChunkStripe>(chunkSlice);
             ElementaryStripes.push_back(elementaryStripe);
 
-            auto partitionsExt = GetProtoExtension<TPartitionsExt>(
-                chunkSlice->GetChunkSpec()->chunk_meta().extensions());
-
-            YCHECK(partitionsExt.partitions_size() == Outputs.size());
+            auto partitionsExt = chunkSlice->GetInputChunk()->PartitionsExt().get();
+            YCHECK(partitionsExt);
+            YCHECK(partitionsExt->partitions_size() == Outputs.size());
 
             for (int index = 0; index < static_cast<int>(Outputs.size()); ++index) {
-                const auto& partitionAttributes = partitionsExt.partitions(index);
+                const auto& partitionAttributes = partitionsExt->partitions(index);
                 YCHECK(partitionAttributes.row_count() <= RowCountThreshold);
                 Outputs[index]->AddStripe(
                     elementaryIndex,
@@ -1168,12 +1162,8 @@ public:
                     partitionAttributes.row_count());
             }
 
-            RemoveProtoExtension<TPartitionsExt>(
-                chunkSlice->GetChunkSpec()->mutable_chunk_meta()->mutable_extensions());
-
-            // This makes job specs for partition sort jobs thinner.
-            RemoveProtoExtension<TMiscExt>(
-                chunkSlice->GetChunkSpec()->mutable_chunk_meta()->mutable_extensions());
+            chunkSlice->GetInputChunk()->ReleaseBoundaryKeys();
+            chunkSlice->GetInputChunk()->ReleasePartitionsExt();
         }
 
         inputStripe.ElementaryIndexEnd = static_cast<int>(ElementaryStripes.size());
@@ -1196,8 +1186,8 @@ public:
     {
         // Remove all partition extensions.
         for (auto chunkSlice : stripe->ChunkSlices) {
-            RemoveProtoExtension<TPartitionsExt>(
-                chunkSlice->GetChunkSpec()->mutable_chunk_meta()->mutable_extensions());
+            chunkSlice->GetInputChunk()->ReleaseBoundaryKeys();
+            chunkSlice->GetInputChunk()->ReleasePartitionsExt();
         }
 
         // Although the sizes and even the row count may have changed (mind unordered reader and

@@ -7,10 +7,10 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
-#include <yt/ytlib/chunk_client/chunk_slice.h>
-#include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
+#include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/input_slice.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -237,7 +237,7 @@ void TOperationControllerBase::TInputChunkDescriptor::Persist(TPersistenceContex
 {
     using NYT::Persist;
     Persist(context, InputStripes);
-    Persist(context, ChunkSpecs);
+    Persist(context, InputChunks);
     Persist(context, State);
 }
 
@@ -742,7 +742,7 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto* chunkSpec = inputSpec->add_chunks();
         ToProto(chunkSpec, chunkSlice);
-        auto replicas = FromProto<TChunkReplicaList>(chunkSlice->GetChunkSpec()->replicas());
+        auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
         directoryBuilder->Add(replicas);
     }
 }
@@ -876,7 +876,7 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
 {
     auto stripe = New<TChunkStripe>();
     for (auto& chunkSpec : *chunkSpecs) {
-        auto chunkSlice = CreateChunkSlice(New<TRefCountedChunkSpec>(std::move(chunkSpec)));
+        auto chunkSlice = CreateInputSlice(New<TInputChunk>(std::move(chunkSpec)));
         stripe->ChunkSlices.push_back(chunkSlice);
     }
     return stripe;
@@ -1910,9 +1910,9 @@ void TOperationControllerBase::OnInputChunkLocated(const TChunkId& chunkId, cons
     YCHECK(it != InputChunkMap.end());
 
     auto& descriptor = it->second;
-    YCHECK(!descriptor.ChunkSpecs.empty());
-    auto& chunkSpec = descriptor.ChunkSpecs.front();
-    auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
+    YCHECK(!descriptor.InputChunks.empty());
+    auto& chunkSpec = descriptor.InputChunks.front();
+    auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
 
     if (IsUnavailable(replicas, codecId, IsParityReplicasFetchEnabled())) {
         OnInputChunkUnavailable(chunkId, descriptor);
@@ -1938,9 +1938,8 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
     }
 
     // Update replicas in place for all input chunks with current chunkId.
-    for (auto& chunkSpec : descriptor.ChunkSpecs) {
-        chunkSpec->mutable_replicas()->Clear();
-        ToProto(chunkSpec->mutable_replicas(), replicas);
+    for (auto& chunkSpec : descriptor.InputChunks) {
+        chunkSpec->SetReplicaList(replicas);
     }
 
     descriptor.State = EInputChunkState::Active;
@@ -1990,15 +1989,15 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
                 inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
 
                 // Remove given chunk from the stripe list.
-                SmallVector<TChunkSlicePtr, 1> slices;
+                SmallVector<TInputSlicePtr, 1> slices;
                 std::swap(inputStripe.Stripe->ChunkSlices, slices);
 
                 std::copy_if(
                     slices.begin(),
                     slices.end(),
                     inputStripe.Stripe->ChunkSlices.begin(),
-                    [&] (TChunkSlicePtr slice) {
-                        return chunkId != FromProto<TChunkId>(slice->GetChunkSpec()->chunk_id());
+                    [&] (TInputSlicePtr slice) {
+                        return chunkId != slice->GetInputChunk()->ChunkId();
                     });
 
                 // Reinstall patched stripe.
@@ -2247,8 +2246,7 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TNodeId nodeId
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
-        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
-            auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
+        for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
             auto locality = chunkSlice->GetLocality(replica.GetIndex());
             if (locality > 0) {
                 DoAddTaskLocalityHint(task, replica.GetNodeId());
@@ -2872,8 +2870,8 @@ void TOperationControllerBase::FetchInputTables()
                 &chunkSpecs);
 
             for (auto& chunk : chunkSpecs) {
-                auto chunkSpec = New<TRefCountedChunkSpec>(std::move(chunk));
-                chunkSpec->set_table_index(tableIndex);
+                auto chunkSpec = New<TInputChunk>(std::move(chunk));
+                chunkSpec->SetTableIndex(tableIndex);
                 table.Chunks.push_back(chunkSpec);
             }
         }
@@ -3407,8 +3405,8 @@ void TOperationControllerBase::CollectTotals()
 {
     for (const auto& table : InputTables) {
         for (const auto& chunkSpec : table.Chunks) {
-            if (IsUnavailable(*chunkSpec, IsParityReplicasFetchEnabled())) {
-                auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
+            if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
+                const auto& chunkId = chunkSpec->ChunkId();
                 switch (Spec->UnavailableChunkStrategy) {
                     case EUnavailableChunkAction::Fail:
                         THROW_ERROR_EXCEPTION("Input chunk %v is unavailable",
@@ -3427,25 +3425,17 @@ void TOperationControllerBase::CollectTotals()
                         YUNREACHABLE();
                 }
             }
-            i64 chunkDataSize;
-            i64 chunkRowCount;
-            i64 chunkValueCount;
-            i64 chunkCompressedDataSize;
-            NChunkClient::GetStatistics(*chunkSpec, &chunkDataSize, &chunkRowCount, &chunkValueCount, &chunkCompressedDataSize);
-
-            TotalEstimatedInputDataSize += chunkDataSize;
-            TotalEstimatedInputRowCount += chunkRowCount;
-            TotalEstimatedInputValueCount += chunkValueCount;
-            TotalEstimatedCompressedDataSize += chunkCompressedDataSize;
+            TotalEstimatedInputDataSize += chunkSpec->GetUncompressedDataSize();
+            TotalEstimatedInputRowCount += chunkSpec->GetRowCount();
+            TotalEstimatedCompressedDataSize += chunkSpec->GetCompressedDataSize();
             ++TotalEstimatedInputChunkCount;
         }
     }
 
-    LOG_INFO("Estimated input totals collected (ChunkCount: %v, DataSize: %v, RowCount: %v, ValueCount: %v, CompressedDataSize: %v)",
+    LOG_INFO("Estimated input totals collected (ChunkCount: %v, DataSize: %v, RowCount: %v, CompressedDataSize: %v)",
         TotalEstimatedInputChunkCount,
         TotalEstimatedInputDataSize,
         TotalEstimatedInputRowCount,
-        TotalEstimatedInputValueCount,
         TotalEstimatedCompressedDataSize);
 }
 
@@ -3456,22 +3446,21 @@ void TOperationControllerBase::ClearInputChunkBoundaryKeys()
 {
     for (auto& pair : InputChunkMap) {
         auto& inputChunkDescriptor = pair.second;
-        for (auto chunkSpec : inputChunkDescriptor.ChunkSpecs) {
+        for (auto chunkSpec : inputChunkDescriptor.InputChunks) {
             // We don't need boundary key ext after preparation phase.
-            RemoveProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunkSpec->mutable_chunk_meta()->mutable_extensions());
-            RemoveProtoExtension<NTableClient::NProto::TOldBoundaryKeysExt>(chunkSpec->mutable_chunk_meta()->mutable_extensions());
+            chunkSpec->ReleaseBoundaryKeys();
         }
     }
 }
 
 // NB: must preserve order of chunks in the input tables, no shuffling.
-std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectPrimaryInputChunks() const
+std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryInputChunks() const
 {
-    std::vector<TRefCountedChunkSpecPtr> result;
+    std::vector<TInputChunkPtr> result;
     for (const auto& table : InputTables) {
         if (!table.IsForeign()) {
             for (const auto& chunkSpec : table.Chunks) {
-                if (IsUnavailable(*chunkSpec, IsParityReplicasFetchEnabled())) {
+                if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
                     switch (Spec->UnavailableChunkStrategy) {
                         case EUnavailableChunkAction::Skip:
                             continue;
@@ -3491,14 +3480,14 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectPrimaryInp
     return result;
 }
 
-std::vector<std::deque<TRefCountedChunkSpecPtr>> TOperationControllerBase::CollectForeignInputChunks() const
+std::vector<std::deque<TInputChunkPtr>> TOperationControllerBase::CollectForeignInputChunks() const
 {
-    std::vector<std::deque<TRefCountedChunkSpecPtr>> result;
+    std::vector<std::deque<TInputChunkPtr>> result;
     for (const auto& table : InputTables) {
         if (table.IsForeign()) {
-            result.push_back(std::deque<TRefCountedChunkSpecPtr>());
+            result.push_back(std::deque<TInputChunkPtr>());
             for (const auto& chunkSpec : table.Chunks) {
-                if (IsUnavailable(*chunkSpec, IsParityReplicasFetchEnabled())) {
+                if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
                     switch (Spec->UnavailableChunkStrategy) {
                         case EUnavailableChunkAction::Skip:
                             continue;
@@ -3519,12 +3508,12 @@ std::vector<std::deque<TRefCountedChunkSpecPtr>> TOperationControllerBase::Colle
 }
 
 std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
-    const std::vector<TRefCountedChunkSpecPtr>& chunkSpecs,
+    const std::vector<TInputChunkPtr>& chunkSpecs,
     i64 maxSliceDataSize,
     int* jobCount)
 {
     std::vector<TChunkStripePtr> result;
-    auto appendStripes = [&] (std::vector<TChunkSlicePtr> slices) {
+    auto appendStripes = [&] (std::vector<TInputSlicePtr> slices) {
         for (const auto& slice : slices) {
             result.push_back(New<TChunkStripe>(slice));
         }
@@ -3543,21 +3532,21 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
     for (const auto& chunkSpec : chunkSpecs) {
         int oldSize = result.size();
 
-        bool hasNontrivialLimits = !IsCompleteChunk(*chunkSpec);
+        bool hasNontrivialLimits = !chunkSpec->IsCompleteChunk();
 
-        auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
+        auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
         if (hasNontrivialLimits || codecId == NErasure::ECodec::None) {
             auto slices = SliceChunkByRowIndexes(chunkSpec, sliceDataSize);
             appendStripes(slices);
         } else {
-            for (const auto& slice : CreateErasureChunkSlices(chunkSpec, codecId)) {
+            for (const auto& slice : CreateErasureInputSlices(chunkSpec, codecId)) {
                 auto slices = slice->SliceEvenly(sliceDataSize);
                 appendStripes(slices);
             }
         }
 
         LOG_TRACE("Slicing chunk (ChunkId: %v, SliceCount: %v)",
-            FromProto<TChunkId>(chunkSpec->chunk_id()),
+            chunkSpec->ChunkId(),
             result.size() - oldSize);
     }
 
@@ -3714,19 +3703,30 @@ void TOperationControllerBase::RegisterBoundaryKeys(
     outputTable->BoundaryKeys.push_back(jobBoundaryKeys);
 }
 
+void TOperationControllerBase::RegisterBoundaryKeys(
+    const TBoundaryKeys& boundaryKeys,
+    int key,
+    TOutputTable* outputTable)
+{
+    TJobBoundaryKeys jobBoundaryKeys;
+    jobBoundaryKeys.MinKey = boundaryKeys.MinKey;
+    jobBoundaryKeys.MaxKey = boundaryKeys.MaxKey;
+    jobBoundaryKeys.ChunkTreeKey = key;
+    outputTable->BoundaryKeys.push_back(jobBoundaryKeys);
+}
+
 void TOperationControllerBase::RegisterOutput(
-    TRefCountedChunkSpecPtr chunkSpec,
+    TInputChunkPtr chunkSpec,
     int key,
     int tableIndex)
 {
     auto& table = OutputTables[tableIndex];
 
     if (!table.KeyColumns.empty() && IsSortedOutputSupported()) {
-        auto boundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunkSpec->chunk_meta().extensions());
-        RegisterBoundaryKeys(boundaryKeys, key, &table);
+        RegisterBoundaryKeys(*chunkSpec->BoundaryKeys(), key, &table);
     }
 
-    RegisterOutput(FromProto<TChunkId>(chunkSpec->chunk_id()), key, tableIndex, table);
+    RegisterOutput(chunkSpec->ChunkId(), key, tableIndex, table);
 }
 
 void TOperationControllerBase::RegisterOutput(
@@ -3760,17 +3760,17 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
     stripeDescriptor.Cookie = task->GetChunkPoolInput()->Add(stripe);
 
     for (const auto& slice : stripe->ChunkSlices) {
-        auto chunkSpec = slice->GetChunkSpec();
-        auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
+        auto chunkSpec = slice->GetInputChunk();
+        const auto& chunkId = chunkSpec->ChunkId();
 
         auto pair = InputChunkMap.insert(std::make_pair(chunkId, TInputChunkDescriptor()));
         auto& chunkDescriptor = pair.first->second;
 
         if (InputChunkSpecs.insert(chunkSpec).second) {
-            chunkDescriptor.ChunkSpecs.push_back(chunkSpec);
+            chunkDescriptor.InputChunks.push_back(chunkSpec);
         }
 
-        if (IsUnavailable(*chunkSpec, IsParityReplicasFetchEnabled())) {
+        if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
             chunkDescriptor.State = EInputChunkState::Waiting;
         }
 
@@ -3787,7 +3787,7 @@ void TOperationControllerBase::RegisterIntermediate(
     bool attachToLivePreview)
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
-        auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
+        const auto& chunkId = chunkSlice->GetInputChunk()->ChunkId();
         YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
 
         if (attachToLivePreview && IsIntermediateLivePreviewSupported()) {
@@ -4161,7 +4161,6 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, TotalEstimatedInputChunkCount);
     Persist(context, TotalEstimatedInputDataSize);
     Persist(context, TotalEstimatedInputRowCount);
-    Persist(context, TotalEstimatedInputValueCount);
     Persist(context, TotalEstimatedCompressedDataSize);
 
     Persist(context, UnavailableInputChunkCount);
