@@ -21,15 +21,10 @@ class TSchemafulWriter
     : public NTableClient::ISchemafulWriter
 {
 public:
-    template <class TMakeWriter>
-    explicit TSchemafulWriter(
+    TSchemafulWriter(
         NConcurrency::IAsyncOutputStreamPtr stream,
         const NTableClient::TTableSchema& schema,
-        TMakeWriter&& makeWriter)
-        : Stream_(stream)
-        , Schema_(schema)
-        , Writer_(makeWriter(&Buffer_))
-    { }
+        const std::function<std::unique_ptr<NYson::IYsonConsumer>(TOutputStream*)>& consumerBuilder);
 
     virtual TFuture<void> Close() override;
 
@@ -38,12 +33,11 @@ public:
     virtual TFuture<void> GetReadyEvent() override;
 
 private:
-    NConcurrency::IAsyncOutputStreamPtr Stream_;
-
-    NTableClient::TTableSchema Schema_;
+    const NConcurrency::IAsyncOutputStreamPtr Stream_;
+    const NTableClient::TTableSchema Schema_;
+    const std::unique_ptr<NYson::IYsonConsumer> Consumer_;
 
     TBlobOutput Buffer_;
-    std::unique_ptr<NYson::TYsonConsumerBase> Writer_;
 
     TFuture<void> Result_;
 };

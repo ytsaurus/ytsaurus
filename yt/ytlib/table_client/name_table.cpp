@@ -92,6 +92,40 @@ int TNameTable::DoRegisterName(const TStringBuf& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNameTableReader::TNameTableReader(TNameTablePtr nameTable)
+    : NameTable_(std::move(nameTable))
+{
+    Fill();
+}
+
+TStringBuf TNameTableReader::GetName(int id) const
+{
+    YASSERT(id >= 0);
+    if (id >= IdToNameCache_.size()) {
+        Fill();
+    }
+
+    YASSERT(id < IdToNameCache_.size());
+    return IdToNameCache_[id];
+}
+
+int TNameTableReader::GetSize() const
+{
+    Fill();
+    return static_cast<int>(IdToNameCache_.size());
+}
+
+void TNameTableReader::Fill() const
+{
+    int thisSize = static_cast<int>(IdToNameCache_.size());
+    int underlyingSize = NameTable_->GetSize();
+    for (int id = thisSize; id < underlyingSize; ++id) {
+        IdToNameCache_.push_back(Stroka(NameTable_->GetName(id)));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TNameTableExt* protoNameTable, const TNameTablePtr& nameTable)
 {
     protoNameTable->clear_names();
@@ -113,3 +147,4 @@ void FromProto(TNameTablePtr* nameTable, const NProto::TNameTableExt& protoNameT
 
 } // namespace NTableClient
 } // namespace NYT
+

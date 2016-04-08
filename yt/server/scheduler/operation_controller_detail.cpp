@@ -124,6 +124,7 @@ void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& contex
     Persist(context, LockMode);
     Persist(context, Options);
     Persist(context, KeyColumns);
+    Persist(context, ChunkPropertiesUpdateNeeded);
     Persist(context, UploadTransactionId);
     Persist(context, OutputChunkListId);
     Persist(context, DataStatistics);
@@ -186,9 +187,9 @@ void TOperationControllerBase::TJoblet::Persist(TPersistenceContext& context)
     // properly.
     using NYT::Persist;
     Persist(context, Task);
+    Persist(context, NodeDescriptor);
     Persist(context, InputStripeList);
     Persist(context, OutputCookie);
-    Persist(context, NodeDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -1975,6 +1976,19 @@ void TOperationControllerBase::Abort()
     CancelableContext->Cancel();
 
     LOG_INFO("Operation aborted");
+}
+
+void TOperationControllerBase::Complete()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    LOG_INFO("Completing operation");
+
+    State = EControllerState::Finished;
+
+    Host->OnOperationCompleted(Operation);
+
+    LOG_INFO("Operation completed");
 }
 
 void TOperationControllerBase::CheckTimeLimit()
@@ -3869,6 +3883,11 @@ void TOperationControllerBase::RemoveJoblet(const TJobId& jobId)
     YCHECK(JobletMap.erase(jobId) == 1);
 }
 
+bool TOperationControllerBase::HasProgress() const
+{
+    return IsPrepared();
+}
+
 void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
 {
     VERIFY_INVOKER_AFFINITY(Invoker);
@@ -4189,8 +4208,6 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 
     Persist(context, OutputTables);
 
-    Persist(context, IntermediateOutputCellTag);
-
     Persist(context, IntermediateTable);
 
     Persist(context, Files);
@@ -4200,6 +4217,8 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, TaskGroups);
 
     Persist(context, InputChunkMap);
+
+    Persist(context, IntermediateOutputCellTag);
 
     Persist(context, CellTagToOutputTableCount);
 
@@ -4211,13 +4230,6 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 
     Persist(context, JobletMap);
 
-    Persist(context, JobIndexGenerator);
-
-    Persist(context, JobStatistics);
-
-    Persist(context, RowCountLimitTableIndex);
-    Persist(context, RowCountLimit);
-
     // NB: Scheduler snapshots need not be stable.
     Persist<
         TSetSerializer<
@@ -4225,6 +4237,13 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
             TUnsortedTag
         >
     >(context, InputChunkSpecs);
+
+    Persist(context, JobIndexGenerator);
+
+    Persist(context, JobStatistics);
+
+    Persist(context, RowCountLimitTableIndex);
+    Persist(context, RowCountLimit);
 
     if (context.IsLoad()) {
         for (const auto& task : Tasks) {

@@ -30,7 +30,7 @@ TDiskHealthChecker::TDiskHealthChecker(
         Config_->CheckPeriod,
         EPeriodicExecutorMode::Manual))
     , Logger(DataNodeLogger)
-    , Profiler_(profiler)
+    , Profiler(profiler)
 {
     Logger.AddTag("Path: %v", Path_);
 }
@@ -86,7 +86,6 @@ void TDiskHealthChecker::DoRunCheck()
     auto fileName = NFS::CombinePaths(Path_, HealthCheckFileName);
 
     try {
-        const auto& Profiler = Profiler_;
         PROFILE_TIMING("/disk_health_check/total") {
             PROFILE_TIMING("/disk_health_check/write") {
                 TFile file(fileName, CreateAlways | WrOnly | Seq | Direct);

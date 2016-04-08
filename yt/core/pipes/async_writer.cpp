@@ -177,10 +177,7 @@ private:
 #ifdef _unix_
         YCHECK(Position_ < Buffer_.Size());
 
-        int size;
-        do {
-            size = ::write(FD_, Buffer_.Begin() + Position_, Buffer_.Size() - Position_);
-        } while (size == -1 && errno == EINTR);
+        ssize_t size = HandleEintr(::write, FD_, Buffer_.Begin() + Position_, Buffer_.Size() - Position_);
 
         if (size == -1) {
             if (errno == EAGAIN) {

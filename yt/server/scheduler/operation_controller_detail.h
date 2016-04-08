@@ -99,6 +99,7 @@ public:
     virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) override;
 
     virtual void Abort() override;
+    virtual void Complete() override;
 
     virtual TScheduleJobResultPtr ScheduleJob(
         ISchedulingContextPtr context,
@@ -118,6 +119,8 @@ public:
     virtual int GetPendingJobCount() const override;
     virtual int GetTotalJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
+
+    virtual bool HasProgress() const override;
 
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;

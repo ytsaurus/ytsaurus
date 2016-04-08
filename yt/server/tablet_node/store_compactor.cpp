@@ -644,7 +644,7 @@ private:
         auto storeManager = tablet->GetStoreManager();
         auto tabletId = tablet->GetId();
         auto mountRevision = tablet->GetMountRevision();
-        auto writerOptions = tablet->GetWriterOptions();
+        auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
         auto schema = tablet->Schema();

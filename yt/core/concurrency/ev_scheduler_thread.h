@@ -43,7 +43,8 @@ protected:
     TIntrusivePtr<TInvoker> Invoker;
     TLockFreeQueue<TClosure> Queue;
 
-    virtual void OnShutdown() override;
+    virtual void BeforeShutdown() override;
+    virtual void AfterShutdown() override;
 
     virtual EBeginExecuteResult BeginExecute() override;
     virtual void EndExecute() override;

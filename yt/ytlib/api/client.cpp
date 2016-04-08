@@ -97,7 +97,6 @@ using namespace NTabletClient::NProto;
 using namespace NSecurityClient;
 using namespace NQueryClient;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using namespace NScheduler;
 using namespace NHive;
 using namespace NHydra;
@@ -1253,6 +1252,10 @@ public:
         const TOperationId& operationId,
         const TResumeOperationOptions& options),
         (operationId, options))
+    IMPLEMENT_METHOD(void, CompleteOperation, (
+        const TOperationId& operationId,
+        const TCompleteOperationOptions& options),
+        (operationId, options))
 
     IMPLEMENT_METHOD(void, DumpJobContext, (
         const TJobId& jobId,
@@ -2152,6 +2155,8 @@ private:
         const TYPath& dstPath,
         TConcatenateNodesOptions options)
     {
+        using NChunkClient::NProto::TDataStatistics;
+
         try {
             // Get objects ids.
             std::vector<TObjectId> srcIds;
@@ -2510,6 +2515,17 @@ private:
             .ThrowOnError();
     }
 
+    void DoCompleteOperation(
+        const TOperationId& operationId,
+        const TCompleteOperationOptions& /*options*/)
+    {
+        auto req = SchedulerProxy_->CompleteOperation();
+        ToProto(req->mutable_operation_id(), operationId);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
+
 
     void DoDumpJobContext(
         const TJobId& jobId,
@@ -2631,14 +2647,18 @@ public:
 
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options) override
     {
-        return BIND(&TTransaction::DoCommit, MakeStrong(this))
-            .AsyncVia(Client_->GetConnection()->GetLightInvoker())
-            .Run(options);
+        if (!Outcome_) {
+            return BIND(&TTransaction::DoCommit, MakeStrong(this))
+                .AsyncVia(Client_->GetConnection()->GetLightInvoker())
+                .Run(options);
+        }
+        return Outcome_;
     }
 
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options) override
     {
-        return Transaction_->Abort(options);
+        Outcome_ = Transaction_->Abort(options);
+        return Outcome_;
     }
 
     virtual void Detach() override
@@ -2672,33 +2692,33 @@ public:
     virtual void WriteRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        std::vector<TUnversionedRow> rows,
+        TSharedRange<TUnversionedRow> rows,
         const TWriteRowsOptions& options) override
     {
-        Requests_.push_back(std::unique_ptr<TRequestBase>(new TWriteRequest(
+        auto rowCount = rows.Size();
+        Requests_.push_back(std::make_unique<TWriteRequest>(
             this,
             path,
             std::move(nameTable),
             std::move(rows),
-            options)));
-        LOG_DEBUG("Row writes buffered (RowCount: %v)",
-            rows.size());
+            options));
+        LOG_DEBUG("Row writes buffered (RowCount: %v)", rowCount);
     }
 
     virtual void DeleteRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        std::vector<NTableClient::TKey> keys,
+        TSharedRange<TUnversionedRow> keys,
         const TDeleteRowsOptions& options) override
     {
-        Requests_.push_back(std::unique_ptr<TRequestBase>(new TDeleteRequest(
+        auto keyCount = keys.Size();
+        Requests_.push_back(std::make_unique<TDeleteRequest>(
             this,
             path,
             std::move(nameTable),
             std::move(keys),
-            options)));
-        LOG_DEBUG("Row deletes buffered (RowCount: %v)",
-            keys.size());
+            options));
+        LOG_DEBUG("Row deletes buffered (KeyCount: %v)", keyCount);
     }
 
 
@@ -2841,6 +2861,8 @@ private:
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
+    TFuture<void> Outcome_;
+
     NLogging::TLogger Logger;
 
 
@@ -2893,7 +2915,7 @@ private:
         { }
 
         void WriteRequests(
-            const std::vector<TUnversionedRow>& rows,
+            const TSharedRange<TUnversionedRow>& rows,
             EWireProtocolCommand command,
             int columnCount,
             TRowValidator validateRow,
@@ -2938,7 +2960,7 @@ private:
             TTransaction* transaction,
             const TYPath& path,
             TNameTablePtr nameTable,
-            std::vector<TUnversionedRow> rows,
+            TSharedRange<TUnversionedRow> rows,
             const TWriteRowsOptions& options)
             : TModifyRequest(transaction, path, std::move(nameTable))
             , Rows_(std::move(rows))
@@ -2946,7 +2968,7 @@ private:
         { }
 
     private:
-        const std::vector<TUnversionedRow> Rows_;
+        const TSharedRange<TUnversionedRow> Rows_;
 
         virtual void DoRun() override
         {
@@ -2969,14 +2991,14 @@ private:
             TTransaction* transaction,
             const TYPath& path,
             TNameTablePtr nameTable,
-            std::vector<NTableClient::TKey> keys,
+            TSharedRange<TKey> keys,
             const TDeleteRowsOptions& /*options*/)
             : TModifyRequest(transaction, path, std::move(nameTable))
             , Keys_(std::move(keys))
         { }
 
     private:
-        const std::vector<TUnversionedRow> Keys_;
+        const TSharedRange<TKey> Keys_;
 
         virtual void DoRun() override
         {

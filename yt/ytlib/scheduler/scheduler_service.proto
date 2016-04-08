@@ -8,10 +8,10 @@ import "yt/core/misc/guid.proto";
 // Starts a new operation.
 
 message TReqStartOperation
-{ 
+{
     // EOperationType value.
     required int32 type = 1;
-    
+
     // Operation spec in YSON.
     required bytes spec = 2;
 
@@ -28,7 +28,7 @@ message TRspStartOperation
 // Aborts an existing operation.
 
 message TReqAbortOperation
-{ 
+{
     required NYT.NProto.TGuid operation_id = 1;
 }
 
@@ -40,7 +40,7 @@ message TRspAbortOperation
 // Puts an operation into suspended state.
 
 message TReqSuspendOperation
-{ 
+{
     required NYT.NProto.TGuid operation_id = 1;
 }
 
@@ -52,11 +52,23 @@ message TRspSuspendOperation
 // Resumes an earlier suspended operation.
 
 message TReqResumeOperation
-{ 
+{
     required NYT.NProto.TGuid operation_id = 1;
 }
 
 message TRspResumeOperation
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Completes an existing operation.
+
+message TReqCompleteOperation
+{
+    required NYT.NProto.TGuid operation_id = 1;
+}
+
+message TRspCompleteOperation
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,7 +81,7 @@ message TOperationResult
 }
 
 message TReqWaitForOperation
-{ 
+{
     required NYT.NProto.TGuid operation_id = 1;
     // Specifies a timeout to wait for the operation to complete.
     required int64 timeout = 4;

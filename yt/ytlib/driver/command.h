@@ -35,6 +35,9 @@ struct ICommandContext
     virtual void ProduceOutputValue(const NYson::TYsonString& yson) = 0;
     virtual NYson::TYsonString ConsumeInputValue() = 0;
 
+    virtual void PinTransaction(NApi::ITransactionPtr transaction, TDuration timeout) = 0;
+    virtual bool UnpinTransaction(const NTransactionClient::TTransactionId& transactionId) = 0;
+    virtual NApi::ITransactionPtr FindAndTouchTransaction(const NTransactionClient::TTransactionId& transactionId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICommandContext)

@@ -1557,8 +1557,6 @@ public:
     }
 
 protected:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceControllerBase, 0xf913ed08);
-
     TReduceOperationSpecBasePtr Spec;
 
     i64 StartRowIndex = 0;
@@ -1566,9 +1564,14 @@ protected:
     //! Number of key columns for foreign tables.
     int ForeignKeyColumnCount = 0;
 
+    //! Not serialized.
     TNullable<int> TeleportOutputTable;
+    //! Not serialized.
     std::vector<std::deque<TRefCountedChunkSpecPtr>> ForeignInputChunks;
+
+    //! Not serialized.
     TChunkSlicePtr CurrentTaskFirstChunkSlice;
+    //! Not serialized.
     TChunkSlicePtr CurrentTaskLastChunkSlice;
 
     virtual void DoInitialize() override
@@ -1777,6 +1780,12 @@ public:
         : TReduceControllerBase(config, spec, config->ReduceOperationOptions, host, operation)
         , Spec(spec)
     { }
+
+    // Persistence.
+    virtual void Persist(TPersistenceContext& context) override
+    {
+        TReduceControllerBase::Persist(context);
+    }
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceController, 0xacd16dbc);
@@ -2063,6 +2072,12 @@ public:
         : TReduceControllerBase(config, spec, config->JoinReduceOperationOptions, host, operation)
         , Spec(spec)
     { }
+
+    // Persistence.
+    virtual void Persist(TPersistenceContext& context) override
+    {
+        TReduceControllerBase::Persist(context);
+    }
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TJoinReduceController, 0xc0fd3095);
