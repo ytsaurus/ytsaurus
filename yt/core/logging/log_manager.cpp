@@ -12,6 +12,7 @@
 #include <yt/core/misc/hash.h>
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/pattern_formatter.h>
+#include <yt/core/misc/proc.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/raw_formatter.h>
 #include <yt/core/misc/singleton.h>
@@ -84,10 +85,7 @@ public:
         YCHECK(FD_ >= 0);
 
         char buffer[sizeof(struct inotify_event) + NAME_MAX + 1];
-        ssize_t rv;
-        do {
-            rv = ::read(FD_, buffer, sizeof(buffer));
-        } while (rv == -1 && errno == EINTR);
+        ssize_t rv = HandleEintr(::read, FD_, buffer, sizeof(buffer));
 
         if (rv < 0) {
             if (errno != EAGAIN) {
@@ -344,10 +342,7 @@ public:
             formatter.AppendString(event.Message.c_str());
             formatter.AppendString("\n*** Aborting ***\n");
 
-            ssize_t size;
-            do {
-                size = ::write(2, formatter.GetData(), formatter.GetBytesWritten());
-            } while (size == -1 && errno == EINTR);
+            HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());
 
             std::terminate();
         }

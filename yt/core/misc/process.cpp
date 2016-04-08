@@ -57,7 +57,7 @@ bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 
         siginfo_t info;
         ::memset(&info, 0, sizeof(info));
-        auto res = ::waitid(idtype, id, infop != nullptr ? infop : &info, options);
+        auto res = HandleEintr(::waitid, idtype, id, infop != nullptr ? infop : &info, options);
 
         if (res == 0) {
             // According to man wait.
@@ -71,10 +71,6 @@ bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
                 return false;
             }
             return true;
-        }
-
-        if (errno == EINTR) {
-            continue;
         }
 
         return false;
@@ -309,9 +305,7 @@ void TProcess::ValidateSpawnResult()
 #ifdef _unix_
     int data[2];
     ssize_t res;
-    do {
-        res = ::read(Pipe_.GetReadFD(), &data, sizeof(data));
-    } while (res == -1 && errno == EINTR);
+    res = HandleEintr(::read, Pipe_.GetReadFD(), &data, sizeof(data));
     Pipe_.CloseReadFD();
 
     if (res == 0) {
@@ -496,10 +490,7 @@ void TProcess::Child()
             };
 
             // According to pipe(7) write of small buffer is atomic.
-            ssize_t size;
-            do {
-                size = ::write(Pipe_.GetWriteFD(), &data, sizeof(data));
-            } while (size == -1 && errno == EINTR);
+            ssize_t size = HandleEintr(::write, Pipe_.GetWriteFD(), &data, sizeof(data));
             YCHECK(size == sizeof(data));
             _exit(1);
         }

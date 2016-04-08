@@ -115,11 +115,13 @@ void TSchedulerThread::Shutdown()
 
         CallbackEventCount->NotifyAll();
 
-        OnShutdown();
+        BeforeShutdown();
 
         // Avoid deadlock.
         YCHECK(TThread::CurrentThreadId() != ThreadId);
         Thread.Join();
+
+        AfterShutdown();
     } else {
         // Thread was not started at all.
     }
@@ -516,7 +518,10 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
 void TSchedulerThread::OnStart()
 { }
 
-void TSchedulerThread::OnShutdown()
+void TSchedulerThread::BeforeShutdown()
+{ }
+
+void TSchedulerThread::AfterShutdown()
 { }
 
 void TSchedulerThread::OnThreadStart()

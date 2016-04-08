@@ -152,10 +152,7 @@ private:
         YCHECK(Position_ < Buffer_.Size());
         YCHECK(!ReadResultPromise_.IsSet());
 
-        int size;
-        do {
-            size = ::read(FD_, Buffer_.Begin() + Position_, Buffer_.Size() - Position_);
-        } while (size == -1 && errno == EINTR);
+        ssize_t size = HandleEintr(::read, FD_, Buffer_.Begin() + Position_, Buffer_.Size() - Position_);
 
         if (size == -1) {
             if (errno == EAGAIN) {

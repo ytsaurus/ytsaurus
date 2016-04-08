@@ -1,6 +1,9 @@
 #include "framework.h"
 
 #include <yt/ytlib/formats/json_writer.h>
+#include <yt/ytlib/formats/config.h>
+
+#include <yt/core/yson/consumer.h>
 
 #include <util/string/base64.h>
 

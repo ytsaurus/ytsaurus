@@ -368,15 +368,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (operation->IsFinishingState()) {
-            LOG_INFO(error, "Operation is already finishing (OperationId: %v, State: %v)",
-                operation->GetId(),
-                operation->GetState());
-            return operation->GetFinished();
-        }
-
-        if (operation->IsFinishedState()) {
-            LOG_INFO(error, "Operation is already finished (OperationId: %v, State: %v)",
+        if (operation->IsFinishingState() || operation->IsFinishedState()) {
+            LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
                 operation->GetId(),
                 operation->GetState());
             return operation->GetFinished();
@@ -432,6 +425,34 @@ public:
             operation->GetId());
 
         return MasterConnector_->FlushOperationNode(operation);
+    }
+
+    TFuture<void> CompleteOperation(TOperationPtr operation, const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (operation->IsFinishingState() || operation->IsFinishedState()) {
+            LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
+                operation->GetId(),
+                operation->GetState());
+            return operation->GetFinished();
+        }
+        if (operation->GetState() != EOperationState::Running) {
+            return MakeFuture(TError(
+                EErrorCode::InvalidOperationState,
+                "Operation is not running. Its state %Qlv",
+                operation->GetState()));
+        }
+
+        LOG_INFO(error, "Completing operation (OperationId: %v, State: %v)",
+            operation->GetId(),
+            operation->GetState());
+
+        auto controller = operation->GetController();
+        YCHECK(controller);
+        controller->Complete();
+
+        return operation->GetFinished();
     }
 
     TFuture<TYsonString> Strace(const TJobId& jobId)
@@ -818,14 +839,16 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        GetControlInvoker()->Invoke(BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operation));
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+            BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operation));
     }
 
     virtual void OnOperationFailed(TOperationPtr operation, const TError& error) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        GetControlInvoker()->Invoke(BIND(&TImpl::DoFailOperation, MakeStrong(this), operation, error));
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+            BIND(&TImpl::DoFailOperation, MakeStrong(this), operation, error));
     }
 
     virtual IValueConsumerPtr CreateLogConsumer() override
@@ -1960,6 +1983,11 @@ private:
                     controller,
                     Passed(std::make_unique<TAbortedJobSummary>(job))));
             }
+
+            // Check if job was aborted due to signal.
+            if (GetAbortReason(job->Result()) == EAbortReason::UserRequest) {
+                ProcessFinishedJobResult(job);
+            }
         }
 
         UnregisterJob(job);
@@ -1987,7 +2015,7 @@ private:
 
     void ProcessFinishedJobResult(TJobPtr job)
     {
-        auto jobFailed = job->GetState() == EJobState::Failed;
+        auto jobFailedOrAborted = job->GetState() == EJobState::Failed || job->GetState() == EJobState::Aborted;
         const auto& schedulerResultExt = job->Result()->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
         auto stderrChunkId = schedulerResultExt.has_stderr_chunk_id()
@@ -2001,7 +2029,7 @@ private:
         auto operation = FindOperation(job->GetOperationId());
         YCHECK(operation);
 
-        if (jobFailed) {
+        if (jobFailedOrAborted) {
             if (stderrChunkId) {
                 operation->SetStderrCount(operation->GetStderrCount() + 1);
             }
@@ -2419,13 +2447,13 @@ private:
     {
         auto controller = operation->GetController();
         auto state = operation->GetState();
-        bool hasProgress = (state == EOperationState::Running) || IsOperationFinished(state);
+        bool hasControllerProgress = operation->HasControllerProgress();
         BuildYsonMapFluently(consumer)
             .Item(ToString(operation->GetId())).BeginMap()
                 // Include the complete list of attributes.
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
-                    .DoIf(hasProgress, BIND([=] (IYsonConsumer* consumer) {
+                    .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
                         WaitFor(
                             BIND(&IOperationController::BuildProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
@@ -2434,7 +2462,7 @@ private:
                     .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_.get(), operation->GetId()))
                 .EndMap()
                 .Item("brief_progress").BeginMap()
-                    .DoIf(hasProgress, BIND([=] (IYsonConsumer* consumer) {
+                    .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
                         WaitFor(
                             BIND(&IOperationController::BuildBriefProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
@@ -2705,6 +2733,13 @@ TFuture<void> TScheduler::SuspendOperation(TOperationPtr operation)
 TFuture<void> TScheduler::ResumeOperation(TOperationPtr operation)
 {
     return Impl_->ResumeOperation(operation);
+}
+
+TFuture<void> TScheduler::CompleteOperation(
+    TOperationPtr operation,
+    const TError& error)
+{
+    return Impl_->CompleteOperation(operation, error);
 }
 
 TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)

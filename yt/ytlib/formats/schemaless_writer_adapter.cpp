@@ -38,6 +38,7 @@ TSchemalessFormatWriterBase::TSchemalessFormatWriterBase(
     , EnableContextSaving_(enableContextSaving)
     , ControlAttributesConfig_(controlAttributesConfig)
     , KeyColumnCount_(keyColumnCount)
+    , NameTableReader_(std::make_unique<TNameTableReader>(NameTable_))
 {
     CurrentBuffer_.Reserve(ContextBufferSize);
 
@@ -185,6 +186,8 @@ void TSchemalessFormatWriterBase::WriteControlAttributes(TUnversionedRow row)
         return;
     }
 
+    ++RowIndex_;
+
     TNullable<i64> tableIndex;
     TNullable<i64> rangeIndex;
     TNullable<i64> rowIndex;
@@ -214,8 +217,12 @@ void TSchemalessFormatWriterBase::WriteControlAttributes(TUnversionedRow row)
         needRowIndex = true;
     }
 
-    if (ControlAttributesConfig_->EnableRowIndex && needRowIndex && rowIndex) {
-        WriteRowIndex(*rowIndex);
+    if (rowIndex) {
+        needRowIndex = needRowIndex || (*rowIndex != RowIndex_);
+        RowIndex_ = *rowIndex;
+        if (ControlAttributesConfig_->EnableRowIndex && needRowIndex) {
+            WriteRowIndex(*rowIndex);
+        }
     }
 }
 
@@ -297,7 +304,6 @@ void TSchemalessWriterAdapter::ConsumeRow(TUnversionedRow row)
 {
     WriteControlAttributes(row);
 
-    auto nameTable = GetNameTable();
     Consumer_->OnListItem();
     Consumer_->OnBeginMap();
     for (auto* it = row.Begin(); it != row.End(); ++it) {
@@ -307,7 +313,7 @@ void TSchemalessWriterAdapter::ConsumeRow(TUnversionedRow row)
             continue;
         }
 
-        Consumer_->OnKeyedItem(nameTable->GetName(value.Id));
+        Consumer_->OnKeyedItem(NameTableReader_->GetName(value.Id));
         switch (value.Type) {
             case EValueType::Int64:
                 Consumer_->OnInt64Scalar(value.Data.Int64);

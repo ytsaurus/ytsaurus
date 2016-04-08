@@ -61,7 +61,9 @@ protected:
     virtual void EndExecute() = 0;
 
     virtual void OnStart();
-    virtual void OnShutdown();
+
+    virtual void BeforeShutdown();
+    virtual void AfterShutdown();
 
     virtual void OnThreadStart();
     virtual void OnThreadShutdown();

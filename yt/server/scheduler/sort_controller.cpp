@@ -83,11 +83,11 @@ public:
 
         Persist(context, CompletedPartitionCount);
         Persist(context, PartitionJobCounter);
+        Persist(context, SortedMergeJobCounter);
+        Persist(context, UnorderedMergeJobCounter);
         Persist(context, IntermediateSortJobCounter);
         Persist(context, FinalSortJobCounter);
         Persist(context, SortDataSizeCounter);
-        Persist(context, SortedMergeJobCounter);
-        Persist(context, UnorderedMergeJobCounter);
 
         Persist(context, SortStartThresholdReached);
         Persist(context, MergeStartThresholdReached);

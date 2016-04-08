@@ -341,7 +341,7 @@ class TColumnReaderBase
     : public virtual IColumnReaderBase
 {
 public:
-    TColumnReaderBase(const NProto::TColumnMeta& columnMeta)
+    explicit TColumnReaderBase(const NProto::TColumnMeta& columnMeta)
         : ColumnMeta_(columnMeta)
     { }
 

@@ -50,15 +50,20 @@ IInvokerPtr TEVSchedulerThread::GetInvoker()
     return Invoker;
 }
 
-void TEVSchedulerThread::OnShutdown()
+void TEVSchedulerThread::BeforeShutdown()
 {
     CallbackWatcher.send();
+}
 
+void TEVSchedulerThread::AfterShutdown()
+{
     // Drain queue.
     TClosure callback;
     while (Queue.Dequeue(&callback)) {
         callback.Reset();
     }
+
+    YCHECK(Queue.IsEmpty()); // As a side effect, this releases free lists.
 }
 
 EBeginExecuteResult TEVSchedulerThread::BeginExecute()

@@ -4,6 +4,7 @@
 #include "tcp_dispatcher_impl.h"
 
 #include <yt/core/misc/enum.h>
+#include <yt/core/misc/proc.h>
 #include <yt/core/misc/string.h>
 
 #include <yt/core/rpc/public.h>
@@ -483,10 +484,7 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
     }
 #endif
 
-    int result;
-    do {
-        result = connect(Socket_, netAddress.GetSockAddr(), netAddress.GetLength());
-    } while (result < 0 && errno == EINTR);
+    int result = HandleEintr(connect, Socket_, netAddress.GetSockAddr(), netAddress.GetLength());
 
     if (result != 0) {
         int error = LastSystemError();
@@ -654,10 +652,7 @@ bool TTcpConnection::HasUnreadData() const
 
 bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 {
-    ssize_t result;
-    do {
-        result = recv(Socket_, buffer, size, 0);
-    } while (result < 0 && errno == EINTR);
+    ssize_t result = HandleEintr(recv, Socket_, buffer, size, 0);
 
     if (!CheckReadError(result)) {
         *bytesRead = 0;
@@ -881,9 +876,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     result = WSASend(Socket_, SendVector_.data(), SendVector_.size(), &bytesWritten_, 0, NULL, NULL);
     *bytesWritten = static_cast<size_t>(bytesWritten_);
 #else
-    do {
-        result = writev(Socket_, SendVector_.data(), SendVector_.size());
-    } while (result < 0 && errno == EINTR);
+    result = HandleEintr(::writev, Socket_, SendVector_.data(), SendVector_.size());
     *bytesWritten = result >= 0 ? result : 0;
 #endif
     bool isOK = CheckWriteError(result);

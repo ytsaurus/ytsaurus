@@ -18,6 +18,7 @@
 #include <yt/ytlib/chunk_client/multi_chunk_writer_base.h>
 
 #include <yt/core/misc/range.h>
+#include <yt/core/misc/random.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -59,6 +60,8 @@ public:
     , LastKey_(static_cast<TUnversionedValue*>(nullptr), static_cast<TUnversionedValue*>(nullptr))
     , MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
+    , RandomGenerator_(RandomNumber<ui64>())
+    , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
 #if 0
     , KeyFilter_(Config_->MaxKeyFilterSize, Config_->KeyFilterFalsePositiveRate)
 #endif
@@ -157,12 +160,22 @@ protected:
     TTimestamp MinTimestamp_;
     TTimestamp MaxTimestamp_;
 
+    TRandomGenerator RandomGenerator_;
+    const ui64 SamplingThreshold_;
+
 #if 0
     TBloomFilterBuilder KeyFilter_;
 #endif
 
     virtual void DoClose() = 0;
     virtual void DoWriteRows(const std::vector<TVersionedRow>& rows) = 0;
+
+    void EmitSampleRandomly(TVersionedRow row)
+    {
+        if (RandomGenerator_.Generate<ui64>() < SamplingThreshold_) {
+            EmitSample(row);
+        }
+    }
 
     void EmitSample(TVersionedRow row)
     {
@@ -245,9 +258,7 @@ private:
         const TUnversionedValue* beginPreviousKey,
         const TUnversionedValue* endPreviousKey)
     {
-        if (RandomNumber<double>() < Config_->SampleRate) {
-            EmitSample(row);
-        }
+        EmitSampleRandomly(row);
 
         ++RowCount_;
         DataWeight_ += GetDataWeight(row);
@@ -452,6 +463,10 @@ private:
             startRowIndex = rowIndex;
 
             TryFlushBlock(rows[rowIndex - 1]);
+        }
+
+        for (auto row : rows) {
+            EmitSampleRandomly(row);
         }
     }
 

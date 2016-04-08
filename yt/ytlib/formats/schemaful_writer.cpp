@@ -12,6 +12,15 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSchemafulWriter::TSchemafulWriter(
+    NConcurrency::IAsyncOutputStreamPtr stream,
+    const NTableClient::TTableSchema& schema,
+    const std::function<std::unique_ptr<IYsonConsumer>(TOutputStream*)>& consumerBuilder)
+    : Stream_(stream)
+    , Schema_(schema)
+    , Consumer_(consumerBuilder(&Buffer_))
+{ }
+
 TFuture<void> TSchemafulWriter::Close()
 {
     return VoidFuture;
@@ -24,40 +33,40 @@ bool TSchemafulWriter::Write(const std::vector<TUnversionedRow>& rows)
     int columnCount = static_cast<int>(Schema_.Columns().size());
     for (auto row : rows) {
         YASSERT(row.GetCount() >= columnCount);
-        Writer_->OnBeginMap();
+        Consumer_->OnBeginMap();
         for (int index = 0; index < columnCount; ++index) {
             const auto& value = row[index];
 
             const auto& column = Schema_.Columns()[index];
-            Writer_->OnKeyedItem(column.Name);
+            Consumer_->OnKeyedItem(column.Name);
 
             switch (value.Type) {
                 case EValueType::Int64:
-                    Writer_->OnInt64Scalar(value.Data.Int64);
+                    Consumer_->OnInt64Scalar(value.Data.Int64);
                     break;
                 case EValueType::Uint64:
-                    Writer_->OnUint64Scalar(value.Data.Uint64);
+                    Consumer_->OnUint64Scalar(value.Data.Uint64);
                     break;
                 case EValueType::Double:
-                    Writer_->OnDoubleScalar(value.Data.Double);
+                    Consumer_->OnDoubleScalar(value.Data.Double);
                     break;
                 case EValueType::Boolean:
-                    Writer_->OnBooleanScalar(value.Data.Boolean);
+                    Consumer_->OnBooleanScalar(value.Data.Boolean);
                     break;
                 case EValueType::String:
-                    Writer_->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+                    Consumer_->OnStringScalar(TStringBuf(value.Data.String, value.Length));
                     break;
                 case EValueType::Null:
-                    Writer_->OnEntity();
+                    Consumer_->OnEntity();
                     break;
                 case EValueType::Any:
-                    Writer_->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+                    Consumer_->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
                     break;
                 default:
                     YUNREACHABLE();
             }
         }
-        Writer_->OnEndMap();
+        Consumer_->OnEndMap();
     }
 
     auto buffer = Buffer_.Flush();

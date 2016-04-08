@@ -70,8 +70,8 @@ public:
     NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
     TDuration QueryTimeout;
     NCompression::ECodec QueryResponseCodec;
-    int DefaultInputRowLimit;
-    int DefaultOutputRowLimit;
+    i64 DefaultInputRowLimit;
+    i64 DefaultOutputRowLimit;
 
     TDuration WriteTimeout;
     NCompression::ECodec WriteRequestCodec;

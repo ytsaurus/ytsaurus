@@ -23,7 +23,7 @@ using namespace NConcurrency;
 static const auto& Logger = BusLogger;
 static const auto& Profiler = BusProfiler;
 
-static const int ThreadCount = 8;
+static const int ClientThreadCount = 8;
 
 static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
 static const auto CheckPeriod = TDuration::Seconds(15);
@@ -128,10 +128,10 @@ void TTcpDispatcherThread::DoUnregister(IEventLoopObjectPtr object)
     LOG_DEBUG("Object unregistered (%v)", object->GetLoggingId());
 }
 
-void TTcpDispatcherThread::OnShutdown()
+void TTcpDispatcherThread::BeforeShutdown()
 {
     CheckExecutor_->Stop();
-    TEVSchedulerThread::OnShutdown();
+    TEVSchedulerThread::BeforeShutdown();
 }
 
 void TTcpDispatcherThread::OnCheck()
@@ -145,14 +145,16 @@ void TTcpDispatcherThread::OnCheck()
 
 TTcpDispatcher::TImpl::TImpl()
 {
-    ServerThread_ = New<TTcpDispatcherThread>("BusServer");
+    auto serverThread = New<TTcpDispatcherThread>("BusServer");
+    Threads_.push_back(serverThread);
 
-    for (int index = 0; index < ThreadCount; ++index) {
-        ClientThreads_.emplace_back(New<TTcpDispatcherThread>(Format("BusClient:%v", index)));
+    for (int index = 0; index < ClientThreadCount; ++index) {
+        auto clientThread = New<TTcpDispatcherThread>(Format("BusClient:%v", index));
+        Threads_.push_back(clientThread);
     }
     
     ProfilingExecutor_ = New<TPeriodicExecutor>(
-        ServerThread_->GetInvoker(),
+        GetServerThread()->GetInvoker(),
         BIND(&TImpl::OnProfiling, this),
         ProfilingPeriod);
     ProfilingExecutor_->Start();
@@ -167,19 +169,17 @@ void TTcpDispatcher::TImpl::Shutdown()
 {
     ProfilingExecutor_->Stop();
 
-    ServerThread_->Shutdown();
-
-    for (const auto& clientThread : ClientThreads_) {
-        clientThread->Shutdown();
+    for (const auto& thread : Threads_) {
+        thread->Shutdown();
     }
 }
 
 TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType interfaceType) const
 {
     // This is racy but should be OK as an approximation.
-    auto result = *ServerThread_->GetStatistics(interfaceType);
-    for (const auto& clientThread : ClientThreads_) {
-        result += *clientThread->GetStatistics(interfaceType);
+    TTcpDispatcherStatistics result;
+    for (const auto& thread : Threads_) {
+        result += *thread->GetStatistics(interfaceType);
     }
     return result;
 }
@@ -188,25 +188,26 @@ int TTcpDispatcher::TImpl::GetServerConnectionCount(ETcpInterfaceType interfaceT
 {
     // A variation of GetStatistics optimized for this single parameter.
     // This is, again, racy but should be OK as an approximation.
-    auto result = ServerThread_->GetStatistics(interfaceType)->ServerConnections;
-    for (const auto& clientThread : ClientThreads_) {
-        result += clientThread->GetStatistics(interfaceType)->ServerConnections;
+    int result = 0;
+    for (const auto& thread : Threads_) {
+        result += thread->GetStatistics(interfaceType)->ServerConnections;
     }
     return result;
 }
 
 TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetServerThread()
 {
-    if (Y_UNLIKELY(!ServerThread_->IsStarted())) {
-        ServerThread_->Start();
+    const auto& thread = Threads_[0];
+    if (Y_UNLIKELY(!thread->IsStarted())) {
+        thread->Start();
     }
-    return ServerThread_;
+    return thread;
 }
 
 TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetClientThread()
 {
-    auto index = CurrentClientThreadIndex_++ % ThreadCount;
-    auto& thread = ClientThreads_[index];
+    auto index = CurrentClientThreadIndex_++ % ClientThreadCount;
+    const auto& thread = Threads_[index + 1];
     if (Y_UNLIKELY(!thread->IsStarted())) {
         thread->Start();
     }

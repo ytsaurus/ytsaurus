@@ -1,5 +1,6 @@
 #include "assert.h"
 #include "raw_formatter.h"
+#include "proc.h"
 
 #include <yt/core/logging/log_manager.h>
 
@@ -32,10 +33,7 @@ void AssertTrapImpl(
     formatter.AppendNumber(line);
     formatter.AppendString("\n");
 
-    ssize_t size;
-    do {
-        size = ::write(2, formatter.GetData(), formatter.GetBytesWritten());
-    } while (size == -1 && errno == EINTR);
+    HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());
 
     NLogging::TLogManager::Get()->Shutdown();
 

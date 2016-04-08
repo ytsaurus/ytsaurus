@@ -51,8 +51,6 @@ typedef TIntrusivePtr<TRootElement> TRootElementPtr;
 
 struct TFairShareContext;
 
-class TDynamicAttributesMap;
-
 ////////////////////////////////////////////////////////////////////
 
 NProfiling::TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
@@ -124,6 +122,8 @@ struct ISchedulerElement
 
     virtual const TDynamicAttributes& DynamicAttributes(int attributesIndex) const = 0;
     virtual TDynamicAttributes& DynamicAttributes(int attributesIndex) = 0;
+
+    virtual ISchedulerElementPtr GetBestLeafDescendant(int attributesIndex) = 0;
 
     virtual bool IsActive(int attributsIndex) const = 0;
 
@@ -308,6 +308,11 @@ public:
     virtual TDynamicAttributes& DynamicAttributes(int attributesIndex) override
     {
         return DynamicAttributesList_.Get(attributesIndex);
+    }
+
+    virtual ISchedulerElementPtr GetBestLeafDescendant(int attributesIndex) override
+    {
+        return DynamicAttributesList_.Get(attributesIndex).BestLeafDescendant;
     }
 
     virtual bool IsActive(int attributesIndex) const override
@@ -524,7 +529,7 @@ public:
 
         while (auto bestChild = GetBestActiveChild(attributesIndex)) {
             const auto& bestChildAttributes = bestChild->DynamicAttributes(attributesIndex);
-            const auto& childBestLeafDescendant = bestChildAttributes.BestLeafDescendant;
+            const auto& childBestLeafDescendant = bestChild->GetBestLeafDescendant(attributesIndex);
             if (!childBestLeafDescendant->IsActive(GlobalAttributesIndex)) {
                 bestChild->UpdateDynamicAttributes(attributesIndex);
                 if (!bestChildAttributes.Active) {
@@ -543,7 +548,7 @@ public:
                 attributes.SatisfactionRatio,
                 bestChildAttributes.SatisfactionRatio);
 
-            attributes.BestLeafDescendant = bestChildAttributes.BestLeafDescendant;
+            attributes.BestLeafDescendant = bestChild->GetBestLeafDescendant(attributesIndex);
             attributes.Active = true;
             break;
         }
@@ -580,16 +585,16 @@ public:
             return false;
         }
 
-        auto bestLeafDescendant = attributes.BestLeafDescendant;
+        auto bestLeafDescendant = GetBestLeafDescendant(context.AttributesIndex);
         if (!bestLeafDescendant->IsActive(GlobalAttributesIndex)) {
             // NB: This can only happen as a result of deletion of bestLeafDescendant node
-            // from scheduling tree in another fiber (e.x. operation abort),
+            // from scheduling tree in another fiber (e.g. operation abort),
             // while this fiber was waiting for controller.
             UpdateDynamicAttributes(context.AttributesIndex);
             if (!attributes.Active) {
                 return false;
             }
-            bestLeafDescendant = attributes.BestLeafDescendant;
+            bestLeafDescendant = GetBestLeafDescendant(context.AttributesIndex);
             YCHECK(bestLeafDescendant->IsActive(GlobalAttributesIndex));
         }
 
@@ -1051,7 +1056,6 @@ public:
         auto& attributes = DynamicAttributes(GlobalAttributesIndex);
         attributes.Active = true;
         attributes.MinSubtreeStartTime = operation->GetStartTime();
-        attributes.BestLeafDescendant = this;
     }
 
     virtual double GetFairShareStarvationTolerance() const override
@@ -1183,6 +1187,11 @@ public:
         Operation_->UpdateControllerTimeStatistics("/schedule_job/success", scheduleJobDuration);
 
         return true;
+    }
+
+    virtual ISchedulerElementPtr GetBestLeafDescendant(int attributesIndex) override
+    {
+        return this;
     }
 
     virtual int GetPendingJobCount() const override
@@ -2242,20 +2251,16 @@ private:
             operation->GetId(),
             pool->GetId());
 
-        bool IsPending = false;
-        {
-            auto it = OperationQueue.begin();
-            while (it != OperationQueue.end()) {
-                if (*it == operationElement->GetOperation()) {
-                    IsPending = true;
-                    OperationQueue.erase(it);
-                    break;
-                }
-                ++it;
+        bool isPending = false;
+        for (auto it = OperationQueue.begin(); it != OperationQueue.end(); ++it) {
+            if (*it == operationElement->GetOperation()) {
+                isPending = true;
+                OperationQueue.erase(it);
+                break;
             }
         }
 
-        if (!IsPending) {
+        if (!isPending) {
             IncreaseRunningOperationCount(pool, -1);
 
             // Try to run operations from queue.
