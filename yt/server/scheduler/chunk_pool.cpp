@@ -100,6 +100,7 @@ void TChunkStripe::Persist(TPersistenceContext& context)
     using NYT::Persist;
     Persist(context, ChunkSlices);
     Persist(context, WaitingChunkCount);
+    Persist(context, Foreign);
 }
 
 TChunkStripeStatistics operator + (
@@ -885,12 +886,12 @@ public:
         Persist(context, SuspendedDataSize);
         Persist(context, UnavailableLostCookieCount);
         Persist(context, MaxChunkStripesPerJob);
+        Persist(context, MaxBlockSize);
         Persist(context, NodeIdToEntry);
         Persist(context, OutputCookieGenerator);
         Persist(context, ExtractedLists);
         Persist(context, LostCookies);
         Persist(context, ReplayCookies);
-        Persist(context, MaxBlockSize);
     }
 
 private:
@@ -1269,10 +1270,10 @@ private:
 
     DECLARE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool, 0xbacd518a);
 
-    i64 DataSizeThreshold;
-
     // NB: sort job cannot handle more than numeric_limits<i32>::max() rows.
     static const i64 RowCountThreshold = std::numeric_limits<i32>::max();
+
+    i64 DataSizeThreshold;
 
     class TOutput
         : public TChunkPoolOutputBase

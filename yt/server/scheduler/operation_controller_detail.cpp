@@ -123,6 +123,7 @@ void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& contex
     Persist(context, LockMode);
     Persist(context, Options);
     Persist(context, KeyColumns);
+    Persist(context, ChunkPropertiesUpdateNeeded);
     Persist(context, UploadTransactionId);
     Persist(context, OutputChunkListId);
     Persist(context, DataStatistics);
@@ -185,9 +186,9 @@ void TOperationControllerBase::TJoblet::Persist(TPersistenceContext& context)
     // properly.
     using NYT::Persist;
     Persist(context, Task);
+    Persist(context, NodeDescriptor);
     Persist(context, InputStripeList);
     Persist(context, OutputCookie);
-    Persist(context, NodeDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -4102,8 +4103,6 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 
     Persist(context, OutputTables);
 
-    Persist(context, IntermediateOutputCellTag);
-
     Persist(context, IntermediateTable);
 
     Persist(context, Files);
@@ -4113,6 +4112,8 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, TaskGroups);
 
     Persist(context, InputChunkMap);
+
+    Persist(context, IntermediateOutputCellTag);
 
     Persist(context, CellTagToOutputTableCount);
 
@@ -4124,13 +4125,6 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 
     Persist(context, JobletMap);
 
-    Persist(context, JobIndexGenerator);
-
-    Persist(context, JobStatistics);
-
-    Persist(context, RowCountLimitTableIndex);
-    Persist(context, RowCountLimit);
-
     // NB: Scheduler snapshots need not be stable.
     Persist<
         TSetSerializer<
@@ -4138,6 +4132,13 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
             TUnsortedTag
         >
     >(context, InputChunkSpecs);
+
+    Persist(context, JobIndexGenerator);
+
+    Persist(context, JobStatistics);
+
+    Persist(context, RowCountLimitTableIndex);
+    Persist(context, RowCountLimit);
 
     if (context.IsLoad()) {
         for (const auto& task : Tasks) {
