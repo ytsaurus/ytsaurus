@@ -36,6 +36,50 @@ using NCodegen::TCGModule;
 // Operator helpers
 //
 
+Value* CodegenAllocateRow(TCGIRBuilder& builder, size_t valueCount)
+{
+    Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
+
+    size_t size = sizeof(TUnversionedRowHeader) + sizeof(TUnversionedValue) * valueCount;
+
+    Value* newRowData = builder.CreateAlignedAlloca(
+        TypeBuilder<char, false>::get(builder.getContext()),
+        8,
+        builder.getInt32(size));
+
+    builder.CreateStore(
+        builder.CreatePointerCast(newRowData, TypeBuilder<TRowHeader*, false>::get(builder.getContext())),
+        builder.CreateConstInBoundsGEP2_32(
+            nullptr,
+            newRowPtr,
+            0,
+            TypeBuilder<TRow, false>::Fields::Header));
+
+    Value* newRow = builder.CreateLoad(newRowPtr);
+
+    auto headerPtr = builder.CreateExtractValue(
+        newRow,
+        TypeBuilder<TRow, false>::Fields::Header);
+
+    builder.CreateStore(
+        builder.getInt32(valueCount),
+        builder.CreateConstInBoundsGEP2_32(
+            nullptr,
+            headerPtr,
+            0,
+            TypeBuilder<TRowHeader, false>::Fields::Count));
+
+    builder.CreateStore(
+        builder.getInt32(valueCount),
+        builder.CreateConstInBoundsGEP2_32(
+            nullptr,
+            headerPtr,
+            0,
+            TypeBuilder<TRowHeader, false>::Fields::Capacity));
+
+    return newRow;
+}
+
 void CodegenForEachRow(
     TCGContext& builder,
     Value* rows,
@@ -1088,29 +1132,21 @@ TCodegenSource MakeCodegenProjectOp(
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
         int projectionCount = codegenArgs.size();
 
+        Value* newRow = CodegenAllocateRow(builder, projectionCount);
+
         codegenSource(
             builder,
             [&] (TCGContext& builder, Value* row) {
-                Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-
-                builder.CreateCall(
-                    builder.Module->GetRoutine("AllocateIntermediateRow"),
-                    {
-                        builder.GetExecutionContextPtr(),
-                        builder.getInt32(projectionCount),
-                        newRowPtr
-                    });
-
-                Value* newRow = builder.CreateLoad(newRowPtr);
+                Value* newRowRef = builder.ViaClosure(newRow);
 
                 for (int index = 0; index < projectionCount; ++index) {
                     auto id = index;
 
                     codegenArgs[index](builder, row)
-                        .StoreToRow(builder, newRow, index, id);
+                        .StoreToRow(builder, newRowRef, index, id);
                 }
 
-                codegenConsumer(builder, newRow);
+                codegenConsumer(builder, newRowRef);
             });
     };
 }
@@ -1431,17 +1467,7 @@ TCodegenSource MakeCodegenOrderOp(
             TCGContext& builder,
             Value* topCollector
         ) {
-            Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-
-            builder.CreateCall(
-                builder.Module->GetRoutine("AllocatePermanentRow"),
-                {
-                    builder.GetExecutionContextPtr(),
-                    builder.getInt32(sourceSchema.Columns().size() + codegenExprs.size()),
-                    newRowPtr
-                });
-
-            Value* newRow = builder.CreateLoad(newRowPtr);
+            Value* newRow = CodegenAllocateRow(builder, sourceSchema.Columns().size() + codegenExprs.size());
 
             codegenSource(
                 builder,

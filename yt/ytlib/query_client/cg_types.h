@@ -110,7 +110,7 @@ public:
     enum Fields
     {
         Count,
-        Padding
+        Capacity
     };
 
     static StructType* get(LLVMContext& context)
