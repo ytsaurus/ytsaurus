@@ -120,6 +120,8 @@ public:
     virtual int GetTotalJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
 
+    virtual bool HasProgress() const override;
+
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildResult(NYson::IYsonConsumer* consumer) const override;

@@ -133,6 +133,9 @@ public:
 
     void UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value);
 
+    //! Returns |true| if operation controller progress can be built.
+    bool HasControllerProgress() const;
+
     TOperation(
         const TOperationId& operationId,
         EOperationType type,

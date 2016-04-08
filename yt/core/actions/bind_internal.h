@@ -92,11 +92,26 @@ namespace NDetail {
 // #TCallableAdapter<>
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class...>
+struct TCallableSignature;
+
+template <class R, class C, class... Args>
+struct TCallableSignature<R (C::*)(Args...) const>
+{
+    typedef R TSignature(Args...);
+};
+
+template <class R, class C, class... Args>
+struct TCallableSignature<R (C::*)(Args...)>
+{
+    typedef R TSignature(Args...);
+};
+
 template <class T, class TSignature>
 class TCallableAdapter;
 
-template <class R, class T, class TBase, class... TArgs>
-class TCallableAdapter<T, R(TBase::*)(TArgs...)>
+template <class R, class T, class... TArgs>
+class TCallableAdapter<T, R(TArgs...)>
 {
 public:
     typedef NMpl::TTrueType IsCallable;
@@ -119,32 +134,6 @@ public:
 
 private:
     T Functor;
-};
-
-template <class R, class T, class TBase, class... TArgs>
-class TCallableAdapter<T, R(TBase::*)(TArgs...) const>
-{
-public:
-    typedef NMpl::TTrueType IsCallable;
-
-    enum { Arity = sizeof...(TArgs) };
-    typedef R (TSignature)(TArgs...);
-
-    explicit TCallableAdapter(const T& functor)
-        : Functor(functor)
-    { }
-
-    explicit TCallableAdapter(T&& functor)
-        : Functor(std::move(functor))
-    { }
-
-    R Run(TArgs&&... args)
-    {
-        return Functor(std::forward<TArgs>(args)...);
-    }
-
-private:
-    const T Functor;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,9 +161,15 @@ private:
 
 template <class T>
 class TRunnableAdapter
-    : public TCallableAdapter<T, decltype(&T::operator())>
+    : public TCallableAdapter<
+        T,
+        typename TCallableSignature<decltype(&T::operator())>::TSignature
+    >
 {
-    typedef TCallableAdapter<T, decltype(&T::operator())> TBase;
+    typedef TCallableAdapter<
+        T,
+        typename TCallableSignature<decltype(&T::operator())>::TSignature
+    > TBase;
 
 public:
     explicit TRunnableAdapter(const T& functor)
@@ -349,16 +344,37 @@ MakeRunnable(const T& x)
 
 template <class T>
 typename TFunctorTraits<T>::TRunnable
+MakeRunnable(T&& x)
+{
+    return TRunnableAdapter<T>(std::move(x));
+}
+
+template <class T>
+typename TFunctorTraits<T>::TRunnable
 MakeRunnable(const TIgnoreResultWrapper<T>& wrapper)
 {
     return MakeRunnable(wrapper.Functor);
 }
 
 template <class T>
-const typename TFunctorTraits< TCallback<T>>::TRunnable&
+typename TFunctorTraits<T>::TRunnable
+MakeRunnable(TIgnoreResultWrapper<T>&& wrapper)
+{
+    return MakeRunnable(std::move(wrapper.Functor));
+}
+
+template <class T>
+const typename TFunctorTraits<TCallback<T>>::TRunnable&
 MakeRunnable(const TCallback<T>& x)
 {
     return x;
+}
+
+template <class T>
+typename TFunctorTraits<TCallback<T>>::TRunnable&&
+MakeRunnable(TCallback<T>&& x)
+{
+    return std::move(x);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -388,7 +404,7 @@ struct TInvokerHelper;
 template <class TRunnable, class R, class... TArgs>
 struct TInvokerHelper<false, TRunnable, R, void(TArgs...)>
 {
-    static inline R Run(TRunnable runnable, TArgs&&... args)
+    static inline R Run(TRunnable& runnable, TArgs&&... args)
     {
         return runnable.Run(std::forward<TArgs>(args)...);
     }
@@ -397,7 +413,7 @@ struct TInvokerHelper<false, TRunnable, R, void(TArgs...)>
 template <class TRunnable, class... TArgs>
 struct TInvokerHelper<false, TRunnable, void, void(TArgs...)>
 {
-    static inline void Run(TRunnable runnable, TArgs&&... args)
+    static inline void Run(TRunnable& runnable, TArgs&&... args)
     {
         runnable.Run(std::forward<TArgs>(args)...);
     }
@@ -406,7 +422,7 @@ struct TInvokerHelper<false, TRunnable, void, void(TArgs...)>
 template <class TRunnable, class A0, class... TArgs>
 struct TInvokerHelper<true, TRunnable, void, void(A0, TArgs...)>
 {
-    static inline void Run(TRunnable runnable, A0&& a0, TArgs&&... args)
+    static inline void Run(TRunnable& runnable, A0&& a0, TArgs&&... args)
     {
         if (!a0) {
             return;
@@ -548,11 +564,25 @@ struct TBindState<TRunnable_, R(TArgs...), void(S...)>
 #endif
         )
         , Runnable(runnable)
+    { }
+
+    template <class... P>
+    TBindState(
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+        const NYT::TSourceLocation& location,
+#endif
+        TRunnable&& runnable,
+        P&&... p)
+        : TBindStateBase(
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+            location
+#endif
+        )
+        , Runnable(std::move(runnable))
         , State(std::forward<P>(p)...)
     { }
 
-    virtual ~TBindState()
-    { }
+    virtual ~TBindState() = default;
 
     TRunnable Runnable;
 

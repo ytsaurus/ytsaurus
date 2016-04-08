@@ -263,6 +263,9 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: Controller invoker
      */
+    //! Returns |true| when controller can build it's progress.
+    virtual bool HasProgress() const = 0;
+
     //! Called to construct a YSON representing the current progress.
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const = 0;
 

@@ -1075,6 +1075,61 @@ TEST_F(TBindTest, LambdaSupport)
     EXPECT_EQ(6, plus5.Run(1));
 }
 
+TEST_F(TBindTest, MutableLambdaSupport)
+{
+    auto f = BIND([n = 1] () mutable { ++n; return n; });
+    EXPECT_EQ(2, f.Run());
+    EXPECT_EQ(3, f.Run());
+    EXPECT_EQ(4, f.Run());
+}
+
+TEST_F(TBindTest, ConstLambdaSupport)
+{
+    int n = 1;
+    const auto l = [&n] () { ++n; return n; };
+    const auto f = BIND(l);
+    EXPECT_EQ(2, f.Run());
+    EXPECT_EQ(3, f.Run());
+    EXPECT_EQ(4, f.Run());
+}
+
+TEST_F(TBindTest, MoveOnlyLambdaSupport)
+{
+    class TMoveOnly
+    {
+    public:
+        TMoveOnly(size_t v)
+            : Value_(v)
+        { }
+
+        TMoveOnly(const TMoveOnly&) = delete;
+
+        TMoveOnly(TMoveOnly&& rhs)
+            : Value_(rhs.Value_)
+        {
+            rhs.Value_ = 0;
+        }
+
+        size_t Value() const
+        {
+            return Value_;
+        }
+
+    private:
+        size_t Value_ = 0;
+    };
+
+    TMoveOnly outer(5);
+    EXPECT_EQ(5, outer.Value());
+
+    auto f = BIND([inner = std::move(outer)] () { return inner.Value(); });
+    EXPECT_EQ(0, outer.Value());
+
+    // Call twice just in case
+    EXPECT_EQ(5, f.Run());
+    EXPECT_EQ(5, f.Run());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

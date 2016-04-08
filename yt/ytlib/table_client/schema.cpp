@@ -86,6 +86,22 @@ struct TSerializableColumnSchema
             .Default();
         RegisterParameter("sort_order", SortOrder)
             .Default();
+
+        RegisterValidator([&] () {
+            // Name
+            if (Name.empty()) {
+                THROW_ERROR_EXCEPTION("Column name cannot be empty");
+            }
+
+            // Type
+            try {
+                ValidateSchemaValueType(Type);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error validating column %Qv in table schema",
+                    Name)
+                    << ex;
+            }
+        });
     }
 };
 
@@ -277,7 +293,7 @@ void TTableSchema::AlterColumn(int position, const TColumnSchema& column)
     temp.Validate();
     this->Swap(temp);
 }
-    
+
 bool TTableSchema::HasComputedColumns() const
 {
     for (const auto& column : Columns()) {

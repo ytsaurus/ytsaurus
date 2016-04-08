@@ -277,6 +277,8 @@ private:
     void UpdateTimestampRange(TTimestamp commitTimestamp);
 
     void OnMemoryUsageUpdated();
+
+    void InsertIntoLookupHashTable(const TUnversionedValue* keyBegin, TSortedDynamicRow dynamicRow);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortedDynamicStore)
