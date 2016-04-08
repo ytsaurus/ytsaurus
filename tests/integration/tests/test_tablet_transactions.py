@@ -10,7 +10,7 @@ from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
-class TestTablets(YTEnvSetup):
+class TestTabletTransactions(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 0
@@ -19,52 +19,11 @@ class TestTablets(YTEnvSetup):
         while not predicate():
             sleep(1)
 
-    def _create_table(self, path, atomicity="full"):
+    def _create_table(self, path):
         create("table", path,
-            attributes = {
-                "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "string"}],
-                "key_columns": ["key"],
-                "atomicity": atomicity
-            })
-
-    def _create_table_with_computed_column(self, path):
-        create("table", path,
-            attributes = {
-                "schema": [
-                    {"name": "key1", "type": "int64"},
-                    {"name": "key2", "type": "int64", "expression": "key1 * 100 + 3"},
-                    {"name": "value", "type": "string"}],
-                "key_columns": ["key1", "key2"]
-            })
-
-    def _create_table_with_hash(self, path):
-        create("table", path,
-            attributes = {
-                "schema": [
-                    {"name": "hash", "type": "uint64", "expression": "farm_hash(key)"},
-                    {"name": "key", "type": "int64"},
-                    {"name": "value", "type": "string"}],
-                "key_columns": ["hash", "key"]
-            })
-
-    def _get_tablet_leader_address(self, tablet_id):
-        cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
-        peers = get("//sys/tablet_cells/" + cell_id + "/@peers")
-        leader_peer = list(x for x in peers if x["state"] == "leading")[0]
-        return leader_peer["address"]
-
-    def _find_tablet_orchid(self, address, tablet_id):
-        cells = get("//sys/nodes/" + address + "/orchid/tablet_cells", ignore_opaque=True)
-        for (cell_id, cell_data) in cells.iteritems():
-            if cell_data["state"] == "leading":
-                tablets = cell_data["tablets"]
-                if tablet_id in tablets:
-                    return tablets[tablet_id]
-        return None
-
-    def _get_pivot_keys(self, path):
-        tablets = get(path + "/@tablets")
-        return [tablet["pivot_key"] for tablet in tablets]
+               attributes={"dynamic": True},
+               schema=[{"name": "key", "type": "int64", "sort_order": "ascending"},
+                       {"name": "value", "type": "string"}])
 
     def test_sticky_tablet_transactions(self):
         self.sync_create_cells(1, 1)
@@ -102,4 +61,4 @@ class TestTablets(YTEnvSetup):
 
         # cannot commit conflicting transaction
         with pytest.raises(YtError): commit_transaction(tx2)
-
+        
