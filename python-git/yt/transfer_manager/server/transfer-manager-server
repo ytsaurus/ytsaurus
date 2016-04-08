@@ -1707,7 +1707,7 @@ class Application(object):
 
         if allow_cache:
             with self._cache_tasks_mutex:
-                if start_time - self._last_cache_update_time < self._tasks_cache_expiration_timeout:
+                if start_time - self._last_tasks_cache_update_time < self._tasks_cache_expiration_timeout:
                     logger.info("Get tasks responded from cache")
                     return Response(self._cache_tasks_response, mimetype="application/json")
 
@@ -1720,9 +1720,9 @@ class Application(object):
         tasks_direction_indexes = {}
         queue_sizes = defaultdict(int)
         for id in pending_tasks:
-            queue_id = tasks[id].get_queue_id()
-            queue_sizes[queue_id] += 1
-            tasks_direction_indexes[id] = queue_sizes[queue_id]
+            direction_id = tasks[id].get_direction_id()
+            queue_sizes[direction_id] += 1
+            tasks_direction_indexes[id] = queue_sizes[direction_id]
 
         if user is not None:
             tasks = dict([(id, task) for id, task in tasks.iteritems() if task.user == user])
