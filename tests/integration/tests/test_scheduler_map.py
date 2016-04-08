@@ -1244,6 +1244,12 @@ print row + table_index
             op.track()
             assert sorted(read_table(output)) == original_data
 
+        time.sleep(5)
+        statistics = get("//sys/scheduler/orchid/monitoring/ref_counted/statistics")
+        records = [record for record in statistics if record["name"] == "NYT::NScheduler::TOperationElement"]
+        assert len(records) == 1
+        assert records[0]["objects_alive"] == 0
+
     @unix_only
     def test_map_row_count_limit(self):
         create("table", "//tmp/input")
