@@ -49,8 +49,6 @@ typedef TIntrusivePtr<TRootElement> TRootElementPtr;
 
 struct TFairShareContext;
 
-class TDynamicAttributesMap;
-
 ////////////////////////////////////////////////////////////////////
 
 struct TSchedulableAttributes
@@ -569,7 +567,7 @@ public:
         auto bestLeafDescendant = GetBestLeafDescendant(context.AttributesIndex);
         if (!bestLeafDescendant->IsActive(GlobalAttributesIndex)) {
             // NB: This can only happen as a result of deletion of bestLeafDescendant node
-            // from scheduling tree in another fiber (e.x. operation abort),
+            // from scheduling tree in another fiber (e.g. operation abort),
             // while this fiber was waiting for controller.
             UpdateDynamicAttributes(context.AttributesIndex);
             if (!attributes.Active) {
@@ -2153,20 +2151,16 @@ private:
             operation->GetId(),
             pool->GetId());
 
-        bool IsPending = false;
-        {
-            auto it = OperationQueue.begin();
-            while (it != OperationQueue.end()) {
-                if (*it == operationElement->GetOperation()) {
-                    IsPending = true;
-                    OperationQueue.erase(it);
-                    break;
-                }
-                ++it;
+        bool isPending = false;
+        for (auto it = OperationQueue.begin(); it != OperationQueue.end(); ++it) {
+            if (*it == operationElement->GetOperation()) {
+                isPending = true;
+                OperationQueue.erase(it);
+                break;
             }
         }
 
-        if (!IsPending) {
+        if (!isPending) {
             IncreaseRunningOperationCount(pool, -1);
 
             // Try to run operations from queue.
