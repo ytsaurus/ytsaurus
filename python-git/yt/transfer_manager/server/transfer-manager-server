@@ -1448,6 +1448,8 @@ class Application(object):
             for id in self._pending_tasks:
                 if id == task.id:
                     task_description["direction_index"] = direction_index
+                    # XXX(asaitgalin): Frontend can use this attribute
+                    task_description["queue_index"] = direction_index
                 if self._tasks[id].get_direction_id() == task.get_direction_id():
                     direction_index += 1
         return task_description
@@ -1732,6 +1734,8 @@ class Application(object):
             description = task.dict(hide_token=True, fields=fields)
             if id in tasks_direction_indexes:
                 description["direction_index"] = tasks_direction_indexes[id]
+                # XXX(asaitgalin): Frontend can use this attribute
+                description["queue_index"] = tasks_direction_indexes[id]
 
             try:
                 json.dumps(description)
