@@ -29,7 +29,7 @@ public:
         RegisterParameter("follower_ping_period", FollowerPingPeriod)
             .Default(TDuration::MilliSeconds(3000));
         RegisterParameter("follower_ping_rpc_timeout", FollowerPingRpcTimeout)
-            .Default(TDuration::MilliSeconds(5000));
+            .Default(TDuration::MilliSeconds(1000));
         RegisterParameter("leader_ping_timeout", LeaderPingTimeout)
             .Default(TDuration::MilliSeconds(5000));
         RegisterParameter("follower_grace_timeout", FollowerGraceTimeout)

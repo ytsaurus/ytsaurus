@@ -20,7 +20,7 @@ public:
     explicit TBufferedStream(size_t capacity);
 
     // Called from python.
-    Py::String Read(size_t size = 0);
+    PyObject* Read(size_t size = 0);
 
     // Called from python.
     bool Empty() const;
@@ -58,7 +58,7 @@ private:
 
     void Reallocate(size_t len);
     void Move(char* dest);
-    Py::String ExtractChunk(size_t size);
+    PyObject* ExtractChunk(size_t size);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBufferedStream)

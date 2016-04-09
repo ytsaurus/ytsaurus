@@ -125,7 +125,7 @@ struct ISchedulerElement
 
     virtual ISchedulerElementPtr GetBestLeafDescendant(int attributesIndex) = 0;
 
-    virtual bool IsActive(int attributsIndex) const = 0;
+    virtual bool IsActive(int attributesIndex) const = 0;
 
     virtual int GetPendingJobCount() const = 0;
 
@@ -529,13 +529,13 @@ public:
 
         while (auto bestChild = GetBestActiveChild(attributesIndex)) {
             const auto& bestChildAttributes = bestChild->DynamicAttributes(attributesIndex);
-            const auto& childBestLeafDescendant = bestChild->GetBestLeafDescendant(attributesIndex);
+            auto childBestLeafDescendant = bestChild->GetBestLeafDescendant(attributesIndex);
             if (!childBestLeafDescendant->IsActive(GlobalAttributesIndex)) {
                 bestChild->UpdateDynamicAttributes(attributesIndex);
                 if (!bestChildAttributes.Active) {
                     continue;
                 }
-                YCHECK(childBestLeafDescendant->IsActive(GlobalAttributesIndex));
+                YCHECK(bestChild->GetBestLeafDescendant(attributesIndex)->IsActive(GlobalAttributesIndex));
             }
 
             // We need to evaluate both MinSubtreeStartTime and SatisfactionRatio
