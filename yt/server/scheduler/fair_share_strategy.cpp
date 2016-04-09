@@ -508,7 +508,7 @@ public:
 
         while (auto bestChild = GetBestActiveChild(attributesIndex)) {
             const auto& bestChildAttributes = bestChild->DynamicAttributes(attributesIndex);
-            const auto& childBestLeafDescendant = bestChild->GetBestLeafDescendant(attributesIndex);
+            auto childBestLeafDescendant = bestChild->GetBestLeafDescendant(attributesIndex);
             if (!childBestLeafDescendant->IsActive(GlobalAttributesIndex)) {
                 bestChild->UpdateDynamicAttributes(attributesIndex);
                 if (!bestChildAttributes.Active) {
