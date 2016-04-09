@@ -35,7 +35,7 @@
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/misc/id_generator.h>
-#include <yt/core/misc/lease_manager.h>
+#include <yt/core/concurrency/lease_manager.h>
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/attributes.h>
@@ -53,6 +53,7 @@ using namespace NCypressServer;
 using namespace NHydra;
 using namespace NYTree;
 using namespace NYson;
+using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NTransactionClient;
 using namespace NSecurityServer;

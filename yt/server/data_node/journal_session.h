@@ -22,7 +22,7 @@ public:
         const TChunkId& chunkId,
         const TSessionOptions& options,
         TStoreLocationPtr location,
-        TLease lease);
+        NConcurrency::TLease lease);
 
     virtual NChunkClient::NProto::TChunkInfo GetChunkInfo() const override;
 

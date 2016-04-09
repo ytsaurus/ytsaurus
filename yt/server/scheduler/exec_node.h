@@ -9,7 +9,7 @@
 
 #include <yt/ytlib/scheduler/scheduler_service.pb.h>
 
-#include <yt/core/misc/lease_manager.h>
+#include <yt/core/concurrency/lease_manager.h>
 #include <yt/core/misc/property.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
@@ -42,7 +42,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
     //! Controls heartbeat expiration.
-    DEFINE_BYVAL_RW_PROPERTY(TLease, Lease);
+    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TLease, Lease);
 
     //! State of node at master.
     DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::ENodeState, MasterState);
