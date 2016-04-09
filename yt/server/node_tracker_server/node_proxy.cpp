@@ -75,6 +75,8 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
+        RequireLeader();
+
         const auto* node = GetThisTypedImpl();
         auto state = node->GetLocalState();
         bool isGood = state == ENodeState::Registered || state == ENodeState::Online;
