@@ -106,7 +106,7 @@ struct ISchedulerElement
 
     virtual ISchedulerElementPtr GetBestLeafDescendant(int attributesIndex) = 0;
 
-    virtual bool IsActive(int attributsIndex) const = 0;
+    virtual bool IsActive(int attributesIndex) const = 0;
 
     virtual int GetPendingJobCount() const = 0;
 
