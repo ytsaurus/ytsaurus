@@ -514,7 +514,7 @@ public:
                 if (!bestChildAttributes.Active) {
                     continue;
                 }
-                YCHECK(childBestLeafDescendant->IsActive(GlobalAttributesIndex));
+                YCHECK(bestChild->GetBestLeafDescendant(attributesIndex)->IsActive(GlobalAttributesIndex));
             }
 
             // We need to evaluate both MinSubtreeStartTime and SatisfactionRatio
