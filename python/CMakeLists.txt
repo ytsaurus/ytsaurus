@@ -1,3 +1,32 @@
+IF (YMAKE)
+    LIBRARY()
+
+    PYTHON_ADDINCL()
+
+    NO_COMPILER_WARNINGS()
+
+    OWNER(pg)
+
+    PEERDIR(
+        yt/core
+        yt/ytlib
+        contrib/libs/pycxx
+    )
+
+    SRCS(
+        buffered_stream.cpp
+        helpers.cpp
+        descriptor.cpp
+        response.cpp
+        serialize.cpp
+        shutdown.cpp
+        stream.cpp
+    )
+
+    PY_REGISTER(yson_lib)
+
+    END()
+ELSE ()
 set( BASE ${CMAKE_SOURCE_DIR}/yt/python )
 set( SRCS
   ${BASE}/buffered_stream.cpp
@@ -54,12 +83,12 @@ else()
   set( PYTHON_LINK_FLAGS "${PYTHON_LINK_FLAGS} -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linker.map" )
 endif()
 
-set_target_properties( yt-driver-python 
+set_target_properties( yt-driver-python
   PROPERTIES
   LINK_FLAGS ${PYTHON_LINK_FLAGS}
 )
 
-set_target_properties( yt-yson-python 
+set_target_properties( yt-yson-python
   PROPERTIES
   LINK_FLAGS ${PYTHON_LINK_FLAGS}
 )
@@ -75,3 +104,4 @@ exec_program(
   ${CMAKE_BINARY_DIR}/lib/libyt-yson-python${CMAKE_SHARED_MODULE_SUFFIX}
   ${CMAKE_SOURCE_DIR}/python/yt_yson_bindings/yson_lib${CMAKE_SHARED_MODULE_SUFFIX}
 )
+ENDIF()
