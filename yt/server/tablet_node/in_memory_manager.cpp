@@ -243,16 +243,18 @@ private:
             tablet->GetId(),
             store->GetId());
 
-        const auto& storeManager = tablet->GetStoreManager();
+        auto storeManager = tablet->GetStoreManager();
+        auto backoffCallback = BIND(&IStoreManager::BackoffStorePreload, storeManager, store)
+            .Via(tablet->GetEpochAutomatonInvoker());
         try {
             GuardedPreloadStore(tablet, store, Logger);
             storeManager->EndStorePreload(store);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error preloading tablet store, backing off");
-            storeManager->BackoffStorePreload(store);
+            backoffCallback.Run();
         } catch (...) {
             LOG_ERROR("Error preloading tablet store for unknown reason, backing off");
-            storeManager->BackoffStorePreload(store);
+            backoffCallback.Run();
             throw;
         }
 
