@@ -98,7 +98,7 @@ EYsonType DataTypeToYsonType(EDataType dataType)
         case EDataType::Tabular:
             return EYsonType::ListFragment;
         default:
-            THROW_ERROR_EXCEPTION("Data type %Qv is not supported by YSON",
+            THROW_ERROR_EXCEPTION("Data type %Qlv is not supported by YSON",
                 dataType);
     }
 }
@@ -142,7 +142,7 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForDsv(
         case EDataType::Tabular:
         case EDataType::Binary:
         case EDataType::Null:
-            THROW_ERROR_EXCEPTION("Data type %Qv is not supported by DSV",
+            THROW_ERROR_EXCEPTION("Data type %Qlv is not supported by DSV",
                 dataType);
 
         default:
