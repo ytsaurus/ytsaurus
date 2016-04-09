@@ -21,6 +21,8 @@ IF (YMAKE)
         serialize.cpp
         shutdown.cpp
         stream.cpp
+        driver.cpp
+        yson.cpp
     )
 
     PY_REGISTER(yson_lib)
