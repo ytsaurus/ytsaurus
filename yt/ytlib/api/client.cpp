@@ -434,6 +434,7 @@ private:
     const IChannelFactoryPtr NodeChannelFactory_;
     const TFunctionImplCachePtr FunctionImplCache_;
 
+
     TDataSplit DoGetInitialSplit(
         const TRichYPath& path,
         TTimestamp timestamp)
@@ -1034,6 +1035,11 @@ public:
     virtual NQueryClient::IExecutorPtr GetQueryExecutor() override
     {
         return QueryHelper_;
+    }
+
+    virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() override
+    {
+        return FunctionRegistry_;
     }
 
     virtual TFuture<void> Terminate() override
