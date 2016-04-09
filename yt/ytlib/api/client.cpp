@@ -385,10 +385,12 @@ public:
     TQueryHelper(
         IConnectionPtr connection,
         IChannelPtr masterChannel,
-        IChannelFactoryPtr nodeChannelFactory)
+        IChannelFactoryPtr nodeChannelFactory,
+        IFunctionRegistryPtr functionRegistry)
         : Connection_(std::move(connection))
         , MasterChannel_(std::move(masterChannel))
         , NodeChannelFactory_(std::move(nodeChannelFactory))
+        , FunctionRegistry_(std::move(functionRegistry))
     { }
 
     // IPrepareCallbacks implementation.
@@ -424,6 +426,7 @@ private:
     const IConnectionPtr Connection_;
     const IChannelPtr MasterChannel_;
     const IChannelFactoryPtr NodeChannelFactory_;
+    const IFunctionRegistryPtr FunctionRegistry_;
 
 
     TDataSplit DoGetInitialSplit(
@@ -700,7 +703,7 @@ private:
             ranges,
             rowBuffer,
             Connection_->GetColumnEvaluatorCache(),
-            Connection_->GetFunctionRegistry(),
+            FunctionRegistry_,
             rangeExpansionLimit,
             verboseLogging);
 
@@ -749,12 +752,11 @@ private:
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
-                auto functionRegistry = Connection_->GetFunctionRegistry();
                 return evaluator->Run(
                     std::move(topQuery),
                     std::move(reader),
                     std::move(writer),
-                    std::move(functionRegistry),
+                    FunctionRegistry_,
                     options.EnableCodeCache);
             });
     }
@@ -934,10 +936,13 @@ public:
             Connection_->GetTimestampProvider(),
             Connection_->GetCellDirectory());
 
+        FunctionRegistry_ = CreateClientFunctionRegistry(MakeWeak(this));
+
         QueryHelper_ = New<TQueryHelper>(
             Connection_,
             GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower),
-            HeavyChannelFactory_);
+            HeavyChannelFactory_,
+            FunctionRegistry_);
 
         Logger.AddTag("Client: %p", this);
     }
@@ -984,6 +989,11 @@ public:
     virtual NQueryClient::IExecutorPtr GetQueryExecutor() override
     {
         return QueryHelper_;
+    }
+
+    virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() override
+    {
+        return FunctionRegistry_;
     }
 
     virtual TFuture<void> Terminate() override
@@ -1235,6 +1245,7 @@ private:
     const IConnectionPtr Connection_;
     const TClientOptions Options_;
 
+    IFunctionRegistryPtr FunctionRegistry_;
     TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     IChannelFactoryPtr LightChannelFactory_;
@@ -1716,7 +1727,7 @@ private:
         std::tie(query, dataSource) = PreparePlanFragment(
             QueryHelper_.Get(),
             queryString,
-            Connection_->GetFunctionRegistry(),
+            FunctionRegistry_,
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);

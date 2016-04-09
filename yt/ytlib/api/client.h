@@ -582,6 +582,7 @@ struct IClient
     virtual NRpc::IChannelFactoryPtr GetHeavyChannelFactory() = 0;
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
     virtual NQueryClient::IExecutorPtr GetQueryExecutor() = 0;
+    virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() = 0;
 
     //! Terminates all channels.
     //! Aborts all pending uncommitted transactions.

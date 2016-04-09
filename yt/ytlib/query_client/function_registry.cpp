@@ -159,7 +159,7 @@ class TCypressFunctionRegistry
 {
 public:
     TCypressFunctionRegistry(
-        NApi::IClientPtr client,
+        TWeakPtr<NApi::IClient> client,
         const NYPath::TYPath& registryPath,
         IFunctionRegistryPtr builtinRegistry);
 
@@ -168,7 +168,7 @@ public:
     virtual IAggregateFunctionDescriptorPtr FindAggregateFunction(const Stroka& aggregateName) override;
 
 private:
-    const NApi::IClientPtr Client_;
+    const TWeakPtr<NApi::IClient> Client_;
     const NYPath::TYPath RegistryPath_;
     const IFunctionRegistryPtr BuiltinRegistry_;
     const TIntrusivePtr<TFunctionRegistry> UdfRegistry_;
@@ -182,7 +182,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressFunctionRegistry::TCypressFunctionRegistry(
-    NApi::IClientPtr client,
+    TWeakPtr<NApi::IClient> client,
     const NYPath::TYPath& registryPath,
     IFunctionRegistryPtr builtinRegistry)
     : Client_(client)
@@ -213,13 +213,18 @@ IFunctionDescriptorPtr TCypressFunctionRegistry::LookupFunction(const Stroka& fu
         return nullptr;
     }
 
+    auto client = Client_.Lock();
+    if (!client) {
+        return nullptr;
+    }
+
     auto functionPath = GetUdfDescriptorPath(RegistryPath_, functionName);
 
     auto cypressDescriptor = LookupDescriptor<TCypressFunctionDescriptorPtr>(
         FunctionDescriptorAttribute,
         functionName,
         functionPath,
-        Client_);
+        client);
 
     if (!cypressDescriptor) {
         NotFoundFunctions_.insert(functionName);
@@ -232,9 +237,7 @@ IFunctionDescriptorPtr TCypressFunctionRegistry::LookupFunction(const Stroka& fu
         THROW_ERROR_EXCEPTION("Function using the simple calling convention may not have repeated arguments");
     }
 
-    auto implementationFile = ReadFile(
-        functionPath,
-        Client_);
+    auto implementationFile = ReadFile(functionPath, client);
 
     return cypressDescriptor->RepeatedArgumentType
         ? New<TUserDefinedFunction>(
@@ -274,22 +277,25 @@ IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::LookupAggregate(const 
         return nullptr;
     }
 
+    auto client = Client_.Lock();
+    if (!client) {
+        return nullptr;
+    }
+
     auto aggregatePath = GetUdfDescriptorPath(RegistryPath_, aggregateName);
 
     auto cypressDescriptor = LookupDescriptor<TCypressAggregateDescriptorPtr>(
         AggregateDescriptorAttribute,
         aggregateName,
         aggregatePath,
-        Client_);
+        client);
 
     if (!cypressDescriptor) {
         NotFoundAggregateFunctions_.insert(aggregateName);
         return nullptr;
     }
 
-    auto implementationFile = ReadFile(
-        aggregatePath,
-        Client_);
+    auto implementationFile = ReadFile(aggregatePath, client);
 
     return New<TUserDefinedAggregateFunction>(
         aggregateName,
@@ -303,15 +309,15 @@ IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::LookupAggregate(const 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IFunctionRegistryPtr CreateClientFunctionRegistry(NApi::IClientPtr client)
+IFunctionRegistryPtr CreateClientFunctionRegistry(TWeakPtr<NApi::IClient> client_)
 {
-    auto config = client->GetConnection()->GetConfig();
+    auto client = client_.Lock();
     auto builtinRegistry = CreateBuiltinFunctionRegistry();
 
-    if (config->EnableUdf) {
+    if (client && client->GetConnection()->GetConfig()->EnableUdf) {
         return New<TCypressFunctionRegistry>(
             client,
-            config->UdfRegistryPath,
+            client->GetConnection()->GetConfig()->UdfRegistryPath,
             std::move(builtinRegistry));
     } else {
         return builtinRegistry;
