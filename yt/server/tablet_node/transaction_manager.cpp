@@ -19,7 +19,7 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/misc/lease_manager.h>
+#include <yt/core/concurrency/lease_manager.h>
 
 #include <yt/core/ytree/fluent.h>
 
