@@ -19,58 +19,57 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/stream.h
 )
 
-include_directories(
-  ${PYTHON_INCLUDE_DIR}
-)
+set(PYTHON_LINK_FLAGS "-static-libstdc++")
 
-add_library( yt-driver-python MODULE
-  ${CMAKE_CURRENT_LIST_DIR}/driver.cpp
-  ${SRCS}
-)
-
-add_library( yt-yson-python MODULE
-  ${CMAKE_CURRENT_LIST_DIR}/yson.cpp
-  ${SRCS}
-)
-
-target_link_libraries( yt-driver-python
-  ytlib
-  ytext-pycxx
-  ${PYTHON_LIBRARY}
-)
-
-target_link_libraries( yt-yson-python
-  ytlib
-  ytext-pycxx
-  ${PYTHON_LIBRARY}
-)
-
-set( PYTHON_LINK_FLAGS "-static-libstdc++" )
-
-if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
+if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   set( PYTHON_LINK_FLAGS "${PYTHON_LINK_FLAGS} -Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/linker.map.darwin" )
 else()
   set( PYTHON_LINK_FLAGS "${PYTHON_LINK_FLAGS} -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linker.map" )
 endif()
 
-set_target_properties( yt-driver-python 
-  PROPERTIES
-  LINK_FLAGS ${PYTHON_LINK_FLAGS}
-)
+# Determine versions of python to build with.
+set(PYTHON_VERSIONS)
+foreach(PYTHON_VERSION "PYTHON" "PYTHON_SKYNET")
+  # TODO(ignat): implement with continue() once cmake will be updated to newer version.
+  if(${PYTHON_VERSION}_INCLUDE_DIR)
+    list(APPEND PYTHON_VERSIONS ${PYTHON_VERSION})
+  endif()
+endforeach()
 
-set_target_properties( yt-yson-python 
-  PROPERTIES
-  LINK_FLAGS ${PYTHON_LINK_FLAGS}
-)
+# Build library for each python.
+foreach(PYTHON_VERSION IN LISTS PYTHON_VERSIONS)
+  string(TOLOWER ${PYTHON_VERSION} PYTHON_VERSION_LOWER)
+  string(REPLACE "_" "-" PYTHON_LIB_VERSION ${PYTHON_VERSION_LOWER})
 
-exec_program(
-  ${CMAKE_COMMAND} ARGS -E create_symlink
-  ${CMAKE_BINARY_DIR}/lib/libyt-driver-python${CMAKE_SHARED_MODULE_SUFFIX}
-  ${CMAKE_SOURCE_DIR}/python/yt_driver_bindings/driver_lib${CMAKE_SHARED_MODULE_SUFFIX}
-)
+  foreach(COMPONENT "yson" "driver")
+    set(LIB_NAME "yt-${COMPONENT}-${PYTHON_LIB_VERSION}")
 
-exec_program(
-  ${CMAKE_COMMAND} ARGS -E create_symlink
-  ${CMAKE_BINARY_DIR}/lib/libyt-yson-python${CMAKE_SHARED_MODULE_SUFFIX}
-  ${CMAKE_SOURCE_DIR}/python/yt_yson_bindings/yson_lib${CMAKE_SHARED_MODULE_SUFFIX}
-)
+    add_library(${LIB_NAME} MODULE
+      ${CMAKE_CURRENT_LIST_DIR}/${COMPONENT}.cpp
+      ${SRCS}
+    )
+
+    target_include_directories(${LIB_NAME} PUBLIC
+      ${${PYTHON_VERSION}_INCLUDE_DIR}
+    )
+
+    target_link_libraries(${LIB_NAME}
+      ytlib
+      ytext-pycxx
+      ${${PYTHON_VERSION}_LIBRARY}
+    )
+
+    set_target_properties(${LIB_NAME}
+      PROPERTIES
+      LINK_FLAGS ${PYTHON_LINK_FLAGS}
+    )
+
+    if(${PYTHON_VERSION} MATCHES "^PYTHON$")
+      exec_program(
+        ${CMAKE_COMMAND} ARGS -E create_symlink
+        ${CMAKE_BINARY_DIR}/lib/lib${LIB_NAME}${CMAKE_SHARED_MODULE_SUFFIX}
+        ${CMAKE_SOURCE_DIR}/python/yt_${COMPONENT}_bindings/${COMPONENT}_lib${CMAKE_SHARED_MODULE_SUFFIX}
+      )
+    endif()
+  endforeach(COMPONENT)
+endforeach(PYTHON_VERSION)
