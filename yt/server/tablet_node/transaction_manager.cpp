@@ -408,6 +408,8 @@ private:
                 CreateLeases(transaction);
             }
         }
+
+        LeaseTracker_->Start();
     }
 
     virtual void OnStopLeading() override
@@ -416,6 +418,8 @@ private:
 
         TTabletAutomatonPart::OnStopLeading();
 
+        LeaseTracker_->Stop();
+
         // Reset all transiently prepared transactions back into active state.
         // Mark all transactions as finished to release pending readers.
         for (const auto& pair : TransactionMap_) {
@@ -423,8 +427,6 @@ private:
             transaction->SetState(transaction->GetPersistentState());
             transaction->ResetFinished();
         }
-
-        LeaseTracker_->Reset();
     }
 
 
