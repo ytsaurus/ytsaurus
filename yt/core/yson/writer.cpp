@@ -143,14 +143,12 @@ void TYsonWriter::EndNode()
             Stream_->Write('\n');
         }
     }
-    NodeExpected_ = false;
 }
 
 void TYsonWriter::BeginCollection(ETokenType beginToken)
 {
     ++Depth_;
     EmptyCollection_ = true;
-    NodeExpected_ = false;
     Stream_->Write(TokenTypeToChar(beginToken));
 }
 
@@ -163,7 +161,6 @@ void TYsonWriter::CollectionItem()
         WriteIndent();
     }
     EmptyCollection_ = false;
-    NodeExpected_ = true;
 }
 
 void TYsonWriter::EndCollection(ETokenType endToken)
@@ -191,14 +188,12 @@ void TYsonWriter::WriteStringScalar(const TStringBuf& value)
 
 void TYsonWriter::OnStringScalar(const TStringBuf& value)
 {
-    YASSERT(NodeExpected_);
     WriteStringScalar(value);
     EndNode();
 }
 
 void TYsonWriter::OnInt64Scalar(i64 value)
 {
-    YASSERT(NodeExpected_);
     if (Format_ == EYsonFormat::Binary) {
         Stream_->Write(NDetail::Int64Marker);
         WriteVarInt64(Stream_, value);
@@ -210,7 +205,6 @@ void TYsonWriter::OnInt64Scalar(i64 value)
 
 void TYsonWriter::OnUint64Scalar(ui64 value)
 {
-    YASSERT(NodeExpected_);
     if (Format_ == EYsonFormat::Binary) {
         Stream_->Write(NDetail::Uint64Marker);
         WriteVarUint64(Stream_, value);
@@ -223,7 +217,6 @@ void TYsonWriter::OnUint64Scalar(ui64 value)
 
 void TYsonWriter::OnDoubleScalar(double value)
 {
-    YASSERT(NodeExpected_);
     if (Format_ == EYsonFormat::Binary) {
         Stream_->Write(NDetail::DoubleMarker);
         Stream_->Write(&value, sizeof(double));
@@ -240,8 +233,6 @@ void TYsonWriter::OnDoubleScalar(double value)
 
 void TYsonWriter::OnBooleanScalar(bool value)
 {
-    YASSERT(NodeExpected_);
-
     if (BooleanAsString_) {
         OnStringScalar(FormatBool(value));
         return;
@@ -257,7 +248,6 @@ void TYsonWriter::OnBooleanScalar(bool value)
 
 void TYsonWriter::OnEntity()
 {
-    YASSERT(NodeExpected_);
     Stream_->Write(TokenTypeToChar(EntityToken));
     EndNode();
 }
@@ -315,7 +305,6 @@ void TYsonWriter::OnEndAttributes()
     if (Format_ == EYsonFormat::Pretty) {
         Stream_->Write(' ');
     }
-    NodeExpected_ = true;
 }
 
 void TYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
@@ -334,12 +323,6 @@ void TYsonWriter::Reset()
 {
     Depth_ = 0;
     EmptyCollection_ = true;
-    NodeExpected_ = (Type_ == EYsonType::Node);
-}
-
-bool TYsonWriter::IsNodeExpected() const
-{
-    return NodeExpected_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

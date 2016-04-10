@@ -92,17 +92,11 @@ void TAsyncYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
 void TAsyncYsonWriter::OnRaw(TFuture<TYsonString> asyncStr)
 {
     FlushCurrentSegment();
-    if (SyncWriter_.IsNodeExpected()) {
-        // Fake.
-        SyncWriter_.OnEntity();
-        Stream_.Str().clear();
-    }
     AsyncSegments_.emplace_back(std::move(asyncStr));
 }
 
 TFuture<TYsonString> TAsyncYsonWriter::Finish()
 {
-    YASSERT(!SyncWriter_.IsNodeExpected());
     FlushCurrentSegment();
 
     return Combine(AsyncSegments_).Apply(BIND([type = Type_] (const std::vector<TYsonString>& segments) {
