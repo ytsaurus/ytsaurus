@@ -51,7 +51,6 @@ public:
     virtual void OnRaw(const TStringBuf& yson, EYsonType type = EYsonType::Node);
 
     void Reset();
-    bool IsNodeExpected() const;
 
 protected:
     TOutputStream* const Stream_;
@@ -63,7 +62,6 @@ protected:
 
     int Depth_ = 0;
     bool EmptyCollection_ = true;
-    bool NodeExpected_;
 
 
     void WriteIndent();
