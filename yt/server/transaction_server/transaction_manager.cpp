@@ -980,6 +980,8 @@ private:
                 CreateLease(transaction);
             }
         }
+
+        LeaseTracker_->Start();
     }
 
     virtual void OnStopLeading() override
@@ -988,13 +990,13 @@ private:
 
         TMasterAutomatonPart::OnStopLeading();
 
+        LeaseTracker_->Stop();
+
         // Reset all transiently prepared transactions back into active state.
         for (const auto& pair : TransactionMap_) {
             auto* transaction = pair.second;
             transaction->SetState(transaction->GetPersistentState());
         }
-
-        LeaseTracker_->Reset();
     }
 
 
