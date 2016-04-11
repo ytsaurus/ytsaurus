@@ -140,6 +140,24 @@ function stripJsonAnnotations(annotated_json)
     }
 }
 
+function tidyArchiveOperation(operation)
+{
+    delete operation.id_hi;
+    delete operation.id_lo;
+    delete operation.id_hash;
+    delete operation.filter_factors;
+
+    operation.is_archived = true;
+    if (operation.start_time) {
+        operation.start_time = new Date(parseInt(utils.getYsonValue(operation.start_time)) / 1000).toISOString();
+    }
+    if (operation.finish_time) {
+        operation.finish_time = new Date(parseInt(utils.getYsonValue(operation.finish_time)) / 1000).toISOString();
+    }
+
+    return operation;
+}
+
 function idUint64ToString(id_hi, id_lo)
 {
     var hi, lo, mask, parts;
@@ -530,15 +548,7 @@ function YtApplicationOperations$list(parameters)
         archive_data = archive_data.map(function(operation) {
             var id = idUint64ToString(operation.id_hi.$value, operation.id_lo.$value);
 
-            delete operation.id_hi;
-            delete operation.id_lo;
-            delete operation.id_hash;
-            delete operation.filter_factors;
-
-            operation.is_archived = true;
-            operation.state = utils.getYsonValue(operation.state);
-            operation.start_time = new Date(parseInt(operation.start_time.$value) / 1000).toISOString();
-            operation.finish_time = new Date(parseInt(operation.finish_time.$value) / 1000).toISOString();
+            tidyArchiveOperation(operation);
 
             return {
                 $value: id,
@@ -698,21 +708,19 @@ YtApplicationOperations.prototype.get = Q.method(
 function YtApplicationOperations$get(parameters)
 {
     var id = required(parameters, "id", validateId);
+
     var id_parts = idStringToUint64(id);
     var id_hi = id_parts[0];
     var id_lo = id_parts[1];
 
+    // TODO(sandello): Do not query archive if not necessary.
     var cypress_data = this.driver.executeSimple(
         "get",
-        {
-            path: "//sys/operations/" + utils.escapeYPath(id) + "/@"
-        });
+        {path: "//sys/operations/" + utils.escapeYPath(id) + "/@"});
 
     var runtime_data = this.driver.executeSimple(
         "get",
-        {
-            path: "//sys/scheduler/orchid/scheduler/operations/" + utils.escapeYPath(id)
-        });
+        {path: "//sys/scheduler/orchid/scheduler/operations/" + utils.escapeYPath(id)});
 
     var archive_data = this.driver.executeSimple(
         "select_rows",
@@ -737,7 +745,7 @@ function YtApplicationOperations$get(parameters)
             if (archive_data.isFulfilled()) {
                 if (archive_data.value().length > 0) {
                     result = archive_data.value()[0];
-                    result = _.omit(result, "id_hi", "id_lo", "id_hash");
+                    result = tidyArchiveOperation(result);
                     // TODO(sandello): Better JSON conversion here?
                     return stripJsonAnnotations(result);
                 } else {
