@@ -259,7 +259,7 @@ function YtApplicationOperations$list(parameters)
     var from_time = optional(parameters, "from_time", validateDateTime);
     var to_time = optional(parameters, "to_time", validateDateTime);
     var cursor_time = optional(parameters, "cursor_time", validateDateTime);
-
+    var cursor_direction = optional(parameters, "cursor_direction", validateString);
     var user_filter = optional(parameters, "user", validateString);
     var state_filter = optional(parameters, "state", validateString);
     var type_filter = optional(parameters, "type", validateString);
@@ -287,12 +287,23 @@ function YtApplicationOperations$list(parameters)
             time_span, TIME_SPAN_LIMIT));
     }
 
+    // Process |cursor_time|, |cursor_direction|.
     if (cursor_time === null) {
         cursor_time = to_time;
     }
 
     if (cursor_time > to_time || cursor_time < from_time) {
         throw new YtError("Time cursor is out of range");
+    }
+
+    if (cursor_direction === null) {
+        cursor_direction = "past";
+    } else {
+        cursor_direction = cursor_direction.toLowerCase();
+    }
+
+    if (cursor_direction !== "past" && cursor_direction !== "future") {
+        throw new YtError("Cursor direction must be either 'past' of 'future'");
     }
 
     // TODO(sandello): Validate |state_filter|, |type_filter|.
@@ -322,39 +333,50 @@ function YtApplicationOperations$list(parameters)
             path: OPERATIONS_RUNTIME_PATH
         });
 
-    var generic_filter_conditions = [
+    var counts_filter_conditions = [
         "start_time > {}000 AND start_time <= {}000".format(from_time, to_time)
     ];
 
     if (substr_filter) {
-        generic_filter_conditions.push(
+        counts_filter_conditions.push(
             "is_substr(\"{}\", filter_factors)".format(escapeC(substr_filter)));
     }
 
-    var narrow_filter_conditions = generic_filter_conditions.slice();
+    var items_filter_conditions = counts_filter_conditions.slice();
+    var items_sort_direction = "DESC";
+
+    if (cursor_direction === "past") {
+        items_filter_conditions.push("start_time <= {}000".format(cursor_time));
+        items_sort_direction = "DESC";
+    }
+
+    if (cursor_direction === "future") {
+        items_filter_conditions.push("start_time > {}000".format(cursor_time));
+        items_sort_direction = "ASC";
+    }
 
     if (state_filter) {
-        narrow_filter_conditions.push("state = \"{}\"".format(escapeC(state_filter)));
+        items_filter_conditions.push("state = \"{}\"".format(escapeC(state_filter)));
     }
 
     if (type_filter) {
-        narrow_filter_conditions.push("operation_type = \"{}\"".format(escapeC(type_filter)));
+        items_filter_conditions.push("operation_type = \"{}\"".format(escapeC(type_filter)));
     }
 
     if (user_filter) {
-        narrow_filter_conditions.push("authenticated_user = \"{}\"".format(escapeC(user_filter)));
+        items_filter_conditions.push("authenticated_user = \"{}\"".format(escapeC(user_filter)));
     }
 
     var query_source = "[{}] JOIN [{}] USING id_hi, id_lo, start_time"
         .format(OPERATIONS_ARCHIVE_INDEX_PATH, OPERATIONS_ARCHIVE_PATH);
     var query_for_counts =
         "user, state, type, sum(1) AS count FROM {}".format(query_source) +
-        " WHERE {}".format(generic_filter_conditions.join(" AND ")) +
+        " WHERE {}".format(counts_filter_conditions.join(" AND ")) +
         " GROUP BY authenticated_user AS user, state AS state, operation_type AS type";
     var query_for_items =
         "* FROM {}".format(query_source) +
-        " WHERE {}".format(narrow_filter_conditions.join(" AND ")) +
-        " ORDER BY start_time DESC" +
+        " WHERE {}".format(items_filter_conditions.join(" AND ")) +
+        " ORDER BY start_time {}".format(items_sort_direction) +
         " LIMIT {}".format(1 + max_size);
 
     var archive_counts = null;
@@ -493,8 +515,7 @@ function YtApplicationOperations$list(parameters)
             delete operation.id_hash;
             delete operation.filter_factors;
 
-            operation.state = mapState(utils.getYsonValue(operation.state));
-
+            operation.state = utils.getYsonValue(operation.state);
             operation.start_time = new Date(parseInt(operation.start_time.$value) / 1000).toISOString();
             operation.finish_time = new Date(parseInt(operation.finish_time.$value) / 1000).toISOString();
 
@@ -557,7 +578,11 @@ function YtApplicationOperations$list(parameters)
             }
 
             // Check cursor position.
-            if (start_time >= cursor_time) {
+            if (cursor_direction === "past" && start_time >= cursor_time) {
+                return false;
+            }
+
+            if (cursor_direction === "future" && start_time < cursor_time) {
                 return false;
             }
 
@@ -590,10 +615,17 @@ function YtApplicationOperations$list(parameters)
         merged_data.sort(function(a, b) {
             var aT = utils.getYsonAttribute(a, "start_time");
             var bT = utils.getYsonAttribute(b, "start_time");
+            var m;
+            if (cursor_direction === "past") {
+                m = 1;
+            }
+            if (cursor_direction === "future") {
+                m = -1;
+            }
             if (aT < bT) {
-                return 1;
+                return m;
             } else if (aT > bT) {
-                return -1;
+                return -m;
             } else {
                 return 0;
             }
