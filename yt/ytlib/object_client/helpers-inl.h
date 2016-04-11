@@ -61,6 +61,8 @@ inline bool IsUserType(EObjectType type)
     return
         type == EObjectType::Transaction ||
         type == EObjectType::Chunk ||
+        type == EObjectType::JournalChunk ||
+        type == EObjectType::ErasureChunk ||
         type == EObjectType::ChunkList ||
         type == EObjectType::StringNode ||
         type == EObjectType::Int64Node ||
