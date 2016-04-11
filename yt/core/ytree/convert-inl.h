@@ -2,7 +2,6 @@
 #error "Direct inclusion of this file is not allowed, include convert.h"
 #endif
 
-#include "attribute_helpers.h"
 #include "default_building_consumer.h"
 #include "serialize.h"
 #include "tree_builder.h"
