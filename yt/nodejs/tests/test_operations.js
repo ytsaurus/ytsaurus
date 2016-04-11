@@ -651,6 +651,9 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
             "id_hi": id_hi.toString(10),
             "id_lo": id_lo.toString(10),
             "id_hash": "hash",
+            "start_time": {"$value": "1460373719788000"},
+            "finish_time": {"$value": "1460373719788000"},
+            "filter_factors": ":)",
             "other_field": "abc"
         }]);
 
@@ -658,7 +661,12 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
         this.application_operations.get({id: id})
         .then(function(result) {
-            result.should.deep.equal({"other_field": "abc"});
+            result.should.deep.equal({
+                "other_field": "abc",
+                "start_time": "2016-04-11T11:21:59.788Z",
+                "finish_time": "2016-04-11T11:21:59.788Z",
+                "is_archived": true,
+            });
             mock.verify();
         })
         .then(done, done);
