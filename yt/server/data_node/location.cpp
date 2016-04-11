@@ -580,11 +580,12 @@ TStoreLocation::TStoreLocation(
         bootstrap->GetConfig()->DataNode,
         this,
         bootstrap))
+    , TrashCheckQueue_(New<TActionQueue>(Format("Trash:%v", id)))
     , TrashCheckExecutor_(New<TPeriodicExecutor>(
-        GetWritePoolInvoker(),
+        TrashCheckQueue_->GetInvoker(),
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
         TrashCheckPeriod,
-        EPeriodicExecutorMode::Manual))
+        EPeriodicExecutorMode::Automatic))
 { }
 
 TJournalManagerPtr TStoreLocation::GetJournalManager()
@@ -676,7 +677,6 @@ void TStoreLocation::OnCheckTrash()
     try {
         CheckTrashTtl();
         CheckTrashWatermark();
-        TrashCheckExecutor_->ScheduleNext();
     } catch (const std::exception& ex) {
         auto error = TError("Error checking trash")
             << ex;
