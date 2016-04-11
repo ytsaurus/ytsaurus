@@ -57,6 +57,7 @@ using namespace NCellNode;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
+using namespace NYson;
 
 using NNodeTrackerClient::TNodeDescriptor;
 
@@ -175,7 +176,7 @@ public:
         Progress_ = value;
     }
 
-    virtual void SetStatistics(const NJobTrackerClient::NProto::TStatistics& /*statistics*/) override
+    virtual void SetStatistics(const TYsonString& /*statistics*/) override
     {
         YUNREACHABLE();
     }
@@ -185,7 +186,7 @@ public:
         THROW_ERROR_EXCEPTION("Input context dumping is not supported");
     }
 
-    virtual NYson::TYsonString Strace() const override
+    virtual TYsonString Strace() const override
     {
         THROW_ERROR_EXCEPTION("Stracing is not supported");
     }
@@ -268,7 +269,7 @@ private:
         JobPhase_ = EJobPhase::Finished;
         JobState_ = finalState;
         ToProto(Result_.mutable_error(), error);
-        Result_.mutable_statistics();
+        Result_.set_statistics("{}");
         auto deltaResources = ZeroNodeResources() - ResourceLimits_;
         ResourceLimits_ = ZeroNodeResources();
         JobFuture_.Reset();

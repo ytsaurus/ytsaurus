@@ -73,22 +73,6 @@ void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer)
         .EndMap();
 }
 
-void ToProto(NProto::TStatistics::TSummary* protoSummary, const TSummary& summary)
-{
-    protoSummary->set_sum(summary.GetSum());
-    protoSummary->set_min(summary.GetMin());
-    protoSummary->set_max(summary.GetMax());
-    protoSummary->set_count(summary.GetCount());
-}
-
-void FromProto(TSummary* summary, const NProto::TStatistics::TSummary& protoSummary)
-{
-    summary->Sum_ = protoSummary.sum();
-    summary->Min_ = protoSummary.min();
-    summary->Max_ = protoSummary.max();
-    summary->Count_ = protoSummary.count();
-}
-
 bool TSummary::operator ==(const TSummary& other) const
 {
     return 
@@ -109,19 +93,21 @@ TSummary& TStatistics::GetSummary(const NYPath::TYPath& path)
         if (it != Data_.begin()) {
             auto prev = std::prev(it);
             if (HasPrefix(it->first, prev->first)) {
+                Data_.erase(it);
                 THROW_ERROR_EXCEPTION(
                     "Incompatible statistic paths (OldPath: %v, NewPath: %v)",
                     prev->first,
-                    it->first);
+                    path);
             }
         }
         auto next = std::next(it);
         if (next != Data_.end()) {
             if (HasPrefix(next->first, it->first)) {
+                Data_.erase(it);
                 THROW_ERROR_EXCEPTION(
                     "Incompatible statistic paths (OldPath: %v, NewPath: %v)",
                     next->first,
-                    it->first);
+                    path);
             }
         }
     }
@@ -191,26 +177,6 @@ void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
     }
 
     Serialize(*root, consumer);
-}
-
-void ToProto(NProto::TStatistics* protoStatistics, const TStatistics& statistics)
-{
-    for (const auto& pair : statistics.Data()) {
-        auto* protoSummary = protoStatistics->add_summaries();
-        protoSummary->set_path(pair.first);
-        ToProto(protoSummary, pair.second);
-    }
-}
-
-void FromProto(TStatistics* statistics, const NProto::TStatistics& protoStatistics)
-{
-    using NYT::FromProto;
-    for (const auto& protoSummary : protoStatistics.summaries()) {
-        auto summary = FromProto<TSummary>(protoSummary);
-        YCHECK(statistics->Data_.insert(std::make_pair(
-            protoSummary.path(), 
-            summary)).second);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////

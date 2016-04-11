@@ -234,7 +234,7 @@ public:
         }
     }
 
-    virtual void SetStatistics(const NJobTrackerClient::NProto::TStatistics& statistics) override
+    virtual void SetStatistics(const TYsonString& statistics) override
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (JobState_ == EJobState::Running) {
@@ -305,7 +305,7 @@ private:
     TFuture<void> PrepareResult_ = VoidFuture;
 
     double Progress_ = 0.0;
-    NJobTrackerClient::NProto::TStatistics Statistics_;
+    TYsonString Statistics_;
     bool Signaled_ = false;
 
     TNullable<TJobResult> JobResult_;
@@ -421,7 +421,7 @@ private:
     {
         TJobResult jobResult;
         ToProto(jobResult.mutable_error(), error);
-        *jobResult.mutable_statistics() = Statistics_;
+        jobResult.set_statistics(Statistics_.Data());
         DoSetResult(jobResult);
     }
 

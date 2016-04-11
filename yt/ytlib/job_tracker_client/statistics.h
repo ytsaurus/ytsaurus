@@ -41,15 +41,10 @@ public:
 
     void Persist(NPhoenix::TPersistenceContext& context);
 
-    friend void FromProto(TSummary* summary, const NProto::TStatistics::TSummary& protoSummary);
-
     bool operator == (const TSummary& other) const;
 
     friend class TStatisticsBuildingConsumer;
 };
-
-void ToProto(NProto::TStatistics::TSummary* protoSummary, const TSummary& summary);
-void FromProto(TSummary* summary, const NProto::TStatistics::TSummary& protoSummary);
 
 void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer);
 
@@ -77,8 +72,6 @@ public:
 private:
     TSummary& GetSummary(const NYPath::TYPath& path);
 
-    friend void FromProto(TStatistics* statistics, const NProto::TStatistics& protoStatistics);
-    
     friend class TStatisticsBuildingConsumer;
 };
 
@@ -87,11 +80,6 @@ T GetValues(
     const TStatistics& statistics, 
     const NYPath::TYPath& path, 
     std::function<i64(const TSummary&)> getValue);
-
-////////////////////////////////////////////////////////////////////
-
-void ToProto(NProto::TStatistics* protoStatistics, const TStatistics& statistics);
-void FromProto(TStatistics* statistics, const NProto::TStatistics& protoStatistics);
 
 ////////////////////////////////////////////////////////////////////
 

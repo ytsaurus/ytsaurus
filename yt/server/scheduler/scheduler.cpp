@@ -1883,7 +1883,7 @@ private:
         job->SetState(EJobState::Aborted);
         TJobResult result;
         ToProto(result.mutable_error(), error);
-        result.mutable_statistics();
+        result.set_statistics("{}");
 
         job->SetResult(std::move(result));
         OnJobFinished(job);
