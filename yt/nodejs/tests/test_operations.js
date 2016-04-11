@@ -69,7 +69,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
             .expects("executeSimple")
             .once()
             .withExactArgs("select_rows", sinon.match({
-                query: sinon.match(/\* .* ORDER BY start_time DESC LIMIT \d+/)
+                query: sinon.match(/\* .* ORDER BY start_time/)
             }))
             .returns(result);
     }
@@ -150,7 +150,9 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
     });
 
     it("should fail when max_size is invalid", function(done) {
-        this.application_operations.list({max_size: 999999}).then(
+        this.application_operations.list({
+            max_size: 999999
+        }).then(
             function() { throw new Error("This should fail."); },
             function(err) {
                 err.should.be.instanceof(YtError);
@@ -160,7 +162,10 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
     });
 
     it("should fail when from_time & to_time are invalid", function(done) {
-        this.application_operations.list({from_time: "2015-01-01T00:00:00", to_time: "2015-12-12T00:00:00"}).then(
+        this.application_operations.list({
+            from_time: "2015-01-01T00:00:00Z",
+            to_time: "2015-12-12T00:00:00Z"
+        }).then(
             function() { throw new Error("This should fail."); },
             function(err) {
                 err.should.be.instanceof(YtError);
@@ -171,9 +176,9 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should fail when cursor_time is out of range (before from_time)", function(done) {
         this.application_operations.list({
-            from_time: "2015-01-01T01:00:00",
-            to_time: "2015-01-01T02:00:00",
-            cursor_time: "2015-01-01T00:00:00",
+            from_time: "2015-01-01T01:00:00Z",
+            to_time: "2015-01-01T02:00:00Z",
+            cursor_time: "2015-01-01T00:00:00Z",
         }).then(
             function() { throw new Error("This should fail."); },
             function(err) {
@@ -185,9 +190,9 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should fail when cursor_time is out of range (after to_time)", function(done) {
         this.application_operations.list({
-            from_time: "2015-01-01T01:00:00",
-            to_time: "2015-01-01T02:00:00",
-            cursor_time: "2015-01-01T03:00:00",
+            from_time: "2015-01-01T01:00:00Z",
+            to_time: "2015-01-01T02:00:00Z",
+            cursor_time: "2015-01-01T03:00:00Z",
         }).then(
             function() { throw new Error("This should fail."); },
             function(err) {
@@ -200,7 +205,10 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
     it("should list operations from cypress without filters", function(done) {
         var mock = sinon.mock(this.driver);
         mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.reject(), Q.reject());
-        this.application_operations.list({}).then(function(result) {
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+        }).then(function(result) {
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 1});
             expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1});
@@ -217,10 +225,57 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
         .then(done, done);
     });
 
+    it("should list operations from cypress with from_time & to_time filter", function(done) {
+        var mock = sinon.mock(this.driver);
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.reject(), Q.reject());
+        this.application_operations.list({
+            from_time: "2016-03-02T00:00:00Z",
+            to_time: "2016-03-02T12:00:00Z",
+        }).then(function(result) {
+            expect(result.user_counts).to.deep.equal({psushin: 1});
+            expect(result.state_counts).to.deep.equal({running: 1});
+            expect(result.type_counts).to.deep.equal({map: 1});
+            expect(result.failed_jobs_count).to.deep.equal(0);
+            expect(result.operations.map(function(item) { return item.$value; })).to.deep.equal([
+                "1dee545-fe4c4006-cd95617-54f87a31",
+            ]);
+            mock.verify();
+        })
+        .then(done, done);
+    });
+
+    it("should list operations from cypress with cursor_time/desc filter", function(done) {
+        var mock = sinon.mock(this.driver);
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.reject(), Q.reject());
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+            cursor_time: "2016-03-02T12:00:00Z",
+        }).then(function(result) {
+            // counters are intact
+            expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
+            expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 1});
+            expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1});
+            expect(result.failed_jobs_count).to.deep.equal(1);
+            // result list is reduced
+            expect(result.operations.map(function(item) { return item.$value; })).to.deep.equal([
+                "1dee545-fe4c4006-cd95617-54f87a31",
+                "19b5c14-c41a6620-7fa0d708-29a241d2",
+            ]);
+            mock.verify();
+        })
+        .then(done, done);
+    });
+
+
     it("should list operations from cypress with type filter", function(done) {
         var mock = sinon.mock(this.driver);
         mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.reject(), Q.reject());
-        this.application_operations.list({type: "map_reduce"}).then(function(result) {
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+            type: "map_reduce"
+        }).then(function(result) {
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 1});
             expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1});
@@ -236,7 +291,11 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
     it("should list operations from cypress with state filter", function(done) {
         var mock = sinon.mock(this.driver);
         mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.reject(), Q.reject());
-        this.application_operations.list({state: "completed"}).then(function(result) {
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+            state: "completed"
+        }).then(function(result) {
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 1});
             expect(result.type_counts).to.deep.equal({map: 1});
@@ -252,7 +311,11 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
     it("should list operations from cypress with user filter", function(done) {
         var mock = sinon.mock(this.driver);
         mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.reject(), Q.reject());
-        this.application_operations.list({user: "psushin"}).then(function(result) {
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+            user: "psushin"
+        }).then(function(result) {
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({running: 1});
             expect(result.type_counts).to.deep.equal({map: 1});
@@ -268,7 +331,11 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
     it("should list operations from cypress with text filter", function(done) {
         var mock = sinon.mock(this.driver);
         mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.reject(), Q.reject());
-        this.application_operations.list({filter: "MRPROC"}).then(function(result) {
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+            filter: "MRPROC"
+        }).then(function(result) {
             expect(result.user_counts).to.deep.equal({data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({failed: 1});
             expect(result.type_counts).to.deep.equal({map_reduce: 1});
@@ -284,7 +351,11 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
     it("should list operations from cypress with failed jobs filter", function(done) {
         var mock = sinon.mock(this.driver);
         mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.reject(), Q.reject());
-        this.application_operations.list({with_failed_jobs: true}).then(function(result) {
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+            with_failed_jobs: true
+        }).then(function(result) {
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 1});
             expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1});
@@ -300,7 +371,11 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
     it("should list operations from cypress without counters", function(done) {
         var mock = sinon.mock(this.driver);
         mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.reject());
-        this.application_operations.list({include_counters: false}).then(function(result) {
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+            include_counters: false
+        }).then(function(result) {
             expect(Object.keys(result)).to.deep.eql(["operations"]);
             expect(result.operations.length).to.eq(3);
             mock.verify();
@@ -311,7 +386,11 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
     it("should list operations w.r.t. max_size parameter (incomplete result)", function(done) {
         var mock = sinon.mock(this.driver);
         mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.reject(), Q.reject());
-        this.application_operations.list({max_size: 1}).then(function(result) {
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+            max_size: 1
+        }).then(function(result) {
             expect(result.operations.$incomplete).to.eq(true);
             expect(result.operations.$value.length).to.eq(1);
             mock.verify();
@@ -322,7 +401,11 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
     it("should list operations w.r.t. max_size parameter (complete result)", function(done) {
         var mock = sinon.mock(this.driver);
         mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.reject(), Q.reject());
-        this.application_operations.list({max_size: 3}).then(function(result) {
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+            max_size: 3
+        }).then(function(result) {
             expect(result.operations.length).to.eq(3);
             mock.verify();
         })
@@ -332,7 +415,10 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
     it("should override progress with runtime information", function(done) {
         var mock = sinon.mock(this.driver);
         mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.resolve(RUNTIME_OPERATIONS), Q.reject(), Q.reject());
-        this.application_operations.list({}).then(function(result) {
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+        }).then(function(result) {
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
             expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 1});
             expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1});
@@ -354,7 +440,10 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
         var archive_items = clone(ARCHIVE_ITEMS);
         var archive_counts = clone(ARCHIVE_COUNTS);
         mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.resolve(archive_items), Q.resolve(archive_counts));
-        this.application_operations.list({}).then(function(result) {
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+        }).then(function(result) {
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1, sandello: 3});
             expect(result.state_counts).to.deep.equal({aborted: 1, completed: 2, failed: 2, running: 1});
             expect(result.type_counts).to.deep.equal({map: 5, map_reduce: 1});
@@ -363,9 +452,9 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
                 "d7df8-7d0c30ec-582ebd65-9ad7535a",
                 "1dee545-fe4c4006-cd95617-54f87a31",
                 "19b5c14-c41a6620-7fa0d708-29a241d2",
-                "303b02-bc6c8994-778328e8-511a3048",
-                "12ad62b-6bc1ed2f-ed7b018e-8633b5cd",
-                "12a7385-20d240f6-78421110-8a351d84",
+                "303b02-bc6c8994-778328e8-511a3048", // archived
+                "12ad62b-6bc1ed2f-ed7b018e-8633b5cd", // archived
+                "12a7385-20d240f6-78421110-8a351d84", // archived
             ]);
             expect(result.operations[1].$attributes.brief_progress.jobs.completed).to.eql(9725);
             expect(result.operations[1].$attributes.start_time).to.eql("2016-03-02T05:43:43.104532Z");
@@ -391,7 +480,10 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
         archive_items[0].id_hi.$value = "3000032674122356488";
         archive_items[0].id_lo.$value = "14130719068480298004";
         mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.resolve(archive_items), Q.resolve(archive_counts));
-        this.application_operations.list({}).then(function(result) {
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+        }).then(function(result) {
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1, sandello: 2});
             expect(result.state_counts).to.deep.equal({aborted: 1, completed: 1, failed: 2, running: 1});
             expect(result.type_counts).to.deep.equal({map: 4, map_reduce: 1});

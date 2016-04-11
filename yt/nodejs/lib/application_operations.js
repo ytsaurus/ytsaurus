@@ -23,7 +23,7 @@ var OPERATIONS_CYPRESS_PATH = "//sys/operations";
 var OPERATIONS_RUNTIME_PATH = "//sys/scheduler/orchid/scheduler/operations";
 var SCHEDULING_INFO_PATH = "//sys/scheduler/orchid/scheduler";
 var MAX_SIZE_LIMIT = 100;
-var TIME_SPAN_LIMIT = 7 * 86400 * 1000;
+var TIME_SPAN_LIMIT = 10 * 24 * 3600 * 1000;
 
 var INTERMEDIATE_STATES = [
     "initializing",
@@ -509,7 +509,14 @@ function YtApplicationOperations$list(parameters)
             var value = utils.getYsonValue(item);
             var attributes = utils.getYsonAttributes(item);
 
+            // Check time filter.
+            var start_time = Date.parse(attributes.start_time);
+            if (start_time < from_time || start_time >= to_time) {
+                return false;
+            }
+
             // Map runtime progress into brief_progress (see YT-1986) if operation is in progress.
+            var mapped_state = mapState(attributes.state);
             if (mapState(attributes.state) === "running") {
                 var runtime_attributes = runtime_data[value];
                 if (runtime_attributes) {
@@ -546,6 +553,11 @@ function YtApplicationOperations$list(parameters)
             }
 
             if (with_failed_jobs && !has_failed_jobs) {
+                return false;
+            }
+
+            // Check cursor position.
+            if (start_time >= cursor_time) {
                 return false;
             }
 
