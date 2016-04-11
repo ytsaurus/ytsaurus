@@ -125,7 +125,6 @@ TYsonWriter::TYsonWriter(
     , IndentSize_(indent)
 {
     YASSERT(Stream_);
-    Reset();
 }
 
 void TYsonWriter::WriteIndent()
@@ -138,18 +137,18 @@ void TYsonWriter::WriteIndent()
 void TYsonWriter::EndNode()
 {
     if (Depth_ > 0 || Type_ != EYsonType::Node) {
-        Stream_->Write(TokenTypeToChar(ItemSeparatorToken));
+        Stream_->Write(NDetail::ItemSeparatorSymbol);
         if (Depth_ > 0 && Format_ == EYsonFormat::Pretty || Depth_ == 0) {
             Stream_->Write('\n');
         }
     }
 }
 
-void TYsonWriter::BeginCollection(ETokenType beginToken)
+void TYsonWriter::BeginCollection(char ch)
 {
     ++Depth_;
     EmptyCollection_ = true;
-    Stream_->Write(TokenTypeToChar(beginToken));
+    Stream_->Write(ch);
 }
 
 void TYsonWriter::CollectionItem()
@@ -163,14 +162,14 @@ void TYsonWriter::CollectionItem()
     EmptyCollection_ = false;
 }
 
-void TYsonWriter::EndCollection(ETokenType endToken)
+void TYsonWriter::EndCollection(char ch)
 {
     --Depth_;
     if (Format_ == EYsonFormat::Pretty && !EmptyCollection_) {
         WriteIndent();
     }
     EmptyCollection_ = false;
-    Stream_->Write(TokenTypeToChar(endToken));
+    Stream_->Write(ch);
 }
 
 void TYsonWriter::WriteStringScalar(const TStringBuf& value)
@@ -234,7 +233,7 @@ void TYsonWriter::OnDoubleScalar(double value)
 void TYsonWriter::OnBooleanScalar(bool value)
 {
     if (BooleanAsString_) {
-        OnStringScalar(FormatBool(value));
+        OnStringScalar(value ? STRINGBUF("true") : STRINGBUF("false"));
         return;
     }
 
@@ -248,13 +247,13 @@ void TYsonWriter::OnBooleanScalar(bool value)
 
 void TYsonWriter::OnEntity()
 {
-    Stream_->Write(TokenTypeToChar(EntityToken));
+    Stream_->Write(NDetail::EntitySymbol);
     EndNode();
 }
 
 void TYsonWriter::OnBeginList()
 {
-    BeginCollection(BeginListToken);
+    BeginCollection(NDetail::BeginListSymbol);
 }
 
 void TYsonWriter::OnListItem()
@@ -264,13 +263,13 @@ void TYsonWriter::OnListItem()
 
 void TYsonWriter::OnEndList()
 {
-    EndCollection(EndListToken);
+    EndCollection(NDetail::EndListSymbol);
     EndNode();
 }
 
 void TYsonWriter::OnBeginMap()
 {
-    BeginCollection(BeginMapToken);
+    BeginCollection(NDetail::BeginMapSymbol);
 }
 
 void TYsonWriter::OnKeyedItem(const TStringBuf& key)
@@ -282,7 +281,7 @@ void TYsonWriter::OnKeyedItem(const TStringBuf& key)
     if (Format_ == EYsonFormat::Pretty) {
         Stream_->Write(' ');
     }
-    Stream_->Write(TokenTypeToChar(KeyValueSeparatorToken));
+    Stream_->Write(NDetail::KeyValueSeparatorSymbol);
     if (Format_ == EYsonFormat::Pretty) {
         Stream_->Write(' ');
     }
@@ -290,18 +289,18 @@ void TYsonWriter::OnKeyedItem(const TStringBuf& key)
 
 void TYsonWriter::OnEndMap()
 {
-    EndCollection(EndMapToken);
+    EndCollection(NDetail::EndMapSymbol);
     EndNode();
 }
 
 void TYsonWriter::OnBeginAttributes()
 {
-    BeginCollection(BeginAttributesToken);
+    BeginCollection(NDetail::BeginAttributesSymbol);
 }
 
 void TYsonWriter::OnEndAttributes()
 {
-    EndCollection(EndAttributesToken);
+    EndCollection(NDetail::EndAttributesSymbol);
     if (Format_ == EYsonFormat::Pretty) {
         Stream_->Write(' ');
     }
@@ -319,10 +318,209 @@ void TYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
     }
 }
 
-void TYsonWriter::Reset()
+void TYsonWriter::Flush()
+{ }
+
+int TYsonWriter::GetDepth() const
 {
-    Depth_ = 0;
-    EmptyCollection_ = true;
+    return Depth_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBufferedBinaryYsonWriter::TBufferedBinaryYsonWriter(
+    TOutputStream* stream,
+    EYsonType type,
+    bool enableRaw,
+    bool booleanAsString)
+    : Stream_(stream)
+    , Type_(type)
+    , EnableRaw_(enableRaw)
+    , BooleanAsString_(booleanAsString)
+    , BufferStart_(Buffer_)
+    , BufferEnd_(Buffer_ + BufferSize)
+    , BufferCursor_(BufferStart_)
+{
+    YASSERT(Stream_);
+}
+
+Y_FORCE_INLINE void TBufferedBinaryYsonWriter::WriteStringScalar(const TStringBuf& value)
+{
+    size_t length = value.length();
+    if (length <= MaxSmallStringLength) {
+        // NB: +3 is since we're obliged to leave at least two spare buffer positions.
+        EnsureSpace(length + MaxVarInt32Size + 2);
+        *BufferCursor_++ = NDetail::StringMarker;
+        BufferCursor_ += WriteVarInt32(BufferCursor_, static_cast<i32>(length));
+        ::memcpy(BufferCursor_, value.data(), length);
+        BufferCursor_ += length;
+    } else {
+        EnsureSpace(MaxVarInt32Size + 1);
+        *BufferCursor_++ = NDetail::StringMarker;
+        BufferCursor_ += WriteVarInt32(BufferCursor_, static_cast<i32>(length));
+        Flush();
+        Stream_->Write(value.begin(), length);
+    }
+}
+
+Y_FORCE_INLINE void TBufferedBinaryYsonWriter::BeginCollection(char ch)
+{
+    ++Depth_;
+    *BufferCursor_++ = ch;    
+}
+
+Y_FORCE_INLINE void TBufferedBinaryYsonWriter::EndCollection(char ch)
+{
+    --Depth_;
+    *BufferCursor_++ = ch;    
+}
+
+Y_FORCE_INLINE void TBufferedBinaryYsonWriter::EndNode()
+{
+    if (Y_LIKELY(Type_ != EYsonType::Node || Depth_ > 0)) {
+        *BufferCursor_++ = NDetail::ItemSeparatorSymbol;
+    }
+    if (Y_LIKELY(Type_ != EYsonType::Node && Depth_ == 0)) {
+        *BufferCursor_++ = '\n';
+    }
+}
+
+void TBufferedBinaryYsonWriter::Flush()
+{
+    size_t length = BufferCursor_ - BufferStart_;
+    if (length > 0) {
+        Stream_->Write(BufferStart_, length);
+        BufferCursor_ = BufferStart_;
+    }
+}
+
+Y_FORCE_INLINE void TBufferedBinaryYsonWriter::EnsureSpace(size_t space)
+{
+    if (Y_LIKELY(BufferCursor_ + space <= BufferEnd_)) {
+        return;
+    }
+
+    YASSERT(space <= BufferSize);
+    Flush();
+}
+
+void TBufferedBinaryYsonWriter::OnStringScalar(const TStringBuf& value)
+{
+    // NB: This call always leaves at least two spare positions in buffer.
+    WriteStringScalar(value);
+    EndNode();
+}
+
+void TBufferedBinaryYsonWriter::OnInt64Scalar(i64 value)
+{
+    EnsureSpace(MaxVarInt64Size + 3);
+    *BufferCursor_++ = NDetail::Int64Marker;
+    BufferCursor_ += WriteVarInt64(BufferCursor_, value);
+    EndNode();
+}
+
+void TBufferedBinaryYsonWriter::OnUint64Scalar(ui64 value)
+{
+    EnsureSpace(MaxVarUint64Size + 3);
+    *BufferCursor_++ = NDetail::Uint64Marker;
+    BufferCursor_ += WriteVarUint64(BufferCursor_, value);
+    EndNode();
+}
+
+void TBufferedBinaryYsonWriter::OnDoubleScalar(double value)
+{
+    EnsureSpace(sizeof(double) + 3);
+    *BufferCursor_++ = NDetail::DoubleMarker;
+    *(reinterpret_cast<double*>(BufferCursor_)) = value;
+    BufferCursor_ += sizeof(double);
+    EndNode();
+}
+
+void TBufferedBinaryYsonWriter::OnBooleanScalar(bool value)
+{
+    if (Y_UNLIKELY(BooleanAsString_)) {
+        OnStringScalar(value ? STRINGBUF("true") : STRINGBUF("false"));
+    } else {
+        EnsureSpace(3);
+        *BufferCursor_++ = (value ? NDetail::TrueMarker : NDetail::FalseMarker);
+        EndNode();
+    }
+}
+
+void TBufferedBinaryYsonWriter::OnEntity()
+{
+    EnsureSpace(3);
+    *BufferCursor_++ = NDetail::EntitySymbol;
+    EndNode();
+}
+
+void TBufferedBinaryYsonWriter::OnBeginList()
+{
+    EnsureSpace(1);
+    BeginCollection(NDetail::BeginListSymbol);
+}
+
+void TBufferedBinaryYsonWriter::OnListItem()
+{ }
+
+void TBufferedBinaryYsonWriter::OnEndList()
+{
+    EnsureSpace(3);
+    EndCollection(NDetail::EndListSymbol);
+    EndNode();
+}
+
+void TBufferedBinaryYsonWriter::OnBeginMap()
+{
+    EnsureSpace(1);
+    BeginCollection(NDetail::BeginMapSymbol);
+}
+
+void TBufferedBinaryYsonWriter::OnKeyedItem(const TStringBuf& key)
+{
+    // NB: This call always leaves at least one spare position in buffer.
+    WriteStringScalar(key);
+    *BufferCursor_++ = NDetail::KeyValueSeparatorSymbol;
+}
+
+void TBufferedBinaryYsonWriter::OnEndMap()
+{
+    EnsureSpace(3);
+    EndCollection(NDetail::EndMapSymbol);
+    EndNode();
+}
+
+void TBufferedBinaryYsonWriter::OnBeginAttributes()
+{
+    EnsureSpace(1);
+    BeginCollection(NDetail::BeginAttributesSymbol);
+}
+
+void TBufferedBinaryYsonWriter::OnEndAttributes()
+{
+    EnsureSpace(1);
+    EndCollection(NDetail::EndAttributesSymbol);
+}
+
+void TBufferedBinaryYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
+{
+    if (EnableRaw_) {
+        size_t length = yson.length();
+        if (length <= MaxSmallStringLength) {
+            EnsureSpace(length + 2);
+            ::memcpy(BufferCursor_, yson.begin(), length);
+            BufferCursor_ += length;
+        } else {
+            Flush();
+            Stream_->Write(yson.begin(), length);
+        }
+
+        if (type == EYsonType::Node) {
+            EndNode();
+        }
+    } else {
+        TYsonConsumerBase::OnRaw(yson, type);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

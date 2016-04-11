@@ -249,6 +249,7 @@ Stroka ConvertNodeToBytes(
         EDataType::Structured,
         streamStack.Top());
     Serialize(std::move(node), consumer.get());
+    consumer->Flush();
     streamStack.Top()->Flush();
     streamStack.Top()->Finish();
 

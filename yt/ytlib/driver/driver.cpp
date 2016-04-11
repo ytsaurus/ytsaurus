@@ -403,6 +403,8 @@ private:
                 &bufferedOutputStream);
 
             Serialize(yson, consumer.get());
+
+            consumer->Flush();
         }
 
         virtual void PinTransaction(ITransactionPtr transaction, TDuration timeout) override
