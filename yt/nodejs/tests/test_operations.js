@@ -244,13 +244,14 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
         .then(done, done);
     });
 
-    it("should list operations from cypress with cursor_time/desc filter", function(done) {
+    it("should list operations from cypress with cursor_time/past filter", function(done) {
         var mock = sinon.mock(this.driver);
         mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.reject(), Q.reject());
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
             cursor_time: "2016-03-02T12:00:00Z",
+            cursor_direction: "past",
         }).then(function(result) {
             // counters are intact
             expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
@@ -267,6 +268,29 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
         .then(done, done);
     });
 
+    it("should list operations from cypress with cursor_time/filter filter", function(done) {
+        var mock = sinon.mock(this.driver);
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.reject(), Q.reject());
+        this.application_operations.list({
+            from_time: "2016-02-25T00:00:00Z",
+            to_time: "2016-03-04T00:00:00Z",
+            cursor_time: "2016-03-02T00:00:00Z",
+            cursor_direction: "future",
+        }).then(function(result) {
+            // counters are intact
+            expect(result.user_counts).to.deep.equal({psushin: 1, ignat: 1, data_quality_robot: 1});
+            expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 1});
+            expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1});
+            expect(result.failed_jobs_count).to.deep.equal(1);
+            // result list is reduced
+            expect(result.operations.map(function(item) { return item.$value; })).to.deep.equal([
+                "1dee545-fe4c4006-cd95617-54f87a31",
+                "d7df8-7d0c30ec-582ebd65-9ad7535a",
+            ]);
+            mock.verify();
+        })
+        .then(done, done);
+    });
 
     it("should list operations from cypress with type filter", function(done) {
         var mock = sinon.mock(this.driver);
