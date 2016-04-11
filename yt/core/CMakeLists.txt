@@ -120,7 +120,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/string.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/subprocess.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/url.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/varint.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/pipes/async_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pipes/async_writer.cpp
