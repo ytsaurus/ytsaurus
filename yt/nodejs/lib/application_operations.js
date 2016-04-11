@@ -557,21 +557,19 @@ function YtApplicationOperations$list(parameters)
                 return false;
             }
 
+            // Now, extract main bits.
+            var user = attributes.authenticated_user;
+            var state = attributes.state;
+            var type = attributes.operation_type;
+
             // Map runtime progress into brief_progress (see YT-1986) if operation is in progress.
-            var mapped_state = mapState(attributes.state);
-            if (mapState(attributes.state) === "running") {
+            var mapped_state = mapState(state);
+            if (mapped_state === "running") {
                 var runtime_attributes = runtime_data[value];
                 if (runtime_attributes) {
                     utils.merge(attributes.brief_progress, runtime_attributes.progress);
                 }
             }
-
-            attributes.state = mapState(attributes.state);
-
-            // Now, extract main bits.
-            var user = attributes.authenticated_user;
-            var state = attributes.state;
-            var type = attributes.operation_type;
 
             // Apply text filter.
             var text_factor = extractTextFactorForCypressItem(value, attributes);
@@ -580,7 +578,7 @@ function YtApplicationOperations$list(parameters)
             }
 
             // Apply user, state & type filters; count this operation.
-            if (!register.filterAndCount(user, state, type, 1)) {
+            if (!register.filterAndCount(user, mapped_state, type, 1)) {
                 return false;
             }
 
