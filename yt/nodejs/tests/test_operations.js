@@ -19,6 +19,7 @@ function fixture(name)
 }
 
 var CYPRESS_OPERATIONS = [
+    fixture("cypress_bd90befa-101169a-3fc03e8-1cb90ada.json"),
     fixture("cypress_19b5c14-c41a6620-7fa0d708-29a241d2.json"),
     fixture("cypress_1dee545-fe4c4006-cd95617-54f87a31.json"),
     fixture("cypress_d7df8-7d0c30ec-582ebd65-9ad7535a.json"),
@@ -527,6 +528,26 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
             expect(result.operations[2].$attributes.brief_progress.jobs.completed).to.eql(1);
             expect(result.operations[2].$attributes.authenticated_user).to.eql("ignat");
             expect(result.operations[2].$attributes.filter_factors).to.eql(undefined);
+            mock.verify();
+        })
+        .then(done, done);
+    });
+
+    it("should not hide intermediate states in list", function(done) {
+        var mock = sinon.mock(this.driver);
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject());
+        this.application_operations.list({
+            from_time: "2016-04-11T00:00:00Z",
+            to_time: "2016-04-12T00:00:00Z",
+        }).then(function(result) {
+            expect(result.user_counts).to.deep.equal({odin: 1});
+            expect(result.state_counts).to.deep.equal({running: 1});
+            expect(result.type_counts).to.deep.equal({sort: 1});
+            expect(result.failed_jobs_count).to.deep.equal(0);
+            expect(result.operations.map(function(item) { return item.$value; })).to.deep.equal([
+                "bd90befa-101169a-3fc03e8-1cb90ada",
+            ]);
+            expect(result.operations[0].$attributes.state).to.eql("initializing");
             mock.verify();
         })
         .then(done, done);
