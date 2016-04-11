@@ -8,9 +8,10 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Creates a YSON data stream from a sequence of YSON events.
+//! A canonical implementation of YSON data stream writer.
 class TYsonWriter
     : public TYsonConsumerBase
+    , public virtual IFlushableYsonConsumer
     , private TNonCopyable
 {
 public:
@@ -29,28 +30,30 @@ public:
         int indent = 4);
 
     // IYsonConsumer overrides.
-    virtual void OnStringScalar(const TStringBuf& value);
-    virtual void OnInt64Scalar(i64 value);
-    virtual void OnUint64Scalar(ui64 value);
-    virtual void OnDoubleScalar(double value);
-    virtual void OnBooleanScalar(bool value);
-    virtual void OnEntity();
+    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnInt64Scalar(i64 value) override;
+    virtual void OnUint64Scalar(ui64 value) override;
+    virtual void OnDoubleScalar(double value) override;
+    virtual void OnBooleanScalar(bool value) override;
+    virtual void OnEntity() override;
 
-    virtual void OnBeginList();
-    virtual void OnListItem();
-    virtual void OnEndList();
+    virtual void OnBeginList() override;
+    virtual void OnListItem() override;
+    virtual void OnEndList() override;
 
-    virtual void OnBeginMap();
-    virtual void OnKeyedItem(const TStringBuf& key);
-    virtual void OnEndMap();
+    virtual void OnBeginMap() override;
+    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnEndMap() override;
 
-    virtual void OnBeginAttributes();
-    virtual void OnEndAttributes();
+    virtual void OnBeginAttributes() override;
+    virtual void OnEndAttributes() override;
 
     using IYsonConsumer::OnRaw;
     virtual void OnRaw(const TStringBuf& yson, EYsonType type = EYsonType::Node);
 
-    void Reset();
+    virtual void Flush() override;
+
+    int GetDepth() const;
 
 protected:
     TOutputStream* const Stream_;
@@ -67,10 +70,83 @@ protected:
     void WriteIndent();
     void WriteStringScalar(const TStringBuf& value);
 
-    void BeginCollection(ETokenType beginToken);
+    void BeginCollection(char ch);
     void CollectionItem();
-    void EndCollection(ETokenType endToken);
+    void EndCollection(char ch);
 
+    void EndNode();
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! An optimized version of YSON stream writer.
+/*!
+ *  This writer buffers its output so don't forget to call #Flush.
+ *  Only binary YSON format is supported.
+ */
+class TBufferedBinaryYsonWriter
+    : public TYsonConsumerBase
+    , public virtual IFlushableYsonConsumer
+    , private TNonCopyable
+{
+public:
+    //! Initializes an instance.
+    /*!
+     *  \param stream A stream for outputting the YSON data.
+     *  \param format A format used for encoding the data.
+     *  \param enableRaw Enables inserting raw portions of YSON as-is, without reparse.
+     */
+    TBufferedBinaryYsonWriter(
+        TOutputStream* stream,
+        EYsonType type = EYsonType::Node,
+        bool enableRaw = true,
+        bool booleanAsString = false);
+
+    // IYsonConsumer overrides.
+    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnInt64Scalar(i64 value) override;
+    virtual void OnUint64Scalar(ui64 value) override;
+    virtual void OnDoubleScalar(double value) override;
+    virtual void OnBooleanScalar(bool value) override;
+    virtual void OnEntity() override;
+
+    virtual void OnBeginList() override;
+    virtual void OnListItem() override;
+    virtual void OnEndList() override;
+
+    virtual void OnBeginMap() override;
+    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnEndMap() override;
+
+    virtual void OnBeginAttributes() override;
+    virtual void OnEndAttributes() override;
+
+    using IYsonConsumer::OnRaw;
+    virtual void OnRaw(const TStringBuf& yson, EYsonType type = EYsonType::Node) override;
+
+    virtual void Flush() override;
+
+protected:
+    TOutputStream* const Stream_;
+    const EYsonType Type_;
+    const bool EnableRaw_;
+    const bool BooleanAsString_;
+
+    static constexpr size_t BufferSize = 1024;
+    static constexpr size_t MaxSmallStringLength = 256;
+
+    char Buffer_[BufferSize];
+    char* const BufferStart_;
+    char* const BufferEnd_;
+    char* BufferCursor_;
+
+    int Depth_ = 0;
+
+    void EnsureSpace(size_t space);
+    void WriteStringScalar(const TStringBuf& value);
+    void BeginCollection(char ch);
+    void EndCollection(char ch);
     void EndNode();
 
 };

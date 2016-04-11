@@ -15,7 +15,7 @@ using namespace NTableClient;
 TSchemafulWriter::TSchemafulWriter(
     NConcurrency::IAsyncOutputStreamPtr stream,
     const NTableClient::TTableSchema& schema,
-    const std::function<std::unique_ptr<IYsonConsumer>(TOutputStream*)>& consumerBuilder)
+    const std::function<std::unique_ptr<IFlushableYsonConsumer>(TOutputStream*)>& consumerBuilder)
     : Stream_(stream)
     , Schema_(schema)
     , Consumer_(consumerBuilder(&Buffer_))
@@ -69,6 +69,7 @@ bool TSchemafulWriter::Write(const std::vector<TUnversionedRow>& rows)
         Consumer_->OnEndMap();
     }
 
+    Consumer_->Flush();
     auto buffer = Buffer_.Flush();
     Result_ = Stream_->Write(buffer);
     return Result_.IsSet() && Result_.Get().IsOK();

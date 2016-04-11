@@ -10,8 +10,7 @@ namespace NYson {
 //! A SAX-like interface for building a YSON stream.
 struct IYsonConsumer
 {
-    virtual ~IYsonConsumer()
-    { }
+    virtual ~IYsonConsumer() = default;
 
     //! The current item is a string scalar (IStringNode).
     /*!
@@ -102,19 +101,29 @@ struct IYsonConsumer
 
 
     // Extension methods.
-    void OnRaw(const TYsonString& str);
+    void OnRaw(const TYsonString& yson);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A base class that handles OnRaw and converts it into a sequence
-//! of elementary calls.
+//! Some consumers act like buffered streams and thus must be flushed at the end.
+struct IFlushableYsonConsumer
+    : public virtual IYsonConsumer
+{
+    virtual void Flush() = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A base class for most YSON consumers.
 class TYsonConsumerBase
     : public virtual IYsonConsumer
 {
 public:
-    virtual void OnRaw(const TStringBuf& ysonNode, EYsonType type) override;
+    //! Parses #str and converts it into a sequence of elementary calls.
+    virtual void OnRaw(const TStringBuf& str, EYsonType type) override;
+    using IYsonConsumer::OnRaw;
 
 };
 

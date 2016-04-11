@@ -158,10 +158,6 @@ TDsvNodeConsumer::TDsvNodeConsumer(
     TOutputStream* stream,
     TDsvFormatConfigPtr config)
     : TDsvWriterBase(config)
-    , AllowBeginList_(true)
-    , AllowBeginMap_(true)
-    , BeforeFirstMapItem_(true)
-    , BeforeFirstListItem_(true)
     , Stream_(stream)
 { }
 

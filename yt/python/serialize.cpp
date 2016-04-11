@@ -635,7 +635,7 @@ public:
         }
         if (hasRow) {
             auto prefix = Lexer_.ExtractPrefix();
-            YCHECK(*(prefix.End() - 1) != NYson::NDetail::ListItemSeparatorSymbol);
+            YCHECK(*(prefix.End() - 1) != NYson::NDetail::ItemSeparatorSymbol);
             auto result = TSharedMutableRef::Allocate(prefix.Size() + 1, false);
             std::copy(prefix.Begin(), prefix.End(), result.Begin());
             *(result.End() - 1) = ';';

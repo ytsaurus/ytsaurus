@@ -24,8 +24,10 @@ class TTreeBuilder
 {
 public:
     explicit TTreeBuilder(INodeFactoryPtr factory)
-        : Factory(factory)
-    { }
+        : Factory(std::move(factory))
+    {
+        YASSERT(Factory);
+    }
 
     virtual void BeginTree() override
     {
@@ -133,7 +135,8 @@ public:
     }
 
 private:
-    INodeFactoryPtr Factory;
+    const INodeFactoryPtr Factory;
+
     //! Contains nodes forming the current path in the tree.
     std::stack<INodePtr> NodeStack;
     TNullable<Stroka> Key;
@@ -170,7 +173,7 @@ private:
 
 std::unique_ptr<ITreeBuilder> CreateBuilderFromFactory(INodeFactoryPtr factory)
 {
-    return std::unique_ptr<ITreeBuilder>(new TTreeBuilder(factory));
+    return std::unique_ptr<ITreeBuilder>(new TTreeBuilder(std::move(factory)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

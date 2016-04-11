@@ -38,6 +38,7 @@ Stroka OnResponse(const TYPathProxy::TErrorOrRspGetPtr& rspOrError)
     try {
         auto writer = NFormats::CreateJsonConsumer(&output);
         Serialize(TYsonString(rsp->value()), writer.get());
+        writer->Flush();
     } catch (const std::exception& ex) {
         // TODO(sandello): Proper JSON escaping here.
         return FormatInternalServerErrorResponse(ToString(ex.what()).Quote());
