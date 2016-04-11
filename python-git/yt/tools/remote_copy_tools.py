@@ -317,7 +317,7 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
 
         for name, codec in [("compression_codec", compression_codec), ("erasure_codec", erasure_codec)]:
             if codec is None:
-                destination_client.set(dst + "/@" + name, source_client.get(src + "/@" + name))
+                destination_client.set(dst + "/@" + name, source_client.get(str(src) + "/@" + name))
 
         if erasure_codec is not None or compression_codec is not None:
             transform(str(dst), compression_codec=compression_codec, erasure_codec=erasure_codec,
