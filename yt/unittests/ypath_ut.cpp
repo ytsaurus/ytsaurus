@@ -67,16 +67,6 @@ public:
                 ConvertToNode(TYsonString(expected)),
                 ConvertToNode(output)));
     }
-
-    void CheckList(const TYPath& path, Stroka expected)
-    {
-        VectorStrok result;
-        SplitStroku(&result, expected, ";");
-
-        for (int index = 0; index < result.ysize(); ++index) {
-            Check(path + "/" + ::ToString(index), result[index]);
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
