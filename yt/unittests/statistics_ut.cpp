@@ -16,6 +16,7 @@ namespace {
 
 using namespace NFormats;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -100,11 +101,9 @@ TEST(TStatistics, AddSample)
     statistics.AddSample("/key/subkey/x", 10);
     EXPECT_EQ(20, GetSum(statistics, "/key/subkey/x"));
 
-    NJobTrackerClient::NProto::TStatistics protoStatistics;
-    ToProto(&protoStatistics, statistics);
-
-    TStatistics deserializedStatistics;
-    FromProto(&deserializedStatistics, protoStatistics);
+    TYsonString ysonStatistics = ConvertToYsonString(statistics);
+    TStatistics deserializedStatistics = ConvertTo<TStatistics>(ysonStatistics);
+    
     EXPECT_EQ(20, GetSum(deserializedStatistics, "/key/subkey/x"));
     EXPECT_EQ(42, GetSum(deserializedStatistics, "/key/sub"));
 }

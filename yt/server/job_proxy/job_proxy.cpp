@@ -122,7 +122,7 @@ void TJobProxy::SendHeartbeat()
     auto req = SupervisorProxy_->OnJobProgress();
     ToProto(req->mutable_job_id(), JobId_);
     req->set_progress(Job_->GetProgress());
-    ToProto(req->mutable_statistics(), GetStatistics());
+    req->set_statistics(ConvertToYsonString(GetStatistics()).Data());
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
@@ -209,9 +209,9 @@ void TJobProxy::Run()
             ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
         }
 
-        ToProto(result.mutable_statistics(), GetStatistics());
+        result.set_statistics(ConvertToYsonString(GetStatistics()).Data());
     } else {
-        result.mutable_statistics();
+        result.set_statistics("{}");
     }
 
     ReportResult(result);

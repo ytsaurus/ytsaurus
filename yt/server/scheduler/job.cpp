@@ -11,6 +11,7 @@ namespace NScheduler {
 
 using namespace NNodeTrackerClient::NProto;
 using namespace NYTree;
+using namespace NYson;
 using namespace NJobTrackerClient;
 using namespace NChunkClient::NProto;
 
@@ -97,7 +98,7 @@ TJobSummary::TJobSummary(const TJobId& id)
 void TJobSummary::ParseStatistics()
 {
     if (Result) {
-        Statistics = FromProto<NJobTrackerClient::TStatistics>(Result->statistics());
+        Statistics = ConvertTo<NJobTrackerClient::TStatistics>(TYsonString(Result->statistics(), NYson::EYsonType::Node));
     }
 }
 

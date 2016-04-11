@@ -16,6 +16,7 @@ namespace NExecAgent {
 using namespace NJobAgent;
 using namespace NNodeTrackerClient;
 using namespace NCellNode;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,12 +73,11 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
 {
     auto jobId = FromProto<TJobId>(request->job_id());
     double progress = request->progress();
-    const auto& statistics = request->statistics();
+    const auto& statistics = TYsonString(request->statistics(), EYsonType::Node);
 
-    context->SetRequestInfo("JobId: %v, Progress: %lf, Statistics: %Qv",
+    context->SetRequestInfo("JobId: %v, Progress: %lf",
         jobId,
-        progress,
-        statistics.DebugString());
+        progress);
 
     auto jobController = Bootstrap->GetJobController();
     auto job = jobController->GetJobOrThrow(jobId);
