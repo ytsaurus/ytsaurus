@@ -16,9 +16,10 @@ using ::testing::StrictMock;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYsonWriterTest: public ::testing::Test
+class TYsonWriterTest
+    : public ::testing::Test
 {
-public:
+protected:
     TStringStream Stream;
     StrictMock<TMockYsonConsumer> Mock;
 
