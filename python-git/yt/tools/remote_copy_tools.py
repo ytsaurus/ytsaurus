@@ -9,6 +9,7 @@ import os
 import json
 import time
 import shutil
+import gzip
 import tempfile
 import tarfile
 from copy import deepcopy
@@ -88,6 +89,16 @@ def _pack_string(name, script, output_dir):
     filename = os.path.join(output_dir, name)
     with open(filename, "w") as fout:
         fout.write(script)
+    return filename
+
+def _pack_token(token, output_dir):
+    filename = os.path.join(output_dir, "yt_token")
+    with open(filename, "wb") as fout:
+        # XXX(asaitgalin): using GzipFile here with fileobj parameter
+        # to exclude filename from resulting gzip file contents.
+        with gzip.GzipFile("", fileobj=fout) as gzip_fout:
+            gzip_fout.write(token)
+
     return filename
 
 def _split_rows(row_count, split_size, total_size):
@@ -195,12 +206,17 @@ if __name__ == "__main__":
 """
 
     files = []
-    prepare_command = \
-        "set +x\n"\
-        "export YT_TOKEN=$(cat yt_token)\n"\
-        "set -x\n"
+    prepare_command = ""
+
     if "token" in yt_client.config:
-        files.append(_pack_string("yt_token", yt_client.config["token"], tmp_dir))
+        files.append(_pack_token(yt_client.config["token"], tmp_dir))
+
+        prepare_command += """
+set +x
+export YT_TOKEN=$(gzip -d -c yt_token)
+set -x
+"""
+
     if pack:
         files += [_pack_module("yt", tmp_dir), _which("yt2")]
         prepare_command += """
