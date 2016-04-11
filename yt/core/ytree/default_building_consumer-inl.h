@@ -21,7 +21,7 @@ class TBuildingYsonConsumerViaTreeBuilder
 {
 public:
     TBuildingYsonConsumerViaTreeBuilder(NYson::EYsonType ysonType)
-        : TreeBuilder_(CreateBuilderFromFactory(CreateEphemeralNodeFactory()))
+        : TreeBuilder_(CreateBuilderFromFactory(GetEphemeralNodeFactory()))
         , YsonType_(ysonType)
     { 
         TreeBuilder_->BeginTree();
