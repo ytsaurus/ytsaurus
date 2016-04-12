@@ -120,6 +120,13 @@ class TestYsonStream(YsonParserTestBase, unittest.TestCase):
         self.assertRaises(Exception, lambda: loads("{a=b"))
         self.assertRaises(Exception, lambda: loads("{a=b}{c=d}"))
 
+    def test_incorrect_params_in_load_dump(self):
+        self.assertRaises(Exception, lambda: loads('123;#;{a={b=[";"]}};<attr=10>0.1;', raw=True, yson_type="aaa"))
+        self.assertRaises(Exception, lambda: loads('123;#;{a={b=[";"]}};<attr=10>0.1;', raw=True, yson_format="bbb"))
+        self.assertRaises(Exception, lambda: loads('123;#;{a={b=[";"]}};<attr=10>0.1;', xxx=True))
+        self.assertRaises(Exception, lambda: dumps({"a": "b"}, xxx=True))
+        self.assertRaises(Exception, lambda: dumps({"a": "b"}, yson_format="aaa"))
+        self.assertRaises(Exception, lambda: dumps({"a": "b"}, yson_type="bbb"))
 
 if __name__ == "__main__":
     unittest.main()
