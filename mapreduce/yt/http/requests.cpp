@@ -72,12 +72,13 @@ TTransactionId StartTransaction(
 void TransactionRequest(
     const TAuth& auth,
     const Stroka& command,
-    const TTransactionId& transactionId)
+    const TTransactionId& transactionId,
+    std::function<void()> errorCallback = {})
 {
     THttpHeader header("POST", command);
     header.AddTransactionId(transactionId);
     header.AddMutationId();
-    RetryRequest(auth, header);
+    RetryRequest(auth, header, "", false, false, errorCallback);
 }
 
 void PingTransaction(
@@ -92,6 +93,7 @@ void AbortTransaction(
     const TTransactionId& transactionId)
 {
     TransactionRequest(auth, "abort_tx", transactionId);
+
     LOG_INFO("Transaction %s aborted", ~GetGuidAsString(transactionId));
 }
 
@@ -99,7 +101,9 @@ void CommitTransaction(
     const TAuth& auth,
     const TTransactionId& transactionId)
 {
-    TransactionRequest(auth, "commit_tx", transactionId);
+    TransactionRequest(auth, "commit_tx", transactionId,
+        [&] () { PingTransaction(auth, transactionId); });
+
     LOG_INFO("Transaction %s commited", ~GetGuidAsString(transactionId));
 }
 
@@ -183,7 +187,8 @@ Stroka RetryRequest(
     THttpHeader& header,
     const Stroka& body,
     bool isHeavy,
-    bool isOperation)
+    bool isOperation,
+    std::function<void()> errorCallback)
 {
     int retryCount = isOperation ?
         TConfig::Get()->StartOperationRetryCount :
@@ -191,15 +196,22 @@ Stroka RetryRequest(
 
     header.SetToken(auth.Token);
 
+    TDuration socketTimeout = (header.GetCommand() == "ping_tx") ?
+        TDuration::Seconds(5) : TDuration::Zero();
+
     for (int attempt = 0; attempt < retryCount; ++attempt) {
         Stroka requestId;
         Stroka response;
-        try {
-            Stroka hostName(auth.ServerName);
-            if (isHeavy) {
-                hostName = GetProxyForHeavyRequest(auth);
-            }
 
+        Stroka hostName(auth.ServerName);
+        if (isHeavy) {
+            hostName = GetProxyForHeavyRequest(auth);
+        }
+
+        bool hasError = false;
+        TDuration retryInterval;
+
+        try {
             THttpRequest request(hostName);
             requestId = request.GetRequestId();
 
@@ -209,12 +221,7 @@ Stroka RetryRequest(
                 header.AddParam("retry", "true");
             }
 
-            if (header.GetCommand() == "ping_tx") {
-                request.Connect(TDuration::Seconds(5));
-            } else {
-                request.Connect();
-            }
-
+            request.Connect(socketTimeout);
             try {
                 TOutputStream* output = request.StartRequest(header);
                 output->Write(body);
@@ -222,7 +229,6 @@ Stroka RetryRequest(
             } catch (yexception&) {
                 // try to read error in response
             }
-
             response = request.GetResponse();
 
         } catch (TErrorResponse& e) {
@@ -232,8 +238,8 @@ Stroka RetryRequest(
             if (!e.IsRetriable() || attempt + 1 == retryCount) {
                 throw;
             }
-            Sleep(e.GetRetryInterval());
-            continue;
+            hasError = true;
+            retryInterval = e.GetRetryInterval();
 
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - %s - attempt %d failed",
@@ -242,14 +248,22 @@ Stroka RetryRequest(
             if (attempt + 1 == retryCount) {
                 throw;
             }
-            Sleep(TConfig::Get()->RetryInterval);
-            continue;
+            hasError = true;
+            retryInterval = TConfig::Get()->RetryInterval;
         }
 
-        return response;
+        if (!hasError) {
+            return response;
+        }
+
+        if (errorCallback) {
+            errorCallback();
+        }
+
+        Sleep(retryInterval);
     }
 
-    return "";
+    ythrow yexception() << "unreachable";
 }
 
 void RetryHeavyWriteRequest(
@@ -263,15 +277,14 @@ void RetryHeavyWriteRequest(
 
     for (int attempt = 0; attempt < retryCount; ++attempt) {
         Stroka requestId;
-        try {
-            TPingableTransaction attemptTx(auth, parentId);
+        TPingableTransaction attemptTx(auth, parentId);
 
+        try {
             Stroka proxyName = GetProxyForHeavyRequest(auth);
             THttpRequest request(proxyName);
             requestId = request.GetRequestId();
 
             header.AddTransactionId(attemptTx.GetId());
-
             header.SetRequestCompression(TConfig::Get()->ContentEncoding);
 
             request.Connect();
@@ -284,7 +297,6 @@ void RetryHeavyWriteRequest(
                 // try to read error in response
             }
             request.GetResponse();
-            attemptTx.Commit();
 
         } catch (TErrorResponse& e) {
             LOG_ERROR("RSP %s - attempt %d failed",
@@ -306,6 +318,8 @@ void RetryHeavyWriteRequest(
             Sleep(TConfig::Get()->RetryInterval);
             continue;
         }
+
+        attemptTx.Commit();
         return;
     }
 }
