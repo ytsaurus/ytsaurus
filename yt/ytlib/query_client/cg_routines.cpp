@@ -60,18 +60,6 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRow* GetRowsData(std::vector<TRow>* rows)
-{
-    return rows->data();
-}
-
-int GetRowsSize(std::vector<TRow>* rows)
-{
-    return rows->size();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void WriteRow(TRow row, TExecutionContext* context)
 {
     CHECK_STACK();
@@ -114,16 +102,14 @@ void WriteRow(TRow row, TExecutionContext* context)
 void ScanOpHelper(
     TExecutionContext* context,
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRow* rows, int size))
+    void (*consumeRows)(void** closure, TRow* rows, i64 size))
 {
     auto& reader = context->Reader;
 
     std::vector<TRow> rows;
-    rows.reserve(MaxRowsPerRead);
+    rows.reserve(RowsetProcessingSize);
 
     while (true) {
-        context->IntermediateBuffer->Clear();
-
         bool hasMoreData;
         {
             NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->ReadTime);
@@ -149,6 +135,7 @@ void ScanOpHelper(
 
         consumeRows(consumeRowsClosure, rows.data(), rows.size());
         rows.clear();
+        context->IntermediateBuffer->Clear();
 
         if (!hasMoreData) {
             break;
@@ -195,16 +182,6 @@ void InsertJoinRow(
     }
 }
 
-void SaveJoinRow(
-    TExecutionContext* context,
-    std::vector<TRow>* rows,
-    TRow row)
-{
-    CHECK_STACK();
-
-    rows->push_back(context->PermanentBuffer->Capture(row));
-}
-
 void JoinOpHelper(
     TExecutionContext* context,
     TJoinEvaluator* joinEvaluator,
@@ -218,7 +195,7 @@ void JoinOpHelper(
         std::vector<TRow>* keys,
         std::vector<std::pair<TRow, i64>>* chainedRows),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, std::vector<TRow>* rows))
+    void (*consumeRows)(void** closure, TRow* rows, i64 size))
 {
     TJoinLookup joinLookup(
         InitialGroupOpHashtableCapacity,
@@ -247,27 +224,16 @@ void JoinOpHelper(
         keys.size(),
         chainedRows.size());
 
-    std::vector<TRow> joinedRows;
-    try {
-        (*joinEvaluator)(
-            context,
-            lookupHasher,
-            lookupEqComparer,
-            joinLookup,
-            std::move(keys),
-            std::move(chainedRows),
-            context->PermanentBuffer,
-            &joinedRows);
-    } catch (const TInterruptedIncompleteException&) {
-        // Set incomplete and continue
-        context->Statistics->IncompleteOutput = true;
-    }
-
-    LOG_DEBUG("Joined into %v rows",
-        joinedRows.size());
-
-    // Consume joined rows.
-    consumeRows(consumeRowsClosure, &joinedRows);
+    (*joinEvaluator)(
+        context,
+        lookupHasher,
+        lookupEqComparer,
+        joinLookup,
+        std::move(keys),
+        std::move(chainedRows),
+        context->PermanentBuffer,
+        consumeRowsClosure,
+        consumeRows);
 }
 
 void GroupOpHelper(
@@ -277,7 +243,7 @@ void GroupOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(void** closure, std::vector<TRow>* groupedRows, TLookupRows* lookupRows),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, std::vector<TRow>* groupedRows))
+    void (*consumeRows)(void** closure, TRow* rows, i64 size))
 {
     std::vector<TRow> groupedRows;
     TLookupRows lookupRows(
@@ -297,7 +263,11 @@ void GroupOpHelper(
     LOG_DEBUG("Collected %v group rows",
         groupedRows.size());
 
-    consumeRows(consumeRowsClosure, &groupedRows);
+    for (size_t index = 0; index < groupedRows.size(); index += RowsetProcessingSize) {
+        auto size = std::min(RowsetProcessingSize, groupedRows.size() - index);
+        consumeRows(consumeRowsClosure, groupedRows.data() + index, size);
+        context->IntermediateBuffer->Clear();
+    }
 }
 
 void AllocatePermanentRow(TExecutionContext* context, int valueCount, TMutableRow* row)
@@ -359,7 +329,7 @@ void OrderOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TTopCollector* topCollector),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, std::vector<TMutableRow>* rows),
+    void (*consumeRows)(void** closure, TRow* rows, i64 size),
     int rowSize)
 {
     auto limit = context->Limit;
@@ -368,8 +338,11 @@ void OrderOpHelper(
     collectRows(collectRowsClosure, &topCollector);
     auto rows = topCollector.GetRows(rowSize);
 
-    // Consume joined rows.
-    consumeRows(consumeRowsClosure, &rows);
+    for (size_t index = 0; index < rows.size(); index += RowsetProcessingSize) {
+        auto size = std::min(RowsetProcessingSize, rows.size() - index);
+        consumeRows(consumeRowsClosure, rows.data() + index, size);
+        context->IntermediateBuffer->Clear();
+    }
 }
 
 char* AllocateBytes(TExecutionContext* context, size_t byteCount)
@@ -623,13 +596,10 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(StringHash);
     REGISTER_ROUTINE(InsertGroupRow);
     REGISTER_ROUTINE(InsertJoinRow);
-    REGISTER_ROUTINE(SaveJoinRow);
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateIntermediateRow);
     REGISTER_ROUTINE(AllocatePermanentBytes);
     REGISTER_ROUTINE(AllocateBytes);
-    REGISTER_ROUTINE(GetRowsData);
-    REGISTER_ROUTINE(GetRowsSize);
     REGISTER_ROUTINE(IsRowInArray);
     REGISTER_ROUTINE(SimpleHash);
     REGISTER_ROUTINE(FarmHashUint64);

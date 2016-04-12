@@ -91,8 +91,8 @@ void CodegenForEachRow(
     auto* endloopBB = builder.CreateBBHere("endloop");
 
     // index = 0
-    Value* indexPtr = builder.CreateAlloca(builder.getInt32Ty(), nullptr, "indexPtr");
-    builder.CreateStore(builder.getInt32(0), indexPtr);
+    Value* indexPtr = builder.CreateAlloca(builder.getInt64Ty(), nullptr, "indexPtr");
+    builder.CreateStore(builder.getInt64(0), indexPtr);
 
     builder.CreateBr(condBB);
 
@@ -111,7 +111,7 @@ void CodegenForEachRow(
     codegenConsumer(builder, row);
     builder.CreateStackRestore(stackState);
     // index = index + 1
-    builder.CreateStore(builder.CreateAdd(index, builder.getInt32(1)), indexPtr);
+    builder.CreateStore(builder.CreateAdd(index, builder.getInt64(1)), indexPtr);
     builder.CreateBr(condBB);
 
     builder.SetInsertPoint(endloopBB);
@@ -951,7 +951,7 @@ void CodegenScanOp(
     TCGContext& builder,
     const TCodegenConsumer& codegenConsumer)
 {
-    auto consume = MakeClosure<void(TRow*, int)>(builder, "ScanOpInner", [&] (
+    auto consume = MakeClosure<void(TRow*, i64)>(builder, "ScanOpInner", [&] (
         TCGContext& builder,
         Value* rows,
         Value* size
@@ -1055,14 +1055,15 @@ TCodegenSource MakeCodegenJoinOp(
         });
 
 
-        auto consumeJoinedRows = MakeClosure<void(void*)>(builder, "ConsumeJoinedRows", [&] (
+        auto consumeJoinedRows = MakeClosure<void(TRow*, i64)>(builder, "ConsumeJoinedRows", [&] (
             TCGContext& builder,
-            Value* joinedRows
+            Value* joinedRows,
+            Value* size
         ) {
             CodegenForEachRow(
                 builder,
-                builder.CreateCall(builder.Module->GetRoutine("GetRowsData"), joinedRows),
-                builder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), joinedRows),
+                joinedRows,
+                size,
                 codegenConsumer);
 
             builder.CreateRetVoid();
@@ -1410,9 +1411,10 @@ TCodegenSource MakeCodegenGroupOp(
             builder.CreateRetVoid();
         });
 
-        auto consume = MakeClosure<void(void*)>(builder, "Consume", [&] (
+        auto consume = MakeClosure<void(TRow*, i64)>(builder, "Consume", [&] (
             TCGContext& builder,
-            Value* finalGroupedRows
+            Value* finalGroupedRows,
+            Value* size
         ) {
             auto codegenFinalizingConsumer = [
                 MOVE(codegenConsumer),
@@ -1424,8 +1426,8 @@ TCodegenSource MakeCodegenGroupOp(
 
             CodegenForEachRow(
                 builder,
-                builder.CreateCall(builder.Module->GetRoutine("GetRowsData"), {finalGroupedRows}),
-                builder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), {finalGroupedRows}),
+                finalGroupedRows,
+                size,
                 codegenFinalizingConsumer);
 
             builder.CreateRetVoid();
@@ -1502,14 +1504,15 @@ TCodegenSource MakeCodegenOrderOp(
             builder.CreateRetVoid();
         });
 
-        auto consumeOrderedRows = MakeClosure<void(void*)>(builder, "ConsumeOrderedRows", [&] (
+        auto consumeOrderedRows = MakeClosure<void(TRow*, i64)>(builder, "ConsumeOrderedRows", [&] (
             TCGContext& builder,
-            Value* orderedRows
+            Value* orderedRows,
+            Value* size
         ) {
             CodegenForEachRow(
                 builder,
-                builder.CreateCall(builder.Module->GetRoutine("GetRowsData"), {orderedRows}),
-                builder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), {orderedRows}),
+                orderedRows,
+                size,
                 codegenConsumer);
 
             builder.CreateRetVoid();

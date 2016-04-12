@@ -98,7 +98,7 @@ public:
                 auto intermediateBuffer = New<TRowBuffer>();
 
                 std::vector<TRow> outputBatchRows;
-                outputBatchRows.reserve(MaxRowsPerWrite);
+                outputBatchRows.reserve(RowsetProcessingSize);
 
                 // NB: function contexts need to be destroyed before cgQuery since it hosts destructors.
                 TExecutionContext executionContext;
@@ -213,9 +213,9 @@ private:
                 auto cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
                 LOG_DEBUG("Finished compiling fragment");
                 return cgQuery;
-            } 
+            }
         };
-        
+
         TCachedCGQueryPtr cgQuery;
         if (enableCodeCache) {
             auto cookie = BeginInsert(id);
