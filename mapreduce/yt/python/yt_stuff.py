@@ -109,6 +109,7 @@ class YtStuff:
         import yt.wrapper
         self.yt_wrapper = yt.wrapper
         self.yt_wrapper.config.PREFIX = _YT_PREFIX
+        self.yt_wrapper.config["pickling"]["python_binary"] = sys.executable
 
     def _yt_local(self, *args):
         cmd = [sys.executable, self.yt_local_path] + list(args)
