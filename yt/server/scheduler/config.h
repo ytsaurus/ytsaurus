@@ -260,6 +260,7 @@ public:
     i32 MaxSampleSize;
     i64 CompressedBlockSize;
     i64 MinPartitionSize;
+    i64 MinUncompressedBlockSize;
 
     TSortOperationOptionsBase()
     {
@@ -285,6 +286,10 @@ public:
 
         RegisterParameter("min_partition_size", MinPartitionSize)
             .Default(256 * 1024 * 1024)
+            .GreaterThan(1024);
+
+        RegisterParameter("min_uncompressed_block_size", MinUncompressedBlockSize)
+            .Default(1024 * 1024)
             .GreaterThan(1024);
     }
 };
