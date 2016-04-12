@@ -4,6 +4,8 @@
 #include "shutdown.h"
 #include "stream.h"
 
+#include <yt/ytlib/ypath/rich.h>
+
 #include <yt/core/ytree/convert.h>
 
 #include <contrib/libs/pycxx/Extensions.hxx>
@@ -13,6 +15,7 @@ namespace NYT {
 namespace NPython {
 
 using namespace NYTree;
+using namespace NYPath;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -209,6 +212,8 @@ public:
         add_keyword_method("dump", &TYsonModule::Dump, "Dumps YSON to stream");
         add_keyword_method("dumps", &TYsonModule::Dumps, "Dumps YSON to string");
 
+        add_keyword_method("parse_ypath", &TYsonModule::ParseYPath, "Parse YPath");
+
         initialize("Python bindings for YSON");
     }
 
@@ -253,6 +258,18 @@ public:
 
         DumpImpl(args, kwargs, &stringOutput);
         return Py::String(~result, result.Size());
+    }
+
+    Py::Object ParseYPath(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        auto args = args_;
+        auto kwargs = kwargs_;
+
+        auto path = ConvertToStroka(ConvertToString(ExtractArgument(args, kwargs, "path")));
+        ValidateArgumentsEmpty(args, kwargs);
+
+        auto richPath = TRichYPath::Parse(path);
+        return CreateYsonObject("YsonString", Py::String(richPath.GetPath()), ConvertTo<Py::Object>(richPath.Attributes().ToMap()));
     }
 
     virtual ~TYsonModule()

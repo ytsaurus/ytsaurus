@@ -64,7 +64,7 @@ private:
         if (key == "type") {
             auto type = TypeFromSchemaType(TypeFromId(GetId()));
             BuildYsonFluently(consumer)
-                .Value(Format("schema:%v", type));
+                .Value(Format("schema:%v", FormatEnum(type)));
             return true;
         }
 

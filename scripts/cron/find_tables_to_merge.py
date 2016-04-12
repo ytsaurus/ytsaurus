@@ -24,6 +24,7 @@ def main():
     parser.add_argument("--root", default="/")
     parser.add_argument("--minimum-number-of-chunks", type=int, default=100)
     parser.add_argument("--maximum-chunk-size", type=int, default=100 *1024 * 1024)
+    parser.add_argument("--account")
     parser.add_argument("--minimal-age", type=int, default=0)
     parser.add_argument("--filter-out", action="append")
     parser.add_argument("--ignore-suppress-nightly-merge", action="store_true", default=False)
@@ -44,13 +45,18 @@ def main():
 
     for table in yt.search(args.root,
                            node_type="table",
-                           attributes=["compressed_data_size", "chunk_count", "modification_time", "suppress_nightly_merge"],
+                           attributes=["compressed_data_size", "chunk_count", "modification_time", "suppress_nightly_merge", "account"],
                            subtree_filter=lambda path, obj:
                                args.ignore_suppress_nightly_merge or
                                not obj.attributes.get("suppress_nightly_merge", False),
                            exclude=args.filter_out):
         chunk_count = int(table.attributes["chunk_count"])
-        if chunk_count == 0: continue
+        if chunk_count == 0:
+            continue
+
+        account = table.attributes.get("account")
+        if args.account is not None and account != args.account:
+            continue
 
         modification_time = parse(table.attributes["modification_time"]).replace(tzinfo=None)
         if  datetime.utcnow() - modification_time < timedelta(hours=args.minimal_age):

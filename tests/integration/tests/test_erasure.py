@@ -1,5 +1,10 @@
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import YTEnvSetup, skip_if_multicell, wait
 from yt_commands import *
+
+from yt.environment.helpers import assert_items_equal
+
+import time
+
 
 ##################################################################
 
@@ -116,6 +121,18 @@ class TestErasure(YTEnvSetup):
         for x in xrange(103, 119):
             part_id = "%s-%s-%s%x-%s" % (parts[0], parts[1], parts[2][:-2], x, parts[3])
             assert get("#" + part_id + "/@id") == chunk_id
+
+    @skip_if_multicell
+    def test_query_erasure_table(self):
+        yson_schema_attribute = "[{name=a;type=int64;sort_order=ascending};{name=b;type=int64}]"
+
+        for codec in ["reed_solomon_6_3", "lrc_12_2_2"]:
+            path = "//tmp/t_" + codec
+            create("table", path)
+            set(path + "/@erasure_codec", codec)
+            write_table("<append=true;sorted_by=[a]>{0}".format(path), [{"a": 1, "b": 2}])
+            assert_items_equal(select_rows("a, b from [<schema={0}>{1}]".format(yson_schema_attribute, path)), [{"a": 1, "b": 2}])
+
             
 ##################################################################
 

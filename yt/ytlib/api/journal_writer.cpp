@@ -1,14 +1,15 @@
 #include "journal_writer.h"
 #include "private.h"
 #include "config.h"
+#include "transaction.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/private.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -326,45 +327,30 @@ private:
 
         void OpenJournal()
         {
-            auto cellTag = InvalidCellTag;
 
-            {
-                LOG_INFO("Requesting basic journal attributes");
+            TUserObject userObject;
+            userObject.Path = Path_;
 
-                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
-                TObjectServiceProxy proxy(channel);
+            GetUserObjectBasicAttributes(
+                Client_,
+                TMutableRange<TUserObject>(&userObject, 1),
+                Transaction_ ? Transaction_->GetId() : NullTransactionId,
+                Logger,
+                EPermission::Write);
 
-                auto req = TJournalYPathProxy::GetBasicAttributes(Path_);
-                req->set_permissions(static_cast<ui32>(EPermission::Write));
-                SetTransactionId(req, Transaction_);
+            const auto cellTag = userObject.CellTag;
+            ObjectId_ = userObject.ObjectId;
 
-                auto rspOrError = WaitFor(proxy.Execute(req));
-                THROW_ERROR_EXCEPTION_IF_FAILED(
-                    rspOrError,
-                    "Error requesting basic attributes of journal %v",
-                    Path_);
+            auto objectIdPath = FromObjectId(ObjectId_);
 
-                const auto& rsp = rspOrError.Value();
-                ObjectId_ = FromProto<TObjectId>(rsp->object_id());
-                cellTag = rsp->cell_tag();
-
-                LOG_INFO("Basic journal attributes received (ObjectId: %v, CellTag: %v)",
-                    ObjectId_,
-                    cellTag);
-            }
-
-            {
-                auto type = TypeFromId(ObjectId_);
-                if (type != EObjectType::Journal) {
-                    THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                        Path_,
-                        EObjectType::Journal,
-                        type);
-                }
+            if (userObject.Type != EObjectType::Journal) {
+                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                    Path_,
+                    EObjectType::Journal,
+                    userObject.Type);
             }
 
             UploadMasterChannel_ = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
-            auto objectIdPath = FromObjectId(ObjectId_);
 
             {
                 LOG_INFO("Requesting extended journal attributes");

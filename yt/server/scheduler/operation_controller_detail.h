@@ -14,6 +14,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/cypress_client/public.h>
@@ -193,16 +194,6 @@ protected:
     NObjectClient::TTransactionId InputTransactionId;
     NObjectClient::TTransactionId OutputTransactionId;
 
-    struct TUserObjectBase
-    {
-        NYPath::TRichYPath Path;
-        NObjectClient::TObjectId ObjectId;
-        NObjectClient::TCellTag CellTag;
-
-        void Persist(TPersistenceContext& context);
-    };
-
-
     struct TLivePreviewTableBase
     {
         // Live preview table id.
@@ -212,7 +203,7 @@ protected:
     };
 
     struct TInputTable
-        : public TUserObjectBase
+        : public NChunkClient::TUserObject
     {
         //! Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
@@ -246,7 +237,7 @@ protected:
     };
 
     struct TOutputTable
-        : public TUserObjectBase
+        : public NChunkClient::TUserObject
         , public TLivePreviewTableBase
     {
         bool AppendRequested = false;
@@ -290,16 +281,15 @@ protected:
 
 
     struct TUserFile
-        : public TUserObjectBase
+        : public NChunkClient::TUserObject
     {
         std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
         EOperationStage Stage = EOperationStage::None;
         Stroka FileName;
         std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
-        NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
         bool Executable = false;
         NYson::TYsonString Format;
-
+        
         void Persist(TPersistenceContext& context);
     };
 
@@ -656,9 +646,6 @@ protected:
 
 
     // Preparation.
-    void GetInputTablesBasicAttributes();
-    void GetOutputTablesBasicAttributes();
-    void GetFilesBasicAttributes(std::vector<TUserFile>* files);
     void FetchInputTables();
     void LockInputTables();
     void BeginUploadOutputTables();

@@ -524,9 +524,6 @@ class TestTables(YTEnvSetup):
         assert exists("//tmp/t/@")
         assert exists("//tmp/t/@chunk_ids")
 
-    def test_invalid_channels_in_create(self):
-        with pytest.raises(YtError): create("table", "//tmp/t", attributes={"channels": "123"})
-
     def test_replication_factor_updates(self):
         create("table", "//tmp/t")
         assert get("//tmp/t/@replication_factor") == 3

@@ -27,6 +27,7 @@
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
@@ -858,16 +859,14 @@ private:
 
             // TODO(babenko): seed replicas?
             // TODO(babenko): throttler?
-            auto options = New<TRemoteReaderOptions>();
-            chunkReader = CreateReplicationReader(
-                config,
-                options,
-                Bootstrap_->GetMasterClient(),
-                New<TNodeDirectory>(),
-                Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
+            chunkReader = CreateRemoteReader(
                 chunkId,
-                TChunkReplicaList(),
-                Bootstrap_->GetBlockCache());
+                config,
+                New<TRemoteReaderOptions>(),
+                Bootstrap_->GetMasterClient(),
+                Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
+                Bootstrap_->GetBlockCache(),
+                GetUnlimitedThrottler());
         }
 
         auto asyncChunkMeta = chunkReader->GetMeta(config->WorkloadDescriptor);

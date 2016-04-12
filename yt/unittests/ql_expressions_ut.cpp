@@ -660,7 +660,6 @@ TEST_P(TArithmeticTest, Evaluate)
 
     TUnversionedValue result;
     TCGVariables variables;
-    auto keyColumns = GetSampleKeyColumns();
     auto schema = GetSampleTableSchema();
     TColumnSchema column0 = schema.Columns()[0];
     TColumnSchema column1 = schema.Columns()[1];
@@ -672,7 +671,7 @@ TEST_P(TArithmeticTest, Evaluate)
     auto expr = PrepareExpression(Stroka("k") + op + "l", schema);
 
     auto callback = Profile(expr, schema, nullptr, &variables)();
-    auto row = NTableClient::BuildRow(Stroka("k=") + lhs + ";l=" + rhs, keyColumns, schema, true);
+    auto row = NTableClient::BuildRow(Stroka("k=") + lhs + ";l=" + rhs, schema, true);
 
     TQueryStatistics statistics;
     auto permanentBuffer = New<TRowBuffer>();
@@ -756,9 +755,8 @@ TEST_P(TCompareWithNullTest, Simple)
     TUnversionedValue result;
     TCGVariables variables;
     auto schema = GetSampleTableSchema();
-    auto keyColumns = GetSampleKeyColumns();
 
-    auto row = NTableClient::BuildRow(rowString, keyColumns, schema, true);
+    auto row = NTableClient::BuildRow(rowString, schema, true);
     auto expr = PrepareExpression(exprString, schema);
     auto callback = Profile(expr, schema, nullptr, &variables)();
 
@@ -924,7 +922,7 @@ void EvaluateExpression(
 
     auto callback = Profile(expr, schema, nullptr, &variables)();
 
-    auto row = NTableClient::BuildRow(rowString, schema.GetKeyColumns(), schema, true);
+    auto row = NTableClient::BuildRow(rowString, schema, true);
 
     TQueryStatistics statistics;
     // NB: function contexts need to be destroyed before callback since it hosts destructors.

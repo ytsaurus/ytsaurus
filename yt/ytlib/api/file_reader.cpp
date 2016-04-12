@@ -2,6 +2,7 @@
 #include "private.h"
 #include "config.h"
 #include "connection.h"
+#include "transaction.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -103,44 +104,27 @@ private:
     {
         LOG_INFO("Opening file reader");
 
-        auto cellTag = InvalidCellTag;
-        TObjectId objectId;
+        TUserObject userObject;
+        userObject.Path = Path_;
 
-        {
-            LOG_INFO("Requesting basic attributes");
+        GetUserObjectBasicAttributes(
+            Client_,
+            TMutableRange<TUserObject>(&userObject, 1),
+            Transaction_ ? Transaction_->GetId() : NullTransactionId,
+            Logger,
+            EPermission::Read,
+            Options_.SuppressAccessTracking);
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
-            TObjectServiceProxy proxy(channel);
-
-            auto req = TFileYPathProxy::GetBasicAttributes(Path_);
-            req->set_permissions(static_cast<ui32>(EPermission::Read));
-            SetTransactionId(req, Transaction_);
-            SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
-
-            auto rspOrError = WaitFor(proxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes for file %v",
-                Path_);
-
-            const auto& rsp = rspOrError.Value();
-
-            objectId = FromProto<TObjectId>(rsp->object_id());
-            cellTag = rsp->cell_tag();
-
-            LOG_INFO("Basic attributes received (ObjectId: %v, CellTag: %v)",
-                objectId,
-                cellTag);
-        }
+        const auto cellTag = userObject.CellTag;
+        const auto& objectId = userObject.ObjectId;
 
         auto objectIdPath = FromObjectId(objectId);
 
-        {
-            auto type = TypeFromId(objectId);
-            if (type != EObjectType::File) {
-                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                    Path_,
-                    EObjectType::File,
-                    type);
-            }
+        if (userObject.Type != EObjectType::File) {
+            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                Path_,
+                EObjectType::File,
+                userObject.Type);
         }
 
         auto nodeDirectory = New<TNodeDirectory>();

@@ -483,16 +483,6 @@ public:
             .Run();
     }
 
-    TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job)
-    {
-        const auto& address = job->GetNode()->GetInterconnectAddress();
-        auto channel = GetMasterClient()->GetNodeChannelFactory()->CreateChannel(address);
-
-        TJobProberServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->Scheduler->JobProberRpcTimeout);
-        return proxy;
-    }
-
     void ProcessHeartbeatJobs(
         TExecNodePtr node,
         NJobTrackerClient::NProto::TReqHeartbeat* request,
@@ -2146,6 +2136,17 @@ private:
         }
     }
 
+    TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job)
+    {
+        const auto& address = job->GetNode()->GetInterconnectAddress();
+        auto factory = Bootstrap_->GetMasterClient()->GetNodeChannelFactory();
+        auto channel = factory->CreateChannel(address);
+
+        TJobProberServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->Scheduler->JobProberRpcTimeout);
+        return proxy;
+    }
+
     TYsonString DoStrace(const TJobId& jobId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2446,7 +2447,6 @@ private:
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
     {
         auto controller = operation->GetController();
-        auto state = operation->GetState();
         bool hasControllerProgress = operation->HasControllerProgress();
         BuildYsonMapFluently(consumer)
             .Item(ToString(operation->GetId())).BeginMap()
