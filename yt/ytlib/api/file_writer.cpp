@@ -2,9 +2,12 @@
 #include "private.h"
 #include "client.h"
 #include "config.h"
+#include "transaction.h"
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/private.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -117,39 +120,24 @@ private:
 
         auto writerOptions = New<TMultiChunkWriterOptions>();
 
-        {
-            LOG_INFO("Requesting basic file attributes");
+        TUserObject userObject;
+        userObject.Path = Path_;
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
-            TObjectServiceProxy proxy(channel);
+        GetUserObjectBasicAttributes(
+            Client_,
+            TMutableRange<TUserObject>(&userObject, 1),
+            Transaction_ ? Transaction_->GetId() : NullTransactionId,
+            Logger,
+            EPermission::Write);
 
-            auto req = TFileYPathProxy::GetBasicAttributes(Path_);
-            req->set_permissions(static_cast<ui32>(EPermission::Write));
-            SetTransactionId(req, Transaction_);
-
-            auto rspOrError = WaitFor(proxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                rspOrError,
-                "Error requesting basic attributes of file %v",
-                Path_);
-
-            const auto& rsp = rspOrError.Value();
-            ObjectId_ = FromProto<TObjectId>(rsp->object_id());
-            CellTag_ = rsp->cell_tag();
-
-            LOG_INFO("Basic file attributes received (ObjectId: %v, CellTag: %v)",
-                ObjectId_,
-                CellTag_);
-        }
-
-        {
-            auto type = TypeFromId(ObjectId_);
-            if (type != EObjectType::File) {
-                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                    Path_,
-                    EObjectType::File,
-                    type);
-            }
+        CellTag_ = userObject.CellTag;
+        ObjectId_ = userObject.ObjectId;
+        
+        if (userObject.Type != EObjectType::File) {
+            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                Path_,
+                EObjectType::File,
+                userObject.Type);
         }
 
         auto objectIdPath = FromObjectId(ObjectId_);

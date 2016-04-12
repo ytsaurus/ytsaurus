@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/table_client/chunk_meta.pb.h>
 
+#include <yt/ytlib/chunk_client/schema.h>
+
 // TODO(sandello): Refine this dependencies.
 // TODO(lukyan): Remove this dependencies.
 #include <yt/ytlib/query_client/plan_fragment.h>
@@ -21,6 +23,7 @@ namespace NTableClient {
 using namespace NYTree;
 using namespace NYson;
 using namespace NQueryClient;
+using namespace NChunkClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -335,6 +338,34 @@ TTableSchema TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
     tableSchema.KeyColumnCount_ = keyColumns.size();
     tableSchema.Validate();
     return tableSchema;
+}
+
+TTableSchema TTableSchema::ExtendByNonKeyAnyColumns(
+    const std::vector<Stroka>& columnNames) const
+{
+    TTableSchema tableSchema = *this;
+    yhash_set<Stroka> uniqueColumnNames;
+    for (const auto& column : tableSchema.Columns()) {
+        uniqueColumnNames.insert(column.Name);
+    }
+    for (const auto& columnName : columnNames) {
+        if (uniqueColumnNames.insert(columnName).second) {
+            tableSchema.Columns_.push_back(
+                TColumnSchema(columnName, EValueType::Any));
+        }
+    }
+    return tableSchema;
+}
+
+TTableSchema TTableSchema::ExtendByChannels(
+    const TChannels& channels) const
+{
+    std::vector<Stroka> columnNames;
+    for (const auto& channel : channels) {
+        const auto& channelColumns = channel.GetColumns();
+        columnNames.insert(columnNames.end(), channelColumns.begin(), channelColumns.end());
+    }
+    return ExtendByNonKeyAnyColumns(columnNames);
 }
 
 void TTableSchema::Save(TStreamSaveContext& context) const
@@ -748,7 +779,7 @@ void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema
     }
 }
 
-//! Validates that all columns from the new schema are presented in the old schema.
+//! Validates that all columns from the new schema are present in the old schema.
 void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     YCHECK(!oldSchema.GetStrict());
@@ -761,7 +792,7 @@ void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchem
     }
 }
 
-//! Validates that for each column presented in both oldSchema and newSchema, its declarations match each other.
+//! Validates that for each column present in both oldSchema and newSchema, its declarations match each other.
 //! Also validates that key columns positions are not changed.
 void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
@@ -769,7 +800,7 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
         const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
         const auto* newColumnPtr = newSchema.FindColumn(oldColumn.Name);
         if (!newColumnPtr) {
-            // We consider only columns presented both in oldSchema and newSchema.
+            // We consider only columns present both in oldSchema and newSchema.
             continue;
         }
         const auto& newColumn = *newColumnPtr;
@@ -835,9 +866,9 @@ void ValidateTableSchemaUpdate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema, int keyColumnCount)
+void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema)
 {
-    if (pivotKey.GetCount() > keyColumnCount) {
+    if (pivotKey.GetCount() > schema.GetKeyColumnCount()) {
         THROW_ERROR_EXCEPTION("Pivot key must form a prefix of key");
     }
 
@@ -937,6 +968,69 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
     }
 
     return TTableSchema(columns, strict);
+}
+
+//! Validates that read schema is consistent with existing table schema.
+/*! 
+ *  Validates that:
+ *  - If a column is present in both schemas, column types should be the same.
+ *  - Either one of two possibilties holds:
+ *    - #tableSchema.GetKeyColumns() is a prefix of #readSchema.GetKeyColumns()
+ *    - #readSchema.GetKeyColumns() is a proper subset of #tableSchema.GetKeyColumns() and
+ *      no extra key column in #readSchema appears in #tableSchema as a non-key column.
+ */
+void ValidateReadSchema(const TTableSchema& readSchema, const TTableSchema& tableSchema)
+{
+    for (int readColumnIndex = 0;
+         readColumnIndex < static_cast<int>(tableSchema.Columns().size()); 
+         ++readColumnIndex) {
+        const auto& readColumn = readSchema.Columns()[readColumnIndex];
+        const auto* tableColumnPtr = tableSchema.FindColumn(readColumn.Name);
+        if (!tableColumnPtr) {
+            continue;
+        }
+
+        // Validate column type consistency in two schemas.
+        const auto& tableColumn = *tableColumnPtr;
+        if (readColumn.Type != EValueType::Any &&
+            tableColumn.Type != EValueType::Any &&
+            readColumn.Type != tableColumn.Type) 
+        {
+            THROW_ERROR_EXCEPTION(
+                "Mismatched type of column %Qv in read schema: expected %Qlv, found %Qlv",
+                readColumn.Name,
+                tableColumn.Type,
+                readColumn.Type);
+        }
+
+        // Validate that order of key columns intersection hasn't been changed.
+        int tableColumnIndex = tableSchema.GetColumnIndex(tableColumn);
+        if (readColumnIndex < readSchema.GetKeyColumnCount() && 
+            tableColumnIndex < readSchema.GetKeyColumnCount() &&
+            readColumnIndex != tableColumnIndex) 
+        {
+            THROW_ERROR_EXCEPTION(
+                "Key column %Qv position mismatch: its position is %v in table schema and %v in read schema",
+                readColumn.Name,
+                tableColumnIndex,
+                readColumnIndex);
+        }
+
+        // Validate that a non-key column in tableSchema can't become a key column in readSchema.
+        if (readColumnIndex < readSchema.GetKeyColumnCount() &&
+            tableColumnIndex >= tableSchema.GetKeyColumnCount()) 
+        {
+            THROW_ERROR_EXCEPTION(
+                "Column %Qv is declared as non-key in table schema and as a key in read schema",
+                readColumn.Name);
+        }
+    }
+
+    if (readSchema.GetKeyColumnCount() > tableSchema.GetKeyColumnCount() && !tableSchema.GetStrict()) {
+        THROW_ERROR_EXCEPTION(
+            "Table schema is not strict but read schema contains key column %Qv not present in table schema",
+            readSchema.Columns()[tableSchema.GetKeyColumnCount()].Name);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

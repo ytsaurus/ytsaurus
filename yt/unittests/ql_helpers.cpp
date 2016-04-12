@@ -55,14 +55,14 @@ TKeyColumns GetSampleKeyColumns2()
 TTableSchema GetSampleTableSchema()
 {
     TTableSchema tableSchema({
-        { "k", EValueType::Int64 },
-        { "l", EValueType::Int64 },
-        { "m", EValueType::Int64 },
-        { "a", EValueType::Int64 },
-        { "b", EValueType::Int64 },
-        { "c", EValueType::Int64 },
-        { "s", EValueType::String },
-        { "u", EValueType::String }
+        TColumnSchema("k", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("m", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("a", EValueType::Int64),
+        TColumnSchema("b", EValueType::Int64),
+        TColumnSchema("c", EValueType::Int64),
+        TColumnSchema("s", EValueType::String),
+        TColumnSchema("u", EValueType::String)
     });
     return tableSchema;
 }
@@ -80,21 +80,18 @@ TDataSplit MakeSimpleSplit(const TRichYPath& path, ui64 counter)
         dataSplit.mutable_chunk_id(),
         MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
 
-    SetKeyColumns(&dataSplit, GetSampleKeyColumns());
     SetTableSchema(&dataSplit, GetSampleTableSchema());
 
     return dataSplit;
 }
 
-TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, TKeyColumns keyColumns)
+TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns)
 {
     TDataSplit dataSplit;
 
     ToProto(
         dataSplit.mutable_chunk_id(),
         MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
-
-    SetKeyColumns(&dataSplit, keyColumns);
 
     TTableSchema tableSchema(columns);
     SetTableSchema(&dataSplit, tableSchema);

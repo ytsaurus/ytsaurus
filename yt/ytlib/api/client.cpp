@@ -147,7 +147,8 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     const TTableMountInfoPtr& tableInfo,
     const TNameTablePtr& nameTable)
 {
-    for (const auto& name : tableInfo->KeyColumns) {
+    for (const auto& name : tableInfo->Schema.GetKeyColumns()) {
+        // We shouldn't consider computed columns below because client doesn't send them.
         if (!nameTable->FindId(name) && !tableInfo->Schema.GetColumnOrThrow(name).Expression) {
             THROW_ERROR_EXCEPTION("No such key column %Qv",
                 name);
@@ -448,7 +449,6 @@ private:
         TDataSplit result;
         SetObjectId(&result, info->TableId);
         SetTableSchema(&result, tableSchema.Get(info->Schema));
-        SetKeyColumns(&result, info->KeyColumns);
         SetTimestamp(&result, timestamp);
 
         return result;
@@ -467,7 +467,7 @@ private:
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
 
-        if (!tableInfo->Sorted) {
+        if (!tableInfo->Schema.IsSorted()) {
             THROW_ERROR_EXCEPTION("Expected a sorted table, but got unsorted");
         }
 
@@ -529,12 +529,10 @@ private:
         const auto& networkName = Connection_->GetConfig()->NetworkName;
 
         for (auto& chunkSpec : chunkSpecs) {
-            auto chunkKeyColumns = FindProtoExtension<TKeyColumnsExt>(chunkSpec.chunk_meta().extensions());
             auto chunkSchema = FindProtoExtension<TTableSchemaExt>(chunkSpec.chunk_meta().extensions());
 
             // TODO(sandello): One day we should validate consistency.
             // Now we just check we do _not_ have any of these.
-            YCHECK(!chunkKeyColumns);
             YCHECK(!chunkSchema);
 
             TOwningKey chunkLowerBound, chunkUpperBound;
@@ -1480,14 +1478,12 @@ private:
             TClientPtr client,
             const TCellId& cellId,
             const TLookupRowsOptions& options,
-            const TTableSchema& schema,
-            int keyColumnCount)
+            const TTableSchema& schema)
             : Client_(std::move(client))
             , Config_(Client_->Connection_->GetConfig())
             , CellId_(cellId)
             , Options_(options)
             , Schema_(schema)
-            , KeyColumnCount_(keyColumnCount)
         { }
 
         void AddKey(int index, TTabletInfoPtr tabletInfo, NTableClient::TKey key)
@@ -1544,7 +1540,7 @@ private:
                     TReqLookupRows writtenReq;
                     reader.ReadMessage(&writtenReq);
 
-                    auto schemaData = TWireProtocolReader::GetSchemaData(Schema_, KeyColumnCount_);
+                    auto schemaData = TWireProtocolReader::GetSchemaData(Schema_);
                     auto rowset = reader.ReadSchemafulRowset(schemaData);
 
                     YCHECK(rowset.Size() == batch->Keys.size());
@@ -1590,7 +1586,6 @@ private:
         const TCellId CellId_;
         const TLookupRowsOptions Options_;
         const TTableSchema& Schema_;
-        const int KeyColumnCount_;
 
         struct TBatch
         {
@@ -1665,7 +1660,6 @@ private:
         auto tableInfo = SyncGetTableInfo(path);
 
         int schemaColumnCount = static_cast<int>(tableInfo->Schema.Columns().size());
-        int keyColumnCount = static_cast<int>(tableInfo->KeyColumns.size());
 
         ValidateColumnFilter(options.ColumnFilter, schemaColumnCount);
 
@@ -1683,7 +1677,7 @@ private:
             : nullptr;
 
         for (int index = 0; index < keys.Size(); ++index) {
-            ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
+            ValidateClientKey(keys[index], tableInfo->Schema, idMapping);
             auto capturedKey = rowBuffer->CaptureAndPermuteRow(keys[index], tableInfo->Schema, idMapping);
 
             if (evaluator) {
@@ -1710,8 +1704,7 @@ private:
                         this,
                         cellId,
                         options,
-                        tableInfo->Schema,
-                        tableInfo->KeyColumns.size())))
+                        tableInfo->Schema)))
                     .first;
             }
             const auto& session = it->second;
@@ -2911,7 +2904,7 @@ private:
         : public TRequestBase
     {
     protected:
-        using TRowValidator = void(TUnversionedRow, int, const TTableSchema&, const TNameTableToSchemaIdMapping&);
+        using TRowValidator = void(TUnversionedRow, const TTableSchema&, const TNameTableToSchemaIdMapping&);
 
         TModifyRequest(
             TTransaction* transaction,
@@ -2928,7 +2921,7 @@ private:
             const TWriteRowsOptions& writeOptions = TWriteRowsOptions())
         {
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
-            int keyColumnCount = TableInfo_->KeyColumns.size();
+            int keyColumnCount = TableInfo_->Schema.GetKeyColumnCount();
             const auto& schema = TableInfo_->Schema;
             const auto& rowBuffer = Transaction_->GetRowBuffer();
             auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
@@ -2937,7 +2930,7 @@ private:
                 : nullptr;
 
             for (auto row : rows) {
-                validateRow(row, keyColumnCount, TableInfo_->Schema, idMapping);
+                validateRow(row, TableInfo_->Schema, idMapping);
 
                 auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, TableInfo_->Schema, idMapping);
 
@@ -3011,7 +3004,7 @@ private:
             WriteRequests(
                 Keys_,
                 EWireProtocolCommand::DeleteRow,
-                TableInfo_->KeyColumns.size(),
+                TableInfo_->Schema.GetKeyColumnCount(),
                 ValidateClientKey);
         }
     };
@@ -3034,7 +3027,7 @@ private:
             , Config_(owner->Client_->Connection_->GetConfig())
             , Durability_(owner->Transaction_->GetDurability())
             , ColumnCount_(TableInfo_->Schema.Columns().size())
-            , KeyColumnCount_(TableInfo_->KeyColumns.size())
+            , KeyColumnCount_(TableInfo_->Schema.GetKeyColumnCount())
             , ColumnEvaluator_(std::move(columnEvauator))
             , RowBuffer_(New<TRowBuffer>())
             , Logger(owner->Logger)

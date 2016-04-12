@@ -103,6 +103,7 @@ public:
 
     TKeyColumns GetKeyColumns() const;
     int GetKeyColumnCount() const;
+    
     static TTableSchema FromKeyColumns(const TKeyColumns& keyColumns);
 
     TTableSchema ExtendByNonKeyAnyColumns(const std::vector<Stroka>& columnNames) const;
@@ -166,7 +167,11 @@ void ValidateTableSchemaUpdate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema, int keyColumnCount);
+void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateReadSchema(const TTableSchema& readSchema, const TTableSchema& tableSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

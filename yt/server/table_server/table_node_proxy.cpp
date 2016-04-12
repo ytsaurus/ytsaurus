@@ -96,8 +96,6 @@ private:
         descriptors->push_back(TAttributeDescriptor("tablet_statistics")
             .SetPresent(isDynamic)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("channels")
-            .SetCustom(true));
         descriptors->push_back("atomicity");
     }
 
@@ -234,24 +232,6 @@ private:
         return TBase::SetBuiltinAttribute(key, value);
     }
     
-    virtual void ValidateCustomAttributeUpdate(
-        const Stroka& key,
-        const TNullable<TYsonString>& oldValue,
-        const TNullable<TYsonString>& newValue) override
-    {
-        if (key == "channels") {
-            if (!newValue) {
-                ThrowCannotRemoveAttribute(key);
-            }
-
-            ConvertTo<TChannels>(*newValue);
-
-            return;
-        }
-
-        TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
-    }
-
     virtual void ValidateFetchParameters(
         const TChannel& channel,
         const std::vector<TReadRange>& ranges) override
@@ -417,9 +397,6 @@ private:
         auto* table = GetThisTypedImpl();
 
         ToProto(response->mutable_table_id(), table->GetId());
-        // TODO(max42): key columns and schema should not be handled separately.
-        ToProto(response->mutable_key_columns()->mutable_names(), table->TableSchema().GetKeyColumns());
-        response->set_sorted(table->TableSchema().IsSorted());
         response->set_dynamic(table->IsDynamic());
 
         auto tabletManager = Bootstrap_->GetTabletManager();

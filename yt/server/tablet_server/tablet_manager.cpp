@@ -772,7 +772,7 @@ public:
         auto schema = GetTableSchema(table);
         int keyColumnCount = table->TableSchema().GetKeyColumns().size();
         for (const auto& pivotKey : pivotKeys) {
-            ValidatePivotKey(pivotKey, schema, keyColumnCount);
+            ValidatePivotKey(pivotKey, schema);
         }
 
         if (lastTabletIndex != tablets.size() - 1) {

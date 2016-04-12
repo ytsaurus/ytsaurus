@@ -362,11 +362,10 @@ TOwningRow BuildRow(
     const TDataSplit& dataSplit,
     bool treatMissingAsNull = true)
 {
-    auto keyColumns = GetKeyColumnsFromDataSplit(dataSplit);
     auto tableSchema = GetTableSchemaFromDataSplit(dataSplit);
 
     return NTableClient::BuildRow(
-            yson, keyColumns, tableSchema, treatMissingAsNull);
+            yson, tableSchema, treatMissingAsNull);
 }
 
 TQueryStatistics DoExecuteQuery(
@@ -385,7 +384,7 @@ TQueryStatistics DoExecuteQuery(
 
     TKeyColumns emptyKeyColumns;
     for (const auto& row : source) {
-        owningSource.push_back(NTableClient::BuildRow(row, emptyKeyColumns, query->TableSchema));
+        owningSource.push_back(NTableClient::BuildRow(row, query->TableSchema));
     }
 
     sourceRows.resize(owningSource.size());
@@ -2034,9 +2033,9 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
     std::vector<std::vector<Stroka>> sources;
 
     auto leftSplit = MakeSplit({
-        {"x", EValueType::String},
-        {"y", EValueType::String}
-    }, {"x"});
+        TColumnSchema("x", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("y", EValueType::String)
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -2046,9 +2045,9 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
     });
 
     auto rightSplit = MakeSplit({
-        {"a", EValueType::Int64},
-        {"x", EValueType::String}
-    }, {"a"});
+        TColumnSchema("a", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("x", EValueType::String)
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
