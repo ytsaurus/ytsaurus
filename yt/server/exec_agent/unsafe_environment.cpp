@@ -155,11 +155,7 @@ private:
 
         auto spawnError = WaitFor(ProcessFinished_);
         auto jobProxyError = BuildJobProxyError(spawnError);
-        if (jobProxyError.IsOK()) {
-            LOG_INFO("Job proxy completed");
-        } else {
-            LOG_ERROR(jobProxyError);
-        }
+        LOG_INFO(jobProxyError, "Job proxy completed");
         ProxyExited_.Set(jobProxyError);
     }
 
@@ -169,8 +165,7 @@ private:
             return TError();
         }
 
-        auto jobProxyError = TError("Job proxy failed") <<
-            spawnError;
+        auto jobProxyError = TError("Job proxy failed") << spawnError;
 
         if (spawnError.GetCode() == EProcessErrorCode::NonZeroExitCode) {
             // Try to translate the numeric exit code into some human readable reason.
