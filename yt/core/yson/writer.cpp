@@ -389,6 +389,7 @@ void TBufferedBinaryYsonWriter::Flush()
 {
     size_t length = BufferCursor_ - BufferStart_;
     if (length > 0) {
+        YCHECK(length <= BufferSize);
         Stream_->Write(BufferStart_, length);
         BufferCursor_ = BufferStart_;
     }
