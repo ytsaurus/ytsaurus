@@ -101,6 +101,8 @@ default_config = {
         # Function to replace standard py_wrapper.create_modules_archive.
         # If this function specified all previous options does not applied.
         "create_modules_archive_function": None,
+        # Logging level of module finding errors.
+        "find_module_file_error_logging_level": "WARNING",
         # Pickling framework used to save user modules.
         "framework": "dill",
         # Check that python version on local machine is the same as on cluster nodes.
@@ -125,7 +127,7 @@ default_config = {
         # True - we assumed that cluster run in local mode and the client code executed on the same node.
         # In this case jobs can use local files without uploading it on cluster.
         # None - client will try to auto-detect that server and client are run on the same node.
-        "local_mode": None
+        "local_mode": None,
     },
 
     # By default HTTP requests to YT are forbidden inside jobs to avoid strange errors

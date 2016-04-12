@@ -19,6 +19,7 @@ import tempfile
 import hashlib
 import sys
 import time
+import logging
 import pickle as standard_pickle
 
 LOCATION = os.path.dirname(os.path.abspath(__file__))
@@ -181,6 +182,8 @@ def create_modules_archive_default(tempfiles_manager, client):
     for module_name in OPERATION_REQUIRED_MODULES:
         import_module(module_name)
 
+    logging_level = logging._levelNames[get_config(client)["pickling"]["find_module_file_error_logging_level"]]
+
     files_to_compress = {}
     module_filter = get_config(client)["pickling"]["module_filter"]
     for module in sys.modules.values():
@@ -190,8 +193,9 @@ def create_modules_archive_default(tempfiles_manager, client):
         if hasattr(module, "__file__"):
             file = find_file(module.__file__)
             if file is None or not os.path.isfile(file):
-                logger.warning("Cannot find file of module %s", module.__file__)
-                continue
+                if logger.LOGGER.isEnabledFor(logging_level):
+                    logger.log(logging_level, "Cannot find file of module %s", module.__file__)
+                    continue
 
             file = os.path.abspath(file)
 
@@ -200,8 +204,9 @@ def create_modules_archive_default(tempfiles_manager, client):
 
             relpath = module_relpath(module.__name__, file, client)
             if relpath is None:
-                logger.warning("Cannot determine relative path of module " + str(module))
-                continue
+                if logger.LOGGER.isEnabledFor(logging_level):
+                    logger.log(logging_level, "Cannot determine relative path of module " + str(module))
+                    continue
 
             if relpath in files_to_compress:
                 continue
