@@ -1942,12 +1942,18 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        LOG_DEBUG("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
-              operation->GetId(),
-              tableId,
-              childrenIds.size());
+        auto* list = FindUpdateList(operation->GetId());
+        if (!list) {
+            LOG_DEBUG("Operation node is not registered, omitting live preview attach (OperationId: %v)",
+                operation->GetId());
+            return;
+        }
 
-        auto* list = GetUpdateList(operation->GetId());
+        LOG_DEBUG("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
+            operation->GetId(),
+            tableId,
+            childrenIds.size());
+
         for (const auto& childId : childrenIds) {
             list->LivePreviewRequests.push_back(TLivePreviewRequest{tableId, childId});
         }
