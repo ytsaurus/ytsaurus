@@ -212,6 +212,11 @@ TJoinEvaluator GetJoinEvaluator(
         }
     }
 
+    // self to joined indexes;
+    // foreign to joined indexes;
+    std::vector<size_t> selfToJoinedMapping;
+    std::vector<size_t> foreignToJoinedMapping;
+
     return [=] (
         TExecutionContext* context,
         THasherFunction* groupHasher,
@@ -220,10 +225,10 @@ TJoinEvaluator GetJoinEvaluator(
         std::vector<TRow> keys,
         std::vector<std::pair<TRow, i64>> chainedRows,
         TRowBufferPtr permanentBuffer,
-        std::vector<TRow>* joinedRows)
+        void** consumeRowsClosure,
+        void (*consumeRows)(void** closure, TRow* rows, i64 size))
     {
         // TODO: keys should be joined with allRows: [(key, sourceRow)]
-        auto rowBuffer = permanentBuffer;
         TRowRanges ranges;
 
         if (canUseSourceRanges) {
@@ -231,7 +236,7 @@ TJoinEvaluator GetJoinEvaluator(
             for (auto key : keys) {
                 auto lowerBound = key;
 
-                auto upperBound = TMutableRow::Allocate(rowBuffer->GetPool(), keyPrefix + 1);
+                auto upperBound = TMutableRow::Allocate(permanentBuffer->GetPool(), keyPrefix + 1);
                 for (int column = 0; column < keyPrefix; ++column) {
                     upperBound[column] = lowerBound[column];
                 }
@@ -242,8 +247,8 @@ TJoinEvaluator GetJoinEvaluator(
         } else {
             LOG_DEBUG("Using join via IN clause");
             ranges.emplace_back(
-                rowBuffer->Capture(NTableClient::MinKey().Get()),
-                rowBuffer->Capture(NTableClient::MaxKey().Get()));
+                permanentBuffer->Capture(NTableClient::MinKey().Get()),
+                permanentBuffer->Capture(NTableClient::MaxKey().Get()));
 
             auto inClause = New<TInOpExpression>(joinKeyExprs, MakeSharedRange(std::move(keys), permanentBuffer));
 
@@ -259,28 +264,29 @@ TJoinEvaluator GetJoinEvaluator(
             subquery,
             TDataRanges{
                 foreignDataId,
-                MakeSharedRange(std::move(ranges), std::move(rowBuffer))
+                MakeSharedRange(std::move(ranges), std::move(permanentBuffer))
             },
             pipe->GetWriter());
 
         // Join rowsets.
-        TRowBuilder rowBuilder;
         // allRows have format (join key... , other columns...)
-
-        auto addRow = [&] (TRow joinedRow) {
-            if (joinedRows->size() >= context->JoinRowLimit) {
-                throw TInterruptedIncompleteException();
-            }
-
-            joinedRows->push_back(context->PermanentBuffer->Capture(joinedRow));
-        };
 
         LOG_DEBUG("Joining started");
 
         std::vector<TRow> foreignRows;
-        foreignRows.reserve(MaxRowsPerRead);
+        foreignRows.reserve(RowsetProcessingSize);
 
         auto reader = pipe->GetReader();
+
+        std::vector<TRow> joinedRows;
+        TRowBufferPtr intermediateBuffer = context->IntermediateBuffer;
+
+        auto consumeJoinedRows = [&] () {
+            // Consume joined rows.
+            consumeRows(consumeRowsClosure, joinedRows.data(), joinedRows.size());
+            joinedRows.clear();
+            intermediateBuffer->Clear();
+        };
 
         while (true) {
             bool hasMoreData = reader->Read(&foreignRows);
@@ -295,7 +301,6 @@ TJoinEvaluator GetJoinEvaluator(
 
                 int startIndex = it->second.first;
                 bool& isJoined = it->second.second;
-                isJoined = true;
 
                 for (
                     int chainedRowIndex = startIndex;
@@ -303,16 +308,26 @@ TJoinEvaluator GetJoinEvaluator(
                     chainedRowIndex = chainedRows[chainedRowIndex].second)
                 {
                     auto row = chainedRows[chainedRowIndex].first;
-                    rowBuilder.Reset();
-                    for (auto columnIndex : columnMapping) {
-                        rowBuilder.AddValue(columnIndex.first
-                            ? row[columnIndex.second]
-                            : foreignRow[columnIndex.second]);
+                    auto joinedRow = TMutableRow::Allocate(intermediateBuffer->GetPool(), columnMapping.size());
+
+                    for (size_t column = 0; column < columnMapping.size(); ++column) {
+                        const auto& joinedColumn = columnMapping[column];
+
+                        joinedRow[column] = joinedColumn.first
+                            ? row[joinedColumn.second]
+                            : foreignRow[joinedColumn.second];
                     }
 
-                    addRow(rowBuilder.GetRow());
+                    joinedRows.push_back(joinedRow);
+
+                    if (joinedRows.size() >= RowsetProcessingSize) {
+                        consumeJoinedRows();
+                    }
                 }
+                isJoined = true;
             }
+
+            consumeJoinedRows();
 
             foreignRows.clear();
 
@@ -342,21 +357,28 @@ TJoinEvaluator GetJoinEvaluator(
                     chainedRowIndex = chainedRows[chainedRowIndex].second)
                 {
                     auto row = chainedRows[chainedRowIndex].first;
-                    rowBuilder.Reset();
-                    for (auto columnIndex : columnMapping) {
-                        rowBuilder.AddValue(columnIndex.first
-                            ? row[columnIndex.second]
-                            : MakeUnversionedSentinelValue(EValueType::Null));
+                    auto joinedRow = TMutableRow::Allocate(intermediateBuffer->GetPool(), columnMapping.size());
+
+                    for (size_t column = 0; column < columnMapping.size(); ++column) {
+                        const auto& joinedColumn = columnMapping[column];
+
+                        joinedRow[column] = joinedColumn.first
+                            ? row[joinedColumn.second]
+                            : MakeUnversionedSentinelValue(EValueType::Null);
                     }
 
-                    addRow(rowBuilder.GetRow());
+                    joinedRows.push_back(joinedRow);
+                }
+
+                if (joinedRows.size() >= RowsetProcessingSize) {
+                    consumeJoinedRows();
                 }
             }
         }
 
+        consumeJoinedRows();
+
         LOG_DEBUG("Joining finished");
-
-
     };
 }
 

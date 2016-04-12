@@ -22,6 +22,8 @@
 namespace NYT {
 namespace NQueryClient {
 
+const size_t RowsetProcessingSize = 1024;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TInterruptedCompleteException
@@ -97,8 +99,8 @@ using TJoinEvaluator = std::function<void(
     std::vector<TRow> keys,
     std::vector<std::pair<TRow, i64>> chainedRows,
     TRowBufferPtr permanentBuffer,
-    // TODO(babenko): TSharedRange?
-    std::vector<TRow>* joinedRows)>;
+    void** consumeRowsClosure,
+    void (*consumeRows)(void** closure, TRow* rows, i64 size))>;
 
 struct TExpressionContext
 {
