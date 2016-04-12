@@ -288,9 +288,10 @@ public:
             .Default(256 * 1024 * 1024)
             .GreaterThan(1024);
 
+        // Minimum is 1 for tests.
         RegisterParameter("min_uncompressed_block_size", MinUncompressedBlockSize)
             .Default(1024 * 1024)
-            .GreaterThan(1024);
+            .GreaterThanOrEqual(1); 
     }
 };
 

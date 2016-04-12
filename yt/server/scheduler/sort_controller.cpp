@@ -1446,7 +1446,7 @@ protected:
     {
         i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataSize * Spec->MapSelectivityFactor);
         i64 bufferSize = std::min(config->MaxBufferSize, dataSizeAfterPartition);
-        auto partitionBufferSize = bufferSize / partitionCount;
+        i64 partitionBufferSize = bufferSize / partitionCount;
         if (partitionBufferSize < Options->MinUncompressedBlockSize) {
             return std::max(bufferSize / Options->MinUncompressedBlockSize, (i64)1);
         } else {
