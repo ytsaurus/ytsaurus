@@ -644,17 +644,10 @@ function YtApplicationOperations$list(parameters)
         merged_data.sort(function(a, b) {
             var aT = utils.getYsonAttribute(a, "start_time");
             var bT = utils.getYsonAttribute(b, "start_time");
-            var m;
-            if (cursor_direction === "past") {
-                m = 1;
-            }
-            if (cursor_direction === "future") {
-                m = -1;
-            }
             if (aT < bT) {
-                return m;
+                return 1;
             } else if (aT > bT) {
-                return -m;
+                return -1;
             } else {
                 return 0;
             }
