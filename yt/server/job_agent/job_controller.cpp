@@ -302,27 +302,28 @@ void TJobController::PrepareHeartbeatRequest(
         if (TypeFromId(jobId) != jobObjectType)
             continue;
 
-        auto jobType = EJobType(job->GetSpec().type());
-        auto state = job->GetState();
         auto* jobStatus = request->add_jobs();
-        ToProto(jobStatus->mutable_job_id(), job->GetId());
-        jobStatus->set_job_type(static_cast<int>(jobType));
-        jobStatus->set_state(static_cast<int>(state));
-        jobStatus->set_phase(static_cast<int>(job->GetPhase()));
-        jobStatus->set_progress(job->GetProgress());
-        switch (state) {
-            case EJobState::Running:
+        FillJobStatus(jobStatus, job);
+        switch (job->GetState()) {
+            case EJobState::Running: {
                 *jobStatus->mutable_resource_usage() = job->GetResourceUsage();
                 break;
+            }
 
             case EJobState::Completed:
             case EJobState::Aborted:
-            case EJobState::Failed:
-                *jobStatus->mutable_result() = job->GetResult();
+            case EJobState::Failed: {
+                *(jobStatus->mutable_result()) = job->GetResult();
+                auto statistics = job->GetStatistics();
+                if (statistics) {
+                    jobStatus->set_statistics((*statistics).Data());
+                }
                 break;
+            }
 
-            default:
+            default: {
                 break;
+            }
         }
     }
 }

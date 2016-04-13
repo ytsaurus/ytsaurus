@@ -176,7 +176,38 @@ public:
         Progress_ = value;
     }
 
+    virtual TNullable<NYson::TYsonString> GetStatistics() const override
+    {
+        return Null;
+    }
+
     virtual void SetStatistics(const TYsonString& /*statistics*/) override
+    {
+        YUNREACHABLE();
+    }
+   
+    virtual TNullable<TDuration> GetPrepareDuration() const override
+    {
+        return Null;
+    }
+
+    virtual TNullable<TDuration> GetExecDuration() const override
+    {
+        return Null;
+    }
+
+    virtual bool StatisticsShouldBeSent() const override
+    {
+        // Chunk jobs should not send statistics.
+        return false;
+    }
+
+    virtual TInstant GetStatisticsLastSendTimestamp() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual void SetStatisticsLastSendTimestamp(TInstant timestamp) override
     {
         YUNREACHABLE();
     }
@@ -269,7 +300,6 @@ private:
         JobPhase_ = EJobPhase::Finished;
         JobState_ = finalState;
         ToProto(Result_.mutable_error(), error);
-        Result_.set_statistics("{}");
         auto deltaResources = ZeroNodeResources() - ResourceLimits_;
         ResourceLimits_ = ZeroNodeResources();
         JobFuture_.Reset();

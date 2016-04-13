@@ -15,6 +15,7 @@ class TJobSpec;
 class TReqHeartbeat;
 class TRspHeartbeat;
 class TJobResult;
+class TJobStatus;
 
 } // namespace NProto
 

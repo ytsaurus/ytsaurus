@@ -93,6 +93,7 @@ public:
         , OperationId_(operationId)
         , Bootstrap_(bootstrap)
         , ResourceUsage(resourceUsage)
+        , Statistics_("{}", EYsonType::Node)
     {
         JobSpec.Swap(&jobSpec);
 
@@ -180,6 +181,30 @@ public:
         return JobState_;
     }
 
+    virtual TNullable<TDuration> GetPrepareDuration() const override
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (!PrepareTime_) {
+            return Null;
+        } else if (!ExecTime_) {
+            return TInstant::Now() - *PrepareTime_;
+        } else {
+            return *ExecTime_ - *PrepareTime_;
+        }
+    }
+
+    virtual TNullable<TDuration> GetExecDuration() const override 
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (!ExecTime_) {
+            return Null;
+        } else if (!FinishTime_) {
+            return TInstant::Now() - *ExecTime_;
+        } else {
+            return *FinishTime_ - *ExecTime_;
+        }
+    }
+    
     virtual EJobPhase GetPhase() const override
     {
         return JobPhase_;
@@ -234,12 +259,33 @@ public:
         }
     }
 
+    virtual TNullable<TYsonString> GetStatistics() const override
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        return Statistics_;
+    }
+    
+    virtual TInstant GetStatisticsLastSendTimestamp() const override
+    {
+        return StatisticsLastSendTimestamp_;
+    }
+
+    virtual void SetStatisticsLastSendTimestamp(TInstant timestamp) override
+    {
+        StatisticsLastSendTimestamp_ = timestamp;
+    }
+
     virtual void SetStatistics(const TYsonString& statistics) override
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (JobState_ == EJobState::Running) {
             Statistics_ = statistics;
         }
+    }
+
+    virtual bool StatisticsShouldBeSent() const override 
+    {
+        return true;
     }
 
     virtual std::vector<TChunkId> DumpInputContexts() const override
@@ -305,13 +351,17 @@ private:
     TFuture<void> PrepareResult_ = VoidFuture;
 
     double Progress_ = 0.0;
+
     TYsonString Statistics_;
+    TInstant StatisticsLastSendTimestamp_;
+    
     bool Signaled_ = false;
 
     TNullable<TJobResult> JobResult_;
 
     TNullable<TInstant> PrepareTime_;
     TNullable<TInstant> ExecTime_;
+    TNullable<TInstant> FinishTime_;
     TSlotPtr Slot_;
 
     IProxyControllerPtr ProxyController_;
@@ -421,7 +471,6 @@ private:
     {
         TJobResult jobResult;
         ToProto(jobResult.mutable_error(), error);
-        jobResult.set_statistics(Statistics_.Data());
         DoSetResult(jobResult);
     }
 
@@ -436,12 +485,7 @@ private:
         }
 
         JobResult_ = jobResult;
-        if (ExecTime_) {
-            JobResult_->set_exec_time(ToProto(TInstant::Now() - *ExecTime_));
-            JobResult_->set_prepare_time(ToProto(*ExecTime_ - *PrepareTime_));
-        } else if (PrepareTime_) {
-            JobResult_->set_prepare_time(ToProto(TInstant::Now() - *PrepareTime_));
-        }
+        FinishTime_ = TInstant::Now();
 
         auto error = FromProto<TError>(jobResult.error());
 

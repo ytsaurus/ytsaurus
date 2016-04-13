@@ -5,6 +5,7 @@
 #include "operation_controller.h"
 
 #include <yt/core/misc/enum.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -68,9 +69,9 @@ TDuration TJob::GetDuration() const
     return *FinishTime_ - StartTime_;
 }
 
-void TJob::SetResult(NJobTrackerClient::NProto::TJobResult&& result)
+void TJob::SetStatus(NJobTrackerClient::NProto::TJobStatus&& status)
 {
-    Result_ = New<TRefCountedJobResult>(std::move(result));
+    Status_ = New<TRefCountedJobStatus>(std::move(status));
 }
 
 const Stroka& TJob::GetStatisticsSuffix() const
@@ -83,11 +84,24 @@ const Stroka& TJob::GetStatisticsSuffix() const
 ////////////////////////////////////////////////////////////////////
 
 TJobSummary::TJobSummary(const TJobPtr& job)
-    : Result(job->Result())
+    : Result(New<TRefCountedJobResult>(job->Status()->result()))
     , Id(job->GetId())
     , StatisticsSuffix(job->GetStatisticsSuffix())
     , FinishTime(*job->GetFinishTime())
-{ }
+{ 
+    const auto& status = job->Status();
+    if (status->has_prepare_duration()) {
+        PrepareDuration.Emplace();
+        FromProto(PrepareDuration.GetPtr(), status->prepare_duration());
+    }
+    if (status->has_exec_duration()) {
+        ExecDuration.Emplace();
+        FromProto(ExecDuration.GetPtr(), status->exec_duration());
+    }
+    if (status->has_statistics()) {
+        StatisticsYson = TYsonString(status->statistics(), NYson::EYsonType::Node);
+    }
+}
 
 TJobSummary::TJobSummary(const TJobId& id)
     : Result()
@@ -97,8 +111,8 @@ TJobSummary::TJobSummary(const TJobId& id)
 
 void TJobSummary::ParseStatistics()
 {
-    if (Result) {
-        Statistics = ConvertTo<NJobTrackerClient::TStatistics>(TYsonString(Result->statistics(), NYson::EYsonType::Node));
+    if (StatisticsYson) {
+        Statistics = ConvertTo<NJobTrackerClient::TStatistics>(*StatisticsYson);
     }
 }
 
@@ -118,7 +132,7 @@ TAbortedJobSummary::TAbortedJobSummary(const TJobId& id, EAbortReason abortReaso
 
 TAbortedJobSummary::TAbortedJobSummary(const TJobPtr& job)
     : TJobSummary(job)
-    , AbortReason(GetAbortReason(Result))
+    , AbortReason(GetAbortReason(job->Status()->result()))
 { }
 
 ////////////////////////////////////////////////////////////////////

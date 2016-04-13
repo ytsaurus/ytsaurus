@@ -18,10 +18,6 @@ message TJobSpec
 message TJobResult
 {
     required NYT.NProto.TError error = 1;
-    // Deprecated = 2.
-    optional int64 prepare_time = 3;
-    optional int64 exec_time = 4;
-    required string statistics = 5;
 
     extensions 100 to max;
 }
@@ -36,6 +32,9 @@ message TJobStatus
     required double progress = 5;
     optional TJobResult result = 6;
     optional NNodeTrackerClient.NProto.TNodeResources resource_usage = 7;
+    optional string statistics = 8;
+    optional int64 prepare_duration = 9;
+    optional int64 exec_duration = 10;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

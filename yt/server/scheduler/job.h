@@ -50,9 +50,9 @@ public:
     TDuration GetDuration() const;
 
     //! Job result returned by node.
-    DEFINE_BYREF_RO_PROPERTY(TRefCountedJobResultPtr, Result);
+    DEFINE_BYREF_RO_PROPERTY(TRefCountedJobStatusPtr, Status);
 
-    void SetResult(NJobTrackerClient::NProto::TJobResult&& result);
+    void SetStatus(NJobTrackerClient::NProto::TJobStatus&& status);
 
     const Stroka& GetStatisticsSuffix() const;
 
@@ -97,9 +97,12 @@ struct TJobSummary
     const TJobId Id;
     const Stroka StatisticsSuffix;
     const TInstant FinishTime;
+    TNullable<TDuration> PrepareDuration;
+    TNullable<TDuration> ExecDuration;
 
     // NB: This field will be set inside the controller in ParseStatistics().
     NJobTrackerClient::TStatistics Statistics;
+    TNullable<NYson::TYsonString> StatisticsYson;
 };
 
 using TFailedJobSummary = TJobSummary;

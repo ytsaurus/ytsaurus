@@ -23,6 +23,7 @@ message TReqOnJobFinished
 {
     required NYT.NProto.TGuid job_id = 1;
     required NJobTrackerClient.NProto.TJobResult result = 2;
+    required string statistics = 3;
 }
 
 message TRspOnJobFinished

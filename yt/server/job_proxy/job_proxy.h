@@ -82,7 +82,7 @@ private:
     void OnHeartbeatResponse(const TError& error);
 
     void RetrieveJobSpec();
-    void ReportResult(const NJobTrackerClient::NProto::TJobResult& result);
+    void ReportResult(const NJobTrackerClient::NProto::TJobResult& result, const TNullable<NYson::TYsonString>& statitstics);
 
     NJobTrackerClient::TStatistics GetStatistics() const;
 

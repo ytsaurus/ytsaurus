@@ -1881,11 +1881,10 @@ private:
             return;
 
         job->SetState(EJobState::Aborted);
-        TJobResult result;
-        ToProto(result.mutable_error(), error);
-        result.set_statistics("{}");
+        TJobStatus status;
+        ToProto(status.mutable_result()->mutable_error(), error);
 
-        job->SetResult(std::move(result));
+        job->SetStatus(std::move(status));
         OnJobFinished(job);
 
         auto operation = FindOperation(job->GetOperationId());
@@ -1924,7 +1923,7 @@ private:
         // Do nothing.
     }
 
-    void OnJobCompleted(TJobPtr job, TJobResult* result)
+    void OnJobCompleted(TJobPtr job, TJobStatus* status)
     {
         bool abandoned = (job->GetState() == EJobState::Abandoning);
         if (job->GetState() == EJobState::Running ||
@@ -1932,7 +1931,7 @@ private:
             job->GetState() == EJobState::Abandoning)
         {
             job->SetState(EJobState::Completed);
-            job->SetResult(std::move(*result));
+            job->SetStatus(std::move(*status));
 
             OnJobFinished(job);
 
@@ -1953,13 +1952,13 @@ private:
         UnregisterJob(job);
     }
 
-    void OnJobFailed(TJobPtr job, TJobResult* result)
+    void OnJobFailed(TJobPtr job, TJobStatus* status)
     {
         if (job->GetState() == EJobState::Running ||
             job->GetState() == EJobState::Waiting)
         {
             job->SetState(EJobState::Failed);
-            job->SetResult(std::move(*result));
+            job->SetStatus(std::move(*status));
 
             OnJobFinished(job);
 
@@ -1980,17 +1979,17 @@ private:
         UnregisterJob(job);
     }
 
-    void OnJobAborted(TJobPtr job, TJobResult* result)
+    void OnJobAborted(TJobPtr job, TJobStatus* status)
     {
-        // Only update the result for the first time.
+        // Only update the status for the first time.
         // Typically the scheduler decides to abort the job on its own.
-        // In this case we should ignore the result returned from the node
+        // In this case we should ignore the status returned from the node
         // and avoid notifying the controller twice.
         if (job->GetState() == EJobState::Running ||
             job->GetState() == EJobState::Waiting)
         {
             job->SetState(EJobState::Aborted);
-            job->SetResult(std::move(*result));
+            job->SetStatus(std::move(*status));
 
             OnJobFinished(job);
 
@@ -2006,7 +2005,7 @@ private:
             }
 
             // Check if job was aborted due to signal.
-            if (GetAbortReason(job->Result()) == EAbortReason::UserRequest) {
+            if (GetAbortReason(job->Status()->result()) == EAbortReason::UserRequest) {
                 ProcessFinishedJobResult(job);
             }
         }
@@ -2037,7 +2036,7 @@ private:
     void ProcessFinishedJobResult(TJobPtr job)
     {
         auto jobFailedOrAborted = job->GetState() == EJobState::Failed || job->GetState() == EJobState::Aborted;
-        const auto& schedulerResultExt = job->Result()->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        const auto& schedulerResultExt = job->Status()->result().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
         auto stderrChunkId = schedulerResultExt.has_stderr_chunk_id()
             ? FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id())
@@ -2284,9 +2283,9 @@ private:
                 jobId);
         }
 
-        TJobResult result;
+        TJobStatus status;
         job->SetState(EJobState::Abandoning);
-        OnJobCompleted(job, &result);
+        OnJobCompleted(job, &status);
     }
 
     void DoCompleteOperation(TOperationPtr operation)
@@ -2617,7 +2616,7 @@ private:
         switch (state) {
             case EJobState::Completed: {
                 LOG_DEBUG("Job completed, removal scheduled");
-                OnJobCompleted(job, jobStatus->mutable_result());
+                OnJobCompleted(job, jobStatus);
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
             }
@@ -2625,7 +2624,7 @@ private:
             case EJobState::Failed: {
                 auto error = FromProto<TError>(jobStatus->result().error());
                 LOG_DEBUG(error, "Job failed, removal scheduled");
-                OnJobFailed(job, jobStatus->mutable_result());
+                OnJobFailed(job, jobStatus);
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
             }
@@ -2633,7 +2632,7 @@ private:
             case EJobState::Aborted: {
                 auto error = FromProto<TError>(jobStatus->result().error());
                 LOG_DEBUG(error, "Job aborted, removal scheduled");
-                OnJobAborted(job, jobStatus->mutable_result());
+                OnJobAborted(job, jobStatus);
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
             }
