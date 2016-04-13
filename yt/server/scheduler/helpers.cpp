@@ -62,7 +62,7 @@ void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
             fluent.Item("finish_time").Value(job->GetFinishTime().Get());
         })
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
-            auto error = FromProto<TError>(job->Result()->error());
+            auto error = FromProto<TError>(job->Status()->result().error());
             fluent.Item("error").Value(error);
         });
 }
@@ -94,9 +94,9 @@ Stroka TrimCommandForBriefSpec(const Stroka& command)
 
 ////////////////////////////////////////////////////////////////////
 
-EAbortReason GetAbortReason(const TRefCountedJobResultPtr& result)
+EAbortReason GetAbortReason(const NJobTrackerClient::NProto::TJobResult& result)
 {
-    auto error = FromProto<TError>(result->error());
+    auto error = FromProto<TError>(result.error());
     return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
 }
 

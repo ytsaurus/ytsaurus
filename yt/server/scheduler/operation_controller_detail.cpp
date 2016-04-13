@@ -1660,6 +1660,8 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     jobSummary->ParseStatistics();
+    LOG_DEBUG("jobSummary has following statisticsYson: %v", (jobSummary->StatisticsYson) ? (*jobSummary->StatisticsYson).Data() : "(no)");
+
 
     const auto& jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;
@@ -1795,14 +1797,11 @@ void TOperationControllerBase::FinalizeJoblet(
         statistics.AddSample("/time/total", duration.MilliSeconds());
     }
 
-    const auto& result = jobSummary->Result;
-    if (result) {
-        if (result->has_prepare_time()) {
-            statistics.AddSample("/time/prepare", result->prepare_time());
-        }
-        if (result->has_exec_time()) {
-            statistics.AddSample("/time/exec", result->exec_time());
-        }
+    if (jobSummary->PrepareDuration) {
+        statistics.AddSample("/time/prepare", *jobSummary->PrepareDuration);
+    }
+    if (jobSummary->ExecDuration) {
+        statistics.AddSample("/time/exec", *jobSummary->ExecDuration);
     }
 }
 

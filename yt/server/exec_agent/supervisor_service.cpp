@@ -65,6 +65,10 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
     auto job = jobController->GetJobOrThrow(jobId);
 
     job->SetResult(result);
+    
+    if (request->has_statistics()) {
+        job->SetStatistics(TYsonString(request->statistics(), EYsonType::Node));
+    }
 
     context->Reply();
 }

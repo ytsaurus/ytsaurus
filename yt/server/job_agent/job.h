@@ -52,7 +52,17 @@ struct IJob
     virtual double GetProgress() const = 0;
     virtual void SetProgress(double value) = 0;
 
+    virtual TNullable<NYson::TYsonString> GetStatistics() const = 0;
     virtual void SetStatistics(const NYson::TYsonString& statistics) = 0;
+
+    virtual TNullable<TDuration> GetPrepareDuration() const = 0;
+    virtual TNullable<TDuration> GetExecDuration() const = 0;
+
+    virtual bool StatisticsShouldBeSent() const = 0;
+    
+    // The following two methods will be called from the single thread.
+    virtual TInstant GetStatisticsLastSendTimestamp() const = 0;
+    virtual void SetStatisticsLastSendTimestamp(TInstant timestamp) = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContexts() const = 0;
     virtual NYson::TYsonString Strace() const = 0;
@@ -66,6 +76,10 @@ using TJobFactory = TCallback<IJobPtr(
     const TOperationId& operationId,
     const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec)>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, IJobPtr job);
 
 ////////////////////////////////////////////////////////////////////////////////
 

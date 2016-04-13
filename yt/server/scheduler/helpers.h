@@ -34,7 +34,7 @@ TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::IMapNodePtr specNode);
 
 ////////////////////////////////////////////////////////////////////
 
-EAbortReason GetAbortReason(const TRefCountedJobResultPtr& result);
+EAbortReason GetAbortReason(const NJobTrackerClient::NProto::TJobResult& result);
 
 ////////////////////////////////////////////////////////////////////
 

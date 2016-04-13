@@ -69,6 +69,9 @@ class TMasterConnector;
 using TRefCountedJobResult = TRefCountedProto<NJobTrackerClient::NProto::TJobResult>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedJobResult);
 
+using TRefCountedJobStatus = TRefCountedProto<NJobTrackerClient::NProto::TJobStatus>;
+DECLARE_REFCOUNTED_TYPE(TRefCountedJobStatus);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

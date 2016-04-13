@@ -63,6 +63,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NCGroup;
 using namespace NYTree;
+using namespace NYson;
 
 using NJobTrackerClient::TStatistics;
 
@@ -92,7 +93,7 @@ std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(const TJobId& jo
     return Job_->DumpInputContext();
 }
 
-NYson::TYsonString TJobProxy::Strace(const TJobId& jobId)
+TYsonString TJobProxy::Strace(const TJobId& jobId)
 {
     ValidateJobId(jobId);
     return Job_->StraceJob();
@@ -196,6 +197,8 @@ void TJobProxy::Run()
         .WithTimeout(RpcServerShutdownTimeout)
         .Get();
 
+    TNullable<TYsonString> statistics;
+
     if (Job_) {
         auto failedChunkIds = Job_->GetFailedChunkIds();
         LOG_INFO("Found %v failed chunks", static_cast<int>(failedChunkIds.size()));
@@ -209,12 +212,10 @@ void TJobProxy::Run()
             ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
         }
 
-        result.set_statistics(ConvertToYsonString(GetStatistics()).Data());
-    } else {
-        result.set_statistics("{}");
+        statistics = ConvertToYsonString(GetStatistics());
     }
 
-    ReportResult(result);
+    ReportResult(result, statistics);
 }
 
 std::unique_ptr<IUserJobIO> TJobProxy::CreateUserJobIO()
@@ -347,12 +348,15 @@ TJobResult TJobProxy::DoRun()
     return Job_->Run();
 }
 
-void TJobProxy::ReportResult(const TJobResult& result)
+void TJobProxy::ReportResult(const TJobResult& result, const TNullable<TYsonString>& statistics)
 {
     auto req = SupervisorProxy_->OnJobFinished();
     ToProto(req->mutable_job_id(), JobId_);
     *req->mutable_result() = result;
-
+    if (statistics) {
+        req->set_statistics(statistics->Data());
+    }
+    
     auto rspOrError = req->Invoke().Get();
     if (!rspOrError.IsOK()) {
         LOG_ERROR(rspOrError, "Failed to report job result");
