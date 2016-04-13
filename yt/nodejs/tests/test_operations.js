@@ -272,7 +272,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
         .then(done, done);
     });
 
-    it("should list operations from cypress with cursor_time/filter filter", function(done) {
+    it("should list operations from cypress with cursor_time/future filter", function(done) {
         var mock = sinon.mock(this.driver);
         mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject());
         this.application_operations.list({
@@ -288,8 +288,8 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
             expect(result.failed_jobs_count).to.deep.equal(1);
             // result list is reduced
             expect(result.operations.map(function(item) { return item.$value; })).to.deep.equal([
-                "1dee545-fe4c4006-cd95617-54f87a31",
                 "d7df8-7d0c30ec-582ebd65-9ad7535a",
+                "1dee545-fe4c4006-cd95617-54f87a31",
             ]);
             mock.verify();
         })
