@@ -1246,9 +1246,11 @@ print row + table_index
 
         time.sleep(5)
         statistics = get("//sys/scheduler/orchid/monitoring/ref_counted/statistics")
-        records = [record for record in statistics if record["name"] == "NYT::NScheduler::TOperationElement"]
-        assert len(records) == 1
+        operation_objects = ["NYT::NScheduler::TOperationElement", "NYT::NScheduler::TOperation"]
+        records = [record for record in statistics if record["name"] in operation_objects]
+        assert len(records) == 2
         assert records[0]["objects_alive"] == 0
+        assert records[1]["objects_alive"] == 0
 
     @unix_only
     def test_map_row_count_limit(self):
