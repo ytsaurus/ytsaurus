@@ -458,6 +458,28 @@ test_delete_tasks() {
     echo "Ok"
 }
 
+test_copy_inefficiently_stored_table()
+{
+    echo "Test copy inefficiently stored table"
+
+    gen() {
+        for i in {1..101}; do
+            echo "a=b"
+        done
+    }
+
+    yt2 remove --force '//tmp/test_table' --proxy plato
+    gen | yt2 write '<append=true>//tmp/test_table' --proxy plato --format dsv --config '{write_retries={chunk_size=1}}'
+
+    check "$(yt2 get //tmp/test_table/@chunk_count --proxy plato)" "101"
+    check "$(yt2 get //tmp/test_table/@row_count --proxy plato)" "101"
+
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/new_test_table", "destination_cluster": "smith", "pool": "ignat"}')
+    wait_task $id
+
+    check "$(yt2 get //tmp/new_test_table/@row_count --proxy smith)" "101"
+}
+
 # Different transfers
 test_copy_empty_table
 test_various_transfers
@@ -478,3 +500,4 @@ test_destination_codecs
 test_source_codecs
 test_intermediate_format
 test_delete_tasks
+test_copy_inefficiently_stored_table
