@@ -22,7 +22,7 @@ CompressUnsignedVector(const TRange<T> values, ui64 maxValue, ui64* dst);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
+template <class T, bool Scan = true>
 class TCompressedUnsignedVectorReader
 {
 public:
@@ -43,7 +43,10 @@ private:
     size_t Size_;
     ui8 Width_;
 
+    std::vector<T> Values_;
+
     T GetValue(size_t index) const;
+    void UnpackValues();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,7 +57,6 @@ void PrepareDiffFromExpected(std::vector<ui32>* values, ui32* expected, ui32* ma
 
 } // namespace NTableChunkFormat
 } // namespace NYT
-
 
 #define INCLUDE_COMPRESSED_INTEGER_VECTOR_INL_H
 #include "compressed_integer_vector-inl.h"
