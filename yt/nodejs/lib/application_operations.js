@@ -711,7 +711,6 @@ function YtApplicationOperations$get(parameters)
     var id_hi = id_parts[0];
     var id_lo = id_parts[1];
 
-    // TODO(sandello): Do not query archive if not necessary.
     var cypress_data = this.driver.executeSimple(
         "get",
         {path: "//sys/operations/" + utils.escapeYPath(id) + "/@"});
@@ -730,8 +729,8 @@ function YtApplicationOperations$get(parameters)
             output_format: ANNOTATED_JSON_FORMAT,
         });
 
-    return Q.settle([cypress_data, runtime_data, archive_data])
-    .spread(function(cypress_data, runtime_data, archive_data) {
+    return Q.settle([cypress_data, runtime_data])
+    .spread(function(cypress_data, runtime_data) {
         var result = null;
         if (cypress_data.isFulfilled()) {
             result = cypress_data.value();
@@ -740,18 +739,15 @@ function YtApplicationOperations$get(parameters)
             }
             return result;
         } else if (cypress_data.error().checkFor(500)) {
-            if (archive_data.isFulfilled()) {
-                if (archive_data.value().length > 0) {
-                    result = archive_data.value()[0];
-                    result = tidyArchiveOperation(result);
+            return archive_data.then(function(result) {
+                if (result.length > 0) {
+                    result = tidyArchiveOperation(result[0]);
                     // TODO(sandello): Better JSON conversion here?
                     return stripJsonAnnotations(result);
                 } else {
                     throw new YtError("No such operation " + id).withCode(1);
                 }
-            } else {
-                throw archive_data.error();
-            }
+            });
         } else {
             throw cypress_data.error();
         }
