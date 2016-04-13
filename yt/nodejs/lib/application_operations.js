@@ -663,7 +663,7 @@ function YtApplicationOperations$list(parameters)
         // Check if there are any extra items.
         if (merged_data.length > max_size) {
             merged_data = {
-                $incomplete: true,
+                $attributes: {incomplete: true},
                 $value: merged_data.slice(0, max_size),
             };
         }
