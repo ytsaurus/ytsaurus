@@ -660,6 +660,7 @@ void TDynamicMemoryStore::SetStoreState(EStoreState state)
     if (StoreState_ == EStoreState::ActiveDynamic && state == EStoreState::PassiveDynamic) {
         YCHECK(FlushRevision_ == InvalidRevision);
         FlushRevision_ = GetLatestRevision();
+        LOG_DEBUG("Dynamic memory store is now passive (FlushRevision: %v)", FlushRevision_);
     }
     TStoreBase::SetStoreState(state);
 }
@@ -1824,6 +1825,8 @@ void TDynamicMemoryStore::AsyncLoad(TLoadContext& context)
             }
         }
     }
+
+    LOG_DEBUG("Loaded dynamic memory store (StoreState: %v)", StoreState_);
 
     if (StoreState_ == EStoreState::PassiveDynamic) {
         // NB: No more changes are possible after load.
