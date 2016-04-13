@@ -187,6 +187,7 @@ function validateString(value)
         return value;
     }
     throw new YtError("Unable to parse string")
+        .withCode(1)
         .withAttribute("value", escapeC(value + ""));
 }
 
@@ -197,6 +198,7 @@ function validateId(value)
         return value;
     }
     throw new YtError("Unable to parse operation id")
+        .withCode(1)
         .withAttribute("value", escapeC(value + ""));
 }
 
@@ -212,6 +214,7 @@ function validateBoolean(value)
         }
     }
     throw new YtError("Unable to parse boolean")
+        .withCode(1)
         .withAttribute("value", escapeC(value + ""));
 }
 
@@ -226,6 +229,7 @@ function validateInteger(value)
         }
     }
     throw new YtError("Unable to parse integer")
+        .withCode(1)
         .withAttribute("value", escapeC(value + ""));
 }
 
@@ -236,6 +240,7 @@ function validateDateTime(value)
         return parsed;
     }
     throw new YtError("Unable to parse datetime")
+        .withCode(1)
         .withAttribute("value", escapeC(value + ""));
 }
 
@@ -258,7 +263,8 @@ function required(parameters, key, validator)
     if (result !== null) {
         return result;
     } else {
-        throw new YtError("Missing required parameter \"" + key + "\"");
+        throw new YtError("Missing required parameter \"" + key + "\"")
+            .withCode(1);
     }
 }
 
@@ -304,7 +310,7 @@ function YtApplicationOperations$list(parameters)
     var time_span = to_time - from_time;
     if (time_span > TIME_SPAN_LIMIT) {
         throw new YtError("Time span exceedes allowed limit ({} > {})".format(
-            time_span, TIME_SPAN_LIMIT));
+            time_span, TIME_SPAN_LIMIT)).withCode(1);
     }
 
     // Process |cursor_time|, |cursor_direction|.
@@ -313,7 +319,7 @@ function YtApplicationOperations$list(parameters)
     }
 
     if (cursor_time > to_time || cursor_time < from_time) {
-        throw new YtError("Time cursor is out of range");
+        throw new YtError("Time cursor is out of range").withCode(1);
     }
 
     if (cursor_direction === null) {
@@ -323,7 +329,7 @@ function YtApplicationOperations$list(parameters)
     }
 
     if (cursor_direction !== "past" && cursor_direction !== "future") {
-        throw new YtError("Cursor direction must be either 'past' of 'future'");
+        throw new YtError("Cursor direction must be either 'past' of 'future'").withCode(1);
     }
 
     // TODO(sandello): Validate |state_filter|, |type_filter|.
@@ -336,7 +342,7 @@ function YtApplicationOperations$list(parameters)
     // Process |max_size|.
     if (max_size > MAX_SIZE_LIMIT) {
         throw new YtError("Maximum result size exceedes allowed limit ({} > {})".format(
-            max_size, MAX_SIZE_LIMIT));
+            max_size, MAX_SIZE_LIMIT)).withCode(1);
     }
 
     // Okay, now fetch & merge data.
@@ -690,7 +696,6 @@ function YtApplicationOperations$list(parameters)
         return result;
     })
     .catch(function(err) {
-        logger.error("ERROR :(", {error: err});
         return Q.reject(new YtError(
             "Failed to list operations",
             err));
@@ -742,7 +747,7 @@ function YtApplicationOperations$get(parameters)
                     // TODO(sandello): Better JSON conversion here?
                     return stripJsonAnnotations(result);
                 } else {
-                    throw new YtError("No such operation " + id);
+                    throw new YtError("No such operation " + id).withCode(1);
                 }
             } else {
                 throw archive_data.error();
