@@ -18,6 +18,9 @@ void TFormatsConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
     Parser.Parse(yson, type);
 }
 
+void TFormatsConsumerBase::Flush()
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsSpecialJsonKey(const TStringBuf& key)

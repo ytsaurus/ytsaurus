@@ -89,7 +89,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<NYson::IYsonConsumer> CreateConsumerForFormat(
+std::unique_ptr<NYson::IFlushableYsonConsumer> CreateConsumerForFormat(
     const TFormat& format,
     EDataType dataType,
     TOutputStream* output);

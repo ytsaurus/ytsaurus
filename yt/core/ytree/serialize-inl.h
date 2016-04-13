@@ -20,13 +20,86 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+template <class T>
+void SerializeVector(const T& items, NYson::IYsonConsumer* consumer)
+{
+    consumer->OnBeginList();
+    for (const auto& item : items) {
+        consumer->OnListItem();
+        Serialize(item, consumer);
+    }
+    consumer->OnEndList();
+}
+
+template <class T>
+void SerializeSet(const T& items, NYson::IYsonConsumer* consumer)
+{
+    consumer->OnBeginList();
+    for (auto it : GetSortedIterators(items)) {
+        consumer->OnListItem();
+        Serialize(*it, consumer);
+    }
+    consumer->OnEndList();
+}
+
+template <class T>
+void SerializeMap(const T& items, NYson::IYsonConsumer* consumer)
+{
+    consumer->OnBeginMap();
+    for (auto it : GetSortedIterators(items)) {
+        consumer->OnKeyedItem(ToString(it->first));
+        Serialize(it->second, consumer);
+    }
+    consumer->OnEndMap();
+}
+
+template <class T>
+void DeserializeVector(T& value, INodePtr node)
+{
+    auto listNode = node->AsList();
+    auto size = listNode->GetChildCount();
+    value.resize(size);
+    for (int i = 0; i < size; ++i) {
+        Deserialize(value[i], listNode->GetChild(i));
+    }
+}
+
+template <class T>
+void DeserializeSet(T& value, INodePtr node)
+{
+    auto listNode = node->AsList();
+    auto size = listNode->GetChildCount();
+    for (int i = 0; i < size; ++i) {
+        typename T::value_type value;
+        Deserialize(value, listNode->GetChild(i));
+        value.insert(std::move(value));
+    }
+}
+
+template <class T>
+void DeserializeMap(T& value, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    value.clear();
+    for (const auto& pair : mapNode->GetChildren()) {
+        auto key = FromString<typename T::key_type>(pair.first);
+        typename T::mapped_type item;
+        Deserialize(item, pair.second);
+        value.insert(std::make_pair(std::move(key), std::move(item)));
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 NYson::EYsonType GetYsonType(const T&)
 {
     return NYson::EYsonType::Node;
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 void WriteYson(
@@ -93,79 +166,49 @@ void Serialize(const TNullable<T>& value, NYson::IYsonConsumer* consumer)
     }
 }
 
-// SmallVector
-template <class T, unsigned N>
-void Serialize(const SmallVector<T, N>& items, NYson::IYsonConsumer* consumer)
-{
-    consumer->OnBeginList();
-    for (const auto& item : items) {
-        consumer->OnListItem();
-        Serialize(item, consumer);
-    }
-    consumer->OnEndList();
-}
-
 // std::vector
 template <class T>
 void Serialize(const std::vector<T>& items, NYson::IYsonConsumer* consumer)
 {
-    consumer->OnBeginList();
-    for (const auto& item : items) {
-        consumer->OnListItem();
-        Serialize(item, consumer);
-    }
-    consumer->OnEndList();
+    SerializeVector(items, consumer);
+}
+
+// SmallVector
+template <class T, unsigned N>
+void Serialize(const SmallVector<T, N>& items, NYson::IYsonConsumer* consumer)
+{
+    SerializeVector(items, consumer);
+}
+
+// std::set
+template <class T>
+void Serialize(const std::set<T>& items, NYson::IYsonConsumer* consumer)
+{
+    SerializeSet(items, consumer);
 }
 
 // yhash_set
 template <class T>
 void Serialize(const yhash_set<T>& items, NYson::IYsonConsumer* consumer)
 {
-    consumer->OnBeginList();
-    for (auto it : GetSortedIterators(items)) {
-        consumer->OnListItem();
-        Serialize(*it, consumer);
-    }
-    consumer->OnEndList();
+    SerializeSet(items, consumer);
+}
+
+// std::map
+template <class K, class V>
+void Serialize(const std::map<K, V>& items, NYson::IYsonConsumer* consumer)
+{
+    SerializeMap(items, consumer);
 }
 
 // yhash_map
-template <class T>
-void Serialize(const yhash_map<Stroka, T>& items, NYson::IYsonConsumer* consumer)
+template <class K, class V>
+void Serialize(const yhash_map<K, V>& items, NYson::IYsonConsumer* consumer)
 {
-    consumer->OnBeginMap();
-    for (auto it : GetSortedIterators(items)) {
-        consumer->OnKeyedItem(it->first);
-        Serialize(it->second, consumer);
-    }
-    consumer->OnEndMap();
+    SerializeMap(items, consumer);
 }
 
-// yhash_map
-template <class T>
-void Serialize(const yhash_map<int, T>& items, NYson::IYsonConsumer* consumer)
-{
-    consumer->OnBeginMap();
-    for (auto it : GetSortedIterators(items)) {
-        consumer->OnKeyedItem(ToString(it->first));
-        Serialize(it->second, consumer);
-    }
-    consumer->OnEndMap();
-}
-
-// map
-template <class T>
-void Serialize(const std::map<Stroka, T>& items, NYson::IYsonConsumer* consumer)
-{
-    consumer->OnBeginMap();
-    auto sortedItems = GetSortedIterators(items);
-    for (const auto& pair : sortedItems) {
-        consumer->OnKeyedItem(pair->first);
-        Serialize(pair->second, consumer);
-    }
-    consumer->OnEndMap();
-}
-
+// TErrorOr
 template <class T>
 void Serialize(const TErrorOr<T>& error, NYson::IYsonConsumer* consumer)
 {
@@ -234,82 +277,49 @@ void Deserialize(TNullable<T>& value, INodePtr node)
     }
 }
 
-// SmallVector
-template <class T, unsigned N>
-void Deserialize(SmallVector<T, N>& value, INodePtr node)
-{
-    auto listNode = node->AsList();
-    auto size = listNode->GetChildCount();
-    value.resize(size);
-    for (int i = 0; i < size; ++i) {
-        Deserialize(value[i], listNode->GetChild(i));
-    }
-}
-
 // std::vector
 template <class T>
 void Deserialize(std::vector<T>& value, INodePtr node)
 {
-    auto listNode = node->AsList();
-    auto size = listNode->GetChildCount();
-    value.resize(size);
-    for (int i = 0; i < size; ++i) {
-        Deserialize(value[i], listNode->GetChild(i));
-    }
+    DeserializeVector(value, node);
+}
+
+// SmallVector
+template <class T, unsigned N>
+void Deserialize(SmallVector<T, N>& value, INodePtr node)
+{
+    DeserializeVector(value, node);
+}
+
+// std::set
+template <class T>
+void Deserialize(std::set<T>& value, INodePtr node)
+{
+    DeserializeSet(value, node);
 }
 
 // yhash_set
 template <class T>
 void Deserialize(yhash_set<T>& value, INodePtr node)
 {
-    auto listNode = node->AsList();
-    auto size = listNode->GetChildCount();
-    for (int i = 0; i < size; ++i) {
-        T value;
-        Deserialize(value, listNode->GetChild(i));
-        value.insert(std::move(value));
-    }
-}
-
-// yhash_map
-template <class T>
-void Deserialize(yhash_map<Stroka, T>& value, INodePtr node)
-{
-    auto mapNode = node->AsMap();
-    for (const auto& pair : mapNode->GetChildren()) {
-        const auto& key = pair.first;
-        T item;
-        Deserialize(item, pair.second);
-        value.insert(std::make_pair(key, std::move(item)));
-    }
-}
-
-// yhash_map
-template <class T>
-void Deserialize(yhash_map<int, T>& value, INodePtr node)
-{
-    auto mapNode = node->AsMap();
-    for (const auto& pair : mapNode->GetChildren()) {
-        int key = FromString<int>(pair.first);
-        T item;
-        Deserialize(item, pair.second);
-        value.insert(std::make_pair(key, std::move(item)));
-    }
+    DeserializeSet(value, node);
 }
 
 // std::map
-template <class T>
-void Deserialize(std::map<Stroka, T>& value, INodePtr node)
+template <class K, class V>
+void Deserialize(std::map<K, V>& value, INodePtr node)
 {
-    auto mapNode = node->AsMap();
-    for (const auto& pair : mapNode->GetChildren()) {
-        const auto& key = pair.first;
-        T item;
-        Deserialize(item, pair.second);
-        value.emplace(key, std::move(item));
-    }
+    DeserializeMap(value, node);
 }
 
+// yhash_map
+template <class K, class V>
+void Deserialize(yhash_map<K, V>& value, INodePtr node)
+{
+    DeserializeMap(value, node);
+}
+
+// TErrorOr
 template <class T>
 void Deserialize(TErrorOr<T>& error, NYTree::INodePtr node)
 {

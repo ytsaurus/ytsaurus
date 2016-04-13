@@ -57,6 +57,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/single_queue_scheduler_thread.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/thread_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/throughput_throttler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/lease_manager.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/erasure/codec.cpp
   ${CMAKE_CURRENT_LIST_DIR}/erasure/helpers.cpp
@@ -98,7 +99,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/high_resolution_clock.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/hr_timer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/id_generator.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/lease_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/lfalloc_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/lifecycle.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/linear_probe.cpp
@@ -120,7 +120,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/string.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/subprocess.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/url.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/varint.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/pipes/async_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pipes/async_writer.cpp

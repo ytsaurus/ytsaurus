@@ -54,6 +54,7 @@ using namespace NHydra;
 using namespace NHive;
 using namespace NYTree;
 using namespace NYson;
+using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NTransactionClient;
 using namespace NSecurityServer;

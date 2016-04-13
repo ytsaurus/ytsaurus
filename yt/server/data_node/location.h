@@ -250,6 +250,7 @@ private:
     const TStoreLocationConfigPtr Config_;
 
     const TJournalManagerPtr JournalManager_;
+    const NConcurrency::TActionQueuePtr TrashCheckQueue_;
 
     struct TTrashChunkEntry
     {

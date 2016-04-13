@@ -41,6 +41,9 @@ class TCoroutine;
 template <class T>
 class TNonblockingQueue;
 
+DECLARE_REFCOUNTED_STRUCT(TLeaseEntry)
+typedef TLeaseEntryPtr TLease;
+
 typedef size_t TThreadId;
 const size_t InvalidThreadId = 0;
 

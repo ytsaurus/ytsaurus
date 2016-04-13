@@ -34,10 +34,8 @@ const char BeginAttributesSymbol = '<';
 //! Indicates the end of an attribute map.
 const char EndAttributesSymbol = '>';
 
-//! Separates items in lists.
-const char ListItemSeparatorSymbol = ';';
-//! Separates items in maps, attributes.
-const char KeyedItemSeparatorSymbol = ';';
+//! Separates items in lists, maps, attributes.
+const char ItemSeparatorSymbol = ';';
 //! Separates keys from values in maps.
 const char KeyValueSeparatorSymbol = '=';
 

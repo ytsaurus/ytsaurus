@@ -16,6 +16,7 @@ using namespace NHydra;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

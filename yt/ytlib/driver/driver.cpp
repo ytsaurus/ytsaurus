@@ -14,7 +14,8 @@
 #include <yt/core/yson/null_consumer.h>
 
 #include <yt/core/misc/sync_cache.h>
-#include <yt/core/misc/lease_manager.h>
+
+#include <yt/core/concurrency/lease_manager.h>
 
 namespace NYT {
 namespace NDriver {
@@ -429,6 +430,8 @@ private:
                 &bufferedOutputStream);
 
             Serialize(yson, consumer.get());
+
+            consumer->Flush();
         }
 
         virtual void PinTransaction(ITransactionPtr transaction, TDuration timeout) override

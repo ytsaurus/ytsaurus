@@ -7,16 +7,16 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void IYsonConsumer::OnRaw(const TYsonString& str)
+void IYsonConsumer::OnRaw(const TYsonString& yson)
 {
-    OnRaw(str.Data(), str.GetType());
+    OnRaw(yson.Data(), yson.GetType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TYsonConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
+void TYsonConsumerBase::OnRaw(const TStringBuf& str, EYsonType type)
 {
-    ParseYsonStringBuffer(yson, type, this);
+    ParseYsonStringBuffer(str, type, this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

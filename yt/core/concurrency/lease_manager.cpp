@@ -1,11 +1,9 @@
 #include "lease_manager.h"
-
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include "delayed_executor.h"
+#include "thread_affinity.h"
 
 namespace NYT {
-
-using namespace NConcurrency;
+namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -128,4 +126,6 @@ bool TLeaseManager::CloseLease(TLease lease)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+} // namespace NConcurrency
+
 

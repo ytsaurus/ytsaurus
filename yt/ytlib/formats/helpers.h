@@ -11,13 +11,15 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFormatsConsumerBase
-    : public virtual NYson::IYsonConsumer
+    : public virtual NYson::IFlushableYsonConsumer
 {
 public:
     TFormatsConsumerBase();
 
-    // This method has standard implementation for yamr, dsv and yamred dsv formats.
+    // This method has standard implementation for YAMR, DSV and YAMRED DSV formats.
     virtual void OnRaw(const TStringBuf& yson, NYson::EYsonType type) override;
+
+    virtual void Flush() override;
 
 private:
     NYson::TStatelessYsonParser Parser;
