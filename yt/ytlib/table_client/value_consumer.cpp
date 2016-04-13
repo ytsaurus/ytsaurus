@@ -23,7 +23,6 @@ TBuildingValueConsumer::TBuildingValueConsumer(
     , KeyColumns_(keyColumns)
     , NameTable_(TNameTable::FromSchema(Schema_))
     , WrittenFlags_(NameTable_->GetSize(), false)
-    , ValueWriter_(&ValueBuffer_)
 { }
 
 const std::vector<TUnversionedOwningRow>& TBuildingValueConsumer::GetOwningRows() const
@@ -63,25 +62,25 @@ void TBuildingValueConsumer::OnBeginRow()
 
 TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedValue& value)
 {
-    ValueWriter_.Reset();
+    NYson::TYsonWriter writer(&ValueBuffer_);
     switch (value.Type) {
         case EValueType::Int64:
-            ValueWriter_.OnInt64Scalar(value.Data.Int64);
+            writer.OnInt64Scalar(value.Data.Int64);
             break;
         case EValueType::Uint64:
-            ValueWriter_.OnUint64Scalar(value.Data.Uint64);
+            writer.OnUint64Scalar(value.Data.Uint64);
             break;
         case EValueType::Double:
-            ValueWriter_.OnDoubleScalar(value.Data.Double);
+            writer.OnDoubleScalar(value.Data.Double);
             break;
         case EValueType::Boolean:
-            ValueWriter_.OnBooleanScalar(value.Data.Boolean);
+            writer.OnBooleanScalar(value.Data.Boolean);
             break;
         case EValueType::String:
-            ValueWriter_.OnStringScalar(TStringBuf(value.Data.String, value.Length));
+            writer.OnStringScalar(TStringBuf(value.Data.String, value.Length));
             break;
         case EValueType::Null:
-            ValueWriter_.OnEntity();
+            writer.OnEntity();
             break;
         default:
             YUNREACHABLE();

@@ -102,7 +102,7 @@ TBlob TSchemalessFormatWriterBase::GetContext() const
 
 void TSchemalessFormatWriterBase::TryFlushBuffer(bool force)
 {
-    if ((CurrentBuffer_.Size() > ContextBufferSize) || (!EnableContextSaving_ && force)) {
+    if (CurrentBuffer_.Size() > ContextBufferSize || (!EnableContextSaving_ && force)) {
         DoFlushBuffer();
     }
 }
@@ -269,6 +269,7 @@ void TSchemalessWriterAdapter::DoWrite(const std::vector<TUnversionedRow>& rows)
         TryFlushBuffer(false);
     }
 
+    Consumer_->Flush();
     TryFlushBuffer(true);
 }
 

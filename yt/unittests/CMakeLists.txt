@@ -2,6 +2,7 @@
 set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/any_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/async_rw_lock_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/async_yson_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/attributes_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bind_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/boolean_column_ut.cpp

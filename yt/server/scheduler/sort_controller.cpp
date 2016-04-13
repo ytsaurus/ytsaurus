@@ -1440,16 +1440,18 @@ protected:
         AddSortTasksPendingHints();
     }
 
-    static int AdjustPartitionCountToWriterBufferSize(
+    int AdjustPartitionCountToWriterBufferSize(
         int partitionCount, 
-        TChunkWriterConfigPtr config)
+        TChunkWriterConfigPtr config) const
     {
-        auto averageBufferSize = config->MaxBufferSize / partitionCount / 2;
-        if (averageBufferSize < THorizontalSchemalessBlockWriter::MinReserveSize) {
-            i64 minAppropriateSize = 2 * THorizontalSchemalessBlockWriter::MinReserveSize;
-            return std::max(config->MaxBufferSize / minAppropriateSize, (i64)1);
+        i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataSize * Spec->MapSelectivityFactor);
+        i64 bufferSize = std::min(config->MaxBufferSize, dataSizeAfterPartition);
+        i64 partitionBufferSize = bufferSize / partitionCount;
+        if (partitionBufferSize < Options->MinUncompressedBlockSize) {
+            return std::max(bufferSize / Options->MinUncompressedBlockSize, (i64)1);
+        } else {
+            return partitionCount;
         }
-        return partitionCount;
     }
 
     void CheckMergeStartThreshold()
@@ -1896,6 +1898,7 @@ private:
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
         int partitionCount = SuggestPartitionCount();
+        LOG_INFO("Suggested partition count %v, samples count %v", partitionCount, sortedSamples.size());
 
         // Don't create more partitions than we have samples (plus one).
         partitionCount = std::min(partitionCount, static_cast<int>(sortedSamples.size()) + 1);
@@ -1903,12 +1906,9 @@ private:
         partitionCount = AdjustPartitionCountToWriterBufferSize(
             partitionCount, 
             PartitionJobIOConfig->TableWriter);
+        LOG_INFO("Adjusted partition count %v", partitionCount);
 
         YCHECK(partitionCount > 0);
-        
-        partitionCount = AdjustPartitionCountToWriterBufferSize(
-            partitionCount, 
-            PartitionJobIOConfig->TableWriter);
         SimpleSort = (partitionCount == 1);
 
         if (SimpleSort) {
@@ -2481,10 +2481,12 @@ private:
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
         int partitionCount = SuggestPartitionCount();
+        LOG_INFO("Suggested partition count %v", partitionCount);
 
         partitionCount = AdjustPartitionCountToWriterBufferSize(
             partitionCount, 
             PartitionJobIOConfig->TableWriter);
+        LOG_INFO("Adjusted partition count %v", partitionCount);
 
         BuildMultiplePartitions(partitionCount);
     }

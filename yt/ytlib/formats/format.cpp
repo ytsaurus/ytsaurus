@@ -90,6 +90,8 @@ void Deserialize(TFormat& value, INodePtr node)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 EYsonType DataTypeToYsonType(EDataType dataType)
 {
     switch (dataType) {
@@ -98,29 +100,35 @@ EYsonType DataTypeToYsonType(EDataType dataType)
         case EDataType::Tabular:
             return EYsonType::ListFragment;
         default:
-            THROW_ERROR_EXCEPTION("Data type %Qv is not supported by YSON",
+            THROW_ERROR_EXCEPTION("Data type %Qlv is not supported by YSON",
                 dataType);
     }
 }
 
-std::unique_ptr<IYsonConsumer> CreateConsumerForYson(
+std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForYson(
     EDataType dataType,
     const IAttributeDictionary& attributes,
     TOutputStream* output)
 {
     auto config = ConvertTo<TYsonFormatConfigPtr>(&attributes);
     auto ysonType = DataTypeToYsonType(dataType);
-    auto enableRaw = (config->Format == EYsonFormat::Binary);
-    
-    return std::unique_ptr<IYsonConsumer>(new TYsonWriter(
-        output,
-        config->Format,
-        ysonType,
-        enableRaw,
-        config->BooleanAsString));
+    if (config->Format == EYsonFormat::Binary) {
+        return std::unique_ptr<IFlushableYsonConsumer>(new TBufferedBinaryYsonWriter(
+            output,
+            ysonType,
+            true,
+            config->BooleanAsString));
+    } else {
+        return std::unique_ptr<IFlushableYsonConsumer>(new TYsonWriter(
+            output,
+            config->Format,
+            ysonType,
+            false,
+            config->BooleanAsString));
+    }
 }
 
-std::unique_ptr<IYsonConsumer> CreateConsumerForJson(
+std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForJson(
     EDataType dataType,
     const IAttributeDictionary& attributes,
     TOutputStream* output)
@@ -129,7 +137,7 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForJson(
     return CreateJsonConsumer(output, DataTypeToYsonType(dataType), config);
 }
 
-std::unique_ptr<IYsonConsumer> CreateConsumerForDsv(
+std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForDsv(
     EDataType dataType,
     const IAttributeDictionary& attributes,
     TOutputStream* output)
@@ -137,12 +145,12 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForDsv(
     auto config = ConvertTo<TDsvFormatConfigPtr>(&attributes);
     switch (dataType) {
         case EDataType::Structured:
-            return std::unique_ptr<IYsonConsumer>(new TDsvNodeConsumer(output, config));
+            return std::unique_ptr<IFlushableYsonConsumer>(new TDsvNodeConsumer(output, config));
 
         case EDataType::Tabular:
         case EDataType::Binary:
         case EDataType::Null:
-            THROW_ERROR_EXCEPTION("Data type %Qv is not supported by DSV",
+            THROW_ERROR_EXCEPTION("Data type %Qlv is not supported by DSV",
                 dataType);
 
         default:
@@ -150,7 +158,9 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForDsv(
     };
 }
 
-std::unique_ptr<IYsonConsumer> CreateConsumerForFormat(
+} // namespace
+
+std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForFormat(
     const TFormat& format,
     EDataType dataType,
     TOutputStream* output)

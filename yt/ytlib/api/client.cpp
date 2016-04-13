@@ -2289,7 +2289,9 @@ private:
                 req->set_upload_transaction_title(Format("Concatenating %v to %v",
                     srcPaths,
                     dstPath));
-                ToProto(req->mutable_upload_transaction_secondary_cell_tags(), srcCellTags);
+                // NB: Replicate upload transaction to each secondary cell since we have
+                // no idea as of where the chunks we're about to attach may come from.
+                ToProto(req->mutable_upload_transaction_secondary_cell_tags(), Connection_->GetSecondaryMasterCellTags());
                 req->set_upload_transaction_timeout(ToProto(Connection_->GetConfig()->TransactionManager->DefaultTransactionTimeout));
                 GenerateMutationId(req, options);
                 SetTransactionId(req, options, true);

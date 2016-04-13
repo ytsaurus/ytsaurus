@@ -251,11 +251,6 @@ protected:
             }
         }
 
-        virtual bool HasInputLocality() const override
-        {
-            return false;
-        }
-
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
             return Controller->TableReaderOptions;
