@@ -38,6 +38,7 @@ struct ISchedulerStrategyHost
 
     virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& schedulingTag) const = 0;
     virtual int GetExecNodeCount() const = 0;
+    virtual int GetTotalNodeCount() const = 0;
 };
 
 struct ISchedulerStrategy

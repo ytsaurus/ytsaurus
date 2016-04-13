@@ -980,3 +980,40 @@ class TestSchedulerPreemption(YTEnvSetup):
         op1.abort();
         op2.abort();
 
+class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    def modify_node_config(self, config):
+        if not hasattr(self, "node_counter"):
+            self.node_counter = 0
+        self.node_counter += 1
+        if self.node_counter == 1:
+            config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] = 0
+
+    def test_job_count(self):
+        data = [{"foo": i} for i in xrange(3)]
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", data)
+
+        assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2
+        assert get("//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots") == 0
+
+        op = map(
+            dont_track=True,
+            command="sleep 100",
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={"data_size_per_job": 1, "locality_timeout": 0})
+
+        time.sleep(2)
+
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_usage/user_slots".format(op.id)) == 2
+        assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2
+        assert get("//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots") == 2
+
+        op.abort()
+
+
