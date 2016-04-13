@@ -419,7 +419,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
             to_time: "2016-03-04T00:00:00Z",
             max_size: 1
         }).then(function(result) {
-            expect(result.operations.$incomplete).to.eq(true);
+            expect(result.operations.$attributes.incomplete).to.eq(true);
             expect(result.operations.$value.length).to.eq(1);
             mock.verify();
         })
