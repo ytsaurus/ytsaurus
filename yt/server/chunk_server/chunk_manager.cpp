@@ -1218,6 +1218,10 @@ private:
             auto chunkId = FromProto<TChunkId>(exportData.id());
             auto* chunk = GetChunkOrThrow(chunkId);
 
+            if (chunk->IsForeign()) {
+                THROW_ERROR_EXCEPTION("Cannot export a foreign chunk %v", chunkId);
+            }
+
             auto cellTag = exportData.destination_cell_tag();
             if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
                 THROW_ERROR_EXCEPTION("Cell %v is not registered");
@@ -1256,6 +1260,10 @@ private:
         std::vector<TChunkId> chunkIds;
         for (auto& importData : *request.mutable_chunks()) {
             auto chunkId = FromProto<TChunkId>(importData.id());
+            if (CellTagFromId(chunkId) == Bootstrap_->GetCellTag()) {
+                THROW_ERROR_EXCEPTION("Cannot import a native chunk %v", chunkId);
+            }
+
             auto* chunk = ChunkMap_.Find(chunkId);
             if (!chunk) {
                 auto chunkHolder = std::make_unique<TChunk>(chunkId);
