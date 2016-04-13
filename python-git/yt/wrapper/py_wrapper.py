@@ -51,7 +51,8 @@ def merge_md5(lhs, rhs):
 
 def hex_md5(md5_array):
     def to_hex(md5):
-        return "".join(["{0:02x}".format(num) for num in md5])
+        # String "zip_salt_" is neccessary to distinguish empty archive from empty file.
+        return "zip_salt_" + "".join(["{0:02x}".format(num) for num in md5])
 
     md5_array.sort()
     return to_hex(calc_md5_from_string("".join(map(to_hex, md5_array))))
