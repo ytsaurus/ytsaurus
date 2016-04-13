@@ -445,6 +445,7 @@ public:
 
     //! Don't check resource demand for sanity if the number of online
     //! nodes is less than this bound.
+    // TODO(ignat): rename to SafeExecNodeCount.
     int SafeOnlineNodeCount;
 
     //! Time between two consecutive calls in operation controller to get exec nodes information from scheduler.
