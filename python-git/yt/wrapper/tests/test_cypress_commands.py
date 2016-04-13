@@ -324,6 +324,10 @@ class TestCypressCommands(object):
 
         assert not yt.exists("//sys/transactions/" + transaction_id)
 
+    @pytest.mark.skipif("True")  # Enable when st/YT-4182 is done.
+    def test_signal_in_transactions(self):
+        new_client = yt.client.Yt(token=yt.config["token"], config=yt.config)
+
         yt.config["transaction_use_signal_if_ping_failed"] = True
         old_retry_timeout = yt.config["proxy"]["request_retry_timeout"]
         yt.config["proxy"]["request_retry_timeout"] = 3000.0
