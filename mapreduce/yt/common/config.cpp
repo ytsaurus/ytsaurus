@@ -66,7 +66,7 @@ Stroka TConfig::GetEncoding(const char* var)
         "y-lzf",
     };
 
-    for (size_t i = 0; i < ARRAY_SIZE(supportedEncodings); ++i) {
+    for (size_t i = 0; i < Y_ARRAY_SIZE(supportedEncodings); ++i) {
         if (encoding == supportedEncodings[i])
             return encoding;
     }
