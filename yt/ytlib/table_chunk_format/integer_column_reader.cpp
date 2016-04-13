@@ -31,11 +31,13 @@ void SetIntegerValue<EValueType::Uint64>(TUnversionedValue* value, ui64 data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType ValueType>
+template <EValueType ValueType, bool Scan>
 class TIntegerValueExtractorBase
 {
 protected:
-    TCompressedUnsignedVectorReader<ui64> ValueReader_;
+    using TValueReader = TCompressedUnsignedVectorReader<ui64, Scan>;
+    TValueReader ValueReader_;
+
     const TIntegerSegmentMeta& Meta_;
 
     TIntegerValueExtractorBase(const TSegmentMeta& meta)
@@ -50,32 +52,33 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType ValueType>
+template <EValueType ValueType, bool Scan>
 class TDirectIntegerValueExtractorBase
-    : public TIntegerValueExtractorBase<ValueType>
+    : public TIntegerValueExtractorBase<ValueType, Scan>
 {
 public:
-    using TIntegerValueExtractorBase<ValueType>::TIntegerValueExtractorBase;
+    using TIntegerValueExtractorBase<ValueType, Scan>::TIntegerValueExtractorBase;
 
     void ExtractValue(TUnversionedValue* value, i64 valueIndex) const
     {
         if (NullBitmap_[valueIndex]) {
             value->Type = EValueType::Null;
         } else {
-            TIntegerValueExtractorBase<ValueType>::SetValue(value, valueIndex);
+            TIntegerValueExtractorBase<ValueType, Scan>::SetValue(value, valueIndex);
         }
     }
 
 protected:
     TReadOnlyBitmap<ui64> NullBitmap_;
 
-    using TIntegerValueExtractorBase<ValueType>::ValueReader_;
+    using TIntegerValueExtractorBase<ValueType, Scan>::ValueReader_;
+    using typename TIntegerValueExtractorBase<ValueType, Scan>::TValueReader;
 
     size_t InitDirectReader(const char* ptr)
     {
         const char* begin = ptr;
 
-        ValueReader_ = TCompressedUnsignedVectorReader<ui64>(reinterpret_cast<const ui64*>(ptr));
+        ValueReader_ = TValueReader(reinterpret_cast<const ui64*>(ptr));
         ptr += ValueReader_.GetByteSize();
 
         NullBitmap_ = TReadOnlyBitmap<ui64>(
@@ -89,12 +92,12 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType ValueType>
+template <EValueType ValueType, bool Scan>
 class TDictionaryIntegerValueExtractorBase
-    : public TIntegerValueExtractorBase<ValueType>
+    : public TIntegerValueExtractorBase<ValueType, Scan>
 {
 public:
-    using TIntegerValueExtractorBase<ValueType>::TIntegerValueExtractorBase;
+    using TIntegerValueExtractorBase<ValueType, Scan>::TIntegerValueExtractorBase;
 
     void ExtractValue(TUnversionedValue* value, i64 valueIndex) const
     {
@@ -102,23 +105,25 @@ public:
         if (id == 0) {
             value->Type = EValueType::Null;
         } else {
-            TIntegerValueExtractorBase<ValueType>::SetValue(value, id - 1);
+            TIntegerValueExtractorBase<ValueType, Scan>::SetValue(value, id - 1);
         }
     }
 
 protected:
-    TCompressedUnsignedVectorReader<ui32> IdsReader_;
+    using TIdsReader = TCompressedUnsignedVectorReader<ui32, Scan>;
+    TIdsReader IdsReader_;
 
-    using TIntegerValueExtractorBase<ValueType>::ValueReader_;
+    using TIntegerValueExtractorBase<ValueType, Scan>::ValueReader_;
+    using typename TIntegerValueExtractorBase<ValueType, Scan>::TValueReader;
 
     size_t InitDictionaryReader(const char* ptr)
     {
         const char* begin = ptr;
 
-        ValueReader_ = TCompressedUnsignedVectorReader<ui64>(reinterpret_cast<const ui64*>(ptr));
+        ValueReader_ = TValueReader(reinterpret_cast<const ui64*>(ptr));
         ptr += ValueReader_.GetByteSize();
 
-        IdsReader_ = TCompressedUnsignedVectorReader<ui32>(reinterpret_cast<const ui64*>(ptr));
+        IdsReader_ = TIdsReader(reinterpret_cast<const ui64*>(ptr));
         ptr += IdsReader_.GetByteSize();
 
         return ptr - begin;
@@ -130,7 +135,7 @@ protected:
 template <EValueType ValueType>
 class TDirectDenseVersionedIntegerValueExtractor
     : public TDenseVersionedValueExtractorBase
-    , public TDirectIntegerValueExtractorBase<ValueType>
+    , public TDirectIntegerValueExtractorBase<ValueType, true>
 {
 public:
     TDirectDenseVersionedIntegerValueExtractor(
@@ -138,11 +143,11 @@ public:
         const TSegmentMeta& meta,
         bool aggregate)
         : TDenseVersionedValueExtractorBase(meta, aggregate)
-        , TDirectIntegerValueExtractorBase<ValueType>(meta)
+        , TDirectIntegerValueExtractorBase<ValueType, true>(meta)
     {
         const char* ptr = data.Begin();
         ptr += TDenseVersionedValueExtractorBase::InitDenseReader(ptr);
-        ptr += TDirectIntegerValueExtractorBase<ValueType>::InitDirectReader(ptr);
+        ptr += TDirectIntegerValueExtractorBase<ValueType, true>::InitDirectReader(ptr);
         YCHECK(ptr == data.End());
     }
 };
@@ -152,7 +157,7 @@ public:
 template <EValueType ValueType>
 class TDictionaryDenseVersionedIntegerValueExtractor
     : public TDenseVersionedValueExtractorBase
-    , public TDictionaryIntegerValueExtractorBase<ValueType>
+    , public TDictionaryIntegerValueExtractorBase<ValueType, true>
 {
 public:
     TDictionaryDenseVersionedIntegerValueExtractor(
@@ -160,11 +165,11 @@ public:
         const TSegmentMeta& meta,
         bool aggregate)
         : TDenseVersionedValueExtractorBase(meta, aggregate)
-        , TDictionaryIntegerValueExtractorBase<ValueType>(meta)
+        , TDictionaryIntegerValueExtractorBase<ValueType, true>(meta)
     {
         const char* ptr = data.Begin();
         ptr += TDenseVersionedValueExtractorBase::InitDenseReader(ptr);
-        ptr += TDictionaryIntegerValueExtractorBase<ValueType>::InitDictionaryReader(ptr);
+        ptr += TDictionaryIntegerValueExtractorBase<ValueType, true>::InitDictionaryReader(ptr);
         YCHECK(ptr == data.End());
     }
 };
@@ -174,7 +179,7 @@ public:
 template <EValueType ValueType>
 class TDirectSparseVersionedIntegerValueExtractor
     : public TSparseVersionedValueExtractorBase
-    , public TDirectIntegerValueExtractorBase<ValueType>
+    , public TDirectIntegerValueExtractorBase<ValueType, true>
 {
 public:
     TDirectSparseVersionedIntegerValueExtractor(
@@ -182,11 +187,11 @@ public:
         const TSegmentMeta& meta,
         bool aggregate)
         : TSparseVersionedValueExtractorBase(meta, aggregate)
-        , TDirectIntegerValueExtractorBase<ValueType>(meta)
+        , TDirectIntegerValueExtractorBase<ValueType, true>(meta)
     {
         const char* ptr = data.Begin();
         ptr += TSparseVersionedValueExtractorBase::InitSparseReader(ptr);
-        ptr += TDirectIntegerValueExtractorBase<ValueType>::InitDirectReader(ptr);
+        ptr += TDirectIntegerValueExtractorBase<ValueType, true>::InitDirectReader(ptr);
         YCHECK(ptr == data.End());
     }
 };
@@ -196,7 +201,7 @@ public:
 template <EValueType ValueType>
 class TDictionarySparseVersionedIntegerValueExtractor
     : public TSparseVersionedValueExtractorBase
-    , public TDictionaryIntegerValueExtractorBase<ValueType>
+    , public TDictionaryIntegerValueExtractorBase<ValueType, true>
 {
 public:
     TDictionarySparseVersionedIntegerValueExtractor(
@@ -204,11 +209,11 @@ public:
         const TSegmentMeta& meta,
         bool aggregate)
         : TSparseVersionedValueExtractorBase(meta, aggregate)
-        , TDictionaryIntegerValueExtractorBase<ValueType>(meta)
+        , TDictionaryIntegerValueExtractorBase<ValueType, true>(meta)
     {
         const char* ptr = data.Begin();
         ptr += TSparseVersionedValueExtractorBase::InitSparseReader(ptr);
-        ptr += TDictionaryIntegerValueExtractorBase<ValueType>::InitDictionaryReader(ptr);
+        ptr += TDictionaryIntegerValueExtractorBase<ValueType, true>::InitDictionaryReader(ptr);
         YCHECK(ptr == data.End());
     }
 };
@@ -284,78 +289,87 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedUint64ColumnReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType ValueType>
+template <EValueType ValueType, bool Scan>
 class TDirectDenseUnversionedIntegerValueExtractor
-    : public TDirectIntegerValueExtractorBase<ValueType>
+    : public TDirectIntegerValueExtractorBase<ValueType, Scan>
 {
 public:
     TDirectDenseUnversionedIntegerValueExtractor(TRef data, const TSegmentMeta& meta)
-        : TDirectIntegerValueExtractorBase<ValueType>(meta)
+        : TDirectIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
-        TDirectIntegerValueExtractorBase<ValueType>::InitDirectReader(data.Begin());
+        InitDirectReader(data.Begin());
         YCHECK(ValueReader_.GetSize() == meta.row_count());
     }
 
 private:
-    using TDirectIntegerValueExtractorBase<ValueType>::ValueReader_;
+    using TDirectIntegerValueExtractorBase<ValueType, Scan>::ValueReader_;
+    using TDirectIntegerValueExtractorBase<ValueType, Scan>::InitDirectReader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType ValueType>
+template <EValueType ValueType, bool Scan>
 class TDictionaryDenseUnversionedIntegerValueExtractor
-    : public TDictionaryIntegerValueExtractorBase<ValueType>
+    : public TDictionaryIntegerValueExtractorBase<ValueType, Scan>
 {
 public:
     TDictionaryDenseUnversionedIntegerValueExtractor(TRef data, const TSegmentMeta& meta)
-        : TDictionaryIntegerValueExtractorBase<ValueType>(meta)
+        : TDictionaryIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
         const char* ptr = data.Begin();
-        ptr += TDictionaryIntegerValueExtractorBase<ValueType>::InitDictionaryReader(ptr);
+        ptr += TDictionaryIntegerValueExtractorBase<ValueType, Scan>::InitDictionaryReader(ptr);
         YCHECK(ptr == data.End());
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType ValueType>
+template <EValueType ValueType, bool Scan>
 class TDirectRleUnversionedIntegerValueExtractor
-    : public TDirectIntegerValueExtractorBase<ValueType>
-    , public TRleValueExtractorBase
+    : public TDirectIntegerValueExtractorBase<ValueType, Scan>
+    , public TRleValueExtractorBase<Scan>
 {
 public:
     TDirectRleUnversionedIntegerValueExtractor(TRef data, const TSegmentMeta& meta)
-        : TDirectIntegerValueExtractorBase<ValueType>(meta)
+        : TDirectIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
         const char* ptr = data.Begin();
-        ptr += TDirectIntegerValueExtractorBase<ValueType>::InitDirectReader(ptr);
+        ptr += TDirectIntegerValueExtractorBase<ValueType, Scan>::InitDirectReader(ptr);
 
-        RowIndexReader_ = TCompressedUnsignedVectorReader<ui64>(reinterpret_cast<const ui64*>(ptr));
+        RowIndexReader_ = TRowIndexReader(reinterpret_cast<const ui64*>(ptr));
         ptr += RowIndexReader_.GetByteSize();
 
         YCHECK(ptr == data.End());
     }
+
+private:
+    using typename TRleValueExtractorBase<Scan>::TRowIndexReader;
+    using TRleValueExtractorBase<Scan>::RowIndexReader_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType ValueType>
+template <EValueType ValueType, bool Scan>
 class TDictionaryRleUnversionedIntegerValueExtractor
-    : public TDictionaryIntegerValueExtractorBase<ValueType>
-    , public TRleValueExtractorBase
+    : public TDictionaryIntegerValueExtractorBase<ValueType, Scan>
+    , public TRleValueExtractorBase<Scan>
 {
 public:
     TDictionaryRleUnversionedIntegerValueExtractor(TRef data, const TSegmentMeta& meta)
-        : TDictionaryIntegerValueExtractorBase<ValueType>(meta)
+        : TDictionaryIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
         const char* ptr = data.Begin();
-        ptr += TDictionaryIntegerValueExtractorBase<ValueType>::InitDictionaryReader(ptr);
+        ptr += TDictionaryIntegerValueExtractorBase<ValueType, Scan>::InitDictionaryReader(ptr);
 
-        RowIndexReader_ = TCompressedUnsignedVectorReader<ui64>(reinterpret_cast<const ui64*>(ptr));
+        RowIndexReader_ = TRowIndexReader(reinterpret_cast<const ui64*>(ptr));
         ptr += RowIndexReader_.GetByteSize();
 
         YCHECK(ptr == data.End());
     }
+
+private:
+    using typename TRleValueExtractorBase<Scan>::TRowIndexReader;
+    using TRleValueExtractorBase<Scan>::RowIndexReader_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -381,39 +395,71 @@ public:
     }
 
 private:
-    virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex) override
+    virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool scan) override
     {
         typedef TDenseUnversionedSegmentReader<
             ValueType,
-            TDirectDenseUnversionedIntegerValueExtractor<ValueType>> TDirectDenseReader;
+            TDirectDenseUnversionedIntegerValueExtractor<ValueType, true>> TDirectDenseScanReader;
 
         typedef TDenseUnversionedSegmentReader<
             ValueType,
-            TDictionaryDenseUnversionedIntegerValueExtractor<ValueType>> TDictionaryDenseReader;
+            TDirectDenseUnversionedIntegerValueExtractor<ValueType, false>> TDirectDenseLookupReader;
+
+        typedef TDenseUnversionedSegmentReader<
+            ValueType,
+            TDictionaryDenseUnversionedIntegerValueExtractor<ValueType, true>> TDictionaryDenseScanReader;
+
+        typedef TDenseUnversionedSegmentReader<
+            ValueType,
+            TDictionaryDenseUnversionedIntegerValueExtractor<ValueType, false>> TDictionaryDenseLookupReader;
 
         typedef TRleUnversionedSegmentReader<
             ValueType,
-            TDirectRleUnversionedIntegerValueExtractor<ValueType>> TDirectRleReader;
+            TDirectRleUnversionedIntegerValueExtractor<ValueType, true>> TDirectRleScanReader;
 
         typedef TRleUnversionedSegmentReader<
             ValueType,
-            TDictionaryRleUnversionedIntegerValueExtractor<ValueType>> TDictionaryRleReader;
+            TDirectRleUnversionedIntegerValueExtractor<ValueType, false>> TDirectRleLookupReader;
+
+        typedef TRleUnversionedSegmentReader<
+            ValueType,
+            TDictionaryRleUnversionedIntegerValueExtractor<ValueType, true>> TDictionaryRleScanReader;
+
+        typedef TRleUnversionedSegmentReader<
+            ValueType,
+            TDictionaryRleUnversionedIntegerValueExtractor<ValueType, false>> TDictionaryRleLookupReader;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);
         auto segmentType = EUnversionedIntegerSegmentType(meta.type());
 
         switch (segmentType) {
             case EUnversionedIntegerSegmentType::DirectDense:
-                return DoCreateSegmentReader<TDirectDenseReader>(meta);
+                if (scan) {
+                    return DoCreateSegmentReader<TDirectDenseScanReader>(meta);
+                } else {
+                    return DoCreateSegmentReader<TDirectDenseLookupReader>(meta);
+                }
 
             case EUnversionedIntegerSegmentType::DictionaryDense:
-                return DoCreateSegmentReader<TDictionaryDenseReader>(meta);
+                if (scan) {
+                    return DoCreateSegmentReader<TDictionaryDenseScanReader>(meta);
+                } else {
+                    return DoCreateSegmentReader<TDictionaryDenseLookupReader>(meta);
+                }
 
             case EUnversionedIntegerSegmentType::DirectRle:
-                return DoCreateSegmentReader<TDirectRleReader>(meta);
+                if (scan) {
+                    return DoCreateSegmentReader<TDirectRleScanReader>(meta);
+                } else {
+                    return DoCreateSegmentReader<TDirectRleLookupReader>(meta);
+                }
 
             case EUnversionedIntegerSegmentType::DictionaryRle:
-                return DoCreateSegmentReader<TDictionaryRleReader>(meta);
+                if (scan) {
+                    return DoCreateSegmentReader<TDictionaryRleScanReader>(meta);
+                } else {
+                    return DoCreateSegmentReader<TDictionaryRleLookupReader>(meta);
+                }
 
             default:
                 YUNREACHABLE();
