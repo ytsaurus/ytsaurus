@@ -145,6 +145,8 @@ struct ISchedulerElement
     virtual void SetStarving(bool starving) = 0;
     virtual void CheckForStarvation(TInstant now) = 0;
 
+    virtual bool GetAlive() const = 0;
+
     virtual const TJobResources& ResourceDemand() const = 0;
     virtual const TJobResources& ResourceUsage() const = 0;
     virtual const TJobResources& ResourceLimits() const = 0;
@@ -241,6 +243,7 @@ public:
     {
         YCHECK(IsActive(attributesIndex));
         DynamicAttributes(attributesIndex).SatisfactionRatio = ComputeLocalSatisfactionRatio();
+        DynamicAttributes(attributesIndex).Active = IsActive(GlobalAttributesIndex);
     }
 
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override
@@ -397,6 +400,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
     DEFINE_BYVAL_RW_PROPERTY(bool, Starving);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Alive);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowFairShareSince);
 
 protected:
@@ -406,6 +410,7 @@ protected:
 
     explicit TSchedulerElementBase(ISchedulerStrategyHost* host)
         : Starving_(false)
+        , Alive_(true)
         , Host(host)
     {
         DynamicAttributesList_.Initialize(GlobalAttributesIndex);
@@ -518,6 +523,11 @@ public:
         YCHECK(IsActive(attributesIndex));
         auto& attributes = DynamicAttributes(attributesIndex);
 
+        if (!IsActive(GlobalAttributesIndex)) {
+            attributes.Active = false;
+            return;
+        }
+
         // Compute local satisfaction ratio.
         attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio();
         // Start times bubble up from leaf nodes with operations.
@@ -535,7 +545,8 @@ public:
                 if (!bestChildAttributes.Active) {
                     continue;
                 }
-                YCHECK(bestChild->GetBestLeafDescendant(attributesIndex)->IsActive(GlobalAttributesIndex));
+                childBestLeafDescendant = bestChild->GetBestLeafDescendant(attributesIndex);
+                YCHECK(childBestLeafDescendant->IsActive(GlobalAttributesIndex));
             }
 
             // We need to evaluate both MinSubtreeStartTime and SatisfactionRatio
@@ -548,7 +559,7 @@ public:
                 attributes.SatisfactionRatio,
                 bestChildAttributes.SatisfactionRatio);
 
-            attributes.BestLeafDescendant = bestChild->GetBestLeafDescendant(attributesIndex);
+            attributes.BestLeafDescendant = childBestLeafDescendant;
             attributes.Active = true;
             break;
         }
@@ -560,6 +571,11 @@ public:
         auto& attributes = DynamicAttributes(context.AttributesIndex);
 
         attributes.Active = true;
+
+        if (!IsActive(GlobalAttributesIndex)) {
+            attributes.Active = false;
+            return;
+        }
 
         if (!context.SchedulingContext->CanSchedule(GetSchedulingTag())) {
             attributes.Active = false;
@@ -587,9 +603,6 @@ public:
 
         auto bestLeafDescendant = GetBestLeafDescendant(context.AttributesIndex);
         if (!bestLeafDescendant->IsActive(GlobalAttributesIndex)) {
-            // NB: This can only happen as a result of deletion of bestLeafDescendant node
-            // from scheduling tree in another fiber (e.g. operation abort),
-            // while this fiber was waiting for controller.
             UpdateDynamicAttributes(context.AttributesIndex);
             if (!attributes.Active) {
                 return false;
@@ -847,6 +860,7 @@ protected:
         }
         return bestChild;
     }
+
     ISchedulerElementPtr GetBestActiveChildFairShare(int attributesIndex) const
     {
         ISchedulerElement* bestChild = nullptr;
@@ -1088,6 +1102,10 @@ public:
 
         Attributes_.BestAllocationRatio =
             dominantLimit == 0 ? 1.0 : (double) dominantAllocationLimit / dominantLimit;
+
+        if (IsBlocked(TInstant::Now())) {
+            DynamicAttributes(GlobalAttributesIndex).Active = false;
+        }
     }
 
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override
@@ -1097,6 +1115,11 @@ public:
         attributes = DynamicAttributes(GlobalAttributesIndex);
 
         attributes.Active = true;
+
+        if (!IsActive(GlobalAttributesIndex)) {
+            attributes.Active = false;
+            return;
+        }
 
         if (!context.SchedulingContext->CanSchedule(GetSchedulingTag())) {
             attributes.Active = false;
@@ -1151,7 +1174,7 @@ public:
         // This can happen if operation controller was canceled after invocation
         // of IOperationController::ScheduleJob. In this case cancel won't be applied
         // to the last action in invoker but its result should be ignored.
-        if (!IsActive(GlobalAttributesIndex)) {
+        if (!GetAlive()) {
             return false;
         }
 
@@ -1517,7 +1540,7 @@ private:
                 // This can happen if operation is aborted from control thread during ScheduleJob call.
                 // In this case current operation element is removed from scheduling tree and we don't
                 // need to update parent attributes.
-                YCHECK(!IsActive(GlobalAttributesIndex));
+                YCHECK(!GetAlive());
             }
             auto scheduleJobResult = New<TScheduleJobResult>();
             ++scheduleJobResult->Failed[EScheduleJobFailReason::Timeout];
@@ -2243,6 +2266,7 @@ private:
 
         YCHECK(OperationToElement.erase(operation->GetId()) == 1);
         operationElement->DynamicAttributes(GlobalAttributesIndex).Active = false;
+        operationElement->SetAlive(false);
         pool->RemoveChild(operationElement);
         pool->IncreaseUsage(-operationElement->ResourceUsage());
         IncreaseOperationCount(pool, -1);
@@ -2337,6 +2361,7 @@ private:
     {
         YCHECK(Pools.erase(pool->GetId()) == 1);
         pool->DynamicAttributes(GlobalAttributesIndex).Active = false;
+        pool->SetAlive(false);
         auto parent = pool->GetParent();
         SetPoolParent(pool, nullptr);
 
