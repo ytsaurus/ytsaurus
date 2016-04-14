@@ -515,7 +515,15 @@ class TestOperations(object):
         table = TEST_DIR + "/table"
         yt.write_table(table, ["key=1\n"])
         try:
-            op = yt.run_map_reduce("sleep 0.5; cat", "sleep 0.5; cat", table, table, sync=False, reduce_by=["key"])
+            op = yt.run_map_reduce(
+                "sleep 0.5; cat",
+                "sleep 0.5; cat",
+                table,
+                table,
+                sync=False,
+                reduce_by=["key"],
+                spec={"map_locality_timeout": 0, "reduce_locality_timeout": 0})
+
             time.sleep(0.5)
             op.suspend()
             assert op.get_state() == "running"
