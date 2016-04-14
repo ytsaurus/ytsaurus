@@ -71,7 +71,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
 
-        {
+        if (Config_->Limit) {
             TGuard<TSpinLock> guard(SpinLock_);
             if (Available_ < count) {
                 return false;
@@ -88,7 +88,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
 
-        {
+        if (Config_->Limit) {
             TGuard<TSpinLock> guard(SpinLock_);
             Available_ -= count;
         }
