@@ -135,7 +135,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 for attempt in xrange(retry_count):
                     try:
                         for elem in iter():
-                            if not tx.is_running():
+                            if not tx.is_pinger_alive():
                                 raise YtError("Transaction pinger failed, read interrupted")
                             yield elem
                             # NB: We should possible raise error only after row yielded.
