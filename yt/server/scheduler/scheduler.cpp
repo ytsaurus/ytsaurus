@@ -1222,9 +1222,9 @@ private:
             const auto& rsp = rspOrError.Value();
             auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
 
+            auto mergedConfig = UpdateNode(InitialConfig_, configFromCypress);
             try {
-                Config_->Load(InitialConfig_, /* validate */ true, /* setDefaults */ true);
-                Config_->Load(configFromCypress, /* validate */ true, /* setDefaults */ false);
+                Config_->Load(mergedConfig, /* validate */ true, /* setDefaults */ true);
             } catch (const std::exception& ex) {
                 LOG_ERROR(ex, "Error updating cell scheduler configuration");
                 Config_->Load(oldConfig, /* validate */ true, /* setDefaults */ true);
