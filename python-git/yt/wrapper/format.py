@@ -301,7 +301,7 @@ class YsonFormat(Format):
         In "iterator" mode attributes rows object is iterator and control attributes are available as fields of the iterator.
         In "none" mode rows are unmodified.
         """
-        defaults = {"boolean_as_string": True,
+        defaults = {"boolean_as_string": False,
                     "ignore_inner_attributes": False,
                     "always_create_attributes": False,
                     "format": "binary"}
