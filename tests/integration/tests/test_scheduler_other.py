@@ -65,6 +65,7 @@ class TestSchedulerOther(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
+    @pytest.mark.skipif("True")
     def test_disconnect_during_revive(self):
         op_count = 20
 
