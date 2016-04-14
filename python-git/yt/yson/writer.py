@@ -45,7 +45,7 @@ import yt.yson.yson_types
 
 __all__ = ["dump", "dumps"]
 
-def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None, boolean_as_string=True):
+def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None, boolean_as_string=False):
     """Serialize `object` as a YSON formatted stream to `stream`.
 
     :param yson_format: (string) format of YSON ("binary", "text" or "pretty").
@@ -58,7 +58,7 @@ def dump(object, stream, yson_format=None, indent=None, check_circular=True, enc
     stream.write(dumps(object, yson_format=yson_format, check_circular=check_circular, encoding=encoding, indent=indent, yson_type=yson_type, boolean_as_string=boolean_as_string))
 
 
-def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None, boolean_as_string=True):
+def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None, boolean_as_string=False):
     """Serialize `object` as a YSON formatted stream to string and returns it. See `dump`
     """
     if indent is None:
