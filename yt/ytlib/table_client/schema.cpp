@@ -814,9 +814,9 @@ void ValidateTableSchemaUpdate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema, int keyColumnCount)
+void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema)
 {
-    if (pivotKey.GetCount() > keyColumnCount) {
+    if (pivotKey.GetCount() > schema.GetKeyColumnCount()) {
         THROW_ERROR_EXCEPTION("Pivot key must form a prefix of key");
     }
 

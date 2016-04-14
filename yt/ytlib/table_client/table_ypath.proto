@@ -90,6 +90,7 @@ message TRspGetMountInfo
 message TReqAlter
 {
     optional TTableSchemaExt schema = 1;
+    optional bool dynamic = 2;
 }
 
 message TRspAlter

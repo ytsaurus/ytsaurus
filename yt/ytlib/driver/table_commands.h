@@ -164,6 +164,8 @@ public:
         RegisterParameter("path", Path);
         RegisterParameter("schema", Options.Schema)
             .Optional();
+        RegisterParameter("dynamic", Options.Dynamic)
+            .Optional();
     }
 
     void Execute(ICommandContextPtr context);

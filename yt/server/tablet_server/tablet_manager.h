@@ -37,8 +37,6 @@ public:
 
     int GetAssignedTabletCellCount(const Stroka& address) const;
 
-    NTableClient::TTableSchema GetTableSchema(NTableServer::TTableNode* table);
-
     TTabletStatistics GetTabletStatistics(const TTablet* tablet);
 
 
@@ -69,7 +67,8 @@ public:
         int newTabletCount,
         const std::vector<NTableClient::TOwningKey>& pivotKeys);
 
-    void MakeDynamic(NTableServer::TTableNode* table);
+    void MakeTableDynamic(NTableServer::TTableNode* table);
+    void MakeTableStatic(NTableServer::TTableNode* table);
 
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle, TTabletCellBundleId);

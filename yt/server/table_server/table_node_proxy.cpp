@@ -210,6 +210,19 @@ private:
         table->TableSchema() = newSchema;
     }
 
+    void SetDynamic(bool value)
+    {
+        ValidateNoTransaction();
+
+        auto* table = LockThisTypedImpl();
+        auto tabletManager = Bootstrap_->GetTabletManager();
+        if (value) {
+            tabletManager->MakeTableDynamic(table);
+        } else {
+            tabletManager->MakeTableStatic(table);
+        }
+    }
+
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
         // COMPAT(max42): remove this when setting schema via attributes
@@ -421,10 +434,7 @@ private:
         ToProto(response->mutable_table_id(), table->GetId());
         response->set_sorted(table->TableSchema().IsSorted());
         response->set_dynamic(table->IsDynamic());
-
-        auto tabletManager = Bootstrap_->GetTabletManager();
-        auto schema = tabletManager->GetTableSchema(table);
-        ToProto(response->mutable_schema(), schema);
+        ToProto(response->mutable_schema(), table->TableSchema());
 
         yhash_set<TTabletCell*> cells;
         for (auto* tablet : table->Tablets()) {
@@ -454,12 +464,20 @@ private:
         auto newSchema = request->has_schema()
             ? MakeNullable(FromProto<TTableSchema>(request->schema()))
             : Null;
+        auto newDynamic = request->has_dynamic()
+            ? MakeNullable(request->dynamic())
+            : Null;
 
-        context->SetRequestInfo("NewSchema: %v",
-            newSchema);
+        context->SetRequestInfo("Schema: %v, Dynamic: %v",
+            newSchema,
+            newDynamic);
 
         if (newSchema) {
             SetSchema(*newSchema);
+        }
+
+        if (newDynamic) {
+            SetDynamic(*newDynamic);
         }
 
         context->Reply();

@@ -128,7 +128,8 @@ struct TAlterTableOptions
     : public TTimeoutOptions
     , public TMutatingOptions
 {
-    TNullable<NTableClient::TTableSchema> Schema; 
+    TNullable<NTableClient::TTableSchema> Schema;
+    TNullable<bool> Dynamic;
 };
 
 struct TAddMemberOptions
