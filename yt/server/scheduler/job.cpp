@@ -69,9 +69,12 @@ TDuration TJob::GetDuration() const
     return *FinishTime_ - StartTime_;
 }
 
-void TJob::SetStatus(NJobTrackerClient::NProto::TJobStatus&& status)
+void TJob::SetStatus(TRefCountedJobStatusPtr status)
 {
-    Status_ = New<TRefCountedJobStatus>(std::move(status));
+    Status_ = std::move(status);
+    if (Status_->has_statistics()) {
+        StatisticsYson_ = TYsonString(Status_->statistics());
+    }
 }
 
 const Stroka& TJob::GetStatisticsSuffix() const
@@ -91,16 +94,13 @@ TJobSummary::TJobSummary(const TJobPtr& job)
 { 
     const auto& status = job->Status();
     if (status->has_prepare_duration()) {
-        PrepareDuration.Emplace();
-        FromProto(PrepareDuration.GetPtr(), status->prepare_duration());
+        PrepareDuration = FromProto<TDuration>(status->prepare_duration());
     }
     if (status->has_exec_duration()) {
         ExecDuration.Emplace();
         FromProto(ExecDuration.GetPtr(), status->exec_duration());
     }
-    if (status->has_statistics()) {
-        StatisticsYson = TYsonString(status->statistics(), NYson::EYsonType::Node);
-    }
+    StatisticsYson = job->StatisticsYson();
 }
 
 TJobSummary::TJobSummary(const TJobId& id)

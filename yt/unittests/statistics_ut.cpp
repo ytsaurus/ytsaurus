@@ -101,8 +101,8 @@ TEST(TStatistics, AddSample)
     statistics.AddSample("/key/subkey/x", 10);
     EXPECT_EQ(20, GetSum(statistics, "/key/subkey/x"));
 
-    TYsonString ysonStatistics = ConvertToYsonString(statistics);
-    TStatistics deserializedStatistics = ConvertTo<TStatistics>(ysonStatistics);
+    auto ysonStatistics = ConvertToYsonString(statistics);
+    auto deserializedStatistics = ConvertTo<TStatistics>(ysonStatistics);
     
     EXPECT_EQ(20, GetSum(deserializedStatistics, "/key/subkey/x"));
     EXPECT_EQ(42, GetSum(deserializedStatistics, "/key/sub"));

@@ -1660,8 +1660,6 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     jobSummary->ParseStatistics();
-    LOG_DEBUG("jobSummary has following statisticsYson: %v", (jobSummary->StatisticsYson) ? (*jobSummary->StatisticsYson).Data() : "(no)");
-
 
     const auto& jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;

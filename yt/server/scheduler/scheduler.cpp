@@ -520,7 +520,7 @@ public:
                 node,
                 request,
                 response,
-                &jobStatus,
+                New<TRefCountedJobStatus>(std::move(jobStatus)),
                 forceJobsLogging);
             if (job) {
                 YCHECK(missingJobs.erase(job) == 1);
@@ -1881,8 +1881,9 @@ private:
             return;
 
         job->SetState(EJobState::Aborted);
-        TJobStatus status;
-        ToProto(status.mutable_result()->mutable_error(), error);
+
+        auto status = New<TRefCountedJobStatus>();
+        ToProto(status->mutable_result()->mutable_error(), error);
 
         job->SetStatus(std::move(status));
         OnJobFinished(job);
@@ -1913,9 +1914,17 @@ private:
     }
 
 
-    void OnJobRunning(TJobPtr /*job*/, const TJobStatus& status)
+    void OnJobRunning(TJobPtr job, TRefCountedJobStatusPtr status)
     {
-        // Do nothing.
+        auto delta = status->resource_usage() - job->ResourceUsage();
+        JobUpdated_.Fire(job, delta);
+        job->ResourceUsage() = status->resource_usage();
+        if (job->GetState() == EJobState::Running ||
+            job->GetState() == EJobState::Waiting ||
+            job->GetState() == EJobState::Abandoning)
+        {
+            job->SetStatus(std::move(status));
+        }    
     }
 
     void OnJobWaiting(TJobPtr /*job*/)
@@ -1923,7 +1932,7 @@ private:
         // Do nothing.
     }
 
-    void OnJobCompleted(TJobPtr job, TJobStatus* status)
+    void OnJobCompleted(TJobPtr job, TRefCountedJobStatusPtr status)
     {
         bool abandoned = (job->GetState() == EJobState::Abandoning);
         if (job->GetState() == EJobState::Running ||
@@ -1931,7 +1940,7 @@ private:
             job->GetState() == EJobState::Abandoning)
         {
             job->SetState(EJobState::Completed);
-            job->SetStatus(std::move(*status));
+            job->SetStatus(std::move(status));
 
             OnJobFinished(job);
 
@@ -1952,13 +1961,13 @@ private:
         UnregisterJob(job);
     }
 
-    void OnJobFailed(TJobPtr job, TJobStatus* status)
+    void OnJobFailed(TJobPtr job, TRefCountedJobStatusPtr status)
     {
         if (job->GetState() == EJobState::Running ||
             job->GetState() == EJobState::Waiting)
         {
             job->SetState(EJobState::Failed);
-            job->SetStatus(std::move(*status));
+            job->SetStatus(std::move(status));
 
             OnJobFinished(job);
 
@@ -1979,7 +1988,7 @@ private:
         UnregisterJob(job);
     }
 
-    void OnJobAborted(TJobPtr job, TJobStatus* status)
+    void OnJobAborted(TJobPtr job, TRefCountedJobStatusPtr status)
     {
         // Only update the status for the first time.
         // Typically the scheduler decides to abort the job on its own.
@@ -1989,7 +1998,7 @@ private:
             job->GetState() == EJobState::Waiting)
         {
             job->SetState(EJobState::Aborted);
-            job->SetStatus(std::move(*status));
+            job->SetStatus(std::move(status));
 
             OnJobFinished(job);
 
@@ -2283,9 +2292,9 @@ private:
                 jobId);
         }
 
-        TJobStatus status;
+        auto status = New<TRefCountedJobStatus>();
         job->SetState(EJobState::Abandoning);
-        OnJobCompleted(job, &status);
+        OnJobCompleted(job, std::move(status));
     }
 
     void DoCompleteOperation(TOperationPtr operation)
@@ -2536,7 +2545,7 @@ private:
         TExecNodePtr node,
         NJobTrackerClient::NProto::TReqHeartbeat* request,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
-        TJobStatus* jobStatus,
+        TRefCountedJobStatusPtr jobStatus,
         bool forceJobsLogging)
     {
         auto jobId = FromProto<TJobId>(jobStatus->job_id());
@@ -2616,7 +2625,7 @@ private:
         switch (state) {
             case EJobState::Completed: {
                 LOG_DEBUG("Job completed, removal scheduled");
-                OnJobCompleted(job, jobStatus);
+                OnJobCompleted(job, std::move(jobStatus));
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
             }
@@ -2624,7 +2633,7 @@ private:
             case EJobState::Failed: {
                 auto error = FromProto<TError>(jobStatus->result().error());
                 LOG_DEBUG(error, "Job failed, removal scheduled");
-                OnJobFailed(job, jobStatus);
+                OnJobFailed(job, std::move(jobStatus));
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
             }
@@ -2632,7 +2641,7 @@ private:
             case EJobState::Aborted: {
                 auto error = FromProto<TError>(jobStatus->result().error());
                 LOG_DEBUG(error, "Job aborted, removal scheduled");
-                OnJobAborted(job, jobStatus);
+                OnJobAborted(job, std::move(jobStatus));
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
             }
@@ -2644,16 +2653,12 @@ private:
                     ToProto(response->add_jobs_to_abort(), jobId);
                 } else {
                     switch (state) {
-                        case EJobState::Running: {
+                        case EJobState::Running:
                             LOG_DEBUG_IF(shouldLogJob, "Job is running");
                             job->SetState(state);
                             job->SetProgress(jobStatus->progress());
-                            OnJobRunning(job, *jobStatus);
-                            auto delta = jobStatus->resource_usage() - job->ResourceUsage();
-                            JobUpdated_.Fire(job, delta);
-                            job->ResourceUsage() = jobStatus->resource_usage();
+                            OnJobRunning(job, std::move(jobStatus));
                             break;
-                        }
 
                         case EJobState::Waiting:
                             LOG_DEBUG_IF(shouldLogJob, "Job is waiting");

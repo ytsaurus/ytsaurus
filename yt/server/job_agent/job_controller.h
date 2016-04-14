@@ -9,6 +9,8 @@
 
 #include <yt/core/actions/signal.h>
 
+#include <yt/core/concurrency/throughput_throttler.h>
+
 namespace NYT {
 namespace NJobAgent {
 
@@ -70,6 +72,7 @@ private:
 
     bool StartScheduled_ = false;
 
+    NConcurrency::IThroughputThrottlerPtr StatisticsThrottler_;
 
     //! Starts a new job.
     IJobPtr CreateJob(

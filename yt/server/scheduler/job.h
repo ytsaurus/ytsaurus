@@ -23,7 +23,6 @@ namespace NScheduler {
 class TJob
     : public TRefCounted
 {
-public:
     DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
 
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
@@ -46,15 +45,11 @@ public:
     //! The time when the job was finished.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
 
-    //! The difference between |FinishTime| and |StartTime|.
-    TDuration GetDuration() const;
-
-    //! Job result returned by node.
+    //! Job status returned by node.
     DEFINE_BYREF_RO_PROPERTY(TRefCountedJobStatusPtr, Status);
-
-    void SetStatus(NJobTrackerClient::NProto::TJobStatus&& status);
-
-    const Stroka& GetStatisticsSuffix() const;
+    
+    //! Yson containing statistics produced by the job.
+    DEFINE_BYREF_RO_PROPERTY(TNullable<NYson::TYsonString>, StatisticsYson);
 
     //! Some rough approximation that is updated with every heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
@@ -68,7 +63,6 @@ public:
     //! Asynchronous spec builder callback.
     DEFINE_BYVAL_RW_PROPERTY(TJobSpecBuilder, SpecBuilder);
 
-
 public:
     TJob(
         const TJobId& id,
@@ -79,7 +73,13 @@ public:
         const TJobResources& resourceLimits,
         bool restarted,
         TJobSpecBuilder specBuilder);
+    
+    //! The difference between |FinishTime| and |StartTime|.
+    TDuration GetDuration() const;
 
+    void SetStatus(TRefCountedJobStatusPtr status);
+
+    const Stroka& GetStatisticsSuffix() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)
@@ -100,7 +100,7 @@ struct TJobSummary
     TNullable<TDuration> PrepareDuration;
     TNullable<TDuration> ExecDuration;
 
-    // NB: This field will be set inside the controller in ParseStatistics().
+    // NB: The Statistics field will be set inside the controller in ParseStatistics().
     NJobTrackerClient::TStatistics Statistics;
     TNullable<NYson::TYsonString> StatisticsYson;
 };
