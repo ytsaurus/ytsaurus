@@ -41,6 +41,9 @@ using NChunkClient::TReadLimit;
 
 static const auto& Logger = TableClientLogger;
 
+static const i64 CacheSize = 32 * 1024;
+static const i64 MinRowsPerRead = 32;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -989,6 +992,11 @@ public:
         int timestampReaderIndex = ChunkMeta_->ColumnMeta().columns().size() - 1;
         Columns_.emplace_back(RowBuilder_.GetTimestampReader(), timestampReaderIndex);
 
+        // Empirical formula to determine max rows per read for better cache friendliness.
+        MaxRowsPerRead_ = CacheSize / (KeyColumnReaders_.size() * sizeof(TUnversionedValue) +
+            ValueColumnReaders_.size() * sizeof(TVersionedValue));
+        MaxRowsPerRead_ = std::max(MaxRowsPerRead_, MinRowsPerRead);
+
         InitLowerRowIndex();
         InitUpperRowIndex();
 
@@ -1029,6 +1037,7 @@ public:
             for (const auto& column : Columns_) {
                 rowLimit = std::min(column.ColumnReader->GetReadyUpperRowIndex() - RowIndex_, rowLimit);
             }
+            rowLimit = std::min(rowLimit, MaxRowsPerRead_);
             YCHECK(rowLimit > 0);
             
             auto range = RowBuilder_.AllocateRows(rows, rowLimit, RowIndex_, SafeUpperRowIndex_);
@@ -1077,6 +1086,8 @@ public:
 private:
     const TReadLimit LowerLimit_;
     const TReadLimit UpperLimit_;
+
+    i64 MaxRowsPerRead_;
 
     i64 LowerRowIndex_;
     i64 SafeUpperRowIndex_;
