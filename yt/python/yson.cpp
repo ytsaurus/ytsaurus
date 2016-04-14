@@ -394,7 +394,7 @@ private:
             indent = Py::Int(arg).asLongLong();
         }
 
-        bool booleanAsString = true;
+        bool booleanAsString = false;
         if (HasArgument(args, kwargs, "boolean_as_string")) {
             auto arg = ExtractArgument(args, kwargs, "boolean_as_string");
             booleanAsString = Py::Boolean(arg);
