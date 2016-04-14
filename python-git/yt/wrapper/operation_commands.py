@@ -256,7 +256,7 @@ def get_operation_state_monitor(operation, time_watcher, action=lambda: None, cl
 def get_stderrs(operation, only_failed_jobs, client=None):
     jobs_path = join_paths(OPERATIONS_PATH, operation, "jobs")
     if not exists(jobs_path, client=client):
-        return ""
+        return []
     jobs = list(jobs_path, attributes=["error", "address"], absolute=True, client=client)
     if only_failed_jobs:
         jobs = filter(lambda obj: "error" in obj.attributes, jobs)
@@ -347,24 +347,31 @@ class Operation(object):
             self.url = None
 
     def suspend(self):
+        """Suspend operation. """
         suspend_operation(self.id, client=self.client)
 
     def resume(self):
+        """Resume operation. """
         resume_operation(self.id, client=self.client)
 
     def abort(self):
+        """Abort operation. """
         abort_operation(self.id, client=self.client)
 
     def complete(self):
+        """Complete operation. """
         complete_operation(self.id, client=self.client)
 
     def get_state_monitor(self, time_watcher, action=lambda: None):
+        """Returns iterator over operation progress states. """
         return get_operation_state_monitor(self.id, time_watcher, action, client=self.client)
 
     def get_attributes(self):
+        """Returns all operation attributes. """
         return get("{0}/{1}/@".format(OPERATIONS_PATH, self.id), client=self.client)
 
     def get_job_statistics(self):
+        """Returns job statistics of operation. """
         try:
             return get("{0}/{1}/@progress/job_statistics".format(OPERATIONS_PATH, self.id), client=self.client)
         except YtResponseError as error:
@@ -373,12 +380,19 @@ class Operation(object):
             raise
 
     def get_progress(self):
+        """Returns dictionary that represents number of different types of jobs. """
         return get_operation_progress(self.id, client=self.client)
 
     def get_state(self):
+        """Returns object that represents state of operation. """
         return OperationState(get("{0}/{1}/@state".format(OPERATIONS_PATH, self.id), client=self.client))
 
     def get_stderrs(self, only_failed_jobs=False):
+        """Returns list of objects thar represents jobs with stderrs.
+        Each object is dict with keys "stderr", "error" (if applyable), "host".
+
+        :param only_failed_jobs: (bool) consider only failed jobs.
+        """
         return get_stderrs(self.id, only_failed_jobs=only_failed_jobs, client=self.client)
 
     def wait(self, check_result=True, print_progress=True, timeout=None):
