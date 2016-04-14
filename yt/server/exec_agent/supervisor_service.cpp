@@ -24,7 +24,8 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
     : NRpc::TServiceBase(
         bootstrap->GetControlInvoker(),
         TSupervisorServiceProxy::GetServiceName(),
-        ExecAgentLogger)
+        ExecAgentLogger,
+        TSupervisorServiceProxy::GetProtocolVersion())
     , Bootstrap(bootstrap)
 {
     RegisterMethod(
@@ -67,7 +68,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
     job->SetResult(result);
     
     if (request->has_statistics()) {
-        job->SetStatistics(TYsonString(request->statistics(), EYsonType::Node));
+        job->SetStatistics(TYsonString(request->statistics()));
     }
 
     context->Reply();
@@ -77,11 +78,12 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
 {
     auto jobId = FromProto<TJobId>(request->job_id());
     double progress = request->progress();
-    const auto& statistics = TYsonString(request->statistics(), EYsonType::Node);
+    const auto& statistics = TYsonString(request->statistics());
 
-    context->SetRequestInfo("JobId: %v, Progress: %lf",
+    context->SetRequestInfo("JobId: %v, Progress: %lf, Statistics: %v",
         jobId,
-        progress);
+        progress,
+        NYTree::ConvertToYsonString(statistics, EYsonFormat::Text).Data());
 
     auto jobController = Bootstrap->GetJobController();
     auto job = jobController->GetJobOrThrow(jobId);

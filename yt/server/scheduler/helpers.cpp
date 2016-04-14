@@ -64,6 +64,9 @@ void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
             auto error = FromProto<TError>(job->Status()->result().error());
             fluent.Item("error").Value(error);
+        })
+        .DoIf(job->Status() && job->Status()->has_statistics(), [=] (TFluentMap fluent) {
+            fluent.Item("statistics").Value(NYson::TYsonString(job->Status()->statistics()));
         });
 }
 

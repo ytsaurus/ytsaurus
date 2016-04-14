@@ -58,11 +58,11 @@ struct IJob
     virtual TNullable<TDuration> GetPrepareDuration() const = 0;
     virtual TNullable<TDuration> GetExecDuration() const = 0;
 
-    virtual bool StatisticsShouldBeSent() const = 0;
+    virtual bool ShouldSendStatistics() const = 0;
     
     // The following two methods will be called from the single thread.
-    virtual TInstant GetStatisticsLastSendTimestamp() const = 0;
-    virtual void SetStatisticsLastSendTimestamp(TInstant timestamp) = 0;
+    virtual TInstant GetStatisticsLastSendTime() const = 0;
+    virtual void ResetStatisticsLastSendTime() = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContexts() const = 0;
     virtual NYson::TYsonString Strace() const = 0;

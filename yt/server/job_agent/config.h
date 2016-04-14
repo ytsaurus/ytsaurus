@@ -4,6 +4,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/concurrency/config.h>
+
 namespace NYT {
 namespace NJobAgent {
 
@@ -68,11 +70,20 @@ class TJobControllerConfig
 {
 public:
     TResourceLimitsConfigPtr ResourceLimits;
+    NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
 
     TJobControllerConfig()
     {
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
+        RegisterParameter("statistics_throttler", StatisticsThrottler)
+            .DefaultNew();
+
+        RegisterInitializer([&] () {
+            // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to
+            // approximate incoming bandwidth of 1Gbit/sec of the scheduler.
+            StatisticsThrottler->Limit = 100 * 1024; 
+        });
     }
 };
 

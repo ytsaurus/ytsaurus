@@ -196,18 +196,18 @@ public:
         return Null;
     }
 
-    virtual bool StatisticsShouldBeSent() const override
+    virtual bool ShouldSendStatistics() const override
     {
         // Chunk jobs should not send statistics.
         return false;
     }
 
-    virtual TInstant GetStatisticsLastSendTimestamp() const override
+    virtual TInstant GetStatisticsLastSendTime() const override
     {
         YUNREACHABLE();
     }
 
-    virtual void SetStatisticsLastSendTimestamp(TInstant timestamp) override
+    virtual void ResetStatisticsLastSendTime() override
     {
         YUNREACHABLE();
     }

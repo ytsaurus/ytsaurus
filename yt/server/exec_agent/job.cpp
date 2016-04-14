@@ -93,7 +93,7 @@ public:
         , OperationId_(operationId)
         , Bootstrap_(bootstrap)
         , ResourceUsage(resourceUsage)
-        , Statistics_("{}", EYsonType::Node)
+        , Statistics_("{}")
     {
         JobSpec.Swap(&jobSpec);
 
@@ -265,14 +265,14 @@ public:
         return Statistics_;
     }
     
-    virtual TInstant GetStatisticsLastSendTimestamp() const override
+    virtual TInstant GetStatisticsLastSendTime() const override
     {
-        return StatisticsLastSendTimestamp_;
+        return StatisticsLastSendTime_;
     }
 
-    virtual void SetStatisticsLastSendTimestamp(TInstant timestamp) override
+    virtual void ResetStatisticsLastSendTime() override
     {
-        StatisticsLastSendTimestamp_ = timestamp;
+        StatisticsLastSendTime_ = TInstant::Now();
     }
 
     virtual void SetStatistics(const TYsonString& statistics) override
@@ -283,7 +283,7 @@ public:
         }
     }
 
-    virtual bool StatisticsShouldBeSent() const override 
+    virtual bool ShouldSendStatistics() const override 
     {
         return true;
     }
@@ -353,7 +353,7 @@ private:
     double Progress_ = 0.0;
 
     TYsonString Statistics_;
-    TInstant StatisticsLastSendTimestamp_;
+    TInstant StatisticsLastSendTime_ = TInstant::Now();
     
     bool Signaled_ = false;
 
