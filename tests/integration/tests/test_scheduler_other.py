@@ -935,7 +935,6 @@ class TestSchedulerPreemption(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "min_share_preemption_timeout": 100,
@@ -1034,4 +1033,53 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
 
         op.abort()
 
+class TestSchedulerJobStatistics(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "heartbeat_period": 100 # 100 msec
+            }
+        }
+    }
 
+    def _create_table(self, table):
+        create("table", table)
+        set(table + "/@replication_factor", 1)
+    
+    def test_scheduler_job_statistics(self):
+        self._create_table("//tmp/in")
+        self._create_table("//tmp/out")
+        write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
+        
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="scheduler_job_statistics",
+            in_="//tmp/in",
+            out="//tmp/out",
+            command="cat")
+        
+        running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        job_id = running_jobs.keys()[0]
+
+        statistics_appeared = False
+        for iter in xrange(10):
+            attributes = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}".format(op.id, job_id))
+            statistics = attributes.get("statistics", {})
+            data = statistics.get("data", {})
+            _input = data.get("input", {})
+            row_count = _input.get("row_count", {})
+            _sum = row_count.get("sum", 0)
+            if _sum == 10:
+                statistics_appeared = True
+                break
+            time.sleep(1.0)
+
+        assert statistics_appeared
+
+        op.resume_jobs()
+        op.track()
