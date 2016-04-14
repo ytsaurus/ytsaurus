@@ -124,7 +124,8 @@ class Transaction(object):
         commit_transaction(self.transaction_id, client=self._client)
         self._finished = True
 
-    def is_running(self):
+    def is_pinger_alive(self):
+        """Check pinger is alive."""
         if self._ping:
             return not self._ping_thread.failed
         return True
