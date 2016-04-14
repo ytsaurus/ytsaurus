@@ -1950,6 +1950,9 @@ private:
         if (options.Schema) {
             ToProto(req->mutable_schema(), *options.Schema);
         }
+        if (options.Dynamic) {
+            req->set_dynamic(*options.Dynamic);
+        }
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))

@@ -246,7 +246,7 @@ protected:
 
         if (dynamic) {
             auto tabletManager = Bootstrap_->GetTabletManager();
-            tabletManager->MakeDynamic(nodeHolder.get());
+            tabletManager->MakeTableDynamic(nodeHolder.get());
         }
 
         return nodeHolder;

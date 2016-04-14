@@ -459,11 +459,6 @@ public:
         return std::distance(range.first, range.second);
     }
 
-    TTableSchema GetTableSchema(TTableNode* table)
-    {
-        return table->TableSchema();
-    }
-
     TTabletStatistics GetTabletStatistics(const TTablet* tablet)
     {
         const auto* table = tablet->GetTable();
@@ -516,7 +511,6 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
-        auto schema = GetTableSchema(table); // may throw
 
         TTabletCell* hintedCell;
         if (!cellId) {
@@ -584,7 +578,7 @@ public:
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             req.set_mount_revision(tablet->GetMountRevision());
             ToProto(req.mutable_table_id(), table->GetId());
-            ToProto(req.mutable_schema(), schema);
+            ToProto(req.mutable_schema(), table->TableSchema());
             if (table->IsSorted()) {
                 ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
                 ToProto(req.mutable_next_pivot_key(), tablet->GetIndex() + 1 == allTablets.size()
@@ -773,10 +767,8 @@ public:
             }
 
             // Validate pivot keys against table schema.
-            auto schema = GetTableSchema(table);
-            int keyColumnCount = table->TableSchema().GetKeyColumnCount();
             for (const auto& pivotKey : pivotKeys) {
-                ValidatePivotKey(pivotKey, schema, keyColumnCount);
+                ValidatePivotKey(pivotKey, table->TableSchema());
             }
         } else {
             if (!pivotKeys.empty()) {
@@ -880,16 +872,28 @@ public:
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
     }
 
-    void MakeDynamic(TTableNode* table)
+    void MakeTableDynamic(TTableNode* table)
     {
+        YCHECK(table->IsTrunk());
+
         if (table->IsDynamic()) {
             return;
         }
 
-        auto* rootChunkList = table->GetChunkList();
-        if (!rootChunkList->Children().empty()) {
-            THROW_ERROR_EXCEPTION("Table is not empty");
+        auto* oldRootChunkList = table->GetChunkList();
+
+        if (table->IsSorted() && !oldRootChunkList->Children().empty()) {
+            THROW_ERROR_EXCEPTION("Cannot switch a static non-empty sorted table into dynamic mode");
         }
+
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto newRootChunkList = chunkManager->CreateChunkList();
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(newRootChunkList);
+
+        table->SetChunkList(newRootChunkList);
+        newRootChunkList->AddOwningNode(table);
 
         auto* tablet = CreateTablet(table);
         tablet->SetIndex(0);
@@ -898,11 +902,63 @@ public:
         }
         table->Tablets().push_back(tablet);
 
-        auto chunkManager = Bootstrap_->GetChunkManager();
         auto* tabletChunkList = chunkManager->CreateChunkList();
-        chunkManager->AttachToChunkList(rootChunkList, tabletChunkList);
+        chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
+
+        // NB: This only makes sense for ordered tables.
+        std::vector<TChunk*> chunks;
+        EnumerateChunksInChunkTree(oldRootChunkList, &chunks);
+        std::vector<TChunkTree*> chunkTrees(chunks.begin(), chunks.end());
+        chunkManager->AttachToChunkList(tabletChunkList, chunkTrees);
+
+        oldRootChunkList->RemoveOwningNode(table);
+        objectManager->UnrefObject(oldRootChunkList);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to dynamic mode (TableId: %v)",
+            table->GetId());
+    }
+
+    void MakeTableStatic(TTableNode* table)
+    {
+        YCHECK(table->IsTrunk());
+
+        if (!table->IsDynamic()) {
+            return;
+        }
+
+        if (table->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Cannot switch a sorted table static to dynamic mode");
+        }
+
+        if (table->HasMountedTablets()) {
+            THROW_ERROR_EXCEPTION("Cannot switch a dynamic table with mounted tablets to static mode");
+        }
+
+        auto* oldRootChunkList = table->GetChunkList();
+
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto newRootChunkList = chunkManager->CreateChunkList();
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(newRootChunkList);
+
+        table->SetChunkList(newRootChunkList);
+        newRootChunkList->AddOwningNode(table);
+
+        std::vector<TChunk*> chunks;
+        EnumerateChunksInChunkTree(oldRootChunkList, &chunks);
+        std::vector<TChunkTree*> chunkTrees(chunks.begin(), chunks.end());
+        chunkManager->AttachToChunkList(newRootChunkList, chunkTrees);
+
+        oldRootChunkList->RemoveOwningNode(table);
+        objectManager->UnrefObject(oldRootChunkList);
+
+        for (auto* tablet : table->Tablets()) {
+            objectManager->UnrefObject(tablet);
+        }
+        table->Tablets().clear();
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to static mode (TableId: %v)",
             table->GetId());
     }
 
@@ -2212,11 +2268,6 @@ int TTabletManager::GetAssignedTabletCellCount(const Stroka& address) const
     return Impl_->GetAssignedTabletCellCount(address);
 }
 
-TTableSchema TTabletManager::GetTableSchema(TTableNode* table)
-{
-    return Impl_->GetTableSchema(table);
-}
-
 TTabletStatistics TTabletManager::GetTabletStatistics(const TTablet* tablet)
 {
     return Impl_->GetTabletStatistics(tablet);
@@ -2279,9 +2330,14 @@ void TTabletManager::ReshardTable(
         pivotKeys);
 }
 
-void TTabletManager::MakeDynamic(TTableNode* table)
+void TTabletManager::MakeTableDynamic(TTableNode* table)
 {
-    Impl_->MakeDynamic(table);
+    Impl_->MakeTableDynamic(table);
+}
+
+void TTabletManager::MakeTableStatic(TTableNode* table)
+{
+    Impl_->MakeTableStatic(table);
 }
 
 TTabletCell* TTabletManager::GetTabletCellOrThrow(const TTabletCellId& id)
