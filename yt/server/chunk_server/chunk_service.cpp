@@ -151,7 +151,7 @@ private:
 
             LOG_DEBUG("Write targets allocated "
                 "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v",
+                "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v)",
                 chunkId,
                 desiredTargetCount,
                 minTargetCount,
