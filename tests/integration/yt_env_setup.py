@@ -118,12 +118,12 @@ class YTEnvSetup(YTEnv):
         if not os.path.exists(cls.path_to_run):
             return
 
-        # XXX(asaitgalin): Ensure tests running user has enough permissions to manipulate YT sandbox.
-        # Jobs sandboxes are owned by special user by default (see /exec_agent/slot_manager/start_uid in node config)
-        subprocess.check_call(["sudo", "chown", "-R", "{0}:{1}".format(os.getuid(), os.getgid()), cls.path_to_run])
-
         if SANDBOX_STORAGE_ROOTDIR is not None:
             makedirp(SANDBOX_STORAGE_ROOTDIR)
+
+            # XXX(asaitgalin): Ensure tests running user has enough permissions to manipulate YT sandbox.
+            subprocess.check_call(["sudo", "chown", "-R", "{0}:{1}".format(os.getuid(), os.getgid()),
+                                   cls.path_to_run])
 
             destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name, cls.run_id)
             if os.path.exists(destination_path):
