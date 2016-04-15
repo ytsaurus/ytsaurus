@@ -41,7 +41,6 @@ struct TTabletSnapshot
     TOwningKey PivotKey;
     TOwningKey NextPivotKey;
     NTableClient::TTableSchema Schema;
-    NTableClient::TKeyColumns KeyColumns;
     NTransactionClient::EAtomicity Atomicity;
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
@@ -119,7 +118,6 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
 
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, Schema);
-    DEFINE_BYREF_RO_PROPERTY(NTableClient::TKeyColumns, KeyColumns);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<int>, ColumnIndexToLockIndex);
     DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, LockIndexToName);
@@ -154,7 +152,6 @@ public:
         const NObjectClient::TObjectId& tableId,
         ITabletContext* context,
         const NTableClient::TTableSchema& schema,
-        const NTableClient::TKeyColumns& keyColumns,
         TOwningKey pivotKey,
         TOwningKey nextPivotKey,
         NTransactionClient::EAtomicity atomicity);
@@ -198,6 +195,9 @@ public:
 
     TCallback<void(TSaveContext&)> AsyncSave();
     void AsyncLoad(TLoadContext& context);
+
+    bool IsSorted() const;
+    bool IsOrdered() const;
 
     int GetSchemaColumnCount() const;
     int GetKeyColumnCount() const;

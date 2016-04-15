@@ -125,6 +125,8 @@ private:
     void Validate();
 };
 
+Stroka ToString(const TTableSchema& schema);
+
 void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);
 void Deserialize(TTableSchema& schema, NYTree::INodePtr node);
 
@@ -148,16 +150,8 @@ bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
 void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumns& newKeyColumns);
 
-////////////////////////////////////////////////////////////////////////////////
-
 void ValidateColumnSchema(const TColumnSchema& columnSchema);
 void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ValidateDynamicTableConstraints(const TTableSchema& schema);
-
-////////////////////////////////////////////////////////////////////////////////
 
 void ValidateTableSchemaUpdate(
     const TTableSchema& oldSchema,
@@ -165,15 +159,9 @@ void ValidateTableSchemaUpdate(
     bool isTableDynamic = false,
     bool isTableEmpty = false);
 
-////////////////////////////////////////////////////////////////////////////////
-
 void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema);
 
-////////////////////////////////////////////////////////////////////////////////
-
 void ValidateReadSchema(const TTableSchema& readSchema, const TTableSchema& tableSchema);
-
-////////////////////////////////////////////////////////////////////////////////
 
 TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool discardKeyColumns);
 
@@ -182,12 +170,8 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
 // NB: Need to place this into NProto for ADL to work properly since TKeyColumns is std::vector.
 namespace NProto {
 
-////////////////////////////////////////////////////////////////////////////////
-
 void ToProto(NProto::TKeyColumnsExt* protoKeyColumns, const TKeyColumns& keyColumns);
 void FromProto(TKeyColumns* keyColumns, const NProto::TKeyColumnsExt& protoKeyColumns);
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProto
 

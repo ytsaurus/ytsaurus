@@ -25,10 +25,9 @@ message TReqMountTablet
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid table_id = 9;
     required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
-    required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 3;
     repeated TAddStoreDescriptor stores = 4;
-    required bytes pivot_key = 5;
-    required bytes next_pivot_key = 6;
+    optional bytes pivot_key = 5;
+    optional bytes next_pivot_key = 6;
     required string mount_config = 7;
     required string writer_options = 8;
     required int32 atomicity = 10; // EAtomicity

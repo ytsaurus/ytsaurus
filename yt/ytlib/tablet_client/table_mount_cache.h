@@ -56,8 +56,11 @@ struct TTableMountInfo
     bool NeedKeyEvaluation;
 
     std::vector<TTabletInfoPtr> Tablets;
+    std::vector<TTabletInfoPtr> MountedTablets;
 
-    TTabletInfoPtr GetTablet(NTableClient::TUnversionedRow row) const;
+    TTabletInfoPtr GetTabletForRow(NTableClient::TUnversionedRow row) const;
+    TTabletInfoPtr GetRandomMountedTabled() const;
+
     void ValidateDynamic() const;
 };
 

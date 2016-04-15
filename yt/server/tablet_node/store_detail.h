@@ -1,12 +1,24 @@
 #pragma once
 
 #include "public.h"
-#include "sorted_dynamic_store_bits.h"
+#include "dynamic_store_bits.h"
 #include "store.h"
+
+#include <yt/server/cell_node/public.h>
+
+#include <yt/server/data_node/public.h>
 
 #include <yt/ytlib/table_client/schema.h>
 
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+
 #include <yt/core/actions/signal.h>
+
+#include <yt/core/misc/nullable.h>
+
+#include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/logging/log.h>
 
@@ -19,7 +31,10 @@ class TStoreBase
     : public virtual IStore
 {
 public:
-    TStoreBase(const TStoreId& id, TTablet* tablet);
+    TStoreBase(
+        TTabletManagerConfigPtr config,
+        const TStoreId& id,
+        TTablet* tablet);
     ~TStoreBase();
 
     // IStore implementation.
@@ -38,14 +53,30 @@ public:
 
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
+    virtual bool IsDynamic() const override;
+    virtual IDynamicStorePtr AsDynamic() override;
+
+    virtual bool IsChunk() const override;
+    virtual IChunkStorePtr AsChunk() override;
+
+    virtual bool IsSorted() const override;
+    virtual ISortedStorePtr AsSorted() override;
+    virtual TSortedDynamicStorePtr AsSortedDynamic() override;
+    virtual TSortedChunkStorePtr AsSortedChunk() override;
+
+    virtual bool IsOrdered() const override;
+    virtual IOrderedStorePtr AsOrdered() override;
+    virtual TOrderedDynamicStorePtr AsOrderedDynamic() override;
+    virtual TOrderedChunkStorePtr AsOrderedChunk() override;
+
 protected:
+    const TTabletManagerConfigPtr Config_;
     const TStoreId StoreId_;
     TTablet* const Tablet_;
 
     const TTabletPerformanceCountersPtr PerformanceCounters_;
     const TTabletId TabletId_;
     const NTableClient::TTableSchema Schema_;
-    const NTableClient::TKeyColumns KeyColumns_;
     const int KeyColumnCount_;
     const int SchemaColumnCount_;
     const int ColumnLockCount_;
@@ -75,14 +106,52 @@ class TDynamicStoreBase
     , public virtual IDynamicStore
 {
 public:
-    TDynamicStoreBase(const TStoreId& id, TTablet* tablet);
+    TDynamicStoreBase(
+        TTabletManagerConfigPtr config,
+        const TStoreId& id,
+        TTablet* tablet);
+
+    i64 Lock();
+    i64 Unlock();
+
+    // IStore implementation.
+
+    //! Sets the store state, as expected.
+    //! Additionally, when the store transitions from |ActiveDynamic| to |PassiveDynamic|,
+    //! invokes #OnSetPassive.
+    virtual void SetStoreState(EStoreState state);
+
+    virtual i64 GetUncompressedDataSize() const override;
 
     // IDynamicStore implementation.
     virtual EStoreFlushState GetFlushState() const override;
     virtual void SetFlushState(EStoreFlushState state) override;
 
+    virtual i64 GetValueCount() const override;
+    virtual i64 GetLockCount() const override;
+
+    virtual i64 GetPoolSize() const;
+    virtual i64 GetPoolCapacity() const;
+
+    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
+
+    virtual bool IsDynamic() const override;
+    virtual IDynamicStorePtr AsDynamic() override;
+
 protected:
+    //! Some sanity checks may need the tablet's atomicity mode but the tablet may die.
+    //! So we capture a copy of this mode upon store's construction.
+    const NTransactionClient::EAtomicity Atomicity_;
+
+    const NTableClient::TRowBufferPtr RowBuffer_;
+
     EStoreFlushState FlushState_ = EStoreFlushState::None;
+
+    i64 StoreLockCount_ = 0;
+    i64 StoreValueCount_ = 0;
+
+
+    virtual void OnSetPassive() = 0;
 
 };
 
@@ -93,9 +162,34 @@ class TChunkStoreBase
     , public virtual IChunkStore
 {
 public:
-    TChunkStoreBase(const TStoreId& id, TTablet* tablet);
+    TChunkStoreBase(
+        TTabletManagerConfigPtr config,
+        const TStoreId& id,
+        TTablet* tablet,
+        NChunkClient::IBlockCachePtr blockCache,
+        NDataNode::TChunkRegistryPtr chunkRegistry,
+        NDataNode::TChunkBlockManagerPtr chunkBlockManager,
+        NApi::IClientPtr client,
+        const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor);
+
+    void Initialize(const NChunkClient::NProto::TChunkMeta* chunkMeta);
+
+    const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
+
+    // IStore implementation.
+    virtual i64 GetUncompressedDataSize() const override;
+    virtual i64 GetRowCount() const override;
+
+    virtual TCallback<void(TSaveContext&)> AsyncSave() override;
+    virtual void AsyncLoad(TLoadContext& context) override;
+
+    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
     // IChunkStore implementation.
+    virtual void SetBackingStore(IDynamicStorePtr store) override;
+    virtual bool HasBackingStore() const override;
+    virtual IDynamicStorePtr GetBackingStore() override;
+
     virtual EStorePreloadState GetPreloadState() const override;
     virtual void SetPreloadState(EStorePreloadState state) override;
 
@@ -105,10 +199,47 @@ public:
     virtual EStoreCompactionState GetCompactionState() const override;
     virtual void SetCompactionState(EStoreCompactionState state) override;
 
+    virtual bool IsChunk() const override;
+    virtual IChunkStorePtr AsChunk() override;
+
+    virtual NChunkClient::IChunkReaderPtr GetChunkReader() override;
+
 protected:
+    const NChunkClient::IBlockCachePtr BlockCache_;
+    const NDataNode::TChunkRegistryPtr ChunkRegistry_;
+    const NDataNode::TChunkBlockManagerPtr ChunkBlockManager_;
+    const NApi::IClientPtr Client_;
+    const TNullable<NNodeTrackerClient::TNodeDescriptor> LocalDescriptor_;
+
     EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;
     TFuture<void> PreloadFuture_;
     EStoreCompactionState CompactionState_ = EStoreCompactionState::None;
+
+    NConcurrency::TReaderWriterSpinLock SpinLock_;
+
+    NChunkClient::IChunkReaderPtr ChunkReader_;
+
+    // Cached for fast retrieval from ChunkMeta_.
+    NChunkClient::NProto::TMiscExt MiscExt_;
+    NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
+
+
+    NDataNode::IChunkPtr PrepareChunk();
+    NChunkClient::IChunkReaderPtr PrepareChunkReader(NDataNode::IChunkPtr chunk);
+
+    void OnLocalReaderFailed();
+    void OnChunkExpired();
+    void OnChunkReaderExpired();
+
+    virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
+
+    virtual void PrecacheProperties();
+
+private:
+    IDynamicStorePtr BackingStore_;
+
+    bool ChunkInitialized_ = false;
+    NDataNode::IChunkPtr Chunk_;
 
 };
 
@@ -119,13 +250,36 @@ class TSortedStoreBase
     , public virtual ISortedStore
 {
 public:
-    TSortedStoreBase(const TStoreId& id, TTablet* tablet);
+    TSortedStoreBase(
+        TTabletManagerConfigPtr config,
+        const TStoreId& id,
+        TTablet* tablet);
 
     virtual TPartition* GetPartition() const override;
     virtual void SetPartition(TPartition* partition) override;
 
+    virtual bool IsSorted() const override;
+    virtual ISortedStorePtr AsSorted() override;
+
 protected:
     TPartition* Partition_ = nullptr;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOrderedStoreBase
+    : public virtual TStoreBase
+    , public virtual IOrderedStore
+{
+public:
+    TOrderedStoreBase(
+        TTabletManagerConfigPtr config,
+        const TStoreId& id,
+        TTablet* tablet);
+
+    virtual bool IsOrdered() const override;
+    virtual IOrderedStorePtr AsOrdered() override;
 
 };
 

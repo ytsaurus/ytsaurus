@@ -4,15 +4,13 @@ from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 from yt.yson import YsonEntity, YsonList
 
-from yt.environment.helpers import assert_items_equal
-
 from time import sleep
 
 from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
-class TestTablets(YTEnvSetup):
+class TestSortedTablets(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 16
     NUM_SCHEDULERS = 0
@@ -24,7 +22,7 @@ class TestTablets(YTEnvSetup):
         }
     }
 
-    def _get_schema(self, columns, optimized_for):
+    def _make_schema(self, columns, optimized_for):
         schema = YsonList(columns)
         schema.attributes["optimized_for"] = optimized_for
         return schema
@@ -33,43 +31,46 @@ class TestTablets(YTEnvSetup):
         create("table", path,
             attributes={
                 "dynamic": True,
-                "atomicity": atomicity
-            },
-            schema = self._get_schema([
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"}],
-                optimized_for))
+                "atomicity": atomicity,
+                "schema": self._make_schema([
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"}],
+                    optimized_for)
+            })
 
     def _create_table_with_computed_column(self, path, optimized_for="lookup"):
 
         create("table", path,
-            attributes={"dynamic": True},
-            schema = self._get_schema([
-                {"name": "key1", "type": "int64", "sort_order": "ascending"},
-                {"name": "key2", "type": "int64", "sort_order": "ascending", "expression": "key1 * 100 + 3"},
-                {"name": "value", "type": "string"}],
-                optimized_for)
-            )
+            attributes={
+                "dynamic": True,
+                "schema": self._make_schema([
+                    {"name": "key1", "type": "int64", "sort_order": "ascending"},
+                    {"name": "key2", "type": "int64", "sort_order": "ascending", "expression": "key1 * 100 + 3"},
+                    {"name": "value", "type": "string"}],
+                    optimized_for)
+            })
 
     def _create_table_with_hash(self, path, optimized_for="lookup"):
         create("table", path,
-            attributes={"dynamic": True},
-            schema = self._get_schema([
-                {"name": "hash", "type": "uint64", "expression": "farm_hash(key)", "sort_order": "ascending"},
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"}],
-                optimized_for)
-            )
+            attributes={
+                "dynamic": True,
+                "schema": self._make_schema([
+                    {"name": "hash", "type": "uint64", "expression": "farm_hash(key)", "sort_order": "ascending"},
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"}],
+                    optimized_for)
+            })
 
     def _create_table_with_aggregate_column(self, path, aggregate = "sum", optimized_for="lookup"):
         create("table", path,
-            attributes={"dynamic": True},
-            schema = self._get_schema([
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "time", "type": "int64"},
-                {"name": "value", "type": "int64", "aggregate": aggregate}],
-                optimized_for)
-            )
+            attributes={
+                "dynamic": True,
+                "schema": self._make_schema([
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "time", "type": "int64"},
+                    {"name": "value", "type": "int64", "aggregate": aggregate}],
+                    optimized_for)
+            })
 
     def _get_tablet_leader_address(self, tablet_id):
         cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
@@ -149,13 +150,13 @@ class TestTablets(YTEnvSetup):
 
     def test_reshard_unmounted(self):
         self.sync_create_cells(1, 1)
-        create("table", "//tmp/t",
-            attributes={"dynamic": True},
-            schema=[
+        create("table", "//tmp/t",attributes={
+            "dynamic": True,
+            "schema": [
                 {"name": "k", "type": "int64", "sort_order": "ascending"},
                 {"name": "l", "type": "uint64", "sort_order": "ascending"},
-                {"name": "value", "type": "int64"}]
-            )
+                {"name": "value", "type": "int64"}
+            ]})
 
         reshard_table("//tmp/t", [[]])
         assert self._get_pivot_keys("//tmp/t") == [[]]
@@ -297,13 +298,13 @@ class TestTablets(YTEnvSetup):
     def _test_computed_columns(self, optimized_for):
         self.sync_create_cells(1, 1)
         with pytest.raises(YtError):
-            create("table", "//tmp/t1",
-                attributes={"dynamic": True},
-                schema=[
+            create("table", "//tmp/t1", attributes={
+                "dynamic": True,
+                "schema": [
                     {"name": "key1", "type": "int64", "expression": "key2", "sort_order": "ascending"},
                     {"name": "key2", "type": "uint64", "sort_order": "ascending"},
-                    {"name": "value", "type": "string"}]
-                )
+                    {"name": "value", "type": "string"}
+                ]})
 
         self._create_table_with_computed_column("//tmp/t", optimized_for)
         self.sync_mount_table("//tmp/t")
@@ -376,13 +377,14 @@ class TestTablets(YTEnvSetup):
         self.sync_create_cells(1, 1)
 
         create("table", "//tmp/t",
-            attributes={"dynamic": True},
-            schema = self._get_schema([
-                {"name": "key1", "type": "int64", "expression": "key2", "sort_order": "ascending"},
-                {"name": "key2", "type": "int64", "sort_order": "ascending"},
-                {"name": "value1", "type": "string"},
-                {"name": "value2", "type": "string"}], optimized_for)
-            )
+            attributes={
+                "dynamic": True,
+                "schema": self._make_schema([
+                    {"name": "key1", "type": "int64", "expression": "key2", "sort_order": "ascending"},
+                    {"name": "key2", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value1", "type": "string"},
+                    {"name": "value2", "type": "string"}], optimized_for)
+            })
         self.sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key2": 1, "value1": "2"}])
@@ -507,7 +509,7 @@ class TestTablets(YTEnvSetup):
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "time", "type": "int64"},
             {"name": "value", "type": "int64"}]
-        create("table", "//tmp/t", schema=schema, attributes={"dynamic": True})
+        create("table", "//tmp/t", attributes={"dynamic": True, "schema": schema})
         self.sync_mount_table("//tmp/t")
 
         def verify_row(key, expected):
@@ -663,10 +665,12 @@ class TestTablets(YTEnvSetup):
     def _test_any_value_type(self, optimized_for):
         self.sync_create_cells(1, 1)
         create("table", "//tmp/t1",
-            attributes={"dynamic": True},
-            schema = self._get_schema([
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "any"}], optimized_for))
+            attributes={
+                "dynamic": True,
+                "schema": self._make_schema([
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "any"}], optimized_for)
+            })
         self.sync_mount_table("//tmp/t1")
 
         rows = [
@@ -812,7 +816,7 @@ class TestTablets(YTEnvSetup):
         self.sync_create_cells(1, 1)
         self._create_simple_table("//tmp/t")
 
-        set("//tmp/t/@max_dynamic_store_key_count", 10)
+        set("//tmp/t/@max_dynamic_store_row_count", 10)
         self.sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -833,7 +837,7 @@ class TestTablets(YTEnvSetup):
         self._create_simple_table("//tmp/t")
 
         set("//tmp/t/@in_memory_mode", mode)
-        set("//tmp/t/@max_dynamic_store_key_count", 10)
+        set("//tmp/t/@max_dynamic_store_row_count", 10)
         self.sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -890,7 +894,7 @@ class TestTablets(YTEnvSetup):
 
         set("//tmp/t/@in_memory_mode", "uncompressed")
         set("//tmp/t/@enable_lookup_hash_table", True)
-        set("//tmp/t/@max_dynamic_store_key_count", 10)
+        set("//tmp/t/@max_dynamic_store_row_count", 10)
         self.sync_mount_table("//tmp/t")
 
         def _rows(i, j):
@@ -1345,8 +1349,10 @@ class TestTablets(YTEnvSetup):
 
     def test_dynamic_table_schema_validation(self):
         with pytest.raises(YtError): create("table", "//tmp/t",
-            attributes={"dynamic": True},
-            schema=[{"data": "string"}])
+            attributes={
+                "dynamic": True,
+                "schema": [{"data": "string"}]
+            })
 
     def test_mount_permission_denied(self):
         self.sync_create_cells(3, 1)
@@ -1369,5 +1375,5 @@ class TestTablets(YTEnvSetup):
 
 ##################################################################
 
-class TestTabletsMulticell(TestTablets):
+class TestSortedTabletsMulticell(TestSortedTablets):
     NUM_SECONDARY_MASTER_CELLS = 2

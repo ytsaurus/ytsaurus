@@ -469,20 +469,26 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSortedDynamicRowRef
+using TOrderedDynamicRow = NTableClient::TUnversionedRow;
+using TOrderedDynamicRowSegment = std::vector<std::atomic<const NTableClient::TUnversionedRowHeader*>>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TStore, class TStoreManager, class TRow>
+struct TDynamicRowRef
 {
-    TSortedDynamicRowRef()
+    TDynamicRowRef()
         : Store(nullptr)
         , StoreManager(nullptr)
         , Row()
     { }
 
-    TSortedDynamicRowRef(const TSortedDynamicRowRef& other) = default;
+    TDynamicRowRef(const TDynamicRowRef& other) = default;
     
-    TSortedDynamicRowRef(
-        TSortedDynamicStore* store,
-        TSortedStoreManager* storeManager,
-        TSortedDynamicRow row)
+    TDynamicRowRef(
+        TStore* store,
+        TStoreManager* storeManager,
+        TRow row)
         : Store(store)
         , StoreManager(storeManager)
         , Row(row)
@@ -495,34 +501,44 @@ struct TSortedDynamicRowRef
     }
 
 
-    bool operator == (const TSortedDynamicRowRef& other) const
+    bool operator == (const TDynamicRowRef& other) const
     {
         return
             Store == other.Store &&
             Row == other.Row;
     }
 
-    bool operator != (const TSortedDynamicRowRef& other) const
+    bool operator != (const TDynamicRowRef& other) const
     {
         return !(*this == other);
     }
 
 
-    TSortedDynamicStore* Store;
-    TSortedStoreManager* StoreManager;
-    TSortedDynamicRow Row;
+    TStore* Store;
+    TStoreManager* StoreManager;
+    TRow Row;
 };
+
+using TSortedDynamicRowRef = TDynamicRowRef<
+    TSortedDynamicStore,
+    TSortedStoreManager,
+    TSortedDynamicRow
+>;
+
+using TOrderedDynamicRowRef = TDynamicRowRef<
+    TOrderedDynamicStore,
+    TOrderedStoreManager,
+    TOrderedDynamicRow
+>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TOwningKey RowToKey(
     const NTableClient::TTableSchema& schema,
-    const NTableClient::TKeyColumns& keyColumns,
     TSortedDynamicRow row);
 
 TOwningKey RowToKey(
     const NTableClient::TTableSchema& schema,
-    const NTableClient::TKeyColumns& keyColumns,
     TUnversionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////

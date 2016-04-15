@@ -5,22 +5,33 @@
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "transaction_manager.h"
+#include "chunk_writer_pool.h"
+
+#include <yt/server/tablet_node/tablet_manager.pb.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/versioned_chunk_writer.h>
 #include <yt/ytlib/table_client/versioned_reader.h>
+#include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/ytlib/table_client/versioned_writer.h>
 
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 #include <yt/ytlib/tablet_client/wire_protocol.pb.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/ytlib/api/transaction.h>
+
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NConcurrency;
+using namespace NYTree;
+using namespace NApi;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTableClient;
@@ -28,8 +39,13 @@ using namespace NTransactionClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
+using namespace NTabletNode::NProto;
 
 using NTableClient::TKey;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const size_t MaxRowsPerFlushRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,13 +54,15 @@ TSortedStoreManager::TSortedStoreManager(
     TTablet* tablet,
     ITabletContext* tabletContext,
     NHydra::IHydraManagerPtr hydraManager,
-    TInMemoryManagerPtr inMemoryManager)
+    TInMemoryManagerPtr inMemoryManager,
+    IClientPtr client)
     : TStoreManagerBase(
-        config,
+        std::move(config),
         tablet,
         tabletContext,
-        hydraManager,
-        inMemoryManager)
+        std::move(hydraManager),
+        std::move(inMemoryManager),
+        std::move(client))
     , KeyColumnCount_(Tablet_->GetKeyColumnCount())
 {
     for (const auto& pair : Tablet_->Stores()) {
@@ -57,22 +75,6 @@ TSortedStoreManager::TSortedStoreManager(
     if (Tablet_->GetActiveStore()) {
         ActiveStore_ = Tablet_->GetActiveStore()->AsSortedDynamic();
     }
-
-    // This schedules preload of in-memory tablets.
-    UpdateInMemoryMode();
-}
-
-bool TSortedStoreManager::HasActiveLocks() const
-{
-    if (ActiveStore_->GetLockCount() > 0) {
-        return true;
-    }
-
-    if (!LockedStores_.empty()) {
-        return true;
-    }
-
-    return false;
 }
 
 void TSortedStoreManager::ExecuteAtomicWrite(
@@ -106,7 +108,7 @@ void TSortedStoreManager::ExecuteAtomicWrite(
         }
 
         default:
-            THROW_ERROR_EXCEPTION("Unknown write command %v",
+            THROW_ERROR_EXCEPTION("Unsupported write command %v",
                 command);
     }
 }
@@ -207,15 +209,15 @@ void TSortedStoreManager::DeleteRowNonAtomic(
 void TSortedStoreManager::LockRow(TTransaction* transaction, bool prelock, const TSortedDynamicRowRef& rowRef)
 {
     if (prelock) {
-        transaction->PrelockedRows().push(rowRef);
+        transaction->PrelockedSortedRows().push(rowRef);
     } else {
-        transaction->LockedRows().push_back(rowRef);
+        transaction->LockedSortedRows().push_back(rowRef);
     }
 }
 
 void TSortedStoreManager::ConfirmRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
 {
-    transaction->LockedRows().push_back(rowRef);
+    transaction->LockedSortedRows().push_back(rowRef);
 }
 
 void TSortedStoreManager::PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
@@ -241,6 +243,11 @@ void TSortedStoreManager::AbortRow(TTransaction* transaction, const TSortedDynam
     CheckForUnlockedStore(rowRef.Store);
 }
 
+IDynamicStore* TSortedStoreManager::GetActiveStore() const
+{
+    return ActiveStore_.Get();
+}
+
 ui32 TSortedStoreManager::ComputeLockMask(TUnversionedRow row)
 {
     const auto& columnIndexToLockIndex = Tablet_->ColumnIndexToLockIndex();
@@ -260,7 +267,7 @@ void TSortedStoreManager::CheckInactiveStoresLocks(
     ui32 lockMask)
 {
     for (const auto& store : LockedStores_) {
-        store->CheckRowLocks(
+        store->AsSortedDynamic()->CheckRowLocks(
             row,
             transaction,
             lockMask);
@@ -280,99 +287,6 @@ void TSortedStoreManager::CheckInactiveStoresLocks(
             transaction,
             lockMask);
     }
-}
-
-void TSortedStoreManager::CheckForUnlockedStore(TSortedDynamicStore* store)
-{
-    if (store == ActiveStore_ || store->GetLockCount() > 0)
-        return;
-
-    LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (StoreId: %v)",
-        store->GetId());
-    YCHECK(LockedStores_.erase(store) == 1);
-}
-
-bool TSortedStoreManager::IsOverflowRotationNeeded() const
-{
-    if (!IsRotationPossible()) {
-        return false;
-    }
-
-    const auto& config = Tablet_->GetConfig();
-    return
-        ActiveStore_->GetKeyCount() >= config->MaxDynamicStoreKeyCount ||
-        ActiveStore_->GetValueCount() >= config->MaxDynamicStoreValueCount ||
-        ActiveStore_->GetPoolCapacity() >= config->MaxDynamicStorePoolSize;
-}
-
-bool TSortedStoreManager::IsPeriodicRotationNeeded() const
-{
-    if (!IsRotationPossible()) {
-        return false;
-    }
-
-    const auto& config = Tablet_->GetConfig();
-    return
-        TInstant::Now() > LastRotated_ + config->DynamicStoreAutoFlushPeriod &&
-        ActiveStore_->GetKeyCount() > 0;
-}
-
-bool TSortedStoreManager::IsRotationPossible() const
-{
-    if (IsRotationScheduled()) {
-        return false;
-    }
-
-    if (!ActiveStore_) {
-        return false;
-    }
-
-    return true;
-}
-
-bool TSortedStoreManager::IsForcedRotationPossible() const
-{
-    if (!IsRotationPossible()) {
-        return false;
-    }
-
-    // Check for "almost" initial size.
-    if (ActiveStore_->GetPoolCapacity() <= 2 * Config_->PoolChunkSize) {
-        return false;
-    }
-
-    return true;
-}
-
-void TSortedStoreManager::Rotate(bool createNewStore)
-{
-    RotationScheduled_ = false;
-    LastRotated_ = TInstant::Now();
-
-    YCHECK(ActiveStore_);
-    ActiveStore_->SetStoreState(EStoreState::PassiveDynamic);
-
-    if (ActiveStore_->GetLockCount() > 0) {
-        LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (StoreId: %v, LockCount: %v)",
-            ActiveStore_->GetId(),
-            ActiveStore_->GetLockCount());
-        YCHECK(LockedStores_.insert(ActiveStore_).second);
-    } else {
-        LOG_INFO_UNLESS(IsRecovery(), "Active store is not locked and will be dropped (StoreId: %v)",
-            ActiveStore_->GetId(),
-            ActiveStore_->GetLockCount());
-    }
-
-    MaxTimestampToStore_.insert(std::make_pair(ActiveStore_->GetMaxTimestamp(), ActiveStore_));
-
-    if (createNewStore) {
-        CreateActiveStore();
-    } else {
-        ActiveStore_.Reset();
-        Tablet_->SetActiveStore(nullptr);
-    }
-
-    LOG_INFO_UNLESS(IsRecovery(), "Tablet stores rotated");
 }
 
 void TSortedStoreManager::AddStore(IStorePtr store, bool onMount)
@@ -412,14 +326,70 @@ void TSortedStoreManager::CreateActiveStore()
         storeId);
 }
 
-bool TSortedStoreManager::IsStoreLocked(IStorePtr store) const
+void TSortedStoreManager::ResetActiveStore()
 {
-    return LockedStores_.find(store->AsSortedDynamic()) != LockedStores_.end();
+    ActiveStore_.Reset();
 }
 
-std::vector<IStorePtr> TSortedStoreManager::GetLockedStores() const
+void TSortedStoreManager::OnActiveStoreRotated()
 {
-    return std::vector<IStorePtr>(LockedStores_.begin(), LockedStores_.end());
+    MaxTimestampToStore_.insert(std::make_pair(ActiveStore_->GetMaxTimestamp(), ActiveStore_));
+}
+
+TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
+    IDynamicStorePtr store,
+    TTabletSnapshotPtr tabletSnapshot)
+{
+    auto reader = store->AsSortedDynamic()->CreateFlushReader();
+    // NB: Memory store reader is always synchronous.
+    YCHECK(reader->Open().Get().IsOK());
+
+    return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
+        auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
+        writerOptions->ChunksEden = true;
+
+        TChunkWriterPool writerPool(
+            InMemoryManager_,
+            tabletSnapshot,
+            1,
+            Config_->ChunkWriter,
+            writerOptions,
+            Client_,
+            transaction->GetId());
+        auto writer = writerPool.AllocateWriter();
+
+        WaitFor(writer->Open())
+            .ThrowOnError();
+
+        std::vector<TVersionedRow> rows;
+        rows.reserve(MaxRowsPerFlushRead);
+
+        while (true) {
+            // NB: Memory store reader is always synchronous.
+            reader->Read(&rows);
+            if (rows.empty()) {
+                break;
+            }
+            if (!writer->Write(rows)) {
+                WaitFor(writer->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+
+        WaitFor(writer->Close())
+            .ThrowOnError();
+
+        std::vector<TAddStoreDescriptor> result;
+        for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
+            TAddStoreDescriptor descriptor;
+            descriptor.set_store_type(static_cast<int>(EStoreType::SortedChunk));
+            descriptor.mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
+            descriptor.mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
+            ToProto(descriptor.mutable_backing_store_id(), store->GetId());
+            result.push_back(descriptor);
+        }
+        return result;
+    });
 }
 
 bool TSortedStoreManager::IsStoreCompactable(IStorePtr store) const
@@ -441,44 +411,6 @@ bool TSortedStoreManager::IsStoreCompactable(IStorePtr store) const
     return true;
 }
 
-void TSortedStoreManager::ValidateActiveStoreOverflow()
-{
-    const auto& config = Tablet_->GetConfig();
-
-    {
-        auto keyCount = ActiveStore_->GetKeyCount();
-        auto keyLimit = config->MaxDynamicStoreKeyCount;
-        if (keyCount >= keyLimit) {
-            THROW_ERROR_EXCEPTION("Active store is over key capacity")
-                << TErrorAttribute("tablet_id", Tablet_->GetId())
-                << TErrorAttribute("key_count", keyCount)
-                << TErrorAttribute("key_limit", keyLimit);
-        }
-    }
-
-    {
-        auto valueCount = ActiveStore_->GetValueCount();
-        auto valueLimit = config->MaxDynamicStoreValueCount;
-        if (valueCount >= valueLimit) {
-            THROW_ERROR_EXCEPTION("Active store is over value capacity")
-                << TErrorAttribute("tablet_id", Tablet_->GetId())
-                << TErrorAttribute("value_count", valueCount)
-                << TErrorAttribute("value_limit", valueLimit);
-        }
-    }
-
-    {
-        auto poolCapacity = ActiveStore_->GetPoolCapacity();
-        auto poolCapacityLimit = config->MaxDynamicStorePoolSize;
-        if (poolCapacity >= poolCapacityLimit) {
-            THROW_ERROR_EXCEPTION("Active store is over its memory pool capacity")
-                << TErrorAttribute("tablet_id", Tablet_->GetId())
-                << TErrorAttribute("pool_capacity", poolCapacity)
-                << TErrorAttribute("pool_capacity_limit", poolCapacityLimit);
-        }
-    }
-}
-
 void TSortedStoreManager::ValidateOnWrite(
     const TTransactionId& transactionId,
     TUnversionedRow row)
@@ -490,9 +422,9 @@ void TSortedStoreManager::ValidateOnWrite(
         }
     } catch (TErrorException& ex) {
         auto& errorAttributes = ex.Error().Attributes();
-        errorAttributes.SetYson("transaction_id", NYTree::ConvertToYsonString(transactionId));
-        errorAttributes.SetYson("tablet_id", NYTree::ConvertToYsonString(Tablet_->GetId()));
-        errorAttributes.SetYson("row", NYTree::ConvertToYsonString(row));
+        errorAttributes.Set("transaction_id", transactionId);
+        errorAttributes.Set("tablet_id", Tablet_->GetId());
+        errorAttributes.Set("row", row);
         throw ex;
     }
 }
@@ -505,9 +437,9 @@ void TSortedStoreManager::ValidateOnDelete(
         ValidateServerKey(key, Tablet_->Schema());
     } catch (TErrorException& ex) {
         auto& errorAttributes = ex.Error().Attributes();
-        errorAttributes.SetYson("transaction_id", NYTree::ConvertToYsonString(transactionId));
-        errorAttributes.SetYson("tablet_id", NYTree::ConvertToYsonString(Tablet_->GetId()));
-        errorAttributes.SetYson("key", NYTree::ConvertToYsonString(key));
+        errorAttributes.Set("transaction_id", transactionId);
+        errorAttributes.Set("tablet_id", Tablet_->GetId());
+        errorAttributes.Set("key", key);
         throw ex;
     }
 }

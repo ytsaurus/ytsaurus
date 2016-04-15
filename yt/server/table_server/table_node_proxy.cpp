@@ -162,7 +162,9 @@ private:
                         .Item().BeginMap()
                             .Item("index").Value(tablet->GetIndex())
                             .Item("performance_counters").Value(tablet->PerformanceCounters())
-                            .Item("pivot_key").Value(tablet->GetPivotKey())
+                            .DoIf(table->IsSorted(), [&] (TFluentMap fluent) {
+                                fluent.Item("pivot_key").Value(tablet->GetPivotKey());
+                            })
                             .Item("state").Value(tablet->GetState())
                             .Item("statistics").Value(tabletManager->GetTabletStatistics(tablet))
                             .Item("tablet_id").Value(tablet->GetId())
@@ -204,6 +206,19 @@ private:
         ValidateTableSchemaUpdate(table->TableSchema(), newSchema, table->IsDynamic(), table->IsEmpty());
         
         table->TableSchema() = newSchema;
+    }
+
+    void SetDynamic(bool value)
+    {
+        ValidateNoTransaction();
+
+        auto* table = LockThisTypedImpl();
+        auto tabletManager = Bootstrap_->GetTabletManager();
+        if (value) {
+            tabletManager->MakeTableDynamic(table);
+        } else {
+            tabletManager->MakeTableStatic(table);
+        }
     }
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
@@ -289,7 +304,6 @@ private:
         ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
-        ValidateDynamicTableConstraints(GetThisTypedImpl()->TableSchema());
 
         auto* table = LockThisTypedImpl();
 
@@ -318,7 +332,6 @@ private:
         ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
-        ValidateDynamicTableConstraints(GetThisTypedImpl()->TableSchema());
 
         auto* table = LockThisTypedImpl();
 
@@ -363,11 +376,12 @@ private:
 
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
+        int tabletCount = request->tablet_count();
         auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
-        context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, PivotKeyCount: %v",
+        context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, TabletCount: %v",
             firstTabletIndex,
             lastTabletIndex,
-            pivotKeys.size());
+            tabletCount);
 
         ValidateNotExternal();
         ValidateNoTransaction();
@@ -380,6 +394,7 @@ private:
             table,
             firstTabletIndex,
             lastTabletIndex,
+            tabletCount,
             pivotKeys);
 
         context->Reply();
@@ -398,10 +413,7 @@ private:
 
         ToProto(response->mutable_table_id(), table->GetId());
         response->set_dynamic(table->IsDynamic());
-
-        auto tabletManager = Bootstrap_->GetTabletManager();
-        auto schema = tabletManager->GetTableSchema(table);
-        ToProto(response->mutable_schema(), schema);
+        ToProto(response->mutable_schema(), table->TableSchema());
 
         yhash_set<TTabletCell*> cells;
         for (auto* tablet : table->Tablets()) {
@@ -427,22 +439,28 @@ private:
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Alter)
     { 
         DeclareMutating();
-        
-        if (request->has_schema()) {
-            auto newSchema = FromProto<TTableSchema>(request->schema());
-            SetSchema(newSchema);
 
-            context->SetRequestInfo(
-                "NewSchema: %v",
-                ConvertToYsonString(newSchema).Data());
-        } else {
-            // Nothing to do.
-            context->SetRequestInfo("NewSchema: <Null>");
+        auto newSchema = request->has_schema()
+            ? MakeNullable(FromProto<TTableSchema>(request->schema()))
+            : Null;
+        auto newDynamic = request->has_dynamic()
+            ? MakeNullable(request->dynamic())
+            : Null;
+
+        context->SetRequestInfo("Schema: %v, Dynamic: %v",
+            newSchema,
+            newDynamic);
+
+        if (newSchema) {
+            SetSchema(*newSchema);
+        }
+
+        if (newDynamic) {
+            SetDynamic(*newDynamic);
         }
 
         context->Reply();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

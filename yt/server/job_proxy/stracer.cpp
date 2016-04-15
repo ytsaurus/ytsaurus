@@ -104,8 +104,8 @@ TStracePtr DoStrace(int pid)
     auto tracerResult = tracer.Execute();
     if (!tracerResult.Status.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to strace process %v", pid)
-                << TErrorAttribute("stderr", ToString(tracerResult.Error))
-                << tracerResult.Status;
+            << TErrorAttribute("stderr", ToString(tracerResult.Error))
+            << tracerResult.Status;
     }
 
     trace->Trace = Stroka(tracerResult.Error.Begin(), tracerResult.Error.End());

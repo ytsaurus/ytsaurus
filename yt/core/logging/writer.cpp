@@ -9,6 +9,8 @@
 
 #include <errno.h>
 
+#include <errno.h>
+
 namespace NYT {
 namespace NLogging {
 

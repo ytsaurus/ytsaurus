@@ -26,8 +26,6 @@ public:
         int poolSize,
         NTableClient::TTableWriterConfigPtr writerConfig,
         TTabletWriterOptionsPtr writerOptions,
-        TTableMountConfigPtr tabletConfig,
-        const NTableClient::TTableSchema& schema,
         NApi::IClientPtr client,
         const NObjectClient::TTransactionId& transactionId);
 
@@ -45,8 +43,6 @@ private:
     const int PoolSize_;
     const NTableClient::TTableWriterConfigPtr WriterConfig_;
     const TTabletWriterOptionsPtr WriterOptions_;
-    const TTableMountConfigPtr TabletConfig_;
-    const NTableClient::TTableSchema& Schema_;
     const NApi::IClientPtr Client_;
     const NObjectClient::TTransactionId TransactionId_;
 

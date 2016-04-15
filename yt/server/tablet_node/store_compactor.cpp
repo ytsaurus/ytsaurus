@@ -369,7 +369,6 @@ private:
         auto storeManager = tablet->GetStoreManager();
         auto tabletId = tablet->GetId();
         auto mountRevision = tablet->GetMountRevision();
-        auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
         auto schema = tablet->Schema();
@@ -448,10 +447,8 @@ private:
                 Bootstrap_->GetInMemoryManager(),
                 tabletSnapshot,
                 writerPoolSize,
-                Config_->ChunkWriter,
-                writerOptions,
-                mountConfig,
-                schema,
+                Config_->TabletManager->ChunkWriter,
+                tabletSnapshot->WriterOptions,
                 Bootstrap_->GetMasterClient(),
                 transaction->GetId());
 
@@ -644,12 +641,8 @@ private:
         auto storeManager = tablet->GetStoreManager();
         auto tabletId = tablet->GetId();
         auto mountRevision = tablet->GetMountRevision();
-        auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
-        auto schema = tablet->Schema();
-        auto mountConfig = tablet->GetConfig();
-        writerOptions->ChunksEden = partition->IsEden();
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId);
@@ -720,16 +713,17 @@ private:
             }
 
             auto inMemoryManager = Bootstrap_->GetInMemoryManager();
-            auto blockCache = inMemoryManager->CreateInterceptingBlockCache(mountConfig->InMemoryMode);
+            auto blockCache = inMemoryManager->CreateInterceptingBlockCache(tabletSnapshot->Config->InMemoryMode);
+
+            auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
+            writerOptions->ChunksEden = partition->IsEden();
 
             TChunkWriterPool writerPool(
                 Bootstrap_->GetInMemoryManager(),
                 tabletSnapshot,
                 1,
-                Config_->ChunkWriter,
+                Config_->TabletManager->ChunkWriter,
                 writerOptions,
-                mountConfig,
-                schema,
                 Bootstrap_->GetMasterClient(),
                 transaction->GetId());
             auto writer = writerPool.AllocateWriter();

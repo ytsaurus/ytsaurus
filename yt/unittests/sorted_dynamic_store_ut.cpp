@@ -1,21 +1,8 @@
 #include "sorted_dynamic_store_ut_helpers.h"
 
-#include <yt/server/tablet_node/sorted_store_manager.h>
-
-#include <yt/server/tablet_node/automaton.h>
-
-#include <yt/core/actions/invoker_util.h>
-
-#include <yt/core/misc/string.h>
-
-#include <tuple>
-
 namespace NYT {
 namespace NTabletNode {
 namespace {
-
-using namespace NTransactionClient;
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +19,7 @@ protected:
 
     void ConfirmRow(TTransaction* transaction, TSortedDynamicRow row)
     {
-        transaction->LockedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, row));
+        transaction->LockedSortedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, row));
     }
 
     void PrepareRow(TTransaction* transaction, TSortedDynamicRow row)
@@ -49,6 +36,7 @@ protected:
     {
         Store_->AbortRow(transaction, row);
     }
+
 
     TSortedDynamicRow WriteRow(
         TTransaction* transaction,
@@ -128,48 +116,11 @@ protected:
     }
 
 
-    using TStoreSnapshot = std::pair<Stroka, TCallback<void(TSaveContext&)>>;
-
-    TStoreSnapshot BeginReserializeStore()
-    {
-        Stroka buffer;
-
-        TStringOutput output(buffer);
-        TSaveContext saveContext;
-        saveContext.SetOutput(&output);
-        Store_->Save(saveContext);
-
-        return std::make_pair(buffer, Store_->AsyncSave());
-    }
-
-    void EndReserializeStore(const TStoreSnapshot& snapshot)
-    {
-        auto buffer = snapshot.first;
-
-        TStringOutput output(buffer);
-        TSaveContext saveContext;
-        saveContext.SetOutput(&output);
-        snapshot.second.Run(saveContext);
-
-        TStringInput input(buffer);
-        TLoadContext loadContext;
-        loadContext.SetInput(&input);
-
-        CreateDynamicStore();
-        Store_->Load(loadContext);
-        Store_->AsyncLoad(loadContext);
-    }
-
-    void ReserializeStore()
-    {
-        EndReserializeStore(BeginReserializeStore());
-    }
-
     Stroka DumpStore()
     {
         TStringBuilder builder;
-        builder.AppendFormat("KeyCount=%v ValueCount=%v MinTimestamp=%v MaxTimestamp=%v\n",
-            Store_->GetKeyCount(),
+        builder.AppendFormat("RowCount=%v ValueCount=%v MinTimestamp=%v MaxTimestamp=%v\n",
+            Store_->GetRowCount(),
             Store_->GetValueCount(),
             Store_->GetMinTimestamp(),
             Store_->GetMaxTimestamp());
@@ -232,7 +183,7 @@ protected:
     TSortedDynamicStorePtr Store_;
 
 private:
-    void CreateDynamicStore()
+    virtual void CreateDynamicStore() override
     {
         auto config = New<TTabletManagerConfig>();
         config->MaxBlockedRowWaitTime = TDuration::MilliSeconds(100);
@@ -242,6 +193,12 @@ private:
             TTabletId(),
             Tablet_.get());
     }
+
+    virtual IDynamicStorePtr GetDynamicStore() override
+    {
+        return Store_;
+    }
+
 
     TUnversionedValue ToUnversionedValue(const TDynamicValueData& data, int index)
     {
@@ -262,7 +219,6 @@ private:
         auto rowRef = TSortedDynamicRowRef(Store_.Get(), nullptr, row);
         TSortedStoreManager::LockRow(transaction, prelock, rowRef);
     }
-
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -607,11 +563,11 @@ TEST_F(TSingleLockSortedDynamicStoreTest, PrelockWriteAndCommit)
     ASSERT_FALSE(row.GetDeleteLockFlag());
     const auto& lock = GetLock(row);
     ASSERT_EQ(transaction.get(), lock.Transaction);
-    ASSERT_TRUE(transaction->LockedRows().empty());
+    ASSERT_TRUE(transaction->LockedSortedRows().empty());
 
     ConfirmRow(transaction.get(), row);
-    ASSERT_EQ(1, transaction->LockedRows().size());
-    ASSERT_TRUE(transaction->LockedRows()[0].Row == row);
+    ASSERT_EQ(1, transaction->LockedSortedRows().size());
+    ASSERT_TRUE(transaction->LockedSortedRows()[0].Row == row);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), nullptr));
 
@@ -646,11 +602,11 @@ TEST_F(TSingleLockSortedDynamicStoreTest, PrelockDeleteAndCommit)
     ASSERT_TRUE(row.GetDeleteLockFlag());
     const auto& lock = GetLock(row);
     ASSERT_EQ(transaction.get(), lock.Transaction);
-    ASSERT_TRUE(transaction->LockedRows().empty());
+    ASSERT_TRUE(transaction->LockedSortedRows().empty());
 
     ConfirmRow(transaction.get(), row);
-    ASSERT_EQ(1, transaction->LockedRows().size());
-    ASSERT_TRUE(transaction->LockedRows()[0].Row == row);
+    ASSERT_EQ(1, transaction->LockedSortedRows().size());
+    ASSERT_TRUE(transaction->LockedSortedRows()[0].Row == row);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), rowString));
 
@@ -1126,7 +1082,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ArbitraryKeyLength)
 TEST_F(TSingleLockSortedDynamicStoreTest, SerializeEmpty)
 {
     auto check = [&] () {
-        EXPECT_EQ(0, Store_->GetKeyCount());
+        EXPECT_EQ(0, Store_->GetRowCount());
         EXPECT_EQ(0, Store_->GetValueCount());
         EXPECT_EQ(MaxTimestamp, Store_->GetMinTimestamp());
         EXPECT_EQ(MinTimestamp, Store_->GetMaxTimestamp());
@@ -1205,11 +1161,11 @@ TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot1)
 
     WriteRow(BuildRow("key=1;a=1", false));
 
-    EXPECT_EQ(1, Store_->GetKeyCount());
+    EXPECT_EQ(1, Store_->GetRowCount());
 
     EndReserializeStore(snapshot);
 
-    EXPECT_EQ(0, Store_->GetKeyCount());
+    EXPECT_EQ(0, Store_->GetRowCount());
     EXPECT_EQ(0, Store_->GetValueCount());
     EXPECT_EQ(MaxTimestamp, Store_->GetMinTimestamp());
     EXPECT_EQ(MinTimestamp, Store_->GetMaxTimestamp());
@@ -1219,20 +1175,20 @@ TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot2)
 {
     auto ts1 = WriteRow(BuildRow("key=1;a=1", false));
 
-    EXPECT_EQ(1, Store_->GetKeyCount());
+    EXPECT_EQ(1, Store_->GetRowCount());
 
     auto snapshot = BeginReserializeStore();
     auto dump = DumpStore();
 
     WriteRow(BuildRow("key=2;a=2", false));
 
-    EXPECT_EQ(2, Store_->GetKeyCount());
+    EXPECT_EQ(2, Store_->GetRowCount());
     EXPECT_EQ(2, Store_->GetValueCount());
 
     EndReserializeStore(snapshot);
     EXPECT_EQ(dump, DumpStore());
 
-    EXPECT_EQ(1, Store_->GetKeyCount());
+    EXPECT_EQ(1, Store_->GetRowCount());
     EXPECT_EQ(1, Store_->GetValueCount());
     EXPECT_EQ(ts1, Store_->GetMinTimestamp());
     EXPECT_EQ(ts1, Store_->GetMaxTimestamp());
@@ -1251,20 +1207,20 @@ TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot3)
 {
     auto ts1 = WriteRow(BuildRow("key=1;a=1", false));
 
-    EXPECT_EQ(1, Store_->GetKeyCount());
+    EXPECT_EQ(1, Store_->GetRowCount());
 
     auto snapshot = BeginReserializeStore();
     auto dump = DumpStore();
 
     auto ts2 = WriteRow(BuildRow("key=1;a=2", false));
 
-    EXPECT_EQ(1, Store_->GetKeyCount());
+    EXPECT_EQ(1, Store_->GetRowCount());
     EXPECT_EQ(2, Store_->GetValueCount());
 
     EndReserializeStore(snapshot);
     EXPECT_EQ(dump, DumpStore());
 
-    EXPECT_EQ(1, Store_->GetKeyCount());
+    EXPECT_EQ(1, Store_->GetRowCount());
     EXPECT_EQ(1, Store_->GetValueCount());
     EXPECT_EQ(ts1, Store_->GetMinTimestamp());
     EXPECT_EQ(ts1, Store_->GetMaxTimestamp());
@@ -1284,20 +1240,20 @@ TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot4)
 
     auto ts1 = WriteRow(BuildRow("key=1;a=1;b=3.14", false));
 
-    EXPECT_EQ(1, Store_->GetKeyCount());
+    EXPECT_EQ(1, Store_->GetRowCount());
 
     auto snapshot = BeginReserializeStore();
     auto dump = DumpStore();
 
     auto ts2 = DeleteRow(key);
 
-    EXPECT_EQ(1, Store_->GetKeyCount());
+    EXPECT_EQ(1, Store_->GetRowCount());
     EXPECT_EQ(2, Store_->GetValueCount());
 
     EndReserializeStore(snapshot);
     EXPECT_EQ(dump, DumpStore());
 
-    EXPECT_EQ(1, Store_->GetKeyCount());
+    EXPECT_EQ(1, Store_->GetRowCount());
     EXPECT_EQ(2, Store_->GetValueCount());
     EXPECT_EQ(ts1, Store_->GetMinTimestamp());
     EXPECT_EQ(ts1, Store_->GetMaxTimestamp());
@@ -1681,7 +1637,7 @@ TEST_F(TMultiLockSortedDynamicStoreTest, SerializeSnapshot1)
     auto ts4 = WriteRow(BuildRow("key=1;b=3.14", false), LockMask2);
 
     auto check = [&] () {
-        EXPECT_EQ(1, Store_->GetKeyCount());
+        EXPECT_EQ(1, Store_->GetRowCount());
         EXPECT_EQ(3, Store_->GetValueCount());
 
         auto row = LookupDynamicRow(key);

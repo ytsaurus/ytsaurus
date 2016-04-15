@@ -112,8 +112,6 @@ TChunkWriterPool::TChunkWriterPool(
     int poolSize,
     TTableWriterConfigPtr writerConfig,
     TTabletWriterOptionsPtr writerOptions,
-    TTableMountConfigPtr tabletConfig,
-    const TTableSchema& schema,
     IClientPtr client,
     const TTransactionId& transactionId)
     : InMemoryManager_(std::move(inMemoryManager))
@@ -121,8 +119,6 @@ TChunkWriterPool::TChunkWriterPool(
     , PoolSize_(poolSize)
     , WriterConfig_(std::move(writerConfig))
     , WriterOptions_(std::move(writerOptions))
-    , TabletConfig_(std::move(tabletConfig))
-    , Schema_(schema)
     , Client_(std::move(client))
     , TransactionId_(transactionId)
 { }
@@ -132,11 +128,11 @@ IVersionedMultiChunkWriterPtr TChunkWriterPool::AllocateWriter()
     if (FreshWriters_.empty()) {
         std::vector<TFuture<void>> asyncResults;
         for (int index = 0; index < PoolSize_; ++index) {
-            auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(TabletConfig_->InMemoryMode);
+            auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(TabletSnapshot_->Config->InMemoryMode);
             auto underlyingWriter = CreateVersionedMultiChunkWriter(
                 WriterConfig_,
                 WriterOptions_,
-                Schema_,
+                TabletSnapshot_->Schema,
                 Client_,
                 Client_->GetConnection()->GetPrimaryMasterCellTag(),
                 TransactionId_,

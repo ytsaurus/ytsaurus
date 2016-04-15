@@ -3,9 +3,12 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/object_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/automaton.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sorted_chunk_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ordered_chunk_store.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store_bits.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/dynamic_store_bits.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_comparer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ordered_dynamic_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ordered_store_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/lookup.cpp
   ${CMAKE_CURRENT_LIST_DIR}/partition.cpp
   ${CMAKE_CURRENT_LIST_DIR}/partition_balancer.cpp
@@ -34,11 +37,14 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/object_detail.h
   ${CMAKE_CURRENT_LIST_DIR}/automaton.h
   ${CMAKE_CURRENT_LIST_DIR}/sorted_chunk_store.h
+  ${CMAKE_CURRENT_LIST_DIR}/ordered_chunk_store.h
   ${CMAKE_CURRENT_LIST_DIR}/config.h
   ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store.h
   ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store-inl.h
-  ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store_bits.h
+  ${CMAKE_CURRENT_LIST_DIR}/dynamic_store_bits.h
   ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_comparer.h
+  ${CMAKE_CURRENT_LIST_DIR}/ordered_dynamic_store.h
+  ${CMAKE_CURRENT_LIST_DIR}/ordered_store_manager.h
   ${CMAKE_CURRENT_LIST_DIR}/llvm_types.h
   ${CMAKE_CURRENT_LIST_DIR}/lookup.h
   ${CMAKE_CURRENT_LIST_DIR}/partition.h

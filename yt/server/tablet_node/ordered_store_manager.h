@@ -14,11 +14,11 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortedStoreManager
+class TOrderedStoreManager
     : public TStoreManagerBase
 {
 public:
-    TSortedStoreManager(
+    TOrderedStoreManager(
         TTabletManagerConfigPtr config,
         TTablet* tablet,
         ITabletContext* tabletContext,
@@ -36,40 +36,23 @@ public:
         NTransactionClient::TTimestamp commitTimestamp,
         NTabletClient::TWireProtocolReader* reader) override;
 
-    TSortedDynamicRowRef WriteRowAtomic(
+    TOrderedDynamicRowRef WriteRow(
         TTransaction* transaction,
         TUnversionedRow row,
         bool prelock);
-    void WriteRowNonAtomic(
-        TTimestamp commitTimestamp,
-        TUnversionedRow row);
-    TSortedDynamicRowRef DeleteRowAtomic(
-        TTransaction* transaction,
-        TKey key,
-        bool prelock);
-    void DeleteRowNonAtomic(
-        TTimestamp commitTimestamp,
-        TKey key);
 
-    static void LockRow(TTransaction* transaction, bool prelock, const TSortedDynamicRowRef& rowRef);
-    void ConfirmRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
-    void PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
-    void CommitRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
-    void AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
-
-    virtual void AddStore(IStorePtr store, bool onMount) override;
-    virtual void RemoveStore(IStorePtr store) override;
+    static void LockRow(TTransaction* transaction, bool prelock, const TOrderedDynamicRowRef& rowRef);
+    void ConfirmRow(TTransaction* transaction, const TOrderedDynamicRowRef& rowRef);
+    void PrepareRow(TTransaction* transaction, const TOrderedDynamicRowRef& rowRef);
+    void CommitRow(TTransaction* transaction, const TOrderedDynamicRowRef& rowRef);
+    void AbortRow(TTransaction* transaction, const TOrderedDynamicRowRef& rowRef);
 
     virtual void CreateActiveStore() override;
 
     virtual bool IsStoreCompactable(IStorePtr store) const override;
 
 private:
-    const int KeyColumnCount_;
-
-    TSortedDynamicStorePtr ActiveStore_;
-    std::multimap<TTimestamp, ISortedStorePtr> MaxTimestampToStore_;
-
+    TOrderedDynamicStorePtr ActiveStore_;
 
     virtual IDynamicStore* GetActiveStore() const override;
     virtual void ResetActiveStore() override;
@@ -79,19 +62,11 @@ private:
         IDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot) override;
 
-    ui32 ComputeLockMask(TUnversionedRow row);
-
-    void CheckInactiveStoresLocks(
-        TTransaction* transaction,
-        TUnversionedRow row,
-        ui32 lockMask);
-
     void ValidateOnWrite(const TTransactionId& transactionId, TUnversionedRow row);
-    void ValidateOnDelete(const TTransactionId& transactionId, TKey key);
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TSortedStoreManager)
+DEFINE_REFCOUNTED_TYPE(TOrderedStoreManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

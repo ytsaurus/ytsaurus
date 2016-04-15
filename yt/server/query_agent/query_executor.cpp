@@ -838,7 +838,7 @@ private:
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
 
-        auto config = CloneYsonSerializable(Bootstrap_->GetConfig()->TabletNode->ChunkReader);
+        auto config = CloneYsonSerializable(Bootstrap_->GetConfig()->TabletNode->TabletManager->ChunkReader);
         config->WorkloadDescriptor = options.WorkloadDescriptor;
 
         NChunkClient::IChunkReaderPtr chunkReader;
@@ -848,9 +848,9 @@ private:
                 options.Timestamp);
 
             chunkReader = CreateLocalChunkReader(
-                Bootstrap_,
                 config,
                 chunk,
+                Bootstrap_->GetChunkBlockManager(),
                 blockCache);
         } else {
             LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %v, Timestamp: %v)",

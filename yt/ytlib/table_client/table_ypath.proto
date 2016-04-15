@@ -51,7 +51,9 @@ message TReqReshard
     // If omitted then all tablets are affected.
     required int32 first_tablet_index = 1 [default = -1];
     required int32 last_tablet_index = 2 [default = -1];
+    // For sorted tables only.
     repeated bytes pivot_keys = 3;
+    required int32 tablet_count = 4;
 }
 
 message TRspReshard
@@ -87,6 +89,7 @@ message TRspGetMountInfo
 message TReqAlter
 {
     optional TTableSchemaExt schema = 1;
+    optional bool dynamic = 2;
 }
 
 message TRspAlter

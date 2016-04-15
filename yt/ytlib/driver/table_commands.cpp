@@ -165,15 +165,18 @@ void TRemountTableCommand::Execute(ICommandContextPtr context)
 
 void TReshardTableCommand::Execute(ICommandContextPtr context)
 {
-    std::vector<TUnversionedRow> pivotKeys;
-    for (const auto& key : PivotKeys) {
-        pivotKeys.push_back(key);
+    TFuture<void> asyncResult;
+    if (PivotKeys) {
+        asyncResult = context->GetClient()->ReshardTable(
+            Path.GetPath(),
+            *PivotKeys,
+            Options);
+    } else {
+        asyncResult = context->GetClient()->ReshardTable(
+            Path.GetPath(),
+            *TabletCount,
+            Options);
     }
-
-    auto asyncResult = context->GetClient()->ReshardTable(
-        Path.GetPath(),
-        pivotKeys,
-        Options);
     WaitFor(asyncResult)
         .ThrowOnError();
 }
@@ -281,8 +284,8 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
     tableInfo->ValidateDynamic();
 
     // Parse input data.
-    auto valueConsumer = New<TBuildingValueConsumer>(
-        tableInfo->Schema);
+    auto keyColumns = tableInfo->Schema.GetKeyColumns();
+    auto valueConsumer = New<TBuildingValueConsumer>(tableInfo->Schema);
     valueConsumer->SetTreatMissingAsNull(!Update);
     auto rows = ParseRows(context, config, valueConsumer);
     auto rowBuffer = New<TRowBuffer>();
@@ -348,6 +351,7 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
         GetOptions());
 
     // Parse input data.
+    auto keyColumns = tableInfo->Schema.GetKeyColumns();
     auto valueConsumer = New<TBuildingValueConsumer>(
         tableInfo->Schema.TrimNonkeyColumns(tableInfo->Schema.GetKeyColumns()));
     auto keys = ParseRows(context, config, valueConsumer);
@@ -362,10 +366,10 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     }
 
     auto asyncRowset = clientBase->LookupRows(
-            Path.GetPath(),
-            valueConsumer->GetNameTable(),
-            std::move(keys),
-            Options);
+        Path.GetPath(),
+        valueConsumer->GetNameTable(),
+        std::move(keys),
+        Options);
     auto rowset = WaitFor(asyncRowset)
         .ValueOrThrow();
 
@@ -398,6 +402,7 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
     tableInfo->ValidateDynamic();
 
     // Parse input data.
+    auto keyColumns = tableInfo->Schema.GetKeyColumns();
     auto valueConsumer = New<TBuildingValueConsumer>(
         tableInfo->Schema.TrimNonkeyColumns(tableInfo->Schema.GetKeyColumns()));
     auto keys = ParseRows(context, config, valueConsumer);

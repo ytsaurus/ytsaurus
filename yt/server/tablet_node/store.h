@@ -51,21 +51,21 @@ struct IStore
 
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) = 0;
 
-    // Extension methods.
-    bool IsDynamic() const;
-    IDynamicStorePtr AsDynamic();
+    virtual bool IsDynamic() const = 0;
+    virtual IDynamicStorePtr AsDynamic() = 0;
 
-    bool IsChunk() const;
-    IChunkStorePtr AsChunk();
+    virtual bool IsChunk() const = 0;
+    virtual IChunkStorePtr AsChunk() = 0;
 
-    bool IsSorted() const;
-    ISortedStorePtr AsSorted();
-    TSortedDynamicStorePtr AsSortedDynamic();
-    TSortedChunkStorePtr AsSortedChunk();
+    virtual bool IsSorted() const = 0;
+    virtual ISortedStorePtr AsSorted() = 0;
+    virtual TSortedDynamicStorePtr AsSortedDynamic() = 0;
+    virtual TSortedChunkStorePtr AsSortedChunk() = 0;
 
-    bool IsOrdered() const;
-    IOrderedStorePtr AsOrdered();
-
+    virtual bool IsOrdered() const = 0;
+    virtual IOrderedStorePtr AsOrdered() = 0;
+    virtual TOrderedDynamicStorePtr AsOrderedDynamic() = 0;
+    virtual TOrderedChunkStorePtr AsOrderedChunk() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IStore)
@@ -75,6 +75,12 @@ DEFINE_REFCOUNTED_TYPE(IStore)
 struct IDynamicStore
     : public virtual IStore
 {
+    virtual i64 GetValueCount() const = 0;
+    virtual i64 GetLockCount() const = 0;
+
+    virtual i64 GetPoolSize() const = 0;
+    virtual i64 GetPoolCapacity() const = 0;
+
     virtual EStoreFlushState GetFlushState() const = 0;
     virtual void SetFlushState(EStoreFlushState state) = 0;
 };
@@ -86,6 +92,10 @@ DEFINE_REFCOUNTED_TYPE(IDynamicStore)
 struct IChunkStore
     : public virtual IStore
 {
+    virtual void SetBackingStore(IDynamicStorePtr store) = 0;
+    virtual bool HasBackingStore() const = 0;
+    virtual IDynamicStorePtr GetBackingStore() = 0;
+
     virtual EStorePreloadState GetPreloadState() const = 0;
     virtual void SetPreloadState(EStorePreloadState state) = 0;
 
@@ -176,9 +186,21 @@ DEFINE_REFCOUNTED_TYPE(ISortedStore)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IOrderedStore
-    : public IStore
+    : public virtual IStore
 {
-    // TODO(babenko): add members
+    //! Creates a reader for the range from |lowerRowIndex| (inclusive) to |upperRowIndex| (exclusive).
+    /*!
+    *  If no matching row is found then |nullptr| might be returned.
+    *
+    *  This call is typically synchronous and fast but may occasionally yield.
+    *
+    *  Thread affinity: any
+    */
+    virtual NTableClient::ISchemafulReaderPtr CreateReader(
+        i64 lowerRowIndex,
+        i64 upperRowIndex,
+        const NTableClient::TTableSchema& schema,
+        const TWorkloadDescriptor& workloadDescriptor) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOrderedStore)
