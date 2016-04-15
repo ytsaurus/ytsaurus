@@ -876,6 +876,8 @@ def main():
     yt.config.TRACE = config_args.trace
     yt.config.update_config(config_args.config)
 
+    yt.config["default_value_of_raw_option"] = True
+
     args = parser.parse_args(unparsed)
 
     func_args = dict(vars(args))

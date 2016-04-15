@@ -5,6 +5,7 @@ from yt.wrapper.cypress_commands import join_paths
 from yt.common import makedirp
 from yt.yson import to_yson_type
 import yt.yson as yson
+import yt.json as json
 import yt.wrapper as yt
 
 from helpers import TEST_DIR, TESTS_SANDBOX, TESTS_LOCATION, \
@@ -120,7 +121,7 @@ class TestMutations(object):
 
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
-        yt.write_table(table, ["x=1\n", "x=2\n"], format="dsv")
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
         yt.create_table(other_table)
 
         params = {
@@ -144,9 +145,6 @@ class TestMutations(object):
 
 @pytest.mark.usefixtures("yt_env")
 class TestRetries(object):
-    def setup(self):
-        yt.config["tabular_data_format"] = yt.format.DsvFormat()
-
     def test_read_with_retries(self):
         old_value = yt.config["read_retries"]["enable"]
         yt.config["read_retries"]["enable"] = True
@@ -158,23 +156,23 @@ class TestRetries(object):
                 yt.read_table(table)
 
             yt.create_table(table)
-            check([], yt.read_table(table, raw=False))
-            assert "" == yt.read_table(table).read()
+            check([], yt.read_table(table))
+            assert "" == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
 
-            yt.write_table(table, ["x=1\n", "y=2\n"])
-            check(["x=1\n", "y=2\n"], yt.read_table(table))
+            yt.write_table(table, [{"x": 1}, {"y": 2}])
+            check([{"x": 1}, {"y": 2}], yt.read_table(table))
 
-            rsp = yt.read_table(table)
-            assert rsp.next() == "x=1\n"
-            yt.write_table(table, ["x=1\n", "y=3\n"])
-            assert rsp.next() == "y=2\n"
+            rsp = yt.read_table(table, format=yt.JsonFormat(), raw=True)
+            assert json.loads(rsp.next()) == {"x": 1}
+            yt.write_table(table, [{"x": 1}, {"y": 3}])
+            assert json.loads(rsp.next()) == {"y": 2}
             rsp.close()
 
             rsp = yt.read_table(table, raw=False)
-            assert [("x", "1"), ("y", "3")] == sorted([x.items()[0] for x in rsp])
+            assert [("x", 1), ("y", 3)] == sorted([x.items()[0] for x in rsp])
 
             response_parameters = {}
-            rsp = yt.read_table(table, response_parameters=response_parameters)
+            rsp = yt.read_table(table, response_parameters=response_parameters, format=yt.JsonFormat(), raw=True)
             assert {"start_row_index": 0, "approximate_row_count": 2} == response_parameters
             rsp.close()
         finally:
@@ -193,26 +191,26 @@ class TestRetries(object):
             table = TEST_DIR + "/table"
 
             yt.create_table(table)
-            assert "" == yt.read_table(table).read()
+            assert "" == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
 
-            yt.write_table("<sorted_by=[x]>" + table, ["x=1\n", "x=2\n", "x=3\n"])
-            assert [{"x": "1"}, {"x": "3"}, {"x": "2"}, {"x": "1"}, {"x": "2"}] == \
-                list(yt.read_table(table + '[#0,"2":"1",#2,#1,"1":"3"]', raw=False, format=yt.YsonFormat(process_table_index=False)))
+            yt.write_table("<sorted_by=[x]>" + table, [{"x": 1}, {"x": 2}, {"x": 3}])
+            assert [{"x": 1}, {"x": 3}, {"x": 2}, {"x": 1}, {"x": 2}] == \
+                list(yt.read_table(table + '[#0,"2":"1",#2,#1,1:3]', format=yt.YsonFormat(process_table_index=False)))
 
             assert [to_yson_type(None, attributes={"range_index": 0}),
                     to_yson_type(None, attributes={"row_index": 0L}),
-                    {"x": "1"},
+                    {"x": 1},
                     to_yson_type(None, attributes={"range_index": 1}),
                     to_yson_type(None, attributes={"row_index": 2L}),
-                    {"x": "3"}] == \
+                    {"x": 3}] == \
                 list(yt.read_table(table + '[#0,#2]', raw=False, format=yt.YsonFormat(process_table_index=False),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
             with pytest.raises(yt.YtError):
-                list(yt.read_table(table + '[#0,"2"]', raw=False, format=yt.JsonFormat()))
+                list(yt.read_table(table + '[#0,2]', raw=False, format=yt.JsonFormat()))
 
             with pytest.raises(yt.YtError):
-                list(yt.read_table(table + '[#0,"2"]', raw=False, format=yt.YsonFormat(process_table_index=False), unordered=True))
+                list(yt.read_table(table + '[#0,2]', raw=False, format=yt.YsonFormat(process_table_index=False), unordered=True))
 
         finally:
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
@@ -234,13 +232,13 @@ class TestRetries(object):
             fout.write("retries test")
 
         try:
-            yt.write_table(table, ["x=1\n"])
+            yt.write_table(table, [{"x": 1}])
             yt.smart_upload_file(filename, placement_strategy="random")
-            yt.write_table(table, ["x=1\n"])
-            yt.write_table(table, ["x=1\n"])
+            yt.write_table(table, [{"x": 1}])
+            yt.write_table(table, [{"x": 1}])
             yt.smart_upload_file(filename, placement_strategy="random")
             yt.smart_upload_file(filename, placement_strategy="random")
-            yt.write_table(table, ["x=1\n"])
+            yt.write_table(table, [{"x": 1}])
         finally:
             yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
             yt.config["proxy"]["request_retry_timeout"] = old_request_retry_timeout

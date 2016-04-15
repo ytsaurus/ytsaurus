@@ -153,7 +153,7 @@ class TestCypressCommands(object):
 
     def test_attributes_commands(self):
         table = TEST_DIR + "/table_with_attributes"
-        yt.write_table(table, ["x=1\ty=1\n", "x=2\ty=2\n"], format="dsv")
+        yt.write_table(table, [{"x": 1, "y": 1}, {"x": 2, "y": 2}], format="dsv")
         assert yt.row_count(table) == 2
         assert not yt.is_sorted(table)
 
@@ -273,47 +273,46 @@ class TestCypressCommands(object):
         table = TEST_DIR + "/transaction_test_table"
 
         yt.create_table(table)
-        yt.write_table(table, ["x=1\n"], format=yt.format.DsvFormat())
-
+        yt.write_table(table, [{"x": 1}])
         def read_table(client=None):
-            return yt.read_table(table, format=yt.format.DsvFormat(), client=client).read()
+            return list(yt.read_table(table, client=client))
 
         new_client = yt.client.Yt(token=yt.config["token"], config=yt.config)
 
         with yt.Transaction():
-            yt.write_table(table, ["x=2\n"], format=yt.format.DsvFormat())
-            assert read_table(new_client) == "x=1\n"
+            yt.write_table(table, [{"x": 2}])
+            assert read_table(new_client) == [{"x": 1}]
 
-        assert read_table(new_client) == "x=2\n"
+        assert read_table(new_client) == [{"x": 2}]
 
         with pytest.raises(yt.YtError):
             with yt.Transaction(timeout=2000, ping=False):
-                yt.write_table(table, ["x=3\n"], format=yt.format.DsvFormat())
+                yt.write_table(table, [{"x": 3}])
                 time.sleep(3)
 
-        assert read_table() == "x=2\n"
-        assert read_table(new_client) == "x=2\n"
+        assert read_table() == [{"x": 2}]
+        assert read_table(new_client) == [{"x": 2}]
 
         with yt.Transaction(timeout=1000):
-            yt.write_table(table, ["x=3\n"], format=yt.format.DsvFormat())
+            yt.write_table(table, [{"x": 3}])
             time.sleep(3)
 
-        assert read_table() == "x=3\n"
-        assert read_table(new_client) == "x=3\n"
+        assert read_table() == [{"x": 3}]
+        assert read_table(new_client) == [{"x": 3}]
 
         with yt.Transaction(timeout=1000):
-            yt.write_table(table, ["x=4\n"], format=yt.format.DsvFormat())
+            yt.write_table(table, [{"x": 4}])
             time.sleep(3)
 
-        assert read_table() == "x=4\n"
+        assert read_table() == [{"x": 4}]
 
         with yt.Transaction():
-            yt.write_table(table, ["x=5\n"], format=yt.format.DsvFormat())
+            yt.write_table(table, [{"x": 5}])
             time.sleep(3)
-            read_table(new_client) == "x=4\n"
+            read_table(new_client) == [{"x": 4}]
 
-        assert read_table() == "x=5\n"
-        assert read_table(new_client) == "x=5\n"
+        assert read_table() == [{"x": 5}]
+        assert read_table(new_client) == [{"x": 5}]
 
         try:
             with yt.Transaction(timeout=3000) as tx:
@@ -411,8 +410,7 @@ class TestCypressCommands(object):
         other_table = TEST_DIR + "/other_table"
         another_table = TEST_DIR + "/another_table"
 
-        yt.write_table(table, ["x=1\ty=2\n", "x=3\ty=1\n", "x=2\ty=3\n"],
-                       format="dsv")
+        yt.write_table(table, [{"x": 1, "y": 2}, {"x": 3, "y": 1}, {"x": 2, "y": 3}])
         yt.run_sort(table, sort_by=["y"])
 
         yt.copy(table, other_table)
@@ -431,11 +429,11 @@ class TestCypressCommands(object):
         tableB = TEST_DIR + "/tableB"
         output_table = TEST_DIR + "/outputTable"
 
-        yt.write_table(tableA, ["x=1\ty=2\n"], format="dsv")
-        yt.write_table(tableB, ["x=10\ty=20\n"], format="dsv")
+        yt.write_table(tableA, [{"x": 1, "y": 2}])
+        yt.write_table(tableB, [{"x": 10, "y": 20}])
         yt.concatenate([tableA, tableB], output_table)
 
-        assert ["x=1\ty=2\n", "x=10\ty=20\n"] == list(yt.read_table(output_table, format="dsv"))
+        assert [{"x": 1, "y": 2}, {"x": 10, "y": 20}] == list(yt.read_table(output_table))
 
 
         fileA = TEST_DIR + "/fileA"

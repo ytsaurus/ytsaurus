@@ -108,7 +108,7 @@ class TestCypress(object):
             data = {"a": i, "b": 2 * i, "c": 3 * i}
             content += json.dumps(data, separators=(',', ':'), sort_keys=True)
             content += "\n"
-        yt.write_table(filepath, content, format=yt.JsonFormat())
+        yt.write_table(filepath, content, format=yt.JsonFormat(), raw=True)
 
         fi = fuse_file_info()
         fuse_filepath = filepath[1:]

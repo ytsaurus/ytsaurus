@@ -627,9 +627,13 @@ class JsonFormat(Format):
         return self.json_module.loads(string)
 
     def _dump(self, obj, stream):
+        if isinstance(obj, FrozenDict):
+            obj = dict(obj.iteritems())
         return self.json_module.dump(obj, stream)
 
     def _dumps(self, obj):
+        if isinstance(obj, FrozenDict):
+            obj = dict(obj.iteritems())
         return self.json_module.dumps(obj)
 
     def load_row(self, stream, raw=None):
