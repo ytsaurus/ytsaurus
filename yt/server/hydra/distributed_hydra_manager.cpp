@@ -994,13 +994,14 @@ private:
     }
 
 
-    void OnCheckpointNeeded(TWeakPtr<TEpochContext> epochContext_)
+    void OnCheckpointNeeded(const TWeakPtr<TEpochContext>& epochContext_)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto epochContext = epochContext_.Lock();
-        if (!epochContext || !IsActiveLeader())
+        if (!epochContext || !IsActiveLeader()) {
             return;
+        }
 
         auto checkpointer = epochContext->Checkpointer;
         if (checkpointer->CanBuildSnapshot()) {
@@ -1011,26 +1012,28 @@ private:
         }
     }
 
-    void OnCommitFailed(TWeakPtr<TEpochContext> epochContext_, const TError& error)
+    void OnCommitFailed(const TWeakPtr<TEpochContext>& epochContext_, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto epochContext = epochContext_.Lock();
-        if (!epochContext)
+        if (!epochContext) {
             return;
+        }
 
         auto wrappedError = TError("Error committing mutation")
             << error;
         Restart(epochContext, wrappedError);
     }
 
-    void OnLeaderLeaseLost(TWeakPtr<TEpochContext> epochContext_, const TError& error)
+    void OnLeaderLeaseLost(const TWeakPtr<TEpochContext>& epochContext_, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto epochContext = epochContext_.Lock();
-        if (!epochContext)
+        if (!epochContext) {
             return;
+        }
 
         auto wrappedError = TError("Leader lease is lost")
             << error;
@@ -1061,7 +1064,7 @@ private:
             MakeWeak(epochContext)));
     }
 
-    void OnChangelogRotated(TWeakPtr<TEpochContext> epochContext_, const TError& error)
+    void OnChangelogRotated(const TWeakPtr<TEpochContext>& epochContext_, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1391,8 +1394,13 @@ private:
 
         YCHECK(ControlEpochContext_);
         ControlEpochContext_->CancelableContext->Cancel();
+        ControlEpochContext_->ActiveUpstreamSyncPromise.Reset();
+        ControlEpochContext_->PendingUpstreamSyncPromise.Reset();
+        ControlEpochContext_->LeaderSyncPromise.Reset();
         ControlEpochContext_.Reset();
+
         LeaderLease_->Invalidate();
+        
         LeaderRecovered_ = false;
         FollowerRecovered_ = false;
 
@@ -1449,13 +1457,18 @@ private:
         }
 
         CombineAll(asyncResults).Subscribe(
-            BIND(&TDistributedHydraManager::OnUpstreamSyncReached, MakeStrong(this), epochContext)
+            BIND(&TDistributedHydraManager::OnUpstreamSyncReached, MakeStrong(this), MakeWeak(epochContext))
                 .Via(epochContext->EpochUserAutomatonInvoker));
     }
 
-    void OnUpstreamSyncReached(TEpochContextPtr epochContext, const TErrorOr<std::vector<TError>>& resultsOrError)
+    void OnUpstreamSyncReached(const TWeakPtr<TEpochContext>& epochContext_, const TErrorOr<std::vector<TError>>& resultsOrError)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto epochContext = epochContext_.Lock();
+        if (!epochContext) {
+            return;
+        }
 
         TError combinedError;
         if (resultsOrError.IsOK()) {
