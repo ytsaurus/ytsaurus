@@ -1645,13 +1645,13 @@ private:
     {
         // NB: Total limits are updated separately in heartbeat.
         if (limits.GetUserSlots() > 0) {
-            if (node->GetResourceLimits().GetUserSlots() == 0) {
+            if (node->GetResourceLimits().GetUserSlots() == 0 && node->GetMasterState() == ENodeState::Online) {
                 ExecNodeCount_ += 1;
             }
             node->SetResourceLimits(limits);
             node->SetResourceUsage(usage);
         } else {
-            if (node->GetResourceLimits().GetUserSlots() > 0) {
+            if (node->GetResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == ENodeState::Online) {
                 ExecNodeCount_ -= 1;
             }
             node->SetResourceLimits(ZeroJobResources());

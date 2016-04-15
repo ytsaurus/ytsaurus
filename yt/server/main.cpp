@@ -9,6 +9,8 @@
 
 #include <yt/server/job_proxy/job_proxy.h>
 
+#include <yt/server/hydra/private.h>
+
 #include <yt/ytlib/cgroup/cgroup.h>
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -493,6 +495,7 @@ EExitCode Main(int argc, const char* argv[])
         exitCode = EExitCode::BootstrapError;
     }
 
+    NHydra::ShutdownHydraIOInvoker();
     Shutdown();
 
     return exitCode;
