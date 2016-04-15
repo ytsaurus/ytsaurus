@@ -28,7 +28,7 @@ public:
     TTransactionManagerConfig()
     {
         RegisterParameter("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(3));
         RegisterParameter("default_ping_period", DefaultPingPeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
