@@ -112,7 +112,7 @@ class CreateModulesArchive(object):
 @pytest.mark.usefixtures("yt_env")
 class TestOperations(object):
     def setup(self):
-        yt.config["tabular_data_format"] = yt.format.DsvFormat()
+        yt.config["tabular_data_format"] = yt.format.JsonFormat()
 
     def random_string(self, length):
         char_set = string.ascii_lowercase + string.digits + string.ascii_uppercase
@@ -124,8 +124,8 @@ class TestOperations(object):
         dir = TEST_DIR + "/dir"
         res_table = dir + "/other_table"
 
-        yt.write_table(tableX, ["x=1\n"])
-        yt.write_table(tableY, ["y=2\n"])
+        yt.write_table(tableX, [{"x": 1}])
+        yt.write_table(tableY, [{"y": 2}])
 
         with pytest.raises(yt.YtError):
             yt.run_merge([tableX, tableY], res_table)
@@ -134,21 +134,21 @@ class TestOperations(object):
 
         yt.mkdir(dir)
         yt.run_merge([tableX, tableY], res_table)
-        check(["x=1\n", "y=2\n"], yt.read_table(res_table))
+        check([{"x": 1}, {"y": 2}], yt.read_table(res_table), ordered=False)
 
         yt.run_merge(tableX, res_table)
         assert not parse_bool(yt.get_attribute(res_table, "sorted"))
-        check(["x=1\n"], yt.read_table(res_table))
+        check([{"x": 1}], yt.read_table(res_table))
 
         yt.run_sort(tableX, sort_by="x")
         yt.run_merge(tableX, res_table)
         assert parse_bool(yt.get_attribute(res_table, "sorted"))
-        check(["x=1\n"], yt.read_table(res_table))
+        check([{"x": 1}], yt.read_table(res_table))
 
     def test_auto_merge(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
-        yt.write_table(table, ["x={0}\n".format(i) for i in xrange(6)])
+        yt.write_table(table, [{"x": i} for i in xrange(6)])
 
         old_auto_merge_output = yt.config["auto_merge_output"]
 
@@ -169,14 +169,13 @@ class TestOperations(object):
         other_table = TEST_DIR + "/other_table"
 
         columns = [(self.random_string(7), self.random_string(7)) for _ in xrange(10)]
-        yt.write_table(table, ["x={0}\ty={1}\n".format(*c) for c in columns])
+        yt.write_table(table, ["x={0}\ty={1}\n".format(*c) for c in columns], format=yt.DsvFormat(), raw=True)
 
         with pytest.raises(yt.YtError):
             yt.run_sort([table, other_table], other_table, sort_by=["y"])
 
         yt.run_sort(table, other_table, sort_by=["x"])
-        assert [{"x": x, "y": y} for x, y in sorted(columns, key=lambda c: c[0])] == \
-               map(yt.loads_row, yt.read_table(other_table))
+        assert [{"x": x, "y": y} for x, y in sorted(columns, key=lambda c: c[0])] == list(yt.read_table(other_table))
 
         yt.run_sort(table, sort_by=["x"])
         assert list(yt.read_table(table)) == list(yt.read_table(other_table))
@@ -186,8 +185,7 @@ class TestOperations(object):
         assert list(yt.read_table(table)) == list(yt.read_table(other_table))
 
         yt.run_sort(table, sort_by=["y"])
-        assert [{"x": x, "y": y} for x, y in sorted(columns, key=lambda c: c[1])] == \
-               map(yt.loads_row, yt.read_table(table))
+        assert [{"x": x, "y": y} for x, y in sorted(columns, key=lambda c: c[1])] == list(yt.read_table(table))
 
         assert yt.is_sorted(table)
 
@@ -197,22 +195,22 @@ class TestOperations(object):
     def test_run_operation(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
-        yt.write_table(table, ["x=1\n", "x=2\n"])
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
 
         yt.run_map("cat", table, table)
-        check(["x=1\n", "x=2\n"], yt.read_table(table))
+        check([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
         yt.run_sort(table, sort_by=["x"])
         with pytest.raises(yt.YtError):
             yt.run_reduce("cat", table, [], reduce_by=["x"])
 
         yt.run_reduce("cat", table, table, reduce_by=["x"])
-        check(["x=1\n", "x=2\n"], yt.read_table(table))
+        check([{"x": 1}, {"x": 2}], yt.read_table(table))
 
         with pytest.raises(yt.YtError):
             yt.run_map("cat", table, table, table_writer={"max_row_weight": 1})
 
         yt.run_map("grep 2", table, other_table)
-        check(["x=2\n"], yt.read_table(other_table))
+        check([{"x": 2}], yt.read_table(other_table))
 
         with pytest.raises(yt.YtError):
             yt.run_map("cat", [table, table + "xxx"], other_table)
@@ -224,13 +222,16 @@ class TestOperations(object):
         with pytest.raises(yt.YtError):
             yt.run_reduce("cat", other_table, table, reduce_by=["x"])
 
-        yt.write_table(table, map(yt.dumps_row,
-                                  [{"a": 12,  "b": "ignat"},
-                                             {"b": "max"},
-                                   {"a": "x", "b": "name", "c": 0.5}]))
+        yt.write_table(table,
+                       [
+                           {"a": 12,  "b": "ignat"},
+                                     {"b": "max"},
+                           {"a": "x", "b": "name", "c": 0.5}
+                       ])
         yt.run_map("PYTHONPATH=. ./capitalize_b.py",
                    TablePath(table, columns=["b"]), other_table,
-                   files=get_test_file_path("capitalize_b.py"))
+                   files=get_test_file_path("capitalize_b.py"),
+                   format=yt.DsvFormat())
         records = yt.read_table(other_table, raw=False)
         assert sorted([rec["b"] for rec in records]) == ["IGNAT", "MAX", "NAME"]
         assert sorted([rec["c"] for rec in records]) == []
@@ -242,21 +243,22 @@ class TestOperations(object):
             yt.run_map("cat", table, table, yt_files=get_test_file_path("capitalize_b.py"),
                                             file_paths=get_test_file_path("capitalize_b.py"))
 
+    @add_failed_operation_stderrs_to_error_message
     def test_run_join_operation(self, yt_env):
         if yt.config["api_version"] == "v2":
             pytest.skip()
 
         table1 = TEST_DIR + "/first"
-        yt.write_table("<sorted_by=[x]>" + table1, ["x=1\n"])
+        yt.write_table("<sorted_by=[x]>" + table1, [{"x": 1}])
         table2 = TEST_DIR + "/second"
-        yt.write_table("<sorted_by=[x]>" + table2, ["x=2\n"])
+        yt.write_table("<sorted_by=[x]>" + table2, [{"x": 2}])
         unsorted_table = TEST_DIR + "/unsorted_table"
-        yt.write_table(unsorted_table, ["x=3\n"])
+        yt.write_table(unsorted_table, [{"x": 3}])
         table = TEST_DIR + "/table"
 
         if yt_env.version >= "0.17.3":
             yt.run_join_reduce("cat", ["<primary=true>" + table1, table2], table, join_by=["x"])
-            check(["x=1\n"], yt.read_table(table))
+            check([{"x": 1}], yt.read_table(table))
 
             # Run join-reduce without join_by
             with pytest.raises(yt.YtError):
@@ -268,7 +270,7 @@ class TestOperations(object):
 
         if yt_env.version >= "0.17.5" and yt_env.version < "0.18.0" or yt_env.version >= "18.2.0":
             yt.run_join_reduce("cat", [table1, "<foreign=true>" + table2], table, join_by=["x"])
-            check(["x=1\n"], yt.read_table(table))
+            check([{"x": 1}], yt.read_table(table))
 
             # Run join-reduce without join_by
             with pytest.raises(yt.YtError):
@@ -279,17 +281,18 @@ class TestOperations(object):
                 yt.run_join_reduce("cat", [unsorted_table, "<foreign=true>" + table2], table, join_by=["x"])
 
         if yt_env.version >= "18.2.0":
-            yt.write_table("<sorted_by=[x;y]>" + table1, ["x=1\ty=1\n"])
-            yt.write_table("<sorted_by=[x]>" + table2, ["x=1\n"])
+            yt.write_table("<sorted_by=[x;y]>" + table1, [{"x": 1, "y": 1}])
+            yt.write_table("<sorted_by=[x]>" + table2, [{"x": 1}])
 
             def func(key, rows):
                 assert key.keys() == ["x"]
                 for row in rows:
+                    del row["@table_index"]
                     yield row
 
             yt.run_reduce(func, [table1, "<foreign=true>" + table2], table,
                           reduce_by=["x","y"], join_by=["x"])
-            check(["x=1\ty=1\n", "x=1\n"], yt.read_table(table))
+            check([{"x": 1, "y": 1}, {"x": 1}], yt.read_table(table))
 
             # Reduce with join_by, but without foreign tables
             with pytest.raises(yt.YtError):
@@ -335,46 +338,46 @@ class TestOperations(object):
 
         table = TEST_DIR + "/table"
 
-        yt.write_table(table, ["x=1\n", "y=2\n"])
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
         yt.run_map(change_x, table, table, format=None)
-        check(yt.read_table(table), ["x=2\n", "y=2\n"])
+        check(yt.read_table(table), [{"x": 2}, {"y": 2}], ordered=False)
 
-        yt.write_table(table, ["x=1\n", "y=2\n"])
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
         yt.run_map(change_x, table, table)
-        check(yt.read_table(table), ["x=2\n", "y=2\n"])
+        check(yt.read_table(table),  [{"x": 2}, {"y": 2}])
 
         for mode in ["method", "staticmethod", "classmethod"]:
-            yt.write_table(table, ["x=1\n", "y=2\n"])
+            yt.write_table(table, [{"x": 1}, {"y": 2}])
             yt.run_map(ChangeX__(mode), table, table)
-            check(yt.read_table(table), ["x=2\n", "y=2\n"])
+            check(yt.read_table(table), [{"x": 2}, {"y": 2}], ordered=False)
 
-        yt.write_table(table, ["x=1\n", "y=2\n"])
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
         yt.run_map(TMapperWithMetaclass().map, table, table)
-        check(yt.read_table(table), ["x=2\n", "y=2\n"])
+        check(yt.read_table(table), [{"x": 2}, {"y": 2}], ordered=False)
 
-        yt.write_table(table, ["x=2\n", "x=2\ty=2\n"])
+        yt.write_table(table, [{"x": 2}, {"x": 2, "y": 2}])
         yt.run_sort(table, sort_by=["x"])
         yt.run_reduce(sum_y, table, table, reduce_by=["x"])
-        check(yt.read_table(table), ["y=3\tx=2\n"])
+        check(yt.read_table(table), [{"y": 3, "x": 2}], ordered=False)
 
-        yt.write_table(table, ["x=1\n", "y=2\n"])
-        yt.run_map(change_field, table, table)
-        check(yt.read_table(table), ["z=8\n", "z=8\n"])
+        yt.write_table(table, [{"x": "1"}, {"y": "2"}])
+        yt.run_map(change_field, table, table, format=yt.DsvFormat())
+        check(yt.read_table(table), [{"z": "8"}, {"z": "8"}])
 
-        yt.write_table(table, ["x=1\n", "x=2\n", "x=3\n"])
+        yt.write_table(table, [{"x": 1}, {"x": 2}, {"x": 3}])
         yt.run_map(sum_x, table, table)
-        check(yt.read_table(table), ["sum=6\n"])
+        check(yt.read_table(table), [{"sum": 6}])
 
-        yt.write_table(table, ["x=3\n", "x=3\n", "x=3\n"])
-        yt.run_map(sum_x_raw, table, table)
-        check(yt.read_table(table), ["sum=9\n"])
+        yt.write_table(table, [{"x": "3"}] * 3)
+        yt.run_map(sum_x_raw, table, table, format=yt.DsvFormat())
+        check(yt.read_table(table), [{"sum": "9"}])
 
-        yt.write_table(table, ["x=1\n", "y=2\n"])
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
         op = yt.run_map(write_statistics, table, table, format=None, sync=False)
         op.wait()
         assert sorted(op.get_job_statistics()["custom"].keys()) == sorted(["row_count", "python_job_preparation_time"])
         assert op.get_job_statistics()["custom"]["row_count"] == {"$": {"completed": {"map": {"count": 2, "max": 1, "sum": 2, "min": 1}}}}
-        check(yt.read_table(table), ["x=1\n", "y=2\n"])
+        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations_in_local_mode(self):
@@ -392,9 +395,9 @@ class TestOperations(object):
 
             table = TEST_DIR + "/table"
 
-            yt.write_table(table, ["x=1\n", "y=2\n"])
+            yt.write_table(table, [{"x": 1}, {"y": 2}])
             yt.run_map(foo, table, table, format=None)
-            check(yt.read_table(table), ["x=1\n", "y=2\n"])
+            check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
         finally:
             yt.config["pickling"]["local_mode"] = old_value
             yt.config["local_temp_directory"] = old_tmp_dir
@@ -415,28 +418,24 @@ class TestOperations(object):
         old_level = logger.LOGGER.level
         logger.LOGGER.setLevel(logging.INFO)
         try:
-            yt.write_table(table, ["0\ta\tA\n", "1\tb\tB\n"])
+            yt.write_table(table, ["0\ta\tA\n", "1\tb\tB\n"], raw=True)
             yt.run_map(reformat, table, other_table, output_format=yt.format.DsvFormat())
-            assert sorted(yt.read_table(other_table, format="dsv")) == \
+            assert sorted(yt.read_table(other_table, format="dsv", raw=True)) == \
                    ["k=0\ts=a\tv=A\n", "k=1\ts=b\tv=B\n"]
         finally:
-            yt.config["tabular_data_format"] = yt.format.DsvFormat()
+            yt.config["tabular_data_format"] = None
             logger.LOGGER.setLevel(old_level)
 
-        yt.config["tabular_data_format"] = None
-        try:
-            yt.write_table(table, ["1\t2\t3\n"], format="<has_subkey=true>yamr")
-            yt.run_map(reformat, table, table, input_format="<has_subkey=true>yamr", output_format="dsv")
-            yt.run_map("cat", table, table, input_format="dsv", output_format="dsv")
-            assert list(yt.read_table(table, format=yt.format.DsvFormat())) == ["k=1\ts=2\tv=3\n"]
-        finally:
-            yt.config["tabular_data_format"] = yt.format.DsvFormat()
+        yt.write_table(table, ["1\t2\t3\n"], format="<has_subkey=true>yamr", raw=True)
+        yt.run_map(reformat, table, table, input_format="<has_subkey=true>yamr", output_format="dsv")
+        yt.run_map("cat", table, table, input_format="dsv", output_format="dsv")
+        assert list(yt.read_table(table, format=yt.format.DsvFormat(), raw=True)) == ["k=1\ts=2\tv=3\n"]
 
     def test_python_operations_io(self):
         """ All access (except read-only) to stdin/out during the operation should be disabled """
         table = TEST_DIR + "/table_io_test"
 
-        yt.write_table(table, ["x=1\n", "y=2\n"])
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
 
         def print_(rec):
             print 'message'
@@ -462,40 +461,42 @@ class TestOperations(object):
             with pytest.raises(yt.YtError):
                 yt.run_map(mapper, table, table)
 
+    @add_failed_operation_stderrs_to_error_message
     def test_many_output_tables(self):
         table = TEST_DIR + "/table"
         output_tables = []
         for i in xrange(10):
             output_tables.append(TEST_DIR + "/temp%d" % i)
         append_table = TEST_DIR + "/temp_special"
-        yt.write_table(table, ["x=1\ty=1\n"])
-        yt.write_table(append_table, ["x=1\ty=1\n"])
+        yt.write_table(table, [{"x": "1", "y": "1"}])
+        yt.write_table(append_table, [{"x": "1", "y": "1"}])
 
         yt.run_map("PYTHONPATH=. ./many_output.py yt",
                    table,
                    output_tables + [TablePath(append_table, append=True)],
-                   files=get_test_file_path("many_output.py"))
+                   files=get_test_file_path("many_output.py"),
+                   format=yt.DsvFormat())
 
         for table in output_tables:
             assert yt.row_count(table) == 1
-        check(["x=1\ty=1\n", "x=10\ty=10\n"], yt.read_table(append_table))
+        check([{"x": "1", "y": "1"}, {"x": "10", "y": "10"}], yt.read_table(append_table), ordered=False)
 
     def test_attached_mode(self):
         table = TEST_DIR + "/table"
 
         yt.config["detached"] = 0
         try:
-            yt.write_table(table, ["x=1\n"])
+            yt.write_table(table, [{"x": 1}])
             yt.run_map("cat", table, table)
-            check(yt.read_table(table), ["x=1\n"])
+            check(yt.read_table(table), [{"x": 1}])
             yt.run_merge(table, table)
-            check(yt.read_table(table), ["x=1\n"])
+            check(yt.read_table(table), [{"x": 1}])
         finally:
             yt.config["detached"] = 1
 
     def test_abort_operation(self):
         table = TEST_DIR + "/table"
-        yt.write_table(table, ["x=1\n"])
+        yt.write_table(table, [{"x": 1}])
         op = yt.run_map("sleep 15; cat", table, table, sync=False)
         op.abort()
         assert op.get_state() == "aborted"
@@ -504,7 +505,7 @@ class TestOperations(object):
         if yt.config["api_version"] == "v2":
             pytest.skip()
         table = TEST_DIR + "/table"
-        yt.write_table(table, ["x=1\n"])
+        yt.write_table(table, [{"x": 1}])
         op = yt.run_map("sleep 15; cat", table, table, sync=False)
         while not op.get_state().is_running():
             time.sleep(0.2)
@@ -513,7 +514,7 @@ class TestOperations(object):
 
     def test_suspend_resume(self):
         table = TEST_DIR + "/table"
-        yt.write_table(table, ["key=1\n"])
+        yt.write_table(table, [{"key": 1}])
         try:
             op = yt.run_map_reduce(
                 "sleep 0.5; cat",
@@ -539,11 +540,11 @@ class TestOperations(object):
     def test_reduce_combiner(self):
         table = TEST_DIR + "/table"
         output_table = TEST_DIR + "/output_table"
-        yt.write_table(table, ["x=1\n", "y=2\n"])
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
 
         yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
                           source_table=table, destination_table=output_table)
-        check(["x=1\n", "y=2\n"], sorted(list(yt.read_table(table))))
+        check([{"x": 1}, {"y": 2}], sorted(list(yt.read_table(table))))
 
     def test_reduce_differently_sorted_table(self):
         table = TEST_DIR + "/table"
@@ -564,30 +565,30 @@ class TestOperations(object):
             yield rec
 
         table = TEST_DIR + "/table"
-        yt.write_table(table, ["x=1\ty=2\n"])
+        yt.write_table(table, [{"x": "1", "y": "2"}])
 
         yt.run_map(foo, table, table,
                    input_format=yt.create_format("<key_column_names=[\"y\"]>yamred_dsv"),
                    output_format=yt.YamrFormat(has_subkey=False, lenval=False))
-        check(["key=2\tvalue=x=1\n"], sorted(list(yt.read_table(table))))
+        check([{"key": "2", "value": "x=1"}], sorted(list(yt.read_table(table))))
 
     def test_schemaful_dsv(self):
         def foo(rec):
             yield rec
 
         table = TEST_DIR + "/table"
-        yt.write_table(table, ["x=1\ty=2\n", "x=\\n\tz=3\n"])
+        yt.write_table(table, ["x=1\ty=2\n", "x=\\n\tz=3\n"], raw=True, format=yt.DsvFormat())
         check(["1\n", "\\n\n"],
-                   sorted(list(yt.read_table(table, format=yt.SchemafulDsvFormat(columns=["x"])))))
+              sorted(list(yt.read_table(table, format=yt.SchemafulDsvFormat(columns=["x"]), raw=True))))
 
         yt.run_map(foo, table, table, format=yt.SchemafulDsvFormat(columns=["x"]))
-        check(["x=1\n", "x=\\n\n"], sorted(list(yt.read_table(table))))
+        check(["x=1\n", "x=\\n\n"], sorted(list(yt.read_table(table, format=yt.DsvFormat(), raw=True))))
 
     @add_failed_operation_stderrs_to_error_message
     def test_reduce_aggregator(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
-        yt.write_table(table, ["x=1\ty=2\n", "x=0\ty=3\n", "x=1\ty=4\n"])
+        yt.write_table(table, [{"x": 1, "y": 2}, {"x": 0, "y": 3}, {"x": 1, "y": 4}])
 
         @yt.reduce_aggregator
         def reducer(row_groups):
@@ -599,7 +600,7 @@ class TestOperations(object):
 
         yt.run_sort(table, sort_by=["x"])
         yt.run_reduce(reducer, table, other_table, reduce_by=["x"])
-        assert ["sum_y=9\n"] == list(yt.read_table(other_table))
+        assert [{"sum_y": 9}] == list(yt.read_table(other_table))
 
     def test_operation_receives_spec_from_config(self):
         memory_limit = yt.config["memory_limit"]
@@ -610,7 +611,7 @@ class TestOperations(object):
         yt.config["yamr_mode"]["use_yamr_style_destination_fds"] = not use_yamr_descriptors
 
         table = TEST_DIR + "/table"
-        yt.write_table(table, ["x=1\n"])
+        yt.write_table(table, [{"x": 1}])
         try:
             op = yt.run_map("sleep 1; cat", table, table, sync=False)
             spec = yt.get_attribute("//sys/operations/{0}".format(op.id), "spec")
@@ -631,13 +632,13 @@ class TestOperations(object):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
 
-        yt.write_table(table, ["x=1\nx=2\n"])
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
         yt.run_map(AggregateMapper(), table, other_table)
-        assert ["sum=3\n"] == list(yt.read_table(other_table))
-        yt.write_table(table, ["x=1\ty=2\n", "x=0\ty=3\n", "x=1\ty=4\n"])
+        assert [{"sum": 3}] == list(yt.read_table(other_table))
+        yt.write_table(table, [{"x": 1, "y": 2}, {"x": 0, "y": 3}, {"x": 1, "y": 4}])
         yt.run_sort(table, sort_by=["x"])
         yt.run_reduce(AggregateReducer(), table, other_table, reduce_by=["x"])
-        assert ["sum=1\n", "sum=2\n", "sum=9\n"] == sorted(yt.read_table(other_table))
+        assert [{"sum": 1}, {"sum": 2}, {"sum": 9}] == sorted(yt.read_table(other_table))
 
     @add_failed_operation_stderrs_to_error_message
     def test_create_modules_archive(self):
@@ -676,20 +677,20 @@ class TestOperations(object):
 
         with set_config_option("pickling/additional_files_to_archive", [("/tmp/test_module.py", "test_module.py")]):
             table = TEST_DIR + "/table"
-            yt.write_table(table, ["x=1\n"])
+            yt.write_table(table, [{"x": 1}])
             yt.run_map(foo, table, table)
 
     @add_failed_operation_stderrs_to_error_message
     def test_is_inside_job(self):
         table = TEST_DIR + "/table"
-        yt.write_table(table, ["x=1\n"])
+        yt.write_table(table, [{"x": 1}])
 
         def mapper(rec):
             yield {"flag": str(yt.is_inside_job()).lower()}
 
         yt.run_map(mapper, table, table)
         assert not yt.is_inside_job()
-        assert list(yt.read_table(table)) == ["flag=true\n"]
+        assert list(yt.read_table(table)) == [{"flag": "true"}]
 
     def test_retrying_operation_count_limit_exceeded(self):
         # TODO(ignat): Rewrite test without sleeps.
@@ -698,7 +699,7 @@ class TestOperations(object):
 
         try:
             table = TEST_DIR + "/table"
-            yt.write_table(table, ["x=1\nx=2\n"])
+            yt.write_table(table, [{"x": 1}, {"x": 2}])
 
             start_time = time.time()
             ops = []
@@ -730,15 +731,16 @@ class TestOperations(object):
             yield key
 
         table = TEST_DIR + "/table"
-        yt.write_table(table, ["x=1\ty=1\n", "x=1\ty=2\n", "x=2\ty=3\n"])
+        yt.write_table(table, [{"x": 1, "y": 1}, {"x": 1, "y": 2}, {"x": 2, "y": 3}])
         yt.run_sort(table, table, sort_by=["x"])
-
+        
         with pytest.raises(yt.YtOperationFailedError):
-            yt.run_reduce(reducer, table, TEST_DIR + "/other", reduce_by=["x"], format="dsv")
+            yt.run_reduce(reducer, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
 
-        yt.run_reduce(reducer_that_yileds_key, table, TEST_DIR + "/other", reduce_by=["x"], format="dsv")
+        op = yt.run_reduce(reducer_that_yileds_key, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
+        print >>sys.stderr, op.get_stderrs()
 
-        assert list(yt.read_table(TEST_DIR + "/other")) == ["x=1\n", "x=2\n"]
+        check([{"x": 1}, {"x": 2}], yt.read_table(TEST_DIR + "/other"), ordered=False)
 
     def test_disable_yt_accesses_from_job(self, yt_env):
         first_script = """\
@@ -764,7 +766,7 @@ if __name__ == "__main__":
     print yt.run_map(mapper, "{1}", "{2}", spec={3}, sync=False).id
 """
         table = TEST_DIR + "/table"
-        yt.write_table(table, ["x=1\nx=2\n"])
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
 
         dir_ = yt_env.env.path_to_run
         for script in [first_script, second_script]:

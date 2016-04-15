@@ -230,6 +230,7 @@ class PingTransaction(Thread):
                         interrupt_main()
                 else:
                     logger.warning("Failed to ping transaction %s, pinger stopped", self.transaction)
+                    return
             start_time = datetime.now()
             while datetime.now() - start_time < timedelta(seconds=self.delay):
                 sleep(self.step)

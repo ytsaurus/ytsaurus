@@ -153,6 +153,7 @@ def test_environment_for_yamr(request):
     if not yt.is_sorted("//sys/empty_yamr_table"):
         yt.run_sort("//sys/empty_yamr_table", "//sys/empty_yamr_table", sort_by=["key", "subkey"])
     yt.config["yamr_mode"]["treat_unexisting_as_empty"] = True
+    yt.config["default_value_of_raw_option"] = True
 
     return environment
 

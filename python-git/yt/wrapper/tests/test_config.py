@@ -1,6 +1,8 @@
 import yt.wrapper as yt
 from yt.common import update
 
+from helpers import set_config_option
+
 import os
 import pytest
 
@@ -112,14 +114,4 @@ class TestConfig(object):
             if env_merge_option is not None:
                 os.environ["YT_MERGE_INSTEAD_WARNING"] = env_merge_option
             update(yt.config.config, config)
-
-    def test_config_sanity(self):
-        yt.write_table("//tmp/in", ["a=b\n"], format="dsv")
-
-        old_format = yt.config["tabular_data_format"]
-        yt.config.update_config({"tabular_data_format": yt.JsonFormat()})
-
-        assert '{"a":"b"}\n' == yt.read_table("//tmp/in", raw=True).read()
-
-        yt.config["tabular_data_format"] = old_format
 

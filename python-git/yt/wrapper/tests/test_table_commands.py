@@ -3,7 +3,7 @@ from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.client import Yt
 import yt.wrapper as yt
 
-from helpers import TEST_DIR, check, get_temp_dsv_records, set_config_option
+from helpers import TEST_DIR, check, set_config_option
 
 import os
 import pytest
@@ -16,37 +16,34 @@ from itertools import imap
 
 @pytest.mark.usefixtures("yt_env")
 class TestTableCommands(object):
-    def setup(self):
-        yt.config["tabular_data_format"] = yt.format.DsvFormat()
-
     def _test_read_write(self):
         table = TEST_DIR + "/table"
         yt.create_table(table)
         check([], yt.read_table(table))
 
-        yt.write_table(table, "x=1\n")
-        check(["x=1\n"], yt.read_table(table))
+        yt.write_table(table, [{"x": 1}])
+        check([{"x": 1}], yt.read_table(table))
 
-        yt.write_table(table, ["x=1\n"])
-        check(["x=1\n"], yt.read_table(table))
+        yt.write_table(table, [{"x": 1}])
+        check([{"x": 1}], yt.read_table(table))
 
         yt.write_table(table, [{"x": 1}], raw=False)
-        check(["x=1\n"], yt.read_table(table))
+        check([{"x": 1}], yt.read_table(table))
 
-        yt.write_table(table, iter(["x=1\n"]))
-        check(["x=1\n"], yt.read_table(table))
+        yt.write_table(table, iter([{"x": 1}]))
+        check([{"x": 1}], yt.read_table(table))
 
-        yt.write_table(yt.TablePath(table, append=True), ["y=1\n"])
-        check(["x=1\n", "y=1\n"], yt.read_table(table))
+        yt.write_table(yt.TablePath(table, append=True), [{"y": 1}])
+        check([{"x": 1}, {"y": 1}], yt.read_table(table))
 
-        yt.write_table(yt.TablePath(table), ["x=1\n", "y=1\n"])
-        check(["x=1\n", "y=1\n"], yt.read_table(table))
+        yt.write_table(yt.TablePath(table), [{"x": 1}, {"y": 1}])
+        check([{"x": 1}, {"y": 1}], yt.read_table(table))
 
-        yt.write_table(table, ["y=1\n"])
-        check(["y=1\n"], yt.read_table(table))
+        yt.write_table(table, [{"y": 1}])
+        check([{"y": 1}], yt.read_table(table))
 
-        yt.write_table(table, StringIO("y=1\n"), raw=True, format=yt.DsvFormat())
-        check(["y=1\n"], yt.read_table(table))
+        yt.write_table(table, StringIO('{"y": 1}\n'), raw=True, format=yt.JsonFormat())
+        check([{"y": 1}], yt.read_table(table))
 
         response_parameters = {}
         list(yt.read_table(table, response_parameters=response_parameters))
@@ -55,8 +52,8 @@ class TestTableCommands(object):
         yt.write_table(table, [{"y": "1"}], raw=False)
         assert [{"y": "1"}] == list(yt.read_table(table, raw=False))
 
-        with set_config_option("tabular_data_format", None):
-            yt.write_table(table, ["x=1\n"], format="dsv")
+        with set_config_option("tabular_data_format", yt.DsvFormat()):
+            yt.write_table(table, ["x=1\n"], raw=True)
 
     def test_table_path(self):
         path = yt.TablePath("//path/to/table", attributes={"my_attr": 10})
@@ -111,18 +108,19 @@ class TestTableCommands(object):
         assert not yt.exists(table)
 
     def test_write_many_chunks(self):
-        yt.config.WRITE_BUFFER_SIZE = 1
-        table = TEST_DIR + "/table"
-        yt.write_table(table, ["x=1\n", "y=2\n", "z=3\n"])
-        yt.write_table(table, ["x=1\n", "y=2\n", "z=3\n"])
-        yt.write_table(table, ["x=1\n", "y=2\n", "z=3\n"])
+        with set_config_option("write_retries/chunk_size", 1):
+            yt.config["write_retries"]["chunk_size"] = 1
+            table = TEST_DIR + "/table"
+            for i in xrange(3):
+                yt.write_table("<append=%true>" + table, [{"x": 1}, {"y": 2}, {"z": 3}])
+            assert yt.get(table + "/@chunk_count") == 9
 
     def test_binary_data_with_dsv(self):
-        record = {"\tke\n\\\\y=": "\\x\\y\tz\n"}
-
-        table = TEST_DIR + "/table"
-        yt.write_table(table, map(yt.dumps_row, [record]))
-        assert [record] == map(yt.loads_row, yt.read_table(table))
+        with set_config_option("tabular_data_format", yt.DsvFormat()):
+            record = {"\tke\n\\\\y=": "\\x\\y\tz\n"}
+            table = TEST_DIR + "/table"
+            yt.write_table(table, map(yt.dumps_row, [record]), raw=True)
+            assert [record] == list(yt.read_table(table))
 
     def test_mount_unmount(self, yt_env):
         if yt.config["api_version"] == "v2":
@@ -274,24 +272,25 @@ class TestTableCommands(object):
     def test_start_row_index(self):
         table = TEST_DIR + "/table"
 
-        yt.write_table(yt.TablePath(table, sorted_by=["a"]), ["a=b\n", "a=c\n", "a=d\n"])
+        yt.write_table(yt.TablePath(table, sorted_by=["a"]), [{"a": "b"}, {"a": "c"}, {"a": "d"}])
 
-        rsp = yt.read_table(table)
-        assert rsp.response_parameters == {"start_row_index": 0L,
-                                           "approximate_row_count": 3L}
+        with set_config_option("tabular_data_format", yt.JsonFormat()):
+            rsp = yt.read_table(table, raw=True)
+            assert rsp.response_parameters == {"start_row_index": 0L,
+                                               "approximate_row_count": 3L}
 
-        rsp = yt.read_table(yt.TablePath(table, start_index=1))
-        assert rsp.response_parameters == {"start_row_index": 1L,
-                                           "approximate_row_count": 2L}
+            rsp = yt.read_table(yt.TablePath(table, start_index=1), raw=True)
+            assert rsp.response_parameters == {"start_row_index": 1L,
+                                               "approximate_row_count": 2L}
 
-        rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]))
-        assert rsp.response_parameters == \
-            {"start_row_index": 2L,
-             # When reading with key limits row count is estimated rounded up to the chunk row count.
-             "approximate_row_count": 3L}
+            rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]), raw=True)
+            assert rsp.response_parameters == \
+                {"start_row_index": 2L,
+                 # When reading with key limits row count is estimated rounded up to the chunk row count.
+                 "approximate_row_count": 3L}
 
-        rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]))
-        assert rsp.response_parameters == {"approximate_row_count": 0L}
+            rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]), raw=True)
+            assert rsp.response_parameters == {"approximate_row_count": 0L}
 
     def test_table_index(self):
         dsv = yt.format.DsvFormat(enable_table_index=True, table_index_column="TableIndex")
@@ -310,8 +309,8 @@ class TestTableCommands(object):
 
         yt.create_table(src_table_a, recursive=True, ignore_existing=True)
         yt.create_table(src_table_b, recursive=True, ignore_existing=True)
-        yt.write_table(src_table_a, "1=a\t2=a\t3=a\n" * len_a, format=dsv)
-        yt.write_table(src_table_b, "1=b\t2=b\t3=b\n" * len_b, format=dsv)
+        yt.write_table(src_table_a, "1=a\t2=a\t3=a\n" * len_a, format=dsv, raw=True)
+        yt.write_table(src_table_b, "1=b\t2=b\t3=b\n" * len_b, format=dsv, raw=True)
 
         assert yt.row_count(src_table_a) == len_a
         assert yt.row_count(src_table_b) == len_b
@@ -338,7 +337,7 @@ class TestTableCommands(object):
 
     def test_erase(self):
         table = TEST_DIR + "/table"
-        yt.write_table(table, get_temp_dsv_records())
+        yt.write_table(table, [{"a": i} for i in xrange(10)])
         assert yt.row_count(table) == 10
         yt.run_erase(TablePath(table, start_index=0, end_index=5))
         assert yt.row_count(table) == 5
@@ -347,42 +346,45 @@ class TestTableCommands(object):
 
     def test_read_with_table_path(self, yt_env):
         table = TEST_DIR + "/table"
-        yt.write_table(table, ["y=w3\n", "x=b\ty=w1\n", "x=a\ty=w2\n"])
+        yt.write_table(table, [{"y": "w3"}, {"x": "b", "y": "w1"}, {"x": "a", "y": "w2"}])
         yt.run_sort(table, sort_by=["x", "y"])
 
         def read_table(**kwargs):
-            return list(yt.read_table(TablePath(table, **kwargs), raw=False))
+            kwargs["name"] = kwargs.get("name", table)
+            return list(yt.read_table(TablePath(**kwargs), raw=False))
 
         assert read_table(lower_key="a", upper_key="d") == [{"x": "a", "y": "w2"},
                                                             {"x": "b", "y": "w1"}]
         assert read_table(columns=["y"]) == [{"y": "w" + str(i)} for i in [3, 2, 1]]
         assert read_table(lower_key="a", end_index=2, columns=["x"]) == [{"x": "a"}]
-        assert read_table(start_index=0, upper_key="b") == [{"y": "w3"}, {"x": "a", "y": "w2"}]
+        assert read_table(start_index=0, upper_key="b") == [{"x": None, "y": "w3"}, {"x": "a", "y": "w2"}]
         assert read_table(start_index=1, columns=["x"]) == [{"x": "a"}, {"x": "b"}]
         assert read_table(ranges=[{"lower_limit": {"row_index": 1}}], columns=["x"]) == [{"x": "a"}, {"x": "b"}]
 
-        assert list(yt.read_table(table + "{y}[:#2]")) == ["y=w3\n", "y=w2\n"]
-        assert list(yt.read_table(table + "[#1:]")) == ["x=a\ty=w2\n", "x=b\ty=w1\n"]
+        assert read_table(name=table + "{y}[:#2]") == [{"y": "w3"}, {"y": "w2"}]
+        assert read_table(name=table + "[#1:]") == [{"x": "a", "y": "w2"}, {"x": "b", "y": "w1"}]
 
-        assert list(yt.read_table("<ranges=[{"
-                                  "lower_limit={key=[b]}"
-                                  "}]>" + table)) == ["x=b\ty=w1\n"]
-        assert list(yt.read_table("<ranges=[{"
-                                  "upper_limit={row_index=2}"
-                                  "}]>" + table)) == ["y=w3\n", "x=a\ty=w2\n"]
+        assert read_table(name=
+                          "<ranges=[{"
+                          "lower_limit={key=[b]}"
+                          "}]>" + table) == [{"x": "b", "y": "w1"}]
+        assert read_table(name=
+                          "<ranges=[{"
+                          "upper_limit={row_index=2}"
+                          "}]>" + table) == [{"x": None, "y": "w3"}, {"x": "a", "y": "w2"}]
 
         with pytest.raises(yt.YtError):
             assert read_table(ranges=[{"lower_limit": {"index": 1}}], end_index=1)
         with pytest.raises(yt.YtError):
-            yt.read_table(TablePath(table, lower_key="a", start_index=1))
+            read_table(name=TablePath(table, lower_key="a", start_index=1))
         with pytest.raises(yt.YtError):
-            yt.read_table(TablePath(table, upper_key="c", end_index=1))
+            read_table(name=TablePath(table, upper_key="c", end_index=1))
 
         if yt_env.version >= "0.18":
             table_path = TablePath(table, exact_index=1)
-            assert list(yt.read_table(table_path.to_yson_string())) == ["x=a\ty=w2\n"]
+            assert list(yt.read_table(table_path.to_yson_string(), format=yt.DsvFormat())) == [{"x": "a", "y": "w2"}]
 
-        yt.write_table(table, ["x=b\n", "x=a\n", "x=c\n"])
+        yt.write_table(table, [{"x": "b"}, {"x": "a"}, {"x": "c"}])
         with pytest.raises(yt.YtError):
             yt.read_table(TablePath(table, lower_key="a"))
         # No prefix
@@ -400,10 +402,11 @@ class TestTableCommands(object):
     def test_huge_table(self):
         table = TEST_DIR + "/table"
         power = 3
-        records = imap(yt.dumps_row, ({"k": i, "s": i * i, "v": "long long string with strange symbols"
-                                                                " #*@*&^$#%@(#!@:L|L|KL..,,.~`"}
-                                      for i in xrange(10 ** power)))
-        yt.write_table(table, yt.StringIterIO(records))
+        format = yt.JsonFormat()
+        records = imap(format.dumps_row, ({"k": i, "s": i * i, "v": "long long string with strange symbols"
+                                                                    " #*@*&^$#%@(#!@:L|L|KL..,,.~`"}
+                       for i in xrange(10 ** power)))
+        yt.write_table(table, yt.StringIterIO(records), format=format, raw=True)
 
         assert yt.row_count(table) == 10 ** power
 
@@ -467,9 +470,9 @@ class TestTableCommands(object):
         yt.config["proxy"]["content_encoding"] = "identity"
         table = TEST_DIR + "/table"
         try:
-            yt.write_table(table, iter(['{"abc": "123"}\n'] * 100000 + ["{a:b}"] + ['{"abc": "123"}\n'] * 100000), format=yt.JsonFormat())
+            yt.write_table(table, iter(['{"abc": "123"}\n'] * 100000 + ["{a:b}"] + ['{"abc": "123"}\n'] * 100000), raw=True, format=yt.JsonFormat())
         except yt.YtResponseError as err:
-            assert "JSON" in str(err), "Incorrect error messager: " + str(err)
+            assert "JSON" in str(err), "Incorrect error message: " + str(err)
         else:
             assert False, "Failed to catch response error"
 

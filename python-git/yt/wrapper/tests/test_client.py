@@ -3,7 +3,7 @@ from yt.wrapper.table import TablePath
 import yt.wrapper.http as http
 import yt.wrapper as yt
 
-from helpers import TEST_DIR, get_temp_dsv_records, set_config_option
+from helpers import TEST_DIR, set_config_option
 
 import pytest
 
@@ -23,7 +23,6 @@ class TestClient(object):
 
     def test_client(self, yt_env):
         client = Yt(config=yt.config.config)
-        client.config["tabular_data_format"] = yt.format.DsvFormat()
 
         other_client = Yt(config=yt.config.config)
         other_client.config["proxy"]["force_ipv4"] = True
@@ -50,16 +49,16 @@ class TestClient(object):
 
             table = TEST_DIR + "/table"
             client.create("table", table)
-            client.write_table(table, ["a=b\n"])
-            assert "a=b\n" == client.read_table(table, raw=True).read()
+            client.write_table(table, [{"a": "b"}])
+            assert "a=b\n" == client.read_table(table, format=yt.DsvFormat(), raw=True).read()
 
             assert set(client.search(TEST_DIR)) == set([TEST_DIR, TEST_DIR + "/folder", table])
 
             other_table = TEST_DIR + "/other_table"
             client.copy(table, other_table)
-            assert "a=b\n" == client.read_table(other_table, raw=True).read()
+            assert "a=b\n" == client.read_table(other_table, format=yt.DsvFormat(), raw=True).read()
             client.move(table, TEST_DIR + "/moved_table")
-            assert "a=b\n" == client.read_table(TEST_DIR + "/moved_table", raw=True).read()
+            assert "a=b\n" == client.read_table(TEST_DIR + "/moved_table", format=yt.DsvFormat(), raw=True).read()
             assert not client.exists(table)
 
             client.link(other_table, TEST_DIR + "/table_link")
@@ -87,33 +86,33 @@ class TestClient(object):
             assert client.get_type(temp_table) == "table"
             assert client.is_empty(temp_table)
 
-            client.write_table(temp_table, get_temp_dsv_records())
+            client.write_table(temp_table, [{"a": i} for i in xrange(10)])
             client.run_sort(temp_table, sort_by=["x"])
             assert client.is_sorted(temp_table)
 
             client.run_erase(TablePath(temp_table, start_index=0, end_index=5, client=client))
             assert client.row_count(temp_table) == 5
 
-            client.run_map("cat", other_table, TEST_DIR + "/map_output")
-            assert "a=b\n" == client.read_table(other_table, raw=True).read()
+            client.run_map("cat", other_table, TEST_DIR + "/map_output", format=yt.DsvFormat())
+            assert "a=b\n" == client.read_table(other_table, format=yt.DsvFormat(), raw=True).read()
 
-            client.write_table(TEST_DIR + "/first", ["x=1\n"])
-            client.write_table(TEST_DIR + "/second", ["x=2\n"])
+            client.write_table(TEST_DIR + "/first", [{"x": 1}])
+            client.write_table(TEST_DIR + "/second", [{"x": 2}])
             client.run_merge([TEST_DIR + "/first", TEST_DIR + "/second"], TEST_DIR + "/merged_table")
-            assert client.read_table(TEST_DIR + "/merged_table").read() == "x=1\nx=2\n"
+            assert list(client.read_table(TEST_DIR + "/merged_table")) == [{"x": 1}, {"x": 2}]
 
-            client.run_reduce("head -n 3", temp_table, TEST_DIR + "/reduce_output", reduce_by=["x"])
+            client.run_reduce("head -n 3", temp_table, TEST_DIR + "/reduce_output", reduce_by=["x"], format=yt.DsvFormat())
             assert client.row_count(TEST_DIR + "/reduce_output") == 3
 
             if yt_env.version >= "0.17.5" and yt.config["api_version"] != "v2":
-                client.write_table("<sorted_by=[x]>" + TEST_DIR + "/first", ["x=1\n", "x=2\n"])
-                client.write_table("<sorted_by=[x]>" + TEST_DIR + "/second", ["x=2\n", "x=3\n"])
+                client.write_table("<sorted_by=[x]>" + TEST_DIR + "/first", [{"x": 1}, {"x": 2}])
+                client.write_table("<sorted_by=[x]>" + TEST_DIR + "/second", [{"x": 2}, {"x": 3}])
                 client.run_join_reduce("cat", [TEST_DIR + "/first", "<foreign=true>" + TEST_DIR + "/second"],
-                    TEST_DIR + "/join_output", join_by=["x"])
+                    TEST_DIR + "/join_output", join_by=["x"], format=yt.DsvFormat())
                 assert client.row_count(TEST_DIR + "/join_output") == 3
 
             mr_operation = client.run_map_reduce("cat", "head -n 3", temp_table, TEST_DIR + "/mapreduce_output",
-                                                 reduce_by=["x"])
+                                                 reduce_by=["x"], format=yt.DsvFormat())
             assert client.get_operation_state(mr_operation.id) == "completed"
             assert client.row_count(TEST_DIR + "/mapreduce_output") == 3
 
@@ -137,7 +136,7 @@ class TestClient(object):
             with pytest.raises(yt.YtError):
                 client.commit_transaction(tx)
 
-            op = client.run_map("sleep 10; cat", temp_table, table, sync=False)
+            op = client.run_map("sleep 10; cat", temp_table, table, sync=False, format=yt.DsvFormat())
             assert not client.get_operation_state(op.id).is_unsuccessfully_finished()
             assert op.get_attributes()["state"] != "failed"
             time.sleep(0.5)

@@ -413,7 +413,7 @@ class OpenedTable(object):
             )
             with self._client.Transaction(transaction_id=self._tx.transaction_id):
                 slice_content = "".join(
-                    self._client.read_table(slice_ypath, format=self._format)
+                    self._client.read_table(slice_ypath, format=self._format, raw=True)
                 )
             if len(slice_content) == 0:
                 break
@@ -431,7 +431,7 @@ class OpenedTable(object):
             )
             with self._client.Transaction(transaction_id=self._tx.transaction_id):
                 slice_content = "".join(
-                    self._client.read_table(slice_ypath, format=self._format)
+                    self._client.read_table(slice_ypath, format=self._format, raw=True)
                 )
             self._lower_offset -= len(slice_content)
             self._lower_row -= self._minimum_read_row_count

@@ -628,7 +628,8 @@ Examples:
             chunk_iter_stream(
                 yt.read_table(
                     yt.TablePath(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
-                    format=inputformat),
+                    format=inputformat,
+                    raw=True),
                 16 * MB))
     if args.createtable is not None:
         yt.create_table(args.createtable, attributes=attributes)
@@ -638,7 +639,7 @@ Examples:
         else:
             write_tables = [yt.TablePath(args.write, append=args.append)]
         if len(write_tables) == 1:
-            yt.write_table(write_tables[0], sys.stdin, format=outputformat,
+            yt.write_table(write_tables[0], sys.stdin, format=outputformat, raw=True,
                            table_writer=args.tablewriter,
                            replication_factor=replication_factor,
                            compression_codec=args.codec)
@@ -658,7 +659,7 @@ Examples:
 
     if args.writesorted is not None:
         table = yt.TablePath(args.writesorted, append=args.append, sorted_by=["key", "subkey"])
-        yt.write_table(table, sys.stdin, format=outputformat,
+        yt.write_table(table, sys.stdin, format=outputformat, raw=True,
                        replication_factor=replication_factor,
                        compression_codec=args.codec)
     if mapreduce_case:

@@ -75,3 +75,13 @@ class StringIterIO(object):
             self._active = True
         except StopIteration:
             self._active = False
+
+    def next(self):
+        """ Get the next line from stream. """
+        res = self.readline()
+        if not res:
+            raise StopIteration
+        return res
+
+    def __iter__(self):
+        return self
