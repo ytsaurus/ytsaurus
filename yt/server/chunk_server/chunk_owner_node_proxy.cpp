@@ -510,7 +510,8 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     auto isExternal = node->IsExternal();
 
     descriptors->push_back(TAttributeDescriptor("chunk_list_id")
-        .SetExternal(isExternal));
+        .SetExternal(isExternal)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("chunk_ids")
         .SetExternal(isExternal)
         .SetOpaque(true));
