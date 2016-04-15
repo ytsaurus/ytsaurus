@@ -1,7 +1,5 @@
 from client import TransferManager
 
-from yt.common import YtError
-
 import os
 
 _tm_client = None
@@ -18,7 +16,7 @@ def init_client(*args, **kwargs):
 
 def _get_client():
     if _tm_client is None:
-        raise YtError("Client is not initialized")
+        init_client()
     return _tm_client
 
 def add_task(*args, **kwargs):
