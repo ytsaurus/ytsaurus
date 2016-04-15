@@ -23,7 +23,7 @@ var OPERATIONS_CYPRESS_PATH = "//sys/operations";
 var OPERATIONS_RUNTIME_PATH = "//sys/scheduler/orchid/scheduler/operations";
 var SCHEDULING_INFO_PATH = "//sys/scheduler/orchid/scheduler";
 var MAX_SIZE_LIMIT = 100;
-var TIME_SPAN_LIMIT = 10 * 24 * 3600 * 1000;
+var TIME_SPAN_LIMIT = 10 * 24 * 3600 * 1000000;
 
 var INTERMEDIATE_STATES = [
     "initializing",
@@ -149,10 +149,10 @@ function tidyArchiveOperation(operation)
 
     operation.is_archived = true;
     if (operation.start_time) {
-        operation.start_time = new Date(parseInt(utils.getYsonValue(operation.start_time)) / 1000).toISOString();
+        operation.start_time = utils.microsToUtcString(utils.getYsonValue(operation.start_time));
     }
     if (operation.finish_time) {
-        operation.finish_time = new Date(parseInt(utils.getYsonValue(operation.finish_time)) / 1000).toISOString();
+        operation.finish_time = utils.microsToUtcString(utils.getYsonValue(operation.finish_time));
     }
 
     return operation;
@@ -235,9 +235,8 @@ function validateInteger(value)
 
 function validateDateTime(value)
 {
-    var parsed = Date.parse(value);
-    if (!isNaN(parsed)) {
-        return parsed;
+    if (typeof(value) === "string" && !isNaN(Date.parse(value))) {
+        return utils.utcStringToMicros(value);
     }
     throw new YtError("Unable to parse datetime")
         .withCode(1)
@@ -246,7 +245,7 @@ function validateDateTime(value)
 
 function optional(parameters, key, validator, default_value)
 {
-    if (_.has(parameters, key)) {
+    if (_.has(parameters, key) && typeof(parameters[key]) !== "undefined") {
         return validator(parameters[key]);
     } else {
         if (default_value) {
@@ -298,7 +297,7 @@ function YtApplicationOperations$list(parameters)
     // Process |from_time| & |to_time|.
     if (from_time === null) {
         if (to_time === null) {
-            to_time = (new Date()).getTime();
+            to_time = (new Date()).getTime() * 1000;
         }
         from_time = to_time - TIME_SPAN_LIMIT;
     } else {
@@ -360,7 +359,7 @@ function YtApplicationOperations$list(parameters)
         });
 
     var counts_filter_conditions = [
-        "start_time > {}000 AND start_time <= {}000".format(from_time, to_time)
+        "start_time > {} AND start_time <= {}".format(from_time, to_time)
     ];
 
     if (substr_filter) {
@@ -568,7 +567,7 @@ function YtApplicationOperations$list(parameters)
             var attributes = utils.getYsonAttributes(item);
 
             // Check time filter.
-            var start_time = Date.parse(attributes.start_time);
+            var start_time = utils.utcStringToMicros(attributes.start_time);
             if (start_time < from_time || start_time >= to_time) {
                 return false;
             }
@@ -617,7 +616,7 @@ function YtApplicationOperations$list(parameters)
                 return false;
             }
 
-            if (cursor_direction === "future" && start_time < cursor_time) {
+            if (cursor_direction === "future" && start_time <= cursor_time) {
                 return false;
             }
 
@@ -647,23 +646,40 @@ function YtApplicationOperations$list(parameters)
             });
         }
 
-        merged_data.sort(function(a, b) {
-            var aT = utils.getYsonAttribute(a, "start_time");
-            var bT = utils.getYsonAttribute(b, "start_time");
-            if (aT < bT) {
-                return 1;
-            } else if (aT > bT) {
-                return -1;
-            } else {
-                return 0;
-            }
-        });
+        function startTimeComparer(direction) {
+            var m;
+            if (direction === "past") m = 1;
+            if (direction === "future") m = -1;
+            return function(a, b) {
+                var aT = utils.getYsonAttribute(a, "start_time");
+                var bT = utils.getYsonAttribute(b, "start_time");
+                if (aT < bT) {
+                    return m;
+                } else if (aT > bT) {
+                    return -m;
+                } else {
+                    return 0;
+                }
+            };
+        }
+
+        merged_data.sort(startTimeComparer(cursor_direction));
 
         // Check if there are any extra items.
+        var wrap_with_incomplete = false;
         if (merged_data.length > max_size) {
+            wrap_with_incomplete = true;
+        }
+
+        // Trim final result.
+        merged_data = merged_data.slice(0, max_size);
+        // Sort operations in descending order before producing final result.
+        merged_data.sort(startTimeComparer("past"));
+
+        if (wrap_with_incomplete) {
             merged_data = {
                 $attributes: {incomplete: true},
-                $value: merged_data.slice(0, max_size),
+                $value: merged_data,
             };
         }
 
@@ -696,9 +712,10 @@ function YtApplicationOperations$list(parameters)
         return result;
     })
     .catch(function(err) {
+        console.log(err);
         return Q.reject(new YtError(
             "Failed to list operations",
-            err));
+            YtError.ensureWrapped(err)));
     });
 });
 
