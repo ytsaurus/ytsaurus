@@ -200,7 +200,7 @@ def get_proxy_url(proxy=None, check=True, client=None):
     if proxy is None:
         proxy = get_config(client=client)["proxy"]["url"]
 
-    if proxy is not None and "." not in proxy and "localhost" not in proxy:
+    if proxy is not None and "." not in proxy and "localhost" not in proxy and ":" not in proxy:
         proxy = proxy + get_config(client=client)["proxy"]["default_suffix"]
 
     if check:
