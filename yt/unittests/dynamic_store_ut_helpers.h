@@ -172,7 +172,7 @@ protected:
 
     TUnversionedOwningRow BuildRow(const Stroka& yson, bool treatMissingAsNull = true)
     {
-        return NTableClient::BuildRow(yson, Tablet_->Schema().GetKeyColumns(), Tablet_->Schema(), treatMissingAsNull);
+        return NTableClient::BuildRow(yson, Tablet_->Schema(), treatMissingAsNull);
     }
 
     bool AreRowsEqual(TUnversionedRow row, const Stroka& yson)
