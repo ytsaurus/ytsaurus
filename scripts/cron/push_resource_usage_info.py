@@ -1,14 +1,17 @@
 #!/usr/bin/env python
 
-from yt.common import YtError
 from yt.wrapper.client import Yt
 from yt.wrapper.common import get_backoff
+from yt.wrapper.http import get_retriable_errors
+from yt.common import YtError
+import yt.packages.requests as requests
 
 import simplejson as json
 import logging
-import requests
 import argparse
 import time
+import os
+import sys
 from datetime import datetime
 
 from socket import error as SocketError
@@ -78,23 +81,40 @@ def main():
     parser = argparse.ArgumentParser(description="Pushes accounts resource usage of various "
                                                  "YT clusters to statface.")
 
-    parser.add_argument("--robot-login", default="robot_asaitgalin")
-    parser.add_argument("--robot-password", default="vai4looP0i")
-    parser.add_argument("--cluster", required=True, nargs="+", help="clusters list")
+    parser.add_argument("--robot-login", default=os.environ.get("STATFACE_ROBOT_LOGIN"))
+    parser.add_argument("--robot-password", default=os.environ.get("STATFACE_ROBOT_PASSWORD"))
+    parser.add_argument("--clusters-config-url", default="http://yt.yandex.net/config.json",
+                        help="url to json with all available clusters")
     args = parser.parse_args()
+
+    if args.robot_login is None or args.robot_password is None:
+        print >>sys.stderr, "Statface credentials are not set correctly"
+        sys.exit(1)
 
     headers = {
         "StatRobotUser": args.robot_login,
         "StatRobotPassword": args.robot_password
     }
 
-    for cluster in args.cluster:
-        logging.info("Fetch account info from %s", cluster)
+    logging.info("Retrieving clusters configuration from %s", args.clusters_config_url)
+    clusters_configuration = requests.get(args.clusters_config_url).json()
+
+    clusters = [name for name, value in clusters_configuration.iteritems()
+                if value["type"] != "closing"]
+
+    logging.info("Fetching accounts info from %d clusters", len(clusters))
+
+    exceptions = tuple(list(get_retriable_errors()) + [YtError])
+
+    for cluster in clusters:
+        logging.info("Fetching accounts info from %s", cluster)
         try:
             accounts_data = collect_accounts_data_for_cluster(cluster)
             push_cluster_data(accounts_data, headers)
-        except YtError:
-            logging.warning("Failed to fetch account info from %s", cluster)
+        except exceptions:
+            logging.exception("Failed to fetch account info from %s", cluster)
+
+    logging.info("Done")
 
 
 if __name__ == '__main__':

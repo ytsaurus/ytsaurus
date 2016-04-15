@@ -338,7 +338,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 client,
                 nodeDirectory,
                 //XXX(babenko): hotfix for YT-3915
-                Null,
+                Null /* localDescriptor */,
                 blockCache,
                 throttler);
 

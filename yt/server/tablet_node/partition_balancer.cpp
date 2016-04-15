@@ -396,6 +396,7 @@ private:
                 chunkSpec->mutable_chunk_meta()->CopyFrom(store->GetChunkMeta());
                 ToProto(chunkSpec->mutable_lower_limit(), TReadLimit(partition->GetPivotKey()));
                 ToProto(chunkSpec->mutable_upper_limit(), TReadLimit(partition->GetNextPivotKey()));
+                chunkSpec->set_erasure_codec(subresponse.erasure_codec());
                 fetcher->AddChunk(chunkSpec);
             }
         }

@@ -36,7 +36,7 @@ class TestTablets(YTEnvSetup):
                 "atomicity": atomicity
             },
             schema = self._get_schema([
-                {"name": "key", "type": "int64", "sort_order": "ascending"}, 
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "string"}],
                 optimized_for))
 
@@ -90,7 +90,7 @@ class TestTablets(YTEnvSetup):
     def _get_pivot_keys(self, path):
         tablets = get(path + "/@tablets")
         return [tablet["pivot_key"] for tablet in tablets]
-           
+
     def test_table_cell_bundle(self):
         id = create_tablet_cell_bundle("test_bundle")
         assert ls("//sys/tablet_cell_bundles") == ["test_bundle"]
@@ -199,7 +199,7 @@ class TestTablets(YTEnvSetup):
         remove("//tmp/t")
         sleep(1)
         assert self._find_tablet_orchid(address, tablet_id) is None
-         
+
     def _test_read_table(self, optimized_for):
         self.sync_create_cells(1, 1)
 
@@ -228,7 +228,7 @@ class TestTablets(YTEnvSetup):
             root_chunk_list_id = get(path + "/@chunk_list_id")
             root_chunk_list = get("#" + root_chunk_list_id + "/@")
             tablet_chunk_lists = [get("#" + x + "/@") for x in root_chunk_list["child_ids"]]
-            assert all([root_chunk_list_id in chunk_list["parent_ids"] for chunk_list in tablet_chunk_lists]) 
+            assert all([root_chunk_list_id in chunk_list["parent_ids"] for chunk_list in tablet_chunk_lists])
             assert get("//tmp/t/@chunk_count") == sum([len(chunk_list["child_ids"]) for chunk_list in tablet_chunk_lists])
             return root_chunk_list, tablet_chunk_lists
 
@@ -296,7 +296,7 @@ class TestTablets(YTEnvSetup):
 
     def _test_computed_columns(self, optimized_for):
         self.sync_create_cells(1, 1)
-        with pytest.raises(YtError): 
+        with pytest.raises(YtError):
             create("table", "//tmp/t1",
                 attributes={"dynamic": True},
                 schema=[
@@ -665,7 +665,7 @@ class TestTablets(YTEnvSetup):
         create("table", "//tmp/t1",
             attributes={"dynamic": True},
             schema = self._get_schema([
-                {"name": "key", "type": "int64", "sort_order": "ascending"}, 
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "any"}], optimized_for))
         self.sync_mount_table("//tmp/t1")
 
@@ -696,7 +696,7 @@ class TestTablets(YTEnvSetup):
         self._create_simple_table("//tmp/t3")
         self.sync_mount_table("//tmp/t3")
         self.sync_unmount_table("//tmp/t3")
-        
+
         reshard_table("//tmp/t3", [[], [100], [200], [300], [400]])
         self.sync_mount_table("//tmp/t3")
         self.sync_unmount_table("//tmp/t3")
@@ -706,7 +706,7 @@ class TestTablets(YTEnvSetup):
         assert self._get_pivot_keys("//tmp/t1") == [[], [100], [200], [300], [400]]
 
     def _prepare_allowed(self, permission):
-        self.sync_create_cells(1, 1)        
+        self.sync_create_cells(1, 1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
         create_user("u")
@@ -998,12 +998,12 @@ class TestTablets(YTEnvSetup):
     def _test_update_key_columns_success(self, optimized_for):
         self.sync_create_cells(1, 1)
         self._create_simple_table("//tmp/t", optimized_for = optimized_for)
-        
+
         self.sync_mount_table("//tmp/t")
         rows1 = [{"key": i, "value": str(i)} for i in xrange(100)]
         insert_rows("//tmp/t", rows1)
         self.sync_unmount_table("//tmp/t")
-        
+
         alter_table("//tmp/t", schema=[
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "key2", "type": "int64", "sort_order": "ascending"},
@@ -1042,7 +1042,7 @@ class TestTablets(YTEnvSetup):
 
         self._create_simple_table("//tmp/t", atomicity=atomicity)
         self.sync_mount_table("//tmp/t")
-        
+
         rows = [{"key": i, "value": str(i)} for i in xrange(100)]
         insert_rows("//tmp/t", rows, atomicity=atomicity)
 
@@ -1152,6 +1152,19 @@ class TestTablets(YTEnvSetup):
         set("//tmp/t/@read_only", True)
         remount_table("//tmp/t")
 
+    def test_tablet_assignment(self):
+        self.sync_create_cells(1, 3)
+        self._create_simple_table("//tmp/t")
+        reshard_table("//tmp/t", [[]] + [[i] for i in xrange(11)])
+        assert get("//tmp/t/@tablet_count") == 12
+
+        self.sync_mount_table("//tmp/t")
+
+        cells = ls("//sys/tablet_cells", attributes=["tablet_count"])
+        assert len(cells) == 3
+        for cell in cells:
+            assert cell.attributes["tablet_count"] == 4
+
     def test_follower_start(self):
         self.sync_create_cells(2, 1)
         self._create_simple_table("//tmp/t")
@@ -1162,7 +1175,7 @@ class TestTablets(YTEnvSetup):
             keys = [{"key": i}]
             insert_rows("//tmp/t", rows)
             assert lookup_rows("//tmp/t", keys) == rows
-            
+
     def test_follower_catchup(self):
         self.sync_create_cells(2, 1)
         self._create_simple_table("//tmp/t")
@@ -1172,7 +1185,7 @@ class TestTablets(YTEnvSetup):
         peers = get("#" + cell_id + "/@peers")
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
         self.set_node_banned(follower_address, True)
-        
+
         for i in xrange(0, 100):
             rows = [{"key": i, "value": "test"}]
             keys = [{"key": i}]
@@ -1180,12 +1193,12 @@ class TestTablets(YTEnvSetup):
             assert lookup_rows("//tmp/t", keys) == rows
 
         assert get("#" + cell_id + "/@health") == "good"
-                    
+
     def test_run_reassign_leader(self):
         self.sync_create_cells(2, 1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
-        
+
         rows = [{"key": 1, "value": "2"}]
         keys = [{"key": 1}]
         insert_rows("//tmp/t", rows)
@@ -1217,7 +1230,7 @@ class TestTablets(YTEnvSetup):
         self.sync_create_cells(2, 1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
-        
+
         rows = [{"key": 1, "value": "2"}]
         keys = [{"key": 1}]
         insert_rows("//tmp/t", rows)
@@ -1225,7 +1238,7 @@ class TestTablets(YTEnvSetup):
         cell_id = ls("//sys/tablet_cells")[0]
         self._ban_all_peers(cell_id)
         sleep(3.0)
-        
+
         assert get("#" + cell_id + "/@health") == "good"
         assert lookup_rows("//tmp/t", keys) == rows
 
@@ -1233,7 +1246,7 @@ class TestTablets(YTEnvSetup):
         self.sync_create_cells(2, 1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
-        
+
         rows = [{"key": 1, "value": "2"}]
         keys = [{"key": 1}]
         insert_rows("//tmp/t", rows)
@@ -1243,7 +1256,7 @@ class TestTablets(YTEnvSetup):
         assert get("//sys/tablet_cells/" + cell_id + "/snapshots/@count") == 1
         self._ban_all_peers(cell_id)
         sleep(3.0)
-        
+
         assert get("#" + cell_id + "/@health") == "good"
         assert lookup_rows("//tmp/t", keys) == rows
 
@@ -1251,10 +1264,10 @@ class TestTablets(YTEnvSetup):
         self.sync_create_cells(3, 1)
         self._create_simple_table("//tmp/t", optimized_for = "scan")
         self.sync_mount_table("//tmp/t")
-        
+
         keys = [{"key": 1}]
         with pytest.raises(YtError): lookup_rows("//tmp/t", keys, read_from="follower")
-    
+
     def test_rff_when_only_leader_exists(self):
         self.sync_create_cells(1, 1)
         self._create_simple_table("//tmp/t")

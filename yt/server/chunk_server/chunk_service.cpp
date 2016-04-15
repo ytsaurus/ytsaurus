@@ -80,8 +80,17 @@ private:
             auto chunkIdWithIndex = DecodeChunkId(chunkId);
 
             auto* subresponse = response->add_subresponses();
-
             auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
+            if (!IsObjectAlive(chunk)) {
+                THROW_ERROR_EXCEPTION("Chunk %v doesn't exist", chunkId); 
+            }
+
+            TChunkPtrWithIndex chunkWithIndex(chunk, chunkIdWithIndex.Index);
+            auto replicas = chunkManager->LocateChunk(chunkWithIndex);
+
+            ToProto(subresponse->mutable_replicas(), replicas);
+            subresponse->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
+
             if (IsObjectAlive(chunk)) {
                 TChunkPtrWithIndex chunkWithIndex(chunk, chunkIdWithIndex.Index);
                 auto replicas = chunkManager->LocateChunk(chunkWithIndex);

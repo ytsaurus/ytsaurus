@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import prepare_operation_tablets
+import yt.tools.operations_archive as operations_archive
 
 from yt.wrapper.http import get_session
 import yt.packages.requests.adapters as requests_adapters
@@ -8,16 +9,19 @@ import yt.packages.requests.adapters as requests_adapters
 from yt.wrapper.common import run_with_retries
 import yt.logger as logger
 import yt.wrapper as yt
+import yt.yson as yson
 
 from dateutil.parser import parse
 from collections import namedtuple, Counter
+# Import is necessary due to: http://bugs.python.org/issue7980
+import _strptime
 from datetime import datetime, timedelta
 from threading import Thread
 from logging import Formatter
 
 import argparse
 import sys
-
+import time
 
 Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state", "spec"])
 
@@ -31,7 +35,8 @@ class Try(object):
     @property
     def value(self):
         if self.exc:
-            raise self.obj
+            # In this case self.obj represents exc_info, which is tuple (type, value, traceback)
+            raise self.obj[0], self.obj[1], self.obj[2]
         else:
             return self.obj
 
@@ -44,13 +49,17 @@ class Try(object):
         return Try(True, value)
 
 
-def parallel_map_impl(fn, kwargs, result, items):
+def parallel_map_impl(fn, kwargs, result, items, failure_limit=1):
+    failures_count = 0
     for item in items:
         try:
             local_result = Try.success(fn(item, **kwargs))
         except:
             logger.exception("Handled exception")
-            local_result = Try.failure(sys.exc_info()[0])
+            local_result = Try.failure(sys.exc_info())
+            failures_count += 1
+            if failures_count == failure_limit:
+                return
 
         result.append(local_result)
 
@@ -93,29 +102,58 @@ def get_filter_factors(op, attributes):
         str(brief_spec.get('input_table_paths', [''])[0])
     ]).lower()
 
-def clean_operation(op_id, archive=False):
+def clean_operation(op_id, scheme_type, archive=False):
     if archive:
-        if not yt.exists(prepare_operation_tablets.BY_ID_ARCHIVE) or not yt.exists(prepare_operation_tablets.BY_START_TIME_ARCHIVE):
+        if not yt.exists(operations_archive.BY_ID_ARCHIVE) or not yt.exists(operations_archive.BY_START_TIME_ARCHIVE):
+            if (scheme_type != "new"):
+                raise Exception("Old scheme type is not supported")
             prepare_operation_tablets.prepare_tables(yt.config["proxy"]["url"])
 
         logger.info("Archiving operation %s", op_id)
         data = yt.get("//sys/operations/{}/@".format(op_id))
-        by_id_row = dict(
-            (key, data[key])
-            for key in ["state", "authenticated_user", "operation_type",
-                        "progress", "brief_progress", "spec", "brief_spec",
-                        "start_time", "finish_time", "result"])
-        by_id_row["id"] = op_id
-        by_id_row["filter_factors"] = get_filter_factors(op_id, data)
 
-        by_start_time_row = {
-            "id": by_id_row["id"],
-            "start_time": by_id_row["start_time"],
-            "dummy": "null"
-        }
+        keys = ["state", "authenticated_user", "operation_type",
+                "progress", "brief_progress", "spec", "brief_spec", "result"]
+        by_id_row = {}
+        for key in keys:
+            if key in data:
+                by_id_row[key] = data[key]
 
-        run_with_retries(lambda: yt.insert_rows(prepare_operation_tablets.BY_ID_ARCHIVE, [by_id_row], raw=False))
-        run_with_retries(lambda: yt.insert_rows(prepare_operation_tablets.BY_START_TIME_ARCHIVE, [by_start_time_row], raw=False))
+        def datestr_to_timestamp(time_str):
+            dt = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+            return int(time.mktime(dt.timetuple()) * 1000000 + dt.microsecond)
+
+        if scheme_type == "new":
+            id_parts = op_id.split("-")
+
+            id_hi = long(id_parts[3], 16) << 32 | int(id_parts[2], 16)
+            id_lo = long(id_parts[1], 16) << 32 | int(id_parts[0], 16)
+
+            by_id_row["id_hi"] = yson.YsonUint64(id_hi)
+            by_id_row["id_lo"] = yson.YsonUint64(id_lo)
+            by_id_row["start_time"] = datestr_to_timestamp(data["start_time"])
+            by_id_row["finish_time"] = datestr_to_timestamp(data["finish_time"])
+            by_id_row["filter_factors"] = get_filter_factors(op_id, data)
+
+            by_start_time_row = {
+                "id_hi": by_id_row["id_hi"],
+                "id_lo": by_id_row["id_lo"],
+                "start_time": by_id_row["start_time"],
+                "dummy": 0
+            }
+        else:
+            for key in ["start_time", "finish_time", "result"]:
+                by_id_row[key] = data[key]
+            by_id_row["id"] = op_id
+            by_id_row["filter_factors"] = get_filter_factors(op_id, data)
+            by_start_time_row = {
+                "id": by_id_row["id"],
+                "start_time": by_id_row["start_time"],
+                "dummy": "null"
+            }
+
+        run_with_retries(lambda: yt.insert_rows(operations_archive.BY_ID_ARCHIVE, [by_id_row], raw=False))
+        run_with_retries(lambda: yt.insert_rows(operations_archive.BY_START_TIME_ARCHIVE, [by_start_time_row], raw=False))
     else:
         logger.info("Removing operation %s", op_id)
 
@@ -127,7 +165,10 @@ def clean_operation(op_id, archive=False):
 
 
 def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout,
-                     max_operations_per_user, robots, log, archive, thread_count):
+                     max_operations_per_user, robots, log, archive, scheme_type, thread_count):
+    if scheme_type not in ["old", "new"]:
+        raise Exception("Incorrect scheme type (%s not in ['old', 'new'])")
+
     #
     # Step 1: Fetch data from Cypress.
     #
@@ -215,7 +256,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout,
 
     now_before_clean = datetime.utcnow()
 
-    parallel_map(clean_operation, {"archive": archive}, operations_to_archive, thread_count)
+    parallel_map(clean_operation, {"scheme_type": scheme_type, "archive": archive}, operations_to_archive, thread_count)
 
     now_after_clean = datetime.utcnow()
 
@@ -253,6 +294,8 @@ def main():
     parser.add_argument("--log", help="file to save operation specs")
     parser.add_argument("--archive", action="store_true", default=False,
                         help="whether save cleared operations to tablets")
+    parser.add_argument("--scheme-type", default="old",
+                        help="scheme type of operations archive, possible values: 'old', 'new'")
     parser.add_argument("--thread-count", metavar="N", type=int, default=24,
                         help="parallelism level for operation cleansing")
 
@@ -267,6 +310,7 @@ def main():
         args.robot if args.robot is not None else [],
         args.log,
         args.archive,
+        args.scheme_type,
         args.thread_count)
 
 if __name__ == "__main__":

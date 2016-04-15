@@ -27,6 +27,7 @@ add_subdirectory(build)
 add_subdirectory(core)
 add_subdirectory(ytlib)
 add_subdirectory(server)
+add_subdirectory(run_codec)
 
 if (YT_BUILD_ENABLE_BENCHMARKS)
   add_subdirectory(benchmarks)

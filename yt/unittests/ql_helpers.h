@@ -198,7 +198,7 @@ TFuture<void> WrapVoidInFuture();
 
 TDataSplit MakeSimpleSplit(const TRichYPath& path, ui64 counter = 0);
 
-TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, TKeyColumns keyColumns = TKeyColumns());
+TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns);
 
 TFuture<TDataSplit> RaiseTableNotFound(
     const TRichYPath& path,

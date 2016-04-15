@@ -140,9 +140,7 @@ public:
     static TSchemaData GetSchemaData(
         const NTableClient::TTableSchema& schema,
         const NTableClient::TColumnFilter& filter);
-    static TSchemaData GetSchemaData(
-        const NTableClient::TTableSchema& schema,
-        int keyColumnCount);
+    static TSchemaData GetSchemaData(const NTableClient::TTableSchema& schema);
 
 private:
     class TImpl;

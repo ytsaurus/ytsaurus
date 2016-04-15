@@ -35,6 +35,15 @@ Py::Callable GetYsonType(const std::string& name)
     return Py::Callable(PyObject_GetAttrString(ysonTypesModule, name.c_str()));
 }
 
+
+///////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+namespace NPython {
+
+////////////////////////////////////////////////////////////////////////////////
+
 Py::Object CreateYsonObject(const std::string& className, const Py::Object& object, const Py::Object& attributes)
 {
     auto result = GetYsonType(className).apply(Py::TupleN(object));
@@ -42,9 +51,9 @@ Py::Object CreateYsonObject(const std::string& className, const Py::Object& obje
     return result;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+} // namespace NPython
 
 namespace NYTree {
 
@@ -450,19 +459,19 @@ void Deserialize(Py::Object& obj, INodePtr node)
             Deserialize(item, child.second);
             map.setItem(~child.first, item);
         }
-        obj = CreateYsonObject("YsonMap", map, attributes);
+        obj = NPython::CreateYsonObject("YsonMap", map, attributes);
     } else if (type == ENodeType::Entity) {
-        obj = CreateYsonObject("YsonEntity", Py::None(), attributes);
+        obj = NPython::CreateYsonObject("YsonEntity", Py::None(), attributes);
     } else if (type == ENodeType::Boolean) {
-        obj = CreateYsonObject("YsonBoolean", Py::Boolean(node->AsBoolean()->GetValue()), attributes);
+        obj = NPython::CreateYsonObject("YsonBoolean", Py::Boolean(node->AsBoolean()->GetValue()), attributes);
     } else if (type == ENodeType::Int64) {
-        obj = CreateYsonObject("YsonInt64", Py::Int(node->AsInt64()->GetValue()), attributes);
+        obj = NPython::CreateYsonObject("YsonInt64", Py::Int(node->AsInt64()->GetValue()), attributes);
     } else if (type == ENodeType::Uint64) {
-        obj = CreateYsonObject("YsonUint64", Py::LongLong(node->AsUint64()->GetValue()), attributes);
+        obj = NPython::CreateYsonObject("YsonUint64", Py::LongLong(node->AsUint64()->GetValue()), attributes);
     } else if (type == ENodeType::Double) {
-        obj = CreateYsonObject("YsonDouble", Py::Float(node->AsDouble()->GetValue()), attributes);
+        obj = NPython::CreateYsonObject("YsonDouble", Py::Float(node->AsDouble()->GetValue()), attributes);
     } else if (type == ENodeType::String) {
-        obj = CreateYsonObject("YsonString", Py::String(~node->AsString()->GetValue()), attributes);
+        obj = NPython::CreateYsonObject("YsonString", Py::String(~node->AsString()->GetValue()), attributes);
     } else if (type == ENodeType::List) {
         auto list = Py::List();
         for (auto child : node->AsList()->GetChildren()) {
@@ -470,7 +479,7 @@ void Deserialize(Py::Object& obj, INodePtr node)
             Deserialize(item, child);
             list.append(item);
         }
-        obj = CreateYsonObject("YsonList", list, attributes);
+        obj = NPython::CreateYsonObject("YsonList", list, attributes);
     } else {
         THROW_ERROR_EXCEPTION("Unsupported node type %s", ~ToString(type));
     }

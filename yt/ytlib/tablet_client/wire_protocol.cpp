@@ -756,14 +756,10 @@ auto TWireProtocolReader::GetSchemaData(
     return schemaData;
 }
 
-auto TWireProtocolReader::GetSchemaData(
-    const TTableSchema& schema,
-    int keyColumnCount) -> TSchemaData
+auto TWireProtocolReader::GetSchemaData(const TTableSchema& schema) -> TSchemaData
 {
     TSchemaData schemaData;
-    //TODO(savrus) merge with new schema.
-    YCHECK(keyColumnCount <= schema.Columns().size());
-    for (int id = 0; id < keyColumnCount; ++id) {
+    for (int id = 0; id < schema.GetKeyColumnCount(); ++id) {
         TUnversionedValue value;
         value.Id = id;
         value.Type = schema.Columns()[id].Type;

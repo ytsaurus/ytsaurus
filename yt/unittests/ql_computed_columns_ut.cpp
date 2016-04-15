@@ -122,10 +122,8 @@ private:
             MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
 
         if (path.GetPath() == "//t") {
-            SetKeyColumns(&dataSplit, Schema_.GetKeyColumns());
             SetTableSchema(&dataSplit, Schema_);
         } else {
-            SetKeyColumns(&dataSplit, SecondarySchema_.GetKeyColumns());
             SetTableSchema(&dataSplit, SecondarySchema_);
         }
 
