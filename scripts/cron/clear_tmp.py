@@ -33,13 +33,20 @@ def main():
     parser = argparse.ArgumentParser(description='Clean operations from cypress.')
     parser.add_argument('--directory', default="//tmp")
     parser.add_argument('--account', default="tmp")
-    parser.add_argument('--max-count', type=int, default=50000)
-    parser.add_argument('--max-size', type=int, default=None)
+    parser.add_argument('--max-disk-space', type=int, default=None)
+    parser.add_argument('--max-chunk-count', type=int, default=None)
+    parser.add_argument('--max-node-count', type=int, default=50000)
     parser.add_argument('--days', type=int, default=7)
     args = parser.parse_args()
 
-    if args.max_size is None:
-        args.max_size = yt.get("//sys/accounts/{0}/@resource_limits/disk_space".format(args.account)) / 2.0
+    if args.max_disk_space is None:
+        args.max_disk_space = yt.get("//sys/accounts/{0}/@resource_limits/disk_space".format(args.account)) / 2
+
+    if args.max_chunk_count is None:
+        args.max_chunk_count = yt.get("//sys/accounts/{0}/@resource_limits/chunk_count".format(args.account)) / 2
+
+    if args.max_node_count is None:
+        args.max_node_count = yt.get("//sys/accounts/{0}/@resource_limits/chunk_count".format(args.account)) / 2
 
     # collect links
     links = list(yt.search(args.directory, node_type="link"))
@@ -50,20 +57,23 @@ def main():
 
     # collect table and files
     objects = []
-    for obj in yt.search(args.directory, node_type=["table", "file"], attributes=["access_time", "modification_time", "locks", "hash", "resource_usage"]):
+    for obj in yt.search(args.directory,
+                         node_type=["table", "file", "lock"],
+                         attributes=["access_time", "modification_time", "locks", "hash", "resource_usage"]):
         if is_locked(obj):
             continue
         objects.append((get_age(obj), obj))
     objects.sort()
 
     to_remove = []
-    count = 0
-    size = 0
+    disk_space = 0
+    node_count = 0
+    chunk_count = 0
     for age, obj in objects:
-        count += 1
-        size += int(obj.attributes["resource_usage"]["disk_space"])
+        node_count += 1
+        disk_space += int(obj.attributes["resource_usage"]["disk_space"])
         # filter object by age, total size and count
-        if age.days > args.days or size > args.max_size or count > args.max_count:
+        if age.days > args.days or disk_space > args.max_disk_space or node_count > args.max_node_count or chunk_count > args.max_chunk_count:
             if "hash" in obj.attributes:
                 link = os.path.join(os.path.dirname(obj), "hash", obj.attributes["hash"])
                 if link in links:
@@ -95,7 +105,7 @@ def main():
                 logger.info("Removing empty dir %s", dir)
                 dir_sizes[os.path.dirname(dir)] -= 1
                 # To avoid removing twice
-                dir_sizes[str(dir)] = -1 
+                dir_sizes[str(dir)] = -1
                 try:
                     yt.remove(dir, force=True)
                 except yt.YtResponseError as error:

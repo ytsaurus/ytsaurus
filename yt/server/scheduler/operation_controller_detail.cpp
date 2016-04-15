@@ -73,16 +73,6 @@ using NTableClient::TTableReaderOptions;
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TUserObjectBase::Persist(TPersistenceContext& context)
-{
-    using NYT::Persist;
-    Persist(context, Path);
-    Persist(context, ObjectId);
-    Persist(context, CellTag);
-}
-
-////////////////////////////////////////////////////////////////////
-
 void TOperationControllerBase::TLivePreviewTableBase::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -93,7 +83,7 @@ void TOperationControllerBase::TLivePreviewTableBase::Persist(TPersistenceContex
 
 void TOperationControllerBase::TInputTable::Persist(TPersistenceContext& context)
 {
-    TUserObjectBase::Persist(context);
+    TUserObject::Persist(context);
 
     using NYT::Persist;
     Persist(context, ChunkCount);
@@ -115,7 +105,7 @@ void TOperationControllerBase::TJobBoundaryKeys::Persist(TPersistenceContext& co
 
 void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& context)
 {
-    TUserObjectBase::Persist(context);
+    TUserObject::Persist(context);
     TLivePreviewTableBase::Persist(context);
 
     using NYT::Persist;
@@ -151,7 +141,7 @@ void TOperationControllerBase::TIntermediateTable::Persist(TPersistenceContext& 
 
 void TOperationControllerBase::TUserFile::Persist(TPersistenceContext& context)
 {
-    TUserObjectBase::Persist(context);
+    TUserObject::Persist(context);
 
     using NYT::Persist;
     Persist<TAttributeDictionaryRefSerializer>(context, Attributes);
@@ -1026,9 +1016,51 @@ void TOperationControllerBase::Prepare()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    GetInputTablesBasicAttributes();
-    GetOutputTablesBasicAttributes();
-    GetFilesBasicAttributes(&Files);
+    GetUserObjectBasicAttributes<TInputTable>(
+        AuthenticatedInputMasterClient,
+        InputTables,
+        InputTransactionId,
+        Logger,
+        EPermission::Read);
+
+    for (const auto& table : InputTables) {
+        if (table.Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                table.Path.GetPath(),
+                EObjectType::Table,
+                table.Type);
+        } 
+    }
+
+    GetUserObjectBasicAttributes<TOutputTable>(
+        AuthenticatedOutputMasterClient,
+        OutputTables,
+        OutputTransactionId,
+        Logger,
+        EPermission::Write);
+
+    yhash_set<TObjectId> outputTableIds;
+    for (const auto& table : OutputTables) {
+        const auto& path = table.Path.GetPath();
+        if (table.Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                path,
+                EObjectType::Table,
+                table.Type);
+        } 
+        if (outputTableIds.find(table.ObjectId) != outputTableIds.end()) {
+            THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
+                path);
+        }
+        outputTableIds.insert(table.ObjectId);
+    }
+
+    GetUserObjectBasicAttributes<TUserFile>(
+        AuthenticatedMasterClient,
+        Files,
+        InputTransactionId,
+        Logger,
+        EPermission::Read);
 
     LockInputTables();
     LockUserFiles(&Files, {});
@@ -2706,156 +2738,6 @@ void TOperationControllerBase::LockLivePreviewTables()
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking live preview tables");
 
     LOG_INFO("Live preview tables locked");
-}
-
-void TOperationControllerBase::GetInputTablesBasicAttributes()
-{
-    LOG_INFO("Getting basic attributes of input tables");
-
-    auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
-    TObjectServiceProxy proxy(channel);
-
-    auto batchReq = proxy.ExecuteBatch();
-
-    for (const auto& table : InputTables) {
-        auto req = TTableYPathProxy::GetBasicAttributes(table.Path.GetPath());
-        req->set_permissions(static_cast<ui32>(EPermission::Read));
-        SetTransactionId(req, InputTransactionId);
-        batchReq->AddRequest(req, "get_basic_attributes");
-    }
-
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of input tables");
-    const auto& batchRsp = batchRspOrError.Value();
-
-    auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
-    for (int index = 0; index < InputTables.size(); ++index) {
-        auto& table = InputTables[index];
-        auto path = table.Path.GetPath();
-
-        {
-            const auto& rspOrError = rspsOrError[index];
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of input table %v",
-                path);
-            const auto& rsp = rspOrError.Value();
-
-            table.ObjectId = FromProto<TObjectId>(rsp->object_id());
-            table.CellTag = rsp->cell_tag();
-
-            auto type = TypeFromId(table.ObjectId);
-            if (type != EObjectType::Table) {
-                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                    table.Path.GetPath(),
-                    EObjectType::Table,
-                    type);
-            }
-
-            LOG_INFO("Basic attributes of input table received (Path: %v, ObjectId: %v, CellTag: %v)",
-                path,
-                table.ObjectId,
-                table.CellTag);
-        }
-    }
-}
-
-void TOperationControllerBase::GetOutputTablesBasicAttributes()
-{
-    LOG_INFO("Getting basic attributes of output tables");
-
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
-    TObjectServiceProxy proxy(channel);
-
-    auto batchReq = proxy.ExecuteBatch();
-
-    for (const auto& table : OutputTables) {
-        auto req = TTableYPathProxy::GetBasicAttributes(table.Path.GetPath());
-        req->set_permissions(static_cast<ui32>(EPermission::Write));
-        SetTransactionId(req, OutputTransactionId);
-        batchReq->AddRequest(req, "get_basic_attributes");
-    }
-
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of output tables");
-    const auto& batchRsp = batchRspOrError.Value();
-
-    yhash_set<TObjectId> outputTableIds;
-
-    auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
-    for (int index = 0; index < OutputTables.size(); ++index) {
-        auto& table = OutputTables[index];
-        const auto& path = table.Path.GetPath();
-        {
-            const auto& rspOrError = rspsOrError[index];
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of output table %v",
-                path);
-            const auto& rsp = rspOrError.Value();
-
-            table.ObjectId = FromProto<TObjectId>(rsp->object_id());
-            table.CellTag = rsp->cell_tag();
-
-            if (outputTableIds.find(table.ObjectId) != outputTableIds.end()) {
-                THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
-                    path);
-            }
-            outputTableIds.insert(table.ObjectId);
-
-            auto type = TypeFromId(table.ObjectId);
-            if (type != EObjectType::Table) {
-                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                    table.Path.GetPath(),
-                    EObjectType::Table,
-                    type);
-            }
-
-            LOG_INFO("Basic attributes of output table received (Path: %v, ObjectId: %v, CellTag: %v)",
-                path,
-                table.ObjectId,
-                table.CellTag);
-        }
-    }
-}
-
-void TOperationControllerBase::GetFilesBasicAttributes(std::vector<TUserFile>* files)
-{
-    LOG_INFO("Getting basic attributes of files");
-
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
-    TObjectServiceProxy proxy(channel);
-
-    auto batchReq = proxy.ExecuteBatch();
-
-    for (const auto& file : *files) {
-        auto req = TObjectYPathProxy::GetBasicAttributes(file.Path.GetPath());
-        req->set_permissions(static_cast<ui32>(EPermission::Read));
-        SetTransactionId(req, InputTransactionId);
-        batchReq->AddRequest(req, "get_basic_attributes");
-    }
-
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of files");
-    const auto& batchRsp = batchRspOrError.Value();
-
-    auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
-    for (int index = 0; index < files->size(); ++index) {
-        auto& file = (*files)[index];
-        const auto& path = file.Path.GetPath();
-        const auto& rspOrError = rspsOrError[index];
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of file %v",
-            path);
-        const auto& rsp = rspOrError.Value();
-
-        file.ObjectId = FromProto<TObjectId>(rsp->object_id());
-        file.CellTag = rsp->cell_tag();
-
-        file.Type = TypeFromId(file.ObjectId);
-        if (file.Type != EObjectType::File && file.Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
-                path,
-                EObjectType::File,
-                EObjectType::Table,
-                file.Type);
-        }
-    }
 }
 
 void TOperationControllerBase::FetchInputTables()

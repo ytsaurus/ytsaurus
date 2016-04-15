@@ -34,8 +34,7 @@ class TBuildingValueConsumer
 {
 public:
     TBuildingValueConsumer(
-        const TTableSchema& schema,
-        const TKeyColumns& keyColumns);
+        const TTableSchema& schema);
 
     const std::vector<TUnversionedOwningRow>& GetOwningRows() const;
     std::vector<TUnversionedRow> GetRows() const;
@@ -49,7 +48,6 @@ private:
     std::vector<TUnversionedOwningRow> Rows_;
 
     TTableSchema Schema_;
-    TKeyColumns KeyColumns_;
     TNameTablePtr NameTable_;
 
     std::vector<bool> WrittenFlags_;

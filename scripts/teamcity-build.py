@@ -11,7 +11,7 @@ from teamcity import build_step, cleanup_step, teamcity_main, \
 
 from helpers import mkdirp, run, run_captured, cwd, copytree, \
                     kill_by_name, sudo_rmtree, ls, get_size, \
-                    rmtree, ChildHasNonZeroExitCode
+                    rmtree, format_yes_no, parse_yes_no_bool, ChildHasNonZeroExitCode
 
 from pytest_helpers import get_sandbox_dirs, save_failed_test
 
@@ -37,15 +37,9 @@ def prepare(options):
         [os.path.join(script_directory, "git-depth.py")],
         cwd=options.checkout_directory)
 
-    def checked_yes_no(s):
-        s = s.upper()
-        if s != "YES" and s != "NO":
-            raise RuntimeError("'{0}' should be either 'YES' or 'NO'".format(s))
-        return s
-
-    options.build_enable_nodejs = checked_yes_no(os.environ.get("BUILD_ENABLE_NODEJS", "YES"))
-    options.build_enable_python = checked_yes_no(os.environ.get("BUILD_ENABLE_PYTHON", "YES"))
-    options.build_enable_perl = checked_yes_no(os.environ.get("BUILD_ENABLE_PERL", "YES"))
+    options.build_enable_nodejs = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_NODEJS", "YES"))
+    options.build_enable_python = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON", "YES"))
+    options.build_enable_perl = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PERL", "YES"))
 
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
     options.branch = options.branch.split("/")[0]
@@ -123,9 +117,9 @@ def configure(options):
         "-DYT_BUILD_NUMBER={0}".format(options.build_number),
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
         "-DYT_BUILD_GIT_DEPTH={0}".format(options.build_git_depth),
-        "-DYT_BUILD_ENABLE_NODEJS={0}".format(options.build_enable_nodejs),
-        "-DYT_BUILD_ENABLE_PYTHON={0}".format(options.build_enable_python),
-        "-DYT_BUILD_ENABLE_PERL={0}".format(options.build_enable_perl),
+        "-DYT_BUILD_ENABLE_NODEJS={0}".format(format_yes_no(options.build_enable_nodejs)),
+        "-DYT_BUILD_ENABLE_PYTHON={0}".format(format_yes_no(options.build_enable_python)),
+        "-DYT_BUILD_ENABLE_PERL={0}".format(format_yes_no(options.build_enable_perl)),
         "-DYT_USE_LTO={0}".format(options.use_lto),
         "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
         "-DCMAKE_C_COMPILER={0}".format(options.cc),
@@ -224,7 +218,7 @@ def run_unit_tests(options):
 
 @build_step
 def run_javascript_tests(options):
-    if options.build_enable_nodejs != "YES":
+    if not options.build_enable_nodejs:
         return
 
     try:
@@ -237,7 +231,7 @@ def run_javascript_tests(options):
 
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
-    if options.build_enable_python != "YES":
+    if not options.build_enable_python:
         return
 
     if pytest_args is None:
@@ -310,7 +304,6 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
         if os.path.exists(sandbox_storage):
             sudo_rmtree(sandbox_storage)
 
-
 @build_step
 def run_integration_tests(options):
     kill_by_name("^ytserver")
@@ -357,7 +350,7 @@ def build_python_packages(options):
 
 @build_step
 def run_perl_tests(options):
-    if options.build_enable_perl != "YES":
+    if not options.build_enable_perl:
         return
     kill_by_name("^ytserver")
     run_pytest(options, "perl", "{0}/perl/tests".format(options.checkout_directory))

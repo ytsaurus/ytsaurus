@@ -11,6 +11,9 @@
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/ytlib/cypress_client/rpc_helpers.cpp>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -39,10 +42,12 @@ using namespace NObjectClient;
 using namespace NErasure;
 using namespace NNodeTrackerClient;
 using namespace NProto;
-using namespace NApi;
+using namespace NYTree;
+using namespace NCypressClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
+using NNodeTrackerClient::TNodeId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +66,7 @@ TChunkId CreateChunk(
     const auto& Logger = logger;
 
     LOG_DEBUG("Creating chunk (ReplicationFactor: %v, TransactionId: %v, ChunkListId: %v)",
-        options->ReplicationFactor, 
+        options->ReplicationFactor,
         transactionId,
         chunkListId);
 
@@ -279,9 +284,9 @@ i64 GetChunkReaderMemoryEstimate(const TChunkSpec& chunkSpec, TMultiChunkReaderC
         }
         return chunkBufferSize;
     } else {
-        return ChunkReaderMemorySize + 
-            config->WindowSize + 
-            config->GroupSize + 
+        return ChunkReaderMemorySize +
+            config->WindowSize +
+            config->GroupSize +
             DefaultMaxBlockSize;
     }
 }
@@ -292,7 +297,7 @@ IChunkReaderPtr CreateRemoteReader(
     TRemoteReaderOptionsPtr options,
     NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const TNullable<TNodeDescriptor>& localDescriptor,
+    const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
     IBlockCachePtr blockCache,
     IThroughputThrottlerPtr throttler)
 {
@@ -355,6 +360,54 @@ IChunkReaderPtr CreateRemoteReader(
             blockCache,
             throttler);
     }
+}
+
+IChunkReaderPtr CreateRemoteReader(
+    TChunkId chunkId,
+    TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
+    NApi::IClientPtr client,
+    const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
+    IBlockCachePtr blockCache,
+    NConcurrency::IThroughputThrottlerPtr throttler)
+{
+    auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::LeaderOrFollower);
+    TChunkServiceProxy proxy(channel);
+
+    auto req = proxy.LocateChunks();
+    ToProto(req->add_subrequests(), chunkId);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+
+    const auto& subresponse = rsp->subresponses(0);
+    TChunkSpec chunkSpec;
+    ToProto(chunkSpec.mutable_chunk_id(), chunkId);
+    chunkSpec.mutable_replicas()->MergeFrom(subresponse.replicas());
+    chunkSpec.set_erasure_codec(subresponse.erasure_codec());
+
+    auto nodeDirectory = New<TNodeDirectory>();
+    nodeDirectory->MergeFrom(rsp->node_directory());
+
+    return CreateRemoteReader(
+        chunkSpec,
+        config,
+        options,
+        client,
+        nodeDirectory,
+        localDescriptor,
+        blockCache,
+        throttler);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUserObject::Persist(NPhoenix::TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Path);
+    Persist(context, ObjectId);
+    Persist(context, CellTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

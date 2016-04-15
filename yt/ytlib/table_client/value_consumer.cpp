@@ -17,10 +17,8 @@ const static i64 MaxBufferSize = (i64) 1 * 1024 * 1024;
 ////////////////////////////////////////////////////////////////////////////////
 
 TBuildingValueConsumer::TBuildingValueConsumer(
-    const TTableSchema& schema,
-    const TKeyColumns& keyColumns)
+    const TTableSchema& schema)
     : Schema_(schema)
-    , KeyColumns_(keyColumns)
     , NameTable_(TNameTable::FromSchema(Schema_))
     , WrittenFlags_(NameTable_->GetSize(), false)
     , ValueWriter_(&ValueBuffer_)
@@ -111,7 +109,7 @@ void TBuildingValueConsumer::OnEndRow()
     for (int id = 0; id < WrittenFlags_.size(); ++id) {
         if (WrittenFlags_[id]) {
             WrittenFlags_[id] = false;
-        } else if ((TreatMissingAsNull_ || id < KeyColumns_.size()) && !Schema_.Columns()[id].Expression) {
+        } else if ((TreatMissingAsNull_ || id < Schema_.GetKeyColumnCount()) && !Schema_.Columns()[id].Expression) {
             Builder_.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
         }
     }

@@ -1524,7 +1524,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp))
         .ValueOrThrow();
     auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
-    auto keyColumns = GetKeyColumnsFromDataSplit(selfDataSplit);
+    auto keyColumns = tableSchema.GetKeyColumns();
 
     std::vector<Stroka> refinedColumns;
 
@@ -1544,7 +1544,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
             .ValueOrThrow();
 
         auto foreignTableSchema = GetTableSchemaFromDataSplit(foreignDataSplit);
-        auto foreignKeyColumnsCount = GetKeyColumnsFromDataSplit(foreignDataSplit).size();
+        auto foreignKeyColumnsCount = foreignTableSchema.GetKeyColumns().size();
 
         auto joinClause = New<TJoinClause>();
 
