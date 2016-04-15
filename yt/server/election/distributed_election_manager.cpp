@@ -6,6 +6,7 @@
 #include <yt/ytlib/election/election_service_proxy.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/lease_manager.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/rpc/service_detail.h>
@@ -69,7 +70,7 @@ private:
     yhash_set<TPeerId> AliveFollowers;
     yhash_set<TPeerId> PotentialFollowers;
 
-    NConcurrency::TDelayedExecutorCookie PingTimeoutCookie;
+    TLease LeaderPingLease;
     TFollowerPingerPtr FollowerPinger;
 
 
@@ -81,7 +82,7 @@ private:
 
     void Reset();
 
-    void OnLeaderPingTimeout();
+    void OnLeaderPingLeaseExpired();
 
     void DoParticipate();
     void DoAdandon();
@@ -592,10 +593,11 @@ void TDistributedElectionManager::Reset()
 
     AliveFollowers.clear();
     PotentialFollowers.clear();
-    PingTimeoutCookie.Reset();
+    TLeaseManager::CloseLease(LeaderPingLease);
+    LeaderPingLease.Reset();
 }
 
-void TDistributedElectionManager::OnLeaderPingTimeout()
+void TDistributedElectionManager::OnLeaderPingLeaseExpired()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -774,10 +776,10 @@ void TDistributedElectionManager::StartFollowing(
 
     InitEpochContext(leaderId, epochId);
 
-    PingTimeoutCookie = TDelayedExecutor::Submit(
-        BIND(&TDistributedElectionManager::OnLeaderPingTimeout, MakeWeak(this))
-            .Via(ControlEpochInvoker),
-        Config->LeaderPingTimeout);
+    LeaderPingLease = TLeaseManager::CreateLease(
+        Config->LeaderPingTimeout,
+        BIND(&TDistributedElectionManager::OnLeaderPingLeaseExpired, MakeWeak(this))
+            .Via(ControlEpochInvoker));
 
     LOG_INFO("Started following (LeaderId: %v, EpochId: %v)",
         EpochContext->LeaderId,
@@ -893,11 +895,7 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, PingFollower)
             leaderId);
     }
 
-    TDelayedExecutor::Cancel(PingTimeoutCookie);
-    PingTimeoutCookie = TDelayedExecutor::Submit(
-        BIND(&TDistributedElectionManager::OnLeaderPingTimeout, MakeWeak(this))
-            .Via(ControlEpochInvoker),
-        Config->LeaderPingTimeout);
+    TLeaseManager::RenewLease(LeaderPingLease);
 
     context->Reply();
 }
