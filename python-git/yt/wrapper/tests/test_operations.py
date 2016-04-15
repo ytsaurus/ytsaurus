@@ -790,3 +790,35 @@ if __name__ == "__main__":
 
             assert "Did you forget to surround" in yt.read_file(stderr_path).read()
 
+    @add_failed_operation_stderrs_to_error_message
+    def test_table_and_row_index_from_job(self):
+        @yt.aggregator
+        def mapper(rows):
+            for row in rows:
+                assert "@table_index" in row
+                assert "@row_index" in row
+                row["table_index"] = int(row["@table_index"])
+                del row["@table_index"]
+                row["row_index"] = int(row["@row_index"])
+                del row["@row_index"]
+                yield row
+
+        tableA = TEST_DIR + "/tableA"
+        yt.write_table(tableA, ["x=1\ny=1\n"])
+
+        tableB = TEST_DIR + "/tableB"
+        yt.write_table(tableB, ["x=2\n"])
+
+        outputTable = TEST_DIR + "/output"
+
+        yt.run_map(mapper, [tableA, tableB], outputTable, format=yt.YsonFormat(), spec={"job_io": {"control_attributes": {"enable_row_index": True}}, "ordered": True})
+
+        result = sorted(list(yt.read_table(outputTable, raw=False, format=yt.YsonFormat(process_table_index=False))),
+                        key=lambda item: (item["table_index"], item["row_index"]))
+
+        assert [
+            {"table_index": 0, "row_index": 0, "x": "1"},
+            {"table_index": 0, "row_index": 1, "y": "1"},
+            {"table_index": 1, "row_index": 0, "x": "2"},
+        ] == result
+
