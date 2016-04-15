@@ -161,6 +161,7 @@ class TSchemafulRowMerger;
 class TVersionedRowMerger;
 
 DECLARE_REFCOUNTED_CLASS(TNameTable)
+class TNameTableReader;
 
 DECLARE_REFCOUNTED_CLASS(TRowBuffer)
 

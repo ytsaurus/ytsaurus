@@ -201,6 +201,14 @@ public:
 
 };
 
+class TCompleteOperationCommand
+    : public TSimpleOperationCommandBase
+{
+public:
+    void Execute(ICommandContextPtr context);
+
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDriver

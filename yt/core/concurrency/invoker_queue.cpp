@@ -101,6 +101,7 @@ void TInvokerQueue::Drain()
     }
 
     YCHECK(QueueSize.load(std::memory_order_relaxed) == 0);
+    YCHECK(Queue.IsEmpty()); // As a side effect, this releases free lists.
 }
 
 EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)

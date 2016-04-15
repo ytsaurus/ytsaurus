@@ -152,9 +152,8 @@ private:
         LOG_DEBUG("Sending ping to follower %v", peerId);
 
         TElectionServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Owner->Config->ControlRpcTimeout);
-
         auto req = proxy.PingFollower();
+        req->SetTimeout(Owner->Config->FollowerPingRpcTimeout);
         req->set_leader_id(Owner->CellManager->GetSelfPeerId());
         ToProto(req->mutable_epoch_id(), Owner->EpochContext->EpochId);
 

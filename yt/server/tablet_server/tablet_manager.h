@@ -71,20 +71,21 @@ public:
     void MakeTableStatic(NTableServer::TTableNode* table);
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle, TTabletCellBundleId);
+    DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
     TTabletCellBundle* FindTabletCellBundleByName(const Stroka& name);
 
-    DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell, TTabletCellId);
+    DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell);
     TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id);
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
+
 private:
     class TTabletCellBundleTypeHandler;
     class TTabletCellTypeHandler;
     class TTabletTypeHandler;
     class TImpl;
 
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

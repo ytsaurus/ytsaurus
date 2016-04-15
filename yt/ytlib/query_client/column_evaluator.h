@@ -16,7 +16,6 @@ class TColumnEvaluator
 public:
     static TColumnEvaluatorPtr Create(
         const TTableSchema& schema,
-        int keyColumnCount,
         const TConstTypeInferrerMapPtr& typeInferrers,
         const TConstFunctionProfilerMapPtr& profilers);
 
@@ -35,50 +34,47 @@ public:
     void InitAggregate(
         int schemaId,
         NTableClient::TUnversionedValue* state,
-        const TRowBufferPtr& buffer);
+        const TRowBufferPtr& buffer) const;
 
     void UpdateAggregate(
-        int schemaId,
+        int index,
         NTableClient::TUnversionedValue* result,
         const NTableClient::TUnversionedValue& state,
         const NTableClient::TUnversionedValue& update,
-        const TRowBufferPtr& buffer);
+        const TRowBufferPtr& buffer) const;
 
     void MergeAggregate(
         int index,
         NTableClient::TUnversionedValue* result,
         const NTableClient::TUnversionedValue& state,
         const NTableClient::TUnversionedValue& mergeeState,
-        const TRowBufferPtr& buffer);
+        const TRowBufferPtr& buffer) const;
 
     void FinalizeAggregate(
         int index,
         NTableClient::TUnversionedValue* result,
         const NTableClient::TUnversionedValue& state,
-        const TRowBufferPtr& buffer);
+        const TRowBufferPtr& buffer) const;
 
-    DEFINE_BYREF_RO_PROPERTY(TTableSchema, TableSchema);
-    DEFINE_BYVAL_RO_PROPERTY(int, KeyColumnCount);
+    bool IsAggregate(int index) const;
+
+    size_t GetKeyColumnCount() const;
 
 private:
-    TConstTypeInferrerMapPtr TypeInferers_;
-    TConstFunctionProfilerMapPtr Profilers_;
+    struct TColumn
+    {
+        TCGExpressionCallback Evaluator;
+        TCGVariables Variables;
+        std::vector<int> ReferenceIds;
+        TConstExpressionPtr Expression;
+    };
 
-    std::vector<TCGExpressionCallback> Evaluators_;
-    std::vector<TCGVariables> Variables_;
-    std::vector<std::vector<int>> ReferenceIds_;
-    std::vector<TConstExpressionPtr> Expressions_;
-    std::vector<std::vector<std::vector<bool>>> AllLiteralArgs_;
+    std::vector<TColumn> Columns_;
     std::unordered_map<int, TCGAggregateCallbacks> Aggregates_;
 
     TColumnEvaluator(
-        const TTableSchema& schema,
-        int keyColumnCount,
-        const TConstTypeInferrerMapPtr& typeInferrers,
-        const TConstFunctionProfilerMapPtr& profilers);
-
-    void Prepare();
-    void VerifyAggregate(int index);
+        std::vector<TColumn> columns,
+        std::unordered_map<int, TCGAggregateCallbacks> aggregates);
 
     DECLARE_NEW_FRIEND();
 };
@@ -97,7 +93,7 @@ public:
         const TConstFunctionProfilerMapPtr& profilers = BuiltinFunctionCG.Get());
     ~TColumnEvaluatorCache();
 
-    TColumnEvaluatorPtr Find(const TTableSchema& schema, int keyColumnCount);
+    TColumnEvaluatorPtr Find(const TTableSchema& schema);
 
 private:
     class TImpl;

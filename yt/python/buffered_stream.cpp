@@ -13,7 +13,7 @@ TBufferedStream::TBufferedStream(size_t capacity)
     , AllowWrite_(NewPromise<void>())
 { }
 
-Py::String TBufferedStream::Read(size_t size)
+PyObject* TBufferedStream::Read(size_t size)
 {
     TGuard<TMutex> guard(ReadMutex_);
 
@@ -120,7 +120,7 @@ void TBufferedStream::Move(char* dest)
     Begin_ = dest;
 }
 
-Py::String TBufferedStream::ExtractChunk(size_t size)
+PyObject* TBufferedStream::ExtractChunk(size_t size)
 {
     size = std::min(size, static_cast<size_t>(Size_));
 
@@ -133,7 +133,9 @@ Py::String TBufferedStream::ExtractChunk(size_t size)
         AllowWrite_.Set(TError());
     }
 
-    return Py::String(result.Begin(), static_cast<int>(result.Size()));
+    // NB: we could not call Py::String since it calls PyString_Check
+    // that requires GIL in python2.6.
+    return PyString_FromStringAndSize(result.Begin(), static_cast<int>(result.Size()));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -150,19 +152,26 @@ Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict& kwargs)
     auto size = Py::Int(ExtractArgument(args, kwargs, "size"));
     ValidateArgumentsEmpty(args, kwargs);
 
-    Py::String result;
+    PyObject* rawResult;
     {
         Py_BEGIN_ALLOW_THREADS
-        result = Stream_->Read(size.asLongLong());
+        rawResult = Stream_->Read(size.asLongLong());
         Py_END_ALLOW_THREADS
     }
-    return result;
+    return Py::String(rawResult);
 }
 
 Py::Object TBufferedStreamWrap::Empty(Py::Tuple& args, Py::Dict& kwargs)
 {
     ValidateArgumentsEmpty(args, kwargs);
-    return Py::Boolean(Stream_->Empty());
+
+    bool empty;
+    {
+        Py_BEGIN_ALLOW_THREADS
+        empty = Stream_->Empty();
+        Py_END_ALLOW_THREADS
+    }
+    return Py::Boolean(empty);
 }
 
 TBufferedStreamPtr TBufferedStreamWrap::GetStream()

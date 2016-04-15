@@ -7,6 +7,7 @@
 #include <yt/core/misc/function_traits.h>
 
 namespace NYT {
+namespace NTools {
 namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,37 +24,48 @@ TGenericTool Ysonize(std::function<TResult(const TArg&)> internal)
         } catch (const std::exception& ex) {
             auto error = TError("Failed to parse argument %Qv", serializedArg.Data())
                 << ex;
-            return NYTree::ConvertToYsonString(TErrorOr<TResult>(error));
+            return NYTree::ConvertToYsonString(TErrorOr<TResult>(error), NYson::EYsonFormat::Text);
         }
 
         TErrorOr<TResult> result = func(arg);
 
         try {
-            return NYTree::ConvertToYsonString(result);
+            return NYTree::ConvertToYsonString(result, NYson::EYsonFormat::Text);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to convert result")
                 << ex;
-            return NYTree::ConvertToYsonString(TErrorOr<TResult>(error));
+            return NYTree::ConvertToYsonString(TErrorOr<TResult>(error), NYson::EYsonFormat::Text);
         }
     };
 }
 
-template <typename T, typename TArg = typename TFunctionTraits<T>::TArg, typename TResult = typename TFunctionTraits<T>::TResult>
-TGenericTool MakeGeneric(T internal)
+template <
+    typename TFunc,
+    typename TArg = typename TFunctionTraits<TFunc>::TArg,
+    typename TResult = typename TFunctionTraits<TFunc>::TResult
+>
+TGenericTool MakeGeneric(TFunc internal)
 {
     return Ysonize<
         typename std::decay<TArg>::type,
         typename std::decay<TResult>::type>(internal);
 }
 
-template <typename TTool, const char* Name>
-const TToolRegistryEntry& RegisterTool()
+template <class TTool>
+struct TToolRegistrator
 {
-    static const TToolRegistryEntry entry(typeid(TTool).name(), Stroka(Name), MakeGeneric(TTool()));
-    return entry;
-}
+    explicit TToolRegistrator(const Stroka& toolName)
+    {
+        auto typeName = Stroka(typeid(TTool).name());
+        auto tool = MakeGeneric(TTool());
+        TToolRegistryEntry entry{toolName, tool};
+        auto* registry = GetToolRegistry();
+        YCHECK(registry->emplace(typeName, entry).second);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTools
 } // namespace NDetail
 } // namespace NYT

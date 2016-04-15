@@ -57,6 +57,7 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NJobTrackerClient::NProto, Heartbeat)
     {
+        ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
 
         auto nodeId = request->node_id();

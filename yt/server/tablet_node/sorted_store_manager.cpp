@@ -416,7 +416,7 @@ void TSortedStoreManager::ValidateOnWrite(
     TUnversionedRow row)
 {
     try {
-        ValidateServerDataRow(row, KeyColumnCount_, Tablet_->Schema());
+        ValidateServerDataRow(row, Tablet_->Schema());
         if (row.GetCount() == KeyColumnCount_) {
             THROW_ERROR_EXCEPTION("Empty writes are not allowed");
         }
@@ -434,7 +434,7 @@ void TSortedStoreManager::ValidateOnDelete(
     TKey key)
 {
     try {
-        ValidateServerKey(key, KeyColumnCount_, Tablet_->Schema());
+        ValidateServerKey(key, Tablet_->Schema());
     } catch (TErrorException& ex) {
         auto& errorAttributes = ex.Error().Attributes();
         errorAttributes.Set("transaction_id", transactionId);

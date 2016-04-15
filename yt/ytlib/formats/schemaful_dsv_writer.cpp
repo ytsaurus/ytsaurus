@@ -30,6 +30,7 @@ static ui16 DigitPairs[100] = {
     12345,  12601,  12857,  13113,  13369,  13625,  13881,  14137,  14393,  14649,
 };
 
+
 // This class contains methods common for TSchemafulWriterForSchemafulDsv and TSchemalessWriterForSchemafulDsv.
 class TSchemafulDsvWriterBase
 {

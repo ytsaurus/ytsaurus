@@ -97,7 +97,6 @@ using namespace NTabletClient::NProto;
 using namespace NSecurityClient;
 using namespace NQueryClient;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using namespace NScheduler;
 using namespace NHive;
 using namespace NHydra;
@@ -165,8 +164,8 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     const TTableMountInfoPtr& tableInfo,
     const TNameTablePtr& nameTable)
 {
-    auto keyColumns = tableInfo->Schema.GetKeyColumns();
-    for (const auto& name : keyColumns) {
+    for (const auto& name : tableInfo->Schema.GetKeyColumns()) {
+        // We shouldn't consider computed columns below because client doesn't send them.
         if (!nameTable->FindId(name) && !tableInfo->Schema.GetColumnOrThrow(name).Expression) {
             THROW_ERROR_EXCEPTION("No such key column %Qv",
                 name);
@@ -457,6 +456,7 @@ private:
     const IChannelFactoryPtr NodeChannelFactory_;
     const TFunctionImplCachePtr FunctionImplCache_;
 
+
     TDataSplit DoGetInitialSplit(
         const TRichYPath& path,
         TTimestamp timestamp)
@@ -465,12 +465,9 @@ private:
         auto info = WaitFor(tableMountCache->GetTableInfo(path.GetPath()))
             .ValueOrThrow();
 
-        auto tableSchema = path.GetSchema().Get(info->Schema);
-
         TDataSplit result;
         SetObjectId(&result, info->TableId);
-        SetTableSchema(&result, tableSchema);
-        SetKeyColumns(&result, tableSchema.GetKeyColumns());
+        SetTableSchema(&result, path.GetSchema().Get(info->Schema));
         SetTimestamp(&result, timestamp);
 
         return result;
@@ -489,7 +486,7 @@ private:
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
 
-        if (!tableInfo->Sorted) {
+        if (!tableInfo->Schema.IsSorted()) {
             THROW_ERROR_EXCEPTION("Expected a sorted table, but got unsorted");
         }
 
@@ -551,12 +548,10 @@ private:
         const auto& networkName = Connection_->GetConfig()->NetworkName;
 
         for (auto& chunkSpec : chunkSpecs) {
-            auto chunkKeyColumns = FindProtoExtension<TKeyColumnsExt>(chunkSpec.chunk_meta().extensions());
             auto chunkSchema = FindProtoExtension<TTableSchemaExt>(chunkSpec.chunk_meta().extensions());
 
             // TODO(sandello): One day we should validate consistency.
             // Now we just check we do _not_ have any of these.
-            YCHECK(!chunkKeyColumns);
             YCHECK(!chunkSchema);
 
             TOwningKey chunkLowerBound, chunkUpperBound;
@@ -632,6 +627,12 @@ private:
         yhash_map<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
 
         auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) mutable {
+            if (tabletInfo->State != ETabletState::Mounted) {
+                // TODO(babenko): learn to work with unmounted tablets
+                THROW_ERROR_EXCEPTION("Tablet %v is not mounted",
+                    tabletInfo->TabletId);
+            }
+
             auto insertResult = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, TCellDescriptor()));
             auto& descriptor = insertResult.first->second;
 
@@ -1053,6 +1054,11 @@ public:
         return QueryHelper_;
     }
 
+    virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() override
+    {
+        return FunctionRegistry_;
+    }
+
     virtual TFuture<void> Terminate() override
     {
         TransactionManager_->AbortAll();
@@ -1276,6 +1282,10 @@ public:
     IMPLEMENT_METHOD(void, ResumeOperation, (
         const TOperationId& operationId,
         const TResumeOperationOptions& options),
+        (operationId, options))
+    IMPLEMENT_METHOD(void, CompleteOperation, (
+        const TOperationId& operationId,
+        const TCompleteOperationOptions& options),
         (operationId, options))
 
     IMPLEMENT_METHOD(void, DumpJobContext, (
@@ -1677,7 +1687,6 @@ private:
         auto tableInfo = SyncGetTableInfo(path);
 
         int schemaColumnCount = static_cast<int>(tableInfo->Schema.Columns().size());
-        int keyColumnCount = tableInfo->Schema.GetKeyColumnCount();
 
         ValidateColumnFilter(options.ColumnFilter, schemaColumnCount);
 
@@ -1691,7 +1700,7 @@ private:
         auto rowBuffer = New<TRowBuffer>();
         auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
         auto evaluator = tableInfo->NeedKeyEvaluation
-            ? evaluatorCache->Find(tableInfo->Schema, keyColumnCount)
+            ? evaluatorCache->Find(tableInfo->Schema)
             : nullptr;
 
         for (int index = 0; index < keys.Size(); ++index) {
@@ -2187,6 +2196,8 @@ private:
         const TYPath& dstPath,
         TConcatenateNodesOptions options)
     {
+        using NChunkClient::NProto::TDataStatistics;
+
         try {
             // Get objects ids.
             std::vector<TObjectId> srcIds;
@@ -2545,6 +2556,17 @@ private:
             .ThrowOnError();
     }
 
+    void DoCompleteOperation(
+        const TOperationId& operationId,
+        const TCompleteOperationOptions& /*options*/)
+    {
+        auto req = SchedulerProxy_->CompleteOperation();
+        ToProto(req->mutable_operation_id(), operationId);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
+
 
     void DoDumpJobContext(
         const TJobId& jobId,
@@ -2666,14 +2688,18 @@ public:
 
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options) override
     {
-        return BIND(&TTransaction::DoCommit, MakeStrong(this))
-            .AsyncVia(Client_->GetConnection()->GetLightInvoker())
-            .Run(options);
+        if (!Outcome_) {
+            return BIND(&TTransaction::DoCommit, MakeStrong(this))
+                .AsyncVia(Client_->GetConnection()->GetLightInvoker())
+                .Run(options);
+        }
+        return Outcome_;
     }
 
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options) override
     {
-        return Transaction_->Abort(options);
+        Outcome_ = Transaction_->Abort(options);
+        return Outcome_;
     }
 
     virtual void Detach() override
@@ -2707,33 +2733,33 @@ public:
     virtual void WriteRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        std::vector<TUnversionedRow> rows,
+        TSharedRange<TUnversionedRow> rows,
         const TWriteRowsOptions& options) override
     {
-        Requests_.push_back(std::unique_ptr<TRequestBase>(new TWriteRequest(
+        auto rowCount = rows.Size();
+        Requests_.push_back(std::make_unique<TWriteRequest>(
             this,
             path,
             std::move(nameTable),
             std::move(rows),
-            options)));
-        LOG_DEBUG("Row writes buffered (RowCount: %v)",
-            rows.size());
+            options));
+        LOG_DEBUG("Row writes buffered (RowCount: %v)", rowCount);
     }
 
     virtual void DeleteRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        std::vector<NTableClient::TKey> keys,
+        TSharedRange<TUnversionedRow> keys,
         const TDeleteRowsOptions& options) override
     {
-        Requests_.push_back(std::unique_ptr<TRequestBase>(new TDeleteRequest(
+        auto keyCount = keys.Size();
+        Requests_.push_back(std::make_unique<TDeleteRequest>(
             this,
             path,
             std::move(nameTable),
             std::move(keys),
-            options)));
-        LOG_DEBUG("Row deletes buffered (RowCount: %v)",
-            keys.size());
+            options));
+        LOG_DEBUG("Row deletes buffered (KeyCount: %v)", keyCount);
     }
 
 
@@ -2876,6 +2902,8 @@ private:
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
+    TFuture<void> Outcome_;
+
     NLogging::TLogger Logger;
 
 
@@ -2928,7 +2956,7 @@ private:
         { }
 
         void WriteRequests(
-            const std::vector<TUnversionedRow>& rows,
+            const TSharedRange<TUnversionedRow>& rows,
             EWireProtocolCommand command,
             TRowValidator validateRow,
             const TWriteRowsOptions& writeOptions = TWriteRowsOptions())
@@ -2941,7 +2969,7 @@ private:
         }
 
         void WriteRequestSorted(
-            const std::vector<TUnversionedRow>& rows,
+            const TSharedRange<TUnversionedRow>& rows,
             EWireProtocolCommand command,
             TRowValidator validateRow,
             const TWriteRowsOptions& writeOptions)
@@ -2951,7 +2979,7 @@ private:
             const auto& rowBuffer = Transaction_->GetRowBuffer();
             auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
             auto evaluator = TableInfo_->NeedKeyEvaluation
-                ? evaluatorCache->Find(schema, schema.GetKeyColumnCount())
+                ? evaluatorCache->Find(TableInfo_->Schema)
                 : nullptr;
 
             for (auto row : rows) {
@@ -2976,7 +3004,7 @@ private:
         }
 
         void WriteRequestOrdered(
-            const std::vector<TUnversionedRow>& rows,
+            const TSharedRange<TUnversionedRow>& rows,
             EWireProtocolCommand command,
             TRowValidator validateRow,
             const TWriteRowsOptions& /*writeOptions*/)
@@ -3003,7 +3031,7 @@ private:
             TTransaction* transaction,
             const TYPath& path,
             TNameTablePtr nameTable,
-            std::vector<TUnversionedRow> rows,
+            TSharedRange<TUnversionedRow> rows,
             const TWriteRowsOptions& options)
             : TModifyRequest(transaction, path, std::move(nameTable))
             , Rows_(std::move(rows))
@@ -3011,7 +3039,7 @@ private:
         { }
 
     private:
-        const std::vector<TUnversionedRow> Rows_;
+        const TSharedRange<TUnversionedRow> Rows_;
 
         virtual void DoRun() override
         {
@@ -3033,14 +3061,14 @@ private:
             TTransaction* transaction,
             const TYPath& path,
             TNameTablePtr nameTable,
-            std::vector<NTableClient::TKey> keys,
+            TSharedRange<TKey> keys,
             const TDeleteRowsOptions& /*options*/)
             : TModifyRequest(transaction, path, std::move(nameTable))
             , Keys_(std::move(keys))
         { }
 
     private:
-        const std::vector<TUnversionedRow> Keys_;
+        const TSharedRange<TKey> Keys_;
 
         virtual void DoRun() override
         {
@@ -3072,6 +3100,7 @@ private:
             , TabletId_(TabletInfo_->TabletId)
             , Config_(owner->Client_->Connection_->GetConfig())
             , Durability_(owner->Transaction_->GetDurability())
+            , ColumnCount_(TableInfo_->Schema.Columns().size())
             , KeyColumnCount_(TableInfo_->Schema.GetKeyColumnCount())
             , ColumnEvaluator_(std::move(columnEvauator))
             , RowBuffer_(New<TRowBuffer>())
@@ -3132,6 +3161,7 @@ private:
         const TTabletId TabletId_;
         const TConnectionConfigPtr Config_;
         const EDurability Durability_;
+        const int ColumnCount_;
         const int KeyColumnCount_;
 
         TColumnEvaluatorPtr ColumnEvaluator_;
@@ -3175,8 +3205,10 @@ private:
 
             std::vector<TSubmittedRow> mergedRows;
             mergedRows.reserve(SubmittedRows_.size());
+
             auto merger = New<TUnversionedRowMerger>(
                 RowBuffer_,
+                ColumnCount_,
                 KeyColumnCount_,
                 ColumnEvaluator_);
 
@@ -3328,7 +3360,7 @@ private:
         if (it == TabletToSession_.end()) {
             AsyncTransactionStartResults_.push_back(Transaction_->AddTabletParticipant(tabletInfo->CellId));
             auto evaluatorCache = GetConnection()->GetColumnEvaluatorCache();
-            auto evaluator = evaluatorCache->Find(tableInfo->Schema, tableInfo->Schema.GetKeyColumnCount());
+            auto evaluator = evaluatorCache->Find(tableInfo->Schema);
             it = TabletToSession_.insert(std::make_pair(
                 tabletInfo,
                 New<TTabletCommitSession>(

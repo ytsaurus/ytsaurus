@@ -441,6 +441,10 @@ class Operation(object):
         kwargs["operation_id"] = self.id
         execute_command("abort_op", kwargs)
 
+    def complete(self, **kwargs):
+        kwargs["operation_id"] = self.id
+        execute_command("complete_op", kwargs)
+
 def create_tmpdir(prefix):
     basedir = os.path.join(path_to_run_tests, "tmp")
     try:
@@ -453,11 +457,14 @@ def create_tmpdir(prefix):
         prefix="{0}_{1}_".format(prefix, os.getpid()),
         dir=basedir)
 
-def check_all_stderrs(op, expected_content, expected_count):
+def check_all_stderrs(op, expected_content, expected_count, substring=False):
     jobs_path = "//sys/operations/{0}/jobs".format(op.id)
     assert get(jobs_path + "/@count") == expected_count
     for job_id in ls(jobs_path):
-        assert read_file("{0}/{1}/stderr".format(jobs_path, job_id)) == expected_content
+        if substring:
+            assert expected_content in read_file("{0}/{1}/stderr".format(jobs_path, job_id))
+        else:
+            assert read_file("{0}/{1}/stderr".format(jobs_path, job_id)) == expected_content
 
 def track_path(path, timeout):
     poll_frequency = 0.1
@@ -501,7 +508,7 @@ def start_op(op_type, **kwargs):
         label = kwargs.get("label", "test")
         operation._tmpdir = create_tmpdir(label)
         kwargs["command"] = (
-            "(touch {0}/started_$YT_JOB_ID\n"
+            "(touch {0}/started_$YT_JOB_ID 2>/dev/null\n"
             "{1}\n"
             "while [ -f {0}/started_$YT_JOB_ID ]; do sleep 0.1; done\n)"
             .format(operation._tmpdir, kwargs["command"]))

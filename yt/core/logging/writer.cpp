@@ -5,6 +5,9 @@
 #include <yt/build/build.h>
 
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/proc.h>
+
+#include <errno.h>
 
 #include <errno.h>
 
@@ -143,10 +146,7 @@ void TStreamLogWriterBase::OnException(const std::exception& ex)
     formatter.AppendString(ex.what());
     formatter.AppendString("\n*** Aborting ***\n");
 
-    ssize_t size;
-    do {
-        size = ::write(2, formatter.GetData(), formatter.GetBytesWritten());
-    } while (size == -1 && errno == EINTR);
+    HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());
 
     std::terminate();
 }

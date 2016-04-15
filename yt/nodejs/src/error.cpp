@@ -4,6 +4,7 @@
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/formats/json_writer.h>
+#include <yt/ytlib/formats/config.h>
 
 #include <yt/ytlib/security_client/public.h>
 

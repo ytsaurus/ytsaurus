@@ -9,6 +9,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A thread-safe id-to-name mapping.
 class TNameTable
     : public virtual TRefCounted
 {
@@ -39,6 +40,27 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TNameTable)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A non thread-safe read-only wrapper for TNameTable.
+class TNameTableReader
+    : private TNonCopyable
+{
+public:
+    explicit TNameTableReader(TNameTablePtr nameTable);
+
+    TStringBuf GetName(int id) const;
+    int GetSize() const;
+
+private:
+    const TNameTablePtr NameTable_;
+
+    mutable std::vector<Stroka> IdToNameCache_;
+
+    void Fill() const;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

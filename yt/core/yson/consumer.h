@@ -7,7 +7,7 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A SAX-like interface for building a YSON stream.
+//! A SAX-like interface for parsing a YSON stream.
 struct IYsonConsumer
 {
     virtual ~IYsonConsumer() = default;
@@ -121,4 +121,3 @@ public:
 
 } // namespace NYson
 } // namespace NYT
-

@@ -10,6 +10,7 @@
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT {
+namespace NTools {
 
 using namespace NYson;
 using namespace NYTree;
@@ -38,7 +39,7 @@ TYsonString SpawnTool(const Stroka& toolName, const TYsonString& serializedArgum
 
     // Treat empty string as OK
     if (serializedResultOrError.Empty()) {
-        return ConvertToYsonString(TError());
+        return ConvertToYsonString(TError(), NYson::EYsonFormat::Text);
     }
 
     return TYsonString(serializedResultOrError);
@@ -55,7 +56,7 @@ TYsonString DoRunToolInProcess(const Stroka& toolName, const TYsonString& serial
 
     // Treat empty string as OK
     if (serializedResultOrError.Data().Empty()) {
-        return ConvertToYsonString(TError());
+        return ConvertToYsonString(TError(), NYson::EYsonFormat::Text);
     }
 
     return serializedResultOrError;
@@ -99,15 +100,16 @@ TYsonString ExecuteTool(const Stroka& toolName, const TYsonString& serializedArg
 
         const auto& toolDescription = it->second;
 
-        TThread::CurrentThreadSetName(~toolDescription.Name);
+        TThread::CurrentThreadSetName(toolDescription.Name.c_str());
 
-        auto result = (toolDescription.Tool)(serializedArgument);
+        auto result = toolDescription.Tool(serializedArgument);
         return result;
     } catch (const TErrorException& ex) {
-        return ConvertToYsonString(ex.Error());
+        return ConvertToYsonString(ex.Error(), NYson::EYsonFormat::Text);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTools
 } // namespace NYT

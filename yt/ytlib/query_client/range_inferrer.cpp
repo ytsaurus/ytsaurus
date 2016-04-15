@@ -734,7 +734,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
     auto buffer = New<TRowBuffer>();
     auto keySize = renamedKeyColumns.size();
 
-    auto evaluator = evaluatorCache->Find(schema, keySize);
+    auto evaluator = evaluatorCache->Find(schema);
     auto keyTrie = ExtractMultipleConstraints(
         predicate,
         renamedKeyColumns,

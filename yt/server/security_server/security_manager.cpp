@@ -291,9 +291,9 @@ public:
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount, TAccountId);
-    DECLARE_ENTITY_MAP_ACCESSORS(User, TUser, TUserId);
-    DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup, TGroupId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount);
+    DECLARE_ENTITY_MAP_ACCESSORS(User, TUser);
+    DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
 
 
     TAccount* CreateAccount(const Stroka& name, const TObjectId& hintId)
@@ -791,7 +791,8 @@ public:
                                 result.Subject = subject;
                                 // At least one denying ACE is found, deny the request.
                                 if (result.Action == ESecurityAction::Deny) {
-                                    LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found (CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
+                                    LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found "
+                                        "(CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
                                         object->GetId(),
                                         permission,
                                         user->GetName(),
@@ -815,7 +816,8 @@ public:
 
         // No allowing ACE, deny the request.
         if (result.Action == ESecurityAction::Undefined) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found (CheckObjectId: %v, Permission: %v, User: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found "
+                "(CheckObjectId: %v, Permission: %v, User: %v)",
                 object->GetId(),
                 permission,
                 user->GetName());
@@ -823,7 +825,8 @@ public:
             return result;
         } else {
             YASSERT(result.Action == ESecurityAction::Allow);
-            LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found (CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
+            LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found "
+                "(CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
                 object->GetId(),
                 permission,
                 user->GetName(),
@@ -956,7 +959,7 @@ private:
 
     bool InitMulticell_ = false;
 
-    NHydra::TEntityMap<TAccountId, TAccount> AccountMap_;
+    NHydra::TEntityMap<TAccount> AccountMap_;
     yhash_map<Stroka, TAccount*> AccountNameMap_;
 
     TAccountId SysAccountId_;
@@ -968,7 +971,7 @@ private:
     TAccountId IntermediateAccountId_;
     TAccount* IntermediateAccount_ = nullptr;
 
-    NHydra::TEntityMap<TUserId, TUser> UserMap_;
+    NHydra::TEntityMap<TUser> UserMap_;
     yhash_map<Stroka, TUser*> UserNameMap_;
 
     TUserId RootUserId_;
@@ -983,7 +986,7 @@ private:
     TUserId SchedulerUserId_;
     TUser* SchedulerUser_ = nullptr;
 
-    NHydra::TEntityMap<TGroupId, TGroup> GroupMap_;
+    NHydra::TEntityMap<TGroup> GroupMap_;
     yhash_map<Stroka, TGroup*> GroupNameMap_;
 
     TGroupId EveryoneGroupId_;
@@ -1472,8 +1475,12 @@ protected:
 
     void OnAccountStatisticsGossip()
     {
-        LOG_INFO("Sending account statistics gossip message");
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsLocalMasterCellRegistered()) {
+            return;
+        }
 
+        LOG_INFO("Sending account statistics gossip message");
 
         NProto::TReqSetAccountStatistics request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
@@ -1491,7 +1498,6 @@ protected:
             }
         }
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
         if (Bootstrap_->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
         } else {
@@ -1502,10 +1508,17 @@ protected:
     void HydraSetAccountStatistics(NProto::TReqSetAccountStatistics* request)
     {
         auto cellTag = request->cell_tag();
+        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Received account statistics gossip message from unknown cell (CellTag: %v)",
+                cellTag);
+            return;
+        }
+
         LOG_INFO_UNLESS(IsRecovery(), "Received account statistics gossip message (CellTag: %v)",
             cellTag);
-
-        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         for (const auto& entry : request->entries()) {
             auto accountId = FromProto<TAccountId>(entry.account_id());
@@ -1546,8 +1559,12 @@ protected:
 
     void OnUserStatisticsGossip()
     {
-        LOG_INFO("Sending user statistics gossip message");
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsLocalMasterCellRegistered()) {
+            return;
+        }
 
+        LOG_INFO("Sending user statistics gossip message");
 
         NProto::TReqSetUserStatistics request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
@@ -1565,7 +1582,6 @@ protected:
             }
         }
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
         if (Bootstrap_->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
         } else {
@@ -1617,10 +1633,17 @@ protected:
     void HydraSetUserStatistics(NProto::TReqSetUserStatistics* request)
     {
         auto cellTag = request->cell_tag();
+        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Received user statistics gossip message from unknown cell (CellTag: %v)",
+                cellTag);
+            return;
+        }
+
         LOG_INFO_UNLESS(IsRecovery(), "Received user statistics gossip message (CellTag: %v)",
             cellTag);
-
-        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         for (const auto& entry : request->entries()) {
             auto userId = FromProto<TAccountId>(entry.user_id());
@@ -1706,9 +1729,9 @@ protected:
 
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, TAccountId, AccountMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, User, TUser, TUserId, UserMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, TGroupId, GroupMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, AccountMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, User, TUser, UserMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, GroupMap_)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -2037,9 +2060,9 @@ double TSecurityManager::GetRequestRate(TUser* user)
     return Impl_->GetRequestRate(user);
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, TAccountId, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, TUserId, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, TGroupId, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, *Impl_)
 
 ///////////////////////////////////////////////////////////////////////////////
 

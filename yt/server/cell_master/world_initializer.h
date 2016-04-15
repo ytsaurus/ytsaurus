@@ -23,10 +23,13 @@ public:
     ~TWorldInitializer();
 
     //! Returns |true| if the cluster is initialized.
-    bool CheckInitialized();
+    bool IsInitialized();
+
+    //! Checks if the cluster is initialized. Throws if not.
+    void ValidateInitialized();
 
     //! Returns |true| if provision lock is active.
-    bool CheckProvisionLock();
+    bool HasProvisionLock();
 
 private:
     class TImpl;

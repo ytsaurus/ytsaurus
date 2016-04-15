@@ -23,6 +23,7 @@ public:
 
     TSchemafulRowMerger(
         TRowBufferPtr rowBuffer,
+        int columnCount,
         int keyColumnCount,
         const TColumnFilter& columnFilter,
         NQueryClient::TColumnEvaluatorPtr columnEvauator);
@@ -33,7 +34,7 @@ public:
 
 private:
     TRowBufferPtr RowBuffer_;
-    const TTableSchema& TableSchema_;
+    int ColumnCount_;
     int KeyColumnCount_;
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
@@ -64,6 +65,7 @@ public:
 
     TUnversionedRowMerger(
         TRowBufferPtr rowBuffer,
+        int columnCount,
         int keyColumnCount,
         NQueryClient::TColumnEvaluatorPtr columnEvauator);
 
@@ -74,7 +76,7 @@ public:
 
 private:
     TRowBufferPtr RowBuffer_;
-    const TTableSchema& TableSchema_;
+    int ColumnCount_;
     int KeyColumnCount_;
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
@@ -115,7 +117,6 @@ public:
 
 private:
     TRowBufferPtr RowBuffer_;
-    const TTableSchema& TableSchema_;
     int KeyColumnCount_;
     TRetentionConfigPtr Config_;
     TTimestamp CurrentTimestamp_;

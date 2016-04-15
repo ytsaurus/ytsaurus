@@ -161,6 +161,13 @@ struct IOperationController
      */
     virtual void Abort() = 0;
 
+    //! Notifies the controller that the operation has been completed.
+    /*!
+     *  All running jobs are aborted automatically.
+     *  The operation, however, may carry out any additional cleanup it finds necessary.
+     */
+    virtual void Complete() = 0;
+
 
     //! Returns the context that gets invalidated by #Abort.
     virtual TCancelableContextPtr GetCancelableContext() const = 0;
@@ -244,7 +251,7 @@ struct IOperationController
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual TJobStartRequestPtr ScheduleJob(
+    virtual TScheduleJobResultPtr ScheduleJob(
         ISchedulingContextPtr context,
         const TJobResources& jobLimits) = 0;
 
@@ -257,6 +264,9 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: Controller invoker
      */
+    //! Returns |true| when controller can build it's progress.
+    virtual bool HasProgress() const = 0;
+
     //! Called to construct a YSON representing the current progress.
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const = 0;
 

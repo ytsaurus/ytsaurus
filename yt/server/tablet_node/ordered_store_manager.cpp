@@ -235,7 +235,7 @@ void TOrderedStoreManager::ValidateOnWrite(
     TUnversionedRow row)
 {
     try {
-        ValidateServerDataRow(row, 0, Tablet_->Schema());
+        ValidateServerDataRow(row, Tablet_->Schema());
     } catch (TErrorException& ex) {
         auto& errorAttributes = ex.Error().Attributes();
         errorAttributes.Set("transaction_id", transactionId);

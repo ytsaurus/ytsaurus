@@ -155,8 +155,8 @@ std::vector<TObjectId> ToObjectIds(
     const T& objects,
     size_t sizeLimit = std::numeric_limits<size_t>::max());
 
-template <class TKey, class TValue, class THash>
-std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TKey, TValue, THash>& entities);
+template <class TValue>
+std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValue>& entities);
 
 ////////////////////////////////////////////////////////////////////////////////
 

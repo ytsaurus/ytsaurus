@@ -104,32 +104,22 @@ class TExpressionProfiler
 public:
     TExpressionProfiler(
         llvm::FoldingSetNodeID* id,
+        TCGVariables* variables,
         const TConstFunctionProfilerMapPtr& functionProfilers)
         : TSchemaProfiler(id)
+        , Variables_(variables)
         , FunctionProfilers_(functionProfilers)
-    { }
+    {
+        YCHECK(variables);
+    }
 
     TCodegenExpression Profile(TConstExpressionPtr expr, const TTableSchema& tableSchema);
 
-    void Set(TCGVariables* variables);
-    void Set(std::vector<std::vector<bool>>* literalArgs);
-
 protected:
-    TCGVariables* Variables_ = nullptr;
-    std::vector<std::vector<bool>>* LiteralArgs_ = nullptr;
+    TCGVariables* Variables_;
 
     TConstFunctionProfilerMapPtr FunctionProfilers_;
 };
-
-void TExpressionProfiler::Set(TCGVariables* variables)
-{
-    Variables_ = variables;
-}
-
-void TExpressionProfiler::Set(std::vector<std::vector<bool>>* literalArgs)
-{
-    LiteralArgs_ = literalArgs;
-}
 
 TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const TTableSchema& schema)
 {
@@ -138,9 +128,7 @@ TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const 
         Fold(static_cast<int>(EFoldingObjectType::LiteralExpr));
         Fold(static_cast<ui16>(TValue(literalExpr->Value).Type));
 
-        int index = Variables_
-            ? Variables_->ConstantsRowBuilder.AddValue(TValue(literalExpr->Value))
-            : -1;
+        int index = Variables_->AddObject<TOwningValue>(literalExpr->Value);
 
         return MakeCodegenLiteralExpr(index, literalExpr->Type);
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
@@ -164,11 +152,7 @@ TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const 
             literalArgs.push_back(argument->As<TLiteralExpression>() != nullptr);
         }
 
-        int index = -1;
-        if (LiteralArgs_) {
-            index =  LiteralArgs_->size();
-            LiteralArgs_->push_back(std::move(literalArgs));
-        }
+        int index = Variables_->AddObject<TFunctionContext>(std::move(literalArgs));
 
         const auto& function = FunctionProfilers_->GetFunction(functionExpr->FunctionName);
 
@@ -206,11 +190,7 @@ TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const 
             codegenArgs.push_back(Profile(argument, schema));
         }
 
-        int index = -1;
-        if (Variables_) {
-            index = Variables_->LiteralRows.size();
-            Variables_->LiteralRows.push_back(inOp->Values);
-        }
+        int index = Variables_->AddObject<TSharedRange<TRow>>(inOp->Values);
 
         return MakeCodegenInOpExpr(codegenArgs, index);
     }
@@ -226,9 +206,10 @@ class TQueryProfiler
 public:
     TQueryProfiler(
         llvm::FoldingSetNodeID* id,
+        TCGVariables* variables,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers)
-        : TExpressionProfiler(id, functionProfilers)
+        : TExpressionProfiler(id, variables, functionProfilers)
         , AggregateProfilers_(aggregateProfilers)
     { }
 
@@ -273,19 +254,19 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
             }
         }
 
+        int index = Variables_->AddObject<TJoinEvaluator>(GetJoinEvaluator(
+            *joinClause,
+            query->WhereClause,
+            schema));
+
         codegenSource = MakeCodegenJoinOp(
-            Variables_->JoinEvaluators.size(),
+            index,
             selfKeys,
             schema,
             std::move(codegenSource),
             joinClause->KeyPrefix,
             joinClause->EquationByIndex,
             evaluatedColumns);
-
-        Variables_->JoinEvaluators.push_back(GetJoinEvaluator(
-            *joinClause,
-            query->WhereClause,
-            schema));
 
         schema = joinClause->JoinedTableSchema;
     }
@@ -304,8 +285,11 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
         std::vector<TCodegenExpression> codegenAggregateExprs;
         std::vector<TCodegenAggregate> codegenAggregates;
 
+        std::vector<EValueType> keyTypes;
+
         for (const auto& groupItem : groupClause->GroupItems) {
             codegenGroupExprs.push_back(Profile(groupItem, schema));
+            keyTypes.push_back(groupItem.Expression->Type);
         }
 
         for (const auto& aggregateItem : groupClause->AggregateItems) {
@@ -324,45 +308,79 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
                 Id_));
         }
 
-        int keySize = codegenGroupExprs.size();
+        size_t keySize = keyTypes.size();
 
-        auto keyTypes = std::vector<EValueType>();
-        for (int id = 0; id < keySize; id++) {
-            keyTypes.push_back(groupClause->GroupedTableSchema.Columns()[id].Type);
-        }
+        auto initialize = MakeCodegenAggregateInitialize(
+            codegenAggregates,
+            keySize);
+
+        auto aggregate = MakeCodegenEvaluateAggregateArgs(
+            keySize,
+            codegenAggregateExprs,
+            codegenAggregates,
+            groupClause->IsMerge,
+            schema);
+
+        auto update = MakeCodegenAggregateUpdate(
+            codegenAggregates,
+            keySize,
+            groupClause->IsMerge);
+
+        auto finalize = MakeCodegenAggregateFinalize(
+            codegenAggregates,
+            keySize,
+            groupClause->IsFinal);
 
         codegenSource = MakeCodegenGroupOp(
-            MakeCodegenAggregateInitialize(
-                codegenAggregates,
-                keySize),
-            MakeCodegenEvaluateGroups(
-                codegenGroupExprs),
-            MakeCodegenEvaluateAggregateArgs(
-                codegenGroupExprs,
-                codegenAggregateExprs,
-                codegenAggregates,
-                groupClause->IsMerge,
-                schema),
-            MakeCodegenAggregateUpdate(
-                codegenAggregates,
-                keySize,
-                groupClause->IsMerge),
-            MakeCodegenAggregateFinalize(
-                codegenAggregates,
-                keySize,
-                groupClause->IsFinal),
+            initialize,
+            MakeCodegenEvaluateGroups(codegenGroupExprs),
+            aggregate,
+            update,
+            finalize,
             std::move(codegenSource),
             keyTypes,
-            keySize + codegenAggregates.size());
+            keySize + codegenAggregates.size(),
+            false,
+            groupClause->TotalsMode != ETotalsMode::None);
 
         schema = groupClause->GetTableSchema();
-    }
 
-    if (query->HavingClause) {
-        Fold(static_cast<int>(EFoldingObjectType::HavingOp));
-        codegenSource = MakeCodegenFilterOp(
-            TExpressionProfiler::Profile(query->HavingClause, schema),
-            std::move(codegenSource));
+        if (groupClause->TotalsMode == ETotalsMode::BeforeHaving) {
+            codegenSource = MakeCodegenGroupOp(
+                initialize,
+                MakeCodegenEvaluateGroups( // Codegen nulls here
+                    std::vector<TCodegenExpression>(),
+                    keyTypes),
+                aggregate,
+                update,
+                finalize,
+                std::move(codegenSource),
+                keyTypes,
+                keySize + codegenAggregates.size(),
+                true);
+        }
+
+        if (query->HavingClause) {
+            Fold(static_cast<int>(EFoldingObjectType::HavingOp));
+            codegenSource = MakeCodegenFilterOp(
+                TExpressionProfiler::Profile(query->HavingClause, schema),
+                std::move(codegenSource));
+        }
+
+        if (groupClause->TotalsMode == ETotalsMode::AfterHaving) {
+            codegenSource = MakeCodegenGroupOp(
+                initialize,
+                MakeCodegenEvaluateGroups( // Codegen nulls here
+                    std::vector<TCodegenExpression>(),
+                    keyTypes),
+                aggregate,
+                update,
+                finalize,
+                std::move(codegenSource),
+                keyTypes,
+                keySize + codegenAggregates.size(),
+                true);
+        }
     }
 
     if (auto orderClause = query->OrderClause.Get()) {
@@ -424,17 +442,17 @@ TCGExpressionCallbackGenerator Profile(
     const TTableSchema& schema,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    std::vector<std::vector<bool>>* literalArgs,
     const TConstFunctionProfilerMapPtr& functionProfilers)
 {
-    TExpressionProfiler profiler(id, functionProfilers);
-    profiler.Set(variables);
-    profiler.Set(literalArgs);
+    TExpressionProfiler profiler(id, variables, functionProfilers);
+
+    auto codegenExpr = profiler.Profile(expr, schema);
 
     return [
-            codegenExpr = profiler.Profile(expr, schema)
+            MOVE(codegenExpr),
+            opaqueValuesCount = variables->GetOpaqueCount()
         ] () {
-            return CodegenExpression(std::move(codegenExpr));
+            return CodegenExpression(std::move(codegenExpr), opaqueValuesCount);
         };
 }
 
@@ -442,18 +460,18 @@ TCGQueryCallbackGenerator Profile(
     TConstQueryPtr query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    std::vector<std::vector<bool>>* literalArgs,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers)
 {
-    TQueryProfiler profiler(id, functionProfilers, aggregateProfilers);
-    profiler.Set(variables);
-    profiler.Set(literalArgs);
+    TQueryProfiler profiler(id, variables, functionProfilers, aggregateProfilers);
+
+    auto codegenSource = profiler.Profile(query);
 
     return [
-            codegenSource = profiler.Profile(query)
+            MOVE(codegenSource),
+            opaqueValuesCount = variables->GetOpaqueCount()
         ] () {
-            return CodegenEvaluate(std::move(codegenSource));
+            return CodegenEvaluate(std::move(codegenSource), opaqueValuesCount);
         };
 }
 

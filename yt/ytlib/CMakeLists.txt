@@ -94,6 +94,7 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/formats/dsv_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/dsv_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/dsv_table.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/format.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_callbacks.cpp

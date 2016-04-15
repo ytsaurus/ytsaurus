@@ -55,6 +55,29 @@ DECLARE_REFCOUNTED_CLASS(TDistributedHydraManagerConfig)
 //! A special value representing an invalid snapshot (or changelog) id.
 const int InvalidSegmentId = -1;
 
+#define DECLARE_ENTITY_TYPE(entityType, keyType, hashType) \
+    class entityType; \
+    \
+    struct TEntityTraitsImpl_##entityType \
+    { \
+        using TKey = keyType; \
+        using THash = hashType; \
+    }; \
+    \
+    inline TEntityTraitsImpl_##entityType GetEntityTraitsImpl(entityType*) \
+    { \
+        return TEntityTraitsImpl_##entityType(); \
+    }
+
+template <class T>
+using TEntityTraits = decltype(GetEntityTraitsImpl(static_cast<T*>(nullptr)));
+
+template <class T>
+using TEntityKey = typename TEntityTraits<T>::TKey;
+
+template <class T>
+using TEntityHash = typename TEntityTraits<T>::THash;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NHydra

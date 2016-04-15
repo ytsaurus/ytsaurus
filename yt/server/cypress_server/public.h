@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/server/hydra/public.h>
+
 #include <yt/ytlib/cypress_client/public.h>
 
 #include <yt/ytlib/object_client/public.h>
@@ -12,21 +14,31 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NCypressClient::TNodeId;
+using NCypressClient::TLockId;
+using NCypressClient::ELockMode;
+using NCypressClient::ELockState;
+using NCypressClient::TVersionedNodeId;
+
+using NObjectClient::TTransactionId;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(INodeTypeHandler)
 DECLARE_REFCOUNTED_STRUCT(ICypressNodeProxy)
 DECLARE_REFCOUNTED_STRUCT(ICypressNodeVisitor)
 
-DECLARE_REFCOUNTED_CLASS(TAccessTracker)
 DECLARE_REFCOUNTED_CLASS(TCypressManager)
-
-class TCypressNodeBase;
 
 struct ICypressNodeFactory;
 
+DECLARE_ENTITY_TYPE(TCypressNodeBase, TVersionedNodeId, NObjectClient::TDirectVersionedObjectIdHash)
+DECLARE_ENTITY_TYPE(TLock, TLockId, NObjectClient::TDirectObjectIdHash)
+
 using TCypressNodeList = SmallVector<TCypressNodeBase*, 8>;
+using TCypressNodeExpirationMap = std::multimap<TInstant, TCypressNodeBase*>;
 
 struct TLockRequest;
-class TLock;
 
 DECLARE_REFCOUNTED_CLASS(TCypressManagerConfig)
 
@@ -38,16 +50,6 @@ DEFINE_ENUM(ENodeCloneMode,
     (Copy)
     (Move)
 );
-
-////////////////////////////////////////////////////////////////////////////////
-
-using NCypressClient::TNodeId;
-using NCypressClient::TLockId;
-using NCypressClient::ELockMode;
-using NCypressClient::ELockState;
-using NCypressClient::TVersionedNodeId;
-
-using NObjectClient::TTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

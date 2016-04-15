@@ -5,6 +5,8 @@
 #include <yt/ytlib/job_tracker_client/job.pb.h>
 
 #include <yt/core/yson/forwarding_consumer.h>
+#include <yt/core/yson/consumer.h>
+#include <yt/core/yson/building_consumer.h>
 
 #include <yt/core/ytree/tree_builder.h>
 #include <yt/core/ytree/convert.h>
@@ -24,6 +26,8 @@ class TSummary
 public:
     TSummary();
 
+    TSummary(i64 sum, i64 count, i64 min, i64 max);
+
     void AddSample(i64 sample);
 
     void Update(const TSummary& summary);
@@ -38,6 +42,10 @@ public:
     void Persist(NPhoenix::TPersistenceContext& context);
 
     friend void FromProto(TSummary* summary, const NProto::TStatistics::TSummary& protoSummary);
+
+    bool operator == (const TSummary& other) const;
+
+    friend class TStatisticsBuildingConsumer;
 };
 
 void ToProto(NProto::TStatistics::TSummary* protoSummary, const TSummary& summary);
@@ -70,6 +78,8 @@ private:
     TSummary& GetSummary(const NYPath::TYPath& path);
 
     friend void FromProto(TStatistics* statistics, const NProto::TStatistics& protoStatistics);
+    
+    friend class TStatisticsBuildingConsumer;
 };
 
 template <class T>
@@ -78,10 +88,16 @@ T GetValues(
     const NYPath::TYPath& path, 
     std::function<i64(const TSummary&)> getValue);
 
+////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TStatistics* protoStatistics, const TStatistics& statistics);
 void FromProto(TStatistics* statistics, const NProto::TStatistics& protoStatistics);
 
+////////////////////////////////////////////////////////////////////
+
 void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer);
+
+void CreateBuildingYsonConsumer(std::unique_ptr<NYson::IBuildingYsonConsumer<TStatistics>>* buildingConsumer, NYson::EYsonType ysonType);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -109,7 +125,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NJobTrackerClient
+} // namespace NJobTrackerClient 
 } // namespace NYT
 
 #define STATISTICS_INL_H_

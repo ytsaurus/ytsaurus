@@ -51,6 +51,7 @@ using namespace NYson;
 using namespace NElection;
 using namespace NScheduler;
 using namespace NJobProxy;
+using namespace NTools;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -22,6 +22,16 @@
 namespace NYT {
 namespace NQueryClient {
 
+const size_t RowsetProcessingSize = 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TInterruptedCompleteException
+{ };
+
+class TInterruptedIncompleteException
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const size_t InitialGroupOpHashtableCapacity = 1024;
@@ -87,20 +97,16 @@ using TJoinEvaluator = std::function<void(
     TComparerFunction* comparer,
     TJoinLookup& joinLookup,
     std::vector<TRow> keys,
-    std::vector<std::pair<TRow, int>> chainedRows,
+    std::vector<std::pair<TRow, i64>> chainedRows,
     TRowBufferPtr permanentBuffer,
-    // TODO(babenko): TSharedRange?
-    std::vector<TRow>* joinedRows)>;
+    void** consumeRowsClosure,
+    void (*consumeRows)(void** closure, TRow* rows, i64 size))>;
 
 struct TExpressionContext
 {
 #ifndef NDEBUG
     size_t StackSizeGuardHelper;
 #endif
-    const TTableSchema* Schema;
-
-    const std::vector<TSharedRange<TRow>>* LiteralRows;
-
     TRowBufferPtr IntermediateBuffer;
 };
 
@@ -127,13 +133,8 @@ struct TExecutionContext
     // Limit from LIMIT clause.
     i64 Limit;
 
-    // "char" type is to due LLVM interop.
-    char StopFlag = false;
-
-    std::vector<TJoinEvaluator> JoinEvaluators;
     TExecuteQuery ExecuteCallback;
 
-    std::deque<TFunctionContext> FunctionContexts;
 };
 
 class TTopCollector
@@ -177,22 +178,61 @@ private:
     std::vector<TRowBufferPtr> Buffers_;
     std::vector<int> EmptyBufferIds_;
     std::vector<std::pair<TMutableRow, int>> Rows_;
-    
+
     std::pair<TMutableRow, int> Capture(TRow row);
 
     void AccountGarbage(TRow row);
 
 };
 
-struct TCGVariables
+class TCGVariables
 {
-    TRowBuilder ConstantsRowBuilder;
-    std::vector<TSharedRange<TRow>> LiteralRows;
-    std::vector<TJoinEvaluator> JoinEvaluators;
+public:
+    template <class T, class... Args>
+    size_t AddObject(Args... args)
+    {
+        T* object = reinterpret_cast<T*>(new char[sizeof(T)]);
+
+        auto index = OpaqueValues.size();
+        try {
+            new(object) T(std::forward<Args>(args)...);
+        } catch (...) {
+            delete[] reinterpret_cast<char*>(object);
+        }
+
+        auto deleter = [] (void* ptr) {
+            static_cast<T*>(ptr)->~T();
+            delete[] static_cast<char*>(ptr);
+        };
+
+        std::unique_ptr<void, void(*)(void*)> ptr(object, deleter);
+
+        // Allocate memory after constructing unique_ptr
+
+        OpaqueValues.push_back(std::move(ptr));
+        OpaquePointers.push_back(object);
+
+        return index;
+    }
+
+    void* const* GetOpaqueData() const
+    {
+        return OpaquePointers.data();
+    }
+
+    size_t GetOpaqueCount() const
+    {
+        return OpaqueValues.size();
+    }
+
+private:
+    std::vector<std::unique_ptr<void, void(*)(void*)>> OpaqueValues;
+    std::vector<void*> OpaquePointers;
+
 };
 
-typedef void (TCGQuerySignature)(TRow, TExecutionContext*, TFunctionContext**);
-typedef void (TCGExpressionSignature)(TValue*, TRow, TRow, TExpressionContext*, TFunctionContext**);
+typedef void (TCGQuerySignature)(void* const*, TExecutionContext*);
+typedef void (TCGExpressionSignature)(void* const*, TValue*, TRow, TExpressionContext*);
 typedef void (TCGAggregateInitSignature)(TExecutionContext*, TValue*);
 typedef void (TCGAggregateUpdateSignature)(TExecutionContext*, TValue*, const TValue*, const TValue*);
 typedef void (TCGAggregateMergeSignature)(TExecutionContext*, TValue*, const TValue*, const TValue*);
@@ -214,8 +254,6 @@ struct TCGAggregateCallbacks
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-bool UpdateAndCheckRowLimit(i64* limit, char* flag);
 
 TJoinEvaluator GetJoinEvaluator(
     const TJoinClause& joinClause,

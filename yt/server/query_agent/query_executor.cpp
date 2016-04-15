@@ -27,6 +27,7 @@
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
@@ -108,7 +109,7 @@ void DataSourceFormatter(TStringBuilder* builder, const NQueryClient::TDataRange
         source.Range.second);
 }
 
-} // namespace NYT
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -207,17 +208,18 @@ private:
 
                 LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
 
+                auto asyncSubqueryResults = std::make_shared<std::vector<TFuture<TQueryStatistics>>>();
+
                 auto foreignExecuteCallback = [
+                    asyncSubqueryResults,
                     externalCGInfo,
                     options,
                     remoteExecutor,
                     Logger
                 ] (
                     const TQueryPtr& subquery,
-                    TGuid dataId,
-                    TRowBufferPtr buffer,
-                    TRowRanges ranges,
-                    ISchemafulWriterPtr writer) -> TFuture<TQueryStatistics>
+                    TDataRanges dataRanges,
+                    ISchemafulWriterPtr writer)
                 {
                     LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
@@ -225,17 +227,12 @@ private:
                     subqueryOptions.Timestamp = options.Timestamp;
                     subqueryOptions.VerboseLogging = options.VerboseLogging;
 
-                    TDataRanges dataSource{
-                        dataId,
-                        MakeSharedRange(std::move(ranges), std::move(buffer))
-                    };
-
-                    return remoteExecutor->Execute(
+                    asyncSubqueryResults->push_back(remoteExecutor->Execute(
                         subquery,
                         externalCGInfo,
-                        std::move(dataSource),
+                        std::move(dataRanges),
                         writer,
-                        subqueryOptions);
+                        subqueryOptions));
                 };
 
                 auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
@@ -248,10 +245,23 @@ private:
                         aggregateGenerators,
                         options.EnableCodeCache);
 
-                asyncStatistics.Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& result) {
+                asyncStatistics.Apply(BIND([=] (const TErrorOr<TQueryStatistics>& result) -> TErrorOr<TQueryStatistics>{
                     if (!result.IsOK()) {
                         pipe->Fail(result);
                         LOG_DEBUG(result, "Failed evaluating subquery (SubqueryId: %v)", subquery->Id);
+                        return result;
+                    } else {
+                        TQueryStatistics statistics = result.Value();
+
+                        for (const auto& asyncSubqueryResult : *asyncSubqueryResults) {
+                            auto subqueryStatistics = WaitFor(asyncSubqueryResult)
+                                .ValueOrThrow();
+
+                            LOG_DEBUG("Remote subquery statistics %v", subqueryStatistics);
+                            statistics += subqueryStatistics;
+                        }
+
+                        return statistics;
                     }
                 }));
 
@@ -345,9 +355,7 @@ private:
 
         LOG_DEBUG("Got %v split groups", groupedSplits.size());
 
-        auto columnEvaluator = ColumnEvaluatorCache_->Find(
-            query->TableSchema,
-            query->KeyColumnsCount);
+        auto columnEvaluator = ColumnEvaluatorCache_->Find(query->TableSchema);
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
@@ -471,8 +479,7 @@ private:
         }
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
-            query->TableSchema,
-            query->KeyColumnsCount);
+            query->TableSchema);
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
@@ -852,16 +859,14 @@ private:
 
             // TODO(babenko): seed replicas?
             // TODO(babenko): throttler?
-            auto options = New<TRemoteReaderOptions>();
-            chunkReader = CreateReplicationReader(
-                config,
-                options,
-                Bootstrap_->GetMasterClient(),
-                New<TNodeDirectory>(),
-                Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
+            chunkReader = CreateRemoteReader(
                 chunkId,
-                TChunkReplicaList(),
-                Bootstrap_->GetBlockCache());
+                config,
+                New<TRemoteReaderOptions>(),
+                Bootstrap_->GetMasterClient(),
+                Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
+                Bootstrap_->GetBlockCache(),
+                GetUnlimitedThrottler());
         }
 
         auto asyncChunkMeta = chunkReader->GetMeta(config->WorkloadDescriptor);

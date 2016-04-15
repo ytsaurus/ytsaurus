@@ -60,35 +60,22 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRow* GetRowsData(std::vector<TRow>* rows)
-{
-    return rows->data();
-}
-
-int GetRowsSize(std::vector<TRow>* rows)
-{
-    return rows->size();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void WriteRow(TRow row, TExecutionContext* context)
 {
     CHECK_STACK();
 
-    if (!UpdateAndCheckRowLimit(&context->Limit, &context->StopFlag)) {
-        return;
+    if (context->Statistics->RowsWritten >= context->Limit) {
+        throw TInterruptedCompleteException();
     }
 
-    if (!UpdateAndCheckRowLimit(&context->OutputRowLimit, &context->StopFlag)) {
-        context->Statistics->IncompleteOutput = true;
-        return;
+    if (context->Statistics->RowsWritten >= context->OutputRowLimit) {
+        throw TInterruptedIncompleteException();
     }
-    
+
     ++context->Statistics->RowsWritten;
 
     auto* batch = context->OutputRowsBatch;
-    
+
     const auto& rowBuffer = context->OutputBuffer;
 
     YASSERT(batch->size() < batch->capacity());
@@ -115,18 +102,14 @@ void WriteRow(TRow row, TExecutionContext* context)
 void ScanOpHelper(
     TExecutionContext* context,
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRow* rows, int size, char* stopFlag))
+    void (*consumeRows)(void** closure, TRow* rows, i64 size))
 {
     auto& reader = context->Reader;
 
     std::vector<TRow> rows;
-    rows.reserve(MaxRowsPerRead);
-
-    context->StopFlag = false;
+    rows.reserve(RowsetProcessingSize);
 
     while (true) {
-        context->IntermediateBuffer->Clear();
-
         bool hasMoreData;
         {
             NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->ReadTime);
@@ -142,18 +125,19 @@ void ScanOpHelper(
             }),
             rows.end());
 
-        if (context->InputRowLimit < rows.size()) {
-            rows.resize(context->InputRowLimit);
+        if (context->Statistics->RowsRead + rows.size() >= context->InputRowLimit) {
+            YCHECK(context->Statistics->RowsRead <= context->InputRowLimit);
+            rows.resize(context->InputRowLimit - context->Statistics->RowsRead);
             context->Statistics->IncompleteInput = true;
             hasMoreData = false;
         }
-        context->InputRowLimit -= rows.size();
         context->Statistics->RowsRead += rows.size();
 
-        consumeRows(consumeRowsClosure, rows.data(), rows.size(), &context->StopFlag);
+        consumeRows(consumeRowsClosure, rows.data(), rows.size());
         rows.clear();
+        context->IntermediateBuffer->Clear();
 
-        if (!hasMoreData || context->StopFlag) {
+        if (!hasMoreData) {
             break;
         }
 
@@ -169,15 +153,19 @@ void InsertJoinRow(
     TExecutionContext* context,
     TJoinLookup* lookup,
     std::vector<TRow>* keys,
-    std::vector<std::pair<TRow, int>>* chainedRows,
+    std::vector<std::pair<TRow, i64>>* chainedRows,
     TMutableRow* keyPtr,
     TRow row,
     int keySize)
 {
     CHECK_STACK();
 
-    int chainIndex = chainedRows->size();
+    i64 chainIndex = chainedRows->size();
     chainedRows->emplace_back(context->PermanentBuffer->Capture(row), -1);
+
+    if (chainIndex >= context->JoinRowLimit) {
+        throw TInterruptedIncompleteException();
+    }
 
     TMutableRow key = *keyPtr;
     auto inserted = lookup->insert(std::make_pair(key, std::make_pair(chainIndex, false)));
@@ -194,19 +182,9 @@ void InsertJoinRow(
     }
 }
 
-void SaveJoinRow(
-    TExecutionContext* context,
-    std::vector<TRow>* rows,
-    TRow row)
-{
-    CHECK_STACK();
-
-    rows->push_back(context->PermanentBuffer->Capture(row));
-}
-
 void JoinOpHelper(
     TExecutionContext* context,
-    int index,
+    TJoinEvaluator* joinEvaluator,
     THasherFunction* lookupHasher,
     TComparerFunction* lookupEqComparer,
     TComparerFunction* lookupLessComparer,
@@ -215,9 +193,9 @@ void JoinOpHelper(
         void** closure,
         TJoinLookup* joinLookup,
         std::vector<TRow>* keys,
-        std::vector<std::pair<TRow, int>>* chainedRows),
+        std::vector<std::pair<TRow, i64>>* chainedRows),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, std::vector<TRow>* rows, char* stopFlag))
+    void (*consumeRows)(void** closure, TRow* rows, i64 size))
 {
     TJoinLookup joinLookup(
         InitialGroupOpHashtableCapacity,
@@ -225,12 +203,17 @@ void JoinOpHelper(
         lookupEqComparer);
 
     std::vector<TRow> keys;
-    std::vector<std::pair<TRow, int>> chainedRows;
+    std::vector<std::pair<TRow, i64>> chainedRows;
 
     joinLookup.set_empty_key(TRow());
 
-    // Collect join ids.
-    collectRows(collectRowsClosure, &joinLookup, &keys, &chainedRows);
+    try {
+        // Collect join ids.
+        collectRows(collectRowsClosure, &joinLookup, &keys, &chainedRows);
+    } catch (const TInterruptedIncompleteException&) {
+        // Set incomplete and continue
+        context->Statistics->IncompleteOutput = true;
+    }
 
     LOG_DEBUG("Sorting %v join keys",
         keys.size());
@@ -241,8 +224,7 @@ void JoinOpHelper(
         keys.size(),
         chainedRows.size());
 
-    std::vector<TRow> joinedRows;
-    context->JoinEvaluators[index](
+    (*joinEvaluator)(
         context,
         lookupHasher,
         lookupEqComparer,
@@ -250,14 +232,8 @@ void JoinOpHelper(
         std::move(keys),
         std::move(chainedRows),
         context->PermanentBuffer,
-        &joinedRows);
-
-    LOG_DEBUG("Joined into %v rows",
-        joinedRows.size());
-
-    // Consume joined rows.
-    context->StopFlag = false;
-    consumeRows(consumeRowsClosure, &joinedRows, &context->StopFlag);
+        consumeRowsClosure,
+        consumeRows);
 }
 
 void GroupOpHelper(
@@ -267,7 +243,7 @@ void GroupOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(void** closure, std::vector<TRow>* groupedRows, TLookupRows* lookupRows),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, std::vector<TRow>* groupedRows, char* stopFlag))
+    void (*consumeRows)(void** closure, TRow* rows, i64 size))
 {
     std::vector<TRow> groupedRows;
     TLookupRows lookupRows(
@@ -277,21 +253,21 @@ void GroupOpHelper(
 
     lookupRows.set_empty_key(TRow());
 
-    collectRows(collectRowsClosure, &groupedRows, &lookupRows);
+    try {
+        collectRows(collectRowsClosure, &groupedRows, &lookupRows);
+    } catch (const TInterruptedIncompleteException&) {
+        // Set incomplete and continue
+        context->Statistics->IncompleteOutput = true;
+    }
 
     LOG_DEBUG("Collected %v group rows",
         groupedRows.size());
 
-    context->StopFlag = false;
-    consumeRows(consumeRowsClosure, &groupedRows, &context->StopFlag);
-}
-
-const TRow* FindRow(TExpressionContext* context, TLookupRows* rows, TRow row)
-{
-    CHECK_STACK();
-
-    auto it = rows->find(row);
-    return it != rows->end()? &*it : nullptr;
+    for (size_t index = 0; index < groupedRows.size(); index += RowsetProcessingSize) {
+        auto size = std::min(RowsetProcessingSize, groupedRows.size() - index);
+        consumeRows(consumeRowsClosure, groupedRows.data() + index, size);
+        context->IntermediateBuffer->Clear();
+    }
 }
 
 void AllocatePermanentRow(TExecutionContext* context, int valueCount, TMutableRow* row)
@@ -306,21 +282,29 @@ const TRow* InsertGroupRow(
     TLookupRows* lookupRows,
     std::vector<TRow>* groupedRows,
     TMutableRow row,
-    int keySize)
+    int keySize,
+    bool checkNulls)
 {
     CHECK_STACK();
 
     auto inserted = lookupRows->insert(row);
 
     if (inserted.second) {
-        if (!UpdateAndCheckRowLimit(&context->GroupRowLimit, &context->StopFlag)) {
-            context->Statistics->IncompleteOutput = true;
-            return nullptr;
+        if (groupedRows->size() >= context->GroupRowLimit) {
+            throw TInterruptedIncompleteException();
         }
 
         groupedRows->push_back(row);
         for (int index = 0; index < keySize; ++index) {
             context->PermanentBuffer->Capture(&row[index]);
+        }
+
+        if (checkNulls) {
+            for (int index = 0; index < keySize; ++index) {
+                if (row[index].Type == EValueType::Null) {
+                    THROW_ERROR_EXCEPTION("Null values in group key");
+                }
+            }
         }
     }
 
@@ -345,7 +329,7 @@ void OrderOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TTopCollector* topCollector),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, std::vector<TMutableRow>* rows, char* stopFlag),
+    void (*consumeRows)(void** closure, TRow* rows, i64 size),
     int rowSize)
 {
     auto limit = context->Limit;
@@ -354,9 +338,11 @@ void OrderOpHelper(
     collectRows(collectRowsClosure, &topCollector);
     auto rows = topCollector.GetRows(rowSize);
 
-    // Consume joined rows.
-    context->StopFlag = false;
-    consumeRows(consumeRowsClosure, &rows, &context->StopFlag);
+    for (size_t index = 0; index < rows.size(); index += RowsetProcessingSize) {
+        auto size = std::min(RowsetProcessingSize, rows.size() - index);
+        consumeRows(consumeRowsClosure, rows.data() + index, size);
+        context->IntermediateBuffer->Clear();
+    }
 }
 
 char* AllocateBytes(TExecutionContext* context, size_t byteCount)
@@ -385,11 +371,12 @@ char IsRowInArray(
     TExpressionContext* context,
     TComparerFunction* comparer,
     TRow row,
-    int index)
+    TSharedRange<TRow>* rows)
 {
+    CHECK_STACK();
+
     // TODO(lukyan): check null
-    const auto& rows = (*context->LiteralRows)[index];
-    return std::binary_search(rows.Begin(), rows.End(), row, comparer);
+    return std::binary_search(rows->Begin(), rows->End(), row, comparer);
 }
 
 size_t StringHash(
@@ -607,16 +594,12 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(JoinOpHelper);
     REGISTER_ROUTINE(GroupOpHelper);
     REGISTER_ROUTINE(StringHash);
-    REGISTER_ROUTINE(FindRow);
     REGISTER_ROUTINE(InsertGroupRow);
     REGISTER_ROUTINE(InsertJoinRow);
-    REGISTER_ROUTINE(SaveJoinRow);
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateIntermediateRow);
     REGISTER_ROUTINE(AllocatePermanentBytes);
     REGISTER_ROUTINE(AllocateBytes);
-    REGISTER_ROUTINE(GetRowsData);
-    REGISTER_ROUTINE(GetRowsSize);
     REGISTER_ROUTINE(IsRowInArray);
     REGISTER_ROUTINE(SimpleHash);
     REGISTER_ROUTINE(FarmHashUint64);

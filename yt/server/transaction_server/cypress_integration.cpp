@@ -9,6 +9,8 @@
 
 #include <yt/server/transaction_server/transaction_manager.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/virtual.h>

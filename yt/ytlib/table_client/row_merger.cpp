@@ -16,17 +16,18 @@ using namespace NQueryClient;
 
 TSchemafulRowMerger::TSchemafulRowMerger(
     TRowBufferPtr rowBuffer,
+    int columnCount,
     int keyColumnCount,
     const TColumnFilter& columnFilter,
-    TColumnEvaluatorPtr columnEvauator)
+    TColumnEvaluatorPtr columnEvaluator)
     : RowBuffer_(rowBuffer)
-    , TableSchema_(columnEvauator->TableSchema())
+    , ColumnCount_(columnCount)
     , KeyColumnCount_(keyColumnCount)
-    , ColumnEvaluator_(std::move(columnEvauator))
+    , ColumnEvaluator_(std::move(columnEvaluator))
 {
     YASSERT(KeyColumnCount_ == ColumnEvaluator_->GetKeyColumnCount());
 
-    auto schemaColumnCount = TableSchema_.Columns().size();
+    auto schemaColumnCount = ColumnCount_;
 
     if (columnFilter.All) {
         for (int id = 0; id < schemaColumnCount; ++id) {
@@ -106,7 +107,7 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
                 int id = partialValue.Id;
                 int mergedIndex = ColumnIdToIndex_[id];
                 if (mergedIndex >= 0) {
-                    if (TableSchema_.Columns()[id].Aggregate) {
+                    if (ColumnEvaluator_->IsAggregate(id)) {
                         AggregateValues_.push_back(partialValue);
                     } else if (MergedTimestamps_[mergedIndex] < partialValue.Timestamp) {
                         MergedRow_[mergedIndex] = partialValue;
@@ -182,7 +183,7 @@ TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
 
     for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
         int id = ColumnIds_[index];
-        if (MergedTimestamps_[index] < LatestDelete_ && !TableSchema_.Columns()[id].Aggregate) {
+        if (MergedTimestamps_[index] < LatestDelete_ && !ColumnEvaluator_->IsAggregate(id)) {
             MergedRow_[index].Type = EValueType::Null;
         }
     }
@@ -213,16 +214,17 @@ void TSchemafulRowMerger::Cleanup()
 
 TUnversionedRowMerger::TUnversionedRowMerger(
     TRowBufferPtr rowBuffer,
+    int columnCount,
     int keyColumnCount,
     TColumnEvaluatorPtr columnEvauator)
     : RowBuffer_(rowBuffer)
-    , TableSchema_(columnEvauator->TableSchema())
+    , ColumnCount_(columnCount)
     , KeyColumnCount_(keyColumnCount)
     , ColumnEvaluator_(std::move(columnEvauator))
 {
     YASSERT(KeyColumnCount_ == ColumnEvaluator_->GetKeyColumnCount());
 
-    ValidValues_.resize(TableSchema_.Columns().size());
+    ValidValues_.resize(ColumnCount_);
 
     Cleanup();
 }
@@ -230,9 +232,9 @@ TUnversionedRowMerger::TUnversionedRowMerger(
 void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
 {
     if (!Started_) {
-        MergedRow_ = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), TableSchema_.Columns().size());
+        MergedRow_ = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), ColumnCount_);
 
-        for (int index = 0; index < TableSchema_.Columns().size(); ++index) {
+        for (int index = 0; index < ColumnCount_; ++index) {
             if (index < KeyColumnCount_) {
                 ValidValues_[index] = true;
                 MergedRow_[index] = row[index];
@@ -240,7 +242,7 @@ void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
                 ValidValues_[index] = false;
                 MergedRow_[index].Id = index;
                 MergedRow_[index].Type = EValueType::Null;
-                MergedRow_[index].Aggregate = TableSchema_.Columns()[index].Aggregate.HasValue();
+                MergedRow_[index].Aggregate = ColumnEvaluator_->IsAggregate(index);
             }
         }
     }
@@ -262,7 +264,7 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
         ValidValues_[id] = true;
 
         if (partialValue.Aggregate) {
-            YCHECK(TableSchema_.Columns()[id].Aggregate);
+            YCHECK(ColumnEvaluator_->IsAggregate(id));
             TUnversionedValue tmpValue;
             ColumnEvaluator_->MergeAggregate(id, &tmpValue, MergedRow_[id], partialValue, RowBuffer_);
             tmpValue.Aggregate = MergedRow_[id].Aggregate;
@@ -281,7 +283,7 @@ void TUnversionedRowMerger::DeletePartialRow(TUnversionedRow row)
 
     InitPartialRow(row);
 
-    for (int index = KeyColumnCount_; index < TableSchema_.Columns().size(); ++index) {
+    for (int index = KeyColumnCount_; index < ColumnCount_; ++index) {
         ValidValues_[index] = true;
         MergedRow_[index].Type = EValueType::Null;
         MergedRow_[index].Aggregate = false;
@@ -316,7 +318,7 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
     if (fullRow) {
         mergedRow = MergedRow_;
     } else {
-        mergedRow = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), TableSchema_.Columns().size());
+        mergedRow = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), ColumnCount_);
         int currentIndex = 0;
         for (int index = 0; index < MergedRow_.GetCount(); ++index) {
             if (ValidValues_[index]) {
@@ -354,7 +356,6 @@ TVersionedRowMerger::TVersionedRowMerger(
     TTimestamp majorTimestamp,
     TColumnEvaluatorPtr columnEvauator)
     : RowBuffer_(rowBuffer)
-    , TableSchema_(columnEvauator->TableSchema())
     , KeyColumnCount_(keyColumnCount)
     , Config_(std::move(config))
     , CurrentTimestamp_(currentTimestamp)
@@ -501,7 +502,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         }
 
         // For aggregate columns merge values before MajorTimestamp_ and leave other values.
-        if (TableSchema_.Columns()[partialValueIt->Id].Aggregate) {
+        if (ColumnEvaluator_->IsAggregate(partialValueIt->Id)) {
             while (retentionBeginIt != ColumnValues_.begin()
                 && retentionBeginIt->Timestamp >= MajorTimestamp_)
             {

@@ -10,9 +10,6 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/query_client/folding_profiler.h>
-#include <yt/ytlib/query_client/cg_types.h>
-#include <yt/ytlib/query_client/cg_fragment_compiler.h>
 #include <yt/ytlib/query_client/query_statistics.h>
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
@@ -69,17 +66,22 @@ public:
         auto it = Map_.find(tabletInfo->TabletId);
         if (it != Map_.end()) {
             if (auto existingTabletInfo = it->second.Lock()) {
+                auto owners = std::move(tabletInfo->Owners);
+
+                for (const auto& owner : existingTabletInfo->Owners) {
+                    if (!owner.IsExpired()) {
+                        owners.push_back(owner);
+                    }
+                }
+
                 if (tabletInfo->MountRevision < existingTabletInfo->MountRevision) {
                     tabletInfo.Swap(existingTabletInfo);
                 }
-                it->second = MakeWeak(tabletInfo);
-                tabletInfo->Owners.insert(
-                    tabletInfo->Owners.end(),
-                    existingTabletInfo->Owners.begin(),
-                    existingTabletInfo->Owners.end());
-            } else {
-                it->second = MakeWeak(tabletInfo);
+
+                tabletInfo->Owners = std::move(owners);
             }
+
+            it->second = MakeWeak(tabletInfo);
         } else {
             YCHECK(Map_.insert({tabletInfo->TabletId, tabletInfo}).second);
         }
@@ -224,7 +226,6 @@ private:
                 tableInfo->Path = path;
                 tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
                 tableInfo->Schema = FromProto<TTableSchema>(rsp->schema());
-                tableInfo->Sorted = rsp->sorted();
                 tableInfo->Dynamic = rsp->dynamic();
                 tableInfo->NeedKeyEvaluation = tableInfo->Schema.HasComputedColumns();
 
@@ -258,11 +259,10 @@ private:
                     }
                 }
 
-                LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Sorted: %v, Dynamic: %v)",
+                LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Dynamic: %v)",
                     path,
                     tableInfo->TableId,
                     tableInfo->Tablets.size(),
-                    tableInfo->Sorted,
                     tableInfo->Dynamic);
 
                 return tableInfo;

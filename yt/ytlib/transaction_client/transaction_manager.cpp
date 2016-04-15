@@ -574,8 +574,6 @@ private:
         if (options.Attributes) {
             ToProto(req->mutable_object_attributes(), *options.Attributes);
         }
-        if (options.ParentId) {
-        }
 
         auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
         reqExt->set_timeout(ToProto(options.Timeout.Get(Owner_->Config_->DefaultTransactionTimeout)));

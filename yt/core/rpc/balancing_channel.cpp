@@ -55,7 +55,8 @@ public:
         AddPeers(Config_->Addresses);
 
         Logger = RpcClientLogger;
-        Logger.AddTag("Endpoint: %v, Service: %v",
+        Logger.AddTag("This: %p, Endpoint: %v, Service: %v",
+            this,
             EndpointDescription_,
             ServiceName_);
     }
@@ -199,7 +200,7 @@ private:
                 TrySetResult(TError(NYT::EErrorCode::Canceled, "Discovery session has been canceled"));
                 return;
             }
- 
+
             OnPeerQueried(address);
 
             if (rspOrError.IsOK()) {
@@ -418,32 +419,39 @@ private:
             channel,
             BIND(&TBalancingChannelSubprovider::OnChannelFailed, MakeWeak(this), address));
 
+        bool updated = false;
+
         {
             TWriterGuard guard(SpinLock_);
-            bool found = false;
             for (auto& pair : ViableChannels_) {
                 if (pair.first == address) {
                     pair.second = wrappedChannel;
-                    found = true;
+                    updated = true;
                     break;
                 }
             }
-            if (!found) {
+            if (!updated) {
                 ViableChannels_.push_back(std::make_pair(address, wrappedChannel));
             }
         }
 
-        LOG_DEBUG("Peer is up (Address: %v)", address);
+        LOG_DEBUG("Peer is viable (Address: %v, Updated: %v)",
+            address,
+            updated);
+
         return wrappedChannel;
     }
 
     void OnChannelFailed(const Stroka& address, IChannelPtr channel)
     {
+        bool evicted = false;
+
         {
             TWriterGuard guard(SpinLock_);
             for (int index = 0; index < ViableChannels_.size(); ++index) {
                 const auto& pair = ViableChannels_[index];
                 if (pair.first == address && pair.second == channel) {
+                    evicted = true;
                     std::swap(ViableChannels_[index], ViableChannels_[ViableChannels_.size() - 1]);
                     ViableChannels_.pop_back();
                     break;
@@ -451,7 +459,9 @@ private:
             }
         }
 
-        LOG_DEBUG("Peer failed (Address: %v)", address);
+        LOG_DEBUG("Peer is no longer viable (Address: %v, Evicted: %v)",
+            address,
+            evicted);
     }
 };
 

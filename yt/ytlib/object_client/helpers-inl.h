@@ -150,11 +150,11 @@ inline bool IsWellKnownId(const TObjectId& id)
 inline TObjectId MakeRegularId(
     EObjectType type,
     TCellTag cellTag,
-    ui64 random,
-    NHydra::TVersion version)
+    NHydra::TVersion version,
+    ui32 hash)
 {
     return TObjectId(
-        random,
+        hash,
         (cellTag << 16) + static_cast<int>(type),
         version.RecordId,
         version.SegmentId);
@@ -198,6 +198,20 @@ inline TObjectId ReplaceCellTagInId(
     result.Parts32[1] &= ~0xffff0000;
     result.Parts32[1] |= static_cast<ui32>(cellTag) << 16;
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE size_t TDirectObjectIdHash::operator()(const TObjectId& id) const
+{
+    return id.Parts32[0];
+}
+
+Y_FORCE_INLINE size_t TDirectVersionedObjectIdHash::operator()(const TVersionedObjectId& id) const
+{
+    return
+        TDirectObjectIdHash()(id.TransactionId) * 497 +
+        TDirectObjectIdHash()(id.ObjectId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

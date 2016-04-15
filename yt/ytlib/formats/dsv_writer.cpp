@@ -102,13 +102,10 @@ public:
     }
 
 private:
-    int TableIndex_ = 0;
-
     void WriteValue(const TUnversionedValue& value)
     {
-        auto nameTable = GetNameTable();
         auto* output = GetOutputStream();
-        EscapeAndWrite(nameTable->GetName(value.Id), true, output);
+        EscapeAndWrite(NameTableReader_->GetName(value.Id), true, output);
         output->Write(Config_->KeyValueSeparator);
 
         switch (value.Type) {

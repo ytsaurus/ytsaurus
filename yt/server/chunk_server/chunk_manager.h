@@ -21,6 +21,7 @@
 #include <yt/core/misc/small_vector.h>
 
 #include <yt/core/rpc/service_detail.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -63,10 +64,10 @@ public:
     NHydra::TMutationPtr CreateExecuteBatchMutation(
         TCtxExecuteBatchPtr context);
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk, TChunkId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
     TChunk* GetChunkOrThrow(const TChunkId& id);
 
-    DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
+    DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
     TChunkList* GetChunkListOrThrow(const TChunkListId& id);
 
     TChunkTree* FindChunkTree(const TChunkTreeId& id);

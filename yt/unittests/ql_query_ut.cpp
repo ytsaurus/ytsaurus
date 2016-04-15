@@ -362,11 +362,10 @@ TOwningRow BuildRow(
     const TDataSplit& dataSplit,
     bool treatMissingAsNull = true)
 {
-    auto keyColumns = GetKeyColumnsFromDataSplit(dataSplit);
     auto tableSchema = GetTableSchemaFromDataSplit(dataSplit);
 
     return NTableClient::BuildRow(
-            yson, keyColumns, tableSchema, treatMissingAsNull);
+            yson, tableSchema, treatMissingAsNull);
 }
 
 TQueryStatistics DoExecuteQuery(
@@ -385,7 +384,7 @@ TQueryStatistics DoExecuteQuery(
 
     TKeyColumns emptyKeyColumns;
     for (const auto& row : source) {
-        owningSource.push_back(NTableClient::BuildRow(row, emptyKeyColumns, query->TableSchema));
+        owningSource.push_back(NTableClient::BuildRow(row, query->TableSchema));
     }
 
     sourceRows.resize(owningSource.size());
@@ -705,10 +704,8 @@ protected:
             size_t foreignSplitIndex = 1;
             auto executeCallback = [&] (
                 const TQueryPtr& subquery,
-                TGuid foreignDataId,
-                TRowBufferPtr buffer,
-                TRowRanges ranges,
-                ISchemafulWriterPtr writer) mutable -> TFuture<TQueryStatistics>
+                TDataRanges dataRanges,
+                ISchemafulWriterPtr writer) mutable
             {
                 return MakeFuture(DoExecuteQuery(
                     owningSources[foreignSplitIndex++],
@@ -1077,6 +1074,112 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
     }, resultSplit);
 
     Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, GroupWithTotals)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Boolean},
+        {"t", EValueType::Int64}
+    });
+
+    auto resultWithTotals = BuildRows({
+        "x=%false;t=200",
+        "x=%true;t=240",
+        "t=440"
+    }, resultSplit);
+
+    Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x with totals", split,
+        source, ResultMatcher(resultWithTotals));
+
+    auto resultWithTotalsAfterHaving = BuildRows({
+        "x=%true;t=240",
+        "t=240"
+    }, resultSplit);
+
+    Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x having t > 200 with totals", split,
+        source, ResultMatcher(resultWithTotalsAfterHaving));
+
+    auto resultWithTotalsBeforeHaving = BuildRows({
+        "x=%true;t=240",
+        "t=440"
+    }, resultSplit);
+
+    Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x with totals having t > 200", split,
+        source, ResultMatcher(resultWithTotalsBeforeHaving));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, GroupWithTotalsNulls)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "b=20",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"t", EValueType::Int64}
+    });
+
+    auto resultWithTotals = BuildRows({
+    }, resultSplit);
+
+    EXPECT_THROW_THAT(
+        [&] {
+            Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
+                source, [] (std::vector<TRow> result, const TTableSchema& tableSchema) { });
+        },
+        HasSubstr("Null values in group key"));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, GroupWithTotalsEmpty)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"t", EValueType::Int64}
+    });
+
+    auto resultWithTotals = BuildRows({
+    }, resultSplit);
+
+    Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
+        source, ResultMatcher(resultWithTotals));
 
     SUCCEED();
 }
@@ -1789,6 +1892,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
     splits["//left"] = leftSplit;
     sources.push_back({
         "a=1",
+        "a=1",
         "a=1"
     });
 
@@ -1798,6 +1902,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
 
     splits["//right"] = rightSplit;
     sources.push_back({
+        "a=1",
         "a=1",
         "a=1"
     });
@@ -1810,10 +1915,114 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
         "x=1",
         "x=1",
         "x=1",
+        "x=1",
+        "x=1",
+        "x=1",
+        "x=1",
+        "x=1",
         "x=1"
     }, resultSplit);
 
     Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestJoinLimit)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1",
+        "a=2",
+        "a=3",
+        "a=4",
+        "a=5"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "a=2",
+        "a=3",
+        "a=4",
+        "a=5",
+        "a=6"
+    });
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=2",
+        "x=3",
+        "x=4",
+    }, resultSplit);
+
+    Evaluate(
+        "a as x FROM [//left] join [//right] using a",
+        splits,
+        sources,
+        ResultMatcher(result),
+        std::numeric_limits<i64>::max(), 4);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestJoinLimit2)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1",
+        "a=1"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "a=1",
+        "a=1",
+        "a=1",
+    });
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=1",
+        "x=1",
+        "x=1",
+        "x=1",
+        "x=1"
+    }, resultSplit);
+
+    Evaluate(
+        "a as x FROM [//left] join [//right] using a",
+        splits,
+        sources,
+        ResultMatcher(result),
+        std::numeric_limits<i64>::max(), 5);
 
     SUCCEED();
 }
@@ -1824,9 +2033,9 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
     std::vector<std::vector<Stroka>> sources;
 
     auto leftSplit = MakeSplit({
-        {"x", EValueType::String},
-        {"y", EValueType::String}
-    }, {"x"});
+        TColumnSchema("x", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("y", EValueType::String)
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -1836,9 +2045,9 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
     });
 
     auto rightSplit = MakeSplit({
-        {"a", EValueType::Int64},
-        {"x", EValueType::String}
-    }, {"a"});
+        TColumnSchema("a", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("x", EValueType::String)
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({

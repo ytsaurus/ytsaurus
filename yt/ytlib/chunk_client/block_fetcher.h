@@ -99,10 +99,10 @@ private:
     struct TWindowSlot
     {
         TPromise<TSharedRef> Block = NewPromise<TSharedRef>();
-        int RemainingFetches = 0;
-        std::unique_ptr<NConcurrency::TAsyncSemaphoreGuard> AsyncSemaphoreGuard = nullptr;
+        std::atomic<int> RemainingFetches = { 0 };
+        std::unique_ptr<NConcurrency::TAsyncSemaphoreGuard> AsyncSemaphoreGuard;
         bool Cached = false;
-        std::atomic_flag FetchStarted;
+        std::atomic_flag FetchStarted = ATOMIC_FLAG_INIT;
     };
 
     yhash_map<int, int> BlockIndexToWindowIndex_;
@@ -113,7 +113,7 @@ private:
     NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
 
     int TotalRemainingFetches_ = 0;
-    std::atomic<i64> TotalRemainingSize_ = {0};
+    std::atomic<i64> TotalRemainingSize_ = { 0 };
     int FirstUnfetchedWindowIndex_ = 0; 
 
     NCompression::ICodec* const Codec_;

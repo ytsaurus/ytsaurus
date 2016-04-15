@@ -176,14 +176,15 @@ DECLARE_REFCOUNTED_CLASS(TTabletManager)
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 
 class TPartition;
-class TTablet;
+
+DECLARE_ENTITY_TYPE(TTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
 
 DECLARE_REFCOUNTED_STRUCT(TKeyList)
 DECLARE_REFCOUNTED_STRUCT(TPartitionSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TTabletSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TTabletPerformanceCounters)
 
-class TTransaction;
+DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, ::THash<TTransactionId>)
 
 DECLARE_REFCOUNTED_STRUCT(IStore)
 DECLARE_REFCOUNTED_STRUCT(IDynamicStore)

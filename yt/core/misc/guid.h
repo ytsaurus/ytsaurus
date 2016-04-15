@@ -55,7 +55,6 @@ bool operator == (const TGuid& lhs, const TGuid& rhs);
 bool operator != (const TGuid& lhs, const TGuid& rhs);
 bool operator <  (const TGuid& lhs, const TGuid& rhs);
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
@@ -68,14 +67,7 @@ DECLARE_PODTYPE(NYT::TGuid);
 template <>
 struct hash<NYT::TGuid>
 {
-    inline size_t operator()(const NYT::TGuid& guid) const
-    {
-        const size_t p = 1000000009; // prime number
-        return guid.Parts32[0] +
-               guid.Parts32[1] * p +
-               guid.Parts32[2] * p * p +
-               guid.Parts32[3] * p * p * p;
-    }
+    size_t operator()(const NYT::TGuid& guid) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

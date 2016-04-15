@@ -23,9 +23,9 @@ protected:
 
 
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue);
+    void ValidateClusterInitialized();
 
 private:
-    virtual void BeforeInvoke() override;
     virtual NHydra::IHydraManagerPtr GetHydraManager() override;
 
 };

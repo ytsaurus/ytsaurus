@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/server/hydra/public.h>
+
 #include <yt/ytlib/hydra/public.h>
 
 #include <yt/ytlib/tablet_client/public.h>
@@ -9,31 +11,6 @@
 
 namespace NYT {
 namespace NTabletServer {
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(ETabletCellHealth,
-    (Initializing)
-    (Good)
-    (Degraded)
-    (Failed)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TTabletManager)
-
-DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
-
-class TTabletCellBundle;
-class TTabletCell;
-class TTablet;
-
-struct TTabletStatistics;
-struct TTabletPerformanceCounter;
-struct TTabletPerformanceCounters;
-
-const int MaxPeerCount = 5;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +32,31 @@ using NTabletClient::TTabletCellConfig;
 using NTabletClient::TTabletCellConfigPtr;
 using NTabletClient::TTabletCellOptions;
 using NTabletClient::TTabletCellOptionsPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ETabletCellHealth,
+    (Initializing)
+    (Good)
+    (Degraded)
+    (Failed)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TTabletManager)
+
+DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
+
+DECLARE_ENTITY_TYPE(TTabletCellBundle, TTabletCellBundleId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TTabletCell, TTabletCellId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
+
+struct TTabletStatistics;
+struct TTabletPerformanceCounter;
+struct TTabletPerformanceCounters;
+
+const int MaxPeerCount = 5;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -31,7 +31,7 @@ void SetIntegerValue<EValueType::Uint64>(TUnversionedValue* value, ui64 data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<EValueType ValueType>
+template <EValueType ValueType>
 class TIntegerValueExtractorBase
 {
 protected:
@@ -50,7 +50,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<EValueType ValueType>
+template <EValueType ValueType>
 class TDirectIntegerValueExtractorBase
     : public TIntegerValueExtractorBase<ValueType>
 {
@@ -89,7 +89,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<EValueType ValueType>
+template <EValueType ValueType>
 class TDictionaryIntegerValueExtractorBase
     : public TIntegerValueExtractorBase<ValueType>
 {
@@ -127,7 +127,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<EValueType ValueType>
+template <EValueType ValueType>
 class TDirectDenseVersionedIntegerValueExtractor
     : public TDenseVersionedValueExtractorBase
     , public TDirectIntegerValueExtractorBase<ValueType>
@@ -149,7 +149,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<EValueType ValueType>
+template <EValueType ValueType>
 class TDictionaryDenseVersionedIntegerValueExtractor
     : public TDenseVersionedValueExtractorBase
     , public TDictionaryIntegerValueExtractorBase<ValueType>
@@ -171,7 +171,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<EValueType ValueType>
+template <EValueType ValueType>
 class TDirectSparseVersionedIntegerValueExtractor
     : public TSparseVersionedValueExtractorBase
     , public TDirectIntegerValueExtractorBase<ValueType>
@@ -193,7 +193,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<EValueType ValueType>
+template <EValueType ValueType>
 class TDictionarySparseVersionedIntegerValueExtractor
     : public TSparseVersionedValueExtractorBase
     , public TDictionaryIntegerValueExtractorBase<ValueType>
@@ -284,7 +284,7 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedUint64ColumnReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<EValueType ValueType>
+template <EValueType ValueType>
 class TDirectDenseUnversionedIntegerValueExtractor
     : public TDirectIntegerValueExtractorBase<ValueType>
 {
@@ -302,7 +302,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<EValueType ValueType>
+template <EValueType ValueType>
 class TDictionaryDenseUnversionedIntegerValueExtractor
     : public TDictionaryIntegerValueExtractorBase<ValueType>
 {
@@ -318,7 +318,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<EValueType ValueType>
+template <EValueType ValueType>
 class TDirectRleUnversionedIntegerValueExtractor
     : public TDirectIntegerValueExtractorBase<ValueType>
     , public TRleValueExtractorBase
@@ -339,7 +339,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<EValueType ValueType>
+template <EValueType ValueType>
 class TDictionaryRleUnversionedIntegerValueExtractor
     : public TDictionaryIntegerValueExtractorBase<ValueType>
     , public TRleValueExtractorBase

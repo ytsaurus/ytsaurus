@@ -231,7 +231,7 @@ public:
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox, TCellId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox);
 
 private:
     const TCellId SelfCellId_;
@@ -240,7 +240,7 @@ private:
     const IHydraManagerPtr HydraManager_;
     const IYPathServicePtr OrchidService_;
 
-    TEntityMap<TCellId, TMailbox> MailboxMap_;
+    TEntityMap<TMailbox> MailboxMap_;
     
 
     // RPC handlers.
@@ -1131,7 +1131,7 @@ private:
 
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(THiveManager::TImpl, Mailbox, TMailbox, TCellId, MailboxMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(THiveManager::TImpl, Mailbox, TMailbox, MailboxMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1204,7 +1204,7 @@ IYPathServicePtr THiveManager::GetOrchidService()
     return Impl_->GetOrchidService();
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(THiveManager, Mailbox, TMailbox, TCellId, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(THiveManager, Mailbox, TMailbox, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

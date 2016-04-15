@@ -60,6 +60,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, RegisterNode)
     {
+        ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
 
         if (!Bootstrap_->IsPrimaryMaster()) {
@@ -67,7 +68,7 @@ private:
         }
 
         auto worldInitializer = Bootstrap_->GetWorldInitializer();
-        if (worldInitializer->CheckProvisionLock()) {
+        if (worldInitializer->HasProvisionLock()) {
             THROW_ERROR_EXCEPTION(
                 "Provision lock is found, which indicates a fresh instance of masters being run. "
                 "If this is not intended then please check snapshot/changelog directories location. "
@@ -91,6 +92,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, FullHeartbeat)
     {
+        ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
         SyncWithUpstream();
 
@@ -110,6 +112,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, IncrementalHeartbeat)
     {
+        ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
         SyncWithUpstream();
 
@@ -126,7 +129,6 @@ private:
 
         nodeTracker->ProcessIncrementalHeartbeat(context);
     }
-
 };
 
 NRpc::IServicePtr CreateNodeTrackerService(

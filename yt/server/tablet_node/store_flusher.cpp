@@ -26,6 +26,8 @@
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/scheduler.h>

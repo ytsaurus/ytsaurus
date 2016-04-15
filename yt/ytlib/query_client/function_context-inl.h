@@ -12,7 +12,7 @@ T* TFunctionContext::CreateObject(Args... args)
 {
     T* objectPtr = new T(args...);
 
-    RememberObjectOrDestroy(objectPtr, [] (void* ptr) { static_cast<T*>(ptr)->~T(); });
+    RememberObjectOrDestroy(objectPtr, [] (void* ptr) { delete static_cast<T*>(ptr); });
 
     return objectPtr;
 }
@@ -20,4 +20,4 @@ T* TFunctionContext::CreateObject(Args... args)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
-} // namespace NYT   
+} // namespace NYT

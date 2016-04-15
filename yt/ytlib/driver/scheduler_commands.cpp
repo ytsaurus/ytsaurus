@@ -150,5 +150,13 @@ void TResumeOperationCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCompleteOperationCommand::Execute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->CompleteOperation(OperationId))
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

@@ -232,6 +232,21 @@ private:
 
 };
 
+//////////////////////////////////////////////////////////////////////////////////
+
+class TCompleteOperationExecutor
+    : public TRequestExecutor
+{
+public:
+    TCompleteOperationExecutor();
+
+private:
+    TCLAP::UnlabeledValueArg<Stroka> OpArg;
+
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDriver

@@ -54,18 +54,19 @@ struct ITransaction
     DECLARE_INTERFACE_SIGNAL(void(), Aborted);
 
     // Tables
+
     virtual void WriteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        std::vector<NTableClient::TUnversionedRow> rows,
+        TSharedRange<NTableClient::TUnversionedRow> rows,
         const TWriteRowsOptions& options = TWriteRowsOptions()) = 0;
+
 
     virtual void DeleteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        std::vector<NTableClient::TKey> keys,
+        TSharedRange<NTableClient::TKey> keys,
         const TDeleteRowsOptions& options = TDeleteRowsOptions()) = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransaction)

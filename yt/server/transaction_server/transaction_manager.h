@@ -57,7 +57,7 @@ public:
         TTransaction* transaction,
         bool force);
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
 
     //! Finds transaction by id, throws if nothing is found.
     TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId);

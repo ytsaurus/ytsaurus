@@ -37,8 +37,6 @@ public:
 
     void Initialize();
 
-    TTablet* GetTabletOrThrow(const TTabletId& id);
-
 
     void Read(
         TTabletSnapshotPtr tabletSnapshot,
@@ -59,7 +57,8 @@ public:
     NYTree::IYPathServicePtr GetOrchidService();
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
+    TTablet* GetTabletOrThrow(const TTabletId& id);
 
 private:
     class TImpl;

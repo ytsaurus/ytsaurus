@@ -443,7 +443,7 @@ class TPrefetchingInputStreamAdapter
     : public IAsyncZeroCopyInputStream
 {
 public:
-    explicit TPrefetchingInputStreamAdapter(
+    TPrefetchingInputStreamAdapter(
         IAsyncZeroCopyInputStreamPtr underlyingStream,
         size_t windowSize)
         : UnderlyingStream_(underlyingStream)

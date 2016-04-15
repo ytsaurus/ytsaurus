@@ -22,6 +22,8 @@
 namespace NYT {
 namespace NCGroup {
 
+using namespace NTools;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CGroupLogger;

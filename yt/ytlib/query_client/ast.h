@@ -219,7 +219,7 @@ struct TQuery
 
     TNullableExpressionList SelectExprs;
     TNullableExpressionList WherePredicate;
-    TNullableExpressionList GroupExprs;
+    TNullable<std::pair<TExpressionList, ETotalsMode>> GroupExprs;
     TNullableExpressionList HavingPredicate;
 
     TOrderExpressionList OrderExpressions;

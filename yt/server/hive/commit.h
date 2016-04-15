@@ -17,6 +17,8 @@ namespace NHive {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENTITY_TYPE(TCommit, TTransactionId, ::THash<TTransactionId>)
+
 class TCommit
     : public NHydra::TEntityBase
 {

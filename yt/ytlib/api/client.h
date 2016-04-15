@@ -417,6 +417,10 @@ struct TResumeOperationOptions
     : public TTimeoutOptions
 { };
 
+struct TCompleteOperationOptions
+    : public TTimeoutOptions
+{ };
+
 struct TDumpJobContextOptions
     : public TTimeoutOptions
 { };
@@ -581,6 +585,7 @@ struct IClient
     virtual NRpc::IChannelFactoryPtr GetHeavyChannelFactory() = 0;
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
     virtual NQueryClient::IExecutorPtr GetQueryExecutor() = 0;
+    virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() = 0;
 
     //! Terminates all channels.
     //! Aborts all pending uncommitted transactions.
@@ -656,6 +661,10 @@ struct IClient
     virtual TFuture<void> ResumeOperation(
         const NScheduler::TOperationId& operationId,
         const TResumeOperationOptions& options = TResumeOperationOptions()) = 0;
+
+    virtual TFuture<void> CompleteOperation(
+        const NScheduler::TOperationId& operationId,
+        const TCompleteOperationOptions& options = TCompleteOperationOptions()) = 0;
 
     virtual TFuture<void> DumpJobContext(
         const NJobTrackerClient::TJobId& jobId,

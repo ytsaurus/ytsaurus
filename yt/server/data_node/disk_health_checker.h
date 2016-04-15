@@ -19,10 +19,8 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*!
- *  Checks disk health by writing a small file of random content
- *  periodically, reading it, and comparing the content.
- */
+//! Checks disk health by writing a small file of random content
+//! periodically, reading it, and comparing the content.
 class TDiskHealthChecker
     : public TRefCounted
 {
@@ -42,16 +40,15 @@ public:
     DEFINE_SIGNAL(void(const TError&), Failed);
 
 private:
-    TDiskHealthCheckerConfigPtr Config_;
-    Stroka Path_;
-
-    IInvokerPtr CheckInvoker_;
+    const TDiskHealthCheckerConfigPtr Config_;
+    const Stroka Path_;
+    const IInvokerPtr CheckInvoker_;
 
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
     NLogging::TLogger Logger;
+    NProfiling::TProfiler Profiler;
 
-    NProfiling::TProfiler Profiler_;
 
     void OnCheck();
     void OnCheckCompleted(const TError& error);

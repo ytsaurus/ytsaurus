@@ -248,7 +248,7 @@ public:
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
 
 private:
     class TOrchidService
@@ -365,7 +365,7 @@ private:
 
     TTimestamp LastCommittedTimestamp_ = MinTimestamp;
     TTabletContext TabletContext_;
-    TEntityMap<TTabletId, TTablet, TTabletMapTraits> TabletMap_;
+    TEntityMap<TTablet, TTabletMapTraits> TabletMap_;
     yhash_set<TTablet*> UnmountingTablets_;
 
     yhash_set<IDynamicStorePtr> OrphanedStores_;
@@ -2113,7 +2113,7 @@ private:
 
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, TabletMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TabletMap_)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -2177,7 +2177,7 @@ IYPathServicePtr TTabletManager::GetOrchidService()
     return Impl_->GetOrchidService();
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, TTabletId, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)
 
 ///////////////////////////////////////////////////////////////////////////////
 

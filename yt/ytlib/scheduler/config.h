@@ -820,7 +820,6 @@ public:
             .GreaterThan(0);
 
         // The following settings are inherited from base but make no sense for map-reduce:
-        //   DataSizePerUnorderedMergeJob
         //   SimpleSortLocalityTimeout
         //   SimpleMergeLocalityTimeout
         //   MapSelectivityFactor

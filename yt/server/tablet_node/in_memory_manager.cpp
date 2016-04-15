@@ -18,6 +18,8 @@
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/core/compression/codec.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
@@ -243,13 +245,19 @@ private:
             tablet->GetId(),
             store->GetId());
 
-        const auto& storeManager = tablet->GetStoreManager();
+        auto storeManager = tablet->GetStoreManager();
+        auto backoffCallback = BIND(&IStoreManager::BackoffStorePreload, storeManager, store)
+            .Via(tablet->GetEpochAutomatonInvoker());
         try {
             GuardedPreloadStore(tablet, store, Logger);
             storeManager->EndStorePreload(store);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error preloading tablet store, backing off");
-            storeManager->BackoffStorePreload(store);
+            backoffCallback.Run();
+        } catch (...) {
+            LOG_ERROR("Error preloading tablet store for unknown reason, backing off");
+            backoffCallback.Run();
+            throw;
         }
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();

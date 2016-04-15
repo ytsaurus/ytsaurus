@@ -211,12 +211,12 @@ void TChunkSlice::Persist(NPhoenix::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, ChunkSpec_);
-    Persist(context, PartIndex_);
     Persist(context, LowerLimit_);
     Persist(context, UpperLimit_);
+    Persist(context, PartIndex_);
+    Persist(context, SizeOverridden_);
     Persist(context, RowCount_);
     Persist(context, DataSize_);
-    Persist(context, SizeOverridden_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

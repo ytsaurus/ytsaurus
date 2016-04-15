@@ -1,6 +1,7 @@
 #:yt-updatable
 set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/access_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/expiration_tracker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_traversing.cpp
@@ -16,6 +17,7 @@ set( SRCS
 )
 set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/access_tracker.h
+  ${CMAKE_CURRENT_LIST_DIR}/expiration_tracker.h
   ${CMAKE_CURRENT_LIST_DIR}/config.h
   ${CMAKE_CURRENT_LIST_DIR}/cypress_integration.h
   ${CMAKE_CURRENT_LIST_DIR}/cypress_manager.h

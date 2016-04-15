@@ -22,9 +22,15 @@ using NYT::NQueryClient::TLookupRows;
 using NYT::NQueryClient::TJoinLookup;
 using NYT::NQueryClient::TJoinLookupRows;
 using NYT::NQueryClient::TTopCollector;
+using NYT::NQueryClient::TJoinEvaluator;
+using NYT::TSharedRange;
+
+template <bool Cross>
+class TypeBuilder<bool, Cross>
+    : public TypeBuilder<char, Cross>
+{ };
 
 // Opaque types
-
 template <bool Cross>
 class TypeBuilder<TExpressionContext*, Cross>
     : public TypeBuilder<void*, Cross>
@@ -76,12 +82,22 @@ class TypeBuilder<TJoinLookup*, Cross>
 { };
 
 template <bool Cross>
-class TypeBuilder<std::vector<std::pair<TRow, int>>*, Cross>
+class TypeBuilder<std::vector<std::pair<TRow, i64>>*, Cross>
     : public TypeBuilder<void*, Cross>
 { };;
 
 template <bool Cross>
 class TypeBuilder<TTopCollector*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
+template <bool Cross>
+class TypeBuilder<TSharedRange<TRow>*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
+template <bool Cross>
+class TypeBuilder<TJoinEvaluator*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
 
@@ -94,7 +110,7 @@ public:
     enum Fields
     {
         Count,
-        Padding
+        Capacity
     };
 
     static StructType* get(LLVMContext& context)

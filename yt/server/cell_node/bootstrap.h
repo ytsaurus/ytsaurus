@@ -100,8 +100,6 @@ private:
     NConcurrency::TActionQueuePtr ControlQueue;
 
     NConcurrency::TThreadPoolPtr QueryThreadPool;
-    IInvokerPtr BoundedConcurrencyQueryPoolInvoker;
-    IInvokerPtr BoundedConcurrencyReadPoolInvoker;
 
     NBus::IBusServerPtr BusServer;
     NApi::IConnectionPtr MasterConnection;

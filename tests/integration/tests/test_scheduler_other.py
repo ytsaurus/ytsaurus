@@ -38,6 +38,7 @@ class TestSchedulerOther(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "operation_time_limit_check_period" : 100,
+            "connect_retry_backoff_time": 100,
         }
     }
 
@@ -63,6 +64,40 @@ class TestSchedulerOther(YTEnvSetup):
         op.track()
 
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
+
+    @pytest.mark.skipif("True")
+    def test_disconnect_during_revive(self):
+        op_count = 20
+
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        for i in xrange(1, op_count + 1):
+            self._create_table("//tmp/t_out" + str(i))
+
+        ops = []
+        for i in xrange(1, op_count):
+            ops.append(
+                map(dont_track=True,
+                    command="cat",
+                    in_=["//tmp/t_in"],
+                    out="//tmp/t_out" + str(i)))
+
+        for i in range(10):
+            while True:
+                scheduler_locks = get("//sys/scheduler/lock/@locks", verbose=False)
+                if len(scheduler_locks) > 0:
+                    scheduler_transaction = scheduler_locks[0]["transaction_id"]
+                    abort_transaction(scheduler_transaction)
+                    break
+                time.sleep(0.01)
+
+        for op in ops:
+            op.track()
+
+        for i in xrange(1, op_count):
+            assert read_table("//tmp/t_out" + str(i)) == [ {"foo" : "bar"} ]
+
+
 
     @pytest.mark.skipif("True")
     def test_aborting(self):
@@ -899,7 +934,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         create("table", "//tmp/t_out2")
 
         op1 = map(dont_track=True, command="sleep 1000; cat", in_=["//tmp/t_in"], out="//tmp/t_out1",
-                    spec={"pool": "fake_pool", "job_count": 3, "locality_timeout": 0})
+                  spec={"pool": "fake_pool", "job_count": 3, "locality_timeout": 0})
         time.sleep(3)
 
         assert get("//sys/scheduler/orchid/scheduler/pools/fake_pool/fair_share_ratio") >= 0.999
