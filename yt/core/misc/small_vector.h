@@ -181,7 +181,7 @@ protected:
   /// Use move-assignment to move the range [I, E) onto the
   /// objects starting with "Dest".  This is just <memory>'s
   /// std::move, but not all stdlibs actually provide that.
-  template<typename It1, typename It2>
+  template <typename It1, typename It2>
   static It2 move(It1 I, It1 E, It2 Dest) {
     for (; I != E; ++I, ++Dest)
       *Dest = ::std::move(*I);
@@ -192,7 +192,7 @@ protected:
   /// [I, E) onto the objects ending at "Dest", moving objects
   /// in reverse order.  This is just <algorithm>'s
   /// std::move_backward, but not all stdlibs actually provide that.
-  template<typename It1, typename It2>
+  template <typename It1, typename It2>
   static It2 move_backward(It1 I, It1 E, It2 Dest) {
     while (I != E)
       *--Dest = ::std::move(*--E);
@@ -201,7 +201,7 @@ protected:
 
   /// Move the range [I, E) into the uninitialized memory starting with "Dest",
   /// constructing elements as needed.
-  template<typename It1, typename It2>
+  template <typename It1, typename It2>
   static void uninitialized_move(It1 I, It1 E, It2 Dest) {
     for (; I != E; ++I, ++Dest)
       ::new ((void*) &*Dest) T(::std::move(*I));
@@ -209,7 +209,7 @@ protected:
 
   /// Copy the range [I, E) onto the uninitialized memory starting with "Dest",
   /// constructing elements as needed.
-  template<typename It1, typename It2>
+  template <typename It1, typename It2>
   static void uninitialized_copy(It1 I, It1 E, It2 Dest) {
     std::uninitialized_copy(I, E, Dest);
   }
@@ -291,21 +291,21 @@ protected:
 
   /// Use move-assignment to move the range [I, E) onto the
   /// objects starting with "Dest".  For PODs, this is just memcpy.
-  template<typename It1, typename It2>
+  template <typename It1, typename It2>
   static It2 move(It1 I, It1 E, It2 Dest) {
     return ::std::copy(I, E, Dest);
   }
 
   /// Use move-assignment to move the range [I, E) onto the objects ending at
   /// "Dest", moving objects in reverse order.
-  template<typename It1, typename It2>
+  template <typename It1, typename It2>
   static It2 move_backward(It1 I, It1 E, It2 Dest) {
     return ::std::copy_backward(I, E, Dest);
   }
 
   /// Move the range [I, E) onto the uninitialized memory
   /// starting with "Dest", constructing elements into it as needed.
-  template<typename It1, typename It2>
+  template <typename It1, typename It2>
   static void uninitialized_move(It1 I, It1 E, It2 Dest) {
     // Just do a copy.
     uninitialized_copy(I, E, Dest);
@@ -313,7 +313,7 @@ protected:
 
   /// Copy the range [I, E) onto the uninitialized memory
   /// starting with "Dest", constructing elements into it as needed.
-  template<typename It1, typename It2>
+  template <typename It1, typename It2>
   static void uninitialized_copy(It1 I, It1 E, It2 Dest) {
     // Arbitrary iterator types; just use the basic implementation.
     std::uninitialized_copy(I, E, Dest);
@@ -423,7 +423,7 @@ public:
   void swap(SmallVectorImpl &RHS);
 
   /// Add the specified range to the end of the SmallVector.
-  template<typename in_iter>
+  template <typename in_iter>
   void append(in_iter in_start, in_iter in_end) {
     size_type NumInputs = std::distance(in_start, in_end);
     // Grow allocated space if needed.
@@ -599,7 +599,7 @@ public:
     return I;
   }
 
-  template<typename ItTy>
+  template <typename ItTy>
   iterator insert(iterator I, ItTy From, ItTy To) {
     // Convert iterator to elt# to avoid invalidating iterator when we reserve()
     size_t InsertElt = I - this->begin();
@@ -881,7 +881,7 @@ public:
     this->assign(Size, Value);
   }
 
-  template<typename ItTy>
+  template <typename ItTy>
   SmallVector(ItTy S, ItTy E) : SmallVectorImpl<T>(N) {
     this->append(S, E);
   }
@@ -934,7 +934,7 @@ public:
   }
 };
 
-template<typename T, unsigned N>
+template <typename T, unsigned N>
 static inline size_t capacity_in_bytes(const SmallVector<T, N> &X) {
   return X.capacity_in_bytes();
 }
@@ -943,14 +943,14 @@ static inline size_t capacity_in_bytes(const SmallVector<T, N> &X) {
 
 namespace std {
   /// Implement std::swap in terms of SmallVector swap.
-  template<typename T>
+  template <typename T>
   inline void
   swap(NYT::SmallVectorImpl<T> &LHS, NYT::SmallVectorImpl<T> &RHS) {
     LHS.swap(RHS);
   }
 
   /// Implement std::swap in terms of SmallVector swap.
-  template<typename T, unsigned N>
+  template <typename T, unsigned N>
   inline void
   swap(NYT::SmallVector<T, N> &LHS, NYT::SmallVector<T, N> &RHS) {
     LHS.swap(RHS);

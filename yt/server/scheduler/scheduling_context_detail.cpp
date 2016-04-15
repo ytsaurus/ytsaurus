@@ -70,18 +70,18 @@ bool TSchedulingContextBase::CanSchedule(const TNullable<Stroka>& tag) const
     return !tag || SchedulingTags_.find(*tag) != SchedulingTags_.end();
 }
 
-void TSchedulingContextBase::StartJob(TOperationPtr operation, TJobStartRequestPtr jobStartRequest)
+void TSchedulingContextBase::StartJob(TOperationPtr operation, const TJobStartRequest& jobStartRequest)
 {
     auto startTime = GetNow();
     auto job = New<TJob>(
-        jobStartRequest->Id,
-        jobStartRequest->Type,
+        jobStartRequest.Id,
+        jobStartRequest.Type,
         operation,
         Node_,
         startTime,
-        jobStartRequest->ResourceLimits,
-        jobStartRequest->Restarted,
-        jobStartRequest->SpecBuilder);
+        jobStartRequest.ResourceLimits,
+        jobStartRequest.Restarted,
+        jobStartRequest.SpecBuilder);
     StartedJobs_.push_back(job);
 }
 

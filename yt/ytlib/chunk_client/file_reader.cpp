@@ -38,9 +38,10 @@ TFileReader::TFileReader(
     , ValidateBlockChecksums_(validateBlocksChecksums)
 { }
 
+
 TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
- 	const TWorkloadDescriptor& /*workloadDescriptor*/,
- 	const std::vector<int>& blockIndexes)
+    const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const std::vector<int>& blockIndexes)
 {
     try {
         std::vector<TSharedRef> blocks;
@@ -86,7 +87,7 @@ TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
 }
 
 TFuture<TChunkMeta> TFileReader::GetMeta(
-	const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const TWorkloadDescriptor& /*workloadDescriptor*/,
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {

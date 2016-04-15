@@ -77,6 +77,12 @@ public:
     void CreateStackRestore(llvm::Value* ptr);
 
     llvm::Type* getSizeType() const;
+
+    llvm::AllocaInst* CreateAlignedAlloca(
+        llvm::Type *type,
+        unsigned align,
+        llvm::Value* arraySize = nullptr,
+        const llvm::Twine& name = "");
 };
 
 ////////////////////////////////////////////////////////////////////////////////

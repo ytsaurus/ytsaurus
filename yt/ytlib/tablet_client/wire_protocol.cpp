@@ -754,8 +754,7 @@ auto TWireProtocolReader::GetSchemaData(
     return schemaData;
 }
 
-auto TWireProtocolReader::GetSchemaData(
-    const TTableSchema& schema) -> TSchemaData
+auto TWireProtocolReader::GetSchemaData(const TTableSchema& schema) -> TSchemaData
 {
     TSchemaData schemaData;
     for (int id = 0; id < schema.GetKeyColumnCount(); ++id) {

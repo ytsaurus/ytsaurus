@@ -84,6 +84,10 @@ void TTableNode::Save(TSaveContext& context) const
 
 void TTableNode::Load(TLoadContext& context)
 {
+    // Brief history of changes.
+    // In 205 we removed KeyColumns from the snapshot and introduced TableSchema.
+    // In 206 we removed Sorted flag from the snapshot.
+    
     TChunkOwnerBase::Load(context);
 
     using NYT::Load;
@@ -96,10 +100,10 @@ void TTableNode::Load(TLoadContext& context)
 
     // COMPAT(max42)
     TKeyColumns keyColumns;
-    if (context.GetVersion() >= 205) {
-        Load(context, TableSchema_);
-    } else {
+    if (context.GetVersion() < 205) {
         Load(context, keyColumns);
+    } else {
+        Load(context, TableSchema_);
     }
     
     Load(context, Tablets_);
@@ -107,6 +111,7 @@ void TTableNode::Load(TLoadContext& context)
 
     // COMPAT(max42)
     if (context.GetVersion() < 205) {
+        // We erase schema from attributes map since it is now a built-in attribute.
         auto& attributesMap = GetMutableAttributes()->Attributes();
         auto tableSchemaAttribute = attributesMap["schema"];
         attributesMap.erase("schema");
@@ -122,7 +127,18 @@ void TTableNode::Load(TLoadContext& context)
             TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
         }
     }
-        
+    
+    // COMPAT(max42): In case there are channels associated with a table, we extend the
+    // table schema with all columns mentioned in channels and erase the corresponding attribute.
+    {
+        auto& attributesMap = GetMutableAttributes()->Attributes();
+        if (attributesMap.find("channels")) {
+            const auto& channels = ConvertTo<TChannels>(attributesMap["channels"]);
+            attributesMap.erase("channels");
+            TableSchema_ = TableSchema_.ExtendByChannels(channels);
+        }
+    }
+
     // COMPAT(max42)
     if (context.GetVersion() < 206) {
         YCHECK(!(sorted && !TableSchema_.IsSorted()));
@@ -213,10 +229,6 @@ protected:
         TTransaction* transaction,
         IAttributeDictionary* attributes) override
     {
-        if (!attributes->Contains("channels")) {
-            attributes->SetYson("channels", TYsonString("[]"));
-        } 
-
         if (!attributes->Contains("compression_codec")) {
             attributes->Set("compression_codec", NCompression::ECodec::Lz4);
         }

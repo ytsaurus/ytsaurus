@@ -122,9 +122,9 @@ private:
     TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> CancelQueue_;
 
 
-    virtual void OnShutdown() override
+    virtual void AfterShutdown() override
     {
-        TEVSchedulerThread::OnShutdown();
+        TEVSchedulerThread::AfterShutdown();
         PurgeQueues();
     }
 

@@ -423,7 +423,7 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TTransaction*>, TopmostTransactions);
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
 
 public:
     TImpl(
@@ -857,7 +857,7 @@ private:
     const TTransactionManagerConfigPtr Config_;
     const TTransactionLeaseTrackerPtr LeaseTracker_;
 
-    NHydra::TEntityMap<TTransactionId, TTransaction> TransactionMap_;
+    NHydra::TEntityMap<TTransaction> TransactionMap_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(TrackerThread);
@@ -1044,7 +1044,7 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager::TImpl, Transaction, TTransaction, TTransactionId, TransactionMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager::TImpl, Transaction, TTransaction, TransactionMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1211,7 +1211,7 @@ DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *I
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);
 DELEGATE_BYREF_RO_PROPERTY(TTransactionManager, yhash_set<TTransaction*>, TopmostTransactions, *Impl_);
-DELEGATE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

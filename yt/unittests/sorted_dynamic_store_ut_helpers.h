@@ -22,7 +22,6 @@ protected:
         });
     }
 
-
     TUnversionedOwningRow LookupRow(ISortedStorePtr store, const TOwningKey& key, TTimestamp timestamp)
     {
         std::vector<TKey> lookupKeys(1, key.Get());

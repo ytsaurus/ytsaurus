@@ -54,7 +54,6 @@ def main():
         time.sleep(5)
 
         attributes = {
-            "size": 1,
             "changelog_replication_factor": args.replication_factor,
             "changelog_read_quorum": args.read_quorum,
             "changelog_write_quorum": args.write_quorum,

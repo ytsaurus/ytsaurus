@@ -319,6 +319,9 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
 
             return typedResult;
         }
+
+        default:
+            YUNREACHABLE();
     }
 
     YUNREACHABLE();
@@ -370,6 +373,7 @@ void ToProto(NProto::TGroupClause* proto, TConstGroupClausePtr original)
     ToProto(proto->mutable_grouped_table_schema(), original->GroupedTableSchema);
     proto->set_is_merge(original->IsMerge);
     proto->set_is_final(original->IsFinal);
+    proto->set_totals_mode(static_cast<int>(original->TotalsMode));
 }
 
 void ToProto(NProto::TProjectClause* proto, TConstProjectClausePtr original)
@@ -481,6 +485,7 @@ TGroupClausePtr FromProto(const NProto::TGroupClause& serialized)
     FromProto(&result->GroupedTableSchema, serialized.grouped_table_schema());
     result->IsMerge = serialized.is_merge();
     result->IsFinal = serialized.is_final();
+    result->TotalsMode = ETotalsMode(serialized.totals_mode());
 
     result->GroupItems.reserve(serialized.group_items_size());
     for (int i = 0; i < serialized.group_items_size(); ++i) {

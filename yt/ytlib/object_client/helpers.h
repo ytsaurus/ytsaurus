@@ -65,8 +65,8 @@ bool IsWellKnownId(const TObjectId& id);
 TObjectId MakeRegularId(
     EObjectType type,
     TCellTag cellTag,
-    ui64 random,
-    NHydra::TVersion version);
+    NHydra::TVersion version,
+    ui32 hash);
 
 //! Constructs the id corresponding to well-known (usually singleton) entities.
 /*
@@ -91,6 +91,21 @@ TObjectId ReplaceTypeInId(
 TObjectId ReplaceCellTagInId(
     const TObjectId& id,
     TCellTag cellTag);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Relies on first 32 bits of object id to be pseudo-random,
+//! cf. TObjectManager::GenerateId.
+struct TDirectObjectIdHash
+{
+    size_t operator()(const TObjectId& id) const;
+};
+
+//! Cf. TDirectObjectIdHash
+struct TDirectVersionedObjectIdHash
+{
+    size_t operator()(const TVersionedObjectId& id) const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

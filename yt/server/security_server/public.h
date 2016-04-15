@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/server/hydra/public.h>
+
 #include <yt/ytlib/security_client/public.h>
 
 #include <yt/core/misc/public.h>
@@ -32,10 +34,11 @@ using NYTree::EPermissionSet;
 
 using NSecurityClient::ESecurityAction;
 
-class TAccount;
+DECLARE_ENTITY_TYPE(TAccount, TAccountId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TUser, TUserId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TGroup, TGroupId, NObjectClient::TDirectObjectIdHash)
+
 class TSubject;
-class TUser;
-class TGroup;
 
 struct TAccessControlEntry;
 struct TAccessControlList;

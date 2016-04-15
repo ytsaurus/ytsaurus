@@ -2,6 +2,8 @@
 
 #include <yt/server/hive/public.h>
 
+#include <yt/server/hydra/public.h>
+
 #include <yt/ytlib/object_client/public.h>
 
 #include <yt/ytlib/transaction_client/public.h>
@@ -14,16 +16,6 @@ namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TTransactionManager)
-DECLARE_REFCOUNTED_CLASS(TTimestampManager)
-
-DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TTimestampManagerConfig)
-
-class TTransaction;
-
-////////////////////////////////////////////////////////////////////////////////
-
 using NObjectClient::TTransactionId;
 using NObjectClient::NullTransactionId;
 
@@ -31,6 +23,16 @@ using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
 
 using NHive::ETransactionState;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TTransactionManager)
+DECLARE_REFCOUNTED_CLASS(TTimestampManager)
+
+DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TTimestampManagerConfig)
+
+DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, NObjectClient::TDirectObjectIdHash)
 
 ////////////////////////////////////////////////////////////////////////////////
 

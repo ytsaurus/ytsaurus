@@ -1,9 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "config.h"
 
-#include <yt/core/yson/writer.h>
+#include <yt/core/yson/public.h>
 
 namespace NYT {
 namespace NFormats {
@@ -44,7 +43,7 @@ namespace NFormats {
  *  Explicit #Flush calls should be made when finished writing via the adapter.
  */
 
-std::unique_ptr<NYson::TYsonConsumerBase> CreateJsonConsumer(
+std::unique_ptr<NYson::IYsonConsumer> CreateJsonConsumer(
     TOutputStream* output,
     NYson::EYsonType type = NYson::EYsonType::Node,
     TJsonFormatConfigPtr config = New<TJsonFormatConfig>());

@@ -312,6 +312,7 @@ describe("YtCommand - command descriptors", function() {
             'alter_table',
             'check_permission',
             'commit_tx',
+            'complete_op',
             'concatenate',
             'copy',
             'create',

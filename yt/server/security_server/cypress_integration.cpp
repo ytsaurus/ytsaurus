@@ -12,11 +12,13 @@
 
 #include <yt/server/security_server/security_manager.h>
 
+#include <yt/server/misc/object_helpers.h>
+
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/core/misc/collection_helpers.h>
 
 #include <yt/core/ytree/virtual.h>
-
-#include <yt/server/misc/object_helpers.h>
 
 namespace NYT {
 namespace NSecurityServer {

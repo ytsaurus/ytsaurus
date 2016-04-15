@@ -524,13 +524,13 @@ TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
 
     auto* mutationContext = GetCurrentMutationContext();
     auto version = mutationContext->GetVersion();
-    auto random = mutationContext->RandomGenerator().Generate<ui64>();
+    auto hash = mutationContext->RandomGenerator().Generate<ui32>();
 
     auto cellTag = Bootstrap_->GetCellTag();
 
     auto id = hintId
         ? hintId
-        : MakeRegularId(type, cellTag, random, version);
+        : MakeRegularId(type, cellTag, version, hash);
     YASSERT(TypeFromId(id) == type);
 
     ++CreatedObjectCount_;

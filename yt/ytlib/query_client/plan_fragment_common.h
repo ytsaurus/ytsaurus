@@ -47,6 +47,12 @@ DEFINE_ENUM(EBinaryOp,
     (GreaterOrEqual)
 );
 
+DEFINE_ENUM(ETotalsMode,
+    (None)
+    (BeforeHaving)
+    (AfterHaving)
+);
+
 DEFINE_ENUM(EAggregateFunction,
     (Sum)
     (Min)

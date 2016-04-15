@@ -690,7 +690,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TBase>
+template <class TBase>
 class TSchemalessMultiChunkReader
     : public ISchemalessMultiChunkReader
     , public TBase
@@ -737,7 +737,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TBase>
+template <class TBase>
 TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
@@ -1050,9 +1050,10 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     auto rowMerger = New<TSchemafulRowMerger>(
         New<TRowBuffer>(),
+        tableSchema.Columns().size(),
         tableSchema.GetKeyColumnCount(),
         columnFilter,
-        client->GetConnection()->GetColumnEvaluatorCache()->Find(tableSchema, tableSchema.GetKeyColumnCount()));
+        client->GetConnection()->GetColumnEvaluatorCache()->Find(tableSchema));
 
     auto reader = CreateSchemafulOverlappingRangeChunkReader(
         std::move(boundaries),

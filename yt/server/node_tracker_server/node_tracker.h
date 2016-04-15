@@ -51,8 +51,8 @@ public:
     void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context);
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, NObjectClient::TObjectId);
-    DECLARE_ENTITY_MAP_ACCESSORS(Rack, TRack, TRackId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode);
+    DECLARE_ENTITY_MAP_ACCESSORS(Rack, TRack);
 
 
     //! Fired when a node gets registered.

@@ -369,7 +369,6 @@ private:
         auto storeManager = tablet->GetStoreManager();
         auto tabletId = tablet->GetId();
         auto mountRevision = tablet->GetMountRevision();
-        auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
         auto schema = tablet->Schema();
@@ -449,7 +448,7 @@ private:
                 tabletSnapshot,
                 writerPoolSize,
                 Config_->TabletManager->ChunkWriter,
-                writerOptions,
+                tabletSnapshot->WriterOptions,
                 Bootstrap_->GetMasterClient(),
                 transaction->GetId());
 

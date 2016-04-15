@@ -11,11 +11,17 @@ class TStartTransactionCommand
     : public TTypedCommand<NApi::TTransactionStartOptions>
 {
 private:
+    NTransactionClient::ETransactionType Type;
+    bool Sticky;
     NYTree::INodePtr Attributes;
 
 public:
     TStartTransactionCommand()
     {
+        RegisterParameter("type", Type)
+            .Default(NTransactionClient::ETransactionType::Master);
+        RegisterParameter("sticky", Sticky)
+            .Default(false);
         RegisterParameter("timeout", Options.Timeout)
             .Optional();
         RegisterParameter("attributes", Attributes)
@@ -24,11 +30,9 @@ public:
             .Optional();
         RegisterParameter("ping_ancestor_transactions", Options.PingAncestors)
             .Default(false);
-
     }
 
     void Execute(ICommandContextPtr context);
-
 };
 
 class TPingTransactionCommand
@@ -36,7 +40,6 @@ class TPingTransactionCommand
 {
 public:
     void Execute(ICommandContextPtr context);
-
 };
 
 class TCommitTransactionCommand
@@ -44,7 +47,6 @@ class TCommitTransactionCommand
 {
 public:
     void Execute(ICommandContextPtr context);
-
 };
 
 class TAbortTransactionCommand
@@ -58,7 +60,6 @@ public:
     }
 
     void Execute(ICommandContextPtr context);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

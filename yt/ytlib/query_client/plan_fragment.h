@@ -265,6 +265,7 @@ struct TGroupClause
     TAggregateItemList AggregateItems;
     bool IsMerge;
     bool IsFinal;
+    ETotalsMode TotalsMode;
 
     // TODO: Use ITableSchemaInterface
     TTableSchema GroupedTableSchema;

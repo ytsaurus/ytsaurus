@@ -2,6 +2,8 @@
 
 #include <yt/server/node_tracker_server/public.h>
 
+#include <yt/server/hydra/public.h>
+
 #include <yt/ytlib/chunk_client/block_id.h>
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -47,9 +49,10 @@ using NNodeTrackerServer::TNodeList;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENTITY_TYPE(TChunk, TChunkId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TChunkList, TChunkListId, NObjectClient::TDirectObjectIdHash)
+
 class TChunkTree;
-class TChunk;
-class TChunkList;
 class TChunkOwnerBase;
 class TDataNode;
 

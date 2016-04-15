@@ -14,6 +14,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/cypress_client/public.h>
@@ -99,8 +100,9 @@ public:
     virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) override;
 
     virtual void Abort() override;
+    virtual void Complete() override;
 
-    virtual TJobStartRequestPtr ScheduleJob(
+    virtual TScheduleJobResultPtr ScheduleJob(
         ISchedulingContextPtr context,
         const TJobResources& jobLimits) override;
 
@@ -118,6 +120,8 @@ public:
     virtual int GetPendingJobCount() const override;
     virtual int GetTotalJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
+
+    virtual bool HasProgress() const override;
 
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
@@ -190,16 +194,6 @@ protected:
     NObjectClient::TTransactionId InputTransactionId;
     NObjectClient::TTransactionId OutputTransactionId;
 
-    struct TUserObjectBase
-    {
-        NYPath::TRichYPath Path;
-        NObjectClient::TObjectId ObjectId;
-        NObjectClient::TCellTag CellTag;
-
-        void Persist(TPersistenceContext& context);
-    };
-
-
     struct TLivePreviewTableBase
     {
         // Live preview table id.
@@ -209,7 +203,7 @@ protected:
     };
 
     struct TInputTable
-        : public TUserObjectBase
+        : public NChunkClient::TUserObject
     {
         //! Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
@@ -243,7 +237,7 @@ protected:
     };
 
     struct TOutputTable
-        : public TUserObjectBase
+        : public NChunkClient::TUserObject
         , public TLivePreviewTableBase
     {
         bool AppendRequested = false;
@@ -287,16 +281,15 @@ protected:
 
 
     struct TUserFile
-        : public TUserObjectBase
+        : public NChunkClient::TUserObject
     {
         std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
         EOperationStage Stage = EOperationStage::None;
         Stroka FileName;
         std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
-        NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
         bool Executable = false;
         NYson::TYsonString Format;
-
+        
         void Persist(TPersistenceContext& context);
     };
 
@@ -435,9 +428,10 @@ protected:
 
         void CheckCompleted();
 
-        TJobStartRequestPtr ScheduleJob(
+        void ScheduleJob(
             ISchedulingContext* context,
-            const TJobResources& jobLimits);
+            const TJobResources& jobLimits,
+            TScheduleJobResult* scheduleJobResult);
 
         virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary);
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
@@ -619,9 +613,20 @@ protected:
 
     void CheckTimeLimit();
 
-    TJobStartRequestPtr DoScheduleJob(ISchedulingContext* context, const TJobResources& jobLimits);
-    TJobStartRequestPtr DoScheduleLocalJob(ISchedulingContext* context, const TJobResources& jobLimits);
-    TJobStartRequestPtr DoScheduleNonLocalJob(ISchedulingContext* context, const TJobResources& jobLimits);
+    void DoScheduleJob(
+        ISchedulingContext* context,
+        const TJobResources& jobLimits,
+        TScheduleJobResult* scheduleJobResult);
+
+    void DoScheduleLocalJob(
+        ISchedulingContext* context,
+        const TJobResources& jobLimits,
+        TScheduleJobResult* scheduleJobResult);
+
+    void DoScheduleNonLocalJob(
+        ISchedulingContext* context,
+        const TJobResources& jobLimits,
+        TScheduleJobResult* scheduleJobResult);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
@@ -641,9 +646,6 @@ protected:
 
 
     // Preparation.
-    void GetInputTablesBasicAttributes();
-    void GetOutputTablesBasicAttributes();
-    void GetFilesBasicAttributes(std::vector<TUserFile>* files);
     void FetchInputTables();
     void LockInputTables();
     void BeginUploadOutputTables();

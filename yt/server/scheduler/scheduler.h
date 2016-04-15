@@ -60,6 +60,9 @@ public:
 
     TFuture<void> SuspendOperation(TOperationPtr operation);
     TFuture<void> ResumeOperation(TOperationPtr operation);
+    TFuture<void> CompleteOperation(
+        TOperationPtr operation,
+        const TError& error);
 
     TFuture<NYson::TYsonString> Strace(const TJobId& jobId);
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path);

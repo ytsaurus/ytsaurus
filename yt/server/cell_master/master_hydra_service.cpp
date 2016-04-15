@@ -30,19 +30,15 @@ IInvokerPtr TMasterHydraServiceBase::GetGuardedAutomatonInvoker(EAutomatonThread
     return Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(queue);
 }
 
-void TMasterHydraServiceBase::BeforeInvoke()
-{
-    THydraServiceBase::BeforeInvoke();
-
-    auto worldInitializer = Bootstrap_->GetWorldInitializer();
-    if (!worldInitializer->CheckInitialized()) {
-        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Cluster is not initialized");
-    }
-}
-
 IHydraManagerPtr TMasterHydraServiceBase::GetHydraManager()
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager();
+}
+
+void TMasterHydraServiceBase::ValidateClusterInitialized()
+{
+    auto worldInitializer = Bootstrap_->GetWorldInitializer();
+    worldInitializer->ValidateInitialized();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

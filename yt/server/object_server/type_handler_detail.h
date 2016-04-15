@@ -182,7 +182,7 @@ class TObjectTypeHandlerWithMapBase
     : public TObjectTypeHandlerBase<TObject>
 {
 public:
-    typedef typename NHydra::TEntityMap<TObjectId, TObject> TMap;
+    typedef typename NHydra::TEntityMap<TObject> TMap;
 
     TObjectTypeHandlerWithMapBase(NCellMaster::TBootstrap* bootstrap, TMap* map)
         : TObjectTypeHandlerBase<TObject>(bootstrap)

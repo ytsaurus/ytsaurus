@@ -9,8 +9,6 @@ from email.mime.text import MIMEText
 import argparse
 from datetime import datetime
 
-yt.config.set_proxy("kant.yt.yandex.net")
-
 now = datetime.now()
 
 def get_age(obj):

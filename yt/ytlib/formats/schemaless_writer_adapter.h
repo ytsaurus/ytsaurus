@@ -14,6 +14,7 @@
 #include <yt/core/yson/public.h>
 
 #include <memory>
+#include <limits>
 
 namespace NYT {
 namespace NFormats {
@@ -44,6 +45,8 @@ protected:
     const bool EnableContextSaving_;
     const TControlAttributesConfigPtr ControlAttributesConfig_;
     const int KeyColumnCount_;
+
+    const std::unique_ptr<NTableClient::TNameTableReader> NameTableReader_;
 
     NTableClient::TOwningKey LastKey_;
     NTableClient::TKey CurrentKey_;
@@ -83,8 +86,9 @@ private:
     int RangeIndexId_ = -1;
     int TableIndexId_ = -1;
 
-    i64 RangeIndex_ = -1;
-    i64 TableIndex_ = -1;
+    i64 RangeIndex_ = std::numeric_limits<i64>::min();
+    i64 TableIndex_ = std::numeric_limits<i64>::min();
+    i64 RowIndex_ = std::numeric_limits<i64>::min();
 
     bool EnableRowControlAttributes_;
 

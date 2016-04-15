@@ -18,110 +18,90 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnEvaluator::TColumnEvaluator(
-    const TTableSchema& schema,
-    int keyColumnCount,
-    const TConstTypeInferrerMapPtr& typeInferrers,
-    const TConstFunctionProfilerMapPtr& profilers)
-    : TableSchema_(schema)
-    , KeyColumnCount_(keyColumnCount)
-    , TypeInferers_(typeInferrers)
-    , Profilers_(profilers)
-    , Evaluators_(keyColumnCount)
-    , Variables_(keyColumnCount)
-    , ReferenceIds_(keyColumnCount)
-    , Expressions_(keyColumnCount)
-    , AllLiteralArgs_(keyColumnCount)
+    std::vector<TColumn> columns,
+    std::unordered_map<int, TCGAggregateCallbacks> aggregates)
+    : Columns_(std::move(columns))
+    , Aggregates_(std::move(aggregates))
 { }
 
 TColumnEvaluatorPtr TColumnEvaluator::Create(
     const TTableSchema& schema,
-    int keyColumnCount,
     const TConstTypeInferrerMapPtr& typeInferrers,
     const TConstFunctionProfilerMapPtr& profilers)
 {
-    auto evaluator = New<TColumnEvaluator>(schema, keyColumnCount, typeInferrers, profilers);
-    evaluator->Prepare();
-    return evaluator;
-}
+    std::vector<TColumn> columns(schema.GetKeyColumnCount());
+    std::unordered_map<int, TCGAggregateCallbacks> aggregates;
 
-void TColumnEvaluator::Prepare()
-{
-    for (int index = 0; index < KeyColumnCount_; ++index) {
-        if (TableSchema_.Columns()[index].Expression) {
+    for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
+        auto& column = columns[index];
+        if (schema.Columns()[index].Expression) {
             yhash_set<Stroka> references;
 
-            Expressions_[index] = PrepareExpression(
-                TableSchema_.Columns()[index].Expression.Get(),
-                TableSchema_,
-                TypeInferers_.Get(),
+            column.Expression = PrepareExpression(
+                schema.Columns()[index].Expression.Get(),
+                schema,
+                typeInferrers,
                 &references);
 
-            Evaluators_[index] = Profile(
-                Expressions_[index],
-                TableSchema_,
+            column.Evaluator = Profile(
+                column.Expression,
+                schema,
                 nullptr,
-                &Variables_[index],
-                &AllLiteralArgs_[index],
-                Profilers_.Get())();
+                &column.Variables,
+                profilers)();
 
             for (const auto& reference : references) {
-                ReferenceIds_[index].push_back(TableSchema_.GetColumnIndexOrThrow(reference));
+                column.ReferenceIds.push_back(schema.GetColumnIndexOrThrow(reference));
             }
-            std::sort(ReferenceIds_[index].begin(), ReferenceIds_[index].end());
+            std::sort(column.ReferenceIds.begin(), column.ReferenceIds.end());
         }
     }
 
-    for (int index = KeyColumnCount_; index < TableSchema_.Columns().size(); ++index) {
-        if (TableSchema_.Columns()[index].Aggregate) {
-            const auto& aggregateName = TableSchema_.Columns()[index].Aggregate.Get();
-            auto type = TableSchema_.Columns()[index].Type;
-            auto aggregate = BuiltinAggregateCG->GetAggregate(aggregateName);
-            Aggregates_[index] = CodegenAggregate(aggregate->Profile(type, type, type, aggregateName));
+    for (int index = schema.GetKeyColumnCount(); index < schema.Columns().size(); ++index) {
+        if (schema.Columns()[index].Aggregate) {
+            const auto& aggregateName = schema.Columns()[index].Aggregate.Get();
+            auto type = schema.Columns()[index].Type;
+            aggregates[index] = CodegenAggregate(
+                BuiltinAggregateCG->GetAggregate(aggregateName)->Profile(type, type, type, aggregateName));
         }
     }
+
+    return New<TColumnEvaluator>(
+        std::move(columns),
+        std::move(aggregates));
 }
 
 void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buffer, int index) const
 {
     YCHECK(index < fullRow.GetCount());
-    YCHECK(index < KeyColumnCount_);
-    YCHECK(TableSchema_.Columns()[index].Expression);
+    YCHECK(index < Columns_.size());
 
-    TQueryStatistics statistics;
+    const auto& column = Columns_[index];
+    const auto& evaluator = column.Evaluator;
+    YCHECK(evaluator);
+
     TExecutionContext executionContext;
-    executionContext.Schema = &TableSchema_;
-    executionContext.LiteralRows = &Variables_[index].LiteralRows;
     executionContext.PermanentBuffer = buffer;
     executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
-    executionContext.Statistics = &statistics;
 #ifndef NDEBUG
     int dummy;
     executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
 
-    std::vector<TFunctionContext*> functionContexts;
-    for (auto& literalArgs : AllLiteralArgs_[index]) {
-        executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
-    }
-    for (auto& functionContext : executionContext.FunctionContexts) {
-        functionContexts.push_back(&functionContext);
-    }
-
-    Evaluators_[index](
+    evaluator(
+        column.Variables.GetOpaqueData(),
         &fullRow[index],
         fullRow,
-        const_cast<TRowBuilder&>(Variables_[index].ConstantsRowBuilder).GetRow(),
-        &executionContext,
-        &functionContexts[0]);
+        &executionContext);
 
     fullRow[index].Id = index;
 }
 
 void TColumnEvaluator::EvaluateKeys(TMutableRow fullRow, const TRowBufferPtr& buffer) const
 {
-    for (int index = 0; index < KeyColumnCount_; ++index) {
-        if (TableSchema_.Columns()[index].Expression) {
+    for (int index = 0; index < Columns_.size(); ++index) {
+        if (Columns_[index].Evaluator) {
             EvaluateKey(fullRow, buffer, index);
         }
     }
@@ -129,33 +109,37 @@ void TColumnEvaluator::EvaluateKeys(TMutableRow fullRow, const TRowBufferPtr& bu
 
 const std::vector<int>& TColumnEvaluator::GetReferenceIds(int index) const
 {
-    return ReferenceIds_[index];
+    return Columns_[index].ReferenceIds;
 }
 
 TConstExpressionPtr TColumnEvaluator::GetExpression(int index) const
 {
-    return Expressions_[index];
+    return Columns_[index].Expression;
 }
 
-void TColumnEvaluator::VerifyAggregate(int index)
+bool TColumnEvaluator::IsAggregate(int index) const
 {
-    YCHECK(index < TableSchema_.Columns().size());
-    YCHECK(TableSchema_.Columns()[index].Aggregate);
+    return Aggregates_.count(index);
+}
+
+size_t TColumnEvaluator::GetKeyColumnCount() const
+{
+    return Columns_.size();
 }
 
 void TColumnEvaluator::InitAggregate(
     int index,
     TUnversionedValue* state,
-    const TRowBufferPtr& buffer)
+    const TRowBufferPtr& buffer) const
 {
-    VerifyAggregate(index);
-
     TExecutionContext executionContext;
     executionContext.PermanentBuffer = buffer;
     executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
-    Aggregates_[index].Init(&executionContext, state);
+    auto found = Aggregates_.find(index);
+    YCHECK(found != Aggregates_.end());
+    found->second.Init(&executionContext, state);
     state->Id = index;
 }
 
@@ -164,16 +148,16 @@ void TColumnEvaluator::UpdateAggregate(
     TUnversionedValue* result,
     const TUnversionedValue& state,
     const TUnversionedValue& update,
-    const TRowBufferPtr& buffer)
+    const TRowBufferPtr& buffer) const
 {
-    VerifyAggregate(index);
-
     TExecutionContext executionContext;
     executionContext.PermanentBuffer = buffer;
     executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
-    Aggregates_[index].Update(&executionContext, result, &state, &update);
+    auto found = Aggregates_.find(index);
+    YCHECK(found != Aggregates_.end());
+    found->second.Update(&executionContext, result, &state, &update);
     result->Id = index;
 }
 
@@ -182,16 +166,16 @@ void TColumnEvaluator::MergeAggregate(
     TUnversionedValue* result,
     const TUnversionedValue& state,
     const TUnversionedValue& mergeeState,
-    const TRowBufferPtr& buffer)
+    const TRowBufferPtr& buffer) const
 {
-    VerifyAggregate(index);
-
     TExecutionContext executionContext;
     executionContext.PermanentBuffer = buffer;
     executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
-    Aggregates_[index].Merge(&executionContext, result, &state, &mergeeState);
+    auto found = Aggregates_.find(index);
+    YCHECK(found != Aggregates_.end());
+    found->second.Merge(&executionContext, result, &state, &mergeeState);
     result->Id = index;
 }
 
@@ -199,16 +183,16 @@ void TColumnEvaluator::FinalizeAggregate(
     int index,
     TUnversionedValue* result,
     const TUnversionedValue& state,
-    const TRowBufferPtr& buffer)
+    const TRowBufferPtr& buffer) const
 {
-    VerifyAggregate(index);
-
     TExecutionContext executionContext;
     executionContext.PermanentBuffer = buffer;
     executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
-    Aggregates_[index].Finalize(&executionContext, result, &state);
+    auto found = Aggregates_.find(index);
+    YCHECK(found != Aggregates_.end());
+    found->second.Finalize(&executionContext, result, &state);
     result->Id = index;
 }
 
@@ -234,6 +218,7 @@ private:
     const TColumnEvaluatorPtr Evaluator_;
 };
 
+// TODO(lukyan): Use async cache?
 class TColumnEvaluatorCache::TImpl
     : public TSyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedColumnEvaluator>
 {
@@ -247,16 +232,15 @@ public:
         , Profilers_(profilers)
     { }
 
-    TColumnEvaluatorPtr Get(const TTableSchema& schema, int keyColumnCount)
+    TColumnEvaluatorPtr Get(const TTableSchema& schema)
     {
         llvm::FoldingSetNodeID id;
-        Profile(schema, keyColumnCount, &id);
+        Profile(schema, schema.GetKeyColumnCount(), &id);
 
         auto cachedEvaluator = Find(id);
         if (!cachedEvaluator) {
             auto evaluator = TColumnEvaluator::Create(
                 schema,
-                keyColumnCount,
                 TypeInferers_,
                 Profilers_);
             cachedEvaluator = New<TCachedColumnEvaluator>(id, evaluator);
@@ -284,10 +268,9 @@ TColumnEvaluatorCache::TColumnEvaluatorCache(
 TColumnEvaluatorCache::~TColumnEvaluatorCache() = default;
 
 TColumnEvaluatorPtr TColumnEvaluatorCache::Find(
-    const TTableSchema& schema,
-    int keyColumnCount)
+    const TTableSchema& schema)
 {
-    return Impl_->Get(schema, keyColumnCount);
+    return Impl_->Get(schema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

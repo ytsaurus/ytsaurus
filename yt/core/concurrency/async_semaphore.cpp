@@ -196,6 +196,7 @@ void TAsyncSemaphoreGuard::MoveFrom(TAsyncSemaphoreGuard&& other)
 void swap(TAsyncSemaphoreGuard& lhs, TAsyncSemaphoreGuard& rhs)
 {
     std::swap(lhs.Semaphore_, rhs.Semaphore_);
+    std::swap(lhs.Slots_, rhs.Slots_);
 }
 
 TAsyncSemaphoreGuard::TAsyncSemaphoreGuard()

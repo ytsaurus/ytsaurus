@@ -978,9 +978,9 @@ public:
         return it == NameToTabletCellBundleMap_.end() ? nullptr : it->second;
     }
 
-    DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle, TTabletCellBundleId);
-    DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell, TTabletCellId);
-    DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
+    DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
+    DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell);
+    DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
 
 private:
     friend class TTabletCellBundleTypeHandler;
@@ -991,9 +991,9 @@ private:
 
     const TTabletTrackerPtr TabletTracker_;
 
-    TEntityMap<TTabletCellBundleId, TTabletCellBundle> TabletCellBundleMap_;
-    TEntityMap<TTabletCellId, TTabletCell> TabletCellMap_;
-    TEntityMap<TTabletId, TTablet> TabletMap_;
+    TEntityMap<TTabletCellBundle> TabletCellBundleMap_;
+    TEntityMap<TTabletCell> TabletCellMap_;
+    TEntityMap<TTablet> TabletMap_;
 
     yhash_map<Stroka, TTabletCellBundle*> NameToTabletCellBundleMap_;
 
@@ -2180,9 +2180,9 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCellBundle, TTabletCellBundle, TTabletCellBundleId, TabletCellBundleMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCell, TTabletCell, TTabletCellId, TabletCellMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, TabletMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCellBundle, TTabletCellBundle, TabletCellBundleMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCell, TTabletCell, TabletCellMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TabletMap_)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -2350,9 +2350,9 @@ TTabletCellBundle* TTabletManager::FindTabletCellBundleByName(const Stroka& name
     return Impl_->FindTabletCellBundleByName(name);
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCellBundle, TTabletCellBundle, TTabletCellBundleId, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCell, TTabletCell, TTabletCellId, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, TTabletId, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCellBundle, TTabletCellBundle, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCell, TTabletCell, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -126,6 +126,7 @@ message TGroupClause
     required NYT.NTableClient.NProto.TTableSchemaExt grouped_table_schema = 3;
     required bool is_merge = 4;
     required bool is_final = 5;
+    required uint32 totals_mode = 6;
 }
 
 message TOrderItem

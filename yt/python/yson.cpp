@@ -4,6 +4,8 @@
 #include "shutdown.h"
 #include "stream.h"
 
+#include <yt/ytlib/ypath/rich.h>
+
 #include <yt/core/ytree/convert.h>
 
 #include <contrib/libs/pycxx/Extensions.hxx>
@@ -13,6 +15,7 @@ namespace NYT {
 namespace NPython {
 
 using namespace NYTree;
+using namespace NYPath;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -209,6 +212,8 @@ public:
         add_keyword_method("dump", &TYsonModule::Dump, "Dumps YSON to stream");
         add_keyword_method("dumps", &TYsonModule::Dumps, "Dumps YSON to string");
 
+        add_keyword_method("parse_ypath", &TYsonModule::ParseYPath, "Parse YPath");
+
         initialize("Python bindings for YSON");
     }
 
@@ -217,7 +222,9 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
 
-        return LoadImpl(args, kwargs, nullptr);
+        try {
+            return LoadImpl(args, kwargs, nullptr);
+        } CATCH;
     }
 
     Py::Object Loads(const Py::Tuple& args_, const Py::Dict& kwargs_)
@@ -230,7 +237,9 @@ public:
 
         std::unique_ptr<TInputStream> stringStream(new TOwningStringInput(string));
 
-        return LoadImpl(args, kwargs, std::move(stringStream));
+        try {
+            return LoadImpl(args, kwargs, std::move(stringStream));
+        } CATCH;
     }
 
     Py::Object Dump(const Py::Tuple& args_, const Py::Dict& kwargs_)
@@ -238,7 +247,9 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
 
-        DumpImpl(args, kwargs, nullptr);
+        try {
+            DumpImpl(args, kwargs, nullptr);
+        } CATCH;
 
         return Py::None();
     }
@@ -251,8 +262,23 @@ public:
         Stroka result;
         TStringOutput stringOutput(result);
 
-        DumpImpl(args, kwargs, &stringOutput);
+        try {
+            DumpImpl(args, kwargs, &stringOutput);
+        } CATCH;
+
         return Py::String(~result, result.Size());
+    }
+
+    Py::Object ParseYPath(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        auto args = args_;
+        auto kwargs = kwargs_;
+
+        auto path = ConvertToStroka(ConvertToString(ExtractArgument(args, kwargs, "path")));
+        ValidateArgumentsEmpty(args, kwargs);
+
+        auto richPath = TRichYPath::Parse(path);
+        return CreateYsonObject("YsonString", Py::String(richPath.GetPath()), ConvertTo<Py::Object>(richPath.Attributes().ToMap()));
     }
 
     virtual ~TYsonModule()
@@ -281,7 +307,7 @@ private:
         auto ysonType = NYson::EYsonType::Node;
         if (HasArgument(args, kwargs, "yson_type")) {
             auto arg = ExtractArgument(args, kwargs, "yson_type");
-            ysonType = ParseEnum<NYson::EYsonType>(ConvertToStroka(ConvertToString(arg)));
+                ysonType = ParseEnum<NYson::EYsonType>(ConvertToStroka(ConvertToString(arg)));
         }
 
         bool alwaysCreateAttributes = true;
@@ -323,22 +349,21 @@ private:
 
             const int BufferSize = 1024 * 1024;
             char buffer[BufferSize];
-            try {
-                if (ysonType == NYson::EYsonType::MapFragment) {
-                    consumer.OnBeginMap();
+
+            if (ysonType == NYson::EYsonType::MapFragment) {
+                consumer.OnBeginMap();
+            }
+            while (int length = inputStreamPtr->Read(buffer, BufferSize))
+            {
+                parser.Read(TStringBuf(buffer, length));
+                if (BufferSize != length) {
+                    break;
                 }
-                while (int length = inputStreamPtr->Read(buffer, BufferSize))
-                {
-                    parser.Read(TStringBuf(buffer, length));
-                    if (BufferSize != length) {
-                        break;
-                    }
-                }
-                parser.Finish();
-                if (ysonType == NYson::EYsonType::MapFragment) {
-                    consumer.OnEndMap();
-                }
-            } CATCH;
+            }
+            parser.Finish();
+            if (ysonType == NYson::EYsonType::MapFragment) {
+                consumer.OnEndMap();
+            }
 
             return consumer.ExtractObject();
         }
@@ -386,7 +411,7 @@ private:
             indent = Py::Int(arg).asLongLong();
         }
 
-        bool booleanAsString = true;
+        bool booleanAsString = false;
         if (HasArgument(args, kwargs, "boolean_as_string")) {
             auto arg = ExtractArgument(args, kwargs, "boolean_as_string");
             booleanAsString = Py::Boolean(arg);
@@ -402,20 +427,16 @@ private:
 
         NYson::TYsonWriter writer(outputStream, ysonFormat, ysonType, false, booleanAsString, indent);
         if (ysonType == NYson::EYsonType::Node || ysonType == NYson::EYsonType::MapFragment) {
-            try {
-                Serialize(obj, &writer, ignoreInnerAttributes, ysonType);
-            } CATCH;
+            Serialize(obj, &writer, ignoreInnerAttributes, ysonType);
         } else if (ysonType == NYson::EYsonType::ListFragment) {
             auto iterator = Py::Object(PyObject_GetIter(obj.ptr()), true);
-            try {
-                PyObject *item;
-                while ((item = PyIter_Next(*iterator)) != nullptr) {
-                    Serialize(Py::Object(item, true), &writer, ignoreInnerAttributes);
-                }
-                if (PyErr_Occurred()) {
-                    throw Py::Exception();
-                }
-            } CATCH;
+            PyObject *item;
+            while ((item = PyIter_Next(*iterator)) != nullptr) {
+                Serialize(Py::Object(item, true), &writer, ignoreInnerAttributes);
+            }
+            if (PyErr_Occurred()) {
+                throw Py::Exception();
+            }
         } else {
             throw CreateYsonError(ToString(ysonType) + " is not supported");
         }

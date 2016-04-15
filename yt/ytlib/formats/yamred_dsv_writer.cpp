@@ -31,6 +31,7 @@ public:
             controlAttributesConfig,
             keyColumnCount,
             config)
+        , Config_(config)
         , Table_(config, true /* addCarriageReturn */) 
     {
         // We register column names in order to have correct size of NameTable_ in DoWrite method.
@@ -45,7 +46,7 @@ public:
         UpdateEscapedColumnNames();
     }
 
-    // ISchemalessFormatWriter override.
+    // ISchemalessFormatWriter implementation
     virtual void DoWrite(const std::vector<TUnversionedRow>& rows) override
     {
         TableIndexWasWritten_ = false;
@@ -93,6 +94,8 @@ public:
     }
 
 private:
+    const TYamredDsvFormatConfigPtr Config_;
+
     std::vector<TNullable<TStringBuf>> RowValues_;
     
     std::vector<int> KeyColumnIds_;
@@ -103,12 +106,11 @@ private:
     // and refer to the captured value, since name table may change asynchronously.
     int NameTableSize_ = 0;
 
-    TDsvTable Table_;
+    const TDsvTable Table_;
+
 
     void WriteYamrKey(const std::vector<int>& columnIds)
     {
-        char yamrKeysSeparator = 
-            static_cast<TYamredDsvFormatConfig*>(Config_.Get())->YamrKeysSeparator;
         auto* stream = GetOutputStream();
         if (Config_->Lenval) {
             ui32 keyLength = CalculateTotalKeyLength(columnIds);
@@ -118,12 +120,13 @@ private:
         bool firstColumn = true;
         for (int id : columnIds) {
             if (!firstColumn) {
-                stream->Write(yamrKeysSeparator);
+                stream->Write(Config_->YamrKeysSeparator);
             } else {
                 firstColumn = false;
             }
             if (!RowValues_[id]) {
-                THROW_ERROR_EXCEPTION("Key column %Qv is missing.", GetNameTable()->GetName(id));
+                THROW_ERROR_EXCEPTION("Key column %Qv is missing",
+                    NameTableReader_->GetName(id));
             }
             EscapeAndWrite(*RowValues_[id], Table_.ValueStops, Table_.Escapes);
             RowValues_[id].Reset();
@@ -139,7 +142,8 @@ private:
         ui32 sum = 0;
         for (int id : columnIds) {
             if (!RowValues_[id]) {
-                THROW_ERROR_EXCEPTION("Key column %Qv is missing.", GetNameTable()->GetName(id));
+                THROW_ERROR_EXCEPTION("Key column %Qv is missing",
+                    NameTableReader_->GetName(id));
             }
                 
             sum += CalculateLength(*RowValues_[id], false /* inKey */);
@@ -215,12 +219,11 @@ private:
     void UpdateEscapedColumnNames()
     {
         // We store escaped column names in order to not re-escape them each time we write a column name.
-        auto nameTable = GetNameTable();
-        NameTableSize_ = nameTable->GetSize();
+        NameTableSize_ = NameTableReader_->GetSize();
         EscapedColumnNames_.reserve(NameTableSize_);
         for (int columnIndex = EscapedColumnNames_.size(); columnIndex < NameTableSize_; ++columnIndex) {
             EscapedColumnNames_.emplace_back(Escape(
-                nameTable->GetName(columnIndex),
+                NameTableReader_->GetName(columnIndex),
                 Table_.KeyStops,
                 Table_.Escapes,
                 Config_->EscapingSymbol));

@@ -41,6 +41,9 @@ public:
     int DefaultJournalReadQuorum;
     int DefaultJournalWriteQuorum;
 
+    TDuration ExpirationCheckPeriod;
+    int MaxExpiredNodesRemovalsPerCommit;
+
     TCypressManagerConfig()
     {
         RegisterParameter("statistics_flush_period", StatisticsFlushPeriod)
@@ -74,6 +77,11 @@ public:
         RegisterParameter("default_journal_write_quorum", DefaultJournalWriteQuorum)
             .Default(2)
             .InRange(NChunkClient::MinReplicationFactor, NChunkClient::MaxReplicationFactor);
+
+        RegisterParameter("expiration_check_period", ExpirationCheckPeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("max_expired_nodes_removals_per_commit", MaxExpiredNodesRemovalsPerCommit)
+            .Default(1000);
 
         RegisterValidator([&] () {
             if (DefaultJournalReadQuorum + DefaultJournalWriteQuorum < DefaultJournalReplicationFactor + 1) {

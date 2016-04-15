@@ -120,10 +120,10 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
     TYPathServiceProducer producer,
     EVirtualNodeOptions options);
 
-template <class TId, class TValue>
+template <class TValue>
 NYTree::IYPathServicePtr CreateVirtualObjectMap(
     NCellMaster::TBootstrap* bootstrap,
-    const NHydra::TReadOnlyEntityMap<TId, TValue>& map,
+    const NHydra::TReadOnlyEntityMap<TValue>& map,
     NYTree::INodePtr owningNode);
 
 ////////////////////////////////////////////////////////////////////////////////

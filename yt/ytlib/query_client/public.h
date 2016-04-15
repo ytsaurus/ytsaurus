@@ -143,9 +143,6 @@ typedef std::pair<TMutableRow, TMutableRow> TMutableRowRange;
 typedef std::vector<TRowRange> TRowRanges;
 typedef std::vector<TMutableRowRange> TMutableRowRanges;
 
-const int MaxRowsPerRead = 1024;
-const int MaxRowsPerWrite = 1024;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

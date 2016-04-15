@@ -23,7 +23,9 @@ DECLARE_REFCOUNTED_CLASS(TOperation)
 
 DECLARE_REFCOUNTED_CLASS(TJob)
 
-DECLARE_REFCOUNTED_STRUCT(TJobStartRequest)
+DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
+
+struct TJobStartRequest;
 
 using TJobList = std::list<TJobPtr>;
 using TJobSpecBuilder = TCallback<void(NJobTrackerClient::NProto::TJobSpec* jobSpec)>;

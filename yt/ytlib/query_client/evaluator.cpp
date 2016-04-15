@@ -83,13 +83,11 @@ public:
                 NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
 
                 TCGVariables fragmentParams;
-                std::vector<std::vector<bool>> allLiteralArgs;
                 auto cgQuery = Codegen(
                     query,
                     fragmentParams,
                     functionProfilers,
                     aggregateProfilers,
-                    allLiteralArgs,
                     statistics,
                     enableCodeCache);
 
@@ -100,14 +98,12 @@ public:
                 auto intermediateBuffer = New<TRowBuffer>();
 
                 std::vector<TRow> outputBatchRows;
-                outputBatchRows.reserve(MaxRowsPerWrite);
+                outputBatchRows.reserve(RowsetProcessingSize);
 
                 // NB: function contexts need to be destroyed before cgQuery since it hosts destructors.
                 TExecutionContext executionContext;
                 executionContext.Reader = reader;
-                executionContext.Schema = &query->TableSchema;
 
-                executionContext.LiteralRows = &fragmentParams.LiteralRows;
                 executionContext.PermanentBuffer = permanentBuffer;
                 executionContext.OutputBuffer = outputBuffer;
                 executionContext.IntermediateBuffer = intermediateBuffer;
@@ -120,16 +116,7 @@ public:
                 executionContext.JoinRowLimit = query->OutputRowLimit;
                 executionContext.Limit = query->Limit;
 
-                std::vector<TFunctionContext*> functionContexts;
-                for (auto& literalArgs : allLiteralArgs) {
-                    executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
-                }
-                for (auto& functionContext : executionContext.FunctionContexts) {
-                    functionContexts.push_back(&functionContext);
-                }
-
                 // Used in joins
-                executionContext.JoinEvaluators = fragmentParams.JoinEvaluators;
                 executionContext.ExecuteCallback = executeCallback;
 
                 if (!query->JoinClauses.empty()) {
@@ -137,7 +124,18 @@ public:
                 }
 
                 LOG_DEBUG("Evaluating query");
-                CallCGQueryPtr(cgQuery, fragmentParams.ConstantsRowBuilder.GetRow(), &executionContext, functionContexts.data());
+
+                try {
+                    CallCGQueryPtr(
+                        cgQuery,
+                        fragmentParams.GetOpaqueData(),
+                        &executionContext);
+                } catch (const TInterruptedIncompleteException&) {
+                    // Set incomplete and continue
+                    executionContext.Statistics->IncompleteOutput = true;
+                } catch (const TInterruptedCompleteException&) {
+                    // Continue
+                }
 
                 LOG_DEBUG("Flushing writer");
                 if (!outputBatchRows.empty()) {
@@ -199,61 +197,65 @@ private:
         TCGVariables& variables,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
-        std::vector<std::vector<bool>>& literalArgs,
         TQueryStatistics& statistics,
         bool enableCodeCache)
     {
         llvm::FoldingSetNodeID id;
 
-        auto makeCodegenQuery = Profile(query, &id, &variables, &literalArgs, functionProfilers, aggregateProfilers);
+        auto makeCodegenQuery = Profile(query, &id, &variables, functionProfilers, aggregateProfilers);
 
         auto Logger = BuildLogger(query);
 
-        auto cookie = BeginInsert(id);
-        if (enableCodeCache && !cookie.IsActive()) {
-            LOG_DEBUG("Codegen cache hit");
-        } else {
-            if (!enableCodeCache) {
-                LOG_DEBUG("Codegen cache disabled");
-            } else {
-                LOG_DEBUG("Codegen cache miss");
+        auto compileWithLogging = [&] () {
+            TRACE_CHILD("QueryClient", "Compile") {
+                NProfiling::TAggregatingTimingGuard timingGuard(&statistics.CodegenTime);
+                LOG_DEBUG("Started compiling fragment");
+                auto cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
+                LOG_DEBUG("Finished compiling fragment");
+                return cgQuery;
             }
-            try {
-                TRACE_CHILD("QueryClient", "Compile") {
-                    NProfiling::TAggregatingTimingGuard timingGuard(&statistics.CodegenTime);
-                    LOG_DEBUG("Started compiling fragment");
-                    auto cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
-                    LOG_DEBUG("Finished compiling fragment");
-                    cookie.EndInsert(std::move(cgQuery));
-                }
-            } catch (const std::exception& ex) {
-                cookie.Cancel(TError(ex).Wrap("Failed to compile a query fragment"));
-            }
-        }
+        };
 
-        auto cgQuery = WaitFor(cookie.GetValue()).ValueOrThrow();
+        TCachedCGQueryPtr cgQuery;
+        if (enableCodeCache) {
+            auto cookie = BeginInsert(id);
+            if (cookie.IsActive()) {
+                LOG_DEBUG("Codegen cache miss");
+
+                try {
+                    cookie.EndInsert(compileWithLogging());
+                } catch (const std::exception& ex) {
+                    cookie.Cancel(TError(ex).Wrap("Failed to compile a query fragment"));
+                }
+            }
+
+            cgQuery = WaitFor(cookie.GetValue())
+                .ValueOrThrow();
+        } else {
+            LOG_DEBUG("Codegen cache disabled");
+
+            cgQuery = compileWithLogging();
+        }
 
         return cgQuery->GetQueryCallback();
     }
 
     static void CallCGQuery(
         const TCGQueryCallback& cgQuery,
-        TRow constants,
-        TExecutionContext* executionContext,
-        TFunctionContext** functionContexts)
+        void* const* opaqueValues,
+        TExecutionContext* executionContext)
     {
 #ifndef NDEBUG
         int dummy;
         executionContext->StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
-        cgQuery(constants, executionContext, functionContexts);
+        cgQuery(opaqueValues, executionContext);
     }
 
     void(*volatile CallCGQueryPtr)(
         const TCGQueryCallback& cgQuery,
-        TRow constants,
-        TExecutionContext* executionContext,
-        TFunctionContext**) = CallCGQuery;
+        void* const* opaqueValues,
+        TExecutionContext* executionContext) = CallCGQuery;
 
 };
 

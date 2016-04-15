@@ -323,7 +323,7 @@ struct TCallTraits
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class... TTypes>
+template <class... TTypes>
 struct TTypesPack
 {
     const static size_t Size = sizeof...(TTypes);
@@ -336,7 +336,7 @@ template <unsigned N, class THead, class TTail>
 struct TSplitVariadic : TSplitVariadicHelper<N, THead, TTail>
 { };
 
-template<class THeadParam, class TTailParam>
+template <class THeadParam, class TTailParam>
 struct TSplitVariadic<0, THeadParam, TTailParam>
 {
     typedef THeadParam THead;

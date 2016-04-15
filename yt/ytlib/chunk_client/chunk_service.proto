@@ -21,6 +21,7 @@ message TRspLocateChunks
     {
         optional bool missing = 1 [default = false];
         repeated fixed32 replicas = 2;
+        required int32 erasure_codec = 3;
     }
 
     required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;

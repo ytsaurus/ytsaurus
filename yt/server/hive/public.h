@@ -1,6 +1,10 @@
 #pragma once
 
+#include <yt/server/hydra/public.h>
+
 #include <yt/ytlib/hive/public.h>
+
+#include <yt/ytlib/election/public.h>
 
 #include <yt/core/misc/enum.h>
 
@@ -12,7 +16,7 @@ namespace NHive {
 DECLARE_REFCOUNTED_CLASS(THiveManager)
 DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizer)
 
-class TMailbox;
+DECLARE_ENTITY_TYPE(TMailbox, NElection::TCellId, ::THash<NElection::TCellId>)
 
 DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
 

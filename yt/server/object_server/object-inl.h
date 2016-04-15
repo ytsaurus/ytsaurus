@@ -147,8 +147,8 @@ std::vector<TObjectId> ToObjectIds(const T& objects, size_t sizeLimit)
     return result;
 }
 
-template <class TKey, class TValue, class THash>
-std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TKey, TValue, THash>& entities)
+template <class TValue>
+std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValue>& entities)
 {
     std::vector<TValue*> values;
     for (const auto& pair : entities) {
@@ -157,11 +157,7 @@ std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TKey,
             values.push_back(object);
         }
     }
-
-    std::sort(
-        values.begin(),
-        values.end(),
-        [] (TValue* lhs, TValue* rhs) { return lhs->GetId() < rhs->GetId(); });
+    std::sort(values.begin(), values.end(), TObjectRefComparer::Compare);
     return values;
 }
 

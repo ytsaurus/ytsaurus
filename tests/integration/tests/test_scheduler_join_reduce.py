@@ -606,25 +606,26 @@ echo {v = 2} >&7
     @unix_only
     def test_join_reduce_row_count_limit(self):
         create("table", "//tmp/in1")
-        for i in xrange(self.NUM_NODES):
+        for i in xrange(5):
             write_table(
                 "<append=true>//tmp/in1",
-                [{"key": str(i), "value": "foo"}],
+                [{"key": "%05d"%i, "value": "foo"}],
                 sorted_by = ["key"])
 
         create("table", "//tmp/in2")
-        for i in xrange(self.NUM_NODES):
+        for i in xrange(5):
             write_table(
                 "<append=true>//tmp/in2",
-                [{"key": str(i), "value": "bar"}],
+                [{"key": "%05d"%i, "value": "bar"}],
                 sorted_by = ["key"])
 
         create("table", "//tmp/out")
-        create("table", "//tmp/output")
-        join_reduce(
+        op = join_reduce(
+            waiting_jobs=True,
+            dont_track=True,
             in_=["<foreign=true>//tmp/in2", "//tmp/in1"],
-            out="<row_count_limit=5>//tmp/output",
-            command="((YT_JOB_INDEX >= 3)) && sleep 5; cat",
+            out="<row_count_limit=5>//tmp/out",
+            command="cat",
             join_by=["key"],
             spec={
                 "reducer": {
@@ -634,11 +635,8 @@ echo {v = 2} >&7
                 "max_failed_job_count": 1
             })
 
-        assert read_table("//tmp/output") == [
-            {"key":"0", "value":"bar"},
-            {"key":"0", "value":"foo"},
-            {"key":"1", "value":"bar"},
-            {"key":"1", "value":"foo"},
-            {"key":"2", "value":"bar"},
-            {"key":"2", "value":"foo"},
-        ]
+        for i in xrange(3):
+            op.resume_job(op.jobs[0])
+
+        op.track()
+        assert len(read_table("//tmp/out")) == 6

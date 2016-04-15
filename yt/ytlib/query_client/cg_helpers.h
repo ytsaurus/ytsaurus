@@ -31,40 +31,42 @@ using NCodegen::TCGModulePtr;
 class TCGContext
     : public TCGIRBuilder
 {
-    Value* ConstantsRow_;
     Value* ExecutionContextPtr_;
-    Value* FunctionContextsPtr_;
+    std::vector<Value*> OpaqueValues_;
 
 public:
     const TCGModulePtr Module;
-    
+
     TCGContext(
         const TCGModulePtr module,
-        Value* constantsRow,
+        Value* opaqueValues,
+        size_t opaqueValuesCount,
         Value* executionContextPtr,
-        Value* functionContextsPtr,
         llvm::BasicBlock* basicBlock)
         : TCGIRBuilder(basicBlock)
-        , ConstantsRow_(constantsRow)
         , ExecutionContextPtr_(executionContextPtr)
-        , FunctionContextsPtr_(functionContextsPtr)
         , Module(std::move(module))
-    { }
+    {
+        for (size_t index = 0; index < opaqueValuesCount; ++index) {
+            OpaqueValues_.push_back(CreateLoad(
+                CreateConstGEP1_32(opaqueValues, index),
+                "opaqueValues." + Twine(index)));
+        }
+    }
 
     TCGContext(
         llvm::Function* function,
         TCGContext* parent,
         llvm::Value* closurePtr)
         : TCGIRBuilder(function, parent, closurePtr)
-        , ConstantsRow_(parent->ConstantsRow_)
         , ExecutionContextPtr_(parent->ExecutionContextPtr_)
-        , FunctionContextsPtr_(parent->FunctionContextsPtr_)
+        , OpaqueValues_(parent->OpaqueValues_)
         , Module(parent->Module)
     { }
 
-    Value* GetConstantsRows()
+    Value* GetOpaqueValue(size_t index)
     {
-        return ViaClosure(ConstantsRow_, "constantsRow");
+        return ViaClosure(OpaqueValues_[index], "opaqueValues." + Twine(index));
     }
 
     Value* GetExecutionContextPtr()
@@ -72,11 +74,6 @@ public:
         return ViaClosure(ExecutionContextPtr_, "executionContextPtr");
     }
 
-    Value* GetFunctionContextPtr(int index)
-    {
-        auto* contexts = ViaClosure(FunctionContextsPtr_, "functionContextsPtr");
-        return CreateLoad(CreateConstGEP1_32(contexts, index), "functionContext." + Twine(index));
-    }
 };
 
 Value* CodegenValuesPtrFromRow(TCGIRBuilder&, Value*);

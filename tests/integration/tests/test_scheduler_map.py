@@ -151,6 +151,7 @@ class TestJobProber(YTEnvSetup):
         }
     }
 
+    @unix_only
     def test_strace_job(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -175,6 +176,7 @@ class TestJobProber(YTEnvSetup):
         op.resume_jobs()
         op.track()
 
+    @unix_only
     def test_signal_job_with_no_job_restart(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -208,6 +210,7 @@ class TestJobProber(YTEnvSetup):
         assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
         assert read_table("//tmp/t2") == [{"foo": "bar"}, {"got": "SIGUSR1"}, {"got": "SIGUSR2"}]
 
+    @unix_only
     def test_signal_job_with_job_restart(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -219,7 +222,7 @@ class TestJobProber(YTEnvSetup):
             label="signal_job_with_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='trap "echo got=SIGUSR1; exit 1" USR1\ncat\n',
+            command='trap "echo got=SIGUSR1; echo stderr >&2; exit 1" USR1\ncat\n',
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -236,10 +239,14 @@ class TestJobProber(YTEnvSetup):
         op.track()
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/user_request".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op.id)) == 0
         assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
+        # Can get two stderr here, either "User defined signal 1\nstderr\n" or "stderr\n"
+        check_all_stderrs(op, "stderr\n", 1, substring=True)
 
+    @unix_only
     def test_abandon_job(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -262,6 +269,26 @@ class TestJobProber(YTEnvSetup):
         op.resume_jobs()
         op.track()
         assert len(read_table("//tmp/t2")) == 4
+
+    @unix_only
+    def test_abandon_job_sorted_empty_output(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("<append=true>//tmp/t1", {"key": "foo", "value": "bar"})
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="abandon_job",
+            in_="//tmp/t1",
+            out="<sorted_by=[key]>//tmp/t2",
+            command="sleep 5; cat")
+
+        abandon_job(op.jobs[0])
+
+        op.resume_jobs()
+        op.track()
+        assert len(read_table("//tmp/t2")) == 0
 
 ##################################################################
 
@@ -981,6 +1008,40 @@ cat > /dev/null; echo {hello=world}
         op.abort()
         assert get(path) == "aborted"
 
+    def test_complete_op(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        for i in xrange(5):
+            write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
+
+        op = map(
+            waiting_jobs=True,
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="echo job_index=$YT_JOB_INDEX",
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "data_size_per_job": 1,
+                "max_failed_job_count": 1
+            })
+
+        for job_id in op.jobs[:3]:
+            op.resume_job(job_id)
+
+        path = "//sys/operations/{0}/@state".format(op.id)
+        completed_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/completed".format(op.id)
+        assert get(path) != "completed"
+        while get(completed_path) < 3:
+            time.sleep(0.2)
+
+        op.complete()
+        assert get(path) == "completed"
+        op.track()
+        assert len(read_table("//tmp/t2")) == 3
+
 
     @unix_only
     def test_table_index(self):
@@ -1178,6 +1239,12 @@ print row + table_index
             op.track()
             assert sorted(read_table(output)) == original_data
 
+        time.sleep(5)
+        statistics = get("//sys/scheduler/orchid/monitoring/ref_counted/statistics")
+        records = [record for record in statistics if record["name"] == "NYT::NScheduler::TOperationElement"]
+        assert len(records) == 1
+        assert records[0]["objects_alive"] == 0
+
     @unix_only
     def test_map_row_count_limit(self):
         create("table", "//tmp/input")
@@ -1185,9 +1252,12 @@ print row + table_index
             write_table("<append=true>//tmp/input", {"key": "%05d"%i, "value": "foo"})
 
         create("table", "//tmp/output")
-        map(in_="//tmp/input",
+        op = map(
+            waiting_jobs=True,
+            dont_track=True,
+            in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
-            command="((YT_JOB_INDEX >= 3)) && sleep 5; cat",
+            command="cat",
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -1196,6 +1266,10 @@ print row + table_index
                 "max_failed_job_count": 1
             })
 
+        for i in xrange(3):
+            op.resume_job(op.jobs[0])
+
+        op.track()
         assert len(read_table("//tmp/output")) == 3
 
     @unix_only
@@ -1206,9 +1280,12 @@ print row + table_index
 
         create("table", "//tmp/out_1")
         create("table", "//tmp/out_2")
-        map(in_="//tmp/input",
+        op = map(
+            waiting_jobs=True,
+            dont_track=True,
+            in_="//tmp/input",
             out=["//tmp/out_1", "<row_count_limit=3>//tmp/out_2"],
-            command="((YT_JOB_INDEX >= 3)) && sleep 5; cat >&4",
+            command="cat >&4",
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -1217,6 +1294,10 @@ print row + table_index
                 "max_failed_job_count": 1
             })
 
+        for i in xrange(3):
+            op.resume_job(op.jobs[0])
+
+        op.track()
         assert len(read_table("//tmp/out_1")) == 0
         assert len(read_table("//tmp/out_2")) == 3
 
@@ -1227,10 +1308,13 @@ print row + table_index
             write_table("<append=true>//tmp/input", {"key": "%05d"%i, "value": "foo"})
 
         create("table", "//tmp/output")
-        map(in_="//tmp/input",
+        op = map(
+            waiting_jobs=True,
+            dont_track=True,
+            in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
             ordered=True,
-            command="((YT_JOB_INDEX >= 3)) && sleep 5; cat",
+            command="cat",
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -1239,11 +1323,11 @@ print row + table_index
                 "max_failed_job_count": 1
             })
 
-        assert read_table("//tmp/output") == [
-            {"key":"00000", "value":"foo"},
-            {"key":"00001", "value":"foo"},
-            {"key":"00002", "value":"foo"},
-        ]
+        for i in xrange(3):
+            op.resume_job(op.jobs[0])
+
+        op.track()
+        assert len(read_table("//tmp/output")) == 3
 
     def test_multiple_row_count_limit(self):
         create("table", "//tmp/input")

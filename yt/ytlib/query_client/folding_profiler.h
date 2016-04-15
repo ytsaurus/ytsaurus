@@ -28,14 +28,12 @@ TCGExpressionCallbackGenerator Profile(
     const TTableSchema& schema,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    std::vector<std::vector<bool>>* literalArgs,
     const TConstFunctionProfilerMapPtr& functionProfilers = BuiltinFunctionCG.Get());
 
 TCGQueryCallbackGenerator Profile(
     TConstQueryPtr query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    std::vector<std::vector<bool>>* literalArgs,
     const TConstFunctionProfilerMapPtr& functionProfilers = BuiltinFunctionCG.Get(),
     const TConstAggregateProfilerMapPtr& aggregateProfilers = BuiltinAggregateCG.Get());
 
@@ -47,7 +45,7 @@ TCGQueryCallbackGenerator Profile(
 ////////////////////////////////////////////////////////////////////////////////
 
 // A hasher for llvm::FoldingSetNodeID
-template<>
+template <>
 struct hash<llvm::FoldingSetNodeID>
 {
     inline size_t operator()(const llvm::FoldingSetNodeID& id) const

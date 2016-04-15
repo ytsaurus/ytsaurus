@@ -33,11 +33,13 @@
 
 #include <yt/ytlib/api/transaction.h>
 
+#include <yt/core/concurrency/action_queue.h>
+
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/misc/fs.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/profiling/scoped_timer.h>
 
 #include <functional>
 
@@ -71,16 +73,6 @@ using NTableClient::TTableReaderOptions;
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TUserObjectBase::Persist(TPersistenceContext& context)
-{
-    using NYT::Persist;
-    Persist(context, Path);
-    Persist(context, ObjectId);
-    Persist(context, CellTag);
-}
-
-////////////////////////////////////////////////////////////////////
-
 void TOperationControllerBase::TLivePreviewTableBase::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -91,7 +83,7 @@ void TOperationControllerBase::TLivePreviewTableBase::Persist(TPersistenceContex
 
 void TOperationControllerBase::TInputTable::Persist(TPersistenceContext& context)
 {
-    TUserObjectBase::Persist(context);
+    TUserObject::Persist(context);
 
     using NYT::Persist;
     Persist(context, ChunkCount);
@@ -113,7 +105,7 @@ void TOperationControllerBase::TJobBoundaryKeys::Persist(TPersistenceContext& co
 
 void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& context)
 {
-    TUserObjectBase::Persist(context);
+    TUserObject::Persist(context);
     TLivePreviewTableBase::Persist(context);
 
     using NYT::Persist;
@@ -122,6 +114,7 @@ void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& contex
     Persist(context, LockMode);
     Persist(context, Options);
     Persist(context, KeyColumns);
+    Persist(context, ChunkPropertiesUpdateNeeded);
     Persist(context, UploadTransactionId);
     Persist(context, OutputChunkListId);
     Persist(context, DataStatistics);
@@ -148,7 +141,7 @@ void TOperationControllerBase::TIntermediateTable::Persist(TPersistenceContext& 
 
 void TOperationControllerBase::TUserFile::Persist(TPersistenceContext& context)
 {
-    TUserObjectBase::Persist(context);
+    TUserObject::Persist(context);
 
     using NYT::Persist;
     Persist<TAttributeDictionaryRefSerializer>(context, Attributes);
@@ -184,9 +177,9 @@ void TOperationControllerBase::TJoblet::Persist(TPersistenceContext& context)
     // properly.
     using NYT::Persist;
     Persist(context, Task);
+    Persist(context, NodeDescriptor);
     Persist(context, InputStripeList);
     Persist(context, OutputCookie);
-    Persist(context, NodeDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -367,12 +360,14 @@ void TOperationControllerBase::TTask::CheckCompleted()
     }
 }
 
-TJobStartRequestPtr TOperationControllerBase::TTask::ScheduleJob(
+void TOperationControllerBase::TTask::ScheduleJob(
     ISchedulingContext* context,
-    const TJobResources& jobLimits)
+    const TJobResources& jobLimits,
+    TScheduleJobResult* scheduleJobResult)
 {
     if (!CanScheduleJob(context, jobLimits)) {
-        return nullptr;
+        scheduleJobResult->RecordFail(EScheduleJobFailReason::Unknown);
+        return;
     }
 
     bool intermediateOutput = IsIntermediateOutput();
@@ -388,7 +383,8 @@ TJobStartRequestPtr TOperationControllerBase::TTask::ScheduleJob(
     joblet->OutputCookie = chunkPoolOutput->Extract(localityNodeId);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
         LOG_DEBUG("Job input is empty");
-        return nullptr;
+        scheduleJobResult->RecordFail(EScheduleJobFailReason::EmptyInput);
+        return;
     }
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
@@ -405,7 +401,8 @@ TJobStartRequestPtr TOperationControllerBase::TTask::ScheduleJob(
         chunkPoolOutput->Aborted(joblet->OutputCookie);
         // Seems like cached min needed resources are too optimistic.
         ResetCachedMinNeededResources();
-        return nullptr;
+        scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
+        return;
     }
 
     auto jobType = GetJobType();
@@ -440,7 +437,7 @@ TJobStartRequestPtr TOperationControllerBase::TTask::ScheduleJob(
 
     joblet->JobId = context->GenerateJobId();
     auto restarted = LostJobCookieMap.find(joblet->OutputCookie) != LostJobCookieMap.end();
-    auto jobStartRequest = New<TJobStartRequest>(
+    scheduleJobResult->JobStartRequest.Emplace(
         joblet->JobId,
         jobType,
         neededResources,
@@ -483,8 +480,6 @@ TJobStartRequestPtr TOperationControllerBase::TTask::ScheduleJob(
     Controller->RegisterJoblet(joblet);
 
     OnJobStarted(joblet);
-
-    return jobStartRequest;
 }
 
 bool TOperationControllerBase::TTask::IsPending() const
@@ -1021,9 +1016,51 @@ void TOperationControllerBase::Prepare()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    GetInputTablesBasicAttributes();
-    GetOutputTablesBasicAttributes();
-    GetFilesBasicAttributes(&Files);
+    GetUserObjectBasicAttributes<TInputTable>(
+        AuthenticatedInputMasterClient,
+        InputTables,
+        InputTransactionId,
+        Logger,
+        EPermission::Read);
+
+    for (const auto& table : InputTables) {
+        if (table.Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                table.Path.GetPath(),
+                EObjectType::Table,
+                table.Type);
+        } 
+    }
+
+    GetUserObjectBasicAttributes<TOutputTable>(
+        AuthenticatedOutputMasterClient,
+        OutputTables,
+        OutputTransactionId,
+        Logger,
+        EPermission::Write);
+
+    yhash_set<TObjectId> outputTableIds;
+    for (const auto& table : OutputTables) {
+        const auto& path = table.Path.GetPath();
+        if (table.Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                path,
+                EObjectType::Table,
+                table.Type);
+        } 
+        if (outputTableIds.find(table.ObjectId) != outputTableIds.end()) {
+            THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
+                path);
+        }
+        outputTableIds.insert(table.ObjectId);
+    }
+
+    GetUserObjectBasicAttributes<TUserFile>(
+        AuthenticatedMasterClient,
+        Files,
+        InputTransactionId,
+        Logger,
+        EPermission::Read);
 
     LockInputTables();
     LockUserFiles(&Files, {});
@@ -1973,6 +2010,19 @@ void TOperationControllerBase::Abort()
     LOG_INFO("Operation aborted");
 }
 
+void TOperationControllerBase::Complete()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    LOG_INFO("Completing operation");
+
+    State = EControllerState::Finished;
+
+    Host->OnOperationCompleted(Operation);
+
+    LOG_INFO("Operation completed");
+}
+
 void TOperationControllerBase::CheckTimeLimit()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
@@ -1990,7 +2040,7 @@ void TOperationControllerBase::CheckTimeLimit()
     }
 }
 
-TJobStartRequestPtr TOperationControllerBase::ScheduleJob(
+TScheduleJobResultPtr TOperationControllerBase::ScheduleJob(
     ISchedulingContextPtr context,
     const TJobResources& jobLimits)
 {
@@ -1999,11 +2049,14 @@ TJobStartRequestPtr TOperationControllerBase::ScheduleJob(
     // ScheduleJob must be a synchronous action, any context switches are prohibited.
     TContextSwitchedGuard contextSwitchGuard(BIND([] { YUNREACHABLE(); }));
 
-    auto jobStartRequest = DoScheduleJob(context.Get(), jobLimits);
-    if (jobStartRequest) {
+    NProfiling::TScopedTimer timer;
+    auto scheduleJobResult = New<TScheduleJobResult>();
+    DoScheduleJob(context.Get(), jobLimits, scheduleJobResult.Get());
+    if (scheduleJobResult->JobStartRequest) {
         JobCounter.Start(1);
     }
-    return jobStartRequest;
+    scheduleJobResult->Duration = timer.GetElapsed();
+    return scheduleJobResult;
 }
 
 void TOperationControllerBase::UpdateConfig(TSchedulerConfigPtr config)
@@ -2162,9 +2215,10 @@ bool TOperationControllerBase::CheckJobLimits(
     return false;
 }
 
-TJobStartRequestPtr TOperationControllerBase::DoScheduleJob(
+void TOperationControllerBase::DoScheduleJob(
     ISchedulingContext* context,
-    const TJobResources& jobLimits)
+    const TJobResources& jobLimits,
+    TScheduleJobResult* scheduleJobResult)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
@@ -2174,30 +2228,22 @@ TJobStartRequestPtr TOperationControllerBase::DoScheduleJob(
 
     if (!IsRunning()) {
         LOG_TRACE("Operation is not running, scheduling request ignored");
-        return nullptr;
-    }
-
-    if (GetPendingJobCount() == 0) {
+        scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
+    } else if (GetPendingJobCount() == 0) {
         LOG_TRACE("No pending jobs left, scheduling request ignored");
-        return nullptr;
+        scheduleJobResult->RecordFail(EScheduleJobFailReason::NoPendingJobs);
+    } else {
+        DoScheduleLocalJob(context, jobLimits, scheduleJobResult);
+        if (!scheduleJobResult->JobStartRequest) {
+            DoScheduleNonLocalJob(context, jobLimits, scheduleJobResult);
+        }
     }
-
-    auto localJobStartRequest = DoScheduleLocalJob(context, jobLimits);
-    if (localJobStartRequest) {
-        return localJobStartRequest;
-    }
-
-    auto nonLocalJobStartRequest = DoScheduleNonLocalJob(context, jobLimits);
-    if (nonLocalJobStartRequest) {
-        return nonLocalJobStartRequest;
-    }
-
-    return nullptr;
 }
 
-TJobStartRequestPtr TOperationControllerBase::DoScheduleLocalJob(
+void TOperationControllerBase::DoScheduleLocalJob(
     ISchedulingContext* context,
-    const TJobResources& jobLimits)
+    const TJobResources& jobLimits,
+    TScheduleJobResult* scheduleJobResult)
 {
     const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetNodeDescriptor().Address;
@@ -2205,6 +2251,7 @@ TJobStartRequestPtr TOperationControllerBase::DoScheduleLocalJob(
 
     for (const auto& group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
+            scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
             continue;
         }
 
@@ -2251,7 +2298,8 @@ TJobStartRequestPtr TOperationControllerBase::DoScheduleLocalJob(
         }
 
         if (!IsRunning()) {
-            return nullptr;
+            scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
+            return;
         }
 
         if (bestTask) {
@@ -2267,22 +2315,26 @@ TJobStartRequestPtr TOperationControllerBase::DoScheduleLocalJob(
 
             if (!HasEnoughChunkLists(bestTask->IsIntermediateOutput())) {
                 LOG_DEBUG("Job chunk list demand is not met");
-                return nullptr;
+                scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
+                return;
             }
 
-            auto jobStartRequest = bestTask->ScheduleJob(context, jobLimits);
-            if (jobStartRequest) {
+            bestTask->ScheduleJob(context, jobLimits, scheduleJobResult);
+            if (scheduleJobResult->JobStartRequest) {
                 UpdateTask(bestTask);
-                return jobStartRequest;
+                return;
             }
+        } else {
+            // NB: This is one of the possible reasons, hopefully the most probable.
+            scheduleJobResult->RecordFail(EScheduleJobFailReason::NoLocalJobs);
         }
     }
-    return nullptr;
 }
 
-TJobStartRequestPtr TOperationControllerBase::DoScheduleNonLocalJob(
+void TOperationControllerBase::DoScheduleNonLocalJob(
     ISchedulingContext* context,
-    const TJobResources& jobLimits)
+    const TJobResources& jobLimits,
+    TScheduleJobResult* scheduleJobResult)
 {
     auto now = context->GetNow();
     const auto& nodeResourceLimits = context->ResourceLimits();
@@ -2290,6 +2342,7 @@ TJobStartRequestPtr TOperationControllerBase::DoScheduleNonLocalJob(
 
     for (const auto& group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
+            scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
             continue;
         }
 
@@ -2342,6 +2395,7 @@ TJobStartRequestPtr TOperationControllerBase::DoScheduleNonLocalJob(
 
                 if (!CheckJobLimits(task, jobLimits, nodeResourceLimits)) {
                     ++it;
+                    scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
                     continue;
                 }
 
@@ -2356,11 +2410,13 @@ TJobStartRequestPtr TOperationControllerBase::DoScheduleNonLocalJob(
                         deadline);
                     delayedTasks.insert(std::make_pair(deadline, task));
                     candidateTasks.erase(it++);
+                    scheduleJobResult->RecordFail(EScheduleJobFailReason::TaskDelayed);
                     continue;
                 }
 
                 if (!IsRunning()) {
-                    return nullptr;
+                    scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
+                    return;
                 }
 
                 LOG_DEBUG(
@@ -2374,14 +2430,15 @@ TJobStartRequestPtr TOperationControllerBase::DoScheduleNonLocalJob(
 
                 if (!HasEnoughChunkLists(task->IsIntermediateOutput())) {
                     LOG_DEBUG("Job chunk list demand is not met");
-                    return nullptr;
+                    scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
+                    return;
                 }
 
-                auto jobStartRequest = task->ScheduleJob(context, jobLimits);
-                if (jobStartRequest) {
+                task->ScheduleJob(context, jobLimits, scheduleJobResult);
+                if (scheduleJobResult->JobStartRequest) {
                     UpdateTask(task);
                     LOG_DEBUG("Processed %v tasks", processedTaskCount);
-                    return jobStartRequest;
+                    return;
                 }
 
                 // If task failed to schedule job, its min resources might have been updated.
@@ -2393,11 +2450,13 @@ TJobStartRequestPtr TOperationControllerBase::DoScheduleNonLocalJob(
                     candidateTasks.insert(std::make_pair(minMemory, task));
                 }
             }
+            if (processedTaskCount == 0) {
+                scheduleJobResult->RecordFail(EScheduleJobFailReason::NoCandidateTasks);
+            }
 
             LOG_DEBUG("Processed %v tasks", processedTaskCount);
         }
     }
-    return nullptr;
 }
 
 TCancelableContextPtr TOperationControllerBase::GetCancelableContext() const
@@ -2679,156 +2738,6 @@ void TOperationControllerBase::LockLivePreviewTables()
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking live preview tables");
 
     LOG_INFO("Live preview tables locked");
-}
-
-void TOperationControllerBase::GetInputTablesBasicAttributes()
-{
-    LOG_INFO("Getting basic attributes of input tables");
-
-    auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
-    TObjectServiceProxy proxy(channel);
-
-    auto batchReq = proxy.ExecuteBatch();
-
-    for (const auto& table : InputTables) {
-        auto req = TTableYPathProxy::GetBasicAttributes(table.Path.GetPath());
-        req->set_permissions(static_cast<ui32>(EPermission::Read));
-        SetTransactionId(req, InputTransactionId);
-        batchReq->AddRequest(req, "get_basic_attributes");
-    }
-
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of input tables");
-    const auto& batchRsp = batchRspOrError.Value();
-
-    auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
-    for (int index = 0; index < InputTables.size(); ++index) {
-        auto& table = InputTables[index];
-        auto path = table.Path.GetPath();
-
-        {
-            const auto& rspOrError = rspsOrError[index];
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of input table %v",
-                path);
-            const auto& rsp = rspOrError.Value();
-
-            table.ObjectId = FromProto<TObjectId>(rsp->object_id());
-            table.CellTag = rsp->cell_tag();
-
-            auto type = TypeFromId(table.ObjectId);
-            if (type != EObjectType::Table) {
-                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                    table.Path.GetPath(),
-                    EObjectType::Table,
-                    type);
-            }
-
-            LOG_INFO("Basic attributes of input table received (Path: %v, ObjectId: %v, CellTag: %v)",
-                path,
-                table.ObjectId,
-                table.CellTag);
-        }
-    }
-}
-
-void TOperationControllerBase::GetOutputTablesBasicAttributes()
-{
-    LOG_INFO("Getting basic attributes of output tables");
-
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
-    TObjectServiceProxy proxy(channel);
-
-    auto batchReq = proxy.ExecuteBatch();
-
-    for (const auto& table : OutputTables) {
-        auto req = TTableYPathProxy::GetBasicAttributes(table.Path.GetPath());
-        req->set_permissions(static_cast<ui32>(EPermission::Write));
-        SetTransactionId(req, OutputTransactionId);
-        batchReq->AddRequest(req, "get_basic_attributes");
-    }
-
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of output tables");
-    const auto& batchRsp = batchRspOrError.Value();
-
-    yhash_set<TObjectId> outputTableIds;
-
-    auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
-    for (int index = 0; index < OutputTables.size(); ++index) {
-        auto& table = OutputTables[index];
-        const auto& path = table.Path.GetPath();
-        {
-            const auto& rspOrError = rspsOrError[index];
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of output table %v",
-                path);
-            const auto& rsp = rspOrError.Value();
-
-            table.ObjectId = FromProto<TObjectId>(rsp->object_id());
-            table.CellTag = rsp->cell_tag();
-
-            if (outputTableIds.find(table.ObjectId) != outputTableIds.end()) {
-                THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
-                    path);
-            }
-            outputTableIds.insert(table.ObjectId);
-
-            auto type = TypeFromId(table.ObjectId);
-            if (type != EObjectType::Table) {
-                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                    table.Path.GetPath(),
-                    EObjectType::Table,
-                    type);
-            }
-
-            LOG_INFO("Basic attributes of output table received (Path: %v, ObjectId: %v, CellTag: %v)",
-                path,
-                table.ObjectId,
-                table.CellTag);
-        }
-    }
-}
-
-void TOperationControllerBase::GetFilesBasicAttributes(std::vector<TUserFile>* files)
-{
-    LOG_INFO("Getting basic attributes of files");
-
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
-    TObjectServiceProxy proxy(channel);
-
-    auto batchReq = proxy.ExecuteBatch();
-
-    for (const auto& file : *files) {
-        auto req = TObjectYPathProxy::GetBasicAttributes(file.Path.GetPath());
-        req->set_permissions(static_cast<ui32>(EPermission::Read));
-        SetTransactionId(req, InputTransactionId);
-        batchReq->AddRequest(req, "get_basic_attributes");
-    }
-
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of files");
-    const auto& batchRsp = batchRspOrError.Value();
-
-    auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
-    for (int index = 0; index < files->size(); ++index) {
-        auto& file = (*files)[index];
-        const auto& path = file.Path.GetPath();
-        const auto& rspOrError = rspsOrError[index];
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of file %v",
-            path);
-        const auto& rsp = rspOrError.Value();
-
-        file.ObjectId = FromProto<TObjectId>(rsp->object_id());
-        file.CellTag = rsp->cell_tag();
-
-        file.Type = TypeFromId(file.ObjectId);
-        if (file.Type != EObjectType::File && file.Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
-                path,
-                EObjectType::File,
-                EObjectType::Table,
-                file.Type);
-        }
-    }
 }
 
 void TOperationControllerBase::FetchInputTables()
@@ -3856,6 +3765,11 @@ void TOperationControllerBase::RemoveJoblet(const TJobId& jobId)
     YCHECK(JobletMap.erase(jobId) == 1);
 }
 
+bool TOperationControllerBase::HasProgress() const
+{
+    return IsPrepared();
+}
+
 void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
 {
     VERIFY_INVOKER_AFFINITY(Invoker);
@@ -4176,8 +4090,6 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 
     Persist(context, OutputTables);
 
-    Persist(context, IntermediateOutputCellTag);
-
     Persist(context, IntermediateTable);
 
     Persist(context, Files);
@@ -4187,6 +4099,8 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, TaskGroups);
 
     Persist(context, InputChunkMap);
+
+    Persist(context, IntermediateOutputCellTag);
 
     Persist(context, CellTagToOutputTableCount);
 
@@ -4198,13 +4112,6 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 
     Persist(context, JobletMap);
 
-    Persist(context, JobIndexGenerator);
-
-    Persist(context, JobStatistics);
-
-    Persist(context, RowCountLimitTableIndex);
-    Persist(context, RowCountLimit);
-
     // NB: Scheduler snapshots need not be stable.
     Persist<
         TSetSerializer<
@@ -4212,6 +4119,13 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
             TUnsortedTag
         >
     >(context, InputChunkSpecs);
+
+    Persist(context, JobIndexGenerator);
+
+    Persist(context, JobStatistics);
+
+    Persist(context, RowCountLimitTableIndex);
+    Persist(context, RowCountLimit);
 
     if (context.IsLoad()) {
         for (const auto& task : Tasks) {

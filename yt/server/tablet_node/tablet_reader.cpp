@@ -93,6 +93,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 
     auto rowMerger = New<TSchemafulRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
+        tabletSnapshot->Schema.Columns().size(),
         tabletSnapshot->Schema.GetKeyColumnCount(),
         columnFilter,
         tabletSnapshot->ColumnEvaluator);
@@ -168,6 +169,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
         rowBuffer
             ? std::move(rowBuffer)
             : New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
+        tabletSnapshot->Schema.Columns().size(),
         tabletSnapshot->Schema.GetKeyColumnCount(),
         columnFilter,
         tabletSnapshot->ColumnEvaluator);

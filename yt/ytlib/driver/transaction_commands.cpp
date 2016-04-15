@@ -1,3 +1,4 @@
+#include "config.h"
 #include "transaction_commands.h"
 
 #include <yt/ytlib/api/transaction.h>
@@ -27,11 +28,19 @@ void TStartTransactionCommand::Execute(ICommandContextPtr context)
         Options.Attributes = ConvertToAttributes(Attributes);
     }
 
-    auto transactionOrError = WaitFor(context->GetClient()->StartTransaction(
-        ETransactionType::Master,
-        Options));
+    if (!Sticky && Type != ETransactionType::Master) {
+        THROW_ERROR_EXCEPTION("Only master transactions could be non-sticky")
+            << TErrorAttribute("requested_transaction_type", Type);
+    }
 
-    auto transaction = transactionOrError.ValueOrThrow();
+    auto transaction = WaitFor(context->GetClient()->StartTransaction(Type, Options))
+        .ValueOrThrow();
+
+    if (Sticky) {
+        auto timeout = Options.Timeout.Get(context->GetConfig()->TransactionManager->DefaultTransactionTimeout);
+        context->PinTransaction(transaction, timeout);
+    }
+
     transaction->Detach();
 
     context->ProduceOutputValue(BuildYsonStringFluently()
@@ -43,8 +52,14 @@ void TStartTransactionCommand::Execute(ICommandContextPtr context)
 void TPingTransactionCommand::Execute(ICommandContextPtr context)
 {
     // Specially for evvers@ :)
-    if (!Options.TransactionId)
+    if (!Options.TransactionId) {
         return;
+    }
+
+    auto stickyTransaction = context->FindAndTouchTransaction(Options.TransactionId);
+    if (stickyTransaction) {
+        return;
+    }
 
     auto transaction = AttachTransaction(context, true);
     WaitFor(transaction->Ping())
@@ -55,7 +70,12 @@ void TPingTransactionCommand::Execute(ICommandContextPtr context)
 
 void TCommitTransactionCommand::Execute(ICommandContextPtr context)
 {
-    auto transaction = AttachTransaction(context, true);
+    auto transaction = context->FindAndTouchTransaction(Options.TransactionId);
+    if (!transaction) {
+        transaction = AttachTransaction(context, true);
+    } else {
+        context->UnpinTransaction(Options.TransactionId);
+    }
 
     WaitFor(transaction->Commit(Options))
         .ThrowOnError();
@@ -65,7 +85,12 @@ void TCommitTransactionCommand::Execute(ICommandContextPtr context)
 
 void TAbortTransactionCommand::Execute(ICommandContextPtr context)
 {
-    auto transaction = AttachTransaction(context, true);
+    auto transaction = context->FindAndTouchTransaction(Options.TransactionId);
+    if (!transaction) {
+        transaction = AttachTransaction(context, true);
+    } else {
+        context->UnpinTransaction(Options.TransactionId);
+    }
 
     WaitFor(transaction->Abort(Options))
         .ThrowOnError();

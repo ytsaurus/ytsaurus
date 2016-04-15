@@ -12,6 +12,7 @@ import sys
 import logging
 import uuid
 import shutil
+import subprocess
 from time import sleep
 from threading import Thread
 
@@ -114,7 +115,14 @@ class YTEnvSetup(YTEnv):
         yt_commands.driver = None
         gc.collect()
 
-        if SANDBOX_STORAGE_ROOTDIR is not None and os.path.exists(cls.path_to_run):
+        if not os.path.exists(cls.path_to_run):
+            return
+
+        # XXX(asaitgalin): Ensure tests running user has enough permissions to manipulate YT sandbox.
+        # Jobs sandboxes are owned by special user by default (see /exec_agent/slot_manager/start_uid in node config)
+        subprocess.check_call(["sudo", "chown", "-R", "{0}:{1}".format(os.getuid(), os.getgid()), cls.path_to_run])
+
+        if SANDBOX_STORAGE_ROOTDIR is not None:
             makedirp(SANDBOX_STORAGE_ROOTDIR)
 
             destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name, cls.run_id)

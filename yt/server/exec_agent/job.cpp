@@ -119,6 +119,7 @@ public:
         Slot_ = slotManager->AcquireSlot();
 
         auto invoker = CancelableContext_->CreateInvoker(Slot_->GetInvoker());
+
         BIND(&TJob::Run, MakeWeak(this))
             .AsyncVia(invoker)
             .Run();
@@ -244,6 +245,7 @@ public:
     virtual std::vector<TChunkId> DumpInputContexts() const override
     {
         ValidateJobRunning();
+
         auto jobProberProxy = CreateJobProber();
         auto req = jobProberProxy.DumpInputContext();
 
@@ -258,6 +260,7 @@ public:
     virtual TYsonString Strace() const override
     {
         ValidateJobRunning();
+
         auto jobProberProxy = CreateJobProber();
         auto req = jobProberProxy.Strace();
 
@@ -274,6 +277,7 @@ public:
         ValidateJobRunning();
 
         Signaled_ = true;
+
         auto jobProberProxy = CreateJobProber();
         auto req = jobProberProxy.SignalJob();
 
@@ -297,6 +301,7 @@ private:
     EJobPhase JobPhase_ = EJobPhase::Created;
 
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
+
     TFuture<void> PrepareResult_ = VoidFuture;
 
     double Progress_ = 0.0;
@@ -461,7 +466,8 @@ private:
 
     void PrepareConfig()
     {
-        LOG_INFO("Started preparing job proxy config");
+        LOG_INFO("Preparing job proxy config");
+
         INodePtr ioConfigNode;
         try {
             const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -737,7 +743,7 @@ private:
         }
 
         if (Signaled_) {
-            return EAbortReason::Other;
+            return EAbortReason::UserRequest;
         }
 
         return Null;
