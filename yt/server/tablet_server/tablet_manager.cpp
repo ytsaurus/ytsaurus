@@ -91,6 +91,7 @@ using namespace NCellMaster;
 
 using NTabletNode::TTableMountConfigPtr;
 using NTabletNode::EInMemoryMode;
+using NTabletNode::EStoreType;
 using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
 using NNodeTrackerClient::TNodeDescriptor;
 
@@ -458,11 +459,6 @@ public:
         return std::distance(range.first, range.second);
     }
 
-    TTableSchema GetTableSchema(TTableNode* table)
-    {
-        return table->TableSchema();
-    }
-
     TTabletStatistics GetTabletStatistics(const TTablet* tablet)
     {
         const auto* table = tablet->GetTable();
@@ -515,7 +511,6 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
-        auto schema = GetTableSchema(table); // may throw
 
         TTabletCell* hintedCell;
         if (!cellId) {
@@ -566,10 +561,6 @@ public:
         for (const auto& pair : assignment) {
             auto* tablet = pair.first;
             int tabletIndex = tablet->GetIndex();
-            auto pivotKey = tablet->GetPivotKey();
-            auto nextPivotKey = tablet->GetIndex() + 1 == allTablets.size()
-                ? MaxKey()
-                : allTablets[tabletIndex + 1]->GetPivotKey();
 
             auto* cell = pair.second;
             tablet->SetCell(cell);
@@ -587,20 +578,23 @@ public:
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             req.set_mount_revision(tablet->GetMountRevision());
             ToProto(req.mutable_table_id(), table->GetId());
-            ToProto(req.mutable_schema(), schema);
-            ToProto(req.mutable_key_columns()->mutable_names(), table->TableSchema().GetKeyColumns()); // max42: What do we do here?
-            ToProto(req.mutable_pivot_key(), pivotKey);
-            ToProto(req.mutable_next_pivot_key(), nextPivotKey);
+            ToProto(req.mutable_schema(), table->TableSchema());
+            if (table->IsSorted()) {
+                ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
+                ToProto(req.mutable_next_pivot_key(), tablet->GetIndex() + 1 == allTablets.size()
+                    ? MaxKey()
+                    : allTablets[tabletIndex + 1]->GetPivotKey());
+            }
             req.set_mount_config(serializedMountConfig.Data());
             req.set_writer_options(serializedWriterOptions.Data());
             req.set_atomicity(static_cast<int>(table->GetAtomicity()));
 
             auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
             auto chunks = EnumerateChunksInChunkTree(chunkList);
+            auto storeType = table->IsSorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
             for (const auto* chunk : chunks) {
                 auto* descriptor = req.add_stores();
-                // XXX(babenko): generalize
-                descriptor->set_store_type(static_cast<int>(NTabletNode::EStoreType::SortedChunk));
+                descriptor->set_store_type(static_cast<int>(storeType));
                 ToProto(descriptor->mutable_store_id(), chunk->GetId());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunk->ChunkMeta());
             }
@@ -723,6 +717,7 @@ public:
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
+        int newTabletCount,
         const std::vector<TOwningKey>& pivotKeys)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -741,45 +736,43 @@ public:
         YCHECK(tablets.size() == table->GetChunkList()->Children().size());
 
         int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
-        int newTabletCount = static_cast<int>(pivotKeys.size());
-
         if (tablets.size() - oldTabletCount + newTabletCount > MaxTabletCount) {
             THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %v",
                 MaxTabletCount);
         }
 
-        if (!pivotKeys.empty()) {
-            if (firstTabletIndex > lastTabletIndex) {
-                if (pivotKeys[0] != EmptyKey()) {
-                    THROW_ERROR_EXCEPTION("First pivot key must be empty");
-                }
-            } else {
-                if (pivotKeys[0] != tablets[firstTabletIndex]->GetPivotKey()) {
-                    THROW_ERROR_EXCEPTION(
-                        "First pivot key must match that of the first tablet "
-                        "in the resharded range");
-                }
+        if (table->IsSorted()) {
+            if (pivotKeys.empty()) {
+                THROW_ERROR_EXCEPTION("Table is sorted; must provide pivot keys");
             }
-        }
 
-        for (int index = 0; index < static_cast<int>(pivotKeys.size()) - 1; ++index) {
-            if (pivotKeys[index] >= pivotKeys[index + 1]) {
-                THROW_ERROR_EXCEPTION("Pivot keys must be strictly increasing");
-            }
-        }
-
-        // Validate pivot keys against table schema.
-        auto schema = GetTableSchema(table);
-        int keyColumnCount = table->TableSchema().GetKeyColumns().size();
-        for (const auto& pivotKey : pivotKeys) {
-            ValidatePivotKey(pivotKey, schema);
-        }
-
-        if (lastTabletIndex != tablets.size() - 1) {
-            if (pivotKeys.back() >= tablets[lastTabletIndex + 1]->GetPivotKey()) {
+            if (pivotKeys[0] != tablets[firstTabletIndex]->GetPivotKey()) {
                 THROW_ERROR_EXCEPTION(
-                    "Last pivot key must be strictly less than that of the tablet "
-                    "which follows the resharded range");
+                    "First pivot key must match that of the first tablet "
+                        "in the resharded range");
+            }
+
+            if (lastTabletIndex != tablets.size() - 1) {
+                if (pivotKeys.back() >= tablets[lastTabletIndex + 1]->GetPivotKey()) {
+                    THROW_ERROR_EXCEPTION(
+                        "Last pivot key must be strictly less than that of the tablet "
+                            "which follows the resharded range");
+                }
+            }
+
+            for (int index = 0; index < static_cast<int>(pivotKeys.size()) - 1; ++index) {
+                if (pivotKeys[index] >= pivotKeys[index + 1]) {
+                    THROW_ERROR_EXCEPTION("Pivot keys must be strictly increasing");
+                }
+            }
+
+            // Validate pivot keys against table schema.
+            for (const auto& pivotKey : pivotKeys) {
+                ValidatePivotKey(pivotKey, table->TableSchema());
+            }
+        } else {
+            if (!pivotKeys.empty()) {
+                THROW_ERROR_EXCEPTION("Table is sorted; must provide tablet count");
             }
         }
 
@@ -798,7 +791,9 @@ public:
         std::vector<TTablet*> newTablets;
         for (int index = 0; index < newTabletCount; ++index) {
             auto* tablet = CreateTablet(table);
-            tablet->SetPivotKey(pivotKeys[index]);
+            if (table->IsSorted()) {
+                tablet->SetPivotKey(pivotKeys[index]);
+            }
             newTablets.push_back(tablet);
         }
 
@@ -832,26 +827,37 @@ public:
             chunkLists.data() + lastTabletIndex + 1,
             chunkLists.data() + chunkLists.size());
 
-        // Move chunks from the resharded tablets to appropriate chunk lists.
         std::vector<TChunk*> chunks;
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             EnumerateChunksInChunkTree(chunkLists[index]->AsChunkList(), &chunks);
         }
 
-        std::sort(chunks.begin(), chunks.end(), TObjectRefComparer::Compare);
-        chunks.erase(
-            std::unique(chunks.begin(), chunks.end()),
-            chunks.end());
+        if (table->IsSorted()) {
+            // Move chunks from the resharded tablets to appropriate chunk lists.
+            std::sort(chunks.begin(), chunks.end(), TObjectRefComparer::Compare);
+            chunks.erase(
+                std::unique(chunks.begin(), chunks.end()),
+                chunks.end());
 
-        for (auto* chunk : chunks) {
-            auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
-            auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumnCount);
-            auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumnCount);
-            auto range = GetIntersectingTablets(newTablets, minKey, maxKey);
-            for (auto it = range.first; it != range.second; ++it) {
-                auto* tablet = *it;
+            int keyColumnCount = table->TableSchema().GetKeyColumnCount();
+            for (auto* chunk : chunks) {
+                auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
+                auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumnCount);
+                auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumnCount);
+                auto range = GetIntersectingTablets(newTablets, minKey, maxKey);
+                for (auto it = range.first; it != range.second; ++it) {
+                    auto* tablet = *it;
+                    chunkManager->AttachToChunkList(
+                        newRootChunkList->Children()[tablet->GetIndex()]->AsChunkList(),
+                        chunk);
+                }
+            }
+        } else {
+            // Move chunks from the resharded tablets to the first tablet.
+            auto* destinationTablet = newTablets[0];
+            for (auto* chunk : chunks) {
                 chunkManager->AttachToChunkList(
-                    newRootChunkList->Children()[tablet->GetIndex()]->AsChunkList(),
+                    newRootChunkList->Children()[destinationTablet->GetIndex()]->AsChunkList(),
                     chunk);
             }
         }
@@ -866,27 +872,93 @@ public:
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
     }
 
-    void MakeDynamic(TTableNode* table)
+    void MakeTableDynamic(TTableNode* table)
     {
+        YCHECK(table->IsTrunk());
+
         if (table->IsDynamic()) {
             return;
         }
 
-        auto* rootChunkList = table->GetChunkList();
-        if (!rootChunkList->Children().empty()) {
-            THROW_ERROR_EXCEPTION("Table is not empty");
+        auto* oldRootChunkList = table->GetChunkList();
+
+        if (table->IsSorted() && !oldRootChunkList->Children().empty()) {
+            THROW_ERROR_EXCEPTION("Cannot switch a static non-empty sorted table into dynamic mode");
         }
+
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto newRootChunkList = chunkManager->CreateChunkList();
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(newRootChunkList);
+
+        table->SetChunkList(newRootChunkList);
+        newRootChunkList->AddOwningNode(table);
 
         auto* tablet = CreateTablet(table);
         tablet->SetIndex(0);
-        tablet->SetPivotKey(EmptyKey());
+        if (table->IsSorted()) {
+            tablet->SetPivotKey(EmptyKey());
+        }
         table->Tablets().push_back(tablet);
 
-        auto chunkManager = Bootstrap_->GetChunkManager();
         auto* tabletChunkList = chunkManager->CreateChunkList();
-        chunkManager->AttachToChunkList(rootChunkList, tabletChunkList);
+        chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
+
+        // NB: This only makes sense for ordered tables.
+        std::vector<TChunk*> chunks;
+        EnumerateChunksInChunkTree(oldRootChunkList, &chunks);
+        std::vector<TChunkTree*> chunkTrees(chunks.begin(), chunks.end());
+        chunkManager->AttachToChunkList(tabletChunkList, chunkTrees);
+
+        oldRootChunkList->RemoveOwningNode(table);
+        objectManager->UnrefObject(oldRootChunkList);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to dynamic mode (TableId: %v)",
+            table->GetId());
+    }
+
+    void MakeTableStatic(TTableNode* table)
+    {
+        YCHECK(table->IsTrunk());
+
+        if (!table->IsDynamic()) {
+            return;
+        }
+
+        if (table->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Cannot switch a sorted table static to dynamic mode");
+        }
+
+        if (table->HasMountedTablets()) {
+            THROW_ERROR_EXCEPTION("Cannot switch a dynamic table with mounted tablets to static mode");
+        }
+
+        auto* oldRootChunkList = table->GetChunkList();
+
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto newRootChunkList = chunkManager->CreateChunkList();
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(newRootChunkList);
+
+        table->SetChunkList(newRootChunkList);
+        newRootChunkList->AddOwningNode(table);
+
+        std::vector<TChunk*> chunks;
+        EnumerateChunksInChunkTree(oldRootChunkList, &chunks);
+        std::vector<TChunkTree*> chunkTrees(chunks.begin(), chunks.end());
+        chunkManager->AttachToChunkList(newRootChunkList, chunkTrees);
+
+        oldRootChunkList->RemoveOwningNode(table);
+        objectManager->UnrefObject(oldRootChunkList);
+
+        for (auto* tablet : table->Tablets()) {
+            objectManager->UnrefObject(tablet);
+        }
+        table->Tablets().clear();
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to static mode (TableId: %v)",
             table->GetId());
     }
 
@@ -1938,9 +2010,6 @@ private:
             *first = 0;
             *last = static_cast<int>(tablets.size() - 1);
         } else {
-            if (tablets.empty()) {
-                THROW_ERROR_EXCEPTION("Table has no tablets");
-            }
             if (*first < 0 || *first >= tablets.size()) {
                 THROW_ERROR_EXCEPTION("First tablet index %v is out of range [%v, %v]",
                     *first,
@@ -2199,11 +2268,6 @@ int TTabletManager::GetAssignedTabletCellCount(const Stroka& address) const
     return Impl_->GetAssignedTabletCellCount(address);
 }
 
-TTableSchema TTabletManager::GetTableSchema(TTableNode* table)
-{
-    return Impl_->GetTableSchema(table);
-}
-
 TTabletStatistics TTabletManager::GetTabletStatistics(const TTablet* tablet)
 {
     return Impl_->GetTabletStatistics(tablet);
@@ -2255,18 +2319,25 @@ void TTabletManager::ReshardTable(
     TTableNode* table,
     int firstTabletIndex,
     int lastTabletIndex,
+    int newTabletCount,
     const std::vector<TOwningKey>& pivotKeys)
 {
     Impl_->ReshardTable(
         table,
         firstTabletIndex,
         lastTabletIndex,
+        newTabletCount,
         pivotKeys);
 }
 
-void TTabletManager::MakeDynamic(TTableNode* table)
+void TTabletManager::MakeTableDynamic(TTableNode* table)
 {
-    Impl_->MakeDynamic(table);
+    Impl_->MakeTableDynamic(table);
+}
+
+void TTabletManager::MakeTableStatic(TTableNode* table)
+{
+    Impl_->MakeTableStatic(table);
 }
 
 TTabletCell* TTabletManager::GetTabletCellOrThrow(const TTabletCellId& id)

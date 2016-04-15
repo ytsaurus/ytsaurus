@@ -21,6 +21,15 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TAddStoreDescriptor;
+class TRemoveStoreDescriptor;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NElection::TCellId;
 using NElection::NullCellId;
 
@@ -89,6 +98,8 @@ DEFINE_ENUM(ETabletState,
 DEFINE_ENUM(EStoreType,
     (SortedDynamic)
     (SortedChunk)
+    (OrderedDynamic)
+    (OrderedChunk)
 );
 
 DEFINE_ENUM(EStoreState,
@@ -184,8 +195,12 @@ DECLARE_REFCOUNTED_STRUCT(IOrderedStore)
 DECLARE_REFCOUNTED_CLASS(TSortedDynamicStore)
 DECLARE_REFCOUNTED_CLASS(TSortedChunkStore)
 
+DECLARE_REFCOUNTED_CLASS(TOrderedDynamicStore)
+DECLARE_REFCOUNTED_CLASS(TOrderedChunkStore)
+
 DECLARE_REFCOUNTED_STRUCT(IStoreManager)
 DECLARE_REFCOUNTED_CLASS(TSortedStoreManager)
+DECLARE_REFCOUNTED_CLASS(TOrderedStoreManager)
 
 DECLARE_REFCOUNTED_CLASS(TSecurityManager)
 
@@ -194,7 +209,6 @@ DECLARE_REFCOUNTED_CLASS(TInMemoryManager)
 
 struct TSortedDynamicRowHeader;
 class TSortedDynamicRow;
-struct TSortedDynamicRowRef;
 
 union TDynamicValueData;
 struct TDynamicValue;

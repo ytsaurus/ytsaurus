@@ -2,30 +2,64 @@
 #include "private.h"
 #include "automaton.h"
 #include "tablet.h"
+#include "config.h"
+
+#include <yt/server/data_node/chunk_registry.h>
+#include <yt/server/data_node/chunk.h>
+#include <yt/server/data_node/chunk_block_manager.h>
+#include <yt/server/data_node/chunk_registry.h>
+#include <yt/server/data_node/local_chunk_reader.h>
+
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
+
+#include <yt/ytlib/table_client/row_buffer.h>
+
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/core/ytree/fluent.h>
+
+#include <yt/core/concurrency/delayed_executor.h>
 
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
+using namespace NTableClient;
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
+using namespace NTransactionClient;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
+using namespace NApi;
+using namespace NDataNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 MemoryUsageGranularity = (i64) 1024 * 1024;
+static const auto ChunkExpirationTimeout = TDuration::Seconds(15);
+static const auto ChunkReaderExpirationTimeout = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreBase::TStoreBase(
+    TTabletManagerConfigPtr config,
     const TStoreId& id,
     TTablet* tablet)
-    : StoreId_(id)
+    : Config_(std::move(config))
+    , StoreId_(id)
     , Tablet_(tablet)
     , PerformanceCounters_(Tablet_->GetPerformanceCounters())
     , TabletId_(Tablet_->GetId())
     , Schema_(Tablet_->Schema())
-    , KeyColumns_(Tablet_->KeyColumns())
     , KeyColumnCount_(Tablet_->GetKeyColumnCount())
     , SchemaColumnCount_(Tablet_->GetSchemaColumnCount())
     , ColumnLockCount_(Tablet_->GetColumnLockCount())
@@ -33,7 +67,9 @@ TStoreBase::TStoreBase(
     , ColumnIndexToLockIndex_(Tablet_->ColumnIndexToLockIndex())
 {
     Logger = TabletNodeLogger;
-    Logger.AddTag("StoreId: %v", StoreId_);
+    Logger.AddTag("StoreId: %v, TabletId: %v",
+        StoreId_,
+        TabletId_);
 }
 
 TStoreBase::~TStoreBase()
@@ -91,12 +127,12 @@ void TStoreBase::SetMemoryUsage(i64 value)
 
 TOwningKey TStoreBase::RowToKey(TUnversionedRow row)
 {
-    return NTabletNode::RowToKey(Schema_, KeyColumns_, row);
+    return NTabletNode::RowToKey(Schema_, row);
 }
 
 TOwningKey TStoreBase::RowToKey(TSortedDynamicRow row)
 {
-    return NTabletNode::RowToKey(Schema_, KeyColumns_, row);
+    return NTabletNode::RowToKey(Schema_, row);
 }
 
 void TStoreBase::Save(TSaveContext& context) const
@@ -117,11 +153,119 @@ void TStoreBase::BuildOrchidYson(IYsonConsumer* consumer)
         .Item("store_state").Value(StoreState_);
 }
 
+bool TStoreBase::IsDynamic() const
+{
+    return false;
+}
+
+IDynamicStorePtr TStoreBase::AsDynamic()
+{
+    YUNREACHABLE();
+}
+
+bool TStoreBase::IsChunk() const
+{
+    return false;
+}
+
+IChunkStorePtr TStoreBase::AsChunk()
+{
+    YUNREACHABLE();
+}
+
+bool TStoreBase::IsSorted() const
+{
+    return false;
+}
+
+ISortedStorePtr TStoreBase::AsSorted()
+{
+    YUNREACHABLE();
+}
+
+TSortedDynamicStorePtr TStoreBase::AsSortedDynamic()
+{
+    YUNREACHABLE();
+}
+
+TSortedChunkStorePtr TStoreBase::AsSortedChunk()
+{
+    YUNREACHABLE();
+}
+
+bool TStoreBase::IsOrdered() const
+{
+    return false;
+}
+
+IOrderedStorePtr TStoreBase::AsOrdered()
+{
+    YUNREACHABLE();
+}
+
+TOrderedDynamicStorePtr TStoreBase::AsOrderedDynamic()
+{
+    YUNREACHABLE();
+}
+
+TOrderedChunkStorePtr TStoreBase::AsOrderedChunk()
+{
+    YUNREACHABLE();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicStoreBase::TDynamicStoreBase(const TStoreId& id, TTablet* tablet)
-    : TStoreBase(id, tablet)
-{ }
+TDynamicStoreBase::TDynamicStoreBase(
+    TTabletManagerConfigPtr config,
+    const TStoreId& id,
+    TTablet* tablet)
+    : TStoreBase(std::move(config), id, tablet)
+    , Atomicity_(Tablet_->GetAtomicity())
+    , RowBuffer_(New<TRowBuffer>(
+        Config_->PoolChunkSize,
+        Config_->MaxPoolSmallBlockRatio))
+{
+    StoreState_ = EStoreState::ActiveDynamic;
+}
+
+i64 TDynamicStoreBase::GetLockCount() const
+{
+    return StoreLockCount_;
+}
+
+i64 TDynamicStoreBase::Lock()
+{
+    YASSERT(Atomicity_ == EAtomicity::Full);
+
+    auto result = ++StoreLockCount_;
+    LOG_TRACE("Store locked (Count: %v)",
+        result);
+    return result;
+}
+
+i64 TDynamicStoreBase::Unlock()
+{
+    YASSERT(Atomicity_ == EAtomicity::Full);
+    YASSERT(StoreLockCount_ > 0);
+
+    auto result = --StoreLockCount_;
+    LOG_TRACE("Store unlocked (Count: %v)",
+        result);
+    return result;
+}
+
+void TDynamicStoreBase::SetStoreState(EStoreState state)
+{
+    if (StoreState_ == EStoreState::ActiveDynamic && state == EStoreState::PassiveDynamic) {
+        OnSetPassive();
+    }
+    TStoreBase::SetStoreState(state);
+}
+
+i64 TDynamicStoreBase::GetUncompressedDataSize() const
+{
+    return GetPoolCapacity();
+}
 
 EStoreFlushState TDynamicStoreBase::GetFlushState() const
 {
@@ -133,11 +277,152 @@ void TDynamicStoreBase::SetFlushState(EStoreFlushState state)
     FlushState_ = state;
 }
 
+i64 TDynamicStoreBase::GetValueCount() const
+{
+    return StoreValueCount_;
+}
+
+i64 TDynamicStoreBase::GetPoolSize() const
+{
+    return RowBuffer_->GetSize();
+}
+
+i64 TDynamicStoreBase::GetPoolCapacity() const
+{
+    return RowBuffer_->GetCapacity();
+}
+
+void TDynamicStoreBase::BuildOrchidYson(IYsonConsumer* consumer)
+{
+    TStoreBase::BuildOrchidYson(consumer);
+
+    BuildYsonMapFluently(consumer)
+        .Item("flush_state").Value(FlushState_)
+        .Item("row_count").Value(GetRowCount())
+        .Item("lock_count").Value(GetLockCount())
+        .Item("value_count").Value(GetValueCount())
+        .Item("pool_size").Value(GetPoolSize())
+        .Item("pool_capacity").Value(GetPoolCapacity());
+}
+
+bool TDynamicStoreBase::IsDynamic() const
+{
+    return true;
+}
+
+IDynamicStorePtr TDynamicStoreBase::AsDynamic()
+{
+    return this;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
-TChunkStoreBase::TChunkStoreBase(const TStoreId& id, TTablet* tablet)
-    : TStoreBase(id, tablet)
-{ }
+TChunkStoreBase::TChunkStoreBase(
+    TTabletManagerConfigPtr config,
+    const TStoreId& id,
+    TTablet* tablet,
+    IBlockCachePtr blockCache,
+    TChunkRegistryPtr chunkRegistry,
+    TChunkBlockManagerPtr chunkBlockManager,
+    IClientPtr client,
+    const TNullable<TNodeDescriptor>& localDescriptor)
+    : TStoreBase(std::move(config), id, tablet)
+    , BlockCache_(std::move(blockCache))
+    , ChunkRegistry_(std::move(chunkRegistry))
+    , ChunkBlockManager_(std::move(chunkBlockManager))
+    , Client_(std::move(client))
+    , LocalDescriptor_(localDescriptor)
+    , ChunkMeta_(New<TRefCountedChunkMeta>())
+{
+    YCHECK(
+        TypeFromId(StoreId_) == EObjectType::Chunk ||
+        TypeFromId(StoreId_) == EObjectType::ErasureChunk);
+
+    StoreState_ = EStoreState::Persistent;
+}
+
+void TChunkStoreBase::Initialize(const TChunkMeta* chunkMeta)
+{
+    SetInMemoryMode(Tablet_->GetConfig()->InMemoryMode);
+
+    if (chunkMeta) {
+        ChunkMeta_->CopyFrom(*chunkMeta);
+        PrecacheProperties();
+    }
+}
+
+const TChunkMeta& TChunkStoreBase::GetChunkMeta() const
+{
+    return *ChunkMeta_;
+}
+
+i64 TChunkStoreBase::GetUncompressedDataSize() const
+{
+    return MiscExt_.uncompressed_data_size();
+}
+
+i64 TChunkStoreBase::GetRowCount() const
+{
+    return MiscExt_.row_count();
+}
+
+TCallback<void(TSaveContext&)> TChunkStoreBase::AsyncSave()
+{
+    return BIND([chunkMeta = ChunkMeta_] (TSaveContext& context) {
+        using NYT::Save;
+
+        Save(context, *chunkMeta);
+    });
+}
+
+void TChunkStoreBase::AsyncLoad(TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, *ChunkMeta_);
+
+    PrecacheProperties();
+}
+
+void TChunkStoreBase::BuildOrchidYson(IYsonConsumer* consumer)
+{
+    TStoreBase::BuildOrchidYson(consumer);
+
+    auto backingStore = GetBackingStore();
+    BuildYsonMapFluently(consumer)
+        .Item("preload_state").Value(PreloadState_)
+        .Item("compaction_state").Value(CompactionState_)
+        .Item("compressed_data_size").Value(MiscExt_.compressed_data_size())
+        .Item("uncompressed_data_size").Value(MiscExt_.uncompressed_data_size())
+        .Item("row_count").Value(MiscExt_.row_count())
+        .DoIf(backingStore.operator bool(), [&] (TFluentMap fluent) {
+            fluent.Item("backing_store_id").Value(backingStore->GetId());
+        });
+}
+
+IDynamicStorePtr TChunkStoreBase::GetBackingStore()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(SpinLock_);
+    return BackingStore_;
+}
+
+void TChunkStoreBase::SetBackingStore(IDynamicStorePtr store)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TWriterGuard guard(SpinLock_);
+    BackingStore_ = std::move(store);
+}
+
+bool TChunkStoreBase::HasBackingStore() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(SpinLock_);
+    return BackingStore_.operator bool();
+}
 
 EStorePreloadState TChunkStoreBase::GetPreloadState() const
 {
@@ -169,10 +454,139 @@ void TChunkStoreBase::SetCompactionState(EStoreCompactionState state)
     CompactionState_ = state;
 }
 
+bool TChunkStoreBase::IsChunk() const
+{
+    return true;
+}
+
+IChunkStorePtr TChunkStoreBase::AsChunk()
+{
+    return this;
+}
+
+IChunkReaderPtr TChunkStoreBase::GetChunkReader()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto chunk = PrepareChunk();
+    auto chunkReader = PrepareChunkReader(std::move(chunk));
+
+    return chunkReader;
+}
+
+IChunkPtr TChunkStoreBase::PrepareChunk()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    {
+        TReaderGuard guard(SpinLock_);
+        if (ChunkInitialized_) {
+            return Chunk_;
+        }
+    }
+
+    auto chunk = ChunkRegistry_->FindChunk(StoreId_);
+
+    {
+        TWriterGuard guard(SpinLock_);
+        ChunkInitialized_ = true;
+        Chunk_ = chunk;
+    }
+
+    TDelayedExecutor::Submit(
+        BIND(&TChunkStoreBase::OnChunkExpired, MakeWeak(this)),
+        ChunkExpirationTimeout);
+
+    return chunk;
+}
+
+IChunkReaderPtr TChunkStoreBase::PrepareChunkReader(IChunkPtr chunk)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    {
+        TReaderGuard guard(SpinLock_);
+        if (ChunkReader_) {
+            return ChunkReader_;
+        }
+    }
+
+    auto readerConfig = Config_->ChunkReader;
+
+    IChunkReaderPtr chunkReader;
+    if (chunk && !chunk->IsRemoveScheduled()) {
+        chunkReader = CreateLocalChunkReader(
+            readerConfig,
+            chunk,
+            ChunkBlockManager_,
+            GetBlockCache(),
+            BIND(&TChunkStoreBase::OnLocalReaderFailed, MakeWeak(this)));
+    } else {
+        TChunkSpec chunkSpec;
+        ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
+        chunkSpec.set_erasure_codec(MiscExt_.erasure_codec());
+        *chunkSpec.mutable_chunk_meta() = *ChunkMeta_;
+
+        chunkReader = CreateRemoteReader(
+            chunkSpec,
+            readerConfig,
+            New<TRemoteReaderOptions>(),
+            Client_,
+            New<TNodeDirectory>(),
+            LocalDescriptor_,
+            GetBlockCache(),
+            GetUnlimitedThrottler());
+    }
+
+    {
+        TWriterGuard guard(SpinLock_);
+        ChunkReader_ = chunkReader;
+    }
+
+    TDelayedExecutor::Submit(
+        BIND(&TChunkStoreBase::OnChunkReaderExpired, MakeWeak(this)),
+        ChunkReaderExpirationTimeout);
+
+    return chunkReader;
+}
+
+void TChunkStoreBase::OnLocalReaderFailed()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    OnChunkExpired();
+    OnChunkReaderExpired();
+}
+
+void TChunkStoreBase::OnChunkExpired()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TWriterGuard guard(SpinLock_);
+    ChunkInitialized_ = false;
+    Chunk_.Reset();
+}
+
+void TChunkStoreBase::OnChunkReaderExpired()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TWriterGuard guard(SpinLock_);
+    ChunkReader_.Reset();
+}
+
+void TChunkStoreBase::PrecacheProperties()
+{
+    MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TSortedStoreBase::TSortedStoreBase(const TStoreId& id, TTablet* tablet)
-    : TStoreBase(id, tablet)
+TSortedStoreBase::TSortedStoreBase(
+    TTabletManagerConfigPtr config,
+    const TStoreId& id,
+    TTablet* tablet)
+    : TStoreBase(std::move(config), id, tablet)
 { }
 
 TPartition* TSortedStoreBase::GetPartition() const
@@ -183,6 +597,35 @@ TPartition* TSortedStoreBase::GetPartition() const
 void TSortedStoreBase::SetPartition(TPartition* partition)
 {
     Partition_ = partition;
+}
+
+bool TSortedStoreBase::IsSorted() const
+{
+    return true;
+}
+
+ISortedStorePtr TSortedStoreBase::AsSorted()
+{
+    return this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOrderedStoreBase::TOrderedStoreBase(
+    TTabletManagerConfigPtr config,
+    const TStoreId& id,
+    TTablet* tablet)
+    : TStoreBase(std::move(config), id, tablet)
+{ }
+
+bool TOrderedStoreBase::IsOrdered() const
+{
+    return true;
+}
+
+IOrderedStorePtr TOrderedStoreBase::AsOrdered()
+{
+    return this;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

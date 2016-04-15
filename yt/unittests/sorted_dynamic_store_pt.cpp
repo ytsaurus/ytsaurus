@@ -61,7 +61,7 @@ public:
                 transaction.get(),
                 row,
                 TSortedDynamicRow::PrimaryLockMask);
-            transaction->LockedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, dynamicRow));
+            transaction->LockedSortedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, dynamicRow));
 
             PrepareTransaction(transaction.get());
             Store_->PrepareRow(transaction.get(), dynamicRow);
@@ -97,12 +97,21 @@ private:
     virtual void SetUp() override
     {
         TSortedDynamicStoreTestBase::SetUp();
+        CreateDynamicStore();
+    }
 
+    virtual void CreateDynamicStore() override
+    {
         auto config = New<TTabletManagerConfig>();
         Store_ = New<TSortedDynamicStore>(
             config,
             TStoreId(),
             Tablet_.get());
+    }
+
+    virtual IDynamicStorePtr GetDynamicStore() override
+    {
+        return Store_;
     }
 
 

@@ -678,9 +678,12 @@ class TestTables(YTEnvSetup):
         self._check_replication_factor("//tmp/t", 2)
 
     def test_key_columns1(self):
-        create("table", "//tmp/t", schema = [
-            {"name": "a", "type": "any", "sort_order": "ascending"},
-            {"name": "b", "type": "any", "sort_order": "ascending"}])
+        create("table", "//tmp/t",
+                attributes = {
+                "schema": [
+                    {"name": "a", "type": "any", "sort_order": "ascending"},
+                    {"name": "b", "type": "any", "sort_order": "ascending"}]
+                })
         assert get("//tmp/t/@sorted")
         assert get("//tmp/t/@key_columns") == ["a", "b"]
 
@@ -785,6 +788,10 @@ class TestTables(YTEnvSetup):
 
         tabular_data = read_table("//tmp/t1", output_format=yson.loads("<columns=[column2;column3]>schemaful_dsv"))
         assert tabular_data == "value12\tvalue13\nvalue22\tvalue23\n"
+
+    def test_dynamic_table_schema_required(self):
+        with pytest.raises(YtError): create("table", "//tmp/t",
+            attributes={"dynamic": True})
 
 ##################################################################
 

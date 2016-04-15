@@ -8,12 +8,17 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
+#include <yt/ytlib/api/public.h>
+
 #include <yt/core/actions/future.h>
 
 namespace NYT {
 namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using TStoreFlushResult = std::vector<NTabletNode::NProto::TAddStoreDescriptor>;
+using TStoreFlushCallback = TCallback<TStoreFlushResult(NApi::ITransactionPtr transaction)>;
 
 //! Provides a facade for modifying data within a given tablet.
 /*!
@@ -75,7 +80,9 @@ struct IStoreManager
     virtual void BackoffStorePreload(IChunkStorePtr store) = 0;
 
     virtual bool IsStoreFlushable(IStorePtr store) const = 0;
-    virtual void BeginStoreFlush(IDynamicStorePtr store) = 0;
+    virtual TStoreFlushCallback BeginStoreFlush(
+        IDynamicStorePtr store,
+        TTabletSnapshotPtr tabletSnapshot) = 0;
     virtual void EndStoreFlush(IDynamicStorePtr store) = 0;
     virtual void BackoffStoreFlush(IDynamicStorePtr store) = 0;
 
@@ -87,6 +94,7 @@ struct IStoreManager
     virtual void Remount(
         TTableMountConfigPtr mountConfig,
         TTabletWriterOptionsPtr writerOptions) = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IStoreManager)

@@ -112,6 +112,23 @@ DECLARE_REFCOUNTED_CLASS(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUserWorkloadDescriptor::operator TWorkloadDescriptor() const
+{
+    TWorkloadDescriptor result;
+    switch (Category) {
+        case EUserWorkloadCategory::Realtime:
+            result.Category = EWorkloadCategory::UserRealtime;
+            break;
+        case EUserWorkloadCategory::Batch:
+            result.Category = EWorkloadCategory::UserBatch;
+            break;
+        default:
+            YUNREACHABLE();
+    }
+    result.Band = Band;
+    return result;
+}
+
 struct TSerializableUserWorkloadDescriptor
     : public TYsonSerializable
 {
@@ -249,21 +266,25 @@ IChannelPtr CreateTabletReadChannel(
         *options.BackupRequestDelay);
 }
 
-TTabletInfoPtr GetTabletForKey(
+TTabletInfoPtr GetTabletForRow(
     const TTableMountInfoPtr& tableInfo,
     NTableClient::TKey key)
 {
-    auto tabletInfo = tableInfo->GetTablet(key);
-    if (tabletInfo->State != ETabletState::Mounted) {
-        THROW_ERROR_EXCEPTION(
-            NTabletClient::EErrorCode::TabletNotMounted,
-            "Tablet %v of table %v is in %Qlv state",
-            tabletInfo->TabletId,
-            tableInfo->Path,
-            tabletInfo->State)
-            << TErrorAttribute("tablet_id", tabletInfo->TabletId);
+    if (tableInfo->Schema.IsSorted()) {
+        auto tabletInfo = tableInfo->GetTabletForRow(key);
+        if (tabletInfo->State != ETabletState::Mounted) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::TabletNotMounted,
+                "Tablet %v of table %v is in %Qlv state",
+                tabletInfo->TabletId,
+                tableInfo->Path,
+                tabletInfo->State)
+                << TErrorAttribute("tablet_id", tabletInfo->TabletId);
+        }
+        return tabletInfo;
+    } else {
+        return tableInfo->GetRandomMountedTabled();
     }
-    return tabletInfo;
 }
 
 } // namespace
@@ -444,11 +465,9 @@ private:
         auto info = WaitFor(tableMountCache->GetTableInfo(path.GetPath()))
             .ValueOrThrow();
 
-        auto tableSchema = path.GetSchema();
-
         TDataSplit result;
         SetObjectId(&result, info->TableId);
-        SetTableSchema(&result, tableSchema.Get(info->Schema));
+        SetTableSchema(&result, path.GetSchema().Get(info->Schema));
         SetTimestamp(&result, timestamp);
 
         return result;
@@ -1068,17 +1087,20 @@ public:
         const TTransactionAttachOptions& options) override;
 
 #define DROP_BRACES(...) __VA_ARGS__
-#define IMPLEMENT_METHOD(returnType, method, signature, args) \
+#define IMPLEMENT_OVERLOADED_METHOD(returnType, method, doMethod, signature, args) \
     virtual TFuture<returnType> method signature override \
     { \
         return Execute( \
             #method, \
             options, \
             BIND( \
-                &TClient::Do ## method, \
+                &TClient::doMethod, \
                 MakeStrong(this), \
                 DROP_BRACES args)); \
     }
+
+#define IMPLEMENT_METHOD(returnType, method, signature, args) \
+    IMPLEMENT_OVERLOADED_METHOD(returnType, method, Do##method, signature, args)
 
     virtual TFuture<IRowsetPtr> LookupRows(
         const TYPath& path,
@@ -1116,11 +1138,16 @@ public:
         const TYPath& path,
         const TRemountTableOptions& options),
         (path, options))
-    IMPLEMENT_METHOD(void, ReshardTable, (
+    IMPLEMENT_OVERLOADED_METHOD(void, ReshardTable, DoReshardTableWithPivotKeys, (
         const TYPath& path,
-        const std::vector<NTableClient::TKey>& pivotKeys,
+        const std::vector<NTableClient::TOwningKey>& pivotKeys,
         const TReshardTableOptions& options),
         (path, pivotKeys, options))
+    IMPLEMENT_OVERLOADED_METHOD(void, ReshardTable, DoReshardTableWithTabletCount, (
+        const TYPath& path,
+        int tabletCount,
+        const TReshardTableOptions& options),
+        (path, tabletCount, options))
     IMPLEMENT_METHOD(void, AlterTable, (
         const TYPath& path,
         const TAlterTableOptions& options),
@@ -1478,12 +1505,12 @@ private:
             TClientPtr client,
             const TCellId& cellId,
             const TLookupRowsOptions& options,
-            const TTableSchema& schema)
+            TTableMountInfoPtr tableInfo)
             : Client_(std::move(client))
             , Config_(Client_->Connection_->GetConfig())
             , CellId_(cellId)
             , Options_(options)
-            , Schema_(schema)
+            , TableInfo_(std::move(tableInfo))
         { }
 
         void AddKey(int index, TTabletInfoPtr tabletInfo, NTableClient::TKey key)
@@ -1540,7 +1567,7 @@ private:
                     TReqLookupRows writtenReq;
                     reader.ReadMessage(&writtenReq);
 
-                    auto schemaData = TWireProtocolReader::GetSchemaData(Schema_);
+                    auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schema);
                     auto rowset = reader.ReadSchemafulRowset(schemaData);
 
                     YCHECK(rowset.Size() == batch->Keys.size());
@@ -1568,7 +1595,7 @@ private:
             std::vector<TUnversionedRow>* resultRows,
             std::vector<std::unique_ptr<TWireProtocolReader>>* readers)
         {
-            auto schemaData = TWireProtocolReader::GetSchemaData(Schema_, Options_.ColumnFilter);
+            auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schema, Options_.ColumnFilter);
             for (const auto& batch : Batches_) {
                 auto data = NCompression::DecompressWithEnvelope(batch->Response->Attachments());
                 auto reader = std::make_unique<TWireProtocolReader>(data);
@@ -1585,7 +1612,7 @@ private:
         const TConnectionConfigPtr Config_;
         const TCellId CellId_;
         const TLookupRowsOptions Options_;
-        const TTableSchema& Schema_;
+        const TTableMountInfoPtr TableInfo_;
 
         struct TBatch
         {
@@ -1694,7 +1721,7 @@ private:
         for (const auto& pair : sortedKeys) {
             int index = pair.second;
             auto key = pair.first;
-            auto tabletInfo = GetTabletForKey(tableInfo, key);
+            auto tabletInfo = GetTabletForRow(tableInfo, key);
             const auto& cellId = tabletInfo->CellId;
             auto it = cellIdToSession.find(cellId);
             if (it == cellIdToSession.end()) {
@@ -1704,7 +1731,7 @@ private:
                         this,
                         cellId,
                         options,
-                        tableInfo->Schema)))
+                        tableInfo)))
                     .first;
             }
             const auto& session = it->second;
@@ -1792,22 +1819,12 @@ private:
             options.Timestamp);
 
         TQueryOptions queryOptions;
-
         queryOptions.Timestamp = options.Timestamp;
         queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
         queryOptions.VerboseLogging = options.VerboseLogging;
         queryOptions.EnableCodeCache = options.EnableCodeCache;
         queryOptions.MaxSubqueries = options.MaxSubqueries;
-
-        switch (options.WorkloadDescriptor.Category) {
-            case EUserWorkloadCategory::Realtime:
-                queryOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserRealtime;
-                break;
-            case EUserWorkloadCategory::Batch:
-                queryOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserBatch;
-                break;
-        }
-        queryOptions.WorkloadDescriptor.Band = options.WorkloadDescriptor.Band;
+        queryOptions.WorkloadDescriptor = options.WorkloadDescriptor;
 
         ISchemafulWriterPtr writer;
         TFuture<IRowsetPtr> asyncRowset;
@@ -1893,9 +1910,8 @@ private:
             .ThrowOnError();
     }
 
-    void DoReshardTable(
+    TTableYPathProxy::TReqReshardPtr MakeReshardRequest(
         const TYPath& path,
-        const std::vector<NTableClient::TKey>& pivotKeys,
         const TReshardTableOptions& options)
     {
         auto req = TTableYPathProxy::Reshard(path);
@@ -1905,7 +1921,30 @@ private:
         if (options.LastTabletIndex) {
             req->set_last_tablet_index(*options.LastTabletIndex);
         }
+        return req;
+    }
+
+    void DoReshardTableWithPivotKeys(
+        const TYPath& path,
+        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        const TReshardTableOptions& options)
+    {
+        auto req = MakeReshardRequest(path, options);
         ToProto(req->mutable_pivot_keys(), pivotKeys);
+        req->set_tablet_count(pivotKeys.size());
+
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+        WaitFor(proxy->Execute(req))
+            .ThrowOnError();
+    }
+
+    void DoReshardTableWithTabletCount(
+        const TYPath& path,
+        int tabletCount,
+        const TReshardTableOptions& options)
+    {
+        auto req = MakeReshardRequest(path, options);
+        req->set_tablet_count(tabletCount);
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
@@ -1919,6 +1958,9 @@ private:
         auto req = TTableYPathProxy::Alter(path);
         if (options.Schema) {
             ToProto(req->mutable_schema(), *options.Schema);
+        }
+        if (options.Dynamic) {
+            req->set_dynamic(*options.Dynamic);
         }
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
@@ -2916,12 +2958,23 @@ private:
         void WriteRequests(
             const TSharedRange<TUnversionedRow>& rows,
             EWireProtocolCommand command,
-            int columnCount,
             TRowValidator validateRow,
             const TWriteRowsOptions& writeOptions = TWriteRowsOptions())
         {
+            if (TableInfo_->Schema.IsSorted()) {
+                WriteRequestSorted(rows, command, validateRow, writeOptions);
+            } else {
+                WriteRequestOrdered(rows, command, validateRow, writeOptions);
+            }
+        }
+
+        void WriteRequestSorted(
+            const TSharedRange<TUnversionedRow>& rows,
+            EWireProtocolCommand command,
+            TRowValidator validateRow,
+            const TWriteRowsOptions& writeOptions)
+        {
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
-            int keyColumnCount = TableInfo_->Schema.GetKeyColumnCount();
             const auto& schema = TableInfo_->Schema;
             const auto& rowBuffer = Transaction_->GetRowBuffer();
             auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
@@ -2934,7 +2987,7 @@ private:
 
                 auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, TableInfo_->Schema, idMapping);
 
-                for (int index = keyColumnCount; index < capturedRow.GetCount(); ++index) {
+                for (int index = schema.GetKeyColumnCount(); index < capturedRow.GetCount(); ++index) {
                     auto& value = capturedRow[index];
                     const auto& columnSchema = schema.Columns()[value.Id];
                     value.Aggregate = columnSchema.Aggregate ? writeOptions.Aggregate : false;
@@ -2944,7 +2997,26 @@ private:
                     evaluator->EvaluateKeys(capturedRow, rowBuffer);
                 }
 
-                auto tabletInfo = GetTabletForKey(TableInfo_, capturedRow);
+                auto tabletInfo = GetTabletForRow(TableInfo_, capturedRow);
+                auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
+                session->SubmitRow(command, capturedRow);
+            }
+        }
+
+        void WriteRequestOrdered(
+            const TSharedRange<TUnversionedRow>& rows,
+            EWireProtocolCommand command,
+            TRowValidator validateRow,
+            const TWriteRowsOptions& /*writeOptions*/)
+        {
+            const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
+            const auto& rowBuffer = Transaction_->GetRowBuffer();
+            auto tabletInfo = TableInfo_->GetRandomMountedTabled();
+
+            for (auto row : rows) {
+                validateRow(row, TableInfo_->Schema, idMapping);
+
+                auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, TableInfo_->Schema, idMapping);
                 auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
                 session->SubmitRow(command, capturedRow);
             }
@@ -2974,7 +3046,6 @@ private:
             WriteRequests(
                 Rows_,
                 EWireProtocolCommand::WriteRow,
-                TableInfo_->Schema.Columns().size(),
                 ValidateClientDataRow,
                 Options_);
         }
@@ -3001,10 +3072,13 @@ private:
 
         virtual void DoRun() override
         {
+            if (!TableInfo_->Schema.IsSorted()) {
+                THROW_ERROR_EXCEPTION("Cannot delete rows from an ordered table %v",
+                    TableInfo_->Path);
+            }
             WriteRequests(
                 Keys_,
                 EWireProtocolCommand::DeleteRow,
-                TableInfo_->Schema.GetKeyColumnCount(),
                 ValidateClientKey);
         }
     };
@@ -3058,63 +3132,13 @@ private:
         TFuture<void> Invoke(IChannelPtr channel)
         {
             try {
-                std::sort(
-                    SubmittedRows_.begin(),
-                    SubmittedRows_.end(),
-                    [=] (const TSubmittedRow& lhs, const TSubmittedRow& rhs) {
-                        int res = CompareRows(lhs.Row, rhs.Row, KeyColumnCount_);
-                        return res != 0 ? res < 0 : lhs.SequentialId < rhs.SequentialId;
-                    });
+                if (TableInfo_->Schema.IsSorted()) {
+                    PrepareSortedBatches();
+                } else {
+                    PrepareOrderedBatches();
+                }
             } catch (const std::exception& ex) {
-                // NB: CompareRows may throw on composite values.
                 return MakeFuture(TError(ex));
-            }
-
-            std::vector<TSubmittedRow> mergedRows;
-            mergedRows.reserve(SubmittedRows_.size());
-            auto merger = New<TUnversionedRowMerger>(
-                RowBuffer_,
-                ColumnCount_,
-                KeyColumnCount_,
-                ColumnEvaluator_);
-
-            auto addPartialRow = [&] (const TSubmittedRow& submittedRow) {
-                switch (submittedRow.Command) {
-                    case EWireProtocolCommand::DeleteRow:
-                        merger->DeletePartialRow(submittedRow.Row);
-                        break;
-
-                    case EWireProtocolCommand::WriteRow:
-                        merger->AddPartialRow(submittedRow.Row);
-                        break;
-
-                    default:
-                        YUNREACHABLE();
-                }
-            };
-
-            int index = 0;
-            while (index < SubmittedRows_.size()) {
-                if (index < SubmittedRows_.size() - 1 &&
-                    CompareRows(SubmittedRows_[index].Row, SubmittedRows_[index + 1].Row, KeyColumnCount_) == 0)
-                {
-                    addPartialRow(SubmittedRows_[index]);
-                    while (index < SubmittedRows_.size() - 1 &&
-                        CompareRows(SubmittedRows_[index].Row, SubmittedRows_[index + 1].Row, KeyColumnCount_) == 0)
-                    {
-                        ++index;
-                        addPartialRow(SubmittedRows_[index]);
-                    }
-                    SubmittedRows_[index].Row = merger->BuildMergedRow();
-                }
-                mergedRows.push_back(SubmittedRows_[index]);
-                ++index;
-            }
-
-            SubmittedRows_ = std::move(mergedRows);
-
-            for (const auto& submittedRow : SubmittedRows_) {
-                WriteRow(submittedRow);
             }
 
             // Do all the heavy lifting here.
@@ -3124,8 +3148,6 @@ private:
                     batch->Writer.Flush(),
                     Config_->WriteRequestCodec);;
             }
-
-            merger->Reset();
 
             InvokeChannel_ = channel;
             InvokeNextBatch();
@@ -3168,6 +3190,75 @@ private:
         IChannelPtr InvokeChannel_;
         int InvokeBatchIndex_ = 0;
         TPromise<void> InvokePromise_ = NewPromise<void>();
+
+
+        void PrepareSortedBatches()
+        {
+            std::sort(
+                SubmittedRows_.begin(),
+                SubmittedRows_.end(),
+                [=] (const TSubmittedRow& lhs, const TSubmittedRow& rhs) {
+                    // NB: CompareRows may throw on composite values.
+                    int res = CompareRows(lhs.Row, rhs.Row, KeyColumnCount_);
+                    return res != 0 ? res < 0 : lhs.SequentialId < rhs.SequentialId;
+                });
+
+            std::vector<TSubmittedRow> mergedRows;
+            mergedRows.reserve(SubmittedRows_.size());
+
+            auto merger = New<TUnversionedRowMerger>(
+                RowBuffer_,
+                ColumnCount_,
+                KeyColumnCount_,
+                ColumnEvaluator_);
+
+            auto addPartialRow = [&] (const TSubmittedRow& submittedRow) {
+                switch (submittedRow.Command) {
+                    case EWireProtocolCommand::DeleteRow:
+                        merger->DeletePartialRow(submittedRow.Row);
+                        break;
+
+                    case EWireProtocolCommand::WriteRow:
+                        merger->AddPartialRow(submittedRow.Row);
+                        break;
+
+                    default:
+                        YUNREACHABLE();
+                }
+            };
+
+            int index = 0;
+            while (index < SubmittedRows_.size()) {
+                if (index < SubmittedRows_.size() - 1 &&
+                    CompareRows(SubmittedRows_[index].Row, SubmittedRows_[index + 1].Row, KeyColumnCount_) == 0)
+                {
+                    addPartialRow(SubmittedRows_[index]);
+                    while (index < SubmittedRows_.size() - 1 &&
+                           CompareRows(SubmittedRows_[index].Row, SubmittedRows_[index + 1].Row, KeyColumnCount_) == 0)
+                    {
+                        ++index;
+                        addPartialRow(SubmittedRows_[index]);
+                    }
+                    SubmittedRows_[index].Row = merger->BuildMergedRow();
+                }
+                mergedRows.push_back(SubmittedRows_[index]);
+                ++index;
+            }
+
+            WriteRows(mergedRows);
+        }
+
+        void PrepareOrderedBatches()
+        {
+            WriteRows(SubmittedRows_);
+        }
+
+        void WriteRows(const std::vector<TSubmittedRow>& rows)
+        {
+            for (const auto& submittedRow : rows) {
+                WriteRow(submittedRow);
+            }
+        }
 
         void WriteRow(const TSubmittedRow& submittedRow)
         {
@@ -3239,6 +3330,7 @@ private:
                 InvokePromise_.Set(rspOrError);
             }
         }
+
 
     };
 
@@ -3357,4 +3449,3 @@ ITransactionPtr TClient::AttachTransaction(
 
 } // namespace NApi
 } // namespace NYT
-

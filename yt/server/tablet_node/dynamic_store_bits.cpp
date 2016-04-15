@@ -1,4 +1,4 @@
-#include "sorted_dynamic_store_bits.h"
+#include "dynamic_store_bits.h"
 #include "automaton.h"
 #include "tablet.h"
 
@@ -21,7 +21,6 @@ const ui32 TSortedDynamicRow::AllLocksMask;
 
 TOwningKey RowToKey(
     const TTableSchema& schema,
-    const TKeyColumns& keyColumns,
     TSortedDynamicRow row)
 {
     TUnversionedOwningRowBuilder builder;
@@ -30,7 +29,7 @@ TOwningKey RowToKey(
     const auto* srcKey = row.BeginKeys();
     auto columnIt = schema.Columns().begin();
     for (int index = 0;
-         index < keyColumns.size();
+         index < schema.GetKeyColumnCount();
          ++index, nullKeyBit <<= 1, ++srcKey, ++columnIt)
     {
         TUnversionedValue dstKey;
@@ -52,12 +51,11 @@ TOwningKey RowToKey(
 }
 
 TOwningKey RowToKey(
-    const TTableSchema& /*schema*/,
-    const TKeyColumns& keyColumns,
+    const TTableSchema& schema,
     TUnversionedRow row)
 {
     TUnversionedOwningRowBuilder builder;
-    for (int index = 0; index < keyColumns.size(); ++index) {
+    for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
         builder.AddValue(row[index]);
     }
     return builder.FinishRow();

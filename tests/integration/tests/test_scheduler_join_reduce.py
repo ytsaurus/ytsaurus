@@ -256,8 +256,8 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
     @unix_only
     def test_join_reduce_empty_in(self):
-        create("table", "//tmp/in1", schema=[{"name": "key", "type": "any", "sort_order": "ascending"}])
-        create("table", "//tmp/in2", schema=[{"name": "key", "type": "any", "sort_order": "ascending"}])
+        create("table", "//tmp/in1", attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]})
+        create("table", "//tmp/in2", attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]})
         create("table", "//tmp/out")
 
         join_reduce(
@@ -269,12 +269,16 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
     @unix_only
     def test_join_reduce_duplicate_key_columns(self):
-        create("table", "//tmp/in1", schema=[
-            {"name": "a", "type": "any", "sort_order": "ascending"},
-            {"name": "b", "type": "any", "sort_order": "ascending"}])
-        create("table", "//tmp/in2", schema=[
-            {"name": "a", "type": "any", "sort_order": "ascending"},
-            {"name": "b", "type": "any", "sort_order": "ascending"}])
+        create("table", "//tmp/in1", attributes={
+                "schema": [
+                    {"name": "a", "type": "any", "sort_order": "ascending"},
+                    {"name": "b", "type": "any", "sort_order": "ascending"}
+                ]})
+        create("table", "//tmp/in2", attributes={
+                "schema": [
+                    {"name": "a", "type": "any", "sort_order": "ascending"},
+                    {"name": "b", "type": "any", "sort_order": "ascending"}
+                ]})
         create("table", "//tmp/out")
 
         # expected error: Duplicate key column name "a"
@@ -289,7 +293,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
     def test_join_reduce_unsorted_input(self):
         create("table", "//tmp/in1")
         write_table("//tmp/in1", {"foo": "bar"})
-        create("table", "//tmp/in2", schema=[{"name": "foo", "type": "any", "sort_order": "ascending"}])
+        create("table", "//tmp/in2", attributes={"schema": [{"name": "foo", "type": "any", "sort_order": "ascending"}]})
         create("table", "//tmp/out")
 
         # expected error: Input table //tmp/in1 is not sorted
@@ -303,7 +307,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
     def test_join_reduce_different_key_column(self):
         create("table", "//tmp/in1")
         write_table("//tmp/in1", {"foo": "bar"}, sorted_by=["foo"])
-        create("table", "//tmp/in2", schema=[{"name": "baz", "type": "any", "sort_order": "ascending"}])
+        create("table", "//tmp/in2", attributes={"schema": [{"name": "baz", "type": "any", "sort_order": "ascending"}]})
         create("table", "//tmp/out")
 
         # expected error: Key columns do not match
@@ -385,7 +389,7 @@ echo {v = 2} >&7
     @unix_only
     def test_join_reduce_job_count(self):
         create("table", "//tmp/in1", attributes={"compression_codec": "none"})
-        create("table", "//tmp/in2", schema=[{"name": "key", "type": "any", "sort_order": "ascending"}])
+        create("table", "//tmp/in2", attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]})
         create("table", "//tmp/out")
 
         count = 1000

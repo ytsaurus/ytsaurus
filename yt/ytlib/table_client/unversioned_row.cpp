@@ -580,7 +580,7 @@ int ApplyIdMapping(
 {
     auto id = value.Id;
     int schemaId = id;
-    if (idMappingPtr != nullptr) {
+    if (idMappingPtr) {
         const auto& idMapping = *idMappingPtr;
         if (id >= idMapping.size()) {
             THROW_ERROR_EXCEPTION("Invalid column id: actual %v, expected in range [0,%v]",
@@ -768,8 +768,8 @@ void ValidateRowValueCount(int count)
 
 void ValidateKeyColumnCount(int count)
 {
-    if (count == 0) {
-        THROW_ERROR_EXCEPTION("At least one key column expected");
+    if (count < 0) {
+        THROW_ERROR_EXCEPTION("Negative number of key columns");
     }
     if (count > MaxKeyColumnCount) {
         THROW_ERROR_EXCEPTION("Too many columns in key: actual %v, limit %v",
@@ -803,10 +803,6 @@ void ValidateServerDataRow(
     const TTableSchema& schema)
 {
     ValidateDataRow(row, nullptr, schema);
-
-    if (row.GetCount() == schema.GetKeyColumnCount()) {
-        THROW_ERROR_EXCEPTION("Write row must contain at least one non-key column");
-    }
 }
 
 void ValidateClientKey(TKey key)

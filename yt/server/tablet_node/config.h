@@ -50,7 +50,7 @@ class TTableMountConfig
     : public NTableClient::TRetentionConfig
 {
 public:
-    int MaxDynamicStoreKeyCount;
+    int MaxDynamicStoreRowCount;
     int MaxDynamicStoreValueCount;
     i64 MaxDynamicStorePoolSize;
 
@@ -94,7 +94,7 @@ public:
 
     TTableMountConfig()
     {
-        RegisterParameter("max_dynamic_store_key_count", MaxDynamicStoreKeyCount)
+        RegisterParameter("max_dynamic_store_row_count", MaxDynamicStoreRowCount)
             .GreaterThan(0)
             .Default(1000000);
         RegisterParameter("max_dynamic_store_value_count", MaxDynamicStoreValueCount)
@@ -186,8 +186,8 @@ public:
             .Default(false);
 
         RegisterValidator([&] () {
-            if (MaxDynamicStoreKeyCount > MaxDynamicStoreValueCount) {
-                THROW_ERROR_EXCEPTION("\"max_dynamic_store_key_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
+            if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
+                THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
             }
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {
                 THROW_ERROR_EXCEPTION("\"min_partition_data_size\" must be less than \"desired_partition_data_size\"");
@@ -239,6 +239,15 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTabletChunkReaderConfig
+    : public NTableClient::TChunkReaderConfig
+    , public NChunkClient::TReplicationReaderConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TTabletChunkReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -256,6 +265,9 @@ public:
     //! on wall clock readings. These timestamps are checked for sanity using the server-side
     //! timestamp estimates.
     TDuration ClientTimestampThreshold;
+
+    TTabletChunkReaderConfigPtr ChunkReader;
+    NTableClient::TTableWriterConfigPtr ChunkWriter;
 
 
     TTabletManagerConfig()
@@ -279,6 +291,16 @@ public:
 
         RegisterParameter("client_timestamp_threshold", ClientTimestampThreshold)
             .Default(TDuration::Minutes(1));
+
+        RegisterParameter("chunk_reader", ChunkReader)
+            .DefaultNew();
+        RegisterParameter("chunk_writer", ChunkWriter)
+            .DefaultNew();
+
+        RegisterInitializer([&] () {
+            // Override default workload descriptors.
+            ChunkReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
+        });
     }
 };
 
@@ -406,15 +428,6 @@ DEFINE_REFCOUNTED_TYPE(TPartitionBalancerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletChunkReaderConfig
-    : public NTableClient::TChunkReaderConfig
-    , public NChunkClient::TReplicationReaderConfig
-{ };
-
-DEFINE_REFCOUNTED_TYPE(TTabletChunkReaderConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSecurityManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -494,9 +507,6 @@ public:
     TPartitionBalancerConfigPtr PartitionBalancer;
     TSecurityManagerConfigPtr SecurityManager;
 
-    TTabletChunkReaderConfigPtr ChunkReader;
-    NTableClient::TTableWriterConfigPtr ChunkWriter;
-
     //! Controls outcoming bandwidth used by store flushes.
     NConcurrency::TThroughputThrottlerConfigPtr StoreFlushOutThrottler;
 
@@ -552,11 +562,6 @@ public:
         RegisterParameter("security_manager", SecurityManager)
             .DefaultNew();
 
-        RegisterParameter("chunk_reader", ChunkReader)
-            .DefaultNew();
-        RegisterParameter("chunk_writer", ChunkWriter)
-            .DefaultNew();
-
         RegisterParameter("store_flush_out_throttler", StoreFlushOutThrottler)
             .DefaultNew();
 
@@ -574,11 +579,6 @@ public:
             .Default(true);
         RegisterParameter("enable_partition_balancer", EnablePartitionBalancer)
             .Default(true);
-
-        RegisterInitializer([&] () {
-            // Override default workload descriptors.
-            ChunkReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
-        });
     }
 };
 

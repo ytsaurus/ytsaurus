@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "sorted_dynamic_store_bits.h"
+#include "dynamic_store_bits.h"
 #include "row_comparer_generator.h"
 
 #include <yt/ytlib/table_client/unversioned_row.h>

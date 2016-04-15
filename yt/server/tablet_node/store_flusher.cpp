@@ -9,7 +9,6 @@
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
-#include "chunk_writer_pool.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
@@ -27,28 +26,11 @@
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
 
-#include <yt/ytlib/chunk_client/chunk_writer.h>
-#include <yt/ytlib/chunk_client/replication_writer.h>
-
-#include <yt/ytlib/node_tracker_client/node_directory.h>
-
-#include <yt/ytlib/object_client/object_service_proxy.h>
-
-#include <yt/ytlib/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/versioned_chunk_writer.h>
-#include <yt/ytlib/table_client/versioned_reader.h>
-#include <yt/ytlib/table_client/versioned_row.h>
-#include <yt/ytlib/table_client/versioned_writer.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/scheduler.h>
-
-#include <yt/core/logging/log.h>
-
-#include <yt/core/misc/address.h>
-
-#include <yt/core/ytree/helpers.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -56,20 +38,17 @@ namespace NTabletNode {
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NApi;
-using namespace NTableClient;
-using namespace NTableClient::NProto;
 using namespace NNodeTrackerClient;
-using namespace NObjectClient;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using namespace NHydra;
 using namespace NTabletServer::NProto;
 using namespace NTabletNode::NProto;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
-static const size_t MaxRowsPerRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -240,12 +219,18 @@ private:
             return;
         }
 
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
+        if (!tabletSnapshot) {
+            return;
+        }
+
         auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
         if (!guard) {
             return;
         }
 
-        storeManager->BeginStoreFlush(dynamicStore);
+        auto flushCallback = storeManager->BeginStoreFlush(dynamicStore, tabletSnapshot);
 
         tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
             &TStoreFlusher::FlushStore,
@@ -253,15 +238,16 @@ private:
             Passed(std::move(guard)),
             slot,
             tablet,
-            dynamicStore));
+            dynamicStore,
+            flushCallback));
     }
-
 
     void FlushStore(
         TAsyncSemaphoreGuard /*guard*/,
         TTabletSlotPtr slot,
         TTablet* tablet,
-        IDynamicStorePtr store)
+        IDynamicStorePtr store,
+        TStoreFlushCallback flushCallback)
     {
         // Capture everything needed below.
         // NB: Avoid accessing tablet from pool invoker.
@@ -270,16 +256,6 @@ private:
         auto storeManager = tablet->GetStoreManager();
         auto tabletId = tablet->GetId();
         auto mountRevision = tablet->GetMountRevision();
-        auto keyColumns = tablet->KeyColumns();
-        auto schema = tablet->Schema();
-        auto mountConfig = tablet->GetConfig();
-        auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());
-        writerOptions->ChunksEden = true;
-
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId);
-        if (!tabletSnapshot)
-            return;
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, StoreId: %v",
@@ -291,14 +267,6 @@ private:
 
         try {
             LOG_INFO("Store flush started");
-
-            // XXX(babenko): generalize
-            auto reader = store->AsSortedDynamic()->CreateFlushReader();
-
-            // NB: Memory store reader is always synchronous.
-            YCHECK(reader->Open().Get().IsOK());
-
-            SwitchTo(poolInvoker);
 
             ITransactionPtr transaction;
             {
@@ -322,39 +290,12 @@ private:
                     transaction->GetId());
             }
 
-            TChunkWriterPool writerPool(
-                Bootstrap_->GetInMemoryManager(),
-                tabletSnapshot,
-                1,
-                Config_->ChunkWriter,
-                writerOptions,
-                mountConfig,
-                schema,
-                Bootstrap_->GetMasterClient(),
-                transaction->GetId());
-            auto writer = writerPool.AllocateWriter();
+            auto asyncFlushResult = flushCallback
+                .AsyncVia(poolInvoker)
+                .Run(transaction);
 
-            WaitFor(writer->Open())
-                .ThrowOnError();
-        
-            std::vector<TVersionedRow> rows;
-            rows.reserve(MaxRowsPerRead);
-
-            while (true) {
-                // NB: Memory store reader is always synchronous.
-                reader->Read(&rows);
-                if (rows.empty())
-                    break;
-                if (!writer->Write(rows)) {
-                    WaitFor(writer->GetReadyEvent())
-                        .ThrowOnError();
-                }
-            }
-
-            WaitFor(writer->Close())
-                .ThrowOnError();
-
-            SwitchTo(automatonInvoker);
+            auto flushResult = WaitFor(asyncFlushResult)
+                .ValueOrThrow();
 
             storeManager->EndStoreFlush(store);
 
@@ -362,34 +303,20 @@ private:
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
             hydraRequest.set_mount_revision(mountRevision);
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
-            {
-                auto* descriptor = hydraRequest.add_stores_to_remove();
-                ToProto(descriptor->mutable_store_id(), store->GetId());
-            }
-
-            std::vector<TChunkId> chunkIds;
-            for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
-                chunkIds.push_back(FromProto<TChunkId>(chunkSpec.chunk_id()));
-                auto* descriptor = hydraRequest.add_stores_to_add();
-                // XXX(babenko): generalize
-                descriptor->set_store_type(static_cast<int>(EStoreType::SortedChunk));
-                descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
-                descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
-                ToProto(descriptor->mutable_backing_store_id(), store->GetId());
-            }
+            ToProto(hydraRequest.mutable_stores_to_add(), flushResult);
+            ToProto(hydraRequest.add_stores_to_remove()->mutable_store_id(), store->GetId());
 
             CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->CommitAndLog(Logger);
 
             LOG_INFO("Store flush completed (ChunkIds: %v)",
-                chunkIds);
+                MakeFormattableRange(flushResult, [] (TStringBuilder* builder, const TAddStoreDescriptor& descriptor) {
+                    FormatValue(builder, FromProto<TChunkId>(descriptor.store_id()), TStringBuf());
+                }));
 
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error flushing tablet store, backing off");
-        
-            SwitchTo(automatonInvoker);
-
             storeManager->BackoffStoreFlush(store);
         }
     }

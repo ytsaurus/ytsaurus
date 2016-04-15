@@ -2,8 +2,10 @@
 #include "private.h"
 #include "automaton.h"
 #include "sorted_chunk_store.h"
+#include "ordered_chunk_store.h"
 #include "config.h"
 #include "sorted_dynamic_store.h"
+#include "ordered_dynamic_store.h"
 #include "in_memory_manager.h"
 #include "lookup.h"
 #include "partition.h"
@@ -11,6 +13,7 @@
 #include "slot_manager.h"
 #include "store_flusher.h"
 #include "sorted_store_manager.h"
+#include "ordered_store_manager.h"
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "transaction.h"
@@ -19,6 +22,7 @@
 #include <yt/server/cell_node/bootstrap.h>
 
 #include <yt/server/data_node/chunk_block_manager.h>
+#include <yt/server/data_node/master_connector.h>
 
 #include <yt/server/hive/hive_manager.h>
 #include <yt/server/hive/transaction_supervisor.pb.h>
@@ -364,11 +368,12 @@ private:
     TEntityMap<TTablet, TTabletMapTraits> TabletMap_;
     yhash_set<TTablet*> UnmountingTablets_;
 
-    yhash_set<TSortedDynamicStorePtr> OrphanedStores_;
+    yhash_set<IDynamicStorePtr> OrphanedStores_;
 
     const IYPathServicePtr OrchidService_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
 
     void SaveKeys(TSaveContext& context) const
     {
@@ -455,9 +460,10 @@ private:
             int rowCount = 0;
             for (const auto& record : transaction->WriteLog()) {
                 auto* tablet = FindTablet(record.TabletId);
-                // NB: Tablet could be missing if it was e.g. forcefully removed.
-                if (!tablet)
+                if (!tablet) {
+                    // NB: Tablet could be missing if it was e.g. forcefully removed.
                     continue;
+                }
 
                 TWireProtocolReader reader(record.Data);
                 const auto& storeManager = tablet->GetStoreManager();
@@ -510,6 +516,19 @@ private:
         }
     }
 
+    
+    template <class TPrelockedRows>
+    void HandleRowsOnStopLeading(TTransaction* transaction, TPrelockedRows& rows)
+    {
+        while (!rows.empty()) {
+            auto rowRef = rows.front();
+            rows.pop();
+            if (ValidateAndDiscardRowRef(rowRef)) {
+                rowRef.StoreManager->AbortRow(transaction, rowRef);
+            }
+        }
+    }
+    
     virtual void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -519,13 +538,8 @@ private:
         auto transactionManager = Slot_->GetTransactionManager();
         for (const auto& pair : transactionManager->Transactions()) {
             auto* transaction = pair.second;
-            while (!transaction->PrelockedRows().empty()) {
-                auto rowRef = transaction->PrelockedRows().front();
-                transaction->PrelockedRows().pop();
-                if (ValidateAndDiscardRowRef(rowRef)) {
-                    rowRef.StoreManager->AbortRow(transaction, rowRef);
-                }
-            }
+            HandleRowsOnStopLeading(transaction, transaction->PrelockedSortedRows());
+            HandleRowsOnStopLeading(transaction, transaction->PrelockedOrderedRows());
         }
 
         StopEpoch();
@@ -574,9 +588,8 @@ private:
         auto mountRevision = request->mount_revision();
         auto tableId = FromProto<TObjectId>(request->table_id());
         auto schema = FromProto<TTableSchema>(request->schema());
-        auto keyColumns = FromProto<TKeyColumns>(request->key_columns());
-        auto pivotKey = FromProto<TOwningKey>(request->pivot_key());
-        auto nextPivotKey = FromProto<TOwningKey>(request->next_pivot_key());
+        auto pivotKey = request->has_pivot_key() ? FromProto<TOwningKey>(request->pivot_key()) : TOwningKey();
+        auto nextPivotKey = request->has_next_pivot_key() ? FromProto<TOwningKey>(request->next_pivot_key()) : TOwningKey();
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
         auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request->writer_options()), tabletId);
         auto atomicity = EAtomicity(request->atomicity());
@@ -589,51 +602,52 @@ private:
             tableId,
             &TabletContext_,
             schema,
-            keyColumns,
             pivotKey,
             nextPivotKey,
             atomicity);
 
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
-
-        tablet->CreateInitialPartition();
         tablet->SetState(ETabletState::Mounted);
+
+        if (tablet->IsSorted()) {
+            tablet->CreateInitialPartition();
+            SchedulePartitionsSampling(tablet);
+
+            std::vector<std::tuple<TOwningKey, int, int>> chunkBoundaries;
+            int descriptorIndex = 0;
+            for (const auto& descriptor : request->stores()) {
+                const auto& extensions = descriptor.chunk_meta().extensions();
+                auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
+                if (miscExt.has_max_timestamp()) {
+                    UpdateLastCommittedTimestamp(miscExt.max_timestamp());
+                }
+                if (!miscExt.eden()) {
+                    auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(extensions);
+                    auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), schema.GetKeyColumnCount());
+                    auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), schema.GetKeyColumnCount());
+                    chunkBoundaries.push_back(std::make_tuple(minKey, -1, descriptorIndex));
+                    chunkBoundaries.push_back(std::make_tuple(maxKey, 1, descriptorIndex));
+                }
+                ++descriptorIndex;
+            }
+
+            if (!chunkBoundaries.empty()) {
+                std::sort(chunkBoundaries.begin(), chunkBoundaries.end());
+                std::vector<TOwningKey> pivotKeys{pivotKey};
+                int depth = 0;
+                for (const auto& boundary : chunkBoundaries) {
+                    if (std::get<1>(boundary) == -1 && depth == 0 && std::get<0>(boundary) > pivotKey) {
+                        pivotKeys.push_back(std::get<0>(boundary));
+                    }
+                    depth -= std::get<1>(boundary);
+                }
+                YCHECK(tablet->Partitions().size() == 1);
+                SplitTabletPartition(tablet, 0, pivotKeys);
+            }
+        }
 
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->CreateActiveStore();
-
-        std::vector<std::tuple<TOwningKey, int, int>> chunkBoundaries;
-
-        int descriptorIndex = 0;
-        for (const auto& descriptor : request->stores()) {
-            const auto& extensions = descriptor.chunk_meta().extensions();
-            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
-            if (miscExt.has_max_timestamp()) {
-                UpdateLastCommittedTimestamp(miscExt.max_timestamp());
-            }
-            if (!miscExt.eden()) {
-                auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(extensions);
-                auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumns.size());
-                auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumns.size());
-                chunkBoundaries.push_back(std::make_tuple(minKey, -1, descriptorIndex));
-                chunkBoundaries.push_back(std::make_tuple(maxKey, 1, descriptorIndex));
-            }
-            ++descriptorIndex;
-        }
-
-        if (!chunkBoundaries.empty()) {
-            std::sort(chunkBoundaries.begin(), chunkBoundaries.end());
-            std::vector<TOwningKey> pivotKeys{pivotKey};
-            int depth = 0;
-            for (const auto& boundary : chunkBoundaries) {
-                if (std::get<1>(boundary) == -1 && depth == 0 && std::get<0>(boundary) > pivotKey) {
-                    pivotKeys.push_back(std::get<0>(boundary));
-                }
-                depth -= std::get<1>(boundary);
-            }
-            YCHECK(tablet->Partitions().size() == 1);
-            SplitTabletPartition(tablet, 0, pivotKeys);
-        }
 
         for (const auto& descriptor : request->stores()) {
             auto type = EStoreType(descriptor.store_type());
@@ -648,8 +662,6 @@ private:
             storeManager->AddStore(store->AsChunk(), true);
         }
 
-        SchedulePartitionsSampling(tablet);
-
         {
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
@@ -660,7 +672,7 @@ private:
             StartTabletEpoch(tablet);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %x, TableId: %v, Keys: %v .. %v,"
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %x, TableId: %v, Keys: %v .. %v, "
             "StoreCount: %v, PartitionCount: %v, Atomicity: %v)",
             tabletId,
             mountRevision,
@@ -750,7 +762,7 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Remount(mountConfig, writerOptions);
 
-        if (oldSamplesPerPartition != newSamplesPerPartition) {
+        if (tablet->IsSorted() && oldSamplesPerPartition != newSamplesPerPartition) {
             SchedulePartitionsSampling(tablet);
         }
 
@@ -816,32 +828,41 @@ private:
                 YUNREACHABLE();
         }
     }
+    
+    template <class TPrelockedRows>
+    void HandleRowsOnLeaderExecuteWriteAtomic(TTransaction* transaction, TPrelockedRows& rows, int rowCount)
+    {
+        for (int index = 0; index < rowCount; ++index) {
+            YASSERT(!rows.empty());
+            auto rowRef = rows.front();
+            rows.pop();
+            if (ValidateAndDiscardRowRef(rowRef)) {
+                rowRef.StoreManager->ConfirmRow(transaction, rowRef);
+            }
+        }
+    }
 
     void HydraLeaderExecuteWriteAtomic(
         const TTransactionId& transactionId,
-        int rowCount,
+        int sortedRowCount,
+        int orderedRowCount,
         const TTransactionWriteRecord& writeRecord,
         TMutationContext* /*context*/)
     {
         auto transactionManager = Slot_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransaction(transactionId);
 
-        for (int index = 0; index < rowCount; ++index) {
-            YASSERT(!transaction->PrelockedRows().empty());
-            auto rowRef = transaction->PrelockedRows().front();
-            transaction->PrelockedRows().pop();
-
-            if (ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.StoreManager->ConfirmRow(transaction, rowRef);
-            }
-        }
+        HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedSortedRows(), sortedRowCount);
+        HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedOrderedRows(), orderedRowCount);
 
         transaction->WriteLog().Enqueue(writeRecord);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, TransactionId: %v, RowCount: %v, WriteRecordSize: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, TransactionId: %v, "
+            "SortedRows: %v, OrderedRows: %v, WriteRecordSize: %v)",
             writeRecord.TabletId,
             transactionId,
-            rowCount,
+            sortedRowCount,
+            orderedRowCount,
             writeRecord.Data.Size());
     }
 
@@ -853,8 +874,8 @@ private:
         TMutationContext* /*context*/)
     {
         auto* tablet = FindTablet(tabletId);
-        // NB: Tablet could be missing if it was e.g. forcefully removed.
         if (!tablet) {
+            // NB: Tablet could be missing if it was e.g. forcefully removed.
             return;
         }
 
@@ -886,8 +907,8 @@ private:
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
-        // NB: Tablet could be missing if it was e.g. forcefully removed.
         if (!tablet) {
+            // NB: Tablet could be missing if it was e.g. forcefully removed.
             return;
         }
 
@@ -1047,14 +1068,16 @@ private:
 
                 YCHECK(store->GetStoreState() == EStoreState::RemoveCommitting);
                 switch (store->GetType()) {
-                    case EStoreType::SortedDynamic: {
+                    case EStoreType::SortedDynamic:
+                    case EStoreType::OrderedDynamic:
                         store->SetStoreState(EStoreState::PassiveDynamic);
                         break;
-                    }
-                    case EStoreType::SortedChunk: {
+                    case EStoreType::SortedChunk:
+                    case EStoreType::OrderedChunk:
                         store->SetStoreState(EStoreState::Persistent);
                         break;
-                    }
+                    default:
+                        YUNREACHABLE();
                 }
 
                 if (IsLeader()) {
@@ -1076,18 +1099,20 @@ private:
             auto storeId = FromProto<TChunkId>(descriptor.store_id());
             addedStoreIds.push_back(storeId);
 
-            auto store = CreateStore(tablet, storeType, storeId, &descriptor.chunk_meta());
+            auto store = CreateStore(tablet, storeType, storeId, &descriptor.chunk_meta())->AsChunk();
             storeManager->AddStore(store, false);
 
-            // XXX(babenko): get rid of this
-            auto chunkStore = store->AsSortedChunk();
-            SchedulePartitionSampling(chunkStore->GetPartition());
+            if (tablet->IsSorted()) {
+                // XXX(babenko): get rid of this
+                auto chunkStore = store->AsSortedChunk();
+                SchedulePartitionSampling(chunkStore->GetPartition());
+            }
 
             TStoreId backingStoreId;
             if (!IsRecovery() && descriptor.has_backing_store_id()) {
                 backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
-                auto backingStore = tablet->GetStore(backingStoreId)->AsSorted();
-                SetBackingStore(tablet, chunkStore, backingStore);
+                auto backingStore = tablet->GetStore(backingStoreId)->AsDynamic();
+                SetBackingStore(tablet, store, backingStore);
             }
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, BackingStoreId: %v)",
@@ -1134,6 +1159,8 @@ private:
             return;
         }
 
+        YCHECK(tablet->IsSorted());
+
         auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
             return;
@@ -1179,6 +1206,8 @@ private:
         if (!tablet) {
             return;
         }
+
+        YCHECK(tablet->IsSorted());
 
         auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
@@ -1230,6 +1259,8 @@ private:
             return;
         }
 
+        YCHECK(tablet->IsSorted());
+
         auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
             return;
@@ -1257,74 +1288,108 @@ private:
     }
 
 
+    template <class TRef>
+    void HandleRowOnTransactionPrepare(TTransaction* transaction, const TRef& rowRef)
+    {
+        // NB: Don't call ValidateAndDiscardRowRef, row refs are just scanned.
+        if (ValidateRowRef(rowRef)) {
+            rowRef.StoreManager->PrepareRow(transaction, rowRef);
+        }
+    }
+
+    template <class TLockedRows, class TPrelockedRows>
+    void HandleRowsOnTransactionPrepare(TTransaction* transaction, TLockedRows& lockedRows, TPrelockedRows& prelockedRows)
+    {
+        for (const auto& rowRef : lockedRows) {
+            HandleRowOnTransactionPrepare(transaction, rowRef);
+        }
+
+        for (auto it = prelockedRows.begin();
+             it != prelockedRows.end();
+             prelockedRows.move_forward(it))
+        {
+            HandleRowOnTransactionPrepare(transaction, *it);
+        }
+    }
+    
     void OnTransactionPrepared(TTransaction* transaction)
     {
-        auto handleRow = [&] (const TSortedDynamicRowRef& rowRef) {
-            // NB: Don't call ValidateAndDiscardRowRef, row refs are just scanned.
-            if (ValidateRowRef(rowRef)) {
-                rowRef.StoreManager->PrepareRow(transaction, rowRef);
-            }
-        };
+        auto lockedSortedRowCount = transaction->LockedSortedRows().size();
+        auto prelockedSortedRowCount = transaction->PrelockedSortedRows().size();
+        auto lockedOrderedRowCount = transaction->LockedOrderedRows().size();
+        auto prelockedOrderedRowCount = transaction->PrelockedOrderedRows().size();
 
-        for (const auto& rowRef : transaction->LockedRows()) {
-            handleRow(rowRef);
-        }
+        HandleRowsOnTransactionPrepare(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
+        HandleRowsOnTransactionPrepare(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
 
-        for (auto it = transaction->PrelockedRows().begin();
-            it != transaction->PrelockedRows().end();
-            transaction->PrelockedRows().move_forward(it))
-        {
-            handleRow(*it);
-        }
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %v, LockedRowCount: %v, PrelockedRowCount: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %v, "
+            "SortedLockedRows: %v, SortedPrelockedRows: %v, "
+            "OrderedLockedRows: %v, OrderedPrelockedRows: %v)",
             transaction->GetId(),
-            transaction->LockedRows().size(),
-            transaction->PrelockedRows().size());
+            lockedSortedRowCount,
+            prelockedSortedRowCount,
+            lockedOrderedRowCount,
+            prelockedOrderedRowCount);
+    }
+
+
+    template <class TLockedRows, class TPrelockedRows>
+    void HandleRowsOnTransactionCommit(TTransaction* transaction, TLockedRows& lockedRows, TPrelockedRows& prelockedRows)
+    {
+        YCHECK(prelockedRows.empty());
+        for (const auto& rowRef : lockedRows) {
+            if (ValidateAndDiscardRowRef(rowRef)) {
+                rowRef.StoreManager->CommitRow(transaction, rowRef);
+            }
+        }
+        lockedRows.clear();
     }
 
     void OnTransactionCommitted(TTransaction* transaction)
     {
-        auto handleRow = [&] (const TSortedDynamicRowRef& rowRef) {
-            if (ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.StoreManager->CommitRow(transaction, rowRef);
-            }
-        };
+        auto lockedSortedRowCount = transaction->LockedSortedRows().size();
+        auto lockedOrderedRowCount = transaction->LockedOrderedRows().size();
 
-        for (const auto& rowRef : transaction->LockedRows()) {
-            handleRow(rowRef);
-        }
+        HandleRowsOnTransactionCommit(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
+        HandleRowsOnTransactionCommit(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %v, RowCount: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %v, "
+            "SortedRows: %v, OrderedRows: %v)",
             transaction->GetId(),
-            transaction->LockedRows().size());
-
-        YCHECK(transaction->PrelockedRows().empty());
-        transaction->LockedRows().clear();
+            lockedSortedRowCount,
+            lockedOrderedRowCount);
 
         UpdateLastCommittedTimestamp(transaction->GetCommitTimestamp());
 
         OnTransactionFinished(transaction);
     }
 
+
+    template <class TLockedRows, class TPrelockedRows>
+    void HandleRowsOnTransactionAbort(TTransaction* transaction, TLockedRows& lockedRows, TPrelockedRows& prelockedRows)
+    {
+        YCHECK(prelockedRows.empty());
+        for (const auto& rowRef : lockedRows) {
+            if (ValidateAndDiscardRowRef(rowRef)) {
+               rowRef.StoreManager->AbortRow(transaction, rowRef);
+            }
+        }
+        lockedRows.clear();
+    }
+    
     void OnTransactionAborted(TTransaction* transaction)
     {
-        auto handleRow = [&] (const TSortedDynamicRowRef& rowRef) {
-            if (ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.StoreManager->AbortRow(transaction, rowRef);
-            }
-        };
+        auto lockedSortedRowCount = transaction->LockedSortedRows().size();
+        auto lockedOrderedRowCount = transaction->LockedOrderedRows().size();
 
-        for (const auto& rowRef : transaction->LockedRows()) {
-            handleRow(rowRef);
-        }
+        HandleRowsOnTransactionAbort(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
+        HandleRowsOnTransactionAbort(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %v, RowCount: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %v, "
+            "SortedRows: %v, OrderedRows: %v)",
             transaction->GetId(),
-            transaction->LockedRows().size());
-
-        YCHECK(transaction->PrelockedRows().empty());
-        transaction->LockedRows().clear();
+            lockedSortedRowCount,
+            lockedOrderedRowCount);
 
         OnTransactionFinished(transaction);
     }
@@ -1352,30 +1417,34 @@ private:
         }
         
         auto dynamicStore = store->AsSortedDynamic();
-        int lockCount = dynamicStore->GetLockCount();
+        auto lockCount = dynamicStore->GetLockCount();
         if (lockCount > 0) {
             YCHECK(OrphanedStores_.insert(dynamicStore).second);
-            LOG_INFO_UNLESS(IsRecovery(), "Dynamic memory store is orphaned and will be kept (StoreId: %v, TabletId: %v, LockCount: %v)",
+            LOG_INFO_UNLESS(IsRecovery(), "Dynamic memory store is orphaned and will be kept "
+                "(StoreId: %v, TabletId: %v, LockCount: %v)",
                 store->GetId(),
                 tablet->GetId(),
                 lockCount);
         }
     }
 
-    bool ValidateRowRef(const TSortedDynamicRowRef& rowRef)
+
+    template <class TRowRef>
+    bool ValidateRowRef(const TRowRef& rowRef)
     {
         auto* store = rowRef.Store;
         return store->GetStoreState() != EStoreState::Orphaned;
     }
 
-    bool ValidateAndDiscardRowRef(const TSortedDynamicRowRef& rowRef)
+    template <class TRowRef>
+    bool ValidateAndDiscardRowRef(const TRowRef& rowRef)
     {
         auto* store = rowRef.Store;
         if (store->GetStoreState() != EStoreState::Orphaned) {
             return true;
         }
 
-        int lockCount = store->Unlock();
+        auto lockCount = store->Unlock();
         if (lockCount == 0) {
             LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (StoreId: %v)",
                 store->GetId());
@@ -1424,7 +1493,8 @@ private:
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
         ValidateTransactionActive(transaction);
 
-        int prelockedCountBefore = transaction->PrelockedRows().size();
+        auto prelockedSortedBefore = transaction->PrelockedSortedRows().size();
+        auto prelockedOrderedBefore = transaction->PrelockedOrderedRows().size();
         auto readerBegin = reader->GetCurrent();
 
         TError error;
@@ -1448,13 +1518,18 @@ private:
             }
         }
 
-        int prelockedCountAfter = transaction->PrelockedRows().size();
-        int prelockedCountDelta = prelockedCountAfter - prelockedCountBefore;
-        if (prelockedCountDelta > 0) {
-            LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v)",
+        auto prelockedSortedAfter = transaction->PrelockedSortedRows().size();
+        auto prelockedOrderedAfter = transaction->PrelockedOrderedRows().size();
+
+        auto prelockedSortedDelta = prelockedSortedAfter - prelockedSortedBefore;
+        auto prelockedOrderedDelta = prelockedOrderedAfter - prelockedOrderedBefore;
+
+        if (prelockedSortedDelta + prelockedOrderedDelta > 0) {
+            LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, SortedRows: %v, OrderedRows: %v)",
                 transactionId,
                 tabletId,
-                prelockedCountDelta);
+                prelockedSortedDelta,
+                prelockedOrderedDelta);
 
             auto readerEnd = reader->GetCurrent();
             auto recordData = reader->Slice(readerBegin, readerEnd);
@@ -1472,7 +1547,8 @@ private:
                     &TImpl::HydraLeaderExecuteWriteAtomic,
                     MakeStrong(this),
                     transactionId,
-                    prelockedCountDelta,
+                    prelockedSortedDelta,
+                    prelockedOrderedDelta,
                     writeRecord))
                 ->Commit()
                  .As<void>();
@@ -1645,7 +1721,7 @@ private:
     }
 
 
-    void SetBackingStore(TTablet* tablet, TSortedChunkStorePtr store, ISortedStorePtr backingStore)
+    void SetBackingStore(TTablet* tablet, IChunkStorePtr store, IDynamicStorePtr backingStore)
     {
         store->SetBackingStore(backingStore);
         LOG_DEBUG("Backing store set (StoreId: %v, BackingStoreId: %v)",
@@ -1674,13 +1750,25 @@ private:
             .BeginMap()
                 .Item("table_id").Value(tablet->GetTableId())
                 .Item("state").Value(tablet->GetState())
-                .Item("pivot_key").Value(tablet->GetPivotKey())
-                .Item("next_pivot_key").Value(tablet->GetNextPivotKey())
-                .Item("eden").Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), tablet->GetEden()))
-                .Item("partitions").DoListFor(tablet->Partitions(), [&] (TFluentList fluent, const std::unique_ptr<TPartition>& partition) {
+                .DoIf(tablet->IsSorted(), [&] (TFluentMap fluent) {
                     fluent
-                        .Item()
-                        .Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
+                        .Item("pivot_key").Value(tablet->GetPivotKey())
+                        .Item("next_pivot_key").Value(tablet->GetNextPivotKey())
+                        .Item("eden").Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), tablet->GetEden()))
+                        .Item("partitions").DoListFor(tablet->Partitions(), [&] (TFluentList fluent, const std::unique_ptr<TPartition>& partition) {
+                            fluent
+                                .Item()
+                                .Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
+                        });
+                })
+                .DoIf(!tablet->IsSorted(), [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("stores").DoMapFor(tablet->Stores(), [&] (TFluentMap fluent, const std::pair<const TStoreId, IStorePtr>& pair) {
+                            const auto& store = pair.second;
+                            fluent
+                                .Item(ToString(store->GetId()))
+                                .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
+                        });
                 })
             .EndMap();
     }
@@ -1723,8 +1811,10 @@ private:
     {
         switch (store->GetType()) {
             case EStoreType::SortedDynamic:
+            case EStoreType::OrderedDynamic:
                 return EMemoryCategory::TabletDynamic;
             case EStoreType::SortedChunk:
+            case EStoreType::OrderedChunk:
                 return EMemoryCategory::TabletStatic;
             default:
                 YUNREACHABLE();
@@ -1916,7 +2006,7 @@ private:
         }
 
         LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TabletId: %v, TransactionId: %v)",
-            RowToKey(tablet->Schema(), tablet->KeyColumns(), row),
+            RowToKey(tablet->Schema(), row),
             lockIndex,
             tabletId,
             transaction->GetId());
@@ -1927,13 +2017,23 @@ private:
 
     IStoreManagerPtr CreateStoreManager(TTablet* tablet)
     {
-        // XXX(babenko): handle ordered tablets
-        return New<TSortedStoreManager>(
-            Config_,
-            tablet,
-            &TabletContext_,
-            Slot_->GetHydraManager(),
-            Bootstrap_->GetInMemoryManager());
+        if (tablet->IsSorted()) {
+            return New<TSortedStoreManager>(
+                Config_,
+                tablet,
+                &TabletContext_,
+                Slot_->GetHydraManager(),
+                Bootstrap_->GetInMemoryManager(),
+                Bootstrap_->GetMasterClient());
+        } else {
+            return New<TOrderedStoreManager>(
+                Config_,
+                tablet,
+                &TabletContext_,
+                Slot_->GetHydraManager(),
+                Bootstrap_->GetInMemoryManager(),
+                Bootstrap_->GetMasterClient());
+        }
     }
 
     IStorePtr CreateStore(
@@ -1954,15 +2054,42 @@ private:
         const TChunkMeta* chunkMeta)
     {
         switch (type) {
-            case EStoreType::SortedChunk:
-                return New<TSortedChunkStore>(
+            case EStoreType::SortedChunk: {
+                auto store = New<TSortedChunkStore>(
+                    Config_,
                     storeId,
                     tablet,
-                    chunkMeta,
-                    Bootstrap_);
+                    Bootstrap_->GetBlockCache(),
+                    Bootstrap_->GetChunkRegistry(),
+                    Bootstrap_->GetChunkBlockManager(),
+                    Bootstrap_->GetMasterClient(),
+                    Bootstrap_->GetMasterConnector()->GetLocalDescriptor());
+                store->Initialize(chunkMeta);
+                return store;
+            }
 
             case EStoreType::SortedDynamic:
                 return New<TSortedDynamicStore>(
+                    Config_,
+                    storeId,
+                    tablet);
+
+            case EStoreType::OrderedChunk: {
+                auto store = New<TOrderedChunkStore>(
+                    Config_,
+                    storeId,
+                    tablet,
+                    Bootstrap_->GetBlockCache(),
+                    Bootstrap_->GetChunkRegistry(),
+                    Bootstrap_->GetChunkBlockManager(),
+                    Bootstrap_->GetMasterClient(),
+                    Bootstrap_->GetMasterConnector()->GetLocalDescriptor());
+                store->Initialize(chunkMeta);
+                return store;
+            }
+
+            case EStoreType::OrderedDynamic:
+                return New<TOrderedDynamicStore>(
                     Config_,
                     storeId,
                     tablet);
@@ -2000,8 +2127,7 @@ TTabletManager::TTabletManager(
         bootstrap))
 { }
 
-TTabletManager::~TTabletManager()
-{ }
+TTabletManager::~TTabletManager() = default;
 
 void TTabletManager::Initialize()
 {

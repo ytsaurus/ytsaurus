@@ -453,7 +453,7 @@ private:
                 if (pair.first == address && pair.second == channel) {
                     evicted = true;
                     std::swap(ViableChannels_[index], ViableChannels_[ViableChannels_.size() - 1]);
-                    ViableChannels_.resize(ViableChannels_.size() - 1);
+                    ViableChannels_.pop_back();
                     break;
                 }
             }

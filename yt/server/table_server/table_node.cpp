@@ -236,6 +236,13 @@ protected:
         bool dynamic = attributes->Get<bool>("dynamic", false);
         attributes->Remove("dynamic");
 
+        auto maybeSchema = attributes->Find<TTableSchema>("schema");
+        attributes->Remove("schema");
+
+        if (dynamic && !maybeSchema) {
+            THROW_ERROR_EXCEPTION("\"schema\" is mandatory for dynamic tables");
+        }
+
         TBase::InitializeAttributes(attributes);
 
         auto nodeHolder = TChunkOwnerTypeHandler::DoCreate(
@@ -243,10 +250,15 @@ protected:
             cellTag,
             transaction,
             attributes);
+        auto* node = nodeHolder.get();
+
+        if (maybeSchema) {
+            node->TableSchema() = *maybeSchema;
+        }
 
         if (dynamic) {
             auto tabletManager = Bootstrap_->GetTabletManager();
-            tabletManager->MakeDynamic(nodeHolder.get());
+            tabletManager->MakeTableDynamic(nodeHolder.get());
         }
 
         return nodeHolder;

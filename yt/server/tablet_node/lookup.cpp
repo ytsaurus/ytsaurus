@@ -49,7 +49,7 @@ public:
         , Timestamp_(timestamp)
         , Reader_(reader)
         , Writer_(writer)
-        , KeyColumnCount_ (TabletSnapshot_->KeyColumns.size())
+        , KeyColumnCount_ (TabletSnapshot_->Schema.GetKeyColumnCount())
         , SchemaColumnCount_(TabletSnapshot_->Schema.Columns().size())
         , WorkloadDescriptor_(workloadDescriptor)
     { }
@@ -68,9 +68,7 @@ public:
         ValidateColumnFilter(columnFilter, TabletSnapshot_->Schema.Columns().size());
         ColumnFilter_ = std::move(columnFilter);
 
-        auto schemaData = TWireProtocolReader::GetSchemaData(
-            TabletSnapshot_->Schema,
-            TabletSnapshot_->KeyColumns.size());
+        auto schemaData = TWireProtocolReader::GetSchemaData(TabletSnapshot_->Schema);
         LookupKeys_ = Reader_->ReadSchemafulRowset(schemaData);
 
         Merger_ = New<TSchemafulRowMerger>(

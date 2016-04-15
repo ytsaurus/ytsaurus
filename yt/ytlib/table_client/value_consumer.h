@@ -33,8 +33,7 @@ class TBuildingValueConsumer
     : public IValueConsumer
 {
 public:
-    TBuildingValueConsumer(
-        const TTableSchema& schema);
+    explicit TBuildingValueConsumer(const TTableSchema& schema);
 
     const std::vector<TUnversionedOwningRow>& GetOwningRows() const;
     std::vector<TUnversionedRow> GetRows() const;

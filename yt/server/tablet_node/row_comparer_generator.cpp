@@ -1,5 +1,5 @@
 #include "row_comparer_generator.h"
-#include "sorted_dynamic_store_bits.h"
+#include "dynamic_store_bits.h"
 #include "sorted_dynamic_comparer.h"
 #include "llvm_types.h"
 

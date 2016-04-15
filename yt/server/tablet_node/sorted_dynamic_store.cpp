@@ -45,11 +45,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int InitialEditListCapacity = 2;
-static const int EditListCapacityMultiplier = 2;
-
-static const int MaxEditListCapacity = 256;
-static const int TabletReaderPoolSize = 16 * 1024;
+static const size_t ReaderPoolSize = (size_t) 16 * 1024;
 static const int SnapshotRowsPerRead = 1024;
 
 struct TSortedDynamicStoreReaderPoolTag
@@ -171,7 +167,7 @@ public:
         , KeyColumnCount_(Store_->KeyColumnCount_)
         , SchemaColumnCount_(Store_->SchemaColumnCount_)
         , ColumnLockCount_(Store_->ColumnLockCount_)
-        , Pool_(TSortedDynamicStoreReaderPoolTag(), TabletReaderPoolSize)
+        , Pool_(TSortedDynamicStoreReaderPoolTag(), ReaderPoolSize)
     {
         YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.All);
 
@@ -719,21 +715,14 @@ TSortedDynamicStore::TSortedDynamicStore(
     TTabletManagerConfigPtr config,
     const TStoreId& id,
     TTablet* tablet)
-    : TStoreBase(id, tablet)
-    , TDynamicStoreBase(id, tablet)
-    , TSortedStoreBase(id, tablet)
-    , Config_(config)
-    , Atomicity_(Tablet_->GetAtomicity())
+    : TStoreBase(config, id, tablet)
+    , TDynamicStoreBase(config, id, tablet)
+    , TSortedStoreBase(config, id, tablet)
     , RowKeyComparer_(Tablet_->GetRowKeyComparer())
-    , RowBuffer_(New<TRowBuffer>(
-        Config_->PoolChunkSize,
-        Config_->MaxPoolSmallBlockRatio))
     , Rows_(new TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>(
         RowBuffer_->GetPool(),
         RowKeyComparer_))
 {
-    StoreState_ = EStoreState::ActiveDynamic;
-
     // Reserve the vector to prevent reallocations and thus enable accessing
     // it from arbitrary threads.
     RevisionToTimestamp_.ReserveChunks(MaxRevisionChunks);
@@ -747,23 +736,13 @@ TSortedDynamicStore::TSortedDynamicStore(
             Tablet_->GetKeyColumnCount());
     }
 
-    LOG_DEBUG("Sorted dynamic store created (TabletId: %v, LookupHashTable: %v)",
-        TabletId_,
+    LOG_DEBUG("Sorted dynamic store created (LookupHashTable: %v)",
         static_cast<bool>(LookupHashTable_));
 }
 
 TSortedDynamicStore::~TSortedDynamicStore()
 {
     LOG_DEBUG("Sorted dynamic memory store destroyed");
-}
-
-void TSortedDynamicStore::SetStoreState(EStoreState state)
-{
-    if (StoreState_ == EStoreState::ActiveDynamic && state == EStoreState::PassiveDynamic) {
-        YCHECK(FlushRevision_ == InvalidRevision);
-        FlushRevision_ = GetLatestRevision();
-    }
-    TStoreBase::SetStoreState(state);
 }
 
 IVersionedReaderPtr TSortedDynamicStore::CreateFlushReader()
@@ -792,32 +771,6 @@ IVersionedReaderPtr TSortedDynamicStore::CreateSnapshotReader()
 const TSortedDynamicRowKeyComparer& TSortedDynamicStore::GetRowKeyComparer() const
 {
     return RowKeyComparer_;
-}
-
-int TSortedDynamicStore::GetLockCount() const
-{
-    return StoreLockCount_;
-}
-
-int TSortedDynamicStore::Lock()
-{
-    YASSERT(Atomicity_ == EAtomicity::Full);
-
-    int result = ++StoreLockCount_;
-    LOG_TRACE("Store locked (Count: %v)",
-        result);
-    return result;
-}
-
-int TSortedDynamicStore::Unlock()
-{
-    YASSERT(Atomicity_ == EAtomicity::Full);
-    YASSERT(StoreLockCount_ > 0);
-
-    int result = --StoreLockCount_;
-    LOG_TRACE("Store unlocked (Count: %v)",
-        result);
-    return result;
 }
 
 void TSortedDynamicStore::SetRowBlockedHandler(TRowBlockedHandler handler)
@@ -1283,6 +1236,12 @@ std::vector<TSortedDynamicRow> TSortedDynamicStore::GetAllRows()
     return rows;
 }
 
+void TSortedDynamicStore::OnSetPassive()
+{
+    YCHECK(FlushRevision_ == InvalidRevision);
+    FlushRevision_ = GetLatestRevision();
+}
+
 TSortedDynamicRow TSortedDynamicStore::AllocateRow()
 {
     return TSortedDynamicRow::Allocate(
@@ -1697,34 +1656,9 @@ TDynamicValueData TSortedDynamicStore::CaptureStringValue(const TUnversionedValu
     return dst;
 }
 
-int TSortedDynamicStore::GetValueCount() const
-{
-    return StoreValueCount_;
-}
-
-int TSortedDynamicStore::GetKeyCount() const
-{
-    return Rows_->GetSize();
-}
-
-i64 TSortedDynamicStore::GetPoolSize() const
-{
-    return RowBuffer_->GetSize();
-}
-
-i64 TSortedDynamicStore::GetPoolCapacity() const
-{
-    return RowBuffer_->GetCapacity();
-}
-
 EStoreType TSortedDynamicStore::GetType() const
 {
     return EStoreType::SortedDynamic;
-}
-
-i64 TSortedDynamicStore::GetUncompressedDataSize() const
-{
-    return GetPoolCapacity();
 }
 
 i64 TSortedDynamicStore::GetRowCount() const
@@ -1816,6 +1750,8 @@ void TSortedDynamicStore::Load(TLoadContext& context)
 
 TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
 {
+    using NYT::Save;
+
     auto tableReader = CreateSnapshotReader();
 
     return BIND([=, this_ = MakeStrong(this)] (TSaveContext& context) {
@@ -1836,6 +1772,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         std::vector<TVersionedRow> rows;
         rows.reserve(SnapshotRowsPerRead);
 
+        i64 rowCount = 0;
         while (tableReader->Read(&rows)) {
             if (rows.empty()) {
                 WaitFor(tableReader->GetReadyEvent())
@@ -1843,27 +1780,27 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
                 continue;
             }
 
+            rowCount += rows.size();
             if (!tableWriter->Write(rows)) {
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
         }
 
-        using NYT::Save;
-
         // pushsin@ forbids empty chunks.
-        if (tableWriter->GetRowCount() == 0) {
+        if (rowCount == 0) {
             Save(context, false);
-        }  else {
-            Save(context, true);
-
-            // NB: This also closes chunkWriter.
-            WaitFor(tableWriter->Close())
-                .ThrowOnError();
-
-            Save(context, chunkWriter->GetChunkMeta());
-            Save(context, chunkWriter->GetBlocks());
+            return;
         }
+
+        Save(context, true);
+
+        // NB: This also closes chunkWriter.
+        WaitFor(tableWriter->Close())
+            .ThrowOnError();
+
+        Save(context, chunkWriter->GetChunkMeta());
+        Save(context, chunkWriter->GetBlocks());
     });
 }
 
@@ -1923,17 +1860,9 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
     OnMemoryUsageUpdated();
 }
 
-void TSortedDynamicStore::BuildOrchidYson(IYsonConsumer* consumer)
+TSortedDynamicStorePtr TSortedDynamicStore::AsSortedDynamic()
 {
-    TStoreBase::BuildOrchidYson(consumer);
-
-    BuildYsonMapFluently(consumer)
-        .Item("flush_state").Value(FlushState_)
-        .Item("key_count").Value(GetKeyCount())
-        .Item("lock_count").Value(GetLockCount())
-        .Item("value_count").Value(GetValueCount())
-        .Item("pool_size").Value(GetPoolSize())
-        .Item("pool_capacity").Value(GetPoolCapacity());
+    return this;
 }
 
 ui32 TSortedDynamicStore::GetLatestRevision() const
@@ -1972,7 +1901,7 @@ void TSortedDynamicStore::InsertIntoLookupHashTable(
     TSortedDynamicRow dynamicRow)
 {
     if (LookupHashTable_) {
-        if (GetKeyCount() >= LookupHashTable_->GetSize()) {
+        if (GetRowCount() >= LookupHashTable_->GetSize()) {
             LookupHashTable_.reset();
         } else {
             LookupHashTable_->Insert(keyBegin, dynamicRow);
