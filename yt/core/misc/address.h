@@ -111,7 +111,14 @@ public:
     TFuture<TNetworkAddress> Resolve(const Stroka& address);
 
     //! Returns the FQDN of the local host.
+    /*!
+     *  If for some reason this FQDN could not be determined, |<unknown>| string is used.
+     *  \see IsLocalHostNameOK
+     */
     Stroka GetLocalHostName();
+
+    //! Return |true| if the local host FQDN can be properly determined.
+    bool IsLocalHostNameOK();
 
     //! Removes all cached resolutions.
     void PurgeCache();

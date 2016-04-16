@@ -22,8 +22,8 @@ var OPERATIONS_ARCHIVE_INDEX_PATH = "//sys/operations_archive/ordered_by_start_t
 var OPERATIONS_CYPRESS_PATH = "//sys/operations";
 var OPERATIONS_RUNTIME_PATH = "//sys/scheduler/orchid/scheduler/operations";
 var SCHEDULING_INFO_PATH = "//sys/scheduler/orchid/scheduler";
-var HARD_RESULT_LIMIT = 100;
-var MAX_TIME_SPAN = 7 * 86400 * 1000;
+var MAX_SIZE_LIMIT = 100;
+var TIME_SPAN_LIMIT = 10 * 24 * 3600 * 1000;
 
 var INTERMEDIATE_STATES = [
     "initializing",
@@ -71,6 +71,8 @@ var ANNOTATED_JSON_FORMAT = {
         stringify: "true"
     }
 };
+
+var SLOW_QUERY_TIMEOUT = 3000;
 
 function mapState(state)
 {
@@ -138,6 +140,24 @@ function stripJsonAnnotations(annotated_json)
     }
 }
 
+function tidyArchiveOperation(operation)
+{
+    delete operation.id_hi;
+    delete operation.id_lo;
+    delete operation.id_hash;
+    delete operation.filter_factors;
+
+    operation.is_archived = true;
+    if (operation.start_time) {
+        operation.start_time = new Date(parseInt(utils.getYsonValue(operation.start_time)) / 1000).toISOString();
+    }
+    if (operation.finish_time) {
+        operation.finish_time = new Date(parseInt(utils.getYsonValue(operation.finish_time)) / 1000).toISOString();
+    }
+
+    return operation;
+}
+
 function idUint64ToString(id_hi, id_lo)
 {
     var hi, lo, mask, parts;
@@ -167,6 +187,7 @@ function validateString(value)
         return value;
     }
     throw new YtError("Unable to parse string")
+        .withCode(1)
         .withAttribute("value", escapeC(value + ""));
 }
 
@@ -177,6 +198,7 @@ function validateId(value)
         return value;
     }
     throw new YtError("Unable to parse operation id")
+        .withCode(1)
         .withAttribute("value", escapeC(value + ""));
 }
 
@@ -192,6 +214,7 @@ function validateBoolean(value)
         }
     }
     throw new YtError("Unable to parse boolean")
+        .withCode(1)
         .withAttribute("value", escapeC(value + ""));
 }
 
@@ -206,6 +229,7 @@ function validateInteger(value)
         }
     }
     throw new YtError("Unable to parse integer")
+        .withCode(1)
         .withAttribute("value", escapeC(value + ""));
 }
 
@@ -216,6 +240,7 @@ function validateDateTime(value)
         return parsed;
     }
     throw new YtError("Unable to parse datetime")
+        .withCode(1)
         .withAttribute("value", escapeC(value + ""));
 }
 
@@ -238,7 +263,8 @@ function required(parameters, key, validator)
     if (result !== null) {
         return result;
     } else {
-        throw new YtError("Missing required parameter \"" + key + "\"");
+        throw new YtError("Missing required parameter \"" + key + "\"")
+            .withCode(1);
     }
 }
 
@@ -256,33 +282,54 @@ YtApplicationOperations._idStringToUint64 = idStringToUint64;
 YtApplicationOperations.prototype.list = Q.method(
 function YtApplicationOperations$list(parameters)
 {
-    var start_time_begin = optional(parameters, "from_time", validateDateTime);
-    var start_time_end = optional(parameters, "to_time", validateDateTime);
+    var from_time = optional(parameters, "from_time", validateDateTime);
+    var to_time = optional(parameters, "to_time", validateDateTime);
+    var cursor_time = optional(parameters, "cursor_time", validateDateTime);
+    var cursor_direction = optional(parameters, "cursor_direction", validateString);
     var user_filter = optional(parameters, "user", validateString);
     var state_filter = optional(parameters, "state", validateString);
     var type_filter = optional(parameters, "type", validateString);
     var substr_filter = optional(parameters, "filter", validateString);
-
     var with_failed_jobs = optional(parameters, "with_failed_jobs", validateBoolean, false);
+    var include_archive = optional(parameters, "include_archive", validateBoolean, false);
     var include_counters = optional(parameters, "include_counters", validateBoolean, true);
-    var result_limit = optional(parameters, "max_size", validateInteger, HARD_RESULT_LIMIT);
+    var max_size = optional(parameters, "max_size", validateInteger, MAX_SIZE_LIMIT);
 
-    // Process |start_time_begin| & |start_time_end|.
-    if (start_time_begin === null) {
-        if (start_time_end === null) {
-            start_time_end = (new Date()).getTime();
+    // Process |from_time| & |to_time|.
+    if (from_time === null) {
+        if (to_time === null) {
+            to_time = (new Date()).getTime();
         }
-        start_time_begin = start_time_end - MAX_TIME_SPAN;
+        from_time = to_time - TIME_SPAN_LIMIT;
     } else {
-        if (start_time_end === null) {
-            start_time_end = start_time_begin + MAX_TIME_SPAN;
+        if (to_time === null) {
+            to_time = from_time + TIME_SPAN_LIMIT;
         }
     }
 
-    var start_time_span = start_time_end - start_time_begin;
-    if (start_time_span > MAX_TIME_SPAN) {
+    var time_span = to_time - from_time;
+    if (time_span > TIME_SPAN_LIMIT) {
         throw new YtError("Time span exceedes allowed limit ({} > {})".format(
-            start_time_span, MAX_TIME_SPAN));
+            time_span, TIME_SPAN_LIMIT)).withCode(1);
+    }
+
+    // Process |cursor_time|, |cursor_direction|.
+    if (cursor_time === null) {
+        cursor_time = to_time;
+    }
+
+    if (cursor_time > to_time || cursor_time < from_time) {
+        throw new YtError("Time cursor is out of range").withCode(1);
+    }
+
+    if (cursor_direction === null) {
+        cursor_direction = "past";
+    } else {
+        cursor_direction = cursor_direction.toLowerCase();
+    }
+
+    if (cursor_direction !== "past" && cursor_direction !== "future") {
+        throw new YtError("Cursor direction must be either 'past' of 'future'").withCode(1);
     }
 
     // TODO(sandello): Validate |state_filter|, |type_filter|.
@@ -292,10 +339,10 @@ function YtApplicationOperations$list(parameters)
         substr_filter = substr_filter.toLowerCase();
     }
 
-    // Process |result_limit|.
-    if (result_limit > HARD_RESULT_LIMIT) {
+    // Process |max_size|.
+    if (max_size > MAX_SIZE_LIMIT) {
         throw new YtError("Maximum result size exceedes allowed limit ({} > {})".format(
-            result_limit, HARD_RESULT_LIMIT));
+            max_size, MAX_SIZE_LIMIT)).withCode(1);
     }
 
     // Okay, now fetch & merge data.
@@ -312,43 +359,54 @@ function YtApplicationOperations$list(parameters)
             path: OPERATIONS_RUNTIME_PATH
         });
 
-    var generic_filter_conditions = [
-        "start_time > {}000 AND start_time <= {}000".format(start_time_begin, start_time_end)
+    var counts_filter_conditions = [
+        "start_time > {}000 AND start_time <= {}000".format(from_time, to_time)
     ];
 
     if (substr_filter) {
-        generic_filter_conditions.push(
+        counts_filter_conditions.push(
             "is_substr(\"{}\", filter_factors)".format(escapeC(substr_filter)));
     }
 
-    var narrow_filter_conditions = generic_filter_conditions.slice();
+    var items_filter_conditions = counts_filter_conditions.slice();
+    var items_sort_direction;
+
+    if (cursor_direction === "past") {
+        items_filter_conditions.push("start_time <= {}000".format(cursor_time));
+        items_sort_direction = "DESC";
+    }
+
+    if (cursor_direction === "future") {
+        items_filter_conditions.push("start_time > {}000".format(cursor_time));
+        items_sort_direction = "ASC";
+    }
 
     if (state_filter) {
-        narrow_filter_conditions.push("state = \"{}\"".format(escapeC(state_filter)));
+        items_filter_conditions.push("state = \"{}\"".format(escapeC(state_filter)));
     }
 
     if (type_filter) {
-        narrow_filter_conditions.push("operation_type = \"{}\"".format(escapeC(type_filter)));
+        items_filter_conditions.push("operation_type = \"{}\"".format(escapeC(type_filter)));
     }
 
     if (user_filter) {
-        narrow_filter_conditions.push("authenticated_user = \"{}\"".format(escapeC(user_filter)));
+        items_filter_conditions.push("authenticated_user = \"{}\"".format(escapeC(user_filter)));
     }
 
     var query_source = "[{}] JOIN [{}] USING id_hi, id_lo, start_time"
         .format(OPERATIONS_ARCHIVE_INDEX_PATH, OPERATIONS_ARCHIVE_PATH);
     var query_for_counts =
         "user, state, type, sum(1) AS count FROM {}".format(query_source) +
-        " WHERE {}".format(generic_filter_conditions.join(" AND ")) +
+        " WHERE {}".format(counts_filter_conditions.join(" AND ")) +
         " GROUP BY authenticated_user AS user, state AS state, operation_type AS type";
     var query_for_items =
         "* FROM {}".format(query_source) +
-        " WHERE {}".format(narrow_filter_conditions.join(" AND ")) +
-        " ORDER BY start_time DESC" +
-        " LIMIT {}".format(1 + result_limit);
+        " WHERE {}".format(items_filter_conditions.join(" AND ")) +
+        " ORDER BY start_time {}".format(items_sort_direction) +
+        " LIMIT {}".format(1 + max_size);
 
     var archive_counts = null;
-    if (include_counters) {
+    if (include_archive && include_counters) {
         archive_counts = this.driver.executeSimple(
             "select_rows",
             {query: query_for_counts});
@@ -356,9 +414,20 @@ function YtApplicationOperations$list(parameters)
         archive_counts = Q.resolve([]);
     }
 
-    var archive_data = this.driver.executeSimple(
-        "select_rows",
-        {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT});
+    var archive_data = null;
+    if (include_archive) {
+        archive_data = this.driver.executeSimple(
+            "select_rows",
+            {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT});
+    } else {
+        archive_data = Q.resolve([]);
+    }
+
+    var timings = {
+        start: new Date(),
+    };
+
+    var logger = this.logger;
 
     function makeRegister() {
         var user_counts = {};
@@ -407,58 +476,65 @@ function YtApplicationOperations$list(parameters)
         };
     }
 
-    var logger = this.logger;
+    function makeErrorHandler(message) {
+        return function(error) {
+            var err = YtError.ensureWrapped(error);
+            logger.error(message, {error: err.toJson()});
+            return Q.reject(new YtError(message, err));
+        };
+    }
+
+    cypress_data = cypress_data
+        .catch(makeErrorHandler("Failed to fetch operations from Cypress"))
+        .finally(function() {
+            timings.cypress_data = new Date();
+        });
+
+    runtime_data = runtime_data
+        .catch(makeErrorHandler("Failed to fetch operations from scheduler"))
+        .finally(function() {
+            timings.runtime_data = new Date();
+        });
+
+    if (include_archive && include_counters) {
+        archive_counts = archive_counts
+            .catch(makeErrorHandler("Failed to fetch operation counts from archive"))
+            .finally(function() {
+                timings.archive_counts = new Date();
+                var dt = timings.archive_counts - timings.start;
+                if ((timings.archive_counts - timings.start) > SLOW_QUERY_TIMEOUT) {
+                    logger.debug("Slow query", {query: query_for_counts, time: dt});
+                }
+            });
+    }
+
+    if (include_archive) {
+        archive_data = archive_data
+            .catch(makeErrorHandler("Failed to fetch operation items from archive"))
+            .finally(function() {
+                timings.archive_items = new Date();
+                var dt = timings.archive_items - timings.start;
+                if ((timings.archive_items - timings.start) > SLOW_QUERY_TIMEOUT) {
+                    logger.debug("Slow query", {query: query_for_items, time: dt});
+                }
+            });
+    }
 
     return Q.settle([cypress_data, runtime_data, archive_data, archive_counts])
     .spread(function(cypress_data, runtime_data, archive_data, archive_counts) {
-        // Handle errors, if any.
-        var err = null;
-
         if (cypress_data.isRejected()) {
-            err = YtError.ensureWrapped(cypress_data.error());
-            logger.error(
-                "Failed to fetch operations from Cypress",
-                // XXX(sandello): Embed.
-                {error: err.toJson()});
-            return Q.reject(new YtError(
-                "Failed to fetch operations from Cypress",
-                cypress_data.error()));
+            return Q.reject(cypress_data.error());
         } else {
             cypress_data = cypress_data.value();
         }
 
         if (runtime_data.isRejected()) {
-            err = YtError.ensureWrapped(runtime_data.error());
-            logger.debug(
-                "Failed to fetch operations from scheduler",
-                // XXX(sandello): Embed.
-                {error: err.toJson()});
             runtime_data = {};
         } else {
             runtime_data = runtime_data.value();
         }
 
         if (archive_data.isRejected() || archive_counts.isRejected()) {
-            if (archive_data.isRejected()) {
-                err = YtError.ensureWrapped(archive_data.error());
-                logger.debug(
-                    "Failed to fetch operation items from archive",
-                    {
-                        query: query_for_items,
-                        // XXX(sandello): Embed.
-                        error: err.toJson(),
-                    });
-            }
-            if (archive_counts.isRejected()) {
-                err = YtError.ensureWrapped(archive_counts.error());
-                logger.debug(
-                    "Failed to fetch operation counts from archive",
-                    {
-                        query: query_for_counts,
-                        // XXX(sandello): Embed.
-                        error: err.toJson(),
-                    });
-            }
             archive_data = [];
             archive_counts = [];
         } else {
@@ -478,15 +554,7 @@ function YtApplicationOperations$list(parameters)
         archive_data = archive_data.map(function(operation) {
             var id = idUint64ToString(operation.id_hi.$value, operation.id_lo.$value);
 
-            delete operation.id_hi;
-            delete operation.id_lo;
-            delete operation.id_hash;
-            delete operation.filter_factors;
-
-            operation.state = mapState(utils.getYsonValue(operation.state));
-
-            operation.start_time = new Date(parseInt(operation.start_time.$value) / 1000).toISOString();
-            operation.finish_time = new Date(parseInt(operation.finish_time.$value) / 1000).toISOString();
+            tidyArchiveOperation(operation);
 
             return {
                 $value: id,
@@ -499,20 +567,25 @@ function YtApplicationOperations$list(parameters)
             var value = utils.getYsonValue(item);
             var attributes = utils.getYsonAttributes(item);
 
-            // Map runtime progress into brief_progress (see YT-1986) if operation is in progress.
-            if (mapState(attributes.state) === "running") {
-                var runtime_attributes = runtime_data[value];
-                if (runtime_attributes) {
-                    utils.merge(attributes.brief_progress, runtime_attributes.progress);
-                }
+            // Check time filter.
+            var start_time = Date.parse(attributes.start_time);
+            if (start_time < from_time || start_time >= to_time) {
+                return false;
             }
-
-            attributes.state = mapState(attributes.state);
 
             // Now, extract main bits.
             var user = attributes.authenticated_user;
             var state = attributes.state;
             var type = attributes.operation_type;
+
+            // Map runtime progress into brief_progress (see YT-1986) if operation is in progress.
+            var mapped_state = mapState(state);
+            if (mapped_state === "running") {
+                var runtime_attributes = runtime_data[value];
+                if (runtime_attributes) {
+                    utils.merge(attributes.brief_progress, runtime_attributes.progress);
+                }
+            }
 
             // Apply text filter.
             var text_factor = extractTextFactorForCypressItem(value, attributes);
@@ -521,7 +594,7 @@ function YtApplicationOperations$list(parameters)
             }
 
             // Apply user, state & type filters; count this operation.
-            if (!register.filterAndCount(user, state, type, 1)) {
+            if (!register.filterAndCount(user, mapped_state, type, 1)) {
                 return false;
             }
 
@@ -536,6 +609,15 @@ function YtApplicationOperations$list(parameters)
             }
 
             if (with_failed_jobs && !has_failed_jobs) {
+                return false;
+            }
+
+            // Check cursor position.
+            if (cursor_direction === "past" && start_time >= cursor_time) {
+                return false;
+            }
+
+            if (cursor_direction === "future" && start_time < cursor_time) {
                 return false;
             }
 
@@ -578,14 +660,27 @@ function YtApplicationOperations$list(parameters)
         });
 
         // Check if there are any extra items.
-        if (merged_data.length > result_limit) {
+        if (merged_data.length > max_size) {
             merged_data = {
-                $incomplete: true,
-                $value: merged_data.slice(0, result_limit),
+                $attributes: {incomplete: true},
+                $value: merged_data.slice(0, max_size),
             };
         }
 
-        var result = {operations: merged_data};
+        timings.total = new Date();
+
+        var result = {
+            operations: merged_data,
+            timings: {},
+        };
+
+        _.each(
+            ["cypress_data", "runtime_data", "archive_counts", "archive_items", "total"],
+            function(timer) {
+                if (timings[timer]) {
+                    result.timings[timer] = timings[timer] - timings.start;
+                }
+            });
 
         if (include_counters) {
             result.user_counts = register.result.user_counts;
@@ -594,10 +689,13 @@ function YtApplicationOperations$list(parameters)
             result.failed_jobs_count = failed_jobs_count;
         }
 
+        logger.debug(
+            "Fetched and filtered operations",
+            {count: result.operations.length, timings: result.timings});
+
         return result;
     })
     .catch(function(err) {
-        logger.error("ERROR :(", {error: err});
         return Q.reject(new YtError(
             "Failed to list operations",
             err));
@@ -608,21 +706,18 @@ YtApplicationOperations.prototype.get = Q.method(
 function YtApplicationOperations$get(parameters)
 {
     var id = required(parameters, "id", validateId);
+
     var id_parts = idStringToUint64(id);
     var id_hi = id_parts[0];
     var id_lo = id_parts[1];
 
     var cypress_data = this.driver.executeSimple(
         "get",
-        {
-            path: "//sys/operations/" + utils.escapeYPath(id) + "/@"
-        });
+        {path: "//sys/operations/" + utils.escapeYPath(id) + "/@"});
 
     var runtime_data = this.driver.executeSimple(
         "get",
-        {
-            path: "//sys/scheduler/orchid/scheduler/operations/" + utils.escapeYPath(id)
-        });
+        {path: "//sys/scheduler/orchid/scheduler/operations/" + utils.escapeYPath(id)});
 
     var archive_data = this.driver.executeSimple(
         "select_rows",
@@ -634,8 +729,8 @@ function YtApplicationOperations$get(parameters)
             output_format: ANNOTATED_JSON_FORMAT,
         });
 
-    return Q.settle([cypress_data, runtime_data, archive_data])
-    .spread(function(cypress_data, runtime_data, archive_data) {
+    return Q.settle([cypress_data, runtime_data])
+    .spread(function(cypress_data, runtime_data) {
         var result = null;
         if (cypress_data.isFulfilled()) {
             result = cypress_data.value();
@@ -644,18 +739,15 @@ function YtApplicationOperations$get(parameters)
             }
             return result;
         } else if (cypress_data.error().checkFor(500)) {
-            if (archive_data.isFulfilled()) {
-                if (archive_data.value().length > 0) {
-                    result = archive_data.value()[0];
-                    result = _.omit(result, "id_hi", "id_lo", "id_hash");
+            return archive_data.then(function(result) {
+                if (result.length > 0) {
+                    result = tidyArchiveOperation(result[0]);
                     // TODO(sandello): Better JSON conversion here?
                     return stripJsonAnnotations(result);
                 } else {
-                    throw new YtError("No such operation " + id);
+                    throw new YtError("No such operation " + id).withCode(1);
                 }
-            } else {
-                throw archive_data.error();
-            }
+            });
         } else {
             throw cypress_data.error();
         }
