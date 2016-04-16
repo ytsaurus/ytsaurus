@@ -29,6 +29,7 @@
 
 #include <yt/core/misc/crash_handler.h>
 #include <yt/core/misc/proc.h>
+#include <yt/core/misc/address.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -160,12 +161,11 @@ public:
 
 EExitCode GuardedMain(int argc, const char* argv[])
 {
-    srand(time(nullptr));
-
     TThread::CurrentThreadSetName("Bootstrap");
 
-    TArgsParser parser;
+    srand(time(nullptr));
 
+    TArgsParser parser;
     parser.CmdLine.parse(argc, argv);
 
     // Figure out the mode: cell master, cell node, scheduler or job proxy.
@@ -271,9 +271,16 @@ EExitCode GuardedMain(int argc, const char* argv[])
         } else {
             NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
         }
+
         TAddressResolver::Get()->Configure(genericConfig->AddressResolver);
+        if (!TAddressResolver::Get()->IsLocalHostNameOK()) {
+            THROW_ERROR_EXCEPTION("Could not determine the local host FQDN");
+        }
+
         NChunkClient::TDispatcher::Get()->Configure(genericConfig->ChunkClientDispatcher);
+
         NTracing::TTraceManager::Get()->Configure(configFileName, "/tracing");
+
         NProfiling::TProfileManager::Get()->Start();
     }
 
