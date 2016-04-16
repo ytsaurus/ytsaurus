@@ -222,7 +222,7 @@ public:
 
         AddPendingValues(
             rows,
-            [&](const TVersionedValue& value) {
+            [&] (const TVersionedValue& value) {
                 auto stringBuf = UpdateStatistics(value);
                 Values_.push_back(stringBuf);
             });

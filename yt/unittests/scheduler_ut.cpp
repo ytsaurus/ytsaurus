@@ -656,7 +656,7 @@ TEST_F(TSuspendableInvokerTest, ResumeBeforeFullSuspend)
 {
     auto suspendableInvoker = CreateSuspendableInvoker(Queue1->GetInvoker());
 
-    BIND([&]() {
+    BIND([&] () {
         Sleep(TDuration::MilliSeconds(10));
     })
     .Via(suspendableInvoker)
@@ -677,7 +677,7 @@ TEST_F(TSuspendableInvokerTest, AllowSuspendOnContextSwitch)
     auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
 
-    auto setFlagFuture = BIND([&]() {
+    auto setFlagFuture = BIND([&] () {
         Sleep(TDuration::MilliSeconds(10));
         WaitFor(future);
         flag = true;
@@ -700,7 +700,7 @@ TEST_F(TSuspendableInvokerTest, SuspendResumeOnFinishedRace)
     std::atomic<bool> flag(false);
     auto suspendableInvoker = CreateSuspendableInvoker(Queue1->GetInvoker());
 
-    BIND([&]() {
+    BIND([&] () {
         for (int i = 0; i < 100; ++i) {
             Sleep(TDuration::MilliSeconds(1));
             Yield();
@@ -735,7 +735,7 @@ TEST_F(TSuspendableInvokerTest, ResumeInApply)
 {
     auto suspendableInvoker = CreateSuspendableInvoker(Queue1->GetInvoker());
 
-    BIND([&]() {
+    BIND([&] () {
         Sleep(TDuration::MilliSeconds(10));
     })
     .Via(suspendableInvoker)
