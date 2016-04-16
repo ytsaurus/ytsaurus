@@ -292,49 +292,6 @@ class TestJobProber(YTEnvSetup):
 
 ##################################################################
 
-    def test_abandon_job_sorted_empty_output(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("<append=true>//tmp/t1", {"key": "foo", "value": "bar"})
-
-        with self.tempfolder("abandon_job_sorted_empty_output") as tmpdir:
-            command = 'echo -n "$YT_JOB_ID" >{0}/started || exit 1; sleep 5; cat'.format(tmpdir)
-
-            op_id = map(
-                dont_track=True,
-                in_="//tmp/t1",
-                out="<sorted_by=[key]>//tmp/t2",
-                command=command,
-                spec={
-                    "mapper": {
-                        "format": "dsv"
-                    }
-                })
-
-            try:
-                pin_filename = os.path.join(tmpdir, "started")
-                while not os.access(pin_filename, os.F_OK):
-                    time.sleep(0.2)
-
-                jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-                jobs = ls(jobs_path)
-                assert jobs
-
-                job_id = open(pin_filename).read()
-                assert job_id
-
-                abandon_job(job_id)
-            finally:
-                try:
-                    os.unlink(pin_filename)
-                except OSError:
-                    pass
-
-            track_op(op_id)
-            assert(2, len(read_table("//tmp/t2")))
-
-##################################################################
-
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
