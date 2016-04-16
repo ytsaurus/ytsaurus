@@ -712,7 +712,6 @@ function YtApplicationOperations$list(parameters)
         return result;
     })
     .catch(function(err) {
-        console.log(err);
         return Q.reject(new YtError(
             "Failed to list operations",
             YtError.ensureWrapped(err)));
