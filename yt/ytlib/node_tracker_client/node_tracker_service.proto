@@ -135,8 +135,9 @@ message TRspIncrementalHeartbeat
     repeated TRemoveTabletSlotInfo tablet_slots_to_remove = 2;
     repeated TConfigureTabletSlotInfo tablet_slots_configure = 3;
 
-    // General.
+    // Node Tracker stuff.
     optional string rack = 6;
+    optional TNodeResourceLimitsOverrides resource_limits_overrides = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

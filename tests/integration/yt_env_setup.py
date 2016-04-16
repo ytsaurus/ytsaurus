@@ -153,7 +153,7 @@ class YTEnvSetup(YTEnv):
             yt_commands.gc_collect()
             yt_commands.clear_metadata_caches()
 
-            self._unban_nodes()
+            self._reset_nodes()
             self._reenable_chunk_replicator()
             self._remove_accounts()
             self._remove_users()
@@ -231,11 +231,14 @@ class YTEnvSetup(YTEnv):
             except:
                 pass
 
-    def _unban_nodes(self):
-        nodes = yt_commands.ls("//sys/nodes", attributes=["banned"])
+    def _reset_nodes(self):
+        nodes = yt_commands.ls("//sys/nodes", attributes=["banned", "resource_limits_overrides"])
         for node in nodes:
+            node_name = str(node)
             if node.attributes["banned"]:
-                yt_commands.set("//sys/nodes/%s/@banned" % str(node), False)
+                yt_commands.set("//sys/nodes/%s/@banned" % node_name, False)
+            if node.attributes["resource_limits_overrides"] != {}:
+                yt_commands.set("//sys/nodes/%s/@resource_limits_overrides" % node_name, {})
 
     def _reenable_chunk_replicator(self):
         if yt_commands.exists("//sys/@disable_chunk_replicator"):

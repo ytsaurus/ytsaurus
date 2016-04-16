@@ -13,6 +13,7 @@ namespace NProto {
 
 class TNodeStatistics;
 class TNodeResources;
+class TNodeResourceLimitsOverrides;
 
 class TNodeDescriptor;
 class TNodeDirectory;
