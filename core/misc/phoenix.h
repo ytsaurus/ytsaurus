@@ -48,7 +48,7 @@ template <class T>
 struct TPolymorphicTraits<
     T,
     typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T&, TDynamicTag&> 
+        NMpl::TIsConvertible<T&, TDynamicTag&>
     >::TType
 >
 {
@@ -90,7 +90,7 @@ template <class T>
 struct TFactoryTraits<
     T,
     typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T&, TFactoryTag<TSimpleFactory>&> 
+        NMpl::TIsConvertible<T&, TFactoryTag<TSimpleFactory>&>
     >::TType
 >
 {
@@ -112,7 +112,7 @@ template <class T>
 struct TFactoryTraits<
     T,
     typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T&, TFactoryTag<TNullFactory>&> 
+        NMpl::TIsConvertible<T&, TFactoryTag<TNullFactory>&>
     >::TType
 >
 {
