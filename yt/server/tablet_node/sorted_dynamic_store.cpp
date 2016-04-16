@@ -763,6 +763,10 @@ void TSortedDynamicStore::SetStoreState(EStoreState state)
         YCHECK(FlushRevision_ == InvalidRevision);
         FlushRevision_ = GetLatestRevision();
     }
+    LOG_DEBUG("Changing dynamic memory store state (OldState: %v, NewState: %v, FlushRevision: %v)",
+        StoreState_,
+        state,
+        FlushRevision_);
     TStoreBase::SetStoreState(state);
 }
 
@@ -1914,7 +1918,9 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
         }
     }
 
-    if (StoreState_ == EStoreState::PassiveDynamic) {
+    if (StoreState_ == EStoreState::PassiveDynamic ||
+        StoreState_ == EStoreState::RemoveCommitting)
+    {
         // NB: No more changes are possible after load.
         YCHECK(FlushRevision_ == InvalidRevision);
         FlushRevision_ = MaxRevision;

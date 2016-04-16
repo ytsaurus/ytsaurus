@@ -1,0 +1,41 @@
+{
+  "$attributes": {
+    "suspended": false,
+    "weight": 1,
+    "authenticated_user": "odin",
+    "brief_progress": {},
+    "brief_spec": {
+      "input_table_paths": {
+        "$attributes": {
+          "count": 1
+        },
+        "$value": [
+          {
+            "$attributes": {
+              "append": "false"
+            },
+            "$value": "//tmp/new_odin/5tqwbeE10v"
+          }
+        ]
+      },
+      "output_table_paths": {
+        "$attributes": {
+          "count": 1
+        },
+        "$value": [
+          {
+            "$attributes": {
+              "append": "false"
+            },
+            "$value": "//tmp/new_odin/5tqwbeE10v"
+          }
+        ]
+      },
+      "pool": "odin"
+    },
+    "operation_type": "sort",
+    "start_time": "2016-04-11T11:10:05.150753Z",
+    "state": "initializing"
+  },
+  "$value": "bd90befa-101169a-3fc03e8-1cb90ada"
+}
