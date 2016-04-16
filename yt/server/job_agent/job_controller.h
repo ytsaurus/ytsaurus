@@ -23,7 +23,9 @@ namespace NJobAgent {
 class TJobController
     : public TRefCounted
 {
+public:
     DEFINE_SIGNAL(void(), ResourcesUpdated);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides, ResourceLimitsOverrides);
 
 public:
     TJobController(

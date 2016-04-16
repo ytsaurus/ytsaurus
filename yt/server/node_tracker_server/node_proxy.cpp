@@ -71,6 +71,8 @@ private:
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor("resource_limits")
             .SetPresent(isGood));
+        descriptors->push_back(TAttributeDescriptor("resource_limits_overrides")
+            .SetReplicated(true));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -223,6 +225,12 @@ private:
             }
         }
 
+        if (key == "resource_limits_overrides") {
+            BuildYsonFluently(consumer)
+                .Value(node->ResourceLimitsOverrides());
+            return true;
+        }
+
         return TNonversionedObjectProxyBase::GetBuiltinAttribute(key, consumer);
     }
 
@@ -247,6 +255,11 @@ private:
             auto rackName = ConvertTo<Stroka>(value);
             auto* rack = nodeTracker->GetRackByNameOrThrow(rackName);
             nodeTracker->SetNodeRack(node, rack);
+            return true;
+        }
+
+        if (key == "resource_limits_overrides") {
+            node->ResourceLimitsOverrides() = ConvertTo<TNodeResourceLimitsOverrides>(value);
             return true;
         }
 
