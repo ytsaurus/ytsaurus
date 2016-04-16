@@ -368,22 +368,19 @@ Y_FORCE_INLINE void TBufferedBinaryYsonWriter::WriteStringScalar(const TStringBu
 Y_FORCE_INLINE void TBufferedBinaryYsonWriter::BeginCollection(char ch)
 {
     ++Depth_;
-    *BufferCursor_++ = ch;    
+    *BufferCursor_++ = ch;
 }
 
 Y_FORCE_INLINE void TBufferedBinaryYsonWriter::EndCollection(char ch)
 {
     --Depth_;
-    *BufferCursor_++ = ch;    
+    *BufferCursor_++ = ch;
 }
 
 Y_FORCE_INLINE void TBufferedBinaryYsonWriter::EndNode()
 {
     if (Y_LIKELY(Type_ != EYsonType::Node || Depth_ > 0)) {
         *BufferCursor_++ = NDetail::ItemSeparatorSymbol;
-    }
-    if (Y_LIKELY(Type_ != EYsonType::Node && Depth_ == 0)) {
-        *BufferCursor_++ = '\n';
     }
 }
 
