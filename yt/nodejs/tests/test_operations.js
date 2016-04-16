@@ -5,6 +5,7 @@ var _ = require("underscore");
 
 var YtApplicationOperations = require("../lib/application_operations").that;
 var YtError = require("../lib/error").that;
+var utils = require("../lib/utils");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,6 +25,8 @@ var CYPRESS_OPERATIONS = [
     fixture("cypress_1dee545-fe4c4006-cd95617-54f87a31.json"),
     fixture("cypress_d7df8-7d0c30ec-582ebd65-9ad7535a.json"),
 ];
+
+var CYPRESS_OPERATIONS_FROM_QUINE = fixture("cypress_quine_merge_operations.json");
 
 var RUNTIME_OPERATIONS = {
     "1dee545-fe4c4006-cd95617-54f87a31": fixture("runtime_1dee545-fe4c4006-cd95617-54f87a31.json"),
@@ -487,8 +490,8 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
             ]);
             expect(result.operations[1].$attributes.brief_progress.jobs.completed).to.eql(9725);
             expect(result.operations[1].$attributes.start_time).to.eql("2016-03-02T05:43:43.104532Z");
-            expect(result.operations[3].$attributes.start_time).to.eql("2016-01-28T13:31:03.127Z");
-            expect(result.operations[3].$attributes.finish_time).to.eql("2016-01-28T13:36:19.059Z");
+            expect(result.operations[3].$attributes.start_time).to.eql("2016-01-28T13:31:03.127478Z");
+            expect(result.operations[3].$attributes.finish_time).to.eql("2016-01-28T13:36:19.059799Z");
             expect(result.operations[3].$attributes.filter_factors).to.eql(undefined);
             mock.verify();
         })
@@ -551,6 +554,78 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
             mock.verify();
         })
         .then(done, done);
+    });
+
+    it("should be able to iterate through operations one by one to past", function(done) {
+        var mock = sinon.mock(this.driver);
+
+        var start_times = CYPRESS_OPERATIONS_FROM_QUINE
+        .map(function(item) {
+            return item.$attributes.start_time;
+        })
+        .sort(function(timeA, timeB) {
+            return utils.utcStringToMicros(timeA) > utils.utcStringToMicros(timeB) ? -1 : 1;
+        });
+
+        var self = this;
+
+        function iterate(cursor_time, expected) {
+            mockForList(mock, Q.resolve(CYPRESS_OPERATIONS_FROM_QUINE), Q.reject());
+            return self.application_operations.list({
+                from_time: "2016-04-15T00:00:00.000000Z",
+                to_time: "2016-04-16T00:00:00.000000Z",
+                cursor_direction: "past",
+                cursor_time: cursor_time,
+                max_size: 1
+            }).then(function(result) {
+                var operations = utils.getYsonValue(result.operations);
+                expect(operations.length).to.eql(1);
+                var actual = utils.getYsonAttribute(operations[0], "start_time");
+                expect(actual).to.eql(expected);
+            });
+        }
+
+        Q.all(start_times.map(function(_, i) {
+            return iterate(start_times[i - 1], start_times[i]);
+        })).then(function() {}).then(done, done);
+    });
+
+    it("should be able to iterate through operations one by one to future", function(done) {
+        var mock = sinon.mock(this.driver);
+
+        var start_times = CYPRESS_OPERATIONS_FROM_QUINE
+        .map(function(item) {
+            return item.$attributes.start_time;
+        })
+        .sort(function(timeA, timeB) {
+            return utils.utcStringToMicros(timeA) > utils.utcStringToMicros(timeB) ? 1 : -1;
+        });
+
+        var self = this;
+
+        function iterate(cursor_time, expected) {
+            mockForList(mock, Q.resolve(CYPRESS_OPERATIONS_FROM_QUINE), Q.reject());
+            return self.application_operations.list({
+                from_time: "2016-04-15T00:00:00.000000Z",
+                to_time: "2016-04-16T00:00:00.000000Z",
+                cursor_direction: "future",
+                cursor_time: cursor_time,
+                max_size: 1
+            }).then(function(result) {
+                var operations = utils.getYsonValue(result.operations);
+                if (expected) {
+                    expect(operations.length).to.eql(1);
+                    var actual = utils.getYsonAttribute(operations[0], "start_time");
+                    expect(actual).to.eql(expected);
+                } else {
+                    expect(operations.length).to.eql(0);
+                }
+            });
+        }
+
+        Q.all(start_times.map(function(_, i) {
+            return iterate(start_times[i], start_times[i + 1]);
+        })).then(function() {}).then(done, done);
     });
 
     it("should report an error on missing required parameters for _get", function(done) {
@@ -651,8 +726,8 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
             "id_hi": id_hi.toString(10),
             "id_lo": id_lo.toString(10),
             "id_hash": "hash",
-            "start_time": {"$value": "1460373719788000"},
-            "finish_time": {"$value": "1460373719788000"},
+            "start_time": {"$value": "1460373719788010"},
+            "finish_time": {"$value": "1460373719788020"},
             "filter_factors": ":)",
             "other_field": "abc"
         }]);
@@ -663,8 +738,8 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
         .then(function(result) {
             result.should.deep.equal({
                 "other_field": "abc",
-                "start_time": "2016-04-11T11:21:59.788Z",
-                "finish_time": "2016-04-11T11:21:59.788Z",
+                "start_time": "2016-04-11T11:21:59.788010Z",
+                "finish_time": "2016-04-11T11:21:59.788020Z",
                 "is_archived": true,
             });
             mock.verify();

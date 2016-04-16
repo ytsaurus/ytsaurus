@@ -189,5 +189,40 @@ describe("#numerify()", function() {
     });
 });
 
+var TIME_PAIRS = [
+    {
+        isoShort: "2016-01-02T19:34:31.712507Z",
+        isoLong:  "2016-01-02T19:34:31.712507Z",
+        microseconds: 1451763271712507,
+    },
+    {
+        isoShort: "2016-01-02T19:34:31.712Z",
+        isoLong:  "2016-01-02T19:34:31.712000Z",
+        microseconds: 1451763271712000,
+    },
+    {
+        isoShort: "2016-01-02T19:34:31Z",
+        isoLong:  "2016-01-02T19:34:31.000000Z",
+        microseconds: 1451763271000000,
+    },
+];
+
+describe("#microsToUtcString()", function() {
+    it("should should yield correct ISO date with microseconds precision", function() {
+        TIME_PAIRS.forEach(function(time) {
+            expect(utils.microsToUtcString(time.microseconds)).to.equal(time.isoLong);
+        });
+    });
+});
+
+describe("#utcStringToMicros()", function() {
+    it("should should yield correct number of microseconds", function() {
+        TIME_PAIRS.forEach(function(time) {
+            expect(utils.utcStringToMicros(time.isoShort)).to.equal(time.microseconds);
+            expect(utils.utcStringToMicros(time.isoLong)).to.equal(time.microseconds);
+        });
+    });
+});
+
 // Impicit scope.
 });
