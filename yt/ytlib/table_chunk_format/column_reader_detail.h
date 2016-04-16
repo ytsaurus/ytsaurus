@@ -112,7 +112,7 @@ public:
         i64 index = LowerBound(
             SegmentRowIndex_,
             std::min(GetSegmentRowIndex(upperRowIndex), Meta_.row_count()),
-            [&](i64 segmentRowIndex) {
+            [&] (i64 segmentRowIndex) {
                 NTableClient::TUnversionedValue currentValue;
                 SetValue(&currentValue, segmentRowIndex);
                 return CompareValues<ValueType>(currentValue, value) < 0;
@@ -125,7 +125,7 @@ public:
         i64 index = LowerBound(
             SegmentRowIndex_,
             std::min(GetSegmentRowIndex(upperRowIndex), Meta_.row_count()),
-            [&](i64 segmentRowIndex) {
+            [&] (i64 segmentRowIndex) {
                 NTableClient::TUnversionedValue currentValue;
                 SetValue(&currentValue, segmentRowIndex);
                 return CompareValues<ValueType>(currentValue, value) <= 0;
@@ -222,7 +222,7 @@ public:
             ValueIndex_ = LowerBound(
                 ValueIndex_,
                 ValueExtractor_.GetValueCount(),
-                [&](i64 valueIndex) {
+                [&] (i64 valueIndex) {
                     return ValueExtractor_.GetRowIndex(valueIndex) < SegmentRowIndex_;
                 }) - 1;
         }
@@ -269,7 +269,7 @@ public:
         i64 valueIndex = LowerBound(
             ValueIndex_,
             upperValueIndex,
-            [&](i64 valueIndex) {
+            [&] (i64 valueIndex) {
                 NTableClient::TUnversionedValue currentValue;
                 SetValue(&currentValue, valueIndex);
                 return CompareValues<ValueType>(currentValue, value) < 0;
@@ -284,7 +284,7 @@ public:
         i64 valueIndex = LowerBound(
             ValueIndex_,
             upperValueIndex,
-            [&](i64 valueIndex) {
+            [&] (i64 valueIndex) {
                 NTableClient::TUnversionedValue currentValue;
                 SetValue(&currentValue, valueIndex);
                 return CompareValues<ValueType>(currentValue, value) <= 0;
@@ -306,7 +306,7 @@ private:
             upperValueIndex = LowerBound(
                 ValueIndex_,
                 ValueExtractor_.GetValueCount(),
-                [&](i64 valueIndex) {
+                [&] (i64 valueIndex) {
                     return ValueExtractor_.GetRowIndex(valueIndex) < GetSegmentRowIndex(rowIndex);
                 });
         }

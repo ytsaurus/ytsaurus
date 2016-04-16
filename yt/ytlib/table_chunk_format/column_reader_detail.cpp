@@ -80,7 +80,7 @@ std::pair<ui32, ui32> TDenseVersionedValueExtractorBase::GetValueIndexRange(i64 
     i64 valueIndex = LowerBound(
         GetLowerValueIndex(segmentRowIndex),
         upperValueIndex,
-        [&](i64 currentValueIndex) {
+        [&] (i64 currentValueIndex) {
             return GetTimestampIndex(currentValueIndex) < lowerTimestampIndex;
         });
 
@@ -131,7 +131,7 @@ i64 TSparseVersionedValueExtractorBase::GetLowerValueIndex(i64 segmentRowIndex, 
     return LowerBound(
         valueIndex,
         RowIndexReader_.GetSize(),
-        [&](i64 currentValueIndex) {
+        [&] (i64 currentValueIndex) {
             return RowIndexReader_[currentValueIndex] < segmentRowIndex;
         });
 }
@@ -152,7 +152,7 @@ std::pair<ui32, ui32> TSparseVersionedValueExtractorBase::GetValueIndexRange(i64
     i64 currentValueIndex = LowerBound(
         valueIndex,
         upperValueIndex,
-        [&](i64 currentValueIndex) {
+        [&] (i64 currentValueIndex) {
             return GetTimestampIndex(currentValueIndex) < lowerTimestampIndex;
         });
 
