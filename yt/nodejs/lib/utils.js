@@ -257,6 +257,51 @@ exports.merge = function(lhs, rhs)
     return lhs;
 };
 
+/**
+ * Adds leading symbols to input
+ * @param {String} string input
+ * @param {String} pad leading symbols
+ * @param {Number} length output string length
+ * @param {Boolean} right add symbols after instead of before
+ * @returns {string}
+ */
+function strpad(string, pad, length, right)
+{
+    string = String(string);
+    length = length || 2;
+    if (string.length >= length || !pad || !pad.length) {
+        return string;
+    }
+    var remaining = length - string.length;
+    while (pad.length < remaining) {
+        pad += pad;
+    }
+    pad = pad.substr(0, remaining);
+    return right ? string + pad : pad + string;
+}
+
+exports.utcStringToMicros = function(value)
+{
+    var millis = Date.parse(value);
+    var micros = 0;
+    if (value.indexOf(".") >= 0) {
+        value = value.split(".")[1].replace("Z", "");
+        value = strpad(value, "0", 6, true);
+        micros = parseInt(value) % 1000;
+    }
+    return millis * 1000 + micros;
+};
+
+exports.microsToUtcString = function(value)
+{
+    var micros = parseInt(value, 10);
+    var prefix, suffix;
+    prefix = new Date(micros / 1000).toISOString();
+    prefix = prefix.replace("Z", "");
+    suffix = strpad(micros % 1000, "0", 3) + "Z";
+    return prefix + suffix;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 exports.pick = function(object, keys)
