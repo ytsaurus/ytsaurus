@@ -363,19 +363,19 @@ struct TReducerRegistrator
 
 #define REGISTER_MAPPER(...) \
 static NYT::TMapperRegistrator<__VA_ARGS__> \
-GENERATE_UNIQUE_ID(TJobRegistrator)(~TypeName<__VA_ARGS__>());
+Y_GENERATE_UNIQUE_ID(TJobRegistrator)(~TypeName<__VA_ARGS__>());
 
 #define REGISTER_NAMED_MAPPER(name, ...) \
 static NYT::TMapperRegistrator<__VA_ARGS__> \
-GENERATE_UNIQUE_ID(TJobRegistrator)(name);
+Y_GENERATE_UNIQUE_ID(TJobRegistrator)(name);
 
 #define REGISTER_REDUCER(...) \
 static NYT::TReducerRegistrator<__VA_ARGS__> \
-GENERATE_UNIQUE_ID(TJobRegistrator)(~TypeName<__VA_ARGS__>());
+Y_GENERATE_UNIQUE_ID(TJobRegistrator)(~TypeName<__VA_ARGS__>());
 
 #define REGISTER_NAMED_REDUCER(name, ...) \
 static NYT::TReducerRegistrator<__VA_ARGS__> \
-GENERATE_UNIQUE_ID(TJobRegistrator)(name);
+Y_GENERATE_UNIQUE_ID(TJobRegistrator)(name);
 
 ////////////////////////////////////////////////////////////////////////////////
 
