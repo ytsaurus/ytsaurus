@@ -162,10 +162,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     srand(time(nullptr));
 
-    if (!TAddressResolver::Get()->IsLocalHostNameOK()) {
-        THROW_ERROR_EXCEPTION("Could not determine the local host FQDN");
-    }
-
     TArgsParser parser;
     parser.CmdLine.parse(argc, argv);
 
@@ -272,9 +268,16 @@ EExitCode GuardedMain(int argc, const char* argv[])
         } else {
             NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
         }
+
         TAddressResolver::Get()->Configure(genericConfig->AddressResolver);
+        if (!TAddressResolver::Get()->IsLocalHostNameOK()) {
+            THROW_ERROR_EXCEPTION("Could not determine the local host FQDN");
+        }
+
         NChunkClient::TDispatcher::Get()->Configure(genericConfig->ChunkClientDispatcher);
+
         NTracing::TTraceManager::Get()->Configure(configFileName, "/tracing");
+
         NProfiling::TProfileManager::Get()->Start();
     }
 
