@@ -156,7 +156,7 @@ private:
     template <class T>
     static void* DoInstantiate();
 
-    DECLARE_SINGLETON_FRIEND();
+    Y_DECLARE_SINGLETON_FRIEND();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
