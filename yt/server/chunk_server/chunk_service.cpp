@@ -233,7 +233,7 @@ private:
         context->SetRequestInfo(
             "CreateChunkCount: %v, "
             "ConfirmChunkCount: %v, "
-            "SealChunkCount: %v",
+            "SealChunkCount: %v"
             "CreateChunkListsCount: %v",
             request->create_chunk_subrequests_size(),
             request->confirm_chunk_subrequests_size(),
