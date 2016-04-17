@@ -266,7 +266,16 @@ public:
 
         TReaderGuard guard(AddressToNodeLock_);
 
-        return OnlineNodeCount_;
+        return ExecNodeCount_;
+    }
+
+    virtual int GetTotalNodeCount() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TReaderGuard guard(AddressToNodeLock_);
+
+        return TotalNodeCount_;
     }
 
     virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& schedulingTag) const override
@@ -341,10 +350,8 @@ public:
             TInstant::Now());
         operation->SetState(EOperationState::Initializing);
 
-        auto error = Strategy_->CanAddOperation(operation);
-        if (!error.IsOK()) {
-            THROW_ERROR error;
-        }
+        Strategy_->CanAddOperation(operation)
+            .ThrowOnError();
 
         LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, User: %v)",
             type,
@@ -609,11 +616,12 @@ public:
         auto nodeId = request->node_id();
         auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
         auto node = GetOrRegisterNode(nodeId, descriptor);
+        auto oldResourceLimits = node->GetResourceLimits();
+        auto oldResourceUsage = node->GetResourceUsage();
+        // NB: Resource limits and usage of node should be updated even if
+        // node is offline to avoid getting incorrect total limits when node becomes online.
+        UpdateNodeResources(node, request->resource_limits(), request->resource_usage());
         if (node->GetMasterState() != ENodeState::Online) {
-            // NB: Resource limits should be updated even if node is offline
-            // to avoid getting incorrect total limits when node becomes online.
-            // XXX(ignat): Should we consider resource usage here?
-            node->SetResourceLimits(context->Request().resource_limits());
             THROW_ERROR_EXCEPTION("Node is not online");
         }
 
@@ -640,34 +648,10 @@ public:
         TFuture<void> scheduleJobsAsyncResult = VoidFuture;
 
         {
-            BeginNodeHeartbeatProcessing(node);
+            BeginNodeHeartbeatProcessing(node, oldResourceLimits, oldResourceUsage);
             auto heartbeatGuard = Finally([&] {
-                EndNodeHeartbeatProcessing(node);
+                EndNodeHeartbeatProcessing(node, oldResourceLimits, oldResourceUsage);
             });
-
-            ConcurrentHeartbeatCount_ += 1;
-
-            auto oldResourceLimits = node->GetResourceLimits();
-            auto oldResourceUsage = node->GetResourceUsage();
-
-            if (request->resource_limits().user_slots() != 0) {
-                node->SetResourceLimits(request->resource_limits());
-                node->SetResourceUsage(request->resource_usage());
-            } else {
-                node->SetResourceLimits(ZeroNodeResources());
-                node->SetResourceUsage(ZeroNodeResources());
-            }
-
-            // Update total resource limits _before_ processing the heartbeat to
-            // maintain exact values of total resource limits.
-            TotalResourceLimits_ -= oldResourceLimits;
-            TotalResourceLimits_ += node->GetResourceLimits();
-
-            for (const auto& tag : node->SchedulingTags()) {
-                auto& resources = SchedulingTagResources_[tag];
-                resources -= oldResourceLimits;
-                resources += node->GetResourceLimits();
-            }
 
             // NB: No exception must leave this try/catch block.
             try {
@@ -707,13 +691,6 @@ public:
                 LOG_FATAL(ex, "Failed to process heartbeat");
             }
 
-            // Update total resource usage _after_ processing the heartbeat to avoid
-            // "unsaturated CPU" phenomenon.
-            TotalResourceUsage_ -= oldResourceUsage;
-            TotalResourceUsage_ += node->GetResourceUsage();
-
-            ConcurrentHeartbeatCount_ -= 1;
-            node->SetLastSeenTime(TInstant::Now());
         }
 
         context->ReplyFrom(scheduleJobsAsyncResult);
@@ -883,7 +860,9 @@ private:
 
     TJobResources TotalResourceLimits_ = ZeroJobResources();
     TJobResources TotalResourceUsage_ = ZeroJobResources();
-    int OnlineNodeCount_ = 0;
+    // Exec node is then node that is online and has user slots.
+    int ExecNodeCount_ = 0;
+    int TotalNodeCount_ = 0;
     int ConcurrentHeartbeatCount_ = 0;
 
     TPeriodicExecutorPtr LoggingExecutor_;
@@ -949,7 +928,8 @@ private:
 
         Profiler.Enqueue("/job_count/total", IdToJob_.size());
         Profiler.Enqueue("/operation_count", IdToOperation_.size());
-        Profiler.Enqueue("/node_count", GetExecNodeCount());
+        Profiler.Enqueue("/exec_node_count", GetExecNodeCount());
+        Profiler.Enqueue("/total_node_count", GetTotalNodeCount());
 
         ProfileResources(TotalResourceLimitsProfiler_, TotalResourceLimits_);
         ProfileResources(TotalResourceUsageProfiler_, TotalResourceUsage_);
@@ -962,7 +942,8 @@ private:
 
         if (IsConnected()) {
             LogEventFluently(ELogEventType::ClusterInfo)
-                .Item("node_count").Value(GetExecNodeCount())
+                .Item("exec_node_count").Value(GetExecNodeCount())
+                .Item("total_node_count").Value(GetTotalNodeCount())
                 .Item("resource_limits").Value(TotalResourceLimits_)
                 .Item("resource_usage").Value(TotalResourceUsage_);
         }
@@ -1589,7 +1570,10 @@ private:
     {
         TotalResourceLimits_ -= node->GetResourceLimits();
         TotalResourceUsage_ -= node->GetResourceUsage();
-        OnlineNodeCount_ -= 1;
+        TotalNodeCount_ -= 1;
+        if (node->GetResourceLimits().GetUserSlots() > 0) {
+            ExecNodeCount_ -= 1;
+        }
 
         for (const auto& tag : node->SchedulingTags()) {
             SchedulingTagResources_[tag] -= node->GetResourceLimits();
@@ -1600,7 +1584,14 @@ private:
     {
         TotalResourceLimits_ += node->GetResourceLimits();
         TotalResourceUsage_ += node->GetResourceUsage();
-        OnlineNodeCount_ += 1;
+        TotalNodeCount_ += 1;
+
+        if (node->GetResourceLimits().GetUserSlots() > 0) {
+            ExecNodeCount_ += 1;
+        } else {
+            // Check that we succesfully reset all resource limits to zero for node with zero user slots.
+            YCHECK(node->GetResourceLimits() == ZeroJobResources());
+        }
 
         for (const auto& tag : node->SchedulingTags()) {
             SchedulingTagResources_[tag] += node->GetResourceLimits();
@@ -1638,20 +1629,60 @@ private:
         }
     }
 
+    void UpdateNodeResources(TExecNodePtr node, const TJobResources& limits, const TJobResources& usage)
+    {
+        // NB: Total limits are updated separately in heartbeat.
+        if (limits.GetUserSlots() > 0) {
+            if (node->GetResourceLimits().GetUserSlots() == 0 && node->GetMasterState() == ENodeState::Online) {
+                ExecNodeCount_ += 1;
+            }
+            node->SetResourceLimits(limits);
+            node->SetResourceUsage(usage);
+        } else {
+            if (node->GetResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == ENodeState::Online) {
+                ExecNodeCount_ -= 1;
+            }
+            node->SetResourceLimits(ZeroJobResources());
+            node->SetResourceUsage(ZeroJobResources());
+        }
+    }
 
-    void BeginNodeHeartbeatProcessing(TExecNodePtr node)
+    void BeginNodeHeartbeatProcessing(TExecNodePtr node, const TJobResources& oldResourceLimits, const TJobResources& /*oldResourceUsage*/)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         node->SetHasOngoingHeartbeat(true);
+
+        ConcurrentHeartbeatCount_ += 1;
+
+        // Update total resource limits _before_ processing the heartbeat to
+        // maintain exact values of total resource limits.
+        TotalResourceLimits_ -= oldResourceLimits;
+        TotalResourceLimits_ += node->GetResourceLimits();
+
+        for (const auto& tag : node->SchedulingTags()) {
+            auto& resources = SchedulingTagResources_[tag];
+            resources -= oldResourceLimits;
+            resources += node->GetResourceLimits();
+        }
     }
 
-    void EndNodeHeartbeatProcessing(TExecNodePtr node)
+    void EndNodeHeartbeatProcessing(TExecNodePtr node, const TJobResources& /*oldResourceLimits*/, const TJobResources& oldResourceUsage)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(node->GetHasOngoingHeartbeat());
+
         node->SetHasOngoingHeartbeat(false);
+
+        // Update total resource usage _after_ processing the heartbeat to avoid
+        // "unsaturated CPU" phenomenon.
+        TotalResourceUsage_ -= oldResourceUsage;
+        TotalResourceUsage_ += node->GetResourceUsage();
+
+        ConcurrentHeartbeatCount_ -= 1;
+        node->SetLastSeenTime(TInstant::Now());
+
         if (node->GetHasPendingUnregistration()) {
             DoUnregisterNode(node);
         }

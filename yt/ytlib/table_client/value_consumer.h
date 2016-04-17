@@ -53,7 +53,6 @@ private:
     bool TreatMissingAsNull_ = false;
 
     TBlobOutput ValueBuffer_;
-    NYson::TYsonWriter ValueWriter_;
 
     virtual bool GetAllowUnknownColumns() const override;
 

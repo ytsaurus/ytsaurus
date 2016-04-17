@@ -109,8 +109,13 @@ YtError.prototype.withMessage = function(message) {
     return this;
 };
 
-YtError.prototype.withAttribute = function(key, value) {
+YtError.prototype.withRawAttribute = function(key, value) {
     this.attributes[key] = value;
+    return this;
+};
+
+YtError.prototype.withAttribute = function(key, value) {
+    this.attributes[key] = JSON.stringify(value);
     return this;
 };
 

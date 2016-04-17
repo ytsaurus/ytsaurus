@@ -796,7 +796,7 @@ class TestTables(YTEnvSetup):
 ##################################################################
 
 class TestTablesMulticell(TestTables):
-    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 3
 
     def test_concatenate_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
@@ -835,3 +835,14 @@ class TestTablesMulticell(TestTables):
         concatenate(["//tmp/t2", "//tmp/t1"], "<append=true>//tmp/union")
         assert read_table("//tmp/union") == [{"key": "y"}, {"key": "x"}]
         assert get("//tmp/union/@sorted", "false")
+
+    def test_concatenate_foreign_teleport(self):
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/t3", attributes={"external_cell_tag": 3})
+
+        write_table("//tmp/t1", {"key": "x"})
+        concatenate(["//tmp/t1", "//tmp/t1"], "//tmp/t2")
+        assert read_table("//tmp/t2") == [{"key": "x"}] * 2
+        concatenate(["//tmp/t2", "//tmp/t2"], "//tmp/t3")
+        assert read_table("//tmp/t3") == [{"key": "x"}] * 4

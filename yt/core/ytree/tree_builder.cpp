@@ -25,7 +25,9 @@ class TTreeBuilder
 public:
     explicit TTreeBuilder(INodeFactory* factory)
         : Factory(factory)
-    { }
+    {
+        YASSERT(Factory);
+    }
 
     virtual void BeginTree() override
     {
@@ -171,7 +173,7 @@ private:
 
 std::unique_ptr<ITreeBuilder> CreateBuilderFromFactory(INodeFactory* factory)
 {
-    return std::unique_ptr<ITreeBuilder>(new TTreeBuilder(factory));
+    return std::unique_ptr<ITreeBuilder>(new TTreeBuilder(std::move(factory)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

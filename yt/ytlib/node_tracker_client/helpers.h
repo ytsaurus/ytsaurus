@@ -10,6 +10,8 @@
 
 #include <yt/core/yson/public.h>
 
+#include <yt/core/ytree/public.h>
+
 namespace NYT {
 namespace NNodeTrackerClient {
 
@@ -19,6 +21,16 @@ namespace NNodeTrackerClient {
     XX(user_slots,            UserSlots) \
     XX(cpu,                   Cpu) \
     XX(memory,                Memory) \
+    XX(network,               Network) \
+    XX(replication_slots,     ReplicationSlots) \
+    XX(replication_data_size, ReplicationDataSize) \
+    XX(removal_slots,         RemovalSlots) \
+    XX(repair_slots,          RepairSlots) \
+    XX(repair_data_size,      RepairDataSize) \
+    XX(seal_slots,            SealSlots)
+
+#define ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX) \
+    XX(cpu,                   Cpu) \
     XX(network,               Network) \
     XX(replication_slots,     ReplicationSlots) \
     XX(replication_data_size, ReplicationDataSize) \
@@ -77,6 +89,14 @@ TNodeResources Min(const TNodeResources& a, const TNodeResources& b);
 void Serialize(
     const NProto::TNodeResources& resources,
     NYson::IYsonConsumer* consumer);
+
+void Serialize(
+    const NProto::TNodeResourceLimitsOverrides& overrides,
+    NYson::IYsonConsumer* consumer);
+
+void Deserialize(
+    NProto::TNodeResourceLimitsOverrides& overrides,
+    NYTree::INodePtr node);
 
 } // namespace NProto
 

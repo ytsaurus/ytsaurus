@@ -274,6 +274,7 @@ public:
     TFuture<TNetworkAddress> Resolve(const Stroka& address);
 
     Stroka GetLocalHostName();
+    bool IsLocalHostNameOK();
 
     void PurgeCache();
 
@@ -454,6 +455,13 @@ Stroka TAddressResolver::TImpl::GetLocalHostName()
     return result;
 }
 
+bool TAddressResolver::TImpl::IsLocalHostNameOK()
+{
+    // Force localhost resolution.
+    GetLocalHostName();
+    return !GetLocalHostNameFailed_;
+}
+
 Stroka TAddressResolver::TImpl::DoGetLocalHostName()
 {
     char hostName[1024];
@@ -569,6 +577,11 @@ TFuture<TNetworkAddress> TAddressResolver::Resolve(const Stroka& address)
 Stroka TAddressResolver::GetLocalHostName()
 {
     return Impl_->GetLocalHostName();
+}
+
+bool TAddressResolver::IsLocalHostNameOK()
+{
+    return Impl_->IsLocalHostNameOK();
 }
 
 void TAddressResolver::PurgeCache()

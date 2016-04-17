@@ -113,18 +113,23 @@ void Serialize(const std::vector<T>& value, NYson::IYsonConsumer* consumer);
 template <class T, unsigned N>
 void Serialize(const SmallVector<T, N>& value, NYson::IYsonConsumer* consumer);
 
+// std::set
+template <class T>
+void Serialize(const std::set<T>& value, NYson::IYsonConsumer* consumer);
+
 // yhash_set
 template <class T>
 void Serialize(const yhash_set<T>& value, NYson::IYsonConsumer* consumer);
 
-// yhash_map
-template <class T>
-void Serialize(const yhash_map<Stroka, T>& value, NYson::IYsonConsumer* consumer);
+// std::map
+template <class K, class V>
+void Serialize(const std::map<K, V>& value, NYson::IYsonConsumer* consumer);
 
 // yhash_map
-template <class T>
-void Serialize(const yhash_map<int, T>& value, NYson::IYsonConsumer* consumer);
+template <class K, class V>
+void Serialize(const yhash_map<K, V>& value, NYson::IYsonConsumer* consumer);
 
+// TErrorOr
 template <class T>
 void Serialize(const TErrorOr<T>& error, NYson::IYsonConsumer* consumer);
 
@@ -187,17 +192,23 @@ void Deserialize(std::vector<T>& value, INodePtr node);
 template <class T, unsigned N>
 void Deserialize(SmallVector<T, N>& value, INodePtr node);
 
+// std::set
+template <class T>
+void Deserialize(std::set<T>& value, INodePtr node);
+
 // yhash_set
 template <class T>
 void Deserialize(yhash_set<T>& value, INodePtr node);
 
+// std::map
+template <class K, class V>
+void Deserialize(std::map<K, V>& value, INodePtr node);
+
 // yhash_map
-template <class T>
-void Deserialize(yhash_map<Stroka, T>& value, INodePtr node);
+template <class K, class V>
+void Deserialize(yhash_map<K, V>& value, INodePtr node);
 
-template <class T>
-void Deserialize(std::map<Stroka, T>& value, INodePtr node);
-
+// TErrorOr
 template <class T>
 void Deserialize(TErrorOr<T>& error, NYTree::INodePtr node);
 

@@ -5,6 +5,7 @@
 #include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/core/misc/serialize.h>
+#include <yt/core/misc/algorithm_helpers.h>
 
 namespace NYT {
 namespace NTableClient {

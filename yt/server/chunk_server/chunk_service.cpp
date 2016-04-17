@@ -160,7 +160,7 @@ private:
 
             LOG_DEBUG("Write targets allocated "
                 "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v",
+                "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v)",
                 chunkId,
                 desiredTargetCount,
                 minTargetCount,
@@ -180,10 +180,6 @@ private:
         context->SetRequestInfo("TransactionId: %v, ChunkCount: %v",
             transactionId,
             request->chunks_size());
-
-        if (context->IsRetry()) {
-            THROW_ERROR_EXCEPTION("Request is not retriable");
-        }
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -206,10 +202,6 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
         SyncWithUpstream();
-
-        if (context->IsRetry()) {
-            THROW_ERROR_EXCEPTION("Request is not retriable");
-        }
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
@@ -250,7 +242,7 @@ private:
         context->SetRequestInfo(
             "CreateChunkCount: %v, "
             "ConfirmChunkCount: %v, "
-            "SealChunkCount: %v",
+            "SealChunkCount: %v"
             "CreateChunkListsCount: %v",
             request->create_chunk_subrequests_size(),
             request->confirm_chunk_subrequests_size(),

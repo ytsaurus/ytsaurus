@@ -1,4 +1,5 @@
 #include "async_writer.h"
+#include "detail.h"
 
 namespace NYT {
 namespace NYson {
@@ -92,29 +93,32 @@ void TAsyncYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
 void TAsyncYsonWriter::OnRaw(TFuture<TYsonString> asyncStr)
 {
     FlushCurrentSegment();
-    if (SyncWriter_.IsNodeExpected()) {
-        // Fake.
-        SyncWriter_.OnEntity();
-        Stream_.Str().clear();
-    }
-    AsyncSegments_.emplace_back(std::move(asyncStr));
+    AsyncSegments_.push_back(asyncStr.Apply(
+        BIND([topLevel = SyncWriter_.GetDepth() == 0, type = Type_] (const TYsonString& ysonStr) {
+            auto str = ysonStr.Data();
+            if (ysonStr.GetType() == EYsonType::Node) {
+                if (!topLevel || type != EYsonType::Node) {
+                    str += NDetail::ItemSeparatorSymbol;
+                }
+            }
+            return str;
+        })));
 }
 
 TFuture<TYsonString> TAsyncYsonWriter::Finish()
 {
-    YASSERT(!SyncWriter_.IsNodeExpected());
     FlushCurrentSegment();
 
-    return Combine(AsyncSegments_).Apply(BIND([type = Type_] (const std::vector<TYsonString>& segments) {
+    return Combine(AsyncSegments_).Apply(BIND([type = Type_] (const std::vector<Stroka>& segments) {
         size_t length = 0;
         for (const auto& segment : segments) {
-            length += segment.Data().length();
+            length += segment.length();
         }
 
         Stroka result;
         result.reserve(length);
         for (const auto& segment : segments) {
-            result.append(segment.Data());
+            result.append(segment);
         }
 
         return TYsonString(result, type);
@@ -124,7 +128,7 @@ TFuture<TYsonString> TAsyncYsonWriter::Finish()
 void TAsyncYsonWriter::FlushCurrentSegment()
 {
     if (!Stream_.Str().empty()) {
-        AsyncSegments_.push_back(MakeFuture(TYsonString(Stream_.Str())));
+        AsyncSegments_.push_back(MakeFuture(Stream_.Str()));
         Stream_.Str().clear();
     }
 }

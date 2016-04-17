@@ -231,6 +231,9 @@ private:
     //! (either received from the scheduler or from a master) should be retried.
     static bool IsRetriableHearbeatError(const TError& error);
 
+    //! Updates the rack of the local node.
+    void UpdateRack(const TNullable<Stroka>& rack);
+
     TChunksDelta* GetChunksDelta(NObjectClient::TCellTag cellTag);
     TChunksDelta* GetChunksDelta(const NObjectClient::TObjectId& id);
 

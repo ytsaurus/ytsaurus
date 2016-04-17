@@ -780,10 +780,14 @@ private:
 
             UpdateLastSeenTime(node);
 
-            if (node->GetRack()) {
-                response->set_rack(node->GetRack()->GetName());
+            if (Bootstrap_->IsPrimaryMaster()) {
+                if (node->GetRack()) {
+                    response->set_rack(node->GetRack()->GetName());
+                }
+
+                *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
             }
-            
+
             IncrementalHeartbeat_.Fire(node, request, response);
         }
     }

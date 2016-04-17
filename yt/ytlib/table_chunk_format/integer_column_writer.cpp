@@ -118,7 +118,7 @@ public:
     {
         AddPendingValues(
             rows,
-            [&](const TVersionedValue& value) {
+            [&] (const TVersionedValue& value) {
                 ui64 data = 0;
                 if (value.Type != EValueType::Null) {
                     data = GetEncodedValue(GetValue<TValue>(value));

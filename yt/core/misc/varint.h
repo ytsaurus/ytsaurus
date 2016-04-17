@@ -42,3 +42,7 @@ int ReadVarInt64(const char* input, i64* value);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#define VARINT_INL_H_
+#include "varint-inl.h"
+#undef VARINT_INL_H_

@@ -62,6 +62,19 @@ message TNodeResources
     optional int64 repair_data_size = 10;
 }
 
+// Limits overrides pushed from master to node.
+message TNodeResourceLimitsOverrides
+{
+    optional int32 cpu = 1;
+    optional int32 network = 2;
+    optional int32 replication_slots = 3;
+    optional int64 replication_data_size = 4;
+    optional int32 removal_slots = 5;
+    optional int32 repair_slots = 6;
+    optional int64 repair_data_size = 7;
+    optional int32 seal_slots = 8;
+}
+
 // A collection of network name to address mappings.
 message TAddressMap
 {

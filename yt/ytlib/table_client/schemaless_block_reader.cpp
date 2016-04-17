@@ -2,6 +2,8 @@
 #include "private.h"
 #include "helpers.h"
 
+#include <yt/core/misc/algorithm_helpers.h>
+
 namespace NYT {
 namespace NTableClient {
 

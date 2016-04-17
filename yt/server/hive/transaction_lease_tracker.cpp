@@ -40,6 +40,20 @@ TTransactionLeaseTracker::TTransactionLeaseTracker(
     PeriodicExecutor_->Start();
 }
 
+void TTransactionLeaseTracker::Start()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    Requests_.Enqueue(TStartRequest{});
+}
+
+void TTransactionLeaseTracker::Stop()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    Requests_.Enqueue(TStopRequest{});
+}
+
 void TTransactionLeaseTracker::RegisterTransaction(
     const TTransactionId& transactionId,
     const TTransactionId& parentId,
@@ -72,6 +86,7 @@ void TTransactionLeaseTracker::PingTransaction(
     VERIFY_THREAD_AFFINITY(TrackerThread);
 
     ProcessRequests();
+    ValidateActive();
 
     auto currentId = transactionId;
     while (true) {
@@ -99,21 +114,14 @@ void TTransactionLeaseTracker::PingTransaction(
     }
 }
 
-void TTransactionLeaseTracker::Reset()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    Requests_.Enqueue(TResetRequest{});
-}
-
 TFuture<TInstant> TTransactionLeaseTracker::GetLastPingTime(const TTransactionId& transactionId)
 {
     return
         BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(TrackerThread);
 
-            auto* descriptor = GetDescriptorOrThrow(transactionId);
-            return descriptor->LastPingTime;
+            ValidateActive();
+            return GetDescriptorOrThrow(transactionId)->LastPingTime;
         })
         .AsyncVia(TrackerInvoker_)
         .Run();
@@ -137,15 +145,33 @@ void TTransactionLeaseTracker::ProcessRequest(const TRequest& request)
 {
     VERIFY_THREAD_AFFINITY(TrackerThread);
 
-    if (const auto* registerRequest = request.TryAs<TRegisterRequest>()) {
+    if (const auto* startRequest = request.TryAs<TStartRequest>()) {
+        ProcessStartRequest(*startRequest);
+    } else if (const auto* stopRequest = request.TryAs<TStopRequest>()) {
+        ProcessStopRequest(*stopRequest);
+    } else if (const auto* registerRequest = request.TryAs<TRegisterRequest>()) {
         ProcessRegisterRequest(*registerRequest);
     } else if (const auto* unregisterRequest = request.TryAs<TUnregisterRequest>()) {
         ProcessUnregisterRequest(*unregisterRequest);
-    } else if (const auto* resetRequest = request.TryAs<TResetRequest>()) {
-        ProcessResetRequest(*resetRequest);
     } else {
         YUNREACHABLE();
     }
+}
+
+void TTransactionLeaseTracker::ProcessStartRequest(const TStartRequest& /*request*/)
+{
+    Active_ = true;
+
+    LOG_INFO("Lease Tracker is active");
+}
+
+void TTransactionLeaseTracker::ProcessStopRequest(const TStopRequest& /*request*/)
+{
+    Active_ = false;
+    IdMap_.clear();
+    DeadlineMap_.clear();
+
+    LOG_INFO("Lease Tracker is no longer active");
 }
 
 void TTransactionLeaseTracker::ProcessRegisterRequest(const TRegisterRequest& request)
@@ -175,14 +201,6 @@ void TTransactionLeaseTracker::ProcessUnregisterRequest(const TUnregisterRequest
 
     LOG_DEBUG("Transaction lease unregistered (TransactionId: %v)",
         request.TransactionId);
-}
-
-void TTransactionLeaseTracker::ProcessResetRequest(const TResetRequest& /*request*/)
-{
-    IdMap_.clear();
-    DeadlineMap_.clear();
-
-    LOG_DEBUG("All transaction leases reset");
 }
 
 void TTransactionLeaseTracker::ProcessDeadlines()
@@ -240,6 +258,15 @@ void TTransactionLeaseTracker::RegisterDeadline(TTransactionDescriptor* descript
 void TTransactionLeaseTracker::UnregisterDeadline(TTransactionDescriptor* descriptor)
 {
     YCHECK(DeadlineMap_.erase(descriptor) == 1);
+}
+
+void TTransactionLeaseTracker::ValidateActive()
+{
+    if (!Active_) {
+        THROW_ERROR_EXCEPTION(
+            NYT::NRpc::EErrorCode::Unavailable,
+            "Lease Tracker is not active");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

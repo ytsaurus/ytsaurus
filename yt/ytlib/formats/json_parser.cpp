@@ -104,6 +104,9 @@ static yajl_callbacks YajlCallbacks = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJsonParserBufferTag
+{ };
+
 class TJsonParser::TImpl
 {
 public:
@@ -129,7 +132,7 @@ public:
         }
         yajl_set_memory_limit(YajlHandle_, Config_->MemoryLimit);
 
-        Buffer_ = std::vector<char>(Config_->BufferSize);
+        Buffer_ = TSharedMutableRef::Allocate<TJsonParserBufferTag>(Config_->BufferSize);
     }
 
     void Read(const TStringBuf& data);
@@ -144,7 +147,7 @@ private:
 
     const std::unique_ptr<TJsonCallbacks> Callbacks_;
 
-    std::vector<char> Buffer_;
+    TSharedMutableRef Buffer_;
 
     yajl_handle YajlHandle_;
 
@@ -206,8 +209,12 @@ void TJsonParser::TImpl::Finish()
 
 void TJsonParser::TImpl::Parse(TInputStream* input)
 {
-    while (int readLength = input->Read(Buffer_.data(), Config_->BufferSize)) {
-        Read(TStringBuf(Buffer_.data(), readLength));
+    while (true) {
+        auto readLength = input->Read(Buffer_.Begin(), Config_->BufferSize);
+        if (readLength == 0) {
+            break;
+        }
+        Read(TStringBuf(Buffer_.begin(), readLength));
     }
     Finish();
 }

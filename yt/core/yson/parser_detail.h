@@ -247,12 +247,12 @@ public:
             }
             ParseNode<AllowFinish>();
             ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
-            if (ch == KeyedItemSeparatorSymbol) {
+            if (ch == ItemSeparatorSymbol) {
                 TBase::Advance(1);
                 ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
             } else if (ch != endSymbol) {
                 THROW_ERROR_EXCEPTION("Expected %Qv or %Qv but %Qv found",
-                    KeyedItemSeparatorSymbol,
+                    ItemSeparatorSymbol,
                     endSymbol,
                     ch)
                     << *this;
@@ -274,12 +274,12 @@ public:
             Consumer->OnListItem();
             ParseNode<AllowFinish>(ch);
             ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
-            if (ch == ListItemSeparatorSymbol) {
+            if (ch == ItemSeparatorSymbol) {
                 TBase::Advance(1);
                 ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
             } else if (ch != endSymbol) {
                 THROW_ERROR_EXCEPTION("Expected %Qv or %Qv but %Qv found",
-                    ListItemSeparatorSymbol,
+                    ItemSeparatorSymbol,
                     endSymbol,
                     ch)
                     << *this;

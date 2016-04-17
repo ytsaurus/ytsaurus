@@ -9,10 +9,10 @@
 #include <yt/ytlib/table_chunk_format/column_meta.pb.h>
 
 #include <yt/ytlib/table_client/versioned_row.h>
-#include <yt/ytlib/table_client/private.h>
 
 #include <yt/core/misc/bitmap.h>
 #include <yt/core/misc/zigzag.h>
+#include <yt/core/misc/algorithm_helpers.h>
 
 namespace NYT {
 namespace NTableChunkFormat {
@@ -22,8 +22,7 @@ namespace NTableChunkFormat {
 struct ISegmentReaderBase
     : public TNonCopyable
 {
-    virtual ~ISegmentReaderBase()
-    { }
+    virtual ~ISegmentReaderBase() = default;
 
     virtual void SkipToRowIndex(i64 rowIndex) = 0;
 
@@ -110,10 +109,10 @@ public:
 
     virtual i64 GetLowerRowIndex(const NTableClient::TUnversionedValue& value, i64 upperRowIndex) const override
     {
-        i64 index = NTableClient::LowerBound(
+        i64 index = LowerBound(
             SegmentRowIndex_,
             std::min(GetSegmentRowIndex(upperRowIndex), Meta_.row_count()),
-            [&](i64 segmentRowIndex) {
+            [&] (i64 segmentRowIndex) {
                 NTableClient::TUnversionedValue currentValue;
                 SetValue(&currentValue, segmentRowIndex);
                 return CompareValues<ValueType>(currentValue, value) < 0;
@@ -123,10 +122,10 @@ public:
 
     virtual i64 GetUpperRowIndex(const NTableClient::TUnversionedValue& value, i64 upperRowIndex) const override
     {
-        i64 index = NTableClient::LowerBound(
+        i64 index = LowerBound(
             SegmentRowIndex_,
             std::min(GetSegmentRowIndex(upperRowIndex), Meta_.row_count()),
-            [&](i64 segmentRowIndex) {
+            [&] (i64 segmentRowIndex) {
                 NTableClient::TUnversionedValue currentValue;
                 SetValue(&currentValue, segmentRowIndex);
                 return CompareValues<ValueType>(currentValue, value) <= 0;
@@ -220,10 +219,10 @@ public:
         if (segmentRowIndex > SegmentRowIndex_) {
             SegmentRowIndex_ = segmentRowIndex;
 
-            ValueIndex_ = NTableClient::LowerBound(
+            ValueIndex_ = LowerBound(
                 ValueIndex_,
                 ValueExtractor_.GetValueCount(),
-                [&](i64 valueIndex) {
+                [&] (i64 valueIndex) {
                     return ValueExtractor_.GetRowIndex(valueIndex) < SegmentRowIndex_;
                 }) - 1;
         }
@@ -267,10 +266,10 @@ public:
     virtual i64 GetLowerRowIndex(const NTableClient::TUnversionedValue& value, i64 rowIndexLimit) const override
     {
         i64 upperValueIndex = GetUpperValueIndex(rowIndexLimit);
-        i64 valueIndex = NTableClient::LowerBound(
+        i64 valueIndex = LowerBound(
             ValueIndex_,
             upperValueIndex,
-            [&](i64 valueIndex) {
+            [&] (i64 valueIndex) {
                 NTableClient::TUnversionedValue currentValue;
                 SetValue(&currentValue, valueIndex);
                 return CompareValues<ValueType>(currentValue, value) < 0;
@@ -282,10 +281,10 @@ public:
     virtual i64 GetUpperRowIndex(const NTableClient::TUnversionedValue& value, i64 rowIndexLimit) const override
     {
         i64 upperValueIndex = GetUpperValueIndex(rowIndexLimit);
-        i64 valueIndex = NTableClient::LowerBound(
+        i64 valueIndex = LowerBound(
             ValueIndex_,
             upperValueIndex,
-            [&](i64 valueIndex) {
+            [&] (i64 valueIndex) {
                 NTableClient::TUnversionedValue currentValue;
                 SetValue(&currentValue, valueIndex);
                 return CompareValues<ValueType>(currentValue, value) <= 0;
@@ -304,10 +303,10 @@ private:
         if (GetSegmentRowIndex(rowIndex) >= Meta_.row_count()) {
             upperValueIndex = ValueExtractor_.GetValueCount();
         } else {
-            upperValueIndex = NTableClient::LowerBound(
+            upperValueIndex = LowerBound(
                 ValueIndex_,
                 ValueExtractor_.GetValueCount(),
-                [&](i64 valueIndex) {
+                [&] (i64 valueIndex) {
                     return ValueExtractor_.GetRowIndex(valueIndex) < GetSegmentRowIndex(rowIndex);
                 });
         }

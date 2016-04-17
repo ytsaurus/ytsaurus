@@ -38,11 +38,11 @@ public:
 
 private:
     const EYsonType Type_;
-    
+
     TStringStream Stream_;
     TYsonWriter SyncWriter_;
 
-    std::vector<TFuture<TYsonString>> AsyncSegments_;
+    std::vector<TFuture<Stroka>> AsyncSegments_;
 
 
     void FlushCurrentSegment();

@@ -11,9 +11,10 @@ namespace NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const auto& Logger = CompressionLogger;
+static const auto& Logger = CompressionLogger;
 
-const static size_t MaxBlockSize = 1 * 1000 * 1000;
+// NB: This size should be less than 128 Kb, which is a size of internal Zstd buffer.
+static const size_t MaxBlockSize = 1 * 100 * 1000; // 100 Kb
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,7 +106,7 @@ void ZstdCompress(StreamSource* source, TBlob* output)
         };
 
         if (blockSize != 0) {
-            int takeSize = std::min(remainingSize, MaxBlockSize - blockSize);
+            size_t takeSize = std::min(remainingSize, MaxBlockSize - blockSize);
             fillBlock(takeSize);
             if (blockSize == MaxBlockSize) {
                 flushBlock();
