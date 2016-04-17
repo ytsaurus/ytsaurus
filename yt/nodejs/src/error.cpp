@@ -90,8 +90,8 @@ Handle<Value> ConvertErrorToV8(const TError& error)
             encodedValue.reserve(value.Data().length() * 2);
             TStringOutput valueStream(encodedValue);
             auto valueWriter = CreateJsonConsumer(&valueStream);
-
             Serialize(value, valueWriter.get());
+            valueWriter->Flush();
 
             attributes->Set(
                 String::New(key.data(), key.length()),

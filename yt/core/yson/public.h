@@ -44,6 +44,7 @@ class TYsonOutput;
 class TTokenizer;
 
 struct IYsonConsumer;
+struct IFlushableYsonConsumer;
 struct IAsyncYsonConsumer;
 
 ////////////////////////////////////////////////////////////////////////////////

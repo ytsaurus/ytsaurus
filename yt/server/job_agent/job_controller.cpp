@@ -11,6 +11,7 @@
 #include <yt/server/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/node.pb.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -81,15 +82,15 @@ std::vector<IJobPtr> TJobController::GetJobs()
 TNodeResources TJobController::GetResourceLimits()
 {
     TNodeResources result;
+
     result.set_user_slots(Bootstrap_->GetExecSlotManager()->GetSlotCount());
-    result.set_cpu(Config_->ResourceLimits->Cpu);
-    result.set_network(Config_->ResourceLimits->Network);
-    result.set_replication_slots(Config_->ResourceLimits->ReplicationSlots);
-    result.set_replication_data_size(Config_->ResourceLimits->ReplicationDataSize);
-    result.set_removal_slots(Config_->ResourceLimits->RemovalSlots);
-    result.set_repair_slots(Config_->ResourceLimits->RepairSlots);
-    result.set_repair_data_size(Config_->ResourceLimits->RepairDataSize);
-    result.set_seal_slots(Config_->ResourceLimits->SealSlots);
+
+    #define XX(name, Name) \
+        result.set_##name(ResourceLimitsOverrides_.has_##name() \
+            ? ResourceLimitsOverrides_.name() \
+            : Config_->ResourceLimits->Name);
+    ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
+    #undef XX
 
     const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
     result.set_memory(std::min(

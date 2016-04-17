@@ -26,7 +26,7 @@ public:
         const TChunkId& chunkId,
         const TSessionOptions& options,
         TStoreLocationPtr location,
-        TLease lease);
+        NConcurrency::TLease lease);
 
     ~TSessionBase();
 
@@ -65,7 +65,7 @@ protected:
     const TChunkId ChunkId_;
     const TSessionOptions Options_;
     const TStoreLocationPtr Location_;
-    const TLease Lease_;
+    const NConcurrency::TLease Lease_;
 
     IInvokerPtr WriteInvoker_;
 

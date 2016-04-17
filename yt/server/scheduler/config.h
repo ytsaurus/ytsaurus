@@ -260,6 +260,7 @@ public:
     i32 MaxSampleSize;
     i64 CompressedBlockSize;
     i64 MinPartitionSize;
+    i64 MinUncompressedBlockSize;
 
     TSortOperationOptionsBase()
     {
@@ -286,6 +287,11 @@ public:
         RegisterParameter("min_partition_size", MinPartitionSize)
             .Default(256 * 1024 * 1024)
             .GreaterThan(1024);
+
+        // Minimum is 1 for tests.
+        RegisterParameter("min_uncompressed_block_size", MinUncompressedBlockSize)
+            .Default(1024 * 1024)
+            .GreaterThanOrEqual(1); 
     }
 };
 
@@ -439,6 +445,7 @@ public:
 
     //! Don't check resource demand for sanity if the number of online
     //! nodes is less than this bound.
+    // TODO(ignat): rename to SafeExecNodeCount.
     int SafeOnlineNodeCount;
 
     //! Time between two consecutive calls in operation controller to get exec nodes information from scheduler.

@@ -701,7 +701,7 @@ Stroka ToString(TKeyTriePtr node) {
     };
 
     std::function<Stroka(TKeyTriePtr, size_t)> printNode =
-        [&](TKeyTriePtr node, size_t offset) {
+        [&] (TKeyTriePtr node, size_t offset) {
             Stroka str;
             str += printOffset(offset);
 

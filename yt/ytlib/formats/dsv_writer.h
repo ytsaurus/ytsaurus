@@ -21,8 +21,8 @@ public:
     explicit TDsvWriterBase(TDsvFormatConfigPtr config);
 
 protected:
-    TDsvFormatConfigPtr Config_;
-    TDsvTable Table_;
+    const TDsvFormatConfigPtr Config_;
+    const TDsvTable Table_;
 
     void EscapeAndWrite(const TStringBuf& string, bool inKey, TOutputStream* stream);
 };
@@ -59,13 +59,14 @@ public:
     virtual void OnEndAttributes() override;
 
 private:
-    bool AllowBeginList_;
-    bool AllowBeginMap_;
+    TOutputStream* const Stream_;
 
-    bool BeforeFirstMapItem_;
-    bool BeforeFirstListItem_;
+    bool AllowBeginList_ = true;
+    bool AllowBeginMap_ = true;
 
-    TOutputStream* Stream_;
+    bool BeforeFirstMapItem_ = true;
+    bool BeforeFirstListItem_ = true;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -261,6 +261,51 @@ void Serialize(const TNodeResources& resources, IYsonConsumer* consumer)
         .EndMap();
 }
 
+class TSerializableNodeResourceLimitsOverrides
+    : public NYTree::TYsonSerializableLite
+{
+public:
+    #define XX(name, Name) TNullable<decltype(TNodeResourceLimitsOverrides::default_instance().name())> Name;
+    ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
+    #undef XX
+
+    TSerializableNodeResourceLimitsOverrides()
+    {
+        #define XX(name, Name) \
+            RegisterParameter(#name, Name) \
+                .GreaterThanOrEqual(0) \
+                .Optional();
+        ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
+        #undef XX
+    }
+};
+
+void Serialize(const TNodeResourceLimitsOverrides& overrides, IYsonConsumer* consumer)
+{
+    TSerializableNodeResourceLimitsOverrides serializableOverrides;
+    #define XX(name, Name) \
+        if (overrides.has_##name()) { \
+            serializableOverrides.Name = overrides.name(); \
+        }
+    ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
+    #undef XX
+    Serialize(serializableOverrides, consumer);
+}
+
+void Deserialize(TNodeResourceLimitsOverrides& overrides, INodePtr node)
+{
+    TSerializableNodeResourceLimitsOverrides serializableOverrides;
+    Deserialize(serializableOverrides, node);
+    #define XX(name, Name) \
+        if (serializableOverrides.Name) { \
+            overrides.set_##name(*serializableOverrides.Name); \
+        } else { \
+            overrides.clear_##name(); \
+        }
+    ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
+    #undef XX
+}
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////

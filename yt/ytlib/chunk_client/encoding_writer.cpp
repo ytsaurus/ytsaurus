@@ -211,7 +211,7 @@ void TEncodingWriter::WritePendingBlock(const TErrorOr<TSharedRef>& blockOrError
     auto isReady = ChunkWriter_->WriteBlock(block);
     ++WrittenBlockIndex_;
 
-    auto finally = Finally([&](){
+    auto finally = Finally([&] (){
         Semaphore_->Release(block.Size());
     });
 

@@ -54,6 +54,7 @@ using namespace NHydra;
 using namespace NHive;
 using namespace NYTree;
 using namespace NYson;
+using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NTransactionClient;
 using namespace NSecurityServer;
@@ -980,6 +981,8 @@ private:
                 CreateLease(transaction);
             }
         }
+
+        LeaseTracker_->Start();
     }
 
     virtual void OnStopLeading() override
@@ -988,13 +991,13 @@ private:
 
         TMasterAutomatonPart::OnStopLeading();
 
+        LeaseTracker_->Stop();
+
         // Reset all transiently prepared transactions back into active state.
         for (const auto& pair : TransactionMap_) {
             auto* transaction = pair.second;
             transaction->SetState(transaction->GetPersistentState());
         }
-
-        LeaseTracker_->Reset();
     }
 
 

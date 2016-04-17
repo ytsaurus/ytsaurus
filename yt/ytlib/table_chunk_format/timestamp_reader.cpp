@@ -1,7 +1,5 @@
 #include "timestamp_reader.h"
 
-#include <yt/ytlib/table_client/private.h>
-
 #include <yt/core/misc/zigzag.h>
 
 namespace NYT {
@@ -53,7 +51,7 @@ void TTimestampSegmentReader::SkipToRowIndex(i64 rowIndex)
     ui32 deleteIndex = LowerBound(
         lowerDeleteIndex,
         upperDeleteIndex,
-        [&](ui32 index) {
+        [&] (ui32 index) {
             return GetDeleteTimestamp(index) > Timestamp_;
         });
 
@@ -69,7 +67,7 @@ void TTimestampSegmentReader::SkipToRowIndex(i64 rowIndex)
     ui32 writeIndex = LowerBound(
         lowerWriteIndex,
         upperWriteIndex,
-        [&](ui32 index) {
+        [&] (ui32 index) {
             return GetWriteTimestamp(index) > Timestamp_;
         });
 
@@ -87,7 +85,7 @@ void TTimestampSegmentReader::SkipToRowIndex(i64 rowIndex)
             adjustedUpperWriteIndex = LowerBound(
                 writeIndex + 1,
                 upperWriteIndex,
-                [&](ui32 index) {
+                [&] (ui32 index) {
                     return GetWriteTimestamp(index) > DeleteTimestamp_;
                 });
         }

@@ -106,6 +106,8 @@ void TReadJournalCommand::Execute(ICommandContextPtr context)
         }
     }
 
+    consumer->Flush();
+
     if (buffer.Size() > 0) {
         flushBuffer();
     }

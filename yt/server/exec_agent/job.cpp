@@ -404,6 +404,9 @@ private:
                     YCHECK(JobState_ == EJobState::Aborting);
                     return;
                 }
+                
+                LOG_ERROR(ex, "Scheduler job failed");
+
                 DoSetResult(ex);
                 JobState_ = EJobState::Aborting;
             }

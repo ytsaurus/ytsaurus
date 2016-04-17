@@ -533,7 +533,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
         : MakeRegularId(type, cellTag, version, hash);
     YASSERT(TypeFromId(id) == type);
 
-    ++CreatedObjectCount_;
+    ++CreatedObjects_;
 
     return id;
 }
@@ -667,8 +667,8 @@ void TObjectManager::Clear()
 
     InitSchemas();
 
-    CreatedObjectCount_ = 0;
-    DestroyedObjectCount_ = 0;
+    CreatedObjects_ = 0;
+    DestroyedObjects_ = 0;
     LockedObjectCount_ = 0;
 
     GarbageCollector_->Clear();
@@ -1184,7 +1184,7 @@ void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
         // To enable cascaded GC sweep we don't want this to happen
         // if some ids are added during DestroyObject.
         GarbageCollector_->DestroyZombie(object);
-        ++DestroyedObjectCount_;
+        ++DestroyedObjects_;
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %v, Id: %v)",
             type,
@@ -1287,8 +1287,8 @@ void TObjectManager::OnProfiling()
 
     Profiler.Enqueue("/zombie_object_coun", GarbageCollector_->GetZombieCount());
     Profiler.Enqueue("/ghost_object_count", GarbageCollector_->GetGhostCount());
-    Profiler.Enqueue("/created_object_count", CreatedObjectCount_);
-    Profiler.Enqueue("/destroyed_object_count", DestroyedObjectCount_);
+    Profiler.Enqueue("/created_objects", CreatedObjects_);
+    Profiler.Enqueue("/destroyed_objects", DestroyedObjects_);
     Profiler.Enqueue("/locked_object_count", LockedObjectCount_);
 }
 

@@ -11,7 +11,7 @@
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/lease_manager.h>
+#include <yt/core/concurrency/lease_manager.h>
 #include <yt/core/misc/nullable.h>
 
 namespace NYT {

@@ -1851,7 +1851,9 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
         }
     }
 
-    if (StoreState_ == EStoreState::PassiveDynamic) {
+    if (StoreState_ == EStoreState::PassiveDynamic ||
+        StoreState_ == EStoreState::RemoveCommitting)
+    {
         // NB: No more changes are possible after load.
         YCHECK(FlushRevision_ == InvalidRevision);
         FlushRevision_ = MaxRevision;

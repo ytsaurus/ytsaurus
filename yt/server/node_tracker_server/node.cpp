@@ -136,6 +136,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, LastSeenTime_);
     Save(context, Statistics_);
     Save(context, Alerts_);
+    Save(context, ResourceLimitsOverrides_);
     Save(context, Rack_);
     Save(context, LeaseTransaction_);
     TSizeSerializer::Save(context, StoredReplicas_.size());
@@ -160,6 +161,10 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, LastSeenTime_);
     Load(context, Statistics_);
     Load(context, Alerts_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 212) {
+        Load(context, ResourceLimitsOverrides_);
+    }
     Load(context, Rack_);
     Load(context, LeaseTransaction_);
     ReserveStoredReplicas(TSizeSerializer::Load(context));

@@ -618,18 +618,9 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
         return;
     }
 
+    LOG_INFO("Successfully reported incremental node heartbeat to master");
+
     const auto& rsp = rspOrError.Value();
-
-    // NB: Gathering rack info from all masters is redundant but rather harmless.
-    auto rack = rsp->has_rack() ? MakeNullable(rsp->rack()) : Null;
-
-    LOG_INFO("Successfully reported incremental node heartbeat to master (Rack: %v)",
-        rack);
-
-    {
-        TGuard<TSpinLock> guard(LocalDescriptorLock_);
-        LocalDescriptor_ = TNodeDescriptor(LocalAddresses_, rack);
-    }
 
     {
         auto it = delta->AddedSinceLastSuccess.begin();
@@ -658,8 +649,13 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
     }
 
     if (cellTag == primaryCellTag) {
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        auto rack = rsp->has_rack() ? MakeNullable(rsp->rack()) : Null;
+        UpdateRack(rack);
 
+        auto jobController = Bootstrap_->GetJobController();
+        jobController->ResourceLimitsOverrides() = rsp->resource_limits_overrides();
+
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
         for (const auto& info : rsp->tablet_slots_to_remove()) {
             auto cellId = FromProto<TCellId>(info.cell_id());
             YCHECK(cellId);
@@ -856,6 +852,12 @@ bool TMasterConnector::IsRetriableHearbeatError(const TError& error)
     return
         NRpc::IsRetriableError(error) ||
         error.FindMatching(NHydra::EErrorCode::MaybeCommitted);
+}
+
+void TMasterConnector::UpdateRack(const TNullable<Stroka>& rack)
+{
+    TGuard<TSpinLock> guard(LocalDescriptorLock_);
+    LocalDescriptor_ = TNodeDescriptor(LocalAddresses_, rack);
 }
 
 TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TCellTag cellTag)

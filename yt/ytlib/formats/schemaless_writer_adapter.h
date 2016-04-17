@@ -113,7 +113,7 @@ public:
     void Init(const TFormat& format);
 
 private:
-    std::unique_ptr<NYson::IYsonConsumer> Consumer_;
+    std::unique_ptr<NYson::IFlushableYsonConsumer> Consumer_;
 
     template <class T>
     void WriteControlAttribute(
