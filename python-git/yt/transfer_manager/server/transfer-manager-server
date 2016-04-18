@@ -970,8 +970,6 @@ class Application(object):
                         raise yt.YtError("Failed to read first row in YAMR format", inner_errors=[err])
 
             if source_client._type == "yt" and destination_client._type == "yt":
-                if task.copy_method not in ["proxy", "native"]:
-                    raise yt.YtError("Incorrect copy method {0} for YT to YT copy task".format(task.copy_method))
                 if task.copy_method == "native" and self._get_version(source_client) != self._get_version(destination_client):
                     raise yt.YtError("Native copy method should not be specified for clusters with "
                                      "different YT versions")
@@ -995,6 +993,10 @@ class Application(object):
                 raise yt.YtError("Hadoop transmitter (airflow client) should be configured for transfer from {0} to {1}"
                                  .format(source_client._type, destination_client._type))
 
+            if task.skip_if_destination_exists and (
+                    (destination_client._type == "yamr" and not destination_client.is_empty(task.destination_table)) or \
+                    (destination_client._type == "yt" and destination_client.exists(task.destination_table))):
+                task.state = "skipped"
         except TimeoutExpired:
             custom_logger.info("Precheck timed out")
             if not ignore_timeout:
@@ -1304,13 +1306,7 @@ class Application(object):
             fastbone = source_client._parameters.get("fastbone", False) and destination_client._parameters.get("fastbone", False)
             fastbone = parameters.get("fastbone", fastbone)
 
-            skipped = False
-            if task.skip_if_destination_exists and (
-                    (destination_client._type == "yamr" and not destination_client.is_empty(task.destination_table)) or \
-                    (destination_client._type == "yt" and destination_client.exists(task.destination_table))):
-                logger.info("Copying skipped since 'skip_if_destination_exists' option specified and destination table exists")
-                skipped = True
-            elif source_client._type == "yt" and destination_client._type == "yt":
+            if source_client._type == "yt" and destination_client._type == "yt":
                 logger.info("Running YT -> YT remote copy operation")
                 if task.copy_method == "proxy":
                     copy_yt_to_yt_through_proxy(
@@ -1417,11 +1413,9 @@ class Application(object):
                 raise Exception("Incorrect cluster types: {} source and {} destination".format(
                                 source_client._type,
                                 destination_client._type))
-            if skipped:
-                message_queue.put({"type": "skipped"})
-            else:
-                logger.info("Task completed")
-                message_queue.put({"type": "completed"})
+
+            logger.info("Task completed")
+            message_queue.put({"type": "completed"})
 
             # NB: hack to avoid process died silently.
             time.sleep(0.5)
@@ -1532,6 +1526,7 @@ class Application(object):
             except yt.YtError as err:
                 if err.is_resolve_error():
                     raise RequestFailed("Queue {0} is missing".format(task.queue_name))
+                raise
 
         clusters_configuration = self._get_clusters_configuration()
         self._set_defaults(task, clusters_configuration)
@@ -1550,9 +1545,17 @@ class Application(object):
 
             if task.lease_timeout is not None:
                 task._last_ping_time = time.time()
+
             with self._mutex:
                 self._tasks[task.id] = task
+
+                if task.state == "skipped":
+                    logger.info('Task %s skipped since "skip_if_destination_exists" option '
+                                'is specified and destination table exists', task.id)
+                    return task.id
+
                 self._append_pending_task(task)
+
             logger.info("Task %s added", task.id)
 
         return task.id
