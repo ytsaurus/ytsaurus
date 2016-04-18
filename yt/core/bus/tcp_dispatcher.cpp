@@ -72,6 +72,11 @@ TTcpDispatcherStatistics TTcpDispatcher::GetStatistics(ETcpInterfaceType interfa
     return Impl_->GetStatistics(interfaceType);
 }
 
+void TTcpDispatcher::SetClientThreadCount(int clientThreadCount)
+{
+    Get()->Impl_->SetClientThreadCount(clientThreadCount);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NBus

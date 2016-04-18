@@ -62,6 +62,8 @@ public:
 
     static void StaticShutdown();
 
+    static void SetClientThreadCount(int clientThreadCount);
+
     virtual void Shutdown() override;
 
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType);
