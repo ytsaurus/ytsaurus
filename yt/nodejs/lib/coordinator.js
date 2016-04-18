@@ -66,8 +66,8 @@ function YtCoordinatedHost(config, name)
                 throw new TypeError("Role must be string");
             }
 
-            if (value !== "control" && value !== "data") {
-                throw new TypeError("Role has to be either 'control' or 'data'; got '" + value + "'");
+            if (value === "") {
+                throw new TypeError("Role must not be empty");
             }
 
             role = value;
@@ -475,17 +475,21 @@ YtCoordinator.prototype.getSelf = function()
     return this.host;
 };
 
-YtCoordinator.prototype.allocateDataProxy = function()
+YtCoordinator.prototype.allocateProxy = function(role)
 {
-    var victim = this
-        .getProxies("data", false, false)
-        .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })[0];
+    var victims = this
+        .getProxies(role, false, false)
+        .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; });
 
-    if (typeof(victim) !== "undefined") {
-        victim.dampening += 1;
+    if (victims.length > 0) {
+        var victim = victims[0];
+        if (typeof(victim) !== "undefined") {
+            victim.dampening += 1;
+        }
+        return victim;
     }
 
-    return victim;
+    return null;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
