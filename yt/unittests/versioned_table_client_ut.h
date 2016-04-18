@@ -3,6 +3,7 @@
 #include <yt/ytlib/table_client/public.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/ytlib/table_client/versioned_reader.h>
 
 #include <yt/core/yson/public.h>
 
@@ -83,6 +84,35 @@ protected:
             << "expected: " << ToString(expected) 
             << ", "
             << "actual: " << ToString(actual);
+    }
+
+    void CheckResult(const std::vector<TVersionedRow>& expected, IVersionedReaderPtr reader)
+    {
+        auto it = expected.begin();
+        std::vector<TVersionedRow> actual;
+        actual.reserve(1000);
+
+        while (reader->Read(&actual)) {
+            if (actual.empty()) {
+                EXPECT_TRUE(reader->GetReadyEvent().Get().IsOK());
+                continue;
+            }
+
+            std::vector<TVersionedRow> ex(it, it + actual.size());
+
+            CheckResult(ex, actual);
+            it += actual.size();
+        }
+
+        EXPECT_TRUE(it == expected.end());
+    }
+
+    void CheckResult(const std::vector<TVersionedRow>& expected, const std::vector<TVersionedRow>& actual)
+    {
+        EXPECT_EQ(expected.size(), actual.size());
+        for (int i = 0; i < expected.size(); ++i) {
+            ExpectRowsEqual(expected[i], actual[i]);
+        }
     }
 
     void ExpectRowsEqual(TVersionedRow expected, TVersionedRow actual)

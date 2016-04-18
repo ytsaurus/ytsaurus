@@ -266,13 +266,13 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
 
         if (ChunkSchema_.Columns()[chunkSchemaId].Aggregate) {
             int valueBeginIndex = LowerBound(
-                chunkSchemaId == KeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1),
+                chunkSchemaId == ChunkKeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1),
                 columnValueCount,
                 [&] (int index) {
                     return ReadValueTimestamp(ValueOffset_ + index, valueId) > Timestamp_;
                 });
             int valueEndIndex = LowerBound(
-                chunkSchemaId == KeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1),
+                chunkSchemaId == ChunkKeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1),
                 columnValueCount,
                 [&] (int index) {
                     return ReadValueTimestamp(ValueOffset_ + index, valueId) > deleteTimestamp;
@@ -285,6 +285,8 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
             }
         }
     }
+
+    int reservedValueCount = SchemaIdMapping_.size() + aggregateCountDelta;
 
     auto row = TMutableVersionedRow::Allocate(
         memoryPool,
@@ -315,7 +317,14 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
             });
 
         if (ChunkSchema_.Columns()[chunkSchemaId].Aggregate) {
-            for (int index = valueIndex; index < columnValueCount; ++index) {
+            int valueEndIndex = LowerBound(
+                chunkSchemaId == ChunkKeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1),
+                columnValueCount,
+                [&] (int index) {
+                    return ReadValueTimestamp(ValueOffset_ + index, valueId) > deleteTimestamp;
+                });
+            
+            for (int index = valueIndex; index < valueEndIndex; ++index) {
                 ReadValue(currentValue, ValueOffset_ + index, valueId, chunkSchemaId);
                 ++currentValue;
             }
@@ -331,6 +340,8 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
             }
         }
     }
+
+    YCHECK(currentValue - beginValues <= reservedValueCount);
     row.SetValueCount(currentValue - beginValues);
 
     return row;
