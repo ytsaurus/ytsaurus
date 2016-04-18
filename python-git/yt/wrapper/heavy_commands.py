@@ -27,14 +27,14 @@ class FakeTransaction(object):
     def __nonzero__(self):
         return False
 
-    def is_running(self):
-        return True
-
     def abort(self):
         pass
 
     def commit(self):
         pass
+
+    def is_pinger_alive(self):
+        return True
 
 def make_write_request(command_name, stream, path, params, create_object, use_retries, client=None):
     """
