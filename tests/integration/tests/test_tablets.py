@@ -24,51 +24,43 @@ class TestTablets(YTEnvSetup):
         }
     }
 
-    def _get_schema(self, columns, optimized_for):
-        schema = YsonList(columns)
-        schema.attributes["optimized_for"] = optimized_for
-        return schema
-
-    def _create_simple_table(self, path, atomicity="full", optimized_for="lookup"):
+    def _create_simple_table(self, path, atomicity="full", optimize_for="lookup"):
         create("table", path,
             attributes={
                 "dynamic": True,
-                "atomicity": atomicity
+                "atomicity": atomicity,
+                "optimize_for" : optimize_for
             },
-            schema = self._get_schema([
+            schema = [
                 {"name": "key", "type": "int64", "sort_order": "ascending"}, 
-                {"name": "value", "type": "string"}],
-                optimized_for))
+                {"name": "value", "type": "string"}])
 
-    def _create_table_with_computed_column(self, path, optimized_for="lookup"):
+    def _create_table_with_computed_column(self, path, optimize_for="lookup"):
 
         create("table", path,
-            attributes={"dynamic": True},
-            schema = self._get_schema([
+            attributes={"dynamic": True, "optimize_for" : optimize_for},
+            schema = [
                 {"name": "key1", "type": "int64", "sort_order": "ascending"},
                 {"name": "key2", "type": "int64", "sort_order": "ascending", "expression": "key1 * 100 + 3"},
-                {"name": "value", "type": "string"}],
-                optimized_for)
+                {"name": "value", "type": "string"}]
             )
 
-    def _create_table_with_hash(self, path, optimized_for="lookup"):
+    def _create_table_with_hash(self, path, optimize_for="lookup"):
         create("table", path,
-            attributes={"dynamic": True},
-            schema = self._get_schema([
+            attributes={"dynamic": True, "optimize_for" : optimize_for},
+            schema = [
                 {"name": "hash", "type": "uint64", "expression": "farm_hash(key)", "sort_order": "ascending"},
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"}],
-                optimized_for)
+                {"name": "value", "type": "string"}]
             )
 
-    def _create_table_with_aggregate_column(self, path, aggregate = "sum", optimized_for="lookup"):
+    def _create_table_with_aggregate_column(self, path, aggregate = "sum", optimize_for="lookup"):
         create("table", path,
-            attributes={"dynamic": True},
-            schema = self._get_schema([
+            attributes={"dynamic": True, "optimize_for" : optimize_for},
+            schema = [
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "time", "type": "int64"},
-                {"name": "value", "type": "int64", "aggregate": aggregate}],
-                optimized_for)
+                {"name": "value", "type": "int64", "aggregate": aggregate}]
             )
 
     def _get_tablet_leader_address(self, tablet_id):
@@ -200,10 +192,10 @@ class TestTablets(YTEnvSetup):
         sleep(1)
         assert self._find_tablet_orchid(address, tablet_id) is None
          
-    def _test_read_table(self, optimized_for):
+    def _test_read_table(self, optimize_for):
         self.sync_create_cells(1, 1)
 
-        self._create_simple_table("//tmp/t", optimized_for=optimized_for)
+        self._create_simple_table("//tmp/t", optimize_for=optimize_for)
         self.sync_mount_table("//tmp/t")
 
         rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
@@ -294,7 +286,7 @@ class TestTablets(YTEnvSetup):
 
         with pytest.raises(YtError): write_table("//tmp/t", [{"key": 1, "value": 2}])
 
-    def _test_computed_columns(self, optimized_for):
+    def _test_computed_columns(self, optimize_for):
         self.sync_create_cells(1, 1)
         with pytest.raises(YtError): 
             create("table", "//tmp/t1",
@@ -305,7 +297,7 @@ class TestTablets(YTEnvSetup):
                     {"name": "value", "type": "string"}]
                 )
 
-        self._create_table_with_computed_column("//tmp/t", optimized_for)
+        self._create_table_with_computed_column("//tmp/t", optimize_for)
         self.sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key1": 1, "value": "2"}])
@@ -344,10 +336,10 @@ class TestTablets(YTEnvSetup):
     def test_computed_columns_scan(self):
         self._test_computed_columns("scan")
 
-    def _test_computed_hash(self, optimized_for):
+    def _test_computed_hash(self, optimize_for):
         self.sync_create_cells(1, 1)
 
-        self._create_table_with_hash("//tmp/t", optimized_for)
+        self._create_table_with_hash("//tmp/t", optimize_for)
         self.sync_mount_table("//tmp/t")
 
         row1 = [{"key": 1, "value": "2"}]
@@ -372,16 +364,16 @@ class TestTablets(YTEnvSetup):
     def test_computed_hash_lookup(self):
         self._test_computed_hash("lookup")
 
-    def _test_computed_column_update_consistency(self, optimized_for):
+    def _test_computed_column_update_consistency(self, optimize_for):
         self.sync_create_cells(1, 1)
 
         create("table", "//tmp/t",
-            attributes={"dynamic": True},
-            schema = self._get_schema([
+            attributes={"dynamic": True, "optimize_for" : optimize_for},
+            schema = [
                 {"name": "key1", "type": "int64", "expression": "key2", "sort_order": "ascending"},
                 {"name": "key2", "type": "int64", "sort_order": "ascending"},
                 {"name": "value1", "type": "string"},
-                {"name": "value2", "type": "string"}], optimized_for)
+                {"name": "value2", "type": "string"}]
             )
         self.sync_mount_table("//tmp/t")
 
@@ -406,9 +398,9 @@ class TestTablets(YTEnvSetup):
     def test_computed_column_update_consistency_lookup(self):
         self._test_computed_column_update_consistency("lookup")
 
-    def _test_aggregate_columns(self, optimized_for):
+    def _test_aggregate_columns(self, optimize_for):
         self.sync_create_cells(1, 1)
-        self._create_table_with_aggregate_column("//tmp/t", optimized_for=optimized_for)
+        self._create_table_with_aggregate_column("//tmp/t", optimize_for=optimize_for)
         self.sync_mount_table("//tmp/t")
 
         def verify_row(key, expected):
@@ -533,7 +525,7 @@ class TestTablets(YTEnvSetup):
 
     def test_reshard_data(self):
         self.sync_create_cells(1, 1)
-        self._create_simple_table("//tmp/t1", optimized_for = "scan")
+        self._create_simple_table("//tmp/t1", optimize_for = "scan")
         self.sync_mount_table("//tmp/t1")
 
         def reshard(pivots):
@@ -660,13 +652,13 @@ class TestTablets(YTEnvSetup):
         assert_items_equal(get_tablet_ids("//tmp/x/a"), tablet_ids_a)
         assert_items_equal(get_tablet_ids("//tmp/x/b"), tablet_ids_b)
 
-    def _test_any_value_type(self, optimized_for):
+    def _test_any_value_type(self, optimize_for):
         self.sync_create_cells(1, 1)
         create("table", "//tmp/t1",
-            attributes={"dynamic": True},
-            schema = self._get_schema([
+            attributes={"dynamic": True, "optimize_for" : optimize_for},
+            schema = [
                 {"name": "key", "type": "int64", "sort_order": "ascending"}, 
-                {"name": "value", "type": "any"}], optimized_for))
+                {"name": "value", "type": "any"}])
         self.sync_mount_table("//tmp/t1")
 
         rows = [
@@ -766,9 +758,9 @@ class TestTablets(YTEnvSetup):
         self._prepare_denied("write")
         with pytest.raises(YtError): delete_rows("//tmp/t", [{"key": 1}], user="u")
 
-    def _test_read_from_chunks(self, optimized_for):
+    def _test_read_from_chunks(self, optimize_for):
         self.sync_create_cells(1, 1)
-        self._create_simple_table("//tmp/t", optimized_for = optimized_for)
+        self._create_simple_table("//tmp/t", optimize_for = optimize_for)
 
         pivots = [[]] + [[x] for x in range(100, 1000, 100)]
         reshard_table("//tmp/t", pivots)
@@ -995,9 +987,9 @@ class TestTablets(YTEnvSetup):
             {"name": "key3", "type": "int64", "expression": "key1 * 100 + 3", "sort_order": "ascending"},
             {"name": "value", "type": "string"}])
 
-    def _test_update_key_columns_success(self, optimized_for):
+    def _test_update_key_columns_success(self, optimize_for):
         self.sync_create_cells(1, 1)
-        self._create_simple_table("//tmp/t", optimized_for = optimized_for)
+        self._create_simple_table("//tmp/t", optimize_for = optimize_for)
         
         self.sync_mount_table("//tmp/t")
         rows1 = [{"key": i, "value": str(i)} for i in xrange(100)]
@@ -1071,9 +1063,9 @@ class TestTablets(YTEnvSetup):
     def test_nonatomic_snapshots(self):
         self._test_snapshots("none")
 
-    def _test_stress_tablet_readers(self, optimized_for):
+    def _test_stress_tablet_readers(self, optimize_for):
         self.sync_create_cells(1, 1)
-        self._create_simple_table("//tmp/t", optimized_for = optimized_for)
+        self._create_simple_table("//tmp/t", optimize_for = optimize_for)
         self.sync_mount_table("//tmp/t")
 
         values = dict()
@@ -1249,7 +1241,7 @@ class TestTablets(YTEnvSetup):
 
     def test_rff_requires_async_last_committed(self):
         self.sync_create_cells(3, 1)
-        self._create_simple_table("//tmp/t", optimized_for = "scan")
+        self._create_simple_table("//tmp/t", optimize_for = "scan")
         self.sync_mount_table("//tmp/t")
         
         keys = [{"key": 1}]
@@ -1268,7 +1260,7 @@ class TestTablets(YTEnvSetup):
 
     def test_rff_lookup(self):
         self.sync_create_cells(3, 1)
-        self._create_simple_table("//tmp/t", optimized_for = "scan")
+        self._create_simple_table("//tmp/t", optimize_for = "scan")
         self.sync_mount_table("//tmp/t")
 
         rows = [{"key": 1, "value": "2"}]
@@ -1304,7 +1296,7 @@ class TestTablets(YTEnvSetup):
 
     def test_erasure(self):
         self.sync_create_cells(3, 1)
-        self._create_simple_table("//tmp/t", optimized_for = "scan")
+        self._create_simple_table("//tmp/t", optimize_for = "scan")
         set("//tmp/t/@erasure_codec", "lrc_12_2_2")
         self.sync_mount_table("//tmp/t")
 

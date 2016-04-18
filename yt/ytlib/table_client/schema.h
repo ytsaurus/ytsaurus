@@ -19,13 +19,6 @@ DEFINE_ENUM(ESortOrder,
     (Ascending)
 )
 
-// NB: preserve the values since they
-// are persisted in the proto representation.
-DEFINE_ENUM(EOptimizedFor,
-    ((Lookup)  (0))
-    ((Scan)    (1))
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TColumnSchema
@@ -69,12 +62,10 @@ class TTableSchema
 public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnSchema>, Columns);
     DEFINE_BYVAL_RO_PROPERTY(bool, Strict);
-    DEFINE_BYVAL_RO_PROPERTY(EOptimizedFor, OptimizedFor);
 
     explicit TTableSchema(
         const std::vector<TColumnSchema>& columns,
-        bool strict = true,
-        EOptimizedFor optimizedFor = EOptimizedFor::Lookup);
+        bool strict = true);
 
     TTableSchema();
     
