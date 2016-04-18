@@ -351,16 +351,24 @@ public:
 class TVersionedRowBuilder
 {
 public:
-    explicit TVersionedRowBuilder(TRowBufferPtr buffer);
+    /*!
+     *  \param compaction - if unset, builder creates only one, latest write timestamp.
+     */
+    explicit TVersionedRowBuilder(TRowBufferPtr buffer, bool compaction = true);
 
     void AddKey(const TUnversionedValue& value);
     void AddValue(const TVersionedValue& value);
     void AddDeleteTimestamp(TTimestamp timestamp);
 
+    // Sometimes versioned row have write timestamps without correspondig values,
+    // when reading with column filter.
+    void AddWriteTimestamp(TTimestamp timestamp);
+
     TMutableVersionedRow FinishRow();
 
 private:
     const TRowBufferPtr Buffer_;
+    const bool Compaction_;
 
     std::vector<TUnversionedValue> Keys_;
     std::vector<TVersionedValue> Values_;
