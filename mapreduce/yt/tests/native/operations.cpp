@@ -1,3 +1,5 @@
+#include <mapreduce/yt/tests/native/sample.pb.h>
+
 #include <mapreduce/yt/tests/lib/lib.h>
 
 #include <mapreduce/yt/interface/client.h>
@@ -26,13 +28,18 @@ public:
 
     IClientPtr Client() { return Client_; }
     const char* Input() { return "tmp/input"; }
+    const char* Input2() { return "tmp/input2"; }
     const char* Output() { return "tmp/output"; }
 
 private:
     void RemoveTables()
     {
-        Client()->Remove(Input(), TRemoveOptions().Force(true));
-        Client()->Remove(Output(), TRemoveOptions().Force(true));
+        TRemoveOptions options;
+        options.Force(true);
+
+        Client()->Remove(Input(), options);
+        Client()->Remove(Input2(), options);
+        Client()->Remove(Output(), options);
     }
 
     IClientPtr Client_;
@@ -132,6 +139,64 @@ YT_TEST(TOperation, IdMapperYaMR)
             "key = " << row.Key <<
             ", subkey = " << row.SubKey <<
             ", value = " << row.Value <<
+        Endl;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TIdMapperProto
+    : public IMapper<TTableReader<TSampleProto>, TTableWriter<TSampleProto>>
+{
+public:
+    virtual void Do(
+        TTableReader<TSampleProto>* input,
+        TTableWriter<TSampleProto>* output) override
+    {
+        for (; input->IsValid(); input->Next()) {
+            output->AddRow(input->GetRow());
+        }
+    }
+};
+REGISTER_MAPPER(TIdMapperProto);
+
+YT_TEST(TOperation, IdMapperProto)
+{
+    auto writer = Client()->CreateTableWriter<TSampleProto>(Input());
+    for (int i = 0; i < 8; ++i) {
+        TSampleProto row;
+        row.set_a(i);
+        row.set_b(static_cast<unsigned int>(i));
+        row.set_c(i * 9.81);
+        row.set_d(i % 2 == 0);
+        row.set_e(Sprintf("foo %d", i));
+        writer->AddRow(row);
+    }
+    writer->Finish();
+
+    Client()->Map(
+        TMapOperationSpec()
+            .AddInput<TSampleProto>(Input())
+            .AddOutput<TSampleProto>(Output()),
+        new TIdMapperProto
+    );
+
+    Client()->Sort(
+        TSortOperationSpec()
+            .AddInput(Output())
+            .Output(Output())
+            .SortBy("column_a")
+    );
+
+    auto reader = Client()->CreateTableReader<TSampleProto>(Output());
+    for (; reader->IsValid(); reader->Next()) {
+        const auto& row = reader->GetRow();
+        Cout <<
+            "a = " << row.a() <<
+            ", b = " << row.b() <<
+            ", c = " << row.c() <<
+            ", d = " << row.d() <<
+            ", e = " << row.e() <<
         Endl;
     }
 }
