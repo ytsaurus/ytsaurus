@@ -476,10 +476,10 @@ public:
 private:
     TSharedRef Data_;
     TIterator Current_;
+
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(
-        ReaderChunkSize,
-        TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio,
-        GetRefCountedTypeCookie<TWireProtocolReaderPoolTag>());
+        TWireProtocolReaderPoolTag{},
+        ReaderChunkSize);
 
 
     i64 ReadInt64()
