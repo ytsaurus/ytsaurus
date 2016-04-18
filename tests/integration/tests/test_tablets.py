@@ -820,9 +820,9 @@ class TestTablets(YTEnvSetup):
         assert len(tablet_data["partitions"]) == 1
         assert len(tablet_data["partitions"][0]["stores"]) == 1
 
-    def _test_in_memory(self, mode):
+    def _test_in_memory(self, mode, optimize_for):
         self.sync_create_cells(1, 1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table("//tmp/t", optimize_for=optimize_for)
 
         set("//tmp/t/@in_memory_mode", mode)
         set("//tmp/t/@max_dynamic_store_key_count", 10)
@@ -870,11 +870,17 @@ class TestTablets(YTEnvSetup):
         _check_preload_state("complete")
         assert lookup_rows("//tmp/t", keys) == rows
 
-    def test_in_memory_compressed(self):
-        self._test_in_memory("compressed")
+    def test_in_memory_compressed_lookup(self):
+        self._test_in_memory("compressed", "lookup")
 
-    def test_in_memory_uncompressed(self):
-        self._test_in_memory("uncompressed")
+    def test_in_memory_uncompressed_lookup(self):
+        self._test_in_memory("uncompressed", "lookup")
+
+    def test_in_memory_compressed_scan(self):
+        self._test_in_memory("compressed", "scan")
+
+    def test_in_memory_uncompressed_scan(self):
+        self._test_in_memory("uncompressed", "scan")
 
     def test_lookup_hash_table(self):
         self.sync_create_cells(1, 1)
