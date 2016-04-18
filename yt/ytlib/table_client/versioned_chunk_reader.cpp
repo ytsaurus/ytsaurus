@@ -222,15 +222,15 @@ public:
             }
 
             auto row = BlockReader_->GetRow(&MemoryPool_);
-            if (row) {
+            if (row && rows->back()) {
                 YASSERT(
                     rows->empty() ||
                     CompareRows(
                         rows->back().BeginKeys(), rows->back().EndKeys(),
                         row.BeginKeys(), row.EndKeys()) < 0);
-                rows->push_back(row);
-                ++RowCount_;
             }
+            rows->push_back(row);
+            ++RowCount_;
 
             ++CurrentRowIndex_;
             if (!BlockReader_->NextRow()) {
@@ -817,6 +817,10 @@ public:
         for (i64 index = 0; index < range.Size(); ++index) {
             if (!range[index]) {
                 continue;
+            } else if (range[index].GetWriteTimestampCount() == 0 && range[index].GetDeleteTimestampCount() == 0) {
+                // This row was created in order to compare with UpperLimit.
+                range[index] = TMutableVersionedRow();
+                continue;
             }
 
             for (auto* value = range[index].BeginValues(); value != range[index].EndValues(); ++value) {
@@ -1065,7 +1069,7 @@ public:
             } else if (RowIndex_ + rowLimit == HardUpperRowIndex_) {
                 Completed_ = true;
             }
-
+            
             RowBuilder_.ReadValues(range, RowIndex_);
 
             PerformanceCounters_->StaticChunkRowReadCount += range.Size();
