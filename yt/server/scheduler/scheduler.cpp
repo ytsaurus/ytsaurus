@@ -688,7 +688,9 @@ public:
                         Strategy_->ScheduleJobs(schedulingContext);
                     }
 
+                    TotalResourceUsage_ -= node->GetResourceUsage();
                     node->SetResourceUsage(schedulingContext->ResourceUsage());
+                    TotalResourceUsage_ += node->GetResourceUsage();
 
                     scheduleJobsAsyncResult = ProcessScheduledJobs(
                         schedulingContext,
@@ -1657,16 +1659,18 @@ private:
             node->SetResourceUsage(ZeroJobResources());
         }
 
-        TotalResourceLimits_ -= oldResourceLimits;
-        TotalResourceLimits_ += node->GetResourceLimits();
-        for (const auto& tag : node->SchedulingTags()) {
-            auto& resources = SchedulingTagResources_[tag];
-            resources -= oldResourceLimits;
-            resources += node->GetResourceLimits();
-        }
+        if (node->GetMasterState() == ENodeState::Online) {
+            TotalResourceLimits_ -= oldResourceLimits;
+            TotalResourceLimits_ += node->GetResourceLimits();
+            for (const auto& tag : node->SchedulingTags()) {
+                auto& resources = SchedulingTagResources_[tag];
+                resources -= oldResourceLimits;
+                resources += node->GetResourceLimits();
+            }
 
-        TotalResourceUsage_ -= oldResourceUsage;
-        TotalResourceUsage_ += node->GetResourceUsage();
+            TotalResourceUsage_ -= oldResourceUsage;
+            TotalResourceUsage_ += node->GetResourceUsage();
+        }
     }
 
     void BeginNodeHeartbeatProcessing(TExecNodePtr node)
