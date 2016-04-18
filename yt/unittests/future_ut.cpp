@@ -654,6 +654,16 @@ TEST_F(TFutureTest, WithTimeoutSuccess)
     EXPECT_TRUE(f2.Get().IsOK());
 }
 
+TEST_F(TFutureTest, WithTimeoutOnSet)
+{
+    auto p = NewPromise<void>();
+    p.Set();
+    auto f1 = p.ToFuture();
+    auto f2 = f1.WithTimeout(TDuration::MilliSeconds(0));
+    EXPECT_TRUE(f1.Get().IsOK());
+    EXPECT_TRUE(f2.Get().IsOK());
+}
+
 TEST_F(TFutureTest, WithTimeoutFail)
 {
     auto p = NewPromise<int>();

@@ -574,14 +574,14 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout)
 {
     YASSERT(Impl_);
 
+    if (IsSet()) {
+        return TFuture<T>(Impl_);
+    }
+
     auto this_ = *this;
     auto promise = NewPromise<T>();
 
-    Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
-        promise.TrySet(value);
-    }));
-
-    NConcurrency::TDelayedExecutor::Submit(
+    auto cookie = NConcurrency::TDelayedExecutor::Submit(
         BIND([=] () mutable {
             promise.TrySet(TError(NYT::EErrorCode::Timeout, "Operation timed out")
                 << TErrorAttribute("timeout", timeout));
@@ -589,7 +589,13 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout)
         }),
         timeout);
 
-    promise.OnCanceled(BIND([this_] () mutable {
+    Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
+        NConcurrency::TDelayedExecutor::CancelAndClear(cookie);
+        promise.TrySet(value);
+    }));
+
+    promise.OnCanceled(BIND([this_, cookie] () mutable {
+        NConcurrency::TDelayedExecutor::CancelAndClear(cookie);
         this_.Cancel();
     }));
 
