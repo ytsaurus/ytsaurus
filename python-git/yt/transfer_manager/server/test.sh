@@ -480,6 +480,22 @@ test_copy_inefficiently_stored_table()
     check "$(yt2 get //tmp/new_test_table/@row_count --proxy smith)" "101"
 }
 
+test_copy_with_annotated_json() {
+    echo "Test copy with annotated JSON"
+
+    echo 'a=b' | yt2 write //tmp/test_table --proxy marx --format dsv
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "marx", "destination_table": "//tmp/new_test_table", "destination_cluster": "plato", "pool": "ignat", "copy_method": "proxy"}')
+    wait_task $id
+
+    check "$(get_task $id | jq .intermediate_format)" "\"json\""
+
+    echo 'a=b' | yt2 write //tmp/test_table --proxy quine --format dsv
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table1", "destination_cluster": "plato", "copy_method": "proxy"}')
+    wait_task $id
+
+    check "$(get_task $id | jq .intermediate_format)" "\"<annotate_with_types=%true>json\""
+}
+
 # Different transfers
 test_copy_empty_table
 test_various_transfers
@@ -501,3 +517,4 @@ test_source_codecs
 test_intermediate_format
 test_delete_tasks
 test_copy_inefficiently_stored_table
+test_copy_with_annotated_json
