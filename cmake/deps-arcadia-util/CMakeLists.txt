@@ -323,7 +323,7 @@ target_link_libraries(ytext-arcadia-util
   deps-yt-contrib-fastlz
   deps-yt-contrib-minilzo
   deps-yt-contrib-quicklz
-  deps-yt-contrib-zstd
+  deps-yt-contrib-zstd-legacy
 )
 
 if(CMAKE_COMPILER_IS_GNUCXX)
