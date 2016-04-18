@@ -381,22 +381,6 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
     return candidates[RandomNumber(candidates.size())];
 }
 
-bool TChunkStore::IsReadThrottling(
-    const TLocationPtr& location,
-    const TWorkloadDescriptor& workloadDescriptor)
-{
-    auto size = location->GetPendingIOSize(EIODirection::Read, workloadDescriptor);
-    return size > Config_->DiskReadThrottlingLimit;
-}
-
-bool TChunkStore::IsWriteThrottling(
-    const TLocationPtr& location,
-    const TWorkloadDescriptor& workloadDescriptor)
-{
-    auto size = location->GetPendingIOSize(EIODirection::Write, workloadDescriptor);
-    return size > Config_->DiskWriteThrottlingLimit;
-}
-
 bool TChunkStore::CanStartNewSession(
     const TStoreLocationPtr& location,
     EObjectType chunkType,
@@ -414,7 +398,7 @@ bool TChunkStore::CanStartNewSession(
         return false;
     }
 
-    if (IsWriteThrottling(location, workloadDescriptor)) {
+    if (location->GetPendingIOSize(EIODirection::Write, workloadDescriptor) > Config_->DiskWriteThrottlingLimit) {
         return false;
     }
 

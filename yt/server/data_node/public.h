@@ -23,6 +23,7 @@ using NNodeTrackerClient::TNodeId;
 
 struct TChunkDescriptor;
 struct TSessionOptions;
+struct TBlockReadOptions;
 
 class TPendingIOGuard;
 class TChunkReadGuard;

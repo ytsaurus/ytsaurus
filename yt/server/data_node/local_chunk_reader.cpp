@@ -58,14 +58,18 @@ public:
         int firstBlockIndex,
         int blockCount) override
     {
+        TBlockReadOptions options;
+        options.WorkloadDescriptor = workloadDescriptor;
+        options.BlockCache = BlockCache_;
+        options.PopulateCache = Config_->PopulateCache;
+
         auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
         auto asyncResult = chunkBlockManager->ReadBlockRange(
             Chunk_->GetId(),
             firstBlockIndex,
             blockCount,
-            workloadDescriptor,
-            BlockCache_,
-            Config_->PopulateCache);
+            options);
+
         return asyncResult.Apply(BIND([=] (const TErrorOr<std::vector<TSharedRef>>& blocksOrError) {
             if (!blocksOrError.IsOK()) {
                 ThrowError(blocksOrError);
@@ -136,13 +140,17 @@ private:
                 return;
             }
 
+            TBlockReadOptions options;
+            options.WorkloadDescriptor = session->WorkloadDescriptor;
+            options.BlockCache = BlockCache_;
+            options.PopulateCache = Config_->PopulateCache;
+
             auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncResult = chunkBlockManager->ReadBlockSet(
                 Chunk_->GetId(),
                 blockIndexes,
-                session->WorkloadDescriptor,
-                BlockCache_,
-                Config_->PopulateCache);
+                options);
+
             asyncResult.Subscribe(
                 BIND(&TLocalChunkReader::OnBlockSetRead, MakeStrong(this), session, localIndexes));
         } catch (const std::exception& ex) {

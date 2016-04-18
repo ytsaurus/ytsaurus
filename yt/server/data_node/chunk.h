@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/misc/workload.h>
+
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/ref.h>
@@ -10,6 +12,15 @@ namespace NYT {
 namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TBlockReadOptions
+{
+    TWorkloadDescriptor WorkloadDescriptor;
+    NChunkClient::IBlockCachePtr BlockCache;
+    bool PopulateCache = false;
+    bool FetchFromCache = true;
+    bool FetchFromDisk = true;
+};
 
 //! Represents a chunk stored locally at Data Node.
 /*!
@@ -59,9 +70,7 @@ struct IChunk
      */
     virtual TFuture<std::vector<TSharedRef>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
-        const TWorkloadDescriptor& workloadDescriptor,
-        bool populateCache,
-        NChunkClient::IBlockCachePtr blockCache) = 0;
+        const TBlockReadOptions& options) = 0;
 
     //! Asynchronously reads a range of blocks.
     /*!
@@ -71,9 +80,7 @@ struct IChunk
     virtual TFuture<std::vector<TSharedRef>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
-        const TWorkloadDescriptor& workloadDescriptor,
-        bool populateCache,
-        NChunkClient::IBlockCachePtr blockCache) = 0;
+        const TBlockReadOptions& options) = 0;
 
     //! Tries to acquire a read lock and increments the lock counter.
     /*!
