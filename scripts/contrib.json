@@ -1,5 +1,5 @@
 {
-  "yt/contrib/zstd": {
+  "yt/contrib/zstd-legacy": {
     "branch": null, 
     "repository": "git@github.yandex-team.ru:yt/github-Cyan4973-zstd.git"
   }

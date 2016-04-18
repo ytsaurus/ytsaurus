@@ -3,7 +3,7 @@
 #include "lz.h"
 #include "snappy.h"
 #include "zlib.h"
-#include "zstd.h"
+#include "zstd_legacy.h"
 #include "brotli.h"
 
 #include <yt/core/tracing/trace_context.h>
@@ -295,28 +295,28 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TZstdCodec
+class TZstdLegacyCodec
     : public TCodecBase
 {
 public:
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return Run<TZstdCodec>(NCompression::ZstdCompress, true, block);
+        return Run<TZstdLegacyCodec>(NCompression::ZstdLegacyCompress, true, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return Run<TZstdCodec>(NCompression::ZstdCompress, true, blocks);
+        return Run<TZstdLegacyCodec>(NCompression::ZstdLegacyCompress, true, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return Run<TZstdCodec>(NCompression::ZstdDecompress, false, block);
+        return Run<TZstdLegacyCodec>(NCompression::ZstdLegacyDecompress, false, block);
     }
 
     virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
     {
-        return Run<TZstdCodec>(NCompression::ZstdDecompress, false, blocks);
+        return Run<TZstdLegacyCodec>(NCompression::ZstdLegacyDecompress, false, blocks);
     }
 
     virtual ECodec GetId() const override
@@ -405,7 +405,7 @@ ICodec* GetCodec(ECodec id)
         }
 
         case ECodec::Zstd: {
-            static TZstdCodec result;
+            static TZstdLegacyCodec result;
             return &result;
         }
 

@@ -1,5 +1,5 @@
-set(NAME deps-yt-contrib-zstd)
-set(BASE ${CMAKE_SOURCE_DIR}/yt/contrib/zstd)
+set(NAME deps-yt-contrib-zstd-legacy)
+set(BASE ${CMAKE_SOURCE_DIR}/yt/contrib/zstd-legacy)
 set(SRCS
   ${BASE}/lib/fse.c
   ${BASE}/lib/zstd.c
