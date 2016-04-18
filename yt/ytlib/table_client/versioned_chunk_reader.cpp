@@ -11,6 +11,7 @@
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/block_id.h>
+#include <yt/ytlib/chunk_client/cache_reader.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -1674,7 +1675,12 @@ TVersionedChunkLookupHashTablePtr CreateChunkLookupHashTable(
     TCachedVersionedChunkMetaPtr chunkMeta,
     TKeyComparer keyComparer)
 {
-    auto blockCache = New<TSimpleBlockCache>(blocks);
+    if (ETableChunkFormat(chunkMeta->ChunkMeta().version()) != ETableChunkFormat::VersionedSimple) {
+        LOG_INFO("Cannot create lookup hash table for %Qlv chunk format (ChunkId: %v)",
+            chunkMeta->GetChunkId(),
+            ETableChunkFormat(chunkMeta->ChunkMeta().version()));
+        return nullptr;
+    }
 
     if (chunkMeta->BlockMeta().blocks_size() > MaxBlockIndex) {
         LOG_INFO("Cannot create lookup hash table because chunk has too many blocks (ChunkId: %v, BlockCount: %v)",
@@ -1683,6 +1689,7 @@ TVersionedChunkLookupHashTablePtr CreateChunkLookupHashTable(
         return nullptr;
     }
 
+    auto blockCache = New<TSimpleBlockCache>(blocks);
     auto chunkSize = chunkMeta->BlockMeta().blocks(chunkMeta->BlockMeta().blocks_size() - 1).chunk_row_count();
 
     auto hashTable = New<TVersionedChunkLookupHashTable>(chunkSize);
@@ -2010,15 +2017,34 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     TKeyComparer keyComparer,
     TTimestamp timestamp)
 {
-    return New<TCacheBasedSimpleVersionedLookupChunkReader>(
-        std::move(chunkMeta),
-        std::move(blockCache),
-        std::move(lookupHashTable),
-        keys,
-        columnFilter,
-        std::move(performanceCounters),
-        std::move(keyComparer),
-        timestamp);
+    switch (ETableChunkFormat(chunkMeta->ChunkMeta().version())) {
+        case ETableChunkFormat::VersionedSimple:
+            return New<TCacheBasedSimpleVersionedLookupChunkReader>(
+                std::move(chunkMeta),
+                std::move(blockCache),
+                std::move(lookupHashTable),
+                keys,
+                columnFilter,
+                std::move(performanceCounters),
+                std::move(keyComparer),
+                timestamp);
+        case ETableChunkFormat::VersionedColumnar: {
+            auto underlyingReader = CreateCacheReader(chunkMeta->GetChunkId(), blockCache);
+
+            return New<TColumnarVersionedLookupChunkReader>(
+                New<TChunkReaderConfig>(),
+                std::move(chunkMeta),
+                std::move(underlyingReader),
+                std::move(blockCache),
+                keys,
+                columnFilter,
+                std::move(performanceCounters),
+                timestamp);
+        }
+
+        default:
+            YUNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2119,6 +2145,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
 {
+    YCHECK(timestamp != AllCommittedTimestamp);
+
     switch (ETableChunkFormat(chunkMeta->ChunkMeta().version())) {
         case ETableChunkFormat::VersionedSimple:
             return New<TSimpleCacheBasedVersionedRangeChunkReader>(
@@ -2130,8 +2158,26 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 std::move(performanceCounters),
                 timestamp);
 
-        case ETableChunkFormat::VersionedColumnar:
-            YUNIMPLEMENTED();
+        case ETableChunkFormat::VersionedColumnar: {
+            auto underlyingReader = CreateCacheReader(chunkMeta->GetChunkId(), blockCache);
+
+            TReadLimit lowerLimit;
+            lowerLimit.SetKey(std::move(lowerBound));
+
+            TReadLimit upperLimit;
+            upperLimit.SetKey(std::move(upperBound));
+
+            return New<TColumnarVersionedRangeChunkReader<TScanColumnarRowBuilder>>(
+                New<TChunkReaderConfig>(),
+                std::move(chunkMeta),
+                std::move(underlyingReader),
+                std::move(blockCache),
+                std::move(lowerLimit),
+                std::move(upperLimit),
+                columnFilter,
+                std::move(performanceCounters),
+                timestamp);
+        }
 
         default:
             YUNREACHABLE();
