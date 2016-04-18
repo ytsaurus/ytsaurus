@@ -344,11 +344,14 @@ TEST(TYsonFragmentWriterTest, NewLinesInList)
         writer.OnEndMap();
     writer.OnListItem();
         writer.OnStringScalar("aaa");
+    writer.OnListItem();
+        writer.OnStringScalar("bbb");
 
     Stroka output =
         "200;\n"
         "{\"key\"=42;\"yek\"=24;\"list\"=[];};\n"
-        "\"aaa\";\n";
+        "\"aaa\";\n"
+        "\"bbb\";\n";
 
     EXPECT_EQ(output, outputStream.Str());
 }
