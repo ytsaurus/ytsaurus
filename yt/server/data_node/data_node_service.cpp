@@ -331,9 +331,7 @@ private:
         bool hasCompleteChunk = chunk.operator bool();
         response->set_has_complete_chunk(hasCompleteChunk);
 
-        i64 diskQueueSize = chunk
-            ? chunk->GetLocation()->GetPendingIOSize(EIODirection::Read, workloadDescriptor)
-            : 0;
+        i64 diskQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
         response->set_disk_queue_size(diskQueueSize);
 
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
@@ -403,11 +401,14 @@ private:
         }
 
         context->SetResponseInfo(
-            "HasCompleteChunk: %v, NetThrottling: %v, DiskThrottling: %v, "
+            "HasCompleteChunk: %v, NetThrottling: %v, NetQueueSize: %v, "
+            "DiskThrottling: %v, DiskQueueSize: %v, "
             "BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
             hasCompleteChunk,
             netThrottling,
+            netQueueSize,
             diskThrottling,
+            diskQueueSize,
             blocksWithData,
             response->peer_descriptors_size(),
             blocksSize);
@@ -446,9 +447,7 @@ private:
         bool hasCompleteChunk = chunk.operator bool();
         response->set_has_complete_chunk(hasCompleteChunk);
 
-        i64 diskQueueSize = chunk
-            ? chunk->GetLocation()->GetPendingIOSize(EIODirection::Read, workloadDescriptor)
-            : 0;
+        i64 diskQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
         response->set_disk_queue_size(diskQueueSize);
 
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
@@ -486,11 +485,14 @@ private:
         i64 blocksSize = GetByteSize(response->Attachments());
 
         context->SetResponseInfo(
-            "HasCompleteChunk: %v, NetThrottling: %v, DiskThrottling: %v, "
+            "HasCompleteChunk: %v, NetThrottling: %v, NetQueuSize: %v, "
+            "DiskThrottling: %v, DiskQueueSize: %v, "
             "BlocksWithData: %v, BlocksSize: %v",
             hasCompleteChunk,
             netThrottling,
+            netQueueSize,
             diskThrottling,
+            diskQueueSize,
             blocksWithData,
             blocksSize);
 
@@ -981,6 +983,14 @@ private:
     i64 GetNetOutQueueSize()
     {
         return NBus::TTcpDispatcher::Get()->GetStatistics(NBus::ETcpInterfaceType::Remote).PendingOutBytes;
+    }
+
+    i64 GetDiskReadQueueSize(const IChunkPtr& chunk, const TWorkloadDescriptor& workloadDescriptor)
+    {
+        if (!chunk) {
+            return 0;
+        }
+        return chunk->GetLocation()->GetPendingIOSize(EIODirection::Read, workloadDescriptor);
     }
 };
 
