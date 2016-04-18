@@ -3,6 +3,7 @@ PROGRAM(native)
 OWNER(monster)
 
 SRCS(
+    sample.proto
     cypress.cpp
     io.cpp
     operations.cpp

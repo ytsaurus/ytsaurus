@@ -1,0 +1,15 @@
+import "mapreduce/yt/interface/extension.proto";
+
+package NYT.NNativeTest;
+
+// TIdMapperProto
+
+message TSampleProto
+{
+    optional int64  a = 1 [(NYT.column_name) = "column_a"];
+    optional uint64 b = 2 [(NYT.column_name) = "column_b"];
+    optional double c = 3 [(NYT.column_name) = "column_c"];
+    optional bool   d = 4 [(NYT.column_name) = "column_d"];
+    optional string e = 5 [(NYT.column_name) = "column_e"];
+};
+

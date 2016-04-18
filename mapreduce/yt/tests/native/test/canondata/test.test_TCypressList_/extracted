@@ -1,0 +1,10 @@
+double: double_node
+int: int64_node
+document: document
+list: list_node
+string: string_node
+map: map_node
+bool: boolean_node
+table: table
+uint: uint64_node
+file: file
