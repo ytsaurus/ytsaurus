@@ -26,12 +26,12 @@ public:
         double maxSmallBlockRatio = TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio,
         TRefCountedTypeCookie tagCookie = GetRefCountedTypeCookie<TDefaultRowBufferPoolTag>());
 
-    template <class T>
+    template <class TTag>
     explicit TRowBuffer(
-        TRefCountedTypeTag<T>,
+        TTag,
         i64 chunkSize = TChunkedMemoryPool::DefaultChunkSize,
         double maxSmallBlockRatio = TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio)
-        : TRowBuffer(chunkSize, maxSmallBlockRatio, GetRefCountedTypeCookie<T>())
+        : TRowBuffer(chunkSize, maxSmallBlockRatio, GetRefCountedTypeCookie<TTag>())
     { }
 
     TChunkedMemoryPool* GetPool();
