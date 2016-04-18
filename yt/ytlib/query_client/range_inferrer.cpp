@@ -33,6 +33,9 @@ namespace {
 
 using TDivisors = SmallVector<TUnversionedValue, 1>;
 
+struct TRangeInferrerBufferTag
+{ };
+
 class TModuloRangeGenerator
 {
 public:
@@ -731,7 +734,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
     ui64 rangeExpansionLimit,
     bool verboseLogging)
 {
-    auto buffer = New<TRowBuffer>();
+    auto buffer = New<TRowBuffer>(TRangeInferrerBufferTag{});
     auto keySize = renamedKeyColumns.size();
 
     auto evaluator = evaluatorCache->Find(schema, keySize);
@@ -813,7 +816,7 @@ TRangeInferrer CreateLightRangeInferrer(
     const IFunctionRegistryPtr functionRegistry,
     bool verboseLogging)
 {
-    auto keyTrieBuffer = New<TRowBuffer>();
+    auto keyTrieBuffer = New<TRowBuffer>(TRangeInferrerBufferTag{});
     auto keyTrie = ExtractMultipleConstraints(
         predicate,
         keyColumns,

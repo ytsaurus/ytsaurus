@@ -294,6 +294,9 @@ DEFINE_REFCOUNTED_TYPE(TQueryResponseReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueryHelperRowBufferTag
+{ };
+
 class TQueryHelper
     : public IExecutor
     , public IPrepareCallbacks
@@ -690,7 +693,7 @@ private:
     {
         auto Logger = BuildLogger(query);
 
-        auto rowBuffer = New<TRowBuffer>();
+        auto rowBuffer = New<TRowBuffer>(TQueryHelperRowBufferTag{});
         auto allSplits = InferRanges(
             query,
             dataSource,
@@ -730,7 +733,7 @@ private:
     {
         auto Logger = BuildLogger(query);
 
-        auto rowBuffer = New<TRowBuffer>();
+        auto rowBuffer = New<TRowBuffer>(TQueryHelperRowBufferTag{});
         auto allSplits = InferRanges(
             query,
             dataSource,
@@ -807,6 +810,15 @@ private:
 DEFINE_REFCOUNTED_TYPE(TQueryHelper)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TLookupRowsBufferTag
+{ };
+
+struct TWriteRowsBufferTag
+{ };
+
+struct TDeleteRowsBufferTag
+{ };
 
 class TClient
     : public IClient
@@ -934,7 +946,7 @@ public:
         const std::vector<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options) override
     {
-        auto rowBuffer = New<TRowBuffer>();
+        auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag{});
         auto capturedKeys = rowBuffer->Capture(keys);
         return Execute(
             "LookupRows",
@@ -1524,7 +1536,7 @@ private:
         std::vector<std::pair<NTableClient::TKey, int>> sortedKeys;
         sortedKeys.reserve(keys.Size());
 
-        auto rowBuffer = New<TRowBuffer>();
+        auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag{});
 
         if (tableInfo->NeedKeyEvaluation) {
             auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
@@ -2417,7 +2429,7 @@ public:
         const std::vector<NTableClient::TUnversionedRow>& rows,
         const TWriteRowsOptions& options) override
     {
-        auto rowBuffer = New<TRowBuffer>();
+        auto rowBuffer = New<TRowBuffer>(TWriteRowsBufferTag{});
         auto rowRange = MakeSharedRange(rowBuffer->Capture(rows), std::move(rowBuffer));
         WriteRows(path, std::move(nameTable), std::move(rowRange), options);
     }
@@ -2444,7 +2456,7 @@ public:
         const std::vector<NTableClient::TKey>& keys,
         const TDeleteRowsOptions& options) override
     {
-        auto keyBuffer = New<TRowBuffer>();
+        auto keyBuffer = New<TRowBuffer>(TDeleteRowsBufferTag{});
         auto keyRange = MakeSharedRange(keyBuffer->Capture(keys), std::move(keyBuffer));
         DeleteRows(path, std::move(nameTable), std::move(keyRange), options);
     }
@@ -2597,7 +2609,10 @@ private:
     const TClientPtr Client_;
     const NTransactionClient::TTransactionPtr Transaction_;
 
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+    struct TTransactionBufferTag
+    { };
+
+    TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TTransactionBufferTag{});
 
     TFuture<void> Outcome_;
 
@@ -2868,7 +2883,10 @@ private:
         const int KeyColumnCount_;
         const int SchemaColumnCount_;
 
-        TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+        struct TCommitSessionBufferTag
+        { };
+
+        TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TCommitSessionBufferTag{});
 
         NLogging::TLogger Logger;
 

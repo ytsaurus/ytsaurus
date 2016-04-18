@@ -269,13 +269,16 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
 
     tableInfo->ValidateDynamic();
 
+    struct TInsertRowsBufferTag
+    { };
+
     // Parse input data.
     auto valueConsumer = New<TBuildingValueConsumer>(
         tableInfo->Schema,
         tableInfo->KeyColumns);
     valueConsumer->SetTreatMissingAsNull(!Update);
     auto rows = ParseRows(context, config, valueConsumer);
-    auto rowBuffer = New<TRowBuffer>();
+    auto rowBuffer = New<TRowBuffer>(TInsertRowsBufferTag{});
     auto capturedRows = rowBuffer->Capture(rows);
     auto rowRange = MakeSharedRange(std::move(capturedRows), std::move(rowBuffer));
 
@@ -382,12 +385,15 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
         .ValueOrThrow();
     tableInfo->ValidateDynamic();
 
+    struct TDeleteRowsBufferTag
+    { };
+
     // Parse input data.
     auto valueConsumer = New<TBuildingValueConsumer>(
         tableInfo->Schema.TrimNonkeyColumns(tableInfo->KeyColumns),
         tableInfo->KeyColumns);
     auto keys = ParseRows(context, config, valueConsumer);
-    auto rowBuffer = New<TRowBuffer>();
+    auto rowBuffer = New<TRowBuffer>(TDeleteRowsBufferTag{});
     auto capturedKeys = rowBuffer->Capture(keys);
     auto keyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
 
