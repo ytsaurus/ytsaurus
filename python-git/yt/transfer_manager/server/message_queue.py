@@ -5,6 +5,7 @@ import os
 import struct
 import fcntl
 import cPickle as pickle
+import time
 
 class Stream(object):
     def __init__(self):
@@ -43,10 +44,11 @@ class Stream(object):
 
 
 class ReadingThread(Thread):
-    def __init__(self, pipe, queue):
+    def __init__(self, pipe, queue, sleep_timeout):
         super(ReadingThread, self).__init__()
         self.pipe = pipe
         self.queue = queue
+        self.sleep_timeout = sleep_timeout
 
         self.finished = False
         self.stream = Stream()
@@ -61,6 +63,8 @@ class ReadingThread(Thread):
 
     def run(self):
         while not self.finished:
+            time.sleep(self.sleep_timeout)
+
             try:
                 self.stream.add(self.pipe.read())
             except IOError:
@@ -83,9 +87,9 @@ class ReadingThread(Thread):
 
 # TODO(ignat): limit queue only to call get(), get_nowait(), empty()
 class MessageReader(Queue):
-    def __init__(self, pipe):
+    def __init__(self, pipe, sleep_timeout):
         Queue.__init__(self)
-        self.thread = ReadingThread(pipe, self)
+        self.thread = ReadingThread(pipe, self, sleep_timeout)
         self.thread.start()
 
     def finished(self):
