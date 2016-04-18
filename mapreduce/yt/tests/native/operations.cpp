@@ -203,6 +203,70 @@ YT_TEST(TOperation, IdMapperProto)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSimpleReducer
+    : public IReducer<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    virtual void Do(
+        TTableReader<TNode>* input,
+        TTableWriter<TNode>* output) override
+    {
+        auto key = input->GetRow()["key"];
+        TStringStream str;
+        for (; input->IsValid(); input->Next()) {
+            const auto& row = input->GetRow();
+            str <<
+                input->GetTableIndex() << " " <<
+                input->GetRowIndex() << " " <<
+                row["subkey"].AsInt64() << " " <<
+                row["value"].AsString() << "; ";
+        }
+        output->AddRow(TNode()("key", key)("value", str.Str()));
+    }
+};
+REGISTER_REDUCER(TSimpleReducer);
+
+YT_TEST(TOperation, SimpleReduce)
+{
+    {
+        auto writer = Client()->CreateTableWriter<TNode>(
+            TRichYPath(Input()).SortedBy({"key", "subkey"}));
+        writer->AddRow(TNode()("key", 0)("subkey", 0)("value", "a"));
+        writer->AddRow(TNode()("key", 0)("subkey", 1)("value", "b"));
+        writer->AddRow(TNode()("key", 1)("subkey", 0)("value", "c"));
+        writer->AddRow(TNode()("key", 1)("subkey", 1)("value", "d"));
+        writer->Finish();
+    }
+    {
+        auto writer = Client()->CreateTableWriter<TNode>(
+            TRichYPath(Input2()).SortedBy({"key", "subkey"}));
+        writer->AddRow(TNode()("key", 0)("subkey", 0)("value", "w"));
+        writer->AddRow(TNode()("key", 0)("subkey", 1)("value", "x"));
+        writer->AddRow(TNode()("key", 1)("subkey", 0)("value", "y"));
+        writer->AddRow(TNode()("key", 1)("subkey", 1)("value", "z"));
+        writer->Finish();
+    }
+
+    Client()->Reduce(
+        TReduceOperationSpec()
+            .AddInput<TNode>(Input())
+            .AddInput<TNode>(Input2())
+            .AddOutput<TNode>(TRichYPath(Output()).SortedBy({"key", "subkey"}))
+            .ReduceBy("key")
+            .SortBy({"key", "subkey"}),
+        new TSimpleReducer
+    );
+
+    auto reader = Client()->CreateTableReader<TNode>(Output());
+    for (; reader->IsValid(); reader->Next()) {
+        const auto& row = reader->GetRow();
+        Cout << row["key"].AsInt64() << " - " << row["value"].AsString() << Endl;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 } // namespace NNativeTest
 } // namespace NYT
 
