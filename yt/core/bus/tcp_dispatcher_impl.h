@@ -97,7 +97,7 @@ private:
 
     // Server thread + all client threads.
     std::vector<TTcpDispatcherThreadPtr> Threads_;
-    std::atomic<size_t> CurrentClientThreadIndex_ = {0};
+    i64 CurrentClientThreadIndex_ = 0;
     int ClientThreadCount_ = 0;
 
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
