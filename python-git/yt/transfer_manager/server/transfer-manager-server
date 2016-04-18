@@ -275,10 +275,6 @@ class Application(object):
         self._start_time = time.time()
         self._daemon = Flask(__name__)
 
-        if yappi is not None:
-            yappi.set_clock_type("wall")
-            yappi.start()
-
         self._config_path = config_path
         self._config = json.load(open(config_path))
         self._last_successfully_loaded_config = deepcopy(self._config)
@@ -290,7 +286,9 @@ class Application(object):
         self._profiling_mutex = RLock()
         self._profiling = {
             "execution_time": defaultdict(deque),
-            "requests_cache_accesses": deque()
+            "execution_cumtime": defaultdict(float),
+            "instant_call_count": defaultdict(int),
+            "total_call_count": defaultdict(int)
         }
 
         self._configure_logging(self._config.get("logging", {}))
@@ -309,6 +307,10 @@ class Application(object):
 
     def start_processes(self):
         self._sleep_step = 0.5
+
+        if yappi is not None:
+            yappi.set_clock_type("cpu")
+            yappi.start()
 
         # Run logging process. It inherits current logging configuration.
         self._logging_process = Process(target=self._run_logging_server, name="LoggingThread")
@@ -352,7 +354,6 @@ class Application(object):
 
         # Run config reloading thread.
         self._clusters_config_reloading_thread = SafeThread(target=self._reload_clusters_config,
-                                                            args=(self._config["clusters_config_reload_timeout"],),
                                                             name="ClustersConfigReloadingThread")
         self._clusters_config_reloading_thread.daemon = True
         self._clusters_config_reloading_thread.start()
@@ -382,7 +383,7 @@ class Application(object):
         self._add_rule("/config/", 'config', methods=["GET"])
         self._add_rule("/ping/", 'ping', methods=["GET"])
         self._add_rule("/match/", 'match', methods=["POST"])
-        self._add_rule("/profiling/timings/", 'profiling_timings', methods=["GET"])
+        self._add_rule("/profiling/call_tracker/", 'profiling_call_tracker', methods=["GET"])
         self._add_rule("/profiling/memory_tracker/", 'profiling_memory_tracker', methods=["GET"])
         self._add_rule("/profiling/stats/", 'profiling_stats', methods=["GET"])
 
@@ -407,7 +408,7 @@ class Application(object):
         middlewares = [(self._log_request, ()),
                        (self._process_exception, ()),
                        check_request_rate_limit(),
-                       (self._profile_time, (endpoint, )),
+                       (self._add_call_statistics, (endpoint, )),
                        (self._process_lock, (depends_on_lock, )),
                        process_mutation_request(),
                        (process_gzip, ()),
@@ -429,7 +430,7 @@ class Application(object):
             try:
                 return func(*args, **kwargs)
             finally:
-                logger.info("Request processing finished (id :%s)", id)
+                logger.info("Request processing finished (id: %s)", id)
         return decorator
 
     def _process_lock(self, func, depends_on_lock):
@@ -471,18 +472,27 @@ class Application(object):
 
         return decorator
 
-    def _profile_time(self, func, method_name):
+    def _add_call_statistics(self, func, method_name):
         def decorator(*args, **kwargs):
             now = time.time()
-            result = func(*args, **kwargs)
-            elapsed = time.time() - now
 
             with self._profiling_mutex:
-                self._profiling["execution_time"][method_name].append((datetime.now().isoformat(), elapsed))
-                if len(self._profiling["execution_time"][method_name]) > self._config["profiling"]["queue_limit"]:
-                    self._profiling["execution_time"][method_name].popleft()
+                self._profiling["instant_call_count"][method_name] += 1
+                self._profiling["total_call_count"][method_name] += 1
 
-            return result
+            try:
+                return func(*args, **kwargs)
+            finally:
+                elapsed = time.time() - now
+
+                with self._profiling_mutex:
+                    self._profiling["execution_cumtime"][method_name] += elapsed
+                    self._profiling["instant_call_count"][method_name] -= 1
+
+                    deque = self._profiling["execution_time"][method_name]
+                    deque.append((datetime.now().isoformat(), elapsed))
+                    if len(deque) > self._config["profiling"]["queue_limit"]:
+                        deque.popleft()
 
         return decorator
 
@@ -666,7 +676,8 @@ class Application(object):
 
         return ClustersConfiguration(clusters, availability_graph, kiwi_transmitter, hadoop_transmitter)
 
-    def _reload_clusters_config(self, reload_timeout):
+    def _reload_clusters_config(self):
+        reload_timeout = self._config["clusters_config_reload_timeout"] / 1000.0
         while True:
             if not self._tasks_loaded:
                 time.sleep(self._lock_timeout)
@@ -1254,7 +1265,7 @@ class Application(object):
                     task_process.aborting = False
                     task_process.aborted = False
                     task_process.temporary_config = temporary_config
-                    queue = MessageReader(task_process.stdout)
+                    queue = MessageReader(task_process.stdout, self._config["message_reader_sleep_timeout"] / 1000.0)
                     self._task_processes[id] = (task_process, queue)
 
                     self._tmp_config_counter[task_process.temporary_config] += 1
@@ -1802,14 +1813,14 @@ class Application(object):
         matchings = match_copy_pattern(client, source_pattern, destination_pattern)
         return Response(json.dumps(matchings), mimetype="application/json")
 
-    def profiling_timings(self):
+    def profiling_call_tracker(self):
         with self._profiling_mutex:
-            execution_time_dict = deepcopy(self._profiling["execution_time"])
+            profiling_dict = deepcopy(self._profiling)
 
-        for key in execution_time_dict:
-            execution_time_dict[key] = list(execution_time_dict[key])
+        for key in profiling_dict["execution_time"]:
+            profiling_dict["execution_time"][key] = list(profiling_dict["execution_time"][key])
 
-        return Response(json.dumps(execution_time_dict), mimetype="application/json")
+        return Response(json.dumps(profiling_dict), mimetype="application/json")
 
     def profiling_memory_tracker(self):
         info = request.args.get("format", "object_types_top_table")
@@ -1833,17 +1844,15 @@ class Application(object):
     def profiling_stats(self):
         stats_type = request.args.get("type", "callgrind")
 
-        fd, file_name = tempfile.mkstemp(prefix="stats",
-                                         dir=self._config.get("default_tmp_dir"))
-
-        fd, filename = tempfile.mkstemp(prefix="stats", dir=self._config.get("default_tmp_dir"))
+        fd, filename = tempfile.mkstemp(prefix="stats",
+                                        dir=self._config.get("default_tmp_dir"))
         os.close(fd)
         try:
             if yappi is not None:
-                yappi.get_func_stats().save(file_name, type=stats_type)
-                return send_file(file_name,
+                yappi.get_func_stats().save(filename, type=stats_type)
+                return send_file(filename,
                                  as_attachment=True,
-                                 attachment_filename=os.path.basename(file_name))
+                                 attachment_filename=os.path.basename(filename))
 
             return "yappi module is currently unavailable", 500
         finally:

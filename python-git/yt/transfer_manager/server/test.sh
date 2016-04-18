@@ -335,7 +335,7 @@ test_clusters_configuration_reloading() {
 
     local config=$(cat $TM_CONFIG)
     local config_reload_timeout=$(echo $config | jq ".clusters_config_reload_timeout")
-    local sleeping_time=$(($config_reload_timeout + 3))
+    local sleeping_time=$(($config_reload_timeout / 1000 + 3))
     echo $config | jq ".availability_graph.cedar = []" > $TM_CONFIG
     echo "Sleeping for $sleeping_time seconds to ensure that config is reloaded" && sleep $sleeping_time
 
