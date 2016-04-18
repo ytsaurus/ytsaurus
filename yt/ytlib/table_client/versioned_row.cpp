@@ -222,8 +222,9 @@ Stroka ToString(const TVersionedOwningRow& row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVersionedRowBuilder::TVersionedRowBuilder(TRowBufferPtr buffer)
+TVersionedRowBuilder::TVersionedRowBuilder(TRowBufferPtr buffer, bool compaction)
     : Buffer_(std::move(buffer))
+    , Compaction_(compaction)
 { }
 
 void TVersionedRowBuilder::AddKey(const TUnversionedValue& value)
@@ -240,6 +241,11 @@ void TVersionedRowBuilder::AddValue(const TVersionedValue& value)
 void TVersionedRowBuilder::AddDeleteTimestamp(TTimestamp timestamp)
 {
     DeleteTimestamps_.push_back(timestamp);
+}
+
+void TVersionedRowBuilder::AddWriteTimestamp(TTimestamp timestamp)
+{
+    WriteTimestamps_.push_back(timestamp);
 }
 
 TMutableVersionedRow TVersionedRowBuilder::FinishRow()
@@ -264,9 +270,14 @@ TMutableVersionedRow TVersionedRowBuilder::FinishRow()
         });
 
     std::sort(WriteTimestamps_.begin(), WriteTimestamps_.end(), std::greater<TTimestamp>());
-    WriteTimestamps_.erase(
-        std::unique(WriteTimestamps_.begin(), WriteTimestamps_.end()),
-        WriteTimestamps_.end());
+
+    if (Compaction_) {
+        WriteTimestamps_.erase(
+            std::unique(WriteTimestamps_.begin(), WriteTimestamps_.end()),
+            WriteTimestamps_.end());
+    } else if (!WriteTimestamps_.empty()) {
+        WriteTimestamps_.erase(WriteTimestamps_.begin() + 1, WriteTimestamps_.end());
+    }
 
     std::sort(DeleteTimestamps_.begin(), DeleteTimestamps_.end(), std::greater<TTimestamp>());
     DeleteTimestamps_.erase(
