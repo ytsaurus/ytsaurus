@@ -726,6 +726,9 @@ YtCommand.prototype._captureParameters = function() {
             self.parameters = binding.CreateMergedNode.apply(
                 undefined,
                 arguments);
+            if (self.parameters.GetNodeType() !== "map") {
+                throw new YtError("Parameters must be a map");
+            }
         });
 };
 
