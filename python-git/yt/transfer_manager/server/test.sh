@@ -483,17 +483,17 @@ test_copy_inefficiently_stored_table()
 test_copy_with_annotated_json() {
     echo "Test copy with annotated JSON"
 
-    echo 'a=b' | yt2 write //tmp/test_table --proxy marx --format dsv
+    echo -ne '{"x"=12u}\n' | yt2 write //tmp/test_table --proxy marx --format yson
     id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "marx", "destination_table": "//tmp/new_test_table", "destination_cluster": "plato", "pool": "ignat", "copy_method": "proxy"}')
     wait_task $id
 
-    check "$(get_task $id | jq .intermediate_format)" "\"json\""
+    check "$(yt2 read //tmp/new_test_table --format '<format=text>yson' --proxy plato)" '{"x"=12};'
 
-    echo 'a=b' | yt2 write //tmp/test_table --proxy quine --format dsv
+    echo -ne '{"x"=12u}\n' | yt2 write //tmp/test_table --proxy quine --format yson
     id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table1", "destination_cluster": "plato", "copy_method": "proxy"}')
     wait_task $id
 
-    check "$(get_task $id | jq .intermediate_format)" "\"<annotate_with_types=%true>json\""
+    check "$(yt2 read //tmp/test_table1 --format '<format=text>yson' --proxy plato)" '{"x"=12u};'
 }
 
 # Different transfers
