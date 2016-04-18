@@ -2451,6 +2451,8 @@ private:
                 .Item("cell").BeginMap()
                     .Item("resource_limits").Value(TotalResourceLimits_)
                     .Item("resource_usage").Value(TotalResourceUsage_)
+                    .Item("exec_node_count").Value(ExecNodeCount_)
+                    .Item("total_node_count").Value(TotalNodeCount_)
                 .EndMap()
                 .Item("operations").DoMapFor(GetOperations(), [=] (TFluentMap fluent, const TOperationPtr& operation) {
                     if (FindOperation(operation->GetId())) {
