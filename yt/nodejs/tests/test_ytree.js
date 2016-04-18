@@ -211,3 +211,11 @@ describe("ytree merging", function() {
     });
 });
 
+describe("ytree typing", function() {
+    it("should properly annotate node types", function() {
+        expect(binding.CreateV8Node({}).GetNodeType()).to.be.eql("map");
+        expect(binding.CreateV8Node([]).GetNodeType()).to.be.eql("list");
+        expect(binding.CreateV8Node("hi").GetNodeType()).to.be.eql("string");
+    });
+});
+
