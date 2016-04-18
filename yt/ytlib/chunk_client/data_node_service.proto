@@ -93,6 +93,8 @@ message TReqGetBlockSet
     optional uint64 peer_expiration_time = 4;
     optional bool populate_cache = 5 [default = true];
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 6;
+    optional bool fetch_from_cache = 7 [default = true];
+    optional bool fetch_from_disk = 8 [default = true];
 }
 
 message TRspGetBlockSet
@@ -105,7 +107,12 @@ message TRspGetBlockSet
 
     repeated TPeerDescriptor peer_descriptors = 1;
     required bool has_complete_chunk = 3;
+    // COMPAT(babenko): superseded by net_throttling and disk_throtting
     required bool throttling = 4;
+    optional bool net_throttling = 5;
+    optional int64 net_queue_size = 6;
+    optional bool disk_throttling = 7;
+    optional int64 disk_queue_size = 8;
 
     // Blocks are returned via attachments and correspond to block_indexes
     // list in the request. Some blocks may be null.
@@ -120,12 +127,19 @@ message TReqGetBlockRange
     required int32 block_count = 3;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
     optional bool populate_cache = 5 [default = true];
+    optional bool fetch_from_cache = 6 [default = true];
+    optional bool fetch_from_disk = 7 [default = true];
 }
 
 message TRspGetBlockRange
 {
     required bool has_complete_chunk = 1;
+    // COMPAT(babenko): superseded by net_throttling and disk_throtting
     required bool throttling = 2;
+    optional bool net_throttling = 3;
+    optional int64 net_queue_size = 4;
+    optional bool disk_throttling = 5;
+    optional int64 disk_queue_size = 6;
 
     // Blocks are returned via attachments and correspond to a prefix of
     // the requested range.

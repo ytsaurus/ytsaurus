@@ -374,18 +374,18 @@ private:
 
         int currentBlockIndex = 0;
         int blockCount = GetBlockCount(*meta);
-
-        auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
-        auto blockCache = Bootstrap_->GetBlockCache();
-
         while (currentBlockIndex < blockCount) {
+            TBlockReadOptions options;
+            options.WorkloadDescriptor = Config_->ReplicationWriter->WorkloadDescriptor;
+            options.BlockCache = Bootstrap_->GetBlockCache();
+
+            auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncReadBlocks = chunkBlockManager->ReadBlockRange(
                 ChunkId_,
                 currentBlockIndex,
                 blockCount - currentBlockIndex,
-                Config_->ReplicationWriter->WorkloadDescriptor,
-                blockCache,
-                false);
+                options);
+
             auto readBlocks = WaitFor(asyncReadBlocks)
                 .ValueOrThrow();
 
