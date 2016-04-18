@@ -574,7 +574,7 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     IChunkWriterPtr chunkWriter,
     IBlockCachePtr blockCache)
 {
-    if (schema.GetOptimizedFor() == EOptimizedFor::Scan) {
+    if (options->OptimizeFor == EOptimizeFor::Scan) {
         return New<TColumnVersionedChunkWriter>(
             std::move(config),
             std::move(options),

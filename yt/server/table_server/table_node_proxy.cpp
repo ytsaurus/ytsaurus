@@ -99,6 +99,8 @@ private:
         descriptors->push_back(TAttributeDescriptor("channels")
             .SetCustom(true));
         descriptors->push_back("atomicity");
+        descriptors->push_back(TAttributeDescriptor("optimize_for")
+            .SetCustom(true));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -239,6 +241,14 @@ private:
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override
     {
+        if (key == "optimize_for") {
+            if (!newValue) {
+                ThrowCannotRemoveAttribute(key);
+            }
+            ConvertTo<NTableClient::EOptimizeFor>(*newValue);
+            return;
+        }
+
         if (key == "channels") {
             if (!newValue) {
                 ThrowCannotRemoveAttribute(key);
@@ -487,4 +497,5 @@ ICypressNodeProxyPtr CreateTableNodeProxy(
 
 } // namespace NTableServer
 } // namespace NYT
+
 
