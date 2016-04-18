@@ -15,3 +15,6 @@ PEERDIR(
 )
 
 END()
+
+RECURSE(test)
+
