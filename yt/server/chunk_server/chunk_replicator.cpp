@@ -427,9 +427,8 @@ void TChunkReplicator::OnNodeRegistered(TNode* /*node*/)
 void TChunkReplicator::OnNodeUnregistered(TNode* node)
 {
     for (const auto& job : node->Jobs()) {
-        UnregisterJob(
-            job,
-            EJobUnregisterFlags::ScheduleChunkRefresh);
+        LOG_DEBUG("Job canceled (JobId: %v)", job->GetJobId());
+        UnregisterJob(job, EJobUnregisterFlags::ScheduleChunkRefresh);
     }
     node->Reset();
 }
@@ -1107,6 +1106,7 @@ void TChunkReplicator::CancelChunkJobs(TChunk* chunk)
 {
     auto job = chunk->GetJob();
     if (job) {
+        LOG_DEBUG("Job canceled (JobId: %v)", job->GetJobId());
         UnregisterJob(job, EJobUnregisterFlags::UnregisterFromNode);
     }
 }
@@ -1545,11 +1545,6 @@ void TChunkReplicator::RegisterJob(const TJobPtr& job)
     if (chunk) {
         chunk->SetJob(job);
     }
-
-    LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Address: %v)",
-        job->GetJobId(),
-        job->GetType(),
-        job->GetNode()->GetDefaultAddress());
 }
 
 void TChunkReplicator::UnregisterJob(const TJobPtr& job, EJobUnregisterFlags flags)
@@ -1569,10 +1564,6 @@ void TChunkReplicator::UnregisterJob(const TJobPtr& job, EJobUnregisterFlags fla
             ScheduleChunkRefresh(chunk);
         }
     }
-
-    LOG_DEBUG("Job unregistered (JobId: %v, Address: %v)",
-        job->GetJobId(),
-        job->GetNode()->GetDefaultAddress());
 }
 
 void TChunkReplicator::AddToChunkRepairQueue(TChunk* chunk)
