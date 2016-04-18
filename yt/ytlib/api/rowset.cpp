@@ -121,7 +121,11 @@ public:
 
 private:
     TPromise<IRowsetPtr> Result_ = NewPromise<IRowsetPtr>();
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+
+    struct TSchemafulRowsetWriterBufferTag
+    { };
+
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemafulRowsetWriterBufferTag{});
 
 };
 

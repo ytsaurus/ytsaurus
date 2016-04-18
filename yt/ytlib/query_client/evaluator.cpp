@@ -21,7 +21,12 @@
 namespace NYT {
 namespace NQueryClient {
 
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NConcurrency;
+
+struct TEvaluatorBufferTag
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,9 +99,9 @@ public:
 
                 LOG_DEBUG("Evaluating plan fragment");
 
-                auto permanentBuffer = New<TRowBuffer>();
-                auto outputBuffer = New<TRowBuffer>();
-                auto intermediateBuffer = New<TRowBuffer>();
+                auto permanentBuffer = New<TRowBuffer>(TEvaluatorBufferTag{});
+                auto outputBuffer = New<TRowBuffer>(TEvaluatorBufferTag{});
+                auto intermediateBuffer = New<TRowBuffer>(TEvaluatorBufferTag{});
 
                 std::vector<TRow> outputBatchRows;
                 outputBatchRows.reserve(MaxRowsPerWrite);
