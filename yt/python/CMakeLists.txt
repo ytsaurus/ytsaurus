@@ -1,99 +1,88 @@
-IF (YMAKE)
-    LIBRARY()
+IF(YMAKE)
+  SET(CMAKE_CURRENT_LIST_DIR .)
+ENDIF()
 
-    PYTHON_ADDINCL()
-
-    NO_COMPILER_WARNINGS()
-
-    OWNER(pg)
-
-    PEERDIR(
-        yt/core
-        yt/ytlib
-        contrib/libs/pycxx
-    )
-
-    SRCS(
-        buffered_stream.cpp
-        helpers.cpp
-        descriptor.cpp
-        response.cpp
-        serialize.cpp
-        shutdown.cpp
-        stream.cpp
-        driver.cpp
-        yson.cpp
-    )
-
-    PY_REGISTER(yson_lib)
-
-    END()
-ELSE ()
-set( BASE ${CMAKE_SOURCE_DIR}/yt/python )
-set( SRCS
-  ${BASE}/buffered_stream.cpp
-  ${BASE}/helpers.cpp
-  ${BASE}/descriptor.cpp
-  ${BASE}/response.cpp
-  ${BASE}/serialize.cpp
-  ${BASE}/shutdown.cpp
-  ${BASE}/stream.cpp
+SET(YT_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/buffered_stream.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/descriptor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/response.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/serialize.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/shutdown.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/stream.cpp
 )
 
-set( HDRS
-  ${BASE}/buffered_stream.h
-  ${BASE}/helpers.h
-  ${BASE}/descriptor.h
-  ${BASE}/public.h
-  ${BASE}/response.h
-  ${BASE}/serialize.h
-  ${BASE}/shutdown.h
-  ${BASE}/stream.h
+################################################################################
+IF(YMAKE)
+################################################################################
+
+LIBRARY()
+
+OWNER(sandello)
+
+NO_COMPILER_WARNINGS()
+NO_WERROR()
+
+PYTHON_ADDINCL()
+
+SRCS(
+  ${YT_SRCS}
+  ${CMAKE_CURRENT_LIST_DIR}/yson.cpp
 )
 
-include_directories(
-  ${PYTHON_INCLUDE_DIR}
+PEERDIR(
+  contrib/libs/pycxx
+  yt/core
+  yt/ytlib
 )
 
-add_library( yt-driver-python MODULE
-  ${BASE}/driver.cpp
-  ${SRCS}
+PY_REGISTER(yson_lib)
+
+END()
+
+################################################################################
+ELSE()
+################################################################################
+
+include_directories(${PYTHON_INCLUDE_DIR})
+
+add_library(yt-driver-python MODULE
+  ${YT_SRCS}
+  ${CMAKE_CURRENT_LIST_DIR}/driver.cpp
 )
 
-add_library( yt-yson-python MODULE
-  ${BASE}/yson.cpp
-  ${SRCS}
+add_library(yt-yson-python MODULE
+  ${YT_SRCS}
+  ${CMAKE_CURRENT_LIST_DIR}/yson.cpp
 )
 
-target_link_libraries( yt-driver-python
+target_link_libraries(yt-driver-python
   ytlib
   ytext-pycxx
   ${PYTHON_LIBRARY}
 )
 
-target_link_libraries( yt-yson-python
+target_link_libraries(yt-yson-python
   ytlib
   ytext-pycxx
   ${PYTHON_LIBRARY}
 )
 
-set( PYTHON_LINK_FLAGS "-static-libstdc++" )
+set(PYTHON_LINK_FLAGS "-static-libstdc++")
 
-if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
-  set( PYTHON_LINK_FLAGS "${PYTHON_LINK_FLAGS} -Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/linker.map.darwin" )
+if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+  set(
+    PYTHON_LINK_FLAGS
+    "${PYTHON_LINK_FLAGS} -Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/linker.map.darwin")
 else()
-  set( PYTHON_LINK_FLAGS "${PYTHON_LINK_FLAGS} -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linker.map" )
+  set(
+    PYTHON_LINK_FLAGS
+    "${PYTHON_LINK_FLAGS} -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linker.map")
 endif()
 
-set_target_properties( yt-driver-python
-  PROPERTIES
-  LINK_FLAGS ${PYTHON_LINK_FLAGS}
-)
+set_target_properties(yt-driver-python PROPERTIES LINK_FLAGS ${PYTHON_LINK_FLAGS})
 
-set_target_properties( yt-yson-python
-  PROPERTIES
-  LINK_FLAGS ${PYTHON_LINK_FLAGS}
-)
+set_target_properties(yt-yson-python PROPERTIES LINK_FLAGS ${PYTHON_LINK_FLAGS})
 
 exec_program(
   ${CMAKE_COMMAND} ARGS -E create_symlink
@@ -106,4 +95,8 @@ exec_program(
   ${CMAKE_BINARY_DIR}/lib/libyt-yson-python${CMAKE_SHARED_MODULE_SUFFIX}
   ${CMAKE_SOURCE_DIR}/python/yt_yson_bindings/yson_lib${CMAKE_SHARED_MODULE_SUFFIX}
 )
+
+################################################################################
 ENDIF()
+################################################################################
+
