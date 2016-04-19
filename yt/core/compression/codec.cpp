@@ -3,6 +3,7 @@
 #include "lz.h"
 #include "snappy.h"
 #include "zlib.h"
+#include "zstd.h"
 #include "zstd_legacy.h"
 #include "brotli.h"
 
@@ -325,6 +326,53 @@ public:
     }
 };
 
+class TZstdCodec
+    : public TCodecBase
+{
+public:
+    TZstdCodec(int level)
+        : Compressor_(std::bind(NCompression::ZstdCompress, level, std::placeholders::_1, std::placeholders::_2))
+        , Level_(level)
+    { }
+
+    virtual TSharedRef Compress(const TSharedRef& block) override
+    {
+        return Run<TZstdCodec>(Compressor_, true, block);
+    }
+
+    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TZstdCodec>(Compressor_, true, blocks);
+    }
+
+    virtual TSharedRef Decompress(const TSharedRef& block) override
+    {
+        return Run<TZstdCodec>(NCompression::ZstdDecompress, false, block);
+    }
+
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TZstdCodec>(NCompression::ZstdDecompress, false, blocks);
+    }
+
+    virtual ECodec GetId() const override
+    {
+        switch (Level_) {
+
+#define CASE(level) case level: return PP_CONCAT(ECodec::Zstd_, level);
+            PP_FOR_EACH(CASE, (1)(2)(3)(4)(5)(6)(7)(8)(9)(10)(11)(12)(13)(14)(15)(16)(17)(18)(19)(20)(21))
+#undef CASE
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+private:
+    const NCompression::TConverter Compressor_;
+    const int Level_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBrotliCodec
@@ -422,6 +470,10 @@ ICodec* GetCodec(ECodec id)
 
 #define CODEC Brotli
         PP_FOR_EACH(CASE, (1)(2)(3)(4)(5)(6)(7)(8)(9)(10)(11))
+#undef CODEC
+
+#define CODEC Zstd
+        PP_FOR_EACH(CASE, (1)(2)(3)(4)(5)(6)(7)(8)(9)(10)(11)(12)(13)(14)(15)(16)(17)(18)(19)(20)(21))
 #undef CODEC
 
 #undef CASE
