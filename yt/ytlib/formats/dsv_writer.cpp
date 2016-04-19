@@ -60,6 +60,7 @@ public:
         , TDsvWriterBase(config)
     { }
 
+private:
     virtual void DoWrite(const std::vector<TUnversionedRow>& rows) override
     {
         auto* output = GetOutputStream();
@@ -101,7 +102,6 @@ public:
         TryFlushBuffer(true);
     }
 
-private:
     void WriteValue(const TUnversionedValue& value)
     {
         auto* output = GetOutputStream();
