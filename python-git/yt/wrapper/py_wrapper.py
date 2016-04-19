@@ -127,9 +127,9 @@ def module_relpath(module_name, module_file, client):
 
     if module_name == "__main__":
         return module_file
-    for init in ["", "/__init__"]:
+    for init in ["", os.sep + "__init__"]:
         for suf in suffixes:
-            rel_path = ''.join([module_name.replace(".", "/"), init, suf])
+            rel_path = ''.join([module_name.replace(".", os.sep), init, suf])
             if module_file.endswith(rel_path):
                 return rel_path
     if module_file.endswith(".egg"):
@@ -196,7 +196,7 @@ def create_modules_archive_default(tempfiles_manager, client):
             if file is None or not os.path.isfile(file):
                 if logger.LOGGER.isEnabledFor(logging_level):
                     logger.log(logging_level, "Cannot find file of module %s", module.__file__)
-                    continue
+                continue
 
             file = os.path.abspath(file)
 
