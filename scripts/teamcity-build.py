@@ -97,6 +97,8 @@ def prepare(options):
                 except:
                     pass
 
+    run(["sudo", "rm", "-rf", "/tmp/tmp*"])
+
     mkdirp(options.sandbox_directory)
 
     os.chdir(options.sandbox_directory)
