@@ -374,7 +374,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     if local_mode:
         file_args = files
         uploaded_files = []
-        local_files_to_remove = files[1:]
+        local_files_to_remove = tempfiles_manager._tempfiles_pool
     else:
         file_args = map(os.path.basename, files)
         uploaded_files = uploader(files + modules_filenames)
