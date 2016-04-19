@@ -107,8 +107,13 @@ void TSchemalessFormatWriterBase::TryFlushBuffer(bool force)
     }
 }
 
+void TSchemalessFormatWriterBase::FlushWriter()
+{ }
+
 void TSchemalessFormatWriterBase::DoFlushBuffer()
 {
+    FlushWriter();
+
     if (CurrentBuffer_.Size() == 0) {
         return;
     }
@@ -269,8 +274,12 @@ void TSchemalessWriterAdapter::DoWrite(const std::vector<TUnversionedRow>& rows)
         TryFlushBuffer(false);
     }
 
-    Consumer_->Flush();
     TryFlushBuffer(true);
+}
+
+void TSchemalessWriterAdapter::FlushWriter()
+{
+    Consumer_->Flush();
 }
 
 template <class T>
