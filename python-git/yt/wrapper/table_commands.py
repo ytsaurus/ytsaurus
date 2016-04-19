@@ -54,7 +54,7 @@ from table import TablePath, to_table, to_name, prepare_path
 from cypress_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
                              move, mkdir, find_free_subpath, create, get, get_type, \
                              _make_formatted_transactional_request, has_attribute, join_paths
-from file_commands import smart_upload_file
+from file_commands import smart_upload_file, read_file
 from operation_commands import Operation
 from transaction_commands import _make_transactional_request, abort_transaction
 from transaction import Transaction, null_transaction_id
@@ -1256,7 +1256,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    reduce_files=None, reduce_file_paths=None,
                    reduce_local_files=None, reduce_yt_files=None,
                    mapper_memory_limit=None, reducer_memory_limit=None,
-                   sort_by=None, reduce_by=None, join_by=None,
+                   sort_by=None, reduce_by=None,
                    reduce_combiner=None,
                    reduce_combiner_input_format=None, reduce_combiner_output_format=None,
                    reduce_combiner_files=None, reduce_combiner_file_paths=None,
@@ -1293,7 +1293,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     :param sort_by: (list of strings, string) list of columns for sorting by, \
                     equals to `reduce_by` by default
     :param reduce_by: (list of strings, string) list of columns for grouping by
-    :param join_by: (list of strings, string) list of columns for join by
     :param reduce_combiner: (python generator, callable object-generator or string \
                             (with bash commands)).
     :param reduce_combiner_input_format: (string or descendant of `yt.wrapper.format.Format`)
@@ -1416,6 +1415,9 @@ def _run_operation(binary, source_table, destination_table,
                     are_input_tables_not_properly_sorted = True
                     continue
 
+            if join_by is not None:
+                raise YtError("Reduce cannot fallback to map_reduce operation since join_by is specified")
+
             if are_input_tables_not_properly_sorted and not are_sorted_output:
                 if job_count is not None:
                     spec = update({"partition_count": job_count}, spec)
@@ -1434,7 +1436,6 @@ def _run_operation(binary, source_table, destination_table,
                     job_io=job_io,
                     table_writer=table_writer,
                     reduce_by=reduce_by,
-                    join_by=join_by,
                     sort_by=sort_by,
                     replication_factor=replication_factor,
                     compression_codec=compression_codec,
