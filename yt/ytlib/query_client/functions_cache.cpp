@@ -41,6 +41,8 @@ using namespace NYPath;
 using namespace NFileClient;
 
 using NObjectClient::TObjectServiceProxy;
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -151,7 +153,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 
         auto getReq = TYPathProxy::Get(path);
 
-        NYT::ToProto(getReq->mutable_attributes()->mutable_keys(), attributeFilter);
+        ToProto(getReq->mutable_attributes()->mutable_keys(), attributeFilter);
         batchReq->AddRequest(getReq, "get_attributes");
 
         auto basicAttributesReq = TObjectYPathProxy::GetBasicAttributes(path);
@@ -209,7 +211,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
         for (auto resultIndex : infoByCellTag.second) {
             auto fetchReq = TFileYPathProxy::Fetch(FromObjectId(result[resultIndex].ObjectId));
             fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-            NYT::ToProto(fetchReq->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
+            ToProto(fetchReq->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
             fetchBatchReq->AddRequest(fetchReq);
         }
 
@@ -286,12 +288,10 @@ void AppendUdfDescriptors(
         functionBody.Name = name;
         functionBody.ChunkSpecs = chunks;
 
-        LOG_DEBUG("Appending UDF descriptor %v", Format("{%v}", JoinToString(chunks, [] (
-            TStringBuilder* builder,
-            const NChunkClient::NProto::TChunkSpec& chunkSpec)
-        {
-            builder->AppendFormat("%v", NYT::FromProto<TGuid>(chunkSpec.chunk_id()));
-        })));
+        LOG_DEBUG("Appending UDF descriptor {%v}",
+            MakeFormattableRange(chunks, [] (TStringBuilder* builder, const NChunkClient::NProto::TChunkSpec& chunkSpec) {
+                builder->AppendFormat("%v", FromProto<TGuid>(chunkSpec.chunk_id()));
+            }));
 
         if (functionDescriptor) {
             LOG_DEBUG("Appending function UDF descriptor %v", name);
@@ -418,7 +418,7 @@ TFunctionImplKey::operator size_t() const
     size_t result = 0;
 
     for (const auto& spec : ChunkSpecs) {
-        auto id = NYT::FromProto<TGuid>(spec.chunk_id());
+        auto id = FromProto<TGuid>(spec.chunk_id());
         result = HashCombine(result, id);
     }
 
@@ -434,8 +434,8 @@ bool TFunctionImplKey::operator == (const TFunctionImplKey& other) const
         const auto& lhs = ChunkSpecs[index];
         const auto& rhs = other.ChunkSpecs[index];
 
-        auto leftId = NYT::FromProto<TGuid>(lhs.chunk_id());
-        auto rightId = NYT::FromProto<TGuid>(rhs.chunk_id());
+        auto leftId = FromProto<TGuid>(lhs.chunk_id());
+        auto rightId = FromProto<TGuid>(rhs.chunk_id());
 
         if (leftId != rightId)
             return false;
@@ -450,7 +450,7 @@ Stroka ToString(const TFunctionImplKey& key)
         TStringBuilder* builder,
         const NChunkClient::NProto::TChunkSpec& chunkSpec)
     {
-        builder->AppendFormat("%v", NYT::FromProto<TGuid>(chunkSpec.chunk_id()));
+        builder->AppendFormat("%v", FromProto<TGuid>(chunkSpec.chunk_id()));
     }));
 }
 
@@ -561,7 +561,7 @@ TSharedRef GetImplFingerprint(const std::vector<NChunkClient::NProto::TChunkSpec
     auto memoryOutput = TMemoryOutput(fingerprint.Begin(), fingerprint.Size());
 
     for (const auto& chunk : chunks) {
-        auto id = NYT::FromProto<TGuid>(chunk.chunk_id());
+        auto id = FromProto<TGuid>(chunk.chunk_id());
         memoryOutput.Write(id.Parts64, 2 * sizeof(ui64));
     }
 
@@ -700,7 +700,7 @@ void ToProto(NProto::TExternalFunctionImpl* proto, const TExternalFunctionImpl& 
     proto->set_name(object.Name);
     proto->set_symbol_name(object.SymbolName);
     proto->set_calling_convention(int(object.CallingConvention));
-    NYT::ToProto(proto->mutable_chunk_specs(), object.ChunkSpecs);
+    ToProto(proto->mutable_chunk_specs(), object.ChunkSpecs);
 
     TDescriptorType descriptorType;
     descriptorType.Type = object.RepeatedArgType;
@@ -716,7 +716,7 @@ TExternalFunctionImpl FromProto(const NProto::TExternalFunctionImpl& serialized)
     result.Name = serialized.name();
     result.SymbolName = serialized.symbol_name();
     result.CallingConvention = ECallingConvention(serialized.calling_convention());
-    result.ChunkSpecs = NYT::FromProto<std::vector<NChunkClient::NProto::TChunkSpec>>(serialized.chunk_specs());
+    result.ChunkSpecs = FromProto<std::vector<NChunkClient::NProto::TChunkSpec>>(serialized.chunk_specs());
 
     result.RepeatedArgType = ConvertTo<TDescriptorType>(NYson::TYsonString(serialized.repeated_arg_type())).Type;
     result.RepeatedArgIndex = serialized.repeated_arg_index();
