@@ -32,6 +32,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/compression/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/snappy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/zlib.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression/zstd.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/zstd_legacy.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/action_queue.cpp
