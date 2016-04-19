@@ -97,7 +97,6 @@ class YtTestEnvironment(object):
         # NB: to decrease probability of retries test failure.
         self.config["proxy"]["request_retry_count"] = 10
         self.config["enable_token"] = False
-        self.config["clear_local_temp_files"] = True
         self.config["pickling"]["enable_tmpfs_archive"] = ENABLE_JOB_CONTROL
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__
         self.config["driver_config"] = self.env.configs["console_driver"][0]["driver"]
