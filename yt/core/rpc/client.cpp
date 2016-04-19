@@ -28,6 +28,7 @@ TClientRequest::TClientRequest(
     int protocolVersion)
     : RequestAck_(true)
     , Heavy_(false)
+    , Codec_(NCompression::ECodec::None)
     , Channel_(std::move(channel))
 {
     YASSERT(Channel_);

@@ -333,7 +333,8 @@ TEST_F(TRpcTest, OK)
 TEST_F(TRpcTest, NoAck)
 {
     TMyProxy proxy(CreateChannel());
-    auto req = proxy.DoNothing()->SetRequestAck(false);
+    auto req = proxy.DoNothing();
+    req->SetRequestAck(false);
     auto rspOrError = req->Invoke().Get();
     EXPECT_TRUE(rspOrError.IsOK());
 }
