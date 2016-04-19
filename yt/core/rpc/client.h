@@ -86,6 +86,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, RequestAck);
     DEFINE_BYVAL_RW_PROPERTY(bool, Heavy);
+    DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, Codec);
 
 public:
     virtual TSharedRefArray Serialize() override;
@@ -170,40 +171,11 @@ public:
         return promise.ToFuture();
     }
 
-    // Override base methods for fluent use.
-    TThisPtr SetTimeout(TNullable<TDuration> timeout)
-    {
-        TClientRequest::SetTimeout(timeout);
-        return this;
-    }
-
-    TThisPtr SetRequestAck(bool value)
-    {
-        TClientRequest::SetRequestAck(value);
-        return this;
-    }
-
-    TThisPtr SetCodec(NCompression::ECodec codec)
-    {
-        Codec_ = codec;
-        return this;
-    }
-
-    TThisPtr SetHeavy(bool value)
-    {
-        TClientRequest::SetHeavy(value);
-        return this;
-    }
-
 private:
-    NCompression::ECodec Codec_ = NCompression::ECodec::None;
-
-
     virtual TSharedRef SerializeBody() override
     {
         return SerializeToProtoWithEnvelope(*this, Codec_, false);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -375,9 +347,7 @@ DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
     TReq##method##Ptr method() \
     { \
         static Stroka MethodName(#method); \
-        return ::NYT::New<TReq##method>(Channel_, ServiceName_, MethodName, false, ProtocolVersion_) \
-            ->SetTimeout(DefaultTimeout_) \
-            ->SetRequestAck(DefaultRequestAck_); \
+        return CreateRequest<TReq##method>(MethodName, false); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -389,9 +359,7 @@ DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
     TReq##method##Ptr method() \
     { \
         static Stroka MethodName(#method); \
-        return ::NYT::New<TReq##method>(Channel_, ServiceName_, MethodName, true, ProtocolVersion_) \
-            ->SetTimeout(DefaultTimeout_) \
-            ->SetRequestAck(DefaultRequestAck_); \
+        return CreateRequest<TReq##method>(MethodName, true); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -408,15 +376,23 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck);
 
 protected:
+    const IChannelPtr Channel_;
+    const Stroka ServiceName_;
+    const int ProtocolVersion_;
+
     TProxyBase(
         IChannelPtr channel,
         const Stroka& serviceName,
         int protocolVersion = DefaultProtocolVersion);
 
-    IChannelPtr Channel_;
-    Stroka ServiceName_;
-    int ProtocolVersion_;
-
+    template <class T>
+    TIntrusivePtr<T> CreateRequest(const Stroka& methodName, bool oneWay)
+    {
+        auto request = New<T>(Channel_, ServiceName_, methodName, oneWay, ProtocolVersion_);
+        request->SetTimeout(DefaultTimeout_);
+        request->SetRequestAck(DefaultRequestAck_);
+        return request;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
