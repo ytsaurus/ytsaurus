@@ -37,7 +37,7 @@ def _raise_for_status(response):
     if response.status_code == 200:
         return
 
-    if response.status_code == 500:
+    if response.status_code == 500 or response.status_code == 502:
         message = "Transfer Manager is not available"
         if response.content:
             message += ": " + response.content
@@ -225,7 +225,6 @@ class TransferManager(object):
 
         def except_action(error):
             if is_mutating:
-                # XXX(asaitgalin): use new mutation id because it is 500.
                 if isinstance(error, TransferManagerUnavailableError):
                     params["mutation_id"] = generate_uuid()
                     params["retry"] = bool_to_string(False)
