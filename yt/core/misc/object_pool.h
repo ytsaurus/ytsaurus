@@ -53,7 +53,7 @@ private:
     THeader* GetHeader(TObject* obj);
     bool IsExpired(const THeader* header);
 
-    DECLARE_SINGLETON_FRIEND();
+    Y_DECLARE_SINGLETON_FRIEND();
 };
 
 template <class TObject>
@@ -64,7 +64,7 @@ TObjectPool<TObject>& ObjectPool();
 //! Provides various traits for pooled objects of type |T|.
 /*!
  * |Clean| method is called before an object is put into the pool.
- * 
+ *
  * |GetMaxPoolSize| method is called to determine the maximum number of
  * objects allowed to be pooled.
  *

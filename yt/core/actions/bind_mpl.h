@@ -17,6 +17,8 @@
 
 #include <yt/core/misc/mpl.h>
 
+#include <util/system/compiler.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -145,6 +147,7 @@ struct TMaybeLockHelper< true, TIntrusivePtr<U> >
     typedef TIntrusivePtr<U> T;
     inline TMaybeLockHelper(const T& x)
     {
+        UNUSED(x);
         static_assert(
             U::False,
             "Current implementation should pass smart pointers by reference.");
@@ -185,6 +188,7 @@ struct TMaybeLockHelper< true, TWeakPtr<U> >
     typedef TWeakPtr<U> T;
     inline TMaybeLockHelper(const T& x)
     {
+        UNUSED(x);
         static_assert(
             U::False,
             "Current implementation should pass smart pointers by reference.");
@@ -320,18 +324,26 @@ template <class T>
 struct TMaybeRefCountHelper<true, TIntrusivePtr<T> >
 {
     static void Ref(const TIntrusivePtr<T>& ptr)
-    { }
+    {
+        UNUSED(ptr);
+    }
     static void Unref(const TIntrusivePtr<T>& ptr)
-    { }
+    {
+        UNUSED(ptr);
+    }
 };
 
 template <class T>
 struct TMaybeRefCountHelper<true, TWeakPtr<T> >
 {
     static void Ref(const TWeakPtr<T>& ptr)
-    { }
+    {
+        UNUSED(ptr);
+    }
     static void Unref(const TWeakPtr<T>& ptr)
-    { }
+    {
+        UNUSED(ptr);
+    }
 };
 
 //! Helpers to detect error-prone behaviours.
