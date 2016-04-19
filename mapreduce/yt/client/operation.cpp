@@ -718,6 +718,10 @@ TOperationId ExecuteMapReduce(
     TKeyColumns sortBy(spec.SortBy_);
     TKeyColumns reduceBy(spec.ReduceBy_);
 
+    if (sortBy.Parts_.empty()) {
+        sortBy = reduceBy;
+    }
+
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR && format && !mapper) {
         auto& attrs = format.Get()->Attributes();
         auto& keyColumns = attrs["key_column_names"].AsList();
