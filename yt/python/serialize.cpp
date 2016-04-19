@@ -82,8 +82,8 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
     static Py::LongLong SignedInt64Max(std::numeric_limits<i64>::max());
     static Py::LongLong UnsignedInt64Max(std::numeric_limits<ui64>::max());
 
-    if (PyObject_Compare(UnsignedInt64Max.ptr(), obj.ptr()) < 0 ||
-        PyObject_Compare(obj.ptr(), SignedInt64Min.ptr()) < 0)
+    if (PyObject_RichCompareBool(UnsignedInt64Max.ptr(), obj.ptr(), Py_LT) == 1 ||
+        PyObject_RichCompareBool(obj.ptr(), SignedInt64Min.ptr(), Py_LT) == 1)
     {
         throw Py::RuntimeError(
             "Integer " + std::string(obj.repr()) +
@@ -91,11 +91,14 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
     }
 
     auto consumeAsLong = [&] {
-        bool greaterThanInt64 = PyObject_Compare(SignedInt64Max.ptr(), obj.ptr()) < 0;
-        if (greaterThanInt64) {
+        int greaterThanInt64 = PyObject_RichCompareBool(SignedInt64Max.ptr(), obj.ptr(), Py_LT);
+
+        if (greaterThanInt64 == 1) {
             consumer->OnUint64Scalar(PyLong_AsUnsignedLongLong(obj.ptr()));
-        } else {
+        } else if (greaterThanInt64 == 0) {
             consumer->OnInt64Scalar(PyLong_AsLongLong(obj.ptr()));
+        } else {
+            YUNREACHABLE();
         }
     };
 
@@ -112,21 +115,21 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
 
     bool isUint64 = IsInstance(obj, YsonUint64Class);
     if (isUint64) {
-        bool negative = PyObject_Compare(Py::Int(0).ptr(), obj.ptr()) > 0;
-        if (negative) {
+        auto value = PyLong_AsUnsignedLongLong(obj.ptr());
+        if (PyErr_Occurred()) {
             throw Py::RuntimeError("Can not dump negative integer as YSON uint64");
         }
-        consumer->OnUint64Scalar(PyLong_AsUnsignedLongLong(obj.ptr()));
+        consumer->OnUint64Scalar(value);
         return;
     }
 
     bool isInt64 = IsInstance(obj, YsonInt64Class);
     if (isInt64) {
-        bool greaterThanInt64 = PyObject_Compare(SignedInt64Max.ptr(), obj.ptr()) < 0;
-        if (greaterThanInt64) {
-            throw Py::RuntimeError("Can not dump integer greater than 2^63-1 as YSON int64");
+        auto value = PyLong_AsLongLong(obj.ptr());
+        if (PyErr_Occurred()) {
+            throw Py::RuntimeError("Can not dump integer as YSON int64");
         }
-        consumer->OnInt64Scalar(PyLong_AsLongLong(obj.ptr()));
+        consumer->OnInt64Scalar(value);
         return;
     }
 
