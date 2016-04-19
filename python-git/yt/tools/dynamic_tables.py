@@ -313,8 +313,6 @@ class DynamicTablesClient(object):
 
         map_spec = self.build_spec_from_options()
 
-        self.mount_table(src_table)
-
         with self.yt.TempTable() as partition_bounds_table:
             self.extract_partition_bounds(src_table, partition_bounds_table)
 
@@ -363,8 +361,6 @@ class DynamicTablesClient(object):
             if False:
                 yield
 
-        self.mount_table(dst_table)
-
         with self.yt.TempTable() as out_table:
             self.run_map_over_dynamic(insert_mapper, src_table, out_table)
 
@@ -376,25 +372,6 @@ class DynamicTablesClient(object):
                 result_column["sort_order"] = "ascending"
             result.append(result_column)
         return result
-
-    def run_convert(self, mapper, target_table, tmp_table):
-        self.mount_table(target_table)
-
-        run_map_dynamic(mapper, target_table, tmp_table)
-
-        self.unmount_table(tmp_table)
-        self.yt.set(tmp_table + "/@forced_compaction_revision",
-                    self.yt.get(tmp_table + "/@revision"))
-        self.mount_table(tmp_table)
-
-        self.unmount_table(target_table)
-        self.unmount_table(tmp_table)
-
-        self.yt.move(target_table, tmp_table + ".src")
-        self.yt.move(tmp_table, target_table)
-
-        self.mount_table(target_table)
-
 
 # Make a singleton and make the functions accessible in the module
 # (same as it was previously)
@@ -410,7 +387,6 @@ extract_partition_bounds = worker.extract_partition_bounds
 get_pivot_keys = worker.get_pivot_keys
 log_exception = worker.log_exception
 mount_table = worker.mount_table
-run_convert = worker.run_convert
 run_map_dynamic = worker.run_map_dynamic
 run_map_over_dynamic = worker.run_map_over_dynamic
 split_in_groups = worker.split_in_groups
