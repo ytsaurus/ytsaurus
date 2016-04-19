@@ -1165,9 +1165,8 @@ def run_sort(source_table, destination_table=None, sort_by=None,
 
     if get_config(client)["run_merge_instead_of_sort_if_input_tables_are_sorted"] \
             and all(sort_by == get_sorted_by(table.name, [], client=client) for table in source_table):
-        run_merge(source_table, destination_table, "sorted",
-                  job_io=job_io, table_writer=table_writer, sync=sync, spec=spec, client=client)
-        return
+        return run_merge(source_table, destination_table, "sorted",
+                         job_io=job_io, table_writer=table_writer, sync=sync, spec=spec, client=client)
 
     spec = compose(
         lambda _: _configure_spec(_, client),
