@@ -4,7 +4,7 @@
 
 #include <util/system/info.h>
 
-#include <yt/contrib/minilzo/minilzo.h>
+#include <contrib/libs/minilzo/minilzo.h>
 
 // See https://svn.yandex.ru/statbox/packages/yandex/statbox-binaries/include/Statbox/LZOP.h
 // As the source for the inspiration.

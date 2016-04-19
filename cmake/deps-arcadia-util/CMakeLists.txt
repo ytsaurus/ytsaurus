@@ -300,11 +300,11 @@ add_library(ytext-arcadia-util STATIC
 )
 
 target_link_libraries(ytext-arcadia-util
+  deps-arcadia-contrib-libs-minilzo
   deps-arcadia-contrib-libs-snappy
   deps-arcadia-contrib-libs-zlib
   deps-yt-contrib-lz4
   deps-yt-contrib-fastlz
-  deps-yt-contrib-minilzo
   deps-yt-contrib-quicklz
   deps-yt-contrib-zstd
 )
