@@ -27,7 +27,7 @@ class TSchemalessFormatWriterBase
 public:
     virtual TFuture<void> Open() override;
 
-    virtual bool Write(const std::vector<NTableClient::TUnversionedRow> &rows) override;
+    virtual bool Write(const std::vector<NTableClient::TUnversionedRow>& rows) override;
 
     virtual TFuture<void> GetReadyEvent() override;
 
@@ -61,8 +61,9 @@ protected:
     TBlobOutput* GetOutputStream();
 
     void TryFlushBuffer(bool force);
+    virtual void FlushWriter();
 
-    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow> &rows) = 0;
+    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) = 0;
     
     bool CheckKeySwitch(NTableClient::TUnversionedRow row, bool isLastRow);
 
@@ -123,6 +124,7 @@ private:
     void ConsumeRow(NTableClient::TUnversionedRow row);
 
     virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
+    virtual void FlushWriter() override;
 
     virtual void WriteTableIndex(i64 tableIndex) override;
     virtual void WriteRangeIndex(i64 rangeIndex) override;
