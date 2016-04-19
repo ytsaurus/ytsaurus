@@ -29,10 +29,6 @@
     ((type *) ((char *) (ptr) - offset_of(type, member)))
 #endif
 
-#ifndef ARRAY_SIZE
-#define Y_ARRAY_SIZE(a) (sizeof((a)) / sizeof((a)[0]))
-#endif
-
 #ifndef ROUND_UP
 #define ROUND_UP(a, b) ((a) % (b) ? ((a) + (b)) - ((a) % (b)) : (a))
 #endif
