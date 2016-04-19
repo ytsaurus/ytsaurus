@@ -14,6 +14,8 @@
 #include <yt/core/misc/guid.pb.h>
 #include <yt/core/misc/protobuf_helpers.pb.h>
 
+#include <util/system/compiler.h>
+
 #include <contrib/libs/protobuf/message.h>
 #include <contrib/libs/protobuf/repeated_field.h>
 
@@ -116,6 +118,7 @@ inline void ToProto(
     const std::vector<TOriginal>& originalArray,
     bool clear = true)
 {
+    UNUSED(clear);
     ToProtoArrayImpl(serializedArray, originalArray);
 }
 
@@ -125,6 +128,7 @@ inline void ToProto(
     const std::vector<TOriginal>& originalArray,
     bool clear = true)
 {
+    UNUSED(clear);
     ToProtoArrayImpl(serializedArray, originalArray);
 }
 
@@ -134,6 +138,7 @@ inline void ToProto(
     const SmallVectorImpl<TOriginal>& originalArray,
     bool clear = true)
 {
+    UNUSED(clear);
     ToProtoArrayImpl(serializedArray, originalArray);
 }
 
@@ -143,6 +148,7 @@ inline void ToProto(
     const SmallVectorImpl<TOriginal>& originalArray,
     bool clear = true)
 {
+    UNUSED(clear);
     ToProtoArrayImpl(serializedArray, originalArray);
 }
 
@@ -152,6 +158,7 @@ inline void ToProto(
     const TRange<TOriginal>& originalArray,
     bool clear = true)
 {
+    UNUSED(clear);
     ToProtoArrayImpl(serializedArray, originalArray);
 }
 
@@ -161,6 +168,7 @@ inline void ToProto(
     const TRange<TOriginal>& originalArray,
     bool clear = true)
 {
+    UNUSED(clear);
     ToProtoArrayImpl(serializedArray, originalArray);
 }
 

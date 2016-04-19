@@ -3,6 +3,8 @@
 #include "common.h"
 #include "ref_counted.h"
 
+#include <util/system/compiler.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,13 +42,17 @@ public:
     template <class TTag>
     explicit TBlob(TTag tag, size_t size, bool initiailizeStorage = true)
         : TBlob(GetRefCountedTypeCookie<TTag>(), size, initiailizeStorage)
-    { }
+    {
+        UNUSED(tag);
+    }
 
     //! Copies a chunk of memory into a new instance.
     template <class TTag>
     TBlob(TTag tag, const void* data, size_t size)
         : TBlob(GetRefCountedTypeCookie<TTag>(), data, size)
-    { }
+    {
+        UNUSED(tag);
+    }
 
     //! Remind user about the tag argument.
     TBlob(i32 size, bool initiailizeStorage = true) = delete;
