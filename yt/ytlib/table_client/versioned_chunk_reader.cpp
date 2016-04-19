@@ -2145,8 +2145,6 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
 {
-    YCHECK(timestamp != AllCommittedTimestamp);
-
     switch (ETableChunkFormat(chunkMeta->ChunkMeta().version())) {
         case ETableChunkFormat::VersionedSimple:
             return New<TSimpleCacheBasedVersionedRangeChunkReader>(
@@ -2167,16 +2165,29 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             TReadLimit upperLimit;
             upperLimit.SetKey(std::move(upperBound));
 
-            return New<TColumnarVersionedRangeChunkReader<TScanColumnarRowBuilder>>(
-                New<TChunkReaderConfig>(),
-                std::move(chunkMeta),
-                std::move(underlyingReader),
-                std::move(blockCache),
-                std::move(lowerLimit),
-                std::move(upperLimit),
-                columnFilter,
-                std::move(performanceCounters),
-                timestamp);
+            if (timestamp == AllCommittedTimestamp) {
+                return New<TColumnarVersionedRangeChunkReader<TCompactionColumnarRowBuilder>>(
+                    New<TChunkReaderConfig>(),
+                    std::move(chunkMeta),
+                    std::move(underlyingReader),
+                    std::move(blockCache),
+                    std::move(lowerLimit),
+                    std::move(upperLimit),
+                    columnFilter,
+                    std::move(performanceCounters),
+                    timestamp);
+            } else {
+                return New<TColumnarVersionedRangeChunkReader<TScanColumnarRowBuilder>>(
+                    New<TChunkReaderConfig>(),
+                    std::move(chunkMeta),
+                    std::move(underlyingReader),
+                    std::move(blockCache),
+                    std::move(lowerLimit),
+                    std::move(upperLimit),
+                    columnFilter,
+                    std::move(performanceCounters),
+                    timestamp);
+            }
         }
 
         default:
