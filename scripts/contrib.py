@@ -47,15 +47,15 @@ def do_add(path, repository, branch, ref):
     if spec is not None:
         die("Path '%s' already registered as subtree", path)
 
-    spec = {"repository": repository, "branch": branch}
-    db_put(path, spec)
-
     ref = ref or branch
     assert ref
     subprocess.check_call(
         [os.path.join(PROJECT_PATH, "scripts", "git-subtree.sh"),
          "add", "--squash", "--prefix", path, repository, ref],
         cwd=PROJECT_PATH)
+
+    spec = {"repository": repository, "branch": branch}
+    db_put(path, spec)
 
 
 def do_pull(path, ref):
