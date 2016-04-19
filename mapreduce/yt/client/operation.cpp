@@ -599,14 +599,6 @@ TOperationId ExecuteReduce(
 
     CreateOutputTables(auth, transactionId, spec.Outputs_);
 
-    TKeyColumns sortBy(spec.SortBy_);
-    TKeyColumns reduceBy(spec.ReduceBy_);
-
-    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR) {
-        sortBy = TKeyColumns("key", "subkey");
-        reduceBy = TKeyColumns("key");
-    }
-
     TJobPreparer reduce(
         auth,
         "--yt-reduce",
@@ -624,8 +616,8 @@ TOperationId ExecuteReduce(
             spec.InputDesc_,
             spec.OutputDesc_,
             std::placeholders::_1))
-        .Item("sort_by").Value(sortBy)
-        .Item("reduce_by").Value(reduceBy)
+        .Item("sort_by").Value(spec.SortBy_)
+        .Item("reduce_by").Value(spec.ReduceBy_)
         .DoIf(spec.JoinBy_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("join_by").Value(spec.JoinBy_.GetRef());
         })
@@ -664,12 +656,6 @@ TOperationId ExecuteJoinReduce(
 
     CreateOutputTables(auth, transactionId, spec.Outputs_);
 
-    TKeyColumns joinBy(spec.JoinBy_);
-
-    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR) {
-        joinBy = TKeyColumns("key");
-    }
-
     TJobPreparer reduce(
         auth,
         "--yt-reduce",
@@ -687,7 +673,7 @@ TOperationId ExecuteJoinReduce(
             spec.InputDesc_,
             spec.OutputDesc_,
             std::placeholders::_1))
-        .Item("join_by").Value(joinBy)
+        .Item("join_by").Value(spec.JoinBy_)
         .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
         .Item("output_table_paths").DoListFor(spec.Outputs_, BuildPathPrefix)
         .Item("job_io").BeginMap()
@@ -732,28 +718,23 @@ TOperationId ExecuteMapReduce(
     TKeyColumns sortBy(spec.SortBy_);
     TKeyColumns reduceBy(spec.ReduceBy_);
 
-    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR) {
-        if (!mapper && format) {
-            auto& attrs = format.Get()->Attributes();
-            auto& keyColumns = attrs["key_column_names"].AsList();
+    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR && format && !mapper) {
+        auto& attrs = format.Get()->Attributes();
+        auto& keyColumns = attrs["key_column_names"].AsList();
 
-            sortBy.Parts_.clear();
-            reduceBy.Parts_.clear();
+        sortBy.Parts_.clear();
+        reduceBy.Parts_.clear();
 
-            for (auto& column : keyColumns) {
+        for (auto& column : keyColumns) {
+            sortBy.Parts_.push_back(column.AsString());
+            reduceBy.Parts_.push_back(column.AsString());
+        }
+
+        if (attrs.HasKey("subkey_column_names")) {
+            auto& subkeyColumns = attrs["subkey_column_names"].AsList();
+            for (auto& column : subkeyColumns) {
                 sortBy.Parts_.push_back(column.AsString());
-                reduceBy.Parts_.push_back(column.AsString());
             }
-
-            if (attrs.HasKey("subkey_column_names")) {
-                auto& subkeyColumns = attrs["subkey_column_names"].AsList();
-                for (auto& column : subkeyColumns) {
-                    sortBy.Parts_.push_back(column.AsString());
-                }
-            }
-        } else {
-            sortBy = TKeyColumns("key", "subkey");
-            reduceBy = TKeyColumns("key");
         }
     }
 
