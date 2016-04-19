@@ -1,378 +1,378 @@
-IF (YMAKE)
+IF(YMAKE)
+  SET(CMAKE_CURRENT_LIST_DIR .)
+ENDIF()
+
+SET(YT_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/cell_master/automaton.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cell_master/bootstrap.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cell_master/hydra_facade.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cell_master/master_hydra_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cell_master/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cell_master/serialize.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cell_master/world_initializer.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/cell_node/bootstrap.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/cell_scheduler/bootstrap.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_list.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_list_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_manager.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_owner_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_owner_node_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_placement.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_replica.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_replicator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_sealer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_tree.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_tree_balancer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_tree_statistics.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_tree_traversing.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/cypress_integration.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/job_tracker_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/private.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/access_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_integration.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_manager.proto
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_traversing.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/lock.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/lock_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/node_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/node_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/node_proxy_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/virtual.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/artifact.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/artifact.proto
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/blob_chunk.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/blob_reader_cache.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/blob_session.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/block_cache.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/chunk.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/chunk_block_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/chunk_cache.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/chunk_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/chunk_meta_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/chunk_registry.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/chunk_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/data_node_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/disk_health_checker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/journal_chunk.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/journal_dispatcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/journal_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/journal_session.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/local_chunk_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/location.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/master_connector.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/peer_block_table.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/peer_block_updater.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/session_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/session_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/data_node/ytree_integration.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/election/election_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/election/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/election/public.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/environment_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job_prober_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/scheduler_connector.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/slot.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/slot_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/supervisor_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/supervisor_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/unsafe_environment.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/file_server/file_node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/file_server/file_node_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/file_server/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/file_server/public.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/hive/commit.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/hive_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/hive_manager.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hive/hive_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hive/mailbox.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_supervisor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_supervisor.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/changelog.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/changelog_discovery.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/changelog_download.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/checkpointer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/composite_automaton.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/decorated_automaton.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/distributed_hydra_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/file_changelog_dispatcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/file_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/file_snapshot_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/format.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/hydra_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/hydra_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/lazy_changelog.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/lease_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/local_changelog_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/local_snapshot_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/local_snapshot_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/mutation.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/mutation_committer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/mutation_context.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/recovery.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/remote_changelog_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/remote_snapshot_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/rpc_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/serialize.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/snapshot.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/snapshot_discovery.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/snapshot_download.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/snapshot_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/sync_file_changelog.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/job_agent/job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_agent/job_controller.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_agent/private.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_prober_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_signaler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/map_job_io.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/merge_job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_map_job_io.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_reduce_job_io.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_sort_job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/remote_copy_job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/simple_sort_job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/sorted_merge_job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/sorted_reduce_job_io.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/stracer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/table_output.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_io_detail.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/journal_server/journal_node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/journal_server/journal_node_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/journal_server/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/journal_server/public.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/misc/build_attributes.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/fork_snapshot_builder.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/cypress_integration.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/node_directory_builder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/node_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/node_tracker.proto
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/node_tracker_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/rack.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/rack_proxy.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/attribute_set.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/garbage_collector.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/master.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/master_cache_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/object.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/object_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/object_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/object_manager.proto
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/object_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/schema.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/staged_object.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/type_handler.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/orchid/cypress_integration.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/query_agent/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_agent/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_agent/query_executor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_agent/query_service.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/chunk_list_pool.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/chunk_pool.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/event_log.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/exec_node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_strategy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_prober_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_resources.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_tracker_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/map_controller.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/master_connector.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/merge_controller.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/null_strategy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/operation.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/operation_controller_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/progress_counter.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/remote_copy_controller.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduling_context.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/serialize.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/snapshot_builder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/snapshot_downloader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/sort_controller.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/security_server/account.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/security_server/account_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/security_server/acl.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/security_server/cluster_resources.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/security_server/cypress_integration.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/security_server/group.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/security_server/group_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/security_server/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/security_server/request_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/security_server/security_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/security_server/security_manager.proto
+  ${CMAKE_CURRENT_LIST_DIR}/security_server/subject.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/security_server/subject_proxy_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/security_server/user.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/security_server/user_proxy.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/table_server/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_server/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_server/table_node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_server/table_node_proxy.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/automaton.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/chunk_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/dynamic_memory_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/dynamic_memory_store_bits.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/dynamic_memory_store_comparer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/in_memory_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/lookup.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/partition.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/partition_balancer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/row_comparer_generator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/security_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/serialize.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/slot_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/store_compactor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/store_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/store_flusher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/store_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/tablet.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/tablet_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/tablet_manager.proto
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/tablet_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/tablet_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/tablet_slot.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/transaction.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/transaction_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/writer_pool.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/cypress_integration.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_manager.proto
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_tracker.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_server/cypress_integration.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_server/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_server/timestamp_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_server/timestamp_manager.proto
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_server/timestamp_proxy_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_server/transaction.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_server/transaction_manager.cpp
+)
+
+################################################################################
+IF(YMAKE)
+################################################################################
 
 PROGRAM(ytserver)
 
-PEERDIR(
-    contrib/libs/sparsehash
-    library/streams/lz
-    library/http/server
-    yt/ytlib
-    yt/contrib/tclap
-)
+OWNER(sandello)
 
+NO_COMPILER_WARNINGS()
 NO_WERROR()
+
+CXXFLAGS(
+  -std=c++1y
+  -Wno-sign-compare
+  -Wno-unused-parameter
+  -Wno-unused-value
+  -Wno-switch
+  -Wno-type-limits
+  -Wno-c++14-extensions
+  -DYT_IN_ARCADIA
+)
 
 ADDINCL(yt)
 
-CXXFLAGS(
-   -std=c++1y
-   -Wno-sign-compare
-   -Wno-unused-parameter
-   -Wno-unused-value
-   -Wno-switch
-   -Wno-type-limits
-   -Wno-c++14-extensions
-   -DYT_IN_ARCADIA
+SRCS(
+  ${YT_SRCS}
+  ${CMAKE_CURRENT_LIST_DIR}/main.cpp
 )
 
-SRCS(
-    job_proxy/remote_copy_job.cpp
-    job_proxy/partition_map_job_io.cpp
-    job_proxy/private.cpp
-    job_proxy/partition_reduce_job_io.cpp
-    job_proxy/job_prober_service.cpp
-    job_proxy/job_signaler.cpp
-    job_proxy/map_job_io.cpp
-    job_proxy/job_detail.cpp
-    job_proxy/merge_job.cpp
-    job_proxy/table_output.cpp
-    job_proxy/user_job.cpp
-    job_proxy/partition_sort_job.cpp
-    job_proxy/stracer.cpp
-    job_proxy/simple_sort_job.cpp
-    job_proxy/partition_job.cpp
-    job_proxy/job_proxy.cpp
-    job_proxy/sorted_reduce_job_io.cpp
-    job_proxy/sorted_merge_job.cpp
-    job_proxy/user_job_io_detail.cpp
-    orchid/cypress_integration.cpp
-    scheduler/exec_node.cpp
-    scheduler/operation.cpp
-    scheduler/job.cpp
-    scheduler/job_tracker_service.cpp
-    scheduler/private.cpp
-    scheduler/event_log.cpp
-    scheduler/snapshot_builder.cpp
-    scheduler/job_resources.cpp
-    scheduler/fair_share_strategy.cpp
-    scheduler/serialize.cpp
-    scheduler/job_prober_service.cpp
-    scheduler/snapshot_downloader.cpp
-    scheduler/null_strategy.cpp
-    scheduler/master_connector.cpp
-    scheduler/progress_counter.cpp
-    scheduler/operation_controller_detail.cpp
-    scheduler/helpers.cpp
-    scheduler/scheduler.cpp
-    scheduler/remote_copy_controller.cpp
-    scheduler/sort_controller.cpp
-    scheduler/map_controller.cpp
-    scheduler/scheduling_context.cpp
-    scheduler/scheduler_service.cpp
-    scheduler/merge_controller.cpp
-    scheduler/chunk_pool.cpp
-    scheduler/chunk_list_pool.cpp
-    security_server/cypress_integration.cpp
-    security_server/request_tracker.cpp
-    security_server/account.cpp
-    security_server/group_proxy.cpp
-    security_server/private.cpp
-    security_server/security_manager.cpp
-    security_server/acl.cpp
-    security_server/subject_proxy_detail.cpp
-    security_server/subject.cpp
-    security_server/cluster_resources.cpp
-    security_server/group.cpp
-    security_server/user.cpp
-    security_server/user_proxy.cpp
-    security_server/account_proxy.cpp
-    data_node/block_cache.cpp
-    data_node/disk_health_checker.cpp
-    data_node/session_detail.cpp
-    data_node/ytree_integration.cpp
-    data_node/peer_block_table.cpp
-    data_node/chunk_meta_manager.cpp
-    data_node/job.cpp
-    data_node/chunk.cpp
-    data_node/private.cpp
-    data_node/artifact.cpp
-    data_node/chunk_block_manager.cpp
-    data_node/blob_reader_cache.cpp
-    data_node/session_manager.cpp
-    data_node/chunk_registry.cpp
-    data_node/blob_session.cpp
-    data_node/location.cpp
-    data_node/data_node_service.cpp
-    data_node/local_chunk_reader.cpp
-    data_node/journal_manager.cpp
-    data_node/master_connector.cpp
-    data_node/journal_chunk.cpp
-    data_node/chunk_cache.cpp
-    data_node/peer_block_updater.cpp
-    data_node/chunk_store.cpp
-    data_node/blob_chunk.cpp
-    data_node/journal_session.cpp
-    data_node/chunk_detail.cpp
-    data_node/journal_dispatcher.cpp
-    exec_agent/unsafe_environment.cpp
-    exec_agent/job.cpp
-    exec_agent/private.cpp
-    exec_agent/job_prober_service.cpp
-    exec_agent/slot.cpp
-    exec_agent/environment_manager.cpp
-    exec_agent/public.cpp
-    exec_agent/scheduler_connector.cpp
-    exec_agent/slot_manager.cpp
-    exec_agent/supervisor_service.cpp
-    main.cpp
-    node_tracker_server/rack_proxy.cpp
-    node_tracker_server/node_tracker_service.cpp
-    node_tracker_server/cypress_integration.cpp
-    node_tracker_server/node_tracker.cpp
-    node_tracker_server/node.cpp
-    node_tracker_server/private.cpp
-    node_tracker_server/node_directory_builder.cpp
-    node_tracker_server/public.cpp
-    node_tracker_server/rack.cpp
-    transaction_server/cypress_integration.cpp
-    transaction_server/private.cpp
-    transaction_server/transaction.cpp
-    transaction_server/timestamp_manager.cpp
-    transaction_server/timestamp_proxy_service.cpp
-    transaction_server/transaction_manager.cpp
-    tablet_server/cypress_integration.cpp
-    tablet_server/private.cpp
-    tablet_server/tablet_proxy.cpp
-    tablet_server/tablet_manager.cpp
-    tablet_server/public.cpp
-    tablet_server/tablet_cell.cpp
-    tablet_server/tablet.cpp
-    tablet_server/tablet_cell_proxy.cpp
-    tablet_server/tablet_tracker.cpp
-    hive/private.cpp
-    hive/public.cpp
-    hive/hive_manager.cpp
-    hive/commit.cpp
-    hive/mailbox.cpp
-    hive/transaction_supervisor.cpp
-    query_agent/query_service.cpp
-    query_agent/private.cpp
-    query_agent/helpers.cpp
-    query_agent/query_executor.cpp
-    cell_master/private.cpp
-    cell_master/world_initializer.cpp
-    cell_master/bootstrap.cpp
-    cell_master/serialize.cpp
-    cell_master/master_hydra_service.cpp
-    cell_master/automaton.cpp
-    cell_master/hydra_facade.cpp
-    cell_node/bootstrap.cpp
-    journal_server/private.cpp
-    journal_server/public.cpp
-    journal_server/journal_node.cpp
-    journal_server/journal_node_proxy.cpp
-    misc/build_attributes.cpp
-    misc/fork_snapshot_builder.cpp
-    object_server/private.cpp
-    object_server/object_detail.cpp
-    object_server/schema.cpp
-    object_server/staged_object.cpp
-    object_server/object.cpp
-    object_server/master.cpp
-    object_server/object_service.cpp
-    object_server/garbage_collector.cpp
-    object_server/master_cache_service.cpp
-    object_server/object_manager.cpp
-    object_server/type_handler.cpp
-    object_server/attribute_set.cpp
-    job_agent/job.cpp
-    job_agent/private.cpp
-    job_agent/job_controller.cpp
-    chunk_server/chunk_tree_traversing.cpp
-    chunk_server/chunk_tree_statistics.cpp
-    chunk_server/chunk_tree_balancer.cpp
-    chunk_server/cypress_integration.cpp
-    chunk_server/chunk_replica.cpp
-    chunk_server/chunk_list_proxy.cpp
-    chunk_server/job.cpp
-    chunk_server/chunk_manager.cpp
-    chunk_server/chunk.cpp
-    chunk_server/job_tracker_service.cpp
-    chunk_server/private.cpp
-    chunk_server/chunk_sealer.cpp
-    chunk_server/chunk_owner_base.cpp
-    chunk_server/chunk_owner_node_proxy.cpp
-    chunk_server/chunk_replicator.cpp
-    chunk_server/chunk_list.cpp
-    chunk_server/helpers.cpp
-    chunk_server/chunk_proxy.cpp
-    chunk_server/chunk_service.cpp
-    chunk_server/chunk_placement.cpp
-    chunk_server/chunk_tree.cpp
-    cypress_server/virtual.cpp
-    cypress_server/cypress_manager.cpp
-    cypress_server/cypress_integration.cpp
-    cypress_server/node.cpp
-    cypress_server/private.cpp
-    cypress_server/access_tracker.cpp
-    cypress_server/lock.cpp
-    cypress_server/cypress_traversing.cpp
-    cypress_server/lock_proxy.cpp
-    cypress_server/node_detail.cpp
-    cypress_server/helpers.cpp
-    cypress_server/node_proxy_detail.cpp
-    cypress_server/node_proxy.cpp
-    table_server/table_node_proxy.cpp
-    table_server/private.cpp
-    table_server/public.cpp
-    table_server/table_node.cpp
-    hydra/format.cpp
-    hydra/decorated_automaton.cpp
-    hydra/rpc_helpers.cpp
-    hydra/private.cpp
-    hydra/remote_changelog_store.cpp
-    hydra/serialize.cpp
-    hydra/local_snapshot_service.cpp
-    hydra/file_helpers.cpp
-    hydra/hydra_service.cpp
-    hydra/file_changelog_dispatcher.cpp
-    hydra/public.cpp
-    hydra/file_snapshot_store.cpp
-    hydra/sync_file_changelog.cpp
-    hydra/snapshot_discovery.cpp
-    hydra/composite_automaton.cpp
-    hydra/changelog_download.cpp
-    hydra/local_changelog_store.cpp
-    hydra/distributed_hydra_manager.cpp
-    hydra/lazy_changelog.cpp
-    hydra/snapshot_download.cpp
-    hydra/local_snapshot_store.cpp
-    hydra/mutation.cpp
-    hydra/hydra_manager.cpp
-    hydra/lease_tracker.cpp
-    hydra/changelog_discovery.cpp
-    hydra/snapshot.cpp
-    hydra/mutation_context.cpp
-    hydra/changelog.cpp
-    hydra/mutation_committer.cpp
-    hydra/remote_snapshot_store.cpp
-    hydra/checkpointer.cpp
-    hydra/recovery.cpp
-    cell_scheduler/bootstrap.cpp
-    election/private.cpp
-    election/public.cpp
-    election/election_manager.cpp
-    file_server/file_node_proxy.cpp
-    file_server/private.cpp
-    file_server/file_node.cpp
-    file_server/public.cpp
-    tablet_node/dynamic_memory_store_comparer.cpp
-    tablet_node/store_manager.cpp
-    tablet_node/store_detail.cpp
-    tablet_node/in_memory_manager.cpp
-    tablet_node/private.cpp
-    tablet_node/security_manager.cpp
-    tablet_node/transaction.cpp
-    tablet_node/row_comparer_generator.cpp
-    tablet_node/serialize.cpp
-    tablet_node/tablet_reader.cpp
-    tablet_node/lookup.cpp
-    tablet_node/tablet_manager.cpp
-    tablet_node/automaton.cpp
-    tablet_node/tablet_slot.cpp
-    tablet_node/dynamic_memory_store.cpp
-    tablet_node/store_flusher.cpp
-    tablet_node/tablet.cpp
-    tablet_node/chunk_store.cpp
-    tablet_node/slot_manager.cpp
-    tablet_node/transaction_manager.cpp
-    tablet_node/partition_balancer.cpp
-    tablet_node/store_compactor.cpp
-    tablet_node/store.cpp
-    tablet_node/dynamic_memory_store_bits.cpp
-    tablet_node/partition.cpp
-    tablet_node/tablet_service.cpp
-    tablet_node/writer_pool.cpp
-
-    security_server/security_manager.proto
-    data_node/artifact.proto
-    exec_agent/supervisor_service.proto
-    node_tracker_server/node_tracker.proto
-    transaction_server/timestamp_manager.proto
-    tablet_server/tablet_manager.proto
-    hive/hive_manager.proto
-    hive/hive_service.proto
-    hive/transaction_supervisor.proto
-    object_server/object_manager.proto
-    chunk_server/chunk_manager.proto
-    cypress_server/cypress_manager.proto
-    hydra/snapshot_service.proto
-    tablet_node/tablet_manager.proto
+PEERDIR(
+  contrib/libs/sparsehash
+  library/streams/lz
+  library/http/server
+  yt/ytlib
+  yt/contrib/tclap
 )
 
 END()
 
+################################################################################
 ELSE()
+################################################################################
 
-set( DIRS
-  misc
-  election
-  hydra
-  hive
-  cell_master
-  cell_node
-  cell_scheduler
-  data_node
-  scheduler
-  exec_agent
-  job_agent
-  job_proxy
-  orchid
-  chunk_server
-  transaction_server
-  cypress_server
-  file_server
-  table_server
-  object_server
-  security_server
-  node_tracker_server
-  tablet_node
-  tablet_server
-  query_agent
-  journal_server
+resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
+add_executable(ytserver
+  ${CMAKE_CURRENT_LIST_DIR}/main.cpp
 )
 
-foreach( _d_ ${DIRS} )
-  include( ${_d_}/CMakeLists.txt )
-  source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
-endforeach()
-
-add_executable( ytserver
-  "main.cpp"
+add_library(ytserver_lib
+  ${YT_SRCS_RESOLVED}
 )
 
-if (MSVC)
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
-endif()
-
-add_library( ytserver_lib
-  ${YT_SOURCE_FILES}
-)
-
-target_link_libraries( ytserver
-  ytserver_lib
+target_link_libraries(ytserver_lib
   ytlib
+)
+
+target_link_libraries(ytserver
+  ytserver_lib
   ytext-arcadia-library-lfalloc
 )
 
-
-set_target_properties( ytserver
+set_target_properties(ytserver
   PROPERTIES
   LINK_FLAGS "-static-libstdc++"
-)
-
-target_link_libraries( ytserver_lib
-  ytlib
 )
 
 install(
@@ -381,4 +381,7 @@ install(
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE SETUID
 )
 
+################################################################################
 ENDIF()
+################################################################################
+
