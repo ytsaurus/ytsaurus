@@ -256,7 +256,7 @@ struct TValueFormatter<std::vector<T>>
 {
     static void Do(TStringBuilder* builder, const std::vector<T>& collection, const TStringBuf& /*format*/)
     {
-        FormatRange(builder, MakeRange(collection), TDefaultFormatter());
+        FormatRange(builder, collection, TDefaultFormatter());
     }
 };
 
@@ -265,6 +265,26 @@ template <class T, unsigned N>
 struct TValueFormatter<SmallVector<T, N>>
 {
     static void Do(TStringBuilder* builder, const SmallVector<T, N>& collection, const TStringBuf& /*format*/)
+    {
+        FormatRange(builder, collection, TDefaultFormatter());
+    }
+};
+
+// std::set
+template <class T>
+struct TValueFormatter<std::set<T>>
+{
+    static void Do(TStringBuilder* builder, const std::set<T>& collection, const TStringBuf& /*format*/)
+    {
+        FormatRange(builder, collection, TDefaultFormatter());
+    }
+};
+
+// yhash_set
+template <class T>
+struct TValueFormatter<yhash_set<T>>
+{
+    static void Do(TStringBuilder* builder, const yhash_set<T>& collection, const TStringBuf& /*format*/)
     {
         FormatRange(builder, collection, TDefaultFormatter());
     }
