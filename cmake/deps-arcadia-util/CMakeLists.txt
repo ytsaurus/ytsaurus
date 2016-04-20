@@ -1,14 +1,7 @@
 set(CHARSET_BASE ${CMAKE_SOURCE_DIR}/util/charset)
 set(CHARSET_SRCS
-  ${CHARSET_BASE}/codepage.cpp
-  ${CHARSET_BASE}/cp_encrec.cpp
-  ${CHARSET_BASE}/doccodes.cpp
-  ${CHARSET_BASE}/generated/cp_data.cpp
-  ${CHARSET_BASE}/generated/encrec_data.cpp
   ${CHARSET_BASE}/generated/unidata.cpp
-  ${CHARSET_BASE}/iconv.cpp
   ${CHARSET_BASE}/recode_result.cpp
-  ${CHARSET_BASE}/stroka.cpp
   ${CHARSET_BASE}/unicode_table.cpp
   ${CHARSET_BASE}/unidata.cpp
   ${CHARSET_BASE}/utf8.cpp
@@ -53,8 +46,6 @@ set(GENERIC_SRCS
   ${GENERIC_BASE}/strbuf.cpp
   ${GENERIC_BASE}/strfcpy.cpp
   ${GENERIC_BASE}/stroka.cpp
-  ${GENERIC_BASE}/stroka_io.cpp
-  ${GENERIC_BASE}/stroka_stdio.cpp
   ${GENERIC_BASE}/yexception.cpp
   ${GENERIC_BASE}/ymath.cpp
   ${GENERIC_BASE}/hash.cpp
@@ -152,7 +143,6 @@ set(MEMORY_SRCS
   ${MEMORY_BASE}/blob.cpp
   ${MEMORY_BASE}/mmapalloc.cpp
   ${MEMORY_BASE}/pool.cpp
-  ${MEMORY_BASE}/profile.cpp
   ${MEMORY_BASE}/tempbuf.cpp
 )
 
@@ -261,7 +251,6 @@ set(RANDOM_SRCS
   ${RANDOM_BASE}/normal.cpp
   ${RANDOM_BASE}/random.cpp
   ${RANDOM_BASE}/shuffle.cpp
-  ${RANDOM_BASE}/uniform.cpp
 )
 
 set( DRAFT_BASE ${CMAKE_SOURCE_DIR}/util/draft )
@@ -287,12 +276,7 @@ set( DRAFT_SRCS
 
 set(ROOT_BASE ${CMAKE_SOURCE_DIR}/util)
 set(ROOT_SRCS
-  ${ROOT_BASE}/autoarray.cpp
   ${ROOT_BASE}/cont_init.cpp
-  ${ROOT_BASE}/cpp11.cpp
-  ${ROOT_BASE}/ffb.cpp
-  ${ROOT_BASE}/fgood.cpp
-  ${ROOT_BASE}/fput.cpp
   ${ROOT_BASE}/str_stl.cpp
   ${ROOT_BASE}/ysafeptr.cpp
   ${ROOT_BASE}/ysaveload.cpp
@@ -316,11 +300,11 @@ add_library(ytext-arcadia-util STATIC
 )
 
 target_link_libraries(ytext-arcadia-util
+  deps-arcadia-contrib-libs-minilzo
   deps-arcadia-contrib-libs-snappy
   deps-arcadia-contrib-libs-zlib
   deps-yt-contrib-lz4
   deps-yt-contrib-fastlz
-  deps-yt-contrib-minilzo
   deps-yt-contrib-quicklz
   deps-yt-contrib-zstd
 )

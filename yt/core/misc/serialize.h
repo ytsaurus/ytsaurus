@@ -541,6 +541,8 @@ struct TSharedRefArraySerializer
                 SERIALIZATION_DUMP_WRITE(context, "%v => %v", index, DumpRangeToHex(parts[index]));
             }
         }
+
+        value = TSharedRefArray(std::move(parts));
     }
 };
 

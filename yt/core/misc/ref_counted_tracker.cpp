@@ -356,7 +356,7 @@ TRefCountedTracker::TNamedSlot TRefCountedTracker::GetSlot(TRefCountedTypeKey ty
 
 void TRefCountedTracker::PreparePerThreadSlot(TRefCountedTypeCookie cookie)
 {
-    STATIC_THREAD(TStatisticsHolder) Holder;
+    Y_STATIC_THREAD(TStatisticsHolder) Holder;
     auto* holder = Holder.GetPtr();
 
     if (!holder->IsInitialized()) {

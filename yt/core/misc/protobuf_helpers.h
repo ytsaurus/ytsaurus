@@ -99,7 +99,7 @@ template <class TSerializedArray, class TOriginalArray>
 inline void ToProtoArrayImpl(
     TSerializedArray* serializedArray,
     const TOriginalArray& originalArray,
-    bool clear = true)
+    bool clear)
 {
     if (clear) {
         serializedArray->Clear();
@@ -116,7 +116,7 @@ inline void ToProto(
     const std::vector<TOriginal>& originalArray,
     bool clear = true)
 {
-    ToProtoArrayImpl(serializedArray, originalArray);
+    ToProtoArrayImpl(serializedArray, originalArray, clear);
 }
 
 template <class TSerialized, class TOriginal>
@@ -125,7 +125,7 @@ inline void ToProto(
     const std::vector<TOriginal>& originalArray,
     bool clear = true)
 {
-    ToProtoArrayImpl(serializedArray, originalArray);
+    ToProtoArrayImpl(serializedArray, originalArray, clear);
 }
 
 template <class TSerialized, class TOriginal>
@@ -134,7 +134,7 @@ inline void ToProto(
     const SmallVectorImpl<TOriginal>& originalArray,
     bool clear = true)
 {
-    ToProtoArrayImpl(serializedArray, originalArray);
+    ToProtoArrayImpl(serializedArray, originalArray, clear);
 }
 
 template <class TSerialized, class TOriginal>
@@ -143,7 +143,7 @@ inline void ToProto(
     const SmallVectorImpl<TOriginal>& originalArray,
     bool clear = true)
 {
-    ToProtoArrayImpl(serializedArray, originalArray);
+    ToProtoArrayImpl(serializedArray, originalArray, clear);
 }
 
 template <class TSerialized, class TOriginal>
@@ -152,7 +152,7 @@ inline void ToProto(
     const TRange<TOriginal>& originalArray,
     bool clear = true)
 {
-    ToProtoArrayImpl(serializedArray, originalArray);
+    ToProtoArrayImpl(serializedArray, originalArray, clear);
 }
 
 template <class TSerialized, class TOriginal>
@@ -161,7 +161,7 @@ inline void ToProto(
     const TRange<TOriginal>& originalArray,
     bool clear = true)
 {
-    ToProtoArrayImpl(serializedArray, originalArray);
+    ToProtoArrayImpl(serializedArray, originalArray, clear);
 }
 
 template <class TOriginal, class TOriginalArray, class TSerialized>
