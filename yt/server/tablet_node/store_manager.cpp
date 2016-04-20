@@ -185,7 +185,8 @@ void TStoreManager::ValidateOnWrite(
     const TTransactionId& transactionId,
     TUnversionedRow row)
 {
-    ValidateActiveStoreOverflow();
+    // TODO(sandello): Decide what to do here.
+    // ValidateActiveStoreOverflow();
     try {
         ValidateServerDataRow(row, KeyColumnCount_, Tablet_->Schema());
         if (row.GetCount() == KeyColumnCount_) {
@@ -204,7 +205,8 @@ void TStoreManager::ValidateOnDelete(
     const TTransactionId& transactionId,
     TKey key)
 {
-    ValidateActiveStoreOverflow();
+    // TODO(sandello): Decide what to do here.
+    // ValidateActiveStoreOverflow();
     try {
         ValidateServerKey(key, KeyColumnCount_, Tablet_->Schema());
     } catch (TErrorException& ex) {

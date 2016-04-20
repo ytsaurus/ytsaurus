@@ -948,18 +948,16 @@ public:
     {
         auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag{});
         auto capturedKeys = rowBuffer->Capture(keys);
-        return Execute(
-            "LookupRows",
-            options,
-            BIND(
-                &TClient::DoLookupRows,
-                MakeStrong(this),
-                path,
-                std::move(nameTable),
-                MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer)),
-                options));
+        auto sharedKeys = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
+        return LookupRows(path, std::move(nameTable), std::move(sharedKeys), options);
     }
 
+    IMPLEMENT_METHOD(IRowsetPtr, LookupRows, (
+        const TYPath& path,
+        TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TKey> keys,
+        const TLookupRowsOptions& options),
+        (path, std::move(nameTable), std::move(keys), options))
     IMPLEMENT_METHOD(TSelectRowsResult, SelectRows, (
         const Stroka& query,
         const TSelectRowsOptions& options),
@@ -2506,6 +2504,12 @@ public:
         const std::vector<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
         (path, nameTable, keys, options))
+    DELEGATE_TIMESTAMPED_METHOD(TFuture<IRowsetPtr>, LookupRows, (
+        const TYPath& path,
+        TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TKey> keys,
+        const TLookupRowsOptions& options),
+        (path, nameTable, keys, options))
 
 
     DELEGATE_TIMESTAMPED_METHOD(TFuture<TSelectRowsResult>, SelectRows, (
@@ -2875,6 +2879,11 @@ private:
             return InvokePromise_;
         }
 
+        const TTabletInfoPtr& GetTabletInfo()
+        {
+            return TabletInfo_;
+        }
+
     private:
         const TTransactionId TransactionId_;
         const TTabletInfoPtr TabletInfo_;
@@ -2987,7 +2996,7 @@ private:
 
     typedef TIntrusivePtr<TTabletCommitSession> TTabletSessionPtr;
 
-    yhash_map<TTabletInfoPtr, TTabletSessionPtr> TabletToSession_;
+    yhash_map<TTabletId, TTabletSessionPtr> TabletToSession_;
 
     std::vector<TFuture<void>> AsyncTransactionStartResults_;
 
@@ -3007,11 +3016,12 @@ private:
 
     TTabletCommitSession* GetTabletSession(const TTabletInfoPtr& tabletInfo, const TTableMountInfoPtr& tableInfo)
     {
-        auto it = TabletToSession_.find(tabletInfo);
+        const auto& tabletId = tabletInfo->TabletId;
+        auto it = TabletToSession_.find(tabletId);
         if (it == TabletToSession_.end()) {
             AsyncTransactionStartResults_.push_back(Transaction_->AddTabletParticipant(tabletInfo->CellId));
             it = TabletToSession_.insert(std::make_pair(
-                tabletInfo,
+                tabletId,
                 New<TTabletCommitSession>(
                     this,
                     tabletInfo,
@@ -3034,8 +3044,8 @@ private:
 
             std::vector<TFuture<void>> asyncResults;
             for (const auto& pair : TabletToSession_) {
-                const auto& tabletInfo = pair.first;
                 const auto& session = pair.second;
+                const auto& tabletInfo = session->GetTabletInfo();
                 auto channel = Client_->GetTabletChannel(tabletInfo->CellId);
                 asyncResults.push_back(session->Invoke(std::move(channel)));
             }

@@ -339,6 +339,9 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
         tableInfo->Schema.TrimNonkeyColumns(tableInfo->KeyColumns),
         tableInfo->KeyColumns);
     auto keys = ParseRows(context, config, valueConsumer);
+    auto rowBuffer = New<TRowBuffer>();
+    auto capturedKeys = rowBuffer->Capture(keys);
+    auto keyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
 
     // Run lookup.
     TIntrusivePtr<IClientBase> clientBase = context->GetClient();
@@ -352,7 +355,7 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     auto asyncRowset = clientBase->LookupRows(
             Path.GetPath(),
             valueConsumer->GetNameTable(),
-            std::move(keys),
+            std::move(keyRange),
             Options);
     auto rowset = WaitFor(asyncRowset)
         .ValueOrThrow();

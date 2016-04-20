@@ -145,7 +145,7 @@ void TSchedulerThread::ThreadMainStep()
 
     if (RunQueue.empty()) {
         // Spawn a new idle fiber to run the loop.
-        YASSERT(!IdleFiber);
+        YCHECK(!IdleFiber);
         IdleFiber = New<TFiber>(BIND(
             &TSchedulerThread::FiberMain,
             MakeStrong(this),
@@ -176,6 +176,8 @@ void TSchedulerThread::ThreadMainStep()
             IdleFiber.Reset();
         }
     };
+
+    YCHECK(CurrentFiber);
 
     switch (CurrentFiber->GetState()) {
         case EFiberState::Sleeping:
@@ -357,8 +359,8 @@ void TSchedulerThread::Return()
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
-    YASSERT(CurrentFiber);
-    YASSERT(CurrentFiber->IsTerminated());
+    YCHECK(CurrentFiber);
+    YCHECK(CurrentFiber->IsTerminated());
 
     SwitchExecutionContext(
         CurrentFiber->GetContext(),
@@ -405,11 +407,12 @@ void TSchedulerThread::UnsubscribeContextSwitched(TClosure callback)
 void TSchedulerThread::YieldTo(TFiberPtr&& other)
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
-    YASSERT(CurrentFiber);
 
     // Memoize raw pointers.
     auto caller = CurrentFiber.Get();
     auto target = other.Get();
+    YCHECK(caller);
+    YCHECK(target);
 
     // TODO(babenko): handle canceled caller
 
@@ -434,13 +437,13 @@ void TSchedulerThread::SwitchTo(IInvokerPtr invoker)
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
-    YASSERT(CurrentFiber);
     auto fiber = CurrentFiber.Get();
+    YCHECK(fiber);
 
     CheckForCanceledFiber(fiber);
 
     // Update scheduling state.
-    YASSERT(!SwitchToInvoker);
+    YCHECK(!SwitchToInvoker);
     SwitchToInvoker = std::move(invoker);
 
     fiber->SetSleeping();
@@ -461,7 +464,7 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     auto fiber = CurrentFiber.Get();
-    YASSERT(fiber);
+    YCHECK(fiber);
 
     CheckForCanceledFiber(fiber);
 
@@ -481,9 +484,9 @@ void TSchedulerThread::UninterruptableWaitFor(TFuture<void> future, IInvokerPtr 
     YASSERT(fiber);
 
     // Update scheduling state.
-    YASSERT(!WaitForFuture);
+    YCHECK(!WaitForFuture);
     WaitForFuture = std::move(future);
-    YASSERT(!SwitchToInvoker);
+    YCHECK(!SwitchToInvoker);
     SwitchToInvoker = std::move(invoker);
 
     fiber->SetSleeping(WaitForFuture);

@@ -264,9 +264,9 @@ void Deserialize(yhash_set<T>& value, INodePtr node)
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
     for (int i = 0; i < size; ++i) {
-        T value;
-        Deserialize(value, listNode->GetChild(i));
-        value.insert(std::move(value));
+        T temp;
+        Deserialize(temp, listNode->GetChild(i));
+        value.insert(std::move(temp));
     }
 }
 

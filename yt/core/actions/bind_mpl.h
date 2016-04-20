@@ -143,7 +143,7 @@ template <class U>
 struct TMaybeLockHelper< true, TIntrusivePtr<U> >
 {
     typedef TIntrusivePtr<U> T;
-    inline TMaybeLockHelper(const T& x)
+    inline TMaybeLockHelper(const T& /*x*/)
     {
         static_assert(
             U::False,
@@ -183,7 +183,7 @@ template <class U>
 struct TMaybeLockHelper< true, TWeakPtr<U> >
 {
     typedef TWeakPtr<U> T;
-    inline TMaybeLockHelper(const T& x)
+    inline TMaybeLockHelper(const T& /*x*/)
     {
         static_assert(
             U::False,
@@ -319,18 +319,18 @@ struct TMaybeRefCountHelper<true, const T*>
 template <class T>
 struct TMaybeRefCountHelper<true, TIntrusivePtr<T> >
 {
-    static void Ref(const TIntrusivePtr<T>& ptr)
+    static void Ref(const TIntrusivePtr<T>& /*ptr*/)
     { }
-    static void Unref(const TIntrusivePtr<T>& ptr)
+    static void Unref(const TIntrusivePtr<T>& /*ptr*/)
     { }
 };
 
 template <class T>
 struct TMaybeRefCountHelper<true, TWeakPtr<T> >
 {
-    static void Ref(const TWeakPtr<T>& ptr)
+    static void Ref(const TWeakPtr<T>& /*ptr*/)
     { }
-    static void Unref(const TWeakPtr<T>& ptr)
+    static void Unref(const TWeakPtr<T>& /*ptr*/)
     { }
 };
 
