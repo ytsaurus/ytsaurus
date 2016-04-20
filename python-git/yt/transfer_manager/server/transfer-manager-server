@@ -1428,8 +1428,6 @@ class Application(object):
             logger.info("Task completed")
             message_queue.put({"type": "completed"})
 
-            # NB: hack to avoid process died silently.
-            time.sleep(0.5)
         except yt.YtError as error:
             try:
                 truncate_stderrs_attributes(error, self._config["error_details_length_limit"])
@@ -1453,6 +1451,9 @@ class Application(object):
                     }
                 }
             })
+
+        # NB: hack to avoid process died silently.
+        time.sleep(0.5)
 
     def _get_config(self):
         # NB: Build the config, that actually used by transfer manager.
