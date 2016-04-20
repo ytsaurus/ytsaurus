@@ -1,6 +1,8 @@
 # coding: utf-8
 
 import yatest.common
+
+import mr_utils
 import yt_utils
 
 
