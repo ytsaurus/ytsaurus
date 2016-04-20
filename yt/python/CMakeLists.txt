@@ -92,7 +92,7 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
       LINK_FLAGS ${PYTHON_LINK_FLAGS}
     )
 
-    if(${PYTHON_VERSION} MATCHES "^PYTHON$")
+    if(${PYTHON_KIND} MATCHES "^PYTHON$")
       exec_program(
         ${CMAKE_COMMAND} ARGS -E create_symlink
         ${CMAKE_BINARY_DIR}/lib/lib${TARGET_NAME}${CMAKE_SHARED_MODULE_SUFFIX}
