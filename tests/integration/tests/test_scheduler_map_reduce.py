@@ -108,6 +108,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
 
             reduce(in_="//tmp/t_reduce_in",
                    out="//tmp/t_out",
+                   reduce_by = "word",
                    command="python reducer.py",
                    file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                    spec={"reducer": {"format": "dsv"}},
