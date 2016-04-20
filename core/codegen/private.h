@@ -1,0 +1,18 @@
+#pragma once
+
+#include <yt/core/logging/log.h>
+
+#include <yt/core/misc/assert.h>
+
+namespace NYT {
+namespace NCodegen {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLogging::TLogger CodegenLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NCodegen
+} // namespace NYT
+

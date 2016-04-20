@@ -1,0 +1,17 @@
+#pragma once
+
+#include "functions.h"
+
+namespace NYT {
+namespace NQueryClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+IFunctionDescriptorPtr CreateIfFunction();
+
+IFunctionDescriptorPtr CreateIsPrefixFunction();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NQueryClient
+} // namespace NYT

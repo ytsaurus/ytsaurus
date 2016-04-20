@@ -1,0 +1,23 @@
+package NYT.NQueryClient.NProto;
+
+import "yt/ytlib/query_client/query_statistics.proto";
+import "yt/ytlib/query_client/plan_fragment.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqExecute
+{
+    required TQuery query = 1;
+    required TQueryOptions options = 2;
+    repeated TDataRanges data_sources = 3;
+    optional int32 response_codec = 4;
+}
+
+message TRspExecute
+{
+    // Wire-encoded response is passed via attachments.
+    required TQueryStatistics query_statistics = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
