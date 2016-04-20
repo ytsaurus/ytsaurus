@@ -518,7 +518,7 @@ op = yt.run_map("sleep 100", input, output, format="json", spec={"mapper": {"env
 print op.id
 
 """
-        dir_ = yt_env.env.path_to_run
+        dir_ = yt_env.env.path
         with tempfile.NamedTemporaryFile(dir=dir_, prefix="mapper", delete=False) as file:
             file.write(script)
 
@@ -806,7 +806,7 @@ if __name__ == "__main__":
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
 
-        dir_ = yt_env.env.path_to_run
+        dir_ = yt_env.env.path
         for script in [first_script, second_script]:
             with tempfile.NamedTemporaryFile(dir=dir_, prefix="mapper", delete=False) as f:
                 mapper = script.format(yt.config["proxy"]["url"],
@@ -885,7 +885,7 @@ if __name__ == "__main__":
 """
         yt.write_table(TEST_DIR + "/table", [{"x": 1, "y": 1}])
 
-        dir_ = yt_env.env.path_to_run
+        dir_ = yt_env.env.path
         with tempfile.NamedTemporaryFile(dir=dir_, prefix="mapper", delete=False) as f:
             mapper = script.format(yt.config["proxy"]["url"],
                                    TEST_DIR + "/table",
