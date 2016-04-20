@@ -531,7 +531,6 @@ public:
     TUserJobSpecPtr Reducer;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
-    NTableClient::TKeyColumns ReduceBy;
     NTableClient::TKeyColumns JoinBy;
 
     TReduceOperationSpecBase()
@@ -542,10 +541,12 @@ public:
             .NonEmpty();
         RegisterParameter("output_table_paths", OutputTablePaths)
             .NonEmpty();
-        RegisterParameter("reduce_by", ReduceBy)
-            .Default();
-        RegisterParameter("join_by", JoinBy)
-            .Default();
+
+        RegisterValidator([&] () {
+            if (!JoinBy.empty()) {
+                NTableClient::ValidateKeyColumns(JoinBy);
+            }
+        });
 
         RegisterInitializer([&] () {
             DataSizePerJob = (i64) 128 * 1024 * 1024;
@@ -569,11 +570,25 @@ class TReduceOperationSpec
     : public TReduceOperationSpecBase
 {
 public:
+    NTableClient::TKeyColumns ReduceBy;
+    NTableClient::TKeyColumns SortBy;
+
     TReduceOperationSpec()
     {
+        RegisterParameter("join_by", JoinBy)
+            .Default();
+        RegisterParameter("reduce_by", ReduceBy)
+            .NonEmpty();
+        RegisterParameter("sort_by", SortBy)
+            .Default();
+
         RegisterValidator([&] () {
             if (!ReduceBy.empty()) {
                 NTableClient::ValidateKeyColumns(ReduceBy);
+            }
+
+            if (!SortBy.empty()) {
+                NTableClient::ValidateKeyColumns(SortBy);
             }
         });
     }
@@ -587,11 +602,8 @@ class TJoinReduceOperationSpec
 public:
     TJoinReduceOperationSpec()
     {
-        RegisterValidator([&] () {
-            if (!JoinBy.empty()) {
-                NTableClient::ValidateKeyColumns(JoinBy);
-            }
-        });
+        RegisterParameter("join_by", JoinBy)
+            .NonEmpty();
     }
 
     virtual void OnLoaded() override
