@@ -63,6 +63,7 @@ from heavy_commands import make_write_request, make_read_request
 from http import get_api_version
 import yt.logger as logger
 import yt.json as json
+import yt.yson as yson
 
 import os
 import sys
@@ -628,16 +629,16 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                     table.name.attributes["lower_limit"] = {"row_index": self.next_row_index}
             else:
                 if len(table.name.attributes["ranges"]) > 1:
-                    if not get_config(client)["read_retries"]["allow_multiple_ranges"]:
+                    if get_config(client)["read_retries"]["allow_multiple_ranges"]:
+                        if "control_attributes" not in params:
+                            params["control_attributes"] = {}
+                        params["control_attributes"]["enable_row_index"] = True
+                        params["control_attributes"]["enable_range_index"] = True
+                    else:
                         raise YtError("Read table with multiple ranges using retries is disabled, turn on read_retries/allow_multiple_ranges")
+
                     if format.name() not in ["yson"]:
                         raise YtError("Read table with multiple ranges using retries is supported only in YSON format")
-
-                if get_config(client)["read_retries"]["allow_multiple_ranges"]:
-                    if "control_attributes" not in params:
-                        params["control_attributes"] = {}
-                    params["control_attributes"]["enable_row_index"] = True
-                    params["control_attributes"]["enable_range_index"] = True
 
                 if self.range_started and table.name.attributes["ranges"]:
                     table.name.attributes["ranges"][0]["lower_limit"] = {"row_index": self.next_row_index}
@@ -659,7 +660,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                 # NB: Low level check for optimization purposes. Only YSON format supported!
                 is_control_row = (format.name() == "yson") and row.endswith("#;")
                 if is_control_row:
-                    row = format.load_rows(StringIO(row)).next()
+                    row = yson.loads(row, yson_type="list_fragment").next()
 
                     # NB: row with range index must go before row with row index.
                     if hasattr(row, "attributes") and "range_index" in row.attributes:

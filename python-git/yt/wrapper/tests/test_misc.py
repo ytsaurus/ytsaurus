@@ -194,6 +194,14 @@ class TestRetries(object):
             assert "" == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
 
             yt.write_table("<sorted_by=[x]>" + table, [{"x": 1}, {"x": 2}, {"x": 3}])
+            assert '{"x":1}\n{"x":2}\n{"x":3}\n' == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
+            assert [{"x":1}] == list(yt.read_table(table + "[#0]", format=yt.JsonFormat()))
+            with pytest.raises(yt.YtError):
+                yt.read_table(table + "[#0,#2]", format=yt.JsonFormat(), raw=True)
+
+            assert [{"x": 1}, {"x": 3}, {"x": 2}, {"x": 1}, {"x": 2}] == \
+                [{"x": elem["x"]} for elem in yt.read_table(table + '[#0,"2":"1",#2,#1,1:3]', format=yt.YsonFormat())]
+
             assert [{"x": 1}, {"x": 3}, {"x": 2}, {"x": 1}, {"x": 2}] == \
                 list(yt.read_table(table + '[#0,"2":"1",#2,#1,1:3]', format=yt.YsonFormat(process_table_index=False)))
 
@@ -203,7 +211,7 @@ class TestRetries(object):
                     to_yson_type(None, attributes={"range_index": 1}),
                     to_yson_type(None, attributes={"row_index": 2L}),
                     {"x": 3}] == \
-                list(yt.read_table(table + '[#0,#2]', raw=False, format=yt.YsonFormat(process_table_index=False),
+                list(yt.read_table(table + '[#0,#2]', format=yt.YsonFormat(process_table_index=False),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
             with pytest.raises(yt.YtError):
