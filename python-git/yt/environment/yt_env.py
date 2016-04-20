@@ -1,10 +1,11 @@
 from configs_provider import ConfigsProviderFactory, init_logging
-from helpers import versions_cmp, read_config, write_config, collect_events_from_logs, \
+from helpers import versions_cmp, read_config, write_config, \
                     is_dead_or_zombie, get_open_port, get_lsof_diagnostic
 
 from yt.common import update, YtError, get_value, remove_file, makedirp, set_pdeathsig, \
                       which
 from yt.wrapper.client import Yt
+from yt.wrapper.errors import YtResponseError
 import yt.yson as yson
 
 import logging
@@ -20,7 +21,7 @@ import sys
 import getpass
 from collections import defaultdict
 from threading import RLock
-from itertools import takewhile, count
+from itertools import count
 
 try:
     import subprocess32 as subprocess
@@ -282,9 +283,9 @@ class YTEnv(object):
             self._prepare_console_driver(console_driver_name, self.configs[driver_name])
 
             if not prepare_only:
+                self.start_proxy(proxy_name, use_proxy_from_package=use_proxy_from_package)
                 self.start_all_masters(master_name, secondary_master_cell_count,
                                        start_secondary_master_cells=start_secondary_master_cells)
-                self.start_proxy(proxy_name, use_proxy_from_package=use_proxy_from_package)
                 self.start_nodes(node_name)
                 self.start_schedulers(scheduler_name)
                 self._started = True
@@ -511,12 +512,7 @@ class YTEnv(object):
                     _config_safe_get(config, config_path, "logging/writers/info/file_name"))
 
     def start_masters(self, master_name, secondary=None):
-        primary_master_name = master_name
         secondary = get_value(secondary, "secondary" in master_name)
-
-        if secondary:
-            # e.g. master_remote_secondary_0 -> master_remote
-            primary_master_name = master_name[:master_name.find("secondary") - 1]
 
         master_count = len(self.log_paths[master_name])
         if master_count == 0:
@@ -524,97 +520,48 @@ class YTEnv(object):
 
         self._run_ytserver("master", master_name)
 
-        is_leader_ready_marker = lambda line: "Leader active" in line or "Initial changelog rotated" in line
-        is_restart_occured_marker = lambda line: "Logging started" in line or "Stopped leading" in line
-        is_world_init_completed_marker = lambda line: "World initialization completed" in line
-        is_follower_recovery_complete_marker = lambda line: "Follower recovery complete" in line
-
-        # First version is less precise and will be used for quick filtering.
-        is_secondary_master_registered_marker = lambda line: "Secondary master registered" in line
-        secondary_master_registered_pattern = r"Secondary master registered.*CellTag: {0}"
-
-        def is_quorum_ready(starting_master_events):
-            is_world_initialization_done = False
-            ready_replica_count = 0
-
-            for replica_index, lines in enumerate(starting_master_events):
-                restart_occured_and_not_ready = False
-                is_ready = False
-
-                # NB: lines are presented in time-reversed order.
-                for line in lines:
-                    if is_world_init_completed_marker(line):
-                        is_world_initialization_done = True
-                        continue
-
-                    if is_restart_occured_marker(line) or restart_occured_and_not_ready:
-                        restart_occured_and_not_ready = True
-                        continue
-
-                    if is_leader_ready_marker(line):
-                        is_ready = True
-                        if not secondary:
-                            self.leader_log = self.log_paths[master_name][replica_index]
-                            self.leader_id = replica_index
-
-                    if is_follower_recovery_complete_marker(line):
-                        is_ready = True
-
-                if is_ready:
-                    ready_replica_count += 1
-
-            return ready_replica_count == master_count and is_world_initialization_done
-
         def masters_ready():
-            event_filters = [is_leader_ready_marker, is_world_init_completed_marker, is_restart_occured_marker,
-                             is_follower_recovery_complete_marker]
-            if secondary:
-                event_filters.append(is_secondary_master_registered_marker)
-            # Each element is a list with log lines of each replica of the cell.
-            current_master_events = collect_events_from_logs(self.log_paths[master_name], event_filters)
-
-            if not is_quorum_ready(current_master_events):
+            logger = logging.getLogger("Yt")
+            old_level = logger.level
+            logger.setLevel(logging.ERROR)
+            try:
+                # XXX(asaitgalin): If get("/") request is successful then quorum is ready
+                # and world is initialized. Secondary masters can only be checked with native
+                # driver so it is requirement to have driver bindings if secondary cells are started.
+                client = None
+                if not secondary:
+                    client = self.create_client()
+                else:
+                    client = self.create_native_client(master_name.replace("master", "driver"))
+                client.config["proxy"]["request_retry_enable"] = False
+                client.get("/")
+                return True
+            except (requests.RequestException, YtError):
                 return False
-
-            if secondary:
-                current_master_cell_registered_marker = re.compile(
-                    secondary_master_registered_pattern.format(self._master_cell_tags[master_name]))
-
-                for name in self._process_to_kill:
-                    if name == master_name or not name.startswith(primary_master_name):
-                        continue
-
-                    master_cell_events = collect_events_from_logs(self.log_paths[name], [
-                        lambda line: current_master_cell_registered_marker.search(line)])
-
-                    if not filter(None, master_cell_events):
-                        return False
-
-                    if name != primary_master_name:
-                        secondary_cell_registered_marker = re.compile(
-                            secondary_master_registered_pattern.format(self._master_cell_tags[name]))
-
-                        for event_list in current_master_events:
-                            if filter(lambda line: secondary_cell_registered_marker.search(line), event_list):
-                                break
-                        else:
-                            return False
-
-            return True
+            finally:
+                logger.setLevel(old_level)
 
         self._wait_for(masters_ready, name=master_name, max_wait_time=30)
 
-        if secondary:
-            logger.info("Secondary master %s registered", master_name.rsplit("_", 1)[1])
-        else:
-            if master_count > 1:
-                logger.info("Leader master index: %d", self.leader_id)
-
     def start_all_masters(self, master_name, secondary_master_cell_count, start_secondary_master_cells):
         self.start_masters(master_name)
-        if start_secondary_master_cells:
-            for i in xrange(secondary_master_cell_count):
-                self.start_masters(self._get_master_name(master_name, i + 1), secondary=True)
+        if not start_secondary_master_cells:
+            return
+
+        for i in xrange(secondary_master_cell_count):
+            self.start_masters(self._get_master_name(master_name, i + 1), secondary=True)
+
+        def all_masters_ready():
+            try:
+                # XXX(asaitgalin): This is attribute is fetched from all secondary cells
+                # so it throws an error if any of required secondary master cells are
+                # not started or ready.
+                self.create_client().get("//sys/chunks/@count")
+                return True
+            except (requests.RequestException, YtError):
+                return False
+
+        self._wait_for(all_masters_ready, name="all master cells", max_wait_time=20)
 
     def _get_node_configs(self, node_count, node_name, node_dirs, operations_memory_limit):
         if self._load_existing_environment:
@@ -664,26 +611,13 @@ class YTEnv(object):
 
         self._run_ytserver("node", node_name)
 
-        def all_nodes_ready():
-            node_good_marker = re.compile(r".*Node online .*Address: ([a-zA-z0-9:_\-.]+).*")
-            node_bad_marker = re.compile(r".*Node unregistered .*Address: ([a-zA-z0-9:_\-.]+).*")
+        native_client = self.create_client()
 
-            node_statuses = {}
+        def nodes_ready():
+            nodes = native_client.list("//sys/nodes", attributes=["state"])
+            return len(nodes) == node_count and all(node.attributes["state"] == "online" for node in nodes)
 
-            def update_node_status(marker, line, value):
-                match = marker.match(line)
-                if match:
-                    address = match.group(1)
-                    if address not in node_statuses:
-                        node_statuses[address] = value
-
-            for line in reversed(open(self.leader_log).readlines()):
-                update_node_status(node_good_marker, line, True)
-                update_node_status(node_bad_marker, line, False)
-
-            return len(node_statuses) == node_count and all(node_statuses.values())
-
-        self._wait_for(all_nodes_ready, name=node_name, max_wait_time=max(node_count * 6.0, 20))
+        self._wait_for(nodes_ready, name=node_name, max_wait_time=max(node_count * 6.0, 20))
 
     def _get_scheduler_configs(self, scheduler_count, scheduler_name, scheduler_dirs):
         if self._load_existing_environment:
@@ -733,40 +667,40 @@ class YTEnv(object):
 
         self._run_ytserver("scheduler", scheduler_name)
 
-        def scheduler_ready():
-            is_scheduler_bad_marker = lambda line: "Logging started" in line
-            is_primary_scheduler_good_marker = lambda line: "Master connected" in line
-            secondary_scheduler_good_marker_regex = re.compile(r"Cannot.*lock.*//sys/scheduler/lock")
-            is_secondary_scheduler_good_marker = lambda line: secondary_scheduler_good_marker_regex.search(line)
-            is_scheduler_node_online_marker = lambda line: "Node online" in line
+        client = self.create_client()
 
-            is_primary_scheduler_exists = False
-            ready_scheduler_count = 0
-            node_online_count = 0
+        def schedulers_ready():
+            instances = client.list("//sys/scheduler/instances")
+            if len(instances) != scheduler_count:
+                return False
 
-            events = collect_events_from_logs(self.log_paths[scheduler_name], [
-                is_primary_scheduler_good_marker, is_secondary_scheduler_good_marker, is_scheduler_bad_marker,
-                is_scheduler_node_online_marker
-            ])
+            try:
+                active_scheduler_orchid_path = None
+                for instance in instances:
+                    path = "//sys/scheduler/instances/{0}/orchid/scheduler".format(instance)
+                    if client.get(path + "/connected"):
+                        active_scheduler_orchid_path = path
 
-            for lines in events:
-                filtered_lines = list(takewhile(lambda line: not is_scheduler_bad_marker(line), lines))
-                if filter(is_primary_scheduler_good_marker, filtered_lines):
-                    ready_scheduler_count += 1
-                    is_primary_scheduler_exists = True
-                    node_online_count = len(filter(is_scheduler_node_online_marker, filtered_lines))
-                    continue
-                if filter(is_secondary_scheduler_good_marker, filtered_lines):
-                    ready_scheduler_count += 1
+                if active_scheduler_orchid_path is None:
+                    return False
 
-            return ready_scheduler_count == scheduler_count and is_primary_scheduler_exists and \
-                node_online_count == node_count
+                nodes = client.get(active_scheduler_orchid_path + "/nodes").values()
+                return len(nodes) == node_count and all(node["state"] == "online" for node in nodes)
+            except YtResponseError as err:
+                # Orchid connection refused
+                if not err.contains_code(100):
+                    raise
+                return False
 
-        self._wait_for(scheduler_ready, name=scheduler_name)
+        self._wait_for(schedulers_ready, name=scheduler_name)
 
-    def create_native_client(self, driver_name):
-        current_driver_name = self._get_driver_name(driver_name, 0)
-        driver_config_path = self.config_paths[current_driver_name]
+    def create_client(self):
+        if self.START_PROXY:
+            return Yt(proxy=self.get_proxy_address())
+        return self.create_native_client()
+
+    def create_native_client(self, driver_name="driver"):
+        driver_config_path = self.config_paths[driver_name]
 
         with open(driver_config_path) as f:
             driver_config = yson.load(f)
@@ -833,7 +767,9 @@ class YTEnv(object):
 
             self.configs[current_driver_name] = config
             self.config_paths[current_driver_name] = config_path
-            self.driver_logging_config = init_logging(None, self.path_to_run, "driver", self._enable_debug_logging)
+
+        self.driver_logging_config = init_logging(None,
+            self.path_to_run, "driver", self._enable_debug_logging)
 
     def _prepare_console_driver(self, console_driver_name, driver_config):
         from default_configs import get_console_driver_config
@@ -966,17 +902,17 @@ class YTEnv(object):
                        "-l", self.log_paths[proxy_name]],
                        "proxy")
 
-        def started():
+        def proxy_ready():
             try:
                 address = "127.0.0.1:{0}".format(self.get_proxy_address().split(":")[1])
-                resp = requests.get("http://{0}/ping".format(address))
+                resp = requests.get("http://{0}/api".format(address))
                 resp.raise_for_status()
             except (requests.exceptions.RequestException, socket.error):
                 return False
 
             return True
 
-        self._wait_for(started, name=proxy_name, max_wait_time=20)
+        self._wait_for(proxy_ready, name=proxy_name, max_wait_time=20)
 
     def _wait_for(self, condition, max_wait_time=40, sleep_quantum=0.1, name=""):
         current_wait_time = 0
