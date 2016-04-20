@@ -10,6 +10,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/callback_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cgroup_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/checkpointable_stream_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_schema_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_slice_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_balancer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_traversing_ut.cpp
@@ -73,7 +74,6 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_dsv_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_blocks_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_chunks_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/schema_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/serialize_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/skip_list_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/small_string_ut.cpp
@@ -87,6 +87,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/subprocess_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sync_file_changelog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_consumer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_schema_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/timestamp_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/thread_affinity_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tools_ut.cpp
