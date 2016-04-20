@@ -1,6 +1,6 @@
 import yt.logger as logger
 from config import get_config, get_option, set_option, get_backend_type
-from common import require, get_backoff, get_value, total_seconds
+from common import require, get_backoff, get_value, total_seconds, generate_uuid
 from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError, \
                    YtRequestRateLimitExceeded, YtRequestTimedOut, YtRetriableError, hide_token
 from command import parse_commands
@@ -140,10 +140,11 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
     if not retry_unavailable_proxy:
         retriable_errors.remove(YtProxyUnavailable)
 
+    headers = get_value(kwargs.get("headers", {}), {})
+    headers["X-YT-Correlation-Id"] = generate_uuid(get_option("_random_generator", client))
     for attempt in xrange(get_config(client)["proxy"]["request_retry_count"]):
         current_time = datetime.now()
         _process_request_backoff(current_time, client=client)
-        headers = get_value(kwargs.get("headers", {}), {})
         request_info = {"headers": headers, "url": url, "params": params}
         try:
             try:
