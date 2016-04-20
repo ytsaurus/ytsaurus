@@ -84,6 +84,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         join_reduce(
             in_ = ["<foreign=true>//tmp/in1", "//tmp/in2"],
             out = "<sorted_by=[key]>//tmp/out",
+            join_by="key",
             command = "cat",
             spec = {
                 "reducer": {
@@ -115,6 +116,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         join_reduce(
             in_ = ["//tmp/in1", "<primary=true>//tmp/in2"],
             out = "<sorted_by=[key]>//tmp/out",
+            join_by="key",
             command = "cat",
             spec = {
                 "reducer": {
@@ -160,6 +162,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         op = join_reduce(
             in_ = ["//tmp/in1", "<foreign=true>//tmp/in2"],
             out = "<sorted_by=[key]>//tmp/out",
+            join_by = "key",
             command = "cat 1>&2",
             spec = {
                 "reducer": {
@@ -263,6 +266,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         join_reduce(
             in_ = ["//tmp/in1", "<foreign=true>//tmp/in2"],
             out = "//tmp/out",
+            join_by = "key",
             command = "cat")
 
         assert read_table("//tmp/out") == []
@@ -297,6 +301,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             join_reduce(
                 in_ = ["//tmp/in1", "<foreign=true>//tmp/in2"],
                 out = "//tmp/out",
+                join_by = "key",
                 command = "cat")
 
     @unix_only
@@ -311,6 +316,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             join_reduce(
                 in_ = ["//tmp/in1", "<foreign=true>//tmp/in2"],
                 out = "//tmp/out",
+                join_by = "key",
                 command = "cat")
 
     @unix_only
@@ -375,6 +381,7 @@ echo {v = 2} >&7
         join_reduce(
             in_ = ["//tmp/t_in", "<foreign=true>//tmp/t_in"],
             out = output_tables,
+            join_by = "k",
             command = "bash reducer.sh",
             file = "//tmp/reducer.sh")
 
@@ -585,6 +592,7 @@ echo {v = 2} >&7
             in_ = ["//tmp/in1", "//tmp/in1", "<primary=true>//tmp/in2"],
             out = "<sorted_by=[key]>//tmp/out",
             command = "cat",
+            join_by = "key",
             spec = {
                 "reducer": {
                     "format": "dsv"}})
