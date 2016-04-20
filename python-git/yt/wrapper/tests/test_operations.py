@@ -806,10 +806,10 @@ if __name__ == "__main__":
                 yield row
 
         tableA = TEST_DIR + "/tableA"
-        yt.write_table(tableA, ["x=1\ny=1\n"])
+        yt.write_table(tableA, [{"x": 1}, {"y": 1}])
 
         tableB = TEST_DIR + "/tableB"
-        yt.write_table(tableB, ["x=2\n"])
+        yt.write_table(tableB, [{"x": 2}])
 
         outputTable = TEST_DIR + "/output"
 
@@ -819,8 +819,8 @@ if __name__ == "__main__":
                         key=lambda item: (item["table_index"], item["row_index"]))
 
         assert [
-            {"table_index": 0, "row_index": 0, "x": "1"},
-            {"table_index": 0, "row_index": 1, "y": "1"},
-            {"table_index": 1, "row_index": 0, "x": "2"},
+            {"table_index": 0, "row_index": 0, "x": 1},
+            {"table_index": 0, "row_index": 1, "y": 1},
+            {"table_index": 1, "row_index": 0, "x": 2},
         ] == result
 
