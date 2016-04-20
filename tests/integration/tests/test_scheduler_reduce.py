@@ -80,6 +80,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         reduce(
             in_=["//tmp/in1", "//tmp/in2"],
             out="<sorted_by=[key]>//tmp/out",
+            reduce_by="key",
             command="cat",
             spec={"reducer": {"format": "dsv"}})
 
@@ -116,6 +117,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         op = reduce(
             in_=["//tmp/in1", "//tmp/in2"],
             out="<sorted_by=[key]>//tmp/out",
+            reduce_by="key",
             command="cat > /dev/stderr",
             spec={
                 "reducer" : {"format" : yson.loads("<format=text>yson")},
@@ -142,6 +144,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             in_=["//tmp/in1"],
             out="<sorted_by=[key]>//tmp/out",
             command="cat > /dev/stderr",
+            reduce_by="key",
             spec={
                 "reducer" : {"format" : yson.loads("<format=text>yson")},
                 "job_io" : {
@@ -198,6 +201,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             out = ["<sorted_by=[key]; teleport=true>//tmp/out1", "<sorted_by=[key]>//tmp/out2"],
             command = "cat>/dev/fd/4",
             reduce_by = "key",
+            sort_by=["key", "value"],
             spec={"reducer": {"format": "dsv"}})
 
         assert read_table("//tmp/out1") == \
@@ -245,6 +249,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         reduce(
             in_ = ["//tmp/in1", "//tmp/in2"],
             out = ["<sorted_by=[key]>//tmp/out"],
+            reduce_by="key",
             command = "cat",
             spec={"reducer": {"format": "dsv"}})
 
@@ -272,6 +277,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         reduce(
             in_ = "//tmp/in",
             out = "//tmp/out",
+            reduce_by="a",
             command = "cat")
 
         assert read_table("//tmp/out") == []
@@ -354,6 +360,7 @@ echo {v = 2} >&7
 
         reduce(in_="//tmp/t_in",
             out=output_tables,
+            reduce_by="k",
             command="bash reducer.sh",
             file="//tmp/reducer.sh")
 
