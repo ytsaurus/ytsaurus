@@ -133,25 +133,6 @@ def versions_cmp(version1, version2):
         return map(int, v.split("."))
     return cmp(normalize(version1), normalize(version2))
 
-def collect_events_from_logs(log_files, event_filters):
-    all_events = []
-
-    def filter_func(event):
-        for event_filter in event_filters:
-            if event_filter(event):
-                return True
-        return False
-
-    for log in log_files:
-        if not os.path.exists(log):
-            all_events.append([])
-            continue
-
-        with open(log) as f:
-            all_events.append(filter(filter_func, reversed(f.readlines())))
-
-    return all_events
-
 def _fix_yson_booleans(obj):
     if isinstance(obj, dict):
         for key, value in obj.items():

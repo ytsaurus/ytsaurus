@@ -101,13 +101,26 @@ def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, f
     return proxy_config
 
 def _get_hydra_manager_config():
-    return {"leader_lease_check_period": 100,
-            "leader_lease_timeout": 5000,
-            "disable_leader_lease_grace_delay": True,
-            "response_keeper": {
-                "expiration_time": 25000,
-                "warmup_time": 30000,
-            }}
+    return {
+        "leader_lease_check_period": 100,
+        "leader_lease_timeout": 5000,
+        "disable_leader_lease_grace_delay": True,
+        "response_keeper": {
+            "expiration_time": 25000,
+            "warmup_time": 30000,
+        }
+    }
+
+def _get_retrying_channel_config():
+    return {
+        "retry_backoff_time": 0,
+        "retry_attempts": 3
+    }
+
+def _get_rpc_config():
+    return {
+        "rpc_timeout": 5000
+    }
 
 def _set_memory_limit_options(config, operations_memory_limit):
     if operations_memory_limit is None:
@@ -183,9 +196,11 @@ class ConfigsProvider_17(ConfigsProvider):
         cluster_connection["master"] = {
             "addresses": self._master_addresses["primary"],
             "cell_id": "ffffffff-ffffffff-ffffffff-ffffffff",
-            "cell_tag": self._master_cell_tag,
-            "rpc_timeout": 5000
+            "cell_tag": self._master_cell_tag
         }
+        update(cluster_connection["master"], _get_retrying_channel_config())
+        update(cluster_connection["master"], _get_rpc_config())
+
         if enable_master_cache:
             cluster_connection["master_cache"] = {
                 "addresses": self._master_addresses["primary"],
@@ -396,9 +411,10 @@ class ConfigsProvider_18(ConfigsProvider):
 
         cluster_connection["primary_master"] = {
             "addresses": self._master_addresses["primary"],
-            "cell_id": self._primary_master_cell_id,
-            "rpc_timeout": 5000
+            "cell_id": self._primary_master_cell_id
         }
+        update(cluster_connection["primary_master"], _get_retrying_channel_config())
+        update(cluster_connection["primary_master"], _get_rpc_config())
 
         if enable_master_cache:
             cluster_connection["master_cache"] = {
@@ -409,10 +425,13 @@ class ConfigsProvider_18(ConfigsProvider):
         secondary_masters_info = zip(self._master_addresses["secondary"], self._secondary_masters_cell_ids)
         cluster_connection["secondary_masters"] = []
         for addresses, cell_id in secondary_masters_info:
-            cluster_connection["secondary_masters"].append({
+            config = {
                 "addresses": addresses,
                 "cell_id": cell_id
-            })
+            }
+            update(config, _get_retrying_channel_config())
+            update(config, _get_rpc_config())
+            cluster_connection["secondary_masters"].append(config)
 
         if timestamp_provider_from_cache and self._node_addresses:
             cluster_connection["timestamp_provider"] = {"addresses": self._node_addresses}
@@ -524,11 +543,21 @@ class ConfigsProvider_18(ConfigsProvider):
 
         for cell_index in xrange(self._secondary_master_cell_count + 1):
             config = default_configs.get_driver_config()
-            update(config, self._get_cluster_connection_config(timestamp_provider_from_cache=True))
+            if cell_index == 0:
+                update(config, self._get_cluster_connection_config())
+            else:
+                cell_connection_config = {}
+                cell_connection_config["primary_master"] = {
+                    "addresses": self._master_addresses["secondary"][cell_index - 1],
+                    "cell_id": self._secondary_masters_cell_ids[cell_index - 1]
+                }
+                update(cell_connection_config["primary_master"], _get_retrying_channel_config())
+                update(cell_connection_config["primary_master"], _get_rpc_config())
 
-            # Only main driver config requires secondary masters
-            if cell_index != 0 and "secondary_masters" in config:
-                del config["secondary_masters"]
+                cell_connection_config["timestamp_provider"] = {"addresses": self._master_addresses["primary"]}
+                cell_connection_config["transaction_manager"] = {"default_ping_period": 500}
+
+                update(config, cell_connection_config)
 
             configs.append(config)
 

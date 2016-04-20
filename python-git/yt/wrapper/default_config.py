@@ -39,6 +39,7 @@ default_config = {
         # Number of retries and timeout between retries.
         "request_retry_timeout": 20000,
         "request_retry_count": 6,
+        "request_retry_enable": True,
 
         # Heavy commands have increased timeout.
         "heavy_request_retry_timeout": 60000,
