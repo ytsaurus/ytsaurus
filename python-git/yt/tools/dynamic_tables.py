@@ -13,7 +13,6 @@ from yt.common import YtError, update, set_pdeathsig
 from yt.wrapper.common import run_with_retries
 from yt.wrapper.client import Yt
 from random import randint, shuffle
-from time import sleep
 
 # XXXX/TODO: global stuff. Find a way to avoid this.
 yt_module.config["pickling"]["module_filter"] = lambda module: not hasattr(module, "__file__") or "yt_driver_bindings" not in module.__file__
@@ -132,26 +131,67 @@ class DynamicTablesClient(object):
             pivot_keys.append(partition["pivot_key"])
         return pivot_keys
 
-    def wait_for_state(self, table, state, pause=1):
-        # NOTE: A somewhat more elaboreat equivalent can be found at
-        # https://github.yandex-team.ru/hhell/statface_yt_backupper/blob/e0b262b4c1aab872b632f6a77ac23ec47155c88e/statface_yt_backupper/ytbk_common.py#L262
-        while True:
-            tablets = self.yt.get(table + "/@tablets")
-            unready = [tablet for tablet in tablets
-                     if tablet["state"] != state]
-            if not unready:
-                break
-            logging.info("Waiting for table %s %d/%d tablets to become %s",
-                         table, len(unready), len(tablets), state)
-            sleep(pause)
 
-    def unmount_table(self, table):
-        self.yt.unmount_table(table)
-        self.wait_for_state(table, "unmounted")
+    def _wait_for_predicate(self, predicate, message, timeout, pause):
+        start = time.time()
+        while not predicate():
+            if time.time() - start > timeout:
+                error = "Timeout while waiting for \"%s\"" % message
+                logging.info(error)
+                raise YtError(error)
+            logging.info("Waiting for \"%s\"" % message)
+            time.sleep(pause)
 
-    def mount_table(self, table):
-        self.yt.mount_table(table)
-        self.wait_for_state(table, "mounted")
+    def _make_tablets_state_checker(self, table, possible_states):
+        def state_checker():
+            tablets = {tablet["tablet_id"]: tablet["state"] for tablet in self.yt.get(table + "/@tablets")}
+            logging.info("Table %s tablets: %s" % (table, str(tablets)))
+            return all(state in possible_states for state in tablets.itervalues())
+        return state_checker
+
+    def _wait_for_table_consistency(self, table, timeout, pause):
+        self._wait_for_predicate(
+            self._make_tablets_state_checker(table, ["mounted", "unmounted"]),
+            "All %s tablets are either mounted or unmounted" % table,
+            timeout,
+            pause)
+
+    def _mount_unmount_table(self, action, table, timeout, pause):
+        start = time.time()
+        if action == "mount":
+            state = "mounted"
+            mount_unmount = self.yt.mount_table
+        else:
+            state = "unmounted"
+            mount_unmount = self.yt.unmount_table
+
+        self._wait_for_table_consistency(table, timeout, pause)
+
+        check_state = self._make_tablets_state_checker(table, [state])
+        if check_state():
+            return
+
+        mount_unmount(table)
+
+        self._wait_for_predicate(
+            check_state,
+            "All %s tablets are %s" % (table, state),
+            timeout - (time.time() - start),
+            pause)
+
+    def wait_for_state(self, table, state, timeout=300, pause=1):
+        self._wait_for_predicate(
+            self._make_tablets_state_checker(table, [state]),
+            "All %s tablets are %s" % (table, state),
+            timeout,
+            pause)
+
+    def mount_table(self, table, timeout=300, pause=1):
+        self._mount_unmount_table("mount", table, timeout, pause)
+
+    def unmount_table(self, table, timeout=300, pause=1):
+        self._mount_unmount_table("unmount", table, timeout, pause)
+
 
     # Write source table partition bounds into partition_bounds_table
     def extract_partition_bounds(self, table, partition_bounds_table):
