@@ -1,4 +1,4 @@
-from yt.environment import YTEnv
+from yt.environment import YTInstance
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update
 import yt.logger as logger
@@ -24,7 +24,7 @@ def pytest_ignore_collect(path, config):
 def _pytest_finalize_func(environment, process_call_args):
     pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
                 .format(" ".join(process_call_args)))
-    environment.clear_environment()
+    environment.stop()
 
 def pytest_configure(config):
     def scheduling_func(test_items, process_count):
@@ -52,14 +52,7 @@ class YtTestEnvironment(object):
 
         dir = os.path.join(TESTS_SANDBOX, self.test_name, "run_" + uuid.uuid4().hex[:8])
 
-        self.env = YTEnv()
-        self.env.NUM_MASTERS = 1
-        self.env.NUM_NODES = 5
-        self.env.NUM_SCHEDULERS = 1
-        self.env.START_PROXY = True
-        self.env.START_SECONDARY_MASTER_CELLS = False
-
-        self.env.DELTA_NODE_CONFIG = {
+        delta_node_config = {
             "exec_agent" : {
                 "enable_cgroups" : ENABLE_JOB_CONTROL,
                 "slot_manager" : {
@@ -74,15 +67,23 @@ class YtTestEnvironment(object):
                 ]
             }
         }
-        self.env.DELTA_SCHEDULER_CONFIG = {
+        delta_scheduler_config = {
             "scheduler" : {
                 "max_operation_count": 5
             }
         }
 
+        self.env = YTInstance(dir,
+                              master_count=1,
+                              node_count=5,
+                              scheduler_count=1,
+                              has_proxy=True,
+                              node_config=delta_node_config,
+                              scheduler_config=delta_scheduler_config,
+                              port_locks_path=os.path.join(TESTS_SANDBOX, "ports"),
+                              fqdn="localhost")
+        self.env.start()
 
-        self.env.start(dir, os.path.join(dir, "pids.txt"),
-                       port_locks_path=os.path.join(TESTS_SANDBOX, "ports"), fqdn="localhost")
         self.version = self.env._ytserver_version
 
         reload(yt)
@@ -108,7 +109,7 @@ class YtTestEnvironment(object):
         os.environ["PATH"] = ".:" + os.environ["PATH"]
 
     def cleanup(self):
-        self.env.clear_environment()
+        self.env.stop()
         for node_config in self.env.configs["node"]:
             shutil.rmtree(node_config["data_node"]["store_locations"][0]["path"])
             if "cache_locations" in node_config["data_node"]:

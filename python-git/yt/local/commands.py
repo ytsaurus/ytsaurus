@@ -1,10 +1,10 @@
 from configs_provider import ConfigsProviderFactory
 
-from yt.environment import YTEnv
+from yt.environment import YTInstance
 from yt.environment.init_cluster import initialize_world
 from yt.wrapper.common import generate_uuid, MB
 from yt.wrapper.client import Yt
-from yt.common import YtError, require, update
+from yt.common import YtError, require
 import yt.yson as yson
 import yt.json as json
 import yt.wrapper as yt
@@ -21,35 +21,14 @@ logger = logging.getLogger("Yt.local")
 # TODO(asaitgalin): Use it from yt.wrapper.common later.
 GB = 1024 * MB
 
-class YTEnvironment(YTEnv):
-    def __init__(self, master_config, scheduler_config, node_config, proxy_config):
-        super(YTEnvironment, self).__init__()
-        self._master_config = master_config
-        self._scheduler_config = scheduler_config
-        self._node_config = node_config
-        self._proxy_config = proxy_config
-
-    def modify_master_config(self, config):
-        update(config, self._load_config(self._master_config))
-
-    def modify_node_config(self, config):
-        update(config, self._load_config(self._node_config))
-
-    def modify_scheduler_config(self, config):
-        update(config, self._load_config(self._scheduler_config))
-
-    def modify_proxy_config(self, config):
-        update(config, self._load_config(self._proxy_config, is_proxy_config=True))
-
-    @staticmethod
-    def _load_config(path, is_proxy_config=False):
-        if path is None:
-            return {}
-        with open(path) as f:
-            if not is_proxy_config:
-                return yson.load(f)
-            else:
-                return json.load(f)
+def _load_config(path, is_proxy_config=False):
+    if path is None:
+        return {}
+    with open(path) as f:
+        if not is_proxy_config:
+            return yson.load(f)
+        else:
+            return json.load(f)
 
 def get_root_path(path=None):
     if path is not None:
@@ -200,59 +179,57 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
     sandbox_id = id if id is not None else generate_uuid()
     require("/" not in sandbox_id, lambda: YtError('Instance id should not contain path separator "/"'))
 
-    environment = YTEnvironment(master_config, scheduler_config, node_config, proxy_config)
+    sandbox_path = os.path.join(path, sandbox_id)
+    sandbox_tmpfs_path = os.path.join(tmpfs_path, sandbox_id) if tmpfs_path else None
 
-    environment.NUM_MASTERS = master_count
-    environment.NUM_NONVOTING_MASTERS = 0
-    environment.NUM_NODES = node_count
-    environment.NUM_SCHEDULERS = scheduler_count
-    environment.START_PROXY = start_proxy
-    environment.START_SECONDARY_MASTER_CELLS = False
-    environment.CONFIGS_PROVIDER_FACTORY = ConfigsProviderFactory
+    environment = YTInstance(sandbox_path,
+                             master_count=master_count,
+                             node_count=node_count,
+                             scheduler_count=scheduler_count,
+                             has_proxy=start_proxy,
+                             master_config=_load_config(master_config),
+                             scheduler_config=_load_config(scheduler_config),
+                             node_config=_load_config(node_config),
+                             proxy_config=_load_config(proxy_config, True),
+                             proxy_port=proxy_port,
+                             enable_debug_logging=enable_debug_logging,
+                             port_range_start=port_range_start,
+                             fqdn=fqdn,
+                             configs_provider_factory=ConfigsProviderFactory,
+                             # XXX(asaitgalin): For parallel testing purposes.
+                             port_locks_path=os.environ.get("YT_LOCAL_PORT_LOCKS_PATH"),
+                             preserve_working_dir=True,
+                             operations_memory_limit=operations_memory_limit,
+                             tmpfs_path=sandbox_tmpfs_path)
+
+    environment.id = sandbox_id
 
     # Enable capturing stderrs to file
     os.environ["YT_CAPTURE_STDERR_TO_FILE"] = "1"
 
     use_proxy_from_yt_source = use_proxy_from_yt_source or \
             _get_bool_from_env("YT_LOCAL_USE_PROXY_FROM_SOURCE")
-    environment.USE_PROXY_FROM_PACKAGE = not use_proxy_from_yt_source
 
-    sandbox_path = os.path.join(path, sandbox_id)
-
-    # XXX(klyachin): fcntl.flock should be used to avoid concurrent start
-    pids_file_path = os.path.join(sandbox_path, "pids.txt")
+    pids_filename = os.path.join(environment.path, "pids.txt")
     # Consider instance running if "pids.txt" file exists
-    if os.path.isfile(pids_file_path):
-        pids = _read_pids_file(pids_file_path)
+    if os.path.isfile(pids_filename):
+        pids = _read_pids_file(pids_filename)
         alive_pids = filter(_is_pid_exists, pids)
         if len(pids) == 0 or len(pids) > len(alive_pids):
             for pid in alive_pids:
                 logger.warning("Killing alive process (pid: {0}) from previously run instance".format(pid))
                 _safe_kill(pid)
-            os.remove(pids_file_path)
+            os.remove(pids_filename)
         else:
             raise YtError("Instance with id {0} is already running".format(sandbox_id))
 
-    sandbox_tmpfs_path = os.path.join(tmpfs_path, sandbox_id) if tmpfs_path else None
     is_started_file = os.path.join(sandbox_path, "started")
     if os.path.exists(is_started_file):
         os.remove(is_started_file)
-    environment.start(sandbox_path, pids_file_path,
-                      proxy_port=proxy_port,
-                      enable_debug_logging=enable_debug_logging,
-                      preserve_working_dir=True,
-                      tmpfs_path=sandbox_tmpfs_path,
-                      enable_ui=True,
-                      port_range_start=port_range_start,
-                      # XXX(asaitgalin): For parallel testing purposes.
-                      port_locks_path=os.environ.get("YT_LOCAL_PORT_LOCKS_PATH"),
-                      fqdn=fqdn,
-                      prepare_only=prepare_only,
-                      operations_memory_limit=operations_memory_limit)
-
-    environment.id = sandbox_id
 
     if not prepare_only:
+        environment.start(not use_proxy_from_yt_source)
+
         if start_proxy:
             client = Yt(proxy=environment.get_proxy_address())
         else:
