@@ -105,7 +105,7 @@ def _create_node_from_local_file(local_filename, dest_filename, client):
             return
 
         with open(local_filename) as table_file:
-            client.write_table(dest_filename, table_file, format=meta["format"])
+            client.write_table(dest_filename, table_file, format=meta["format"], raw=True)
 
         attributes = meta.get("attributes", {})
         for key in attributes:
