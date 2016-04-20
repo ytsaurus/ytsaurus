@@ -990,6 +990,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        LOG_INFO("Start scheduler state cleanup");
+
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Stop();
 
@@ -999,6 +1001,7 @@ private:
         auto operations = IdToOperation_;
         for (const auto& pair : operations) {
             auto operation = pair.second;
+            LOG_INFO("Forgiving operation %v", operation->GetId());
             if (!operation->IsFinishedState()) {
                 operation->GetController()->Abort();
                 SetOperationFinalState(
@@ -1023,6 +1026,8 @@ private:
         std::fill(JobTypeCounters_.begin(), JobTypeCounters_.end(), 0);
 
         Strategy_->ResetState();
+
+        LOG_INFO("Finish scheduler state cleanup");
     }
 
     TError GetMasterDisconnectedError()
