@@ -65,6 +65,12 @@ extern const Stroka RangeIndexColumnName;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EOptimizeFor,
+    ((Lookup)  (0))
+    ((Scan)    (1))
+);
+
+
 DEFINE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)  (300))
     ((SortOrderViolation)         (301))

@@ -143,6 +143,12 @@ void TTableNode::Load(TLoadContext& context)
     if (context.GetVersion() < 206) {
         YCHECK(!(sorted && !TableSchema_.IsSorted()));
     }
+
+    // COMPAT(psushin)
+    auto& attributesMap = GetMutableAttributes()->Attributes();
+    if (!attributesMap.has("optimize_for")) {
+        attributesMap["optimize_for"] = ConvertToYsonString(NTableClient::EOptimizeFor::Lookup);
+    }
 }
 
 std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTableNode::GetIntersectingTablets(
@@ -231,6 +237,10 @@ protected:
     {
         if (!attributes->Contains("compression_codec")) {
             attributes->Set("compression_codec", NCompression::ECodec::Lz4);
+        }
+
+        if (!attributes->Contains("optimize_for")) {
+            attributes->Set("optimize_for", EOptimizeFor::Lookup);
         }
 
         bool dynamic = attributes->Get<bool>("dynamic", false);

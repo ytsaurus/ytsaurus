@@ -7,6 +7,7 @@
 
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/ytlib/table_client/versioned_chunk_writer.h>
@@ -17,6 +18,7 @@
 #include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/core/compression/public.h>
+#include <yt/core/misc/random.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -30,22 +32,14 @@ using namespace NTransactionClient;
 Stroka A("a");
 Stroka B("b");
 
-const std::vector<TColumnSchema> ColumnSchemas = {
-    TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-    TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-    TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
-    TColumnSchema("v1", EValueType::Int64),
-    TColumnSchema("v2", EValueType::Int64)
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedChunksTestBase
+// ToDo(psushin): rewrite this legacy test.
+class TVersionedChunksLookupTestBase
     : public TVersionedTableClientTestBase
 {
 protected:
     TTableSchema Schema;
-    TKeyColumns KeyColumns;
 
     IVersionedReaderPtr ChunkReader;
     IVersionedWriterPtr ChunkWriter;
@@ -55,9 +49,20 @@ protected:
 
     TChunkedMemoryPool MemoryPool;
 
-    explicit TVersionedChunksTestBase(const TTableSchema& schema)
-        : Schema(schema)
-    { }
+    EOptimizeFor OptimizeFor;
+
+    explicit TVersionedChunksLookupTestBase(EOptimizeFor optimizeFor)
+        : OptimizeFor(optimizeFor)
+    {
+        Schema.AppendColumn(TColumnSchema("k1", EValueType::String)
+            .SetSortOrder(ESortOrder::Ascending));
+        Schema.AppendColumn(TColumnSchema("k2", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending));
+        Schema.AppendColumn(TColumnSchema("k3", EValueType::Double)
+            .SetSortOrder(ESortOrder::Ascending));
+        Schema.AppendColumn(TColumnSchema("v1", EValueType::Int64));
+        Schema.AppendColumn(TColumnSchema("v2", EValueType::Int64));
+    }
 
     virtual void SetUp() override
     {
@@ -65,116 +70,15 @@ protected:
 
         auto config = New<TChunkWriterConfig>();
         config->BlockSize = 1025;
+        auto options = New<TChunkWriterOptions>();
+        options->OptimizeFor = OptimizeFor;
         ChunkWriter = CreateVersionedChunkWriter(
             config,
-            New<TChunkWriterOptions>(),
+            options,
             Schema,
             MemoryWriter);
 
         EXPECT_TRUE(ChunkWriter->Open().Get().IsOK());
-    }
-
-    void CheckResult(const std::vector<TVersionedRow>& expected, IVersionedReaderPtr reader)
-    {
-        auto it = expected.begin();
-        std::vector<TVersionedRow> actual;
-        actual.reserve(1000);
-
-        while (reader->Read(&actual)) {
-            if (actual.empty()) {
-                EXPECT_TRUE(reader->GetReadyEvent().Get().IsOK());
-                continue;
-            }
-            std::vector<TVersionedRow> ex(it, it + actual.size());
-            CheckResult(ex, actual);
-            it += actual.size();
-        }
-
-        EXPECT_TRUE(it == expected.end());
-    }
-
-    void CheckResult(const std::vector<TVersionedRow>& expected, const std::vector<TVersionedRow>& actual)
-    {
-        EXPECT_EQ(expected.size(), actual.size());
-        for (int i = 0; i < expected.size(); ++i) {
-            ExpectRowsEqual(expected[i], actual[i]);
-        }
-    }
-
-    void FillKey(TMutableVersionedRow row, TNullable<Stroka> k1, TNullable<i64> k2, TNullable<double> k3)
-    {
-        row.BeginKeys()[0] = k1 
-            ? MakeUnversionedStringValue(*k1, 0)
-            : MakeUnversionedSentinelValue(EValueType::Null, 0);
-        row.BeginKeys()[1] = k2 
-            ? MakeUnversionedInt64Value(*k2, 1)
-            : MakeUnversionedSentinelValue(EValueType::Null, 1);
-        row.BeginKeys()[2] = k3 
-            ? MakeUnversionedDoubleValue(*k3, 2)
-            : MakeUnversionedSentinelValue(EValueType::Null, 2);
-    }
-
-    void WriteThreeRows()
-    {
-        std::vector<TVersionedRow> rows;
-        {
-            auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
-            FillKey(row, MakeNullable(A), MakeNullable(1), MakeNullable(1.5));
-
-            // v1
-            row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
-            row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 3);
-            // v2
-            row.BeginValues()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
-
-            row.BeginWriteTimestamps()[2] = 3;
-            row.BeginWriteTimestamps()[1] = 5;
-            row.BeginWriteTimestamps()[0] = 11;
-
-            row.BeginDeleteTimestamps()[0] = 9;
-
-            rows.push_back(row);
-        } {
-            auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 0);
-            FillKey(row, MakeNullable(A), MakeNullable(2), Null);
-
-            // v1
-            row.BeginValues()[0] = MakeVersionedInt64Value(2, 1, 3);
-            // v2
-            row.BeginValues()[1] = MakeVersionedInt64Value(100, 10, 4);
-            row.BeginValues()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
-
-            row.BeginWriteTimestamps()[2] = 1;
-            row.BeginWriteTimestamps()[1] = 5;
-            row.BeginWriteTimestamps()[0] = 10;
-
-            rows.push_back(row);
-        } {
-            auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 5, 4, 2);
-            FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
-
-            // v1
-            row.BeginValues()[0] = MakeVersionedInt64Value(9, 15, 3);
-            row.BeginValues()[1] = MakeVersionedInt64Value(8, 12, 3);
-            row.BeginValues()[2] = MakeVersionedInt64Value(7, 3, 3);
-            // v2
-            row.BeginValues()[3] = MakeVersionedSentinelValue(EValueType::Null, 12, 4);
-            row.BeginValues()[4] = MakeVersionedSentinelValue(EValueType::Null, 8, 4);
-
-            row.BeginWriteTimestamps()[3] = 3;
-            row.BeginWriteTimestamps()[2] = 8;
-            row.BeginWriteTimestamps()[1] = 12;
-            row.BeginWriteTimestamps()[0] = 15;
-
-            row.BeginDeleteTimestamps()[1] = 2;
-            row.BeginDeleteTimestamps()[0] = 20;
-
-            rows.push_back(row);
-        }
-
-        ChunkWriter->Write(rows);
-
-        GetRowAndResetWriter();
     }
 
     void GetRowAndResetWriter()
@@ -185,6 +89,19 @@ protected:
         MemoryReader = CreateMemoryReader(
             MemoryWriter->GetChunkMeta(),
             MemoryWriter->GetBlocks());
+    }
+
+    void FillKey(TMutableVersionedRow row, TNullable<Stroka> k1, TNullable<i64> k2, TNullable<double> k3)
+    {
+        row.BeginKeys()[0] = k1
+                             ? MakeUnversionedStringValue(*k1, 0)
+                             : MakeUnversionedSentinelValue(EValueType::Null, 0);
+        row.BeginKeys()[1] = k2
+                             ? MakeUnversionedInt64Value(*k2, 1)
+                             : MakeUnversionedSentinelValue(EValueType::Null, 1);
+        row.BeginKeys()[2] = k3
+                             ? MakeUnversionedDoubleValue(*k3, 2)
+                             : MakeUnversionedSentinelValue(EValueType::Null, 2);
     }
 
     TVersionedRow CreateSingleRow(int index)
@@ -232,292 +149,7 @@ protected:
         return CompareRows(lhs, rhs);
     };
 
-    void DoReadEmptyWiderSchema()
-    {
-        std::vector<TVersionedRow> expected;
-        WriteThreeRows();
-
-        auto schema = Schema;
-        schema.AppendColumn(TColumnSchema("kN", EValueType::Double));
-
-        auto chunkMeta = TCachedVersionedChunkMeta::Load(
-            MemoryReader,
-            TWorkloadDescriptor(),
-            schema).Get().ValueOrThrow();
-
-        TUnversionedOwningRowBuilder lowerKeyBuilder;
-        lowerKeyBuilder.AddValue(MakeUnversionedStringValue(B, 0));
-        lowerKeyBuilder.AddValue(MakeUnversionedInt64Value(15, 1));
-        lowerKeyBuilder.AddValue(MakeUnversionedDoubleValue(2, 1));
-
-        TReadLimit lowerLimit;
-        lowerLimit.SetKey(lowerKeyBuilder.FinishRow());
-
-        auto chunkReader = CreateVersionedChunkReader(
-            New<TChunkReaderConfig>(),
-            MemoryReader,
-            GetNullBlockCache(),
-            chunkMeta,
-            std::move(lowerLimit),
-            TReadLimit(),
-            TColumnFilter(),
-            New<TChunkReaderPerformanceCounters>());
-
-        EXPECT_TRUE(chunkReader->Open().Get().IsOK());
-
-        std::vector<TVersionedRow> actual;
-        actual.reserve(10);
-
-        EXPECT_FALSE(chunkReader->Read(&actual));
-
-        CheckResult(expected, actual);
-    }
-
-    void DoReadLastCommitted()
-    {
-        std::vector<TVersionedRow> expected;
-        {
-            auto row = TMutableVersionedRow::Allocate(&MemoryPool, 4, 1, 1, 1);
-            FillKey(row, MakeNullable(A), MakeNullable(1), MakeNullable(1.5));
-            row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
-
-            // v1
-            row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
-            row.BeginWriteTimestamps()[0] = 11;
-            row.BeginDeleteTimestamps()[0] = 9;
-
-            expected.push_back(row);
-        } {
-            auto row = TMutableVersionedRow::Allocate(&MemoryPool, 4, 2, 1, 0);
-            FillKey(row, MakeNullable(A), MakeNullable(2), Null);
-            row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
-
-            // v1
-            row.BeginValues()[0] = MakeVersionedInt64Value(2, 1, 3);
-            // v2
-            row.BeginValues()[1] = MakeVersionedInt64Value(100, 10, 4);
-
-            row.BeginWriteTimestamps()[0] = 10;
-
-            expected.push_back(row);
-        } {
-            auto row = TMutableVersionedRow::Allocate(&MemoryPool, 4, 0, 0, 1);
-            FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
-            row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
-            row.BeginDeleteTimestamps()[0] = 20;
-
-            expected.push_back(row);
-        }
-
-        WriteThreeRows();
-
-        TTableSchema schema({
-            TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("kN", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("v1", EValueType::Int64),
-            TColumnSchema("v2", EValueType::Int64),
-            TColumnSchema("vN", EValueType::Double)
-        });
-
-        auto chunkMeta = TCachedVersionedChunkMeta::Load(
-            MemoryReader,
-            TWorkloadDescriptor(),
-            schema).Get().ValueOrThrow();
-
-        TColumnFilter filter;
-        filter.All = false;
-        filter.Indexes = {1, 2, 3, 4, 5, 6};
-
-        auto chunkReader = CreateVersionedChunkReader(
-            New<TChunkReaderConfig>(),
-            MemoryReader,
-            GetNullBlockCache(),
-            chunkMeta,
-            TReadLimit(),
-            TReadLimit(),
-            filter,
-            New<TChunkReaderPerformanceCounters>());
-
-        EXPECT_TRUE(chunkReader->Open().Get().IsOK());
-        EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
-
-        std::vector<TVersionedRow> actual;
-        actual.reserve(10);
-
-        EXPECT_TRUE(chunkReader->Read(&actual));
-        EXPECT_FALSE(actual.empty());
-        CheckResult(expected, actual);
-
-        EXPECT_FALSE(chunkReader->Read(&actual));
-        EXPECT_TRUE(actual.empty());
-    }
-
-    void DoReadByTimestamp(bool addEmptyRows = false)
-    {
-        std::vector<TVersionedRow> expected;
-
-        if (addEmptyRows) {
-            expected.push_back(TVersionedRow());
-        }
-
-        {
-            auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 1, 1, 0);
-            FillKey(row, MakeNullable(A), MakeNullable(2), Null);
-
-            // v1
-            row.BeginValues()[0] = MakeVersionedInt64Value(2, 1, 3);
-            row.BeginWriteTimestamps()[0] = 1;
-
-            expected.push_back(row);
-        } {
-            auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
-            FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
-            row.BeginDeleteTimestamps()[0] = 2;
-
-            expected.push_back(row);
-        }
-
-        WriteThreeRows();
-
-        auto chunkMeta = TCachedVersionedChunkMeta::Load(
-            MemoryReader,
-            TWorkloadDescriptor(),
-            Schema).Get().ValueOrThrow();
-
-        auto chunkReader = CreateVersionedChunkReader(
-            New<TChunkReaderConfig>(),
-            MemoryReader,
-            GetNullBlockCache(),
-            chunkMeta,
-            TReadLimit(),
-            TReadLimit(),
-            TColumnFilter(),
-            New<TChunkReaderPerformanceCounters>(),
-            2); // timestamp
-
-        EXPECT_TRUE(chunkReader->Open().Get().IsOK());
-        EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
-
-        std::vector<TVersionedRow> actual;
-        actual.reserve(10);
-
-        EXPECT_TRUE(chunkReader->Read(&actual));
-        EXPECT_FALSE(actual.empty());
-        CheckResult(expected, actual);
-
-        EXPECT_FALSE(chunkReader->Read(&actual));
-        EXPECT_TRUE(actual.empty());
-    }
-
-    void DoReadAllLimitsSchema()
-    {
-        std::vector<TVersionedRow> expected;
-        {
-            auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 1, 1, 0);
-            FillKey(row, MakeNullable(A), MakeNullable(2), Null);
-
-            // v2
-            row.BeginValues()[0] = MakeVersionedInt64Value(100, 10, 3);
-
-            row.BeginWriteTimestamps()[0] = 10;
-
-            expected.push_back(row);
-        } {
-            auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
-            FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
-            row.BeginDeleteTimestamps()[0] = 20;
-
-            expected.push_back(row);
-        }
-
-        WriteThreeRows();
-
-        TTableSchema schema({
-            TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("v2", EValueType::Int64)
-        });
-
-        auto chunkMeta = TCachedVersionedChunkMeta::Load(
-            MemoryReader,
-            TWorkloadDescriptor(),
-            schema).Get().ValueOrThrow();
-
-        TUnversionedOwningRowBuilder lowerKeyBuilder;
-        lowerKeyBuilder.AddValue(MakeUnversionedStringValue(A, 0));
-        lowerKeyBuilder.AddValue(MakeUnversionedInt64Value(1, 1));
-        lowerKeyBuilder.AddValue(MakeUnversionedDoubleValue(2, 1));
-
-        TReadLimit lowerLimit;
-        lowerLimit.SetKey(lowerKeyBuilder.FinishRow());
-
-        auto chunkReader = CreateVersionedChunkReader(
-            New<TChunkReaderConfig>(),
-            MemoryReader,
-            GetNullBlockCache(),
-            chunkMeta,
-            std::move(lowerLimit),
-            TReadLimit(),
-            TColumnFilter(),
-            New<TChunkReaderPerformanceCounters>());
-
-        EXPECT_TRUE(chunkReader->Open().Get().IsOK());
-        EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
-
-        std::vector<TVersionedRow> actual;
-        actual.reserve(10);
-
-        EXPECT_TRUE(chunkReader->Read(&actual));
-        EXPECT_FALSE(actual.empty());
-        CheckResult(expected, actual);
-
-        EXPECT_FALSE(chunkReader->Read(&actual));
-        EXPECT_TRUE(actual.empty());
-    }
-
-    void DoReadEmpty()
-    {
-        std::vector<TVersionedRow> expected;
-        WriteThreeRows();
-
-        auto chunkMeta = TCachedVersionedChunkMeta::Load(
-            MemoryReader,
-            TWorkloadDescriptor(),
-            Schema).Get().ValueOrThrow();
-
-        TUnversionedOwningRowBuilder lowerKeyBuilder;
-        lowerKeyBuilder.AddValue(MakeUnversionedStringValue(B, 0));
-        lowerKeyBuilder.AddValue(MakeUnversionedInt64Value(15, 1));
-        lowerKeyBuilder.AddValue(MakeUnversionedDoubleValue(2, 1));
-
-        TReadLimit lowerLimit;
-        lowerLimit.SetKey(lowerKeyBuilder.FinishRow());
-
-        auto chunkReader = CreateVersionedChunkReader(
-            New<TChunkReaderConfig>(),
-            MemoryReader,
-            GetNullBlockCache(),
-            chunkMeta,
-            std::move(lowerLimit),
-            TReadLimit(),
-            TColumnFilter(),
-            New<TChunkReaderPerformanceCounters>());
-
-        EXPECT_TRUE(chunkReader->Open().Get().IsOK());
-        EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
-
-        std::vector<TVersionedRow> actual;
-        actual.reserve(10);
-
-        EXPECT_FALSE(chunkReader->Read(&actual));
-
-        CheckResult(expected, actual);
-    }
-
-    void DoReadManyRows()
+    void DoTest()
     {
         std::vector<TVersionedRow> expected;
         int startIndex = 0;
@@ -533,52 +165,6 @@ protected:
             MemoryReader,
             TWorkloadDescriptor(),
             Schema).Get().ValueOrThrow();
-
-        {
-            auto chunkReader = CreateVersionedChunkReader(
-                New<TChunkReaderConfig>(),
-                MemoryReader,
-                GetNullBlockCache(),
-                chunkMeta,
-                TReadLimit(),
-                TReadLimit(),
-                TColumnFilter(),
-                New<TChunkReaderPerformanceCounters>(),
-                AllCommittedTimestamp);
-
-            EXPECT_TRUE(chunkReader->Open().Get().IsOK());
-            EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
-
-            CheckResult(expected, chunkReader);
-        }
-
-        {
-            int firstRow = 250000;
-            TUnversionedOwningRowBuilder lowerKeyBuilder;
-            lowerKeyBuilder.AddValue(MakeUnversionedStringValue(A, 0));
-            lowerKeyBuilder.AddValue(MakeUnversionedInt64Value(firstRow, 1));
-
-            TReadLimit lowerLimit;
-            lowerLimit.SetKey(lowerKeyBuilder.FinishRow());
-
-            auto chunkReader = CreateVersionedChunkReader(
-                New<TChunkReaderConfig>(),
-                MemoryReader,
-                GetNullBlockCache(),
-                chunkMeta,
-                lowerLimit,
-                TReadLimit(),
-                TColumnFilter(),
-                New<TChunkReaderPerformanceCounters>(),
-                AllCommittedTimestamp);
-
-            EXPECT_TRUE(chunkReader->Open().Get().IsOK());
-            EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
-
-            expected.erase(expected.begin(), expected.begin() + firstRow);
-            CheckResult(expected, chunkReader);
-        }
-
         {
             TChunkedMemoryPool pool;
             TUnversionedOwningRowBuilder builder;
@@ -659,143 +245,439 @@ protected:
         }
     }
 
-    void DoReadWideSchemaBoundaryRow()
-    {
-        std::vector<TVersionedRow> rows;
-        rows.push_back(CreateSingleRow(0));
-        ChunkWriter->Write(rows);
-        GetRowAndResetWriter();
+};
 
-        TTableSchema widerSchema({
-            TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+////////////////////////////////////////////////////////////////////////////////
+
+class TSimpleVersionedChunksLookupTest
+    : public TVersionedChunksLookupTestBase
+{
+public:
+    TSimpleVersionedChunksLookupTest()
+        : TVersionedChunksLookupTestBase(EOptimizeFor::Lookup)
+    { }
+};
+
+
+TEST_F(TSimpleVersionedChunksLookupTest, Test)
+{
+    DoTest();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TColumnarVersionedChunksLookupTest
+    : public TVersionedChunksLookupTestBase
+{
+public:
+    TColumnarVersionedChunksLookupTest()
+        : TVersionedChunksLookupTestBase(EOptimizeFor::Scan)
+    { }
+};
+
+TEST_F(TColumnarVersionedChunksLookupTest, Test)
+{
+    DoTest();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVersionedChunksHeavyTest
+    : public TVersionedTableClientTestBase
+{
+public:
+    TVersionedChunksHeavyTest()
+        : RowBuffer_(New<TRowBuffer>())
+    {
+        ColumnSchemas_ = {
+            TColumnSchema("k0", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("k1", EValueType::Uint64).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("k2", EValueType::String).SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k4", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("v1", EValueType::Int64),
-        });
+            TColumnSchema("k4", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending),
+
+            TColumnSchema("v1", EValueType::Int64).SetAggregate(Stroka("min")),
+            TColumnSchema("v2", EValueType::Int64),
+            TColumnSchema("v3", EValueType::Uint64),
+            TColumnSchema("v4", EValueType::String),
+            TColumnSchema("v5", EValueType::Double),
+            TColumnSchema("v6", EValueType::Boolean)
+        };
+
+        InitialRows_ = CreateRows();
+    }
+
+protected:
+    std::vector<TColumnSchema> ColumnSchemas_;
+
+    std::vector<Stroka> StringData_;
+
+    TRowBufferPtr RowBuffer_;
+
+    std::vector<TVersionedRow> InitialRows_;
+
+
+    void TestRangeReader(
+        EOptimizeFor optimizeFor,
+        TTableSchema writeSchema,
+        TTableSchema readSchema,
+        TOwningKey lowerKey,
+        TOwningKey upperKey,
+        TTimestamp timestamp)
+    {
+        auto expected = CreateExpected(InitialRows_, writeSchema, readSchema, lowerKey, upperKey, timestamp);
+
+        auto memoryWriter = New<TMemoryWriter>();
+
+        auto config = New<TChunkWriterConfig>();
+        config->BlockSize = 1025;
+        auto options = New<TChunkWriterOptions>();
+        options->OptimizeFor = optimizeFor;
+        auto chunkWriter = CreateVersionedChunkWriter(
+            config,
+            options,
+            writeSchema,
+            memoryWriter);
+
+        EXPECT_TRUE(chunkWriter->Open().Get().IsOK());
+
+        chunkWriter->Write(InitialRows_);
+        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+
+        auto memoryReader = CreateMemoryReader(
+            memoryWriter->GetChunkMeta(),
+            memoryWriter->GetBlocks());
 
         auto chunkMeta = TCachedVersionedChunkMeta::Load(
-            MemoryReader,
+            memoryReader,
             TWorkloadDescriptor(),
-            widerSchema).Get().ValueOrThrow();
+            readSchema).Get().ValueOrThrow();
 
-        TUnversionedOwningRowBuilder keyBuilder;
-        keyBuilder.AddValue(rows.front().BeginKeys()[0]);
-        keyBuilder.AddValue(rows.front().BeginKeys()[1]);
-        keyBuilder.AddValue(rows.front().BeginKeys()[2]);
-        keyBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 3));
-        TReadLimit limit;
-        limit.SetKey(keyBuilder.FinishRow());
+        TReadLimit lowerLimit;
+        lowerLimit.SetKey(lowerKey);
+
+        TReadLimit upperLimit;
+        upperLimit.SetKey(upperKey);
 
         auto chunkReader = CreateVersionedChunkReader(
             New<TChunkReaderConfig>(),
-            MemoryReader,
+            memoryReader,
             GetNullBlockCache(),
             chunkMeta,
-            TReadLimit(),
-            limit,
+            lowerLimit,
+            upperLimit,
             TColumnFilter(),
             New<TChunkReaderPerformanceCounters>(),
-            AllCommittedTimestamp);
+            timestamp);
 
-        EXPECT_TRUE(chunkReader->Open().Get().IsOK());
-        EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
-
-        std::vector<TVersionedRow> expected;
         CheckResult(expected, chunkReader);
+    }
+
+    Stroka NextStringValue(std::vector<char>& value)
+    {
+        int index = value.size() - 1;
+        while (index >= 0) {
+            if (value[index] < 'z') {
+                ++value[index];
+                return Stroka(value.data(), value.size());
+            } else {
+                value[index] = 'a';
+                --index;
+            }
+        }
+        YUNREACHABLE();
+    }
+
+    std::vector<TVersionedRow> CreateRows(int count = 10000)
+    {
+        std::vector<char> stringValue(100, 'a');
+        srand(0);
+
+        std::vector<TTimestamp> timestamps = {10, 20, 30, 40, 50, 60, 70, 80, 90};
+
+        std::vector<TVersionedRow> rows;
+        for (int rowIndex = 0; rowIndex < count; ++rowIndex) {
+            TVersionedRowBuilder builder(RowBuffer_);
+            builder.AddKey(MakeUnversionedInt64Value(-10 + (rowIndex / 16), 0)); // k0
+
+            builder.AddKey(MakeUnversionedUint64Value((rowIndex / 8) * 128, 1)); // k1
+
+            if (rowIndex / 4 == 0) {
+                StringData_.push_back(NextStringValue(stringValue));
+            }
+            builder.AddKey(MakeUnversionedStringValue(StringData_.back(), 2)); // k2
+
+            builder.AddKey(MakeUnversionedDoubleValue((rowIndex / 2) * 3.14, 3)); // k3
+
+            builder.AddKey(MakeUnversionedBooleanValue(rowIndex % 2 == 1, 4)); // k4
+
+            std::random_shuffle(timestamps.begin(), timestamps.end());
+            int deleteTimestampCount = std::rand() % 3;
+            std::vector<TTimestamp> deleteTimestamps(timestamps.begin(), timestamps.begin() + deleteTimestampCount);
+            for (auto timestamp : deleteTimestamps) {
+                builder.AddDeleteTimestamp(timestamp);
+            }
+
+            std::vector<TTimestamp> writeTimestamps(
+                timestamps.begin() + deleteTimestampCount,
+                timestamps.begin() + deleteTimestampCount + 3);
+
+            // v1
+            for (int i = 0; i < std::rand() % 3; ++i) {
+                builder.AddValue(MakeVersionedInt64Value(-10 + (rowIndex / 16) + i, writeTimestamps[i], 5, i % 2));
+            }
+
+            // v2
+            for (int i = 0; i < std::rand() % 3; ++i) {
+                builder.AddValue(MakeVersionedInt64Value(-10 + (rowIndex / 16) + i, writeTimestamps[i], 6));
+            }
+
+            // v3
+            for (int i = 0; i < std::rand() % 3; ++i) {
+                builder.AddValue(MakeVersionedUint64Value(rowIndex * 10 + i, writeTimestamps[i], 7));
+            }
+
+            // v4
+            for (int i = 0; i < std::rand() % 3; ++i) {
+                builder.AddValue(MakeVersionedStringValue(StringData_.back(), writeTimestamps[i], 8));
+            }
+
+            // v5
+            for (int i = 0; i < std::rand() % 3; ++i) {
+                builder.AddValue(MakeVersionedDoubleValue(rowIndex * 3.14 + i, writeTimestamps[i], 9));
+            }
+
+            // v6
+            for (int i = 0; i < std::rand() % 3; ++i) {
+                builder.AddValue(MakeVersionedBooleanValue(i % 2 == 1, writeTimestamps[i], 10));
+            }
+
+            rows.push_back(builder.FinishRow());
+        }
+
+        return rows;
+    }
+
+    std::vector<TVersionedRow> CreateExpected(
+        const std::vector<TVersionedRow>& rows,
+        TTableSchema writeSchema,
+        TTableSchema readSchema,
+        TOwningKey lowerKey,
+        TOwningKey upperKey,
+        TTimestamp timestamp)
+    {
+        std::vector<TVersionedRow> expected;
+
+        std::vector<int> idMapping(writeSchema.Columns().size(), -1);
+        for (int i = 0; i < writeSchema.Columns().size(); ++i) {
+            auto writeColumnSchema = writeSchema.Columns()[i];
+            for (int j = 0; j < readSchema.Columns().size(); ++j) {
+                auto readColumnSchema = readSchema.Columns()[j];
+                if (writeColumnSchema.Name == readColumnSchema.Name) {
+                    idMapping[i] = j;
+                }
+            }
+        }
+
+        for (auto row : rows) {
+            std::vector<TUnversionedValue> key;
+            YCHECK(row.GetKeyCount() <= readSchema.GetKeyColumnCount());
+            for (int i = 0; i < row.GetKeyCount() && i < readSchema.GetKeyColumnCount(); ++i) {
+                YCHECK(row.BeginKeys()[i].Type == readSchema.Columns()[i].Type);
+                key.push_back(row.BeginKeys()[i]);
+            }
+
+            for (int i = row.GetKeyCount(); i < readSchema.GetKeyColumnCount(); ++i) {
+                key.push_back(MakeUnversionedSentinelValue(EValueType::Null, i));
+            }
+
+            if (CompareRows(key.data(), key.data() + key.size(), lowerKey.Begin(), lowerKey.End()) < 0)
+                continue;
+
+            if (CompareRows(key.data(), key.data() + key.size(), upperKey.Begin(), upperKey.End()) >= 0)
+                break;
+
+            TVersionedRowBuilder builder(RowBuffer_, timestamp == AllCommittedTimestamp);
+            for (const auto& value : key) {
+                builder.AddKey(value);
+            }
+
+            if (timestamp == AllCommittedTimestamp) {
+                for (auto deleteIt = row.BeginDeleteTimestamps(); deleteIt != row.EndDeleteTimestamps(); ++deleteIt) {
+                    builder.AddDeleteTimestamp(*deleteIt);
+                }
+
+                for (auto valueIt = row.BeginValues(); valueIt != row.EndValues(); ++valueIt) {
+                    if (idMapping[valueIt->Id] > 0) {
+                        auto value = *valueIt;
+                        value.Id = idMapping[valueIt->Id];
+                        builder.AddValue(value);
+                    }
+                }
+
+                expected.push_back(builder.FinishRow());
+            } else {
+                // Find delete timestamp.
+                TTimestamp deleteTimestamp = NullTimestamp;
+                for (auto deleteIt = row.BeginDeleteTimestamps(); deleteIt != row.EndDeleteTimestamps(); ++deleteIt) {
+                    if (*deleteIt <= timestamp) {
+                        deleteTimestamp = std::max(*deleteIt, deleteTimestamp);
+                    }
+                }
+                if (deleteTimestamp != NullTimestamp) {
+                    builder.AddDeleteTimestamp(deleteTimestamp);
+                }
+
+                TTimestamp writeTimestamp = NullTimestamp;
+                for (auto writeIt = row.BeginWriteTimestamps(); writeIt != row.EndWriteTimestamps(); ++writeIt) {
+                    if (*writeIt <= timestamp && *writeIt > deleteTimestamp) {
+                        writeTimestamp = std::max(*writeIt, writeTimestamp);
+                    }
+                }
+                if (writeTimestamp != NullTimestamp) {
+                    builder.AddWriteTimestamp(writeTimestamp);
+                }
+
+                std::vector<TVersionedValue> values;
+                for (auto valueIt = row.BeginValues(); valueIt != row.EndValues(); ++valueIt) {
+                    if (idMapping[valueIt->Id] > 0 && valueIt->Timestamp <= timestamp && valueIt->Timestamp > deleteTimestamp) {
+                        auto value = *valueIt;
+                        value.Id = idMapping[valueIt->Id];
+                        values.push_back(value);
+                    }
+                }
+
+                if (deleteTimestamp == NullTimestamp && writeTimestamp == NullTimestamp) {
+                    // Row didn't exist at this timestamp.
+                    expected.push_back(TVersionedRow());
+                    continue;
+                }
+
+                std::sort(
+                    values.begin(),
+                    values.end(),
+                    [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
+                        // Sort in reverse order
+                        return lhs.Timestamp > rhs.Timestamp;
+                    });
+
+                std::set<int> usedIds;
+                for (const auto& value : values) {
+                    if (usedIds.insert(value.Id).second || readSchema.Columns()[value.Id].Aggregate) {
+                        builder.AddValue(value);
+                    }
+                }
+
+                expected.push_back(builder.FinishRow());
+            }
+        }
+        return expected;
+    }
+
+    void DoFullScanCompaction(EOptimizeFor optimizeFor)
+    {
+        auto writeSchema = TTableSchema(ColumnSchemas_);
+        auto readSchema = TTableSchema(ColumnSchemas_);
+
+        TestRangeReader(optimizeFor, writeSchema, readSchema, MinKey(), MaxKey(), AllCommittedTimestamp);
+    }
+
+    void DoTimestampFullScanExtraKeyColumn(EOptimizeFor optimizeFor, TTimestamp timestamp = 50)
+    {
+        auto writeSchema = TTableSchema(ColumnSchemas_);
+
+        auto columnSchemas = ColumnSchemas_;
+        columnSchemas.insert(
+            columnSchemas.begin() + 5,
+            TColumnSchema("extraKey", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending));
+
+        auto readSchema = TTableSchema(columnSchemas);
+
+        TestRangeReader(optimizeFor, writeSchema, readSchema, MinKey(), MaxKey(), timestamp);
+    }
+
+    void DoEmptyReadWideSchema(EOptimizeFor optimizeFor)
+    {
+        auto writeSchema = TTableSchema(ColumnSchemas_);
+
+        auto columnSchemas = ColumnSchemas_;
+        columnSchemas.insert(
+            columnSchemas.begin() + 5,
+            TColumnSchema("extraKey", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending));
+        auto readSchema = TTableSchema(columnSchemas);
+
+        TUnversionedOwningRowBuilder lowerKeyBuilder;
+        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
+            lowerKeyBuilder.AddValue(*it);
+        }
+        lowerKeyBuilder.AddValue(MakeUnversionedBooleanValue(false));
+        auto lowerKey = lowerKeyBuilder.FinishRow();
+
+        TUnversionedOwningRowBuilder upperKeyBuilder;
+        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
+            upperKeyBuilder.AddValue(*it);
+        }
+        upperKeyBuilder.AddValue(MakeUnversionedBooleanValue(true));
+        auto upperKey = upperKeyBuilder.FinishRow();
+
+        TestRangeReader(optimizeFor, writeSchema, readSchema, lowerKey, upperKey, 25);
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TSimpleVersionedChunksTest
-    : public TVersionedChunksTestBase
+TEST_F(TVersionedChunksHeavyTest, FullScanCompactionScan)
 {
-public:
-    TSimpleVersionedChunksTest()
-        : TVersionedChunksTestBase(TTableSchema(ColumnSchemas, true, EOptimizedFor::Lookup))
-    { }
-};
-
-TEST_F(TSimpleVersionedChunksTest, ReadEmptyWiderSchema)
-{
-    DoReadEmptyWiderSchema();
+    DoFullScanCompaction(EOptimizeFor::Scan);
 }
 
-TEST_F(TSimpleVersionedChunksTest, ReadLastCommitted)
+TEST_F(TVersionedChunksHeavyTest, FullScanCompactionLookup)
 {
-    DoReadLastCommitted();
+    DoFullScanCompaction(EOptimizeFor::Lookup);
 }
 
-TEST_F(TSimpleVersionedChunksTest, ReadByTimestamp)
+TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnScan)
 {
-    DoReadByTimestamp();
+    DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Scan);
 }
 
-TEST_F(TSimpleVersionedChunksTest, ReadAllLimitsSchema)
+TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnLookup)
 {
-    DoReadAllLimitsSchema();
+    DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Lookup);
+
+    // Test SyncLastCommitted for Lookup chunks.
+    DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Lookup, SyncLastCommittedTimestamp);
 }
 
-TEST_F(TSimpleVersionedChunksTest, ReadEmpty)
+TEST_F(TVersionedChunksHeavyTest, GroupsLimitsAndSchemaChange)
 {
-    DoReadEmpty();
+    auto writeColumnSchemas = ColumnSchemas_;
+    writeColumnSchemas[5].Group = writeColumnSchemas[9].Group = "G1";
+    writeColumnSchemas[6].Group = writeColumnSchemas[7].Group = writeColumnSchemas[8].Group = "G2";
+    auto writeSchema = TTableSchema(writeColumnSchemas);
+
+    auto readColumnSchemas = ColumnSchemas_;
+    readColumnSchemas.erase(readColumnSchemas.begin() + 7, readColumnSchemas.end());
+    readColumnSchemas.insert(readColumnSchemas.end(), TColumnSchema("extraValue", EValueType::Boolean));
+    auto readSchema = TTableSchema(readColumnSchemas);
+
+    int lowerIndex = InitialRows_.size() / 3;
+
+    auto lowerKey = TOwningKey(InitialRows_[lowerIndex].BeginKeys(), InitialRows_[lowerIndex].EndKeys());
+    auto upperRowIndex = InitialRows_.size() - 1;
+    auto upperKey = TOwningKey(
+        InitialRows_[upperRowIndex].BeginKeys(),
+        InitialRows_[upperRowIndex].EndKeys());
+
+    TestRangeReader(EOptimizeFor::Scan, writeSchema, readSchema, lowerKey, upperKey, SyncLastCommittedTimestamp);
 }
 
-TEST_F(TSimpleVersionedChunksTest, ReadManyRows)
+TEST_F(TVersionedChunksHeavyTest, EmptyReadWideSchemaScan)
 {
-    DoReadManyRows();
+    DoEmptyReadWideSchema(EOptimizeFor::Scan);
 }
 
-TEST_F(TSimpleVersionedChunksTest, WideSchemaBoundaryRow)
+TEST_F(TVersionedChunksHeavyTest, EmptyReadWideSchemaLookup)
 {
-    DoReadWideSchemaBoundaryRow();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TColumnarVersionedChunksTest
-    : public TVersionedChunksTestBase
-{
-public:
-    TColumnarVersionedChunksTest()
-        : TVersionedChunksTestBase(TTableSchema(ColumnSchemas, true, EOptimizedFor::Scan))
-    { }
-};
-
-TEST_F(TColumnarVersionedChunksTest, ReadEmptyWiderSchema)
-{
-    DoReadEmptyWiderSchema();
-}
-
-TEST_F(TColumnarVersionedChunksTest, ReadLastCommitted)
-{
-    DoReadLastCommitted();
-}
-
-TEST_F(TColumnarVersionedChunksTest, ReadByTimestamp)
-{
-    DoReadByTimestamp(true);
-}
-
-TEST_F(TColumnarVersionedChunksTest, ReadAllLimitsSchema)
-{
-    DoReadAllLimitsSchema();
-}
-
-TEST_F(TColumnarVersionedChunksTest, ReadEmpty)
-{
-    DoReadEmpty();
-}
-
-TEST_F(TColumnarVersionedChunksTest, ReadManyRows)
-{
-    DoReadManyRows();
-}
-
-TEST_F(TColumnarVersionedChunksTest, WideSchemaBoundaryRow)
-{
-    DoReadWideSchemaBoundaryRow();
+    DoEmptyReadWideSchema(EOptimizeFor::Lookup);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -97,34 +97,42 @@ CompressUnsignedVector(const TRange<T> values, ui64 maxValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-TCompressedUnsignedVectorReader<T>::TCompressedUnsignedVectorReader(const ui64* data)
+template <class T, bool Scan>
+TCompressedUnsignedVectorReader<T, Scan>::TCompressedUnsignedVectorReader(const ui64* data)
     : Data_(data + 1)
     , Size_(*data & MaskLowerBits(56))
     , Width_(*data >> 56)
-{ }
+{
+    if (Scan) {
+        UnpackValues();
+    }
+}
 
-template <class T>
-TCompressedUnsignedVectorReader<T>::TCompressedUnsignedVectorReader()
+template <class T, bool Scan>
+TCompressedUnsignedVectorReader<T, Scan>::TCompressedUnsignedVectorReader()
     : Data_(nullptr)
     , Size_(0)
     , Width_(0)
 { }
 
-template <class T>
-inline T TCompressedUnsignedVectorReader<T>::operator[] (size_t index) const
+template <class T, bool Scan>
+inline T TCompressedUnsignedVectorReader<T, Scan>::operator[] (size_t index) const
 {
-    return GetValue(index);
+    if (Scan) {
+        return Values_[index];
+    } else {
+        return GetValue(index);
+    }
 }
 
-template <class T>
-inline size_t TCompressedUnsignedVectorReader<T>::GetSize() const
+template <class T, bool Scan>
+inline size_t TCompressedUnsignedVectorReader<T, Scan>::GetSize() const
 {
     return Size_;
 }
 
-template <class T>
-inline size_t TCompressedUnsignedVectorReader<T>::GetByteSize() const
+template <class T, bool Scan>
+inline size_t TCompressedUnsignedVectorReader<T, Scan>::GetByteSize() const
 {
     if (Data_) {
         return (1 + ((Width_ * Size_ + 63ULL) >> 6ULL)) * sizeof(ui64);
@@ -133,8 +141,8 @@ inline size_t TCompressedUnsignedVectorReader<T>::GetByteSize() const
     }
 }
 
-template <class T>
-T TCompressedUnsignedVectorReader<T>::GetValue(size_t index) const
+template <class T, bool Scan>
+T TCompressedUnsignedVectorReader<T, Scan>::GetValue(size_t index) const
 {
     YASSERT(index < Size_);
 
@@ -146,7 +154,6 @@ T TCompressedUnsignedVectorReader<T>::GetValue(size_t index) const
     const ui64* word = Data_ + (bitIndex >> 6);
     ui8 offset = bitIndex & 0x3F;
 
-    // TODO(psushin): eliminate branching here.
     ui64 w1 = (*word) >> offset;
     if (offset + Width_ > 64) {
         ++word;
@@ -156,6 +163,35 @@ T TCompressedUnsignedVectorReader<T>::GetValue(size_t index) const
         return static_cast<T>(w1 & MaskLowerBits(Width_));
     }
 }
+
+template <class T, bool Scan>
+void TCompressedUnsignedVectorReader<T, Scan>::UnpackValues()
+{
+    Values_.resize(Size_, 0);
+
+    if (Width_ == 0) {
+        return;
+    }
+
+    const ui64* word = Data_;
+    ui8 offset = 0;
+
+    for (size_t index = 0; index < Size_; ++index) {
+        ui64 w1 = (*word) >> offset;
+        if (offset + Width_ > 64) {
+            ++word;
+            ui64 w2 = (*word & MaskLowerBits((offset + Width_) & 0x3F)) << (64 - offset);
+            Values_[index] = static_cast<T>(w1 | w2);
+        } else {
+            Values_[index] = static_cast<T>(w1 & MaskLowerBits(Width_));
+        }
+
+        offset = (offset + Width_) & 0x3F;
+        if (offset == 0) {
+            ++word;
+        }
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

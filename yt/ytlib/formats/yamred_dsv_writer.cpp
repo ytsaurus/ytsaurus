@@ -35,16 +35,32 @@ public:
         , Table_(config, true /* addCarriageReturn */) 
     {
         // We register column names in order to have correct size of NameTable_ in DoWrite method.
-        for (auto columnName : config->KeyColumnNames) {
+        for (const auto& columnName : config->KeyColumnNames) {
             KeyColumnIds_.push_back(nameTable->GetIdOrRegisterName(columnName));
         }
 
-        for (auto columnName : config->SubkeyColumnNames) {
+        for (const auto& columnName : config->SubkeyColumnNames) {
             SubkeyColumnIds_.push_back(nameTable->GetIdOrRegisterName(columnName));
         }
         
         UpdateEscapedColumnNames();
     }
+
+private:
+    const TYamredDsvFormatConfigPtr Config_;
+
+    std::vector<TNullable<TStringBuf>> RowValues_;
+
+    std::vector<int> KeyColumnIds_;
+    std::vector<int> SubkeyColumnIds_;
+    std::vector<Stroka> EscapedColumnNames_;
+
+    // We capture size of name table at the beginnig of #WriteRows
+    // and refer to the captured value, since name table may change asynchronously.
+    int NameTableSize_ = 0;
+
+    const TDsvTable Table_;
+
 
     // ISchemalessFormatWriter implementation
     virtual void DoWrite(const std::vector<TUnversionedRow>& rows) override
@@ -92,22 +108,6 @@ public:
         }
         TryFlushBuffer(true);
     }
-
-private:
-    const TYamredDsvFormatConfigPtr Config_;
-
-    std::vector<TNullable<TStringBuf>> RowValues_;
-    
-    std::vector<int> KeyColumnIds_;
-    std::vector<int> SubkeyColumnIds_;
-    std::vector<Stroka> EscapedColumnNames_;
-
-    // We capture size of name table at the beginnig of #WriteRows
-    // and refer to the captured value, since name table may change asynchronously.
-    int NameTableSize_ = 0;
-
-    const TDsvTable Table_;
-
 
     void WriteYamrKey(const std::vector<int>& columnIds)
     {

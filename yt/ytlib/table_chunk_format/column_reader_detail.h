@@ -179,6 +179,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <bool Scan>
 class TRleValueExtractorBase
 {
 public:
@@ -193,7 +194,8 @@ public:
     }
 
 protected:
-    TCompressedUnsignedVectorReader<ui64> RowIndexReader_;
+    using TRowIndexReader = TCompressedUnsignedVectorReader<ui64, Scan>;
+    TRowIndexReader RowIndexReader_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -520,7 +522,7 @@ protected:
 
     std::unique_ptr<IUnversionedSegmentReader> SegmentReader_;
 
-    virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex) = 0;
+    virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool scan = true) = 0;
 
     template <class TSegmentReader>
     std::unique_ptr<IUnversionedSegmentReader> DoCreateSegmentReader(const NProto::TSegmentMeta& meta)
@@ -545,6 +547,7 @@ protected:
         i64 lowerRowIndex,
         i64 upperRowIndex)
     {
+        // Use lookup segment readers while GetEqualRange.
         YCHECK(lowerRowIndex <= upperRowIndex);
 
         if (lowerRowIndex == upperRowIndex) {
@@ -556,12 +559,12 @@ protected:
 
         // Get lower limit for range.
         int lowerSegmentIndex = FindSegmentByRow(lowerRowIndex);
-        auto lowerSegmentReader = CreateSegmentReader(lowerSegmentIndex);
+        auto lowerSegmentReader = CreateSegmentReader(lowerSegmentIndex, false);
 
         while (lowerSegmentIndex < segmentLimit &&
             CompareValues<ValueType>(lowerSegmentReader->GetLastValue(), value) < 0)
         {
-            lowerSegmentReader = CreateSegmentReader(++lowerSegmentIndex);
+            lowerSegmentReader = CreateSegmentReader(++lowerSegmentIndex, false);
         }
 
         if (lowerRowIndex > GetSegmentStartRowIndex(lowerSegmentIndex)) {
@@ -572,12 +575,12 @@ protected:
 
         // Get upper limit for range.
         int upperSegmentIndex = lowerSegmentIndex;
-        auto upperSegmentReader = CreateSegmentReader(upperSegmentIndex);
+        auto upperSegmentReader = CreateSegmentReader(upperSegmentIndex, false);
 
         while (upperSegmentIndex < segmentLimit &&
             CompareValues<ValueType>(upperSegmentReader->GetLastValue(), value) <= 0)
         {
-            upperSegmentReader = CreateSegmentReader(++upperSegmentIndex);
+            upperSegmentReader = CreateSegmentReader(++upperSegmentIndex, false);
         }
 
         if (lowerRowIndex > GetSegmentStartRowIndex(upperSegmentIndex)) {

@@ -744,7 +744,8 @@ class TestSchedulerConfig(YTEnvSetup):
             },
             "map_operation_options": {
                 "spec_template": {
-                    "data_size_per_job": 2000
+                    "data_size_per_job": 2000,
+                    "max_failed_job_count": 10
                 }
             }
         }
@@ -778,6 +779,23 @@ class TestSchedulerConfig(YTEnvSetup):
 
         op = merge(in_=["//tmp/t_in"], out="//tmp/t_out")
         assert get("//sys/operations/{0}/@spec/data_size_per_job".format(op.id)) == 1000
+
+    def test_cypress_config(self):
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+
+        op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
+        assert get("//sys/operations/{0}/@spec/data_size_per_job".format(op.id)) == 2000
+        assert get("//sys/operations/{0}/@spec/max_failed_job_count".format(op.id)) == 10
+
+        set("//sys/scheduler/config", {"map_operation_options": {"spec_template": {"max_failed_job_count": 50}}})
+        time.sleep(0.5)
+
+        op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
+        assert get("//sys/operations/{0}/@spec/data_size_per_job".format(op.id)) == 2000
+        assert get("//sys/operations/{0}/@spec/max_failed_job_count".format(op.id)) == 50
+
 
 class TestSchedulerPools(YTEnvSetup):
     NUM_MASTERS = 3

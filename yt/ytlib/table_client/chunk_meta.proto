@@ -20,9 +20,6 @@ message TTableSchemaExt
 {
     repeated TColumnSchema columns = 1;
     optional bool strict = 2 [default = true];
-
-    // Default is Lookup (EOptimizedFor).
-    optional int32 optimized_for = 3 [default = 0];
 }
 
 message TNameTableExt

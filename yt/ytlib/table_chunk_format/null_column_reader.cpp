@@ -57,7 +57,8 @@ public:
         if (value.Type == EValueType::Null) {
             return std::make_pair(lowerRowIndex, upperRowIndex);
         } else {
-            return std::make_pair(lowerRowIndex, lowerRowIndex);
+            // Any other value is greater than null.
+            return std::make_pair(upperRowIndex, upperRowIndex);
         }
     }
     
