@@ -3648,34 +3648,6 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
     return true;
 }
 
-TKeyColumns TOperationControllerBase::GetCommonInputKeyPrefix(
-    std::function<bool(const TInputTable& table)> inputTableFilter)
-{
-    TKeyColumns commonKey;
-    for (const auto& referenceTable : InputTables) {
-        if (inputTableFilter(referenceTable)) {
-            commonKey = referenceTable.KeyColumns;
-            for (const auto& table : InputTables) {
-                if (inputTableFilter(table)) {
-                    if (table.KeyColumns.size() < commonKey.size()) {
-                        commonKey.resize(table.KeyColumns.size());
-                    }
-
-                    int i = 0;
-                    while (i < static_cast<int>(commonKey.size())) {
-                        if (commonKey[i] != table.KeyColumns[i]) {
-                            break;
-                        }
-                        ++i;
-                    }
-                    commonKey.resize(i);
-                }
-            }
-        }
-    }
-    return commonKey;
-}
-
 bool TOperationControllerBase::IsSortedOutputSupported() const
 {
     return false;
