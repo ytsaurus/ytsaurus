@@ -248,13 +248,16 @@ public:
         , TSchemafulDsvWriterBase(
             config,
             IdToIndexInRow)
+        , TableIndexColumnId_(Config_->EnableTableIndex && controlAttributesConfig->EnableTableIndex
+            ? nameTable->GetIdOrRegisterName(TableIndexColumnName)
+            : -1)
     {
-        if (Config_->EnableTableIndex && controlAttributesConfig->EnableTableIndex) {
-            TableIndexColumnId_ = nameTable->GetIdOrRegisterName(TableIndexColumnName);
-        }
         BlobOutput_ = GetOutputStream();
     }
-       
+
+private:
+    const int TableIndexColumnId_;
+
     // ISchemalessFormatWriter overrides.
     virtual void DoWrite(const std::vector<TUnversionedRow>& rows) override
     {
@@ -300,9 +303,6 @@ public:
         }    
         TryFlushBuffer(true);
     }
-
-private:
-    int TableIndexColumnId_ = -1;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

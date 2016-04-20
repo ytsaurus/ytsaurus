@@ -97,6 +97,8 @@ private:
             .SetPresent(isDynamic)
             .SetOpaque(true));
         descriptors->push_back("atomicity");
+        descriptors->push_back(TAttributeDescriptor("optimize_for")
+            .SetCustom(true));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -247,6 +249,22 @@ private:
         return TBase::SetBuiltinAttribute(key, value);
     }
     
+    virtual void ValidateCustomAttributeUpdate(
+        const Stroka& key,
+        const TNullable<TYsonString>& oldValue,
+        const TNullable<TYsonString>& newValue) override
+    {
+        if (key == "optimize_for") {
+            if (!newValue) {
+                ThrowCannotRemoveAttribute(key);
+            }
+            ConvertTo<NTableClient::EOptimizeFor>(*newValue);
+            return;
+        }
+
+        TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
+    }
+
     virtual void ValidateFetchParameters(
         const TChannel& channel,
         const std::vector<TReadRange>& ranges) override
@@ -482,4 +500,5 @@ ICypressNodeProxyPtr CreateTableNodeProxy(
 
 } // namespace NTableServer
 } // namespace NYT
+
 

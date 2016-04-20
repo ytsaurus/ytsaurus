@@ -952,7 +952,7 @@ public:
 
         using NYT::Persist;
         Persist(context, Endpoints);
-        Persist(context, KeyColumns);
+        Persist(context, SortKeyColumns);
         Persist(context, ManiacJobSpecTemplate);
     }
 
@@ -1026,14 +1026,11 @@ protected:
     std::vector<TKeyEndpoint> Endpoints;
 
     //! The actual (adjusted) key columns.
-    std::vector<Stroka> KeyColumns;
+    std::vector<Stroka> SortKeyColumns;
 
     TChunkSlicesFetcherPtr ChunkSlicesFetcher;
 
     TJobSpec ManiacJobSpecTemplate;
-
-
-    virtual TKeyColumns GetSpecKeyColumns() = 0;
 
     virtual bool ShouldSlicePrimaryTableByKeys()
     {
@@ -1048,15 +1045,6 @@ protected:
     virtual bool IsSingleStripeInput() const override
     {
         return false;
-    }
-
-    virtual void AdjustKeyColumns()
-    {
-        const auto& specKeyColumns = GetSpecKeyColumns();
-        LOG_INFO("Spec key columns are %v", specKeyColumns);
-
-        KeyColumns = CheckInputTablesSorted(specKeyColumns);
-        LOG_INFO("Adjusted key columns are %v", KeyColumns);
     }
 
     virtual void CustomPrepare() override
@@ -1081,7 +1069,7 @@ protected:
         ChunkSlicesFetcher = New<TChunkSlicesFetcher>(
             Config->Fetcher,
             ChunkSliceSize,
-            KeyColumns,
+            SortKeyColumns,
             ShouldSlicePrimaryTableByKeys(),
             InputNodeDirectory,
             GetCancelableInvoker(),
@@ -1115,6 +1103,7 @@ protected:
         ChunkSlicesFetcher->AddChunk(chunkSpec);
     }
 
+    virtual void AdjustKeyColumns() = 0;
     virtual void SortEndpoints() = 0;
     virtual void FindTeleportChunks() = 0;
     virtual void BuildTasks() = 0;
@@ -1199,9 +1188,18 @@ private:
         return IsLargeCompleteChunk(chunkSpec, Spec->JobIO->TableWriter->DesiredChunkSize);
     }
 
+    virtual void AdjustKeyColumns() override
+    {
+        const auto& specKeyColumns = Spec->MergeBy;
+        LOG_INFO("Spec key columns are %v", specKeyColumns);
+
+        SortKeyColumns = CheckInputTablesSorted(specKeyColumns);
+        LOG_INFO("Adjusted key columns are %v", SortKeyColumns);
+    }
+
     virtual void SortEndpoints() override
     {
-        int prefixLength = static_cast<int>(KeyColumns.size());
+        int prefixLength = static_cast<int>(SortKeyColumns.size());
         std::sort(
             Endpoints.begin(),
             Endpoints.end(),
@@ -1253,7 +1251,7 @@ private:
             if (currentChunkSpec) {
                 if (chunkSlice->GetChunkSpec() == currentChunkSpec) {
                     if (endpoint.Type == EEndpointType::Right &&
-                        CompareRows(maxKey, endpoint.MaxBoundaryKey, KeyColumns.size()) == 0)
+                        CompareRows(maxKey, endpoint.MaxBoundaryKey, SortKeyColumns.size()) == 0)
                     {
                         // The last slice of a full chunk.
                         currentChunkSpec.Reset();
@@ -1262,7 +1260,7 @@ private:
                         bool isManiacTeleport = CompareRows(
                             Endpoints[startTeleportIndex].GetKey(),
                             endpoint.GetKey(),
-                            KeyColumns.size()) == 0;
+                            SortKeyColumns.size()) == 0;
 
                         if (IsLargeEnoughToTeleport(*completeChunk) &&
                             (openedSlicesCount == 0 || isManiacTeleport)) {
@@ -1280,7 +1278,7 @@ private:
 
             // No current Teleport candidate.
             if (endpoint.Type == EEndpointType::Left &&
-                CompareRows(minKey, endpoint.MinBoundaryKey, KeyColumns.size()) == 0 &&
+                CompareRows(minKey, endpoint.MinBoundaryKey, SortKeyColumns.size()) == 0 &&
                 IsTeleportCandidate(chunkSlice->GetChunkSpec()))
             {
                 // The first slice of a full chunk.
@@ -1292,7 +1290,7 @@ private:
 
     virtual void BuildTasks() override
     {
-        const int prefixLength = static_cast<int>(KeyColumns.size());
+        const int prefixLength = static_cast<int>(SortKeyColumns.size());
 
         yhash_set<TChunkSlicePtr> globalOpenedSlices;
         TNullable<TOwningKey> lastBreakpoint = Null;
@@ -1450,11 +1448,6 @@ private:
         table.LockMode = ELockMode::Exclusive;
     }
 
-    virtual TKeyColumns GetSpecKeyColumns() override
-    {
-        return Spec->MergeBy;
-    }
-
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedMerge));
@@ -1465,7 +1458,7 @@ private:
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
-        ToProto(mergeJobSpecExt->mutable_key_columns(), KeyColumns);
+        ToProto(mergeJobSpecExt->mutable_key_columns(), SortKeyColumns);
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
         ManiacJobSpecTemplate.set_type(static_cast<int>(EJobType::UnorderedMerge));
@@ -1475,7 +1468,7 @@ private:
     {
         TSortedMergeControllerBase::CustomPrepare();
 
-        OutputTables[0].KeyColumns = KeyColumns;
+        OutputTables[0].KeyColumns = SortKeyColumns;
     }
 
 };
@@ -1560,6 +1553,9 @@ protected:
     int ForeignKeyColumnCount = 0;
 
     //! Not serialized.
+    int ReduceKeyColumnCount;
+
+    //! Not serialized.
     TNullable<int> TeleportOutputTable;
     //! Not serialized.
     std::vector<std::deque<TRefCountedChunkSpecPtr>> ForeignInputChunks;
@@ -1603,11 +1599,11 @@ protected:
         const TOwningKey& primaryMinKey,
         const TOwningKey& primaryMaxKey)
     {
-        YCHECK(ForeignKeyColumnCount > 0 && ForeignKeyColumnCount <= static_cast<int>(KeyColumns.size()));
+        YCHECK(ForeignKeyColumnCount > 0 && ForeignKeyColumnCount <= static_cast<int>(SortKeyColumns.size()));
 
         TOwningKey primaryMinPrefix;
         TOwningKey primaryMaxPrefix;
-        if (ForeignKeyColumnCount < static_cast<int>(KeyColumns.size())) {
+        if (ForeignKeyColumnCount < static_cast<int>(SortKeyColumns.size())) {
             primaryMinPrefix = GetKeyPrefix(primaryMinKey, ForeignKeyColumnCount);
             primaryMaxPrefix = GetKeyPrefixSuccessor(primaryMaxKey, ForeignKeyColumnCount);
         } else {
@@ -1703,14 +1699,9 @@ protected:
         return GetMemoryReserve(memoryReserveEnabled, Spec->Reducer);
     }
 
-    virtual TKeyColumns GetSpecKeyColumns() override
-    {
-        return Spec->ReduceBy;
-    }
-
     virtual void InitJobSpecTemplate() override
     {
-        YCHECK(!KeyColumns.empty());
+        YCHECK(!SortKeyColumns.empty());
 
         JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -1726,10 +1717,8 @@ protected:
             Files);
 
         auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        const auto& sortBy = GetCommonInputKeyPrefix(&TInputTable::IsPrimary);
-        YCHECK(sortBy.size() >= KeyColumns.size());
-        ToProto(reduceJobSpecExt->mutable_key_columns(), sortBy);
-        reduceJobSpecExt->set_reduce_key_column_count(KeyColumns.size());
+        ToProto(reduceJobSpecExt->mutable_key_columns(), SortKeyColumns);
+        reduceJobSpecExt->set_reduce_key_column_count(ReduceKeyColumnCount);
         reduceJobSpecExt->set_join_key_column_count(ForeignKeyColumnCount);
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
@@ -1819,12 +1808,20 @@ private:
 
     virtual void AdjustKeyColumns() override
     {
-        const auto& specKeyColumns = GetSpecKeyColumns();
-        LOG_INFO("Spec key columns are %v", specKeyColumns);
+        auto sortBy = Spec->SortBy.empty() ? Spec->ReduceBy : Spec->SortBy;
+        LOG_INFO("Spec key columns are %v", sortBy);
 
-        KeyColumns = CheckInputTablesSorted(specKeyColumns, &TInputTable::IsPrimary);
-        LOG_INFO("Adjusted key columns are %v", KeyColumns);
+        SortKeyColumns = CheckInputTablesSorted(sortBy, &TInputTable::IsPrimary);
 
+        if (SortKeyColumns.size() < Spec->ReduceBy.size() ||
+            !CheckKeyColumnsCompatible(SortKeyColumns, Spec->ReduceBy))
+        {
+            THROW_ERROR_EXCEPTION("Reduce key columns %v are not compatible with sort key columns %v",
+                Spec->ReduceBy,
+                SortKeyColumns);
+        }
+        ReduceKeyColumnCount = Spec->ReduceBy.size();
+        
         const auto& specForeignKeyColumns = Spec->JoinBy;
         ForeignKeyColumnCount = specForeignKeyColumns.size();
         if (ForeignKeyColumnCount != 0) {
@@ -1832,12 +1829,12 @@ private:
 
             CheckInputTablesSorted(specForeignKeyColumns, &TInputTable::IsForeign);
 
-            if (KeyColumns.size() < specForeignKeyColumns.size() ||
-                !CheckKeyColumnsCompatible(KeyColumns, specForeignKeyColumns))
+            if (Spec->ReduceBy.size() < specForeignKeyColumns.size() ||
+                !CheckKeyColumnsCompatible(Spec->ReduceBy, specForeignKeyColumns))
             {
-                    THROW_ERROR_EXCEPTION("Join key columns %v are not compatible with reduce columns %v",
+                    THROW_ERROR_EXCEPTION("Join key columns %v are not compatible with reduce key columns %v",
                         specForeignKeyColumns,
-                        KeyColumns);
+                        Spec->ReduceBy);
             }
         }
     }
@@ -1880,7 +1877,7 @@ private:
 
     virtual void FindTeleportChunks() override
     {
-        const int prefixLength = static_cast<int>(KeyColumns.size());
+        const int prefixLength = ReduceKeyColumnCount;
 
         TRefCountedChunkSpecPtr currentChunkSpec;
         int startTeleportIndex = -1;
@@ -1925,7 +1922,7 @@ private:
             currentChunkSpec.Reset();
             previousKey = key;
 
-            // No current Teleport candidate.
+            // No current teleport candidate.
             const auto& chunkSpec = endpoint.ChunkSlice->GetChunkSpec();
             TOwningKey maxKey, minKey;
             YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
@@ -1956,7 +1953,7 @@ private:
 
     virtual void BuildTasks() override
     {
-        const int prefixLength = static_cast<int>(KeyColumns.size());
+        const int prefixLength = ReduceKeyColumnCount;
 
         yhash_set<TChunkSlicePtr> openedSlices;
         TNullable<TOwningKey> lastBreakpoint = Null;
@@ -2034,11 +2031,6 @@ private:
     virtual TNullable<int> GetTeleportTableIndex() const override
     {
         return TeleportOutputTable;
-    }
-
-    virtual TKeyColumns GetSpecKeyColumns() override
-    {
-        return Spec->ReduceBy;
     }
 };
 
@@ -2121,13 +2113,10 @@ private:
     {
         // NB: Base member is not called intentionally.
 
-        const auto& specKeyColumns = GetSpecKeyColumns();
-        LOG_INFO("Spec key columns are %v", specKeyColumns);
+        LOG_INFO("Spec key columns are %v", Spec->JoinBy);
+        SortKeyColumns = CheckInputTablesSorted(Spec->JoinBy);
 
-        KeyColumns = CheckInputTablesSorted(specKeyColumns);
-        LOG_INFO("Adjusted key columns are %v", KeyColumns);
-
-        ForeignKeyColumnCount = KeyColumns.size();
+        ForeignKeyColumnCount = SortKeyColumns.size();
     }
 
     virtual void SortEndpoints() override
@@ -2165,11 +2154,6 @@ private:
             EndTaskIfLarge();
         }
         EndTaskIfActive();
-    }
-
-    virtual TKeyColumns GetSpecKeyColumns() override
-    {
-        return Spec->JoinBy;
     }
 
     virtual bool ShouldSlicePrimaryTableByKeys() override

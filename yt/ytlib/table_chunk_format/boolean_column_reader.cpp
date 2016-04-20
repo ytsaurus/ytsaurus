@@ -167,7 +167,7 @@ public:
     }
 
 private:
-    virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex) override
+    virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool /* scan */) override
     {
         using TSegmentReader = TDenseUnversionedSegmentReader<
             EValueType::Boolean,

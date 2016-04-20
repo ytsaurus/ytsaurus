@@ -616,8 +616,6 @@ public:
         auto nodeId = request->node_id();
         auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
         auto node = GetOrRegisterNode(nodeId, descriptor);
-        auto oldResourceLimits = node->GetResourceLimits();
-        auto oldResourceUsage = node->GetResourceUsage();
         // NB: Resource limits and usage of node should be updated even if
         // node is offline to avoid getting incorrect total limits when node becomes online.
         UpdateNodeResources(node, request->resource_limits(), request->resource_usage());
@@ -648,9 +646,9 @@ public:
         TFuture<void> scheduleJobsAsyncResult = VoidFuture;
 
         {
-            BeginNodeHeartbeatProcessing(node, oldResourceLimits, oldResourceUsage);
+            BeginNodeHeartbeatProcessing(node);
             auto heartbeatGuard = Finally([&] {
-                EndNodeHeartbeatProcessing(node, oldResourceLimits, oldResourceUsage);
+                EndNodeHeartbeatProcessing(node);
             });
 
             // NB: No exception must leave this try/catch block.
@@ -680,7 +678,9 @@ public:
                         Strategy_->ScheduleJobs(schedulingContext);
                     }
 
+                    TotalResourceUsage_ -= node->GetResourceUsage();
                     node->SetResourceUsage(schedulingContext->ResourceUsage());
+                    TotalResourceUsage_ += node->GetResourceUsage();
 
                     scheduleJobsAsyncResult = ProcessScheduledJobs(
                         schedulingContext,
@@ -1212,9 +1212,9 @@ private:
             const auto& rsp = rspOrError.Value();
             auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
 
+            auto mergedConfig = UpdateNode(InitialConfig_, configFromCypress);
             try {
-                Config_->Load(InitialConfig_, /* validate */ true, /* setDefaults */ true);
-                Config_->Load(configFromCypress, /* validate */ true, /* setDefaults */ false);
+                Config_->Load(mergedConfig, /* validate */ true, /* setDefaults */ true);
             } catch (const std::exception& ex) {
                 LOG_ERROR(ex, "Error updating cell scheduler configuration");
                 Config_->Load(oldConfig, /* validate */ true, /* setDefaults */ true);
@@ -1631,6 +1631,9 @@ private:
 
     void UpdateNodeResources(TExecNodePtr node, const TJobResources& limits, const TJobResources& usage)
     {
+        auto oldResourceLimits = node->GetResourceLimits();
+        auto oldResourceUsage = node->GetResourceUsage();
+
         // NB: Total limits are updated separately in heartbeat.
         if (limits.GetUserSlots() > 0) {
             if (node->GetResourceLimits().GetUserSlots() == 0 && node->GetMasterState() == ENodeState::Online) {
@@ -1645,40 +1648,37 @@ private:
             node->SetResourceLimits(ZeroJobResources());
             node->SetResourceUsage(ZeroJobResources());
         }
+
+        if (node->GetMasterState() == ENodeState::Online) {
+            TotalResourceLimits_ -= oldResourceLimits;
+            TotalResourceLimits_ += node->GetResourceLimits();
+            for (const auto& tag : node->SchedulingTags()) {
+                auto& resources = SchedulingTagResources_[tag];
+                resources -= oldResourceLimits;
+                resources += node->GetResourceLimits();
+            }
+
+            TotalResourceUsage_ -= oldResourceUsage;
+            TotalResourceUsage_ += node->GetResourceUsage();
+        }
     }
 
-    void BeginNodeHeartbeatProcessing(TExecNodePtr node, const TJobResources& oldResourceLimits, const TJobResources& /*oldResourceUsage*/)
+    void BeginNodeHeartbeatProcessing(TExecNodePtr node)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         node->SetHasOngoingHeartbeat(true);
 
         ConcurrentHeartbeatCount_ += 1;
-
-        // Update total resource limits _before_ processing the heartbeat to
-        // maintain exact values of total resource limits.
-        TotalResourceLimits_ -= oldResourceLimits;
-        TotalResourceLimits_ += node->GetResourceLimits();
-
-        for (const auto& tag : node->SchedulingTags()) {
-            auto& resources = SchedulingTagResources_[tag];
-            resources -= oldResourceLimits;
-            resources += node->GetResourceLimits();
-        }
     }
 
-    void EndNodeHeartbeatProcessing(TExecNodePtr node, const TJobResources& /*oldResourceLimits*/, const TJobResources& oldResourceUsage)
+    void EndNodeHeartbeatProcessing(TExecNodePtr node)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(node->GetHasOngoingHeartbeat());
 
         node->SetHasOngoingHeartbeat(false);
-
-        // Update total resource usage _after_ processing the heartbeat to avoid
-        // "unsaturated CPU" phenomenon.
-        TotalResourceUsage_ -= oldResourceUsage;
-        TotalResourceUsage_ += node->GetResourceUsage();
 
         ConcurrentHeartbeatCount_ -= 1;
         node->SetLastSeenTime(TInstant::Now());

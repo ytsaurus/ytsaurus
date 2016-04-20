@@ -11,6 +11,7 @@
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/block_id.h>
+#include <yt/ytlib/chunk_client/cache_reader.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -40,6 +41,9 @@ using NChunkClient::TReadLimit;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TableClientLogger;
+
+static const i64 CacheSize = 32 * 1024;
+static const i64 MinRowsPerRead = 32;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -219,15 +223,15 @@ public:
             }
 
             auto row = BlockReader_->GetRow(&MemoryPool_);
-            if (row) {
+            if (row && rows->back()) {
                 YASSERT(
                     rows->empty() ||
                     CompareRows(
                         rows->back().BeginKeys(), rows->back().EndKeys(),
                         row.BeginKeys(), row.EndKeys()) < 0);
-                rows->push_back(row);
-                ++RowCount_;
             }
+            rows->push_back(row);
+            ++RowCount_;
 
             ++CurrentRowIndex_;
             if (!BlockReader_->NextRow()) {
@@ -814,6 +818,10 @@ public:
         for (i64 index = 0; index < range.Size(); ++index) {
             if (!range[index]) {
                 continue;
+            } else if (range[index].GetWriteTimestampCount() == 0 && range[index].GetDeleteTimestampCount() == 0) {
+                // This row was created in order to compare with UpperLimit.
+                range[index] = TMutableVersionedRow();
+                continue;
             }
 
             for (auto* value = range[index].BeginValues(); value != range[index].EndValues(); ++value) {
@@ -989,6 +997,11 @@ public:
         int timestampReaderIndex = ChunkMeta_->ColumnMeta().columns().size() - 1;
         Columns_.emplace_back(RowBuilder_.GetTimestampReader(), timestampReaderIndex);
 
+        // Empirical formula to determine max rows per read for better cache friendliness.
+        MaxRowsPerRead_ = CacheSize / (KeyColumnReaders_.size() * sizeof(TUnversionedValue) +
+            ValueColumnReaders_.size() * sizeof(TVersionedValue));
+        MaxRowsPerRead_ = std::max(MaxRowsPerRead_, MinRowsPerRead);
+
         InitLowerRowIndex();
         InitUpperRowIndex();
 
@@ -1029,6 +1042,7 @@ public:
             for (const auto& column : Columns_) {
                 rowLimit = std::min(column.ColumnReader->GetReadyUpperRowIndex() - RowIndex_, rowLimit);
             }
+            rowLimit = std::min(rowLimit, MaxRowsPerRead_);
             YCHECK(rowLimit > 0);
             
             auto range = RowBuilder_.AllocateRows(rows, rowLimit, RowIndex_, SafeUpperRowIndex_);
@@ -1056,7 +1070,7 @@ public:
             } else if (RowIndex_ + rowLimit == HardUpperRowIndex_) {
                 Completed_ = true;
             }
-
+            
             RowBuilder_.ReadValues(range, RowIndex_);
 
             PerformanceCounters_->StaticChunkRowReadCount += range.Size();
@@ -1077,6 +1091,8 @@ public:
 private:
     const TReadLimit LowerLimit_;
     const TReadLimit UpperLimit_;
+
+    i64 MaxRowsPerRead_;
 
     i64 LowerRowIndex_;
     i64 SafeUpperRowIndex_;
@@ -1659,7 +1675,12 @@ TVersionedChunkLookupHashTablePtr CreateChunkLookupHashTable(
     TCachedVersionedChunkMetaPtr chunkMeta,
     TKeyComparer keyComparer)
 {
-    auto blockCache = New<TSimpleBlockCache>(blocks);
+    if (ETableChunkFormat(chunkMeta->ChunkMeta().version()) != ETableChunkFormat::VersionedSimple) {
+        LOG_INFO("Cannot create lookup hash table for %Qlv chunk format (ChunkId: %v)",
+            chunkMeta->GetChunkId(),
+            ETableChunkFormat(chunkMeta->ChunkMeta().version()));
+        return nullptr;
+    }
 
     if (chunkMeta->BlockMeta().blocks_size() > MaxBlockIndex) {
         LOG_INFO("Cannot create lookup hash table because chunk has too many blocks (ChunkId: %v, BlockCount: %v)",
@@ -1668,6 +1689,7 @@ TVersionedChunkLookupHashTablePtr CreateChunkLookupHashTable(
         return nullptr;
     }
 
+    auto blockCache = New<TSimpleBlockCache>(blocks);
     auto chunkSize = chunkMeta->BlockMeta().blocks(chunkMeta->BlockMeta().blocks_size() - 1).chunk_row_count();
 
     auto hashTable = New<TVersionedChunkLookupHashTable>(chunkSize);
@@ -1995,15 +2017,34 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     TKeyComparer keyComparer,
     TTimestamp timestamp)
 {
-    return New<TCacheBasedSimpleVersionedLookupChunkReader>(
-        std::move(chunkMeta),
-        std::move(blockCache),
-        std::move(lookupHashTable),
-        keys,
-        columnFilter,
-        std::move(performanceCounters),
-        std::move(keyComparer),
-        timestamp);
+    switch (ETableChunkFormat(chunkMeta->ChunkMeta().version())) {
+        case ETableChunkFormat::VersionedSimple:
+            return New<TCacheBasedSimpleVersionedLookupChunkReader>(
+                std::move(chunkMeta),
+                std::move(blockCache),
+                std::move(lookupHashTable),
+                keys,
+                columnFilter,
+                std::move(performanceCounters),
+                std::move(keyComparer),
+                timestamp);
+        case ETableChunkFormat::VersionedColumnar: {
+            auto underlyingReader = CreateCacheReader(chunkMeta->GetChunkId(), blockCache);
+
+            return New<TColumnarVersionedLookupChunkReader>(
+                New<TChunkReaderConfig>(),
+                std::move(chunkMeta),
+                std::move(underlyingReader),
+                std::move(blockCache),
+                keys,
+                columnFilter,
+                std::move(performanceCounters),
+                timestamp);
+        }
+
+        default:
+            YUNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2115,8 +2156,39 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 std::move(performanceCounters),
                 timestamp);
 
-        case ETableChunkFormat::VersionedColumnar:
-            YUNIMPLEMENTED();
+        case ETableChunkFormat::VersionedColumnar: {
+            auto underlyingReader = CreateCacheReader(chunkMeta->GetChunkId(), blockCache);
+
+            TReadLimit lowerLimit;
+            lowerLimit.SetKey(std::move(lowerBound));
+
+            TReadLimit upperLimit;
+            upperLimit.SetKey(std::move(upperBound));
+
+            if (timestamp == AllCommittedTimestamp) {
+                return New<TColumnarVersionedRangeChunkReader<TCompactionColumnarRowBuilder>>(
+                    New<TChunkReaderConfig>(),
+                    std::move(chunkMeta),
+                    std::move(underlyingReader),
+                    std::move(blockCache),
+                    std::move(lowerLimit),
+                    std::move(upperLimit),
+                    columnFilter,
+                    std::move(performanceCounters),
+                    timestamp);
+            } else {
+                return New<TColumnarVersionedRangeChunkReader<TScanColumnarRowBuilder>>(
+                    New<TChunkReaderConfig>(),
+                    std::move(chunkMeta),
+                    std::move(underlyingReader),
+                    std::move(blockCache),
+                    std::move(lowerLimit),
+                    std::move(upperLimit),
+                    columnFilter,
+                    std::move(performanceCounters),
+                    timestamp);
+            }
+        }
 
         default:
             YUNREACHABLE();

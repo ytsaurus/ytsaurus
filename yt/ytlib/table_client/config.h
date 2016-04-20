@@ -71,6 +71,8 @@ public:
     bool ValidateRowWeight;
     bool ValidateDuplicateIds;
 
+    EOptimizeFor OptimizeFor;
+
     TChunkWriterOptions()
     {
         RegisterParameter("validate_sorted", ValidateSorted)
@@ -79,6 +81,9 @@ public:
             .Default(false);
         RegisterParameter("validate_duplicate_ids", ValidateDuplicateIds)
             .Default(false);
+
+        RegisterParameter("optimize_for", OptimizeFor)
+            .Default(EOptimizeFor::Lookup);
     }
 };
 

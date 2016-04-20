@@ -34,11 +34,6 @@ class TestQuery(YTEnvSetup):
 
     yson_schema_attribute = "<schema=[{name=a; type=int64}; {name=b; type=int64}]>"
 
-    def _get_schema(self, columns, optimized_for):
-        schema = YsonList(columns)
-        schema.attributes["optimized_for"] = optimized_for
-        return schema
-
     def _sample_data(self, path="//tmp/t", chunks=3, stripe=3):
         create("table", path)
 
@@ -50,12 +45,14 @@ class TestQuery(YTEnvSetup):
 
         sort(in_=path, out=path, sort_by=["a", "b"])
 
-    def _create_table(self, path, schema, data):
+    def _create_table(self, path, schema, data, optimize_for = "lookup"):
         create("table", path,
                attributes={
                    "dynamic": True,
+                   "optimize_for" : optimize_for,
                    "schema": schema
                })
+
         self.sync_mount_table(path)
         insert_rows(path, data)
 
@@ -104,9 +101,10 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/t",
             attributes={
                 "dynamic": True,
-                "schema": self._get_schema([
+                "optimize_for": "scan",
+                "schema": [
                     {"name": "a", "type": "int64", "sort_order": "ascending"},
-                    {"name": "b", "type": "int64"}], "scan")
+                    {"name": "b", "type": "int64"}]
             })
 
         pivots = [[i*5] for i in xrange(0,20)]
@@ -134,9 +132,10 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/t",
             attributes={
                 "dynamic": True,
-                "schema": self._get_schema([
+                "optimize_for" : "scan",
+                "schema": [
                     {"name": "a", "type": "int64", "sort_order": "ascending"},
-                    {"name": "b", "type": "string"}], "scan")
+                    {"name": "b", "type": "string"}]
             })
 
         pivots = [[i*5] for i in xrange(0,20)]
@@ -166,10 +165,11 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/t",
             attributes={
                 "dynamic": True,
-                "schema": self._get_schema([
+                "optimize_for" : "scan",
+                "schema": [
                     {"name": "k", "type": "int64", "sort_order": "ascending"},
                     {"name": "u", "type": "int64"},
-                    {"name": "v", "type": "int64"}], "scan")
+                    {"name": "v", "type": "int64"}]
             })
 
         self.sync_mount_table("//tmp/t")
@@ -196,10 +196,10 @@ class TestQuery(YTEnvSetup):
 
         self._create_table(
             "//tmp/jl",
-            self._get_schema([
+            [
                 {"name": "a", "type": "int64", "sort_order": "ascending"},
                 {"name": "b", "type": "int64", "sort_order": "ascending"},
-                {"name": "c", "type": "int64"}], "scan"),
+                {"name": "c", "type": "int64"}],
             [
                 {"a": 1, "b": 2, "c": 80 },
                 {"a": 1, "b": 3, "c": 71 },
@@ -209,14 +209,16 @@ class TestQuery(YTEnvSetup):
                 {"a": 2, "b": 3, "c": 35 },
                 {"a": 2, "b": 4, "c": 26 },
                 {"a": 3, "b": 1, "c": 17 }
-            ]);
+            ],
+            "scan");
+
 
         self._create_table(
             "//tmp/jr",
-            self._get_schema([
+            [
                 {"name": "c", "type": "int64", "sort_order": "ascending"},
                 {"name": "d", "type": "int64"},
-                {"name": "e", "type": "int64"}], "scan"),
+                {"name": "e", "type": "int64"}],
             [
                 {"d": 1, "e": 2, "c": 80 },
                 {"d": 1, "e": 3, "c": 71 },
@@ -226,7 +228,8 @@ class TestQuery(YTEnvSetup):
                 {"d": 2, "e": 3, "c": 35 },
                 {"d": 2, "e": 4, "c": 26 },
                 {"d": 3, "e": 1, "c": 17 }
-            ]);
+            ],
+            "scan");
 
         expected = [
             {"a": 1, "b": 2, "c": 80, "d": 1, "e": 2},
@@ -333,9 +336,10 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/t",
             attributes={
                 "dynamic": True,
-                "schema": self._get_schema([
+                "optimize_for" : "scan",
+                "schema": [
                     {"name": "key", "type": "int64", "sort_order": "ascending"},
-                    {"name": "value", "type": "int64"}], "scan")
+                    {"name": "value", "type": "int64"}]
             })
 
         self.sync_mount_table("//tmp/t")
@@ -391,11 +395,12 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/t",
             attributes={
                 "dynamic": True,
-                "schema": self._get_schema([
+                "optimize_for" : "scan",
+                "schema": [
                     {"name": "hash", "type": "int64", "expression": "key2 / 2", "sort_order": "ascending"},
                     {"name": "key1", "type": "int64", "sort_order": "ascending"},
                     {"name": "key2", "type": "int64", "sort_order": "ascending"},
-                    {"name": "value", "type": "int64"}], "scan")
+                    {"name": "value", "type": "int64"}]
             })
 
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])
@@ -424,11 +429,12 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/t",
              attributes={
                  "dynamic": True,
-                 "schema": self._get_schema([
+                 "optimize_for" : "scan",
+                 "schema": [
                     {"name": "hash", "type": "int64", "expression": "key2 % 2", "sort_order": "ascending"},
                     {"name": "key1", "type": "int64", "sort_order": "ascending"},
                     {"name": "key2", "type": "int64", "sort_order": "ascending"},
-                    {"name": "value", "type": "int64"}], "scan")
+                    {"name": "value", "type": "int64"}]
              })
 
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])

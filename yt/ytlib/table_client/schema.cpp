@@ -153,16 +153,13 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
 
 TTableSchema::TTableSchema()
     : Strict_(false)
-    , OptimizedFor_(EOptimizedFor::Lookup)
 { }
 
 TTableSchema::TTableSchema(
     const std::vector<TColumnSchema>& columns,
-    bool strict,
-    EOptimizedFor optimizedFor)
+    bool strict)
     : Columns_(columns)
     , Strict_(strict)
-    , OptimizedFor_(optimizedFor)
 {
     for (const auto& column : Columns_) {
         if (column.SortOrder)
@@ -534,7 +531,6 @@ void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
     BuildYsonFluently(consumer)
         .BeginAttributes()
             .Item("strict").Value(schema.GetStrict())
-            .Item("optimized_for").Value(schema.GetOptimizedFor())
         .EndAttributes()
         .Value(schema.Columns());
 }
@@ -544,23 +540,20 @@ void Deserialize(TTableSchema& schema, INodePtr node)
     std::vector<TColumnSchema> columns = ConvertTo<std::vector<TColumnSchema>>(node);
     schema = TTableSchema(
         columns,
-        node->Attributes().Get<bool>("strict", true),
-        node->Attributes().Get<EOptimizedFor>("optimized_for", EOptimizedFor::Lookup));
+        node->Attributes().Get<bool>("strict", true));
 }
 
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
 {
     NYT::ToProto(protoSchema->mutable_columns(), schema.Columns());
     protoSchema->set_strict(schema.GetStrict());
-    protoSchema->set_optimized_for(static_cast<i32>(schema.GetOptimizedFor()));
 }
 
 void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema)
 {
     *schema = TTableSchema(
         FromProto<std::vector<TColumnSchema>>(protoSchema.columns()),
-        protoSchema.strict(),
-        EOptimizedFor(protoSchema.optimized_for()));
+        protoSchema.strict());
 }
 
 void FromProto(
@@ -577,8 +570,7 @@ void FromProto(
     }
     *schema = TTableSchema(
         columns,
-        protoSchema.strict(),
-        EOptimizedFor(protoSchema.optimized_for()));
+        protoSchema.strict());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
