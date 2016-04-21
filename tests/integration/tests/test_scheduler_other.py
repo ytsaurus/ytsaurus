@@ -675,7 +675,7 @@ class TestSchedulingTags(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         self.node = list(get("//sys/nodes"))[0]
-        set("//sys/nodes/{0}/@scheduling_tags".format(self.node), ["tagA", "tagB"])
+        set("//sys/nodes/{0}/@user_tags".format(self.node), ["tagA", "tagB"])
         # Wait applying scheduling tags.
         time.sleep(0.1)
 
@@ -689,7 +689,7 @@ class TestSchedulingTags(YTEnvSetup):
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
-        set("//sys/nodes/{0}/@scheduling_tags".format(self.node), [])
+        set("//sys/nodes/{0}/@user_tags".format(self.node), [])
         time.sleep(1.0)
         with pytest.raises(YtError):
             map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
@@ -698,7 +698,7 @@ class TestSchedulingTags(YTEnvSetup):
     def test_pools(self):
         self._prepare()
 
-        create("map_node", "//sys/pools/test_pool", attributes={"scheduling_tag": "tagA"})
+        create("map_node", "//sys/pools/test_pool", attributes={"node_tag": "tagA"})
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "test_pool"})
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
@@ -713,7 +713,7 @@ class TestSchedulingTags(YTEnvSetup):
         self._prepare()
         write_table("//tmp/t_in", [{"foo": "bar"} for _ in xrange(20)])
 
-        set("//sys/nodes/{0}/@scheduling_tags".format(self.node), ["tagB"])
+        set("//sys/nodes/{0}/@user_tags".format(self.node), ["tagB"])
         time.sleep(1.2)
         op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagB", "job_count": 20})
         time.sleep(0.8)

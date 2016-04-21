@@ -77,11 +77,11 @@ struct IOperationHost
     virtual int GetExecNodeCount() const = 0;
 
     //! Returns the descriptors of online exec nodes that can handle operations
-    //! marked with a given #schedulingTag.
+    //! marked with a given #tag.
     /*!
      *  \note Thread affinity: any
      */
-    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& schedulingTag) const = 0;
+    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& tag) const = 0;
 
     //! Called by a controller to notify the host that the operation has
     //! finished successfully.

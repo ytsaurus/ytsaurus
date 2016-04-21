@@ -33,7 +33,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
     //! A set of scheduling tags assigned to this node.
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<Stroka>, SchedulingTags);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<Stroka>, Tags);
 
     //! Last time when logging of jobs on node took place.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, LastJobsLogTime);

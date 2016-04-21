@@ -25,7 +25,7 @@ TSchedulingContextBase::TSchedulingContextBase(
     , CellTag_(cellTag)
     , Node_(node)
     , NodeDescriptor_(Node_->BuildExecDescriptor())
-    , SchedulingTags_(Node_->SchedulingTags())
+    , NodeTags_(Node_->Tags())
 { }
 
 const TExecNodeDescriptor& TSchedulingContextBase::GetNodeDescriptor() const
@@ -67,7 +67,7 @@ bool TSchedulingContextBase::CanStartMoreJobs() const
 
 bool TSchedulingContextBase::CanSchedule(const TNullable<Stroka>& tag) const
 {
-    return !tag || SchedulingTags_.find(*tag) != SchedulingTags_.end();
+    return !tag || NodeTags_.find(*tag) != NodeTags_.end();
 }
 
 void TSchedulingContextBase::StartJob(TOperationPtr operation, const TJobStartRequest& jobStartRequest)

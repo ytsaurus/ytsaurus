@@ -254,7 +254,7 @@ public:
     virtual void EndHeartbeat() override
     { }
 
-    virtual TNullable<Stroka> GetSchedulingTag() const
+    virtual TNullable<Stroka> GetNodeTag() const
     {
         return Null;
     }
@@ -577,7 +577,7 @@ public:
             return;
         }
 
-        if (!context.SchedulingContext->CanSchedule(GetSchedulingTag())) {
+        if (!context.SchedulingContext->CanSchedule(GetNodeTag())) {
             attributes.Active = false;
             return;
         }
@@ -981,7 +981,7 @@ public:
             now);
     }
 
-    virtual TNullable<Stroka> GetSchedulingTag() const override
+    virtual TNullable<Stroka> GetNodeTag() const override
     {
         return Config_->SchedulingTag;
     }
@@ -1039,7 +1039,7 @@ private:
 
     TJobResources ComputeResourceLimits() const
     {
-        auto poolLimits = Host->GetResourceLimits(GetSchedulingTag()) * Config_->MaxShareRatio;
+        auto poolLimits = Host->GetResourceLimits(GetNodeTag()) * Config_->MaxShareRatio;
         return Min(poolLimits, Config_->ResourceLimits->ToJobResources());
     }
 
@@ -1121,7 +1121,7 @@ public:
             return;
         }
 
-        if (!context.SchedulingContext->CanSchedule(GetSchedulingTag())) {
+        if (!context.SchedulingContext->CanSchedule(GetNodeTag())) {
             attributes.Active = false;
             return;
         }
@@ -1243,7 +1243,7 @@ public:
         return Spec_->MaxShareRatio;
     }
 
-    virtual TNullable<Stroka> GetSchedulingTag() const override
+    virtual TNullable<Stroka> GetNodeTag() const override
     {
         return Spec_->SchedulingTag;
     }
@@ -1261,7 +1261,7 @@ public:
 
     virtual const TJobResources& ResourceLimits() const override
     {
-        ResourceLimits_ = Host->GetResourceLimits(GetSchedulingTag()) * Spec_->MaxShareRatio;
+        ResourceLimits_ = Host->GetResourceLimits(GetNodeTag()) * Spec_->MaxShareRatio;
 
         auto perTypeLimits = Spec_->ResourceLimits->ToJobResources();
         ResourceLimits_ = Min(ResourceLimits_, perTypeLimits);
@@ -1636,7 +1636,7 @@ public:
         return StrategyConfig_->FairSharePreemptionTimeout;
     }
 
-    virtual TNullable<Stroka> GetSchedulingTag() const override
+    virtual TNullable<Stroka> GetNodeTag() const override
     {
         return Null;
     }

@@ -32,11 +32,11 @@ struct ISchedulerStrategyHost
     DECLARE_INTERFACE_SIGNAL(void(NYTree::INodePtr pools), PoolsUpdated);
 
     virtual TJobResources GetTotalResourceLimits() = 0;
-    virtual TJobResources GetResourceLimits(const TNullable<Stroka>& schedulingTag) = 0;
+    virtual TJobResources GetResourceLimits(const TNullable<Stroka>& tag) = 0;
 
     virtual void ActivateOperation(const TOperationId& operationId) = 0;
 
-    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& schedulingTag) const = 0;
+    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& tag) const = 0;
     virtual int GetExecNodeCount() const = 0;
     virtual int GetTotalNodeCount() const = 0;
 };
