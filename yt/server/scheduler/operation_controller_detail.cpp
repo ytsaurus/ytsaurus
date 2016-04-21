@@ -3428,10 +3428,15 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
         }
     };
 
-    // TODO(ignat): we slice on two parts even if TotalEstimatedInputDataSize very small.
+    double multiplier = Config->SliceDataSizeMultiplier;
+    // Non-trivial multiplier should be used only if input data size is large enough.
+    // Otherwise we do not want to have more slices than job count.
+    if (TotalEstimatedInputDataSize < maxSliceDataSize) {
+        multiplier = 1.0;
+    }
     i64 sliceDataSize = std::min(
         maxSliceDataSize,
-        (i64)std::max(Config->SliceDataSizeMultiplier * TotalEstimatedInputDataSize / *jobCount, 1.0));
+        (i64)std::max(multiplier * TotalEstimatedInputDataSize / *jobCount, 1.0));
 
     for (const auto& chunkSpec : chunkSpecs) {
         int oldSize = result.size();
