@@ -990,7 +990,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Start scheduler state cleanup");
+        LOG_INFO("Starting scheduler state cleanup");
 
         auto responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Stop();
@@ -1001,7 +1001,7 @@ private:
         auto operations = IdToOperation_;
         for (const auto& pair : operations) {
             auto operation = pair.second;
-            LOG_INFO("Forgiving operation %v", operation->GetId());
+            LOG_INFO("Forgetting operation %v", operation->GetId());
             if (!operation->IsFinishedState()) {
                 operation->GetController()->Abort();
                 SetOperationFinalState(
@@ -1027,7 +1027,7 @@ private:
 
         Strategy_->ResetState();
 
-        LOG_INFO("Finish scheduler state cleanup");
+        LOG_INFO("Finished scheduler state cleanup");
     }
 
     TError GetMasterDisconnectedError()
