@@ -255,11 +255,12 @@ public:
 
         RegisterParameter("min_partition_size", MinPartitionSize)
             .Default(256 * 1024 * 1024)
-            .GreaterThan(1024);
+            .GreaterThan(1);
 
         RegisterParameter("min_uncompressed_block_size", MinUncompressedBlockSize)
             .Default(1024 * 1024)
-            .GreaterThan(1024);
+            // Useful for tests.
+            .GreaterThanOrEqual(1);
     }
 };
 
