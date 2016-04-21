@@ -75,9 +75,9 @@ def test_yson_table_switch():
 
     yson_rows = format.load_rows(StringIO(input))
     parsed_rows = [dict(yson) for yson in yson_rows]
-    true_input_rows = [{'a': 1, 'input_table_index': 0, '@table_index': 0, "@row_index": 0}, 
-                       {'a': 1, '@table_index': 1, 'input_table_index': 1, "@row_index": 1},
-                       {'b': 2, '@table_index': 1, 'input_table_index': 1, "@row_index": 2}]
+    true_input_rows = [{'a': 1, '@table_index': 0, "@row_index": 0},
+                       {'a': 1, '@table_index': 1, "@row_index": 1},
+                       {'b': 2, '@table_index': 1, "@row_index": 2}]
     assert true_input_rows == parsed_rows
     output_rows = [{'a': 1}, {'a': 1, '@table_index': 1}, {'b': 2, '@table_index': 1}]
     stream = StringIO()

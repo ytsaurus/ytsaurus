@@ -109,7 +109,6 @@ class TestTableCommands(object):
 
     def test_write_many_chunks(self):
         with set_config_option("write_retries/chunk_size", 1):
-            yt.config["write_retries"]["chunk_size"] = 1
             table = TEST_DIR + "/table"
             for i in xrange(3):
                 yt.write_table("<append=%true>" + table, [{"x": 1}, {"y": 2}, {"z": 3}])

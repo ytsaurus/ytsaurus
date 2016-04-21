@@ -239,7 +239,7 @@ def remove(path, recursive=False, force=False, client=None):
 def create(type, path=None, recursive=False, ignore_existing=False, attributes=None, client=None):
     """Create Cypress node.
 
-    :param type: (one of "table", "file", "map_node", "list_node"...) TODO(veronikaiv): list all types
+    :param type: (one of "table", "file", "map_node", "list_node"...)
     :param path: (string or `TablePath`)
     :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
     :param attributes: (dict)
