@@ -38,6 +38,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortJob));
     }
 
 private:
@@ -112,6 +113,17 @@ private:
             .ValueOrThrow();
 
         ToProto(response->mutable_result(), result.Data());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, AbortJob)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        WaitFor(Bootstrap_->GetScheduler()->AbortJob(jobId))
+            .ThrowOnError();
+
         context->Reply();
     }
 };

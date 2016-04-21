@@ -176,6 +176,10 @@ def poll_job_shell(job_id, **kwargs):
     kwargs = {"job_id": job_id, "parameters": yson.dumps(kwargs)};
     return yson.loads(execute_command('poll_job_shell', kwargs));
 
+def abort_job(job_id, **kwargs):
+    kwargs["job_id"] = job_id
+    execute_command('abort_job', kwargs)
+
 def lock(path, waitable=False, **kwargs):
     kwargs["path"] = path
     kwargs["waitable"] = waitable
