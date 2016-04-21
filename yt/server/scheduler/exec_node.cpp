@@ -36,7 +36,7 @@ const Stroka& TExecNode::GetInterconnectAddress() const
 
 bool TExecNode::CanSchedule(const TNullable<Stroka>& tag) const
 {
-    return !tag || SchedulingTags_.find(*tag) != SchedulingTags_.end();
+    return !tag || Tags_.find(*tag) != Tags_.end();
 }
 
 TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
