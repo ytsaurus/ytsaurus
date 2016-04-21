@@ -1,0 +1,118 @@
+\"
+\" zstd.1: This is a manual page for 'zstd' program. This file is part of the
+\" zstd <http://www.zstd.net/> project.
+\" Author: Yann Collet
+\"
+
+\" No hyphenation
+.hy 0
+.nr HY 0
+
+.TH zstd "1" "2015-08-22" "zstd" "User Commands"
+.SH NAME
+\fBzstd, unzstd, zstdcat\fR - Compress or decompress .zst files
+
+.SH SYNOPSIS
+.TP 5
+\fBzstd\fR [\fBOPTIONS\fR] [-|INPUT-FILE] [-o <OUTPUT-FILE>]
+.PP
+.B unzstd
+is equivalent to
+.BR "zstd \-d" 
+.br
+.B zstdcat
+is equivalent to
+.BR "zstd \-dc" 
+.br
+
+.SH DESCRIPTION
+.PP
+\fBzstd\fR is a fast lossless compression algorithm.
+It is based on the \fBLZ77\fR family, with further FSE & huff0 entropy stages.
+\fBzstd\fR offers configurable compression speed, with fast modes at > 200 MB/s per core.
+It also features a very fast decoder, with speed > 500 MB/s per core.
+
+\fBzstd\fR command line is generally similar to gzip, but features the following differences :
+ - Original files are preserved
+ - By default, when compressing a single file, \fBzstd\fR displays progress notifications and result summary.
+     Use \fB-q\fR to turn them off
+
+
+\fBzstd\fR supports the following options :
+
+.SH OPTIONS
+.TP
+.B \-#
+ # compression level [1-21] (default:1)
+.TP
+.BR \-d ", " --decompress
+ decompression
+.TP
+.B \-D file
+ use `file` as Dictionary to compress or decompress FILE(s)
+.TP
+.B \-o file
+ save result into `file` (only possible with a single input FILE)
+.TP
+.BR \-f ", " --force
+ overwrite output without prompting
+.TP
+.BR \-h/\-H ", " --help
+ display help/long help and exit
+.TP
+.BR \-V ", " --version
+ display Version number and exit
+.TP
+.BR \-v ", " --verbose
+ verbose mode
+.TP
+.BR \-q ", " --quiet
+ suppress warnings and notifications; specify twice to suppress errors too
+.TP
+.BR \-c ", " --stdout
+ force write to standard output, even if it is the console
+
+.SH DICTIONARY
+.PP
+\fBzstd\fR offers \fIdictionary\fR compression, useful for very small files and messages.
+It's possible to train \fBzstd\fR with some samples, the result of which is saved into a file called `dictionary`.
+Then during compression and decompression, make reference to the same dictionary.
+It will improve compression ratio of small files.
+Typical gains range from ~10% (at 64KB) to x5 better (at <1KB).
+.TP
+.B \--train FILEs
+ use FILEs as training set to create a dictionary.
+ The training set should contain a lot of small files (> 100).
+ and weight typically 100x the target dictionary size
+ (for example, 10 MB for a 100 KB dictionary)
+.TP
+.B \-o file
+ dictionary saved into `file` (default: dictionary)
+.TP
+.B \--maxdict #
+ limit dictionary to specified size (default : 112640) 
+.TP
+.B \-s#
+ dictionary selectivity level (default: 9)
+ the smaller the value, the denser the dictionary, improving its efficiency but reducing its possible maximum size.
+
+.SH BENCHMARK
+.TP
+.B \-b#
+ benchmark file(s) using compression level #
+.TP
+.B \-i#
+ iteration loops [1-9](default : 3), benchmark mode only
+.TP
+.B \-B#
+ cut file into independent blocks of size # (default: no block)
+.TP
+.B \-r#
+ test all compression levels from 1 to # (default: disabled)
+
+
+.SH BUGS
+Report bugs at:- https://github.com/Cyan4973/zstd/issues
+
+.SH AUTHOR
+Yann Collet

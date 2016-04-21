@@ -1,0 +1,30 @@
+language: c
+
+before_install:
+  - sudo apt-get update  -qq
+  - sudo apt-get install -qq clang
+  - sudo apt-get install -qq g++-multilib
+  - sudo apt-get install -qq gcc-multilib
+  - sudo apt-get install -qq valgrind
+
+env:
+  - ZSTD_TRAVIS_CI_ENV=travis-install
+  - ZSTD_TRAVIS_CI_ENV=cmaketest
+  - ZSTD_TRAVIS_CI_ENV=clangtest  
+  - ZSTD_TRAVIS_CI_ENV=gpptest  
+  - ZSTD_TRAVIS_CI_ENV=armtest-w-install  
+  - ZSTD_TRAVIS_CI_ENV=test  
+  - ZSTD_TRAVIS_CI_ENV="-C programs test32"  
+  - ZSTD_TRAVIS_CI_ENV="-C programs test-zstd_nolegacy"
+  - ZSTD_TRAVIS_CI_ENV=usan
+  - ZSTD_TRAVIS_CI_ENV=asan
+  - ZSTD_TRAVIS_CI_ENV=asan32
+  - ZSTD_TRAVIS_CI_ENV="-C programs valgrindTest"  
+  
+compiler: gcc
+
+script: 
+  - make $ZSTD_TRAVIS_CI_ENV
+
+matrix:
+  fast_finish: true
