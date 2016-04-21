@@ -59,6 +59,9 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TMulticellStates, MulticellStates);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState*, LocalStatePtr);
 
+    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, UserTags);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, NodeTags);
+
     DEFINE_BYVAL_RW_PROPERTY(TInstant, RegisterTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
@@ -135,6 +138,8 @@ public:
     ENodeState GetAggregatedState() const;
     //! Sets the local state by dereferencing local state pointer.
     void SetLocalState(ENodeState state) const;
+
+    std::vector<Stroka> GetTags() const;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

@@ -166,9 +166,10 @@ void TBootstrap::DoRun()
 
     auto localAddresses = GetLocalAddresses();
 
-    LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v)",
+    LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
         GetValues(localAddresses),
-        Config->ClusterConnection->PrimaryMaster->Addresses);
+        Config->ClusterConnection->PrimaryMaster->Addresses,
+        Config->Tags);
 
     MemoryUsageTracker = std::make_unique<TNodeMemoryTracker>(
         Config->ResourceLimits->Memory,
@@ -248,6 +249,7 @@ void TBootstrap::DoRun()
     MasterConnector = New<NDataNode::TMasterConnector>(
         Config->DataNode,
         localAddresses,
+        Config->Tags,
         this);
 
     MasterConnector->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));

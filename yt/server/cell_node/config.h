@@ -104,6 +104,13 @@ public:
     //! Known node addresses.
     NNodeTrackerClient::TAddressMap Addresses;
 
+    //! A set of tags to be assigned to this node.
+    /*!
+     * These tags are merged with others (e.g. provided by user and provided by master) to form
+     * the full set of tags.
+     */
+    std::vector<Stroka> Tags;
+
     //! Limits for the node process and all jobs controlled by it.
     TResourceLimitsConfigPtr ResourceLimits;
 
@@ -129,6 +136,8 @@ public:
         RegisterParameter("batching_chunk_service", BatchingChunkService)
             .DefaultNew();
         RegisterParameter("addresses", Addresses)
+            .Default();
+        RegisterParameter("tags", Tags)
             .Default();
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
