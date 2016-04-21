@@ -98,8 +98,8 @@ class TestLocalMode(object):
 
             table = "//test/table"
             client.create("table", table)
-            client.write_table(table, ["a=b\n"])
-            assert "a=b\n" == client.read_table(table, raw=True).read()
+            client.write_table(table, [{"a": "b"}])
+            assert [{"a": "b"}] == list(client.read_table(table))
 
             assert set(client.search("//test")) == set(["//test", "//test/folder", table])
         finally:
@@ -111,7 +111,7 @@ class TestLocalMode(object):
         try:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = Yt(proxy="localhost:{0}".format(proxy_port))
-            assert list(client.read_table("//table", format="dsv")) == ["x=1\ty=1\n"]
+            assert list(client.read_table("//table")) == [{"x": "1", "y": "1"}]
             assert client.get_type("//subdir") == "map_node"
             assert client.get_attribute("//table", "myattr") == 4
             assert client.get_attribute("//subdir", "other_attr") == 42
