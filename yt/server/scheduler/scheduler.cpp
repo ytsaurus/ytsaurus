@@ -515,6 +515,13 @@ public:
             .Run();
     }
 
+    TFuture<void> AbortJob(const TJobId& jobId)
+    {
+        return BIND(&TImpl::DoAbortJob, MakeStrong(this), jobId)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+    }
+
     TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job)
     {
         const auto& address = job->GetNode()->GetInterconnectAddress();
@@ -2372,6 +2379,25 @@ private:
         return TYsonString(rsp->result());
     }
 
+    void DoAbortJob(const TJobId& jobId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto job = GetJobOrThrow(jobId);
+
+        if (job->GetState() != EJobState::Running &&
+            job->GetState() != EJobState::Waiting)
+        {
+            THROW_ERROR_EXCEPTION("Cannot abort job %v since it is not running",
+                jobId);
+        }
+
+        TJobResult result;
+        ToProto(result.mutable_error(), TError("Job aborted by user request")
+            << TErrorAttribute("abort_reason", EAbortReason::UserRequest));
+        OnJobAborted(job, &result);
+    }
+
     void DoCompleteOperation(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2887,6 +2913,11 @@ TFuture<void> TScheduler::AbandonJob(const TJobId& jobId)
 TFuture<TYsonString> TScheduler::PollJobShell(const TJobId& jobId, const TYsonString& parameters)
 {
     return Impl_->PollJobShell(jobId, parameters);
+}
+
+TFuture<void> TScheduler::AbortJob(const TJobId& jobId)
+{
+    return Impl_->AbortJob(jobId);
 }
 
 void TScheduler::ProcessHeartbeat(TCtxHeartbeatPtr context)

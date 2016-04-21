@@ -97,6 +97,22 @@ public:
 
 };
 
+struct TAbortJobCommand
+    : public TTypedCommand<NApi::TAbortJobOptions>
+{
+private:
+    NJobTrackerClient::TJobId JobId;
+
+public:
+    TAbortJobCommand()
+    {
+        RegisterParameter("job_id", JobId);
+    }
+
+    void Execute(ICommandContextPtr context);
+
+};
+
 //////////////////////////////////////////////////////////////////////////////
 
 class TStartOperationCommandBase

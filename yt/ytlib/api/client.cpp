@@ -1284,6 +1284,10 @@ public:
         const TYsonString& parameters,
         const TPollJobShellOptions& options),
         (jobId, parameters, options))
+    IMPLEMENT_METHOD(void, AbortJob, (
+        const TJobId& jobId,
+        const TAbortJobOptions& options),
+        (jobId, options))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -2615,6 +2619,17 @@ private:
             .ValueOrThrow();
 
         return TYsonString(rsp->result());
+    }
+
+    void DoAbortJob(
+        const TJobId& jobId,
+        const TAbortJobOptions& /*options*/)
+    {
+        auto req = JobProberProxy_->AbortJob();
+        ToProto(req->mutable_job_id(), jobId);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
     }
 };
 

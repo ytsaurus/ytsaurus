@@ -348,6 +348,35 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
+    @unix_only
+    def test_abort_job(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        for i in xrange(5):
+            write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="abort_job",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat",
+            spec={
+                "data_size_per_job": 1
+            })
+
+        abort_job(op.jobs[3])
+
+        op.resume_jobs()
+        op.track()
+
+        assert len(read_table("//tmp/t2")) == 5
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/user_request".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op.id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
+
 ##################################################################
 
 class TestSchedulerMapCommands(YTEnvSetup):

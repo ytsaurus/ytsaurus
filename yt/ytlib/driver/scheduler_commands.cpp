@@ -67,6 +67,14 @@ void TPollJobShellCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TAbortJobCommand::Execute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->AbortJob(JobId))
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TStartOperationCommandBase::Execute(ICommandContextPtr context)
 {
     auto asyncOperationId = context->GetClient()->StartOperation(
