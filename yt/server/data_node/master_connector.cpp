@@ -80,9 +80,11 @@ static const auto& Logger = DataNodeLogger;
 TMasterConnector::TMasterConnector(
     TDataNodeConfigPtr config,
     const TAddressMap& localAddresses,
+    const std::vector<Stroka>& nodeTags,
     TBootstrap* bootstrap)
     : Config_(config)
     , LocalAddresses_(localAddresses)
+    , NodeTags_(nodeTags)
     , Bootstrap_(bootstrap)
     , ControlInvoker_(bootstrap->GetControlInvoker())
     , LocalDescriptor_(LocalAddresses_)
@@ -276,6 +278,7 @@ void TMasterConnector::RegisterAtMaster()
     *req->mutable_statistics() = ComputeStatistics();
     ToProto(req->mutable_addresses(), LocalAddresses_);
     ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
+    ToProto(req->mutable_tags(), NodeTags_);
 
     LOG_INFO("Node register request sent to primary master (%v)",
         *req->mutable_statistics());

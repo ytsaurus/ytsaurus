@@ -49,6 +49,7 @@ public:
     TMasterConnector(
         TDataNodeConfigPtr config,
         const NNodeTrackerClient::TAddressMap& localAddresses,
+        const std::vector<Stroka>& nodeTags,
         NCellNode::TBootstrap* bootstrap);
 
     //! Starts interaction with master.
@@ -94,6 +95,7 @@ private:
 
     const TDataNodeConfigPtr Config_;
     const NNodeTrackerClient::TAddressMap LocalAddresses_;
+    const std::vector<Stroka> NodeTags_;
     const NCellNode::TBootstrap* Bootstrap_;
     const IInvokerPtr ControlInvoker_;
 

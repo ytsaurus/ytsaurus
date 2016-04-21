@@ -31,6 +31,7 @@ message TReqRegisterNode
     required TNodeStatistics statistics = 2;
     optional NYT.NProto.TGuid lease_transaction_id = 3;
     optional int32 node_id = 4;
+    repeated string tags = 5;
 }
 
 message TRspRegisterNode

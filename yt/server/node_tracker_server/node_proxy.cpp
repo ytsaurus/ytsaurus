@@ -51,8 +51,10 @@ private:
             .SetReplicated(true));
         descriptors->push_back("state");
         descriptors->push_back("multicell_states");
+        descriptors->push_back("user_tags");
+        descriptors->push_back("tags");
+        descriptors->push_back("last_seen_time");
         bool isGood = node->GetLocalState() == ENodeState::Registered || node->GetLocalState() == ENodeState::Online;
-        descriptors->push_back(TAttributeDescriptor("last_seen_time"));
         descriptors->push_back(TAttributeDescriptor("register_time")
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor("lease_transaction_id")
@@ -115,6 +117,18 @@ private:
                 .DoMapFor(node->MulticellStates(), [] (TFluentMap fluent, const std::pair<TCellTag, ENodeState>& pair) {
                     fluent.Item(ToString(pair.first)).Value(pair.second);
                 });
+            return true;
+        }
+
+        if (key == "user_tags") {
+            BuildYsonFluently(consumer)
+                .Value(node->UserTags());
+            return true;
+        }
+
+        if (key == "tags") {
+            BuildYsonFluently(consumer)
+                .Value(node->GetTags());
             return true;
         }
 
@@ -260,6 +274,11 @@ private:
 
         if (key == "resource_limits_overrides") {
             node->ResourceLimitsOverrides() = ConvertTo<TNodeResourceLimitsOverrides>(value);
+            return true;
+        }
+
+        if (key == "user_tags") {
+            node->UserTags() = ConvertTo<std::vector<Stroka>>(value);
             return true;
         }
 

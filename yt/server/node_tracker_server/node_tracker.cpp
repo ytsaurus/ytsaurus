@@ -612,6 +612,7 @@ private:
         const auto& address = GetDefaultAddress(addresses);
         const auto& statistics = request->statistics();
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
+        auto tags = FromProto<std::vector<Stroka>>(request->tags());
 
         // Check lease transaction.
         TTransaction* leaseTransaction = nullptr;
@@ -658,6 +659,7 @@ private:
         }
 
         node->SetLocalState(ENodeState::Registered);
+        node->NodeTags() = tags;
         node->Statistics() = statistics;
 
         UpdateLastSeenTime(node);
@@ -669,10 +671,11 @@ private:
             RegisterLeaseTransaction(node);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, LeaseTransactionId: %v, %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
             node->GetId(),
             address,
             leaseTransactionId,
+            tags,
             statistics);
 
         NodeRegistered_.Fire(node);

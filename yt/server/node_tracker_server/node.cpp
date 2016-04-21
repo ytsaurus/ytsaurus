@@ -17,6 +17,7 @@
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/address.h>
 
 #include <atomic>
 
@@ -123,6 +124,22 @@ void TNode::SetLocalState(ENodeState state) const
     *LocalStatePtr_ = state;
 }
 
+
+std::vector<Stroka> TNode::GetTags() const
+{
+    std::vector<Stroka> result;
+
+    result.insert(result.end(), UserTags_.begin(), UserTags_.end());
+    result.push_back(Stroka(GetServiceHostName(GetDefaultAddress())));
+    if (Rack_) {
+        result.push_back(Rack_->GetName());
+    }
+
+    std::sort(result.begin(), result.end());
+    result.erase(std::unique(result.begin(), result.end()), result.end());
+    return result;
+}
+
 void TNode::Save(NCellMaster::TSaveContext& context) const
 {
     TObjectBase::Save(context);
@@ -132,6 +149,8 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Decommissioned_);
     Save(context, Addresses_);
     Save(context, MulticellStates_);
+    Save(context, UserTags_);
+    Save(context, NodeTags_);
     Save(context, RegisterTime_);
     Save(context, LastSeenTime_);
     Save(context, Statistics_);
@@ -157,6 +176,11 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Decommissioned_);
     Load(context, Addresses_);
     Load(context, MulticellStates_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 213) {
+        Load(context, UserTags_);
+        Load(context, NodeTags_);
+    }
     Load(context, RegisterTime_);
     Load(context, LastSeenTime_);
     Load(context, Statistics_);
