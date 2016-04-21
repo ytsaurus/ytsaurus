@@ -299,7 +299,7 @@ class TestOperations(object):
                 yt.run_reduce("cat", [table1, table2], table, join_by=["x"])
 
     @add_failed_operation_stderrs_to_error_message
-    def test_python_operations(self):
+    def test_python_operations_ignat(self):
         def change_x(rec):
             if "x" in rec:
                 rec["x"] = int(rec["x"]) + 1
@@ -339,6 +339,7 @@ class TestOperations(object):
         table = TEST_DIR + "/table"
 
         yt.write_table(table, [{"x": 1}, {"y": 2}])
+
         yt.run_map(change_x, table, table, format=None)
         check(yt.read_table(table), [{"x": 2}, {"y": 2}], ordered=False)
 
@@ -733,7 +734,7 @@ class TestOperations(object):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1, "y": 1}, {"x": 1, "y": 2}, {"x": 2, "y": 3}])
         yt.run_sort(table, table, sort_by=["x"])
-        
+
         with pytest.raises(yt.YtOperationFailedError):
             yt.run_reduce(reducer, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
 

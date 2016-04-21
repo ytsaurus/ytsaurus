@@ -340,8 +340,6 @@ class YsonFormat(Format):
                         range_index = row.attributes["range_index"]
                     continue
 
-                # TODO(ignat): Deprecated!
-                row["input_table_index"] = table_index
                 row[self.table_index_column] = table_index
                 if range_index is not None:
                     row["@range_index"] = range_index
@@ -413,17 +411,12 @@ class YsonFormat(Format):
         table_index = 0
         for row in rows:
             new_table_index = row.get(self.table_index_column, 0)
-            # COMPAT(ignat): Deprecated
-            new_table_index = row.get("output_table_index", new_table_index)
             if new_table_index != table_index:
                 yield yson.to_yson_type(None, attributes={"table_index": new_table_index})
                 table_index = new_table_index
             if hasattr(row, "attributes"):
                 row.attributes = {}
             row.pop(self.table_index_column, None)
-            # COMPAT(ignat): Deprecated
-            row.pop("output_table_index", None)
-            row.pop("input_table_index", None)
             yield row
 
     def _dump_rows(self, rows, stream):
@@ -617,7 +610,6 @@ class JsonFormat(Format):
                 import ujson
                 self.json_module = ujson
             except ImportError:
-                pass
                 ujson = None
 
     def _loads(self, string, raw):

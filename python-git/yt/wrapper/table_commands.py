@@ -928,7 +928,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
 
     :param query: (string) for example \"<columns> [as <alias>], ... from \[<table>\] \
                   [where <predicate> [group by <columns> [as <alias>], ...]]\"
-    :param timestamp: (string) TODO(veronikaiv): verify
+    :param timestamp: (int)
     :param format: (string or descendant of `Format`) output format
     :param raw: (bool) don't parse response to rows
     """
@@ -1380,7 +1380,7 @@ def _run_operation(binary, source_table, destination_table,
     :param file_paths: Deprecated!
     :param local_files: (string or list  of string) paths to scripts on local machine.
     :param yt_files: (string or list  of string) paths to scripts in Cypress.
-    :param op_name: (one of "map" (default), "reduce", ...) TODO(veronikaiv): list it!
+    :param op_name: (one of "map" (default), "reduce", ...)
     :param job_count:  (integer) recommendation how many jobs should run.
 
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
