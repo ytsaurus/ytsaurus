@@ -21,9 +21,7 @@ TTransactionId GetTransactionId(IServiceContextPtr context)
 
 TTransactionId GetTransactionId(const TRequestHeader& header)
 {
-    return header.HasExtension(TTransactionalExt::transaction_id)
-           ? FromProto<TTransactionId>(header.GetExtension(TTransactionalExt::transaction_id))
-           : NullTransactionId;
+    return FromProto<TTransactionId>(header.GetExtension(TTransactionalExt::transaction_id));
 }
 
 void SetTransactionId(IClientRequestPtr request, const TTransactionId& transactionId)

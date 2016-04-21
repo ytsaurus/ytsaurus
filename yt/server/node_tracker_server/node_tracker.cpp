@@ -611,9 +611,7 @@ private:
         auto addresses = FromProto<TAddressMap>(request->addresses());
         const auto& address = GetDefaultAddress(addresses);
         const auto& statistics = request->statistics();
-        auto leaseTransactionId = request->has_lease_transaction_id()
-            ? FromProto<TTransactionId>(request->lease_transaction_id())
-            : NullTransactionId;
+        auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
 
         // Check lease transaction.
         TTransaction* leaseTransaction = nullptr;

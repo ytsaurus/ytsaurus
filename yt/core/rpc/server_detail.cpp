@@ -49,14 +49,8 @@ TServiceContextBase::TServiceContextBase(
 
 void TServiceContextBase::Initialize()
 {
-    RequestId_ = RequestHeader_->has_request_id()
-        ? FromProto<TRequestId>(RequestHeader_->request_id())
-        : NullRequestId;
-
-    RealmId_ = RequestHeader_->has_realm_id()
-        ? FromProto<TRealmId>(RequestHeader_->realm_id())
-        : NullRealmId;
-
+    RequestId_ = FromProto<TRequestId>(RequestHeader_->request_id());
+    RealmId_ = FromProto<TRealmId>(RequestHeader_->realm_id());
     User_ = RequestHeader_->has_user()
         ? RequestHeader_->user()
         : RootUserName;

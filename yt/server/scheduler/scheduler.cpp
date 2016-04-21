@@ -2047,13 +2047,8 @@ private:
         auto jobFailedOrAborted = job->GetState() == EJobState::Failed || job->GetState() == EJobState::Aborted;
         const auto& schedulerResultExt = job->Status()->result().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
-        auto stderrChunkId = schedulerResultExt.has_stderr_chunk_id()
-            ? FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id())
-            : NullChunkId;
-
-        auto failContextChunkId = schedulerResultExt.has_fail_context_chunk_id()
-            ? FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id())
-            : NullChunkId;
+        auto stderrChunkId = FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id());
+        auto failContextChunkId = FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id());
 
         auto operation = FindOperation(job->GetOperationId());
         YCHECK(operation);

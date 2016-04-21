@@ -85,7 +85,7 @@ private:
         auto requestId = FromProto<TRequestId>(header->request_id());
         const auto& serviceName = header->service();
         const auto& methodName = header->method();
-        auto realmId = header->has_realm_id() ? FromProto<TRealmId>(header->realm_id()) : NullRealmId;
+        auto realmId = FromProto<TRealmId>(header->realm_id());
         bool isOneWay = header->one_way();
         auto timeout = header->has_timeout() ? MakeNullable(FromProto<TDuration>(header->timeout())) : Null;
         auto startTime = header->has_start_time() ? MakeNullable(FromProto<TInstant>(header->start_time())) : Null;
@@ -160,7 +160,7 @@ private:
         auto requestId = FromProto<TRequestId>(header.request_id());
         const auto& serviceName = header.service();
         const auto& methodName = header.method();
-        auto realmId = header.has_realm_id() ? FromProto<TRealmId>(header.realm_id()) : NullRealmId;
+        auto realmId = FromProto<TRealmId>(header.realm_id());
 
         TServiceId serviceId(serviceName, realmId);
         auto service = FindService(serviceId);

@@ -2085,12 +2085,8 @@ private:
         YCHECK(Bootstrap_->IsSecondaryMaster());
 
         auto nodeId = FromProto<TObjectId>(request->node_id());
-        auto transactionId = request->has_transaction_id()
-            ? FromProto<TTransactionId>(request->transaction_id())
-            : NullTransactionId;
-        auto accountId = request->has_account_id()
-            ? FromProto<TAccountId>(request->account_id())
-            : NullObjectId;
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto accountId = FromProto<TAccountId>(request->account_id());
         auto type = EObjectType(request->type());
 
         auto transactionManager = Bootstrap_->GetTransactionManager();
@@ -2141,13 +2137,9 @@ private:
         YCHECK(Bootstrap_->IsSecondaryMaster());
 
         auto sourceNodeId = FromProto<TNodeId>(request->source_node_id());
-        auto sourceTransactionId = request->has_source_transaction_id()
-            ? FromProto<TTransactionId>(request->source_transaction_id())
-            : NullTransactionId;
+        auto sourceTransactionId = FromProto<TTransactionId>(request->source_transaction_id());
         auto clonedNodeId = FromProto<TNodeId>(request->cloned_node_id());
-        auto clonedTransactionId = request->has_cloned_transaction_id()
-            ? FromProto<TNodeId>(request->cloned_transaction_id())
-            : NullTransactionId;
+        auto clonedTransactionId = FromProto<TTransactionId>(request->cloned_transaction_id());
         auto mode = ENodeCloneMode(request->mode());
         auto accountId = FromProto<TAccountId>(request->account_id());
 

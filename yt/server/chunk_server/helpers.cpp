@@ -246,7 +246,7 @@ TYsonString DoGetMulticellOwningNodes(
         for (const auto& protoNode : rsp->nodes()) {
             nodeIds.emplace_back(
                 FromProto<NCypressClient::TNodeId>(protoNode.node_id()),
-                protoNode.has_transaction_id() ? FromProto<TTransactionId>(protoNode.transaction_id()) : NullTransactionId);
+                FromProto<TTransactionId>(protoNode.transaction_id()));
         }
     };
 
