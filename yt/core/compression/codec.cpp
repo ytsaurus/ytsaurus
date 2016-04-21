@@ -321,7 +321,7 @@ public:
 
     virtual ECodec GetId() const override
     {
-        return ECodec::Zstd;
+        return ECodec::ZstdLegacy;
     }
 };
 
@@ -365,7 +365,7 @@ ICodec* GetCodec(ECodec id)
             return &result;
         }
 
-        case ECodec::Zstd: {
+        case ECodec::ZstdLegacy: {
             static TZstdCodec result;
             return &result;
         }
