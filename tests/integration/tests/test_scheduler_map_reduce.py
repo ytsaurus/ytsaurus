@@ -14,6 +14,18 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_SCHEDULER_CONFIG = {
+      "scheduler" : {
+        "sort_operation_options" : {
+          "min_uncompressed_block_size" : 1
+        },
+        "map_reduce_operation_options" : {
+          "min_uncompressed_block_size" : 1
+        }
+      }
+    }
+
+
     def do_run_test(self, method):
         text = \
 """
