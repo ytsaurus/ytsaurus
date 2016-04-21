@@ -801,12 +801,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         ? MakeNullable(FromProto<TDuration>(request->upload_transaction_timeout()))
         : Null;
 
-    auto uploadTransactionIdHint = request->has_upload_transaction_id()
-        ? FromProto<TTransactionId>(request->upload_transaction_id())
-        : NullTransactionId;
+    auto uploadTransactionIdHint = FromProto<TTransactionId>(request->upload_transaction_id());
 
-    auto uploadTransactionSecondaryCellTags =
-        FromProto<TCellTagList>(request->upload_transaction_secondary_cell_tags());
+    auto uploadTransactionSecondaryCellTags = FromProto<TCellTagList>(request->upload_transaction_secondary_cell_tags());
 
     auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     auto externalCellTag = node->GetExternalCellTag();

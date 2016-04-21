@@ -1038,7 +1038,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     NRpc::NProto::TRequestHeader header;
     YCHECK(ParseRequestHeader(requestMessage, &header));
 
-    auto requestId = header.has_request_id() ? FromProto<TRequestId>(header.request_id()) : NullRequestId;
+    auto requestId = FromProto<TRequestId>(header.request_id());
     const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
 
     LOG_DEBUG("Forwarding request to leader (RequestId: %v, Invocation: %v:%v %v, CellTag: %v, Timeout: %v)",
