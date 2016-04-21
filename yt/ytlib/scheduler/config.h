@@ -1019,6 +1019,10 @@ public:
     TNullable<TDuration> FairSharePreemptionTimeout;
     TNullable<double> FairShareStarvationTolerance;
 
+    TNullable<TDuration> MinSharePreemptionTimeoutLimit;
+    TNullable<TDuration> FairSharePreemptionTimeoutLimit;
+    TNullable<double> FairShareStarvationToleranceLimit;
+
     TSchedulableConfig()
     {
         RegisterParameter("weight", Weight)
@@ -1043,6 +1047,14 @@ public:
         RegisterParameter("fair_share_preemption_timeout", FairSharePreemptionTimeout)
             .Default();
         RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
+            .InRange(0.0, 1.0)
+            .Default();
+
+        RegisterParameter("min_share_preemption_timeout_limit", MinSharePreemptionTimeoutLimit)
+            .Default();
+        RegisterParameter("fair_share_preemption_timeout_limit", FairSharePreemptionTimeoutLimit)
+            .Default();
+        RegisterParameter("fair_share_starvation_tolerance_limit", FairShareStarvationToleranceLimit)
             .InRange(0.0, 1.0)
             .Default();
     }

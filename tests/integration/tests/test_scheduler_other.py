@@ -965,12 +965,17 @@ class TestSchedulerPreemption(YTEnvSetup):
         op1.abort()
 
     def test_recursive_preemption_settings(self):
-        create("map_node", "//sys/pools/p1")
-        create("map_node", "//sys/pools/p1/p2", attributes={"fair_share_starvation_tolerance": 0.6})
+        create("map_node", "//sys/pools/p1", attributes={"fair_share_starvation_tolerance_limit": 0.6})
+        create("map_node", "//sys/pools/p1/p2")
+        create("map_node", "//sys/pools/p1/p3", attributes={"fair_share_starvation_tolerance": 0.5})
+        create("map_node", "//sys/pools/p1/p4", attributes={"fair_share_starvation_tolerance": 0.9})
         time.sleep(1)
 
-        assert get("//sys/scheduler/orchid/scheduler/pools/p1/fair_share_starvation_tolerance") == 0.7
-        assert get("//sys/scheduler/orchid/scheduler/pools/p2/fair_share_starvation_tolerance") == 0.6
+        pool_share_path = "//sys/scheduler/orchid/scheduler/pools/{0}/adjusted_fair_share_starvation_tolerance"
+        assert get(pool_share_path.format("p1")) == 0.7
+        assert get(pool_share_path.format("p2")) == 0.6
+        assert get(pool_share_path.format("p3")) == 0.5
+        assert get(pool_share_path.format("p4")) == 0.6
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -992,8 +997,9 @@ class TestSchedulerPreemption(YTEnvSetup):
             spec={"pool": "p2", "fair_share_starvation_tolerance": 0.8})
 
         time.sleep(1)
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_starvation_tolerance".format(op1.id)) == 0.5
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_starvation_tolerance".format(op2.id)) == 0.6
+        operation_share_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/adjusted_fair_share_starvation_tolerance"
+        assert get(operation_share_path.format(op1.id)) == 0.5
+        assert get(operation_share_path.format(op2.id)) == 0.6
 
         op1.abort();
         op2.abort();
