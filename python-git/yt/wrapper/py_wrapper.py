@@ -319,7 +319,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
 
     modules_info = create_modules_archive(tempfiles_manager, client)
     # COMPAT: previous version of create_modules_archive returns string.
-    if isinstance(modules_info, str):
+    if isinstance(modules_info, basestring):
         modules_info = [{"filename": modules_info, "hash": calc_md5_string_from_file(modules_info), "tmpfs": False}]
     modules_filenames = [{"filename": info["filename"], "hash": info["hash"]}
                          for info in modules_info]
