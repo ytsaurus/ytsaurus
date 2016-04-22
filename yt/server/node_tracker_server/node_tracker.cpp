@@ -544,7 +544,7 @@ private:
     int AggregatedOnlineNodeCount_ = 0;
     int LocalRegisteredNodeCount_ = 0;
 
-    TRackSet UsedRackIndexes_ = 0;
+    TRackSet UsedRackIndexes_;
 
     yhash_map<Stroka, TNode*> AddressToNodeMap_;
     yhash_multimap<Stroka, TNode*> HostNameToNodeMap_;
@@ -890,15 +890,15 @@ private:
             }
         }
 
-        UsedRackIndexes_ = 0;
+        UsedRackIndexes_.reset();
         for (const auto& pair : RackMap_) {
             auto* rack = pair.second;
 
             YCHECK(NameToRackMap_.insert(std::make_pair(rack->GetName(), rack)).second);
 
-            auto rackIndexMask = rack->GetIndexMask();
-            YCHECK(!(UsedRackIndexes_ & rackIndexMask));
-            UsedRackIndexes_ |= rackIndexMask;
+            auto rackIndex = rack->GetIndex();
+            YCHECK(!UsedRackIndexes_.test(rackIndex));
+            UsedRackIndexes_.set(rackIndex);
         }
     }
 
@@ -1231,13 +1231,12 @@ private:
 
     int AllocateRackIndex()
     {
-        // NB: Rack index mask is 64 bit.
-        for (int index = 0; index < 64; ++index) {
-            if (index == NullRackIndex)
+        for (int index = 0; index < UsedRackIndexes_.size(); ++index) {
+            if (index == NullRackIndex) {
                 continue;
-            auto mask = 1ULL << index;
-            if (!(UsedRackIndexes_ & mask)) {
-                UsedRackIndexes_ |= mask;
+            }
+            if (!UsedRackIndexes_.test(index)) {
+                UsedRackIndexes_.set(index);
                 return index;
             }
         }
@@ -1246,9 +1245,8 @@ private:
 
     void FreeRackIndex(int index)
     {
-        auto mask = 1ULL << index;
-        YCHECK(UsedRackIndexes_ & mask);
-        UsedRackIndexes_ &= ~mask;
+        YCHECK(UsedRackIndexes_.test(index));
+        UsedRackIndexes_.reset(index);
     }
 
 
