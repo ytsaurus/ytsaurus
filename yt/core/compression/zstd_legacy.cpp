@@ -1,10 +1,10 @@
-#include "zstd.h"
+#include "zstd_legacy.h"
 #include "details.h"
 
 #include <yt/core/misc/blob.h>
 #include <yt/core/misc/finally.h>
 
-#include <yt/contrib/zstd/lib/zstd_static.h>
+#include <yt/contrib/zstd-legacy/lib/zstd_static.h>
 
 namespace NYT {
 namespace NCompression {
@@ -13,7 +13,8 @@ namespace NCompression {
 
 static const auto& Logger = CompressionLogger;
 
-static const size_t MaxBlockSize = 1 * 1024 * 1024; // 1 MiB
+// NB: This size should be less than 128 Kb, which is a size of internal Zstd buffer.
+static const size_t MaxBlockSize = 1 * 100 * 1024; // 100 KiB
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,15 +24,15 @@ struct TZstdCompressBufferTag {};
 
 static size_t EstimateOutputSize(size_t totalInputSize)
 {
-    size_t headerSize = ZSTD_compressBound(0);
+    size_t headerSize = ZSTD_LEGACY_compressBound(0);
     size_t fullBlocksNumber = totalInputSize / MaxBlockSize;
     size_t lastBlockSize = totalInputSize % MaxBlockSize;
     return headerSize +
-           fullBlocksNumber * ZSTD_compressBound(MaxBlockSize) +
-           ZSTD_compressBound(lastBlockSize);
+           fullBlocksNumber * ZSTD_LEGACY_compressBound(MaxBlockSize) +
+           ZSTD_LEGACY_compressBound(lastBlockSize);
 }
 
-void ZstdCompress(int level, StreamSource* source, TBlob* output)
+void ZstdLegacyCompress(StreamSource* source, TBlob* output)
 {
     ui64 totalInputSize = source->Available();
     output->Resize(EstimateOutputSize(totalInputSize) + sizeof(totalInputSize));
@@ -44,20 +45,24 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
         curOutputPos += sizeof(totalInputSize);
     }
 
-    auto context = ZSTD_createCCtx();
+    auto context = ZSTD_LEGACY_createCCtx();
     auto contextGuard = Finally([&] () {
-       ZSTD_freeCCtx(context);
+       ZSTD_LEGACY_freeCCtx(context);
     });
 
     // Write header.
     {
-        size_t headerSize = ZSTD_compressBegin(context, level);
+        void* outputPtr = output->Begin() + curOutputPos;
+        size_t compressedSize = ZSTD_LEGACY_compressBegin(
+            context,
+            outputPtr,
+            output->Size() - curOutputPos);
 
         LOG_FATAL_IF(
-            ZSTD_isError(headerSize),
-            ZSTD_getErrorName(headerSize));
+            ZSTD_LEGACY_isError(compressedSize),
+            ZSTD_LEGACY_getErrorName(compressedSize));
 
-        curOutputPos += headerSize;
+        curOutputPos += compressedSize;
     }
 
     auto compressAndAppendBuffer = [&] (const void* buffer, size_t size) {
@@ -66,7 +71,7 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
         }
 
         void* outputPtr = output->Begin() + curOutputPos;
-        size_t compressedSize = ZSTD_compressContinue(
+        size_t compressedSize = ZSTD_LEGACY_compressContinue(
             context,
             outputPtr,
             output->Size() - curOutputPos,
@@ -74,8 +79,8 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
             size);
 
         LOG_FATAL_IF(
-            ZSTD_isError(compressedSize),
-            ZSTD_getErrorName(compressedSize));
+            ZSTD_LEGACY_isError(compressedSize),
+            ZSTD_LEGACY_getErrorName(compressedSize));
 
         curOutputPos += compressedSize;
     };
@@ -126,14 +131,14 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
     // Write footer.
     {
         void* outputPtr = output->Begin() + curOutputPos;
-        size_t compressedSize = ZSTD_compressEnd(
+        size_t compressedSize = ZSTD_LEGACY_compressEnd(
             context,
             outputPtr,
             output->Size() - curOutputPos);
 
         LOG_FATAL_IF(
-            ZSTD_isError(compressedSize),
-            ZSTD_getErrorName(compressedSize));
+            ZSTD_LEGACY_isError(compressedSize),
+            ZSTD_LEGACY_getErrorName(compressedSize));
 
         curOutputPos += compressedSize;
     }
@@ -141,7 +146,7 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
     output->Resize(curOutputPos);
 }
 
-void ZstdDecompress(StreamSource* source, TBlob* output)
+void ZstdLegacyDecompress(StreamSource* source, TBlob* output)
 {
     ui64 outputSize;
     ReadPod(source, outputSize);
@@ -158,12 +163,12 @@ void ZstdDecompress(StreamSource* source, TBlob* output)
         inputSize = input.Size();
     }
 
-    size_t decompressedSize = ZSTD_decompress(outputPtr, outputSize, inputPtr, inputSize);
+    size_t decompressedSize = ZSTD_LEGACY_decompress(outputPtr, outputSize, inputPtr, inputSize);
 
-    // ZSTD_decompress returns error code instead of decompressed size if it fails.
+    // ZSTD_LEGACY_decompress returns error code instead of decompressed size if it fails.
     LOG_FATAL_IF(
-        ZSTD_isError(decompressedSize),
-        ZSTD_getErrorName(decompressedSize));
+        ZSTD_LEGACY_isError(decompressedSize),
+        ZSTD_LEGACY_getErrorName(decompressedSize));
 
     YCHECK(decompressedSize == outputSize);
 }
@@ -172,4 +177,3 @@ void ZstdDecompress(StreamSource* source, TBlob* output)
 
 } // namespace NYT
 } // namespace NCompression
-

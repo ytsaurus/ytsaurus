@@ -7,9 +7,9 @@ namespace NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ZstdCompress(int level, StreamSource* source, TBlob* output);
+void ZstdLegacyCompress(StreamSource* source, TBlob* output);
 
-void ZstdDecompress(StreamSource* source, TBlob* output);
+void ZstdLegacyDecompress(StreamSource* source, TBlob* output);
 
 ////////////////////////////////////////////////////////////////////////////////
 

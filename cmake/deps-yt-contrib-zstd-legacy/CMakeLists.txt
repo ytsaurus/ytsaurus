@@ -1,10 +1,8 @@
-set(NAME deps-yt-contrib-zstd)
-set(BASE ${CMAKE_SOURCE_DIR}/yt/contrib/zstd)
+set(NAME deps-yt-contrib-zstd-legacy)
+set(BASE ${CMAKE_SOURCE_DIR}/yt/contrib/zstd-legacy)
 set(SRCS
   ${BASE}/lib/fse.c
-  ${BASE}/lib/huff0.c
-  ${BASE}/lib/zstd_compress.c
-  ${BASE}/lib/zstd_decompress.c
+  ${BASE}/lib/zstd.c
 )
 
 set_source_files_properties(${SRCS} PROPERTIES LANGUAGE C)
