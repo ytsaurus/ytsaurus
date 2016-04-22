@@ -150,6 +150,11 @@ public:
         Canceled_.Unsubscribe(callback);
     }
 
+    virtual bool IsCanceled() override
+    {
+        return Canceled_.IsFired();
+    }
+
     virtual void Cancel() override
     {
         LOG_DEBUG("Request canceled (RequestId: %v)",
