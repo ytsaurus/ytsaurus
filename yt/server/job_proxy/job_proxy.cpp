@@ -378,7 +378,7 @@ TStatistics TJobProxy::GetStatistics() const
     }
 
     statistics.AddSample("/job_proxy/max_memory", MaxMemoryUsage_);
-    statistics.AddSample("/job_proxy/memory_hog", MaxMemoryUsage_ > JobProxyMemoryLimit_ ? 1 : 0);
+    statistics.AddSample("/job_proxy/memory_limit", JobProxyMemoryLimit_);
 
     return statistics;
 }
