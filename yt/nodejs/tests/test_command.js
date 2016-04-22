@@ -1410,17 +1410,6 @@ describe("YtCommand - specific behaviour", function() {
         }, done).end();
     });
 
-    it("should reply with 429 on RequestRateLimit error", function(done) {
-        var stub = sinon.stub(this.driver, "execute");
-        stub.returns(Q.reject(
-            new YtError("RequestRateLimitExceeded").withCode(binding.RequestRateLimitExceededYtErrorCode)
-        ));
-        ask("PUT", V + "/write", {}, function(rsp) {
-            rsp.statusCode.should.eql(429);
-            stub.should.have.been.calledOnce;
-        }, done).end();
-    });
-
     it("should reply with 503 when proxy is banned", function(done) {
         var stub = sinon.stub(this.coordinator, "getSelf");
         stub.returns({ banned: true });
