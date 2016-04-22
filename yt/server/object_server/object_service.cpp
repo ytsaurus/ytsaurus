@@ -300,6 +300,10 @@ private:
         }
 
         while (CurrentSubrequestIndex_ < SubrequestCount_ ) {
+            if (Context_->IsCanceled()) {
+                return;
+            }
+
             while (CurrentSubrequestIndex_ > ThrottledSubrequestIndex_) {
                 ++ThrottledSubrequestIndex_;
                 auto result = SecurityManager_->ThrottleUser(user, 1);
