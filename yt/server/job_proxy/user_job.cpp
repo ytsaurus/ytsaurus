@@ -847,6 +847,8 @@ private:
             statistics.AddSample("/user_job/woodpecker", IsWoodpecker_ ? 1 : 0);
         }
 
+        statistics.AddSample("/user_job/memory_limit", UserJobSpec_.memory_limit()); 
+
         return statistics;
     }
 
