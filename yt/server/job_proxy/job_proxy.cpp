@@ -470,7 +470,7 @@ void TJobProxy::CheckMemoryUsage()
         LOG_FATAL("Job proxy memory limit exceeded (MemoryUsage: %v, MemoryLimit: %v, RefCountedTracker: %v)",
             memoryUsage,
             JobProxyMemoryLimit_,
-            TRefCountedTracker::Get()->GetDebugInfo(2));
+            TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */));
     }
 }
 
