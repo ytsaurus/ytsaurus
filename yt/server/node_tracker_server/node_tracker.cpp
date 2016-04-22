@@ -1296,6 +1296,11 @@ private:
     {
         auto objectManager = Bootstrap_->GetObjectManager();
 
+        auto nodes = GetValuesSortedByKey(NodeMap_);
+        for (auto* node : nodes) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(node, cellTag);
+        }
+
         auto racks = GetValuesSortedByKey(RackMap_);
         for (auto* rack : racks) {
             objectManager->ReplicateObjectAttributesToSecondaryMaster(rack, cellTag);
