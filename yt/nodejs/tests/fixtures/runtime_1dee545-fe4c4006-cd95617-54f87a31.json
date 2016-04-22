@@ -749,7 +749,6 @@
     "output_table_paths": [
       "//tmp/t"
     ],
-    "enable_job_proxy_memory_control": "false",
     "mapper": {
       "check_input_fully_consumed": "false",
       "file_paths": [],
