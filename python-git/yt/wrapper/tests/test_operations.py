@@ -299,7 +299,7 @@ class TestOperations(object):
                 yt.run_reduce("cat", [table1, table2], table, join_by=["x"])
 
     @add_failed_operation_stderrs_to_error_message
-    def test_python_operations_ignat(self):
+    def test_python_operations(self):
         def change_x(rec):
             if "x" in rec:
                 rec["x"] = int(rec["x"]) + 1
