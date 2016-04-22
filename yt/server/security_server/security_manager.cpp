@@ -913,14 +913,6 @@ public:
                 "User %Qv is banned",
                 user->GetName());
         }
-
-        if (user != RootUser_ && GetRequestRate(user) > user->GetRequestRateLimit()) {
-            THROW_ERROR_EXCEPTION(
-                NSecurityClient::EErrorCode::RequestRateLimitExceeded,
-                "User %Qv has exceeded its request rate limit",
-                user->GetName())
-                << TErrorAttribute("limit", user->GetRequestRateLimit());
-        }
     }
 
     void ChargeUser(
@@ -936,12 +928,14 @@ public:
             writeRequestTime);
     }
 
-    double GetRequestRate(TUser* user)
+    TFuture<void> ThrottleUser(TUser* user, int requestCount)
     {
-        return
-            TInstant::Now() > user->GetCheckpointTime() + Config_->RequestRateSmoothingPeriod
-            ? 0.0
-            : user->GetRequestRate();
+        return RequestTracker_->ThrottleUser(user, requestCount);
+    }
+
+    void SetUserRequestRateLimit(TUser* user, double limit)
+    {
+        RequestTracker_->SetUserRequestRateLimit(user, limit);
     }
 
 private:
@@ -1100,6 +1094,10 @@ private:
 
         YCHECK(user->RefObject() == 1);
         DoAddMember(GetBuiltinGroupForUser(user), user);
+
+        if (!IsRecovery()) {
+            RequestTracker_->RecreateUserRequestRateThrottler(user);
+        }
 
         return user;
     }
@@ -1592,7 +1590,6 @@ protected:
     void HydraIncreaseUserStatistics(NProto::TReqIncreaseUserStatistics* request)
     {
         auto* profilingManager = NProfiling::TProfileManager::Get();
-        auto now = TInstant::Now();
         for (const auto& entry : request->entries()) {
             auto userId = FromProto<TUserId>(entry.user_id());
             auto* user = FindUser(userId);
@@ -1613,20 +1610,6 @@ protected:
             Profiler.Enqueue("/user_request_count", localStatistics.RequestCount, tags);
             // COMPAT(babenko)
             Profiler.Enqueue("/user_request_counter", localStatistics.RequestCount, tags);
-
-            // Recompute request rate.
-            if (now > user->GetCheckpointTime() + Config_->RequestRateSmoothingPeriod) {
-                i64 currentCount = localStatistics.RequestCount;
-                if (user->GetCheckpointTime() != TInstant::Zero()) {
-                    double requestRate =
-                        static_cast<double>(currentCount - user->GetCheckpointRequestCount()) /
-                        (now - user->GetCheckpointTime()).SecondsFloat();
-                    user->SetRequestRate(requestRate);
-                    Profiler.Enqueue("/user_request_rate", static_cast<int>(requestRate), tags);
-                }
-                user->SetCheckpointTime(now);
-                user->SetCheckpointRequestCount(currentCount);
-            }
         }
     }
 
@@ -2055,9 +2038,14 @@ void TSecurityManager::ChargeUser(
     Impl_->ChargeUser(user, requestCount, readRequestTime, writeRequestTime);
 }
 
-double TSecurityManager::GetRequestRate(TUser* user)
+TFuture<void> TSecurityManager::ThrottleUser(TUser* user, int requestCount)
 {
-    return Impl_->GetRequestRate(user);
+    return Impl_->ThrottleUser(user, requestCount);
+}
+
+void TSecurityManager::SetUserRequestRateLimit(TUser* user, double limit)
+{
+    Impl_->SetUserRequestRateLimit(user, limit);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, *Impl_)

@@ -33,6 +33,16 @@ public:
         TDuration readRequestTime,
         TDuration writeRequestTime);
 
+    TFuture<void> ThrottleUser(
+        TUser* user,
+        int requestCount);
+
+    void SetUserRequestRateLimit(
+        TUser* user,
+        double limit);
+
+    void RecreateUserRequestRateThrottler(TUser* user);
+
 private:
     const TSecurityManagerConfigPtr Config_;
     const NCellMaster::TBootstrap* Bootstrap_;

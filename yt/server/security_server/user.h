@@ -11,6 +11,8 @@
 
 #include <yt/core/misc/property.h>
 
+#include <yt/core/concurrency/public.h>
+
 namespace NYT {
 namespace NSecurityServer {
 
@@ -43,6 +45,7 @@ public:
     // Limits and bans.
     DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
     DEFINE_BYVAL_RW_PROPERTY(double, RequestRateLimit);
+    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::IThroughputThrottlerPtr, RequestRateThrottler);
 
     // Statistics
     using TMulticellStatistics = yhash_map<NObjectClient::TCellTag, TUserStatistics>;
@@ -51,18 +54,11 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TUserStatistics, ClusterStatistics);
     DEFINE_BYVAL_RW_PROPERTY(int, RequestStatisticsUpdateIndex);
     
-    // Request rate management.
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, CheckpointTime);
-    DEFINE_BYVAL_RW_PROPERTY(i64, CheckpointRequestCount);
-    DEFINE_BYVAL_RW_PROPERTY(double, RequestRate);
-
 public:
     explicit TUser(const TUserId& id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
-    void ResetRequestRate();
 
     TUserStatistics& CellStatistics(NObjectClient::TCellTag cellTag);
     TUserStatistics& LocalStatistics();

@@ -159,6 +159,7 @@ private:
 
     std::vector<TSubrequest> Subrequests_;
     int CurrentSubrequestIndex_ = 0;
+    int ThrottledSubrequestIndex_ = -1;
     IInvokerPtr EpochAutomatonInvoker_;
     bool NeedsUpstreamSync_ = true;
     bool NeedsUserAccessValidation_ = true;
@@ -257,6 +258,20 @@ private:
         }
     }
 
+    bool WaitForAndContinue(TFuture<void> result)
+    {
+        if (result.IsSet()) {
+            result
+                .Get()
+                .ThrowOnError();
+            return true;
+        } else {
+            result.Subscribe(BIND(&TExecuteSession::CheckAndContinue<void>, MakeStrong(this))
+                .Via(EpochAutomatonInvoker_));
+            return false;
+        }
+    }
+
     void GuardedContinue()
     {
         auto batchStartTime = NProfiling::GetCpuInstant();
@@ -269,12 +284,7 @@ private:
         if (NeedsUpstreamSync_) {
             NeedsUpstreamSync_ = false;
             auto result = HydraManager_->SyncWithUpstream();
-            // Optimize for (somewhat typical) case of no sync.
-            if (result.IsSet()) {
-                result.Get().ThrowOnError();
-            } else {
-                result.Subscribe(BIND(&TExecuteSession::CheckAndContinue<void>, MakeStrong(this))
-                    .Via(EpochAutomatonInvoker_));
+            if (!WaitForAndContinue(result)) {
                 return;
             }
         }
@@ -290,6 +300,14 @@ private:
         }
 
         while (CurrentSubrequestIndex_ < SubrequestCount_ ) {
+            while (CurrentSubrequestIndex_ > ThrottledSubrequestIndex_) {
+                ++ThrottledSubrequestIndex_;
+                auto result = SecurityManager_->ThrottleUser(user, 1);
+                if (!WaitForAndContinue(result)) {
+                    return;
+                }
+            }
+
             auto& subrequest = Subrequests_[CurrentSubrequestIndex_];
             if (!subrequest.Context) {
                 ExecuteEmptySubrequest(&subrequest, user);

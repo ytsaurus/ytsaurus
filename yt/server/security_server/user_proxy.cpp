@@ -50,7 +50,6 @@ private:
         descriptors->push_back("write_request_time");
         descriptors->push_back(TAttributeDescriptor("multicell_statistics")
             .SetOpaque(true));
-        descriptors->push_back("request_rate");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
@@ -102,12 +101,6 @@ private:
             return true;
         }
 
-        if (key == "request_rate") {
-            BuildYsonFluently(consumer)
-                .Value(securityManager->GetRequestRate(user));
-            return true;
-        }
-
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
@@ -127,7 +120,7 @@ private:
             if (limit < 0) {
                 THROW_ERROR_EXCEPTION("\"request_rate_limit\" cannot be negative");
             }
-            user->SetRequestRateLimit(limit);
+            securityManager->SetUserRequestRateLimit(user, limit);
             return true;
         }
 

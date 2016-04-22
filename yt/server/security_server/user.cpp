@@ -79,9 +79,7 @@ TUser::TUser(const TUserId& id)
     , RequestRateLimit_(100.0)
     , LocalStatisticsPtr_(nullptr)
     , RequestStatisticsUpdateIndex_(-1)
-{
-    ResetRequestRate();
-}
+{ }
 
 void TUser::Save(NCellMaster::TSaveContext& context) const
 {
@@ -106,13 +104,6 @@ void TUser::Load(NCellMaster::TLoadContext& context)
         Load(context, MulticellStatistics_);
     }
     Load(context, ClusterStatistics_);
-}
-
-void TUser::ResetRequestRate()
-{
-    CheckpointTime_ = TInstant::Zero();
-    CheckpointRequestCount_ = 0;
-    RequestRate_ = 0;
 }
 
 TUserStatistics& TUser::CellStatistics(NObjectClient::TCellTag cellTag)
