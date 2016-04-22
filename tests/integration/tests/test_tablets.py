@@ -825,3 +825,18 @@ class TestTablets(YTEnvSetup):
         remount_table("//tmp/t")
 
         with pytest.raises(YtError): insert_rows("//tmp/t", rows)
+
+    def test_keep_missing_rows(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}, {"key": 2}]
+        expect_rows = rows + [None]
+        insert_rows("//tmp/t", rows)
+        actual = lookup_rows("//tmp/t", keys, keep_missing_rows=True);
+        assert len(actual) == 2
+        assert_items_equal(rows[0], actual[0])
+        assert actual[1] == None
+
