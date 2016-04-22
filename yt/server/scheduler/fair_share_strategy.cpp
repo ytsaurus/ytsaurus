@@ -448,6 +448,8 @@ public:
         , Parent_(nullptr)
         , ResourceDemand_(ZeroJobResources())
         , ResourceUsage_(ZeroJobResources())
+        , RunningOperationCount_(0)
+        , OperationCount_(0)
         , ResourceLimits_(InfiniteJobResources())
         , Mode(ESchedulingMode::Fifo)
     { }
@@ -675,6 +677,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceDemand);
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(int, RunningOperationCount);
+    DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, MaxPossibleResourceUsage);
 
@@ -2038,8 +2042,8 @@ public:
                 fluent
                     .Item(id).BeginMap()
                         .Item("mode").Value(config->Mode)
-                        .Item("running_operation_count").Value(RunningOperationCount[pool->GetId()])
-                        .Item("operation_count").Value(OperationCount[pool->GetId()])
+                        .Item("running_operation_count").Value(pool->RunningOperationCount())
+                        .Item("operation_count").Value(pool->OperationCount())
                         .Item("max_running_operation_count").Value(pool->GetMaxRunningOperationCount())
                         .Item("max_operation_count").Value(pool->GetMaxOperationCount())
                         .DoIf(config->Mode == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
@@ -2079,8 +2083,6 @@ private:
     TOperationMap OperationToElement;
 
     std::list<TOperationPtr> OperationQueue;
-    yhash_map<Stroka, int> RunningOperationCount;
-    yhash_map<Stroka, int> OperationCount;
 
     TRootElementPtr RootElement;
     TNullable<TInstant> LastUpdateTime;
@@ -2175,7 +2177,7 @@ private:
     {
         TCompositeSchedulerElement* element = pool.Get();
         while (element) {
-            if (RunningOperationCount[element->GetId()] >= element->GetMaxRunningOperationCount()) {
+            if (element->RunningOperationCount() >= element->GetMaxRunningOperationCount()) {
                 return false;
             }
             element = element->GetParent();
@@ -2221,7 +2223,7 @@ private:
     TCompositeSchedulerElementPtr FindPoolWithViolatedOperationCountLimit(TCompositeSchedulerElement* element)
     {
         while (element) {
-            if (OperationCount[element->GetId()] >= element->GetMaxOperationCount()) {
+            if (element->OperationCount() >= element->GetMaxOperationCount()) {
                 return element;
             }
             element = element->GetParent();
@@ -2232,7 +2234,7 @@ private:
     void IncreaseOperationCount(TCompositeSchedulerElement* element, int delta)
     {
         while (element) {
-            OperationCount[element->GetId()] += delta;
+            element->OperationCount() += delta;
             element = element->GetParent();
         }
     }
@@ -2240,7 +2242,7 @@ private:
     void IncreaseRunningOperationCount(TCompositeSchedulerElement* element, int delta)
     {
         while (element) {
-            RunningOperationCount[element->GetId()] += delta;
+            element->RunningOperationCount() += delta;
             element = element->GetParent();
         }
     }
@@ -2289,7 +2291,7 @@ private:
 
             // Try to run operations from queue.
             auto it = OperationQueue.begin();
-            while (it != OperationQueue.end() && RunningOperationCount[RootPoolName] < Config->MaxRunningOperationCount) {
+            while (it != OperationQueue.end() && RootElement->RunningOperationCount() < Config->MaxRunningOperationCount) {
                 const auto& operation = *it;
                 auto* operationPool = GetOperationElement(operation->GetId())->GetPool();
                 if (CanAddOperationToPool(operationPool)) {
@@ -2378,7 +2380,7 @@ private:
         auto* oldParent = pool->GetParent();
         if (oldParent) {
             oldParent->IncreaseUsage(-pool->ResourceUsage());
-            IncreaseRunningOperationCount(oldParent, -RunningOperationCount[pool->GetId()]);
+            IncreaseRunningOperationCount(oldParent, -pool->RunningOperationCount());
             oldParent->RemoveChild(pool);
         }
 
@@ -2386,7 +2388,7 @@ private:
         if (parent) {
             parent->AddChild(pool);
             parent->IncreaseUsage(pool->ResourceUsage());
-            IncreaseRunningOperationCount(parent.Get(), RunningOperationCount[pool->GetId()]);
+            IncreaseRunningOperationCount(parent.Get(), pool->RunningOperationCount());
 
             LOG_INFO("Parent pool set (Pool: %v, Parent: %v)",
                 pool->GetId(),
