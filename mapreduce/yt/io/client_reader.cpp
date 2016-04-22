@@ -38,6 +38,7 @@ TClientReader::TClientReader(
     , ReadTransaction_(new TPingableTransaction(auth, transactionId))
     , RetriesLeft_(TConfig::Get()->RetryCount)
 {
+    Lock(Auth_, ReadTransaction_->GetId(), path.Path_, "snapshot");
     CreateRequest(true);
 }
 

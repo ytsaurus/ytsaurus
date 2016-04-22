@@ -64,6 +64,12 @@ void Create(
     bool ignoreExisting = true,
     bool recursive = false);
 
+void Lock(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const Stroka& mode);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ParseBoolFromResponse(const Stroka& response);
