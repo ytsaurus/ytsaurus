@@ -347,23 +347,6 @@ const T* TEnumIndexedVector<T, E, Min, Max>::end() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define ENUM__RELATIONAL_OPERATOR(op) \
-template <class T, class = typename std::enable_if<NYT::TEnumTraits<T>::IsEnum && !NYT::TEnumTraits<T>::IsBitEnum>::type> \
-constexpr bool operator op (T lhs, T rhs) \
-{ \
-    using TUnderlying = typename NYT::TEnumTraits<T>::TUnderlying; \
-    return static_cast<TUnderlying>(lhs) op static_cast<TUnderlying>(rhs); \
-}
-
-ENUM__RELATIONAL_OPERATOR(<)
-ENUM__RELATIONAL_OPERATOR(>)
-ENUM__RELATIONAL_OPERATOR(<= )
-ENUM__RELATIONAL_OPERATOR(>= )
-ENUM__RELATIONAL_OPERATOR(== )
-ENUM__RELATIONAL_OPERATOR(!= )
-
-////////////////////////////////////////////////////////////////////////////////
-
 #define ENUM__BINARY_BITWISE_OPERATOR(assignOp, op) \
 template <class T, class = typename std::enable_if<NYT::TEnumTraits<T>::IsBitEnum>::type> \
 constexpr T operator op (T lhs, T rhs) \
