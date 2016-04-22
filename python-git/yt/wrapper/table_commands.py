@@ -87,7 +87,7 @@ def _set_option(params, name, value, transform=None):
     return params
 
 def _to_chunk_stream(stream, format, raw, split_rows, chunk_size):
-    if isinstance(stream, str):
+    if isinstance(stream, basestring):
         stream = StringIO(stream)
 
     is_iterable = any([isinstance(stream, type) for type in [types.ListType, types.GeneratorType]]) or hasattr(stream, "next")
@@ -172,7 +172,7 @@ def _reliably_upload_files(files, client=None):
     file_paths = []
     with Transaction(transaction_id=null_transaction_id, client=client):
         for file in flatten(files):
-            if isinstance(file, str):
+            if isinstance(file, basestring):
                 path = smart_upload_file(file, client=client)
             else:
                 path = smart_upload_file(client=client, **file)
