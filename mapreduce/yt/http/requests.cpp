@@ -162,6 +162,20 @@ void Create(
     RetryRequest(auth, header);
 }
 
+void Lock(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const Stroka& mode)
+{
+    THttpHeader header("POST", "lock");
+    header.AddTransactionId(transactionId);
+    header.AddPath(path);
+    header.AddParam("mode", mode);
+    header.AddMutationId();
+    RetryRequest(auth, header);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka GetProxyForHeavyRequest(const TAuth& auth)
