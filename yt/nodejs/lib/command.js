@@ -242,7 +242,7 @@ YtCommand.prototype._epilogue = function(result) {
     });
 
     if (!result.isOK()) {
-        if (result.isUserBanned() || result.isRequestRateLimitExceeded()) {
+        if (result.isUserBanned()) {
             this.sticky_cache.set(this.user, {
                 code: this.rsp.statusCode,
                 body: result.toJson()
@@ -859,10 +859,6 @@ YtCommand.prototype._execute = function(cb) {
 
         if (result.isUserBanned()) {
             self.rsp.statusCode = 403;
-        }
-
-        if (result.isRequestRateLimitExceeded()) {
-            self.rsp.statusCode = 429;
         }
 
         return result;

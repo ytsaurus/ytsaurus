@@ -143,10 +143,6 @@ void InitializeError(Handle<Object> target)
         Integer::New(static_cast<int>(NSecurityClient::EErrorCode::UserBanned)));
 
     target->Set(
-        String::NewSymbol("RequestRateLimitExceededYtErrorCode"),
-        Integer::New(static_cast<int>(NSecurityClient::EErrorCode::RequestRateLimitExceeded)));
-
-    target->Set(
         String::NewSymbol("AllTargetNodesFailedYtErrorCode"),
         Integer::New(static_cast<int>(NChunkClient::EErrorCode::AllTargetNodesFailed)));
 

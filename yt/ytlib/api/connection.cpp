@@ -193,16 +193,7 @@ private:
             GetBusChannelFactory(),
             kind);
 
-        auto isRetryableError = BIND([options = Options_] (const TError& error) {
-            if (options.RetryRequestRateLimitExceeded &&
-                error.GetCode() == NSecurityClient::EErrorCode::RequestRateLimitExceeded)
-            {
-                return true;
-            }
-
-            return IsRetriableError(error);
-        });
-        channel = CreateRetryingChannel(config, channel, isRetryableError);
+        channel = CreateRetryingChannel(config, channel, BIND(&IsRetriableError));
 
         channel = CreateDefaultTimeoutChannel(channel, config->RpcTimeout);
 
