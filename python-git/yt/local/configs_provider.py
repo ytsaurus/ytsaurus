@@ -113,6 +113,7 @@ SPEC_TEMPLATE = {
     "merge_locality_timeout": 0,
     "map_locality_timeout": 0,
     "reduce_locality_timeout": 0,
+    "enable_job_proxy_memory_control": False
 }
 
 # TODO(ignat): refactor it.
