@@ -220,6 +220,8 @@ public:
                 BIND(&TImpl::OnValidateSecondaryMasterRegistration, MakeWeak(this)));
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
                 BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
+            multicellManager->SubscribeReplicateValuesToSecondaryMaster(
+                BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
@@ -1265,6 +1267,8 @@ private:
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
         auto multicellManager = Bootstrap_->GetMulticellManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
+
         auto nodes = GetValuesSortedByKey(NodeMap_);
         for (const auto* node : nodes) {
             // NB: TReqRegisterNode+TReqUnregisterNode create an offline node at the secondary master.
@@ -1281,9 +1285,23 @@ private:
                 multicellManager->PostToMaster(request, cellTag);
             }
         }
+
+        auto racks = GetValuesSortedByKey(RackMap_);
+        for (auto* rack : racks) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(rack, cellTag);
+        }
     }
- 
-    
+
+    void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
+    {
+        auto objectManager = Bootstrap_->GetObjectManager();
+
+        auto racks = GetValuesSortedByKey(RackMap_);
+        for (auto* rack : racks) {
+            objectManager->ReplicateObjectAttributesToSecondaryMaster(rack, cellTag);
+        }
+    }
+
     void InsertToAddressMaps(TNode* node)
     {
         YCHECK(AddressToNodeMap_.insert(std::make_pair(node->GetDefaultAddress(), node)).second);
