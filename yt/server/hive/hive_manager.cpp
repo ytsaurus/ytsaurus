@@ -104,7 +104,6 @@ public:
         , Config_(config)
         , CellDirectory_(cellDirectory)
         , HydraManager_(hydraManager)
-        , OrchidService_(CreateOrchidService(automatonInvoker))
     {
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncCells));
@@ -131,6 +130,10 @@ public:
             ESyncSerializationPriority::Values,
             "HiveManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
+
+        OrchidService_ = IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeStrong(this)))
+            ->Via(automatonInvoker)
+            ->Cached(TDuration::Seconds(1));
     }
 
     IServicePtr GetRpcService()
@@ -238,7 +241,8 @@ private:
     const THiveManagerConfigPtr Config_;
     const TCellDirectoryPtr CellDirectory_;
     const IHydraManagerPtr HydraManager_;
-    const IYPathServicePtr OrchidService_;
+
+    IYPathServicePtr OrchidService_;
 
     TEntityMap<TMailbox> MailboxMap_;
     
