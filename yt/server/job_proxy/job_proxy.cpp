@@ -68,7 +68,7 @@ using NJobTrackerClient::TStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto InitialJobProxyMemoryLimit = (i64) 100 * 1024 * 1024;
+static const auto InitialJobProxyInitialMemoryLimit = (i64) 100 * 1024 * 1024;
 static const auto RpcServerShutdownTimeout = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,7 +78,7 @@ TJobProxy::TJobProxy(
     const TJobId& jobId)
     : ConfigNode_(configNode)
     , JobId_(jobId)
-    , JobProxyMemoryLimit_(InitialJobProxyMemoryLimit)
+    , JobProxyInitialMemoryLimit_(InitialJobProxyInitialMemoryLimit)
     , JobThread_(New<TActionQueue>("JobMain"))
     , ControlThread_(New<TActionQueue>("Control"))
     , Logger(JobProxyLogger)
@@ -165,7 +165,7 @@ void TJobProxy::RetrieveJobSpec()
         FormatResources(ResourceUsage_),
         rsp->job_spec().DebugString());
 
-    JobProxyMemoryLimit_ = ResourceUsage_.memory();
+    JobProxyInitialMemoryLimit_ = ResourceUsage_.memory();
     CpuLimit_ = ResourceUsage_.cpu();
 }
 
@@ -302,7 +302,10 @@ TJobResult TJobProxy::DoRun()
 
     const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     NLFAlloc::SetBufferSize(schedulerJobSpecExt.lfalloc_buffer_size());
-    EnableJobProxyMemoryControl_ = schedulerJobSpecExt.enable_job_proxy_memory_control();
+    JobProxyMemoryOvercommitLimit_ = 
+        schedulerJobSpecExt.has_job_proxy_memory_overcommit_limit() ? 
+        MakeNullable(schedulerJobSpecExt.job_proxy_memory_overcommit_limit()) : 
+        Null;
 
     if (Config_->IsCGroupSupported(TCpu::Name)) {
         auto cpuCGroup = GetCurrentCGroup<TCpu>();
@@ -329,7 +332,7 @@ TJobResult TJobProxy::DoRun()
 
     if (schedulerJobSpecExt.has_user_job_spec()) {
         auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-        JobProxyMemoryLimit_ -= userJobSpec.memory_reserve();
+        JobProxyInitialMemoryLimit_ -= userJobSpec.memory_reserve();
         Job_ = CreateUserJob(
             this,
             userJobSpec,
@@ -338,6 +341,8 @@ TJobResult TJobProxy::DoRun()
     } else {
         Job_ = CreateBuiltinJob();
     }
+
+    JobProxyCurrentMemoryLimit_ = JobProxyInitialMemoryLimit_;
 
     Job_->Initialize();
 
@@ -378,7 +383,7 @@ TStatistics TJobProxy::GetStatistics() const
     }
 
     statistics.AddSample("/job_proxy/max_memory", MaxMemoryUsage_);
-    statistics.AddSample("/job_proxy/memory_limit", JobProxyMemoryLimit_);
+    statistics.AddSample("/job_proxy/memory_limit", JobProxyInitialMemoryLimit_);
 
     return statistics;
 }
@@ -453,7 +458,7 @@ void TJobProxy::CheckMemoryUsage()
 
     LOG_DEBUG("Job proxy memory check (MemoryUsage: %v, MemoryLimit: %v)",
         memoryUsage,
-        JobProxyMemoryLimit_);
+        JobProxyInitialMemoryLimit_);
 
     LOG_DEBUG("LFAlloc counters (LargeBlocks: %v, SmallBlocks: %v, System: %v, Used: %v, Mmapped: %v)",
         NLFAlloc::GetCurrentLargeBlocks(),
@@ -462,11 +467,28 @@ void TJobProxy::CheckMemoryUsage()
         NLFAlloc::GetCurrentUsed(),
         NLFAlloc::GetCurrentMmapped());
 
-    if (EnableJobProxyMemoryControl_ && memoryUsage > JobProxyMemoryLimit_) {
-        LOG_FATAL("Job proxy memory limit exceeded (MemoryUsage: %v, MemoryLimit: %v, RefCountedTracker: %v)",
+    if (JobProxyMemoryOvercommitLimit_ && memoryUsage > JobProxyInitialMemoryLimit_ + *JobProxyMemoryOvercommitLimit_) {
+        LOG_FATAL("Job proxy exceeded the memory overcommit limit "
+            "(MemoryUsage: %v, MemoryLimit: %v, CurrentMemoryLimit: %v, MemoryOvercommitLimit: %v, RefCountedTrakcer: %v)",
             memoryUsage,
-            JobProxyMemoryLimit_,
-            TRefCountedTracker::Get()->GetDebugInfo(2));
+            JobProxyInitialMemoryLimit_,
+            JobProxyCurrentMemoryLimit_,
+            JobProxyMemoryOvercommitLimit_,
+            TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */));
+    }
+
+    if (memoryUsage > JobProxyCurrentMemoryLimit_) {
+        LOG_WARNING("Job proxy current memory limit exceeded, increasing current memory limit "
+            "(MemoryUsage: %v, MemoryLimit: %v, CurrentMemoryLimit: %v, RefCountedTracker: %v)",
+            memoryUsage,
+            JobProxyInitialMemoryLimit_,
+            JobProxyCurrentMemoryLimit_,
+            TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */));
+        auto newResourceUsage = ResourceUsage_;
+        auto delta = memoryUsage - JobProxyCurrentMemoryLimit_;
+        newResourceUsage.set_memory(newResourceUsage.memory() + delta);
+        JobProxyCurrentMemoryLimit_ += delta;
+        SetResourceUsage(newResourceUsage);
     }
 }
 

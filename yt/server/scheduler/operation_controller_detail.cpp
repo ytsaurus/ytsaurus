@@ -424,7 +424,9 @@ void TOperationControllerBase::TTask::ScheduleJob(
         controller->CustomizeJobSpec(joblet, jobSpec);
 
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_enable_job_proxy_memory_control(controller->Spec->EnableJobProxyMemoryControl);
+        if (controller->Spec->JobProxyMemoryOvercommitLimit) {
+            schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*controller->Spec->JobProxyMemoryOvercommitLimit);
+        }
         schedulerJobSpecExt->set_enable_sort_verification(controller->Spec->EnableSortVerification);
 
         // Adjust sizes if approximation flag is set.

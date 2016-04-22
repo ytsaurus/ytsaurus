@@ -294,10 +294,6 @@
     }
   },
   "spec": {
-    "enable_job_proxy_memory_control": {
-      "$value": "false",
-      "$type": "boolean"
-    },
     "job_count": {
       "$value": "100",
       "$type": "int64"
