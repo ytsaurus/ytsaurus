@@ -910,7 +910,7 @@ class YTEnv(object):
 
     def _find_nodejs(self):
         nodejs_binary = None
-        for name in ["node", "nodejs"]:
+        for name in ["nodejs", "node"]:
             if which(name):
                 nodejs_binary = name
                 break
