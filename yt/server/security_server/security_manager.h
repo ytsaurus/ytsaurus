@@ -209,7 +209,7 @@ public:
 
     //! Checks if request handling is possible from a given user.
     /*!
-     *  Enforces bans and rate limits. Throws on failure.
+     *  Throws if the user is banned.
      */
     void ValidateUserAccess(TUser* user);
 
@@ -220,8 +220,13 @@ public:
         TDuration readRequestTime,
         TDuration writeRequestTime);
 
-    //! Returns the current request rate from the user.
-    double GetRequestRate(TUser* user);
+    //! Enforces request rate limits.
+    TFuture<void> ThrottleUser(
+        TUser* user,
+        int requestCount);
+
+    //! Updates the user request rate limit.
+    void SetUserRequestRateLimit(TUser* user, double limit);
 
 private:
     class TImpl;
