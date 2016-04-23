@@ -640,7 +640,9 @@ class JsonFormat(Format):
             if "$value" in row:
                 if row["$value"] is not None:
                     raise YtError("Incorrect $value of table switch in JSON format")
-                table_index = row["$attributes"]["table_index"]
+                if "table_index" in row["$attributes"]:
+                    table_index = row["$attributes"]["table_index"]
+                # TODO(ignat): support row_index and other attributes.
             else:
                 if table_index is not None:
                     row[self.table_index_column] = table_index
