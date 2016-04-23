@@ -37,7 +37,10 @@ void TTableConsumer::OnControlInt64Scalar(i64 value)
     switch (ControlAttribute_) {
         case EControlAttribute::TableIndex:
             if (value >= ValueConsumers_.size()) {
-                THROW_ERROR AttachLocationAttributes(TError("Invalid table index %v", value));
+                THROW_ERROR AttachLocationAttributes(TError(
+                    "Invalid table index %v: expected integer in range [0,%v]",
+                    value,
+                    ValueConsumers_.size() - 1));
             }
             CurrentValueConsumer_ = ValueConsumers_[value].Get();
             break;
