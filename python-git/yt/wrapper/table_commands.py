@@ -1425,6 +1425,7 @@ def _run_operation(binary, source_table, destination_table,
 
     finalize = None
 
+    sort_by = None
     if op_name == "reduce":
         if sort_by is None:
             sort_by = _prepare_sort_by(reduce_by, client)
@@ -1502,6 +1503,8 @@ def _run_operation(binary, source_table, destination_table,
             lambda _: _add_job_io_spec("job_io", job_io, table_writer, _),
             lambda _: _add_input_output_spec(source_table, destination_table, _),
             lambda _: update({"reduce_by": reduce_by}, _) if op_name == "reduce" else _,
+            # TODO(ignat): add test on sort_by option in reduce
+            lambda _: update({"sort_by": sort_by}, _) if (op_name == "reduce" and sort_by is not None) else _,
             lambda _: update({"join_by": join_by}, _) if (op_name == "join_reduce" or (op_name == "reduce" and join_by is not None)) else _,
             lambda _: update({"ordered": bool_to_string(ordered)}, _) \
                 if op_name == "map" and ordered is not None else _,
