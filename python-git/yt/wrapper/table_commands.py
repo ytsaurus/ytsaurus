@@ -637,7 +637,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                     else:
                         raise YtError("Read table with multiple ranges using retries is disabled, turn on read_retries/allow_multiple_ranges")
 
-                    if format.name() not in ["yson"]:
+                    if format.name() not in ["json", "yson"]:
                         raise YtError("Read table with multiple ranges using retries is supported only in YSON format")
 
                 if self.range_started and table.name.attributes["ranges"]:
@@ -648,7 +648,33 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
             return params
 
+
         def iterate(self, response):
+            def is_control_row(row):
+                if format.name() == "yson":
+                    return row.endswith("#;")
+                elif format.name() == "json":
+                    loaded_row = json.loads(row)
+                    return "$value" in loaded_row and loaded_row["$value"] is None
+                else:
+                    return False
+
+            def load_control_row(row):
+                if format.name() == "yson":
+                    return yson.loads(row, yson_type="list_fragment").next()
+                elif format.name() == "json":
+                    return yson.json_to_yson(json.loads(row))
+                else:
+                    assert False, "Incorrect format"
+
+            def dump_control_row(row):
+                if format.name() == "yson":
+                    return yson.dumps([row], yson_type="list_fragment")
+                elif format.name() == "json":
+                    return json.dumps(yson.yson_to_json(row)) + "\n"
+                else:
+                    assert False, "Incorrect format"
+
             range_index = 0
 
             if not self.started:
@@ -658,9 +684,8 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
             for row in format.load_rows(response, raw=True):
                 # NB: Low level check for optimization purposes. Only YSON format supported!
-                is_control_row = (format.name() == "yson") and row.endswith("#;")
-                if is_control_row:
-                    row = yson.loads(row, yson_type="list_fragment").next()
+                if is_control_row(row):
+                    row = load_control_row(row)
 
                     # NB: row with range index must go before row with row index.
                     if hasattr(row, "attributes") and "range_index" in row.attributes:
@@ -690,7 +715,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                                 continue
                             self.row_index_row_yielded = True
 
-                    row = format.dumps_row(row)
+                    row = dump_control_row(row)
                 else:
                     self.range_started = True
                     self.range_index_row_yielded = False

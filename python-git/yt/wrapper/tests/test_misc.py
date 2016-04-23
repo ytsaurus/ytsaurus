@@ -196,8 +196,6 @@ class TestRetries(object):
             yt.write_table("<sorted_by=[x]>" + table, [{"x": 1}, {"x": 2}, {"x": 3}])
             assert '{"x":1}\n{"x":2}\n{"x":3}\n' == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
             assert [{"x":1}] == list(yt.read_table(table + "[#0]", format=yt.JsonFormat()))
-            with pytest.raises(yt.YtError):
-                yt.read_table(table + "[#0,#2]", format=yt.JsonFormat(), raw=True)
 
             assert [{"x": 1}, {"x": 3}, {"x": 2}, {"x": 1}, {"x": 2}] == \
                 [{"x": elem["x"]} for elem in yt.read_table(table + '[#0,"2":"1",#2,#1,1:3]', format=yt.YsonFormat())]
@@ -214,11 +212,27 @@ class TestRetries(object):
                 list(yt.read_table(table + '[#0,#2]', format=yt.YsonFormat(process_table_index=False),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
-            with pytest.raises(yt.YtError):
-                list(yt.read_table(table + '[#0,2]', raw=False, format=yt.JsonFormat()))
+            assert [{"$attributes": {"range_index": 0}, "$value": None},
+                    {"$attributes": {"row_index": 0}, "$value": None},
+                    {"x": 1},
+                    {"$attributes": {"range_index": 1}, "$value": None},
+                    {"$attributes": {"row_index": 2}, "$value": None},
+                    {"x": 3}] == \
+                list(yt.read_table(table + '[#0,#2]', format=yt.JsonFormat(process_table_index=False),
+                                   control_attributes={"enable_row_index": True, "enable_range_index": True}))
+
+            assert [{"x": 1},
+                    {"x": 3}] == \
+                list(yt.read_table(table + '[#0,#2]', format=yt.JsonFormat(),
+                                   control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
             with pytest.raises(yt.YtError):
                 list(yt.read_table(table + '[#0,2]', raw=False, format=yt.YsonFormat(process_table_index=False), unordered=True))
+
+            assert ["x=2\n", "x=3\n"] == list(yt.read_table(table + "[2:]", raw=True, format=yt.DsvFormat()))
+
+            with pytest.raises(yt.YtError):
+                list(yt.read_table(table + '[#0,2]', raw=False, format=yt.DsvFormat()))
 
         finally:
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
