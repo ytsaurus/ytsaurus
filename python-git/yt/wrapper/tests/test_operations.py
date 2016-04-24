@@ -825,3 +825,9 @@ if __name__ == "__main__":
             {"table_index": 1, "row_index": 0, "x": 2},
         ] == result
 
+    def test_reduce_sort_by(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1, "y": 1}])
+        yt.run_sort(table, sort_by=["x", "y"])
+        op = yt.run_reduce("cat", table, table, format=yt.JsonFormat(), reduce_by=["x"], sort_by=["x", "y"])
+        assert "sort_by" in op.get_attributes()["spec"]
