@@ -50,13 +50,13 @@ i64 GetBasicPriority(EWorkloadCategory category)
         case EWorkloadCategory::SystemTabletPartitioning:
         case EWorkloadCategory::SystemTabletPreload:
         case EWorkloadCategory::UserBatch:
-            return -CategoryPriorityFactor * 1;
+            return CategoryPriorityFactor * 1;
 
         case EWorkloadCategory::UserRealtime:
-            return -CategoryPriorityFactor * 2;
+            return CategoryPriorityFactor * 2;
 
         case EWorkloadCategory::SystemRealtime:
-            return -CategoryPriorityFactor * 3;
+            return CategoryPriorityFactor * 3;
 
         default:
             YUNREACHABLE();
