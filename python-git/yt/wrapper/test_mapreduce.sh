@@ -645,7 +645,6 @@ test_force_drop
 test_parallel_dstappend
 test_many_to_many_copy_move
 test_missing_prefix
-# TODO(ignat): uncomment when yamr text with row indexes would be merged to all branches.
-#test_table_record_index
+test_table_record_index
 
 cleanup
