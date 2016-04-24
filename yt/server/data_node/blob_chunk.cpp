@@ -142,9 +142,10 @@ void TBlobChunkBase::DoReadMeta(
     const TWorkloadDescriptor& workloadDescriptor)
 {
     const auto& Profiler = Location_->GetProfiler();
-    LOG_DEBUG("Started reading chunk meta (LocationId: %v, ChunkId: %v)",
+    LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v, WorkloadDescriptor: %v)",
+        Id_,
         Location_->GetId(),
-        Id_);
+        workloadDescriptor);
 
     TChunkMeta meta;
     PROFILE_TIMING("/meta_read_time") {
@@ -161,9 +162,9 @@ void TBlobChunkBase::DoReadMeta(
         }
     }
 
-    LOG_DEBUG("Finished reading chunk meta (LocationId: %v, ChunkId: %v)",
-        Location_->GetId(),
-        Id_);
+    LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v)",
+        Id_,
+        Location_->GetId());
 
     auto cachedMeta = New<TCachedChunkMeta>(
         Id_,
@@ -255,12 +256,12 @@ void TBlobChunkBase::DoReadBlockSet(
 
         int blocksToRead = endIndex - beginIndex;
 
-        LOG_DEBUG(
-            "Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
+        LOG_DEBUG("Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, WorkloadDescriptor: %v)",
             Id_,
             firstBlockIndex + beginIndex,
             firstBlockIndex + endIndex - 1,
-            Location_->GetId());
+            Location_->GetId(),
+            workloadDescriptor);
 
         NProfiling::TScopedTimer timer;
         // NB: The reader is synchronous.
@@ -303,13 +304,12 @@ void TBlobChunkBase::DoReadBlockSet(
             }
         }
 
-        LOG_DEBUG(
-            "Finished reading blob chunk blocks (BlockIds: %v:%v-%v, BytesRead: %v, LocationId: %v)",
+        LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BytesRead: %v)",
             Id_,
             firstBlockIndex + beginIndex,
             firstBlockIndex + endIndex - 1,
-            bytesRead,
-            Location_->GetId());
+            Location_->GetId(),
+            bytesRead);
 
         locationProfiler.Enqueue("/blob_block_read_size", bytesRead);
         locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds());
