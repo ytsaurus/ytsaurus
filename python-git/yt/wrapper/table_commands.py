@@ -1424,7 +1424,6 @@ def _run_operation(binary, source_table, destination_table,
 
     finalize = None
 
-    sort_by = None
     if op_name == "reduce":
         if sort_by is None:
             sort_by = _prepare_sort_by(reduce_by, client)
