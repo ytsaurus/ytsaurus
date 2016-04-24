@@ -114,15 +114,15 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
     WaitFor(writer->Open())
         .ThrowOnError();
 
-    auto writingConsumer = New<TWritingValueConsumer>(writer);
-    TTableConsumer consumer(writingConsumer);
+    TWritingValueConsumer valueConsumer(writer);
+    TTableConsumer tableConsumer(&valueConsumer);
 
-    TTableOutput output(context->GetInputFormat(), &consumer);
+    TTableOutput output(context->GetInputFormat(), &tableConsumer);
     auto input = CreateSyncAdapter(context->Request().InputStream);
 
     PipeInputToOutput(input.get(), &output, config->BlockSize);
 
-    writingConsumer->Flush();
+    valueConsumer.Flush();
 
     WaitFor(writer->Close())
         .ThrowOnError();
@@ -250,7 +250,7 @@ namespace {
 std::vector<TUnversionedRow> ParseRows(
     ICommandContextPtr context,
     TTableWriterConfigPtr config,
-    TBuildingValueConsumerPtr valueConsumer)
+    TBuildingValueConsumer* valueConsumer)
 {
     TTableConsumer tableConsumer(valueConsumer);
     TTableOutput output(context->GetInputFormat(), &tableConsumer);
@@ -281,11 +281,9 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
     tableInfo->ValidateDynamic();
 
     // Parse input data.
-    auto valueConsumer = New<TBuildingValueConsumer>(
-        tableInfo->Schema,
-        tableInfo->KeyColumns);
-    valueConsumer->SetTreatMissingAsNull(!Update);
-    auto rows = ParseRows(context, config, valueConsumer);
+    TBuildingValueConsumer valueConsumer(tableInfo->Schema, tableInfo->KeyColumns);
+    valueConsumer.SetTreatMissingAsNull(!Update);
+    auto rows = ParseRows(context, config, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>();
     auto capturedRows = rowBuffer->Capture(rows);
     auto mutableRowRange = MakeSharedRange(std::move(capturedRows), std::move(rowBuffer));
@@ -306,7 +304,7 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
 
     transaction->WriteRows(
         Path.GetPath(),
-        valueConsumer->GetNameTable(),
+        valueConsumer.GetNameTable(),
         std::move(rowRange),
         writeOptions);
 
@@ -349,10 +347,10 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
         GetOptions());
 
     // Parse input data.
-    auto valueConsumer = New<TBuildingValueConsumer>(
+    TBuildingValueConsumer valueConsumer(
         tableInfo->Schema.TrimNonkeyColumns(tableInfo->KeyColumns),
         tableInfo->KeyColumns);
-    auto keys = ParseRows(context, config, valueConsumer);
+    auto keys = ParseRows(context, config, &valueConsumer);
 
     // Run lookup.
     TIntrusivePtr<IClientBase> clientBase = context->GetClient();
@@ -364,10 +362,10 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     }
 
     auto asyncRowset = clientBase->LookupRows(
-            Path.GetPath(),
-            valueConsumer->GetNameTable(),
-            std::move(keys),
-            Options);
+        Path.GetPath(),
+        valueConsumer.GetNameTable(),
+        std::move(keys),
+        Options);
     auto rowset = WaitFor(asyncRowset)
         .ValueOrThrow();
 
@@ -400,10 +398,10 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
     tableInfo->ValidateDynamic();
 
     // Parse input data.
-    auto valueConsumer = New<TBuildingValueConsumer>(
+    TBuildingValueConsumer valueConsumer(
         tableInfo->Schema.TrimNonkeyColumns(tableInfo->KeyColumns),
         tableInfo->KeyColumns);
-    auto keys = ParseRows(context, config, valueConsumer);
+    auto keys = ParseRows(context, config, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>();
     auto capturedKeys = rowBuffer->Capture(keys);
     auto mutableKeyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
@@ -424,7 +422,7 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
 
     transaction->DeleteRows(
         Path.GetPath(),
-        valueConsumer->GetNameTable(),
+        valueConsumer.GetNameTable(),
         std::move(keyRange));
 
     if (shouldCommit) {

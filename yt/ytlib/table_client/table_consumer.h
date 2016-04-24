@@ -25,9 +25,10 @@ class TTableConsumer
     : public NYson::TYsonConsumerBase
 {
 public:
-    explicit TTableConsumer(IValueConsumerPtr consumer);
     explicit TTableConsumer(
-        const std::vector<IValueConsumerPtr>& consumers,
+        IValueConsumer* consumer);
+    explicit TTableConsumer(
+        std::vector<IValueConsumer*> consumers,
         int tableIndex = 0);
 
 protected:
@@ -59,11 +60,12 @@ protected:
     void OnControlInt64Scalar(i64 value);
     void OnControlStringScalar(const TStringBuf& value);
 
-
     void FlushCurrentValueIfCompleted();
 
-    std::vector<IValueConsumerPtr> ValueConsumers_;
-    IValueConsumer* CurrentValueConsumer_;
+
+    const std::vector<IValueConsumer*> ValueConsumers_;
+
+    IValueConsumer* CurrentValueConsumer_ = nullptr;
 
     EControlState ControlState_ = EControlState::None;
     EControlAttribute ControlAttribute_;

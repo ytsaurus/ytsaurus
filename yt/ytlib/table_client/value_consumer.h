@@ -14,8 +14,9 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IValueConsumer
-    : public virtual TRefCounted
 {
+    virtual ~IValueConsumer() = default;
+
     virtual TNameTablePtr GetNameTable() const = 0;
 
     virtual bool GetAllowUnknownColumns() const = 0;
@@ -24,8 +25,6 @@ struct IValueConsumer
     virtual void OnValue(const TUnversionedValue& value) = 0;
     virtual void OnEndRow() = 0;
 };
-
-DEFINE_REFCOUNTED_TYPE(IValueConsumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,8 +65,6 @@ private:
     TUnversionedValue MakeAnyFromScalar(const TUnversionedValue& value);
 };
 
-DEFINE_REFCOUNTED_TYPE(TBuildingValueConsumer)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TWritingValueConsumer
@@ -98,8 +95,6 @@ private:
     virtual void OnEndRow() override;
 
 };
-
-DEFINE_REFCOUNTED_TYPE(TWritingValueConsumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
