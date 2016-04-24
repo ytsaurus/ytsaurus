@@ -127,12 +127,6 @@ void TTableNode::Load(TLoadContext& context)
     if (context.GetVersion() < 206) {
         YCHECK(!(sorted && !TableSchema_.IsSorted()));
     }
-
-    // COMPAT(psushin)
-    auto& attributesMap = GetMutableAttributes()->Attributes();
-    if (!attributesMap.has("optimize_for")) {
-        attributesMap["optimize_for"] = ConvertToYsonString(NTableClient::EOptimizeFor::Lookup);
-    }
 }
 
 std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTableNode::GetIntersectingTablets(

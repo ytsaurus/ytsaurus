@@ -1926,7 +1926,7 @@ private:
         (*writerOptions)->CompressionCodec = tableAttributes.Get<NCompression::ECodec>("compression_codec");
         (*writerOptions)->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
         (*writerOptions)->ChunksVital = table->GetVital();
-        (*writerOptions)->OptimizeFor = tableAttributes.Get<EOptimizeFor>("optimize_for");
+        (*writerOptions)->OptimizeFor = tableAttributes.Get<EOptimizeFor>("optimize_for", NTableClient::EOptimizeFor::Lookup);
     }
 
     static void ParseTabletRange(
