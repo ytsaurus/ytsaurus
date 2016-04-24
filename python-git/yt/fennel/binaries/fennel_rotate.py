@@ -4,6 +4,7 @@ import yt.wrapper as yt
 import yt.logger as logger
 
 import re
+import sys
 from argparse import ArgumentParser
 
 yt.config.PREFIX = "//sys/scheduler/"
@@ -114,7 +115,7 @@ def erase_archived_prefix():
     with yt.Transaction():
         archived_row_count = get_archived_row_count()
         if archived_row_count == 0:
-            return
+            return True
 
         logger.info("Erasing archived prefix of event log table")
 
@@ -125,13 +126,13 @@ def erase_archived_prefix():
             yt.lock("event_log", mode="exclusive")
         except yt.YtResponseError as err:
             if err.is_concurrent_transaction_lock_conflict():
-                logger.warning("Failed to erase archived prefix of 'event_log' due to lock conflict")
-                return
+                return False
             raise
         yt.run_erase(yt.TablePath("event_log", start_index=0, end_index=archived_row_count))
         yt.set("event_log/@archived_row_count", 0)
         if yt.exists("event_log/@processed_row_count"):
             yt.set("event_log/@processed_row_count", processed_row_count - archived_row_count)
+        return True
 
 def rotate_archives(archive_size_limit, min_portion_to_archive):
     if yt.exists("event_log.1") and get_size("event_log.1") >= archive_size_limit - min_portion_to_archive:
@@ -179,11 +180,15 @@ def main():
         logger.info("There is now enough data to archive")
         return 0
 
-    erase_archived_prefix()
-    rotate_archives(args.archive_size_limit, args.min_portion_to_archive)
-    archive_event_log(args.archive_size_limit)
-    erase_archived_prefix()
+    if erase_archived_prefix():
+        rotate_archives(args.archive_size_limit, args.min_portion_to_archive)
+        archive_event_log(args.archive_size_limit)
+        erase_archived_prefix()
+    else:
+        logger.warning("Failed to erase archived prefix of 'event_log' due to lock conflict. Skip rotation.")
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
