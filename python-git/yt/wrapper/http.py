@@ -130,7 +130,7 @@ def raise_for_status(response, request_info):
         raise YtHttpResponseError(error=response.error(), **request_info)
 
 def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False,
-                              params=None, timeout=None, retry_action=None, client=None, **kwargs):
+                              params=None, timeout=None, retry_action=None, client=None,log_body=True, **kwargs):
     configure_ip(client)
 
     if timeout is None:
@@ -142,6 +142,12 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
 
     headers = get_value(kwargs.get("headers", {}), {})
     headers["X-YT-Correlation-Id"] = generate_uuid(get_option("_random_generator", client))
+
+    logger.debug("Request url: %r", url)
+    logger.debug("Headers: %r", headers)
+    if log_body and "data" in kwargs and kwargs["data"] is not None:
+        logger.debug("Body: %r", kwargs["data"])
+
     for attempt in xrange(get_config(client)["proxy"]["request_retry_count"]):
         current_time = datetime.now()
         _process_request_backoff(current_time, client=client)
@@ -175,6 +181,9 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                     response.json()
                 except json.JSONDecodeError:
                     raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)", response)
+
+            logger.debug("Response headers %r", response.headers)
+
             raise_for_status(response, request_info)
             return response
         except tuple(retriable_errors) as error:

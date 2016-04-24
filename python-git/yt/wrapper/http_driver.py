@@ -61,7 +61,7 @@ def ban_host(host, client):
 @forbidden_inside_job
 def make_request(command_name, params,
                  data=None, proxy=None,
-                 return_content=True, verbose=False,
+                 return_content=True,
                  retry_unavailable_proxy=True,
                  response_should_be_json=False,
                  use_heavy_proxy=False,
@@ -70,14 +70,6 @@ def make_request(command_name, params,
     """
     Makes request to yt proxy. Command name is the name of command in YT API.
     """
-    def print_info(msg, *args, **kwargs):
-        # Verbose option is used for debugging because it is more
-        # selective than logging
-        if verbose:
-            # We don't use kwargs because python doesn't support such kind of formatting
-            print >>sys.stderr, msg % args
-        logger.debug(msg, *args, **kwargs)
-
     # Prepare request url.
     if use_heavy_proxy:
         proxy = get_heavy_proxy(client)
@@ -128,7 +120,6 @@ def make_request(command_name, params,
 
     # prepare url
     url = "http://{0}/{1}/{2}".format(proxy, api_path, command_name)
-    print_info("Request url: %r", url)
 
     # prepare params, format and headers
     headers = {"User-Agent": "Python wrapper " + get_version(),
@@ -175,13 +166,7 @@ def make_request(command_name, params,
         else:
             raise YtError("Content encoding '%s' is not supported" % get_config(client)["proxy"]["content_encoding"])
 
-    # Debug information
-    print_info("Headers: %r", headers)
-    if command.input_type is None:
-        print_info("Body: %r", data)
-
     stream = (command.output_type in ["binary", "tabular"])
-
     try:
         response = make_request_with_retries(
             command.http_method(),
@@ -189,6 +174,7 @@ def make_request(command_name, params,
             make_retries=allow_retries,
             retry_unavailable_proxy=retry_unavailable_proxy,
             retry_action=retry_action,
+            log_body=(command.input_type is None),
             headers=headers,
             data=data,
             params=params,
@@ -199,8 +185,6 @@ def make_request(command_name, params,
     except YtProxyUnavailable:
         ban_host(proxy, client=client)
         raise
-
-    print_info("Response headers %r", response.headers)
 
     # Determine type of response data and return it
     if return_content:
