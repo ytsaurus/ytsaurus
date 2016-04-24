@@ -809,3 +809,9 @@ if __name__ == "__main__":
     #    timeout_time = time.time() - start
     #    self.assertAlmostEqual(timeout_time, desired_timeout, delta=loading_time)
 
+    def test_reduce_sort_by(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1, "y": 1}])
+        yt.run_sort(table, sort_by=["x", "y"])
+        op = yt.run_reduce("cat", table, table, format=yt.JsonFormat(), reduce_by=["x"], sort_by=["x", "y"])
+        assert "sort_by" in op.get_attributes()["spec"]
