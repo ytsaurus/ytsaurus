@@ -924,9 +924,10 @@ TOperationControllerBase::TOperationControllerBase(
         GetCancelableInvoker(),
         BIND(&TThis::CheckTimeLimit, MakeWeak(this)),
         Config->OperationTimeLimitCheckPeriod))
+    , EventLogValueConsumer_(Host->CreateLogConsumer())
+    , EventLogTableConsumer_(new TTableConsumer(EventLogValueConsumer_.get()))
 {
     Logger.AddTag("OperationId: %v", operation->GetId());
-    EventLogConsumer_.reset(new TTableConsumer(Host->CreateLogConsumer()));
 }
 
 void TOperationControllerBase::InitializeConnections()
@@ -1794,7 +1795,7 @@ IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return EventLogConsumer_.get();
+    return EventLogTableConsumer_.get();
 }
 
 

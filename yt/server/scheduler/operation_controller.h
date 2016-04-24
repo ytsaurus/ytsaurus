@@ -107,7 +107,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual NTableClient::IValueConsumerPtr CreateLogConsumer() = 0;
+    virtual std::unique_ptr<NTableClient::IValueConsumer> CreateLogConsumer() = 0;
 };
 
 /*!

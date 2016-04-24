@@ -13,18 +13,18 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableConsumer::TTableConsumer(const std::vector<IValueConsumerPtr>& valueConsumers, int tableIndex)
-    : ValueConsumers_(valueConsumers)
+TTableConsumer::TTableConsumer(
+    std::vector<IValueConsumer*> valueConsumers,
+    int tableIndex)
+    : ValueConsumers_(std::move(valueConsumers))
     , ValueWriter_(&ValueBuffer_)
 {
-    YCHECK(!ValueConsumers_.empty());
-    YCHECK(ValueConsumers_.size() > tableIndex);
-    YCHECK(tableIndex >= 0);
-    CurrentValueConsumer_ = ValueConsumers_[tableIndex].Get();
+    YCHECK(tableIndex >= 0 && tableIndex < ValueConsumers_.size());
+    CurrentValueConsumer_ = ValueConsumers_[tableIndex];
 }
 
-TTableConsumer::TTableConsumer(IValueConsumerPtr valueConsumer)
-    : TTableConsumer(std::vector<IValueConsumerPtr>(1, valueConsumer))
+TTableConsumer::TTableConsumer(IValueConsumer* valueConsumer)
+    : TTableConsumer(std::vector<IValueConsumer*>(1, valueConsumer))
 { }
 
 TError TTableConsumer::AttachLocationAttributes(TError error)
@@ -42,7 +42,7 @@ void TTableConsumer::OnControlInt64Scalar(i64 value)
                     value,
                     ValueConsumers_.size() - 1));
             }
-            CurrentValueConsumer_ = ValueConsumers_[value].Get();
+            CurrentValueConsumer_ = ValueConsumers_[value];
             break;
 
         default:

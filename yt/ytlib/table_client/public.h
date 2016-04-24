@@ -200,9 +200,7 @@ DECLARE_REFCOUNTED_CLASS(TCachedVersionedChunkMeta)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkReaderPerformanceCounters)
 
-DECLARE_REFCOUNTED_STRUCT(IValueConsumer)
-DECLARE_REFCOUNTED_CLASS(TBuildingValueConsumer)
-DECLARE_REFCOUNTED_CLASS(TWritingValueConsumer)
+struct IValueConsumer;
 
 DECLARE_REFCOUNTED_CLASS(TTableWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TTableReaderOptions)
