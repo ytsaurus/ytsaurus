@@ -23,12 +23,12 @@ struct TWorkloadDescriptor
         , Instant(instant)
     { }
 
-    //! The type of the workload.
+    //! The type of the workload defining its basic priority.
     EWorkloadCategory Category;
 
     //! The relative importance of the workload (among others within the category).
     //! Zero is the default value.
-    //! Smaller is better.
+    //! Larger is better.
     int Band;
 
     //! The time instant when this workload has been initiated.
@@ -39,7 +39,7 @@ struct TWorkloadDescriptor
     TWorkloadDescriptor SetCurrentInstant() const;
 
     //! Computes the aggregated priority.
-    //! Smaller is better.
+    //! Larger is better.
     i64 GetPriority() const;
 };
 
