@@ -374,11 +374,10 @@ def _add_job_io_spec(job_types, job_io, table_writer, spec):
     return spec
 
 def _make_operation_request(command_name, spec, sync,
-                            finalizer=None, verbose=False, client=None):
+                            finalizer=None, client=None):
     def _manage_operation(finalizer):
         operation_id = run_with_retries(
-            action=lambda: _make_formatted_transactional_request(command_name, {"spec": spec}, format=None,
-                                                             verbose=verbose, client=client),
+            action=lambda: _make_formatted_transactional_request(command_name, {"spec": spec}, format=None, client=client),
             retry_count=get_config(client)["start_operation_retries"]["retry_count"],
             backoff=get_config(client)["start_operation_retries"]["retry_timeout"] / 1000.0,
             exceptions=(YtConcurrentOperationsLimitExceeded,))
