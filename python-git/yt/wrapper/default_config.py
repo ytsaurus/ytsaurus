@@ -67,7 +67,7 @@ default_config = {
 
     # Version of api for requests through http, None for use latest.
     # For native driver version "v3" by default.
-    "default_api_version_for_http": "v2",
+    "default_api_version_for_http": "v3",
 
     # Driver configuration.
     "driver_config": None,
