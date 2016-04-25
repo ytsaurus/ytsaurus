@@ -56,46 +56,51 @@ else()
     "${PYTHON_LINK_FLAGS} -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linker.map")
 endif()
 
-# Determine kinds of Python to build with.
-set(PYTHON_KINDS)
-foreach(PYTHON_KIND "PYTHON" "PYTHON_SKYNET")
-  if(${PYTHON_KIND}_INCLUDE_DIR)
-    list(APPEND PYTHON_KINDS ${PYTHON_KIND})
-  endif()
-endforeach()
+set(PYCXX_BASE ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx)
+set(PYCXX_SRCS
+  ${PYCXX_BASE}/cxx_extensions.cxx
+  ${PYCXX_BASE}/cxxextensions.c
+  ${PYCXX_BASE}/cxxsupport.cxx
+  ${PYCXX_BASE}/IndirectPythonInterface.cxx
+)
 
 # Build library for each kind of Python.
 foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
   string(TOLOWER ${PYTHON_KIND} PYTHON_KIND_LOWER)
-  string(REPLACE "_" "-" PYTHON_KIND_SUFFIX ${PYTHON_KIND_LOWER})
+  string(REPLACE "_" "-" PYTHON_KIND_DASHED ${PYTHON_KIND_LOWER})
+  set(TARGET_NAME_PREFIX "yt-python-${PYTHON_KIND_DASHED}-")
+
+  add_library(${TARGET_NAME_PREFIX}pycxx STATIC ${PYCXX_SRCS})
+  target_include_directories(${TARGET_NAME_PREFIX}pycxx PUBLIC ${PYCXX_BASE} ${PYTHON_${PYTHON_KIND}_INCLUDE_DIR})
+
+  add_library(${TARGET_NAME_PREFIX}common STATIC ${YT_SRCS})
+  target_link_libraries(${TARGET_NAME_PREFIX}common ytlib ${TARGET_NAME_PREFIX}pycxx)
 
   foreach(COMPONENT "yson" "driver")
-    set(TARGET_NAME "yt-${COMPONENT}-${PYTHON_KIND_SUFFIX}")
+    set(TARGET_NAME "${TARGET_NAME_PREFIX}${COMPONENT}")
 
-    add_library(${TARGET_NAME} MODULE
-      ${YT_SRCS}
-      ${CMAKE_CURRENT_LIST_DIR}/${COMPONENT}.cpp
-    )
-
-    target_include_directories(${TARGET_NAME} PUBLIC
-      ${${PYTHON_KIND}_INCLUDE_DIR}
-    )
-
-    target_link_libraries(${TARGET_NAME}
-      ytlib
-      ytext-pycxx
-      ${${PYTHON_KIND}_LIBRARY}
-    )
+    add_library(${TARGET_NAME} MODULE ${CMAKE_CURRENT_LIST_DIR}/${COMPONENT}.cpp)
+    target_link_libraries(${TARGET_NAME} ${TARGET_NAME_PREFIX}common)
 
     set_target_properties(${TARGET_NAME}
       PROPERTIES
+      LIBRARY_OUTPUT_NAME "${COMPONENT}_lib"
+      LIBRARY_OUTPUT_DIRECTORY "${LIBRARY_OUTPUT_PATH}/pyshared-${PYTHON_KIND_DASHED}"
+      PREFIX ""
+      SUFFIX "${CMAKE_SHARED_MODULE_SUFFIX}"
       LINK_FLAGS ${PYTHON_LINK_FLAGS}
     )
 
-    if(${PYTHON_KIND} MATCHES "^PYTHON$")
+    install(
+      TARGETS ${TARGET_NAME}
+      DESTINATION lib/pyshared-${PYTHON_KIND_DASHED}/yt_${COMPONENT}_bindings
+      COMPONENT ${TARGET_NAME}
+    )
+
+    if(${PYTHON_KIND} MATCHES "^2_7$")
       exec_program(
         ${CMAKE_COMMAND} ARGS -E create_symlink
-        ${CMAKE_BINARY_DIR}/lib/lib${TARGET_NAME}${CMAKE_SHARED_MODULE_SUFFIX}
+        ${LIBRARY_OUTPUT_PATH}/pyshared-${PYTHON_KIND_DASHED}/${COMPONENT}_lib${CMAKE_SHARED_MODULE_SUFFIX}
         ${CMAKE_SOURCE_DIR}/python/yt_${COMPONENT}_bindings/${COMPONENT}_lib${CMAKE_SHARED_MODULE_SUFFIX}
       )
     endif()
