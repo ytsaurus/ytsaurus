@@ -83,12 +83,12 @@ EOF
     "notifications": [
         {
             "transport": "email",
-            "recipients": ["asaitgalin", "alexeyche", "vartyukh"],
+            "recipients": ["asaitgalin", "alexeyche", "vartyukh", "ignat"],
             "statuses": ["SUCCESS"]
         },
         {
             "transport": "email",
-            "recipients": ["asaitgalin"],
+            "recipients": ["asaitgalin", "ignat"],
             "statuses": ["FAILURE", "TIMEOUT", "EXCEPTION"]
         }
     ],
