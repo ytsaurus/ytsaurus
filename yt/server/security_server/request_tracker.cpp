@@ -70,7 +70,28 @@ void TRequestTracker::Stop()
     Reset();
 }
 
-void TRequestTracker::ChargeUser(
+void TRequestTracker::ChargeUserRead(
+    TUser* user,
+    int requestCount,
+    TDuration requestTime)
+{
+    DoChargeUser(user, requestCount, requestTime, TDuration());
+}
+
+void TRequestTracker::ChargeUserWrite(
+    TUser* user,
+    int requestCount,
+    TDuration requestTime)
+{
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    if (hydraManager->IsLeader()) {
+        DoChargeUser(user, requestCount, TDuration(), requestTime);
+    } else {
+        user->GetRequestRateThrottler()->Acquire(requestCount);
+    }
+}
+
+void TRequestTracker::DoChargeUser(
     TUser* user,
     int requestCount,
     TDuration readRequestTime,

@@ -27,11 +27,15 @@ public:
     void Start();
     void Stop();
 
-    void ChargeUser(
+    void ChargeUserRead(
         TUser* user,
         int requestCount,
-        TDuration readRequestTime,
-        TDuration writeRequestTime);
+        TDuration requestTime);
+
+    void ChargeUserWrite(
+        TUser* user,
+        int requestCount,
+        TDuration requestTime);
 
     TFuture<void> ThrottleUser(
         TUser* user,
@@ -55,6 +59,11 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
+    void DoChargeUser(
+        TUser* user,
+        int requestCount,
+        TDuration readRequestTime,
+        TDuration writeRequestTime);
     void Reset();
     void OnFlush();
 
