@@ -608,9 +608,21 @@ test_table_record_index()
     echo -e "a\t1" | ./mapreduce -writesorted ignat/tableA
     echo -e "b\t2" | ./mapreduce -writesorted ignat/tableB
 
-    ./mapreduce -reduce "cat | ./yt upload //tmp/test_file --proxy $YT_PROXY" -src ignat/tableA -src ignat/tableB -dst ignat/dst -tablerecordindex -file yt
+    # XXX(asaitgalin): Communicating through socket because -tablerecordindex
+    # flag is applied to output format too and this is simple workaround
+    # to write and check job output somewhere outside job sandbox without
+    # modifying table record indices.
+    socketfile=$(mktemp /tmp/test_mapreduce_binary.sock.XXXXXX)
+    nc -l -U $socketfile >table_file &
 
-    check $(echo -e "0\n0\na\t1\n1\n0\nb\t2") $(./yt download //tmp/test_file)
+    ./mapreduce -reduce "cat | nc -U $socketfile" \
+                -src ignat/tableA \
+                -src ignat/tableB \
+                -dst ignat/dst \
+                -tablerecordindex
+
+    check "0\n0\na\t1\n1\n0\nb\t2" "$(cat table_file)"
+    rm -rf $socketfile
 }
 
 prepare_table_files
