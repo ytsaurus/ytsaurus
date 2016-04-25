@@ -13,7 +13,7 @@ def test():
         args=[
             'qd_prepare',
             '--src', 'cnts_aggr_sample/dopp_word',
-            '--dst', 'cnts_aggr_sample/dopp_word/qd_prepare',
+            '--dst', 'cnts_aggr_sample/dopp_word_qd_prepare',
             '--server', 'local',
         ],
         data_path=data_path,
