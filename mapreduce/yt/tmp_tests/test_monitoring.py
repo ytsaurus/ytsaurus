@@ -13,7 +13,7 @@ def test():
         args=[
             'monitoring',
             '--src', 'cnts_aggr_sample/dopp_word',
-            '--dst', 'cnts_aggr_sample/dopp_word/monitoring',
+            '--dst', 'cnts_aggr_sample/dopp_word_monitoring',
             '--server', 'local',
         ],
         data_path=data_path,
