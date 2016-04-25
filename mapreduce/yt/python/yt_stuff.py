@@ -17,7 +17,7 @@ _YT_ARCHIVE_NAME = "mapreduce/yt/python/yt.tar" # comes by FROM_SANDBOX
 _YT_PREFIX = "//"
 _YT_MAX_START_RETRIES = 3
 
-class YtConfig:
+class YtConfig(object):
     def __init__(self, **kwargs):
         self.fqdn = kwargs.get("fqdn", "localhost")
         self.yt_id = kwargs.get("yt_id")
@@ -29,7 +29,7 @@ class YtConfig:
         self.yt_path = kwargs.get("yt_path")
 
 
-class YtStuff:
+class YtStuff(object):
     def __init__(self, config=None):
         self.config = config or YtConfig()
 
