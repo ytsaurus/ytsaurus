@@ -392,7 +392,7 @@ private:
 
         // NB: Even if the user was just removed the instance is still valid but not alive.
         if (IsObjectAlive(user)) {
-            SecurityManager_->ChargeUser(user, 1, timer.GetElapsed(), TDuration());
+            SecurityManager_->ChargeUserRead(user, 1, timer.GetElapsed());
         }
     }
 

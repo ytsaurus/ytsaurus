@@ -915,17 +915,26 @@ public:
         }
     }
 
-    void ChargeUser(
+    void ChargeUserRead(
         TUser* user,
         int requestCount,
-        TDuration readRequestTime,
-        TDuration writeRequestTime)
+        TDuration requestTime)
     {
-        RequestTracker_->ChargeUser(
+        RequestTracker_->ChargeUserRead(
             user,
             requestCount,
-            readRequestTime,
-            writeRequestTime);
+            requestTime);
+    }
+
+    void ChargeUserWrite(
+        TUser* user,
+        int requestCount,
+        TDuration requestTime)
+    {
+        RequestTracker_->ChargeUserWrite(
+            user,
+            requestCount,
+            requestTime);
     }
 
     TFuture<void> ThrottleUser(TUser* user, int requestCount)
@@ -2029,13 +2038,20 @@ void TSecurityManager::ValidateUserAccess(TUser* user)
     Impl_->ValidateUserAccess(user);
 }
 
-void TSecurityManager::ChargeUser(
+void TSecurityManager::ChargeUserRead(
     TUser* user,
     int requestCount,
-    TDuration readRequestTime,
-    TDuration writeRequestTime)
+    TDuration requestTime)
 {
-    Impl_->ChargeUser(user, requestCount, readRequestTime, writeRequestTime);
+    Impl_->ChargeUserRead(user, requestCount, requestTime);
+}
+
+void TSecurityManager::ChargeUserWrite(
+    TUser* user,
+    int requestCount,
+    TDuration requestTime)
+{
+    Impl_->ChargeUserWrite(user, requestCount, requestTime);
 }
 
 TFuture<void> TSecurityManager::ThrottleUser(TUser* user, int requestCount)
