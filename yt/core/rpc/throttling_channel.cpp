@@ -22,7 +22,7 @@ public:
         auto throttlerConfig = New<NConcurrency::TThroughputThrottlerConfig>();
         throttlerConfig->Period = TDuration::Seconds(1);
         throttlerConfig->Limit = Config_->RateLimit;
-        Throttler_ = CreateLimitedThrottler(throttlerConfig);
+        Throttler_ = CreateReconfigurableThroughputThrottler(throttlerConfig);
     }
 
     virtual IClientRequestControlPtr Send(

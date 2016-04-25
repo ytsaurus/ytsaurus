@@ -65,7 +65,7 @@ public:
             ConnectionConfig_,
             channelFactory,
             EPeerKind::Follower))
-        , CostThrottler_(CreateLimitedThrottler(ServiceConfig_->CostThrottler))
+        , CostThrottler_(CreateReconfigurableThroughputThrottler(ServiceConfig_->CostThrottler))
         , LocateChunksBatcher_(New<TLocateChunksBatcher>(this))
         , AllocateWriteTargetsBatcher_(New<TAllocateWriteTargetsBatcher>(this))
         , ExecuteBatchBatcher_(New<TExecuteBatchBatcher>(this))

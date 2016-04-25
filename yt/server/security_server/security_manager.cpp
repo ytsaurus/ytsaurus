@@ -1096,7 +1096,7 @@ private:
         DoAddMember(GetBuiltinGroupForUser(user), user);
 
         if (!IsRecovery()) {
-            RequestTracker_->RecreateUserRequestRateThrottler(user);
+            RequestTracker_->ReconfigureUserRequestRateThrottler(user);
         }
 
         return user;

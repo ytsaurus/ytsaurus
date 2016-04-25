@@ -41,7 +41,7 @@ public:
         TUser* user,
         double limit);
 
-    void RecreateUserRequestRateThrottler(TUser* user);
+    void ReconfigureUserRequestRateThrottler(TUser* user);
 
 private:
     const TSecurityManagerConfigPtr Config_;
