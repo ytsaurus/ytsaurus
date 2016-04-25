@@ -33,10 +33,8 @@ def init_logging(node, path, name, enable_debug_logging):
 class ConfigsProviderFactory(object):
     @staticmethod
     def create_for_version(version, ports, enable_debug_logging, fqdn):
-        if versions_cmp(version, "0.17.3") <= 0:
-            return ConfigsProvider_17_3(ports, enable_debug_logging, fqdn)
-        elif versions_cmp(version, "0.17.4") >= 0 and versions_cmp(version, "0.18") < 0:
-            return ConfigsProvider_17_4(ports, enable_debug_logging, fqdn)
+        if versions_cmp(version, "0.17.4") >= 0 and versions_cmp(version, "0.18") < 0:
+            return ConfigsProvider_17(ports, enable_debug_logging, fqdn)
         elif versions_cmp(version, "0.18") >= 0:
             return ConfigsProvider_18(ports, enable_debug_logging, fqdn)
 
@@ -159,6 +157,12 @@ class ConfigsProvider_17(ConfigsProvider):
             config["node_tracker"]["online_node_timeout"] = 1000
             _set_bind_retry_options(config)
 
+            config["hydra_manager"] = {
+                "leader_lease_check_period": 100,
+                "leader_lease_timeout": 500,
+                "disable_leader_lease_grace_delay": True
+            }
+
             configs.append(config)
 
         self._master_addresses["primary"] = addresses
@@ -244,7 +248,12 @@ class ConfigsProvider_17(ConfigsProvider):
                 "high_watermark": 0
             })
 
+            config["data_node"]["cache_locations"] = [{
+                "path": os.path.join(node_dirs[i], "chunk_cache")
+            }]
+
             config["exec_agent"]["slot_manager"]["start_uid"] = current_user
+            config["exec_agent"]["slot_manager"]["paths"] = [os.path.join(node_dirs[i], "slots")]
 
             current_user += config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] + 1
 
@@ -283,44 +292,6 @@ class ConfigsProvider_17(ConfigsProvider):
             .replace("%%masters%%",
                 "masters: [ {0} ]".format(
                     ", ".join(["'{0}'".format(address) for address in self._master_addresses["primary"]])))
-
-class ConfigsProvider_17_3(ConfigsProvider_17):
-    def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
-        configs = super(ConfigsProvider_17_3, self).get_node_configs(node_count, node_dirs, operations_memory_limit)
-
-        for i, config in enumerate(configs):
-            config["exec_agent"]["slot_manager"]["path"] = os.path.join(node_dirs[i], "slots")
-            config["data_node"]["cache_location"] = {"path": os.path.join(node_dirs[i], "chunk_cache")}
-
-        return configs
-
-class ConfigsProvider_17_4(ConfigsProvider_17):
-    def get_master_configs(self, master_count, nonvoting_master_count, master_dirs,
-                           tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
-
-        configs = super(ConfigsProvider_17_4, self).get_master_configs(master_count, nonvoting_master_count, master_dirs, tmpfs_master_dirs,
-                                                                       secondary_master_cell_count, cell_tag)
-
-        for cell_index in xrange(secondary_master_cell_count + 1):
-            for config in configs[cell_index]:
-                config["hydra_manager"] = {
-                    "leader_lease_check_period": 100,
-                    "leader_lease_timeout": 500,
-                    "disable_leader_lease_grace_delay": True
-                }
-
-        return configs
-
-    def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
-        configs = super(ConfigsProvider_17_4, self).get_node_configs(node_count, node_dirs, operations_memory_limit)
-
-        for i, config in enumerate(configs):
-            config["data_node"]["cache_locations"] = [{
-                "path": os.path.join(node_dirs[i], "chunk_cache")
-            }]
-            config["exec_agent"]["slot_manager"]["paths"] = [os.path.join(node_dirs[i], "slots")]
-
-        return configs
 
 class ConfigsProvider_18(ConfigsProvider):
     def __init__(self, ports, enable_debug_logging=True, fqdn=None):
@@ -513,7 +484,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
             config["data_node"]["read_thread_count"] = 2
             config["data_node"]["write_thread_count"] = 2
-            
+
             config["data_node"]["multiplexed_changelog"] = {}
             config["data_node"]["multiplexed_changelog"]["path"] = os.path.join(node_dirs[i], "multiplexed")
 
