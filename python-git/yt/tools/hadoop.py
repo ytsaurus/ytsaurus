@@ -1,4 +1,5 @@
 from yt.wrapper.common import generate_uuid, run_with_retries
+from yt.common import get_value
 from yt.wrapper.http import get_retriable_errors
 import yt.packages.requests as requests
 from yt.json import loads_as_bytes
@@ -61,8 +62,9 @@ class AirflowError(Exception):
     pass
 
 class Airflow(object):
-    def __init__(self, address, dag_registered_wait_time):
-        self._address = address
+    def __init__(self, address, dag_registered_wait_time, protocol=None):
+        protocol = get_value(protocol, "http")
+        self._url = "{0}://{1}/admin/airflow".format(protocol, address)
         self._headers = {
             "Content-Type": "application/json"
         }
@@ -95,9 +97,8 @@ class Airflow(object):
             "dag_id": task_id
         }
 
-        submit_url = "http://{0}/admin/airflow/submit".format(self._address)
         # XXX(asaitgalin): Retries will be added when HDPDEV-279 is done.
-        response = requests.post(submit_url, data=json.dumps(data), headers=self._headers)
+        response = requests.post(self._url + "/submit", data=json.dumps(data), headers=self._headers)
         response.raise_for_status()
 
         # XXX(asaitgalin): not using "id" instead of "_id" here because this requires
@@ -110,12 +111,11 @@ class Airflow(object):
         return task_id
 
     def get_task_info(self, task_id):
-        graph_url = "http://{0}/admin/airflow/graph".format(self._address)
         params = {
             "dag_id": task_id,
             "no_render": "true"
         }
-        response = self._make_get_request(graph_url, params=params)
+        response = self._make_get_request(self._url + "/graph", params=params)
         if response.status_code == 400:
             raise AirflowError("Task {0} not found".format(task_id))
 
@@ -127,14 +127,13 @@ class Airflow(object):
         if not info:
             return ""
 
-        log_url = "http://{0}/admin/airflow/log".format(self._address)
         params = {
             "dag_id": task_id,
             "task_id": info["task_id"],
             "execution_date": info["execution_date"],
             "no_render": "true"
         }
-        response = self._make_get_request(log_url, params=params)
+        response = self._make_get_request(self._url + "/log", params=params)
         if response.status_code == 400:
             raise AirflowError("Task {0} not found".format(task_id))
 
