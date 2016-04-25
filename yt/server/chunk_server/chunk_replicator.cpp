@@ -94,10 +94,11 @@ TChunkReplicator::TChunkReplicator(
     , Bootstrap_(bootstrap)
     , ChunkPlacement_(chunkPlacement)
     , ChunkRefreshDelay_(DurationToCpuDuration(Config_->ChunkRefreshDelay))
-    , JobThrottler_(CreateLimitedThrottler(
-        Config_->JobThrottler,
-        ChunkServerLogger,
-        NProfiling::TProfiler(ChunkServerProfiler.GetPathPrefix() + "/job_throttler")))
+    , JobThrottler_(
+        CreateReconfigurableThroughputThrottler(
+            Config_->JobThrottler,
+            ChunkServerLogger,
+            NProfiling::TProfiler(ChunkServerProfiler.GetPathPrefix() + "/job_throttler")))
 {
     YCHECK(Config_);
     YCHECK(Bootstrap_);

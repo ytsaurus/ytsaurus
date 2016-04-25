@@ -15,29 +15,19 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLimitedThroughputThrottler
-    : public IThroughputThrottler
+class TReconfigurableThroughputThrottler
+    : public IReconfigurableThroughputThrottler
 {
 public:
-    TLimitedThroughputThrottler(
+    TReconfigurableThroughputThrottler(
         TThroughputThrottlerConfigPtr config,
         const NLogging::TLogger& logger,
         const NProfiling::TProfiler& profiler)
-        : Config_(config)
-        , Logger(logger)
+        : Logger(logger)
         , Profiler(profiler)
         , ValueCounter_("/value")
     {
-        if (Config_->Limit) {
-            ThroughputPerPeriod_ = static_cast<i64>(Config_->Period.SecondsFloat() * (*Config_->Limit));
-            Available_ = ThroughputPerPeriod_;
-
-            PeriodicExecutor_ = New<TPeriodicExecutor>(
-                GetSyncInvoker(),
-                BIND(&TLimitedThroughputThrottler::OnTick, MakeWeak(this)),
-                config->Period);
-            PeriodicExecutor_->Start();
-        }
+        Reconfigure(config);
     }
 
     virtual TFuture<void> Throttle(i64 count) override
@@ -47,11 +37,15 @@ public:
 
         Profiler.Increment(ValueCounter_, count);
 
-        if (count == 0 || !Config_->Limit) {
+        if (count == 0) {
             return VoidFuture;
         }
 
         TGuard<TSpinLock> guard(SpinLock_);
+
+        if (!Limit_) {
+            return VoidFuture;
+        }
 
         if (Available_ > 0) {
             // Execute immediately.
@@ -71,7 +65,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
 
-        {
+        if (Limit_) {
             TGuard<TSpinLock> guard(SpinLock_);
             if (Available_ < count) {
                 return false;
@@ -88,7 +82,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
 
-        {
+        if (Limit_) {
             TGuard<TSpinLock> guard(SpinLock_);
             Available_ -= count;
         }
@@ -104,24 +98,48 @@ public:
         return Available_ < 0;
     }
 
+    virtual void Reconfigure(TThroughputThrottlerConfigPtr config) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        Limit_ = config->Limit;
+        if (Limit_) {
+            ThroughputPerPeriod_ = static_cast<i64>(config->Period.SecondsFloat() * (*Limit_));
+            Available_ = ThroughputPerPeriod_;
+            PeriodicExecutor_ = New<TPeriodicExecutor>(
+                GetSyncInvoker(),
+                BIND(&TReconfigurableThroughputThrottler::OnTick, MakeWeak(this)),
+                config->Period);
+            PeriodicExecutor_->Start();
+        } else {
+            ThroughputPerPeriod_ = -1;
+            Available_ = -1;
+        }
+
+        ProcessRequests(&guard);
+    }
+
 private:
+    const NLogging::TLogger Logger;
+    const NProfiling::TProfiler Profiler;
+
+    NProfiling::TAggregateCounter ValueCounter_;
+
+    //! Protects the section immediately following it.
+    TSpinLock SpinLock_;
+    i64 Available_ = -1;
+    TNullable<i64> Limit_;
+    i64 ThroughputPerPeriod_ = -1;
+    TPeriodicExecutorPtr PeriodicExecutor_;
+
     struct TRequest
     {
         i64 Count;
         TPromise<void> Promise;
     };
 
-    TThroughputThrottlerConfigPtr Config_;
-    NLogging::TLogger Logger;
-    NProfiling::TProfiler Profiler;
-    NProfiling::TAggregateCounter ValueCounter_;
-
-    i64 ThroughputPerPeriod_ = -1;
-    TPeriodicExecutorPtr PeriodicExecutor_;
-
-    //! Protects the section immediately following it.
-    TSpinLock SpinLock_;
-    i64 Available_ = -1;
     std::queue<TRequest> Requests_;
 
 
@@ -129,27 +147,36 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        Available_ += ThroughputPerPeriod_;
+        if (Available_ > ThroughputPerPeriod_) {
+            Available_ = ThroughputPerPeriod_;
+        }
+
+        ProcessRequests(&guard);
+    }
+
+    void ProcessRequests(TGuard<TSpinLock>* guard)
+    {
         std::vector<TPromise<void>> readyList;
         std::vector<TPromise<void>> canceledList;
 
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            Available_ += ThroughputPerPeriod_;
-            if (Available_ > ThroughputPerPeriod_) {
-                Available_ = ThroughputPerPeriod_;
-            }
-            while (!Requests_.empty() && Available_ > 0) {
-                auto& request = Requests_.front();
-                LOG_DEBUG("Finished waiting for throttler (Count: %v)", request.Count);
-                if (request.Promise.IsCanceled()) {
-                    canceledList.push_back(std::move(request.Promise));
-                } else {
+        while (!Requests_.empty() && (!Limit_ || Available_ > 0)) {
+            auto& request = Requests_.front();
+            LOG_DEBUG("Finished waiting for throttler (Count: %v)", request.Count);
+            if (request.Promise.IsCanceled()) {
+                canceledList.push_back(std::move(request.Promise));
+            } else {
+                if (Limit_) {
                     Available_ -= request.Count;
-                    readyList.push_back(std::move(request.Promise));
                 }
-                Requests_.pop();
+                readyList.push_back(std::move(request.Promise));
             }
+            Requests_.pop();
         }
+
+        guard->Release();
 
         for (auto& promise : readyList) {
             promise.Set();
@@ -159,14 +186,15 @@ private:
             promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled"));
         }
     }
+
 };
 
-IThroughputThrottlerPtr CreateLimitedThrottler(
+IReconfigurableThroughputThrottlerPtr CreateReconfigurableThroughputThrottler(
     TThroughputThrottlerConfigPtr config,
     const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler)
 {
-    return New<TLimitedThroughputThrottler>(
+    return New<TReconfigurableThroughputThrottler>(
         config,
         logger,
         profiler);

@@ -45,7 +45,7 @@ void TRequestTracker::Start()
     auto securityManager = Bootstrap_->GetSecurityManager();
     for (const auto& pair : securityManager->Users()) {
         auto* user = pair.second;
-        RecreateUserRequestRateThrottler(user);
+        ReconfigureUserRequestRateThrottler(user);
     }
 
     YCHECK(!FlushExecutor_);
@@ -108,15 +108,18 @@ TFuture<void> TRequestTracker::ThrottleUser(TUser* user, int requestCount)
 void TRequestTracker::SetUserRequestRateLimit(TUser* user, double limit)
 {
     user->SetRequestRateLimit(limit);
-    RecreateUserRequestRateThrottler(user);
+    ReconfigureUserRequestRateThrottler(user);
 }
 
-void TRequestTracker::RecreateUserRequestRateThrottler(TUser* user)
+void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
 {
+    if (!user->GetRequestRateThrottler()) {
+        user->SetRequestRateThrottler(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()));
+    }
     auto config = New<TThroughputThrottlerConfig>();
     config->Period = Config_->RequestRateSmoothingPeriod;
     config->Limit = user->GetRequestRateLimit();
-    user->SetRequestRateThrottler(CreateLimitedThrottler(config));
+    user->GetRequestRateThrottler()->Reconfigure(std::move(config));
 }
 
 void TRequestTracker::Reset()
