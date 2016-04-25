@@ -145,20 +145,11 @@ macro(UDF_O udf_impl output)
 endmacro()
 
 function(PROTOC proto output)
-  get_filename_component( _proto_realpath ${proto} REALPATH )
-  get_filename_component( _proto_dirname  ${_proto_realpath} PATH )
-  get_filename_component( _proto_basename ${_proto_realpath} NAME_WE )
-  get_filename_component( _source_realpath ${CMAKE_SOURCE_DIR} REALPATH )
+  get_filename_component(_proto_realpath ${proto} REALPATH)
+  get_filename_component(_proto_dirname  ${_proto_realpath} PATH)
+  get_filename_component(_proto_basename ${_proto_realpath} NAME_WE)
+  get_filename_component(_source_realpath ${CMAKE_SOURCE_DIR} REALPATH)
   string(REPLACE "${_source_realpath}" "" _relative_path "${_proto_dirname}")
-
-  # Append generated .pb.h and .pb.cc to the output variable.
-  set(${output}
-    ${${output}}
-    ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.h
-    ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.cc
-    PARENT_SCOPE)
-
-  set(protoc_location $<TARGET_FILE:protoc>)
 
   # Specify custom command how to generate .pb.h and .pb.cc.
   add_custom_command(
@@ -168,7 +159,7 @@ function(PROTOC proto output)
     COMMAND
       ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}${_relative_path}
     COMMAND
-      ${protoc_location}
+    $<TARGET_FILE:protoc>
         -I${_source_realpath}
         --cpp_out=${CMAKE_BINARY_DIR}
         ${_proto_realpath}
@@ -180,6 +171,19 @@ function(PROTOC proto output)
       ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Generating protobuf from ${proto}..."
   )
+
+  set_source_files_properties(
+    ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.h
+    ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.cc
+    PROPERTIES GENERATED TRUE
+  )
+
+  # Append generated .pb.h and .pb.cc to the output variable.
+  set(${output}
+    ${${output}}
+    ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.h
+    ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.cc
+    PARENT_SCOPE)
 endfunction()
 
 function(RAGEL source result_variable)
@@ -190,7 +194,7 @@ function(RAGEL source result_variable)
   set(_output ${_dirname}/${_basename}.cpp)
 
   if(YT_BUILD_HAVE_RAGEL)
-    INCLUDE(FindPerl)
+    include(FindPerl)
     # Specify custom command how to generate .cpp.
     add_custom_command(
       OUTPUT
@@ -205,6 +209,10 @@ function(RAGEL source result_variable)
         ${CMAKE_CURRENT_SOURCE_DIR}
       COMMENT
         "Generating Ragel automata from ${input}..."
+    )
+    set_source_files_properties(
+      ${_output}
+      PROPERTIES GENERATED TRUE
     )
   endif()
 
@@ -238,6 +246,10 @@ function(BISON source result_variable)
         ${CMAKE_CURRENT_SOURCE_DIR}
       COMMENT
         "Generating Bison parser from ${source}..."
+    )
+    set_source_files_properties(
+      ${_output}
+      PROPERTIES GENERATED TRUE
     )
   endif()
 
