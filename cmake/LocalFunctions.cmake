@@ -182,28 +182,6 @@ function(PROTOC proto output)
   )
 endfunction()
 
-function(PUMP pump output)
-  get_filename_component( _source_path ${pump} REALPATH )
-  get_filename_component( filename ${_source_path} NAME )
-  string(REPLACE ".pump" "" _target_filename "${filename}")
-  set(_target_path ${CMAKE_BINARY_DIR}/include/${_target_filename})
-
-  set(${output} ${${output}} ${_target_path} PARENT_SCOPE)
-
-  add_custom_command(
-    OUTPUT
-      ${_target_path}
-    COMMAND
-      ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/pump.py
-      ${_source_path} > ${_target_path}
-    MAIN_DEPENDENCY
-      ${_source_path}
-    DEPENDS
-      ${CMAKE_SOURCE_DIR}/scripts/pump.py
-    COMMENT "Pumping ${pump}..."
-)
-endfunction()
-
 function(RAGEL source result_variable)
   get_filename_component(_realpath ${source} REALPATH)
   get_filename_component(_dirname ${_realpath} PATH)
