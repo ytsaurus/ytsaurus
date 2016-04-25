@@ -608,21 +608,16 @@ test_table_record_index()
     echo -e "a\t1" | ./mapreduce -writesorted ignat/tableA
     echo -e "b\t2" | ./mapreduce -writesorted ignat/tableB
 
-    # XXX(asaitgalin): Communicating through socket because -tablerecordindex
-    # flag is applied to output format too and this is simple workaround
-    # to write and check job output somewhere outside job sandbox without
-    # modifying table record indices.
-    socketfile=$(mktemp /tmp/test_mapreduce_binary.sock.XXXXXX)
-    nc -l -U $socketfile >table_file &
+    tempfile=$(mktemp /tmp/test_mapreduce_binary.XXXXXX)
 
-    ./mapreduce -reduce "cat | nc -U $socketfile" \
+    ./mapreduce -reduce "cat > $tempfile" \
                 -src ignat/tableA \
                 -src ignat/tableB \
                 -dst ignat/dst \
                 -tablerecordindex
 
-    check "0\n0\na\t1\n1\n0\nb\t2" "$(cat table_file)"
-    rm -rf $socketfile
+    check "0\n0\na\t1\n1\n0\nb\t2" "$(cat $tempfile)"
+    rm -rf $tempfile
 }
 
 prepare_table_files
