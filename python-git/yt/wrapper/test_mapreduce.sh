@@ -620,6 +620,17 @@ test_table_record_index()
     rm -rf $tempfile
 }
 
+test_opts()
+{
+    ./mapreduce -write "tmp/input" <table_file
+    ./mapreduce -map "cat" -src "tmp/input" -dst "tmp/output"
+    check "1" "$(./mapreduce -get tmp/output/@chunk_count)"
+    ./mapreduce -map "cat" -src "tmp/input" -dst "tmp/output" -opt "jobcount=2"
+    check "2" "$(./mapreduce -get tmp/output/@chunk_count)"
+    ./mapreduce -map "cat" -src "tmp/input" -dst "tmp/output" -opt "cpu.intensive.mode=1"
+    check "2" "$(./mapreduce -get tmp/output/@chunk_count)"
+}
+
 prepare_table_files
 test_base_functionality
 test_list
@@ -653,5 +664,6 @@ test_parallel_dstappend
 test_many_to_many_copy_move
 test_missing_prefix
 test_table_record_index
+test_opts
 
 cleanup

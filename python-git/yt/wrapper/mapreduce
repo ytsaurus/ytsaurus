@@ -320,8 +320,6 @@ Examples:
              "check that output of your operation to this table is sorted"),
             ("dsv",
              "NEW! use delimited separated value format"),
-            ("dynallocmode",
-             "OLD! this option do nothing"),
             ("erase",
              "NEW! delete the table, this option supports range specifications"),
             ("exists",
@@ -342,8 +340,6 @@ Examples:
              "NEW! specifies operation input format. "
              "This option has the following format: "
              "'<format options as YSON map fragment>format'"),
-            ("jcmultiplier",
-             "OLD! this option do nothing"),
             ("jobcount",
              "specifies jobcount (only for map and reduce operations)"),
             ("lenval",
@@ -368,10 +364,8 @@ Examples:
              "NEW! describes how to merge tables. Should be unordered, ordered or sorted (default)."),
             ("move",
              "OLD! Move src table to dst table"),
-            ("nocreatetmptable",
-             "OLD! this option do nothing"),
             ("opt",
-             "OLD! this option do nothing"),
+             "specifies some operation options"),
             ("orderedmap",
              "specifies ordered map operation command"),
             ("outputformat",
@@ -392,7 +386,7 @@ Examples:
             ("reducefile",
              "NEW! file for the reduce stage of mapreduce operation"),
             ("reducews",
-                 ""),
+             "specifies reduce operation command"),
             ("renewtx",
              "NEW! renew given transaction"),
             ("replicationfactor",
@@ -430,8 +424,6 @@ Examples:
              "NEW! timeout for transaction"),
             ("title",
              "NEW! title of the operation to print in the web interface"),
-            ("threadcount",
-             "OLD! this option do nothing"),
             ("track",
              "NEW! track operation progress"),
             ("tx",
@@ -457,8 +449,7 @@ Examples:
         ]
         +
         [(name, "this argument is inherited from Yandex Mapreduce and it is ignored")
-         for name in ["threadcount", "jcmultiplier", "dynallocmode", "opt",
-                      "failonemptysrctable", "nocreatetmptable"]
+         for name in ["threadcount", "jcmultiplier", "dynallocmode", "opt"]
         ]
     )
 
@@ -514,6 +505,16 @@ Examples:
 
     if ordered_map:
         spec["ordered"] = True
+
+    for option in get_value(args.opt, []):
+        name, value = option.split("=", 1)
+        if name == "jobcount" and args.jobcount is None:
+            try:
+                args.jobcount = int(value)
+            except ValueError:
+                pass
+        if name == "cpu.intensive.mode" and int(value):
+            spec["data_size_per_job"] = 1
 
     job_io = None
     if args.tablerecordindex:
