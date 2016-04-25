@@ -2303,6 +2303,11 @@ private:
                 uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
             }
 
+            NTransactionClient::TTransactionAttachOptions attachOptions;
+            attachOptions.PingAncestors = options.PingAncestors;
+            attachOptions.AutoAbort = true;
+            auto uploadTransaction = TransactionManager_->Attach(uploadTransactionId, attachOptions);
+
             // Flatten chunk ids.
             std::vector<TChunkId> flatChunkIds;
             for (const auto& ids : groupedChunkIds) {
@@ -2374,6 +2379,8 @@ private:
                 auto rspOrError = WaitFor(proxy->Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error finishing upload to %v", dstPath);
             }
+
+            uploadTransaction->Detach();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error concatenating %v to %v",
                 srcPaths,
