@@ -303,23 +303,6 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
 
     fiber->GetCanceler(); // Initialize canceler; who knows what might happen to this fiber?
 
-    // When rescheduling fiber via sync invoker, one cannot use |ResumeFiber|
-    // as it requires a currenly executing fiber, which is missing in this case.
-    if (invoker == GetSyncInvoker()) {
-        if (future) {
-            future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError&) mutable {
-                YCHECK(fiber->GetState() == EFiberState::Sleeping);
-                fiber->SetSuspended();
-                RunQueue.push_back(fiber);
-            }));
-        } else {
-            YCHECK(fiber->GetState() == EFiberState::Sleeping);
-            fiber->SetSuspended();
-            RunQueue.push_back(fiber);
-        }
-        return;
-    }
-
     auto resume = BIND(&ResumeFiber, fiber);
     auto unwind = BIND(&UnwindFiber, fiber);
 
@@ -407,6 +390,12 @@ void TSchedulerThread::UnsubscribeContextSwitched(TClosure callback)
 void TSchedulerThread::YieldTo(TFiberPtr&& other)
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
+
+    if (!CurrentFiber) {
+        YCHECK(other->GetState() == EFiberState::Suspended);
+        RunQueue.emplace_back(std::move(other));
+        return;
+    }
 
     // Memoize raw pointers.
     auto caller = CurrentFiber.Get();
