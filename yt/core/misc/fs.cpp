@@ -505,6 +505,22 @@ void Umount(const Stroka& path)
 #endif
 }
 
+void ExpectIOErrors(std::function<void()> func)
+{
+    try {
+        func();
+    } catch (const TSystemError& ex) {
+        if (ex.Status() == EIO) {
+            throw;
+        }
+        TError error(ex);
+        LOG_FATAL(error,"Unexpected exception thrown during IO operation");
+    } catch (...) {
+        TError error(CurrentExceptionMessage());
+        LOG_FATAL(error,"Unexpected exception thrown during IO operation");
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFS
