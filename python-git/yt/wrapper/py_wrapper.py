@@ -4,6 +4,7 @@ from pickling import Pickler
 from cypress_commands import get
 from common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value
 from errors import YtResponseError
+from py_runner_helpers import process_rows
 
 from yt.packages.importlib import import_module
 from yt.zip import ZipFile
@@ -28,6 +29,8 @@ TMPFS_SIZE_ADDEND = 1024 * 1024
 
 # Modules below are imported to force their addition to modules archive.
 OPERATION_REQUIRED_MODULES = ["yt.wrapper.py_runner_helpers"]
+
+SINGLE_INDEPENDENT_BINARY_CASE = False
 
 # Md5 tools.
 def init_md5():
@@ -317,6 +320,25 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     with open(config_filename, "wb") as fout:
         Pickler(config.DEFAULT_PICKLING_FRAMEWORK).dump(get_config(client), fout)
 
+    if SINGLE_INDEPENDENT_BINARY_CASE:
+        files = map(os.path.abspath, [
+            sys.argv[0],
+            function_filename,
+            config_filename])
+
+        if local_mode:
+            file_args = files
+            uploaded_files = []
+            local_files_to_remove = tempfiles_manager._tempfiles_pool
+        else:
+            file_args = map(os.path.basename, files)
+            uploaded_files = uploader(files)
+            local_files_to_remove = []
+
+        cmd = "./" + " ".join(file_args)
+
+        return cmd, uploaded_files, local_files_to_remove, 0
+
     modules_info = create_modules_archive(tempfiles_manager, client)
     # COMPAT: previous version of create_modules_archive returns string.
     if isinstance(modules_info, basestring):
@@ -383,6 +405,14 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     cmd = " ".join([get_config(client)["pickling"]["python_binary"]] + file_args + ["_main_module", main_module_type])
 
     return cmd, uploaded_files, local_files_to_remove, tmpfs_size
+
+def process_job_case():
+    global SINGLE_INDEPENDENT_BINARY_CASE
+    if os.environ.get("YT_WRAPPER_IS_INSIDE_JOB"):
+        process_rows(sys.argv[1], sys.argv[2], start_time=None)
+        sys.exit(0)
+    else:
+        SINGLE_INDEPENDENT_BINARY_CASE = True
 
 def _set_attribute(func, key, value):
     if not hasattr(func, "attributes"):

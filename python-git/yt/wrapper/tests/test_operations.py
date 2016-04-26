@@ -6,7 +6,7 @@ from yt.wrapper.table import TablePath
 import yt.wrapper as yt
 import yt.logger as logger
 
-from helpers import TEST_DIR, get_test_file_path, check, set_config_option
+from helpers import TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option
 
 import os
 import sys
@@ -242,6 +242,15 @@ class TestOperations(object):
         with pytest.raises(yt.YtError):
             yt.run_map("cat", table, table, yt_files=get_test_file_path("capitalize_b.py"),
                                             file_paths=get_test_file_path("capitalize_b.py"))
+
+    def test_run_standalone_binary(self):
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
+
+        binary = get_test_file_path("standalone_binary.py")
+        subprocess.check_call(["python", binary, table, other_table], env={"YT_PROXY": yt.config["proxy"]["url"], "PYTHONPATH": PYTHONPATH}, stderr=sys.stderr)
+        check([{"x": 1}, {"x": 2}], yt.read_table(other_table))
 
     @add_failed_operation_stderrs_to_error_message
     def test_run_join_operation(self, yt_env):

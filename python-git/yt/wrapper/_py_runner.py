@@ -2,7 +2,6 @@ def main():
     # We should use local imports because of replacing __main__ module cause cleaning globals.
     import os
     import sys
-    import itertools
     import imp
     import time
     import zipfile
@@ -11,7 +10,7 @@ def main():
     start_time = time.time()
 
     # Variable names start with "__" to avoid accidental intersection with scope of user function.
-    __operation_dump = sys.argv[1]
+    __operation_dump_filename = sys.argv[1]
     __config_dump_filename = sys.argv[2]
 
     if len(sys.argv) > 3:
@@ -42,72 +41,9 @@ def main():
         for name in dir(main_module):
             globals()[name] = main_module.__dict__[name]
 
-    import yt.yson
-    import yt.wrapper.config
-    from yt.wrapper.format import YsonFormat, extract_key
-    from yt.wrapper.pickling import Unpickler
-    yt.wrapper.config.config = \
-        Unpickler(yt.wrapper.config.DEFAULT_PICKLING_FRAMEWORK).load(open(__config_dump_filename, "rb"))
 
-    import yt.wrapper.py_runner_helpers
-    yt.wrapper.py_runner_helpers.check_job_environment_variables()
-
-    unpickler = Unpickler(yt.wrapper.config.config["pickling"]["framework"])
-
-    __operation, __attributes, __operation_type, __input_format, __output_format, __group_by_keys, __python_version = \
-        unpickler.load(open(__operation_dump, "rb"))
-
-    if yt.wrapper.config["pickling"]["enable_job_statistics"]:
-        try:
-            import yt.wrapper.user_statistics
-            yt.wrapper.user_statistics.write_statistics({"python_job_preparation_time": int((time.time() - start_time) * 1000)})
-        except ImportError:
-            pass
-
-    if yt.wrapper.config["pickling"]["check_python_version"] and yt.wrapper.common.get_python_version() != __python_version:
-        sys.stderr.write("Python version on cluster differs from local python version")
-        sys.exit(1)
-
-    if __attributes.get("is_raw_io", False):
-        __operation()
-        return
-
-    raw = __attributes.get("is_raw", False)
-
-    if isinstance(__input_format, YsonFormat) and yt.yson.TYPE != "BINARY":
-        sys.stderr.write("YSON bindings not found. To resolve the problem "
-                         "try to use JsonFormat format or install yandex-yt-python-yson package.")
-        sys.exit(1)
-
-    __rows = __input_format.load_rows(sys.stdin, raw=raw)
-
-    __start, __run, __finish = yt.wrapper.py_runner_helpers.extract_operation_methods(__operation)
-    wrap_stdin = wrap_stdout = yt.wrapper.config["pickling"]["safe_stream_mode"]
-    with yt.wrapper.py_runner_helpers.WrappedStreams(wrap_stdin, wrap_stdout) as streams:
-        if __attributes.get("is_aggregator", False):
-            __result = __run(__rows)
-        else:
-            if __operation_type == "mapper" or raw:
-                __result = itertools.chain(
-                    __start(),
-                    itertools.chain.from_iterable(itertools.imap(__run, __rows)),
-                    __finish())
-            else:
-                if __attributes.get("is_reduce_aggregator"):
-                    __result = __run(itertools.groupby(__rows, lambda row: extract_key(row, __group_by_keys)))
-                else:
-                    __result = itertools.chain(
-                        __start(),
-                        itertools.chain.from_iterable(
-                            itertools.starmap(__run,
-                                itertools.groupby(__rows, lambda row: extract_key(row, __group_by_keys)))),
-                        __finish())
-
-        __output_format.dump_rows(__result, streams.get_original_stdout(), raw=raw)
-
-    # Read out all input
-    for row in __rows:
-        pass
+    import yt.wrapper
+    yt.wrapper.py_runner_helpers.process_rows(__operation_dump_filename, __config_dump_filename, start_time=start_time)
 
 if __name__ == "__main__":
     main()
