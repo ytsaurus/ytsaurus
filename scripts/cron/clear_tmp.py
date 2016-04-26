@@ -115,11 +115,11 @@ def main():
         for dir in dirs:
             if dir_sizes[str(dir)] == 0 and get_age(dir).days > args.max_age:
                 logger.info("Removing empty dir %s", dir)
-                dir_sizes[os.path.dirname(dir)] -= 1
                 # To avoid removing twice
                 dir_sizes[str(dir)] = -1
                 try:
                     yt.remove(dir, force=True)
+                    dir_sizes[os.path.dirname(dir)] -= 1
                 except yt.YtResponseError as error:
                     if not error.is_concurrent_transaction_lock_conflict():
                         raise
