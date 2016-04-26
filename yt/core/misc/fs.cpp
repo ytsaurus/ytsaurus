@@ -517,7 +517,7 @@ void ExpectIOErrors(std::function<void()> func)
         LOG_FATAL(error,"Unexpected exception thrown during IO operation");
     } catch (...) {
         TError error(CurrentExceptionMessage());
-        LOG_FATAL(error,"Unexpected exception thrown during IO operation");
+        LOG_FATAL(error, "Unexpected exception thrown during IO operation");
     }
 }
 
