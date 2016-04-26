@@ -144,7 +144,7 @@ int TChunkTeleporter::GetImportedObjectCount(TCellTag cellTag)
     auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
     TObjectServiceProxy proxy(channel);
 
-    auto req = TObjectYPathProxy::Get(FromObjectId(TransactionId_) + "/@import_object_count");
+    auto req = TObjectYPathProxy::Get(FromObjectId(TransactionId_) + "/@imported_object_count");
     auto rspOrError = WaitFor(proxy.Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting imported object count for transaction %v in cell %v",
         TransactionId_,
