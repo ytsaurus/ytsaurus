@@ -4,11 +4,15 @@
 
 #include <yt/ytlib/api/client.h>
 
+#include <yt/ytlib/object_client/object_ypath_proxy.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/rpc/helpers.h>
+
+#include <yt/core/ytree/convert.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -18,6 +22,8 @@ using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NConcurrency;
 using namespace NRpc;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -59,6 +65,21 @@ void TChunkTeleporter::DoRun()
     LOG_INFO("Chunk teleport completed");
 }
 
+int TChunkTeleporter::GetExportedObjectCount(TCellTag cellTag)
+{
+    auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+    TObjectServiceProxy proxy(channel);
+
+    auto req = TObjectYPathProxy::Get(FromObjectId(TransactionId_) + "/@exported_object_count");
+    auto rspOrError = WaitFor(proxy.Execute(req));
+    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting exported object count for transaction %v in cell %v",
+        TransactionId_,
+        cellTag);
+
+    const auto& rsp = rspOrError.Value();
+    return ConvertTo<int>(TYsonString(rsp->value()));
+}
+
 void TChunkTeleporter::Export()
 {
     yhash_map<TCellTag, std::vector<TChunkEntry*>> exportMap;
@@ -69,6 +90,8 @@ void TChunkTeleporter::Export()
     for (const auto& pair : exportMap) {
         auto cellTag = pair.first;
         const auto& chunks = pair.second;
+
+        int oldExportedCount = GetExportedObjectCount(cellTag);
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
         TChunkServiceProxy proxy(channel);
@@ -93,7 +116,8 @@ void TChunkTeleporter::Export()
                 req->chunks_size());
 
             auto rspOrError = WaitFor(req->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error exporting chunks from cell %v",
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error exporting chunks in transaction %v in cell %v",
+                TransactionId_,
                 cellTag);
             const auto& rsp = rspOrError.Value();
 
@@ -102,7 +126,32 @@ void TChunkTeleporter::Export()
                 chunks[index]->Data.Swap(rsp->mutable_chunks(index - beginIndex));
             }
         }
+
+        int newExportedCount = GetExportedObjectCount(cellTag);
+        int expectedExportedCount = oldExportedCount + static_cast<int>(chunks.size());
+        if (newExportedCount != expectedExportedCount) {
+            THROW_ERROR_EXCEPTION("Exported object count mismatch for transaction %v in cell %v: expected %v, got %v",
+                TransactionId_,
+                cellTag,
+                expectedExportedCount,
+                newExportedCount);
+        }
     }
+}
+
+int TChunkTeleporter::GetImportedObjectCount(TCellTag cellTag)
+{
+    auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+    TObjectServiceProxy proxy(channel);
+
+    auto req = TObjectYPathProxy::Get(FromObjectId(TransactionId_) + "/@import_object_count");
+    auto rspOrError = WaitFor(proxy.Execute(req));
+    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting imported object count for transaction %v in cell %v",
+        TransactionId_,
+        cellTag);
+
+    const auto& rsp = rspOrError.Value();
+    return ConvertTo<int>(TYsonString(rsp->value()));
 }
 
 void TChunkTeleporter::Import()
@@ -115,6 +164,8 @@ void TChunkTeleporter::Import()
     for (const auto& pair : importMap) {
         auto cellTag = pair.first;
         const auto& chunks = pair.second;
+
+        int oldImportedCount = GetImportedObjectCount(cellTag);
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
         TChunkServiceProxy proxy(channel);
@@ -131,13 +182,24 @@ void TChunkTeleporter::Import()
                 req->add_chunks()->Swap(&chunks[index]->Data);
             }
 
-            LOG_INFO("Exporting chunks (CellTag: %v, ChunkCount: %v)",
+            LOG_INFO("Importing chunks (CellTag: %v, ChunkCount: %v)",
                 cellTag,
                 req->chunks_size());
 
             auto rspOrError = WaitFor(req->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error import chunks into cell %v",
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error importing chunks in transaction %v in cell %v",
+                TransactionId_,
                 cellTag);
+        }
+
+        int newImportedCount = GetImportedObjectCount(cellTag);
+        int expectedImportedCount = oldImportedCount + static_cast<int>(chunks.size());
+        if (newImportedCount != expectedImportedCount) {
+            THROW_ERROR_EXCEPTION("Imported object count mismatch for transaction %v in cell %v: expected %v, got %v",
+                TransactionId_,
+                cellTag,
+                expectedImportedCount,
+                newImportedCount);
         }
     }
 }
