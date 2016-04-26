@@ -1,5 +1,5 @@
 #ifndef CONVERT_INL_H_
-#error "Direct inclusion of this file is not allowed, include convert.h"
+#error "Direct inclusion of this file is not allowed, Tnclude convert.h"
 #endif
 
 #include "serialize.h"
@@ -13,20 +13,53 @@
 #include <yt/core/yson/stream.h>
 #include <yt/core/yson/producer.h>
 
+#include <type_traits>
+#include <limits>
+
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 template <class T, class S>
-T CheckedStaticCast(S value)
+typename std::enable_if<std::is_signed<T>::value && std::is_signed<S>::value, bool>::type CheckIntegralCast(S value)
 {
-    if (value < std::numeric_limits<T>::min() || value > std::numeric_limits<T>::max()) {
+    return value >= std::numeric_limits<T>::min() && value <= std::numeric_limits<T>::max();
+}
+
+template <class T, class S>
+static typename std::enable_if<std::is_signed<T>::value && std::is_unsigned<S>::value, bool>::type CheckIntegralCast(S value)
+{
+    return value <= static_cast<typename std::make_unsigned<T>::type>(std::numeric_limits<T>::max());
+}
+
+template <class T, class S>
+static typename std::enable_if<std::is_unsigned<T>::value && std::is_signed<S>::value, bool>::type CheckIntegralCast(S value)
+{
+    return value >= 0 && static_cast<typename std::make_unsigned<S>::type>(value) <= std::numeric_limits<T>::max();
+}
+
+template <class T, class S>
+typename std::enable_if<std::is_unsigned<T>::value && std::is_unsigned<S>::value, bool>::type CheckIntegralCast(S value)
+{
+    return value <= std::numeric_limits<T>::max();
+}
+
+} // namespace
+
+template <class T, class S>
+T CheckedIntegralCast(S value)
+{
+    if (!CheckIntegralCast<T>(value)) {
         THROW_ERROR_EXCEPTION("Argument value %v is out of expected range",
             value);
     }
     return static_cast<T>(value);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 NYson::TYsonProducer ConvertToProducer(T&& value)
@@ -142,9 +175,9 @@ const NYson::TToken& SkipAttributes(NYson::TTokenizer* tokenizer);
         const auto& token = SkipAttributes(&tokenizer); \
         switch (token.GetType()) { \
             case NYson::ETokenType::Int64: \
-                return CheckedStaticCast<type>(token.GetInt64Value()); \
+                return CheckedIntegralCast<type>(token.GetInt64Value()); \
             case NYson::ETokenType::Uint64: \
-                return CheckedStaticCast<type>(token.GetUint64Value()); \
+                return CheckedIntegralCast<type>(token.GetUint64Value()); \
             default: \
                 THROW_ERROR_EXCEPTION("Cannot parse \"" #type "\" value from %Qv", \
                     str.Data()); \
