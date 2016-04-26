@@ -689,7 +689,7 @@ class Application(object):
                 config = json.load(open(self._config_path))
                 with self._clusters_config_mutex:
                     if self._last_successfully_loaded_config == config:
-                        logger.info("Config is not changed, reloading skipped")
+                        logger.debug("Config is not changed, reloading skipped")
                         continue
 
                 configuration = self._get_clusters_configuration_from_config(config)

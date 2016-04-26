@@ -62,22 +62,27 @@ class ReadingThread(Thread):
         fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
     def run(self):
+        not_enough_bytes = False
         while not self.finished:
-            time.sleep(self.sleep_timeout)
+            if not_enough_bytes:
+                time.sleep(self.sleep_timeout)
 
             try:
                 self.stream.add(self.pipe.read())
             except IOError:
                 pass
 
+            not_enough_bytes = False
             available = self.stream.available()
             if self.length is None:
                 if available < 4:
+                    not_enough_bytes = True
                     continue
                 length_str = self.stream.extract(4)
                 self.length = struct.unpack("i", length_str)[0]
             else:
                 if available < self.length:
+                    not_enough_bytes = True
                     continue
                 self.queue.put(pickle.loads(self.stream.extract(self.length)))
                 self.length = None
