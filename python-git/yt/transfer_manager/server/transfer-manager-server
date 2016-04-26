@@ -329,6 +329,7 @@ class Application(object):
         self._tasks_loaded = False
         self._lock_path = os.path.join(self._path, "lock")
         self._lock_timeout = 10.0
+        self._check_lock_acquired_timeout = 1.0
         self._yt.create("map_node", self._lock_path, ignore_existing=True)
         self._lock_thread = SafeThread(target=self._take_lock, name="LockThread")
         self._lock_thread.daemon = True
@@ -680,7 +681,7 @@ class Application(object):
         reload_timeout = self._config["clusters_config_reload_timeout"] / 1000.0
         while True:
             if not self._tasks_loaded:
-                time.sleep(self._lock_timeout)
+                time.sleep(self._check_lock_acquired_timeout)
                 continue
 
             time.sleep(reload_timeout)
@@ -1142,7 +1143,7 @@ class Application(object):
                 return
 
             if not self._tasks_loaded:
-                time.sleep(self._lock_timeout)
+                time.sleep(self._check_lock_acquired_timeout)
                 continue
 
             logger.info("Starting new scheduling round")
@@ -1453,7 +1454,7 @@ class Application(object):
             })
 
         # NB: hack to avoid process died silently.
-        time.sleep(0.5)
+        time.sleep(self._config["execute_task_grace_termination_sleep_timeout"] / 1000.0)
 
     def _get_config(self):
         # NB: Build the config, that actually used by transfer manager.
