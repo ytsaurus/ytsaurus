@@ -2,6 +2,7 @@ from yt.wrapper.common import generate_uuid, run_with_retries
 from yt.common import get_value
 from yt.wrapper.http import get_retriable_errors
 import yt.packages.requests as requests
+import yt.logger as logger
 from yt.json import loads_as_bytes
 
 import os
@@ -98,6 +99,7 @@ class Airflow(object):
         }
 
         # XXX(asaitgalin): Retries will be added when HDPDEV-279 is done.
+        logger.info("Requesting airflow by url %s, data: %s, headers: %s", self._url + "/submit", json.dumps(data), repr(self._headers))
         response = requests.post(self._url + "/submit", data=json.dumps(data), headers=self._headers)
         response.raise_for_status()
 
@@ -149,6 +151,7 @@ class Airflow(object):
 
     def _make_get_request(self, url, params):
         def make_request():
+            logger.info("Requesting airflow by url %s, params: %s, headers: %s", url, repr(params), repr(self._headers))
             response = requests.get(url, params=params, headers=self._headers)
             return response
 
