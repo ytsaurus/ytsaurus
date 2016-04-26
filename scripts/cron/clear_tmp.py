@@ -6,7 +6,6 @@ import yt.wrapper as yt
 from datetime import datetime, timedelta
 
 import os
-import sys
 import argparse
 import logging
 
