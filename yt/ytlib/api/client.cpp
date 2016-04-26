@@ -2293,7 +2293,7 @@ private:
                 // no idea as of where the chunks we're about to attach may come from.
                 ToProto(req->mutable_upload_transaction_secondary_cell_tags(), Connection_->GetSecondaryMasterCellTags());
                 req->set_upload_transaction_timeout(ToProto(Connection_->GetConfig()->TransactionManager->DefaultTransactionTimeout));
-                GenerateMutationId(req, options);
+                GenerateMutationId(req);
                 SetTransactionId(req, options, true);
 
                 auto rspOrError = WaitFor(proxy->Execute(req));
@@ -2352,7 +2352,7 @@ private:
                 auto proxy = CreateWriteProxy<TChunkServiceProxy>(dstCellTag);
 
                 auto batchReq = proxy->ExecuteBatch();
-                GenerateMutationId(batchReq, options);
+                GenerateMutationId(batchReq);
 
                 auto req = batchReq->add_attach_chunk_trees_subrequests();
                 ToProto(req->mutable_parent_id(), chunkListId);
@@ -2374,7 +2374,7 @@ private:
                 auto req = TChunkOwnerYPathProxy::EndUpload(dstIdPath);
                 *req->mutable_statistics() = dataStatistics;
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
-                GenerateMutationId(req, options);
+                GenerateMutationId(req);
 
                 auto rspOrError = WaitFor(proxy->Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error finishing upload to %v", dstPath);
