@@ -6,6 +6,7 @@ import yt.wrapper as yt
 from datetime import datetime, timedelta
 
 import os
+import sys
 import argparse
 import logging
 
@@ -50,7 +51,7 @@ def main():
         args.max_chunk_count = yt.get("//sys/accounts/{0}/@resource_limits/chunk_count".format(args.account)) / 2
 
     if args.max_node_count is None:
-        args.max_node_count = yt.get("//sys/accounts/{0}/@resource_limits/chunk_count".format(args.account)) / 2
+        args.max_node_count = yt.get("//sys/accounts/{0}/@resource_limits/node_count".format(args.account)) / 2
 
     # collect links
     links = list(yt.search(args.directory, node_type="link"))
@@ -62,7 +63,7 @@ def main():
     # collect table and files
     objects = []
     for obj in yt.search(args.directory,
-                         node_type=["table", "file", "lock"],
+                         node_type=["table", "file", "link"],
                          attributes=["access_time", "modification_time", "locks", "hash", "resource_usage"]):
         if is_locked(obj):
             continue
