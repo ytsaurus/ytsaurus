@@ -119,7 +119,7 @@ void MountTmpfs(const Stroka& path, int userId, i64 size);
 void Umount(const Stroka& path);
 
 //! Wraps a given #func in with try/catch; makes sure that only IO-related
-//! exceptions are being thown. For all other exceptions, immediately terminates
+//! exceptions are being thrown. For all other exceptions, immediately terminates
 //! with fatal error.
 void ExpectIOErrors(std::function<void()> func);
 
