@@ -392,8 +392,7 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     if (!CurrentFiber) {
-        YCHECK(other->GetState() == EFiberState::Sleeping);
-        other->SetSuspended();
+        YCHECK(other->GetState() == EFiberState::Suspended);
         RunQueue.emplace_back(std::move(other));
         return;
     }
