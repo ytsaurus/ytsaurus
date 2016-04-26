@@ -480,12 +480,12 @@ public:
         std::vector<TSharedRef> records;
 
         try {
-            NFS::ExpectIOErrors([&] () {
-                // Prevent search in empty index.
-                if (Index_.empty()) {
-                    return records;
-                }
+            // Prevent search in empty index.
+            if (Index_.empty()) {
+                return records;
+            }
 
+            NFS::ExpectIOErrors([&] () {
                 maxRecords = std::min(maxRecords, RecordCount_ - firstRecordId);
                 int lastRecordId = firstRecordId + maxRecords; // non-inclusive
 
