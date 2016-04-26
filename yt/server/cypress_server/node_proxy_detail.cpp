@@ -744,7 +744,9 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     auto* node = GetThisImpl();
     // NB: Suppress permission checks for nodes upon construction.
     // Cf. YT-1191, YT-4628.
-    if (node->GetTrunkNode()->GetParent()) {
+    auto* trunkNode = node->GetTrunkNode();
+    auto cypressManager = Bootstrap_->GetCypressManager();
+    if (trunkNode == cypressManager->GetRootNode() || trunkNode->GetParent()) {
         ValidatePermission(node, scope, permission);
     }
 }
