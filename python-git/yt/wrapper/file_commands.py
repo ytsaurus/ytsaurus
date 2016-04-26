@@ -237,7 +237,14 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
             link_exists = True
             destination_is_file = True
 
-        broken = parse_bool(get_attribute(destination + "&", "broken", client=client))
+        # COMPAT(ignat): old versions of 0.14 have not support attribute broken
+        try:
+            broken = parse_bool(get_attribute(destination + "&", "broken", client=client))
+        except YtResponseError as rsp:
+            if not rsp.is_resolve_error():
+                raise
+            broken = False
+
         if link_exists:
             if broken:
                 logger.debug("Link '%s' of file '%s' exists but is broken", destination, filename)
