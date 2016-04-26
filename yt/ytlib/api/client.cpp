@@ -2161,6 +2161,10 @@ private:
         const TYPath& dstPath,
         TConcatenateNodesOptions options)
     {
+        if (options.Retry) {
+            THROW_ERROR_EXCEPTION("\"concatenate\" command is not retriable");
+        }
+        
         using NChunkClient::NProto::TDataStatistics;
 
         try {
