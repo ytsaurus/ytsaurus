@@ -2,6 +2,8 @@
 #include "chunk_meta_extensions.h"
 #include "format.h"
 
+#include <yt/core/misc/fs.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -43,33 +45,35 @@ TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
     const TWorkloadDescriptor& /*workloadDescriptor*/,
     const std::vector<int>& blockIndexes)
 {
+    std::vector<TSharedRef> blocks;
+    blocks.reserve(blockIndexes.size());
+
     try {
-        std::vector<TSharedRef> blocks;
-        blocks.reserve(blockIndexes.size());
+        NFS::ExpectIOErrors([&] () {
+            // Extract maximum contiguous ranges of blocks.
+            int localIndex = 0;
+            while (localIndex < blockIndexes.size()) {
+                int startLocalIndex = localIndex;
+                int startBlockIndex = blockIndexes[startLocalIndex];
+                int endLocalIndex = startLocalIndex;
+                while (endLocalIndex < blockIndexes.size() &&
+                       blockIndexes[endLocalIndex] == startBlockIndex + (endLocalIndex - startLocalIndex))
+                {
+                    ++endLocalIndex;
+                }
 
-        // Extract maximum contiguous ranges of blocks.
-        int localIndex = 0;
-        while (localIndex < blockIndexes.size()) {
-            int startLocalIndex = localIndex;
-            int startBlockIndex = blockIndexes[startLocalIndex];
-            int endLocalIndex = startLocalIndex;
-            while (endLocalIndex < blockIndexes.size() &&
-                blockIndexes[endLocalIndex] == startBlockIndex + (endLocalIndex - startLocalIndex))
-            {
-                ++endLocalIndex;
+                int blockCount = endLocalIndex - startLocalIndex;
+                auto subblocks = DoReadBlocks(startBlockIndex, blockCount);
+                blocks.insert(blocks.end(), subblocks.begin(), subblocks.end());
+
+                localIndex = endLocalIndex;
             }
-
-            int blockCount = endLocalIndex - startLocalIndex;
-            auto subblocks = DoReadBlocks(startBlockIndex, blockCount);
-            blocks.insert(blocks.end(), subblocks.begin(), subblocks.end());
-
-            localIndex = endLocalIndex;
-        }
-
-        return MakeFuture(blocks);
+        });
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TSharedRef>>(ex);
     }
+
+    return MakeFuture(std::move(blocks));
 }
 
 TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
@@ -79,11 +83,17 @@ TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
 {
     YCHECK(firstBlockIndex >= 0);
 
+    std::vector<TSharedRef> blocks;
+
     try {
-        return MakeFuture(DoReadBlocks(firstBlockIndex, blockCount));
+        NFS::ExpectIOErrors([&] () {
+            blocks = DoReadBlocks(firstBlockIndex, blockCount);
+        });
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TSharedRef>>(ex);
     }
+
+    return MakeFuture(std::move(blocks));
 }
 
 TFuture<TChunkMeta> TFileReader::GetMeta(
@@ -91,11 +101,17 @@ TFuture<TChunkMeta> TFileReader::GetMeta(
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {
+    TChunkMeta meta;
+
     try {
-        return MakeFuture(DoGetMeta(partitionTag, extensionTags));
+        NFS::ExpectIOErrors([&] () {
+            meta = DoGetMeta(partitionTag, extensionTags);
+        });
     } catch (const std::exception& ex) {
         return MakeFuture<TChunkMeta>(ex);
     }
+
+    return MakeFuture(std::move(meta));
 }
 
 TChunkId TFileReader::GetChunkId() const
