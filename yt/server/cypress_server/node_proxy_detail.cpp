@@ -742,7 +742,11 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     EPermission permission)
 {
     auto* node = GetThisImpl();
-    ValidatePermission(node, scope, permission);
+    // NB: Suppress permission checks for nodes upon construction.
+    // Cf. YT-1191, YT-4628.
+    if (node->GetTrunkNode()->GetParent()) {
+        ValidatePermission(node, scope, permission);
+    }
 }
 
 void TNontemplateCypressNodeProxyBase::ValidatePermission(
