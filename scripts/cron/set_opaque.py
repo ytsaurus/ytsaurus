@@ -172,7 +172,11 @@ def main():
 
     for elem in removed_opaques - new_opaques:
         logger.info("Removing opaque from %s", elem)
-        yt.remove(elem + "/@opaque")
+        try:
+            yt.remove(elem + "/@opaque")
+        except yt.YtResponseError as err:
+            if not err.is_resolve_error():
+                raise
 
 
 if __name__ == "__main__":
