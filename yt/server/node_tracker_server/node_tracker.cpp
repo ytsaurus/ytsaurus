@@ -676,8 +676,8 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
             node->GetId(),
             address,
-            leaseTransactionId,
             tags,
+            leaseTransactionId,
             statistics);
 
         NodeRegistered_.Fire(node);

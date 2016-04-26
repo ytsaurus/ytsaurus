@@ -130,6 +130,7 @@ std::vector<Stroka> TNode::GetTags() const
     std::vector<Stroka> result;
 
     result.insert(result.end(), UserTags_.begin(), UserTags_.end());
+    result.insert(result.end(), NodeTags_.begin(), NodeTags_.end());
     result.push_back(Stroka(GetServiceHostName(GetDefaultAddress())));
     if (Rack_) {
         result.push_back(Rack_->GetName());
