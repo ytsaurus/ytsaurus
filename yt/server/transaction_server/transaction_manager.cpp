@@ -96,8 +96,10 @@ private:
         descriptors->push_back("start_time");
         descriptors->push_back("nested_transaction_ids");
         descriptors->push_back("staged_object_ids");
-        descriptors->push_back("exported_object_ids");
+        descriptors->push_back("exported_objects");
+        descriptors->push_back("exported_object_count");
         descriptors->push_back("imported_object_ids");
+        descriptors->push_back("imported_object_count");
         descriptors->push_back("staged_node_ids");
         descriptors->push_back("branched_node_ids");
         descriptors->push_back("locked_node_ids");
@@ -170,7 +172,7 @@ private:
             return true;
         }
 
-        if (key == "exported_object_ids") {
+        if (key == "exported_objects") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->ExportedObjects(), [=] (TFluentList fluent, const TTransaction::TExportEntry& entry) {
                     fluent
@@ -182,11 +184,23 @@ private:
             return true;
         }
 
+        if (key == "exported_object_count") {
+            BuildYsonFluently(consumer)
+                .Value(transaction->ExportedObjects().size());
+            return true;
+        }
+
         if (key == "imported_object_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->ImportedObjects(), [=] (TFluentList fluent, const TObjectBase* object) {
                     fluent.Item().Value(object->GetId());
                 });
+            return true;
+        }
+
+        if (key == "imported_object_count") {
+            BuildYsonFluently(consumer)
+                .Value(transaction->ImportedObjects().size());
             return true;
         }
 
