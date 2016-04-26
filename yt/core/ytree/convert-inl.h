@@ -18,6 +18,16 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T, class S>
+T CheckedStaticCast(S value)
+{
+    if (value < std::numeric_limits<T>::min() || value > std::numeric_limits<T>::max()) {
+        THROW_ERROR_EXCEPTION("Argument value %v is out of expected range",
+            value);
+    }
+    return static_cast<T>(value);
+}
+
 template <class T>
 NYson::TYsonProducer ConvertToProducer(T&& value)
 {
@@ -124,37 +134,33 @@ TTo ConvertTo(const TFrom& value)
 
 const NYson::TToken& SkipAttributes(NYson::TTokenizer* tokenizer);
 
-template <>
-inline i64 ConvertTo(const NYson::TYsonString& str)
-{
-    NYson::TTokenizer tokenizer(str.Data());
-    const auto& token = SkipAttributes(&tokenizer);
-    switch (token.GetType()) {
-        case NYson::ETokenType::Int64:
-            return token.GetInt64Value();
-        case NYson::ETokenType::Uint64:
-            return token.GetUint64Value();
-        default:
-            THROW_ERROR_EXCEPTION("Cannot parse int64 from %Qv",
-                str.Data());
+#define IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(type) \
+    template <> \
+    inline type ConvertTo(const NYson::TYsonString& str) \
+    { \
+        NYson::TTokenizer tokenizer(str.Data()); \
+        const auto& token = SkipAttributes(&tokenizer); \
+        switch (token.GetType()) { \
+            case NYson::ETokenType::Int64: \
+                return CheckedStaticCast<type>(token.GetInt64Value()); \
+            case NYson::ETokenType::Uint64: \
+                return CheckedStaticCast<type>(token.GetUint64Value()); \
+            default: \
+                THROW_ERROR_EXCEPTION("Cannot parse \"" #type "\" value from %Qv", \
+                    str.Data()); \
+        } \
     }
-}
 
-template <>
-inline ui64 ConvertTo(const NYson::TYsonString& str)
-{
-    NYson::TTokenizer tokenizer(str.Data());
-    const auto& token = SkipAttributes(&tokenizer);
-    switch (token.GetType()) {
-        case NYson::ETokenType::Int64:
-            return token.GetInt64Value();
-        case NYson::ETokenType::Uint64:
-            return token.GetUint64Value();
-        default:
-            THROW_ERROR_EXCEPTION("Cannot parse uint64 from %Qv",
-                str.Data());
-    }
-}
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(i64)
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(i32)
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(i16)
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(i8)
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(ui64)
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(ui32)
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(ui16)
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(ui8)
+
+#undef IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO
 
 template <>
 inline double ConvertTo(const NYson::TYsonString& str)
