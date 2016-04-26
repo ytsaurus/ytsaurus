@@ -609,6 +609,7 @@ test_table_record_index()
     echo -e "b\t2" | ./mapreduce -writesorted ignat/tableB
 
     tempfile=$(mktemp /tmp/test_mapreduce_binary.XXXXXX)
+    chmod 777 "$tempfile"
 
     ./mapreduce -reduce "cat > $tempfile" \
                 -src ignat/tableA \
