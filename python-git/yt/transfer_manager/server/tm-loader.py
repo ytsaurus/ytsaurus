@@ -45,7 +45,7 @@ def waiting_thread(client, token, queue, semaphore):
 
 def run_tasks(client, task_limit):
     yt.config["proxy"]["url"] = SRC_YT_CLUSTER
-    yt.write_table(SRC_TEST_TABLE_NAME, ["key=a\tvalue=b\n"], format="yamr")
+    yt.write_table(SRC_TEST_TABLE_NAME, ["key=a\tvalue=b\n"], format="yamr", raw=True)
 
     dst_yt_client = Yt(proxy=DST_YT_CLUSTER, token=yt.config["token"])
     dst_yt_client.create("map_node", DST_TEST_TABLES_PATH, ignore_existing=True)
