@@ -130,13 +130,13 @@ protected:
     template <class TImpl>
     TImpl* GetThisTypedImpl()
     {
-        return dynamic_cast<TImpl*>(GetThisImpl());
+        return static_cast<TImpl*>(GetThisImpl());
     }
 
     template <class TImpl>
     const TImpl* GetThisTypedImpl() const
     {
-        return dynamic_cast<const TImpl*>(GetThisImpl());
+        return static_cast<const TImpl*>(GetThisImpl());
     }
 
     template <class TImpl>
@@ -144,7 +144,7 @@ protected:
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false)
     {
-        return dynamic_cast<TImpl*>(LockThisImpl(request, recursive));
+        return static_cast<TImpl*>(LockThisImpl(request, recursive));
     }
 
 
