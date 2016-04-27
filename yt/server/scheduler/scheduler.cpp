@@ -1002,7 +1002,7 @@ private:
         auto operations = IdToOperation_;
         for (const auto& pair : operations) {
             auto operation = pair.second;
-            LOG_INFO("Forgetting operation %v", operation->GetId());
+            LOG_INFO("Forgetting operation (OperationId: %v)", operation->GetId());
             if (!operation->IsFinishedState()) {
                 operation->GetController()->Abort();
                 SetOperationFinalState(
