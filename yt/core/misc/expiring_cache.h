@@ -36,6 +36,8 @@ private:
         TPromise<TValue> Promise;
         //! Corresponds to a future probation request.
         NConcurrency::TDelayedExecutorCookie ProbationCookie;
+        //! Corresponds to a future probation request.
+        TFuture<TValue> ProbationFuture;
     };
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
