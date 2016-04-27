@@ -19,8 +19,10 @@ TTableConsumer::TTableConsumer(
     : ValueConsumers_(std::move(valueConsumers))
     , ValueWriter_(&ValueBuffer_)
 {
-    YCHECK(tableIndex >= 0 && tableIndex < ValueConsumers_.size());
-    CurrentValueConsumer_ = ValueConsumers_[tableIndex];
+    for (auto* consumer : ValueConsumers_) {
+        NameTableWriters_.emplace_back(std::make_unique<TNameTableWriter>(consumer->GetNameTable()));
+    }
+    SwitchToTable(tableIndex);
 }
 
 TTableConsumer::TTableConsumer(IValueConsumer* valueConsumer)
@@ -36,13 +38,13 @@ void TTableConsumer::OnControlInt64Scalar(i64 value)
 {
     switch (ControlAttribute_) {
         case EControlAttribute::TableIndex:
-            if (value >= ValueConsumers_.size()) {
+            if (value < 0 || value >= ValueConsumers_.size()) {
                 THROW_ERROR AttachLocationAttributes(TError(
                     "Invalid table index %v: expected integer in range [0,%v]",
                     value,
                     ValueConsumers_.size() - 1));
             }
-            CurrentValueConsumer_ = ValueConsumers_[value];
+            SwitchToTable(value);
             break;
 
         default:
@@ -289,7 +291,6 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
         case EControlState::ExpectEndAttributes:
             YASSERT(Depth_ == 1);
             THROW_ERROR AttachLocationAttributes(TError("Too many control attributes per record: at most one attribute is allowed"));
-            break;
 
         default:
             YUNREACHABLE();
@@ -298,10 +299,10 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
     YASSERT(Depth_ > 0);
     if (Depth_ == 1) {
         if (CurrentValueConsumer_->GetAllowUnknownColumns()) {
-            ColumnIndex_ = CurrentValueConsumer_->GetNameTable()->GetIdOrRegisterName(name);
+            ColumnIndex_ = CurrentNameTableWriter_->GetIdOrRegisterName(name);
         } else {
             // TODO(savrus): Imporve diagnostics when encountered a computed column.
-            auto maybeIndex = CurrentValueConsumer_->GetNameTable()->FindId(name);
+            auto maybeIndex = CurrentNameTableWriter_->FindId(name);
             if (!maybeIndex) {
                 THROW_ERROR AttachLocationAttributes(TError("No such column %Qv in schema",
                     name));
@@ -376,6 +377,13 @@ void TTableConsumer::FlushCurrentValueIfCompleted()
             ColumnIndex_));
         ValueBuffer_.Clear();
     }
+}
+
+void TTableConsumer::SwitchToTable(int tableIndex)
+{
+    YCHECK(tableIndex >= 0 && tableIndex < ValueConsumers_.size());
+    CurrentValueConsumer_ = ValueConsumers_[tableIndex];
+    CurrentNameTableWriter_ = NameTableWriters_[tableIndex].get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

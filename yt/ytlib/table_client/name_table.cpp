@@ -126,6 +126,40 @@ void TNameTableReader::Fill() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNameTableWriter::TNameTableWriter(TNameTablePtr nameTable)
+    : NameTable_(std::move(nameTable))
+{ }
+
+TNullable<int> TNameTableWriter::FindId(const TStringBuf& name) const
+{
+    auto it = NameToId_.find(name);
+    if (it != NameToId_.end()) {
+        return it->second;
+    }
+
+    auto maybeId = NameTable_->FindId(name);
+    if (maybeId) {
+        Names_.push_back(Stroka(name));
+        YCHECK(NameToId_.insert(std::make_pair(Names_.back(), *maybeId)).second);
+    }
+    return maybeId;
+}
+
+int TNameTableWriter::GetIdOrRegisterName(const TStringBuf& name)
+{
+    auto it = NameToId_.find(name);
+    if (it != NameToId_.end()) {
+        return it->second;
+    }
+
+    auto id = NameTable_->GetIdOrRegisterName(name);
+    Names_.push_back(Stroka(name));
+    YCHECK(NameToId_.insert(std::make_pair(Names_.back(), id)).second);
+    return id;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TNameTableExt* protoNameTable, const TNameTablePtr& nameTable)
 {
     protoNameTable->clear_names();

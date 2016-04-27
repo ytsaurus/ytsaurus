@@ -168,6 +168,7 @@ class TVersionedRowMerger;
 
 DECLARE_REFCOUNTED_CLASS(TNameTable)
 class TNameTableReader;
+class TNameTableWriter;
 
 DECLARE_REFCOUNTED_CLASS(TRowBuffer)
 
