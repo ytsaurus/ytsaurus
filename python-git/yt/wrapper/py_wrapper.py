@@ -406,7 +406,14 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
 
     return cmd, uploaded_files, local_files_to_remove, tmpfs_size
 
-def process_job_case():
+def enable_python_job_processing_for_standalone_binary():
+    """ Enables alternative method to run python functions as jobs in YT operations.
+    This method sends into the job only pickled function and various program settings
+    and do not send modules that used by the program. Therefore this method works
+    correctly only if your script is a standalone binary and executed as binary.
+
+    You should call this function in the beggining of the program.
+    """
     global SINGLE_INDEPENDENT_BINARY_CASE
     if os.environ.get("YT_WRAPPER_IS_INSIDE_JOB"):
         process_rows(sys.argv[1], sys.argv[2], start_time=None)

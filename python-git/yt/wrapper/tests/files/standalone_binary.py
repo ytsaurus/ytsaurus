@@ -13,7 +13,7 @@ def mapper(row):
     yield dict(row.iteritems())
 
 def main():
-    yt.process_job_case()
+    yt.enable_python_job_processing_for_standalone_binary()
     input, output = sys.argv[1:3]
     yt.run_map(mapper, input, output, spec={"mapper": {"environment": {"PYTHONPATH": PYTHONPATH}}})
 
