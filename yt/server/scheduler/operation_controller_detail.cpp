@@ -1706,7 +1706,8 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
     RemoveJoblet(jobId);
 
     if (error.Attributes().Get<bool>("fatal", false)) {
-        OnOperationFailed(error);
+        auto wrappedError = TError("Job failed with fatal error") << error;
+        OnOperationFailed(wrappedError);
         return;
     }
 
