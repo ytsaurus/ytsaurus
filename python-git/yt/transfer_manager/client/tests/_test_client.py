@@ -36,7 +36,7 @@ def test_copy_between_clusters(backend_url):
 
     assert client.get_task_info(task_id)["state"] == "completed"
     assert client.get_task_info(task_id)["pool"] == "ignat"
-    assert plato_client.read_table("//tmp/test_table", format="yamr").read() == "a\tb\nc\td\ne\tf\n"
+    assert plato_client.read_table("//tmp/test_table", format="yamr", raw=True).read() == "a\tb\nc\td\ne\tf\n"
 
     # Abort/restart
     task_id = client.add_task("sakura", "tmp/yt/client_test_table", "plato", "//tmp/test_table")

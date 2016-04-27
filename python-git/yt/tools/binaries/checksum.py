@@ -193,7 +193,7 @@ def main():
         else:
             yt.run_map(cmd, args.table, dst, input_format=input_format, output_format=output_format, local_files=script)
 
-        sys.stdout.write(process_stream(yt.read_table(dst, format=output_format), "md5", args.sorted, reduce_by))
+        sys.stdout.write(process_stream(yt.read_table(dst, format=output_format, raw=True), "md5", args.sorted, reduce_by))
 
     else:
         sys.stdout.write(process_stream(sys.stdin, args.input_type, args.sorted, args.reduce_by))
