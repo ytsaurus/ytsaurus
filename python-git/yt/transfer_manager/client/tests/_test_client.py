@@ -53,3 +53,18 @@ def test_copy_no_retries(backend_url):
     plato_client = Yt(proxy="plato")
     table = plato_client.create_temp_table()
     client.add_task("plato", table, "quine", "//tmp/test_table", sync=True)
+
+def test_copy_dir(backend_url):
+    client = TransferManager(url=backend_url, enable_retries=False)
+
+    plato_client = Yt(proxy="plato")
+    plato_client.mkdir("//tmp/test_dir_tm", recursive=True)
+    for i in xrange(10):
+        plato_client.create("table", "//tmp/test_dir_tm/" + str(i), ignore_existing=True)
+
+    quine_client = Yt(proxy="quine")
+    quine_client.remove("//tmp/test_dir_tm", recursive=True, force=True)
+
+    client.add_tasks("plato", "//tmp/test_dir_tm", "quine", "//tmp/test_dir_tm", sync=True, running_tasks_limit=2)
+
+    assert 10 == len(quine_client.list("//tmp/test_dir_tm"))

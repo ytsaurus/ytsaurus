@@ -7,9 +7,10 @@ import yt.logger as logger
 import yt.packages.requests as requests
 import yt.packages.simplejson as json
 
+import sys
 import time
-from threading import Thread, Semaphore
 import Queue
+from threading import Thread, Semaphore
 from copy import deepcopy
 
 TM_BACKEND_URL = "http://transfer-manager.yt.yandex.net/api/v1"
@@ -60,6 +61,8 @@ class Poller(object):
         self.poll_period = poll_period
         self.ping_task_and_get_func = ping_task_and_get_func
 
+        self.exc_info = None
+
         self._thread = Thread(target=self._poll_tasks)
         self._thread.daemon = True
         self._thread.start()
@@ -97,7 +100,12 @@ class Poller(object):
             tasks_to_remove = []
 
             for task in running_tasks:
-                state = self.ping_task_and_get_func(task)["state"]
+                try:
+                    state = self.ping_task_and_get_func(task)["state"]
+                except:
+                    self.exc_info = sys.exc_info()
+                    return
+
                 if state == "completed":
                     logger.info("Task %s completed", task)
                 elif state == "skipped":
@@ -291,6 +299,8 @@ class TransferManager(object):
         for source_table, destination_table in src_dst_pairs:
             if sync:
                 while not poller.acquire_task_slot():
+                    if poller.exc_info is not None:
+                        raise poller.exc_info[0], poller.exc_info[1], poller.exc_info[2]
                     time.sleep(0.5)
 
             task_id = self._start_one_task(
