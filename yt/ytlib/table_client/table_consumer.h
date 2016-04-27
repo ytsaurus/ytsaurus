@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "value_consumer.h"
+#include "name_table.h"
 
 #include <yt/core/misc/error.h>
 
@@ -62,10 +63,14 @@ protected:
 
     void FlushCurrentValueIfCompleted();
 
+    void SwitchToTable(int tableIndex);
+
 
     const std::vector<IValueConsumer*> ValueConsumers_;
+    std::vector<std::unique_ptr<TNameTableWriter>> NameTableWriters_;
 
     IValueConsumer* CurrentValueConsumer_ = nullptr;
+    TNameTableWriter* CurrentNameTableWriter_ = nullptr;
 
     EControlState ControlState_ = EControlState::None;
     EControlAttribute ControlAttribute_;
