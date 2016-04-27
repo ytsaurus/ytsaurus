@@ -382,7 +382,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             row_count = source_client.get(src.name + "/@row_count")
 
             temp_table = destination_client.create_temp_table(prefix=os.path.basename(src.name))
-            destination_client.write_table(temp_table, (json.dumps({"start": start, "end": end}) for start, end in ranges), format=yt.JsonFormat())
+            destination_client.write_table(temp_table, ({"start": start, "end": end} for start, end in ranges), format=yt.JsonFormat())
 
             spec = deepcopy(get_value(copy_spec_template, {}))
             spec["data_size_per_job"] = 1
@@ -443,7 +443,7 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, copy_spec_t
 
     read_commands = yamr_client.create_read_range_commands(ranges, src, fastbone=fastbone, transaction_id=transaction_id, enable_logging=True, timeout=job_timeout)
     temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
-    yt_client.write_table(temp_table, read_commands, format=yt.SchemafulDsvFormat(columns=["command"]))
+    yt_client.write_table(temp_table, read_commands, format=yt.SchemafulDsvFormat(columns=["command"]), raw=True)
 
     job_io_config = {"table_writer": {"max_row_weight": 128 * 1024 * 1024}}
 
@@ -652,7 +652,8 @@ while True:
     range_table = kiwi_transmittor.create_temp_table(prefix=os.path.basename(src))
     kiwi_transmittor.write_table(range_table,
                                  ["\t".join(map(str, range)) + "\n" for range in ranges],
-                                 format=yt.YamrFormat(lenval=False, has_subkey=False))
+                                 format=yt.YamrFormat(lenval=False, has_subkey=False),
+                                 raw=True)
 
     output_table = kiwi_transmittor.create_temp_table()
     kiwi_transmittor.set(output_table + "/@replication_factor", 1)
