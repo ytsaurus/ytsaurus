@@ -425,7 +425,7 @@ YtCommand.prototype._redirectHeavyRequests = function() {
         if (typeof(target) !== "undefined") {
             var is_ssl;
             is_ssl = this.req.connection.getCipher && this.req.connection.getCipher();
-            is_ssl = !!isSsl;
+            is_ssl = !!is_ssl;
             var url =
                 (is_ssl ? "https://" : "http://") +
                 target.host +
