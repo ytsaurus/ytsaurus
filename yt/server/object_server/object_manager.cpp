@@ -1285,7 +1285,7 @@ void TObjectManager::OnProfiling()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    Profiler.Enqueue("/zombie_object_coun", GarbageCollector_->GetZombieCount());
+    Profiler.Enqueue("/zombie_object_count", GarbageCollector_->GetZombieCount());
     Profiler.Enqueue("/ghost_object_count", GarbageCollector_->GetGhostCount());
     Profiler.Enqueue("/created_objects", CreatedObjects_);
     Profiler.Enqueue("/destroyed_objects", DestroyedObjects_);
