@@ -21,7 +21,7 @@ def test_copy_between_clusters(backend_url):
 
     plato_client = Yt(proxy="plato")
     table = plato_client.create_temp_table()
-    plato_client.write_table(table, ["a\tb\n", "c\td\n", "e\tf\n"], format="yamr")
+    plato_client.write_table(table, ["a\tb\n", "c\td\n", "e\tf\n"], format="yamr", raw=True)
 
     client.add_task("plato", table, "quine", "//tmp/test_table", sync=True)
 
