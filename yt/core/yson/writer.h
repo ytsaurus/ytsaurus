@@ -127,6 +127,8 @@ public:
 
     virtual void Flush() override;
 
+    int GetDepth() const;
+
 protected:
     TOutputStream* const Stream_;
     const EYsonType Type_;

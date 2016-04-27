@@ -394,6 +394,11 @@ void TBufferedBinaryYsonWriter::Flush()
     }
 }
 
+int TBufferedBinaryYsonWriter::GetDepth() const
+{
+    return Depth_;
+}
+
 Y_FORCE_INLINE void TBufferedBinaryYsonWriter::EnsureSpace(size_t space)
 {
     if (Y_LIKELY(BufferCursor_ + space <= BufferEnd_)) {
