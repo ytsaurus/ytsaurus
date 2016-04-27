@@ -15,10 +15,10 @@ Task = namedtuple("Task", ["start_time", "finish_time", "id", "user", "state"]);
 logger.set_formatter(logging.Formatter('%(asctime)-15s\t%(message)s'))
 
 def is_casual(task):
-    return task.state in ["completed", "aborted"]
+    return task.state in ["completed", "aborted", "skipped"]
 
 def is_final(state):
-    return state in ["completed", "aborted", "failed"]
+    return state in ["completed", "aborted", "failed", "skipped"]
 
 def remove_tasks(tasks_to_remove, url, token):
     for task in tasks_to_remove:
