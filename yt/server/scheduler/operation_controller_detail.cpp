@@ -1135,7 +1135,7 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
     auto transactionManager = AuthenticatedMasterClient->GetTransactionManager();
     Operation->SetAsyncSchedulerTransaction(transactionManager->Attach(AsyncSchedulerTransactionId));
 
-    LOG_INFO("Scheduler async transaction started (AsyncTransactionId: %v)",
+    LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %v)",
         AsyncSchedulerTransactionId);
 }
 
