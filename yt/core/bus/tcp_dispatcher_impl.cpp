@@ -145,6 +145,11 @@ void TTcpDispatcherThread::OnCheck()
 
 TTcpDispatcher::TImpl::TImpl()
 {
+    auto* profileManager = NProfiling::TProfileManager::Get();
+    for (auto interfaceType : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
+        InterfaceTypeToProfilingTag_[interfaceType] = profileManager->RegisterTag("interface", interfaceType);
+    }
+
     auto serverThread = New<TTcpDispatcherThread>("BusServer");
     Threads_.push_back(serverThread);
 
@@ -217,9 +222,8 @@ TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetClientThread()
 void TTcpDispatcher::TImpl::OnProfiling()
 {
     for (auto interfaceType : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
-        auto* profileManager = NProfiling::TProfileManager::Get();
         NProfiling::TTagIdList tagIds{
-            profileManager->RegisterTag("interface", interfaceType)
+            InterfaceTypeToProfilingTag_[interfaceType]
         };
 
         auto statistics = GetStatistics(interfaceType);
