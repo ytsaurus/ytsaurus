@@ -91,6 +91,7 @@ private:
     TImpl();
     void OnProfiling();
 
+    TEnumIndexedVector<NProfiling::TTagId, ETcpInterfaceType> InterfaceTypeToProfilingTag_;
 
     // Server thread + all client threads.
     std::vector<TTcpDispatcherThreadPtr> Threads_;
