@@ -803,7 +803,7 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
 
                         auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
                         if (!descriptor) {
-                            ThrowNoSuchBuiltinAttribute(key);
+                            ThrowNoSuchAttribute(key);
                         }
                         if (!descriptor->Removable) {
                             ThrowCannotRemoveAttribute(key);
@@ -829,12 +829,12 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                         customAttributes->SetYson(key, updatedCustomYson);
                     } else {
                         if (!builtinAttributeProvider) {
-                            ThrowNoSuchBuiltinAttribute(key);
+                            ThrowNoSuchAttribute(key);
                         }
 
                         auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
                         if (!descriptor) {
-                            ThrowNoSuchBuiltinAttribute(key);
+                            ThrowNoSuchAttribute(key);
                         }
 
                         permissionValidator.Validate(descriptor->WritePermission);
