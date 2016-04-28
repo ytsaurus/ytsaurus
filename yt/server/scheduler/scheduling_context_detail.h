@@ -35,7 +35,7 @@ public:
     virtual bool CanStartMoreJobs() const override;
     virtual bool CanSchedule(const TNullable<Stroka>& tag) const override;
 
-    virtual void StartJob(TOperationPtr operation, const TJobStartRequest& jobStartRequest) override;
+    virtual TJobPtr StartJob(TOperationPtr operation, const TJobStartRequest& jobStartRequest) override;
 
     virtual void PreemptJob(TJobPtr job) override;
 
