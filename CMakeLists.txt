@@ -4,8 +4,6 @@ IF(YMAKE)
 
 OWNER(sandello)
 
-ADDINCL(GLOBAL yt/17_4)
-
 RECURSE(
   build
   core

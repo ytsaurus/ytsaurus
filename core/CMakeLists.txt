@@ -2,6 +2,8 @@ IF(YMAKE)
   SET(CMAKE_CURRENT_LIST_DIR .)
 ENDIF()
 
+SET(PROTO_NAMESPACE yt/17_4)
+
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/actions/callback_internal.cpp
   ${CMAKE_CURRENT_LIST_DIR}/actions/cancelable_context.cpp

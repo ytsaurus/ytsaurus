@@ -2,6 +2,8 @@ IF(YMAKE)
   SET(CMAKE_CURRENT_LIST_DIR .)
 ENDIF()
 
+SET(PROTO_NAMESPACE yt/17_4)
+
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/api/admin.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/client.cpp
@@ -316,7 +318,7 @@ SRCS(
 PEERDIR(
   contrib/libs/llvm37/lib
   contrib/libs/re2
-  yt/core
+  yt/17_4/yt/core
 )
 
 END()
