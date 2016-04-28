@@ -309,7 +309,7 @@ private:
 
         if (ysonType == NYson::EYsonType::ListFragment) {
             if (raw) {
-                Py::Callable class_type(TRawYsonIterator::type());
+                Py::Callable classType(TRawYsonIterator::type());
                 Py::PythonClassObject<TRawYsonIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
 
                 auto* iter = pythonIter.getCxxObject();
