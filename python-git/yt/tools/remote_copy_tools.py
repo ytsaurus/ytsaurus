@@ -6,7 +6,6 @@ import yt.logger as logger
 import yt.wrapper as yt
 
 import os
-import json
 import time
 import shutil
 import gzip
