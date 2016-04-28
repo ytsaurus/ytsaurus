@@ -976,6 +976,7 @@ private:
 
     NHydra::TEntityMap<TUser> UserMap_;
     yhash_map<Stroka, TUser*> UserNameMap_;
+    yhash_map<Stroka, NProfiling::TTagId> UserNameToProfilingTagId_;
 
     TUserId RootUserId_;
     TUser* RootUser_ = nullptr;
@@ -1109,6 +1110,18 @@ private:
         }
 
         return user;
+    }
+
+    NProfiling::TTagId GetProfilingTagForUser(TUser* user)
+    {
+        auto it = UserNameToProfilingTagId_.find(user->GetName());
+        if (it != UserNameToProfilingTagId_.end()) {
+            return it->second;
+        }
+
+        auto tagId = NProfiling::TProfileManager::Get()->RegisterTag("user", user->GetName());
+        YCHECK(UserNameToProfilingTagId_.insert(std::make_pair(user->GetName(), tagId)).second);
+        return tagId;
     }
 
     TGroup* DoCreateGroup(const TGroupId& id, const Stroka& name)
@@ -1413,7 +1426,6 @@ private:
         }
     }
 
-protected:
     virtual void OnRecoveryComplete() override
     {
         TMasterAutomatonPart::OnRecoveryComplete();
@@ -1598,7 +1610,6 @@ protected:
 
     void HydraIncreaseUserStatistics(NProto::TReqIncreaseUserStatistics* request)
     {
-        auto* profilingManager = NProfiling::TProfileManager::Get();
         for (const auto& entry : request->entries()) {
             auto userId = FromProto<TUserId>(entry.user_id());
             auto* user = FindUser(userId);
@@ -1610,15 +1621,16 @@ protected:
             user->LocalStatistics() += statisticsDelta;
             user->ClusterStatistics() += statisticsDelta;
 
-            NProfiling::TTagIdList tags;
-            tags.push_back(profilingManager->RegisterTag("user", user->GetName()));
+            NProfiling::TTagIdList tagIds{
+                GetProfilingTagForUser(user)
+            };
 
             const auto& localStatistics = user->LocalStatistics();
-            Profiler.Enqueue("/user_read_time", localStatistics.ReadRequestTime.MicroSeconds(), tags);
-            Profiler.Enqueue("/user_write_time", localStatistics.WriteRequestTime.MicroSeconds(), tags);
-            Profiler.Enqueue("/user_request_count", localStatistics.RequestCount, tags);
+            Profiler.Enqueue("/user_read_time", localStatistics.ReadRequestTime.MicroSeconds(), tagIds);
+            Profiler.Enqueue("/user_write_time", localStatistics.WriteRequestTime.MicroSeconds(), tagIds);
+            Profiler.Enqueue("/user_request_count", localStatistics.RequestCount, tagIds);
             // COMPAT(babenko)
-            Profiler.Enqueue("/user_request_counter", localStatistics.RequestCount, tags);
+            Profiler.Enqueue("/user_request_counter", localStatistics.RequestCount, tagIds);
         }
     }
 
