@@ -140,7 +140,7 @@ struct TSimpleCounter
     TSimpleCounter(
         const NYPath::TYPath& path = "",
         const TTagIdList& tagIds = EmptyTagIds,
-        TDuration interval = TDuration::MilliSeconds(100));
+        TDuration interval = TDuration::MilliSeconds(1000));
     TSimpleCounter(const TSimpleCounter& other);
     TSimpleCounter& operator = (const TSimpleCounter& other);
 
