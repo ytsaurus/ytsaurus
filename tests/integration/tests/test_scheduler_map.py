@@ -847,6 +847,13 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 command=command,
                 file=["<format=invalid_format>//tmp/table_file"])
 
+        # missing format
+        with pytest.raises(YtError):
+            map(in_="//tmp/input",
+                out="//tmp/output",
+                command=command,
+                file=["//tmp/table_file"])
+
         assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text": "info"}]
 
     @unix_only
