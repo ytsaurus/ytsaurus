@@ -1443,6 +1443,34 @@ void TOperationControllerBase::Commit()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    // XXX(babenko): hotfix for YT-4636
+    {
+        auto client = Host->GetMasterClient();
+        auto connection = client->GetConnection();
+
+        // NB: use root credentials.
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
+
+        auto path = GetOperationPath(OperationId) + "/@committing";
+
+        {
+            auto req = TYPathProxy::Exists(path);
+            auto rsp = WaitFor(proxy.Execute(req))
+                .ValueOrThrow();
+            if (ConvertTo<bool>(rsp->value())) {
+                THROW_ERROR_EXCEPTION("Operation is already committing");
+            }
+        }
+
+        {
+            auto req = TYPathProxy::Set(path);
+            req->set_value(ConvertToYsonString(true).Data());
+            WaitFor(proxy.Execute(req))
+                .ThrowOnError();
+        }
+    }
+
     TeleportOutputChunks();
     AttachOutputChunks();
     EndUploadOutputTables();
