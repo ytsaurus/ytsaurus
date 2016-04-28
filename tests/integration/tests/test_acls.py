@@ -565,6 +565,13 @@ class TestAcls(YTEnvSetup):
         check("//sys/schemas/group", RWRAC)
         check("//sys/schemas/account", RWRAC + ["use"])
 
+    def test_set_acl_upon_construction(self):
+        create_user("u")
+        create("table", "//tmp/t", attributes={
+            "acl": [self._make_ace("allow", "u", "write")],
+            "inherit_acl": False})
+        assert len(get("//tmp/t/@acl")) == 1
+
 ##################################################################
 
 class TestAclsMulticell(TestAcls):
