@@ -6,10 +6,8 @@ from errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurren
 from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, parse_error_from_headers, get_header_format
 from response_stream import ResponseStream
 
-import yt.logger as logger
 import yt.json as json
 
-import sys
 from copy import deepcopy
 from datetime import datetime
 
@@ -85,7 +83,7 @@ def make_request(command_name, params,
     command = commands[command_name]
 
     # Determine make retries or not and set mutation if needed
-    allow_retries = not command.is_heavy
+    allow_retries = not command.is_heavy and command_name not in ["concatenate"]
 
     if timeout is None:
         if command.is_heavy:
