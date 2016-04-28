@@ -892,7 +892,7 @@ private:
                 if (!connection) {
                     continue;
                 }
-                auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+                auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
                 auto authenticatedChannel = CreateAuthenticatedChannel(channel, SchedulerUserName);
                 TObjectServiceProxy proxy(authenticatedChannel);
                 batchReqs[cellTag] = proxy.ExecuteBatch();
