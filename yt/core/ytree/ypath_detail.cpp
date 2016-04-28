@@ -418,13 +418,14 @@ TYsonString TSupportsAttributes::DoListAttributeFragment(
     auto listedKeys = SyncYPathList(node, path);
 
     TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
+    TBufferedBinaryYsonWriter writer(&stream);
     writer.OnBeginList();
     for (const auto& listedKey : listedKeys) {
         writer.OnListItem();
         writer.OnStringScalar(listedKey);
     }
     writer.OnEndList();
+    writer.Flush();
 
     return TYsonString(stream.Str());
 }
@@ -437,7 +438,7 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         TStringStream stream;
-        TYsonWriter writer(&stream);
+        TBufferedBinaryYsonWriter writer(&stream);
 
         writer.OnBeginList();
 
@@ -463,6 +464,7 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
         }
 
         writer.OnEndList();
+        writer.Flush();
 
         return MakeFuture(TYsonString(stream.Str()));
     } else  {
@@ -753,10 +755,10 @@ void TSupportsAttributes::SetAttribute(
 
     // Binarize the value.
     TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, false);
+    TBufferedBinaryYsonWriter writer(&stream, EYsonType::Node, false);
     writer.OnRaw(request->value(), EYsonType::Node);
+    writer.Flush();
     auto value = TYsonString(stream.Str());
-
     auto result = DoSetAttribute(path, value);
     context->ReplyFrom(result);
 }
@@ -955,20 +957,17 @@ private:
     IAttributeDictionary* const Attributes_;
 
     TStringStream AttributeStream_;
-    std::unique_ptr<TYsonWriter> AttributeWriter_;
+    std::unique_ptr<TBufferedBinaryYsonWriter> AttributeWriter_;
 
 
     virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
         Stroka keyString(key);
-        AttributeWriter_.reset(new TYsonWriter(
-            &AttributeStream_,
-            EYsonFormat::Binary,
-            EYsonType::Node,
-            true));
+        AttributeWriter_.reset(new TBufferedBinaryYsonWriter(&AttributeStream_));
         Forward(
             AttributeWriter_.get(),
             BIND ([=] () {
+                AttributeWriter_->Flush();
                 AttributeWriter_.reset();
                 Attributes_->SetYson(keyString, TYsonString(AttributeStream_.Str()));
                 AttributeStream_.clear();

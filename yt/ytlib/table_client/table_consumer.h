@@ -71,7 +71,7 @@ protected:
     EControlAttribute ControlAttribute_;
 
     TBlobOutput ValueBuffer_;
-    NYson::TYsonWriter ValueWriter_;
+    NYson::TBufferedBinaryYsonWriter ValueWriter_;
 
     int Depth_ = 0;
     int ColumnIndex_ = 0;

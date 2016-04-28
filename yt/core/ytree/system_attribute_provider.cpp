@@ -47,10 +47,11 @@ TNullable<ISystemAttributeProvider::TAttributeDescriptor> ISystemAttributeProvid
 TNullable<TYsonString> ISystemAttributeProvider::FindBuiltinAttribute(const Stroka& key)
 {
     TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
+    TBufferedBinaryYsonWriter writer(&stream);
     if (!GetBuiltinAttribute(key, &writer)) {
         return Null;
     }
+    writer.Flush();
     return TYsonString(stream.Str());
 }
 

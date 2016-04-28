@@ -157,13 +157,13 @@ void Deserialize(TYsonSerializableLite& value, INodePtr node)
 
 TYsonString ConvertToYsonStringStable(const TYsonSerializableLite& value)
 {
-    Stroka result;
-    TStringOutput output(result);
-    TYsonWriter writer(&output, EYsonFormat::Binary, EYsonType::Node);
+    TStringStream output;
+    TBufferedBinaryYsonWriter writer(&output);
     value.Save(
         &writer,
         true); // truth matters :)
-    return TYsonString(result, EYsonType::Node);
+    writer.Flush();
+    return TYsonString(output.Str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
