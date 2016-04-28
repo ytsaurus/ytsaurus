@@ -491,7 +491,7 @@ class TestOperations(object):
             assert yt.row_count(table) == 1
         check([{"x": "1", "y": "1"}, {"x": "10", "y": "10"}], yt.read_table(append_table), ordered=False)
 
-    def test_attached_mode(self):
+    def test_attached_mode_simple(self):
         table = TEST_DIR + "/table"
 
         yt.config["detached"] = 0
@@ -503,6 +503,31 @@ class TestOperations(object):
             check(yt.read_table(table), [{"x": 1}])
         finally:
             yt.config["detached"] = 1
+
+    def test_attached_mode_op_aborted(self, yt_env):
+        script = """
+import yt.wrapper as yt
+import sys
+
+input, output, pythonpath = sys.argv[1:4]
+yt.config["proxy"]["request_retry_timeout"] = 2000
+yt.config["proxy"]["request_retry_count"] = 1
+yt.config["detached"] = False
+op = yt.run_map("sleep 100", input, output, format="json", spec={"mapper": {"environment": {"PYTHONPATH": pythonpath}}}, sync=False)
+print op.id
+
+"""
+        dir_ = yt_env.env.path_to_run
+        with tempfile.NamedTemporaryFile(dir=dir_, prefix="mapper", delete=False) as file:
+            file.write(script)
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}])
+
+        op_id = subprocess.check_output(["python", file.name, table, table, PYTHONPATH], env={"YT_PROXY": yt.config["proxy"]["url"]}).strip()
+        time.sleep(3)
+
+        assert yt.get("//sys/operations/{0}/@state".format(op_id)) == "aborted"
 
     def test_abort_operation(self):
         table = TEST_DIR + "/table"
