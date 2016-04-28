@@ -2926,7 +2926,12 @@ void TOperationControllerBase::DoRequestFileObjects(
                 } else {
                     file.Format = file.Path.Attributes().GetYson("format");
                     // Check that format is correct.
-                    ConvertTo<NFormats::TFormat>(file.Format);
+                    try {
+                        ConvertTo<TFormat>(file.Format);
+                    } catch (const std::exception& ex) {
+                        THROW_ERROR_EXCEPTION("Failed to parse format of table file %v",
+                            file.Path) << ex;
+                    }
                 }
 
                 if (onFileObject) {
