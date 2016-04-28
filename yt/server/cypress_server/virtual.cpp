@@ -143,7 +143,7 @@ void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtx
             const auto& session = sessionOrError.Value();
 
             TStringStream stream;
-            TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
+            TBufferedBinaryYsonWriter writer(&stream);
 
             {
                 TAsyncYsonConsumerAdapter asyncAdapter(&writer);
@@ -166,6 +166,7 @@ void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtx
                 writer.OnEntity();
             }
             writer.OnEndMap();
+            writer.Flush();
 
             const auto& str = stream.Str();
             response->set_value(str);
@@ -200,7 +201,7 @@ void TVirtualMulticellMapBase::ListSelf(TReqList* request, TRspList* response, T
             const auto& session = sessionOrError.Value();
 
             TStringStream stream;
-            TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
+            TBufferedBinaryYsonWriter writer(&stream);
 
             {
                 TAsyncYsonConsumerAdapter asyncAdapter(&writer);
@@ -222,6 +223,7 @@ void TVirtualMulticellMapBase::ListSelf(TReqList* request, TRspList* response, T
                 writer.OnStringScalar(item.Key);
             }
             writer.OnEndList();
+            writer.Flush();
 
             const auto& str = stream.Str();
             response->set_value(str);

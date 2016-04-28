@@ -15,9 +15,11 @@ class TYsonWriter
     , private TNonCopyable
 {
 public:
+    static constexpr int DefaultIndent = 4;
+
     //! Initializes an instance.
     /*!
-     *  \param stream A stream for outputting the YSON data.
+     *  \param stream A stream for writing the YSON data to.
      *  \param format A format used for encoding the data.
      *  \param enableRaw Enables inserting raw portions of YSON as-is, without reparse.
      */
@@ -27,7 +29,7 @@ public:
         EYsonType type = EYsonType::Node,
         bool enableRaw = false,
         bool booleanAsString = false,
-        int indent = 4);
+        int indent = DefaultIndent);
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value) override;
@@ -93,7 +95,7 @@ class TBufferedBinaryYsonWriter
 public:
     //! Initializes an instance.
     /*!
-     *  \param stream A stream for outputting the YSON data.
+     *  \param stream A stream for writing the YSON data to.
      *  \param format A format used for encoding the data.
      *  \param enableRaw Enables inserting raw portions of YSON as-is, without reparse.
      */
@@ -152,6 +154,17 @@ protected:
     void EndNode();
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Creates either TYsonWriter or TBufferedBinaryYsonWriter, depending on #format.
+std::unique_ptr<IFlushableYsonConsumer> CreateYsonWriter(
+    TOutputStream* output,
+    EYsonFormat format,
+    EYsonType type,
+    bool enableRaw,
+    bool booleanAsString,
+    int indent = TYsonWriter::DefaultIndent);
 
 ////////////////////////////////////////////////////////////////////////////////
 

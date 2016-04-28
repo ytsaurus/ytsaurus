@@ -71,13 +71,14 @@ void Deserialize(INodePtr& value, INodePtr node)
 TYsonString ConvertToYsonStringStable(INodePtr node)
 {
     TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node);
+    TBufferedBinaryYsonWriter writer(&stream);
     VisitTree(
         node,
         &writer,
         Null,
         true); // truth matters :)
-    return TYsonString(stream.Str(), EYsonType::Node);
+    writer.Flush();
+    return TYsonString(stream.Str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

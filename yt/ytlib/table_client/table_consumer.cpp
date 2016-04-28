@@ -368,6 +368,7 @@ void TTableConsumer::OnEndAttributes()
 void TTableConsumer::FlushCurrentValueIfCompleted()
 {
     if (Depth_ == 1) {
+        ValueWriter_.Flush();
         CurrentValueConsumer_->OnValue(MakeUnversionedAnyValue(
             TStringBuf(
                 ValueBuffer_.Begin(),
@@ -376,8 +377,6 @@ void TTableConsumer::FlushCurrentValueIfCompleted()
         ValueBuffer_.Clear();
     }
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 

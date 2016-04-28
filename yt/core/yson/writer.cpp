@@ -530,5 +530,32 @@ void TBufferedBinaryYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::unique_ptr<IFlushableYsonConsumer> CreateYsonWriter(
+    TOutputStream* output,
+    EYsonFormat format,
+    EYsonType type,
+    bool enableRaw,
+    bool booleanAsString,
+    int indent)
+{
+    if (format == EYsonFormat::Binary) {
+        return std::unique_ptr<IFlushableYsonConsumer>(new TBufferedBinaryYsonWriter(
+            output,
+            type,
+            enableRaw,
+            booleanAsString));
+    } else {
+        return std::unique_ptr<IFlushableYsonConsumer>(new TYsonWriter(
+            output,
+            format,
+            type,
+            enableRaw,
+            booleanAsString,
+            indent));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYson
 } // namespace NYT

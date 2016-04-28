@@ -40,7 +40,7 @@ private:
     const EYsonType Type_;
 
     TStringStream Stream_;
-    TYsonWriter SyncWriter_;
+    TBufferedBinaryYsonWriter SyncWriter_;
 
     std::vector<TFuture<Stroka>> AsyncSegments_;
 
