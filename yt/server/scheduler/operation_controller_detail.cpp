@@ -1235,6 +1235,7 @@ ITransactionPtr TOperationControllerBase::StartTransaction(
     LOG_INFO("Starting %v transaction", transactionName);
 
     TTransactionStartOptions options;
+    options.PingAncestors = false;
     auto attributes = CreateEphemeralAttributes();
     attributes->Set(
         "title",
