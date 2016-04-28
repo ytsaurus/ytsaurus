@@ -627,7 +627,6 @@ TFuture<void> TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYso
                             YCHECK(newAttributes->Remove(key));
                         }
                     }
-
                 }
 
                 // Set builtin attributes.
