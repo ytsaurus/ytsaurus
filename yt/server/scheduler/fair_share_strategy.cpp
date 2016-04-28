@@ -6,6 +6,7 @@
 #include "scheduler_strategy.h"
 
 #include <yt/core/concurrency/async_rw_lock.h>
+#include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/profiling/profile_manager.h>
@@ -1744,68 +1745,27 @@ public:
             BIND(&TFairShareStrategy::OnOperationRuntimeParamsUpdated, this));
 
         RootElement = New<TRootElement>(Host, config);
-    }
 
+        FairShareUpdateExecutor_ = New<TPeriodicExecutor>(
+            GetCurrentInvoker(),
+            BIND(&TFairShareStrategy::OnFairShareUpdate, this),
+            Config->FairShareUpdatePeriod);
+
+        FairShareLoggingExecutor_ = New<TPeriodicExecutor>(
+            GetCurrentInvoker(),
+            BIND(&TFairShareStrategy::OnFairShareLogging, this),
+            Config->FairShareLogPeriod);
+    }
 
     virtual void ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
     {
         auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&ScheduleJobsLock))
             .Value();
 
-        auto now = schedulingContext->GetNow();
         int attributesIndex = AllocateAttributesIndex();
         TFairShareContext context(schedulingContext, attributesIndex);
 
         RootElement->BeginHeartbeat();
-
-        // Run periodic update.
-        if (Config->FairShareUpdatePeriod && (!LastUpdateTime || now > LastUpdateTime.Get() + *Config->FairShareUpdatePeriod)) {
-            PROFILE_TIMING ("/fair_share_update_time") {
-                // The root element gets the whole cluster.
-                RootElement->Update();
-            }
-            LastUpdateTime = now;
-        }
-
-        // Update starvation flags for all operations.
-        for (const auto& pair : OperationToElement) {
-            pair.second->CheckForStarvation(now);
-        }
-
-        // Update starvation flags for all pools.
-        if (Config->EnablePoolStarvation) {
-            for (const auto& pair : Pools) {
-                pair.second->CheckForStarvation(now);
-            }
-        }
-
-        // Run periodic logging.
-        if (Config->FairShareLogPeriod && (!LastLogTime || now > LastLogTime.Get() + *Config->FairShareLogPeriod)) {
-            // Log pools information.
-            Host->LogEventFluently(ELogEventType::FairShareInfo, now)
-                .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
-                .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
-                    const auto& operationId = pair.first;
-                    BuildYsonMapFluently(fluent)
-                        .Item(ToString(operationId))
-                        .BeginMap()
-                            .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operationId))
-                        .EndMap();
-                });
-            for (auto& pair : OperationToElement) {
-                const auto& operationId = pair.first;
-                LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
-                    GetOperationLoggingProgress(operationId),
-                    operationId);
-            }
-            LastLogTime = now;
-        }
-
-        // First-chance scheduling.
-        LOG_DEBUG("Scheduling new jobs");
-        PROFILE_AGGREGATED_TIMING(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
-            RootElement->PrescheduleJob(context, false);
-        }
 
         auto profileTimings = [&] (
             TProfilingCounters& counters,
@@ -1832,6 +1792,12 @@ public:
                     context.FailedScheduleJob[reason]);
             }
         };
+
+        // First-chance scheduling.
+        LOG_DEBUG("Scheduling new jobs");
+        PROFILE_AGGREGATED_TIMING(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
+            RootElement->PrescheduleJob(context, false);
+        }
 
         int nonPreemptiveScheduleJobCount = 0;
         {
@@ -1996,11 +1962,18 @@ public:
             preemptiveScheduleJobCount);
     }
 
+    virtual void StartPeriodicActivity() override
+    {
+        FairShareLoggingExecutor_->Start();
+        FairShareUpdateExecutor_->Start();
+    }
+
     virtual void ResetState() override
     {
+        FairShareLoggingExecutor_->Stop();
+        FairShareUpdateExecutor_->Stop();
+
         LastPoolsNodeUpdate.Reset();
-        LastUpdateTime.Reset();
-        LastLogTime.Reset();
     }
 
     virtual TError CanAddOperation(TOperationPtr operation) override
@@ -2147,8 +2120,6 @@ private:
     std::list<TOperationPtr> OperationQueue;
 
     TRootElementPtr RootElement;
-    TNullable<TInstant> LastUpdateTime;
-    TNullable<TInstant> LastLogTime;
 
     TAsyncReaderWriterLock ScheduleJobsLock;
 
@@ -2183,6 +2154,69 @@ private:
 
     TProfilingCounters NonPreemptiveProfilingCounters;
     TProfilingCounters PreemptiveProfilingCounters;
+
+    TPeriodicExecutorPtr FairShareUpdateExecutor_;
+    TPeriodicExecutorPtr FairShareLoggingExecutor_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+    TInstant GetNow()
+    {
+        // TODO(acid): For this to work in simulator we need to store current time globally in
+        // strategy and update it in simulator.
+        return TInstant::Now();
+    }
+
+    void OnFairShareUpdate()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto now = GetNow();
+
+        // Run periodic update.
+        PROFILE_TIMING ("/fair_share_update_time") {
+            // The root element gets the whole cluster.
+            RootElement->Update();
+        }
+
+        // Update starvation flags for all operations.
+        for (const auto& pair : OperationToElement) {
+            pair.second->CheckForStarvation(now);
+        }
+
+        // Update starvation flags for all pools.
+        if (Config->EnablePoolStarvation) {
+            for (const auto& pair : Pools) {
+                pair.second->CheckForStarvation(now);
+            }
+        }
+    }
+
+    void OnFairShareLogging()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto now = GetNow();
+
+        // Log pools information.
+        Host->LogEventFluently(ELogEventType::FairShareInfo, now)
+            .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
+            .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
+                const auto& operationId = pair.first;
+                BuildYsonMapFluently(fluent)
+                    .Item(ToString(operationId))
+                    .BeginMap()
+                        .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operationId))
+                    .EndMap();
+            });
+
+        for (auto& pair : OperationToElement) {
+            const auto& operationId = pair.first;
+            LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
+                GetOperationLoggingProgress(operationId),
+                operationId);
+        }
+    }
 
     bool IsJobPreemptable(const TJobPtr& job)
     {

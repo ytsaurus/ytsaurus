@@ -1003,6 +1003,8 @@ private:
 
         AbortAbortingOperations(result.AbortingOperations);
         ReviveOperations(result.RevivingOperations);
+
+        Strategy_->StartPeriodicActivity();
     }
 
     void OnMasterDisconnected()
