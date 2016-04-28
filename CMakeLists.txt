@@ -114,29 +114,24 @@ endif()
 set(PYTHON_KINDS)
 mark_as_advanced(PYTHON_KINDS)
 
-function(CHECK_PYTHON_KIND kind include_dir library)
+function(CHECK_PYTHON_KIND kind include_dir)
   if(NOT EXISTS ${include_dir})
     message(FATAL_ERROR "[PYTHON] Kind \"${kind}\": Could not find include directory \"${include_dir}\": path does not exist")
   endif()
-  if(NOT EXISTS ${library})
-    message(FATAL_ERROR "[PYTHON] Kind \"${kind}\": Could not find library \"${library}\": path does not exist")
-  endif()
-  message(STATUS "[PYTHON] Kind \"${kind}\": Using -I${include_dir} -l${library}")
+  message(STATUS "[PYTHON] Kind \"${kind}\": Using -I${include_dir}")
   set(PYTHON_${kind}_INCLUDE_DIR "${include_dir}" PARENT_SCOPE)
   mark_as_advanced(PYTHON_${kind}_INCLUDE_DIR)
-  set(PYTHON_${kind}_LIBRARY ${library} PARENT_SCOPE)
-  mark_as_advanced(PYTHON_${kind}_LIBRARY)
   set(PYTHON_KINDS ${PYTHON_KINDS} ${kind} PARENT_SCOPE)
 endfunction()
 
 # Discover Python 2.7 world.
 if(YT_BUILD_ENABLE_PYTHON_2_7)
-  check_python_kind("2_7" "/usr/include/python2.7" "/usr/lib/libpython2.7.so")
+  check_python_kind("2_7" "/usr/include/python2.7")
 endif()
 
 # Discover Python Skynet world.
 if(YT_BUILD_ENABLE_PYTHON_SKYNET)
-  check_python_kind("SKYNET" "/skynet/python/include/python2.7" "/skynet/python/lib/libpython2.7.so")
+  check_python_kind("SKYNET" "/skynet/python/include/python2.7")
 endif()
 
 message(STATUS "[PYTHON] Using following kinds of Python: \"${PYTHON_KINDS}\"")
