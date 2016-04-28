@@ -524,7 +524,7 @@ print op.id
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}])
 
-        op_id = subprocess.check_output(["python", file.name, table, table, PYTHONPATH], env={"YT_PROXY": yt.config["proxy"]["url"]}).strip()
+        op_id = subprocess.check_output(["python", file.name, table, table, PYTHONPATH], env={"YT_PROXY": yt.config["proxy"]["url"]}, stderr=sys.stderr).strip()
         time.sleep(3)
 
         assert yt.get("//sys/operations/{0}/@state".format(op_id)) == "aborted"
