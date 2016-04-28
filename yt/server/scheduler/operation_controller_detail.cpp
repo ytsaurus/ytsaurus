@@ -3342,7 +3342,7 @@ void TOperationControllerBase::LockUserFiles(
                 } catch (const std::exception& ex) {
                     // NB: Some of the above Gets and Finds may throw due to, e.g., type mismatch.
                     THROW_ERROR_EXCEPTION("Error parsing attributes of user file %v",
-                        path);
+                        path) << ex;
                 }
 
                 switch (file.Type) {
@@ -3355,7 +3355,16 @@ void TOperationControllerBase::LockUserFiles(
                         file.Format = attributes.FindYson("format").Get(TYsonString());
                         file.Format = file.Path.GetFormat().Get(file.Format);
                         // Validate that format is correct.
-                        ConvertTo<TFormat>(file.Format);
+                        try {
+                            if (file.Format.GetType() == EYsonType::None) {
+                                THROW_ERROR_EXCEPTION("Format is missing");
+                            } else {
+                                ConvertTo<TFormat>(file.Format);
+                            }
+                        } catch (const std::exception& ex) {
+                            THROW_ERROR_EXCEPTION("Failed to parse format of table file %v",
+                                file.Path) << ex;
+                        }
                         break;
 
                     default:
