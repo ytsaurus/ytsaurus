@@ -44,6 +44,7 @@
 #include <yt/core/ytree/ypath_client.h>
 
 #include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/timing.h>
 
 #include <deque>
 
@@ -69,7 +70,8 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = NodeTrackerServerLogger;
-static const auto ProfilingPeriod = TDuration::MilliSeconds(1000);
+static const auto ProfilingPeriod = TDuration::Seconds(1);
+static const auto TotalNodeStatisticsUpdatePeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -504,7 +506,12 @@ public:
 
     TTotalNodeStatistics GetTotalNodeStatistics()
     {
-        TTotalNodeStatistics result;
+        auto now = NProfiling::GetCpuInstant();
+        if (now < TotalNodeStatisticsUpdateDeadline_) {
+            return TotalNodeStatistics_;
+        }
+
+        TotalNodeStatistics_ = TTotalNodeStatistics();
         for (const auto& pair : NodeMap_) {
             const auto* node = pair.second;
             if (node->GetAggregatedState() != ENodeState::Online) {
@@ -512,14 +519,15 @@ public:
             }
             const auto& statistics = node->Statistics();
             if (!node->GetDecommissioned()) {
-                result.AvailableSpace += statistics.total_available_space();
+                TotalNodeStatistics_.AvailableSpace += statistics.total_available_space();
             }
-            result.UsedSpace += statistics.total_used_space();
-            result.ChunkReplicaCount += statistics.total_stored_chunk_count();
-            result.FullNodeCount += statistics.full() ? 1 : 0;
-            result.OnlineNodeCount += 1;
+            TotalNodeStatistics_.UsedSpace += statistics.total_used_space();
+            TotalNodeStatistics_.ChunkReplicaCount += statistics.total_stored_chunk_count();
+            TotalNodeStatistics_.FullNodeCount += statistics.full() ? 1 : 0;
+            TotalNodeStatistics_.OnlineNodeCount += 1;
         }
-        return result;
+        TotalNodeStatisticsUpdateDeadline_ = now + NProfiling::DurationToCpuDuration(TotalNodeStatisticsUpdatePeriod);
+        return TotalNodeStatistics_;
     }
 
     int GetOnlineNodeCount()
@@ -543,6 +551,9 @@ private:
 
     int AggregatedOnlineNodeCount_ = 0;
     int LocalRegisteredNodeCount_ = 0;
+
+    NProfiling::TCpuInstant TotalNodeStatisticsUpdateDeadline_ = 0;
+    TTotalNodeStatistics TotalNodeStatistics_;
 
     TRackSet UsedRackIndexes_;
 
