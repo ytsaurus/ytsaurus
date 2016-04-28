@@ -8,6 +8,8 @@
 
 #include <yt/core/misc/shutdownable.h>
 
+#include <yt/core/profiling/public.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -23,7 +25,8 @@ class TFileChangelogDispatcher
 public:
     TFileChangelogDispatcher(
         const TFileChangelogDispatcherConfigPtr config,
-        const Stroka& threadName);
+        const Stroka& threadName,
+        const NProfiling::TProfiler& profiler);
 
     ~TFileChangelogDispatcher();
 
