@@ -2616,38 +2616,23 @@ void TOperationControllerBase::CreateLivePreviewTables()
         const Stroka& key,
         const TYsonString& acl)
     {
-        {
-            auto req = TCypressYPathProxy::Create(path);
-            req->set_type(static_cast<int>(EObjectType::Table));
-            req->set_ignore_existing(true);
-            req->set_enable_accounting(false);
+        auto req = TCypressYPathProxy::Create(path);
+        req->set_type(static_cast<int>(EObjectType::Table));
+        req->set_ignore_existing(true);
+        req->set_enable_accounting(false);
 
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("replication_factor", replicationFactor);
-            if (cellTag == connection->GetPrimaryMasterCellTag()) {
-                attributes->Set("external", false);
-            } else {
-                attributes->Set("external_cell_tag", cellTag);
-            }
-            ToProto(req->mutable_node_attributes(), *attributes);
-
-            batchReq->AddRequest(req, key);
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("replication_factor", replicationFactor);
+        if (cellTag == connection->GetPrimaryMasterCellTag()) {
+            attributes->Set("external", false);
+        } else {
+            attributes->Set("external_cell_tag", cellTag);
         }
+        attributes->Set("acl", acl);
+        attributes->Set("inherit_acl", false);
+        ToProto(req->mutable_node_attributes(), *attributes);
 
-        // TODO(babenko): consolidate with the above when setting acl at creation time becomes possible
-        {
-            auto req = TYPathProxy::Set(path + "/@acl");
-            req->set_value(acl.Data());
-
-            batchReq->AddRequest(req, key);
-        }
-
-        {
-            auto req = TYPathProxy::Set(path + "/@inherit_acl");
-            req->set_value(ConvertToYsonString(false).Data());
-
-            batchReq->AddRequest(req, key);
-        }
+        batchReq->AddRequest(req, key);
     };
 
     if (IsOutputLivePreviewSupported()) {
@@ -2687,17 +2672,17 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
     if (IsOutputLivePreviewSupported()) {
         auto rspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_output");
-        YCHECK(rspsOrError.size() == 3 * OutputTables.size());
+        YCHECK(rspsOrError.size() == OutputTables.size());
         for (int index = 0; index < OutputTables.size(); ++index) {
-            handleResponse(OutputTables[index], rspsOrError[3 * index].Value());
+            handleResponse(OutputTables[index], rspsOrError[index].Value());
         }
 
         LOG_INFO("Output live preview tables created");
     }
 
     if (IsIntermediateLivePreviewSupported()) {
-        auto rspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_intermediate");
-        handleResponse(IntermediateTable, rspsOrError[0].Value());
+        auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>("create_intermediate");
+        handleResponse(IntermediateTable, rspOrError.Value());
 
         LOG_INFO("Intermediate live preview table created");
     }
