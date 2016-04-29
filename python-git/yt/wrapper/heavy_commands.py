@@ -111,16 +111,15 @@ def make_read_request(command_name, path, params, process_response_action, retri
 
 
     if not get_config(client)["read_retries"]["enable"]:
-        def simple_read():
-            response = _make_transactional_request(
-                command_name,
-                params,
-                return_content=False,
-                use_heavy_proxy=True,
-                client=client)
-            process_response_action(response)
-            return response
-        return execute_with_retries(simple_read)
+        response = _make_transactional_request(
+            command_name,
+            params,
+            return_content=False,
+            use_heavy_proxy=True,
+            allow_retries=True,
+            client=client)
+        process_response_action(response)
+        return response
     else:
         retry_count = get_config(client)["read_retries"]["retry_count"]
 
@@ -171,6 +170,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
                         params,
                         return_content=False,
                         use_heavy_proxy=True,
+                        allow_retries=True,
                         client=client)
 
                     if tx:
