@@ -9,7 +9,7 @@ import yt.json as json
 import time
 from datetime import timedelta, datetime
 
-def lock(path, mode=None, waitable=False, wait_for=None, client=None):
+def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribute_key=None, client=None):
     """Try to lock the path.
 
     :param mode: (optional) blocking type ["snapshot", "shared" or "exclusive" (default)]
@@ -22,14 +22,17 @@ def lock(path, mode=None, waitable=False, wait_for=None, client=None):
     if wait_for is not None:
         wait_for = timedelta(milliseconds=wait_for)
 
-    lock_id = _make_transactional_request(
-        "lock",
-        {
-            "path": prepare_path(path, client=client),
-            "mode": get_value(mode, "exclusive"),
-            "waitable": bool_to_string(waitable)
-        },
-        client=client)
+    params = {
+        "path": prepare_path(path, client=client),
+        "mode": get_value(mode, "exclusive"),
+        "waitable": bool_to_string(waitable)}
+
+    if child_key is not None:
+        params["child_key"] = child_key
+    if attribute_key is not None:
+        params["attribute_key"] = attribute_key
+
+    lock_id = _make_transactional_request("lock", params, client=client)
     if not lock_id:
         return None
     else:
