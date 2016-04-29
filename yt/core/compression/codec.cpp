@@ -452,7 +452,7 @@ ICodec* GetCodec(ECodec id)
             return &result;
         }
 
-        case ECodec::Zstd: {
+        case ECodec::ZstdLegacy: {
             static TZstdLegacyCodec result;
             return &result;
         }

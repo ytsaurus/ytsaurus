@@ -301,7 +301,7 @@ private:
 
         // Init environment variables.
         TPatternFormatter formatter;
-        formatter.AddProperty("SandboxPath", NFS::CombinePaths(GetCwd(), SandboxDirectoryNames[ESandboxKind::User]));
+        formatter.AddProperty("SandboxPath", NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::User]));
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
             Process_->AddArguments({"--env", formatter.Format(UserJobSpec_.environment(i))});
