@@ -16,6 +16,7 @@ def make_request(command_name, params,
                  response_should_be_json=False,
                  use_heavy_proxy=False,
                  timeout=None,
+                 allow_retries=None,
                  client=None):
     backend = get_backend_type(client)
 
@@ -39,6 +40,7 @@ def make_request(command_name, params,
             response_should_be_json=response_should_be_json,
             use_heavy_proxy=use_heavy_proxy,
             timeout=timeout,
+            allow_retries=allow_retries,
             client=client)
     else:
         raise YtError("Incorrect backend type: " + backend)
