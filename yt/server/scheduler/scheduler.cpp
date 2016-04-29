@@ -1894,7 +1894,11 @@ private:
         // This method must be safe to call for any job.
         if (job->GetState() != EJobState::Running &&
             job->GetState() != EJobState::Waiting)
+        {
             return;
+        }
+
+        LOG_DEBUG(error, "Aborting job");
 
         job->SetState(EJobState::Aborted);
         TJobResult result;
@@ -2566,7 +2570,7 @@ private:
                     break;
 
                 case EJobState::Aborted:
-                    LOG_DEBUG("Job aborted, removal scheduled");
+                    LOG_DEBUG(FromProto<TError>(jobStatus->result().error()), "Job aborted, removal scheduled");
                     ToProto(response->add_jobs_to_remove(), jobId);
                     break;
 
