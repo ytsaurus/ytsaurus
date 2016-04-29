@@ -103,6 +103,9 @@ public:
         auto path = GetOperationPath(operationId);
         auto batchReq = StartObjectBatchRequest();
         {
+            auto owners = operation->GetOwners();
+            owners.push_back(operation->GetAuthenticatedUser());
+
             auto req = TYPathProxy::Set(path);
             req->set_value(BuildYsonStringFluently()
                 .BeginAttributes()
@@ -115,6 +118,15 @@ public:
                     .Item("progress").BeginMap().EndMap()
                     .Item("brief_progress").BeginMap().EndMap()
                     .Item("opaque").Value("true")
+                    .Item("acl").BeginList()
+                        .Item().BeginMap()
+                            .Item("action").Value(ESecurityAction::Allow)
+                            .Item("subjects").Value(owners)
+                            .Item("permissions").BeginList()
+                                .Item().Value(EPermission::Write)
+                            .EndList()
+                        .EndMap()
+                    .EndList()
                 .EndAttributes()
                 .BeginMap()
                     .Item("jobs").BeginAttributes()
@@ -124,28 +136,6 @@ public:
                 .EndMap()
                 .Data());
             GenerateMutationId(req);
-            batchReq->AddRequest(req);
-        }
-
-        {
-            auto owners = operation->GetOwners();
-            owners.push_back(operation->GetAuthenticatedUser());
-
-            auto acl = NYTree::BuildYsonNodeFluently()
-                .BeginList()
-                    .Item().BeginMap()
-                        .Item("action").Value(ESecurityAction::Allow)
-                        .Item("subjects").Value(owners)
-                        .Item("permissions").BeginList()
-                            .Item().Value(EPermission::Write)
-                        .EndList()
-                    .EndMap()
-                .EndList();
-
-
-            auto req = TYPathProxy::Set(path + "/@acl");
-            req->set_value(ConvertToYsonString(acl).Data());
-
             batchReq->AddRequest(req);
         }
 
