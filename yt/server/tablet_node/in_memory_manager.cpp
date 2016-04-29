@@ -218,24 +218,33 @@ private:
             return false;
         }
 
+        auto storeManager = tablet->GetStoreManager();
+        auto storeCallback = BIND(&GuardedInvoke,
+            GetSyncInvoker(),
+            BIND(&IStoreManager::EndStorePreload, storeManager, store),
+            BIND(&IStoreManager::BackoffStorePreload, storeManager, store)
+                .Via(tablet->GetEpochAutomatonInvoker()));
+
         auto future =
             BIND(
                 &TImpl::PreloadStore,
                 MakeStrong(this),
                 Passed(std::move(guard)),
+                Passed(std::move(storeCallback)),
                 slot,
                 tablet,
                 store)
             .AsyncVia(tablet->GetEpochAutomatonInvoker())
             .Run();
 
-        const auto& storeManager = tablet->GetStoreManager();
         storeManager->BeginStorePreload(store, future);
+
         return true;
     }
 
     void PreloadStore(
         TAsyncSemaphoreGuard /*guard*/,
+        TClosure callback,
         TTabletSlotPtr slot,
         TTablet* tablet,
         IChunkStorePtr store)
@@ -245,18 +254,15 @@ private:
             tablet->GetId(),
             store->GetId());
 
-        auto storeManager = tablet->GetStoreManager();
-        auto backoffCallback = BIND(&IStoreManager::BackoffStorePreload, storeManager, store)
-            .Via(tablet->GetEpochAutomatonInvoker());
         try {
             GuardedPreloadStore(tablet, store, Logger);
-            storeManager->EndStorePreload(store);
+            callback.Run();
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error preloading tablet store, backing off");
-            backoffCallback.Run();
+            callback.Reset();
         } catch (...) {
             LOG_ERROR("Error preloading tablet store for unknown reason, backing off");
-            backoffCallback.Run();
+            callback.Reset();
             throw;
         }
 

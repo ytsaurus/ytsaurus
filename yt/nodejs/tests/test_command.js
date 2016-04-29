@@ -523,6 +523,15 @@ describe("YtCommand - v2 command parameters", function() {
         }, done).end();
     });
 
+    it("should not take invalid header parameters", function(done) {
+        var stub = this.stub;
+        ask("GET", V + "/get",
+        { "X-YT-Parameters": '"hi"' },
+        function(rsp) {
+            rsp.should.be.http4xx;
+        }, done).end();
+    });
+
     it("should take header parameters in YSON", function(done) {
         var stub = this.stub;
         var params = {
@@ -673,6 +682,15 @@ describe("YtCommand - v3 command parameters", function() {
             rsp.body.should.be.empty;
             stub.should.have.been.calledOnce;
             stub.firstCall.args[6].Get().should.eql(params);
+        }, done).end();
+    });
+
+    it("should not take invalid header parameters", function(done) {
+        var stub = this.stub;
+        ask("GET", V + "/get",
+        { "X-YT-Parameters": '"hi"' },
+        function(rsp) {
+            rsp.should.be.http4xx;
         }, done).end();
     });
 

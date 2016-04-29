@@ -280,11 +280,14 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
 
     tableInfo->ValidateDynamic();
 
+    struct TInsertRowsBufferTag
+    { };
+
     // Parse input data.
     TBuildingValueConsumer valueConsumer(tableInfo->Schema, tableInfo->KeyColumns);
     valueConsumer.SetTreatMissingAsNull(!Update);
     auto rows = ParseRows(context, config, &valueConsumer);
-    auto rowBuffer = New<TRowBuffer>();
+    auto rowBuffer = New<TRowBuffer>(TInsertRowsBufferTag{});
     auto capturedRows = rowBuffer->Capture(rows);
     auto mutableRowRange = MakeSharedRange(std::move(capturedRows), std::move(rowBuffer));
     // XXX(sandello): No covariance here yet.
@@ -346,11 +349,21 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
         config,
         GetOptions());
 
+    struct TLookupRowsBufferTag
+    { };
+
     // Parse input data.
     TBuildingValueConsumer valueConsumer(
         tableInfo->Schema.TrimNonkeyColumns(tableInfo->KeyColumns),
         tableInfo->KeyColumns);
     auto keys = ParseRows(context, config, &valueConsumer);
+    auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag{});
+    auto capturedKeys = rowBuffer->Capture(keys);
+    auto mutableKeyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
+    auto keyRange = TSharedRange<TUnversionedRow>(
+        static_cast<const TUnversionedRow*>(mutableKeyRange.Begin()),
+        static_cast<const TUnversionedRow*>(mutableKeyRange.End()),
+        mutableKeyRange.GetHolder());
 
     // Run lookup.
     TIntrusivePtr<IClientBase> clientBase = context->GetClient();
@@ -364,7 +377,7 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     auto asyncRowset = clientBase->LookupRows(
         Path.GetPath(),
         valueConsumer.GetNameTable(),
-        std::move(keys),
+        std::move(keyRange),
         Options);
     auto rowset = WaitFor(asyncRowset)
         .ValueOrThrow();
@@ -397,12 +410,15 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
         .ValueOrThrow();
     tableInfo->ValidateDynamic();
 
+    struct TDeleteRowsBufferTag
+    { };
+
     // Parse input data.
     TBuildingValueConsumer valueConsumer(
         tableInfo->Schema.TrimNonkeyColumns(tableInfo->KeyColumns),
         tableInfo->KeyColumns);
     auto keys = ParseRows(context, config, &valueConsumer);
-    auto rowBuffer = New<TRowBuffer>();
+    auto rowBuffer = New<TRowBuffer>(TDeleteRowsBufferTag{});
     auto capturedKeys = rowBuffer->Capture(keys);
     auto mutableKeyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
     // XXX(sandello): No covariance here yet.

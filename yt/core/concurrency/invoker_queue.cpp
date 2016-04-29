@@ -54,6 +54,7 @@ void TInvokerQueue::Invoke(const TClosure& callback)
 
     Profiler.Increment(EnqueuedCounter);
 
+    (void)EnableLogging;
     LOG_TRACE_IF(EnableLogging, "Callback enqueued: %p",
         callback.GetHandle());
 

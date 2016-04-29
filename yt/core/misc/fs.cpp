@@ -118,7 +118,7 @@ Stroka GetFileName(const Stroka& path)
 
 Stroka GetDirectoryName(const Stroka& path)
 {
-    auto absPath = CombinePaths(GetCwd(), path);
+    auto absPath = CombinePaths(NFs::CurrentWorkingDirectory(), path);
     size_t slashPosition = absPath.find_last_of(LOCSLASH_C);
     return absPath.substr(0, slashPosition);
 }

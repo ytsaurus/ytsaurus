@@ -148,11 +148,8 @@ TTcpDispatcher::TImpl::TImpl()
     auto serverThread = New<TTcpDispatcherThread>("BusServer");
     Threads_.push_back(serverThread);
 
-    for (int index = 0; index < ClientThreadCount; ++index) {
-        auto clientThread = New<TTcpDispatcherThread>(Format("BusClient:%v", index));
-        Threads_.push_back(clientThread);
-    }
-    
+    SetClientThreadCount(ClientThreadCount);
+
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         GetServerThread()->GetInvoker(),
         BIND(&TImpl::OnProfiling, this),
@@ -167,6 +164,8 @@ TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()
 
 void TTcpDispatcher::TImpl::Shutdown()
 {
+    TReaderGuard guard(SpinLock_);
+
     ProfilingExecutor_->Stop();
 
     for (const auto& thread : Threads_) {
@@ -176,6 +175,8 @@ void TTcpDispatcher::TImpl::Shutdown()
 
 TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType interfaceType) const
 {
+    TReaderGuard guard(SpinLock_);
+
     // This is racy but should be OK as an approximation.
     TTcpDispatcherStatistics result;
     for (const auto& thread : Threads_) {
@@ -186,6 +187,8 @@ TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType 
 
 int TTcpDispatcher::TImpl::GetServerConnectionCount(ETcpInterfaceType interfaceType) const
 {
+    TReaderGuard guard(SpinLock_);
+
     // A variation of GetStatistics optimized for this single parameter.
     // This is, again, racy but should be OK as an approximation.
     int result = 0;
@@ -197,6 +200,8 @@ int TTcpDispatcher::TImpl::GetServerConnectionCount(ETcpInterfaceType interfaceT
 
 TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetServerThread()
 {
+    TReaderGuard guard(SpinLock_);
+
     const auto& thread = Threads_[0];
     if (Y_UNLIKELY(!thread->IsStarted())) {
         thread->Start();
@@ -206,6 +211,8 @@ TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetServerThread()
 
 TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetClientThread()
 {
+    TReaderGuard guard(SpinLock_);
+
     auto index = CurrentClientThreadIndex_++ % ClientThreadCount;
     const auto& thread = Threads_[index + 1];
     if (Y_UNLIKELY(!thread->IsStarted())) {
@@ -239,6 +246,22 @@ void TTcpDispatcher::TImpl::OnProfiling()
         Profiler.Enqueue("/encoder_errors", statistics.EncoderErrors, tagIds);
         Profiler.Enqueue("/decoder_errors", statistics.DecoderErrors, tagIds);
     }
+}
+
+void TTcpDispatcher::TImpl::SetClientThreadCount(int clientThreadCount)
+{
+    TWriterGuard guard(SpinLock_);
+
+    if (clientThreadCount <= ClientThreadCount_) {
+        Threads_.resize(clientThreadCount + 1);
+    } else {
+        for (int index = ClientThreadCount_; index < clientThreadCount; ++index) {
+            auto clientThread = New<TTcpDispatcherThread>(Format("BusClient:%v", index));
+            Threads_.push_back(clientThread);
+        }
+    }
+
+    ClientThreadCount_ = clientThreadCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

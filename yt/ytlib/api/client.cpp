@@ -377,6 +377,9 @@ DEFINE_REFCOUNTED_TYPE(TQueryResponseReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueryHelperRowBufferTag
+{ };
+
 class TQueryHelper
     : public IExecutor
     , public IPrepareCallbacks
@@ -794,7 +797,7 @@ private:
     {
         auto Logger = BuildLogger(query);
 
-        auto rowBuffer = New<TRowBuffer>();
+        auto rowBuffer = New<TRowBuffer>(TQueryHelperRowBufferTag{});
         auto allSplits = InferRanges(
             query,
             dataSource,
@@ -841,7 +844,7 @@ private:
     {
         auto Logger = BuildLogger(query);
 
-        auto rowBuffer = New<TRowBuffer>();
+        auto rowBuffer = New<TRowBuffer>(TQueryHelperRowBufferTag{});
         auto allSplits = InferRanges(
             query,
             dataSource,
@@ -927,6 +930,15 @@ private:
 DEFINE_REFCOUNTED_TYPE(TQueryHelper)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TLookupRowsBufferTag
+{ };
+
+struct TWriteRowsBufferTag
+{ };
+
+struct TDeleteRowsBufferTag
+{ };
 
 class TClient
     : public IClient
@@ -1082,26 +1094,12 @@ public:
                 DROP_BRACES args)); \
     }
 
-    virtual TFuture<IRowsetPtr> LookupRows(
+    IMPLEMENT_METHOD(IRowsetPtr, LookupRows, (
         const TYPath& path,
         TNameTablePtr nameTable,
-        const std::vector<NTableClient::TKey>& keys,
-        const TLookupRowsOptions& options) override
-    {
-        auto rowBuffer = New<TRowBuffer>();
-        auto capturedKeys = rowBuffer->Capture(keys);
-        return Execute(
-            "LookupRows",
-            options,
-            BIND(
-                &TClient::DoLookupRows,
-                MakeStrong(this),
-                path,
-                std::move(nameTable),
-                MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer)),
-                options));
-    }
-
+        const TSharedRange<NTableClient::TKey>& keys,
+        const TLookupRowsOptions& options),
+        (path, std::move(nameTable), std::move(keys), options))
     IMPLEMENT_METHOD(TSelectRowsResult, SelectRows, (
         const Stroka& query,
         const TSelectRowsOptions& options),
@@ -1648,7 +1646,7 @@ private:
     IRowsetPtr DoLookupRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TMutableKey>& keys,
+        const TSharedRange<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options)
     {
         return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
@@ -1659,7 +1657,7 @@ private:
     IRowsetPtr DoLookupRowsOnce(
         const TYPath& path,
         TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TMutableKey>& keys,
+        const TSharedRange<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options)
     {
         auto tableInfo = SyncGetTableInfo(path);
@@ -1676,7 +1674,7 @@ private:
         std::vector<std::pair<NTableClient::TKey, int>> sortedKeys;
         sortedKeys.reserve(keys.Size());
 
-        auto rowBuffer = New<TRowBuffer>();
+        auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag{});
         auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
         auto evaluator = tableInfo->NeedKeyEvaluation
             ? evaluatorCache->Find(tableInfo->Schema)
@@ -2772,7 +2770,7 @@ public:
     DELEGATE_TIMESTAMPED_METHOD(TFuture<IRowsetPtr>, LookupRows, (
         const TYPath& path,
         TNameTablePtr nameTable,
-        const std::vector<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
         (path, nameTable, keys, options))
 
@@ -2878,7 +2876,10 @@ private:
     const TClientPtr Client_;
     const NTransactionClient::TTransactionPtr Transaction_;
 
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+    struct TTransactionBufferTag
+    { };
+
+    TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TTransactionBufferTag{});
 
     TFuture<void> Outcome_;
 
@@ -3152,6 +3153,11 @@ private:
             return InvokePromise_;
         }
 
+        const TTabletInfoPtr& GetTabletInfo()
+        {
+            return TabletInfo_;
+        }
+
     private:
         const TTransactionId TransactionId_;
         const TTableMountInfoPtr TableInfo_;
@@ -3162,8 +3168,11 @@ private:
         const int ColumnCount_;
         const int KeyColumnCount_;
 
+        struct TCommitSessionBufferTag
+        { };
+
         TColumnEvaluatorPtr ColumnEvaluator_;
-        TRowBufferPtr RowBuffer_;
+        TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TCommitSessionBufferTag{});
 
         NLogging::TLogger Logger;
 
@@ -3264,7 +3273,7 @@ private:
 
     typedef TIntrusivePtr<TTabletCommitSession> TTabletSessionPtr;
 
-    yhash_map<TTabletInfoPtr, TTabletSessionPtr> TabletToSession_;
+    yhash_map<TTabletId, TTabletSessionPtr> TabletToSession_;
 
     std::vector<TFuture<void>> AsyncTransactionStartResults_;
 
@@ -3284,13 +3293,14 @@ private:
 
     TTabletCommitSession* GetTabletSession(const TTabletInfoPtr& tabletInfo, const TTableMountInfoPtr& tableInfo)
     {
-        auto it = TabletToSession_.find(tabletInfo);
+        const auto& tabletId = tabletInfo->TabletId;
+        auto it = TabletToSession_.find(tabletId);
         if (it == TabletToSession_.end()) {
             AsyncTransactionStartResults_.push_back(Transaction_->AddTabletParticipant(tabletInfo->CellId));
             auto evaluatorCache = GetConnection()->GetColumnEvaluatorCache();
             auto evaluator = evaluatorCache->Find(tableInfo->Schema);
             it = TabletToSession_.insert(std::make_pair(
-                tabletInfo,
+                tabletId,
                 New<TTabletCommitSession>(
                     this,
                     tabletInfo,
@@ -3313,8 +3323,8 @@ private:
 
             std::vector<TFuture<void>> asyncResults;
             for (const auto& pair : TabletToSession_) {
-                const auto& tabletInfo = pair.first;
                 const auto& session = pair.second;
+                const auto& tabletInfo = session->GetTabletInfo();
                 auto channel = GetTabletChannelOrThrow(tabletInfo->CellId);
                 asyncResults.push_back(session->Invoke(std::move(channel)));
             }

@@ -179,7 +179,7 @@ void DumpSignalInfo(int signal, siginfo_t* si)
 {
     // Get the signal name.
     const char* name = NULL;
-    for (size_t i = 0; i < ARRAY_SIZE(FailureSignals); ++i) {
+    for (size_t i = 0; i < Y_ARRAY_SIZE(FailureSignals); ++i) {
         if (signal == FailureSignals[i].Number) {
             name = FailureSignals[i].Name;
         }
@@ -371,7 +371,7 @@ void InstallCrashSignalHandler()
     sa.sa_flags |= SA_SIGINFO;
     sa.sa_sigaction = &CrashSignalHandler;
 
-    for (size_t i = 0; i < ARRAY_SIZE(FailureSignals); ++i) {
+    for (size_t i = 0; i < Y_ARRAY_SIZE(FailureSignals); ++i) {
         YCHECK(sigaction(FailureSignals[i].Number, &sa, NULL) == 0);
     }
 #endif
