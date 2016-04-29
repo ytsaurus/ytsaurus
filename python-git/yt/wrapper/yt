@@ -703,6 +703,8 @@ def add_lock_parser(add_parser):
     parser.add_argument("--mode", help="blocking type, exclusive by default", choices=["snapshot", "shared", "exclusive"])
     parser.add_argument("--waitable", action="store_true", help="wait for lock if node is under blocking")
     parser.add_argument("--wait-for", type=int, help="wait interval in milliseconds")
+    parser.add_argument("--child-key", help="child key of shared lock")
+    parser.add_argument("--attribute-key", help="attribute key of shared lock")
     parser.set_defaults(func=lock)
 
 def check_permission(**args):
