@@ -45,7 +45,7 @@ public:
         const NProfiling::TProfiler& profiler)
         : Changelog_(std::move(changelog))
         , Profiler(profiler)
-        , FlushedRecordCount_(changelog->GetRecordCount())
+        , FlushedRecordCount_(Changelog_->GetRecordCount())
     { }
 
     TSyncFileChangelogPtr GetChangelog()
