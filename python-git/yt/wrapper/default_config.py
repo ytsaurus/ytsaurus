@@ -186,6 +186,11 @@ default_config = {
     },
     "memory_limit": None,
 
+    # Default value of table table writer configs.
+    # It is passed to write_table and to job_io sections in operation specs.
+    "table_writer": {
+    },
+
     # TODO(ignat): rename to attached_operaion_mode = false
     # If detached False all operations run under special transaction. It causes operation abort if client died.
     "detached": True,
