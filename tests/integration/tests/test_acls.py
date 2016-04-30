@@ -146,6 +146,25 @@ class TestAcls(YTEnvSetup):
         set("//tmp/t/@account", "a", user="u")
         assert get("//tmp/t/@account") == "a"
 
+    def test_init_acl_in_create(self):
+        create_user("u1")
+        create_user("u2")
+        create("table", "//tmp/t", attributes={
+            "inherit_acl": False,
+            "acl" : [self._make_ace("allow", "u1", "write")]})
+        set("//tmp/t/@x", 1, user="u1")
+        with pytest.raises(YtError): set("//tmp/t/@x", 1, user="u2")
+
+    def test_init_acl_in_set(self):
+        create_user("u1")
+        create_user("u2")
+        value = yson.YsonInt64(10)
+        value.attributes["acl"] = [self._make_ace("allow", "u1", "write")]
+        value.attributes["inherit_acl"] = False
+        set("//tmp/t", value)
+        set("//tmp/t/@x", 1, user="u1")
+        with pytest.raises(YtError): set("//tmp/t/@x", 1, user="u2")
+
     def _prepare_scheduler_test(self):
         create_user("u")
         create_account("a")
