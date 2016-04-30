@@ -13,7 +13,7 @@ namespace NYTree {
 
 struct IAttributeDictionary
 {
-    virtual ~IAttributeDictionary();
+    virtual ~IAttributeDictionary() = default;
 
     // Returns the list of all attribute names.
     virtual std::vector<Stroka> List() const = 0;

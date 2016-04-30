@@ -172,12 +172,12 @@ const TObjectId& TObjectProxyBase::GetId() const
 
 const IAttributeDictionary& TObjectProxyBase::Attributes() const
 {
-    return *const_cast<TObjectProxyBase*>(this)->GetCustomAttributes();
+    return *const_cast<TObjectProxyBase*>(this)->GetCombinedAttributes();
 }
 
 IAttributeDictionary* TObjectProxyBase::MutableAttributes()
 {
-    return GetCustomAttributes();
+    return GetCombinedAttributes();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)

@@ -254,6 +254,105 @@ void TSupportsPermissions::TCachingPermissionValidator::Validate(EPermission per
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSupportsAttributes::TCombinedAttributeDictionary::TCombinedAttributeDictionary(TSupportsAttributes* owner)
+    : Owner_(owner)
+{ }
+
+std::vector<Stroka> TSupportsAttributes::TCombinedAttributeDictionary::List() const
+{
+    PrecacheData();
+
+    std::vector<Stroka> keys;
+    for (const auto& descriptor : CachedSystemAttributes_) {
+        if (descriptor.Present && !descriptor.Custom && !descriptor.Opaque) {
+            keys.push_back(descriptor.Key);
+        }
+    }
+
+    auto* customAttributes = Owner_->GetCustomAttributes();
+    if (customAttributes) {
+        auto customKeys = customAttributes->List();
+        keys.insert(keys.end(), customKeys.begin(), customKeys.end());
+    }
+
+    return keys;
+}
+
+TNullable<TYsonString> TSupportsAttributes::TCombinedAttributeDictionary::FindYson(const Stroka& key) const
+{
+    PrecacheData();
+
+    if (CachedBuiltinKeys_.find(key) == CachedBuiltinKeys_.end()) {
+        auto* customAttributes = Owner_->GetCustomAttributes();
+        if (!customAttributes) {
+            return Null;
+        }
+        return customAttributes->FindYson(key);
+    } else {
+        auto* provider = Owner_->GetBuiltinAttributeProvider();
+        return provider->FindBuiltinAttribute(key);
+    }
+}
+
+void TSupportsAttributes::TCombinedAttributeDictionary::SetYson(const Stroka& key, const TYsonString& value)
+{
+    PrecacheData();
+
+    if (CachedBuiltinKeys_.find(key) == CachedBuiltinKeys_.end()) {
+        auto* customAttributes = Owner_->GetCustomAttributes();
+        if (!customAttributes) {
+            ThrowNoSuchBuiltinAttribute(key);
+        }
+        customAttributes->SetYson(key, value);
+    } else {
+        auto* provider = Owner_->GetBuiltinAttributeProvider();
+        if (!provider->SetBuiltinAttribute(key, value)) {
+            ThrowCannotSetBuiltinAttribute(key);
+        }
+    }
+}
+
+bool TSupportsAttributes::TCombinedAttributeDictionary::Remove(const Stroka& key)
+{
+    PrecacheData();
+
+    if (CachedBuiltinKeys_.find(key) == CachedBuiltinKeys_.end()) {
+        auto* customAttributes = Owner_->GetCustomAttributes();
+        if (!customAttributes) {
+            ThrowNoSuchBuiltinAttribute(key);
+        }
+        return customAttributes->Remove(key);
+    } else {
+        auto* provider = Owner_->GetBuiltinAttributeProvider();
+        return provider->RemoveBuiltinAttribute(key);
+    }
+}
+
+void TSupportsAttributes::TCombinedAttributeDictionary::PrecacheData() const
+{
+    if (HasCachedData_) {
+        return;
+    }
+
+    auto* provider = Owner_->GetBuiltinAttributeProvider();
+    if (provider) {
+        provider->ListSystemAttributes(&CachedSystemAttributes_);
+        for (const auto& descriptor : CachedSystemAttributes_) {
+            if (!descriptor.Custom) {
+                YCHECK(CachedBuiltinKeys_.insert(descriptor.Key).second);
+            }
+        }
+    }
+
+    HasCachedData_ = true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSupportsAttributes::TSupportsAttributes()
+    : CombinedAttributes_(this)
+{ }
+
 IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
     const TYPath& path,
     IServiceContextPtr context)
@@ -880,6 +979,11 @@ void TSupportsAttributes::RemoveAttribute(
 
     auto result = DoRemoveAttribute(path);
     context->ReplyFrom(result);
+}
+
+IAttributeDictionary* TSupportsAttributes::GetCombinedAttributes()
+{
+    return &CombinedAttributes_;
 }
 
 IAttributeDictionary* TSupportsAttributes::GetCustomAttributes()
