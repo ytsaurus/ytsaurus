@@ -72,6 +72,12 @@ def get_header_format(client):
         get_config(client)["proxy"]["header_format"],
         "json" if get_api_version(client=client) == "v2" else "yson")
 
+def check_response_is_json_decodable(response):
+    try:
+        response.json()
+    except json.JSONDecodeError:
+        raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)", response)
+
 def create_response(response, request_info, client):
     def loads(str):
         header_format = get_header_format(client)
@@ -83,10 +89,7 @@ def create_response(response, request_info, client):
 
     def get_error():
         if not str(response.status_code).startswith("2"):
-            try:
-                response.json()
-            except json.JSONDecodeError:
-                raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)", response)
+            check_response_is_json_decodable(response)
             return response.json()
         else:
             return parse_error_from_headers(response.headers)
@@ -177,10 +180,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
             # Sometimes (quite often) we obtain incomplete response with body expected to be JSON.
             # So we should retry such requests.
             if response_should_be_json:
-                try:
-                    response.json()
-                except json.JSONDecodeError:
-                    raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)", response)
+                check_response_is_json_decodable(response)
 
             logger.debug("Response headers %r", response.headers)
 

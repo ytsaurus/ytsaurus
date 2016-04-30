@@ -88,8 +88,15 @@ class YtIncorrectResponse(YtError):
         self.response = response
         attributes = {
             "url": response.url,
-            "request_info": hide_token(response.request_info)}
+            "headers": response.headers,
+            "request_info": hide_token(response.request_info),
+            "body": self.truncate(response.text)}
         super(YtIncorrectResponse, self).__init__(message, attributes=attributes)
+
+    def truncate(self, str):
+        if len(str) > 100:
+            return str[:100] + "...truncated"
+        return str
 
 class YtTokenError(YtError):
     """Some problem occurred with authentication token."""
