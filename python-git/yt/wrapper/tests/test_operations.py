@@ -645,6 +645,7 @@ print op.id
         yt.config["yamr_mode"]["check_input_fully_consumed"] = not check_input_fully_consumed
         use_yamr_descriptors = yt.config["yamr_mode"]["use_yamr_style_destination_fds"]
         yt.config["yamr_mode"]["use_yamr_style_destination_fds"] = not use_yamr_descriptors
+        yt.config["table_writer"] = {"max_row_weight": 8 * 1024 * 1024}
 
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}])
@@ -654,10 +655,12 @@ print op.id
             assert spec["mapper"]["memory_limit"] == 123
             assert parse_bool(spec["mapper"]["check_input_fully_consumed"]) != check_input_fully_consumed
             assert parse_bool(spec["mapper"]["use_yamr_descriptors"]) != use_yamr_descriptors
+            assert spec["job_io"]["table_writer"]["max_row_weight"] == 8 * 1024 * 1024
         finally:
             yt.config["memory_limit"] = memory_limit
             yt.config["yamr_mode"]["check_input_fully_consumed"] = check_input_fully_consumed
             yt.config["yamr_mode"]["use_yamr_style_destination_fds"] = use_yamr_descriptors
+            yt.config["table_writer"] = {}
             try:
                 op.abort()
             except yt.YtError:

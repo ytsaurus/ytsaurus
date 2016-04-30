@@ -42,7 +42,7 @@ data of operation
 Operation run under self-pinged transaction, if `yt.wrapper.get_config(client)["detached"]` is `False`.
 """
 
-from config import get_config, get_option
+from config import get_config
 import py_wrapper
 from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
                    compose, bool_to_string, chunk_iter_stream, get_version, MB, EMPTY_GENERATOR, \
@@ -164,6 +164,14 @@ def _prepare_sort_by(sort_by, client):
     sort_by = flatten(sort_by)
     _check_columns(sort_by, "sort")
     return sort_by
+
+def _prepare_table_writer(table_writer, client):
+    table_writer_from_config = get_config(client)["table_writer"]
+    if table_writer is None:
+        table_writer = {}
+        if not table_writer_from_config:
+            return None
+    return update(table_writer_from_config, table_writer)
 
 def _reliably_upload_files(files, client=None):
     if files is None:
@@ -345,9 +353,6 @@ def _configure_spec(spec, client):
         "wrapper_version": get_version()}
     spec = update({"started_by": started_by}, spec)
     spec = update(deepcopy(get_config(client)["spec_defaults"]), spec)
-    global_spec = get_option("SPEC", client)
-    if global_spec is not None:
-        spec = update(json.loads(global_spec), spec)
     return spec
 
 def _add_input_output_spec(source_table, destination_table, spec):
@@ -508,6 +513,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
 
     table = to_table(table, client=client)
     format = _prepare_format(format, raw, client)
+    table_writer = _prepare_table_writer(table_writer, client)
 
     params = {}
     params["input_format"] = format.to_yson_type()
@@ -1147,6 +1153,7 @@ def run_merge(source_table, destination_table, mode=None,
     if mode == "auto":
         mode = "sorted" if all(map(lambda t: is_sorted(t, client=client), source_table)) else "unordered"
 
+    table_writer = _prepare_table_writer(table_writer, client)
     spec = compose(
         lambda _: _configure_spec(_, client),
         lambda _: _add_job_io_spec("job_io", job_io, table_writer, _),
@@ -1193,6 +1200,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         return run_merge(source_table, destination_table, "sorted",
                          job_io=job_io, table_writer=table_writer, sync=sync, spec=spec, client=client)
 
+    table_writer = _prepare_table_writer(table_writer, client)
     spec = compose(
         lambda _: _configure_spec(_, client),
         lambda _: _add_job_io_spec(["partition_job_io", "sort_job_io", "merge_job_io"], job_io, table_writer, _),
@@ -1350,6 +1358,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     reduce_by = _prepare_reduce_by(reduce_by, client)
     sort_by = _prepare_sort_by(sort_by, client)
 
+    table_writer = _prepare_table_writer(table_writer, client)
     spec = compose(
         lambda _: _configure_spec(_, client),
         lambda _: _add_job_io_spec(["map_job_io", "reduce_job_io", "sort_job_io"],
@@ -1495,6 +1504,7 @@ def _run_operation(binary, source_table, destination_table,
     if op_name == "map": op_type = "mapper"
     if op_name == "reduce" or op_name == "join_reduce": op_type = "reducer"
 
+    table_writer = _prepare_table_writer(table_writer, client)
     try:
         spec = compose(
             lambda _: _configure_spec(_, client),

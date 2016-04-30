@@ -3,7 +3,6 @@ from system_random import SystemRandom
 class ClientState(object):
     def __init__(self):
         self.RETRY = None
-        self.SPEC = None
         self.MUTATION_ID = None
         self.TRACE = None
         self.TRANSACTION = "0-0-0-0"

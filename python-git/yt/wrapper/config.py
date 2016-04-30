@@ -76,6 +76,8 @@ class Config(types.ModuleType, client_state.ClientState):
             "POOL": "spec_defaults/pool",
             "MEMORY_LIMIT": "memory_limit",
             "INTERMEDIATE_DATA_ACCOUNT": "spec_defaults/intermediate_data_account",
+            "SPEC": "spec_defaults",
+            "TABLE_WRITER": "table_writer",
 
             "TRANSACTION_TIMEOUT": "transaction_timeout",
             "TRANSACTION_SLEEP_PERIOD": "transaction_sleep_period",
@@ -145,7 +147,7 @@ class Config(types.ModuleType, client_state.ClientState):
     def _init(self):
         self.client_state_module.ClientState.__init__(self)
         self.config = self.default_config_module.get_default_config()
-        self._env_configurable_options = ["TRACE", "TRANSACTION", "PING_ANCESTOR_TRANSACTIONS", "SPEC"]
+        self._env_configurable_options = ["TRACE", "TRANSACTION", "PING_ANCESTOR_TRANSACTIONS"]
 
     def _update_from_env(self):
         import os
@@ -161,6 +163,8 @@ class Config(types.ModuleType, client_state.ClientState):
             # None type is treated as str
             if isinstance(None, var_type):
                 var_type = str
+            if var_type == dict:
+                var_type = json.loads
             return var_type
 
         def apply_type(type, key, value):
