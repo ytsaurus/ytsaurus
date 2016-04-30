@@ -91,6 +91,8 @@ def _pack_string(name, script, output_dir):
     return filename
 
 def _pack_token(token, output_dir):
+    if token is None:
+        raise yt.YtError("Token is required to perform copy")
     filename = os.path.join(output_dir, "yt_token")
     with open(filename, "wb") as fout:
         # XXX(asaitgalin): using GzipFile here with fileobj parameter
