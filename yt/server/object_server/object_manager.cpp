@@ -829,28 +829,18 @@ void TObjectManager::FillAttributes(
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto keys = attributes.List();
-    if (keys.empty())
+    if (keys.empty()) {
         return;
+    }
 
     auto proxy = GetProxy(object, nullptr);
     std::vector<ISystemAttributeProvider::TAttributeDescriptor> systemDescriptors;
     proxy->ListBuiltinAttributes(&systemDescriptors);
 
-    yhash_set<Stroka> systemAttributeKeys;
-    for (const auto& descriptor : systemDescriptors) {
-        YCHECK(systemAttributeKeys.insert(descriptor.Key).second);
-    }
-
     std::sort(keys.begin(), keys.end());
     for (const auto& key : keys) {
         auto value = attributes.GetYson(key);
-        if (systemAttributeKeys.find(key) == systemAttributeKeys.end()) {
-            proxy->MutableAttributes()->SetYson(key, value);
-        } else {
-            if (!proxy->SetBuiltinAttribute(key, value)) {
-                ThrowCannotSetBuiltinAttribute(key);
-            }
-        }
+        proxy->MutableAttributes()->Set(key, value);
     }
 }
 
