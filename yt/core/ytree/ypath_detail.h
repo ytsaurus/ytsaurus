@@ -265,7 +265,7 @@ private:
 
     TFuture<void> DoSetAttribute(const TYPath& path, const NYson::TYsonString& newYson);
 
-    TFuture<void> DoRemoveAttribute(const TYPath& path);
+    TFuture<void> DoRemoveAttribute(const TYPath& path, bool force);
 
     TFuture<void> GuardedSetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value);
     TFuture<void> GuardedRemoveBuiltinAttribute(const Stroka& key);

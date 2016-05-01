@@ -81,6 +81,18 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/x/1/y", recursive=False)
         remove("//tmp/x")
 
+        set("//tmp/@test_attribute", 10)
+        remove("//tmp/@test_attribute")
+
+        for path in ["//tmp/@test_attribute", "//tmp/@test_attribute/inner", "//tmp/@key/inner", "//tmp/@erasure_codec",
+                     "//tmp/@recursive_resource_usage/disk_space", "//tmp/@recursive_resource_usage/missing"]:
+            with pytest.raises(YtError):
+                remove(path)
+            remove(path, force=True)
+
+        with pytest.raises(YtError):
+            remove("//tmp/@key", force=True)
+
     def test_list(self):
         set("//tmp/list", [1,2,"some string"])
         assert get("//tmp/list") == [1,2,"some string"]
@@ -484,7 +496,7 @@ class TestCypress(YTEnvSetup):
         assert not get("//tmp/t2/@inherit_acl")
         assert len(get("//tmp/t2/@acl")) == 1
 
-        
+
     def test_move_simple1(self):
         set("//tmp/a", 1)
         move("//tmp/a", "//tmp/b")
@@ -1011,7 +1023,7 @@ class TestCypress(YTEnvSetup):
         abort_transaction(tx)
         time.sleep(0.1)
         assert not exists("//tmp/t")
-        
+
     def test_expiration_time_wait_for_locks_released_recursive(self):
         create("map_node", "//tmp/m")
         create("table", "//tmp/m/t")
