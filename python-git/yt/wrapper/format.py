@@ -475,11 +475,13 @@ class YamrFormat(Format):
         result_of_loading = self._load_row(stream, unparsed)
         if unparsed:
             return result_of_loading
-        if not result_of_loading or len(result_of_loading) not in (2, 3):
+        if not result_of_loading or type(result_of_loading[0]) is int:
             return None
         return Record(*result_of_loading)
 
     def load_rows(self, stream, raw=None):
+        self._table_index_read = False
+
         unparsed = self._is_raw(raw)
         # NB: separate processing of unparsed mode for optimization
         if unparsed and not self.lenval:
@@ -507,6 +509,7 @@ class YamrFormat(Format):
             return
 
         table_index = 0
+        row_index = None
         while True:
             row = self._load_row(stream, unparsed=unparsed)
             if unparsed and row:
@@ -516,13 +519,15 @@ class YamrFormat(Format):
             fields = row
             if not fields:
                 break
-            if len(fields) == 1:
-                try:
-                    table_index = int(fields[0])
-                except ValueError:
-                    raise YtFormatError("Invalid table switch '{0}'".format(fields[0]))
+            if fields[0] == -1:
+                table_index = fields[1]
                 continue
-            yield Record(*fields, tableIndex=table_index)
+            if fields[0] == -4:
+                row_index = fields[1]
+                continue
+            yield Record(*fields, tableIndex=table_index, recordIndex=row_index)
+            if row_index is not None:
+                row_index += 1
 
     def _read_delimited_values(self, stream, unparsed):
         if self.record_separator != '\n':
@@ -532,7 +537,19 @@ class YamrFormat(Format):
             return None
         if unparsed:
             return row
-        return row.rstrip("\n").split(self.field_separator, self.fields_number - 1)
+        fields = row.rstrip("\n").split(self.field_separator, self.fields_number - 1)
+        if len(fields) == 1:
+            index = int(fields[0])
+            if not hasattr(self, "_table_index_read"):
+                self._table_index_read = False
+            if self._table_index_read:
+                return (-4, index)
+            else:
+                self._table_index_read = True
+                return (-1, index)
+
+        self._table_index_read = False
+        return fields
 
     def _read_lenval_values(self, stream, unparsed):
         fields = []
@@ -546,11 +563,11 @@ class YamrFormat(Format):
 
             try:
                 length = struct.unpack('i', len_bytes)[0]
-                if length == -1:
-                    field = stream.read(4)
+                if length < 0:
                     if unparsed:
-                        return len_bytes + field
-                    return struct.unpack("i", field)
+                        return len_bytes + stream.read(4)
+                    field = stream.read(4)
+                    return (length, struct.unpack("i", field)[0])
             except struct.error:
                 raise YtError("Incomplete record in yamr lenval")
 
@@ -619,13 +636,9 @@ class JsonFormat(Format):
         return self.json_module.loads(string)
 
     def _dump(self, obj, stream):
-        if isinstance(obj, FrozenDict):
-            obj = dict(obj.iteritems())
         return self.json_module.dump(obj, stream)
 
     def _dumps(self, obj):
-        if isinstance(obj, FrozenDict):
-            obj = dict(obj.iteritems())
         return self.json_module.dumps(obj)
 
     def load_row(self, stream, raw=None):

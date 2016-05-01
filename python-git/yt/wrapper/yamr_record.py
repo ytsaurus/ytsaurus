@@ -4,11 +4,12 @@
 
 class SimpleRecord:
     """Mapreduce-like record represents (key, value) pair, without subkey"""
-    def __init__(self, key, value, tableIndex=0):
+    def __init__(self, key, value, tableIndex=0, recordIndex=None):
         """:param tableIndex: """
         self.key = key
         self.value = value
         self.tableIndex = tableIndex
+        self.recordIndex = recordIndex
 
     def __str__(self):
         return "Record('%s', '%s')" % (self.key, self.value)
@@ -31,10 +32,13 @@ class SimpleRecord:
     def getTableIndex(self):
         return self.tableIndex
 
+    def getRecordIndex(self):
+        return self.recordIndex
+
 class SubkeyedRecord(SimpleRecord):
     """Mapreduce-like record with key, subkey and value"""
-    def __init__(self, key, subkey, value, tableIndex=0):
-        SimpleRecord.__init__(self, key, value, tableIndex)
+    def __init__(self, key, subkey, value, tableIndex=0, recordIndex=None):
+        SimpleRecord.__init__(self, key, value, tableIndex, recordIndex)
         self.subkey = subkey
 
     def items(self):
