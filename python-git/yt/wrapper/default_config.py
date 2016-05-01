@@ -147,7 +147,8 @@ default_config = {
         "use_non_strict_upper_key": False,
         "check_input_fully_consumed": False,
         "abort_transactions_with_remove": False,
-        "use_yamr_style_prefix": False
+        "use_yamr_style_prefix": False,
+        "create_tables_outside_of_transaction": False,
     },
 
     # Run sorted merge instead of sort if input tables are sorted by sort_by prefix.

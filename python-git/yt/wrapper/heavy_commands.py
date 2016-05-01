@@ -43,11 +43,17 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
     path = to_table(path, client=client)
     request_timeout = get_total_request_timeout(client)
 
+    created = False
+    if get_config(client)["yamr_mode"]["create_tables_outside_of_transaction"]:
+        create_object(path.name)
+        created = True
+
     title = "Python wrapper: {0} {1}".format(command_name, path.name)
     with Transaction(timeout=request_timeout,
                      attributes={"title": title},
                      client=client):
-        create_object(path.name)
+        if not created:
+            create_object(path.name)
         if use_retries:
             chunk_size = get_config(client)["write_retries"]["chunk_size"]
 
