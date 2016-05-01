@@ -144,6 +144,24 @@ def test_yamr_table_switcher():
     check_table_index(format, "\x01\x00\x00\x00a\x01\x00\x00\x00b", table_switcher,
                       [yt.Record("a", "b", tableIndex=0), yt.Record("a", "b", tableIndex=1)])
 
+def test_yamr_record_index():
+    format = yt.YamrFormat(lenval=False, has_subkey=False)
+    data = "0\n" "0\n" "a\tb\n" "1\n" "5\n" "c\td\n" "e\tf\n"
+    records = [yt.Record("a", "b", tableIndex=0, recordIndex=0),
+               yt.Record("c", "d", tableIndex=1, recordIndex=5),
+               yt.Record("e", "f", tableIndex=1, recordIndex=6)]
+    assert list(format.load_rows(StringIO(data))) == records
+
+    format = yt.YamrFormat(lenval=True, has_subkey=False)
+    import struct
+    table_switch = struct.pack("ii", -1, 1)
+    row_switch = struct.pack("ii", -4, 2)
+    row = "\x01\x00\x00\x00a\x01\x00\x00\x00b"
+    data = table_switch + row_switch + row + row
+    records = [yt.Record("a", "b", tableIndex=1, recordIndex=2),
+               yt.Record("a", "b", tableIndex=1, recordIndex=3)]
+    assert list(format.load_rows(StringIO(data))) == records
+
 def test_json_format():
     format = yt.JsonFormat(enable_ujson=False)
     check_format(format, '{"a": 1}', {"a": 1})
