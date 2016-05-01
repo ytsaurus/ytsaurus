@@ -861,7 +861,7 @@ void TSupportsAttributes::SetAttribute(
     context->ReplyFrom(result);
 }
 
-TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
+TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
 {
     try {
         TCachingPermissionValidator permissionValidator(this, EPermissionCheckScope::This);
@@ -896,11 +896,17 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                         YCHECK(customAttributes->Remove(key));
                     } else {
                         if (!builtinAttributeProvider) {
+                            if (force) {
+                                return VoidFuture;
+                            }
                             ThrowNoSuchCustomAttribute(key);
                         }
 
                         auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
                         if (!descriptor) {
+                            if (force) {
+                                return VoidFuture;
+                            }
                             ThrowNoSuchAttribute(key);
                         }
                         if (!descriptor->Removable) {
@@ -909,6 +915,7 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
 
                         permissionValidator.Validate(descriptor->WritePermission);
 
+                        // TODO(babenko): YT-4697
                         auto asyncResult = GuardedRemoveBuiltinAttribute(key);
                         if (!asyncResult) {
                             ThrowNoSuchBuiltinAttribute(key);
@@ -921,17 +928,23 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                         permissionValidator.Validate(EPermission::Write);
 
                         auto customNode = ConvertToNode(customYson);
-                        SyncYPathRemove(customNode, tokenizer.GetInput());
+                        SyncYPathRemove(customNode, tokenizer.GetInput(), /*recursive*/ true, force);
                         auto updatedCustomYson = ConvertToYsonStringStable(customNode);
 
                         customAttributes->SetYson(key, updatedCustomYson);
                     } else {
                         if (!builtinAttributeProvider) {
+                            if (force) {
+                                return VoidFuture;
+                            }
                             ThrowNoSuchAttribute(key);
                         }
 
                         auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
                         if (!descriptor) {
+                            if (force) {
+                                return VoidFuture;
+                            }
                             ThrowNoSuchAttribute(key);
                         }
 
@@ -940,6 +953,9 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                         // TODO(babenko): async getter?
                         auto maybeBuiltinYson = builtinAttributeProvider->FindBuiltinAttribute(key);
                         if (!maybeBuiltinYson) {
+                            if (force) {
+                                return VoidFuture;
+                            }
                             ThrowNoSuchAttribute(key);
                         }
 
@@ -947,6 +963,7 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                         SyncYPathRemove(builtinNode, tokenizer.GetInput());
                         auto updatedSystemYson = ConvertToYsonStringStable(builtinNode);
 
+                        // TODO(babenko): YT-4697
                         auto asyncResult = GuardedSetBuiltinAttribute(key, updatedSystemYson);
                         if (!asyncResult) {
                             ThrowCannotSetBuiltinAttribute(key);
@@ -971,13 +988,14 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
 
 void TSupportsAttributes::RemoveAttribute(
     const TYPath& path,
-    TReqRemove* /*request*/,
+    TReqRemove* request,
     TRspRemove* /*response*/,
     TCtxRemovePtr context)
 {
     context->SetRequestInfo();
 
-    auto result = DoRemoveAttribute(path);
+    bool force = request->force();
+    auto result = DoRemoveAttribute(path, force);
     context->ReplyFrom(result);
 }
 
