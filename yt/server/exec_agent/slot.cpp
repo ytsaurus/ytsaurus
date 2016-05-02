@@ -163,7 +163,6 @@ void TSlot::DoCleanSandbox(int pathIndex)
 
         auto removeMountPount = [] (const Stroka& path) {
             RunTool<TRemoveDirAsRootTool>(path + "/*");
-            RunTool<TRemoveDirAsRootTool>(path + "/*");
             RunTool<TUmountAsRootTool>(path);
         };
 
