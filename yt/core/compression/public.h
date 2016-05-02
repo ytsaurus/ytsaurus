@@ -66,6 +66,7 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
     ((GzipNormal)                 (2))
     ((Zlib9)                      (3))
     ((GzipBestCompression)        (3))
+    ((ZstdLegacy)                 (7))
     ((Zstd)                       (7))
     ((Brotli3)                    (8))
     ((Brotli5)                    (9))

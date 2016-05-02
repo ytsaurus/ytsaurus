@@ -5,6 +5,7 @@
 
 #include <yt/core/concurrency/ev_scheduler_thread.h>
 #include <yt/core/concurrency/event_count.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/error.h>
@@ -85,6 +86,8 @@ public:
     TTcpDispatcherThreadPtr GetServerThread();
     TTcpDispatcherThreadPtr GetClientThread();
 
+    void SetClientThreadCount(int clientThreadCount);
+
 private:
     friend class TTcpDispatcher;
 
@@ -95,10 +98,12 @@ private:
 
     // Server thread + all client threads.
     std::vector<TTcpDispatcherThreadPtr> Threads_;
-    std::atomic<size_t> CurrentClientThreadIndex_ = {0};
+    unsigned int CurrentClientThreadIndex_ = 0;
+    int ClientThreadCount_ = 0;
 
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
+    NConcurrency::TReaderWriterSpinLock SpinLock_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

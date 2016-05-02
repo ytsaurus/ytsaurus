@@ -8,6 +8,8 @@ RECURSE(
   build
   core
   ytlib
+  server
+  python
 )
 
 ################################################################################
@@ -56,11 +58,13 @@ endif()
 if (YT_BUILD_ENABLE_NODEJS)
   add_subdirectory(nodejs)
 else()
-  message(STATUS "Omitting NodeJS extensions from build (YT_BUILD_ENABLE_NODEJS = OFF)")
+  message(STATUS "Omitting NodeJS bindings from build (YT_BUILD_ENABLE_NODEJS = OFF)")
 endif()
 
 if(YT_BUILD_ENABLE_PYTHON)
   add_subdirectory(python)
+else()
+  message(STATUS "Omitting Python bindings from build (YT_BUILD_ENABLE_PYTHON = OFF)")
 endif()
 
 ################################################################################

@@ -1,4 +1,8 @@
-set( SRCS
+IF(YMAKE)
+  SET(CMAKE_CURRENT_LIST_DIR .)
+ENDIF()
+
+SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/buffered_stream.cpp
   ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/descriptor.cpp
@@ -8,68 +12,118 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/stream.cpp
 )
 
-set( HDRS
-  ${CMAKE_CURRENT_LIST_DIR}/buffered_stream.h
-  ${CMAKE_CURRENT_LIST_DIR}/helpers.h
-  ${CMAKE_CURRENT_LIST_DIR}/descriptor.h
-  ${CMAKE_CURRENT_LIST_DIR}/public.h
-  ${CMAKE_CURRENT_LIST_DIR}/response.h
-  ${CMAKE_CURRENT_LIST_DIR}/serialize.h
-  ${CMAKE_CURRENT_LIST_DIR}/shutdown.h
-  ${CMAKE_CURRENT_LIST_DIR}/stream.h
+################################################################################
+IF(YMAKE)
+################################################################################
+
+LIBRARY()
+
+OWNER(sandello)
+
+NO_COMPILER_WARNINGS()
+NO_WERROR()
+
+PYTHON_ADDINCL()
+
+SRCS(
+  ${YT_SRCS}
+  ${CMAKE_CURRENT_LIST_DIR}/yson.cpp
 )
+
+PEERDIR(
+  contrib/libs/pycxx
+  yt/core
+  yt/ytlib
+)
+
+PY_REGISTER(yson_lib)
+
+END()
+
+################################################################################
+ELSE()
+################################################################################
 
 set(PYTHON_LINK_FLAGS "-static-libstdc++")
 
 if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
-  set( PYTHON_LINK_FLAGS "${PYTHON_LINK_FLAGS} -Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/linker.map.darwin" )
+  set(
+    PYTHON_LINK_FLAGS
+    "${PYTHON_LINK_FLAGS} -Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/linker.map.darwin")
 else()
-  set( PYTHON_LINK_FLAGS "${PYTHON_LINK_FLAGS} -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linker.map" )
+  set(
+    PYTHON_LINK_FLAGS
+    "${PYTHON_LINK_FLAGS} -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linker.map")
 endif()
 
-# Determine versions of python to build with.
-set(PYTHON_VERSIONS)
-foreach(PYTHON_VERSION "PYTHON" "PYTHON_SKYNET")
-  # TODO(ignat): implement with continue() once cmake will be updated to newer version.
-  if(${PYTHON_VERSION}_INCLUDE_DIR)
-    list(APPEND PYTHON_VERSIONS ${PYTHON_VERSION})
-  endif()
-endforeach()
+set(PYCXX_BASE ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx)
+set(PYCXX_SRCS
+  ${PYCXX_BASE}/cxx_extensions.cxx
+  ${PYCXX_BASE}/cxxextensions.c
+  ${PYCXX_BASE}/cxxsupport.cxx
+  ${PYCXX_BASE}/IndirectPythonInterface.cxx
+)
 
-# Build library for each python.
-foreach(PYTHON_VERSION IN LISTS PYTHON_VERSIONS)
-  string(TOLOWER ${PYTHON_VERSION} PYTHON_VERSION_LOWER)
-  string(REPLACE "_" "-" PYTHON_LIB_VERSION ${PYTHON_VERSION_LOWER})
+# Build library for each kind of Python.
+foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
+  string(TOLOWER ${PYTHON_KIND} PYTHON_KIND_LOWER)
+  string(REPLACE "_" "-" PYTHON_KIND_DASHED ${PYTHON_KIND_LOWER})
+  set(TARGET_NAME_PREFIX "yt-python-${PYTHON_KIND_DASHED}-")
+
+  add_library(${TARGET_NAME_PREFIX}pycxx STATIC ${PYCXX_SRCS})
+  target_include_directories(${TARGET_NAME_PREFIX}pycxx PUBLIC ${PYCXX_BASE} ${PYTHON_${PYTHON_KIND}_INCLUDE_DIR})
+
+  add_library(${TARGET_NAME_PREFIX}common STATIC ${YT_SRCS})
+  target_link_libraries(${TARGET_NAME_PREFIX}common ytlib ${TARGET_NAME_PREFIX}pycxx)
 
   foreach(COMPONENT "yson" "driver")
-    set(LIB_NAME "yt-${COMPONENT}-${PYTHON_LIB_VERSION}")
+    set(TARGET_NAME "${TARGET_NAME_PREFIX}${COMPONENT}")
 
-    add_library(${LIB_NAME} MODULE
-      ${CMAKE_CURRENT_LIST_DIR}/${COMPONENT}.cpp
-      ${SRCS}
-    )
+    add_library(${TARGET_NAME} MODULE ${CMAKE_CURRENT_LIST_DIR}/${COMPONENT}.cpp)
+    target_link_libraries(${TARGET_NAME} ${TARGET_NAME_PREFIX}common)
 
-    target_include_directories(${LIB_NAME} PUBLIC
-      ${${PYTHON_VERSION}_INCLUDE_DIR}
-    )
-
-    target_link_libraries(${LIB_NAME}
-      ytlib
-      ytext-pycxx
-      ${${PYTHON_VERSION}_LIBRARY}
-    )
-
-    set_target_properties(${LIB_NAME}
+    set_target_properties(${TARGET_NAME}
       PROPERTIES
+      LIBRARY_OUTPUT_NAME "${COMPONENT}_lib"
+      LIBRARY_OUTPUT_DIRECTORY "${LIBRARY_OUTPUT_PATH}/pyshared-${PYTHON_KIND_DASHED}"
+      PREFIX ""
+      SUFFIX "${CMAKE_SHARED_MODULE_SUFFIX}"
       LINK_FLAGS ${PYTHON_LINK_FLAGS}
     )
 
-    if(${PYTHON_VERSION} MATCHES "^PYTHON$")
+    install(
+      TARGETS ${TARGET_NAME}
+      DESTINATION lib/pyshared-${PYTHON_KIND_DASHED}/yt_${COMPONENT}_bindings
+      COMPONENT ${TARGET_NAME}
+    )
+
+    if(${PYTHON_KIND} MATCHES "^2_7$")
       exec_program(
         ${CMAKE_COMMAND} ARGS -E create_symlink
-        ${CMAKE_BINARY_DIR}/lib/lib${LIB_NAME}${CMAKE_SHARED_MODULE_SUFFIX}
+        ${LIBRARY_OUTPUT_PATH}/pyshared-${PYTHON_KIND_DASHED}/${COMPONENT}_lib${CMAKE_SHARED_MODULE_SUFFIX}
         ${CMAKE_SOURCE_DIR}/python/yt_${COMPONENT}_bindings/${COMPONENT}_lib${CMAKE_SHARED_MODULE_SUFFIX}
       )
     endif()
-  endforeach(COMPONENT)
-endforeach(PYTHON_VERSION)
+  endforeach()
+
+  install(
+    FILES
+      ${CMAKE_SOURCE_DIR}/python/yt_yson_bindings/__init__.py
+    DESTINATION
+      lib/pyshared-${PYTHON_KIND_DASHED}/yt_yson_bindings
+      COMPONENT ${TARGET_NAME_PREFIX}yson
+  )
+
+  install(
+    FILES
+      ${CMAKE_SOURCE_DIR}/python/yt_driver_bindings/__init__.py
+      ${CMAKE_SOURCE_DIR}/python/yt_driver_bindings/driver.py
+    DESTINATION
+      lib/pyshared-${PYTHON_KIND_DASHED}/yt_driver_bindings
+      COMPONENT ${TARGET_NAME_PREFIX}driver
+  )
+endforeach()
+
+################################################################################
+ENDIF()
+################################################################################

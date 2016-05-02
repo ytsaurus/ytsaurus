@@ -222,7 +222,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (!workingDirectory.empty()) {
-        ChDir(workingDirectory);
+        NFs::SetCurrentWorkingDirectory(workingDirectory);
     }
 
     if (isJobProxy) {

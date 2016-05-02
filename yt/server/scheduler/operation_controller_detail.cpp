@@ -1285,7 +1285,7 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
     Operation->SetAsyncSchedulerTransaction(transaction);
     AsyncSchedulerTransactionId = transaction->GetId();
 
-    LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %v)",
+    LOG_INFO("Scheduler async transaction started (AsyncTransactionId: %v)",
         transaction->GetId());
 }
 
