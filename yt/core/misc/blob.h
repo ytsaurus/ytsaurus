@@ -38,13 +38,13 @@ public:
 
     //! Constructs a blob with a given size.
     template <class TTag>
-    explicit TBlob(TTag tag, size_t size, bool initiailizeStorage = true)
+    explicit TBlob(TTag, size_t size, bool initiailizeStorage = true)
         : TBlob(GetRefCountedTypeCookie<TTag>(), size, initiailizeStorage)
     { }
 
     //! Copies a chunk of memory into a new instance.
     template <class TTag>
-    TBlob(TTag tag, const void* data, size_t size)
+    TBlob(TTag, const void* data, size_t size)
         : TBlob(GetRefCountedTypeCookie<TTag>(), data, size)
     { }
 

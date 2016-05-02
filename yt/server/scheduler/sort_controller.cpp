@@ -1914,6 +1914,13 @@ private:
         if (SimpleSort) {
             BuildSinglePartition();
         } else {
+            // Finally adjust partition count wrt block size constraints.
+            partitionCount = AdjustPartitionCountToWriterBufferSize(
+                partitionCount, 
+                PartitionJobIOConfig->TableWriter);
+
+            LOG_INFO("Adjusted partition count %v", partitionCount);
+
             BuildMulitplePartitions(sortedSamples, partitionCount);
         }
     }

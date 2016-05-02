@@ -18,7 +18,7 @@ function stubServer(done)
 
 describe("ApplicationHosts", function() {
     beforeEach(function(done) {
-        this.coordinator = {getProxies: function(){}, allocateDataProxy: function(){}};
+        this.coordinator = {getProxies: function(){}, allocateProxy: function(){}};
         YtRegistry.set("config", {show_ports: false, rewrite_yandex_team_domain: true});
         YtRegistry.set("logger", stubLogger());
         YtRegistry.set("coordinator", this.coordinator);
@@ -31,20 +31,22 @@ describe("ApplicationHosts", function() {
         YtRegistry.clear();
     });
 
-    function mockCoordinator(coordinator) {
+    function mockCoordinator(coordinator, role) {
         var mock = sinon.mock(coordinator);
+        role = role || "data";
         mock
             .expects("getProxies")
             .once()
-            .withExactArgs("data", false, false)
+            .withExactArgs(role, false, false)
             .returns([
                 {fitness: 500, name: "foo.yandex.net"},
                 {fitness: 100, name: "bar.yandex.net"},
                 {fitness: 300, name: "baz.yandex.net"},
                 {fitness: 800, name: "abc.yandex.net"}]);
         mock
-            .expects("allocateDataProxy")
-            .once();
+            .expects("allocateProxy")
+            .once()
+            .withExactArgs(role);
         return mock;
     }
 
@@ -93,4 +95,21 @@ describe("ApplicationHosts", function() {
         }, done).end();
     });
 
+    it("should enlist control proxies", function(done) {
+        var mock = mockCoordinator(this.coordinator, "control");
+        ask("GET", "/?role=control", {"accept": "text/plain"}, function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.be.eql("bar.yandex.net\nbaz.yandex.net\nfoo.yandex.net\nabc.yandex.net");
+            mock.verify();
+        }, done).end();
+    });
+
+    it("should enlist dyntables proxies", function(done) {
+        var mock = mockCoordinator(this.coordinator, "dyntables");
+        ask("GET", "/?role=dyntables", {"accept": "text/plain"}, function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.be.eql("bar.yandex.net\nbaz.yandex.net\nfoo.yandex.net\nabc.yandex.net");
+            mock.verify();
+        }, done).end();
+    });
 });
