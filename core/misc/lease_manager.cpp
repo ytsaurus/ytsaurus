@@ -41,7 +41,7 @@ public:
     static TLease CreateLease(TDuration timeout, TClosure onExpired)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YASSERT(onExpired);
+        Y_ASSERT(onExpired);
 
         auto lease = New<TLeaseEntry>(timeout, std::move(onExpired));
         lease->Cookie = TDelayedExecutor::Submit(
@@ -53,7 +53,7 @@ public:
     static bool RenewLease(TLease lease, TNullable<TDuration> timeout)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YASSERT(lease);
+        Y_ASSERT(lease);
 
         TGuard<TSpinLock> guard(lease->SpinLock);
         if (!lease->IsValid)

@@ -288,7 +288,7 @@ private:
 
 INodeTypeHandlerPtr CreateCellNodeTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(bootstrap);
+    Y_ASSERT(bootstrap);
 
     return New<TCellNodeTypeHandler>(bootstrap);
 }

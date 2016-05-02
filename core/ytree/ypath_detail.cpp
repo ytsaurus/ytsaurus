@@ -1033,7 +1033,7 @@ IServiceContextPtr CreateYPathContext(
     const Stroka& requestInfo,
     const Stroka& responseInfo)
 {
-    YASSERT(requestMessage);
+    Y_ASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
         std::move(requestMessage),
@@ -1051,7 +1051,7 @@ IServiceContextPtr CreateYPathContext(
     const Stroka& requestInfo,
     const Stroka& responseInfo)
 {
-    YASSERT(requestMessage);
+    Y_ASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
         std::move(requestHeader),

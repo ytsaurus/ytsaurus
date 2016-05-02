@@ -44,7 +44,7 @@ public:
     void Advance(size_t size)
     {
         Current_ += size;
-        YASSERT(Current_ <= End_);
+        Y_ASSERT(Current_ <= End_);
     }
 
     void AppendChar(char ch)
@@ -55,7 +55,7 @@ public:
 
     void AppendChar(char ch, int n)
     {
-        YASSERT(n >= 0);
+        Y_ASSERT(n >= 0);
         char* dst = Preallocate(n);
         memset(dst, ch, n);
         Advance(n);

@@ -334,7 +334,7 @@ public:
 
     virtual TFuture<void> Write(const TSharedRef& data) override
     {
-        YASSERT(data);
+        Y_ASSERT(data);
         TPromise<void> promise;
         bool invokeWrite;
         {
@@ -511,7 +511,7 @@ private:
 
     void PushBlock(TGuard<TSpinLock>* guard, const TErrorOr<TSharedRef>& result)
     {
-        YASSERT(OutstandingResult_);
+        Y_ASSERT(OutstandingResult_);
         OutstandingResult_.Reset();
         if (!result.IsOK()) {
             Error_ = TError(result);
@@ -527,7 +527,7 @@ private:
 
     TSharedRef PopBlock(TGuard<TSpinLock>* guard)
     {
-        YASSERT(!PrefetchedBlocks_.empty());
+        Y_ASSERT(!PrefetchedBlocks_.empty());
         auto block = PrefetchedBlocks_.front();
         PrefetchedBlocks_.pop();
         PrefetchedSize_ -= block.Size();

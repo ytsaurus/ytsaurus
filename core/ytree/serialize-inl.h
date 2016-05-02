@@ -64,7 +64,7 @@ void WriteYson(
 template <class T>
 void Serialize(T* value, NYson::IYsonConsumer* consumer)
 {
-    YASSERT(value);
+    Y_ASSERT(value);
     Serialize(*value, consumer);
 }
 

@@ -795,7 +795,7 @@ public:
             result.Action = ESecurityAction::Deny;
             return result;
         } else {
-            YASSERT(result.Action == ESecurityAction::Allow);
+            Y_ASSERT(result.Action == ESecurityAction::Allow);
             LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found (CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
                 object->GetId(),
                 permission,

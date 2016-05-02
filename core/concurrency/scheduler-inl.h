@@ -19,13 +19,13 @@ TErrorOr<T> WaitFor(TFuture<T> future)
 template <class T>
 TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
 {
-    YASSERT(future);
-    YASSERT(invoker);
+    Y_ASSERT(future);
+    Y_ASSERT(invoker);
 
     auto* scheduler = TryGetCurrentScheduler();
     if (scheduler) {
         scheduler->WaitFor(future.template As<void>(), std::move(invoker));
-        YASSERT(future.IsSet());
+        Y_ASSERT(future.IsSet());
     } else {
         // When called from a fiber-unfriendly context, we fallback to blocking wait.
         YCHECK(invoker == GetCurrentInvoker());

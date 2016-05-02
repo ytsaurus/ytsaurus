@@ -327,7 +327,7 @@ ui32 TStoreManager::ComputeLockMask(TUnversionedRow row)
         int lockIndex = columnIndexToLockIndex[value.Id];
         lockMask |= (1 << lockIndex);
     }
-    YASSERT(lockMask != 0);
+    Y_ASSERT(lockMask != 0);
     return lockMask;
 }
 
@@ -491,7 +491,7 @@ void TStoreManager::AddStore(IStorePtr store)
 
 void TStoreManager::RemoveStore(IStorePtr store)
 {
-    YASSERT(store->GetStoreState() != EStoreState::ActiveDynamic);
+    Y_ASSERT(store->GetStoreState() != EStoreState::ActiveDynamic);
 
     store->SetStoreState(EStoreState::Removed);
     Tablet_->RemoveStore(store);

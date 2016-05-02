@@ -29,7 +29,7 @@ TCoroutineBase::~TCoroutineBase()
 void TCoroutineBase::Trampoline(void* opaque)
 {
     auto* coroutine = reinterpret_cast<TCoroutineBase*>(opaque);
-    YASSERT(coroutine);
+    Y_ASSERT(coroutine);
 
     try {
         coroutine->Invoke();

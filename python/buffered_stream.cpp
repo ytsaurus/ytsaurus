@@ -57,7 +57,7 @@ void TBufferedStream::Finish()
 {
     TGuard<TMutex> guard(Mutex_);
 
-    YASSERT(State_ != EState::Finished);
+    Y_ASSERT(State_ != EState::Finished);
 
     if (State_ == EState::WaitingData) {
         AllowRead_.Set();

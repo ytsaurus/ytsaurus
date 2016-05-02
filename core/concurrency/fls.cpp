@@ -62,7 +62,7 @@ static uintptr_t& TsdAt(int index)
     }
 
     tsd = new uintptr_t[FlsMaxSize];
-    YASSERT(tsd);
+    Y_ASSERT(tsd);
     memset(tsd, 0, FlsMaxSize * sizeof(uintptr_t));
     YCHECK(TLS_SET_(FlsTsdKey, tsd));
 

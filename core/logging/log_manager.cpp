@@ -94,7 +94,7 @@ public:
                     FD_);
             }
         } else if (rv > 0) {
-            YASSERT(rv >= sizeof(struct inotify_event));
+            Y_ASSERT(rv >= sizeof(struct inotify_event));
             struct inotify_event* event = (struct inotify_event*)buffer;
 
             if (event->mask & IN_ATTRIB) {
