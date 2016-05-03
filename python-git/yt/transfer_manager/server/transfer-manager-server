@@ -1508,10 +1508,11 @@ class Application(object):
                                    "but it unexpectedly found for %s cluster." % self._clusters[cluster_name]._type)
                     continue
                 try:
-                    if not self._yt.exists("//sys/operations/%s" % operation_id) or \
-                           self._yt.get_operation_state(operation_id).is_finished():
+                    cluster_client = self._clusters_configuration.clusters[cluster_name]
+                    if not cluster_client.exists("//sys/operations/%s" % operation_id) or \
+                           cluster_client.get_operation_state(operation_id).is_finished():
                         continue
-                    self._clusters_configuration.clusters[cluster_name].abort_operation(operation_id)
+                    cluster_client.abort_operation(operation_id)
                     logger.info("Aborted outdated operation {} of task {}".format(operation_id, task_id))
                 except yt.YtError:
                     log_yt_exception(logger, "Failed abort operation {} of task {}".format(operation_id, task_id))
