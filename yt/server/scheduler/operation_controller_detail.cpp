@@ -914,9 +914,10 @@ TOperationControllerBase::TOperationControllerBase(
         GetCancelableInvoker(),
         BIND(&TThis::CheckTimeLimit, MakeWeak(this)),
         Config->OperationTimeLimitCheckPeriod))
+    , EventLogValueConsumer_(Host->CreateLogConsumer())
+    , EventLogTableConsumer_(new TTableConsumer(EventLogValueConsumer_.get()))
 {
     Logger.AddTag("OperationId: %v", operation->GetId());
-    EventLogConsumer_.reset(new TTableConsumer(Host->CreateLogConsumer()));
 }
 
 void TOperationControllerBase::InitializeConnections()
@@ -1266,6 +1267,7 @@ ITransactionPtr TOperationControllerBase::StartTransaction(
     LOG_INFO("Starting %v transaction", transactionName);
 
     TTransactionStartOptions options;
+    options.PingAncestors = false;
     auto attributes = CreateEphemeralAttributes();
     attributes->Set(
         "title",
@@ -1315,7 +1317,7 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
     Operation->SetAsyncSchedulerTransaction(transaction);
     AsyncSchedulerTransactionId = transaction->GetId();
 
-    LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %v)",
+    LOG_INFO("Scheduler async transaction started (AsyncTransactionId: %v)",
         transaction->GetId());
 }
 
@@ -1473,6 +1475,34 @@ void TOperationControllerBase::DoLoadSnapshot(TSharedRef snapshot)
 void TOperationControllerBase::Commit()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    // XXX(babenko): hotfix for YT-4636
+    {
+        auto client = Host->GetMasterClient();
+        auto connection = client->GetConnection();
+
+        // NB: use root credentials.
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
+
+        auto path = GetOperationPath(OperationId) + "/@committing";
+
+        {
+            auto req = TYPathProxy::Exists(path);
+            auto rsp = WaitFor(proxy.Execute(req))
+                .ValueOrThrow();
+            if (ConvertTo<bool>(rsp->value())) {
+                THROW_ERROR_EXCEPTION("Operation is already committing");
+            }
+        }
+
+        {
+            auto req = TYPathProxy::Set(path);
+            req->set_value(ConvertToYsonString(true).Data());
+            WaitFor(proxy.Execute(req))
+                .ThrowOnError();
+        }
+    }
 
     TeleportOutputChunks();
     AttachOutputChunks();
@@ -1737,7 +1767,8 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
     RemoveJoblet(jobId);
 
     if (error.Attributes().Get<bool>("fatal", false)) {
-        OnOperationFailed(error);
+        auto wrappedError = TError("Job failed with fatal error") << error;
+        OnOperationFailed(wrappedError);
         return;
     }
 
@@ -1823,7 +1854,7 @@ IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return EventLogConsumer_.get();
+    return EventLogTableConsumer_.get();
 }
 
 
@@ -2614,38 +2645,23 @@ void TOperationControllerBase::CreateLivePreviewTables()
         const Stroka& key,
         const TYsonString& acl)
     {
-        {
-            auto req = TCypressYPathProxy::Create(path);
-            req->set_type(static_cast<int>(EObjectType::Table));
-            req->set_ignore_existing(true);
-            req->set_enable_accounting(false);
+        auto req = TCypressYPathProxy::Create(path);
+        req->set_type(static_cast<int>(EObjectType::Table));
+        req->set_ignore_existing(true);
+        req->set_enable_accounting(false);
 
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("replication_factor", replicationFactor);
-            if (cellTag == connection->GetPrimaryMasterCellTag()) {
-                attributes->Set("external", false);
-            } else {
-                attributes->Set("external_cell_tag", cellTag);
-            }
-            ToProto(req->mutable_node_attributes(), *attributes);
-
-            batchReq->AddRequest(req, key);
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("replication_factor", replicationFactor);
+        if (cellTag == connection->GetPrimaryMasterCellTag()) {
+            attributes->Set("external", false);
+        } else {
+            attributes->Set("external_cell_tag", cellTag);
         }
+        attributes->Set("acl", acl);
+        attributes->Set("inherit_acl", false);
+        ToProto(req->mutable_node_attributes(), *attributes);
 
-        // TODO(babenko): consolidate with the above when setting acl at creation time becomes possible
-        {
-            auto req = TYPathProxy::Set(path + "/@acl");
-            req->set_value(acl.Data());
-
-            batchReq->AddRequest(req, key);
-        }
-
-        {
-            auto req = TYPathProxy::Set(path + "/@inherit_acl");
-            req->set_value(ConvertToYsonString(false).Data());
-
-            batchReq->AddRequest(req, key);
-        }
+        batchReq->AddRequest(req, key);
     };
 
     if (IsOutputLivePreviewSupported()) {
@@ -2685,17 +2701,17 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
     if (IsOutputLivePreviewSupported()) {
         auto rspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_output");
-        YCHECK(rspsOrError.size() == 3 * OutputTables.size());
+        YCHECK(rspsOrError.size() == OutputTables.size());
         for (int index = 0; index < OutputTables.size(); ++index) {
-            handleResponse(OutputTables[index], rspsOrError[3 * index].Value());
+            handleResponse(OutputTables[index], rspsOrError[index].Value());
         }
 
         LOG_INFO("Output live preview tables created");
     }
 
     if (IsIntermediateLivePreviewSupported()) {
-        auto rspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_intermediate");
-        handleResponse(IntermediateTable, rspsOrError[0].Value());
+        auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>("create_intermediate");
+        handleResponse(IntermediateTable, rspOrError.Value());
 
         LOG_INFO("Intermediate live preview table created");
     }
@@ -3221,7 +3237,7 @@ void TOperationControllerBase::LockUserFiles(
                 } catch (const std::exception& ex) {
                     // NB: Some of the above Gets and Finds may throw due to, e.g., type mismatch.
                     THROW_ERROR_EXCEPTION("Error parsing attributes of user file %v",
-                        path);
+                        path) << ex;
                 }
 
                 switch (file.Type) {
@@ -3234,7 +3250,16 @@ void TOperationControllerBase::LockUserFiles(
                         file.Format = attributes.FindYson("format").Get(TYsonString());
                         file.Format = file.Path.GetFormat().Get(file.Format);
                         // Validate that format is correct.
-                        ConvertTo<TFormat>(file.Format);
+                        try {
+                            if (file.Format.GetType() == EYsonType::None) {
+                                THROW_ERROR_EXCEPTION("Format is missing");
+                            } else {
+                                ConvertTo<TFormat>(file.Format);
+                            }
+                        } catch (const std::exception& ex) {
+                            THROW_ERROR_EXCEPTION("Failed to parse format of table file %v",
+                                file.Path) << ex;
+                        }
                         break;
 
                     default:

@@ -11,9 +11,6 @@
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/serialize.h>
 
-#include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/scoped_timer.h>
-
 #include <util/stream/buffered.h>
 
 namespace NYT {
@@ -27,41 +24,6 @@ using namespace NHydra::NProto;
 static const size_t SnapshotLoadBufferSize = 64 * 1024;
 static const size_t SnapshotSaveBufferSize = 64 * 1024;
 static const size_t SnapshotPrefetchWindowSize = 64 * 1024 * 1024;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static class TCompositeAutomaton::TStaticMethodDescriptorRegistry
-{
-public:
-    TStaticMethodDescriptor* GetDescriptor(const Stroka& type)
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-
-        auto it = TypeToDescriptor_.find(type);
-        if (it != TypeToDescriptor_.end()) {
-            return &it->second;
-        }
-
-        auto pair = TypeToDescriptor_.insert(std::make_pair(type, TStaticMethodDescriptor()));
-        YCHECK(pair.second);
-        it = pair.first;
-        auto* descriptor = &it->second;
-
-        NProfiling::TTagIdList tagIds{
-            NProfiling::TProfileManager::Get()->RegisterTag("type", type)
-        };
-        descriptor->CumulativeTimeCounter = NProfiling::TSimpleCounter(
-            "/cumulative_mutation_time",
-            tagIds);
-
-        return descriptor;
-    }
-
-private:
-    TSpinLock SpinLock_;
-    yhash_map<Stroka, TStaticMethodDescriptor> TypeToDescriptor_;
-
-} StaticMethodDescriptorRegistry;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,8 +109,7 @@ void TCompositeAutomatonPart::RegisterMethod(
     TCallback<void(TMutationContext*)> callback)
 {
     TCompositeAutomaton::TMethodDescriptor descriptor{
-        callback,
-        StaticMethodDescriptorRegistry.GetDescriptor(type)
+        callback
     };
     YCHECK(Automaton_->MethodNameToDescriptor_.insert(std::make_pair(type, descriptor)).second);
 }
@@ -409,12 +370,7 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     auto it = MethodNameToDescriptor_.find(type);
     YCHECK(it != MethodNameToDescriptor_.end());
     const auto& descriptor = it->second;
-
-    NProfiling::TScopedTimer timer;
     descriptor.Callback.Run(context);
-    Profiler.Increment(
-        descriptor.StaticDescriptor->CumulativeTimeCounter,
-        NProfiling::DurationToValue(timer.GetElapsed()));
 }
 
 void TCompositeAutomaton::Clear()

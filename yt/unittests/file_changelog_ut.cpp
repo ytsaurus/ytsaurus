@@ -10,6 +10,8 @@
 
 #include <yt/core/misc/fs.h>
 
+#include <yt/core/profiling/profiler.h>
+
 #include <util/random/random.h>
 
 #include <util/system/tempfile.h>
@@ -40,7 +42,10 @@ protected:
         ChangelogStoreConfig = New<TFileChangelogStoreConfig>();
         ChangelogStoreConfig->Path = "FileChangelog";
 
-        ChangelogStoreFactory = CreateLocalChangelogStoreFactory("ChangelogFlush", ChangelogStoreConfig);
+        ChangelogStoreFactory = CreateLocalChangelogStoreFactory(
+            ChangelogStoreConfig,
+            "ChangelogFlush",
+            NProfiling::TProfiler());
         ChangelogStore = ChangelogStoreFactory->Lock()
             .Get()
             .ValueOrThrow();

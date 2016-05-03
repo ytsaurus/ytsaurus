@@ -266,7 +266,7 @@ void TBootstrap::DoRun()
             DataNodeProfiler.GetPathPrefix() + "/" +
             CamelCaseToUnderscoreCase(name));
 
-        return CreateLimitedThrottler(config, logger, profiler);
+        return CreateReconfigurableThroughputThrottler(config, logger, profiler);
     };
 
     TotalInThrottler = createThrottler(Config->DataNode->TotalInThrottler, "TotalIn");

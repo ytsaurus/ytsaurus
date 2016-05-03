@@ -278,7 +278,7 @@ TYsonString DoGetMulticellOwningNodes(
         YCHECK(rsps.size() == nodeIds.size());
 
         TStringStream stream;
-        TYsonWriter writer(&stream);
+        TBufferedBinaryYsonWriter writer(&stream);
         writer.OnBeginList();
 
         for (int index = 0; index < rsps.size(); ++index) {
@@ -302,6 +302,7 @@ TYsonString DoGetMulticellOwningNodes(
         }
 
         writer.OnEndList();
+        writer.Flush();
         return TYsonString(stream.Str());
     }
 }

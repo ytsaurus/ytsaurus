@@ -8,6 +8,8 @@
 
 #include <yt/core/misc/small_vector.h>
 
+#include <bitset>
+
 namespace NYT {
 namespace NNodeTrackerServer {
 
@@ -43,12 +45,12 @@ DECLARE_REFCOUNTED_CLASS(TNodeTrackerConfig)
 DECLARE_ENTITY_TYPE(TNode, NObjectClient::TObjectId, ::THash<NObjectClient::TObjectId>)
 DECLARE_ENTITY_TYPE(TRack, TRackId, NObjectClient::TDirectObjectIdHash)
 
-typedef SmallVector<TNode*, NChunkClient::TypicalReplicaCount> TNodeList;
+using TNodeList = SmallVector<TNode*, NChunkClient::TypicalReplicaCount>;
 
-typedef ui64 TRackSet;
-const int MaxRackCount = 63;
-const int NullRackIndex = 0;
-const int NullRackMask = 1ULL;
+constexpr int MaxRackCount = 127;
+constexpr int NullRackIndex = 0;
+// NB: +1 is because of null rack.
+using TRackSet = std::bitset<MaxRackCount + 1>;
 
 ///////////////////////////////////////////////////////////////////////////////
 

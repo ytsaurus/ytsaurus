@@ -847,11 +847,13 @@ public:
 
         MultiplexedChangelogDispatcher_ = New<TFileChangelogDispatcher>(
             Config_->MultiplexedChangelog,
-            "MFlush:" + Location_->GetId());
+            "MFlush:" + Location_->GetId(),
+            NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/multiplexed_changelogs"));
 
         SplitChangelogDispatcher_ = New<TFileChangelogDispatcher>(
             Config_->MultiplexedChangelog,
-            "SFlush:" + Location_->GetId());
+            "SFlush:" + Location_->GetId(),
+            NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/split_changelogs"));
 
         MultiplexedWriter_ = New<TMultiplexedWriter>(
             Config_->MultiplexedChangelog,

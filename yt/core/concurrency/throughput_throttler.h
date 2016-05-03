@@ -21,6 +21,8 @@ namespace NConcurrency {
 /*!
  *  This interface and its implementations are vastly inspired by the "token bucket" algorithm and
  *  |DataTransferThrottler| class from Hadoop.
+ *
+ *  Thread affinity: any
  */
 struct IThroughputThrottler
     : public virtual TRefCounted
@@ -56,8 +58,25 @@ struct IThroughputThrottler
 
 DEFINE_REFCOUNTED_TYPE(IThroughputThrottler)
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Enables dynamic changes of throttling configuration.
+/*!
+ *  Thread affinity: any
+ */
+struct IReconfigurableThroughputThrottler
+    : public IThroughputThrottler
+{
+    //! Updates the configuration.
+    virtual void Reconfigure(TThroughputThrottlerConfigPtr config) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IReconfigurableThroughputThrottler)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Constructs a throttler from #config.
-IThroughputThrottlerPtr CreateLimitedThrottler(
+IReconfigurableThroughputThrottlerPtr CreateReconfigurableThroughputThrottler(
     TThroughputThrottlerConfigPtr config,
     const NLogging::TLogger& logger = NLogging::TLogger(),
     const NProfiling::TProfiler& profiler = NProfiling::TProfiler());

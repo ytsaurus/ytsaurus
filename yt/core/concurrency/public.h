@@ -19,6 +19,7 @@ typedef TDelayedExecutorEntryPtr TDelayedExecutorCookie;
 
 DECLARE_REFCOUNTED_CLASS(TThroughputThrottlerConfig)
 DECLARE_REFCOUNTED_STRUCT(IThroughputThrottler)
+DECLARE_REFCOUNTED_STRUCT(IReconfigurableThroughputThrottler)
 
 DECLARE_REFCOUNTED_STRUCT(IAsyncInputStream)
 DECLARE_REFCOUNTED_STRUCT(IAsyncOutputStream)

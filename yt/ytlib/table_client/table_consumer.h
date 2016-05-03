@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "value_consumer.h"
+#include "name_table.h"
 
 #include <yt/core/misc/error.h>
 
@@ -25,9 +26,10 @@ class TTableConsumer
     : public NYson::TYsonConsumerBase
 {
 public:
-    explicit TTableConsumer(IValueConsumerPtr consumer);
     explicit TTableConsumer(
-        const std::vector<IValueConsumerPtr>& consumers,
+        IValueConsumer* consumer);
+    explicit TTableConsumer(
+        std::vector<IValueConsumer*> consumers,
         int tableIndex = 0);
 
 protected:
@@ -59,17 +61,22 @@ protected:
     void OnControlInt64Scalar(i64 value);
     void OnControlStringScalar(const TStringBuf& value);
 
-
     void FlushCurrentValueIfCompleted();
 
-    std::vector<IValueConsumerPtr> ValueConsumers_;
-    IValueConsumer* CurrentValueConsumer_;
+    void SwitchToTable(int tableIndex);
+
+
+    const std::vector<IValueConsumer*> ValueConsumers_;
+    std::vector<std::unique_ptr<TNameTableWriter>> NameTableWriters_;
+
+    IValueConsumer* CurrentValueConsumer_ = nullptr;
+    TNameTableWriter* CurrentNameTableWriter_ = nullptr;
 
     EControlState ControlState_ = EControlState::None;
     EControlAttribute ControlAttribute_;
 
     TBlobOutput ValueBuffer_;
-    NYson::TYsonWriter ValueWriter_;
+    NYson::TBufferedBinaryYsonWriter ValueWriter_;
 
     int Depth_ = 0;
     int ColumnIndex_ = 0;

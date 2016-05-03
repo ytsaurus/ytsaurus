@@ -101,13 +101,15 @@ class TLocalChangelogStoreFactory
 {
 public:
     TLocalChangelogStoreFactory(
+        TFileChangelogStoreConfigPtr config,
         const Stroka& threadName,
-        TFileChangelogStoreConfigPtr config)
+        const NProfiling::TProfiler& profiler)
         : TAsyncSlruCacheBase(config->ChangelogReaderCache)
         , Config_(config)
         , Dispatcher_(New<TFileChangelogDispatcher>(
             Config_,
-            threadName))
+            threadName,
+            profiler))
     {
         Logger.AddTag("Path: %v", Config_->Path);
     }
@@ -302,10 +304,11 @@ IChangelogStorePtr TLocalChangelogStoreFactory::CreateStore(TVersion reachableVe
 }
 
 IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
+    TFileChangelogStoreConfigPtr config,
     const Stroka& threadName,
-    TFileChangelogStoreConfigPtr config)
+    const NProfiling::TProfiler& profiler)
 {
-    auto store = New<TLocalChangelogStoreFactory>(threadName, config);
+    auto store = New<TLocalChangelogStoreFactory>(config, threadName, profiler);
     store->Start();
     return store;
 }

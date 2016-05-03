@@ -117,7 +117,7 @@ public:
         DestroyCore(node);
 
         // Run custom stuff.
-        DoDestroy(dynamic_cast<TImpl*>(node));
+        DoDestroy(static_cast<TImpl*>(node));
     }
 
     virtual std::unique_ptr<TCypressNodeBase> Branch(
@@ -132,7 +132,7 @@ public:
         auto* typedBranchedNode = branchedNodeHolder.get();
 
         // Run core stuff.
-        auto* typedOriginatingNode = dynamic_cast<TImpl*>(originatingNode);
+        auto* typedOriginatingNode = static_cast<TImpl*>(originatingNode);
         BranchCore(typedOriginatingNode, typedBranchedNode, transaction, mode);
 
         // Run custom stuff.
@@ -147,8 +147,8 @@ public:
         TCypressNodeBase* branchedNode) override
     {
         // Run custom stuff.
-        auto* typedOriginatingNode = dynamic_cast<TImpl*>(originatingNode);
-        auto* typedBranchedNode = dynamic_cast<TImpl*>(branchedNode);
+        auto* typedOriginatingNode = static_cast<TImpl*>(originatingNode);
+        auto* typedBranchedNode = static_cast<TImpl*>(branchedNode);
         DoUnbranch(typedOriginatingNode, typedBranchedNode);
         DoLogUnbranch(typedOriginatingNode, typedBranchedNode);
     }
@@ -158,8 +158,8 @@ public:
         TCypressNodeBase* branchedNode) override
     {
         // Run core stuff.
-        auto* typedOriginatingNode = dynamic_cast<TImpl*>(originatingNode);
-        auto* typedBranchedNode = dynamic_cast<TImpl*>(branchedNode);
+        auto* typedOriginatingNode = static_cast<TImpl*>(originatingNode);
+        auto* typedBranchedNode = static_cast<TImpl*>(branchedNode);
         MergeCore(typedOriginatingNode, typedBranchedNode);
 
         // Run custom stuff.
@@ -180,8 +180,8 @@ public:
             sourceNode->GetExternalCellTag());
 
         // Run custom stuff.
-        auto* typedSourceNode = dynamic_cast<TImpl*>(sourceNode);
-        auto* typedClonedNode = dynamic_cast<TImpl*>(clonedNode);
+        auto* typedSourceNode = static_cast<TImpl*>(sourceNode);
+        auto* typedClonedNode = static_cast<TImpl*>(clonedNode);
         DoClone(typedSourceNode, typedClonedNode, factory, mode);
 
         // Run core epilogue stuff.

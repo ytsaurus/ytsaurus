@@ -28,10 +28,6 @@
     ((type *) ((char *) (ptr) - offset_of(type, member)))
 #endif
 
-#ifndef ARRAY_SIZE
-#define ARRAY_SIZE(a) (sizeof((a)) / sizeof((a)[0]))
-#endif
-
 #ifndef ROUND_UP
 #define ROUND_UP(a, b) ((a) % (b) ? ((a) + (b)) - ((a) % (b)) : (a))
 #endif
@@ -119,7 +115,7 @@ inline void Invoke(
     const v8::Handle<v8::Value>& a1)
 {
     v8::Handle<v8::Value> args[] = { a1 };
-    node::MakeCallback(v8::Object::New(), callback, ARRAY_SIZE(args), args);
+    node::MakeCallback(v8::Object::New(), callback, Y_ARRAY_SIZE(args), args);
 }
 
 // Assuming presence of outer v8::HandleScope.
@@ -129,7 +125,7 @@ inline void Invoke(
     const v8::Handle<v8::Value>& a2)
 {
     v8::Handle<v8::Value> args[] = { a1, a2 };
-    node::MakeCallback(v8::Object::New(), callback, ARRAY_SIZE(args), args);
+    node::MakeCallback(v8::Object::New(), callback, Y_ARRAY_SIZE(args), args);
 }
 
 // Assuming presence of outer v8::HandleScope.
@@ -140,7 +136,7 @@ inline void Invoke(
     const v8::Handle<v8::Value>& a3)
 {
     v8::Handle<v8::Value> args[] = { a1, a2, a3 };
-    node::MakeCallback(v8::Object::New(), callback, ARRAY_SIZE(args), args);
+    node::MakeCallback(v8::Object::New(), callback, Y_ARRAY_SIZE(args), args);
 }
 
 IInvokerPtr GetUVInvoker();

@@ -111,21 +111,12 @@ std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForYson(
     TOutputStream* output)
 {
     auto config = ConvertTo<TYsonFormatConfigPtr>(&attributes);
-    auto ysonType = DataTypeToYsonType(dataType);
-    if (config->Format == EYsonFormat::Binary) {
-        return std::unique_ptr<IFlushableYsonConsumer>(new TBufferedBinaryYsonWriter(
-            output,
-            ysonType,
-            true,
-            config->BooleanAsString));
-    } else {
-        return std::unique_ptr<IFlushableYsonConsumer>(new TYsonWriter(
-            output,
-            config->Format,
-            ysonType,
-            false,
-            config->BooleanAsString));
-    }
+    return CreateYsonWriter(
+        output,
+        config->Format,
+        DataTypeToYsonType(dataType),
+        config->Format == EYsonFormat::Binary,
+        config->BooleanAsString);
 }
 
 std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForJson(
@@ -186,9 +177,19 @@ ISchemafulWriterPtr CreateSchemafulWriterForYson(
     IAsyncOutputStreamPtr output)
 {
     auto config = ConvertTo<TYsonFormatConfigPtr>(&attributes);
-
-    return New<TSchemafulWriter>(output, schema, [&] (TOutputStream* buffer) {
-        return std::make_unique<NYson::TYsonWriter>(buffer, config->Format, EYsonType::ListFragment);
+    return New<TSchemafulWriter>(output, schema, [=] (TOutputStream* buffer) {
+        if (config->Format == EYsonFormat::Binary) {
+            return std::unique_ptr<IFlushableYsonConsumer>(new TBufferedBinaryYsonWriter(
+                buffer,
+                EYsonType::ListFragment,
+                true,
+                config->BooleanAsString));
+        } else {
+            return std::unique_ptr<IFlushableYsonConsumer>(new TYsonWriter(
+                buffer,
+                config->Format,
+                EYsonType::ListFragment));
+        }
     });
 }
 

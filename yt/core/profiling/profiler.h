@@ -116,7 +116,7 @@ struct TAggregateCounter
         const NYPath::TYPath& path = "",
         const TTagIdList& tagIds = EmptyTagIds,
         EAggregateMode mode = EAggregateMode::Max,
-        TDuration interval = TDuration::MilliSeconds(100));
+        TDuration interval = TDuration::MilliSeconds(1000));
     TAggregateCounter(const TAggregateCounter& other);
     TAggregateCounter& operator = (const TAggregateCounter& other);
 
@@ -140,7 +140,7 @@ struct TSimpleCounter
     TSimpleCounter(
         const NYPath::TYPath& path = "",
         const TTagIdList& tagIds = EmptyTagIds,
-        TDuration interval = TDuration::MilliSeconds(100));
+        TDuration interval = TDuration::MilliSeconds(1000));
     TSimpleCounter(const TSimpleCounter& other);
     TSimpleCounter& operator = (const TSimpleCounter& other);
 

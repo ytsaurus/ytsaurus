@@ -80,6 +80,9 @@ struct IServiceContext
      */
     virtual void SetComplete() = 0;
 
+    //! Returns |true| is the request was canceled.
+    virtual bool IsCanceled() = 0;
+
     //! Raised when request processing is canceled.
     DECLARE_INTERFACE_SIGNAL(void(), Canceled);
 

@@ -209,19 +209,32 @@ public:
 
     //! Checks if request handling is possible from a given user.
     /*!
-     *  Enforces bans and rate limits. Throws on failure.
+     *  Throws if the user is banned.
      */
     void ValidateUserAccess(TUser* user);
 
     //! Increments per-user counters.
-    void ChargeUser(
+    void ChargeUserRead(
         TUser* user,
         int requestCount,
-        TDuration readRequestTime,
-        TDuration writeRequestTime);
+        TDuration time);
 
-    //! Returns the current request rate from the user.
-    double GetRequestRate(TUser* user);
+    //! The behavior differs at leaders and at followers:
+    //! 1) At leaders, this increments per-user counters.
+    //! 2) At followers, no counters are incremented (the leader is responsible for this) but
+    //! the request rate throttler is acquired unconditionally.
+    void ChargeUserWrite(
+        TUser* user,
+        int requestCount,
+        TDuration time);
+
+    //! Enforces request rate limits.
+    TFuture<void> ThrottleUser(
+        TUser* user,
+        int requestCount);
+
+    //! Updates the user request rate limit.
+    void SetUserRequestRateLimit(TUser* user, double limit);
 
 private:
     class TImpl;

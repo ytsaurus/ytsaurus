@@ -34,7 +34,7 @@ public:
 private:
     TIODispatcher();
 
-    DECLARE_SINGLETON_FRIEND();
+    Y_DECLARE_SINGLETON_FRIEND();
 
     class TImpl;
     TIntrusivePtr<TImpl> Impl_;

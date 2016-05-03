@@ -164,8 +164,7 @@ void TBlockWriter::WriteVariable(const TUnversionedValue& value, int nameTableIn
         VariableBuffer.DoWrite(value.Data.String, value.Length);
     } else {
         IntermediateBuffer.Clear();
-        TYsonWriter writer(&IntermediateBuffer);
-
+        TBufferedBinaryYsonWriter writer(&IntermediateBuffer);
         switch (value.Type) {
             case EValueType::Int64:
                 writer.OnInt64Scalar(value.Data.Int64);
@@ -185,6 +184,7 @@ void TBlockWriter::WriteVariable(const TUnversionedValue& value, int nameTableIn
             default:
                 YUNREACHABLE();
         }
+        writer.Flush();
 
         // Length
         VariableBuffer.Advance(WriteVarUint64(

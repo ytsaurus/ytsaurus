@@ -4,6 +4,7 @@
 #include "permission.h"
 #include "tree_builder.h"
 #include "ypath_service.h"
+#include "system_attribute_provider.h"
 
 #include <yt/core/logging/log.h>
 
@@ -171,6 +172,10 @@ class TSupportsAttributes
     , public virtual TSupportsPermissions
 {
 protected:
+    TSupportsAttributes();
+
+    IAttributeDictionary* GetCombinedAttributes();
+
     //! Can be |nullptr|.
     virtual IAttributeDictionary* GetCustomAttributes();
 
@@ -212,6 +217,30 @@ protected:
         TCtxRemovePtr context) override;
 
 private:
+    class TCombinedAttributeDictionary
+        : public IAttributeDictionary
+    {
+    public:
+        explicit TCombinedAttributeDictionary(TSupportsAttributes* owner);
+
+        virtual std::vector<Stroka> List() const override;
+        virtual TNullable<NYson::TYsonString> FindYson(const Stroka& key) const override;
+        virtual void SetYson(const Stroka& key, const NYson::TYsonString& value) override;
+        virtual bool Remove(const Stroka& key) override;
+
+    private:
+        TSupportsAttributes* const Owner_;
+
+        mutable bool HasCachedData_ = false;
+        mutable yhash_set<Stroka> CachedBuiltinKeys_;
+        mutable std::vector<ISystemAttributeProvider::TAttributeDescriptor> CachedSystemAttributes_;
+
+        void PrecacheData() const;
+
+    };
+
+    TCombinedAttributeDictionary CombinedAttributes_;
+
     TFuture<NYson::TYsonString> DoFindAttribute(const Stroka& key);
 
     static NYson::TYsonString DoGetAttributeFragment(

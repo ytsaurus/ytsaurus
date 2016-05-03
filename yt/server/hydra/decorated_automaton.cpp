@@ -25,6 +25,7 @@
 #include <yt/core/pipes/pipe.h>
 
 #include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/rpc/response_keeper.h>
 
@@ -591,6 +592,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDecoratedAutomaton::TMutationTypeDescriptor
+{
+    NProfiling::TSimpleCounter CumulativeTimeCounter;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDecoratedAutomaton::TDecoratedAutomaton(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
@@ -976,6 +984,28 @@ void TDecoratedAutomaton::RotateAutomatonVersionIfNeeded(TVersion mutationVersio
     }
 }
 
+TDecoratedAutomaton::TMutationTypeDescriptor* TDecoratedAutomaton::GetTypeDescriptor(const Stroka& type)
+{
+    auto it = TypeToDescriptor_.find(type);
+    if (it != TypeToDescriptor_.end()) {
+        return &it->second;
+    }
+
+    auto pair = TypeToDescriptor_.insert(std::make_pair(type, TMutationTypeDescriptor()));
+    YCHECK(pair.second);
+    it = pair.first;
+    auto* descriptor = &it->second;
+
+    NProfiling::TTagIdList tagIds{
+        NProfiling::TProfileManager::Get()->RegisterTag("type", type)
+    };
+    descriptor->CumulativeTimeCounter = NProfiling::TSimpleCounter(
+        "/cumulative_mutation_time",
+        tagIds);
+
+    return descriptor;
+}
+
 void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -989,11 +1019,19 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 
     TMutationContextGuard contextGuard(context);
 
+    auto* descriptor = GetTypeDescriptor(context->Request().Type);
+
+    NProfiling::TScopedTimer timer;
+
     if (request.Handler) {
         request.Handler.Run(context);
     } else {
         Automaton_->ApplyMutation(context);
     }
+
+    Profiler.Increment(
+        descriptor->CumulativeTimeCounter,
+        NProfiling::DurationToValue(timer.GetElapsed()));
 
     if (Options_.ResponseKeeper && request.MutationId) {
         const auto& response = context->Response();

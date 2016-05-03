@@ -985,6 +985,12 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/t/@expiration_time")
         assert not exists("//tmp/t/@expiration_time")
 
+    def test_expiration_time_can_be_set_upon_construction(self):
+        create_user("u")
+        create("table", "//tmp/t", attributes={"expiration_time": str(datetime.now())}, user="u")
+        time.sleep(0.1)
+        assert not exists("//tmp/t")
+
     def test_expiration_time_removal1(self):
         create("table", "//tmp/t", attributes={"expiration_time": str(datetime.now())})
         time.sleep(0.1)

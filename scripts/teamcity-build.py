@@ -38,7 +38,8 @@ def prepare(options):
         cwd=options.checkout_directory)
 
     options.build_enable_nodejs = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_NODEJS", "YES"))
-    options.build_enable_python = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON", "YES"))
+    options.build_enable_python_2_7 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_2_7", "YES"))
+    options.build_enable_python_skynet = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_SKYNET", "YES"))
     options.build_enable_perl = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PERL", "YES"))
 
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
@@ -120,7 +121,8 @@ def configure(options):
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
         "-DYT_BUILD_GIT_DEPTH={0}".format(options.build_git_depth),
         "-DYT_BUILD_ENABLE_NODEJS={0}".format(format_yes_no(options.build_enable_nodejs)),
-        "-DYT_BUILD_ENABLE_PYTHON={0}".format(format_yes_no(options.build_enable_python)),
+        "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(format_yes_no(options.build_enable_python_2_7)),
+        "-DYT_BUILD_ENABLE_PYTHON_SKYNET={0}".format(format_yes_no(options.build_enable_python_skynet)),
         "-DYT_BUILD_ENABLE_PERL={0}".format(format_yes_no(options.build_enable_perl)),
         "-DYT_USE_LTO={0}".format(options.use_lto),
         "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
@@ -233,7 +235,7 @@ def run_javascript_tests(options):
 
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
-    if not options.build_enable_python:
+    if not options.build_enable_python_2_7:
         return
 
     if pytest_args is None:

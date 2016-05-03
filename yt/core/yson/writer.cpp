@@ -394,6 +394,11 @@ void TBufferedBinaryYsonWriter::Flush()
     }
 }
 
+int TBufferedBinaryYsonWriter::GetDepth() const
+{
+    return Depth_;
+}
+
 Y_FORCE_INLINE void TBufferedBinaryYsonWriter::EnsureSpace(size_t space)
 {
     if (Y_LIKELY(BufferCursor_ + space <= BufferEnd_)) {
@@ -520,6 +525,33 @@ void TBufferedBinaryYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
         }
     } else {
         TYsonConsumerBase::OnRaw(yson, type);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IFlushableYsonConsumer> CreateYsonWriter(
+    TOutputStream* output,
+    EYsonFormat format,
+    EYsonType type,
+    bool enableRaw,
+    bool booleanAsString,
+    int indent)
+{
+    if (format == EYsonFormat::Binary) {
+        return std::unique_ptr<IFlushableYsonConsumer>(new TBufferedBinaryYsonWriter(
+            output,
+            type,
+            enableRaw,
+            booleanAsString));
+    } else {
+        return std::unique_ptr<IFlushableYsonConsumer>(new TYsonWriter(
+            output,
+            format,
+            type,
+            enableRaw,
+            booleanAsString,
+            indent));
     }
 }
 

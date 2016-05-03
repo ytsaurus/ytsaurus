@@ -227,9 +227,10 @@ void TAttributeValueConsumer::OnRaw(TFuture<TYsonString> asyncStr)
 
                 case EYsonType::Node: {
                     TStringStream stream;
-                    TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::MapFragment, true);
+                    TBufferedBinaryYsonWriter writer(&stream, EYsonType::MapFragment);
                     writer.OnKeyedItem(key);
                     writer.OnRaw(str);
+                    writer.Flush();
                     return TYsonString(stream.Str(), EYsonType::MapFragment);
                 }
 

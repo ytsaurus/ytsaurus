@@ -333,6 +333,10 @@ public:
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override
     {
         for (const auto& row : rows) {
+            if (!row) {
+                THROW_ERROR_EXCEPTION("Empty rows are not supported by schemaful dsv writer");
+            }
+
             CurrentRowValues_.assign(CurrentRowValues_.size(), nullptr);
             for (auto item = row.Begin(); item != row.End(); ++item) {
                 YASSERT(item->Id >= 0 && item->Id < IdToIndexInRow_.size());

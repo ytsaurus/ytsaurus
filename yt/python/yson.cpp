@@ -326,15 +326,15 @@ private:
 
         if (ysonType == NYson::EYsonType::ListFragment) {
             if (raw) {
-                Py::Callable class_type(TRawYsonIterator::type());
-                Py::PythonClassObject<TRawYsonIterator> pythonIter(class_type.apply(Py::Tuple(), Py::Dict()));
+                Py::Callable classType(TRawYsonIterator::type());
+                Py::PythonClassObject<TRawYsonIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
 
                 auto* iter = pythonIter.getCxxObject();
                 iter->Init(inputStreamPtr, std::move(inputStream));
                 return pythonIter;
             } else {
-                Py::Callable class_type(TYsonIterator::type());
-                Py::PythonClassObject<TYsonIterator> pythonIter(class_type.apply(Py::Tuple(), Py::Dict()));
+                Py::Callable classType(TYsonIterator::type());
+                Py::PythonClassObject<TYsonIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
 
                 auto* iter = pythonIter.getCxxObject();
                 iter->Init(inputStreamPtr, std::move(inputStream), alwaysCreateAttributes);
@@ -405,10 +405,10 @@ private:
             ysonType = ParseEnum<NYson::EYsonType>(ConvertToStroka(ConvertToString(arg)));
         }
 
-        int indent = 4;
+        int indent = NYson::TYsonWriter::DefaultIndent;
         if (HasArgument(args, kwargs, "indent")) {
             auto arg = ExtractArgument(args, kwargs, "indent");
-            indent = Py::Int(arg).asLongLong();
+            indent = static_cast<int>(Py::Int(arg).asLongLong());
         }
 
         bool booleanAsString = false;
@@ -425,21 +425,36 @@ private:
 
         ValidateArgumentsEmpty(args, kwargs);
 
-        NYson::TYsonWriter writer(outputStream, ysonFormat, ysonType, false, booleanAsString, indent);
-        if (ysonType == NYson::EYsonType::Node || ysonType == NYson::EYsonType::MapFragment) {
-            Serialize(obj, &writer, ignoreInnerAttributes, ysonType);
-        } else if (ysonType == NYson::EYsonType::ListFragment) {
-            auto iterator = Py::Object(PyObject_GetIter(obj.ptr()), true);
-            PyObject *item;
-            while ((item = PyIter_Next(*iterator)) != nullptr) {
-                Serialize(Py::Object(item, true), &writer, ignoreInnerAttributes);
+        auto writer = NYson::CreateYsonWriter(
+            outputStream,
+            ysonFormat,
+            ysonType,
+            false,
+            booleanAsString,
+            indent);
+
+        switch (ysonType) {
+            case NYson::EYsonType::Node:
+            case NYson::EYsonType::MapFragment:
+                Serialize(obj, writer.get(), ignoreInnerAttributes, ysonType);
+                break;
+
+            case NYson::EYsonType::ListFragment: {
+                auto iterator = Py::Object(PyObject_GetIter(obj.ptr()), true);
+                while (auto* item = PyIter_Next(*iterator)) {
+                    Serialize(Py::Object(item, true), writer.get(), ignoreInnerAttributes);
+                }
+                if (PyErr_Occurred()) {
+                    throw Py::Exception();
+                }
+                break;
             }
-            if (PyErr_Occurred()) {
-                throw Py::Exception();
-            }
-        } else {
-            throw CreateYsonError(ToString(ysonType) + " is not supported");
+
+            default:
+                throw CreateYsonError(ToString(ysonType) + " is not supported");
         }
+
+        writer->Flush();
 
         if (bufferedOutputStream) {
             bufferedOutputStream->Flush();

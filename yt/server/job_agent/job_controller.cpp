@@ -38,7 +38,7 @@ TJobController::TJobController(
     TBootstrap* bootstrap)
     : Config_(config)
     , Bootstrap_(bootstrap)
-    , StatisticsThrottler_(CreateLimitedThrottler(Config_->StatisticsThrottler))
+    , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(Config_->StatisticsThrottler))
 {
     YCHECK(config);
     YCHECK(bootstrap);

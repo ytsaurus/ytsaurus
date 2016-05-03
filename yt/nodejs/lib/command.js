@@ -242,7 +242,7 @@ YtCommand.prototype._epilogue = function(result) {
     });
 
     if (!result.isOK()) {
-        if (result.isUserBanned() || result.isRequestRateLimitExceeded()) {
+        if (result.isUserBanned()) {
             this.sticky_cache.set(this.user, {
                 code: this.rsp.statusCode,
                 body: result.toJson()
@@ -421,13 +421,13 @@ YtCommand.prototype._redirectHeavyRequests = function() {
     this.__DBG("_redirectHeavyRequests");
 
     if (this.descriptor.is_heavy && this.coordinator.getSelf().role !== "data") {
-        var target = this.coordinator.allocateDataProxy();
+        var target = this.coordinator.allocateProxy("data");
         if (typeof(target) !== "undefined") {
-            var isSsl;
-            isSsl = this.req.connection.getCipher && this.req.connection.getCipher();
-            isSsl = !!isSsl;
+            var is_ssl;
+            is_ssl = this.req.connection.getCipher && this.req.connection.getCipher();
+            is_ssl = !!is_ssl;
             var url =
-                (isSsl ? "https://" : "http://") +
+                (is_ssl ? "https://" : "http://") +
                 target.host +
                 this.req.originalUrl;
             utils.redirectTo(this.rsp, url, 307);
@@ -526,11 +526,11 @@ YtCommand.prototype._getOutputFormat = function() {
     // First, resolve content disposition.
     if (this.descriptor.is_heavy) {
         // Do our best to guess filename.
-        var passed_path = this.req.parsedQuery["path"];
+        var passed_path = this.req.parsedQuery.path;
         if (typeof(passed_path) !== "undefined") {
             filename = "yt_" + passed_path;
         }
-        var passed_filename = this.req.parsedQuery["filename"];
+        var passed_filename = this.req.parsedQuery.filename;
         if (typeof(passed_filename) !== "undefined") {
             filename = passed_filename;
         }
@@ -726,6 +726,9 @@ YtCommand.prototype._captureParameters = function() {
             self.parameters = binding.CreateMergedNode.apply(
                 undefined,
                 arguments);
+            if (self.parameters.GetNodeType() !== "map") {
+                throw new YtError("Parameters must be a map");
+            }
         });
 };
 
@@ -859,10 +862,6 @@ YtCommand.prototype._execute = function(cb) {
 
         if (result.isUserBanned()) {
             self.rsp.statusCode = 403;
-        }
-
-        if (result.isRequestRateLimitExceeded()) {
-            self.rsp.statusCode = 429;
         }
 
         return result;

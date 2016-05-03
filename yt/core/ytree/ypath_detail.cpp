@@ -254,6 +254,105 @@ void TSupportsPermissions::TCachingPermissionValidator::Validate(EPermission per
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSupportsAttributes::TCombinedAttributeDictionary::TCombinedAttributeDictionary(TSupportsAttributes* owner)
+    : Owner_(owner)
+{ }
+
+std::vector<Stroka> TSupportsAttributes::TCombinedAttributeDictionary::List() const
+{
+    PrecacheData();
+
+    std::vector<Stroka> keys;
+    for (const auto& descriptor : CachedSystemAttributes_) {
+        if (descriptor.Present && !descriptor.Custom && !descriptor.Opaque) {
+            keys.push_back(descriptor.Key);
+        }
+    }
+
+    auto* customAttributes = Owner_->GetCustomAttributes();
+    if (customAttributes) {
+        auto customKeys = customAttributes->List();
+        keys.insert(keys.end(), customKeys.begin(), customKeys.end());
+    }
+
+    return keys;
+}
+
+TNullable<TYsonString> TSupportsAttributes::TCombinedAttributeDictionary::FindYson(const Stroka& key) const
+{
+    PrecacheData();
+
+    if (CachedBuiltinKeys_.find(key) == CachedBuiltinKeys_.end()) {
+        auto* customAttributes = Owner_->GetCustomAttributes();
+        if (!customAttributes) {
+            return Null;
+        }
+        return customAttributes->FindYson(key);
+    } else {
+        auto* provider = Owner_->GetBuiltinAttributeProvider();
+        return provider->FindBuiltinAttribute(key);
+    }
+}
+
+void TSupportsAttributes::TCombinedAttributeDictionary::SetYson(const Stroka& key, const TYsonString& value)
+{
+    PrecacheData();
+
+    if (CachedBuiltinKeys_.find(key) == CachedBuiltinKeys_.end()) {
+        auto* customAttributes = Owner_->GetCustomAttributes();
+        if (!customAttributes) {
+            ThrowNoSuchBuiltinAttribute(key);
+        }
+        customAttributes->SetYson(key, value);
+    } else {
+        auto* provider = Owner_->GetBuiltinAttributeProvider();
+        if (!provider->SetBuiltinAttribute(key, value)) {
+            ThrowCannotSetBuiltinAttribute(key);
+        }
+    }
+}
+
+bool TSupportsAttributes::TCombinedAttributeDictionary::Remove(const Stroka& key)
+{
+    PrecacheData();
+
+    if (CachedBuiltinKeys_.find(key) == CachedBuiltinKeys_.end()) {
+        auto* customAttributes = Owner_->GetCustomAttributes();
+        if (!customAttributes) {
+            ThrowNoSuchBuiltinAttribute(key);
+        }
+        return customAttributes->Remove(key);
+    } else {
+        auto* provider = Owner_->GetBuiltinAttributeProvider();
+        return provider->RemoveBuiltinAttribute(key);
+    }
+}
+
+void TSupportsAttributes::TCombinedAttributeDictionary::PrecacheData() const
+{
+    if (HasCachedData_) {
+        return;
+    }
+
+    auto* provider = Owner_->GetBuiltinAttributeProvider();
+    if (provider) {
+        provider->ListSystemAttributes(&CachedSystemAttributes_);
+        for (const auto& descriptor : CachedSystemAttributes_) {
+            if (!descriptor.Custom) {
+                YCHECK(CachedBuiltinKeys_.insert(descriptor.Key).second);
+            }
+        }
+    }
+
+    HasCachedData_ = true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSupportsAttributes::TSupportsAttributes()
+    : CombinedAttributes_(this)
+{ }
+
 IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
     const TYPath& path,
     IServiceContextPtr context)
@@ -418,13 +517,14 @@ TYsonString TSupportsAttributes::DoListAttributeFragment(
     auto listedKeys = SyncYPathList(node, path);
 
     TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
+    TBufferedBinaryYsonWriter writer(&stream);
     writer.OnBeginList();
     for (const auto& listedKey : listedKeys) {
         writer.OnListItem();
         writer.OnStringScalar(listedKey);
     }
     writer.OnEndList();
+    writer.Flush();
 
     return TYsonString(stream.Str());
 }
@@ -437,7 +537,7 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         TStringStream stream;
-        TYsonWriter writer(&stream);
+        TBufferedBinaryYsonWriter writer(&stream);
 
         writer.OnBeginList();
 
@@ -463,6 +563,7 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
         }
 
         writer.OnEndList();
+        writer.Flush();
 
         return MakeFuture(TYsonString(stream.Str()));
     } else  {
@@ -625,7 +726,6 @@ TFuture<void> TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYso
                             YCHECK(newAttributes->Remove(key));
                         }
                     }
-
                 }
 
                 // Set builtin attributes.
@@ -753,10 +853,10 @@ void TSupportsAttributes::SetAttribute(
 
     // Binarize the value.
     TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, false);
+    TBufferedBinaryYsonWriter writer(&stream, EYsonType::Node, false);
     writer.OnRaw(request->value(), EYsonType::Node);
+    writer.Flush();
     auto value = TYsonString(stream.Str());
-
     auto result = DoSetAttribute(path, value);
     context->ReplyFrom(result);
 }
@@ -801,7 +901,7 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
 
                         auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
                         if (!descriptor) {
-                            ThrowNoSuchBuiltinAttribute(key);
+                            ThrowNoSuchAttribute(key);
                         }
                         if (!descriptor->Removable) {
                             ThrowCannotRemoveAttribute(key);
@@ -827,12 +927,12 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                         customAttributes->SetYson(key, updatedCustomYson);
                     } else {
                         if (!builtinAttributeProvider) {
-                            ThrowNoSuchBuiltinAttribute(key);
+                            ThrowNoSuchAttribute(key);
                         }
 
                         auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
                         if (!descriptor) {
-                            ThrowNoSuchBuiltinAttribute(key);
+                            ThrowNoSuchAttribute(key);
                         }
 
                         permissionValidator.Validate(descriptor->WritePermission);
@@ -879,6 +979,11 @@ void TSupportsAttributes::RemoveAttribute(
 
     auto result = DoRemoveAttribute(path);
     context->ReplyFrom(result);
+}
+
+IAttributeDictionary* TSupportsAttributes::GetCombinedAttributes()
+{
+    return &CombinedAttributes_;
 }
 
 IAttributeDictionary* TSupportsAttributes::GetCustomAttributes()
@@ -955,20 +1060,17 @@ private:
     IAttributeDictionary* const Attributes_;
 
     TStringStream AttributeStream_;
-    std::unique_ptr<TYsonWriter> AttributeWriter_;
+    std::unique_ptr<TBufferedBinaryYsonWriter> AttributeWriter_;
 
 
     virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
         Stroka keyString(key);
-        AttributeWriter_.reset(new TYsonWriter(
-            &AttributeStream_,
-            EYsonFormat::Binary,
-            EYsonType::Node,
-            true));
+        AttributeWriter_.reset(new TBufferedBinaryYsonWriter(&AttributeStream_));
         Forward(
             AttributeWriter_.get(),
             BIND ([=] () {
+                AttributeWriter_->Flush();
                 AttributeWriter_.reset();
                 Attributes_->SetYson(keyString, TYsonString(AttributeStream_.Str()));
                 AttributeStream_.clear();

@@ -65,12 +65,12 @@ private:
             return;
         }
 
-        Stroka result;
-        TStringOutput stream(result);
-        TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
+        TStringStream stream;
+        TBufferedBinaryYsonWriter writer(&stream);
         Producer_.Run(&writer);
+        writer.Flush();
 
-        response->set_value(result);
+        response->set_value(stream.Str());
         context->Reply();
     }
 

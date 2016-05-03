@@ -240,28 +240,30 @@ public:
         YCHECK(!Open_);
 
         try {
-            DataFile_.reset(new TFileWrapper(FileName_, RdWr | Seq | CloseOnExec));
-            LockDataFile();
+            NFS::ExpectIOErrors([&] () {
+                DataFile_.reset(new TFileWrapper(FileName_, RdWr | Seq | CloseOnExec));
+                LockDataFile();
 
-            // Read and check changelog header.
-            TChangelogHeader header;
-            ReadPod(*DataFile_, header);
-            ValidateSignature(header);
+                // Read and check changelog header.
+                TChangelogHeader header;
+                ReadPod(*DataFile_, header);
+                ValidateSignature(header);
 
-            // Read meta.
-            auto serializedMeta = TSharedMutableRef::Allocate(header.MetaSize);
-            ReadPadded(*DataFile_, serializedMeta);
-            DeserializeFromProto(&Meta_, serializedMeta);
-            SerializedMeta_ = serializedMeta;
+                // Read meta.
+                auto serializedMeta = TSharedMutableRef::Allocate(header.MetaSize);
+                ReadPadded(*DataFile_, serializedMeta);
+                DeserializeFromProto(&Meta_, serializedMeta);
+                SerializedMeta_ = serializedMeta;
 
-            TruncatedRecordCount_ = header.TruncatedRecordCount == TChangelogHeader::NotTruncatedRecordCount
-                ? Null
-                : MakeNullable(header.TruncatedRecordCount);
+                TruncatedRecordCount_ = header.TruncatedRecordCount == TChangelogHeader::NotTruncatedRecordCount
+                    ? Null
+                    : MakeNullable(header.TruncatedRecordCount);
 
-            ReadIndex(header);
-            ReadChangelogUntilEnd(header);
+                ReadIndex(header);
+                ReadChangelogUntilEnd(header);
+            });
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error opening changelog");
+            LOG_ERROR(ex, "Error opening changelog");
             Error_ = ex;
             throw;
         }
@@ -285,13 +287,15 @@ public:
             return;
 
         try {
-            DataFile_->FlushData();
-            DataFile_->Close();
+            NFS::ExpectIOErrors([&] () {
+                DataFile_->FlushData();
+                DataFile_->Close();
 
-            IndexFile_->FlushData() ;
-            IndexFile_->Close();
+                IndexFile_->FlushData() ;
+                IndexFile_->Close();
+            });
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error closing changelog");
+            LOG_ERROR(ex, "Error closing changelog");
             Error_ = ex;
             throw;
         }
@@ -312,17 +316,19 @@ public:
         YCHECK(!Open_);
 
         try {
-            Meta_ = meta;
-            SerializedMeta_ = SerializeToProto(Meta_);
-            RecordCount_ = 0;
+            NFS::ExpectIOErrors([&] () {
+                Meta_ = meta;
+                SerializedMeta_ = SerializeToProto(Meta_);
+                RecordCount_ = 0;
 
-            CreateDataFile();
-            CreateIndexFile();
+                CreateDataFile();
+                CreateIndexFile();
 
-            CurrentFilePosition_ = DataFile_->GetPosition();
-            CurrentBlockSize_ = 0;
+                CurrentFilePosition_ = DataFile_->GetPosition();
+                CurrentBlockSize_ = 0;
+            });
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error creating changelog");
+            LOG_ERROR(ex, "Error creating changelog");
             Error_ = ex;
             throw;
         }
@@ -385,35 +391,37 @@ public:
             firstRecordId + records.size() - 1);
 
         try {
-            AppendSizes_.clear();
-            AppendSizes_.reserve(records.size());
+            NFS::ExpectIOErrors([&] () {
+                AppendSizes_.clear();
+                AppendSizes_.reserve(records.size());
 
-            AppendOutput_.Clear();
+                AppendOutput_.Clear();
 
-            // Combine records into a single memory blob.
-            for (int index = 0; index < records.size(); ++index) {
-                const auto& record = records[index];
-                YCHECK(!record.Empty());
+                // Combine records into a single memory blob.
+                for (int index = 0; index < records.size(); ++index) {
+                    const auto& record = records[index];
+                    YCHECK(!record.Empty());
 
-                int totalSize = 0;
-                TChangelogRecordHeader header(firstRecordId + index, record.Size(), GetChecksum(record));
-                totalSize += WritePodPadded(AppendOutput_, header);
-                totalSize += WritePadded(AppendOutput_, record);
+                    int totalSize = 0;
+                    TChangelogRecordHeader header(firstRecordId + index, record.Size(), GetChecksum(record));
+                    totalSize += WritePodPadded(AppendOutput_, header);
+                    totalSize += WritePadded(AppendOutput_, record);
 
-                AppendSizes_.push_back(totalSize);
-            }
+                    AppendSizes_.push_back(totalSize);
+                }
 
-            // Write blob to file.
-            DataFile_->Seek(0, sEnd);
-            DataFile_->Write(AppendOutput_.Begin(), AppendOutput_.Size());
+                // Write blob to file.
+                DataFile_->Seek(0, sEnd);
+                DataFile_->Write(AppendOutput_.Begin(), AppendOutput_.Size());
 
 
-            // Process written records (update index etc).
-            for (int index = 0; index < records.size(); ++index) {
-                ProcessRecord(firstRecordId + index, AppendSizes_[index]);
-            }
+                // Process written records (update index etc).
+                for (int index = 0; index < records.size(); ++index) {
+                    ProcessRecord(firstRecordId + index, AppendSizes_[index]);
+                }
+            });
         } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Error appending to changelog");
+            LOG_ERROR(ex, "Error appending to changelog");
             Error_ = ex;
             throw;
         }
@@ -434,14 +442,16 @@ public:
         LOG_DEBUG("Started flushing changelog");
 
         try {
-            if (Config_->EnableSync) {
-                DataFile_->FlushData();
-                IndexFile_->FlushData();
-            }
+            NFS::ExpectIOErrors([&] () {
+                if (Config_->EnableSync) {
+                    DataFile_->FlushData();
+                    IndexFile_->FlushData();
+                }
 
-            LastFlushed_ = TInstant::Now();
+                LastFlushed_ = TInstant::Now();
+            });
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error flushing changelog");
+            LOG_ERROR(ex, "Error flushing changelog");
             Error_ = ex;
             throw;
         }
@@ -475,39 +485,40 @@ public:
                 return records;
             }
 
-            maxRecords = std::min(maxRecords, RecordCount_ - firstRecordId);
-            int lastRecordId = firstRecordId + maxRecords; // non-inclusive
+            NFS::ExpectIOErrors([&] () {
+                maxRecords = std::min(maxRecords, RecordCount_ - firstRecordId);
+                int lastRecordId = firstRecordId + maxRecords; // non-inclusive
 
-            // Read envelope piece of changelog.
-            auto envelope = ReadEnvelope(firstRecordId, lastRecordId, std::min(Index_.back().FilePosition, maxBytes));
+                // Read envelope piece of changelog.
+                auto envelope = ReadEnvelope(firstRecordId, lastRecordId, std::min(Index_.back().FilePosition, maxBytes));
 
-            // Read records from envelope data and save them to the records.
-            i64 readBytes = 0;
-            TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
-            for (int recordId = envelope.GetStartRecordId();
-                 recordId < envelope.GetEndRecordId() && recordId < lastRecordId && readBytes < maxBytes;
-                 ++recordId)
-            {
-                // Read and check header.
-                TChangelogRecordHeader header;
-                ReadPodPadded(inputStream, header);
-                YCHECK(header.RecordId == recordId);
+                // Read records from envelope data and save them to the records.
+                i64 readBytes = 0;
+                TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
+                for (int recordId = envelope.GetStartRecordId();
+                     recordId < envelope.GetEndRecordId() && recordId < lastRecordId && readBytes < maxBytes;
+                     ++recordId)
+                {
+                    // Read and check header.
+                    TChangelogRecordHeader header;
+                    ReadPodPadded(inputStream, header);
+                    YCHECK(header.RecordId == recordId);
 
-                // Save and pad data.
-                i64 startOffset = inputStream.Buf() - envelope.Blob.Begin();
-                i64 endOffset = startOffset + header.DataSize;
-                auto data = envelope.Blob.Slice(startOffset, endOffset);
-                inputStream.Skip(AlignUp(header.DataSize));
+                    // Save and pad data.
+                    i64 startOffset = inputStream.Buf() - envelope.Blob.Begin();
+                    i64 endOffset = startOffset + header.DataSize;
+                    auto data = envelope.Blob.Slice(startOffset, endOffset);
+                    inputStream.Skip(AlignUp(header.DataSize));
 
-                // Add data to the records.
-                if (recordId >= firstRecordId) {
-                    records.push_back(data);
-                    readBytes += data.Size();
+                    // Add data to the records.
+                    if (recordId >= firstRecordId) {
+                        records.push_back(data);
+                        readBytes += data.Size();
+                    }
                 }
-            }
-
+            });
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error reading changelog");
+            LOG_ERROR(ex, "Error reading changelog");
             Error_ = ex;
             throw;
         }
@@ -532,11 +543,13 @@ public:
             recordCount);
 
         try {
-            RecordCount_ = recordCount;
-            TruncatedRecordCount_ = recordCount;
-            UpdateLogHeader();
+            NFS::ExpectIOErrors([&] () {
+                RecordCount_ = recordCount;
+                TruncatedRecordCount_ = recordCount;
+                UpdateLogHeader();
+            });
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error truncating changelog");
+            LOG_ERROR(ex, "Error truncating changelog");
             Error_ = ex;
             throw;
         }

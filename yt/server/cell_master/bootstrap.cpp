@@ -435,8 +435,9 @@ void TBootstrap::DoInitialize()
         localPeerId);
 
     ChangelogStoreFactory_ = CreateLocalChangelogStoreFactory(
+        Config_->Changelogs,
         "ChangelogFlush",
-        Config_->Changelogs);
+        NProfiling::TProfiler("/changelogs"));
 
     auto fileSnapshotStore = New<TFileSnapshotStore>(
         Config_->Snapshots);

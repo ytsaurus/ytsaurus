@@ -294,6 +294,7 @@ void TNodeWrap::Initialize(Handle<Object> target)
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "SetByYPath", TNodeWrap::SetByYPath);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "GetAttribute", TNodeWrap::GetAttribute);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "SetAttribute", TNodeWrap::SetAttribute);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "GetNodeType", TNodeWrap::GetNodeType);
 
     target->Set(
         String::NewSymbol("TNodeWrap"),
@@ -593,6 +594,18 @@ Handle<Value> TNodeWrap::SetAttribute(const Arguments& args)
     }
 
     return args.This();
+}
+
+Handle<Value> TNodeWrap::GetNodeType(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YCHECK(args.Length() == 0);
+
+    INodePtr node = TNodeWrap::UnwrapNode(args.This());
+
+    return scope.Close(String::New(Format("%lv", node->GetType()).c_str()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

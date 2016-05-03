@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 2.8.10 FATAL_ERROR)
+
 if(POLICY CMP0037)
   cmake_policy(SET CMP0037 OLD) # Enable reserved "package" target
 endif()
@@ -16,8 +17,8 @@ option(YT_BUILD_ENABLE_DRIVER             "Build driver" TRUE)
 option(YT_BUILD_ENABLE_EXPERIMENTS        "Build experiments" TRUE)
 option(YT_BUILD_ENABLE_TESTS              "Build tests" TRUE)
 option(YT_BUILD_ENABLE_NODEJS             "Build NodeJS bindings" FALSE)
-option(YT_BUILD_ENABLE_PYTHON             "Build Python bindings" TRUE)
-option(YT_BUILD_ENABLE_PYTHON_SKYNET      "Build Python skynet bindings" FALSE)
+option(YT_BUILD_ENABLE_PYTHON_2_7         "Build Python 2.7 bindings" TRUE)
+option(YT_BUILD_ENABLE_PYTHON_SKYNET      "Build Python Skynet bindings" FALSE)
 option(YT_BUILD_ENABLE_PERL               "Build Perl bindings" FALSE)
 option(YT_BUILD_HAVE_RAGEL                "Do you have Ragel 6.8?" FALSE)
 option(YT_BUILD_HAVE_BISON                "Do you have Bison 3.0?" FALSE)
@@ -82,37 +83,58 @@ endif()
 include(PCH)
 include(PCFromUcontext)
 
-# Using CMake module FindLLVM.cmake form <root>/cmake directory.
+# Using CMake module FindLLVM.cmake from <root>/cmake directory.
 find_package(LLVM)
-
 link_directories(${LLVM_LIBRARY_DIRS})
 include_directories(${LLVM_INCLUDE_DIRS})
 
+# Sometimes we use Python for internal needs, so we need its interpreter.
+find_package(PythonInterp)
+
 # Discover Python world.
-if(YT_BUILD_ENABLE_PYTHON)
-  find_package(PythonInterp)
-  find_package(PythonLibs)
-  if(NOT PYTHONINTERP_FOUND)
-    message(FATAL_ERROR "Could not find Python interpreter to build with YT_BUILD_ENABLE_PYTHON=TRUE")
+# COMPAT(sandello): Trigger building of all Python bindings.
+if(DEFINED YT_BUILD_ENABLE_PYTHON)
+  if(NOT DEFINED YT_BUILD_ENABLE_PYTHON_2_7)
+    message(STATUS "[COMPAT] Setting YT_BUILD_ENABLE_PYTHON_2_7=ON due to YT_BUILD_ENABLE_PYTHON")
+    set(YT_BUILD_ENABLE_PYTHON_2_7 TRUE)
   endif()
-  if(NOT PYTHONLIBS_FOUND)
-    message(FATAL_ERROR "Could not find Python libraries to build with YT_BUILD_ENABLE_PYTHON=TRUE")
+  if(NOT DEFINED YT_BUILD_ENABLE_PYTHON_SKYNET)
+    message(STATUS "[COMPAT] Setting YT_BUILD_ENABLE_PYTHON_SKYNET=ON due to YT_BUILD_ENABLE_PYTHON")
+    set(YT_BUILD_ENABLE_PYTHON_SKYNET TRUE)
   endif()
-  message(STATUS "Using Python: ${PYTHON_EXECUTABLE} (-I${PYTHON_INCLUDE_DIR} -l${PYTHON_LIBRARY})")
+  unset(YT_BUILD_ENABLE_PYTHON CACHE)
+endif()
+if(NOT DEFINED YT_BUILD_ENABLE_PYTHON)
+  if(YT_BUILD_ENABLE_PYTHON_2_7 OR YT_BUILD_ENABLE_PYTHON_SKYNET)
+    set(YT_BUILD_ENABLE_PYTHON TRUE)
+    message(STATUS "[COMPAT] Setting YT_BUILD_ENABLE_PYTHON=ON")
+  endif()
 endif()
 
-# Discover skynet python.
-if(YT_BUILD_ENABLE_PYTHON_SKYNET)
-  set(PYTHON_SKYNET_EXECUTABLE "/skynet/python/bin/python")
-  set(PYTHON_SKYNET_INCLUDE_DIR "/skynet/python/include/python2.7")
-  set(PYTHON_SKYNET_LIBRARY "/skynet/python/lib/libpython2.7.so")
-  foreach(PYTHON_VAR ${PYTHON_SKYNET_EXECUTABLE} ${PYTHON_SKYNET_INCLUDE_DIR} ${PYTHON_SKYNET_LIBRARY})
-      if (NOT EXISTS ${PYTHON_VAR})
-        message(FATAL_ERROR "Failed to find Skynet Python: path ${PYTHON_VAR} does not exist")
-      endif()
-  endforeach(PYTHON_VAR)
-  message(STATUS "Using Skynet Python: ${PYTHON_SKYNET_EXECUTABLE} (-I${PYTHON_SKYNET_INCLUDE_DIR} -l${PYTHON_SKYNET_LIBRARY})")
+set(PYTHON_KINDS)
+mark_as_advanced(PYTHON_KINDS)
+
+function(CHECK_PYTHON_KIND kind include_dir)
+  if(NOT EXISTS ${include_dir})
+    message(FATAL_ERROR "[PYTHON] Kind \"${kind}\": Could not find include directory \"${include_dir}\": path does not exist")
+  endif()
+  message(STATUS "[PYTHON] Kind \"${kind}\": Using -I${include_dir}")
+  set(PYTHON_${kind}_INCLUDE_DIR "${include_dir}" PARENT_SCOPE)
+  mark_as_advanced(PYTHON_${kind}_INCLUDE_DIR)
+  set(PYTHON_KINDS ${PYTHON_KINDS} ${kind} PARENT_SCOPE)
+endfunction()
+
+# Discover Python 2.7 world.
+if(YT_BUILD_ENABLE_PYTHON_2_7)
+  check_python_kind("2_7" "/usr/include/python2.7")
 endif()
+
+# Discover Python Skynet world.
+if(YT_BUILD_ENABLE_PYTHON_SKYNET)
+  check_python_kind("SKYNET" "/skynet/python/include/python2.7")
+endif()
+
+message(STATUS "[PYTHON] Using following kinds of Python: \"${PYTHON_KINDS}\"")
 
 # Discover Perl world.
 if(YT_BUILD_ENABLE_PERL)
@@ -147,9 +169,13 @@ if(YT_BUILD_HAVE_BISON)
   message(STATUS "Found Bison: ${BISON_EXECUTABLE}")
 endif()
 
+################################################################################
+# Assemble project.
+
 add_subdirectory(debian)
 add_subdirectory(cmake/deps-protobuf)
 add_subdirectory(cmake/deps-arcadia-util)
+add_subdirectory(cmake/deps-arcadia-contrib-libs-minilzo)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-re2)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-snappy)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-zlib)
@@ -167,7 +193,6 @@ add_subdirectory(cmake/deps-yt-contrib-libev)
 add_subdirectory(cmake/deps-yt-contrib-lz4)
 add_subdirectory(cmake/deps-yt-contrib-farmhash)
 add_subdirectory(cmake/deps-yt-contrib-fastlz)
-add_subdirectory(cmake/deps-yt-contrib-minilzo)
 add_subdirectory(cmake/deps-yt-contrib-quicklz)
 add_subdirectory(cmake/deps-yt-contrib-zstd)
 add_subdirectory(cmake/deps-yt-contrib-zstd-legacy)
@@ -180,106 +205,108 @@ if(YT_BUILD_ENABLE_PERL)
   add_subdirectory(perl)
 endif()
 
-if(YT_BUILD_ENABLE_PYTHON)
-  add_subdirectory(cmake/deps-pycxx)
-endif()
+################################################################################
+# Packaging.
 
-execute_process(COMMAND lsb_release --codename --short
-                OUTPUT_VARIABLE LSB_RELEASE)
-if(${LSB_RELEASE} MATCHES "trusty")
-  set(DCH_VENDOR_FLAG "--vendor")
+# Check if we can build package. We must build all bindings,
+# because otherwise Debian scripts would produce empty packages.
+
+set(YT_CAN_BUILD_PACKAGE TRUE)
+foreach(YT_BUILD_ENABLE
+  YT_BUILD_ENABLE_NODEJS YT_BUILD_ENABLE_PERL
+  YT_BUILD_ENABLE_PYTHON_2_7 YT_BUILD_ENABLE_PYTHON_SKYNET)
+  if(NOT ${${YT_BUILD_ENABLE}})
+    message(STATUS "[PACKAGE] Disabling Debian packaging due to ${YT_BUILD_ENABLE}=OFF")
+    set(YT_CAN_BUILD_PACKAGE FALSE)
+  endif()
+endforeach()
+
+if(YT_CAN_BUILD_PACKAGE)
+  execute_process(COMMAND lsb_release --codename --short
+                  OUTPUT_VARIABLE LSB_RELEASE)
+  if(${LSB_RELEASE} MATCHES "trusty")
+    set(DCH_VENDOR_FLAG "--vendor")
+  else()
+    set(DCH_VENDOR_FLAG "--distributor")
+  endif()
+
+  add_custom_target(changelog touch changelog-stamp
+    COMMAND cp -r ${CMAKE_SOURCE_DIR}/debian ${CMAKE_BINARY_DIR}/debian
+    COMMAND mkdir -p ARTIFACTS
+    COMMAND dch
+      ${DCH_VENDOR_FLAG} "yandex"
+      --distribution "unstable"
+      --newversion "${YT_VERSION}"
+      --urgency "low"
+      --force-distribution
+      "Package version bump\; no source changes."
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    COMMENT "Updating changelog..."
+  )
+
+  add_custom_target(package touch package-stamp
+    COMMAND debuild
+      -e SOURCE_DIR=${CMAKE_SOURCE_DIR}
+      --no-tgz-check
+      --no-lintian
+      --check-dirname-level 0
+      -b
+    COMMAND mv
+      ../yandex-yt*${YT_VERSION}*
+      ${CMAKE_BINARY_DIR}/ARTIFACTS
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    COMMENT "Packaging YT..."
+    DEPENDS changelog
+  )
+
+  add_custom_target(python-package touch python-package-stamp
+    COMMAND cat ${CMAKE_BINARY_DIR}/debian/changelog | sed 's/^yandex-yt/yandex-yt-python-driver/' > ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver/debian/changelog
+    COMMAND ${CMAKE_SOURCE_DIR}/python/build_driver.sh
+    COMMAND mv
+      ../yandex-yt*${YT_VERSION}*
+      ${CMAKE_BINARY_DIR}/ARTIFACTS
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/python
+    COMMENT "Packaging YT Python..."
+    DEPENDS changelog
+  )
+
+  function(HOOK_FOR_DEBIAN package component)
+    add_custom_target(
+      install-debian-${package}
+      ${CMAKE_COMMAND}
+        -DCOMPONENT=${component}
+        -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+      COMMENT "Installing for package \"${package}\"..."
+    )
+  endfunction()
+
+  # Check-list for adding a new package:
+  # 1) Here, below, in Debian-CMake hook.
+  # 2) debian/control
+  # 3) debian/rules
+  hook_for_debian(yandex-yt Unspecified)
+  hook_for_debian(yandex-yt-messagebus-proxy messagebus_proxy)
+  hook_for_debian(yandex-yt-standalone standalone)
+  hook_for_debian(yandex-yt-http-proxy nodejs)
+  hook_for_debian(yandex-yt-perl perl-module)
+  hook_for_debian(yandex-yt-perl-${YT_ABI_VERSION} perl-abi)
+  hook_for_debian(yandex-yt-python-2-7-driver yt-python-2-7-driver)
+  hook_for_debian(yandex-yt-python-2-7-yson yt-python-2-7-yson)
+  hook_for_debian(yandex-yt-python-skynet-driver yt-python-skynet-driver)
+  hook_for_debian(yandex-yt-python-skynet-yson yt-python-skynet-yson)
 else()
-  set(DCH_VENDOR_FLAG "--distributor")
+  add_custom_target(package touch package-stamp
+    COMMAND ${CMAKE_COMMAND} -E echo -- PACKAGE BUILD IS DISABLED -- SEE CMAKE OUTPUT && exit 100
+  )
+  add_custom_target(python-package touch python-package-stamp
+    COMMAND ${CMAKE_COMMAND} -E echo -- PACKAGE BUILD IS DISABLED -- SEE CMAKE OUTPUT && exit 100
+  )
 endif()
 
-add_custom_target( changelog touch changelog-stamp
-  COMMAND cp -r ${CMAKE_SOURCE_DIR}/debian ${CMAKE_BINARY_DIR}/debian
-  COMMAND mkdir -p ARTIFACTS
-  COMMAND dch
-    ${DCH_VENDOR_FLAG} "yandex"
-    --distribution "unstable"
-    --newversion "${YT_VERSION}"
-    --urgency "low"
-    --force-distribution
-    "Package version bump\; no source changes."
-  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-  COMMENT "Updating changelog..."
-)
-
-add_custom_target( package touch package-stamp
-  COMMAND debuild
-    -e SOURCE_DIR=${CMAKE_SOURCE_DIR}
-    --no-tgz-check
-    --no-lintian
-    --check-dirname-level 0
-    -b
-  COMMAND mv
-    ../yandex-yt*${YT_VERSION}*
-    ARTIFACTS
-  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-  COMMENT "Packaging YT..."
-  DEPENDS changelog
-)
-
-add_custom_target( python-package touch python-package-stamp
-  COMMAND cat ${CMAKE_BINARY_DIR}/debian/changelog | sed 's/^yandex-yt/yandex-yt-python-driver/' > ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver/debian/changelog
-  COMMAND ${CMAKE_SOURCE_DIR}/python/build_driver.sh
-  COMMAND mv
-    ../yandex-yt*${YT_VERSION}*
-    ${CMAKE_BINARY_DIR}/ARTIFACTS
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/python
-  COMMENT "Packaging YT python driver..."
-  DEPENDS changelog
-)
-
-add_custom_target(
-  version
+add_custom_target(version
   touch version-stamp
   COMMAND echo "${YT_VERSION}" > ytversion
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Stamping YT..."
-)
-
-add_custom_target(
-  install-debian-yandex-yt
-  ${CMAKE_COMMAND}
-    -DCOMPONENT=Unspecified
-    -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-  COMMENT "Installing for package 'yandex-yt'..."
-)
-
-add_custom_target( install-debian-yandex-yt-messagebus-proxy
-  ${CMAKE_COMMAND}
-    -DCOMPONENT=messagebus_proxy
-    -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-  COMMENT "Installing for package 'yandex-yt-messagebus-proxy'..."
-)
-
-add_custom_target( install-debian-yandex-yt-standalone
-  ${CMAKE_COMMAND}
-    -DCOMPONENT=standalone
-    -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-  COMMENT "Installing for package 'yandex-yt-standalone'..."
-)
-
-add_custom_target( install-debian-yandex-yt-http-proxy
-  ${CMAKE_COMMAND}
-    -DCOMPONENT=nodejs
-    -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-  COMMENT "Installing for package 'yandex-yt-http-proxy'..."
-)
-
-add_custom_target( install-debian-yandex-yt-perl
-  ${CMAKE_COMMAND}
-    -DCOMPONENT=perl
-    -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-  COMMENT "Installing for package 'yandex-yt-perl'..."
-)
-
-add_custom_target( install-debian-yandex-yt-perl-${YT_ABI_VERSION}
-  ${CMAKE_COMMAND}
-    -DCOMPONENT=perl-abi
-    -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-  COMMENT "Installing for package 'yandex-yt-perl-${YT_ABI_VERSION}'..."
 )
 

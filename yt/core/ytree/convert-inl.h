@@ -1,5 +1,5 @@
 #ifndef CONVERT_INL_H_
-#error "Direct inclusion of this file is not allowed, include convert.h"
+#error "Direct inclusion of this file is not allowed, Tnclude convert.h"
 #endif
 
 #include "default_building_consumer.h"
@@ -14,8 +14,51 @@
 #include <yt/core/yson/stream.h>
 #include <yt/core/yson/producer.h>
 
+#include <type_traits>
+#include <limits>
+
 namespace NYT {
 namespace NYTree {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+template <class T, class S>
+typename std::enable_if<std::is_signed<T>::value && std::is_signed<S>::value, bool>::type CheckIntegralCast(S value)
+{
+    return value >= std::numeric_limits<T>::min() && value <= std::numeric_limits<T>::max();
+}
+
+template <class T, class S>
+static typename std::enable_if<std::is_signed<T>::value && std::is_unsigned<S>::value, bool>::type CheckIntegralCast(S value)
+{
+    return value <= static_cast<typename std::make_unsigned<T>::type>(std::numeric_limits<T>::max());
+}
+
+template <class T, class S>
+static typename std::enable_if<std::is_unsigned<T>::value && std::is_signed<S>::value, bool>::type CheckIntegralCast(S value)
+{
+    return value >= 0 && static_cast<typename std::make_unsigned<S>::type>(value) <= std::numeric_limits<T>::max();
+}
+
+template <class T, class S>
+typename std::enable_if<std::is_unsigned<T>::value && std::is_unsigned<S>::value, bool>::type CheckIntegralCast(S value)
+{
+    return value <= std::numeric_limits<T>::max();
+}
+
+} // namespace
+
+template <class T, class S>
+T CheckedIntegralCast(S value)
+{
+    if (!CheckIntegralCast<T>(value)) {
+        THROW_ERROR_EXCEPTION("Argument value %v is out of expected range",
+            value);
+    }
+    return static_cast<T>(value);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,37 +172,33 @@ TTo ConvertTo(const TFrom& value)
 
 const NYson::TToken& SkipAttributes(NYson::TTokenizer* tokenizer);
 
-template <>
-inline i64 ConvertTo(const NYson::TYsonString& str)
-{
-    NYson::TTokenizer tokenizer(str.Data());
-    const auto& token = SkipAttributes(&tokenizer);
-    switch (token.GetType()) {
-        case NYson::ETokenType::Int64:
-            return token.GetInt64Value();
-        case NYson::ETokenType::Uint64:
-            return token.GetUint64Value();
-        default:
-            THROW_ERROR_EXCEPTION("Cannot parse int64 from %Qv",
-                str.Data());
+#define IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(type) \
+    template <> \
+    inline type ConvertTo(const NYson::TYsonString& str) \
+    { \
+        NYson::TTokenizer tokenizer(str.Data()); \
+        const auto& token = SkipAttributes(&tokenizer); \
+        switch (token.GetType()) { \
+            case NYson::ETokenType::Int64: \
+                return CheckedIntegralCast<type>(token.GetInt64Value()); \
+            case NYson::ETokenType::Uint64: \
+                return CheckedIntegralCast<type>(token.GetUint64Value()); \
+            default: \
+                THROW_ERROR_EXCEPTION("Cannot parse \"" #type "\" value from %Qv", \
+                    str.Data()); \
+        } \
     }
-}
 
-template <>
-inline ui64 ConvertTo(const NYson::TYsonString& str)
-{
-    NYson::TTokenizer tokenizer(str.Data());
-    const auto& token = SkipAttributes(&tokenizer);
-    switch (token.GetType()) {
-        case NYson::ETokenType::Int64:
-            return token.GetInt64Value();
-        case NYson::ETokenType::Uint64:
-            return token.GetUint64Value();
-        default:
-            THROW_ERROR_EXCEPTION("Cannot parse uint64 from %Qv",
-                str.Data());
-    }
-}
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(i64)
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(i32)
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(i16)
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(i8)
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(ui64)
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(ui32)
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(ui16)
+IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(ui8)
+
+#undef IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO
 
 template <>
 inline double ConvertTo(const NYson::TYsonString& str)

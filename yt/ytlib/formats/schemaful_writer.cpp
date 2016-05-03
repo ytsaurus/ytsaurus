@@ -32,6 +32,11 @@ bool TSchemafulWriter::Write(const std::vector<TUnversionedRow>& rows)
 
     int columnCount = static_cast<int>(Schema_.Columns().size());
     for (auto row : rows) {
+        if (!row) {
+            Consumer_->OnEntity();
+            continue;
+        }
+
         YASSERT(row.GetCount() >= columnCount);
         Consumer_->OnBeginMap();
         for (int index = 0; index < columnCount; ++index) {

@@ -32,7 +32,7 @@ private:
     TSpinLock SpinLock_;
 
     std::vector<Stroka> IdToName_;
-    yhash_map<TStringBuf, int> NameToId_; // String values are owned by IdToName.
+    yhash_map<TStringBuf, int> NameToId_; // String values are owned by IdToName_.
     i64 ByteSize_ = 0;
 
     int DoRegisterName(const TStringBuf& name);
@@ -59,6 +59,25 @@ private:
     mutable std::vector<Stroka> IdToNameCache_;
 
     void Fill() const;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A non thread-safe read-write wrapper for TNameTable.
+class TNameTableWriter
+{
+public:
+    explicit TNameTableWriter(TNameTablePtr nameTable);
+
+    TNullable<int> FindId(const TStringBuf& name) const;
+    int GetIdOrRegisterName(const TStringBuf& name);
+
+private:
+    const TNameTablePtr NameTable_;
+
+    mutable std::vector<Stroka> Names_;
+    mutable yhash_map<TStringBuf, int> NameToId_; // String values are owned by Names_.
 
 };
 

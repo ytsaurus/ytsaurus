@@ -10,9 +10,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IAttributeDictionary::~IAttributeDictionary()
-{ }
-
 TYsonString IAttributeDictionary::GetYson(const Stroka& key) const
 {
     const auto& result = FindYson(key);

@@ -247,7 +247,7 @@ private:
     const TActionQueuePtr AuxQueue_;
 
     std::vector<std::unique_ptr<TOutputStream>> TableOutputs_;
-    std::vector<TWritingValueConsumerPtr> WritingValueConsumers_;
+    std::vector<std::unique_ptr<TWritingValueConsumer>> WritingValueConsumers_;
 
     std::unique_ptr<TFileChunkOutput> ErrorOutput_;
     std::unique_ptr<TTableOutput> StatisticsOutput_;
@@ -301,7 +301,7 @@ private:
 
         // Init environment variables.
         TPatternFormatter formatter;
-        formatter.AddProperty("SandboxPath", NFS::CombinePaths(GetCwd(), SandboxDirectoryNames[ESandboxKind::User]));
+        formatter.AddProperty("SandboxPath", NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::User]));
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
             Process_->AddArguments({"--env", formatter.Format(UserJobSpec_.environment(i))});
@@ -509,12 +509,12 @@ private:
         return std::max(result, JobStatisticsFD + 1);
     }
 
-    std::vector<IValueConsumerPtr> CreateValueConsumers()
+    std::vector<IValueConsumer*> CreateValueConsumers()
     {
-        std::vector<IValueConsumerPtr> valueConsumers;
+        std::vector<IValueConsumer*> valueConsumers;
         for (const auto& writer : JobIO_->GetWriters()) {
-            WritingValueConsumers_.push_back(New<TWritingValueConsumer>(writer));
-            valueConsumers.push_back(WritingValueConsumers_.back());
+            WritingValueConsumers_.emplace_back(new TWritingValueConsumer(writer));
+            valueConsumers.push_back(WritingValueConsumers_.back().get());
         }
         return valueConsumers;
     }
@@ -544,7 +544,7 @@ private:
         }
 
         FinalizeActions_.push_back(BIND([=] () {
-            for (auto valueConsumer : WritingValueConsumers_) {
+            for (const auto& valueConsumer : WritingValueConsumers_) {
                 valueConsumer->Flush();
             }
 

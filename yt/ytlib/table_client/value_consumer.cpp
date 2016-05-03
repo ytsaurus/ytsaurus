@@ -60,7 +60,7 @@ void TBuildingValueConsumer::OnBeginRow()
 
 TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedValue& value)
 {
-    NYson::TYsonWriter writer(&ValueBuffer_);
+    NYson::TBufferedBinaryYsonWriter writer(&ValueBuffer_);
     switch (value.Type) {
         case EValueType::Int64:
             writer.OnInt64Scalar(value.Data.Int64);
@@ -83,6 +83,7 @@ TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedVa
         default:
             YUNREACHABLE();
     }
+    writer.Flush();
 
     return MakeUnversionedAnyValue(
         TStringBuf(
