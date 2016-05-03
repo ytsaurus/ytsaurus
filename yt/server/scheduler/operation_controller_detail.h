@@ -28,6 +28,7 @@
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/value_consumer.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
@@ -944,7 +945,8 @@ private:
     std::vector<TExecNodeDescriptor> ExecNodesDescriptors_;
     TInstant LastGetExecNodesInformationTime_;
 
-    std::unique_ptr<NYson::IYsonConsumer> EventLogConsumer_;
+    const std::unique_ptr<NTableClient::IValueConsumer> EventLogValueConsumer_;
+    const std::unique_ptr<NYson::IYsonConsumer> EventLogTableConsumer_;
 
     void GetExecNodesInformation();
     int GetExecNodeCount();

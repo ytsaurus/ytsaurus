@@ -829,28 +829,18 @@ void TObjectManager::FillAttributes(
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto keys = attributes.List();
-    if (keys.empty())
+    if (keys.empty()) {
         return;
+    }
 
     auto proxy = GetProxy(object, nullptr);
     std::vector<ISystemAttributeProvider::TAttributeDescriptor> systemDescriptors;
     proxy->ListBuiltinAttributes(&systemDescriptors);
 
-    yhash_set<Stroka> systemAttributeKeys;
-    for (const auto& descriptor : systemDescriptors) {
-        YCHECK(systemAttributeKeys.insert(descriptor.Key).second);
-    }
-
     std::sort(keys.begin(), keys.end());
     for (const auto& key : keys) {
         auto value = attributes.GetYson(key);
-        if (systemAttributeKeys.find(key) == systemAttributeKeys.end()) {
-            proxy->MutableAttributes()->SetYson(key, value);
-        } else {
-            if (!proxy->SetBuiltinAttribute(key, value)) {
-                ThrowCannotSetBuiltinAttribute(key);
-            }
-        }
+        proxy->MutableAttributes()->Set(key, value);
     }
 }
 
@@ -1123,8 +1113,8 @@ void TObjectManager::HydraExecuteLeader(
         context->Reply(ex);
     }
 
-    if (IsLeader() && IsObjectAlive(user)) {
-        securityManager->ChargeUser(user, 1, TDuration(), timer.GetElapsed());
+    if (!IsRecovery() && IsObjectAlive(user)) {
+        securityManager->ChargeUserWrite(user, 1, timer.GetElapsed());
     }
 
     auto mutationId = GetMutationId(context);
@@ -1285,7 +1275,7 @@ void TObjectManager::OnProfiling()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    Profiler.Enqueue("/zombie_object_coun", GarbageCollector_->GetZombieCount());
+    Profiler.Enqueue("/zombie_object_count", GarbageCollector_->GetZombieCount());
     Profiler.Enqueue("/ghost_object_count", GarbageCollector_->GetGhostCount());
     Profiler.Enqueue("/created_objects", CreatedObjects_);
     Profiler.Enqueue("/destroyed_objects", DestroyedObjects_);

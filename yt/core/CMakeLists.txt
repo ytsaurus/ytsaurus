@@ -228,6 +228,8 @@ LIBRARY()
 
 OWNER(sandello)
 
+NO_WERROR()
+
 CXXFLAGS(
   -std=c++1y
   -Wno-sign-compare

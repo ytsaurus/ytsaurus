@@ -8,11 +8,7 @@ namespace NYson {
 
 TAsyncYsonWriter::TAsyncYsonWriter(EYsonType type)
     : Type_(type)
-    , SyncWriter_(
-        &Stream_,
-        EYsonFormat::Binary,
-        type,
-        true)
+    , SyncWriter_(&Stream_, type)
 { }
 
 void TAsyncYsonWriter::OnStringScalar(const TStringBuf& value)
@@ -127,6 +123,7 @@ TFuture<TYsonString> TAsyncYsonWriter::Finish()
 
 void TAsyncYsonWriter::FlushCurrentSegment()
 {
+    SyncWriter_.Flush();
     if (!Stream_.Str().empty()) {
         AsyncSegments_.push_back(MakeFuture(Stream_.Str()));
         Stream_.Str().clear();

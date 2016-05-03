@@ -94,10 +94,11 @@ TChunkReplicator::TChunkReplicator(
     , Bootstrap_(bootstrap)
     , ChunkPlacement_(chunkPlacement)
     , ChunkRefreshDelay_(DurationToCpuDuration(Config_->ChunkRefreshDelay))
-    , JobThrottler_(CreateLimitedThrottler(
-        Config_->JobThrottler,
-        ChunkServerLogger,
-        NProfiling::TProfiler(ChunkServerProfiler.GetPathPrefix() + "/job_throttler")))
+    , JobThrottler_(
+        CreateReconfigurableThroughputThrottler(
+            Config_->JobThrottler,
+            ChunkServerLogger,
+            NProfiling::TProfiler(ChunkServerProfiler.GetPathPrefix() + "/job_throttler")))
 {
     YCHECK(Config_);
     YCHECK(Bootstrap_);
@@ -183,7 +184,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     int replicaCount = 0;
     int decommissionedReplicaCount = 0;
     TNodePtrWithIndexList decommissionedReplicas;
-    TRackSet usedRacks = 0;
+    TRackSet usedRacks;
     int usedRackCount = 0;
 
     for (auto replica : chunk->StoredReplicas()) {
@@ -194,9 +195,9 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             ++replicaCount;
         }
         const auto* rack = replica.GetPtr()->GetRack();
-        auto rackMask = rack == nullptr ? NullRackMask : rack->GetIndexMask();
-        if (!(usedRacks & rackMask)) {
-            usedRacks |= rackMask;
+        int rackIndex = rack ? rack->GetIndex() : NullRackIndex;
+        if (!usedRacks.test(rackIndex)) {
+            usedRacks.set(rackIndex);
             ++usedRackCount;
         }
     }
@@ -222,7 +223,9 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         result.BalancingRemovalIndexes.push_back(GenericChunkReplicaIndex);
     }
 
-    if (replicationFactor > 1 && usedRackCount == 1 && usedRacks != NullRackMask) {
+    TRackSet nullRackMask;
+    nullRackMask.set(NullRackIndex);
+    if (replicationFactor > 1 && usedRackCount == 1 && usedRacks != nullRackMask) {
         // A regular chunk is considered placed unsafely if all of its replicas are placed in
         // one non-null rack. Also, for RF=1 rack awareness is effectively off.
         result.Status |= EChunkStatus::UnsafelyPlaced;
@@ -330,7 +333,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
     int sealedReplicaCount = 0;
     int unsealedReplicaCount = 0;
     TNodePtrWithIndexList decommissionedReplicas;
-    TRackSet usedRacks = 0;
+    TRackSet usedRacks;
     bool hasUnsafelyPlacedReplicas = false;
 
     for (auto replica : chunk->StoredReplicas()) {
@@ -347,13 +350,13 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
         }
         const auto* rack = replica.GetPtr()->GetRack();
         if (rack) {
-            auto rackMask = rack->GetIndexMask();
-            if (usedRacks & rackMask) {
+            int rackIndex = rack->GetIndex();
+            if (usedRacks.test(rackIndex)) {
                 // A journal chunk is considered placed unsafely if some non-null rack
                 // contains more than one of its replicas.
                 hasUnsafelyPlacedReplicas = true;
             } else {
-                usedRacks |= rackMask;
+                usedRacks.set(rackIndex);
             }
         }
     }

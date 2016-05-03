@@ -243,16 +243,6 @@ void Deserialize(std::unique_ptr<T>& value, INodePtr node)
     Deserialize(*value, node);
 }
 
-template <class T, class S>
-T CheckedStaticCast(S value)
-{
-    if (value < std::numeric_limits<T>::min() || value > std::numeric_limits<T>::max()) {
-        THROW_ERROR_EXCEPTION("Argument value %v is out of expected range",
-            value);
-    }
-    return static_cast<T>(value);
-}
-
 // Enums
 template <class T>
 typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type Deserialize(

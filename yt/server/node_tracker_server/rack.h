@@ -25,8 +25,6 @@ public:
 public:
     explicit TRack(const TRackId& id);
 
-    TRackSet GetIndexMask() const;
-
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 

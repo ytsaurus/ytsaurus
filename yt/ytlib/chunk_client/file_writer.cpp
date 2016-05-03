@@ -38,10 +38,12 @@ TFuture<void> TFileWriter::Open()
     YCHECK(!IsClosed_);
 
     try {
-        // NB: Races are possible between file creation and a call to flock.
-        // Unfortunately in Linux we can't create'n'flock a file atomically.
-        DataFile_.reset(new TFile(FileName_ + NFS::TempFileSuffix, FileMode));
-        DataFile_->Flock(LOCK_EX);
+        NFS::ExpectIOErrors([&] () {
+            // NB: Races are possible between file creation and a call to flock.
+            // Unfortunately in Linux we can't create'n'flock a file atomically.
+            DataFile_.reset(new TFile(FileName_ + NFS::TempFileSuffix, FileMode));
+            DataFile_->Flock(LOCK_EX);
+        });
     } catch (const std::exception& ex) {
         return MakeFuture(TError(
             "Error opening chunk data file %v",
@@ -60,16 +62,17 @@ bool TFileWriter::WriteBlock(const TSharedRef& block)
     YCHECK(!IsClosed_);
 
     try {
-        auto* blockInfo = BlocksExt_.add_blocks();
-        blockInfo->set_offset(DataFile_->GetPosition());
-        blockInfo->set_size(static_cast<int>(block.Size()));
+        NFS::ExpectIOErrors([&] () {
+            auto* blockInfo = BlocksExt_.add_blocks();
+            blockInfo->set_offset(DataFile_->GetPosition());
+            blockInfo->set_size(static_cast<int>(block.Size()));
 
-        auto checksum = GetChecksum(block);
-        blockInfo->set_checksum(checksum);
-        DataFile_->Write(block.Begin(), block.Size());
+            auto checksum = GetChecksum(block);
+            blockInfo->set_checksum(checksum);
 
-        DataSize_ += block.Size();
-        return true;
+            DataFile_->Write(block.Begin(), block.Size());
+            DataSize_ += block.Size();
+        });
     } catch (const std::exception& ex) {
         Error_ = TError(
             "Failed to write chunk data file %v",
@@ -77,6 +80,8 @@ bool TFileWriter::WriteBlock(const TSharedRef& block)
             << ex;
         return false;
     }
+
+    return true;
 }
 
 bool TFileWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
@@ -110,11 +115,13 @@ TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMe
     IsClosed_ = true;
 
     try {
-        if (SyncOnClose_) {
-            DataFile_->Flush();
-        }
-        DataFile_->Close();
-        DataFile_.reset();
+        NFS::ExpectIOErrors([&] () {
+            if (SyncOnClose_) {
+                DataFile_->Flush();
+            }
+            DataFile_->Close();
+            DataFile_.reset();
+        });
     } catch (const std::exception& ex) {
         return MakeFuture(TError(
             "Error closing chunk data file %v",
@@ -136,23 +143,26 @@ TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMe
     auto metaFileName = FileName_ + ChunkMetaSuffix;
 
     try {
-        TFile chunkMetaFile(metaFileName + NFS::TempFileSuffix, FileMode);
+        NFS::ExpectIOErrors([&] () {
+            TFile chunkMetaFile(metaFileName + NFS::TempFileSuffix, FileMode);
 
-        WritePod(chunkMetaFile, header);
-        chunkMetaFile.Write(metaData.Begin(), metaData.Size());
+            WritePod(chunkMetaFile, header);
 
-        if (SyncOnClose_) {
-            chunkMetaFile.Flush();
-        }
+            chunkMetaFile.Write(metaData.Begin(), metaData.Size());
 
-        chunkMetaFile.Close();
+            if (SyncOnClose_) {
+                chunkMetaFile.Flush();
+            }
 
-        NFS::Rename(metaFileName + NFS::TempFileSuffix, metaFileName);
-        NFS::Rename(FileName_ + NFS::TempFileSuffix, FileName_);
+            chunkMetaFile.Close();
 
-        if (SyncOnClose_) {
-            NFS::FlushDirectory(NFS::GetDirectoryName(FileName_));
-        }
+            NFS::Rename(metaFileName + NFS::TempFileSuffix, metaFileName);
+            NFS::Rename(FileName_ + NFS::TempFileSuffix, FileName_);
+
+            if (SyncOnClose_) {
+                NFS::FlushDirectory(NFS::GetDirectoryName(FileName_));
+            }
+        });
     } catch (const std::exception& ex) {
         return MakeFuture(TError(
             "Error writing chunk meta file %v",

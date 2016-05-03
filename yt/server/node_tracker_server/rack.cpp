@@ -12,12 +12,6 @@ TRack::TRack(const TRackId& id)
     , Index_(-1)
 { }
 
-TRackSet TRack::GetIndexMask() const
-{
-    YASSERT(Index_ > NullRackIndex && Index_ < MaxRackCount);
-    return 1ULL << Index_;
-}
-
 void TRack::Save(NCellMaster::TSaveContext& context) const
 {
     TObjectBase::Save(context);

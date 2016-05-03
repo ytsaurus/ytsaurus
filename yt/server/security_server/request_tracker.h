@@ -27,11 +27,25 @@ public:
     void Start();
     void Stop();
 
-    void ChargeUser(
+    void ChargeUserRead(
         TUser* user,
         int requestCount,
-        TDuration readRequestTime,
-        TDuration writeRequestTime);
+        TDuration requestTime);
+
+    void ChargeUserWrite(
+        TUser* user,
+        int requestCount,
+        TDuration requestTime);
+
+    TFuture<void> ThrottleUser(
+        TUser* user,
+        int requestCount);
+
+    void SetUserRequestRateLimit(
+        TUser* user,
+        double limit);
+
+    void ReconfigureUserRequestRateThrottler(TUser* user);
 
 private:
     const TSecurityManagerConfigPtr Config_;
@@ -45,6 +59,11 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
+    void DoChargeUser(
+        TUser* user,
+        int requestCount,
+        TDuration readRequestTime,
+        TDuration writeRequestTime);
     void Reset();
     void OnFlush();
 

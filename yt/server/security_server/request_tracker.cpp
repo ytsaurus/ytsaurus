@@ -13,6 +13,9 @@
 
 #include <yt/core/profiling/timing.h>
 
+#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/core/concurrency/config.h>
+
 namespace NYT {
 namespace NSecurityServer {
 
@@ -39,6 +42,12 @@ void TRequestTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    auto securityManager = Bootstrap_->GetSecurityManager();
+    for (const auto& pair : securityManager->Users()) {
+        auto* user = pair.second;
+        ReconfigureUserRequestRateThrottler(user);
+    }
+
     YCHECK(!FlushExecutor_);
     FlushExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
@@ -54,14 +63,35 @@ void TRequestTracker::Stop()
     auto securityManager = Bootstrap_->GetSecurityManager();
     for (const auto& pair : securityManager->Users()) {
         auto* user = pair.second;
-        user->ResetRequestRate();
+        user->SetRequestRateThrottler(nullptr);
     }
 
     FlushExecutor_.Reset();
     Reset();
 }
 
-void TRequestTracker::ChargeUser(
+void TRequestTracker::ChargeUserRead(
+    TUser* user,
+    int requestCount,
+    TDuration requestTime)
+{
+    DoChargeUser(user, requestCount, requestTime, TDuration());
+}
+
+void TRequestTracker::ChargeUserWrite(
+    TUser* user,
+    int requestCount,
+    TDuration requestTime)
+{
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    if (hydraManager->IsLeader()) {
+        DoChargeUser(user, requestCount, TDuration(), requestTime);
+    } else {
+        user->GetRequestRateThrottler()->Acquire(requestCount);
+    }
+}
+
+void TRequestTracker::DoChargeUser(
     TUser* user,
     int requestCount,
     TDuration readRequestTime,
@@ -89,6 +119,28 @@ void TRequestTracker::ChargeUser(
     statistics->set_read_request_time(ToProto(FromProto<TDuration>(statistics->read_request_time()) + readRequestTime));
     statistics->set_write_request_time(ToProto(FromProto<TDuration>(statistics->write_request_time()) + writeRequestTime));
     statistics->set_access_time(ToProto(now));
+}
+
+TFuture<void> TRequestTracker::ThrottleUser(TUser* user, int requestCount)
+{
+    return user->GetRequestRateThrottler()->Throttle(requestCount);
+}
+
+void TRequestTracker::SetUserRequestRateLimit(TUser* user, double limit)
+{
+    user->SetRequestRateLimit(limit);
+    ReconfigureUserRequestRateThrottler(user);
+}
+
+void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
+{
+    if (!user->GetRequestRateThrottler()) {
+        user->SetRequestRateThrottler(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()));
+    }
+    auto config = New<TThroughputThrottlerConfig>();
+    config->Period = Config_->RequestRateSmoothingPeriod;
+    config->Limit = user->GetRequestRateLimit();
+    user->GetRequestRateThrottler()->Reconfigure(std::move(config));
 }
 
 void TRequestTracker::Reset()

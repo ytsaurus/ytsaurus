@@ -118,7 +118,7 @@ Stroka GetFileName(const Stroka& path)
 
 Stroka GetDirectoryName(const Stroka& path)
 {
-    auto absPath = CombinePaths(GetCwd(), path);
+    auto absPath = CombinePaths(NFs::CurrentWorkingDirectory(), path);
     size_t slashPosition = absPath.find_last_of(LOCSLASH_C);
     return absPath.substr(0, slashPosition);
 }
@@ -503,6 +503,22 @@ void Umount(const Stroka& path)
 #else
     ThrowNotSupported();
 #endif
+}
+
+void ExpectIOErrors(std::function<void()> func)
+{
+    try {
+        func();
+    } catch (const TSystemError& ex) {
+        if (ex.Status() == EIO) {
+            throw;
+        }
+        TError error(ex);
+        LOG_FATAL(error,"Unexpected exception thrown during IO operation");
+    } catch (...) {
+        TError error(CurrentExceptionMessage());
+        LOG_FATAL(error, "Unexpected exception thrown during IO operation");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,8 @@
 #include "config.h"
 #include "private.h"
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_replica.h>
 
@@ -27,6 +29,7 @@ namespace NCellNode {
 
 using namespace NRpc;
 using namespace NConcurrency;
+using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
@@ -62,7 +65,7 @@ public:
             ConnectionConfig_,
             channelFactory,
             EPeerKind::Follower))
-        , CostThrottler_(CreateLimitedThrottler(ServiceConfig_->CostThrottler))
+        , CostThrottler_(CreateReconfigurableThroughputThrottler(ServiceConfig_->CostThrottler))
         , LocateChunksBatcher_(New<TLocateChunksBatcher>(this))
         , AllocateWriteTargetsBatcher_(New<TAllocateWriteTargetsBatcher>(this))
         , ExecuteBatchBatcher_(New<TExecuteBatchBatcher>(this))
@@ -70,6 +73,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AllocateWriteTargets));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteBatch));
+
+        Logger.AddTag("CellTag: %v", CellTagFromId(cellId));
     }
 
 private:

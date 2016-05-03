@@ -34,9 +34,10 @@ protected:
     virtual void OnMyEndAttributes()override;
 
 private:
-    IAttributeDictionary* Attributes;
+    IAttributeDictionary* const Attributes;
+
     TStringStream Output;
-    std::unique_ptr<NYson::TYsonWriter> Writer;
+    std::unique_ptr<NYson::TBufferedBinaryYsonWriter> Writer;
 
     void ThrowMapExpected();
 

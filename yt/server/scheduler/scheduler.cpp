@@ -176,8 +176,8 @@ public:
         // Open is always synchronous for buffered writer.
         YCHECK(EventLogWriter_->Open().IsSet());
 
-        auto valueConsumer = New<TWritingValueConsumer>(EventLogWriter_, true);
-        EventLogConsumer_.reset(new TTableConsumer(valueConsumer));
+        EventLogValueConsumer_.reset(new TWritingValueConsumer(EventLogWriter_, true));
+        EventLogTableConsumer_.reset(new TTableConsumer(EventLogValueConsumer_.get()));
 
         LogEventFluently(ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
@@ -799,7 +799,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return EventLogConsumer_.get();
+        return EventLogTableConsumer_.get();
     }
 
     virtual void OnOperationCompleted(TOperationPtr operation) override
@@ -818,9 +818,9 @@ public:
             BIND(&TImpl::DoFailOperation, MakeStrong(this), operation, error));
     }
 
-    virtual IValueConsumerPtr CreateLogConsumer() override
+    virtual std::unique_ptr<IValueConsumer> CreateLogConsumer() override
     {
-        return New<TEventLogValueConsumer>(this);
+        return std::unique_ptr<IValueConsumer>(new TEventLogValueConsumer(this));
     }
 
 private:
@@ -908,7 +908,8 @@ private:
     };
 
     ISchemalessWriterPtr EventLogWriter_;
-    std::unique_ptr<IYsonConsumer> EventLogConsumer_;
+    std::unique_ptr<IValueConsumer> EventLogValueConsumer_;
+    std::unique_ptr<IYsonConsumer> EventLogTableConsumer_;
     TMultipleProducerSingleConsumerLockFreeStack<TUnversionedOwningRow> PendingEventLogRows_;
 
     yhash_map<Stroka, TJobResources> NodeTagToResources_;
@@ -991,7 +992,7 @@ private:
         auto operations = IdToOperation_;
         for (const auto& pair : operations) {
             auto operation = pair.second;
-            LOG_INFO("Forgetting operation %v", operation->GetId());
+            LOG_INFO("Forgetting operation (OperationId: %v)", operation->GetId());
             if (!operation->IsFinishedState()) {
                 operation->GetController()->Abort();
                 SetOperationFinalState(
@@ -1881,7 +1882,11 @@ private:
         // This method must be safe to call for any job.
         if (job->GetState() != EJobState::Running &&
             job->GetState() != EJobState::Waiting)
+        {
             return;
+        }
+
+        LOG_DEBUG(error, "Aborting job");
 
         job->SetState(EJobState::Aborted);
 
@@ -2569,7 +2574,7 @@ private:
                     break;
 
                 case EJobState::Aborted:
-                    LOG_DEBUG("Job aborted, removal scheduled");
+                    LOG_DEBUG(FromProto<TError>(jobStatus->result().error()), "Job aborted, removal scheduled");
                     ToProto(response->add_jobs_to_remove(), jobId);
                     break;
 

@@ -464,8 +464,9 @@ struct IClientBase
     virtual TFuture<IRowsetPtr> LookupRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        const std::vector<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
+
 
     virtual TFuture<TSelectRowsResult> SelectRows(
         const Stroka& query,

@@ -173,6 +173,11 @@ void TServiceContextBase::SubscribeCanceled(const TClosure& /*callback*/)
 void TServiceContextBase::UnsubscribeCanceled(const TClosure& /*callback*/)
 { }
 
+bool TServiceContextBase::IsCanceled()
+{
+    return false;
+}
+
 void TServiceContextBase::Cancel()
 { }
 
@@ -379,6 +384,11 @@ void TServiceContextWrapper::SubscribeCanceled(const TClosure& /*callback*/)
 
 void TServiceContextWrapper::UnsubscribeCanceled(const TClosure& /*callback*/)
 { }
+
+bool TServiceContextWrapper::IsCanceled()
+{
+    return UnderlyingContext_->IsCanceled();
+}
 
 void TServiceContextWrapper::Cancel()
 { }

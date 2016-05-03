@@ -38,7 +38,6 @@ DEFINE_ENUM(EErrorCode,
     ((AuthorizationError)      (901))
     ((AccountLimitExceeded)    (902))
     ((UserBanned)              (903))
-    ((RequestRateLimitExceeded)(904))
     ((NoSuchAccount)           (905))
 );
 

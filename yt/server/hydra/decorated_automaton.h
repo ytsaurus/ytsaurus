@@ -201,6 +201,8 @@ private:
     const IInvokerPtr SystemInvoker_;
     const ISnapshotStorePtr SnapshotStore_;
 
+    struct TMutationTypeDescriptor;
+
     std::atomic<int> UserLock_ = {0};
     std::atomic<int> SystemLock_ = {0};
 
@@ -237,10 +239,13 @@ private:
 
     NProfiling::TAggregateCounter BatchCommitTimeCounter_;
 
+    yhash_map<Stroka, TMutationTypeDescriptor> TypeToDescriptor_;
+
     NLogging::TLogger Logger;
 
 
     void RotateAutomatonVersionIfNeeded(TVersion mutationVersion);
+    TMutationTypeDescriptor* GetTypeDescriptor(const Stroka& type);
     void DoApplyMutation(TMutationContext* context);
 
     bool TryAcquireUserLock();

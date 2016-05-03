@@ -42,6 +42,8 @@ public:
     static v8::Handle<v8::Value> GetAttribute(const v8::Arguments& args);
     static v8::Handle<v8::Value> SetAttribute(const v8::Arguments& args);
 
+    static v8::Handle<v8::Value> GetNodeType(const v8::Arguments& args);
+
     // Synchronous C++ API.
     NYTree::INodePtr GetNode();
     void SetNode(NYTree::INodePtr node);

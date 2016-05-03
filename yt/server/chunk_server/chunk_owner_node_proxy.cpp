@@ -396,7 +396,7 @@ public:
 
 private:
     TStringStream Stream_;
-    TYsonWriter Writer_;
+    TBufferedBinaryYsonWriter Writer_;
 
     virtual bool OnChunk(
         TChunk* chunk,
@@ -417,6 +417,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         Writer_.OnEndList();
+        Writer_.Flush();
         Promise_.Set(TYsonString(Stream_.Str()));
     }
 };

@@ -62,6 +62,8 @@ public:
 
     static void StaticShutdown();
 
+    static void SetClientThreadCount(int clientThreadCount);
+
     virtual void Shutdown() override;
 
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType);
@@ -69,7 +71,7 @@ public:
 private:
     TTcpDispatcher();
 
-    DECLARE_SINGLETON_FRIEND();
+    Y_DECLARE_SINGLETON_FRIEND();
     friend class TTcpConnection;
     friend class TTcpBusClient;
     friend class TTcpBusServerBase;

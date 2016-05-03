@@ -81,9 +81,9 @@ struct TSchedulableAttributes
     double BestAllocationRatio = 1.0;
     i64 DominantLimit = 0;
 
-    double FairShareStarvationTolerance = 1.0;
-    TDuration MinSharePreemptionTimeout;
-    TDuration FairSharePreemptionTimeout;
+    double AdjustedFairShareStarvationTolerance = 1.0;
+    TDuration AdjustedMinSharePreemptionTimeout;
+    TDuration AdjustedFairSharePreemptionTimeout;
 };
 
 struct TDynamicAttributes
@@ -475,6 +475,55 @@ public:
         TSchedulerElementBase::UpdateBottomUp();
     }
 
+    virtual double GetFairShareStarvationToleranceLimit() const
+    {
+        return 1.0;
+    }
+
+    virtual TDuration GetMinSharePreemptionTimeoutLimit() const
+    {
+        return TDuration::Zero();
+    }
+
+    virtual TDuration GetFairSharePreemptionTimeoutLimit() const
+    {
+        return TDuration::Zero();
+    }
+
+    void UpdatePreemptionSettingsLimits()
+    {
+        if (Parent_) {
+            AdjustedFairShareStarvationToleranceLimit_ = std::min(
+                GetFairShareStarvationToleranceLimit(),
+                Parent_->AdjustedFairShareStarvationToleranceLimit());
+
+            AdjustedMinSharePreemptionTimeoutLimit_ = std::max(
+                GetMinSharePreemptionTimeoutLimit(),
+                Parent_->AdjustedMinSharePreemptionTimeoutLimit());
+
+            AdjustedFairSharePreemptionTimeoutLimit_ = std::max(
+                GetFairSharePreemptionTimeoutLimit(),
+                Parent_->AdjustedFairSharePreemptionTimeoutLimit());
+        }
+    }
+
+    void UpdateChildPreemptionSettings(const ISchedulerElementPtr& child)
+    {
+        auto& childAttributes = child->Attributes();
+
+        childAttributes.AdjustedFairShareStarvationTolerance = std::min(
+            child->GetFairShareStarvationTolerance(),
+            AdjustedFairShareStarvationToleranceLimit_);
+
+        childAttributes.AdjustedMinSharePreemptionTimeout = std::max(
+            child->GetMinSharePreemptionTimeout(),
+            AdjustedMinSharePreemptionTimeoutLimit_);
+
+        childAttributes.AdjustedFairSharePreemptionTimeout = std::max(
+            child->GetFairSharePreemptionTimeout(),
+            AdjustedFairSharePreemptionTimeoutLimit_);
+    }
+
     virtual void UpdateTopDown() override
     {
         switch (Mode) {
@@ -492,22 +541,11 @@ public:
                 YUNREACHABLE();
         }
 
+        UpdatePreemptionSettingsLimits();
+
         // Propagate updates to children.
         for (const auto& child : Children) {
-            auto& childAttributes = child->Attributes();
-
-            childAttributes.FairShareStarvationTolerance = std::min(
-                child->GetFairShareStarvationTolerance(),
-                Attributes_.FairShareStarvationTolerance);
-
-            childAttributes.MinSharePreemptionTimeout = std::max(
-                child->GetMinSharePreemptionTimeout(),
-                Attributes_.MinSharePreemptionTimeout);
-
-            childAttributes.FairSharePreemptionTimeout = std::max(
-                child->GetFairSharePreemptionTimeout(),
-                Attributes_.FairSharePreemptionTimeout);
-
+            UpdateChildPreemptionSettings(child);
             child->UpdateTopDown();
         }
     }
@@ -681,6 +719,10 @@ public:
     DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, MaxPossibleResourceUsage);
+
+    DEFINE_BYREF_RO_PROPERTY(double, AdjustedFairShareStarvationToleranceLimit);
+    DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedMinSharePreemptionTimeoutLimit);
+    DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedFairSharePreemptionTimeoutLimit);
 
 protected:
     ESchedulingMode Mode;
@@ -945,7 +987,7 @@ public:
 
     virtual ESchedulableStatus GetStatus() const override
     {
-        return TSchedulerElementBase::GetStatus(Attributes_.FairShareStarvationTolerance);
+        return TSchedulerElementBase::GetStatus(Attributes_.AdjustedFairShareStarvationTolerance);
     }
 
     virtual double GetFairShareStarvationTolerance() const override
@@ -961,6 +1003,21 @@ public:
     virtual TDuration GetFairSharePreemptionTimeout() const override
     {
         return Config_->FairSharePreemptionTimeout.Get(StrategyConfig_->FairSharePreemptionTimeout);
+    }
+
+    virtual double GetFairShareStarvationToleranceLimit() const override
+    {
+        return Config_->FairShareStarvationToleranceLimit.Get(1.0);
+    }
+
+    virtual TDuration GetMinSharePreemptionTimeoutLimit() const override
+    {
+        return Config_->MinSharePreemptionTimeoutLimit.Get(TDuration::Zero());
+    }
+
+    virtual TDuration GetFairSharePreemptionTimeoutLimit() const override
+    {
+        return Config_->FairSharePreemptionTimeoutLimit.Get(TDuration::Zero());
     }
 
     virtual void SetStarving(bool starving) override
@@ -980,8 +1037,8 @@ public:
     virtual void CheckForStarvation(TInstant now) override
     {
         TSchedulerElementBase::CheckForStarvation(
-            Attributes_.MinSharePreemptionTimeout,
-            Attributes_.FairSharePreemptionTimeout,
+            Attributes_.AdjustedMinSharePreemptionTimeout,
+            Attributes_.AdjustedFairSharePreemptionTimeout,
             now);
     }
 
@@ -1056,7 +1113,7 @@ class TOperationElement
 {
 public:
     TOperationElement(
-        TFairShareStrategyConfigPtr config,
+        TFairShareStrategyConfigPtr strategyConfig,
         TStrategyOperationSpecPtr spec,
         TOperationRuntimeParamsPtr runtimeParams,
         ISchedulerStrategyHost* host,
@@ -1068,7 +1125,7 @@ public:
         , Pool_(nullptr)
         , ResourceUsage_(ZeroJobResources())
         , NonpreemptableResourceUsage_(ZeroJobResources())
-        , Config_(config)
+        , StrategyConfig_(strategyConfig)
         , OperationId_(Operation_->GetId())
     {
         auto& attributes = DynamicAttributes(GlobalAttributesIndex);
@@ -1078,17 +1135,17 @@ public:
 
     virtual double GetFairShareStarvationTolerance() const override
     {
-        return Spec_->FairShareStarvationTolerance.Get(Config_->FairShareStarvationTolerance);
+        return Spec_->FairShareStarvationTolerance.Get(StrategyConfig_->FairShareStarvationTolerance);
     }
 
     virtual TDuration GetMinSharePreemptionTimeout() const override
     {
-        return Spec_->MinSharePreemptionTimeout.Get(Config_->MinSharePreemptionTimeout);
+        return Spec_->MinSharePreemptionTimeout.Get(StrategyConfig_->MinSharePreemptionTimeout);
     }
 
     virtual TDuration GetFairSharePreemptionTimeout() const override
     {
-        return Spec_->FairSharePreemptionTimeout.Get(Config_->FairSharePreemptionTimeout);
+        return Spec_->FairSharePreemptionTimeout.Get(StrategyConfig_->FairSharePreemptionTimeout);
     }
 
     virtual void UpdateBottomUp() override
@@ -1289,7 +1346,7 @@ public:
             return ESchedulableStatus::Normal;
         }
 
-        return TSchedulerElementBase::GetStatus(Attributes_.FairShareStarvationTolerance);
+        return TSchedulerElementBase::GetStatus(Attributes_.AdjustedFairShareStarvationTolerance);
     }
 
     virtual void SetStarving(bool starving) override
@@ -1308,11 +1365,11 @@ public:
 
     virtual void CheckForStarvation(TInstant now) override
     {
-        auto minSharePreemptionTimeout = Attributes_.MinSharePreemptionTimeout;
-        auto fairSharePreemptionTimeout = Attributes_.FairSharePreemptionTimeout;
+        auto minSharePreemptionTimeout = Attributes_.AdjustedMinSharePreemptionTimeout;
+        auto fairSharePreemptionTimeout = Attributes_.AdjustedFairSharePreemptionTimeout;
 
         int jobCount = Operation_->GetController()->GetPendingJobCount();
-        double jobCountRatio = jobCount / Config_->JobCountPreemptionTimeoutCoefficient;
+        double jobCountRatio = jobCount / StrategyConfig_->JobCountPreemptionTimeoutCoefficient;
 
         if (jobCountRatio < 1.0) {
             minSharePreemptionTimeout *= jobCountRatio;
@@ -1463,7 +1520,7 @@ private:
     mutable TJobResources ResourceLimits_;
     mutable TJobResources MaxPossibleResourceUsage_;
 
-    const TFairShareStrategyConfigPtr Config_;
+    const TFairShareStrategyConfigPtr StrategyConfig_;
     const TOperationId OperationId_;
 
     int ConcurrentScheduleJobCalls_ = 0;
@@ -1474,8 +1531,8 @@ private:
     {
         return !Operation_->IsSchedulable() ||
             GetPendingJobCount() == 0 ||
-            ConcurrentScheduleJobCalls_ >= Config_->MaxConcurrentControllerScheduleJobCalls ||
-            (BackingOff_ && LastScheduleJobFailTime_ + Config_->ControllerScheduleJobFailBackoffTime > now);
+            ConcurrentScheduleJobCalls_ >= StrategyConfig_->MaxConcurrentControllerScheduleJobCalls ||
+            (BackingOff_ && LastScheduleJobFailTime_ + StrategyConfig_->ControllerScheduleJobFailBackoffTime > now);
     }
 
     TJobResources GetHierarchicalResourceLimits(const TFairShareContext& context) const
@@ -1516,7 +1573,7 @@ private:
             .Run(context.SchedulingContext, jobLimits);
 
         auto scheduleJobResultFutureWithTimeout = scheduleJobResultFuture
-            .WithTimeout(Config_->ControllerScheduleJobTimeLimit);
+            .WithTimeout(StrategyConfig_->ControllerScheduleJobTimeLimit);
 
         auto scheduleJobResultWithTimeoutOrError = std::move(WaitFor(scheduleJobResultFutureWithTimeout));
 
@@ -1594,9 +1651,12 @@ public:
         Attributes_.FairShareRatio = 1.0;
         Attributes_.AdjustedMinShareRatio = 1.0;
         Mode = ESchedulingMode::FairShare;
-        Attributes_.FairShareStarvationTolerance = 1.0;
-        Attributes_.MinSharePreemptionTimeout = TDuration::Zero();
-        Attributes_.FairSharePreemptionTimeout = TDuration::Zero();
+        Attributes_.AdjustedFairShareStarvationTolerance = 1.0;
+        Attributes_.AdjustedMinSharePreemptionTimeout = TDuration::Zero();
+        Attributes_.AdjustedFairSharePreemptionTimeout = TDuration::Zero();
+        AdjustedFairShareStarvationToleranceLimit_ = 1.0;
+        AdjustedMinSharePreemptionTimeoutLimit_ = TDuration::Zero();
+        AdjustedFairSharePreemptionTimeoutLimit_ = TDuration::Zero();
         Update();
     }
 
@@ -1627,17 +1687,17 @@ public:
 
     virtual double GetFairShareStarvationTolerance() const override
     {
-        return StrategyConfig_->FairShareStarvationTolerance;
+        return 1.0;
     }
 
     virtual TDuration GetMinSharePreemptionTimeout() const override
     {
-        return StrategyConfig_->MinSharePreemptionTimeout;
+        return TDuration::Zero();
     }
 
     virtual TDuration GetFairSharePreemptionTimeout() const override
     {
-        return StrategyConfig_->FairSharePreemptionTimeout;
+        return TDuration::Zero();
     }
 
     virtual TNullable<Stroka> GetNodeTag() const override
@@ -1805,8 +1865,10 @@ public:
                 if (IsJobPreemptable(job) && !operationElement->HasStarvingParent()) {
                     TCompositeSchedulerElement* pool = operationElement->GetPool();
                     while (pool) {
-                        discountedPools.insert(pool);
-                        pool->DynamicAttributes(attributesIndex).ResourceUsageDiscount += job->ResourceUsage();
+                        if (pool->IsActive(GlobalAttributesIndex)) {
+                            discountedPools.insert(pool);
+                            pool->DynamicAttributes(attributesIndex).ResourceUsageDiscount += job->ResourceUsage();
+                        }
                         pool = pool->GetParent();
                     }
                     schedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
@@ -2535,9 +2597,12 @@ private:
         BuildYsonMapFluently(consumer)
             .Item("scheduling_status").Value(element->GetStatus())
             .Item("starving").Value(element->GetStarving())
-            .Item("fair_share_starvation_tolerance").Value(attributes.FairShareStarvationTolerance)
-            .Item("min_share_preemption_timeout").Value(attributes.MinSharePreemptionTimeout)
-            .Item("fair_share_preemption_timeout").Value(attributes.FairSharePreemptionTimeout)
+            .Item("fair_share_starvation_tolerance").Value(element->GetFairShareStarvationTolerance())
+            .Item("min_share_preemption_timeout").Value(element->GetMinSharePreemptionTimeout())
+            .Item("fair_share_preemption_timeout").Value(element->GetFairSharePreemptionTimeout())
+            .Item("adjusted_fair_share_starvation_tolerance").Value(attributes.AdjustedFairShareStarvationTolerance)
+            .Item("adjusted_min_share_preemption_timeout").Value(attributes.AdjustedMinSharePreemptionTimeout)
+            .Item("adjusted_fair_share_preemption_timeout").Value(attributes.AdjustedFairSharePreemptionTimeout)
             .Item("resource_demand").Value(element->ResourceDemand())
             .Item("resource_usage").Value(element->ResourceUsage())
             .Item("resource_limits").Value(element->ResourceLimits())

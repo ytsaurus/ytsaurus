@@ -92,9 +92,7 @@ DEFINE_REFCOUNTED_TYPE(IConnection)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TConnectionOptions
-{
-    bool RetryRequestRateLimitExceeded = false;
-};
+{ };
 
 IConnectionPtr CreateConnection(
     TConnectionConfigPtr config,

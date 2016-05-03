@@ -1,4 +1,5 @@
 var url = require("url");
+var qs = require("qs");
 
 var Q = require("bluebird");
 
@@ -35,13 +36,16 @@ YtApplicationHosts.prototype.dispatch = function(req, rsp, next)
     self.logger.debug("Hosts call on '" + req.url + "'");
 
     return Q.try(function() {
-        var suffix;
-        suffix = url.parse(req.url).pathname;
+        var parsed_url = url.parse(req.url);
+        var parsed_query = qs.parse(parsed_url.query);
+        var suffix = parsed_url.pathname;
         suffix = suffix.replace(/\/+/, "-").replace(/-+$/, "");
+        var role = parsed_query.role;
+        role = typeof(role) !== "undefined" ? role : "data";
         if (suffix === "-all") {
             return self._dispatchExtended(req, rsp);
         } else {
-            return self._dispatchBasic(req, rsp, suffix);
+            return self._dispatchBasic(req, rsp, suffix, role);
         }
         throw new YtError("Unknown URI");
     }).catch(self._dispatchError.bind(self, req, rsp));
@@ -53,10 +57,10 @@ YtApplicationHosts.prototype._dispatchError = function(req, rsp, err)
     return utils.dispatchAs(rsp, error.toJson(), "application/json");
 };
 
-YtApplicationHosts.prototype._dispatchBasic = function(req, rsp, suffix)
+YtApplicationHosts.prototype._dispatchBasic = function(req, rsp, suffix, role)
 {
     var hosts = this.coordinator
-    .getProxies("data", false, false)
+    .getProxies(role, false, false)
     .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
     .map(function(entry) { return addHostNameSuffix(entry.name, suffix); });
 
@@ -103,7 +107,7 @@ YtApplicationHosts.prototype._dispatchBasic = function(req, rsp, suffix)
             break;
     }
 
-    this.coordinator.allocateDataProxy();
+    this.coordinator.allocateProxy(role);
 
     return utils.dispatchAs(rsp, body, mime);
 };

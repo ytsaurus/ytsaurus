@@ -61,7 +61,11 @@ private:
     std::vector<TChunkEntry> Chunks_;
 
     void DoRun();
+
+    int GetExportedObjectCount(NObjectClient::TCellTag cellTag);
     void Export();
+
+    int GetImportedObjectCount(NObjectClient::TCellTag cellTag);
     void Import();
 
 };

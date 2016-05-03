@@ -50,6 +50,8 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
         if (promise.IsSet() && now > entry.Deadline) {
             // Evict and retry.
             NConcurrency::TDelayedExecutor::CancelAndClear(entry.ProbationCookie);
+            entry.ProbationFuture.Cancel();
+            entry.ProbationFuture.Reset();
             Map_.erase(it);
             guard.Release();
             return Get(key);
@@ -164,7 +166,18 @@ void TExpiringCache<TKey, TValue>::SetResult(const TKey& key, const TErrorOr<TVa
 template <class TKey, class TValue>
 void TExpiringCache<TKey, TValue>::InvokeGet(const TKey& key)
 {
-    DoGet(key).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
+    NConcurrency::TWriterGuard guard(SpinLock_);
+
+    auto it = Map_.find(key);
+    if (it == Map_.end()) {
+        return;
+    }
+
+    auto future = it->second.ProbationFuture = DoGet(key);
+
+    guard.Release();
+
+    future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
         NConcurrency::TWriterGuard guard(SpinLock_);
         SetResult(key, valueOrError);
     }));

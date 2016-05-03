@@ -44,6 +44,7 @@
 #include <yt/core/ytree/ypath_client.h>
 
 #include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/timing.h>
 
 #include <deque>
 
@@ -69,7 +70,8 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = NodeTrackerServerLogger;
-static const auto ProfilingPeriod = TDuration::MilliSeconds(1000);
+static const auto ProfilingPeriod = TDuration::Seconds(1);
+static const auto TotalNodeStatisticsUpdatePeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -504,7 +506,12 @@ public:
 
     TTotalNodeStatistics GetTotalNodeStatistics()
     {
-        TTotalNodeStatistics result;
+        auto now = NProfiling::GetCpuInstant();
+        if (now < TotalNodeStatisticsUpdateDeadline_) {
+            return TotalNodeStatistics_;
+        }
+
+        TotalNodeStatistics_ = TTotalNodeStatistics();
         for (const auto& pair : NodeMap_) {
             const auto* node = pair.second;
             if (node->GetAggregatedState() != ENodeState::Online) {
@@ -512,14 +519,15 @@ public:
             }
             const auto& statistics = node->Statistics();
             if (!node->GetDecommissioned()) {
-                result.AvailableSpace += statistics.total_available_space();
+                TotalNodeStatistics_.AvailableSpace += statistics.total_available_space();
             }
-            result.UsedSpace += statistics.total_used_space();
-            result.ChunkReplicaCount += statistics.total_stored_chunk_count();
-            result.FullNodeCount += statistics.full() ? 1 : 0;
-            result.OnlineNodeCount += 1;
+            TotalNodeStatistics_.UsedSpace += statistics.total_used_space();
+            TotalNodeStatistics_.ChunkReplicaCount += statistics.total_stored_chunk_count();
+            TotalNodeStatistics_.FullNodeCount += statistics.full() ? 1 : 0;
+            TotalNodeStatistics_.OnlineNodeCount += 1;
         }
-        return result;
+        TotalNodeStatisticsUpdateDeadline_ = now + NProfiling::DurationToCpuDuration(TotalNodeStatisticsUpdatePeriod);
+        return TotalNodeStatistics_;
     }
 
     int GetOnlineNodeCount()
@@ -544,7 +552,10 @@ private:
     int AggregatedOnlineNodeCount_ = 0;
     int LocalRegisteredNodeCount_ = 0;
 
-    TRackSet UsedRackIndexes_ = 0;
+    NProfiling::TCpuInstant TotalNodeStatisticsUpdateDeadline_ = 0;
+    TTotalNodeStatistics TotalNodeStatistics_;
+
+    TRackSet UsedRackIndexes_;
 
     yhash_map<Stroka, TNode*> AddressToNodeMap_;
     yhash_multimap<Stroka, TNode*> HostNameToNodeMap_;
@@ -891,15 +902,15 @@ private:
             }
         }
 
-        UsedRackIndexes_ = 0;
+        UsedRackIndexes_.reset();
         for (const auto& pair : RackMap_) {
             auto* rack = pair.second;
 
             YCHECK(NameToRackMap_.insert(std::make_pair(rack->GetName(), rack)).second);
 
-            auto rackIndexMask = rack->GetIndexMask();
-            YCHECK(!(UsedRackIndexes_ & rackIndexMask));
-            UsedRackIndexes_ |= rackIndexMask;
+            auto rackIndex = rack->GetIndex();
+            YCHECK(!UsedRackIndexes_.test(rackIndex));
+            UsedRackIndexes_.set(rackIndex);
         }
     }
 
@@ -1232,13 +1243,12 @@ private:
 
     int AllocateRackIndex()
     {
-        // NB: Rack index mask is 64 bit.
-        for (int index = 0; index < 64; ++index) {
-            if (index == NullRackIndex)
+        for (int index = 0; index < UsedRackIndexes_.size(); ++index) {
+            if (index == NullRackIndex) {
                 continue;
-            auto mask = 1ULL << index;
-            if (!(UsedRackIndexes_ & mask)) {
-                UsedRackIndexes_ |= mask;
+            }
+            if (!UsedRackIndexes_.test(index)) {
+                UsedRackIndexes_.set(index);
                 return index;
             }
         }
@@ -1247,9 +1257,8 @@ private:
 
     void FreeRackIndex(int index)
     {
-        auto mask = 1ULL << index;
-        YCHECK(UsedRackIndexes_ & mask);
-        UsedRackIndexes_ &= ~mask;
+        YCHECK(UsedRackIndexes_.test(index));
+        UsedRackIndexes_.reset(index);
     }
 
 

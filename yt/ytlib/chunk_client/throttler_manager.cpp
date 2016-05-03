@@ -30,7 +30,7 @@ IThroughputThrottlerPtr TThrottlerManager::GetThrottler(TCellTag cellTag)
 
     auto logger = Logger_;
     logger.AddTag("CellTag: %v", cellTag);
-    auto throttler = CreateLimitedThrottler(Config_, logger, Profiler_);
+    auto throttler = CreateReconfigurableThroughputThrottler(Config_, logger, Profiler_);
 
     YCHECK(ThrottlerMap_.insert(std::make_pair(cellTag, throttler)).second);
 

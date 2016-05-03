@@ -121,9 +121,7 @@ void TBootstrap::DoRun()
         LocalAddress_,
         Config_->ClusterConnection->PrimaryMaster->Addresses);
 
-    TConnectionOptions connectionOptions;
-    connectionOptions.RetryRequestRateLimitExceeded = true;
-    auto connection = CreateConnection(Config_->ClusterConnection, connectionOptions);
+    auto connection = CreateConnection(Config_->ClusterConnection);
 
     TClientOptions clientOptions;
     clientOptions.User = NSecurityClient::SchedulerUserName;

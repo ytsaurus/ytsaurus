@@ -30,7 +30,6 @@ using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Profiler = HydraProfiler;
 static const auto& Logger = HydraLogger;
 
 static const auto FlushThreadQuantum = TDuration::MilliSeconds(10);
@@ -41,9 +40,12 @@ class TFileChangelogQueue
     : public TRefCounted
 {
 public:
-    explicit TFileChangelogQueue(TSyncFileChangelogPtr changelog)
-        : Changelog_(changelog)
-        , FlushedRecordCount_(changelog->GetRecordCount())
+    explicit TFileChangelogQueue(
+        TSyncFileChangelogPtr changelog,
+        const NProfiling::TProfiler& profiler)
+        : Changelog_(std::move(changelog))
+        , Profiler(profiler)
+        , FlushedRecordCount_(Changelog_->GetRecordCount())
     { }
 
     TSyncFileChangelogPtr GetChangelog()
@@ -218,6 +220,7 @@ public:
 
 private:
     const TSyncFileChangelogPtr Changelog_;
+    const NProfiling::TProfiler Profiler;
 
     std::atomic<int> UseCount_ = {0};
 
@@ -287,7 +290,8 @@ class TFileChangelogDispatcher::TImpl
 public:
     TImpl(
         const TFileChangelogDispatcherConfigPtr config,
-        const Stroka& threadName)
+        const Stroka& threadName,
+        const NProfiling::TProfiler& profiler)
         : Config_(config)
         , ProcessQueuesCallback_(BIND(&TImpl::ProcessQueues, MakeWeak(this)))
         , ActionQueue_(New<TActionQueue>(threadName))
@@ -295,6 +299,7 @@ public:
             ActionQueue_->GetInvoker(),
             ProcessQueuesCallback_,
             FlushThreadQuantum))
+        , Profiler(profiler)
         , RecordCounter_("/records")
         , ByteCounter_("/bytes")
     {
@@ -408,6 +413,8 @@ private:
     const TActionQueuePtr ActionQueue_;
     const TPeriodicExecutorPtr PeriodicExecutor_;
 
+    const NProfiling::TProfiler Profiler;
+
     std::atomic<bool> ProcessQueuesCallbackPending_ = {false};
 
     TSpinLock SpinLock_;
@@ -456,7 +463,7 @@ private:
         if (it != QueueMap_.end()) {
             queue = it->second;
         } else {
-            queue = New<TFileChangelogQueue>(changelog);
+            queue = New<TFileChangelogQueue>(changelog, Profiler);
             YCHECK(QueueMap_.insert(std::make_pair(changelog, queue)).second);
             LOG_DEBUG("Changelog queue created (Path: %v)",
                 changelog->GetFileName());
@@ -683,8 +690,12 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelog)
 
 TFileChangelogDispatcher::TFileChangelogDispatcher(
     TFileChangelogDispatcherConfigPtr config,
-    const Stroka& threadName)
-    : Impl_(New<TImpl>(config, threadName))
+    const Stroka& threadName,
+    const NProfiling::TProfiler& profiler)
+    : Impl_(New<TImpl>(
+        config,
+        threadName,
+        profiler))
 { }
 
 TFileChangelogDispatcher::~TFileChangelogDispatcher()

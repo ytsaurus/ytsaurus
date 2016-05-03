@@ -101,7 +101,7 @@ public:
 private:
     TProfileManager();
 
-    DECLARE_SINGLETON_FRIEND();
+    Y_DECLARE_SINGLETON_FRIEND();
 
     class TImpl;
     std::unique_ptr<TImpl> Impl_;

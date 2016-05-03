@@ -125,7 +125,7 @@ void TAccount::ValidateResourceUsageIncrease(const TClusterResources& delta)
     if (delta.NodeCount > 0 && ClusterStatistics_.ResourceUsage.NodeCount + delta.NodeCount > ClusterResourceLimits_.NodeCount) {
         THROW_ERROR_EXCEPTION(
             NSecurityClient::EErrorCode::AccountLimitExceeded,
-            "Account %Qv is over node count limit",
+            "Account %Qv is over Cypress node count limit",
             Name_)
             << TErrorAttribute("usage", ClusterStatistics_.ResourceUsage.NodeCount)
             << TErrorAttribute("limit", ClusterResourceLimits_.NodeCount);

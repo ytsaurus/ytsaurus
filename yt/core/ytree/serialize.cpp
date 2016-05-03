@@ -30,7 +30,7 @@ EYsonType GetYsonType(const TYsonProducer& producer)
 #define SERIALIZE(type) \
     void Serialize(type value, IYsonConsumer* consumer) \
     { \
-        consumer->OnInt64Scalar(CheckedStaticCast<i64>(value)); \
+        consumer->OnInt64Scalar(CheckedIntegralCast<i64>(value)); \
     }
 
 SERIALIZE(signed char)
@@ -47,7 +47,7 @@ SERIALIZE(long long)
 #define SERIALIZE(type) \
     void Serialize(type value, IYsonConsumer* consumer) \
     { \
-        consumer->OnUint64Scalar(CheckedStaticCast<ui64>(value)); \
+        consumer->OnUint64Scalar(CheckedIntegralCast<ui64>(value)); \
     }
 
 SERIALIZE(unsigned char)
@@ -124,7 +124,14 @@ void Serialize(TInputStream& input, IYsonConsumer* consumer)
 #define DESERIALIZE(type) \
     void Deserialize(type& value, INodePtr node) \
     { \
-        value = CheckedStaticCast<type>(node->AsInt64()->GetValue()); \
+        if (node->GetType() == ENodeType::Int64) { \
+            value = CheckedIntegralCast<type>(node->AsInt64()->GetValue()); \
+        } else if (node->GetType() == ENodeType::Uint64) { \
+            value = CheckedIntegralCast<type>(node->AsUint64()->GetValue()); \
+        } else { \
+            THROW_ERROR_EXCEPTION("Cannot parse \"" #type "\" value from %Qlv", \
+                node->GetType()); \
+        } \
     }
 
 DESERIALIZE(signed char)
@@ -132,22 +139,6 @@ DESERIALIZE(short)
 DESERIALIZE(int)
 DESERIALIZE(long)
 DESERIALIZE(long long)
-
-
-#undef DESERIALIZE
-
-// unsigned integers
-// Allow integer nodes to be deserialized into unsigned integers for compatibility.
-#define DESERIALIZE(type) \
-    void Deserialize(type& value, INodePtr node) \
-    { \
-        if (node->GetType() == ENodeType::Int64) { \
-            value = CheckedStaticCast<type>(node->AsInt64()->GetValue()); \
-        } else if (node->GetType() == ENodeType::Uint64) { \
-            value = CheckedStaticCast<type>(node->AsUint64()->GetValue()); \
-        } \
-    }
-
 DESERIALIZE(unsigned char)
 DESERIALIZE(unsigned short)
 DESERIALIZE(unsigned)

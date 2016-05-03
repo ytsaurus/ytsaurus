@@ -21,12 +21,12 @@ using namespace NYson;
 
 TEST(TTableConsumer, EntityAsNull)
 {
-    auto mock = New<StrictMock<TMockValueConsumer>>(New<TNameTable>(), true);
-    EXPECT_CALL(*mock, OnBeginRow());
-    EXPECT_CALL(*mock, OnValue(MakeUnversionedSentinelValue(EValueType::Null, 0)));
-    EXPECT_CALL(*mock, OnEndRow());
+    StrictMock<TMockValueConsumer> mock(New<TNameTable>(), true);
+    EXPECT_CALL(mock, OnBeginRow());
+    EXPECT_CALL(mock, OnValue(MakeUnversionedSentinelValue(EValueType::Null, 0)));
+    EXPECT_CALL(mock, OnEndRow());
 
-    std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(mock));
+    std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(&mock));
     consumer->OnBeginMap();
         consumer->OnKeyedItem("a");
         consumer->OnEntity();
@@ -35,10 +35,10 @@ TEST(TTableConsumer, EntityAsNull)
 
 TEST(TTableConsumer, TopLevelAttributes)
 {
-    auto mock = New<StrictMock<TMockValueConsumer>>(New<TNameTable>(), true);
-    EXPECT_CALL(*mock, OnBeginRow());
+    StrictMock<TMockValueConsumer> mock(New<TNameTable>(), true);
+    EXPECT_CALL(mock, OnBeginRow());
 
-    std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(mock));
+    std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(&mock));
     consumer->OnBeginMap();
         consumer->OnKeyedItem("a");
         EXPECT_THROW(consumer->OnBeginAttributes(), std::exception);
