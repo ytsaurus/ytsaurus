@@ -1447,7 +1447,6 @@ void TOperationControllerBase::Commit()
     // XXX(babenko): hotfix for YT-4636
     {
         auto client = Host->GetMasterClient();
-        auto connection = client->GetConnection();
 
         // NB: use root credentials.
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
