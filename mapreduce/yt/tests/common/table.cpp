@@ -76,7 +76,7 @@ void DoIteratorTest(TServer& server, const char* tableName) {
 #undef CHECK_METHOD
 #undef CALL_METHOD_K
 }
-
+/*
 void PrintTable(TServer& server, const char* tableName) {
     Cout << "~~~~~~" << tableName << "~~~~~~" << Endl;
     TClient client(server);
@@ -88,7 +88,7 @@ void PrintTable(TServer& server, const char* tableName) {
             << "\n";
     }
 }
-
+*/
 } // anonymous namespace
 
 YT_TEST(TFixture, IteratorMethods) {
