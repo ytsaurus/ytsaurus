@@ -4,6 +4,7 @@ OWNER(monster)
 
 SRCS(
     operations.cpp
+    table.cpp
     main.cpp
 )
 
