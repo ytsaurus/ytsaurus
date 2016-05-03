@@ -947,6 +947,7 @@ void TOperationControllerBase::Initialize(bool cleanStart)
     // NB: CleanStart may be changed from false to true in this function.
     CheckTransactions();
     InitializeTransactions();
+    Operation->SetHasActiveTransactions(true);
 
     if (Operation->GetState() != EOperationState::Initializing &&
         Operation->GetState() != EOperationState::Reviving)
@@ -1136,7 +1137,6 @@ void TOperationControllerBase::InitializeTransactions()
         InputTransactionId = Operation->GetInputTransaction()->GetId();
         OutputTransactionId = Operation->GetOutputTransaction()->GetId();
     }
-    Operation->SetHasActiveTransactions(true);
 }
 
 void TOperationControllerBase::CheckTransactions()
