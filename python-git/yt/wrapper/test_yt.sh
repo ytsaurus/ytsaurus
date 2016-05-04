@@ -302,6 +302,37 @@ test_hybrid_arguments()
     check "$(./yt get --path //home/wrapper_test/value)" "\"with_pipe\""
 }
 
+test_async_operations() {
+    export YT_TABULAR_DATA_FORMAT="dsv"
+    echo -e "x=1\n" | ./yt write //home/wrapper_test/input_table --format dsv
+    map_op=$(./yt map "tr 1 2" --src //home/wrapper_test/input_table --dst //home/wrapper_test/map_output --async)
+
+    sort_op=$(./yt sort --src //home/wrapper_test/input_table --dst //home/wrapper_test/sort_output --sort-by "x" --async)
+    ./yt track-op $sort_op
+
+    reduce_op=$(./yt reduce "cat" \
+                --src //home/wrapper_test/sort_output \
+                --dst //home/wrapper_test/reduce_output \
+                --sort-by "x" \
+                --reduce-by "x" \
+                --async)
+    ./yt track-op $reduce_op
+
+    op=$(./yt map-reduce \
+         --mapper "cat" \
+         --reducer "cat" \
+         --src //home/wrapper_test/sort_output \
+         --dst //home/wrapper_test/map_reduce_output \
+         --reduce-by "x" \
+         --async)
+    ./yt track-op $op
+
+    ./yt track-op $map_op
+    check "x=2\n" "$(./yt read //home/wrapper_test/map_output)"
+
+    unset YT_TABULAR_DATA_FORMAT
+}
+
 tear_down
 run_test test_table_commands
 run_test test_cypress_commands
@@ -314,3 +345,4 @@ run_test test_concurrent_upload_in_operation
 run_test test_sorted_by
 run_test test_transactions
 run_test test_hybrid_arguments
+run_test test_async_operations
