@@ -517,6 +517,9 @@ private:
         const TTableMountInfoPtr& tableInfo)
     {
         if (auto maybePathSchema = path.GetSchema()) {
+            if (tableInfo->Dynamic) {
+                THROW_ERROR_EXCEPTION("Explicit YPath \"schema\" specification is only allowed for static tables");
+            }
             return *maybePathSchema;
         }
 
