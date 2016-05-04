@@ -292,8 +292,8 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
     { };
 
     // Parse input data.
-    auto valueConsumer = New<TBuildingValueConsumer>(tableInfo->Schemas[ETableSchemaKind::Write]);
-    valueConsumer->SetTreatMissingAsNull(!Update);
+    TBuildingValueConsumer valueConsumer(tableInfo->Schemas[ETableSchemaKind::Write]);
+    valueConsumer.SetTreatMissingAsNull(!Update);
 
     auto rows = ParseRows(context, config, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TInsertRowsBufferTag());
@@ -361,7 +361,7 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     { };
 
     // Parse input data.
-    auto valueConsumer = TBuildingValueConsumer(tableInfo->Schemas[ETableSchemaKind::Lookup]);
+    TBuildingValueConsumer valueConsumer(tableInfo->Schemas[ETableSchemaKind::Lookup]);
     auto keys = ParseRows(context, config, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag());
     auto capturedKeys = rowBuffer->Capture(keys);
@@ -420,8 +420,8 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
     { };
 
     // Parse input data.
-    auto valueConsumer = New<TBuildingValueConsumer>(tableInfo->Schemas[ETableSchemaKind::Delete]);
-    auto keys = ParseRows(context, config, valueConsumer);
+    TBuildingValueConsumer valueConsumer(tableInfo->Schemas[ETableSchemaKind::Delete]);
+    auto keys = ParseRows(context, config, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TDeleteRowsBufferTag());
     auto capturedKeys = rowBuffer->Capture(keys);
     auto mutableKeyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
