@@ -71,6 +71,7 @@ public:
     explicit TNameTableWriter(TNameTablePtr nameTable);
 
     TNullable<int> FindId(const TStringBuf& name) const;
+    int GetIdOrThrow(const TStringBuf& name) const;
     int GetIdOrRegisterName(const TStringBuf& name);
 
 private:
