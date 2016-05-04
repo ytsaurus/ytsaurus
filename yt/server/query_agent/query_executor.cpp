@@ -142,7 +142,7 @@ public:
 
         auto execute = query->IsOrdered()
             ? &TQueryExecutor::DoExecuteOrdered
-            : &TQueryExecutor::DoExecute;
+            : &TQueryExecutor::DoExecuteUnordered;
 
         return BIND(execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
@@ -281,7 +281,7 @@ private:
             });
     }
 
-    TQueryStatistics DoExecute(
+    TQueryStatistics DoExecuteUnordered(
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
@@ -608,11 +608,15 @@ private:
     }
 
     std::pair<int, int> GetBoundSampleKeys(
-        TTabletSnapshotPtr tabletSnapshot,
-        TRow lowerBound,
-        TRow upperBound)
+        const TTabletSnapshotPtr& tabletSnapshot,
+        TKey lowerBound,
+        TKey upperBound)
     {
         YCHECK(lowerBound <= upperBound);
+
+        if (!tabletSnapshot->TableSchema.IsSorted()) {
+            return std::make_pair(0, 1);
+        }
 
         auto findStartSample = [&] (const std::vector<TOwningKey>& sampleKeys) {
             return std::upper_bound(
@@ -628,14 +632,14 @@ private:
         };
 
         // Run binary search to find the relevant partitions.
-        const auto& partitions = tabletSnapshot->Partitions;
+        const auto& partitions = tabletSnapshot->PartitionList;
         YCHECK(!partitions.empty());
         YCHECK(lowerBound >= partitions[0]->PivotKey);
         auto startPartitionIt = std::upper_bound(
             partitions.begin(),
             partitions.end(),
             lowerBound,
-            [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
+            [] (TKey lhs, const TPartitionSnapshotPtr& rhs) {
                 return lhs < rhs->PivotKey;
             }) - 1;
         auto endPartitionIt = std::lower_bound(
@@ -665,7 +669,7 @@ private:
     }
 
     std::vector<TOwningKey> BuildSplitKeys(
-        TTabletSnapshotPtr tabletSnapshot,
+        const TTabletSnapshotPtr& tabletSnapshot,
         TRow lowerBound,
         TRow upperBound,
         int& nextSampleIndex,
@@ -673,6 +677,10 @@ private:
         int totalSampleCount,
         int cappedSampleCount)
     {
+        if (!tabletSnapshot->TableSchema.IsSorted()) {
+            return {TOwningKey(lowerBound)};
+        }
+
         auto findStartSample = [&] (const std::vector<TOwningKey>& sampleKeys) {
             return std::upper_bound(
                 sampleKeys.begin(),
@@ -687,7 +695,7 @@ private:
         };
 
         // Run binary search to find the relevant partitions.
-        const auto& partitions = tabletSnapshot->Partitions;
+        const auto& partitions = tabletSnapshot->PartitionList;
         YCHECK(lowerBound >= partitions[0]->PivotKey);
         auto startPartitionIt = std::upper_bound(
             partitions.begin(),
@@ -746,7 +754,7 @@ private:
 
     ISchemafulReaderPtr GetReader(
         const TTableSchema& schema,
-        const NObjectClient::TObjectId& objectId,
+        const TObjectId& objectId,
         const TRowRange& range,
         const TQueryOptions& options)
     {
@@ -768,7 +776,7 @@ private:
 
     ISchemafulReaderPtr GetReader(
         const TTableSchema& schema,
-        const NObjectClient::TObjectId& objectId,
+        const TObjectId& objectId,
         const TSharedRange<TRow>& keys,
         const TQueryOptions& options)
     {
@@ -790,7 +798,7 @@ private:
 
     ISchemafulReaderPtr GetChunkReader(
         const TTableSchema& schema,
-        const NObjectClient::TObjectId& chunkId,
+        const TObjectId& chunkId,
         const TRowRange& range,
         const TQueryOptions& options)
     {
@@ -885,7 +893,7 @@ private:
 
     ISchemafulReaderPtr GetTabletReader(
         const TTableSchema& schema,
-        const NObjectClient::TObjectId& tabletId,
+        const TObjectId& tabletId,
         const TRowRange& range,
         const TQueryOptions& options)
     {
@@ -899,7 +907,7 @@ private:
         TOwningKey lowerBound(range.first);
         TOwningKey upperBound(range.second);
 
-        auto columnFilter = GetColumnFilter(schema, tabletSnapshot->Schema);
+        auto columnFilter = GetColumnFilter(schema, tabletSnapshot->QuerySchema);
 
         return CreateSchemafulTabletReader(
             std::move(tabletSnapshot),
@@ -923,7 +931,7 @@ private:
             NYTree::EPermission::Read,
             options.Timestamp);
 
-        auto columnFilter = GetColumnFilter(schema, tabletSnapshot->Schema);
+        auto columnFilter = GetColumnFilter(schema, tabletSnapshot->QuerySchema);
 
         return CreateSchemafulTabletReader(
             std::move(tabletSnapshot),

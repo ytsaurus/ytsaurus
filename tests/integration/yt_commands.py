@@ -298,10 +298,13 @@ def remount_table(path, **kwargs):
     kwargs["path"] = path
     return execute_command("remount_table", kwargs)
 
-def reshard_table(path, pivot_keys, **kwargs):
+def reshard_table(path, arg, **kwargs):
     clear_metadata_caches()
     kwargs["path"] = path
-    kwargs["pivot_keys"] = pivot_keys
+    if isinstance(arg, int):
+        kwargs["tablet_count"] = arg
+    else:
+        kwargs["pivot_keys"] = arg
     return execute_command("reshard_table", kwargs)
 
 def alter_table(path, **kwargs):

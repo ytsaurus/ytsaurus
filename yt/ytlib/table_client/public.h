@@ -62,6 +62,7 @@ extern const Stroka SystemColumnNamePrefix;
 extern const Stroka TableIndexColumnName;
 extern const Stroka RowIndexColumnName;
 extern const Stroka RangeIndexColumnName;
+extern const Stroka TabletIndexColumnName;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +70,6 @@ DEFINE_ENUM(EOptimizeFor,
     ((Lookup)  (0))
     ((Scan)    (1))
 );
-
 
 DEFINE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)  (300))
@@ -119,6 +119,8 @@ struct TColumnIdMapping
     int ReaderSchemaIndex;
 };
 
+//! NB: |int| is important since we use negative values to indicate that
+//! certain values need to be dropped. Cf. TRowBuffer::CaptureAndPermuteRow.
 typedef SmallVector<int, TypicalColumnCount> TNameTableToSchemaIdMapping;
 
 union TUnversionedValueData;

@@ -40,7 +40,13 @@ struct TTabletSnapshot
     TTabletWriterOptionsPtr WriterOptions;
     TOwningKey PivotKey;
     TOwningKey NextPivotKey;
-    NTableClient::TTableSchema Schema;
+    //! This is just a copy of table's schema.
+    //! Can be both sorted and not sorted (ordered).
+    NTableClient::TTableSchema TableSchema;
+    //! This schema is always sorted.
+    //! For sorted tablets, this is same as #TableSchema.
+    //! For ordered tablets, this is the extended ordered schema.
+    NTableClient::TTableSchema QuerySchema;
     NTransactionClient::EAtomicity Atomicity;
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
@@ -49,7 +55,9 @@ struct TTabletSnapshot
 
     using TPartitionList = std::vector<TPartitionSnapshotPtr>;
     using TPartitionListIterator = TPartitionList::iterator;
-    TPartitionList Partitions;
+    TPartitionList PartitionList;
+
+    std::vector<IOrderedStorePtr> StoreList;
 
     int StoreCount = 0;
     int PreloadPendingStoreCount = 0;
@@ -169,22 +177,19 @@ public:
     const TTabletPerformanceCountersPtr& GetPerformanceCounters() const;
 
     using TPartitionList = std::vector<std::unique_ptr<TPartition>>;
-    const TPartitionList& Partitions() const;
+    const TPartitionList& PartitionList() const;
     TPartition* GetEden() const;
     void CreateInitialPartition();
-    TPartition* FindPartitionByPivotKey(const TOwningKey& pivotKey);
-    TPartition* GetPartitionByPivotKey(const TOwningKey& pivotKey);
-    TPartition* FindPartitionById(const TPartitionId& partitionId);
-    TPartition* GetPartitionById(const TPartitionId& partitionId);
+    TPartition* FindPartition(const TPartitionId& partitionId);
+    TPartition* GetPartition(const TPartitionId& partitionId);
     void MergePartitions(int firstIndex, int lastIndex);
     void SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys);
     //! Finds a partition fully containing the range |[minKey, maxKey]|.
     //! Returns the Eden if no such partition exists.
-    TPartition* GetContainingPartition(
-        const TOwningKey& minKey,
-        const TOwningKey& maxKey);
+    TPartition* GetContainingPartition(const TOwningKey& minKey, const TOwningKey& maxKey);
 
-    const yhash_map<TStoreId, IStorePtr>& Stores() const;
+    const yhash_map<TStoreId, IStorePtr>& StoreIdMap() const;
+    const std::map<i64, IOrderedStorePtr>& StoreRowIndexMap() const;
     void AddStore(IStorePtr store);
     void RemoveStore(IStorePtr store);
     IStorePtr FindStore(const TStoreId& id);
@@ -228,7 +233,8 @@ private:
     TPartitionList PartitionList_;
     yhash_map<TPartitionId, TPartition*> PartitionMap_;
 
-    yhash_map<TStoreId, IStorePtr> Stores_;
+    yhash_map<TStoreId, IStorePtr> StoreIdMap_;
+    std::map<i64, IOrderedStorePtr> StoreRowIndexMap_;
 
     TSortedDynamicRowKeyComparer RowKeyComparer_;
 

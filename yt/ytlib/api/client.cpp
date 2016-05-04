@@ -103,6 +103,7 @@ using namespace NHydra;
 
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
+using NTableClient::TColumnSchema;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,13 +162,13 @@ void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, INodePtr node)
 namespace {
 
 TNameTableToSchemaIdMapping BuildColumnIdMapping(
-    const TTableMountInfoPtr& tableInfo,
+    const TTableSchema& schema,
     const TNameTablePtr& nameTable)
 {
-    for (const auto& name : tableInfo->Schema.GetKeyColumns()) {
+    for (const auto& name : schema.GetKeyColumns()) {
         // We shouldn't consider computed columns below because client doesn't send them.
-        if (!nameTable->FindId(name) && !tableInfo->Schema.GetColumnOrThrow(name).Expression) {
-            THROW_ERROR_EXCEPTION("No such key column %Qv",
+        if (!nameTable->FindId(name) && !schema.GetColumnOrThrow(name).Expression) {
+            THROW_ERROR_EXCEPTION("Missing key column %Qv",
                 name);
         }
     }
@@ -176,8 +177,8 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     mapping.resize(nameTable->GetSize());
     for (int nameTableId = 0; nameTableId < nameTable->GetSize(); ++nameTableId) {
         const auto& name = nameTable->GetName(nameTableId);
-        int schemaId = tableInfo->Schema.GetColumnIndexOrThrow(name);
-        mapping[nameTableId] = schemaId;
+        const auto* columnSchema = schema.FindColumn(name);
+        mapping[nameTableId] = columnSchema ? schema.GetColumnIndex(*columnSchema) : -1;
     }
     return mapping;
 }
@@ -266,25 +267,61 @@ IChannelPtr CreateTabletReadChannel(
         *options.BackupRequestDelay);
 }
 
-TTabletInfoPtr GetTabletForRow(
+void ValidateTabletMounted(const TTableMountInfoPtr& tableInfo, const TTabletInfoPtr& tabletInfo)
+{
+    if (tabletInfo->State != ETabletState::Mounted) {
+        THROW_ERROR_EXCEPTION(
+            NTabletClient::EErrorCode::TabletNotMounted,
+            "Tablet %v of table %v is in %Qlv state",
+            tabletInfo->TabletId,
+            tableInfo->Path,
+            tabletInfo->State)
+            << TErrorAttribute("tablet_id", tabletInfo->TabletId);
+    }
+}
+
+TTabletInfoPtr GetSortedTabletForRow(
     const TTableMountInfoPtr& tableInfo,
     NTableClient::TKey key)
 {
-    if (tableInfo->Schema.IsSorted()) {
-        auto tabletInfo = tableInfo->GetTabletForRow(key);
-        if (tabletInfo->State != ETabletState::Mounted) {
-            THROW_ERROR_EXCEPTION(
-                NTabletClient::EErrorCode::TabletNotMounted,
-                "Tablet %v of table %v is in %Qlv state",
-                tabletInfo->TabletId,
-                tableInfo->Path,
-                tabletInfo->State)
-                << TErrorAttribute("tablet_id", tabletInfo->TabletId);
+    YASSERT(tableInfo->IsSorted());
+
+    auto tabletInfo = tableInfo->GetTabletForRow(key);
+    ValidateTabletMounted(tableInfo, tabletInfo);
+    return tabletInfo;
+}
+
+TTabletInfoPtr GetOrderedTabletForRow(
+    const TTableMountInfoPtr& tableInfo,
+    const TTabletInfoPtr& randomTabletInfo,
+    TNullable<int> tabletIndexColumnId,
+    NTableClient::TKey key)
+{
+    YASSERT(!tableInfo->IsSorted());
+
+    int tabletIndex = -1;
+    for (int index = 0; index < key.GetCount(); ++index) {
+        const auto& value = key[index];
+        if (tabletIndexColumnId && value.Id == *tabletIndexColumnId) {
+            YASSERT(value.Type == EValueType::Null || value.Type == EValueType::Int64);
+            if (value.Type == EValueType::Int64) {
+                tabletIndex = value.Data.Int64;
+                if (tabletIndex < 0 || tabletIndex >= tableInfo->Tablets.size()) {
+                    THROW_ERROR_EXCEPTION("Invalid tablet index: actual %v, expected in range [0, %v]",
+                        tabletIndex,
+                        tableInfo->Tablets.size() - 1);
+                }
+            }
         }
-        return tabletInfo;
-    } else {
-        return tableInfo->GetRandomMountedTabled();
     }
+
+    if (tabletIndex < 0) {
+        return randomTabletInfo;
+    }
+
+    auto tabletInfo = tableInfo->Tablets[tabletIndex];
+    ValidateTabletMounted(tableInfo, tabletInfo);
+    return tabletInfo;
 }
 
 } // namespace
@@ -465,21 +502,31 @@ private:
         TTimestamp timestamp)
     {
         auto tableMountCache = Connection_->GetTableMountCache();
-        auto info = WaitFor(tableMountCache->GetTableInfo(path.GetPath()))
+        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path.GetPath()))
             .ValueOrThrow();
 
         TDataSplit result;
-        SetObjectId(&result, info->TableId);
-        SetTableSchema(&result, path.GetSchema().Get(info->Schema));
+        SetObjectId(&result, tableInfo->TableId);
+        SetTableSchema(&result, GetTableSchema(path, tableInfo));
         SetTimestamp(&result, timestamp);
-
         return result;
     }
 
+    TTableSchema GetTableSchema(
+        const TRichYPath& path,
+        const TTableMountInfoPtr& tableInfo)
+    {
+        if (auto maybePathSchema = path.GetSchema()) {
+            return *maybePathSchema;
+        }
+
+        return tableInfo->Schemas[ETableSchemaKind::Query];
+    }
+
     std::vector<std::pair<TDataRanges, Stroka>> SplitTable(
-        TGuid tableId,
-        TSharedRange<TRowRange> ranges,
-        TRowBufferPtr rowBuffer,
+        const TObjectId& tableId,
+        const TSharedRange<TRowRange>& ranges,
+        const TRowBufferPtr& rowBuffer,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
     {
@@ -489,13 +536,9 @@ private:
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
 
-        if (!tableInfo->Schema.IsSorted()) {
-            THROW_ERROR_EXCEPTION("Expected a sorted table, but got unsorted");
-        }
-
         auto result = tableInfo->Dynamic
-            ? SplitDynamicTable(tableId, std::move(ranges), std::move(rowBuffer), std::move(tableInfo))
-            : SplitStaticTable(tableId, std::move(ranges), std::move(rowBuffer));
+            ? SplitDynamicTable(tableId, ranges, rowBuffer, tableInfo)
+            : SplitStaticTable(tableId, ranges, rowBuffer, tableInfo);
 
         LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v",
             result.size(),
@@ -505,10 +548,16 @@ private:
     }
 
     std::vector<std::pair<TDataRanges, Stroka>> SplitStaticTable(
-        TGuid tableId,
-        TSharedRange<TRowRange> ranges,
-        TRowBufferPtr rowBuffer)
+        const TObjectId& tableId,
+        const TSharedRange<TRowRange>& ranges,
+        const TRowBufferPtr& rowBuffer,
+        const TTableMountInfoPtr& tableInfo)
     {
+        if (!tableInfo->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Table %v is not sorted",
+                tableInfo->Path);
+        }
+
         std::vector<TReadRange> readRanges;
         for (const auto& range : ranges) {
             readRanges.emplace_back(TReadLimit(TOwningKey(range.first)), TReadLimit(TOwningKey(range.second)));
@@ -614,16 +663,11 @@ private:
     }
 
     std::vector<std::pair<TDataRanges, Stroka>> SplitDynamicTable(
-        TGuid tableId,
-        TSharedRange<TRowRange> ranges,
-        TRowBufferPtr rowBuffer,
-        TTableMountInfoPtr tableInfo)
+        const TObjectId& tableId,
+        const TSharedRange<TRowRange>& ranges,
+        const TRowBufferPtr& rowBuffer,
+        const TTableMountInfoPtr& tableInfo)
     {
-        if (tableInfo->Tablets.empty()) {
-            THROW_ERROR_EXCEPTION("Table %v is neither sorted nor has tablets",
-                tableId);
-        }
-
         const auto& cellDirectory = Connection_->GetCellDirectory();
         const auto& networkName = Connection_->GetConfig()->NetworkName;
 
@@ -653,24 +697,43 @@ private:
             auto lowerBound = rangesIt->first;
             auto upperBound = rangesIt->second;
 
+            NLogging::TLogger Logger("!!!");
+            LOG_INFO("Split before %v %v", lowerBound, upperBound);
+
+            if (lowerBound < tableInfo->LowerCapBound) {
+                lowerBound = tableInfo->LowerCapBound.Get();
+            }
+            if (upperBound > tableInfo->UpperCapBound) {
+                upperBound = tableInfo->UpperCapBound.Get();
+            }
+
+            LOG_INFO("Split after %v %v", lowerBound, upperBound);
+
+            if (lowerBound >= upperBound) {
+                ++rangesIt;
+                continue;
+            }
+
             // Run binary search to find the relevant tablets.
             auto startIt = std::upper_bound(
                 tableInfo->Tablets.begin(),
                 tableInfo->Tablets.end(),
                 lowerBound,
-                [] (TRow key, const TTabletInfoPtr& tabletInfo) {
+                [] (TKey key, const TTabletInfoPtr& tabletInfo) {
                     return key < tabletInfo->PivotKey;
                 }) - 1;
 
             auto tabletInfo = *startIt;
-            auto nextPivotKey = (startIt + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(startIt + 1))->PivotKey;
+            auto nextPivotKey = (startIt + 1 == tableInfo->Tablets.end())
+                ? tableInfo->UpperCapBound
+                : (*(startIt + 1))->PivotKey;
 
             if (upperBound < nextPivotKey) {
                 auto rangesItEnd = std::upper_bound(
                     rangesIt,
                     end(ranges),
                     nextPivotKey.Get(),
-                    [] (const TRow& key, const TRowRange& rowRange) {
+                    [] (TKey key, const TRowRange& rowRange) {
                         return key < rowRange.second;
                     });
 
@@ -693,9 +756,11 @@ private:
                     const auto& address = getAddress(tabletInfo);
 
                     auto pivotKey = tabletInfo->PivotKey;
-                    auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(it + 1))->PivotKey;
+                    auto nextPivotKey = (it + 1 == tableInfo->Tablets.end())
+                        ? tableInfo->UpperCapBound
+                        : (*(it + 1))->PivotKey;
 
-                    bool isLast = upperBound <= nextPivotKey;
+                    bool isLast = (upperBound <= nextPivotKey);
 
                     TRowRange subrange;
                     subrange.first = it == startIt ? lowerBound : rowBuffer->Capture(pivotKey.Get());
@@ -729,6 +794,10 @@ private:
         const auto& tableId = dataSource.Id;
         auto ranges = dataSource.Ranges;
 
+        for (const auto& range : ranges) {
+            LOG_INFO("!!! RANGE %v %v", range.first, range.second);
+        }
+
         auto prunedRanges = GetPrunedRanges(
             query,
             tableId,
@@ -741,6 +810,10 @@ private:
 
         LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
 
+        for (const auto& range : prunedRanges) {
+            LOG_INFO("!!! PRUNED RANGE %v %v", range.first, range.second);
+        }
+
         return SplitTable(
             tableId,
             MakeSharedRange(std::move(prunedRanges), rowBuffer),
@@ -752,7 +825,7 @@ private:
     TQueryStatistics DoCoordinateAndExecute(
         TConstQueryPtr query,
         const TConstExternalCGInfoPtr& externalCGInfo,
-        TQueryOptions options,
+        const TQueryOptions& options,
         ISchemafulWriterPtr writer,
         int subrangesCount,
         std::function<std::pair<std::vector<TDataRanges>, Stroka>(int)> getSubsources)
@@ -809,7 +882,7 @@ private:
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
-        TQueryOptions options,
+        const TQueryOptions& options,
         ISchemafulWriterPtr writer)
     {
         auto Logger = BuildLogger(query);
@@ -856,7 +929,7 @@ private:
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
-        TQueryOptions options,
+        const TQueryOptions& options,
         ISchemafulWriterPtr writer)
     {
         auto Logger = BuildLogger(query);
@@ -900,7 +973,7 @@ private:
    std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> Delegate(
         TConstQueryPtr query,
         const TConstExternalCGInfoPtr& externalCGInfo,
-        TQueryOptions options,
+        const TQueryOptions& options,
         std::vector<TDataRanges> dataSources,
         const Stroka& address)
     {
@@ -1565,7 +1638,7 @@ private:
                     TReqLookupRows writtenReq;
                     reader.ReadMessage(&writtenReq);
 
-                    auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schema);
+                    auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schemas[ETableSchemaKind::Primary]);
                     auto rowset = reader.ReadSchemafulRowset(schemaData);
 
                     YCHECK(rowset.Size() == batch->Keys.size());
@@ -1593,7 +1666,7 @@ private:
             std::vector<TUnversionedRow>* resultRows,
             std::vector<std::unique_ptr<TWireProtocolReader>>* readers)
         {
-            auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schema, Options_.ColumnFilter);
+            auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schemas[ETableSchemaKind::Primary], Options_.ColumnFilter);
             for (const auto& batch : Batches_) {
                 auto data = NCompression::DecompressWithEnvelope(batch->Response->Attachments());
                 auto reader = std::make_unique<TWireProtocolReader>(data);
@@ -1683,13 +1756,17 @@ private:
         const TLookupRowsOptions& options)
     {
         auto tableInfo = SyncGetTableInfo(path);
+        if (!tableInfo->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Cannot lookup rows in a non-sorted table %v",
+                path);
+        }
 
-        int schemaColumnCount = static_cast<int>(tableInfo->Schema.Columns().size());
-
+        const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+        int schemaColumnCount = static_cast<int>(schema.Columns().size());
         ValidateColumnFilter(options.ColumnFilter, schemaColumnCount);
 
-        auto resultSchema = tableInfo->Schema.Filter(options.ColumnFilter);
-        auto idMapping = BuildColumnIdMapping(tableInfo, nameTable);
+        auto resultSchema = tableInfo->Schemas[ETableSchemaKind::Primary].Filter(options.ColumnFilter);
+        auto idMapping = BuildColumnIdMapping(schema, nameTable);
 
         // NB: The server-side requires the keys to be sorted.
         std::vector<std::pair<NTableClient::TKey, int>> sortedKeys;
@@ -1697,13 +1774,11 @@ private:
 
         auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag{});
         auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
-        auto evaluator = tableInfo->NeedKeyEvaluation
-            ? evaluatorCache->Find(tableInfo->Schema)
-            : nullptr;
+        auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
 
         for (int index = 0; index < keys.Size(); ++index) {
-            ValidateClientKey(keys[index], tableInfo->Schema, idMapping);
-            auto capturedKey = rowBuffer->CaptureAndPermuteRow(keys[index], tableInfo->Schema, idMapping);
+            ValidateClientKey(keys[index], schema, idMapping);
+            auto capturedKey = rowBuffer->CaptureAndPermuteRow(keys[index], schema, idMapping);
 
             if (evaluator) {
                 evaluator->EvaluateKeys(capturedKey, rowBuffer);
@@ -1719,7 +1794,7 @@ private:
         for (const auto& pair : sortedKeys) {
             int index = pair.second;
             auto key = pair.first;
-            auto tabletInfo = GetTabletForRow(tableInfo, key);
+            auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
             const auto& cellId = tabletInfo->CellId;
             auto it = cellIdToSession.find(cellId);
             if (it == cellIdToSession.end()) {
@@ -2938,11 +3013,13 @@ private:
             : Transaction_(transaction)
             , Path_(path)
             , NameTable_(std::move(nameTable))
+            , TabletIndexColumnId_(NameTable_->FindId(TabletIndexColumnName))
         { }
 
         TTransaction* const Transaction_;
         const TYPath Path_;
         const TNameTablePtr NameTable_;
+        const TNullable<int> TabletIndexColumnId_;
 
         TTableMountInfoPtr TableInfo_;
 
@@ -2975,7 +3052,7 @@ private:
             TRowValidator validateRow,
             const TWriteRowsOptions& writeOptions = TWriteRowsOptions())
         {
-            if (TableInfo_->Schema.IsSorted()) {
+            if (TableInfo_->IsSorted()) {
                 WriteRequestSorted(rows, command, validateRow, writeOptions);
             } else {
                 WriteRequestOrdered(rows, command, validateRow, writeOptions);
@@ -2988,18 +3065,16 @@ private:
             TRowValidator validateRow,
             const TWriteRowsOptions& writeOptions)
         {
-            const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
-            const auto& schema = TableInfo_->Schema;
+            const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_, ETableSchemaKind::Write);
+            const auto& schema = TableInfo_->Schemas[ETableSchemaKind::Write];
             const auto& rowBuffer = Transaction_->GetRowBuffer();
             auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
-            auto evaluator = TableInfo_->NeedKeyEvaluation
-                ? evaluatorCache->Find(TableInfo_->Schema)
-                : nullptr;
+            auto evaluator = TableInfo_->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
 
             for (auto row : rows) {
-                validateRow(row, TableInfo_->Schema, idMapping);
+                validateRow(row, schema, idMapping);
 
-                auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, TableInfo_->Schema, idMapping);
+                auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, schema, idMapping);
 
                 for (int index = schema.GetKeyColumnCount(); index < capturedRow.GetCount(); ++index) {
                     auto& value = capturedRow[index];
@@ -3011,7 +3086,7 @@ private:
                     evaluator->EvaluateKeys(capturedRow, rowBuffer);
                 }
 
-                auto tabletInfo = GetTabletForRow(TableInfo_, capturedRow);
+                auto tabletInfo = GetSortedTabletForRow(TableInfo_, capturedRow);
                 auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
                 session->SubmitRow(command, capturedRow);
             }
@@ -3023,14 +3098,18 @@ private:
             TRowValidator validateRow,
             const TWriteRowsOptions& /*writeOptions*/)
         {
-            const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
+            const auto& primarySchema = TableInfo_->Schemas[ETableSchemaKind::Primary];
+            const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_, ETableSchemaKind::Primary);
+            const auto& writeSchema = TableInfo_->Schemas[ETableSchemaKind::Write];
+            const auto& writeIdMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_, ETableSchemaKind::Write);
             const auto& rowBuffer = Transaction_->GetRowBuffer();
-            auto tabletInfo = TableInfo_->GetRandomMountedTabled();
+            auto randomTabletInfo = TableInfo_->GetRandomMountedTabled();
 
             for (auto row : rows) {
-                validateRow(row, TableInfo_->Schema, idMapping);
+                validateRow(row, writeSchema, writeIdMapping);
 
-                auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, TableInfo_->Schema, idMapping);
+                auto tabletInfo = GetOrderedTabletForRow(TableInfo_, randomTabletInfo, TabletIndexColumnId_, row);
+                auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, primarySchema, primaryIdMapping);
                 auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
                 session->SubmitRow(command, capturedRow);
             }
@@ -3086,8 +3165,8 @@ private:
 
         virtual void DoRun() override
         {
-            if (!TableInfo_->Schema.IsSorted()) {
-                THROW_ERROR_EXCEPTION("Cannot delete rows from an ordered table %v",
+            if (!TableInfo_->IsSorted()) {
+                THROW_ERROR_EXCEPTION("Cannot delete rows from a non-sorted table %v",
                     TableInfo_->Path);
             }
             WriteRequests(
@@ -3114,8 +3193,8 @@ private:
             , TabletId_(TabletInfo_->TabletId)
             , Config_(owner->Client_->Connection_->GetConfig())
             , Durability_(owner->Transaction_->GetDurability())
-            , ColumnCount_(TableInfo_->Schema.Columns().size())
-            , KeyColumnCount_(TableInfo_->Schema.GetKeyColumnCount())
+            , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].Columns().size())
+            , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].GetKeyColumnCount())
             , ColumnEvaluator_(std::move(columnEvauator))
             , RowBuffer_(New<TRowBuffer>())
             , Logger(owner->Logger)
@@ -3146,7 +3225,7 @@ private:
         TFuture<void> Invoke(IChannelPtr channel)
         {
             try {
-                if (TableInfo_->Schema.IsSorted()) {
+                if (TableInfo_->IsSorted()) {
                     PrepareSortedBatches();
                 } else {
                     PrepareOrderedBatches();
@@ -3362,19 +3441,24 @@ private:
 
     std::vector<TFuture<void>> AsyncTransactionStartResults_;
 
-    // Maps ids from name table to schema, for each involved name table.
-    yhash_map<TNameTablePtr, TNameTableToSchemaIdMapping> NameTableToIdMapping_;
+    //! Caches mappings from name table ids to schema ids.
+    yhash_map<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
 
 
-    const TNameTableToSchemaIdMapping& GetColumnIdMapping(const TTableMountInfoPtr& tableInfo, const TNameTablePtr& nameTable)
+    const TNameTableToSchemaIdMapping& GetColumnIdMapping(
+        const TTableMountInfoPtr& tableInfo,
+        const TNameTablePtr& nameTable,
+        ETableSchemaKind kind)
     {
-        auto it = NameTableToIdMapping_.find(nameTable);
-        if (it == NameTableToIdMapping_.end()) {
-            auto mapping = BuildColumnIdMapping(tableInfo, nameTable);
-            it = NameTableToIdMapping_.insert(std::make_pair(nameTable, std::move(mapping))).first;
+        auto key = std::make_pair(nameTable, kind);
+        auto it = IdMappingCache_.find(key);
+        if (it == IdMappingCache_.end()) {
+            auto mapping = BuildColumnIdMapping(tableInfo->Schemas[kind], nameTable);
+            it = IdMappingCache_.insert(std::make_pair(key, std::move(mapping))).first;
         }
         return it->second;
     }
+
 
     TTabletCommitSession* GetTabletSession(const TTabletInfoPtr& tabletInfo, const TTableMountInfoPtr& tableInfo)
     {
@@ -3383,7 +3467,7 @@ private:
         if (it == TabletToSession_.end()) {
             AsyncTransactionStartResults_.push_back(Transaction_->AddTabletParticipant(tabletInfo->CellId));
             auto evaluatorCache = GetConnection()->GetColumnEvaluatorCache();
-            auto evaluator = evaluatorCache->Find(tableInfo->Schema);
+            auto evaluator = evaluatorCache->Find(tableInfo->Schemas[ETableSchemaKind::Write]);
             it = TabletToSession_.insert(std::make_pair(
                 tabletId,
                 New<TTabletCommitSession>(

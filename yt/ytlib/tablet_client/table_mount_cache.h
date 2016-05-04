@@ -45,18 +45,40 @@ DEFINE_REFCOUNTED_TYPE(TTabletInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Describes the primary and the auxiliary schemas derived from the table schema.
+//! Cf. TTableSchema::ToXXX methods.
+DEFINE_ENUM(ETableSchemaKind,
+    // Schema assigned to Cypress node, as is.
+    (Primary)
+    // Schema used for inserting rows.
+    (Write)
+    // Schema used for querying rows.
+    (Query)
+    // Schema used for deleting rows.
+    (Delete)
+    // Schema used for looking up rows.
+    (Lookup)
+);
+
 struct TTableMountInfo
     : public TRefCounted
 {
     NYPath::TYPath Path;
     NObjectClient::TObjectId TableId;
+    TEnumIndexedVector<NTableClient::TTableSchema, ETableSchemaKind> Schemas;
 
-    NTableClient::TTableSchema Schema;
     bool Dynamic;
     bool NeedKeyEvaluation;
 
     std::vector<TTabletInfoPtr> Tablets;
     std::vector<TTabletInfoPtr> MountedTablets;
+
+    //! For sorted tables, these are -infinity and +infinity.
+    //! For ordered tablets, these are |[0]| and |[tablet_count]| resp.
+    NTableClient::TOwningKey LowerCapBound;
+    NTableClient::TOwningKey UpperCapBound;
+
+    bool IsSorted() const;
 
     TTabletInfoPtr GetTabletForRow(NTableClient::TUnversionedRow row) const;
     TTabletInfoPtr GetRandomMountedTabled() const;

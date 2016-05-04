@@ -30,6 +30,7 @@ using namespace NConcurrency;
 using namespace NTransactionClient;
 using namespace NHive;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -283,15 +284,19 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
 
     tableInfo->ValidateDynamic();
 
+    if (!tableInfo->IsSorted() && Update) {
+        THROW_ERROR_EXCEPTION("Cannot use \"update\" mode for ordered tables");
+    }
+
     struct TInsertRowsBufferTag
     { };
 
     // Parse input data.
-    auto valueConsumer = TBuildingValueConsumer(tableInfo->Schema);
-    valueConsumer.SetTreatMissingAsNull(!Update);
-    auto rows = ParseRows(context, config, &valueConsumer);
-    auto rowBuffer = New<TRowBuffer>(TInsertRowsBufferTag{});
+    auto valueConsumer = New<TBuildingValueConsumer>(tableInfo->Schemas[ETableSchemaKind::Write]);
+    valueConsumer->SetTreatMissingAsNull(!Update);
 
+    auto rows = ParseRows(context, config, &valueConsumer);
+    auto rowBuffer = New<TRowBuffer>(TInsertRowsBufferTag());
     auto capturedRows = rowBuffer->Capture(rows);
     auto mutableRowRange = MakeSharedRange(std::move(capturedRows), std::move(rowBuffer));
     // XXX(sandello): No covariance here yet.
@@ -331,7 +336,8 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
         .ValueOrThrow();
     tableInfo->ValidateDynamic();
 
-    auto nameTable = TNameTable::FromSchema(tableInfo->Schema);
+    const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+    auto nameTable = TNameTable::FromSchema(schema);
 
     if (ColumnNames) {
         Options.ColumnFilter.All = false;
@@ -359,7 +365,7 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     // Parse input data.
     auto valueConsumer = TBuildingValueConsumer(tableInfo->Schema);
     auto keys = ParseRows(context, config, &valueConsumer);
-    auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag{});
+    auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag());
     auto capturedKeys = rowBuffer->Capture(keys);
     auto mutableKeyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
     auto keyRange = TSharedRange<TUnversionedRow>(
@@ -416,9 +422,11 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
     { };
 
     // Parse input data.
-    auto valueConsumer = TBuildingValueConsumer(tableInfo->Schema);
-    auto keys = ParseRows(context, config, &valueConsumer);
-    auto rowBuffer = New<TRowBuffer>(TDeleteRowsBufferTag{});
+    const auto& schema = tableInfo->Schemas[ETableSchemaKind::Write];
+    auto keyColumns = schema.GetKeyColumns();
+    auto valueConsumer = New<TBuildingValueConsumer>(schema.TrimNonkeyColumns(keyColumns));
+    auto keys = ParseRows(context, config, valueConsumer);
+    auto rowBuffer = New<TRowBuffer>(TDeleteRowsBufferTag());
     auto capturedKeys = rowBuffer->Capture(keys);
     auto mutableKeyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
     // XXX(sandello): No covariance here yet.

@@ -229,9 +229,9 @@ TEST_F(TSingleLockStoreManagerTest, ConfirmRowWithRotation)
 
     auto transaction = StartTransaction();
 
-    auto rowRef1 = WriteRow(transaction.get(), BuildRow("key=1;a=1"), true);
+    auto rowRef = WriteRow(transaction.get(), BuildRow("key=1;a=1"), true);
     EXPECT_EQ(0, transaction->LockedSortedRows().size());
-    EXPECT_EQ(store1, rowRef1.Store);
+    EXPECT_EQ(store1, rowRef.Store);
 
     RotateStores();
     auto store2 = GetActiveStore();
@@ -240,19 +240,20 @@ TEST_F(TSingleLockStoreManagerTest, ConfirmRowWithRotation)
     EXPECT_EQ(1, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    ConfirmRow(transaction.get(), rowRef1);
+    ConfirmRow(transaction.get(), rowRef);
 
     EXPECT_EQ(1, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    auto rowRef2 = transaction->LockedSortedRows()[0];
-    EXPECT_EQ(store1, rowRef2.Store);
+    EXPECT_EQ(1, transaction->LockedSortedRows().size());
+    EXPECT_EQ(rowRef, transaction->LockedSortedRows()[0]);
+    EXPECT_EQ(store1, rowRef.Store);
 
     PrepareTransaction(transaction.get());
-    PrepareRow(transaction.get(), rowRef2);
+    PrepareRow(transaction.get(), rowRef);
 
     CommitTransaction(transaction.get());
-    CommitRow(transaction.get(), rowRef2);
+    CommitRow(transaction.get(), rowRef);
 
     EXPECT_EQ(0, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
@@ -269,7 +270,7 @@ TEST_F(TSingleLockStoreManagerTest, PrepareRowWithRotation)
 
     auto transaction = StartTransaction();
 
-    WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
+    auto rowRef = WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
     EXPECT_EQ(1, transaction->LockedSortedRows().size());
 
     RotateStores();
@@ -279,7 +280,8 @@ TEST_F(TSingleLockStoreManagerTest, PrepareRowWithRotation)
     EXPECT_EQ(1, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    auto rowRef = transaction->LockedSortedRows()[0];
+    EXPECT_EQ(1, transaction->LockedSortedRows().size());
+    EXPECT_EQ(rowRef, transaction->LockedSortedRows()[0]);
     EXPECT_EQ(store1, rowRef.Store);
 
     PrepareTransaction(transaction.get());
@@ -308,8 +310,8 @@ TEST_F(TSingleLockStoreManagerTest, MigrateRow)
     auto transaction = StartTransaction();
 
     WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
-    EXPECT_EQ(1, transaction->LockedSortedRows().size());
 
+    EXPECT_EQ(1, transaction->LockedSortedRows().size());
     auto& rowRef = transaction->LockedSortedRows()[0];
     EXPECT_EQ(store1, rowRef.Store);
 

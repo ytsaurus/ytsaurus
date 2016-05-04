@@ -256,6 +256,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_block_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_block_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_chunk_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_concatenating_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_overlapping_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_reader_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_writer_adapter.cpp

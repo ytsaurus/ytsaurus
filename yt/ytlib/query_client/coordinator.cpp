@@ -26,21 +26,20 @@ using namespace NTableClient;
 
 TTableSchema GetIntermediateSchema(TConstGroupClausePtr groupClause)
 {
-    auto schema = TTableSchema();
-
+    std::vector<TColumnSchema> columns;
     for (auto item : groupClause->GroupItems) {
-        schema.AppendColumn(TColumnSchema(
+        columns.push_back(TColumnSchema(
             item.Name,
             item.Expression->Type));
     }
 
     for (auto item : groupClause->AggregateItems) {
-        schema.AppendColumn(TColumnSchema(
+        columns.push_back(TColumnSchema(
             item.Name,
             item.StateType));
     }
 
-    return schema;
+    return TTableSchema(columns);
 }
 
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(

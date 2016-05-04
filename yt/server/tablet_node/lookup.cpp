@@ -49,8 +49,8 @@ public:
         , Timestamp_(timestamp)
         , Reader_(reader)
         , Writer_(writer)
-        , KeyColumnCount_ (TabletSnapshot_->Schema.GetKeyColumnCount())
-        , SchemaColumnCount_(TabletSnapshot_->Schema.Columns().size())
+        , KeyColumnCount_ (TabletSnapshot_->TableSchema.GetKeyColumnCount())
+        , SchemaColumnCount_(TabletSnapshot_->TableSchema.Columns().size())
         , WorkloadDescriptor_(workloadDescriptor)
     { }
 
@@ -65,10 +65,10 @@ public:
             columnFilter.Indexes = FromProto<SmallVector<int, TypicalColumnCount>>(req.column_filter().indexes());
         }
 
-        ValidateColumnFilter(columnFilter, TabletSnapshot_->Schema.Columns().size());
+        ValidateColumnFilter(columnFilter, TabletSnapshot_->TableSchema.Columns().size());
         ColumnFilter_ = std::move(columnFilter);
 
-        auto schemaData = TWireProtocolReader::GetSchemaData(TabletSnapshot_->Schema);
+        auto schemaData = TWireProtocolReader::GetSchemaData(TabletSnapshot_->TableSchema);
         LookupKeys_ = Reader_->ReadSchemafulRowset(schemaData);
 
         Merger_ = New<TSchemafulRowMerger>(
@@ -90,7 +90,7 @@ public:
         for (int index = 0; index < LookupKeys_.Size(); ++index) {
             YASSERT(index == 0 || LookupKeys_[index] >= LookupKeys_[index - 1]);
             auto key = LookupKeys_[index];
-            ValidateServerKey(key, TabletSnapshot_->Schema);
+            ValidateServerKey(key, TabletSnapshot_->TableSchema);
             auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);
             if (partitionSnapshot != currentPartitionSnapshot) {
                 LookupInPartition(

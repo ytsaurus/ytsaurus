@@ -161,10 +161,13 @@ TEST_F(TOrderedStoreManagerTest, ConfirmRowWithRotation)
 
     auto transaction = StartTransaction();
 
-    const auto* row = "a=1";
-    auto rowRef1 = WriteRow(transaction.get(), BuildRow(row), true);
+    const auto* row1 = "a=1";
+    WriteRow(BuildRow(row1));
+
+    const auto* row2 = "a=2";
+    auto rowRef2 = WriteRow(transaction.get(), BuildRow(row2), true);
     EXPECT_EQ(0, transaction->LockedOrderedRows().size());
-    EXPECT_EQ(store1, rowRef1.Store);
+    EXPECT_EQ(store1, rowRef2.Store);
 
     RotateStores();
     auto store2 = GetActiveStore();
@@ -173,12 +176,13 @@ TEST_F(TOrderedStoreManagerTest, ConfirmRowWithRotation)
     EXPECT_EQ(1, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    ConfirmRow(transaction.get(), rowRef1);
+    ConfirmRow(transaction.get(), rowRef2);
 
     EXPECT_EQ(1, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    auto rowRef2 = transaction->LockedOrderedRows()[0];
+    EXPECT_EQ(1, transaction->LockedOrderedRows().size());
+    EXPECT_EQ(rowRef2, transaction->LockedOrderedRows()[0]);
     EXPECT_EQ(store1, rowRef2.Store);
 
     PrepareTransaction(transaction.get());
@@ -190,8 +194,11 @@ TEST_F(TOrderedStoreManagerTest, ConfirmRowWithRotation)
     EXPECT_EQ(0, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    EXPECT_TRUE(AreRowsEqual(GetRow(store1, 0), row));
-    EXPECT_TRUE(AreRowsEqual(GetRow(store2, 0), row));
+    EXPECT_EQ(1, store1->GetRowCount());
+    EXPECT_EQ(1, store2->GetRowCount());
+
+    EXPECT_TRUE(AreRowsEqual(GetRow(store1, 0), row1));
+    EXPECT_TRUE(AreRowsEqual(GetRow(store2, 0), row2));
 }
 
 TEST_F(TOrderedStoreManagerTest, PrepareRowWithRotation)
@@ -200,8 +207,11 @@ TEST_F(TOrderedStoreManagerTest, PrepareRowWithRotation)
 
     auto transaction = StartTransaction();
 
-    const auto* row = "a=1";
-    WriteRow(transaction.get(), BuildRow(row), false);
+    const auto* row1 = "a=1";
+    WriteRow(BuildRow(row1));
+
+    const auto* row2 = "a=2";
+    auto rowRef2 = WriteRow(transaction.get(), BuildRow(row2), false);
     EXPECT_EQ(1, transaction->LockedOrderedRows().size());
 
     RotateStores();
@@ -211,24 +221,25 @@ TEST_F(TOrderedStoreManagerTest, PrepareRowWithRotation)
     EXPECT_EQ(1, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    auto rowRef = transaction->LockedOrderedRows()[0];
-    EXPECT_EQ(store1, rowRef.Store);
+    EXPECT_EQ(1, transaction->LockedOrderedRows().size());
+    EXPECT_EQ(rowRef2, transaction->LockedOrderedRows()[0]);
+    EXPECT_EQ(store1, rowRef2.Store);
 
     PrepareTransaction(transaction.get());
-    PrepareRow(transaction.get(), rowRef);
-    EXPECT_EQ(store1, rowRef.Store);
+    PrepareRow(transaction.get(), rowRef2);
+    EXPECT_EQ(store1, rowRef2.Store);
 
     EXPECT_EQ(1, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
     CommitTransaction(transaction.get());
-    CommitRow(transaction.get(), rowRef);
+    CommitRow(transaction.get(), rowRef2);
 
     EXPECT_EQ(0, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    EXPECT_TRUE(AreRowsEqual(GetRow(store1, 0), row));
-    EXPECT_TRUE(AreRowsEqual(GetRow(store2, 0), row));
+    EXPECT_TRUE(AreRowsEqual(GetRow(store1, 0), row1));
+    EXPECT_TRUE(AreRowsEqual(GetRow(store2, 0), row2));
 }
 
 TEST_F(TOrderedStoreManagerTest, MigrateRow)
@@ -237,15 +248,19 @@ TEST_F(TOrderedStoreManagerTest, MigrateRow)
 
     auto transaction = StartTransaction();
 
-    const auto* row = "a=1";
-    WriteRow(transaction.get(), BuildRow(row), false);
+    const auto* row1 = "a=1";
+    WriteRow(BuildRow(row1));
+
+    const auto* row2 = "a=2";
+    auto rowRef2 = WriteRow(transaction.get(), BuildRow(row2), false);
     EXPECT_EQ(1, transaction->LockedOrderedRows().size());
 
-    auto& rowRef = transaction->LockedOrderedRows()[0];
-    EXPECT_EQ(store1, rowRef.Store);
+    EXPECT_EQ(1, transaction->LockedOrderedRows().size());
+    EXPECT_EQ(rowRef2, transaction->LockedOrderedRows()[0]);
+    EXPECT_EQ(store1, rowRef2.Store);
 
     PrepareTransaction(transaction.get());
-    PrepareRow(transaction.get(), rowRef);
+    PrepareRow(transaction.get(), rowRef2);
 
     RotateStores();
     auto store2 = GetActiveStore();
@@ -255,14 +270,13 @@ TEST_F(TOrderedStoreManagerTest, MigrateRow)
     EXPECT_EQ(0, store2->GetLockCount());
 
     CommitTransaction(transaction.get());
-    CommitRow(transaction.get(), rowRef);
+    CommitRow(transaction.get(), rowRef2);
 
     EXPECT_EQ(0, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    auto key = BuildKey("1");
-    EXPECT_TRUE(AreRowsEqual(GetRow(store1, 0), row));
-    EXPECT_TRUE(AreRowsEqual(GetRow(store2, 0), row));
+    EXPECT_TRUE(AreRowsEqual(GetRow(store1, 0), row1));
+    EXPECT_TRUE(AreRowsEqual(GetRow(store2, 0), row2));
 }
 
 TEST_F(TOrderedStoreManagerTest, AbortRowWithRotation)
@@ -271,8 +285,11 @@ TEST_F(TOrderedStoreManagerTest, AbortRowWithRotation)
 
     auto transaction = StartTransaction();
 
-    const auto* row = "a=1";
-    WriteRow(transaction.get(), BuildRow(row), false);
+    const auto* row1 = "a=1";
+    WriteRow(BuildRow(row1));
+
+    const auto* row2 = "a=2";
+    auto rowRef2 = WriteRow(transaction.get(), BuildRow(row2), false);
     EXPECT_EQ(1, transaction->LockedOrderedRows().size());
 
     RotateStores();
@@ -282,16 +299,17 @@ TEST_F(TOrderedStoreManagerTest, AbortRowWithRotation)
     EXPECT_EQ(1, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    auto& rowRef = transaction->LockedOrderedRows()[0];
-    EXPECT_EQ(store1, rowRef.Store);
+    EXPECT_EQ(1, transaction->LockedOrderedRows().size());
+    EXPECT_EQ(rowRef2, transaction->LockedOrderedRows()[0]);
+    EXPECT_EQ(store1, rowRef2.Store);
 
     AbortTransaction(transaction.get());
-    AbortRow(transaction.get(), rowRef);
+    AbortRow(transaction.get(), rowRef2);
 
     EXPECT_EQ(0, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    EXPECT_EQ(0, store1->GetRowCount());
+    EXPECT_EQ(1, store1->GetRowCount());
     EXPECT_EQ(0, store2->GetRowCount());
 }
 
@@ -300,18 +318,24 @@ TEST_F(TOrderedStoreManagerTest, UnlockStoreOnCommit)
     auto store = GetActiveStore();
     auto transaction = StartTransaction();
 
-    WriteRow(transaction.get(), BuildRow("a=1"), false);
+    const auto* row1 = "a=1";
+    WriteRow(BuildRow(row1));
+
+    const auto* row2 = "a=2";
+    auto rowRef2 = WriteRow(transaction.get(), BuildRow(row2), false);
+
     EXPECT_EQ(1, transaction->LockedOrderedRows().size());
-    auto rowRef = transaction->LockedOrderedRows()[0];
+    EXPECT_EQ(rowRef2, transaction->LockedOrderedRows()[0]);
+    EXPECT_EQ(store, rowRef2.Store);
 
     RotateStores();
 
     EXPECT_TRUE(StoreManager_->IsStoreLocked(store));
 
     PrepareTransaction(transaction.get());
-    PrepareRow(transaction.get(), rowRef);
+    PrepareRow(transaction.get(), rowRef2);
     CommitTransaction(transaction.get());
-    CommitRow(transaction.get(), rowRef);
+    CommitRow(transaction.get(), rowRef2);
 
     EXPECT_FALSE(StoreManager_->IsStoreLocked(store));
 }
@@ -321,16 +345,22 @@ TEST_F(TOrderedStoreManagerTest, UnlockStoreOnAbort)
     auto store = GetActiveStore();
     auto transaction = StartTransaction();
 
-    WriteRow(transaction.get(), BuildRow("a=1"), false);
+    const auto* row1 = "a=1";
+    WriteRow(BuildRow(row1));
+
+    const auto* row2 = "a=2";
+    auto rowRef2 = WriteRow(transaction.get(), BuildRow(row2), false);
+
     EXPECT_EQ(1, transaction->LockedOrderedRows().size());
-    auto rowRef = transaction->LockedOrderedRows()[0];
+    EXPECT_EQ(rowRef2, transaction->LockedOrderedRows()[0]);
+    EXPECT_EQ(store, rowRef2.Store);
 
     RotateStores();
 
     EXPECT_TRUE(StoreManager_->IsStoreLocked(store));
 
     AbortTransaction(transaction.get());
-    AbortRow(transaction.get(), rowRef);
+    AbortRow(transaction.get(), rowRef2);
 
     EXPECT_FALSE(StoreManager_->IsStoreLocked(store));
 }

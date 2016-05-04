@@ -7,14 +7,15 @@ namespace NTabletNode {
 
 int GetCurrentSnapshotVersion()
 {
-    return 14;
+    return 15;
 }
 
 bool ValidateSnapshotVersion(int version)
 {
     return
         version == 13 ||
-        version == 14;
+        version == 14 ||
+        version == 15;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

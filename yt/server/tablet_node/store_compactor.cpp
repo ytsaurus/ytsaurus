@@ -108,10 +108,14 @@ private:
             return;
         }
 
+        if (!tablet->IsSorted()) {
+            return;
+        }
+
         ScanPartitionForCompaction(slot, tablet->GetEden());
         ScanEdenForPartitioning(slot, tablet->GetEden());
 
-        for (auto& partition : tablet->Partitions()) {
+        for (auto& partition : tablet->PartitionList()) {
             ScanPartitionForCompaction(slot, partition.get());
         }
     }
@@ -136,7 +140,7 @@ private:
         }
 
         std::vector<TOwningKey> pivotKeys;
-        for (const auto& partition : tablet->Partitions()) {
+        for (const auto& partition : tablet->PartitionList()) {
             pivotKeys.push_back(partition->GetPivotKey());
         }
 

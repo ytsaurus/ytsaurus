@@ -172,7 +172,7 @@ public:
         NApi::IClientPtr client,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor);
 
-    void Initialize(const NChunkClient::NProto::TChunkMeta* chunkMeta);
+    virtual void Initialize(const NTabletNode::NProto::TAddStoreDescriptor* descriptor);
 
     const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
 
@@ -280,6 +280,15 @@ public:
 
     virtual bool IsOrdered() const override;
     virtual IOrderedStorePtr AsOrdered() override;
+
+    virtual i64 GetStartingRowIndex() const override;
+    virtual void SetStartingRowIndex(i64 value) override;
+
+    virtual void Save(TSaveContext& context) const override;
+    virtual void Load(TLoadContext& context) override;
+
+protected:
+    i64 StartingRowIndex_ = 0;
 
 };
 

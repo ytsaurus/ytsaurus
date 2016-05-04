@@ -641,14 +641,12 @@ private:
                     }
                     depth -= std::get<1>(boundary);
                 }
-                YCHECK(tablet->Partitions().size() == 1);
+                YCHECK(tablet->PartitionList().size() == 1);
                 SplitTabletPartition(tablet, 0, pivotKeys);
             }
         }
 
         const auto& storeManager = tablet->GetStoreManager();
-        storeManager->CreateActiveStore();
-
         for (const auto& descriptor : request->stores()) {
             auto type = EStoreType(descriptor.store_type());
             auto storeId = FromProto<TChunkId>(descriptor.store_id());
@@ -658,9 +656,13 @@ private:
                 tablet,
                 type,
                 storeId,
-                &descriptor.chunk_meta());
+                &descriptor);
             storeManager->AddStore(store->AsChunk(), true);
         }
+
+        // NB: Active store must be created _after_ chunk stores to make sure it receives
+        // the right starting row index (for ordered tablets only).
+        storeManager->CreateActiveStore();
 
         {
             TRspMountTablet response;
@@ -680,7 +682,7 @@ private:
             pivotKey,
             nextPivotKey,
             request->stores_size(),
-            tablet->Partitions().size(),
+            tablet->IsSorted() ? MakeNullable(tablet->PartitionList().size()) : Null,
             tablet->GetAtomicity());
     }
 
@@ -699,7 +701,7 @@ private:
             // Just a formality.
             tablet->SetState(ETabletState::Unmounted);
 
-            for (const auto& pair : tablet->Stores()) {
+            for (const auto& pair : tablet->StoreIdMap()) {
                 SetStoreOrphaned(tablet, pair.second);
             }
 
@@ -1093,32 +1095,28 @@ private:
 
         auto mountConfig = tablet->GetConfig();
         auto inMemoryManager = Bootstrap_->GetInMemoryManager();
-        std::vector<TStoreId> addedStoreIds;
-        for (const auto& descriptor : response->stores_to_add()) {
-            auto storeType = EStoreType(descriptor.store_type());
-            auto storeId = FromProto<TChunkId>(descriptor.store_id());
-            addedStoreIds.push_back(storeId);
 
-            auto store = CreateStore(tablet, storeType, storeId, &descriptor.chunk_meta())->AsChunk();
-            storeManager->AddStore(store, false);
+        // NB: Must handle store removals before store additions since
+        // row index map forbids having multiple stores with the same starting row index.
+        // But before proceeding to removals, we must take care of backing stores.
+        yhash_map<TStoreId, IDynamicStorePtr> idToBackingStore;
+        auto registerBackingStore = [&] (const IStorePtr& store) {
+            YCHECK(idToBackingStore.insert(std::make_pair(store->GetId(), store->AsDynamic())).second);
+        };
+        auto getBackingStore = [&] (const TStoreId& id) {
+            auto it = idToBackingStore.find(id);
+            YCHECK(it != idToBackingStore.end());
+            return it->second;
+        };
 
-            if (tablet->IsSorted()) {
-                // XXX(babenko): get rid of this
-                auto chunkStore = store->AsSortedChunk();
-                SchedulePartitionSampling(chunkStore->GetPartition());
+        if (!IsRecovery()) {
+            for (const auto& descriptor : response->stores_to_add()) {
+                if (descriptor.has_backing_store_id()) {
+                    auto backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
+                    auto backingStore = tablet->GetStore(backingStoreId);
+                    registerBackingStore(backingStore);
+                }
             }
-
-            TStoreId backingStoreId;
-            if (!IsRecovery() && descriptor.has_backing_store_id()) {
-                backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
-                auto backingStore = tablet->GetStore(backingStoreId)->AsDynamic();
-                SetBackingStore(tablet, store, backingStore);
-            }
-
-            LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, BackingStoreId: %v)",
-                tabletId,
-                storeId,
-                backingStoreId);
         }
 
         std::vector<TStoreId> removedStoreIds;
@@ -1137,6 +1135,34 @@ private:
             LOG_DEBUG_UNLESS(IsRecovery(), "Store removed (TabletId: %v, StoreId: %v)",
                 tabletId,
                 storeId);
+        }
+
+        std::vector<TStoreId> addedStoreIds;
+        for (const auto& descriptor : response->stores_to_add()) {
+            auto storeType = EStoreType(descriptor.store_type());
+            auto storeId = FromProto<TChunkId>(descriptor.store_id());
+            addedStoreIds.push_back(storeId);
+
+            auto store = CreateStore(tablet, storeType, storeId, &descriptor)->AsChunk();
+            storeManager->AddStore(store, false);
+
+            if (tablet->IsSorted()) {
+                // XXX(babenko): get rid of this
+                auto chunkStore = store->AsSortedChunk();
+                SchedulePartitionSampling(chunkStore->GetPartition());
+            }
+
+            TStoreId backingStoreId;
+            if (!IsRecovery() && descriptor.has_backing_store_id()) {
+                backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
+                auto backingStore = getBackingStore(backingStoreId);
+                SetBackingStore(tablet, store, backingStore);
+            }
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, BackingStoreId: %v)",
+                tabletId,
+                storeId,
+                backingStoreId);
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated successfully "
@@ -1167,14 +1193,14 @@ private:
         }
 
         auto partitionId = FromProto<TPartitionId>(request->partition_id());
-        auto* partition = tablet->GetPartitionById(partitionId);
+        auto* partition = tablet->GetPartition(partitionId);
         auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
 
         // NB: Set the state back to normal; otherwise if some of the below checks fail, we might get
         // a partition stuck in splitting state forever.
         partition->SetState(EPartitionState::Normal);
 
-        if (tablet->Partitions().size() >= tablet->GetConfig()->MaxPartitionCount)
+        if (tablet->PartitionList().size() >= tablet->GetConfig()->MaxPartitionCount)
             return;
 
         int partitionIndex = partition->GetIndex();
@@ -1188,8 +1214,8 @@ private:
             partitionId,
             MakeFormattableRange(
                 MakeRange(
-                    tablet->Partitions().data() + partitionIndex,
-                    tablet->Partitions().data() + partitionIndex + pivotKeys.size()),
+                    tablet->PartitionList().data() + partitionIndex,
+                    tablet->PartitionList().data() + partitionIndex + pivotKeys.size()),
                 TPartitionIdFormatter()),
             partitionDataSize,
             JoinToString(pivotKeys, STRINGBUF(" .. ")));
@@ -1215,14 +1241,14 @@ private:
         }
 
         auto firstPartitionId = FromProto<TPartitionId>(request->partition_id());
-        auto* firstPartition = tablet->GetPartitionById(firstPartitionId);
+        auto* firstPartition = tablet->GetPartition(firstPartitionId);
 
         int firstPartitionIndex = firstPartition->GetIndex();
         int lastPartitionIndex = firstPartitionIndex + request->partition_count() - 1;
 
         i64 partitionsDataSize = 0;
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
-            const auto& partition = tablet->Partitions()[index];
+            const auto& partition = tablet->PartitionList()[index];
             partitionsDataSize += partition->GetUncompressedDataSize();
             // See HydraSplitPartition.
             // Currently this code is redundant since there's no escape path below,
@@ -1233,8 +1259,8 @@ private:
         auto originalPartitionIds = Format("%v",
             MakeFormattableRange(
                 MakeRange(
-                    tablet->Partitions().data() + firstPartitionIndex,
-                    tablet->Partitions().data() + lastPartitionIndex + 1),
+                    tablet->PartitionList().data() + firstPartitionIndex,
+                    tablet->PartitionList().data() + lastPartitionIndex + 1),
             TPartitionIdFormatter()));
 
         MergeTabletPartitions(tablet, firstPartitionIndex, lastPartitionIndex);
@@ -1243,7 +1269,7 @@ private:
             "ResultingPartitionId: %v, DataSize: %v)",
             tablet->GetId(),
             originalPartitionIds,
-            tablet->Partitions()[firstPartitionIndex]->GetId(),
+            tablet->PartitionList()[firstPartitionIndex]->GetId(),
             partitionsDataSize);
 
         // NB: Initial partitions are merged into a single one with index |firstPartitionIndex|.
@@ -1267,7 +1293,7 @@ private:
         }
 
         auto partitionId = FromProto<TPartitionId>(request->partition_id());
-        auto* partition = tablet->FindPartitionById(partitionId);
+        auto* partition = tablet->FindPartition(partitionId);
         if (!partition) {
             return;
         }
@@ -1673,7 +1699,7 @@ private:
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->RegisterTabletSnapshot(Slot_, tablet);
 
-        for (const auto& pair : tablet->Stores()) {
+        for (const auto& pair : tablet->StoreIdMap()) {
             const auto& store = pair.second;
             if (store->GetType() == EStoreType::SortedDynamic) {
                 auto sortedDynamicStore = store->AsSortedDynamic();
@@ -1693,7 +1719,7 @@ private:
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->UnregisterTabletSnapshot(Slot_, tablet);
 
-        for (const auto& pair : tablet->Stores()) {
+        for (const auto& pair : tablet->StoreIdMap()) {
             const auto& store = pair.second;
             if (store->GetType() == EStoreType::SortedDynamic) {
                 store->AsSortedDynamic()->ResetRowBlockedHandler();
@@ -1707,7 +1733,7 @@ private:
         tablet->SplitPartition(partitionIndex, pivotKeys);
         if (!IsRecovery()) {
             for (int currentIndex = partitionIndex; currentIndex < partitionIndex + pivotKeys.size(); ++currentIndex) {
-                tablet->Partitions()[currentIndex]->StartEpoch();
+                tablet->PartitionList()[currentIndex]->StartEpoch();
             }
         }
     }
@@ -1716,7 +1742,7 @@ private:
     {
         tablet->MergePartitions(firstIndex, lastIndex);
         if (!IsRecovery()) {
-            tablet->Partitions()[firstIndex]->StartEpoch();
+            tablet->PartitionList()[firstIndex]->StartEpoch();
         }
     }
 
@@ -1755,7 +1781,8 @@ private:
                         .Item("pivot_key").Value(tablet->GetPivotKey())
                         .Item("next_pivot_key").Value(tablet->GetNextPivotKey())
                         .Item("eden").Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), tablet->GetEden()))
-                        .Item("partitions").DoListFor(tablet->Partitions(), [&] (TFluentList fluent, const std::unique_ptr<TPartition>& partition) {
+                        .Item("partitions").DoListFor(
+                            tablet->PartitionList(), [&] (TFluentList fluent, const std::unique_ptr<TPartition>& partition) {
                             fluent
                                 .Item()
                                 .Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
@@ -1763,7 +1790,8 @@ private:
                 })
                 .DoIf(!tablet->IsSorted(), [&] (TFluentMap fluent) {
                     fluent
-                        .Item("stores").DoMapFor(tablet->Stores(), [&] (TFluentMap fluent, const std::pair<const TStoreId, IStorePtr>& pair) {
+                        .Item("stores").DoMapFor(
+                        tablet->StoreIdMap(), [&] (TFluentMap fluent, const std::pair<const TStoreId, IStorePtr>& pair) {
                             const auto& store = pair.second;
                             fluent
                                 .Item(ToString(store->GetId()))
@@ -1864,7 +1892,7 @@ private:
 
     void ValidateTabletStoreLimit(TTablet* tablet)
     {
-        auto storeCount = tablet->Stores().size();
+        auto storeCount = tablet->StoreIdMap().size();
         auto storeLimit = tablet->GetConfig()->MaxStoresPerTablet;
         if (storeCount >= storeLimit) {
             THROW_ERROR_EXCEPTION("Too many stores in tablet, all writes disabled")
@@ -1905,13 +1933,13 @@ private:
     {
         const auto* mutationContext = GetCurrentMutationContext();
         for (int index = beginPartitionIndex; index < endPartitionIndex; ++index) {
-            tablet->Partitions()[index]->SetSamplingRequestTime(mutationContext->GetTimestamp());
+            tablet->PartitionList()[index]->SetSamplingRequestTime(mutationContext->GetTimestamp());
         }
     }
 
     void SchedulePartitionsSampling(TTablet* tablet)
     {
-        SchedulePartitionsSampling(tablet, 0, tablet->Partitions().size());
+        SchedulePartitionsSampling(tablet, 0, tablet->PartitionList().size());
     }
 
 
@@ -2040,9 +2068,9 @@ private:
         TTablet* tablet,
         EStoreType type,
         const TStoreId& storeId,
-        const TChunkMeta* chunkMeta)
+        const TAddStoreDescriptor* descriptor)
     {
-        auto store = DoCreateStore(tablet, type, storeId, chunkMeta);
+        auto store = DoCreateStore(tablet, type, storeId, descriptor);
         StartMemoryUsageTracking(store);
         return store;
     }
@@ -2051,7 +2079,7 @@ private:
         TTablet* tablet,
         EStoreType type,
         const TStoreId& storeId,
-        const TChunkMeta* chunkMeta)
+        const TAddStoreDescriptor* descriptor)
     {
         switch (type) {
             case EStoreType::SortedChunk: {
@@ -2064,7 +2092,7 @@ private:
                     Bootstrap_->GetChunkBlockManager(),
                     Bootstrap_->GetMasterClient(),
                     Bootstrap_->GetMasterConnector()->GetLocalDescriptor());
-                store->Initialize(chunkMeta);
+                store->Initialize(descriptor);
                 return store;
             }
 
@@ -2084,7 +2112,7 @@ private:
                     Bootstrap_->GetChunkBlockManager(),
                     Bootstrap_->GetMasterClient(),
                     Bootstrap_->GetMasterConnector()->GetLocalDescriptor());
-                store->Initialize(chunkMeta);
+                store->Initialize(descriptor);
                 return store;
             }
 

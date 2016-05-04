@@ -132,7 +132,7 @@ IVersionedMultiChunkWriterPtr TChunkWriterPool::AllocateWriter()
             auto underlyingWriter = CreateVersionedMultiChunkWriter(
                 WriterConfig_,
                 WriterOptions_,
-                TabletSnapshot_->Schema,
+                TabletSnapshot_->TableSchema,
                 Client_,
                 Client_->GetConnection()->GetPrimaryMasterCellTag(),
                 TransactionId_,

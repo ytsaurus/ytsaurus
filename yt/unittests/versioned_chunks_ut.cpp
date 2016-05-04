@@ -52,17 +52,18 @@ protected:
     EOptimizeFor OptimizeFor;
 
     explicit TVersionedChunksLookupTestBase(EOptimizeFor optimizeFor)
-        : OptimizeFor(optimizeFor)
-    {
-        Schema.AppendColumn(TColumnSchema("k1", EValueType::String)
-            .SetSortOrder(ESortOrder::Ascending));
-        Schema.AppendColumn(TColumnSchema("k2", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending));
-        Schema.AppendColumn(TColumnSchema("k3", EValueType::Double)
-            .SetSortOrder(ESortOrder::Ascending));
-        Schema.AppendColumn(TColumnSchema("v1", EValueType::Int64));
-        Schema.AppendColumn(TColumnSchema("v2", EValueType::Int64));
-    }
+        : Schema({
+            TColumnSchema("k1", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("k2", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("k3", EValueType::Double)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("v1", EValueType::Int64),
+            TColumnSchema("v2", EValueType::Int64)
+        })
+        , OptimizeFor(optimizeFor)
+    { }
 
     virtual void SetUp() override
     {

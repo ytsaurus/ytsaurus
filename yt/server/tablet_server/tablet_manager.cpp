@@ -592,11 +592,14 @@ public:
             auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
             auto chunks = EnumerateChunksInChunkTree(chunkList);
             auto storeType = table->IsSorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
+            i64 startingRowIndex = 0;
             for (const auto* chunk : chunks) {
                 auto* descriptor = req.add_stores();
                 descriptor->set_store_type(static_cast<int>(storeType));
                 ToProto(descriptor->mutable_store_id(), chunk->GetId());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunk->ChunkMeta());
+                descriptor->set_starting_row_index(startingRowIndex);
+                startingRowIndex += chunk->MiscExt().row_count();
             }
 
             auto hiveManager = Bootstrap_->GetHiveManager();

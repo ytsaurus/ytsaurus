@@ -63,12 +63,15 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnSchema>, Columns);
     DEFINE_BYVAL_RO_PROPERTY(bool, Strict);
 
+    //! Constructs an empty non-strict schema.
+    TTableSchema();
+
+    //! Constructs a schema with given columns and strictness flag.
+    //! No validation is performed.
     explicit TTableSchema(
         const std::vector<TColumnSchema>& columns,
         bool strict = true);
 
-    TTableSchema();
-    
     const TColumnSchema* FindColumn(const TStringBuf& name) const;
     const TColumnSchema& GetColumnOrThrow(const TStringBuf& name) const;
 
@@ -79,23 +82,27 @@ public:
     TTableSchema TrimNonkeyColumns(const TKeyColumns& keyColumns) const;
     TTableSchema GetPrefix(int length) const;
 
-    // TODO(max42): Get rid of functions below, make schema immutable.
-
-    // These functions perform all necessary validation at each call,
-    // so don't call them frequently. If you need to store and modify
-    // a set of columns, use std::vector<TColumnSchema> instead.
+    // TODO(babenko): this function is deprecated
     void AppendColumn(const TColumnSchema& column);
-    void InsertColumn(int position, const TColumnSchema& column);
-    void EraseColumn(int position);
-    void AlterColumn(int position, const TColumnSchema& column);
 
     bool HasComputedColumns() const;
     bool IsSorted() const;
 
     TKeyColumns GetKeyColumns() const;
     int GetKeyColumnCount() const;
-    
+
+    //! Constructs a non-strict schema from #keyColumns assigning all components EValueType::Any type.
+    //! #keyColumns could be empty, in which case an empty non-strict schema is returned.
+    //! The resulting schema is validated.
     static TTableSchema FromKeyColumns(const TKeyColumns& keyColumns);
+
+    //! For sorted tables, return the current schema as-is.
+    //! For ordered tables, prepends the current schema with |(tablet_index, row_index)| key columns.
+    TTableSchema ToQuery() const;
+
+    //! For sorted tables, return the current schema as-is.
+    //! For ordered tables, prepends the current schema with |(tablet_index)| key columns.
+    TTableSchema ToWrite() const;
 
     TTableSchema ExtendByNonKeyAnyColumns(const std::vector<Stroka>& columnNames) const;
     TTableSchema ExtendByChannels(const NChunkClient::TChannels& channels) const;
@@ -107,13 +114,7 @@ public:
 
 private:
     int KeyColumnCount_ = 0;
-   
-    void ValidateColumnUniqueness();
-    void ValidateLocks();
-    void ValidateKeyColumnsFormPrefix();
-    void ValidateComputedColumns();
-    void ValidateAggregatedColumns();
-    void Validate();
+
 };
 
 Stroka ToString(const TTableSchema& schema);
@@ -144,6 +145,7 @@ void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumn
 void ValidateColumnSchema(const TColumnSchema& columnSchema);
 void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn);
 
+void ValidateTableSchema(const TTableSchema& schema);
 void ValidateTableSchemaUpdate(
     const TTableSchema& oldSchema,
     const TTableSchema& newSchema,

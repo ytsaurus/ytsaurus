@@ -119,11 +119,16 @@ const TDuration TTabletCache::ExpiringTimeout_ = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TTableMountInfo::IsSorted() const
+{
+    return Schemas[ETableSchemaKind::Primary].IsSorted();
+}
+
 TTabletInfoPtr TTableMountInfo::GetTabletForRow(TUnversionedRow row) const
 {
     ValidateDynamic();
 
-    int keyColumnCount = Schema.GetKeyColumnCount();
+    int keyColumnCount = Schemas[ETableSchemaKind::Primary].GetKeyColumnCount();
     auto it = std::upper_bound(
         Tablets.begin(),
         Tablets.end(),
@@ -225,9 +230,11 @@ private:
                 auto tableInfo = New<TTableMountInfo>();
                 tableInfo->Path = path;
                 tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
-                tableInfo->Schema = FromProto<TTableSchema>(rsp->schema());
+                tableInfo->Schemas[ETableSchemaKind::Primary] = FromProto<TTableSchema>(rsp->schema());
+                tableInfo->Schemas[ETableSchemaKind::Write] = tableInfo->Schemas[ETableSchemaKind::Primary].ToWrite();
+                tableInfo->Schemas[ETableSchemaKind::Query] = tableInfo->Schemas[ETableSchemaKind::Primary].ToQuery();
                 tableInfo->Dynamic = rsp->dynamic();
-                tableInfo->NeedKeyEvaluation = tableInfo->Schema.HasComputedColumns();
+                tableInfo->NeedKeyEvaluation = tableInfo->Schemas[ETableSchemaKind::Primary].HasComputedColumns();
 
                 for (const auto& protoTabletInfo : rsp->tablets()) {
                     auto tabletInfo = New<TTabletInfo>();
@@ -235,7 +242,17 @@ private:
                     tabletInfo->TabletId = FromProto<TObjectId>(protoTabletInfo.tablet_id());
                     tabletInfo->MountRevision = protoTabletInfo.mount_revision();
                     tabletInfo->State = ETabletState(protoTabletInfo.state());
-                    tabletInfo->PivotKey = FromProto<TOwningKey>(protoTabletInfo.pivot_key());
+
+                    if (tableInfo->IsSorted()) {
+                        // Take the actual pivot from master response.
+                        tabletInfo->PivotKey = FromProto<TOwningKey>(protoTabletInfo.pivot_key());
+                    } else {
+                        // Synthesize a fake pivot key.
+                        TUnversionedOwningRowBuilder builder(1);
+                        int tabletIndex = static_cast<int>(tableInfo->Tablets.size());
+                        builder.AddValue(MakeUnversionedInt64Value(tabletIndex));
+                        tabletInfo->PivotKey = builder.FinishRow();
+                    }
 
                     if (protoTabletInfo.has_cell_id()) {
                         tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
@@ -257,6 +274,19 @@ private:
                             descriptor.CellId,
                             descriptor.ConfigVersion);
                     }
+                }
+
+                if (tableInfo->IsSorted()) {
+                    tableInfo->LowerCapBound = MinKey();
+                    tableInfo->UpperCapBound = MaxKey();
+                } else {
+                    auto makeCapBound = [] (int tabletIndex) {
+                        TUnversionedOwningRowBuilder builder;
+                        builder.AddValue(MakeUnversionedInt64Value(tabletIndex));
+                        return builder.FinishRow();
+                    };
+                    tableInfo->LowerCapBound = makeCapBound(0);
+                    tableInfo->UpperCapBound = makeCapBound(static_cast<int>(tableInfo->Tablets.size()));
                 }
 
                 LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Dynamic: %v)",

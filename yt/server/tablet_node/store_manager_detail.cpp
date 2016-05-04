@@ -60,7 +60,7 @@ bool TStoreManagerBase::HasActiveLocks() const
 
 bool TStoreManagerBase::HasUnflushedStores() const
 {
-    for (const auto& pair : Tablet_->Stores()) {
+    for (const auto& pair : Tablet_->StoreIdMap()) {
         const auto& store = pair.second;
         auto state = store->GetStoreState();
         if (state != EStoreState::Persistent) {
@@ -84,7 +84,7 @@ void TStoreManagerBase::StopEpoch()
 {
     Tablet_->StopEpoch();
 
-    for (const auto& pair : Tablet_->Stores()) {
+    for (const auto& pair : Tablet_->StoreIdMap()) {
         const auto& store = pair.second;
         if (store->IsDynamic()) {
             store->AsDynamic()->SetFlushState(EStoreFlushState::None);
@@ -406,7 +406,15 @@ bool TStoreManagerBase::IsRotationPossible() const
         return false;
     }
 
-    if (!GetActiveStore()) {
+    auto* activeStore = GetActiveStore();
+    if (!activeStore) {
+        return false;
+    }
+
+    // NB: For ordered tablets, we must never attempt to rotate an empty store
+    // to avoid collisions of starting row indexes. This check, however, makes
+    // sense for sorted tablets as well.
+    if (activeStore->GetRowCount() == 0) {
         return false;
     }
 
@@ -445,7 +453,7 @@ void TStoreManagerBase::UpdateInMemoryMode()
 
     Tablet_->PreloadStoreIds().clear();
 
-    for (const auto& pair : Tablet_->Stores()) {
+    for (const auto& pair : Tablet_->StoreIdMap()) {
         const auto& store = pair.second;
         if (store->IsChunk()) {
             auto chunkStore = store->AsChunk();

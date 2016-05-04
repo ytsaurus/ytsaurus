@@ -47,7 +47,7 @@ public:
     virtual void EndUpload(
         const NChunkClient::NProto::TDataStatistics* statistics,
         bool deriveStatistics,
-        const std::vector<Stroka>& keyColumns) override;
+        const NTableClient::TTableSchema& schema) override;
     virtual bool IsSorted() const override;
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;

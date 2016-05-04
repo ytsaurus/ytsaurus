@@ -86,8 +86,12 @@ private:
         if (tablet->GetState() != ETabletState::Mounted) {
             return;
         }
+
+        if (!tablet->IsSorted()) {
+            return;
+        }
         
-        for (const auto& partition : tablet->Partitions()) {
+        for (const auto& partition : tablet->PartitionList()) {
             ScanPartition(slot, partition.get());
         }
     }
@@ -98,7 +102,7 @@ private:
 
         const auto& config = tablet->GetConfig();
 
-        int partitionCount = tablet->Partitions().size();
+        int partitionCount = tablet->PartitionList().size();
 
         i64 actualDataSize = partition->GetUncompressedDataSize();
 
@@ -217,13 +221,13 @@ private:
         auto* tablet = partition->GetTablet();
 
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
-            if (tablet->Partitions()[index]->GetState() != EPartitionState::Normal) {
+            if (tablet->PartitionList()[index]->GetState() != EPartitionState::Normal) {
                 return;
             }
         }
 
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
-            tablet->Partitions()[index]->CheckedSetState(EPartitionState::Normal, EPartitionState::Merging);
+            tablet->PartitionList()[index]->CheckedSetState(EPartitionState::Normal, EPartitionState::Merging);
         }
 
         auto Logger = TabletNodeLogger;
@@ -231,8 +235,8 @@ private:
             partition->GetTablet()->GetId(),
             MakeFormattableRange(
                 MakeRange(
-                    tablet->Partitions().data() + firstPartitionIndex,
-                    tablet->Partitions().data() + lastPartitionIndex + 1),
+                    tablet->PartitionList().data() + firstPartitionIndex,
+                    tablet->PartitionList().data() + lastPartitionIndex + 1),
                 TPartitionIdFormatter()));
 
         LOG_INFO("Partition is eligible for merge");
@@ -242,7 +246,7 @@ private:
         TReqMergePartitions request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(tablet->GetMountRevision());
-        ToProto(request.mutable_partition_id(), tablet->Partitions()[firstPartitionIndex]->GetId());
+        ToProto(request.mutable_partition_id(), tablet->PartitionList()[firstPartitionIndex]->GetId());
         request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
 
         CreateMutation(hydraManager, request)

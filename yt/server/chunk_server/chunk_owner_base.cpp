@@ -110,7 +110,7 @@ void TChunkOwnerBase::BeginUpload(EUpdateMode mode)
 void TChunkOwnerBase::EndUpload(
     const TDataStatistics* statistics,
     bool deriveStatistics,
-    const std::vector<Stroka>& /*keyColumns*/)
+    const NTableClient::TTableSchema& /*schema*/)
 {
     TNullable<TDataStatistics> updateStatistics;
 
