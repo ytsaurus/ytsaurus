@@ -11,9 +11,7 @@
 
 #include <yt/ytlib/chunk_client/schema.h>
 
-// TODO(sandello): Refine this dependencies.
-// TODO(lukyan): Remove this dependencies.
-#include <yt/ytlib/query_client/plan_fragment.h>
+// TODO(sandello,lukyan): Refine these dependencies.
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/functions.h>
 
@@ -38,7 +36,7 @@ TColumnSchema::TColumnSchema(
     const Stroka& name,
     EValueType type)
     : Name(name)
-      , Type(type)
+    , Type(type)
 { }
 
 TColumnSchema& TColumnSchema::SetSortOrder(const TNullable<ESortOrder>& value)
@@ -206,30 +204,14 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
 
     TTableSchema result;
     for (int id : columnFilter.Indexes) {
+        if (id < 0 || id >= Columns_.size()) {
+            THROW_ERROR_EXCEPTION("Invalid column id in filter: excepted in range [0, %v], got %v",
+                Columns_.size() - 1,
+                id);
+        }
         result.Columns_.push_back(Columns_[id]);
     }
     return result;
-}
-
-// TODO(max42): refactor this method so that it doesn't use keyColumns argument.
-TTableSchema TTableSchema::TrimNonkeyColumns(const TKeyColumns& keyColumns) const
-{
-    std::vector<TColumnSchema> resultColumns;
-    YCHECK(Columns_.size() >= keyColumns.size());
-    for (int id = 0; id < keyColumns.size(); ++id) {
-        YCHECK(Columns_[id].Name == keyColumns[id]);
-        resultColumns.push_back(Columns_[id]);
-    }
-    return TTableSchema(resultColumns, Strict_);
-}
-
-TTableSchema TTableSchema::GetPrefix(int length) const
-{
-    return TTableSchema(
-        std::vector<TColumnSchema>(
-            Columns_.begin(),
-            Columns_.begin() + std::min(length, static_cast<int>(Columns_.size()))),
-        Strict_);
 }
 
 void TTableSchema::AppendColumn(const TColumnSchema& column)
@@ -319,6 +301,12 @@ TTableSchema TTableSchema::ToWrite() const
     }
 }
 
+TTableSchema TTableSchema::ToKeys()
+{
+    std::vector<TColumnSchema> columns(Columns_.begin(), Columns_.begin() + KeyColumnCount_);
+    return TTableSchema(columns);
+}
+
 TTableSchema TTableSchema::ExtendByNonKeyAnyColumns(
     const std::vector<Stroka>& columnNames) const
 {
@@ -349,14 +337,15 @@ TTableSchema TTableSchema::ExtendByChannels(
 
 void TTableSchema::Save(TStreamSaveContext& context) const
 {
-    NYT::Save(context, NYT::ToProto<NTableClient::NProto::TTableSchemaExt>(*this));
+    using NYT::Save;
+    Save(context, ToProto<NTableClient::NProto::TTableSchemaExt>(*this));
 }
 
 void TTableSchema::Load(TStreamLoadContext& context)
 {
-    NTableClient::NProto::TTableSchemaExt protoSchema;
-    NYT::Load(context, protoSchema);
-    *this = NYT::FromProto<TTableSchema>(protoSchema);
+    using NYT::Load;
+    auto protoSchema = NYT::Load<NTableClient::NProto::TTableSchemaExt>(context);
+    *this = FromProto<TTableSchema>(protoSchema);
 }
 
 void TTableSchema::Swap(TTableSchema& other)
@@ -377,22 +366,21 @@ void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginAttributes()
-        .Item("strict").Value(schema.GetStrict())
+            .Item("strict").Value(schema.GetStrict())
         .EndAttributes()
         .Value(schema.Columns());
 }
 
 void Deserialize(TTableSchema& schema, INodePtr node)
 {
-    std::vector<TColumnSchema> columns = ConvertTo<std::vector<TColumnSchema>>(node);
     schema = TTableSchema(
-        columns,
+        ConvertTo<std::vector<TColumnSchema>>(node),
         node->Attributes().Get<bool>("strict", true));
 }
 
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
 {
-    NYT::ToProto(protoSchema->mutable_columns(), schema.Columns());
+    ToProto(protoSchema->mutable_columns(), schema.Columns());
     protoSchema->set_strict(schema.GetStrict());
 }
 
@@ -1007,19 +995,18 @@ void ValidateReadSchema(const TTableSchema& readSchema, const TTableSchema& tabl
 
 namespace NProto {
 
-////////////////////////////////////////////////////////////////////////////////
+using NYT::ToProto;
+using NYT::FromProto;
 
 void ToProto(TKeyColumnsExt* protoKeyColumns, const TKeyColumns& keyColumns)
 {
-    NYT::ToProto(protoKeyColumns->mutable_names(), keyColumns);
+    ToProto(protoKeyColumns->mutable_names(), keyColumns);
 }
 
 void FromProto(TKeyColumns* keyColumns, const TKeyColumnsExt& protoKeyColumns)
 {
-    *keyColumns = NYT::FromProto<TKeyColumns>(protoKeyColumns.names());
+    *keyColumns = FromProto<TKeyColumns>(protoKeyColumns.names());
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProto
 

@@ -233,6 +233,8 @@ private:
                 tableInfo->Schemas[ETableSchemaKind::Primary] = FromProto<TTableSchema>(rsp->schema());
                 tableInfo->Schemas[ETableSchemaKind::Write] = tableInfo->Schemas[ETableSchemaKind::Primary].ToWrite();
                 tableInfo->Schemas[ETableSchemaKind::Query] = tableInfo->Schemas[ETableSchemaKind::Primary].ToQuery();
+                tableInfo->Schemas[ETableSchemaKind::Delete] = tableInfo->Schemas[ETableSchemaKind::Primary].ToKeys();
+                tableInfo->Schemas[ETableSchemaKind::Lookup] = tableInfo->Schemas[ETableSchemaKind::Primary].ToKeys();
                 tableInfo->Dynamic = rsp->dynamic();
                 tableInfo->NeedKeyEvaluation = tableInfo->Schemas[ETableSchemaKind::Primary].HasComputedColumns();
 
