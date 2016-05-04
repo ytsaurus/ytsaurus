@@ -160,8 +160,8 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateFlushReader()
     YCHECK(FlushRowCount_ != -1);
     return DoCreateReader(
         -1,
-        0,
-        FlushRowCount_,
+        StartingRowIndex_,
+        StartingRowIndex_ + FlushRowCount_,
         Null);
 }
 
@@ -169,8 +169,8 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateSnapshotReader()
 {
     return DoCreateReader(
         -1,
-        0,
-        GetRowCount(),
+        StartingRowIndex_,
+        StartingRowIndex_ + GetRowCount(),
         Null);
 }
 
