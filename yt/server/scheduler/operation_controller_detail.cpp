@@ -937,6 +937,7 @@ void TOperationControllerBase::Initialize(bool cleanStart)
     // NB: CleanStart may be changed from false to true in this function.
     CheckTransactions();
     InitializeTransactions();
+    Operation->SetHasActiveTransactions(true);
 
     if (Operation->GetState() != EOperationState::Initializing &&
         Operation->GetState() != EOperationState::Reviving)
@@ -1168,7 +1169,6 @@ void TOperationControllerBase::InitializeTransactions()
         InputTransactionId = Operation->GetInputTransaction()->GetId();
         OutputTransactionId = Operation->GetOutputTransaction()->GetId();
     }
-    Operation->SetHasActiveTransactions(true);
 }
 
 void TOperationControllerBase::CheckTransactions()
@@ -1479,7 +1479,6 @@ void TOperationControllerBase::Commit()
     // XXX(babenko): hotfix for YT-4636
     {
         auto client = Host->GetMasterClient();
-        auto connection = client->GetConnection();
 
         // NB: use root credentials.
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
