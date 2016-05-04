@@ -177,6 +177,13 @@ const TColumnSchema* TTableSchema::FindColumn(const TStringBuf& name) const
     return nullptr;
 }
 
+const TColumnSchema& TTableSchema::GetColumn(const TStringBuf& name) const
+{
+    auto* column = FindColumn(name);
+    YCHECK(column);
+    return *column;
+}
+
 const TColumnSchema& TTableSchema::GetColumnOrThrow(const TStringBuf& name) const
 {
     auto* column = FindColumn(name);
