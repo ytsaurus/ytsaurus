@@ -173,7 +173,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
         {row1.GetRow(), row2.GetRow(), row3.GetRow()};
     
     {
-        // By default missing_value_mode is EMissingSchemafulDsvValueMode::SkipRow. 
+        Config_->MissingValueMode = EMissingSchemafulDsvValueMode::SkipRow;
         CreateStandardWriter();
         EXPECT_EQ(true, Writer_->Write(rows));
         Writer_->Close()
@@ -187,7 +187,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
     }
 
     {
-        Config_->MissingValueMode = EMissingSchemafulDsvValueMode::Fail;
+        // By default missing_value_mode is EMissingSchemafulDsvValueMode::Fail. 
         CreateStandardWriter();
         EXPECT_EQ(false, Writer_->Write(rows));
         EXPECT_THROW(Writer_->Close()
