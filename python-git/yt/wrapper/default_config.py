@@ -268,4 +268,4 @@ def transform_value(value, original_value):
     return value
 
 def get_default_config():
-    return VerifiedDict(["spec_defaults"], transform_value, deepcopy(default_config))
+    return VerifiedDict(["spec_defaults", "table_writer"], transform_value, deepcopy(default_config))

@@ -83,6 +83,14 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
     import yt.wrapper
     from yt.wrapper.format import YsonFormat, extract_key
     from yt.wrapper.pickling import Unpickler
+    from yt.wrapper.mappings import FrozenDict
+
+    def process_frozen_dict(rows):
+        for row in rows:
+            if type(row) == FrozenDict:
+                yield row.as_dict()
+            else:
+                yield row
 
     yt.wrapper.config.config = \
         Unpickler(yt.wrapper.config.DEFAULT_PICKLING_FRAMEWORK).load(open(config_dump_filename, "rb"))
@@ -140,6 +148,8 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
                             itertools.starmap(run,
                                 itertools.groupby(rows, lambda row: extract_key(row, group_by_keys)))),
                         finish())
+
+        result = process_frozen_dict(result)
 
         output_format.dump_rows(result, streams.get_original_stdout(), raw=raw)
 
