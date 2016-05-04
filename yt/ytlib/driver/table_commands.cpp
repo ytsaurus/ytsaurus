@@ -337,17 +337,16 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     tableInfo->ValidateDynamic();
 
     const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
-    auto nameTable = TNameTable::FromSchema(schema);
 
     if (ColumnNames) {
         Options.ColumnFilter.All = false;
         for (const auto& name : *ColumnNames) {
-            auto maybeIndex = nameTable->FindId(name);
-            if (!maybeIndex) {
+            const auto* column = schema.FindColumn(name);
+            if (!column) {
                 THROW_ERROR_EXCEPTION("No such column %Qv",
                     name);
             }
-            Options.ColumnFilter.Indexes.push_back(*maybeIndex);
+            Options.ColumnFilter.Indexes.push_back(schema.GetColumnIndex(*column));
         }
     }
 
