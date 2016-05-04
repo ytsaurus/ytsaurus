@@ -9,7 +9,7 @@ namespace NTableClient {
 
 // NB: Rows are allocated in row merger buffer which is cleared on each Read() call.
 
-extern const int MinConcurrentReaders;
+constexpr int DefaultMinConcurrentOverlappingReaders = 5;
 
 using TOverlappingReaderKeyComparer = std::function<int(
     const TUnversionedValue*,
@@ -26,14 +26,14 @@ ISchemafulReaderPtr CreateSchemafulOverlappingRangeChunkReader(
     TSchemafulRowMergerPtr rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
-    int minConcurrentReaders = MinConcurrentReaders);
+    int minConcurrentReaders = DefaultMinConcurrentOverlappingReaders);
 
 IVersionedReaderPtr CreateVersionedOverlappingRangeChunkReader(
     const std::vector<TOwningKey>& boundaries,
     TVersionedRowMergerPtr rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
-    int minConcurrentReaders = MinConcurrentReaders);
+    int minConcurrentReaders = DefaultMinConcurrentOverlappingReaders);
 
 ////////////////////////////////////////////////////////////////////////////////
 
