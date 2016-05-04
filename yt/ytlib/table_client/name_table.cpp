@@ -154,6 +154,15 @@ TNullable<int> TNameTableWriter::FindId(const TStringBuf& name) const
     return maybeId;
 }
 
+int TNameTableWriter::GetIdOrThrow(const TStringBuf& name) const
+{
+    auto maybeId = FindId(name);
+    if (!maybeId) {
+        THROW_ERROR_EXCEPTION("No such column %Qv", name);
+    }
+    return *maybeId;
+}
+
 int TNameTableWriter::GetIdOrRegisterName(const TStringBuf& name)
 {
     auto it = NameToId_.find(name);
