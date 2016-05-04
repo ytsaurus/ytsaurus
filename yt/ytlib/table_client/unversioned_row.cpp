@@ -499,13 +499,6 @@ bool operator > (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ResetRowValues(TMutableUnversionedRow* row)
-{
-    for (auto& value : *row) {
-        value.Type = EValueType::Null;
-    }
-}
-
 ui64 GetHash(TUnversionedRow row, int keyColumnCount)
 {
     // NB: hash function may change in future. Use fingerprints for persistent hashing.
