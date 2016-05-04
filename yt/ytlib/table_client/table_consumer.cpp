@@ -301,13 +301,11 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
         if (CurrentValueConsumer_->GetAllowUnknownColumns()) {
             ColumnIndex_ = CurrentNameTableWriter_->GetIdOrRegisterName(name);
         } else {
-            // TODO(savrus): Imporve diagnostics when encountered a computed column.
-            auto maybeIndex = CurrentNameTableWriter_->FindId(name);
-            if (!maybeIndex) {
-                THROW_ERROR AttachLocationAttributes(TError("No such column %Qv in schema",
-                    name));
+            try {
+                ColumnIndex_ = CurrentNameTableWriter_->GetIdOrThrow(name);
+            } catch (const std::exception& ex) {
+                THROW_ERROR AttachLocationAttributes(ex);
             }
-            ColumnIndex_ = *maybeIndex;
         }
     } else {
         ValueWriter_.OnKeyedItem(name);

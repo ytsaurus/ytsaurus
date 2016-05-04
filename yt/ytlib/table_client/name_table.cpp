@@ -49,6 +49,15 @@ TNullable<int> TNameTable::FindId(const TStringBuf& name) const
     }
 }
 
+int TNameTable::GetIdOrThrow(const TStringBuf& name) const
+{
+    auto maybeId = FindId(name);
+    if (!maybeId) {
+        THROW_ERROR_EXCEPTION("No such column %Qv", name);
+    }
+    return *maybeId;
+}
+
 int TNameTable::GetId(const TStringBuf& name) const
 {
     auto index = FindId(name);
