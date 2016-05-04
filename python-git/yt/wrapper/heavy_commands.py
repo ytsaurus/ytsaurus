@@ -35,7 +35,8 @@ class FakeTransaction(object):
     def is_pinger_alive(self):
         return True
 
-def make_write_request(command_name, stream, path, params, create_object, use_retries, client=None):
+def make_write_request(command_name, stream, path, params, create_object, use_retries,
+                       is_stream_compressed=False, client=None):
     """
     param stream: list or iterator over string blobs.
     """
@@ -78,6 +79,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                                 command_name,
                                 params,
                                 data=iter(chunk),
+                                is_data_compressed=is_stream_compressed,
                                 use_heavy_proxy=True,
                                 retry_unavailable_proxy=False,
                                 client=client)
@@ -102,6 +104,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                 command_name,
                 params,
                 data=stream,
+                is_data_compressed=is_stream_compressed,
                 use_heavy_proxy=True,
                 client=client)
 

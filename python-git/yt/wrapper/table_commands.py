@@ -497,8 +497,9 @@ def create_temp_table(path=None, prefix=None, client=None):
     create_table(name, client=client)
     return name
 
-def write_table(table, input_stream, format=None, table_writer=None,
-                replication_factor=None, compression_codec=None, client=None, raw=None):
+def write_table(table, input_stream, format=None, table_writer=None, replication_factor=None,
+                compression_codec=None, is_stream_compressed=False,
+                client=None, raw=None):
     """Write rows from input_stream to table.
 
     :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
@@ -509,6 +510,9 @@ def write_table(table, input_stream, format=None, table_writer=None,
     :param table_writer: (dict) spec of "write" operation
     :param replication_factor: (integer) number of data replicas
     :param compression_codec: (string) standard operation parameter
+    :param is_stream_compressed: (bool) expect stream to contain compressed table data. \
+    This data can be passed directly to proxy without recompression. Be careful! this option \
+    disables write retries.
 
     Python Wrapper try to split input stream to portions of fixed size and write its with retries.
     If splitting fails, stream is written as is through HTTP.
@@ -519,6 +523,9 @@ def write_table(table, input_stream, format=None, table_writer=None,
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
+
+    if is_stream_compressed and not raw:
+        raise YtError("Compressed stream is only supported for raw tabular data")
 
     table = to_table(table, client=client)
     format = _prepare_format(format, raw, client)
@@ -539,11 +546,19 @@ def write_table(table, input_stream, format=None, table_writer=None,
                          compression_codec=compression_codec, client=client)
 
     can_split_input = isinstance(input_stream, types.ListType) or format.is_raw_load_supported()
-    enable_retries = get_config(client)["write_retries"]["enable"] and can_split_input and "sorted_by" not in table.attributes
+    enable_retries = get_config(client)["write_retries"]["enable"] and \
+            can_split_input and \
+            "sorted_by" not in table.attributes and \
+            not is_stream_compressed
     if get_config(client)["write_retries"]["enable"] and not can_split_input:
         logger.warning("Cannot split input into rows. Write is processing by one request.")
 
-    input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=enable_retries, chunk_size=get_config(client)["write_retries"]["chunk_size"])
+    input_stream = _to_chunk_stream(
+        input_stream,
+        format,
+        raw,
+        split_rows=enable_retries,
+        chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
     make_write_request(
         "write" if get_api_version(client=client) == "v2" else "write_table",
@@ -552,6 +567,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
         params,
         prepare_table,
         use_retries=enable_retries,
+        is_stream_compressed=is_stream_compressed,
         client=client)
 
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and is_empty(table, client=client):

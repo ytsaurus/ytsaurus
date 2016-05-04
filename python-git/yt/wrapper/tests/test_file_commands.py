@@ -4,6 +4,7 @@ from helpers import TEST_DIR
 
 import os
 import pytest
+import gzip
 import tempfile
 
 @pytest.mark.usefixtures("yt_env")
@@ -53,3 +54,17 @@ class TestFileCommands(object):
         yt.smart_upload_file(filename, placement_strategy="ignore")
         assert yt.read_file(destination).read() == "some content"
 
+    def test_write_compressed_file_data(self):
+        fd, filename = tempfile.mkstemp()
+        os.close(fd)
+
+        with gzip.GzipFile(filename, "w", 5) as fout:
+            fout.write("test write compressed file data")
+
+        with open(filename) as f:
+            if yt.config["backend"] == "native":
+                with pytest.raises(yt.YtError):  # not supported for native backend
+                    yt.write_file(TEST_DIR + "/file", f, is_stream_compressed=True)
+            else:
+                yt.write_file(TEST_DIR + "/file", f, is_stream_compressed=True)
+                assert "test write compressed file data" == yt.read_file(TEST_DIR + "/file").read()

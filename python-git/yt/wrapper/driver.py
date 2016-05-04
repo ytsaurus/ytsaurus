@@ -10,7 +10,9 @@ from yt.yson.convert import json_to_yson
 import yt.json as json
 
 def make_request(command_name, params,
-                 data=None, proxy=None,
+                 data=None,
+                 is_data_compressed=False,
+                 proxy=None,
                  return_content=True,
                  retry_unavailable_proxy=True,
                  response_should_be_json=False,
@@ -28,12 +30,15 @@ def make_request(command_name, params,
         params["retry"] = bool_to_string(get_option("RETRY", client))
 
     if backend == "native":
+        if is_data_compressed:
+            raise YtError("Native driver does not support compressed input for file and tabular data")
         return native_driver.make_request(command_name, params, data, return_content=return_content, client=client)
     elif backend == "http":
         return http_driver.make_request(
             command_name,
             params,
             data=data,
+            is_data_compressed=is_data_compressed,
             proxy=proxy,
             return_content=return_content,
             retry_unavailable_proxy=retry_unavailable_proxy,
