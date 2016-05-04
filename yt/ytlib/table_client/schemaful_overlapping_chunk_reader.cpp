@@ -588,14 +588,14 @@ ISchemafulReaderPtr CreateSchemafulOverlappingRangeChunkReader(
     TSchemafulRowMergerPtr rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
-    int minSimultaneousReaders)
+    int minConcurrentReaders)
 {
     return TSchemafulOverlappingRangeChunkReader::Create(
         boundaries,
         rowMerger,
         std::move(readerFactory),
         std::move(keyComparer),
-        minSimultaneousReaders);
+        minConcurrentReaders);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -657,14 +657,14 @@ IVersionedReaderPtr CreateVersionedOverlappingRangeChunkReader(
     TVersionedRowMergerPtr rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
-    int minSimultaneousReaders)
+    int minConcurrentReaders)
 {
     return New<TVersionedOverlappingRangeChunkReader>(
         boundaries,
         rowMerger,
         std::move(readerFactory),
         std::move(keyComparer),
-        minSimultaneousReaders);
+        minConcurrentReaders);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

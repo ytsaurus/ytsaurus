@@ -26,14 +26,14 @@ ISchemafulReaderPtr CreateSchemafulOverlappingRangeChunkReader(
     TSchemafulRowMergerPtr rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
-    int minSimultaneousReaders = MinConcurrentReaders);
+    int minConcurrentReaders = MinConcurrentReaders);
 
 IVersionedReaderPtr CreateVersionedOverlappingRangeChunkReader(
     const std::vector<TOwningKey>& boundaries,
     TVersionedRowMergerPtr rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
-    int minSimultaneousReaders = MinConcurrentReaders);
+    int minConcurrentReaders = MinConcurrentReaders);
 
 ////////////////////////////////////////////////////////////////////////////////
 
