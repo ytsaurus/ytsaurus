@@ -28,22 +28,11 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EValueType, ui8,
 
 struct TColumnFilter
 {
-    TColumnFilter()
-        : All(true)
-    { }
+    TColumnFilter();
+    TColumnFilter(const std::initializer_list<int>& indexes);
+    TColumnFilter(int schemaColumnCount);
 
-    TColumnFilter(const std::initializer_list<int>& indexes)
-        : All(false)
-        , Indexes(indexes.begin(), indexes.end())
-    { }
-
-    TColumnFilter(int schemaColumnCount)
-        : All(false)
-    {
-        for (int i = 0; i < schemaColumnCount; ++i) {
-            Indexes.push_back(i);
-        }
-    }
+    bool Contains(int index) const;
 
     bool All;
     SmallVector<int, TypicalColumnCount> Indexes;

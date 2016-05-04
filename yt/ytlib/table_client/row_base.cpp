@@ -8,6 +8,34 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TColumnFilter::TColumnFilter()
+    : All(true)
+{ }
+
+TColumnFilter::TColumnFilter(const std::initializer_list<int>& indexes)
+    : All(false)
+    , Indexes(indexes.begin(), indexes.end())
+{ }
+
+TColumnFilter::TColumnFilter(int schemaColumnCount)
+    : All(false)
+{
+    for (int i = 0; i < schemaColumnCount; ++i) {
+        Indexes.push_back(i);
+    }
+}
+
+bool TColumnFilter::Contains(int index) const
+{
+    if (All) {
+        return true;
+    }
+
+    return std::find(Indexes.begin(), Indexes.end(), index) != Indexes.end();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ValidateDataValueType(EValueType type)
 {
     if (type != EValueType::Int64 &&
