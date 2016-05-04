@@ -21,7 +21,7 @@ public:
     i64 GetByteSize() const;
 
     TNullable<int> FindId(const TStringBuf& name) const;
-
+    int GetIdOrThrow(const TStringBuf& name) const;
     int GetId(const TStringBuf& name) const;
     int RegisterName(const TStringBuf& name);
     int GetIdOrRegisterName(const TStringBuf& name);
