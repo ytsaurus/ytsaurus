@@ -108,8 +108,6 @@ public:
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 
-    void Swap(TTableSchema& other);
-
 private:
     int KeyColumnCount_ = 0;
 
