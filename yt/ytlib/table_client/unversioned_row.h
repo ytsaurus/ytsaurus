@@ -293,6 +293,17 @@ public:
         return Header_->Count;
     }
 
+    // STL interop.
+    const TUnversionedValue* begin() const
+    {
+        return Begin();
+    }
+
+    const TUnversionedValue* end() const
+    {
+        return End();
+    }
+
 private:
     const TUnversionedRowHeader* Header_;
 
