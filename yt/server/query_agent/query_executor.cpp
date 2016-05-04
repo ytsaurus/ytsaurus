@@ -829,8 +829,8 @@ private:
             lowerReadLimit.SetKey(TOwningKey(key));
 
             TReadLimit upperReadLimit;
-            for (int index = 0; index < key.GetCount(); ++index) {
-                builder.AddValue(key[index]);
+            for (const auto& value : key) {
+                builder.AddValue(value);
             }
             builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
             upperReadLimit.SetKey(builder.FinishRow());
