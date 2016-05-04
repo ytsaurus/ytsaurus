@@ -130,7 +130,24 @@ void TTableNode::Load(TLoadContext& context)
         if (attributesMap.find("channels")) {
             const auto& channels = ConvertTo<TChannels>(attributesMap["channels"]);
             attributesMap.erase("channels");
-            TableSchema_ = TableSchema_.ExtendByChannels(channels);
+
+            auto columns = TableSchema_.Columns();
+
+            yhash_set<Stroka> columnNames;
+            for (const auto& column : columns) {
+                columnNames.insert(column.Name);
+            }
+
+            for (const auto& channel : channels) {
+                const auto& channelColumns = channel.GetColumns();
+                for (const auto& name : channelColumns) {
+                    if (columnNames.insert(name).second) {
+                        columns.push_back(TColumnSchema(name, EValueType::Any));
+                    }
+                }
+            }
+
+            TableSchema_ = TTableSchema(columns, false);
         }
     }
 

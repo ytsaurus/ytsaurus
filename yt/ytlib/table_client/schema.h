@@ -105,9 +105,6 @@ public:
     //! Trims all non-key columns.
     TTableSchema ToKeys();
 
-    TTableSchema ExtendByNonKeyAnyColumns(const std::vector<Stroka>& columnNames) const;
-    TTableSchema ExtendByChannels(const NChunkClient::TChannels& channels) const;
-
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 
