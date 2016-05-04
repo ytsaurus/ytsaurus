@@ -216,15 +216,13 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
 
 void TTableSchema::AppendColumn(const TColumnSchema& column)
 {
-    TTableSchema temp = *this;
-    temp.Columns_.push_back(column);
+    Columns_.push_back(column);
     if (column.SortOrder) {
-        ++temp.KeyColumnCount_;
+        ++KeyColumnCount_;
     }
     // XXX(babenko): this line below was commented out since we must allow
     // system columns in query schema
     // ValidateTableSchema(temp);
-    this->Swap(temp);
 }
 
 bool TTableSchema::HasComputedColumns() const
@@ -318,13 +316,6 @@ void TTableSchema::Load(TStreamLoadContext& context)
     using NYT::Load;
     auto protoSchema = NYT::Load<NTableClient::NProto::TTableSchemaExt>(context);
     *this = FromProto<TTableSchema>(protoSchema);
-}
-
-void TTableSchema::Swap(TTableSchema& other)
-{
-    Columns_.swap(other.Columns_);
-    std::swap(Strict_, other.Strict_);
-    std::swap(KeyColumnCount_, other.KeyColumnCount_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
