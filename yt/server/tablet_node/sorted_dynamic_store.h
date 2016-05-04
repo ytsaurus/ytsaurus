@@ -150,6 +150,7 @@ public:
     virtual TTimestamp GetMaxTimestamp() const override;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
+        const TTabletSnapshotPtr& tabletSnapshot,
         TOwningKey lowerKey,
         TOwningKey upperKey,
         TTimestamp timestamp,
@@ -157,6 +158,7 @@ public:
         const TWorkloadDescriptor& workloadDescriptor) override;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
+        const TTabletSnapshotPtr& tabletSnapshot,
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter,

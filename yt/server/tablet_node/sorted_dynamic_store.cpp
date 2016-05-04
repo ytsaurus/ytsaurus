@@ -1687,11 +1687,12 @@ TTimestamp TSortedDynamicStore::GetMaxTimestamp() const
 }
 
 IVersionedReaderPtr TSortedDynamicStore::CreateReader(
+    const TTabletSnapshotPtr& /*tabletSnapshot*/,
     TOwningKey lowerKey,
     TOwningKey upperKey,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& /* workloadDescriptor */)
+    const TWorkloadDescriptor& /*workloadDescriptor*/)
 {
     YCHECK(timestamp != AllCommittedTimestamp);
     return New<TRangeReader>(
@@ -1704,10 +1705,11 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
 }
 
 IVersionedReaderPtr TSortedDynamicStore::CreateReader(
+    const TTabletSnapshotPtr& /*tabletSnapshot*/,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& /* workloadDescriptor */)
+    const TWorkloadDescriptor& /*workloadDescriptor*/)
 {
     YCHECK(timestamp != AllCommittedTimestamp);
     return New<TLookupReader>(

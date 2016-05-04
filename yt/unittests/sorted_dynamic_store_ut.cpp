@@ -1062,6 +1062,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ArbitraryKeyLength)
     WriteRow(BuildRow("key=1;a=1"));
 
     auto reader = Store_->CreateReader(
+        Tablet_->BuildSnapshot(nullptr),
         BuildKey("1"),
         BuildKey("1;<type=max>#"),
         AsyncLastCommittedTimestamp,

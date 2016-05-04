@@ -69,6 +69,7 @@ protected:
         const TColumnFilter& columnFilter)
     {
         auto reader = Store_->CreateReader(
+            Tablet_->BuildSnapshot(nullptr),
             tabletIndex,
             lowerRowIndex,
             upperRowIndex,
