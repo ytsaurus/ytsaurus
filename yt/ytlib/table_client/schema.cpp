@@ -455,7 +455,7 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema)
 
         if (columnSchema.Lock) {
             if (columnSchema.Lock->empty()) {
-                THROW_ERROR_EXCEPTION("Column lock should either be unset or be non-empty");
+                THROW_ERROR_EXCEPTION("Column lock name cannot be empty");
             }
             if (columnSchema.Lock->size() > MaxColumnLockLength) {
                 THROW_ERROR_EXCEPTION("Column lock name is longer than maximum allowed: %v > %v",
