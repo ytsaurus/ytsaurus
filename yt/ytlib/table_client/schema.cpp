@@ -209,16 +209,22 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
         return *this;
     }
 
-    TTableSchema result;
-    for (int id : columnFilter.Indexes) {
+    // Sort filter indexes to ensure that key columns go first.
+    // Also remove duplicates.
+    auto sortedIndexes = columnFilter.Indexes;
+    std::sort(sortedIndexes.begin(), sortedIndexes.end());
+    sortedIndexes.erase(std::unique(sortedIndexes.begin(), sortedIndexes.end()), sortedIndexes.end());
+
+    std::vector<TColumnSchema> columns;
+    for (int id : sortedIndexes) {
         if (id < 0 || id >= Columns_.size()) {
             THROW_ERROR_EXCEPTION("Invalid column id in filter: excepted in range [0, %v], got %v",
                 Columns_.size() - 1,
                 id);
         }
-        result.Columns_.push_back(Columns_[id]);
+        columns.push_back(Columns_[id]);
     }
-    return result;
+    return TTableSchema(columns);
 }
 
 void TTableSchema::AppendColumn(const TColumnSchema& column)
@@ -306,9 +312,15 @@ TTableSchema TTableSchema::ToWrite() const
     }
 }
 
-TTableSchema TTableSchema::ToKeys()
+TTableSchema TTableSchema::ToKeys() const
 {
     std::vector<TColumnSchema> columns(Columns_.begin(), Columns_.begin() + KeyColumnCount_);
+    return TTableSchema(columns);
+}
+
+TTableSchema TTableSchema::ToValues() const
+{
+    std::vector<TColumnSchema> columns(Columns_.begin() + KeyColumnCount_, Columns_.end());
     return TTableSchema(columns);
 }
 
