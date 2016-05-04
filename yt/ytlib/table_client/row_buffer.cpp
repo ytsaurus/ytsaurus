@@ -87,8 +87,8 @@ TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
     int keyColumnCount = tableSchema.GetKeyColumnCount();
     int columnCount = keyColumnCount;
 
-    for (int index = 0; index < row.GetCount(); ++index) {
-        ui16 originalId = row[index].Id;
+    for (const auto& value : row) {
+        ui16 originalId = value.Id;
         YCHECK(originalId < idMapping.size());
         int mappedId = idMapping[originalId];
         if (mappedId < 0) {
@@ -103,14 +103,14 @@ TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
     auto capturedRow = TMutableUnversionedRow::Allocate(&Pool_, columnCount);
     columnCount = keyColumnCount;
 
-    for (int index = 0; index < row.GetCount(); ++index) {
-        ui16 originalId = row[index].Id;
+    for (const auto& value : row) {
+        ui16 originalId = value.Id;
         int mappedId = idMapping[originalId];
         if (mappedId < 0) {
             continue;
         }
         int pos = mappedId < keyColumnCount ? mappedId : columnCount++;
-        capturedRow[pos] = row[index];
+        capturedRow[pos] = value;
         capturedRow[pos].Id = mappedId;
     }
 

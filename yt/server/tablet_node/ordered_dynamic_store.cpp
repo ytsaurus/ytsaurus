@@ -414,10 +414,9 @@ TOrderedDynamicRow TOrderedDynamicStore::DoWriteSchemalessRow(TUnversionedRow ro
     int columnCount = Schema_.Columns().size();
     auto dynamicRow = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), columnCount);
     for (int index = 0; index < columnCount; ++index) {
-        dynamicRow[index] = MakeSentinelValue<TUnversionedValue>(EValueType::Null, index);
+        dynamicRow[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
     }
-    for (int index = 0; index < row.GetCount(); ++index) {
-        const auto& srcValue = row[index];
+    for (const auto& srcValue : row) {
         auto& dstValue = dynamicRow[srcValue.Id];
         dstValue = RowBuffer_->Capture(srcValue);
     }

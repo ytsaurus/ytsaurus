@@ -501,8 +501,8 @@ bool operator > (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
 
 void ResetRowValues(TMutableUnversionedRow* row)
 {
-    for (int index = 0; index < row->GetCount(); ++index) {
-        (*row)[index].Type = EValueType::Null;
+    for (auto& value : *row) {
+        value.Type = EValueType::Null;
     }
 }
 
@@ -667,8 +667,7 @@ void ValidateClientRow(
 
     bool keyColumnSeen[MaxKeyColumnCount] {};
 
-    for (int index = 0; index < row.GetCount(); ++index) {
-        const auto& value = row[index];
+    for (const auto& value : row) {
         int mappedId = ApplyIdMapping(value, schema, &idMapping);
 
         YASSERT(mappedId >= 0 && mappedId < schema.Columns().size());
@@ -810,8 +809,8 @@ void ValidateServerDataRow(
 
 void ValidateClientKey(TKey key)
 {
-    for (int index = 0; index < key.GetCount(); ++index) {
-        ValidateKeyValue(key[index]);
+    for (const auto& value : key) {
+        ValidateKeyValue(value);
     }
 }
 
@@ -1134,9 +1133,9 @@ void Serialize(const TUnversionedValue& value, IYsonConsumer* consumer)
 void Serialize(TKey key, IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
-    for (int index = 0; index < key.GetCount(); ++index) {
+    for (const auto& value : key) {
         consumer->OnListItem();
-        Serialize(key[index], consumer);
+        Serialize(value, consumer);
     }
     consumer->OnEndList();
 }

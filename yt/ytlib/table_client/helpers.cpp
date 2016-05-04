@@ -65,8 +65,8 @@ void PipeReaderToWriter(
 
         if (validateValues) {
             for (const auto& row : rows) {
-                for (int i = 0; i < row.GetCount(); ++i) {
-                    ValidateStaticValue(row[i]);
+                for (const auto& value : row) {
+                    ValidateStaticValue(value);
                 }
             }
         }

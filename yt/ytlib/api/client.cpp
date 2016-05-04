@@ -300,8 +300,7 @@ TTabletInfoPtr GetOrderedTabletForRow(
     YASSERT(!tableInfo->IsSorted());
 
     int tabletIndex = -1;
-    for (int index = 0; index < key.GetCount(); ++index) {
-        const auto& value = key[index];
+    for (const auto& value : key) {
         if (tabletIndexColumnId && value.Id == *tabletIndexColumnId) {
             YASSERT(value.Type == EValueType::Null || value.Type == EValueType::Int64);
             if (value.Type == EValueType::Int64) {
