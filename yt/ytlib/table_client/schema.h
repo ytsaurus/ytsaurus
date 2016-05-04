@@ -73,6 +73,7 @@ public:
         bool strict = true);
 
     const TColumnSchema* FindColumn(const TStringBuf& name) const;
+    const TColumnSchema& GetColumn(const TStringBuf& name) const;
     const TColumnSchema& GetColumnOrThrow(const TStringBuf& name) const;
 
     int GetColumnIndex(const TColumnSchema& column) const;
