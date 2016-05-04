@@ -104,7 +104,10 @@ public:
     TTableSchema ToWrite() const;
 
     //! Trims all non-key columns.
-    TTableSchema ToKeys();
+    TTableSchema ToKeys() const;
+
+    //! Trims all key columns.
+    TTableSchema ToValues() const;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
