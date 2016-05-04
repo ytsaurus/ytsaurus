@@ -201,7 +201,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
     }
 
     {
-        // By default missing_value_mode is EMissingSchemafulDsvValueMode::Fail. 
+        Config_->MissingValueMode = EMissingSchemafulDsvValueMode::Fail;
         CreateStandardWriter();
         EXPECT_EQ(false, Writer_->Write(rows));
         EXPECT_THROW(Writer_->Close()
