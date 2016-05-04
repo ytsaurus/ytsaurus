@@ -178,7 +178,12 @@ private:
         // NB: Will remain empty for in-memory tables.
         std::vector<TFuture<void>> asyncFutures;
         for (const auto& store : partitionSnapshot->Stores) {
-            auto reader = store->CreateReader(keys, Timestamp_, ColumnFilter_, WorkloadDescriptor_);
+            auto reader = store->CreateReader(
+                TabletSnapshot_,
+                keys,
+                Timestamp_,
+                ColumnFilter_,
+                WorkloadDescriptor_);
             auto future = reader->Open();
             auto maybeError = future.TryGet();
             if (maybeError) {

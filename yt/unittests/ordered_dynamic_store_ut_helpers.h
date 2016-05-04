@@ -30,6 +30,7 @@ protected:
             columnFilter.Indexes.push_back(id + 2);
         }
         auto reader = store->CreateReader(
+            Tablet_->BuildSnapshot(nullptr),
             -1,
             store->GetStartingRowIndex() + index,
             store->GetStartingRowIndex() + index + 1,

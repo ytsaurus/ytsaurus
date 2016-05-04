@@ -39,6 +39,7 @@ public:
 
     // IOrderedStore implementation.
     virtual NTableClient::ISchemafulReaderPtr CreateReader(
+        const TTabletSnapshotPtr& tabletSnapshot,
         int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
@@ -46,6 +47,8 @@ public:
         const TWorkloadDescriptor& workloadDescriptor) override;
 
 private:
+    class TReader;
+
     virtual NChunkClient::IBlockCachePtr GetBlockCache() override;
 
 };

@@ -281,6 +281,7 @@ TTimestamp TSortedChunkStore::GetMaxTimestamp() const
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateReader(
+    const TTabletSnapshotPtr& tabletSnapshot,
     TOwningKey lowerKey,
     TOwningKey upperKey,
     TTimestamp timestamp,
@@ -307,6 +308,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     auto backingStore = GetSortedBackingStore();
     if (backingStore) {
         return backingStore->CreateReader(
+            tabletSnapshot,
             std::move(lowerKey),
             std::move(upperKey),
             timestamp,
@@ -366,6 +368,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateReader(
+    const TTabletSnapshotPtr& tabletSnapshot,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter,
@@ -386,6 +389,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     auto backingStore = GetSortedBackingStore();
     if (backingStore) {
         return backingStore->CreateReader(
+            std::move(tabletSnapshot),
             keys,
             timestamp,
             columnFilter,

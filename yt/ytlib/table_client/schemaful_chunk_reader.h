@@ -16,8 +16,6 @@ namespace NTableClient {
 
 //! Factory method, that creates a schemaful reader on top of any
 //! NChunkClient::IReader, e.g. TMemoryReader, TReplicationReader etc.
-
-//! ToDo(psushin): pass key columns here.
 ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,

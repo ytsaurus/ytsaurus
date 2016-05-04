@@ -37,6 +37,7 @@ public:
             auto keySuccessor = GetKeySuccessor(key);
 
             auto reader = Store_->CreateReader(
+                Tablet_->BuildSnapshot(nullptr),
                 std::move(key),
                 std::move(keySuccessor),
                 SyncLastCommittedTimestamp,

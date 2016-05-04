@@ -148,6 +148,7 @@ struct ISortedStore
     *  Thread affinity: any
     */
     virtual NTableClient::IVersionedReaderPtr CreateReader(
+        const TTabletSnapshotPtr& tabletSnapshot,
         TOwningKey lowerKey,
         TOwningKey upperKey,
         TTimestamp timestamp,
@@ -166,6 +167,7 @@ struct ISortedStore
     *  Thread affinity: any
     */
     virtual NTableClient::IVersionedReaderPtr CreateReader(
+        const TTabletSnapshotPtr& tabletSnapshot,
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter,
@@ -209,6 +211,7 @@ struct IOrderedStore
      *  Thread affinity: any
      */
     virtual NTableClient::ISchemafulReaderPtr CreateReader(
+        const TTabletSnapshotPtr& tabletSnapshot,
         int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,

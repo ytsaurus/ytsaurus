@@ -113,6 +113,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
         [=, stores = std::move(stores)] (int index) {
             YASSERT(index < stores.size());
             return stores[index]->CreateReader(
+                tabletSnapshot,
                 lowerBound,
                 upperBound,
                 timestamp,
@@ -190,6 +191,7 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
                 break;
             }
             readers.emplace_back(store->CreateReader(
+                tabletSnapshot,
                 tabletIndex,
                 lowerRowIndex,
                 upperRowIndex,
@@ -284,6 +286,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
         [=, stores = std::move(stores), index = 0] () mutable -> IVersionedReaderPtr {
             if (index < stores.size()) {
                 return stores[index++]->CreateReader(
+                    tabletSnapshot,
                     keys,
                     timestamp,
                     columnFilter,
@@ -410,6 +413,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         [=, stores = std::move(stores)] (int index) {
             YASSERT(index < stores.size());
             return stores[index]->CreateReader(
+                tabletSnapshot,
                 lowerBound,
                 upperBound,
                 AllCommittedTimestamp,

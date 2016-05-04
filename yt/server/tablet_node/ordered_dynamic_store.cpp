@@ -372,6 +372,7 @@ TOrderedDynamicStorePtr TOrderedDynamicStore::AsOrderedDynamic()
 }
 
 ISchemafulReaderPtr TOrderedDynamicStore::CreateReader(
+    const TTabletSnapshotPtr& /*tabletSnapshot*/,
     int tabletIndex,
     i64 lowerRowIndex,
     i64 upperRowIndex,
