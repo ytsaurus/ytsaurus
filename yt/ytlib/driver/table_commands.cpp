@@ -337,7 +337,6 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     tableInfo->ValidateDynamic();
 
     const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
-
     if (ColumnNames) {
         Options.ColumnFilter.All = false;
         for (const auto& name : *ColumnNames) {
@@ -362,7 +361,7 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     { };
 
     // Parse input data.
-    auto valueConsumer = TBuildingValueConsumer(tableInfo->Schema);
+    auto valueConsumer = TBuildingValueConsumer(tableInfo->Schemas[ETableSchemaKind::Lookup]);
     auto keys = ParseRows(context, config, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag());
     auto capturedKeys = rowBuffer->Capture(keys);
@@ -421,9 +420,7 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
     { };
 
     // Parse input data.
-    const auto& schema = tableInfo->Schemas[ETableSchemaKind::Write];
-    auto keyColumns = schema.GetKeyColumns();
-    auto valueConsumer = New<TBuildingValueConsumer>(schema.TrimNonkeyColumns(keyColumns));
+    auto valueConsumer = New<TBuildingValueConsumer>(tableInfo->Schemas[ETableSchemaKind::Delete]);
     auto keys = ParseRows(context, config, valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TDeleteRowsBufferTag());
     auto capturedKeys = rowBuffer->Capture(keys);

@@ -79,8 +79,6 @@ public:
     int GetColumnIndexOrThrow(const TStringBuf& name) const;
 
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
-    TTableSchema TrimNonkeyColumns(const TKeyColumns& keyColumns) const;
-    TTableSchema GetPrefix(int length) const;
 
     // TODO(babenko): this function is deprecated
     void AppendColumn(const TColumnSchema& column);
@@ -103,6 +101,9 @@ public:
     //! For sorted tables, return the current schema as-is.
     //! For ordered tables, prepends the current schema with |(tablet_index)| key columns.
     TTableSchema ToWrite() const;
+
+    //! Trims all non-key columns.
+    TTableSchema ToKeys();
 
     TTableSchema ExtendByNonKeyAnyColumns(const std::vector<Stroka>& columnNames) const;
     TTableSchema ExtendByChannels(const NChunkClient::TChannels& channels) const;

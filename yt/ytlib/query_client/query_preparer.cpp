@@ -1506,7 +1506,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         source,
         NAst::TParser::token::StrayWillParseQuery);
 
-    auto& ast = astHead.first.As<NAst::TQuery>();
+    const auto& ast = astHead.first.As<NAst::TQuery>();
 
     auto functionNames = ExtractFunctionNames(std::make_pair(ast, astHead.second));
 
@@ -1524,19 +1524,16 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp))
         .ValueOrThrow();
     auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
-    auto keyColumns = tableSchema.GetKeyColumns();
+    auto keySchema = tableSchema.ToKeys();
 
-    std::vector<Stroka> refinedColumns;
-
-    query->KeyColumnsCount = keyColumns.size();
-
-    query->TableSchema = tableSchema.GetPrefix(keyColumns.size());
+    query->KeyColumnsCount = tableSchema.GetKeyColumnCount();
+    query->TableSchema = keySchema;
 
     schemaProxy = TScanSchemaProxy::Create(
         &query->RenamedTableSchema,
         &query->TableSchema,
         tableSchema,
-        keyColumns.size(),
+        tableSchema.GetKeyColumnCount(),
         table.Alias);
 
     for (const auto& join : ast.Joins) {
