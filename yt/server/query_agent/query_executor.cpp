@@ -102,12 +102,15 @@ TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSch
     return columnFilter;
 }
 
-void DataSourceFormatter(TStringBuilder* builder, const NQueryClient::TDataRange& source)
+struct TDataSourceFormatter
 {
-    builder->AppendFormat("[%v .. %v]",
-        source.Range.first,
-        source.Range.second);
-}
+    void operator()(TStringBuilder* builder, const NQueryClient::TDataRange& source) const
+    {
+        builder->AppendFormat("[%v .. %v]",
+            source.Range.first,
+            source.Range.second);
+    }
+};
 
 } // namespace
 
@@ -371,9 +374,10 @@ private:
             subreaderCreators.push_back([&, MOVE(groupedSplit)] () {
                 if (options.VerboseLogging) {
                     LOG_DEBUG("Generating reader for ranges %v",
-                        JoinToString(groupedSplit, DataSourceFormatter));
+                        MakeFormattableRange(groupedSplit, TDataSourceFormatter()));
                 } else {
-                    LOG_DEBUG("Generating reader for %v ranges", groupedSplit.Size());
+                    LOG_DEBUG("Generating reader for %v ranges",
+                        groupedSplit.Size());
                 }
 
                 auto bottomSplitReaderGenerator = [
@@ -473,9 +477,10 @@ private:
 
         if (options.VerboseLogging) {
             LOG_DEBUG("Got ranges for groups %v",
-                JoinToString(splits, DataSourceFormatter));
+                MakeFormattableRange(splits, TDataSourceFormatter()));
         } else {
-            LOG_DEBUG("Got ranges for %v groups", splits.size());
+            LOG_DEBUG("Got ranges for %v groups",
+                splits.size());
         }
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
