@@ -289,8 +289,8 @@ class TestSortedTablets(YTEnvSetup):
 
         with pytest.raises(YtError): write_table("//tmp/t", [{"key": 1, "value": 2}])
 
-    def _test_computed_columns(self, optimize_for):
-        self.sync_create_cells(1, 1)
+    # TODO(savrus): more testcases?
+    def test_computed_columns_schema_validation(self):
         with pytest.raises(YtError):
             create("table", "//tmp/t1", attributes={
                 "dynamic": True,
@@ -300,6 +300,8 @@ class TestSortedTablets(YTEnvSetup):
                     {"name": "value", "type": "string"}
                 ]})
 
+    def _test_computed_columns(self, optimize_for):
+        self.sync_create_cells(1, 1)
         self._create_table_with_computed_column("//tmp/t", optimize_for)
         self.sync_mount_table("//tmp/t")
 
