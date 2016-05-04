@@ -8,6 +8,7 @@ from helpers import TEST_DIR, check, set_config_option
 import os
 import pytest
 import tempfile
+import gzip
 import shutil
 import time
 from StringIO import StringIO
@@ -495,3 +496,17 @@ class TestTableCommands(object):
                             tempfiles_manager=None, client=None, input_format=None, output_format=None, group_by=None)
             assert os.listdir(yt.config["local_temp_directory"]) == []
 
+    def test_write_compressed_table_data(self):
+        fd, filename = tempfile.mkstemp()
+        os.close(fd)
+
+        with gzip.GzipFile(filename, "w", 5) as fout:
+            fout.write("x=1\nx=2\nx=3\n")
+
+        with open(filename) as f:
+            if yt.config["backend"] == "native":
+                with pytest.raises(yt.YtError):  # not supported for native backend
+                    yt.write_table(TEST_DIR + "/table", f, format="dsv", is_stream_compressed=True, raw=True)
+            else:
+                yt.write_table(TEST_DIR + "/table", f, format="dsv", is_stream_compressed=True, raw=True)
+                check([{"x": "1"}, {"x": "2"}, {"x": "3"}], yt.read_table(TEST_DIR + "/table"))

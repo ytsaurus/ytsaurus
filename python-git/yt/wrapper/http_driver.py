@@ -58,7 +58,9 @@ def ban_host(host, client):
 
 @forbidden_inside_job
 def make_request(command_name, params,
-                 data=None, proxy=None,
+                 data=None,
+                 is_data_compressed=None,
+                 proxy=None,
                  return_content=True,
                  retry_unavailable_proxy=True,
                  response_should_be_json=False,
@@ -159,12 +161,12 @@ def make_request(command_name, params,
     if command.input_type in ["binary", "tabular"]:
         content_encoding =  get_config(client)["proxy"]["content_encoding"]
         headers["Content-Encoding"] = content_encoding
-        if content_encoding == "identity":
-            pass
-        elif content_encoding == "gzip":
+
+        require(content_encoding in ["gzip", "identity"],
+                lambda: YtError("Content encoding '{0}' is not supported".format(content_encoding)))
+
+        if content_encoding == "gzip" and not is_data_compressed:
             data = create_zlib_generator(data)
-        else:
-            raise YtError("Content encoding '%s' is not supported" % get_config(client)["proxy"]["content_encoding"])
 
     stream = (command.output_type in ["binary", "tabular"])
     try:

@@ -96,12 +96,15 @@ def download_file(path, file_reader=None, offset=None, length=None, client=None)
     return read_file(path=path, file_reader=file_reader,
                      offset=offset, length=length, client=client)
 
-def write_file(destination, stream, file_writer=None, client=None):
+def write_file(destination, stream, file_writer=None, is_stream_compressed=False, client=None):
     """Upload file to destination path from stream on local machine.
 
     :param destination: (string or `TablePath`) destination path in Cypress
     :param stream: some stream, string generator or 'yt.wrapper.string_iter_io.StringIterIO' for example
     :param file_writer: (dict) spec of upload operation
+    :param is_stream_compressed: (bool) expect stream to contain compressed data. \
+    This data can be passed directly to proxy without recompression. Be careful! this option \
+    disables write retries.
     """
 
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
@@ -136,6 +139,9 @@ def write_file(destination, stream, file_writer=None, client=None):
         if not is_one_small_blob:
             enable_retries = False
 
+    if not is_one_small_blob and is_stream_compressed:
+        enable_retries = False
+
     make_write_request(
         "upload" if get_api_version(client=client) == "v2" else "write_file",
         stream,
@@ -143,6 +149,7 @@ def write_file(destination, stream, file_writer=None, client=None):
         params,
         lambda path: create("file", path, ignore_existing=True, client=client),
         enable_retries,
+        is_stream_compressed=is_stream_compressed,
         client=client)
 
 def upload_file(stream, destination, file_writer=None, client=None):
