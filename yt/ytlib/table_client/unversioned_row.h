@@ -493,6 +493,17 @@ public:
         YASSERT(index >= 0 && index < GetCount());
         return Begin()[index];
     }
+
+    // STL interop.
+    TUnversionedValue* begin()
+    {
+        return Begin();
+    }
+
+    TUnversionedValue* end()
+    {
+        return End();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
