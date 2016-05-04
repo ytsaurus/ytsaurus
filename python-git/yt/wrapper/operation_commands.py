@@ -407,11 +407,6 @@ class Operation(object):
         :param timeout: (double) timeout of operation in sec. ``None`` means operation is endlessly waited for.
         """
 
-        if self.url:
-            logger.info("Operation started: %s", self.url)
-        else:
-            logger.info("Operation started: %s", self.id)
-
         finalize = self.finalize if self.finalize else lambda state: None
         operation_poll_period = get_config(self.client)["operation_tracker"]["poll_period"] / 1000.0
         time_watcher = TimeWatcher(min_interval=operation_poll_period / 5.0,

@@ -385,8 +385,13 @@ def _make_operation_request(command_name, spec, sync,
             backoff=get_config(client)["start_operation_retries"]["retry_timeout"] / 1000.0,
             exceptions=(YtConcurrentOperationsLimitExceeded,))
 
-
         operation = Operation(command_name, operation_id, finalizer, client=client)
+
+        if operation.url:
+            logger.info("Operation started: %s", operation.url)
+        else:
+            logger.info("Operation started: %s", operation.id)
+
         if sync:
             operation.wait()
         return operation
