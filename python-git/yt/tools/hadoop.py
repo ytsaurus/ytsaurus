@@ -1,5 +1,4 @@
 from yt.wrapper.common import generate_uuid, run_with_retries
-from yt.common import get_value
 from yt.wrapper.http import get_retriable_errors
 import yt.packages.requests as requests
 import yt.logger as logger
@@ -63,8 +62,7 @@ class AirflowError(Exception):
     pass
 
 class Airflow(object):
-    def __init__(self, address, dag_registered_wait_time, protocol=None):
-        protocol = get_value(protocol, "http")
+    def __init__(self, address, dag_registered_wait_time, protocol="http"):
         self._url = "{0}://{1}/admin/airflow".format(protocol, address)
         self._headers = {
             "Content-Type": "application/json"
