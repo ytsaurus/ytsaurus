@@ -582,7 +582,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
             ToProto(protoTabletInfo->mutable_tablet_id(), snapshot->TabletId);
 
             auto* protoStatistics = protoTabletInfo->mutable_statistics();
-            protoStatistics->set_partition_count(snapshot->Partitions.size());
+            protoStatistics->set_partition_count(snapshot->PartitionList.size());
             protoStatistics->set_store_count(snapshot->StoreCount);
             protoStatistics->set_preload_pending_store_count(snapshot->PreloadPendingStoreCount);
             protoStatistics->set_preload_completed_store_count(snapshot->PreloadCompletedStoreCount);

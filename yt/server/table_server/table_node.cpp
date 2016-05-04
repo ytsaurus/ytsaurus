@@ -56,15 +56,10 @@ void TTableNode::BeginUpload(EUpdateMode mode)
 void TTableNode::EndUpload(
     const TDataStatistics* statistics,
     bool deriveStatistics,
-    const std::vector<Stroka>& keyColumns)
+    const TTableSchema& schema)
 {
-    TChunkOwnerBase::EndUpload(statistics, deriveStatistics, keyColumns);
-    if (!keyColumns.empty()) {
-        TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
-    } else {
-        // Table schema columns will be reset, strict = false.
-        TableSchema_ = TTableSchema();
-    }
+    TableSchema_ = schema;
+    TChunkOwnerBase::EndUpload(statistics, deriveStatistics, schema);
 }
 
 bool TTableNode::IsSorted() const
@@ -242,6 +237,10 @@ protected:
 
         auto maybeSchema = attributes->Find<TTableSchema>("schema");
         attributes->Remove("schema");
+
+        if (maybeSchema) {
+            ValidateTableSchema(*maybeSchema);
+        }
 
         if (dynamic && !maybeSchema) {
             THROW_ERROR_EXCEPTION("\"schema\" is mandatory for dynamic tables");

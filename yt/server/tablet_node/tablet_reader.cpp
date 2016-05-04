@@ -13,6 +13,7 @@
 #include <yt/ytlib/table_client/versioned_row.h>
 #include <yt/ytlib/table_client/schemaful_overlapping_chunk_reader.h>
 #include <yt/ytlib/table_client/unordered_schemaful_reader.h>
+#include <yt/ytlib/table_client/schemaful_concatencaing_reader.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -47,7 +48,9 @@ struct TStoreRangeFormatter
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemafulReaderPtr CreateSchemafulTabletReader(
+namespace {
+
+ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     TOwningKey lowerBound,
@@ -73,7 +76,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         takePartition(*it);
     }
 
-    LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, "
+    LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, "
         "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, StoreIds: %v, StoreRanges: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
@@ -93,8 +96,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 
     auto rowMerger = New<TSchemafulRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
-        tabletSnapshot->Schema.Columns().size(),
-        tabletSnapshot->Schema.GetKeyColumnCount(),
+        tabletSnapshot->QuerySchema.Columns().size(),
+        tabletSnapshot->QuerySchema.GetKeyColumnCount(),
         columnFilter,
         tabletSnapshot->ColumnEvaluator);
 
@@ -120,10 +123,112 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
             const TUnversionedValue* lhsBegin,
             const TUnversionedValue* lhsEnd,
             const TUnversionedValue* rhsBegin,
-            const TUnversionedValue* rhsEnd)
-        {
+            const TUnversionedValue* rhsEnd) {
             return keyComparer(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
         });
+}
+
+ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
+    TTabletSnapshotPtr tabletSnapshot,
+    const TColumnFilter& columnFilter,
+    TOwningKey lowerBound,
+    TOwningKey upperBound,
+    TTimestamp /*timestamp*/,
+    const TWorkloadDescriptor& workloadDescriptor)
+{
+    YCHECK(lowerBound.GetCount() >= 1 && lowerBound.GetCount() <= 2);
+    YCHECK(upperBound.GetCount() >= 1 && upperBound.GetCount() <= 2);
+
+    auto valueToInt = [] (const TUnversionedValue& value) {
+        switch (value.Type) {
+            case EValueType::Int64:
+                return value.Data.Int64;
+            case EValueType::Min:
+                return std::numeric_limits<i64>::min();
+            case EValueType::Max:
+                return std::numeric_limits<i64>::max();
+            default:
+                YUNREACHABLE();
+        }
+    };
+
+    int tabletIndex = 0;
+    i64 lowerRowIndex = 0;
+    i64 upperRowIndex = std::numeric_limits<i64>::max();
+    if (lowerBound < upperBound) {
+        YCHECK(lowerBound[0].Type == EValueType::Int64);
+        tabletIndex = static_cast<int>(lowerBound[0].Data.Int64);
+
+        YCHECK(upperBound[0].Type == EValueType::Int64 ||
+               upperBound[0].Type == EValueType::Max);
+        YCHECK(upperBound[0].Type != EValueType::Int64 ||
+               lowerBound[0].Data.Int64 == upperBound[0].Data.Int64 ||
+               lowerBound[0].Data.Int64 + 1 == upperBound[0].Data.Int64);
+
+        if (lowerBound.GetCount() == 2) {
+            lowerRowIndex = valueToInt(lowerBound[1]);
+        }
+
+        if (upperBound.GetCount() == 2) {
+            upperRowIndex = valueToInt(upperBound[1]);
+        }
+    }
+
+    std::vector<ISchemafulReaderPtr> readers;
+    if (lowerRowIndex < upperRowIndex && !tabletSnapshot->StoreList.empty()) {
+        auto lowerIt = std::upper_bound(
+            tabletSnapshot->StoreList.begin(),
+            tabletSnapshot->StoreList.end(),
+            lowerRowIndex,
+            [] (i64 lhs, const IOrderedStorePtr& rhs) {
+                return lhs < rhs->GetStartingRowIndex();
+            }) - 1;
+        auto it = lowerIt;
+        while (it != tabletSnapshot->StoreList.end()) {
+            const auto& store = *it;
+            if (store->GetStartingRowIndex() >= upperRowIndex) {
+                break;
+            }
+            readers.emplace_back(store->CreateReader(
+                tabletIndex,
+                lowerRowIndex,
+                upperRowIndex,
+                columnFilter,
+                workloadDescriptor));
+            ++it;
+        }
+    }
+
+    return CreateSchemafulConcatencatingReader(readers);
+}
+
+} // namespace
+
+ISchemafulReaderPtr CreateSchemafulTabletReader(
+    TTabletSnapshotPtr tabletSnapshot,
+    const TColumnFilter& columnFilter,
+    TOwningKey lowerBound,
+    TOwningKey upperBound,
+    TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor)
+{
+    if (tabletSnapshot->TableSchema.IsSorted()) {
+        return CreateSchemafulSortedTabletReader(
+            std::move(tabletSnapshot),
+            columnFilter,
+            std::move(lowerBound),
+            std::move(upperBound),
+            timestamp,
+            workloadDescriptor);
+    } else {
+        return CreateSchemafulOrderedTabletReader(
+            std::move(tabletSnapshot),
+            columnFilter,
+            std::move(lowerBound),
+            std::move(upperBound),
+            timestamp,
+            workloadDescriptor);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -169,8 +274,8 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
         rowBuffer
             ? std::move(rowBuffer)
             : New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
-        tabletSnapshot->Schema.Columns().size(),
-        tabletSnapshot->Schema.GetKeyColumnCount(),
+        tabletSnapshot->QuerySchema.Columns().size(),
+        tabletSnapshot->QuerySchema.GetKeyColumnCount(),
         columnFilter,
         tabletSnapshot->ColumnEvaluator);
 
@@ -191,8 +296,6 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
 
 } // namespace
 
-////////////////////////////////////////////////////////////////////////////////
-
 ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
@@ -204,19 +307,24 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 {
     YCHECK(!rowBuffer || concurrency == 1);
 
+    if (!tabletSnapshot->TableSchema.IsSorted()) {
+        THROW_ERROR_EXCEPTION("Table %v is not sorted",
+            tabletSnapshot->TableId);
+    }
+
     std::vector<TPartitionSnapshotPtr> partitions;
     std::vector<TSharedRange<TKey>> partitionedKeys;
     auto currentIt = keys.Begin();
     while (currentIt != keys.End()) {
         auto nextPartitionIt = std::upper_bound(
-            tabletSnapshot->Partitions.begin(),
-            tabletSnapshot->Partitions.end(),
+            tabletSnapshot->PartitionList.begin(),
+            tabletSnapshot->PartitionList.end(),
             *currentIt,
             [] (TKey lhs, const TPartitionSnapshotPtr& rhs) {
                 return lhs < rhs->PivotKey;
             });
-        YCHECK(nextPartitionIt != tabletSnapshot->Partitions.begin());
-        auto nextIt = nextPartitionIt == tabletSnapshot->Partitions.end()
+        YCHECK(nextPartitionIt != tabletSnapshot->PartitionList.begin());
+        auto nextIt = nextPartitionIt == tabletSnapshot->PartitionList.end()
             ? keys.End()
             : std::lower_bound(currentIt, keys.End(), (*nextPartitionIt)->PivotKey);
         partitions.push_back(*(nextPartitionIt - 1));
@@ -264,6 +372,11 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     TTimestamp majorTimestamp,
     const TWorkloadDescriptor& workloadDescriptor)
 {
+    if (!tabletSnapshot->TableSchema.IsSorted()) {
+        THROW_ERROR_EXCEPTION("Table %v is not sorted",
+            tabletSnapshot->TableId);
+    }
+
     LOG_DEBUG(
         "Creating versioned tablet reader (TabletId: %v, CellId: %v, LowerBound: %v, UpperBound: %v, "
         "CurrentTimestamp: %v, MajorTimestamp: %v, WorkloadDescriptor: %v, StoreIds: %v, StoreRanges: %v)",
@@ -279,7 +392,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
 
     auto rowMerger = New<TVersionedRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
-        tabletSnapshot->Schema.GetKeyColumnCount(),
+        tabletSnapshot->QuerySchema.GetKeyColumnCount(),
         tabletSnapshot->Config,
         currentTimestamp,
         majorTimestamp,

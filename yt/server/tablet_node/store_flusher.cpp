@@ -179,7 +179,7 @@ private:
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
-        for (const auto& pair : tablet->Stores()) {
+        for (const auto& pair : tablet->StoreIdMap()) {
             const auto& store = pair.second;
             ScanStore(slot, tablet, store);
             if (store->GetStoreState() == EStoreState::PassiveDynamic) {

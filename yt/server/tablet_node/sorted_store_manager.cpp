@@ -65,7 +65,7 @@ TSortedStoreManager::TSortedStoreManager(
         std::move(client))
     , KeyColumnCount_(Tablet_->GetKeyColumnCount())
 {
-    for (const auto& pair : Tablet_->Stores()) {
+    for (const auto& pair : Tablet_->StoreIdMap()) {
         auto store = pair.second->AsSorted();
         if (store->GetStoreState() != EStoreState::ActiveDynamic) {
             MaxTimestampToStore_.insert(std::make_pair(store->GetMaxTimestamp(), store));

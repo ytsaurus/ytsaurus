@@ -1001,6 +1001,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     ValidateTransaction();
     ValidateInUpdate();
 
+    // TOOD(babenko): should we be passing schema here?
     auto keyColumns = FromProto<TKeyColumns>(request->key_columns());
     const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
     bool deriveStatistics = request->derive_statistics();
@@ -1009,6 +1010,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     context->SetRequestInfo("KeyColumns: %v, ChunkPropertiesUpdateNeeded: %v",
         keyColumns,
         chunkPropertiesUpdateNeeded);
+
+    auto schema = TTableSchema::FromKeyColumns(keyColumns);
+    YASSERT(!schema.GetStrict());
 
     auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     YCHECK(node->GetTransaction() == Transaction);
@@ -1020,7 +1024,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         PostToMaster(context, node->GetExternalCellTag());
     }
 
-    node->EndUpload(statistics, deriveStatistics, keyColumns);
+    node->EndUpload(statistics, deriveStatistics, schema);
 
     node->SetChunkPropertiesUpdateNeeded(chunkPropertiesUpdateNeeded);
 

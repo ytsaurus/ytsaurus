@@ -24,6 +24,8 @@ public:
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor = Null);
     ~TOrderedChunkStore();
 
+    virtual void Initialize(const NTabletNode::NProto::TAddStoreDescriptor* descriptor) override;
+
     // IStore implementation.
     virtual TOrderedChunkStorePtr AsOrderedChunk() override;
 
@@ -37,9 +39,10 @@ public:
 
     // IOrderedStore implementation.
     virtual NTableClient::ISchemafulReaderPtr CreateReader(
+        int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
-        const NTableClient::TTableSchema& schema,
+        const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor) override;
 
 private:

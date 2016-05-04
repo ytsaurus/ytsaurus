@@ -4,6 +4,8 @@
 #include "tablet.h"
 #include "config.h"
 
+#include <yt/server/tablet_node/tablet_manager.pb.h>
+
 #include <yt/server/data_node/chunk_registry.h>
 #include <yt/server/data_node/chunk.h>
 #include <yt/server/data_node/chunk_block_manager.h>
@@ -42,6 +44,8 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NApi;
 using namespace NDataNode;
+
+using NTabletNode::NProto::TAddStoreDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -341,12 +345,12 @@ TChunkStoreBase::TChunkStoreBase(
     StoreState_ = EStoreState::Persistent;
 }
 
-void TChunkStoreBase::Initialize(const TChunkMeta* chunkMeta)
+void TChunkStoreBase::Initialize(const TAddStoreDescriptor* descriptor)
 {
     SetInMemoryMode(Tablet_->GetConfig()->InMemoryMode);
 
-    if (chunkMeta) {
-        ChunkMeta_->CopyFrom(*chunkMeta);
+    if (descriptor) {
+        ChunkMeta_->CopyFrom(descriptor->chunk_meta());
         PrecacheProperties();
     }
 }
@@ -626,6 +630,33 @@ bool TOrderedStoreBase::IsOrdered() const
 IOrderedStorePtr TOrderedStoreBase::AsOrdered()
 {
     return this;
+}
+
+i64 TOrderedStoreBase::GetStartingRowIndex() const
+{
+    return StartingRowIndex_;
+}
+
+void TOrderedStoreBase::SetStartingRowIndex(i64 value)
+{
+    YCHECK(value >= 0);
+    StartingRowIndex_ = value;
+}
+
+void TOrderedStoreBase::Save(TSaveContext& context) const
+{
+    TStoreBase::Save(context);
+
+    using NYT::Save;
+    Save(context, StartingRowIndex_);
+}
+
+void TOrderedStoreBase::Load(TLoadContext& context)
+{
+    TStoreBase::Load(context);
+
+    using NYT::Load;
+    Load(context, StartingRowIndex_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

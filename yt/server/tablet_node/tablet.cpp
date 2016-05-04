@@ -40,19 +40,19 @@ TTabletSnapshot::GetIntersectingPartitions(
     const TOwningKey& upperBound)
 {
     auto beginIt = std::upper_bound(
-        Partitions.begin(),
-        Partitions.end(),
+        PartitionList.begin(),
+        PartitionList.end(),
         lowerBound,
         [] (const TOwningKey& key, const TPartitionSnapshotPtr& partition) {
             return key < partition->PivotKey;
         });
 
-    if (beginIt != Partitions.begin()) {
+    if (beginIt != PartitionList.begin()) {
         --beginIt;
     }
 
     auto endIt = beginIt;
-    while (endIt != Partitions.end() && upperBound > (*endIt)->PivotKey) {
+    while (endIt != PartitionList.end() && upperBound > (*endIt)->PivotKey) {
         ++endIt;
     }
 
@@ -62,14 +62,14 @@ TTabletSnapshot::GetIntersectingPartitions(
 TPartitionSnapshotPtr TTabletSnapshot::FindContainingPartition(TKey key)
 {
     auto it = std::upper_bound(
-        Partitions.begin(),
-        Partitions.end(),
+        PartitionList.begin(),
+        PartitionList.end(),
         key,
         [] (TKey key, const TPartitionSnapshotPtr& partition) {
             return key < partition->PivotKey;
         });
 
-    return it == Partitions.begin() ? nullptr : *(--it);
+    return it == PartitionList.begin() ? nullptr : *(--it);
 }
 
 void TTabletSnapshot::ValiateMountRevision(i64 mountRevision)
@@ -186,9 +186,9 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Atomicity_);
     Save(context, HashTableSize_);
 
-    TSizeSerializer::Save(context, Stores_.size());
+    TSizeSerializer::Save(context, StoreIdMap_.size());
     // NB: This is not stable.
-    for (const auto& pair : Stores_) {
+    for (const auto& pair : StoreIdMap_) {
         const auto& store = pair.second;
         Save(context, store->GetType());
         Save(context, store->GetId());
@@ -236,8 +236,15 @@ void TTablet::Load(TLoadContext& context)
             auto storeType = Load<EStoreType>(context);
             auto storeId = Load<TStoreId> (context);
             auto store = Context_->CreateStore(this, storeType, storeId);
-            YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
+            YCHECK(StoreIdMap_.insert(std::make_pair(store->GetId(), store)).second);
             store->Load(context);
+        }
+    }
+
+    if (IsOrdered()) {
+        for (const auto& pair : StoreIdMap_) {
+            auto orderedStore = pair.second->AsOrdered();
+            YCHECK(StoreRowIndexMap_.insert(std::make_pair(orderedStore->GetStartingRowIndex(), orderedStore)).second);
         }
     }
 
@@ -280,7 +287,7 @@ void TTablet::Load(TLoadContext& context)
 TCallback<void(TSaveContext&)> TTablet::AsyncSave()
 {
     std::vector<std::pair<TStoreId, TCallback<void(TSaveContext&)>>> capturedStores;
-    for (const auto& pair : Stores_) {
+    for (const auto& pair : StoreIdMap_) {
         const auto& store = pair.second;
         capturedStores.push_back(std::make_pair(store->GetId(), store->AsyncSave()));
     }
@@ -343,9 +350,9 @@ void TTablet::AsyncLoad(TLoadContext& context)
         }
     }
 
-    SERIALIZATION_DUMP_WRITE(context, "stores[%v]", Stores_.size());
+    SERIALIZATION_DUMP_WRITE(context, "stores[%v]", StoreIdMap_.size());
     SERIALIZATION_DUMP_INDENT(context) {
-        for (int index = 0; index < Stores_.size(); ++index) {
+        for (int index = 0; index < StoreIdMap_.size(); ++index) {
             auto storeId = Load<TStoreId>(context);
             SERIALIZATION_DUMP_WRITE(context, "%v =>", storeId);
             SERIALIZATION_DUMP_INDENT(context) {
@@ -356,18 +363,21 @@ void TTablet::AsyncLoad(TLoadContext& context)
     }
 }
 
-const std::vector<std::unique_ptr<TPartition>>& TTablet::Partitions() const
+const std::vector<std::unique_ptr<TPartition>>& TTablet::PartitionList() const
 {
+    YCHECK(IsSorted());
     return PartitionList_;
 }
 
 TPartition* TTablet::GetEden() const
 {
+    YCHECK(IsSorted());
     return Eden_.get();
 }
 
 void TTablet::CreateInitialPartition()
 {
+    YCHECK(IsSorted());
     YCHECK(PartitionList_.empty());
     auto partition = std::make_unique<TPartition>(
         this,
@@ -379,40 +389,25 @@ void TTablet::CreateInitialPartition()
     PartitionList_.push_back(std::move(partition));
 }
 
-TPartition* TTablet::FindPartitionByPivotKey(const NTableClient::TOwningKey& pivotKey)
+TPartition* TTablet::FindPartition(const TPartitionId& partitionId)
 {
-    auto it = std::lower_bound(
-        PartitionList_.begin(),
-        PartitionList_.end(),
-        pivotKey,
-        [] (const std::unique_ptr<TPartition>& partition, const TOwningKey& key) {
-            return partition->GetPivotKey() < key;
-        });
-    return it != PartitionList_.end() && (*it)->GetPivotKey() == pivotKey ? it->get() : nullptr;
-}
-
-TPartition* TTablet::GetPartitionByPivotKey(const NTableClient::TOwningKey& pivotKey)
-{
-    auto* partition = FindPartitionByPivotKey(pivotKey);
-    YCHECK(partition);
-    return partition;
-}
-
-TPartition* TTablet::FindPartitionById(const TPartitionId& partitionId)
-{
+    YCHECK(IsSorted());
     const auto& it = PartitionMap_.find(partitionId);
     return it == PartitionMap_.end() ? nullptr : it->second;
 }
 
-TPartition* TTablet::GetPartitionById(const TPartitionId& partitionId)
+TPartition* TTablet::GetPartition(const TPartitionId& partitionId)
 {
-    auto* partition = FindPartitionById(partitionId);
+    YCHECK(IsSorted());
+    auto* partition = FindPartition(partitionId);
     YCHECK(partition);
     return partition;
 }
 
 void TTablet::MergePartitions(int firstIndex, int lastIndex)
 {
+    YCHECK(IsSorted());
+
     for (int i = lastIndex + 1; i < static_cast<int>(PartitionList_.size()); ++i) {
         PartitionList_[i]->SetIndex(i - (lastIndex - firstIndex));
     }
@@ -457,6 +452,8 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
 
 void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys)
 {
+    YCHECK(IsSorted());
+
     auto existingPartition = std::move(PartitionList_[index]);
     YCHECK(existingPartition->GetPivotKey() == pivotKeys[0]);
 
@@ -517,6 +514,8 @@ TPartition* TTablet::GetContainingPartition(
     const TOwningKey& minKey,
     const TOwningKey& maxKey)
 {
+    YCHECK(IsSorted());
+
     auto it = std::upper_bound(
         PartitionList_.begin(),
         PartitionList_.end(),
@@ -529,7 +528,7 @@ TPartition* TTablet::GetContainingPartition(
         --it;
     }
 
-    if (it + 1 == Partitions().end()) {
+    if (it + 1 == PartitionList().end()) {
         return it->get();
     }
 
@@ -540,39 +539,51 @@ TPartition* TTablet::GetContainingPartition(
     return Eden_.get();
 }
 
-const yhash_map<TStoreId, IStorePtr>& TTablet::Stores() const
+const yhash_map<TStoreId, IStorePtr>& TTablet::StoreIdMap() const
 {
-    return Stores_;
+    return StoreIdMap_;
+}
+
+const std::map<i64, IOrderedStorePtr>& TTablet::StoreRowIndexMap() const
+{
+    YCHECK(IsOrdered());
+    return StoreRowIndexMap_;
 }
 
 void TTablet::AddStore(IStorePtr store)
 {
-    YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
+    YCHECK(StoreIdMap_.insert(std::make_pair(store->GetId(), store)).second);
     if (IsSorted()) {
         auto sortedStore = store->AsSorted();
         auto* partition = GetContainingPartition(sortedStore);
         YCHECK(partition->Stores().insert(sortedStore).second);
         sortedStore->SetPartition(partition);
         UpdateOverlappingStoreCount();
+    } else {
+        auto orderedStore = store->AsOrdered();
+        YCHECK(StoreRowIndexMap_.insert(std::make_pair(orderedStore->GetStartingRowIndex(), orderedStore)).second);
     }
 }
 
 void TTablet::RemoveStore(IStorePtr store)
 {
-    YCHECK(Stores_.erase(store->GetId()) == 1);
+    YCHECK(StoreIdMap_.erase(store->GetId()) == 1);
     if (IsSorted()) {
         auto sortedStore = store->AsSorted();
         auto* partition = sortedStore->GetPartition();
         YCHECK(partition->Stores().erase(sortedStore) == 1);
         sortedStore->SetPartition(nullptr);
         UpdateOverlappingStoreCount();
+    } else {
+        auto orderedStore = store->AsOrdered();
+        YCHECK(StoreRowIndexMap_.erase(orderedStore->GetStartingRowIndex()) == 1);
     }
 }
 
 IStorePtr TTablet::FindStore(const TStoreId& id)
 {
-    auto it = Stores_.find(id);
-    return it == Stores_.end() ? nullptr : it->second;
+    auto it = StoreIdMap_.find(id);
+    return it == StoreIdMap_.end() ? nullptr : it->second;
 }
 
 IStorePtr TTablet::GetStore(const TStoreId& id)
@@ -662,15 +673,16 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->WriterOptions = WriterOptions_;
     snapshot->PivotKey = PivotKey_;
     snapshot->NextPivotKey = NextPivotKey_;
-    snapshot->Schema = Schema_;
+    snapshot->TableSchema = Schema_;
+    snapshot->QuerySchema = Schema_.ToQuery();
     snapshot->Atomicity = Atomicity_;
     snapshot->HashTableSize = HashTableSize_;
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
     snapshot->Eden = Eden_->BuildSnapshot();
-    snapshot->Partitions.reserve(PartitionList_.size());
+    snapshot->PartitionList.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {
         auto partitionSnapshot = partition->BuildSnapshot();
-        snapshot->Partitions.push_back(partitionSnapshot);
+        snapshot->PartitionList.push_back(partitionSnapshot);
         snapshot->StoreCount += partitionSnapshot->Stores.size();
         for (const auto& store : partitionSnapshot->Stores) {
             if (store->IsChunk()) {
@@ -691,6 +703,13 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
                         break;
                 }
             }
+        }
+    }
+    if (IsOrdered()) {
+        // TODO(babenko): optimize
+        snapshot->StoreList.reserve(StoreRowIndexMap_.size());
+        for (const auto& pair : StoreRowIndexMap_) {
+            snapshot->StoreList.push_back(pair.second);
         }
     }
     snapshot->RowKeyComparer = RowKeyComparer_;

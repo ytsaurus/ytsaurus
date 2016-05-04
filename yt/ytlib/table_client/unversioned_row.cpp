@@ -578,23 +578,18 @@ int ApplyIdMapping(
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping* idMappingPtr)
 {
-    auto id = value.Id;
-    int schemaId = id;
+    auto valueId = value.Id;
     if (idMappingPtr) {
         const auto& idMapping = *idMappingPtr;
-        if (id >= idMapping.size()) {
+        if (valueId >= idMapping.size()) {
             THROW_ERROR_EXCEPTION("Invalid column id: actual %v, expected in range [0,%v]",
-                id,
+                valueId,
                 idMapping.size() - 1);
         }
-        schemaId = idMapping[id];
+        return idMapping[valueId];
+    } else {
+        return valueId;
     }
-    if (schemaId < 0 || schemaId >= schema.Columns().size()) {
-        THROW_ERROR_EXCEPTION("Invalid mapped column id: actual %v, expected in range [0,%v]",
-            schemaId,
-            schema.Columns().size());
-    }
-    return schemaId;
 }
 
 void ValidateKeyPart(
@@ -612,11 +607,14 @@ void ValidateKeyPart(
     for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
         const auto& value = row[index];
         ValidateKeyValue(value);
-        int schemaId = ApplyIdMapping(value, schema, nullptr);
-        ValidateValueType(value, schema, schemaId);
-        if (schemaId != index) {
+        int mappedId = ApplyIdMapping(value, schema, nullptr);
+        if (mappedId < 0) {
+            continue;
+        }
+        ValidateValueType(value, schema, mappedId);
+        if (mappedId != index) {
             THROW_ERROR_EXCEPTION("Invalid column: actual %Qv, expected %Qv",
-                schema.Columns()[schemaId].Name,
+                schema.Columns()[mappedId].Name,
                 schema.Columns()[index].Name);
         }
     }
@@ -633,8 +631,11 @@ void ValidateDataRow(
     for (int index = schema.GetKeyColumnCount(); index < row.GetCount(); ++index) {
         const auto& value = row[index];
         ValidateDataValue(value);
-        int schemaId = ApplyIdMapping(value, schema, idMappingPtr);
-        ValidateValueType(value, schema, schemaId);
+        int mappedId = ApplyIdMapping(value, schema, idMappingPtr);
+        if (mappedId < 0) {
+            continue;
+        }
+        ValidateValueType(value, schema, mappedId);
     }
 }
 
@@ -668,9 +669,11 @@ void ValidateClientRow(
 
     for (int index = 0; index < row.GetCount(); ++index) {
         const auto& value = row[index];
-        int schemaId = ApplyIdMapping(value, schema, &idMapping);
-        const auto& column = schema.Columns()[schemaId];
-        ValidateValueType(value, schema, schemaId);
+        int mappedId = ApplyIdMapping(value, schema, &idMapping);
+
+        YASSERT(mappedId >= 0 && mappedId < schema.Columns().size());
+        const auto& column = schema.Columns()[mappedId];
+        ValidateValueType(value, schema, mappedId);
 
         if (column.Expression) {
             THROW_ERROR_EXCEPTION(
@@ -678,17 +681,17 @@ void ValidateClientRow(
                 column.Name);
         }
 
-        if (schemaId < schema.GetKeyColumnCount()) {
-            if (keyColumnSeen[schemaId]) {
+        if (mappedId < schema.GetKeyColumnCount()) {
+            if (keyColumnSeen[mappedId]) {
                 THROW_ERROR_EXCEPTION("Duplicate key column %Qv",
                     column.Name);
             }
 
-            keyColumnSeen[schemaId] = true;
+            keyColumnSeen[mappedId] = true;
             ValidateKeyValue(value);
         } else if (isKey) {
-                THROW_ERROR_EXCEPTION("Non-key column %Qv in a key",
-                    column.Name);
+            THROW_ERROR_EXCEPTION("Non-key column %Qv in a key",
+                column.Name);
         } else {
             ValidateDataValue(value);
         }

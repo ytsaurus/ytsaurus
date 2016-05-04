@@ -55,9 +55,10 @@ public:
 
     // IOrderedStore implementation.
     virtual NTableClient::ISchemafulReaderPtr CreateReader(
+        int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
-        const NTableClient::TTableSchema& schema,
+        const NTableClient::TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor) override;
 
 private:
@@ -84,9 +85,10 @@ private:
     void LoadRow(NTableClient::TUnversionedRow row);
 
     NTableClient::ISchemafulReaderPtr DoCreateReader(
+        int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
-        const TNullable<NTableClient::TTableSchema>& schema);
+        const TNullable<NTableClient::TColumnFilter>& columnFilter);
 
 };
 

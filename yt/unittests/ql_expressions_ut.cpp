@@ -660,13 +660,11 @@ TEST_P(TArithmeticTest, Evaluate)
 
     TUnversionedValue result;
     TCGVariables variables;
-    auto schema = GetSampleTableSchema();
-    TColumnSchema column0 = schema.Columns()[0];
-    TColumnSchema column1 = schema.Columns()[1];
-    column0.Type = type;
-    column1.Type = type;
-    schema.AlterColumn(0, column0);
-    schema.AlterColumn(1, column1);
+
+    auto columns = GetSampleTableSchema().Columns();
+    columns[0].Type = type;
+    columns[1].Type = type;
+    auto schema = TTableSchema(columns);
 
     auto expr = PrepareExpression(Stroka("k") + op + "l", schema);
 
@@ -951,11 +949,12 @@ TEST_P(TEvaluateExpressionTest, Basic)
     const auto& exprString = std::get<1>(param);
     const auto& expected = std::get<2>(param);
 
-    TTableSchema schema;
-    schema.AppendColumn(TColumnSchema("i1", EValueType::Int64));
-    schema.AppendColumn(TColumnSchema("i2", EValueType::Int64));
-    schema.AppendColumn(TColumnSchema("u1", EValueType::Uint64));
-    schema.AppendColumn(TColumnSchema("u2", EValueType::Uint64));
+    TTableSchema schema({
+        TColumnSchema("i1", EValueType::Int64),
+        TColumnSchema("i2", EValueType::Int64),
+        TColumnSchema("u1", EValueType::Uint64),
+        TColumnSchema("u2", EValueType::Uint64)
+    });
 
     auto expr = PrepareExpression(exprString, schema);
 

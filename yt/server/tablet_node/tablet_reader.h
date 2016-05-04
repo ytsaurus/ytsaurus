@@ -13,8 +13,11 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Creates a reader that merges data from the relevant stores and
+//! Creates a range reader that merges data from the relevant stores and
 //! returns a single version of each value.
+/*!
+ *  Can handle both sorted and ordered tables.
+ */
 NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
@@ -23,8 +26,11 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTimestamp timestamp,
     const TWorkloadDescriptor& workloadDescriptor);
 
-//! Creates a reader that merges data from the relevant stores and
+//! Creates a lookup reader that merges data from the relevant stores and
 //! returns a single version of each value.
+/*!
+ *  Can only handle sorted tables.
+ */
 NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
@@ -34,8 +40,11 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     int concurrency,
     NTableClient::TRowBufferPtr rowBuffer = nullptr);
 
-//! Creates a reader that merges data from all given #stores and
+//! Creates a range reader that merges data from all given #stores and
 //! returns all versions of each value.
+/*!
+ *  Can only handle sorted tables.
+ */
 NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
     IInvokerPtr poolInvoker,
     TTabletSnapshotPtr tabletSnapshot,

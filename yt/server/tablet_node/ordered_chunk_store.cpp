@@ -1,5 +1,7 @@
 #include "ordered_chunk_store.h"
 
+#include <yt/server/tablet_node/tablet_manager.pb.h>
+
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
@@ -12,6 +14,8 @@ using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NApi;
 using namespace NDataNode;
+
+using NTabletNode::NProto::TAddStoreDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +48,15 @@ TOrderedChunkStore::~TOrderedChunkStore()
     LOG_DEBUG("Ordered chunk store destroyed");
 }
 
+void TOrderedChunkStore::Initialize(const TAddStoreDescriptor* descriptor)
+{
+    TChunkStoreBase::Initialize(descriptor);
+    if (descriptor) {
+        YCHECK(descriptor->has_starting_row_index());
+        SetStartingRowIndex(descriptor->starting_row_index());
+    }
+}
+
 TOrderedChunkStorePtr TOrderedChunkStore::AsOrderedChunk()
 {
     return this;
@@ -66,9 +79,10 @@ void TOrderedChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
 { }
 
 ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
+    int tabletIndex,
     i64 lowerRowIndex,
     i64 upperRowIndex,
-    const TTableSchema& schema,
+    const TColumnFilter& columnFilter,
     const TWorkloadDescriptor& workloadDescriptor)
 {
     YUNIMPLEMENTED();

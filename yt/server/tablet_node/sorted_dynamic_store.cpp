@@ -1851,6 +1851,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
         }
     }
 
+    // Cf. YT-4534
     if (StoreState_ == EStoreState::PassiveDynamic ||
         StoreState_ == EStoreState::RemoveCommitting)
     {

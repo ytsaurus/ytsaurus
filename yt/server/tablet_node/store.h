@@ -14,6 +14,7 @@
 #include <yt/core/misc/range.h>
 
 #include <yt/core/yson/public.h>
+#include <yt/ytlib/table_client/row_base.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -188,18 +189,30 @@ DEFINE_REFCOUNTED_TYPE(ISortedStore)
 struct IOrderedStore
     : public virtual IStore
 {
+    //! Returns the starting row index for this store.
+    virtual i64 GetStartingRowIndex() const = 0;
+
+    //! Initializes the starting row index for this store.
+    virtual void SetStartingRowIndex(i64 index) = 0;
+
     //! Creates a reader for the range from |lowerRowIndex| (inclusive) to |upperRowIndex| (exclusive).
     /*!
-    *  If no matching row is found then |nullptr| might be returned.
-    *
-    *  This call is typically synchronous and fast but may occasionally yield.
-    *
-    *  Thread affinity: any
-    */
+     *  If no matching row is found then |nullptr| might be returned.
+     *
+     *  Like in ISortedStore, #columnFilter enables filtering a subset of table columns.
+     *  However these ids refer to the "extended" schema with prepended |(tablet_index, row_index)| columns.
+     *
+     *  #tabletIndex is needed to properly fill the |tablet_index| field, if requested so by #columnFilter.
+     *
+     *  This call is typically synchronous and fast but may occasionally yield.
+     *
+     *  Thread affinity: any
+     */
     virtual NTableClient::ISchemafulReaderPtr CreateReader(
+        int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
-        const NTableClient::TTableSchema& schema,
+        const NTableClient::TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor) = 0;
 };
 

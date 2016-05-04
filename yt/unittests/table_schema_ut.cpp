@@ -12,9 +12,9 @@ class TTableSchemaTest
     : public ::testing::Test
 { };
 
-TEST_F(TTableSchemaTest, ColumnSchemaValidationTest)
+TEST_F(TTableSchemaTest, ColumnSchemaValidation)
 {
-    std::vector<TColumnSchema> invalidSchemas = {
+    std::vector<TColumnSchema> invalidSchemas{
         // Empty names are not ok.
         TColumnSchema("", EValueType::String),
         // Names starting from SystemColumnNamePrefix are not ok.
@@ -46,7 +46,7 @@ TEST_F(TTableSchemaTest, ColumnSchemaValidationTest)
         EXPECT_THROW(ValidateColumnSchema(columnSchema), std::exception);
     }
     
-    std::vector<TColumnSchema> validSchemas = {
+    std::vector<TColumnSchema> validSchemas{
         TColumnSchema("Name", EValueType::String),
         TColumnSchema("Name", EValueType::Any),
         TColumnSchema(Stroka(256, 'z'), EValueType::String)
@@ -63,9 +63,9 @@ TEST_F(TTableSchemaTest, ColumnSchemaValidationTest)
     }
 }
 
-TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidationTest)
+TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
 {
-    std::vector<std::vector<TColumnSchema>> invalidUpdates = {
+    std::vector<std::vector<TColumnSchema>> invalidUpdates{
         // Changing column type is not ok.
         {
             TColumnSchema("Name", EValueType::String),
@@ -125,7 +125,7 @@ TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidationTest)
         EXPECT_THROW(ValidateColumnSchemaUpdate(pairOfSchemas[0], pairOfSchemas[1]), std::exception);
     }
 
-    std::vector<std::vector<TColumnSchema>> validUpdates = {
+    std::vector<std::vector<TColumnSchema>> validUpdates{
         // Making column aggregated if it wasn't is ok.
         {
             TColumnSchema("Name", EValueType::String),
@@ -158,9 +158,9 @@ TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidationTest)
     }
 }
 
-TEST_F(TTableSchemaTest, TableSchemaValidationTest)
+TEST_F(TTableSchemaTest, TableSchemaValidation)
 {
-    std::vector<std::vector<TColumnSchema>> invalidSchemas = {
+    std::vector<std::vector<TColumnSchema>> invalidSchemas{
         {
             // TTableSchema can't contain invalid columns.
             TColumnSchema("", EValueType::String),
@@ -223,7 +223,7 @@ TEST_F(TTableSchemaTest, TableSchemaValidationTest)
             .SetLock("Lock" + ToString(index)));
     }
 
-    std::vector<std::vector<TColumnSchema>> validSchemas = {
+    std::vector<std::vector<TColumnSchema>> validSchemas{
         { 
             // Empty schema is valid.
         },
@@ -253,17 +253,19 @@ TEST_F(TTableSchemaTest, TableSchemaValidationTest)
     };
        
     for (const auto& tableSchema : invalidSchemas) {
-        EXPECT_THROW(TTableSchema schema(tableSchema), std::exception);
+        TTableSchema schema(tableSchema);
+        EXPECT_THROW(ValidateTableSchema(schema), std::exception);
     }
 
     for (const auto& tableSchema : validSchemas) {
         TTableSchema schema(tableSchema);
+        ValidateTableSchema(schema);
     }
 }
 
-TEST_F(TTableSchemaTest, TableSchemaUpdateValidationTest)
+TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
 {
-    std::vector<std::vector<TTableSchema>> invalidUpdates = {
+    std::vector<std::vector<TTableSchema>> invalidUpdates{
         {
             // Changing Strict = false to Strict = true is not ok.
             TTableSchema({}, false),
@@ -344,7 +346,7 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidationTest)
         TTableSchema({}, false),
         true /* isDynamicTable */), std::exception);
 
-    std::vector<std::vector<TTableSchema>> validUpdates = {
+    std::vector<std::vector<TTableSchema>> validUpdates{
         {
             // Changing positions of non-key columns when Strict = true is ok.
             TTableSchema({

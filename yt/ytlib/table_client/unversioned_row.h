@@ -335,7 +335,9 @@ void ValidateKeyColumnCount(int count);
 void ValidateRowCount(int count);
 
 //! Checks that #row is a valid client-side data row. Throws on failure.
-/*! The row must obey the following properties:
+/*!
+ *  Value ids in the row are first mapped via #idMapping.
+ *  The row must obey the following properties:
  *  1. Its value count must pass #ValidateRowValueCount checks.
  *  2. It must contain all key components (values with ids in range [0, #schema.GetKeyColumnCount() - 1]).
  *  3. Value types must either be null or match those given in schema.
@@ -343,7 +345,7 @@ void ValidateRowCount(int count);
 void ValidateClientDataRow(
     TUnversionedRow row,
     const TTableSchema& schema,
-    const TNameTableToSchemaIdMapping& idMappingPtr);
+    const TNameTableToSchemaIdMapping& idMapping);
 
 //! Checks that #row is a valid server-side data row. Throws on failure.
 /*! The row must obey the following properties:

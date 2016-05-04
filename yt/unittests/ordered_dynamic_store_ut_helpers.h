@@ -23,14 +23,34 @@ protected:
 
     TUnversionedOwningRow GetRow(IOrderedStorePtr store, i64 index)
     {
-        auto reader = store->CreateReader(index, index + 1, GetSchema(), TWorkloadDescriptor());
+        // NB: Ordered reader accepts extended schema.
+        TColumnFilter columnFilter;
+        columnFilter.All = false;
+        for (int id = 0; id < GetSchema().Columns().size(); ++id) {
+            columnFilter.Indexes.push_back(id + 2);
+        }
+        auto reader = store->CreateReader(
+            -1,
+            store->GetStartingRowIndex() + index,
+            store->GetStartingRowIndex() + index + 1,
+            columnFilter,
+            TWorkloadDescriptor());
 
         std::vector<TUnversionedRow> rows;
         rows.reserve(1);
 
         EXPECT_TRUE(reader->Read(&rows));
         EXPECT_EQ(1, rows.size());
-        return TUnversionedOwningRow(rows[0]);
+        auto row = rows[0];
+
+        // NB: Ordered reader returns rows w.r.t. extended schema.
+        TUnversionedOwningRowBuilder builder;
+        for (int index = 0; index < row.GetCount(); ++index) {
+            auto value = row[index];
+            value.Id -= 2;
+            builder.AddValue(value);
+        }
+        return builder.FinishRow();
     }
 };
 

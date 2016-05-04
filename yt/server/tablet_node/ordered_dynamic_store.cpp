@@ -54,41 +54,34 @@ class TOrderedDynamicStore::TReader
 public:
     TReader(
         TOrderedDynamicStorePtr store,
+        int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
-        const TNullable<TTableSchema>& schema)
+        const TNullable<TColumnFilter>& maybeColumnFilter)
         : Store_(std::move(store))
-        , UpperRowIndex_(std::min(upperRowIndex, Store_->GetRowCount()))
-        , Schema_(schema)
-        , CurrentRowIndex_(std::max(lowerRowIndex, static_cast<i64>(0)))
+        , TabletIndex_(tabletIndex)
+        , UpperRowIndex_(std::min(upperRowIndex, Store_->GetStartingRowIndex() + Store_->GetRowCount()))
+        , MaybeColumnFilter_(maybeColumnFilter)
+        , CurrentRowIndex_(std::max(lowerRowIndex, Store_->GetStartingRowIndex()))
     { }
 
     void Initialize()
     {
-        if (!Schema_) {
+        if (!MaybeColumnFilter_) {
+            // For flushes and snapshots only.
             return;
         }
 
-        Pool_ = std::make_unique<TChunkedMemoryPool>(TOrderedDynamicStoreReaderPoolTag(), ReaderPoolSize);
-
-        if (Schema_->GetKeyColumnCount() > 0) {
-            THROW_ERROR_EXCEPTION("Reader schema cannot contain column keys");
-        }
-
-        const auto& srcTableSchema = Store_->Schema_;
-        const auto& dstTableSchema = *Schema_;
-        for (int dstIndex = 0; dstIndex < dstTableSchema.Columns().size(); ++dstIndex) {
-            const auto& dstColumnSchema = dstTableSchema.Columns()[dstIndex];
-            int srcIndex = srcTableSchema.GetColumnIndexOrThrow(dstColumnSchema.Name);
-            const auto& srcColumnSchema = srcTableSchema.Columns()[srcIndex];
-            if (srcColumnSchema.Type != dstColumnSchema.Type) {
-                THROW_ERROR_EXCEPTION("Reader schema for column %Qv has invalid type: expected %Qlv, got %Qlv",
-                    srcColumnSchema.Name,
-                    srcColumnSchema.Type,
-                    dstColumnSchema.Type);
+        if (MaybeColumnFilter_->All) {
+            MaybeColumnFilter_->All = false;
+            MaybeColumnFilter_->Indexes.clear();
+            // +2 is for (tablet_index, row_index).
+            for (int id = 0; id < static_cast<int>(Store_->Schema_.Columns().size()) + 2; ++id) {
+                MaybeColumnFilter_->Indexes.push_back(id);
             }
-            IdMapping_.push_back(&srcColumnSchema - srcTableSchema.Columns().data());
         }
+
+        Pool_ = std::make_unique<TChunkedMemoryPool>(TOrderedDynamicStoreReaderPoolTag(), ReaderPoolSize);
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
@@ -108,31 +101,35 @@ public:
 
 private:
     const TOrderedDynamicStorePtr Store_;
+    const int TabletIndex_;
     const i64 UpperRowIndex_;
-    const TNullable<TTableSchema> Schema_;
+    TNullable<TColumnFilter> MaybeColumnFilter_;
 
     std::unique_ptr<TChunkedMemoryPool> Pool_;
 
     i64 CurrentRowIndex_;
 
-    //! Maps Schema_ ids to Store_->Schema_ ids.
-    SmallVector<int, TypicalColumnCount> IdMapping_;
-
 
     TUnversionedRow CaptureRow(TOrderedDynamicRow dynamicRow)
     {
-        if (!Schema_) {
+        if (!MaybeColumnFilter_) {
             // For flushes and snapshots only.
             return dynamicRow;
         }
 
-        int columnCount = Schema_->Columns().size();
+        int columnCount = static_cast<int>(MaybeColumnFilter_->Indexes.size());
         auto row = TMutableUnversionedRow::Allocate(Pool_.get(), columnCount);
         for (int index = 0; index < columnCount; ++index) {
+            int id = MaybeColumnFilter_->Indexes[index];
             auto& dstValue = row[index];
-            const auto& srcValue = dynamicRow[IdMapping_[index]];
-            dstValue = srcValue;
-            dstValue.Id = index;
+            if (id == 0) {
+                dstValue = MakeUnversionedInt64Value(TabletIndex_, id);
+            } else if (id == 1) {
+                dstValue = MakeUnversionedInt64Value(CurrentRowIndex_, id);
+            } else {
+                dstValue = dynamicRow[id - 2];
+                dstValue.Id = id;
+            }
         }
         return row;
     }
@@ -162,6 +159,7 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateFlushReader()
 {
     YCHECK(FlushRowCount_ != -1);
     return DoCreateReader(
+        -1,
         0,
         FlushRowCount_,
         Null);
@@ -170,6 +168,7 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateFlushReader()
 ISchemafulReaderPtr TOrderedDynamicStore::CreateSnapshotReader()
 {
     return DoCreateReader(
+        -1,
         0,
         GetRowCount(),
         Null);
@@ -217,6 +216,7 @@ void TOrderedDynamicStore::AbortRow(TTransaction* /*transaction*/, TOrderedDynam
 
 TOrderedDynamicRow TOrderedDynamicStore::GetRow(i64 rowIndex)
 {
+    rowIndex -= StartingRowIndex_;
     YASSERT(rowIndex >= 0 && rowIndex < StoreRowCount_);
     int segmentIndex;
     i64 segmentRowIndex;
@@ -233,7 +233,7 @@ TOrderedDynamicRow TOrderedDynamicStore::GetRow(i64 rowIndex)
 std::vector<TOrderedDynamicRow> TOrderedDynamicStore::GetAllRows()
 {
     std::vector<TOrderedDynamicRow> rows;
-    for (int index = 0; index < GetRowCount(); ++index) {
+    for (i64 index = StartingRowIndex_; index < StartingRowIndex_ + StoreRowCount_; ++index) {
         rows.push_back(GetRow(index));
     }
     return rows;
@@ -354,7 +354,10 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
         }
     }
 
-    if (StoreState_ == EStoreState::PassiveDynamic) {
+    // Cf. YT-4534
+    if (StoreState_ == EStoreState::PassiveDynamic ||
+        StoreState_ == EStoreState::RemoveCommitting)
+    {
         // NB: No more changes are possible after load.
         YCHECK(FlushRowCount_ == -1);
         FlushRowCount_ = GetRowCount();
@@ -369,15 +372,17 @@ TOrderedDynamicStorePtr TOrderedDynamicStore::AsOrderedDynamic()
 }
 
 ISchemafulReaderPtr TOrderedDynamicStore::CreateReader(
+    int tabletIndex,
     i64 lowerRowIndex,
     i64 upperRowIndex,
-    const TTableSchema& schema,
+    const TColumnFilter& columnFilter,
     const TWorkloadDescriptor& /*workloadDescriptor*/)
 {
     return DoCreateReader(
+        tabletIndex,
         lowerRowIndex,
         upperRowIndex,
-        schema);
+        columnFilter);
 }
 
 void TOrderedDynamicStore::OnSetPassive()
@@ -436,15 +441,17 @@ void TOrderedDynamicStore::LoadRow(TUnversionedRow row)
 }
 
 ISchemafulReaderPtr TOrderedDynamicStore::DoCreateReader(
+    int tabletIndex,
     i64 lowerRowIndex,
     i64 upperRowIndex,
-    const TNullable<TTableSchema>& schema)
+    const TNullable<TColumnFilter>& maybeColumnFilter)
 {
     auto reader = New<TReader>(
         this,
+        tabletIndex,
         lowerRowIndex,
         upperRowIndex,
-        schema);
+        maybeColumnFilter);
     reader->Initialize();
     return reader;
 }

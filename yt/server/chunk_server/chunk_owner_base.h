@@ -10,6 +10,7 @@
 #include <yt/ytlib/chunk_client/data_statistics.pb.h>
 
 #include <yt/core/misc/property.h>
+#include <yt/ytlib/table_client/schema.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -41,7 +42,7 @@ public:
     virtual void EndUpload(
         const NChunkClient::NProto::TDataStatistics* statistics,
         bool deriveStatistics,
-        const std::vector<Stroka>& keyColumns);
+        const NTableClient::TTableSchema& schema);
     virtual bool IsSorted() const;
 
     virtual NYTree::ENodeType GetNodeType() const override;

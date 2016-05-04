@@ -102,7 +102,11 @@ protected:
 
         NameTable_ = TNameTable::FromSchema(schema);
 
-        bool sorted = schema.GetKeyColumnCount() > 0;
+        bool sorted = schema.IsSorted();
+        if (!sorted) {
+            QueryNameTable_ = TNameTable::FromSchema(schema.ToQuery());
+        }
+
         Tablet_ = std::make_unique<TTablet>(
             New<TTableMountConfig>(),
             New<TTabletWriterOptions>(),
@@ -114,9 +118,10 @@ protected:
             sorted ? MinKey() : TOwningKey(),
             sorted ? MaxKey() : TOwningKey(),
             GetAtomicity());
-        if (sorted) {
+        if (schema.IsSorted()) {
             Tablet_->CreateInitialPartition();
         }
+
         Tablet_->StartEpoch(nullptr);
     }
 
@@ -182,6 +187,21 @@ protected:
 
     bool AreRowsEqual(TUnversionedRow row, const char* yson)
     {
+        return AreRowsEqual(row, yson, NameTable_);
+    }
+
+    bool AreQueryRowsEqual(TUnversionedRow row, const Stroka& yson)
+    {
+        return AreQueryRowsEqual(row, yson.c_str());
+    }
+
+    bool AreQueryRowsEqual(TUnversionedRow row, const char* yson)
+    {
+        return AreRowsEqual(row, yson, QueryNameTable_);
+    }
+
+    static bool AreRowsEqual(TUnversionedRow row, const char* yson, const TNameTablePtr& nameTable)
+    {
         if (!row && !yson) {
             return true;
         }
@@ -195,7 +215,7 @@ protected:
 
         for (int index = 0; index < row.GetCount(); ++index) {
             const auto& value = row[index];
-            const auto& name = NameTable_->GetName(value.Id);
+            const auto& name = nameTable->GetName(value.Id);
             auto it = expectedRowParts.find(name);
             switch (value.Type) {
                 case EValueType::Int64:
@@ -296,6 +316,7 @@ protected:
         New<TColumnEvaluatorCacheConfig>());
 
     TNameTablePtr NameTable_;
+    TNameTablePtr QueryNameTable_;
     std::unique_ptr<TTablet> Tablet_;
     TTimestamp CurrentTimestamp_ = 10000; // some reasonable starting point
 

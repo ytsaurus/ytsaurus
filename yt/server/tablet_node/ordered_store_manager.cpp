@@ -136,7 +136,9 @@ void TOrderedStoreManager::CommitRow(TTransaction* transaction, const TOrderedDy
         ActiveStore_->CommitRow(transaction, rowRef.Row);
     } else {
         auto migratedRow = ActiveStore_->MigrateRow(transaction, rowRef.Row);
-        rowRef.Store->CommitRow(transaction, rowRef.Row);
+        // NB: In contrast to ordered tablets, for ordered ones we don't commit row in
+        // the original store that row has just migrated from.
+        rowRef.Store->AbortRow(transaction, rowRef.Row);
         CheckForUnlockedStore(rowRef.Store);
         ActiveStore_->CommitRow(transaction, migratedRow);
     }
@@ -155,11 +157,21 @@ void TOrderedStoreManager::CreateActiveStore()
         ->CreateStore(Tablet_, EStoreType::OrderedDynamic, storeId)
         ->AsOrderedDynamic();
 
+    i64 startingRowIndex = 0;
+    const auto& storeRowIndexMap = Tablet_->StoreRowIndexMap();
+    if (!storeRowIndexMap.empty()) {
+        const auto& lastStore = storeRowIndexMap.rbegin()->second;
+        YCHECK(lastStore->GetRowCount() > 0);
+        startingRowIndex = lastStore->GetStartingRowIndex() + lastStore->GetRowCount();
+    }
+    ActiveStore_->SetStartingRowIndex(startingRowIndex);
+
     Tablet_->AddStore(ActiveStore_);
     Tablet_->SetActiveStore(ActiveStore_);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Active store created (StoreId: %v)",
-        storeId);
+    LOG_INFO_UNLESS(IsRecovery(), "Active store created (StoreId: %v, StartingRowIndex: %v)",
+        storeId,
+        startingRowIndex);
 }
 
 void TOrderedStoreManager::ResetActiveStore()
@@ -184,13 +196,14 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     IDynamicStorePtr store,
     TTabletSnapshotPtr tabletSnapshot)
 {
-    auto reader = store->AsOrderedDynamic()->CreateFlushReader();
+    auto orderedDynamicStore = store->AsOrderedDynamic();
+    auto reader = orderedDynamicStore->CreateFlushReader();
 
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
         auto writer = CreateSchemalessMultiChunkWriter(
             Config_->ChunkWriter,
             tabletSnapshot->WriterOptions,
-            TNameTable::FromSchema(tabletSnapshot->Schema),
+            TNameTable::FromSchema(tabletSnapshot->TableSchema),
             TKeyColumns(),
             TOwningKey(),
             Client_,
@@ -219,12 +232,16 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             .ThrowOnError();
 
         std::vector<TAddStoreDescriptor> result;
+        i64 startingRowIndex = orderedDynamicStore->GetStartingRowIndex();
         for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
             TAddStoreDescriptor descriptor;
             descriptor.set_store_type(static_cast<int>(EStoreType::OrderedChunk));
             descriptor.mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
             descriptor.mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
+            descriptor.set_starting_row_index(startingRowIndex);
             result.push_back(descriptor);
+            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
+            startingRowIndex += miscExt.row_count();
         }
         return result;
     });

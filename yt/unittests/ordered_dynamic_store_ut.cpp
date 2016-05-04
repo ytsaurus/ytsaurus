@@ -62,6 +62,31 @@ protected:
         return ts;
     }
 
+    std::vector<TUnversionedOwningRow> ReadRows(
+        int tabletIndex,
+        i64 lowerRowIndex,
+        i64 upperRowIndex,
+        const TColumnFilter& columnFilter)
+    {
+        auto reader = Store_->CreateReader(
+            tabletIndex,
+            lowerRowIndex,
+            upperRowIndex,
+            columnFilter,
+            TWorkloadDescriptor());
+
+        std::vector<TUnversionedOwningRow> allRows;
+        std::vector<TUnversionedRow> someRows;
+        someRows.reserve(100);
+        while (reader->Read(&someRows)) {
+            YCHECK(!someRows.empty());
+            for (auto row : someRows) {
+                allRows.push_back(TUnversionedOwningRow(row));
+            }
+        }
+        return allRows;
+    }
+
 
     Stroka DumpStore()
     {
@@ -187,6 +212,104 @@ TEST_F(TOrderedDynamicStoreTest, SerializeNonempty2)
 
     check();
 }
+
+TEST_F(TOrderedDynamicStoreTest, Reader1)
+{
+    WriteRow(BuildRow("a=1;b=3.14"));
+    WriteRow(BuildRow("a=2;c=text"));
+    WriteRow(BuildRow("a=3;b=2.7"));
+
+    auto rows = ReadRows(5, 0, 3, TColumnFilter());
+    EXPECT_EQ(3, rows.size());
+    EXPECT_TRUE(AreQueryRowsEqual(rows[0], "\"$tablet_index\"=5;\"$row_index\"=0;a=1;b=3.14"));
+    EXPECT_TRUE(AreQueryRowsEqual(rows[1], "\"$tablet_index\"=5;\"$row_index\"=1;a=2;c=text"));
+    EXPECT_TRUE(AreQueryRowsEqual(rows[2], "\"$tablet_index\"=5;\"$row_index\"=2;a=3;b=2.7"));
+}
+
+TEST_F(TOrderedDynamicStoreTest, Reader2)
+{
+    WriteRow(BuildRow("a=1;b=3.14"));
+
+    auto rows = ReadRows(5, 1, 2, TColumnFilter());
+    EXPECT_EQ(0, rows.size());
+}
+
+TEST_F(TOrderedDynamicStoreTest, Reader3)
+{
+    WriteRow(BuildRow("a=1;b=3.14"));
+    WriteRow(BuildRow("a=2;c=text"));
+    WriteRow(BuildRow("a=3;b=2.7"));
+
+    auto rows = ReadRows(5, 0, 3, TColumnFilter({1,2}));
+    EXPECT_EQ(3, rows.size());
+    EXPECT_TRUE(AreQueryRowsEqual(rows[0], "\"$row_index\"=0;a=1"));
+    EXPECT_TRUE(AreQueryRowsEqual(rows[1], "\"$row_index\"=1;a=2"));
+    EXPECT_TRUE(AreQueryRowsEqual(rows[2], "\"$row_index\"=2;a=3"));
+}
+
+TEST_F(TOrderedDynamicStoreTest, Reader4)
+{
+    WriteRow(BuildRow("a=1;b=3.14"));
+    WriteRow(BuildRow("a=2;c=text"));
+    WriteRow(BuildRow("a=3;b=2.7"));
+
+    Store_->SetStartingRowIndex(10);
+    auto rows = ReadRows(5, 10, 13, TColumnFilter());
+    EXPECT_EQ(3, rows.size());
+    EXPECT_TRUE(AreQueryRowsEqual(rows[0], "\"$tablet_index\"=5;\"$row_index\"=10;a=1;b=3.14"));
+    EXPECT_TRUE(AreQueryRowsEqual(rows[1], "\"$tablet_index\"=5;\"$row_index\"=11;a=2;c=text"));
+    EXPECT_TRUE(AreQueryRowsEqual(rows[2], "\"$tablet_index\"=5;\"$row_index\"=12;a=3;b=2.7"));
+}
+
+TEST_F(TOrderedDynamicStoreTest, Reader5)
+{
+    WriteRow(BuildRow("a=1;b=3.14"));
+    WriteRow(BuildRow("a=2;c=text"));
+    WriteRow(BuildRow("a=3;b=2.7"));
+
+    auto rows = ReadRows(5, 1, 3, TColumnFilter({1}));
+    EXPECT_EQ(2, rows.size());
+    EXPECT_TRUE(AreQueryRowsEqual(rows[0], "\"$row_index\"=1"));
+    EXPECT_TRUE(AreQueryRowsEqual(rows[1], "\"$row_index\"=2"));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TOrderedDynamicStoreReadTest
+    : public TOrderedDynamicStoreTest
+    , public ::testing::WithParamInterface<std::tuple<int, int, int>>
+{ };
+
+TEST_P(TOrderedDynamicStoreReadTest, Read)
+{
+    int count = std::get<0>(GetParam());
+    for (int i = 0; i < count; ++i) {
+        WriteRow(BuildRow(Format("a=%v", i)));
+    }
+
+    int lowerIndex = std::get<1>(GetParam());
+    int adjustedLowerIndex = std::min(std::max(0, lowerIndex), count);
+    int upperIndex = std::get<2>(GetParam());
+    int adjustedUpperIndex = std::max(std::min(upperIndex, count), 0);
+    auto rows = ReadRows(0, lowerIndex, upperIndex, TColumnFilter({2}));
+    EXPECT_EQ(adjustedUpperIndex - adjustedLowerIndex, static_cast<int>(rows.size()));
+    for (int index = 0; index < rows.size(); ++index) {
+        EXPECT_TRUE(AreQueryRowsEqual(rows[index], Format("a=%v", index + adjustedLowerIndex)));
+    }
+}
+
+INSTANTIATE_TEST_CASE_P(
+    Read,
+    TOrderedDynamicStoreReadTest,
+    ::testing::Values(
+        std::make_tuple(1,      0,   0),
+        std::make_tuple(1,      0,   1),
+        std::make_tuple(1,    -10,  -10),
+        std::make_tuple(1,     10,   10),
+        std::make_tuple(100,   50,   60),
+        std::make_tuple(100,   60,  200),
+        std::make_tuple(100,  -10,   20),
+        std::make_tuple(1000,   0, 1000)));
 
 ///////////////////////////////////////////////////////////////////////////////
 
