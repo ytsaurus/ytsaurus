@@ -324,7 +324,7 @@ public:
             .Default();
 
         RegisterParameter("missing_value_mode", MissingValueMode)
-            .Default(EMissingSchemafulDsvValueMode::SkipRow);
+            .Default(EMissingSchemafulDsvValueMode::Fail);
 
         RegisterParameter("missing_value_sentinel", MissingValueSentinel)
             .Default("");
