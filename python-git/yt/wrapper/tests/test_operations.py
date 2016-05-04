@@ -776,9 +776,7 @@ print op.id
         with pytest.raises(yt.YtOperationFailedError):
             yt.run_reduce(reducer, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
 
-        op = yt.run_reduce(reducer_that_yileds_key, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
-        print >>sys.stderr, op.get_stderrs()
-
+        yt.run_reduce(reducer_that_yileds_key, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
         check([{"x": 1}, {"x": 2}], yt.read_table(TEST_DIR + "/other"), ordered=False)
 
     def test_disable_yt_accesses_from_job(self, yt_env):

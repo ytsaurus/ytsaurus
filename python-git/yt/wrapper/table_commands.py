@@ -166,12 +166,10 @@ def _prepare_sort_by(sort_by, client):
     return sort_by
 
 def _prepare_table_writer(table_writer, client):
-    table_writer_from_config = get_config(client)["table_writer"]
-    if table_writer is None:
-        table_writer = {}
-        if not table_writer_from_config:
-            return None
-    return update(table_writer_from_config, table_writer)
+    table_writer_from_config = deepcopy(get_config(client)["table_writer"])
+    if table_writer is None and not table_writer_from_config:
+        return None
+    return update(table_writer_from_config, get_value(table_writer, {}))
 
 def _reliably_upload_files(files, client=None):
     if files is None:

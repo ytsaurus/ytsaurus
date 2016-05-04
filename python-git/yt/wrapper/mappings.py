@@ -66,3 +66,6 @@ class FrozenDict(collections.Mapping):
         if key in self._store:
             raise NotImplementedError("Failed to remove key from frozen dictionary")
         return default
+
+    def as_dict(self):
+        return self._store.copy()
