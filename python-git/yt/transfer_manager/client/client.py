@@ -78,6 +78,9 @@ class Poller(object):
         while self._thread.is_alive():
             self._thread.join(1.0)
 
+        if self.exc_info is not None:
+            raise self.exc_info[0], self.exc_info[1], self.exc_info[2]
+
         aborted_task_count, failed_task_count = self._queue.get()["value"]
         return aborted_task_count, failed_task_count
 
