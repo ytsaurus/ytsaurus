@@ -40,6 +40,7 @@ using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
 using namespace NTabletNode::NProto;
+using namespace NHydra;
 
 using NTableClient::TKey;
 
@@ -289,18 +290,70 @@ void TSortedStoreManager::CheckInactiveStoresLocks(
     }
 }
 
+void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDescriptors)
+{
+    Tablet_->CreateInitialPartition();
+
+    std::vector<std::tuple<TOwningKey, int, int>> chunkBoundaries;
+    int descriptorIndex = 0;
+    const auto& schema = Tablet_->Schema();
+    for (const auto& descriptor : storeDescriptors) {
+        const auto& extensions = descriptor.chunk_meta().extensions();
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
+        if (!miscExt.eden()) {
+            auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(extensions);
+            auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), schema.GetKeyColumnCount());
+            auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), schema.GetKeyColumnCount());
+            chunkBoundaries.push_back(std::make_tuple(minKey, -1, descriptorIndex));
+            chunkBoundaries.push_back(std::make_tuple(maxKey, 1, descriptorIndex));
+        }
+        ++descriptorIndex;
+    }
+
+    if (!chunkBoundaries.empty()) {
+        std::sort(chunkBoundaries.begin(), chunkBoundaries.end());
+        std::vector<TOwningKey> pivotKeys{Tablet_->GetPivotKey()};
+        int depth = 0;
+        for (const auto& boundary : chunkBoundaries) {
+            if (std::get<1>(boundary) == -1 && depth == 0 && std::get<0>(boundary) > Tablet_->GetPivotKey()) {
+                pivotKeys.push_back(std::get<0>(boundary));
+            }
+            depth -= std::get<1>(boundary);
+        }
+
+        YCHECK(Tablet_->PartitionList().size() == 1);
+        DoSplitPartition(0, pivotKeys);
+    }
+
+    TStoreManagerBase::Mount(storeDescriptors);
+}
+
+void TSortedStoreManager::Remount(
+    TTableMountConfigPtr mountConfig,
+    TTabletWriterOptionsPtr writerOptions)
+{
+    int oldSamplesPerPartition = Tablet_->GetConfig()->SamplesPerPartition;
+    int newSamplesPerPartition = mountConfig->SamplesPerPartition;
+
+    TStoreManagerBase::Remount(mountConfig, writerOptions);
+
+    if (oldSamplesPerPartition != newSamplesPerPartition) {
+        SchedulePartitionsSampling(0, Tablet_->PartitionList().size());
+    }
+}
+
 void TSortedStoreManager::AddStore(IStorePtr store, bool onMount)
 {
     TStoreManagerBase::AddStore(store, onMount);
 
     auto sortedStore = store->AsSorted();
     MaxTimestampToStore_.insert(std::make_pair(sortedStore->GetMaxTimestamp(), sortedStore));
+
+    SchedulePartitionSampling(sortedStore->GetPartition());
 }
 
 void TSortedStoreManager::RemoveStore(IStorePtr store)
 {
-    TStoreManagerBase::RemoveStore(store);
-
     // The range is likely to contain at most one element.
     auto sortedStore = store->AsSorted();
     auto range = MaxTimestampToStore_.equal_range(sortedStore->GetMaxTimestamp());
@@ -310,13 +363,17 @@ void TSortedStoreManager::RemoveStore(IStorePtr store)
             break;
         }
     }
+
+    SchedulePartitionSampling(sortedStore->GetPartition());
+
+    TStoreManagerBase::RemoveStore(store);
 }
 
 void TSortedStoreManager::CreateActiveStore()
 {
     auto storeId = TabletContext_->GenerateId(EObjectType::SortedDynamicTabletStore);
     ActiveStore_ = TabletContext_
-        ->CreateStore(Tablet_, EStoreType::SortedDynamic, storeId)
+        ->CreateStore(Tablet_, EStoreType::SortedDynamic, storeId, nullptr)
         ->AsSortedDynamic();
 
     Tablet_->AddStore(ActiveStore_);
@@ -416,6 +473,60 @@ ISortedStoreManagerPtr TSortedStoreManager::AsSorted()
     return this;
 }
 
+bool TSortedStoreManager::SplitPartition(
+    int partitionIndex,
+    const std::vector<TOwningKey>& pivotKeys)
+{
+    auto* partition = Tablet_->PartitionList()[partitionIndex].get();
+
+    // NB: Set the state back to normal; otherwise if some of the below checks fail, we might get
+    // a partition stuck in splitting state forever.
+    partition->SetState(EPartitionState::Normal);
+
+    if (Tablet_->PartitionList().size() >= Tablet_->GetConfig()->MaxPartitionCount) {
+        return false;
+    }
+
+    DoSplitPartition(partitionIndex, pivotKeys);
+
+    // NB: Initial partition is split into new ones with indexes |[partitionIndex, partitionIndex + pivotKeys.size())|.
+    SchedulePartitionsSampling(partitionIndex, partitionIndex + pivotKeys.size());
+
+    return true;
+}
+
+void TSortedStoreManager::MergePartitions(
+    int firstPartitionIndex,
+    int lastPartitionIndex)
+{
+    for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
+        const auto& partition = Tablet_->PartitionList()[index];
+        // See SplitPartition.
+        // Currently this code is redundant since there's no escape path below,
+        // but we prefer to keep it to make things look symmetric.
+        partition->SetState(EPartitionState::Normal);
+    }
+
+    DoMergePartitions(firstPartitionIndex, lastPartitionIndex);
+
+    // NB: Initial partitions are merged into a single one with index |firstPartitionIndex|.
+    SchedulePartitionsSampling(firstPartitionIndex, firstPartitionIndex + 1);
+}
+
+void TSortedStoreManager::UpdatePartitionSampleKeys(
+    TPartition* partition,
+    const std::vector<TOwningKey>& keys)
+{
+    YCHECK(keys.empty() || keys[0] > partition->GetPivotKey());
+
+    auto keyList = New<TKeyList>();
+    keyList->Keys = keys;
+    partition->SetSampleKeys(keyList);
+
+    const auto* mutationContext = GetCurrentMutationContext();
+    partition->SetSamplingTime(mutationContext->GetTimestamp());
+}
+
 void TSortedStoreManager::ValidateOnWrite(
     const TTransactionId& transactionId,
     TUnversionedRow row)
@@ -446,6 +557,50 @@ void TSortedStoreManager::ValidateOnDelete(
         errorAttributes.Set("tablet_id", Tablet_->GetId());
         errorAttributes.Set("key", key);
         throw ex;
+    }
+}
+
+void TSortedStoreManager::SchedulePartitionSampling(TPartition* partition)
+{
+    if (!HasMutationContext()) {
+        return;
+    }
+
+    if (partition->IsEden()) {
+        return;
+    }
+
+    const auto* mutationContext = GetCurrentMutationContext();
+    partition->SetSamplingRequestTime(mutationContext->GetTimestamp());
+}
+
+void TSortedStoreManager::SchedulePartitionsSampling(int beginPartitionIndex, int endPartitionIndex)
+{
+    if (!HasMutationContext()) {
+        return;
+    }
+
+    const auto* mutationContext = GetCurrentMutationContext();
+    for (int index = beginPartitionIndex; index < endPartitionIndex; ++index) {
+        Tablet_->PartitionList()[index]->SetSamplingRequestTime(mutationContext->GetTimestamp());
+    }
+}
+
+void TSortedStoreManager::DoSplitPartition(int partitionIndex, const std::vector<TOwningKey>& pivotKeys)
+{
+    Tablet_->SplitPartition(partitionIndex, pivotKeys);
+    if (!IsRecovery()) {
+        for (int currentIndex = partitionIndex; currentIndex < partitionIndex + pivotKeys.size(); ++currentIndex) {
+            Tablet_->PartitionList()[currentIndex]->StartEpoch();
+        }
+    }
+}
+
+void TSortedStoreManager::DoMergePartitions(int firstPartitionIndex, int lastPartitionIndex)
+{
+    Tablet_->MergePartitions(firstPartitionIndex, lastPartitionIndex);
+    if (!IsRecovery()) {
+        Tablet_->PartitionList()[firstPartitionIndex]->StartEpoch();
     }
 }
 

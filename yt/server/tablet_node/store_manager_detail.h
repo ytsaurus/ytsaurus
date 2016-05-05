@@ -59,6 +59,8 @@ public:
     virtual void EndStorePreload(IChunkStorePtr store) override;
     virtual void BackoffStorePreload(IChunkStorePtr store) override;
 
+    virtual void Mount(
+        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
     virtual void Remount(
         TTableMountConfigPtr mountConfig,
         TTabletWriterOptionsPtr writerOptions) override;
@@ -98,6 +100,8 @@ protected:
     virtual TStoreFlushCallback MakeStoreFlushCallback(
         IDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot) = 0;
+
+    virtual void CreateActiveStore() = 0;
 
     void CheckForUnlockedStore(IDynamicStore* store);
 

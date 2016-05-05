@@ -66,9 +66,6 @@ struct IStoreManager
     virtual void RemoveStore(IStorePtr store) = 0;
     virtual void BackoffStoreRemoval(IStorePtr store) = 0;
 
-    //! Creates and sets an empty dynamic store.
-    virtual void CreateActiveStore() = 0;
-
     virtual bool IsStoreLocked(IStorePtr store) const = 0;
     virtual std::vector<IStorePtr> GetLockedStores() const = 0;
 
@@ -91,14 +88,14 @@ struct IStoreManager
     virtual void EndStoreCompaction(IChunkStorePtr store) = 0;
     virtual void BackoffStoreCompaction(IChunkStorePtr store) = 0;
 
+    virtual void Mount(
+        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) = 0;
     virtual void Remount(
         TTableMountConfigPtr mountConfig,
         TTabletWriterOptionsPtr writerOptions) = 0;
 
-
     virtual ISortedStoreManagerPtr AsSorted() = 0;
     virtual IOrderedStoreManagerPtr AsOrdered() = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IStoreManager)
@@ -108,7 +105,17 @@ DEFINE_REFCOUNTED_TYPE(IStoreManager)
 //! A refinement of IStoreManager for sorted tablets.
 struct ISortedStoreManager
     : public virtual IStoreManager
-{ };
+{
+    virtual bool SplitPartition(
+        int partitionIndex,
+        const std::vector<TOwningKey>& pivotKeys) = 0;
+    virtual void MergePartitions(
+        int firstPartitionIndex,
+        int lastPartitionIndex) = 0;
+    virtual void UpdatePartitionSampleKeys(
+        TPartition* partition,
+        const std::vector<TOwningKey>& keys) = 0;
+};
 
 DEFINE_REFCOUNTED_TYPE(ISortedStoreManager)
 

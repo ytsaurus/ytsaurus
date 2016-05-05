@@ -6,10 +6,15 @@
 #include "in_memory_manager.h"
 #include "config.h"
 
+#include <yt/server/tablet_node/tablet_manager.pb.h>
+
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NApi;
+using namespace NChunkClient;
+
+using NTabletNode::NProto::TAddStoreDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -321,6 +326,28 @@ void TStoreManagerBase::BackoffStorePreload(IChunkStorePtr store)
             }
         }).Via(Tablet_->GetEpochAutomatonInvoker()),
         Config_->ErrorBackoffTime);
+}
+
+void TStoreManagerBase::Mount(const std::vector<TAddStoreDescriptor>& storeDescriptors)
+{
+    for (const auto& descriptor : storeDescriptors) {
+        auto type = EStoreType(descriptor.store_type());
+        auto storeId = FromProto<TChunkId>(descriptor.store_id());
+        YCHECK(descriptor.has_chunk_meta());
+        YCHECK(!descriptor.has_backing_store_id());
+        auto store = TabletContext_->CreateStore(
+            Tablet_,
+            type,
+            storeId,
+            &descriptor);
+        AddStore(store->AsChunk(), true);
+    }
+
+    // NB: Active store must be created _after_ chunk stores to make sure it receives
+    // the right starting row index (for ordered tablets only).
+    CreateActiveStore();
+
+    Tablet_->SetState(ETabletState::Mounted);
 }
 
 void TStoreManagerBase::Remount(TTableMountConfigPtr mountConfig, TTabletWriterOptionsPtr writerOptions)

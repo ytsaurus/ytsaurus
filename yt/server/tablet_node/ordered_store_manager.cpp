@@ -154,7 +154,7 @@ void TOrderedStoreManager::CreateActiveStore()
 {
     auto storeId = TabletContext_->GenerateId(EObjectType::OrderedDynamicTabletStore);
     ActiveStore_ = TabletContext_
-        ->CreateStore(Tablet_, EStoreType::OrderedDynamic, storeId)
+        ->CreateStore(Tablet_, EStoreType::OrderedDynamic, storeId, nullptr)
         ->AsOrderedDynamic();
 
     i64 startingRowIndex = 0;

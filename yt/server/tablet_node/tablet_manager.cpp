@@ -331,9 +331,13 @@ private:
             return Owner_->Slot_->GenerateId(type);
         }
 
-        virtual IStorePtr CreateStore(TTablet* tablet, EStoreType type, const TStoreId& storeId) override
+        virtual IStorePtr CreateStore(
+            TTablet* tablet,
+            EStoreType type,
+            const TStoreId& storeId,
+            const TAddStoreDescriptor* descriptor) override
         {
-            return Owner_->CreateStore(tablet, type, storeId, nullptr);
+            return Owner_->CreateStore(tablet, type, storeId, descriptor);
         }
 
         virtual IStoreManagerPtr CreateStoreManager(TTablet* tablet) override
@@ -593,6 +597,7 @@ private:
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
         auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request->writer_options()), tabletId);
         auto atomicity = EAtomicity(request->atomicity());
+        auto storeDescriptors = FromProto<std::vector<TAddStoreDescriptor>>(request->stores());
 
         auto tabletHolder = std::make_unique<TTablet>(
             mountConfig,
@@ -605,64 +610,19 @@ private:
             pivotKey,
             nextPivotKey,
             atomicity);
-
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
-        tablet->SetState(ETabletState::Mounted);
-
-        if (tablet->IsSorted()) {
-            tablet->CreateInitialPartition();
-            SchedulePartitionsSampling(tablet);
-
-            std::vector<std::tuple<TOwningKey, int, int>> chunkBoundaries;
-            int descriptorIndex = 0;
-            for (const auto& descriptor : request->stores()) {
-                const auto& extensions = descriptor.chunk_meta().extensions();
-                auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
-                if (miscExt.has_max_timestamp()) {
-                    UpdateLastCommittedTimestamp(miscExt.max_timestamp());
-                }
-                if (!miscExt.eden()) {
-                    auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(extensions);
-                    auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), schema.GetKeyColumnCount());
-                    auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), schema.GetKeyColumnCount());
-                    chunkBoundaries.push_back(std::make_tuple(minKey, -1, descriptorIndex));
-                    chunkBoundaries.push_back(std::make_tuple(maxKey, 1, descriptorIndex));
-                }
-                ++descriptorIndex;
-            }
-
-            if (!chunkBoundaries.empty()) {
-                std::sort(chunkBoundaries.begin(), chunkBoundaries.end());
-                std::vector<TOwningKey> pivotKeys{pivotKey};
-                int depth = 0;
-                for (const auto& boundary : chunkBoundaries) {
-                    if (std::get<1>(boundary) == -1 && depth == 0 && std::get<0>(boundary) > pivotKey) {
-                        pivotKeys.push_back(std::get<0>(boundary));
-                    }
-                    depth -= std::get<1>(boundary);
-                }
-                YCHECK(tablet->PartitionList().size() == 1);
-                SplitTabletPartition(tablet, 0, pivotKeys);
-            }
-        }
 
         const auto& storeManager = tablet->GetStoreManager();
-        for (const auto& descriptor : request->stores()) {
-            auto type = EStoreType(descriptor.store_type());
-            auto storeId = FromProto<TChunkId>(descriptor.store_id());
-            YCHECK(descriptor.has_chunk_meta());
-            YCHECK(!descriptor.has_backing_store_id());
-            auto store = CreateStore(
-                tablet,
-                type,
-                storeId,
-                &descriptor);
-            storeManager->AddStore(store->AsChunk(), true);
-        }
+        storeManager->Mount(storeDescriptors);
 
-        // NB: Active store must be created _after_ chunk stores to make sure it receives
-        // the right starting row index (for ordered tablets only).
-        storeManager->CreateActiveStore();
+        // TODO(babenko): move somewhere?
+        for (const auto& descriptor : storeDescriptors) {
+            const auto& extensions = descriptor.chunk_meta().extensions();
+            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
+            if (miscExt.has_max_timestamp()) {
+                UpdateLastCommittedTimestamp(miscExt.max_timestamp());
+            }
+        }
 
         {
             TRspMountTablet response;
@@ -758,15 +718,8 @@ private:
             RotateStores(tablet, true);
         }
 
-        int oldSamplesPerPartition = tablet->GetConfig()->SamplesPerPartition;
-        int newSamplesPerPartition = mountConfig->SamplesPerPartition;
-
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Remount(mountConfig, writerOptions);
-
-        if (tablet->IsSorted() && oldSamplesPerPartition != newSamplesPerPartition) {
-            SchedulePartitionsSampling(tablet);
-        }
 
         UpdateTabletSnapshot(tablet);
 
@@ -1125,11 +1078,6 @@ private:
             removedStoreIds.push_back(storeId);
 
             auto store = tablet->GetStore(storeId);
-            // XXX(babenko): consider moving to store manager
-            if (store->IsSorted()) {
-                auto sortedStore = store->AsSorted();
-                SchedulePartitionSampling(sortedStore->GetPartition());
-            }
             storeManager->RemoveStore(store);
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Store removed (TabletId: %v, StoreId: %v)",
@@ -1145,12 +1093,6 @@ private:
 
             auto store = CreateStore(tablet, storeType, storeId, &descriptor)->AsChunk();
             storeManager->AddStore(store, false);
-
-            if (tablet->IsSorted()) {
-                // XXX(babenko): get rid of this
-                auto chunkStore = store->AsSortedChunk();
-                SchedulePartitionSampling(chunkStore->GetPartition());
-            }
 
             TStoreId backingStoreId;
             if (!IsRecovery() && descriptor.has_backing_store_id()) {
@@ -1194,21 +1136,25 @@ private:
 
         auto partitionId = FromProto<TPartitionId>(request->partition_id());
         auto* partition = tablet->GetPartition(partitionId);
+
         auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
-
-        // NB: Set the state back to normal; otherwise if some of the below checks fail, we might get
-        // a partition stuck in splitting state forever.
-        partition->SetState(EPartitionState::Normal);
-
-        if (tablet->PartitionList().size() >= tablet->GetConfig()->MaxPartitionCount)
-            return;
 
         int partitionIndex = partition->GetIndex();
         i64 partitionDataSize = partition->GetUncompressedDataSize();
 
-        SplitTabletPartition(tablet, partitionIndex, pivotKeys);
+        auto storeManager = tablet->GetStoreManager()->AsSorted();
+        bool result = storeManager->SplitPartition(partition->GetIndex(), pivotKeys);
+        if (!result) {
+            LOG_INFO_UNLESS(IsRecovery(), "Partition split failed (TabletId: %v, PartitionId: %v, Keys: %v)",
+                tablet->GetId(),
+                partitionId,
+                JoinToString(pivotKeys, STRINGBUF(" .. ")));
+            return;
+        }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, OriginalPartitionId: %v, "
+        UpdateTabletSnapshot(tablet);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Partition split (TabletId: %v, OriginalPartitionId: %v, "
             "ResultingPartitionIds: %v, DataSize: %v, Keys: %v)",
             tablet->GetId(),
             partitionId,
@@ -1219,10 +1165,6 @@ private:
                 TPartitionIdFormatter()),
             partitionDataSize,
             JoinToString(pivotKeys, STRINGBUF(" .. ")));
-
-        // NB: Initial partition is split into new ones with indexes |[partitionIndex, partitionIndex + pivotKeys.size())|.
-        SchedulePartitionsSampling(tablet, partitionIndex, partitionIndex + pivotKeys.size());
-        UpdateTabletSnapshot(tablet);
     }
 
     void HydraMergePartitions(TReqMergePartitions* request)
@@ -1246,35 +1188,32 @@ private:
         int firstPartitionIndex = firstPartition->GetIndex();
         int lastPartitionIndex = firstPartitionIndex + request->partition_count() - 1;
 
-        i64 partitionsDataSize = 0;
-        for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
-            const auto& partition = tablet->PartitionList()[index];
-            partitionsDataSize += partition->GetUncompressedDataSize();
-            // See HydraSplitPartition.
-            // Currently this code is redundant since there's no escape path below,
-            // but we prefer to keep it to make things look symmetric.
-            partition->SetState(EPartitionState::Normal);
-        }
-
         auto originalPartitionIds = Format("%v",
             MakeFormattableRange(
                 MakeRange(
                     tablet->PartitionList().data() + firstPartitionIndex,
                     tablet->PartitionList().data() + lastPartitionIndex + 1),
-            TPartitionIdFormatter()));
+                TPartitionIdFormatter()));
 
-        MergeTabletPartitions(tablet, firstPartitionIndex, lastPartitionIndex);
+        i64 partitionsDataSize = 0;
+        for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
+            const auto& partition = tablet->PartitionList()[index];
+            partitionsDataSize += partition->GetUncompressedDataSize();
+        }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, OriginalPartitionIds: %v, "
+        auto storeManager = tablet->GetStoreManager()->AsSorted();
+        storeManager->MergePartitions(
+            firstPartition->GetIndex(),
+            firstPartition->GetIndex() + request->partition_count() - 1);
+
+        UpdateTabletSnapshot(tablet);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Partitions merged (TabletId: %v, OriginalPartitionIds: %v, "
             "ResultingPartitionId: %v, DataSize: %v)",
             tablet->GetId(),
             originalPartitionIds,
             tablet->PartitionList()[firstPartitionIndex]->GetId(),
             partitionsDataSize);
-
-        // NB: Initial partitions are merged into a single one with index |firstPartitionIndex|.
-        SchedulePartitionsSampling(tablet, firstPartitionIndex, firstPartitionIndex + 1);
-        UpdateTabletSnapshot(tablet);
     }
 
     void HydraUpdatePartitionSampleKeys(TReqUpdatePartitionSampleKeys* request)
@@ -1298,19 +1237,17 @@ private:
             return;
         }
 
-        auto sampleKeys = New<TKeyList>();
-        sampleKeys->Keys = FromProto<std::vector<TOwningKey>>(request->sample_keys());
-        partition->SetSampleKeys(sampleKeys);
-        YCHECK(sampleKeys->Keys.empty() || sampleKeys->Keys[0] > partition->GetPivotKey());
-        UpdateTabletSnapshot(tablet);
+        auto sampleKeys = FromProto<std::vector<TOwningKey>>(request->sample_keys());
 
-        const auto* mutationContext = GetCurrentMutationContext();
-        partition->SetSamplingTime(mutationContext->GetTimestamp());
+        auto storeManager = tablet->GetStoreManager()->AsSorted();
+        storeManager->UpdatePartitionSampleKeys(partition, sampleKeys);
+
+        UpdateTabletSnapshot(tablet);
 
         LOG_INFO_UNLESS(IsRecovery(), "Partition sample keys updated (TabletId: %v, PartitionId: %v, SampleKeyCount: %v)",
             tabletId,
             partition->GetId(),
-            sampleKeys->Keys.size());
+            sampleKeys.size());
     }
 
 
@@ -1918,28 +1855,6 @@ private:
             auto slotManager = Bootstrap_->GetTabletSlotManager();
             slotManager->UpdateTabletSnapshot(Slot_, tablet);
         }
-    }
-
-
-    void SchedulePartitionSampling(TPartition* partition)
-    {
-        if (!partition->IsEden()) {
-            const auto* mutationContext = GetCurrentMutationContext();
-            partition->SetSamplingRequestTime(mutationContext->GetTimestamp());
-        }
-    }
-
-    void SchedulePartitionsSampling(TTablet* tablet, int beginPartitionIndex, int endPartitionIndex)
-    {
-        const auto* mutationContext = GetCurrentMutationContext();
-        for (int index = beginPartitionIndex; index < endPartitionIndex; ++index) {
-            tablet->PartitionList()[index]->SetSamplingRequestTime(mutationContext->GetTimestamp());
-        }
-    }
-
-    void SchedulePartitionsSampling(TTablet* tablet)
-    {
-        SchedulePartitionsSampling(tablet, 0, tablet->PartitionList().size());
     }
 
 
