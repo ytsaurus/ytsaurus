@@ -175,10 +175,10 @@ void TBlob::Free()
         return;
     }
     delete[] Begin_;
-    Reset();
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     TRefCountedTracker::Get()->Free(TypeCookie_, Capacity_);
 #endif
+    Reset();
 }
 
 void TBlob::SetTypeCookie(TRefCountedTypeCookie tagCookie)
