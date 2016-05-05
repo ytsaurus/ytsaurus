@@ -70,34 +70,38 @@ class TAsyncInputStreamAdapter
     : public IAsyncInputStream
 {
 public:
-    explicit TAsyncInputStreamAdapter(TInputStream* underlyingStream)
+    TAsyncInputStreamAdapter(
+        TInputStream* underlyingStream,
+        IInvokerPtr invoker)
         : UnderlyingStream_(underlyingStream)
+        , Invoker_(std::move(invoker))
     { }
 
     virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
-        if (Result_) {
-            return Result_;
-        }
+        return
+            BIND(&TAsyncInputStreamAdapter::DoRead, MakeStrong(this), buffer)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
 
-        try {
-            return MakeFuture<size_t>(UnderlyingStream_->Read(buffer.Begin(), buffer.Size()));
-        } catch (const std::exception& ex) {
-            Result_ = MakeFuture<size_t>(TError(ex));
-            return Result_;
-        }
+private:
+    size_t DoRead(const TSharedMutableRef& buffer) const
+    {
+        return UnderlyingStream_->Read(buffer.Begin(), buffer.Size());
     }
 
 private:
     TInputStream* const UnderlyingStream_;
-
-    TFuture<size_t> Result_;
+    const IInvokerPtr Invoker_;
 };
 
-IAsyncInputStreamPtr CreateAsyncAdapter(TInputStream* asyncStream)
+IAsyncInputStreamPtr CreateAsyncAdapter(
+    TInputStream* underlyingStream,
+    IInvokerPtr invoker)
 {
     YCHECK(underlyingStream);
-    return New<TAsyncInputStreamAdapter>(asyncStream);
+    return New<TAsyncInputStreamAdapter>(underlyingStream, std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,35 +148,38 @@ class TAsyncOutputStreamAdapter
     : public IAsyncOutputStream
 {
 public:
-    explicit TAsyncOutputStreamAdapter(TOutputStream* underlyingStream)
+    TAsyncOutputStreamAdapter(
+        TOutputStream* underlyingStream,
+        IInvokerPtr invoker)
         : UnderlyingStream_(underlyingStream)
+        , Invoker_(std::move(invoker))
     { }
 
     virtual TFuture<void> Write(const TSharedRef& buffer) override
     {
-        if (Result_) {
-            return Result_;
-        }
+        return
+            BIND(&TAsyncOutputStreamAdapter::DoWrite, MakeStrong(this), buffer)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
 
-        try {
-            UnderlyingStream_->Write(buffer.Begin(), buffer.Size());
-        } catch (const std::exception& ex) {
-            Result_ = MakeFuture<void>(TError(ex));
-            return Result_;
-        }
-        return VoidFuture;
+private:
+    void DoWrite(const TSharedRef& buffer) const
+    {
+        UnderlyingStream_->Write(buffer.Begin(), buffer.Size());
     }
 
 private:
     TOutputStream* const UnderlyingStream_;
-
-    TFuture<void> Result_;
+    const IInvokerPtr Invoker_;
 };
 
-IAsyncOutputStreamPtr CreateAsyncAdapter(TOutputStream* underlyingStream)
+IAsyncOutputStreamPtr CreateAsyncAdapter(
+    TOutputStream* underlyingStream,
+    IInvokerPtr invoker)
 {
     YCHECK(underlyingStream);
-    return New<TAsyncOutputStreamAdapter>(underlyingStream);
+    return New<TAsyncOutputStreamAdapter>(underlyingStream, std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
