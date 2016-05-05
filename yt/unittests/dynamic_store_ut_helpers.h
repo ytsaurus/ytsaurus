@@ -72,7 +72,8 @@ protected:
     virtual IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,
-        const TStoreId& storeId) override
+        const TStoreId& storeId,
+        const NTabletNode::NProto::TAddStoreDescriptor* /*descriptor*/) override
     {
         switch (type) {
             case EStoreType::SortedDynamic:
@@ -337,7 +338,7 @@ protected:
 
         auto storeManager = GetStoreManager();
         storeManager->StartEpoch(nullptr);
-        storeManager->CreateActiveStore();
+        storeManager->Mount({});
     }
 
     void RotateStores()

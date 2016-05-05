@@ -27,6 +27,7 @@ public:
         TInMemoryManagerPtr inMemoryManager = nullptr,
         NApi::IClientPtr client = nullptr);
 
+    // IStoreManager overrides.
     virtual void ExecuteAtomicWrite(
         TTablet* tablet,
         TTransaction* transaction,
@@ -48,8 +49,6 @@ public:
     void CommitRow(TTransaction* transaction, const TOrderedDynamicRowRef& rowRef);
     void AbortRow(TTransaction* transaction, const TOrderedDynamicRowRef& rowRef);
 
-    virtual void CreateActiveStore() override;
-
     virtual bool IsStoreCompactable(IStorePtr store) const override;
     virtual bool IsStoreFlushable(IStorePtr store) const override;
 
@@ -65,6 +64,8 @@ private:
     virtual TStoreFlushCallback MakeStoreFlushCallback(
         IDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot) override;
+
+    virtual void CreateActiveStore() override;
 
     void ValidateOnWrite(const TTransactionId& transactionId, TUnversionedRow row);
 

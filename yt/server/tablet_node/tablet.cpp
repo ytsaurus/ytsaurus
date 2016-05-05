@@ -235,7 +235,7 @@ void TTablet::Load(TLoadContext& context)
         for (int index = 0; index < storeCount; ++index) {
             auto storeType = Load<EStoreType>(context);
             auto storeId = Load<TStoreId> (context);
-            auto store = Context_->CreateStore(this, storeType, storeId);
+            auto store = Context_->CreateStore(this, storeType, storeId, nullptr);
             YCHECK(StoreIdMap_.insert(std::make_pair(store->GetId(), store)).second);
             store->Load(context);
         }

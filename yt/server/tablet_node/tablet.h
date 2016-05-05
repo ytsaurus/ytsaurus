@@ -111,7 +111,8 @@ struct ITabletContext
     virtual IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,
-        const TStoreId& storeId) = 0;
+        const TStoreId& storeId,
+        const NTabletNode::NProto::TAddStoreDescriptor* descriptor) = 0;
     virtual IStoreManagerPtr CreateStoreManager(TTablet* tablet) = 0;
 };
 

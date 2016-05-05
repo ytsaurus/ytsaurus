@@ -27,6 +27,7 @@ public:
         TInMemoryManagerPtr inMemoryManager = nullptr,
         NApi::IClientPtr client = nullptr);
 
+    // IStoreManager overrides.
     virtual void ExecuteAtomicWrite(
         TTablet* tablet,
         TTransaction* transaction,
@@ -58,14 +59,29 @@ public:
     void CommitRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
     void AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
 
+    virtual void Mount(
+        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
+    virtual void Remount(
+        TTableMountConfigPtr mountConfig,
+        TTabletWriterOptionsPtr writerOptions) override;
+
     virtual void AddStore(IStorePtr store, bool onMount) override;
     virtual void RemoveStore(IStorePtr store) override;
-
-    virtual void CreateActiveStore() override;
 
     virtual bool IsStoreCompactable(IStorePtr store) const override;
 
     virtual ISortedStoreManagerPtr AsSorted() override;
+
+    // ISortedStoreManager overrides.
+    virtual bool SplitPartition(
+        int partitionIndex,
+        const std::vector<TOwningKey>& pivotKeys) override;
+    virtual void MergePartitions(
+        int firstPartitionIndex,
+        int lastPartitionIndex) override;
+    virtual void UpdatePartitionSampleKeys(
+        TPartition* partition,
+        const std::vector<TOwningKey>& keys) override;
 
 private:
     const int KeyColumnCount_;
@@ -82,6 +98,8 @@ private:
         IDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot) override;
 
+    virtual void CreateActiveStore() override;
+
     ui32 ComputeLockMask(TUnversionedRow row);
 
     void CheckInactiveStoresLocks(
@@ -92,6 +110,15 @@ private:
     void ValidateOnWrite(const TTransactionId& transactionId, TUnversionedRow row);
     void ValidateOnDelete(const TTransactionId& transactionId, TKey key);
 
+    void SchedulePartitionSampling(TPartition* partition);
+    void SchedulePartitionsSampling(int beginPartitionIndex, int endPartitionIndex);
+
+    void DoSplitPartition(
+        int partitionIndex,
+        const std::vector<TOwningKey>& pivotKeys);
+    void DoMergePartitions(
+        int firstPartitionIndex,
+        int lastPartitionIndex);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortedStoreManager)
