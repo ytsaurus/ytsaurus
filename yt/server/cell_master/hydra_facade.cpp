@@ -203,7 +203,9 @@ public:
         if (!HydraManager_->IsLeader()) {
             if (HasMutationContext()) {
                 // Just a precaution, not really expected to happen.
-                THROW_ERROR_EXCEPTION("Request can only be served at leaders");
+                auto error = TError("Request can only be served at leaders");
+                LOG_ERROR_UNLESS(HydraManager_->IsRecovery(), error, "Unexpected error");
+                THROW_ERROR error;
             } else {
                 throw TLeaderFallbackException();
             }
