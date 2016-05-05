@@ -792,13 +792,16 @@ protected:
 
     const TSharedRef& GetUncompressedBlock(int blockIndex)
     {
-        YCHECK(blockIndex >= LastRetainedBlockIndex_);
+        // XXX(sandello): When called from |LookupWithHashTable|, we may randomly
+        // jump between blocks due to hash collisions. This happens rarely, but
+        // makes YCHECK below invalid.
+        // YCHECK(blockIndex >= LastRetainedBlockIndex_);
 
         if (LastRetainedBlockIndex_ != blockIndex) {
             auto uncompressedBlock = GetUncompressedBlockFromCache(blockIndex);
             // Retain a reference to prevent uncompressed block from being evicted.
             // This may happen, for example, if the table is compressed.
-            RetainedUncompressedBlocks_.push_back(uncompressedBlock);
+            RetainedUncompressedBlocks_.push_back(std::move(uncompressedBlock));
             LastRetainedBlockIndex_ = blockIndex;
         }
 
@@ -816,7 +819,7 @@ private:
 
     //! Holds uncompressed blocks for the returned rows (for string references).
     //! In compressed mode, also serves as a per-request cache of uncompressed blocks.
-    SmallVector<TSharedRef, 2> RetainedUncompressedBlocks_;
+    SmallVector<TSharedRef, 4> RetainedUncompressedBlocks_;
     int LastRetainedBlockIndex_ = -1;
 
     //! Holds row values for the returned rows.
