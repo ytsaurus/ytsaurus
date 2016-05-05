@@ -68,7 +68,6 @@ using NJobTrackerClient::TStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto InitialJobProxyInitialMemoryLimit = (i64) 100 * 1024 * 1024;
 static const auto RpcServerShutdownTimeout = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,7 +77,6 @@ TJobProxy::TJobProxy(
     const TJobId& jobId)
     : ConfigNode_(configNode)
     , JobId_(jobId)
-    , JobProxyInitialMemoryLimit_(InitialJobProxyInitialMemoryLimit)
     , JobThread_(New<TActionQueue>("JobMain"))
     , ControlThread_(New<TActionQueue>("Control"))
     , Logger(JobProxyLogger)
