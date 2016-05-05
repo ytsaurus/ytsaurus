@@ -38,10 +38,18 @@ typedef DWORD TTlsKey;
 
 static TTlsKey FlsTsdKey;
 
+static void TsdDestroy(void* opaque)
+{
+    uintptr_t* tsd = static_cast<uintptr_t*>(opaque);
+    if (tsd) {
+        delete[] tsd;
+    }
+}
+
 static void TsdCreate()
 {
 #if defined(_unix_)
-    YCHECK(pthread_key_create(&FlsTsdKey, nullptr) == 0);
+    YCHECK(pthread_key_create(&FlsTsdKey, &TsdDestroy) == 0);
 #elif defined(_win_)
     YCHECK((FlsTsdKey = TlsAlloc()) != TLS_OUT_OF_INDEXES);
 #endif
@@ -62,7 +70,7 @@ static uintptr_t& TsdAt(int index)
     }
 
     tsd = new uintptr_t[FlsMaxSize];
-    YASSERT(tsd);
+    YCHECK(tsd);
     memset(tsd, 0, FlsMaxSize * sizeof(uintptr_t));
     YCHECK(TLS_SET_(FlsTsdKey, tsd));
 
