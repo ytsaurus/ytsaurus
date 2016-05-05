@@ -484,7 +484,7 @@ Handle<Value> TDriverWrap::New(const Arguments& args)
     EXPECT_THAT_IS(args[0], Boolean);
     EXPECT_THAT_IS(args[1], Object);
 
-    TDriverWrap* wrap = NULL;
+    TDriverWrap* wrap = nullptr;
     try {
         wrap = new TDriverWrap(
             args[0]->BooleanValue(),

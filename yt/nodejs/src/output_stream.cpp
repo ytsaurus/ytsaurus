@@ -33,14 +33,8 @@ Persistent<FunctionTemplate> TOutputStreamWrap::ConstructorTemplate;
 
 TOutputStreamWrap::TOutputStreamWrap(ui64 lowWatermark, ui64 highWatermark)
     : TNodeJSStreamBase()
-    , IsDestroyed_(0)
-    , IsPaused_(0)
-    , IsCompleted_(0)
-    , BytesInFlight(0)
-    , BytesEnqueued(0)
-    , BytesDequeued(0)
-    , LowWatermark(lowWatermark)
-    , HighWatermark(highWatermark)
+    , LowWatermark_(lowWatermark)
+    , HighWatermark_(highWatermark)
 {
     THREAD_AFFINITY_IS_V8();
 }
@@ -107,7 +101,7 @@ Handle<Value> TOutputStreamWrap::New(const Arguments& args)
     ui64 lowWatermark = args[0]->Uint32Value();
     ui64 highWatermark = args[1]->Uint32Value();
 
-    TOutputStreamWrap* stream = NULL;
+    TOutputStreamWrap* stream = nullptr;
     try {
         stream = new TOutputStreamWrap(lowWatermark, highWatermark);
         stream->Wrap(args.This());
@@ -153,7 +147,7 @@ Handle<Value> TOutputStreamWrap::DoPull()
 {
     THREAD_AFFINITY_IS_V8();
 
-    if (AtomicGet(IsDestroyed_)) {
+    if (IsDestroyed_.load(std::memory_order_relaxed)) {
         return Undefined();
     }
 
@@ -161,7 +155,7 @@ Handle<Value> TOutputStreamWrap::DoPull()
     Local<Array> parts = Array::New(MaxPartsPerPull);
 
     for (int i = 0; i < MaxPartsPerPull; ++i) {
-        if (!Queue.Dequeue(&part)) {
+        if (!Queue_.Dequeue(&part)) {
             break;
         }
 
@@ -174,10 +168,10 @@ Handle<Value> TOutputStreamWrap::DoPull()
 
         v8::V8::AdjustAmountOfExternalAllocatedMemory(+(int)part.Length);
 
-        AtomicAdd(BytesDequeued, part.Length);
-        auto transientSize = AtomicSub(BytesInFlight, part.Length);
-        if (transientSize < LowWatermark && LowWatermark <= transientSize + part.Length) {
-            Conditional.NotifyAll();
+        BytesDequeued_.fetch_add(part.Length);
+        auto transientSize = BytesInFlight_.fetch_sub(part.Length);
+        if (transientSize - part.Length < LowWatermark_ && LowWatermark_ <= transientSize) {
+            Conditional_.NotifyAll();
         }
     }
 
@@ -208,7 +202,7 @@ void TOutputStreamWrap::DoDrain()
 {
     THREAD_AFFINITY_IS_V8();
 
-    YASSERT(!AtomicGet(IsDestroyed_));
+    YASSERT(!IsDestroyed_.load(std::memory_order_relaxed));
 
     IgniteOnData();
 }
@@ -237,10 +231,10 @@ void TOutputStreamWrap::DoDestroy()
 {
     THREAD_AFFINITY_IS_V8();
 
-    AtomicSet(IsDestroyed_, 1);
-    AtomicSet(IsPaused_, 0);
+    IsDestroyed_ = false;
+    IsPaused_ = false;
 
-    Conditional.NotifyAll();
+    Conditional_.NotifyAll();
 
     DisposeBuffers();
 }
@@ -260,7 +254,7 @@ Handle<Value> TOutputStreamWrap::IsEmpty(const Arguments& args)
     YCHECK(args.Length() == 0);
 
     // Do the work.
-    return scope.Close(Boolean::New(stream->Queue.IsEmpty()));
+    return scope.Close(Boolean::New(stream->Queue_.IsEmpty()));
 }
 
 Handle<Value> TOutputStreamWrap::IsDestroyed(const Arguments& args)
@@ -276,7 +270,7 @@ Handle<Value> TOutputStreamWrap::IsDestroyed(const Arguments& args)
     YCHECK(args.Length() == 0);
 
     // Do the work.
-    return scope.Close(Boolean::New(AtomicGet(stream->IsDestroyed_)));
+    return scope.Close(Boolean::New(stream->IsDestroyed_.load(std::memory_order_relaxed)));
 }
 
 Handle<Value> TOutputStreamWrap::IsPaused(const Arguments& args)
@@ -292,7 +286,7 @@ Handle<Value> TOutputStreamWrap::IsPaused(const Arguments& args)
     YCHECK(args.Length() == 0);
 
     // Do the work.
-    return scope.Close(Boolean::New(AtomicGet(stream->IsPaused_)));
+    return scope.Close(Boolean::New(stream->IsPaused_.load(std::memory_order_relaxed)));
 }
 
 Handle<Value> TOutputStreamWrap::IsCompleted(const Arguments& args)
@@ -308,7 +302,7 @@ Handle<Value> TOutputStreamWrap::IsCompleted(const Arguments& args)
     YCHECK(args.Length() == 0);
 
     // Do the work.
-    return scope.Close(Boolean::New(AtomicGet(stream->IsCompleted_)));
+    return scope.Close(Boolean::New(stream->IsCompleted_.load(std::memory_order_relaxed)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -318,7 +312,7 @@ int TOutputStreamWrap::AsyncOnData(eio_req* request)
     THREAD_AFFINITY_IS_V8();
 
     TOutputStreamWrap* stream = static_cast<TOutputStreamWrap*>(request->data);
-    node::MakeCallback(stream->handle_, OnDataSymbol, 0, NULL);
+    node::MakeCallback(stream->handle_, OnDataSymbol, 0, nullptr);
 
     stream->AsyncUnref();
 
@@ -331,7 +325,7 @@ void TOutputStreamWrap::DoWrite(const void* data, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
 
-    if (data == NULL || length == 0) {
+    if (data == nullptr || length == 0) {
         return;
     }
 
@@ -349,7 +343,7 @@ void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
 {
     THREAD_AFFINITY_IS_ANY();
 
-    if (parts == NULL || count == 0) {
+    if (parts == nullptr || count == 0) {
         return;
     }
 
@@ -376,14 +370,14 @@ void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
 
 void TOutputStreamWrap::WritePrologue()
 {
-    Conditional.Await([&] () -> bool {
+    Conditional_.Await([&] () -> bool {
         return
-            AtomicGet(IsDestroyed_) ||
-            AtomicGet(IsCompleted_) ||
-            (AtomicGet(BytesInFlight) < HighWatermark);
+            IsDestroyed_.load(std::memory_order_relaxed) ||
+            IsCompleted_.load(std::memory_order_relaxed) ||
+            BytesInFlight_.load(std::memory_order_relaxed) < HighWatermark_;
     });
 
-    if (AtomicGet(IsDestroyed_)) {
+    if (IsDestroyed_.load(std::memory_order_relaxed)) {
         THROW_ERROR_EXCEPTION("TOutputStreamWrap was terminated");
     }
 }
@@ -393,10 +387,10 @@ void TOutputStreamWrap::WriteEpilogue(char* buffer, size_t length)
     TOutputPart part;
     part.Buffer = buffer;
     part.Length = length;
-    Queue.Enqueue(part);
+    Queue_.Enqueue(part);
 
-    AtomicAdd(BytesInFlight, length);
-    AtomicAdd(BytesEnqueued, length);
+    BytesEnqueued_.fetch_add(length);
+    BytesInFlight_.fetch_add(length);
 
     // We require that calling party holds a synchronous lock on the stream.
     // In case of TDriverWrap an instance TNodeJSInputStack holds a lock
@@ -410,8 +404,8 @@ void TOutputStreamWrap::WriteEpilogue(char* buffer, size_t length)
 void TOutputStreamWrap::DisposeBuffers()
 {
     TOutputPart part;
-    while (Queue.Dequeue(&part)) {
-        DeleteCallback(part.Buffer, NULL);
+    while (Queue_.Dequeue(&part)) {
+        DeleteCallback(part.Buffer, nullptr);
     }
 }
 
