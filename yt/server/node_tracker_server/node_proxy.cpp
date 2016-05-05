@@ -77,8 +77,6 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        RequireLeader();
-
         const auto* node = GetThisTypedImpl();
         auto state = node->GetLocalState();
         bool isGood = state == ENodeState::Registered || state == ENodeState::Online;
@@ -207,6 +205,7 @@ private:
             }
 
             if (key == "io_weight") {
+                RequireLeader();
                 BuildYsonFluently(consumer)
                     .Value(node->GetIOWeight());
                 return true;
