@@ -131,7 +131,8 @@ Handle<Value> ShutdownSingletons(const Arguments& args)
     return Undefined();
 }
 
-} // namespace
+////////////////////////////////////////////////////////////////////////////////
+// Other stuff
 
 Handle<Value> EscapeC(const Arguments& args)
 {
@@ -151,6 +152,8 @@ Handle<Value> EscapeC(const Arguments& args)
 
     return scope.Close(String::New(escaped.c_str()));
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

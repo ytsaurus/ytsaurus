@@ -54,12 +54,12 @@ public:
     // Diagnostics.
     const ui32 GetBytesEnqueued()
     {
-        return BytesEnqueued;
+        return BytesEnqueued_.load(std::memory_order_relaxed);
     }
 
     const ui32 GetBytesDequeued()
     {
-        return BytesDequeued;
+        return BytesDequeued_.load(std::memory_order_relaxed);
     }
 
 protected:
@@ -68,39 +68,38 @@ protected:
 
 private:
     void Dispose();
-    void DisposeHandles(std::deque<TInputPart*>* queue);
+    void DisposeHandles(std::deque<std::unique_ptr<TInputPart>>* queue);
     void UpdateV8Properties();
 
 private:
-    // XXX(sandello): I believe these atomics are subject to false sharing due
-    // to in-memory locality. But whatever -- it is not a bottleneck.
-    TAtomic IsPushable;
-    TAtomic IsReadable;
+    std::atomic<bool> IsPushable_ = {true};
+    std::atomic<bool> IsReadable_ = {true};
 
-    TAtomic SweepRequestPending;
-    TAtomic DrainRequestPending;
+    std::atomic<bool> SweepRequestPending_ = {false};
+    std::atomic<bool> DrainRequestPending_ = {false};
 
-    TAtomic BytesInFlight;
-    TAtomic BytesEnqueued;
-    TAtomic BytesDequeued;
+    std::atomic<ui64> BytesInFlight_ = {0};
+    std::atomic<ui64> BytesEnqueued_ = {0};
+    std::atomic<ui64> BytesDequeued_ = {0};
 
-    const ui64 LowWatermark;
-    const ui64 HighWatermark;
+    const ui64 LowWatermark_;
+    const ui64 HighWatermark_;
 
-    TMutex Mutex;
-    TCondVar Conditional;
+    TMutex Mutex_;
+    TCondVar Conditional_;
 
-    std::deque<TInputPart*> ActiveQueue;
-    std::deque<TInputPart*> InactiveQueue;
+    std::deque<std::unique_ptr<TInputPart>> ActiveQueue_;
+    std::deque<std::unique_ptr<TInputPart>> InactiveQueue_;
 
 private:
-    TInputStreamWrap(const TInputStreamWrap&);
-    TInputStreamWrap& operator=(const TInputStreamWrap&);
+    TInputStreamWrap(const TInputStreamWrap&) = delete;
+    TInputStreamWrap& operator=(const TInputStreamWrap&) = delete;
 };
 
 inline void TInputStreamWrap::EnqueueSweep(bool withinV8)
 {
-    if (AtomicCas(&SweepRequestPending, 1, 0)) {
+    bool expected = false;
+    if (SweepRequestPending_.compare_exchange_strong(expected, true, std::memory_order_acquire)) {
         AsyncRef(withinV8);
         EIO_PUSH(TInputStreamWrap::AsyncSweep, this);
     }
@@ -108,7 +107,8 @@ inline void TInputStreamWrap::EnqueueSweep(bool withinV8)
 
 inline void TInputStreamWrap::EnqueueDrain(bool withinV8)
 {
-    if (AtomicCas(&DrainRequestPending, 1, 0)) {
+    bool expected = false;
+    if (DrainRequestPending_.compare_exchange_strong(expected, true, std::memory_order_acquire)) {
         AsyncRef(withinV8);
         EIO_PUSH(TInputStreamWrap::AsyncDrain, this);
     }

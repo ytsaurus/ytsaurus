@@ -27,19 +27,12 @@ Persistent<FunctionTemplate> TInputStreamWrap::ConstructorTemplate;
 
 TInputStreamWrap::TInputStreamWrap(ui64 lowWatermark, ui64 highWatermark)
     : TNodeJSStreamBase()
-    , IsPushable(1)
-    , IsReadable(1)
-    , SweepRequestPending(0)
-    , DrainRequestPending(0)
-    , BytesInFlight(0)
-    , BytesEnqueued(0)
-    , BytesDequeued(0)
-    , LowWatermark(lowWatermark)
-    , HighWatermark(highWatermark)
+    , LowWatermark_(lowWatermark)
+    , HighWatermark_(highWatermark)
 {
     THREAD_AFFINITY_IS_V8();
 
-    YCHECK(LowWatermark < HighWatermark);
+    YCHECK(LowWatermark_ < HighWatermark_);
 }
 
 TInputStreamWrap::~TInputStreamWrap() throw()
@@ -48,8 +41,8 @@ TInputStreamWrap::~TInputStreamWrap() throw()
 
     Dispose();
 
-    YCHECK(ActiveQueue.size() == 0);
-    YCHECK(InactiveQueue.size() == 0);
+    YCHECK(ActiveQueue_.size() == 0);
+    YCHECK(InactiveQueue_.size() == 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,7 +97,7 @@ Handle<Value> TInputStreamWrap::New(const Arguments& args)
     ui64 lowWatermark = args[0]->Uint32Value();
     ui64 highWatermark = args[1]->Uint32Value();
 
-    TInputStreamWrap* stream = NULL;
+    TInputStreamWrap* stream = nullptr;
     try {
         stream = new TInputStreamWrap(lowWatermark, highWatermark);
         stream->Wrap(args.This());
@@ -158,13 +151,11 @@ Handle<Value> TInputStreamWrap::DoPush(Persistent<Value> handle, char* buffer, s
 {
     THREAD_AFFINITY_IS_V8();
 
-    if (!AtomicGet(IsPushable)) {
+    if (!IsPushable_.load(std::memory_order_relaxed)) {
         return Undefined();
     }
 
-    TInputPart* part = new TInputPart();
-    YASSERT(part);
-
+    auto part = std::make_unique<TInputPart>();
     part->Stream = this;
     part->Handle = handle;
     part->Buffer = buffer;
@@ -172,14 +163,14 @@ Handle<Value> TInputStreamWrap::DoPush(Persistent<Value> handle, char* buffer, s
     part->Length = length;
 
     {
-        TGuard<TMutex> guard(&Mutex);
-        ActiveQueue.push_back(part);
-        Conditional.BroadCast();
+        TGuard<TMutex> guard(&Mutex_);
+        ActiveQueue_.emplace_back(std::move(part));
+        Conditional_.BroadCast();
     }
 
-    AtomicAdd(BytesEnqueued, length);
-    auto transientSize = AtomicAdd(BytesInFlight, length);
-    if (transientSize > HighWatermark) {
+    BytesEnqueued_.fetch_add(length, std::memory_order_relaxed);
+    auto transientSize = BytesInFlight_.fetch_add(length, std::memory_order_relaxed);
+    if (transientSize > HighWatermark_) {
         return v8::False();
     } else {
         return v8::True();
@@ -211,10 +202,9 @@ void TInputStreamWrap::DoEnd()
     THREAD_AFFINITY_IS_V8();
 
     {
-        TGuard<TMutex> guard(&Mutex);
-        AtomicSet(IsPushable, 0);
-        AtomicBarrier();
-        Conditional.BroadCast();
+        TGuard<TMutex> guard(&Mutex_);
+        IsPushable_.store(false, std::memory_order_seq_cst);
+        Conditional_.BroadCast();
     }
 
     EnqueueSweep(true);
@@ -282,7 +272,7 @@ int TInputStreamWrap::AsyncSweep(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
     TInputStreamWrap* stream = static_cast<TInputStreamWrap*>(request->data);
-    AtomicSet(stream->SweepRequestPending, 0);
+    stream->SweepRequestPending_.store(false, std::memory_order_release);
     stream->DoSweep();
     stream->AsyncUnref();
     return 0;
@@ -299,7 +289,7 @@ void TInputStreamWrap::DoSweep()
     {
         bool mutexAcquired = false;
         for (unsigned int outerSpin = 0; outerSpin < NumberOfSpins; ++outerSpin) {
-            if (Mutex.TryAcquire()) {
+            if (Mutex_.TryAcquire()) {
                 mutexAcquired = true;
                 break;
             }
@@ -314,8 +304,8 @@ void TInputStreamWrap::DoSweep()
         }
     }
 
-    TGuard< TMutex, TAlreadyLockedOps<TMutex> > guard(&Mutex);
-    DisposeHandles(&InactiveQueue);
+    TGuard<TMutex, TAlreadyLockedOps<TMutex>> guard(&Mutex_);
+    DisposeHandles(&InactiveQueue_);
 
     UpdateV8Properties();
 }
@@ -344,7 +334,7 @@ int TInputStreamWrap::AsyncDrain(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
     TInputStreamWrap* stream = static_cast<TInputStreamWrap*>(request->data);
-    AtomicSet(stream->DrainRequestPending, 0);
+    stream->DrainRequestPending_.store(false, std::memory_order_release);
     stream->DoDrain();
     stream->AsyncUnref();
     return 0;
@@ -357,7 +347,7 @@ void TInputStreamWrap::DoDrain()
 
     UpdateV8Properties();
 
-    node::MakeCallback(this->handle_, OnDrainSymbol, 0, NULL);
+    node::MakeCallback(this->handle_, OnDrainSymbol, 0, nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -366,25 +356,25 @@ size_t TInputStreamWrap::DoRead(void* data, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
 
-    if (!AtomicGet(IsReadable)) {
+    if (!IsReadable_.load(std::memory_order_relaxed)) {
         THROW_ERROR_EXCEPTION("TInputStreamWrap was terminated");
     }
 
     TScopedRef<false> guardAsyncRef(this);
-    TGuard<TMutex> guard(&Mutex);
+    TGuard<TMutex> guard(&Mutex_);
 
     size_t result = 0;
     while (length > 0 && result == 0) {
         auto
-            it = ActiveQueue.begin(),
-            jt = ActiveQueue.end(),
-            kt = ActiveQueue.begin();
+            it = ActiveQueue_.begin(),
+            jt = ActiveQueue_.end(),
+            kt = ActiveQueue_.begin();
 
         size_t canRead = 0;
         bool canReadSomething = false;
 
         while (length > 0 && it != jt) {
-            TInputPart* part = *it;
+            const std::unique_ptr<TInputPart>& part = *it;
 
             canRead = std::min(length, part->Length);
             canReadSomething |= (canRead > 0);
@@ -411,17 +401,20 @@ size_t TInputStreamWrap::DoRead(void* data, size_t length)
             }
         }
 
-        InactiveQueue.insert(InactiveQueue.end(), ActiveQueue.begin(), kt);
-        ActiveQueue.erase(ActiveQueue.begin(), kt);
+        InactiveQueue_.insert(
+            InactiveQueue_.end(),
+            std::make_move_iterator(ActiveQueue_.begin()),
+            std::make_move_iterator(kt));
+        ActiveQueue_.erase(ActiveQueue_.begin(), kt);
 
         if (!canReadSomething) {
-            if (!AtomicGet(IsPushable)) {
+            if (!IsPushable_.load(std::memory_order_relaxed)) {
                 return 0;
             }
 
-            Conditional.WaitI(Mutex);
+            Conditional_.WaitI(Mutex_);
 
-            if (!AtomicGet(IsReadable)) {
+            if (!IsReadable_.load(std::memory_order_relaxed)) {
                 THROW_ERROR_EXCEPTION("TInputStreamWrap was terminated");
             }
 
@@ -435,13 +428,13 @@ size_t TInputStreamWrap::DoRead(void* data, size_t length)
     // and TDriverWrap implementation guarantees that all Read() calls
     // are within scope of the lock.
 
-    if (!InactiveQueue.empty()) {
+    if (!InactiveQueue_.empty()) {
         EnqueueSweep(false);
     }
 
-    AtomicAdd(BytesDequeued, result);
-    auto transientSize = AtomicSub(BytesInFlight, result);
-    if (transientSize < LowWatermark && LowWatermark <= transientSize + result) {
+    BytesDequeued_.fetch_add(result);
+    auto transientSize = BytesInFlight_.fetch_sub(result);
+    if (transientSize - result < LowWatermark_ && LowWatermark_ <= transientSize) {
         EnqueueDrain(false);
     }
 
@@ -457,12 +450,12 @@ void TInputStreamWrap::UpdateV8Properties()
 
     handle_->Set(
         ActiveQueueSizeSymbol,
-        Integer::NewFromUnsigned(ActiveQueue.size()),
+        Integer::NewFromUnsigned(ActiveQueue_.size()),
         (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
 
     handle_->Set(
         InactiveQueueSizeSymbol,
-        Integer::NewFromUnsigned(InactiveQueue.size()),
+        Integer::NewFromUnsigned(InactiveQueue_.size()),
         (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
 }
 
@@ -470,24 +463,23 @@ void TInputStreamWrap::Dispose()
 {
     THREAD_AFFINITY_IS_V8();
 
-    TGuard<TMutex> guard(&Mutex);
-    DisposeHandles(&InactiveQueue);
-    DisposeHandles(&ActiveQueue);
-    AtomicSet(IsPushable, 0);
-    AtomicSet(IsReadable, 0);
-    AtomicBarrier();
-    Conditional.BroadCast();
+    TGuard<TMutex> guard(&Mutex_);
+    DisposeHandles(&InactiveQueue_);
+    DisposeHandles(&ActiveQueue_);
+    IsPushable_ = false;
+    IsReadable_ = false;
+    Conditional_.BroadCast();
 }
 
-void TInputStreamWrap::DisposeHandles(std::deque<TInputPart*>* queue)
+void TInputStreamWrap::DisposeHandles(std::deque<std::unique_ptr<TInputPart>>* queue)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    for (auto* part : *queue) {
+    for (auto& part : *queue) {
         part->Handle.Dispose();
         part->Handle.Clear();
-        delete part;
+        part.reset();
     }
 
     queue->clear();

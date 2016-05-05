@@ -55,12 +55,12 @@ public:
     // Diagnostics.
     const ui32 GetBytesEnqueued()
     {
-        return BytesEnqueued;
+        return BytesEnqueued_.load(std::memory_order_relaxed);
     }
 
     const ui32 GetBytesDequeued()
     {
-        return BytesDequeued;
+        return BytesDequeued_.load(std::memory_order_relaxed);
     }
 
     void SetCompleted();
@@ -77,21 +77,19 @@ private:
     void DisposeBuffers();
 
 private:
-    // XXX(sandello): I believe these atomics are subject to false sharing due
-    // to in-memory locality. But whatever -- it is not a bottleneck.
-    TAtomic IsDestroyed_;
-    TAtomic IsPaused_;
-    TAtomic IsCompleted_;
+    std::atomic<bool> IsDestroyed_ = {false};
+    std::atomic<bool> IsPaused_ = {false};
+    std::atomic<bool> IsCompleted_ = {false};
 
-    TAtomic BytesInFlight;
-    TAtomic BytesEnqueued;
-    TAtomic BytesDequeued;
+    std::atomic<ui64> BytesInFlight_ = {0};
+    std::atomic<ui64> BytesEnqueued_ = {0};
+    std::atomic<ui64> BytesDequeued_ = {0};
 
-    const ui64 LowWatermark;
-    const ui64 HighWatermark;
+    const ui64 LowWatermark_;
+    const ui64 HighWatermark_;
 
-    NConcurrency::TEventCount Conditional;
-    TLockFreeQueue<TOutputPart> Queue;
+    NConcurrency::TEventCount Conditional_;
+    TLockFreeQueue<TOutputPart> Queue_;
 
 private:
     TOutputStreamWrap(const TOutputStreamWrap&);
@@ -100,8 +98,8 @@ private:
 
 inline void TOutputStreamWrap::EmitAndStifleOnData()
 {
-    if (AtomicCas(&IsPaused_, 1, 0)) {
-        // Post to V8 thread.
+    bool expected = false;
+    if (IsPaused_.compare_exchange_strong(expected, true, std::memory_order_acquire)) {
         AsyncRef(false);
         EIO_PUSH(TOutputStreamWrap::AsyncOnData, this);
     }
@@ -109,8 +107,9 @@ inline void TOutputStreamWrap::EmitAndStifleOnData()
 
 inline void TOutputStreamWrap::IgniteOnData()
 {
-    if (AtomicCas(&IsPaused_, 0, 1)) {
-        if (!Queue.IsEmpty()) {
+    bool expected = true;
+    if (IsPaused_.compare_exchange_strong(expected, false, std::memory_order_release)) {
+        if (!Queue_.IsEmpty()) {
             EmitAndStifleOnData();
         }
     }
@@ -118,9 +117,9 @@ inline void TOutputStreamWrap::IgniteOnData()
 
 inline void TOutputStreamWrap::SetCompleted()
 {
-    AtomicSet(IsCompleted_, 1);
+    IsCompleted_ = true;
 
-    Conditional.NotifyAll();
+    Conditional_.NotifyAll();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

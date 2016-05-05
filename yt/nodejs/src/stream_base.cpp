@@ -9,17 +9,13 @@ COMMON_V8_USES
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeJSStreamBase::TNodeJSStreamBase()
-    : node::ObjectWrap()
-    , AsyncRefCounter_(0)
-{ }
+TNodeJSStreamBase::TNodeJSStreamBase() = default;
 
-TNodeJSStreamBase::~TNodeJSStreamBase()
-{ }
+TNodeJSStreamBase::~TNodeJSStreamBase() = default;
 
 void TNodeJSStreamBase::AsyncRef(bool acquireSyncRef)
 {
-    if (AsyncRefCounter_++ == 0) {
+    if (AsyncRefCounter_.fetch_add(1, std::memory_order_acquire) == 0) {
         if (acquireSyncRef) {
             THREAD_AFFINITY_IS_V8();
             Ref();
@@ -31,7 +27,7 @@ void TNodeJSStreamBase::AsyncRef(bool acquireSyncRef)
 
 void TNodeJSStreamBase::AsyncUnref()
 {
-    auto oldRefCounter = AsyncRefCounter_--;
+    auto oldRefCounter = AsyncRefCounter_.fetch_sub(1, std::memory_order_release);
     YASSERT(oldRefCounter > 0);
     if (oldRefCounter == 1) {
         EIO_PUSH(TNodeJSStreamBase::UnrefCallback, this);
