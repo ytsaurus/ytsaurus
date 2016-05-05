@@ -103,6 +103,7 @@ TBlob& TBlob::operator = (TBlob&& rhs)
     if (this != &rhs) {
         Free();
         SetTypeCookie(rhs);
+        YCHECK(!Begin_);
         Begin_ = rhs.Begin_;
         Size_ = rhs.Size_;
         Capacity_ = rhs.Capacity_;
@@ -145,7 +146,7 @@ void TBlob::Reset()
 
 void TBlob::Allocate(size_t newCapacity)
 {
-    YCHECK(Begin_ == nullptr);
+    YCHECK(!Begin_);
     Begin_ = new char[newCapacity];
     Capacity_ = newCapacity;
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
@@ -174,6 +175,7 @@ void TBlob::Free()
         return;
     }
     delete[] Begin_;
+    Reset();
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     TRefCountedTracker::Get()->Free(TypeCookie_, Capacity_);
 #endif
