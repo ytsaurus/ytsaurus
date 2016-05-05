@@ -699,17 +699,12 @@ private:
             auto lowerBound = rangesIt->first;
             auto upperBound = rangesIt->second;
 
-            NLogging::TLogger Logger("!!!");
-            LOG_INFO("Split before %v %v", lowerBound, upperBound);
-
             if (lowerBound < tableInfo->LowerCapBound) {
                 lowerBound = tableInfo->LowerCapBound.Get();
             }
             if (upperBound > tableInfo->UpperCapBound) {
                 upperBound = tableInfo->UpperCapBound.Get();
             }
-
-            LOG_INFO("Split after %v %v", lowerBound, upperBound);
 
             if (lowerBound >= upperBound) {
                 ++rangesIt;
@@ -796,10 +791,6 @@ private:
         const auto& tableId = dataSource.Id;
         auto ranges = dataSource.Ranges;
 
-        for (const auto& range : ranges) {
-            LOG_INFO("!!! RANGE %v %v", range.first, range.second);
-        }
-
         auto prunedRanges = GetPrunedRanges(
             query,
             tableId,
@@ -811,10 +802,6 @@ private:
             verboseLogging);
 
         LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
-
-        for (const auto& range : prunedRanges) {
-            LOG_INFO("!!! PRUNED RANGE %v %v", range.first, range.second);
-        }
 
         return SplitTable(
             tableId,
