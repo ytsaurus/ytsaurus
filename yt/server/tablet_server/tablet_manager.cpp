@@ -1588,10 +1588,29 @@ private:
         try {
             tablet->ValidateMountRevision(mountRevision);
 
-            auto chunkManager = Bootstrap_->GetChunkManager();
-            auto securityManager = Bootstrap_->GetSecurityManager();
+            if (!table->IsSorted()) {
+                auto* rootChunkList = table->GetChunkList();
+                auto* tabletChunkList = rootChunkList->Children()[tablet->GetIndex()]->AsChunkList();
+
+                if (request->stores_to_add_size() > 1) {
+                    THROW_ERROR_EXCEPTION("Cannot attach more than one store to an ordered table at once");
+                }
+
+                if (request->stores_to_add_size() > 0) {
+                    const auto& descriptor = request->stores_to_add(0);
+                    YCHECK(descriptor.has_starting_row_index());
+
+                    if (tabletChunkList->Statistics().RowCount != descriptor.starting_row_index()) {
+                        THROW_ERROR_EXCEPTION("Attempted to attach store %v with invalid starting row index: expected %v, got %v",
+                            FromProto<TStoreId>(descriptor.store_id()),
+                            tabletChunkList->Statistics().RowCount,
+                            descriptor.starting_row_index());
+                    }
+                }
+            }
 
             // Collect all changes first.
+            auto chunkManager = Bootstrap_->GetChunkManager();
             std::vector<TChunkTree*> chunksToAttach;
             i64 attachedRowCount = 0;
             for (const auto& descriptor : request->stores_to_add()) {
@@ -1625,9 +1644,10 @@ private:
 
             // Apply all requested changes.
             cell->TotalStatistics() -= GetTabletStatistics(tablet);
-            auto* chunkList = table->GetChunkList()->Children()[tablet->GetIndex()]->AsChunkList();
-            chunkManager->AttachToChunkList(chunkList, chunksToAttach);
-            chunkManager->DetachFromChunkList(chunkList, chunksToDetach);
+            auto* rootChunkList = table->GetChunkList();
+            auto* tabletChunkList = rootChunkList->Children()[tablet->GetIndex()]->AsChunkList();
+            chunkManager->AttachToChunkList(tabletChunkList, chunksToAttach);
+            chunkManager->DetachFromChunkList(tabletChunkList, chunksToDetach);
             cell->TotalStatistics() += GetTabletStatistics(tablet);
             table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
 
@@ -1636,6 +1656,8 @@ private:
             for (auto* chunk : chunksToAttach) {
                 chunkManager->UnstageChunk(chunk->AsChunk());
             }
+
+            auto securityManager = Bootstrap_->GetSecurityManager();
             securityManager->UpdateAccountNodeUsage(table);
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores updated (TableId: %v, TabletId: %v, "
