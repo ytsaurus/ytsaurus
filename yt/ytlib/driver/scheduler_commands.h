@@ -163,8 +163,9 @@ private:
 
 };
 
+template <class TOptions>
 class TSimpleOperationCommandBase
-    : public TCommandBase
+    : public virtual TTypedCommandBase<TOptions>
 {
 protected:
     NScheduler::TOperationId OperationId;
@@ -172,21 +173,27 @@ protected:
 public:
     TSimpleOperationCommandBase()
     {
-        RegisterParameter("operation_id", OperationId);
+        this->RegisterParameter("operation_id", OperationId);
     }
 
 };
 
 class TAbortOperationCommand
-    : public TSimpleOperationCommandBase
+    : public TSimpleOperationCommandBase<NApi::TAbortOperationOptions>
 {
 public:
+    TAbortOperationCommand()
+    {
+        RegisterParameter("abort_message", Options.AbortMessage)
+            .Default();
+    }
+
     void Execute(ICommandContextPtr context);
 
 };
 
 class TSuspendOperationCommand
-    : public TSimpleOperationCommandBase
+    : public TSimpleOperationCommandBase<NApi::TSuspendOperationOptions>
 {
 public:
     void Execute(ICommandContextPtr context);
@@ -194,7 +201,7 @@ public:
 };
 
 class TResumeOperationCommand
-    : public TSimpleOperationCommandBase
+    : public TSimpleOperationCommandBase<NApi::TResumeOperationOptions>
 {
 public:
     void Execute(ICommandContextPtr context);
@@ -202,7 +209,7 @@ public:
 };
 
 class TCompleteOperationCommand
-    : public TSimpleOperationCommandBase
+    : public TSimpleOperationCommandBase<NApi::TCompleteOperationOptions>
 {
 public:
     void Execute(ICommandContextPtr context);
