@@ -436,6 +436,16 @@ bool TStoreManagerBase::IsForcedRotationPossible() const
     return true;
 }
 
+ISortedStoreManagerPtr TStoreManagerBase::AsSorted()
+{
+    YUNREACHABLE();
+}
+
+IOrderedStoreManagerPtr TStoreManagerBase::AsOrdered()
+{
+    YUNREACHABLE();
+}
+
 void TStoreManagerBase::CheckForUnlockedStore(IDynamicStore* store)
 {
     if (store == GetActiveStore() || store->GetLockCount() > 0) {

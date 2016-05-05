@@ -95,9 +95,31 @@ struct IStoreManager
         TTableMountConfigPtr mountConfig,
         TTabletWriterOptionsPtr writerOptions) = 0;
 
+
+    virtual ISortedStoreManagerPtr AsSorted() = 0;
+    virtual IOrderedStoreManagerPtr AsOrdered() = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IStoreManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A refinement of IStoreManager for sorted tablets.
+struct ISortedStoreManager
+    : public virtual IStoreManager
+{ };
+
+DEFINE_REFCOUNTED_TYPE(ISortedStoreManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A refinement of IStoreManager for ordered tablets.
+struct IOrderedStoreManager
+    : public virtual IStoreManager
+{ };
+
+DEFINE_REFCOUNTED_TYPE(IOrderedStoreManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
