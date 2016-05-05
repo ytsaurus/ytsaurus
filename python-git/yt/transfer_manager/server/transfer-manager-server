@@ -977,7 +977,8 @@ class Application(object):
                 if source_client.row_count(task.source_table) > 0:
                     path = yt.TablePath(task.source_table, ranges=[{"upper_limit": {"row_index": 1}}], client=source_client)
                     try:
-                        stream = source_client.read_table(path, format=yt.YamrFormat(), raw=True).next()
+                        stream = source_client.read_table(path, format=yt.YamrFormat(), raw=True)
+                        stream.next()
                         stream.close()
                     except yt.YtError as err:
                         raise yt.YtError("Failed to read first row in YAMR format", inner_errors=[err])
