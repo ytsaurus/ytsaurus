@@ -155,7 +155,7 @@ void TBlob::Allocate(size_t newCapacity)
 }
 void TBlob::Reallocate(size_t newCapacity)
 {
-    if (Begin_ == nullptr) {
+    if (!Begin_) {
         Allocate(newCapacity);
         return;
     }
@@ -171,7 +171,7 @@ void TBlob::Reallocate(size_t newCapacity)
 
 void TBlob::Free()
 {
-    if (Begin_ == nullptr) {
+    if (!Begin_) {
         return;
     }
     delete[] Begin_;
