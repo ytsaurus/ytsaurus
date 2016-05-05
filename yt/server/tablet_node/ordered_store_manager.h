@@ -50,6 +50,7 @@ public:
     virtual void CreateActiveStore() override;
 
     virtual bool IsStoreCompactable(IStorePtr store) const override;
+    virtual bool IsStoreFlushable(IStorePtr store) const override;
 
 private:
     TOrderedDynamicStorePtr ActiveStore_;

@@ -187,6 +187,25 @@ bool TOrderedStoreManager::IsStoreCompactable(IStorePtr /*store*/) const
     return false;
 }
 
+bool TOrderedStoreManager::IsStoreFlushable(IStorePtr store) const
+{
+    if (!TStoreManagerBase::IsStoreFlushable(store)) {
+        return false;
+    }
+
+    // Ensure that stores are being flushed in order.
+    auto orderedStore = store->AsOrdered();
+    i64 startingRowIndex = orderedStore->GetStartingRowIndex();
+    const auto& rowIndexMap = store->GetTablet()->StoreRowIndexMap();
+    auto it = rowIndexMap.find(startingRowIndex);
+    YCHECK(it != rowIndexMap.end());
+    if (it != rowIndexMap.begin() && (--it)->second->GetStoreState() != EStoreState::Persistent) {
+        return false;
+    }
+
+    return true;
+}
+
 IDynamicStore* TOrderedStoreManager::GetActiveStore() const
 {
     return ActiveStore_.Get();
