@@ -135,7 +135,7 @@ YtDriver.prototype.execute = function(
     this.__DBG("execute");
 
     var wrapped_input_stream = new YtWritableStream(this.low_watermark, this.high_watermark);
-    var wrapped_output_stream = new YtReadableStream(this.low_watermark, this.high_watermark);
+    var wrapped_output_stream = new YtReadableStream(this.high_watermark);
 
     this.__DBG("execute <<(" + wrapped_input_stream.__UUID + ") >>(" + wrapped_output_stream.__UUID + ")");
 

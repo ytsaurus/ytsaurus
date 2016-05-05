@@ -251,8 +251,8 @@ struct TExecuteRequest
         , ResponseParametersConsumer(ParameterCallback)
     {
         THREAD_AFFINITY_IS_V8();
-        YASSERT(Wrap);
 
+        YASSERT(Wrap);
         Wrap->Ref();
     }
 

@@ -10,8 +10,7 @@ var __DBG = require("./debug").that("B", "Writable Stream");
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtWritableStream(low_watermark, high_watermark) {
-    this.__DBG = __DBG.Tagged();
-
+    "use strict";
     stream.Stream.call(this);
 
     this.readable = false;
@@ -29,7 +28,7 @@ function YtWritableStream(low_watermark, high_watermark) {
             self.emit("drain");
         }
     };
-
+    this.__DBG = __DBG.Tagged(this._binding.cxx_id);
     this.__DBG("New");
 }
 

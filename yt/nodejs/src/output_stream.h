@@ -2,9 +2,9 @@
 
 #include "stream_base.h"
 
-#include <yt/core/concurrency/event_count.h>
+#include <yt/core/actions/future.h>
 
-#include <util/thread/lfqueue.h>
+#include <util/system/mutex.h>
 
 namespace NYT {
 namespace NNodeJS {
@@ -19,13 +19,10 @@ class TOutputStreamWrap
     , public TOutputStream
 {
 protected:
-    TOutputStreamWrap(ui64 lowWatermark, ui64 highWatermark);
+    TOutputStreamWrap(ui64 watermark);
     ~TOutputStreamWrap() throw();
 
 public:
-    using node::ObjectWrap::Ref;
-    using node::ObjectWrap::Unref;
-
     static v8::Persistent<v8::FunctionTemplate> ConstructorTemplate;
     static void Initialize(v8::Handle<v8::Object> target);
     static bool HasInstance(v8::Handle<v8::Value> value);
@@ -36,34 +33,20 @@ public:
     static v8::Handle<v8::Value> Pull(const v8::Arguments& args);
     v8::Handle<v8::Value> DoPull();
 
-    static v8::Handle<v8::Value> Drain(const v8::Arguments& args);
-    void DoDrain();
-
     static v8::Handle<v8::Value> Destroy(const v8::Arguments& args);
     void DoDestroy();
 
-    static v8::Handle<v8::Value> IsEmpty(const v8::Arguments& args);
-    static v8::Handle<v8::Value> IsDestroyed(const v8::Arguments& args);
-    static v8::Handle<v8::Value> IsPaused(const v8::Arguments& args);
-    static v8::Handle<v8::Value> IsCompleted(const v8::Arguments& args);
+    static v8::Handle<v8::Value> IsFlowing(const v8::Arguments& args);
+    v8::Handle<v8::Value> DoIsFlowing();
 
     // Asynchronous JS API.
-    static int AsyncOnData(eio_req* request);
-    void EmitAndStifleOnData();
-    void IgniteOnData();
+    static int AsyncOnFlowing(eio_req* request);
 
     // Diagnostics.
-    const ui32 GetBytesEnqueued()
-    {
-        return BytesEnqueued_.load(std::memory_order_relaxed);
-    }
+    const ui64 GetBytesEnqueued() const;
+    const ui64 GetBytesDequeued() const;
 
-    const ui32 GetBytesDequeued()
-    {
-        return BytesDequeued_.load(std::memory_order_relaxed);
-    }
-
-    void SetCompleted();
+    void MarkAsCompleted();
 
 protected:
     // C++ API.
@@ -71,56 +54,31 @@ protected:
     void DoWriteV(const TPart* parts, size_t count) override;
 
 private:
-    void WritePrologue();
-    void WriteEpilogue(char* buffer, size_t length);
-
-    void DisposeBuffers();
-
-private:
-    std::atomic<bool> IsDestroyed_ = {false};
-    std::atomic<bool> IsPaused_ = {false};
-    std::atomic<bool> IsCompleted_ = {false};
-
-    std::atomic<ui64> BytesInFlight_ = {0};
-    std::atomic<ui64> BytesEnqueued_ = {0};
-    std::atomic<ui64> BytesDequeued_ = {0};
-
-    const ui64 LowWatermark_;
-    const ui64 HighWatermark_;
-
-    NConcurrency::TEventCount Conditional_;
-    TLockFreeQueue<TOutputPart> Queue_;
+    bool CanFlow() const;
+    void ProtectedUpdateAndNotifyWriter(std::function<void()> mutator);
+    void PushToQueue(std::unique_ptr<char[]> blob, size_t length);
 
 private:
-    TOutputStreamWrap(const TOutputStreamWrap&);
-    TOutputStreamWrap& operator=(const TOutputStreamWrap&);
+    const ui64 Watermark_;
+
+    // Protects everything below.
+    TMutex Mutex_;
+
+    bool IsFlowing_ = false;
+    bool IsDestroyed_ = false;
+    bool IsCompleted_ = false;
+
+    ui64 BytesInFlight_ = 0;
+    ui64 BytesEnqueued_ = 0;
+    ui64 BytesDequeued_ = 0;
+
+    TPromise<void> WritePromise_;
+    std::deque<TOutputPart> Queue_;
+
+private:
+    TOutputStreamWrap(const TOutputStreamWrap&) = delete;
+    TOutputStreamWrap& operator=(const TOutputStreamWrap&) = delete;
 };
-
-inline void TOutputStreamWrap::EmitAndStifleOnData()
-{
-    bool expected = false;
-    if (IsPaused_.compare_exchange_strong(expected, true, std::memory_order_acquire)) {
-        AsyncRef(false);
-        EIO_PUSH(TOutputStreamWrap::AsyncOnData, this);
-    }
-}
-
-inline void TOutputStreamWrap::IgniteOnData()
-{
-    bool expected = true;
-    if (IsPaused_.compare_exchange_strong(expected, false, std::memory_order_release)) {
-        if (!Queue_.IsEmpty()) {
-            EmitAndStifleOnData();
-        }
-    }
-}
-
-inline void TOutputStreamWrap::SetCompleted()
-{
-    IsCompleted_ = true;
-
-    Conditional_.NotifyAll();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

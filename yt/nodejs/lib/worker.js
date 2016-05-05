@@ -229,6 +229,9 @@ process.on("uncaughtException", function(err) {
     if (err.trace) {
         console.error(err.trace);
     }
+    if (err.stack) {
+        console.error(err.stack);
+    }
     binding.ShutdownSingletons();
     process.exit(1);
 });

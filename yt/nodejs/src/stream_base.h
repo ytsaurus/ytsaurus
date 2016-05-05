@@ -25,21 +25,32 @@ public:
     void AsyncUnref();
 
 protected:
+    const ui32 Id_ = RandomNumber<ui32>();
     std::atomic<int> AsyncRefCounter_ = {0};
 
 protected:
     struct TOutputPart
     {
-        // The following data is allocated on the heap so we have to care
-        // about ownership transfer and/or freeing memory after structure
-        // disposal.
-        char*  Buffer;
-        size_t Length;
+        TOutputPart() = delete;
+        TOutputPart(TOutputPart&) = delete;
+        TOutputPart(TOutputPart&&) = default;
+
+        TOutputPart(std::unique_ptr<char[]> buffer, size_t length)
+            : Buffer(std::move(buffer))
+            , Length(length)
+        { }
+
+        std::unique_ptr<char[]> Buffer = nullptr;
+        size_t Length = 0;
+
+        inline explicit operator bool() const
+        {
+            return Buffer != nullptr && Length > 0;
+        }
     };
 
     struct TInputPart
     {
-        TNodeJSStreamBase* Stream;
         v8::Persistent<v8::Value> Handle;
 
         // The following data is owned by the handle hence no need to care
@@ -52,24 +63,24 @@ protected:
     template <bool acquireSyncRef>
     class TScopedRef
     {
-        TNodeJSStreamBase* Stream;
+        TNodeJSStreamBase* Stream_;
     public:
-        TScopedRef(TNodeJSStreamBase* stream)
-            : Stream(stream)
+        explicit TScopedRef(TNodeJSStreamBase* stream)
+            : Stream_(stream)
         {
-            Stream->AsyncRef(acquireSyncRef);
+            Stream_->AsyncRef(acquireSyncRef);
         }
         ~TScopedRef()
         {
-            Stream->AsyncUnref();
+            Stream_->AsyncUnref();
         }
     };
 
 private:
-    TNodeJSStreamBase(const TNodeJSStreamBase&);
-    TNodeJSStreamBase(TNodeJSStreamBase&&);
-    TNodeJSStreamBase& operator=(const TNodeJSStreamBase&);
-    TNodeJSStreamBase& operator=(TNodeJSStreamBase&&);
+    TNodeJSStreamBase(const TNodeJSStreamBase&) = delete;
+    TNodeJSStreamBase(TNodeJSStreamBase&&) = delete;
+    TNodeJSStreamBase& operator=(const TNodeJSStreamBase&) = delete;
+    TNodeJSStreamBase& operator=(TNodeJSStreamBase&&) = delete;
 
     static int UnrefCallback(eio_req*);
 };
