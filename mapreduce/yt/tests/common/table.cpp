@@ -31,50 +31,35 @@ private:
     THolder<TServer> Server;
 };
 
-void PrintTableIterator(TTableIterator&& it) {
-#define CALL_METHOD(it, method) \
-    Cout << "\t" #method ": " << it.method() << Endl;
-
-    CALL_METHOD(it, IsValid);
-    CALL_METHOD(it, GetTableIndex);
-    CALL_METHOD(it, GetRecordIndex);
-
-#undef CALL_METHOD
-}
-
 
 void DoIteratorTest(TServer& server, const char* tableName) {
     Cout << "=======" << tableName << "=======" << Endl;
     TClient client(server);
     TTable table(client, tableName);
 
-#define CALL_METHOD_K(key, method) \
-    Cout << "Key: '" << key << "'\n"; \
-    PrintTableIterator(table.method(key));
+    {
+        yvector<const char*> keys = { "a", "b", "c", "d", "e", "g", "i", "j", "aa", "bb", "0", "ee", "", "zzz" };
 
-#define CHECK_METHOD(table, method) \
-    Cout << "------CHECK " #method "------" << Endl; \
-    CALL_METHOD_K("a", method); \
-    CALL_METHOD_K("b", method); \
-    CALL_METHOD_K("c", method); \
-    CALL_METHOD_K("d", method); \
-    CALL_METHOD_K("e", method); \
-    CALL_METHOD_K("g", method); \
-    CALL_METHOD_K("i", method); \
-    CALL_METHOD_K("j", method); \
-    CALL_METHOD_K("aa", method); \
-    CALL_METHOD_K("bb", method); \
-    CALL_METHOD_K("0", method); \
-    CALL_METHOD_K("ee", method); \
-    CALL_METHOD_K("", method); \
-    CALL_METHOD_K("zzz", method);
+        for (auto& key : keys) {
+#define CALL_METHOD(table, method, key) \
+{   \
+    auto it = table.method(key); \
+    Cout << "\tKey: " << key     \
+        << " Method: " #method   \
+        << " IsValid: " << it.IsValid() \
+        << " GetTableIndex: " << it.GetTableIndex() \
+        << " GetRecordIndex: " << it.GetRecordIndex() \
+        << "\n"; \
+}
 
-    CHECK_METHOD(table, Find);
-    CHECK_METHOD(table, LowerBound);
-    CHECK_METHOD(table, UpperBound);
+        CALL_METHOD(table, Find, key);
+        CALL_METHOD(table, LowerBound, key);
+        CALL_METHOD(table, UpperBound, key);
 
-#undef CHECK_METHOD
-#undef CALL_METHOD_K
+#undef CALL_METHOD
+        }
+    }
+
 }
 /*
 void PrintTable(TServer& server, const char* tableName) {
@@ -93,20 +78,25 @@ void PrintTable(TServer& server, const char* tableName) {
 
 YT_TEST(TFixture, IteratorMethods) {
     const char* TABLE = "tmp/table";
-    const char* SORTED_TABLE = "tmp/sorted_table";
     {
         TClient client(GetServer());
         TUpdate update(client, TABLE);
-        TUpdate updateSorted(client, SORTED_TABLE, UM_SORTED);
-        for (int i = 0; i < 5; ++i) {
-            auto key = Sprintf("%c", 'a' + (i * 2));
-            auto subkey = Sprintf("%d", i * 2);
-            auto value = Sprintf("%d", i * 4);
-            update.AddSub(key, subkey, value);
-            updateSorted.AddSub(key, subkey, value);
-        }
+        update.AddSub("a", "a", "0");
+        update.AddSub("c", "c", "2");
+        update.AddSub("e", "e", "2");
+        update.AddSub("g", "g", "2");
+        update.AddSub("i", "i", "2");
     }
-
+    const char* SORTED_TABLE = "tmp/sorted_table";
+    {
+        TClient client(GetServer());
+        TUpdate updateSorted(client, SORTED_TABLE, UM_SORTED);
+        updateSorted.AddSub("a", "a", "0");
+        updateSorted.AddSub("c", "c", "2");
+        updateSorted.AddSub("e", "e", "2");
+        updateSorted.AddSub("g", "g", "2");
+        updateSorted.AddSub("i", "i", "2");
+    }
     const char* EMPTY_TABLE = "tmp/empty_table";
     {
         TClient client(GetServer());
