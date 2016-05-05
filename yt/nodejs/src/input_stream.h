@@ -2,10 +2,9 @@
 
 #include "stream_base.h"
 
-#include <util/system/condvar.h>
-#include <util/system/mutex.h>
+#include <yt/core/actions/future.h>
 
-#include <deque>
+#include <util/system/mutex.h>
 
 namespace NYT {
 namespace NNodeJS {
@@ -41,53 +40,44 @@ public:
     void DoDestroy();
 
     // Asynchronous JS API.
-    static v8::Handle<v8::Value> Sweep(const v8::Arguments& args);
     static int AsyncSweep(eio_req* request);
     void EnqueueSweep(bool withinV8);
     void DoSweep();
 
-    static v8::Handle<v8::Value> Drain(const v8::Arguments& args);
     static int AsyncDrain(eio_req* request);
     void EnqueueDrain(bool withinV8);
-    void DoDrain();
 
     // Diagnostics.
-    const ui32 GetBytesEnqueued()
-    {
-        return BytesEnqueued_.load(std::memory_order_relaxed);
-    }
-
-    const ui32 GetBytesDequeued()
-    {
-        return BytesDequeued_.load(std::memory_order_relaxed);
-    }
+    const ui64 GetBytesEnqueued() const;
+    const ui64 GetBytesDequeued() const;
 
 protected:
     // C++ API.
     size_t DoRead(void* data, size_t length) override;
 
 private:
-    void Dispose();
+    void ProtectedUpdateAndNotifyReader(std::function<void()> mutator);
+    void DisposeStream();
     void DisposeHandles(std::deque<std::unique_ptr<TInputPart>>* queue);
-    void UpdateV8Properties();
 
 private:
-    std::atomic<bool> IsPushable_ = {true};
-    std::atomic<bool> IsReadable_ = {true};
+    const ui64 LowWatermark_;
+    const ui64 HighWatermark_;
 
     std::atomic<bool> SweepRequestPending_ = {false};
     std::atomic<bool> DrainRequestPending_ = {false};
 
-    std::atomic<ui64> BytesInFlight_ = {0};
-    std::atomic<ui64> BytesEnqueued_ = {0};
-    std::atomic<ui64> BytesDequeued_ = {0};
-
-    const ui64 LowWatermark_;
-    const ui64 HighWatermark_;
-
+    // Protects everything below.
     TMutex Mutex_;
-    TCondVar Conditional_;
 
+    bool IsPushable_ = true;
+    bool IsReadable_ = true;
+
+    ui64 BytesInFlight_ = 0;
+    ui64 BytesEnqueued_ = 0;
+    ui64 BytesDequeued_ = 0;
+
+    TPromise<void> ReadPromise_;
     std::deque<std::unique_ptr<TInputPart>> ActiveQueue_;
     std::deque<std::unique_ptr<TInputPart>> InactiveQueue_;
 
@@ -95,24 +85,6 @@ private:
     TInputStreamWrap(const TInputStreamWrap&) = delete;
     TInputStreamWrap& operator=(const TInputStreamWrap&) = delete;
 };
-
-inline void TInputStreamWrap::EnqueueSweep(bool withinV8)
-{
-    bool expected = false;
-    if (SweepRequestPending_.compare_exchange_strong(expected, true, std::memory_order_acquire)) {
-        AsyncRef(withinV8);
-        EIO_PUSH(TInputStreamWrap::AsyncSweep, this);
-    }
-}
-
-inline void TInputStreamWrap::EnqueueDrain(bool withinV8)
-{
-    bool expected = false;
-    if (DrainRequestPending_.compare_exchange_strong(expected, true, std::memory_order_acquire)) {
-        AsyncRef(withinV8);
-        EIO_PUSH(TInputStreamWrap::AsyncDrain, this);
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

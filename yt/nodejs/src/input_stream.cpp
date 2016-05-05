@@ -1,6 +1,6 @@
 #include "input_stream.h"
 
-#include <util/system/spinlock.h>
+#include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NNodeJS {
@@ -9,17 +9,18 @@ namespace NNodeJS {
 
 COMMON_V8_USES
 
+using namespace NYT::NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
 static Persistent<String> OnDrainSymbol;
-static Persistent<String> ActiveQueueSizeSymbol;
-static Persistent<String> InactiveQueueSizeSymbol;
 
 static const unsigned int NumberOfSpins = 4;
 
 } // namespace
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +40,7 @@ TInputStreamWrap::~TInputStreamWrap() throw()
 {
     THREAD_AFFINITY_IS_V8();
 
-    Dispose();
+    DisposeStream();
 
     YCHECK(ActiveQueue_.size() == 0);
     YCHECK(InactiveQueue_.size() == 0);
@@ -53,8 +54,6 @@ void TInputStreamWrap::Initialize(Handle<Object> target)
     HandleScope scope;
 
     OnDrainSymbol = NODE_PSYMBOL("on_drain");
-    ActiveQueueSizeSymbol = NODE_PSYMBOL("active_queue_size");
-    InactiveQueueSizeSymbol = NODE_PSYMBOL("inactive_queue_size");
 
     ConstructorTemplate = Persistent<FunctionTemplate>::New(
         FunctionTemplate::New(TInputStreamWrap::New));
@@ -63,7 +62,6 @@ void TInputStreamWrap::Initialize(Handle<Object> target)
     ConstructorTemplate->SetClassName(String::NewSymbol("TInputStreamWrap"));
 
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Push", TInputStreamWrap::Push);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Sweep", TInputStreamWrap::Sweep);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "End", TInputStreamWrap::End);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Destroy", TInputStreamWrap::Destroy);
 
@@ -110,6 +108,10 @@ Handle<Value> TInputStreamWrap::New(const Arguments& args)
             String::NewSymbol("high_watermark"),
             Integer::NewFromUnsigned(highWatermark),
             (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
+        stream->handle_->Set(
+            String::NewSymbol("cxx_id"),
+            Integer::NewFromUnsigned(stream->Id_),
+            (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
 
         return scope.Close(args.This());
     } catch (const std::exception& ex) {
@@ -129,8 +131,7 @@ Handle<Value> TInputStreamWrap::Push(const Arguments& args)
     HandleScope scope;
 
     // Unwrap.
-    TInputStreamWrap* stream =
-        ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
+    auto* stream = ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
 
     // Validate arguments.
     YCHECK(args.Length() == 3);
@@ -151,30 +152,28 @@ Handle<Value> TInputStreamWrap::DoPush(Persistent<Value> handle, char* buffer, s
 {
     THREAD_AFFINITY_IS_V8();
 
-    if (!IsPushable_.load(std::memory_order_relaxed)) {
-        return Undefined();
-    }
+    bool canPushAgain = false;
 
-    auto part = std::make_unique<TInputPart>();
-    part->Stream = this;
-    part->Handle = handle;
-    part->Buffer = buffer;
-    part->Offset = offset;
-    part->Length = length;
+    ProtectedUpdateAndNotifyReader([&] () {
+        if (!IsPushable_) {
+            return;
+        }
 
-    {
-        TGuard<TMutex> guard(&Mutex_);
+        auto part = std::make_unique<TInputPart>();
+        part->Handle = handle;
+        part->Buffer = buffer;
+        part->Offset = offset;
+        part->Length = length;
+
         ActiveQueue_.emplace_back(std::move(part));
-        Conditional_.BroadCast();
-    }
 
-    BytesEnqueued_.fetch_add(length, std::memory_order_relaxed);
-    auto transientSize = BytesInFlight_.fetch_add(length, std::memory_order_relaxed);
-    if (transientSize > HighWatermark_) {
-        return v8::False();
-    } else {
-        return v8::True();
-    }
+        BytesEnqueued_ += length;
+        BytesInFlight_ += length;
+
+        canPushAgain = BytesInFlight_ < HighWatermark_;
+    });
+
+    return Boolean::New(canPushAgain);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -185,8 +184,7 @@ Handle<Value> TInputStreamWrap::End(const Arguments& args)
     HandleScope scope;
 
     // Unwrap.
-    TInputStreamWrap* stream =
-        ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
+    auto* stream = ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
 
     // Validate arguments.
     YCHECK(args.Length() == 0);
@@ -201,11 +199,9 @@ void TInputStreamWrap::DoEnd()
 {
     THREAD_AFFINITY_IS_V8();
 
-    {
-        TGuard<TMutex> guard(&Mutex_);
-        IsPushable_.store(false, std::memory_order_seq_cst);
-        Conditional_.BroadCast();
-    }
+    ProtectedUpdateAndNotifyReader([&] () {
+        IsPushable_ = false;
+    });
 
     EnqueueSweep(true);
 }
@@ -218,8 +214,7 @@ Handle<Value> TInputStreamWrap::Destroy(const Arguments& args)
     HandleScope scope;
 
     // Unwrap.
-    TInputStreamWrap* stream =
-        ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
+    auto* stream = ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
 
     // Validate arguments.
     YCHECK(args.Length() == 0);
@@ -234,62 +229,24 @@ void TInputStreamWrap::DoDestroy()
 {
     THREAD_AFFINITY_IS_V8();
 
-    Dispose();
+    DisposeStream();
+
     EnqueueDrain(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-struct TAlreadyLockedOps {
-    static inline void Acquire(T* t)
-    { }
-    static inline void Release(T* t)
-    {
-        t->Release();
-    }
-};
-
-Handle<Value> TInputStreamWrap::Sweep(const Arguments& args)
+struct TSpinningLockOps
 {
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    // Unwrap.
-    TInputStreamWrap* stream =
-        ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
-
-    // Validate arguments.
-    YCHECK(args.Length() == 0);
-
-    // Do the work.
-    stream->EnqueueSweep(true);
-
-    return Undefined();
-}
-
-int TInputStreamWrap::AsyncSweep(eio_req* request)
-{
-    THREAD_AFFINITY_IS_V8();
-    TInputStreamWrap* stream = static_cast<TInputStreamWrap*>(request->data);
-    stream->SweepRequestPending_.store(false, std::memory_order_release);
-    stream->DoSweep();
-    stream->AsyncUnref();
-    return 0;
-}
-
-void TInputStreamWrap::DoSweep()
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    // Since this function is invoked from V8, we are trying to avoid
-    // all blocking operations. For example, it is better to reschedule
-    // the sweep if the mutex is already acquired.
+    // When a function is invoked from V8, we are trying to avoid
+    // all blocking operations. So it is better to reschedule the function
+    // if the mutex is already acquired.
+    static inline bool TryAcquire(T* t)
     {
         bool mutexAcquired = false;
         for (unsigned int outerSpin = 0; outerSpin < NumberOfSpins; ++outerSpin) {
-            if (Mutex_.TryAcquire()) {
+            if (t->TryAcquire()) {
                 mutexAcquired = true;
                 break;
             }
@@ -297,74 +254,103 @@ void TInputStreamWrap::DoSweep()
                 SpinLockPause();
             }
         }
-
-        if (!mutexAcquired) {
-            EnqueueSweep(true);
-            return;
-        }
+        return mutexAcquired;
     }
 
-    TGuard<TMutex, TAlreadyLockedOps<TMutex>> guard(&Mutex_);
-    DisposeHandles(&InactiveQueue_);
+    static inline void Release(T* t)
+    {
+        t->Release();
+    }
+};
 
-    UpdateV8Properties();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-Handle<Value> TInputStreamWrap::Drain(const Arguments& args)
+int TInputStreamWrap::AsyncSweep(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    // Unwrap.
-    TInputStreamWrap* stream =
-        ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
+    auto* stream = static_cast<TInputStreamWrap*>(request->data);
+    stream->SweepRequestPending_.store(false, std::memory_order_release);
+    stream->DoSweep();
+    stream->AsyncUnref();
 
-    // Validate arguments.
-    YCHECK(args.Length() == 0);
-
-    // Do the work.
-    stream->EnqueueDrain(true);
-
-    return Undefined();
+    return 0;
 }
+
+void TInputStreamWrap::EnqueueSweep(bool withinV8)
+{
+    bool expected = false;
+    if (SweepRequestPending_.compare_exchange_strong(expected, true, std::memory_order_acquire)) {
+        AsyncRef(withinV8);
+        EIO_PUSH(TInputStreamWrap::AsyncSweep, this);
+    }
+}
+
+void TInputStreamWrap::DoSweep()
+{
+    THREAD_AFFINITY_IS_V8();
+
+    {
+        TTryGuard<TMutex, TSpinningLockOps<TMutex>> guard(&Mutex_);
+        if (!guard) {
+            EnqueueSweep(true);
+            return;
+        }
+
+        DisposeHandles(&InactiveQueue_);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 int TInputStreamWrap::AsyncDrain(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
-    TInputStreamWrap* stream = static_cast<TInputStreamWrap*>(request->data);
+    HandleScope scope;
+
+    auto* stream = static_cast<TInputStreamWrap*>(request->data);
     stream->DrainRequestPending_.store(false, std::memory_order_release);
-    stream->DoDrain();
+    node::MakeCallback(stream->handle_, OnDrainSymbol, 0, nullptr);
     stream->AsyncUnref();
+
     return 0;
 }
 
-void TInputStreamWrap::DoDrain()
+void TInputStreamWrap::EnqueueDrain(bool withinV8)
 {
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    UpdateV8Properties();
-
-    node::MakeCallback(this->handle_, OnDrainSymbol, 0, nullptr);
+    bool expected = false;
+    if (DrainRequestPending_.compare_exchange_strong(expected, true, std::memory_order_acquire)) {
+        AsyncRef(withinV8);
+        EIO_PUSH(TInputStreamWrap::AsyncDrain, this);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const ui64 TInputStreamWrap::GetBytesEnqueued() const
+{
+    auto guard = Guard(Mutex_);
+    return BytesEnqueued_;
+}
+
+const ui64 TInputStreamWrap::GetBytesDequeued() const
+{
+    auto guard = Guard(Mutex_);
+    return BytesDequeued_;
+}
+
 size_t TInputStreamWrap::DoRead(void* data, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
-
-    if (!IsReadable_.load(std::memory_order_relaxed)) {
-        THROW_ERROR_EXCEPTION("TInputStreamWrap was terminated");
-    }
 
     TScopedRef<false> guardAsyncRef(this);
     TGuard<TMutex> guard(&Mutex_);
 
     size_t result = 0;
     while (length > 0 && result == 0) {
+        if (!IsReadable_) {
+            THROW_ERROR_EXCEPTION("TInputStreamWrap was terminated");
+        }
+
         auto
             it = ActiveQueue_.begin(),
             jt = ActiveQueue_.end(),
@@ -408,17 +394,20 @@ size_t TInputStreamWrap::DoRead(void* data, size_t length)
         ActiveQueue_.erase(ActiveQueue_.begin(), kt);
 
         if (!canReadSomething) {
-            if (!IsPushable_.load(std::memory_order_relaxed)) {
+            if (!IsPushable_) {
                 return 0;
             }
 
-            Conditional_.WaitI(Mutex_);
+            YCHECK(!ReadPromise_);
+            ReadPromise_ = NewPromise<void>();
 
-            if (!IsReadable_.load(std::memory_order_relaxed)) {
-                THROW_ERROR_EXCEPTION("TInputStreamWrap was terminated");
+            auto readPromise = ReadPromise_;
+
+            {
+                auto unguard = Unguard(Mutex_);
+                WaitFor(readPromise.ToFuture())
+                    .ThrowOnError();
             }
-
-            continue;
         }
     };
 
@@ -432,9 +421,10 @@ size_t TInputStreamWrap::DoRead(void* data, size_t length)
         EnqueueSweep(false);
     }
 
-    BytesDequeued_.fetch_add(result);
-    auto transientSize = BytesInFlight_.fetch_sub(result);
-    if (transientSize - result < LowWatermark_ && LowWatermark_ <= transientSize) {
+    BytesDequeued_ += result;
+    BytesInFlight_ -= result;
+
+    if (BytesInFlight_ < LowWatermark_ && LowWatermark_ <= BytesInFlight_ + result) {
         EnqueueDrain(false);
     }
 
@@ -443,38 +433,36 @@ size_t TInputStreamWrap::DoRead(void* data, size_t length)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TInputStreamWrap::UpdateV8Properties()
+void TInputStreamWrap::ProtectedUpdateAndNotifyReader(std::function<void()> mutator)
 {
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    handle_->Set(
-        ActiveQueueSizeSymbol,
-        Integer::NewFromUnsigned(ActiveQueue_.size()),
-        (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
-
-    handle_->Set(
-        InactiveQueueSizeSymbol,
-        Integer::NewFromUnsigned(InactiveQueue_.size()),
-        (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
+    TPromise<void> readPromise;
+    {
+        auto guard = Guard(Mutex_);
+        mutator();
+        if (ReadPromise_) {
+            readPromise = std::move(ReadPromise_);
+        }
+    }
+    if (readPromise) {
+        readPromise.Set();
+    }
 }
 
-void TInputStreamWrap::Dispose()
+void TInputStreamWrap::DisposeStream()
 {
     THREAD_AFFINITY_IS_V8();
 
-    TGuard<TMutex> guard(&Mutex_);
-    DisposeHandles(&InactiveQueue_);
-    DisposeHandles(&ActiveQueue_);
-    IsPushable_ = false;
-    IsReadable_ = false;
-    Conditional_.BroadCast();
+    ProtectedUpdateAndNotifyReader([&] () {
+        IsPushable_ = false;
+        IsReadable_ = false;
+        DisposeHandles(&InactiveQueue_);
+        DisposeHandles(&ActiveQueue_);
+    });
 }
 
 void TInputStreamWrap::DisposeHandles(std::deque<std::unique_ptr<TInputPart>>* queue)
 {
     THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
 
     for (auto& part : *queue) {
         part->Handle.Dispose();

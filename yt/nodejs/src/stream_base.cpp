@@ -11,7 +11,11 @@ COMMON_V8_USES
 
 TNodeJSStreamBase::TNodeJSStreamBase() = default;
 
-TNodeJSStreamBase::~TNodeJSStreamBase() = default;
+TNodeJSStreamBase::~TNodeJSStreamBase()
+{
+    YCHECK(AsyncRefCounter_ == 0);
+    YCHECK(refs_ == 0);
+}
 
 void TNodeJSStreamBase::AsyncRef(bool acquireSyncRef)
 {
@@ -20,6 +24,7 @@ void TNodeJSStreamBase::AsyncRef(bool acquireSyncRef)
             THREAD_AFFINITY_IS_V8();
             Ref();
         } else {
+            THREAD_AFFINITY_IS_ANY();
             YUNREACHABLE();
         }
     }
@@ -39,10 +44,8 @@ int TNodeJSStreamBase::UnrefCallback(eio_req* request)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    TNodeJSStreamBase* stream = static_cast<TNodeJSStreamBase*>(request->data);
-
-    YASSERT(stream->AsyncRefCounter_.load() == 0);
-
+    auto* stream = static_cast<TNodeJSStreamBase*>(request->data);
+    YCHECK(stream->AsyncRefCounter_ + stream->refs_ > 0);
     stream->Unref();
 
     return 0;

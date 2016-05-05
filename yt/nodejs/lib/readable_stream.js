@@ -10,10 +10,8 @@ var __DBG = require("./debug").that("B", "Readable Stream");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtReadableStream(low_watermark, high_watermark) {
+function YtReadableStream(watermark) {
     "use strict";
-    this.__DBG = __DBG.Tagged();
-
     stream.Stream.call(this);
 
     this.readable = true;
@@ -26,12 +24,13 @@ function YtReadableStream(low_watermark, high_watermark) {
 
     var self = this;
 
-    this._binding = new binding.TOutputStreamWrap(low_watermark, high_watermark);
-    this._binding.on_data = function() {
-        self.__DBG("Bindings (OutputStream) -> on_data");
+    this._binding = new binding.TOutputStreamWrap(watermark);
+    this._binding.on_flowing = function() {
+        self.__DBG("Bindings (OutputStream) -> on_flowing");
         self._consumeData();
     };
 
+    this.__DBG = __DBG.Tagged(this._binding.cxx_id);
     this.__DBG("New");
 }
 
@@ -61,7 +60,6 @@ YtReadableStream.prototype._consumeData = function() {
     if (i > 0) {
         process.nextTick(this._consumeData.bind(this));
     } else {
-        this._binding.Drain();
         this.emit("_drain");
     }
 };
@@ -83,11 +81,11 @@ YtReadableStream.prototype._endSoon = function() {
         return;
     }
 
-    if (this._binding.IsEmpty()) {
+    if (!this._binding.IsFlowing()) {
         var self = this;
         process.nextTick(function() {
             self.__DBG("_endSoon -> (inner-tick)");
-            assert.ok(self._binding.IsEmpty());
+            assert.ok(!self._binding.IsFlowing());
             self._emitEnd();
             self.readable = false;
         });

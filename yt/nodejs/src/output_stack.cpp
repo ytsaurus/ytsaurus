@@ -58,7 +58,7 @@ void TNodeJSOutputStack::DoFlush()
 
 void TNodeJSOutputStack::DoFinish()
 {
-    GetBaseStream()->SetCompleted();
+    GetBaseStream()->MarkAsCompleted();
 
     for (auto* current : *this) {
         current->Finish();
