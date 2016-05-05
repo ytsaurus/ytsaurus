@@ -1,6 +1,7 @@
 #include "details.h"
 
 #include <yt/core/misc/blob.h>
+#include <yt/core/misc/finally.h>
 
 #include <contrib/libs/brotli/enc/encode.h>
 #include <contrib/libs/brotli/dec/decode.h>
@@ -79,6 +80,9 @@ void BrotliDecompress(StreamSource* source, TBlob* output)
 
     BrotliState state;
     BrotliStateInit(&state);
+    auto brotliCleanupGuard = Finally([&] {
+        BrotliStateCleanup(&state);
+    });
     size_t consumedOutputSize = 0;
     bool isLastBlock = false;
 
