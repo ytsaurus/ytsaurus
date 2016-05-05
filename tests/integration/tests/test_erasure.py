@@ -33,13 +33,14 @@ class TestErasure(YTEnvSetup):
         self._do_test_simple("lrc_12_2_2")
 
     def _is_chunk_ok(self, chunk_id):
-        if get("#%s/@lost" % chunk_id):
+        status =  get("#%s/@replication_status" % chunk_id)
+        if status["lost"]:
+            return False
+        if status["data_missing"]:
+            return False
+        if status["parity_missing"]:
             return False
         if not get("#%s/@available" % chunk_id):
-            return False
-        if get("#%s/@data_missing" % chunk_id):
-            return False
-        if get("#%s/@parity_missing" % chunk_id):
             return False
         return True
 
