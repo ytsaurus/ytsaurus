@@ -110,8 +110,6 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        RequireLeader();
-
         const auto* transaction = GetThisTypedImpl();
 
         if (key == "state") {
@@ -241,11 +239,10 @@ private:
 
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
     {
-        RequireLeader();
-
         const auto* transaction = GetThisTypedImpl();
 
         if (key == "last_ping_time") {
+            RequireLeader();
             return Bootstrap_
                 ->GetTransactionManager()
                 ->GetLastPingTime(transaction)
