@@ -14,7 +14,7 @@ namespace NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStoreManagerBase
-    : public IStoreManager
+    : public virtual IStoreManager
 {
 public:
     TStoreManagerBase(
@@ -72,6 +72,9 @@ public:
     virtual bool IsPeriodicRotationNeeded() const override;
     virtual bool IsRotationPossible() const override;
     virtual bool IsForcedRotationPossible() const override;
+
+    virtual ISortedStoreManagerPtr AsSorted() override;
+    virtual IOrderedStoreManagerPtr AsOrdered() override;
 
 protected:
     const TTabletManagerConfigPtr Config_;

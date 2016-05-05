@@ -16,6 +16,7 @@ namespace NTabletNode {
 
 class TSortedStoreManager
     : public TStoreManagerBase
+    , public ISortedStoreManager
 {
 public:
     TSortedStoreManager(
@@ -63,6 +64,8 @@ public:
     virtual void CreateActiveStore() override;
 
     virtual bool IsStoreCompactable(IStorePtr store) const override;
+
+    virtual ISortedStoreManagerPtr AsSorted() override;
 
 private:
     const int KeyColumnCount_;

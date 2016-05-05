@@ -411,6 +411,11 @@ bool TSortedStoreManager::IsStoreCompactable(IStorePtr store) const
     return true;
 }
 
+ISortedStoreManagerPtr TSortedStoreManager::AsSorted()
+{
+    return this;
+}
+
 void TSortedStoreManager::ValidateOnWrite(
     const TTransactionId& transactionId,
     TUnversionedRow row)

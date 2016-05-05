@@ -206,6 +206,11 @@ bool TOrderedStoreManager::IsStoreFlushable(IStorePtr store) const
     return true;
 }
 
+IOrderedStoreManagerPtr TOrderedStoreManager::AsOrdered()
+{
+    return this;
+}
+
 IDynamicStore* TOrderedStoreManager::GetActiveStore() const
 {
     return ActiveStore_.Get();

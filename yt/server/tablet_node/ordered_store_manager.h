@@ -16,6 +16,7 @@ namespace NTabletNode {
 
 class TOrderedStoreManager
     : public TStoreManagerBase
+    , public IOrderedStoreManager
 {
 public:
     TOrderedStoreManager(
@@ -51,6 +52,8 @@ public:
 
     virtual bool IsStoreCompactable(IStorePtr store) const override;
     virtual bool IsStoreFlushable(IStorePtr store) const override;
+
+    virtual IOrderedStoreManagerPtr AsOrdered() override;
 
 private:
     TOrderedDynamicStorePtr ActiveStore_;
