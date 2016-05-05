@@ -8,6 +8,8 @@
 #include "output_stack.h"
 #include "output_stream.h"
 
+#include <yt/ytlib/chunk_client/dispatcher.h>
+
 #include <yt/ytlib/driver/config.h>
 #include <yt/ytlib/driver/driver.h>
 
@@ -316,8 +318,9 @@ struct TExecuteRequest
     {
         Request.data = this;
 
-        DriverRequest.InputStream = CreateAsyncAdapter(&InputStack);
-        DriverRequest.OutputStream = CreateAsyncAdapter(&OutputStack);
+        auto invoker = NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker();
+        DriverRequest.InputStream = CreateAsyncAdapter(&InputStack, invoker);
+        DriverRequest.OutputStream = CreateAsyncAdapter(&OutputStack, invoker);
         DriverRequest.ResponseParametersConsumer = &ResponseParametersConsumer;
     }
 
