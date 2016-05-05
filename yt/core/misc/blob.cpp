@@ -7,7 +7,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 const size_t InitialBlobCapacity = 16;
-const double BlobCapacityMultiplier = 2.0;
+const double BlobCapacityMultiplier = 1.5;
 
 TBlob::TBlob(TRefCountedTypeCookie tagCookie, size_t size, bool initiailizeStorage)
 {
@@ -145,6 +145,7 @@ void TBlob::Reset()
 
 void TBlob::Allocate(size_t newCapacity)
 {
+    YCHECK(Begin_ == nullptr);
     Begin_ = new char[newCapacity];
     Capacity_ = newCapacity;
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
