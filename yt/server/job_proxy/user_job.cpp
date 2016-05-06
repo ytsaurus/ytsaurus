@@ -984,8 +984,8 @@ private:
         }
 
         i64 tmpfsSize = 0;
-        if (UserJobSpec_.has_tmpfs_size()) {
-            auto diskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->TmpfsPath);
+        if (Config_->TmpfsPath) {
+            auto diskSpaceStatistics = NFS::GetDiskSpaceStatistics(*Config_->TmpfsPath);
             tmpfsSize = diskSpaceStatistics.TotalSpace - diskSpaceStatistics.AvailableSpace;
         }
 

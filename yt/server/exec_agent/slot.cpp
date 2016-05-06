@@ -14,6 +14,8 @@
 
 #include <util/folder/dirut.h>
 
+#include <util/system/fs.h>
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -166,22 +168,19 @@ void TSlot::DoCleanSandbox(int pathIndex)
             RunTool<TUmountAsRootTool>(path);
         };
 
-        // Look mount points inside sandbox and unmount it.
-        auto mountPoints = NFS::GetMountPoints();
-        for (const auto& mountPoint : mountPoints) {
-            if (sandboxFullPath.is_prefix(mountPoint.Path)) {
-                // '/*' added since we need to remove only content.
-                removeMountPount(mountPoint.Path);
-            }
-        }
-
         // NB: iterating over /proc/mounts is not reliable,
         // see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=593516.
         // To avoid problems with undeleting tmpfs ordered by user in sandbox
-        // we always try to remove it separatly.
-        auto defaultTmpfsPath = GetTmpfsPath(sandboxKind);
-        if (NFS::Exists(defaultTmpfsPath)) {
-            removeMountPount(defaultTmpfsPath);
+        // we always try to remove it several times.
+        for (int attempt = 0; attempt < TmpfsRemoveAttemptCount; ++attempt) {
+            // Look mount points inside sandbox and unmount it.
+            auto mountPoints = NFS::GetMountPoints();
+            for (const auto& mountPoint : mountPoints) {
+                if (sandboxFullPath.is_prefix(mountPoint.Path)) {
+                    // '/*' added since we need to remove only content.
+                    removeMountPount(mountPoint.Path);
+                }
+            }
         }
 
         try {
@@ -270,16 +269,21 @@ void TSlot::InitSandbox()
 
 void TSlot::PrepareTmpfs(
     ESandboxKind sandboxKind,
-    i64 size)
+    i64 size,
+    Stroka path)
 {
     if (!UserId_) {
         THROW_ERROR_EXCEPTION("Cannot mount tmpfs since job control is disabled");
     }
 
     auto config = New<TMountTmpfsConfig>();
-    config->Path = GetTmpfsPath(sandboxKind);
+    config->Path = GetTmpfsPath(sandboxKind, path);
     config->Size = size;
-    config->UserId = *UserId_;
+
+    auto isSandbox = (config->Path == SandboxPaths_[PathIndex_][sandboxKind]);
+    config->UserId = isSandbox
+        ? ::geteuid()
+        : *UserId_;
 
     LOG_DEBUG("Preparing tmpfs (Path: %v, Size: %v, UserId: %v)",
         config->Path,
@@ -288,23 +292,37 @@ void TSlot::PrepareTmpfs(
 
     NFS::ForcePath(config->Path);
     RunTool<TMountTmpfsAsRootTool>(config);
+    if (isSandbox) {
+        NFS::Chmod(config->Path, 0777);
+    }
 }
 
-Stroka TSlot::GetTmpfsPath(ESandboxKind sandboxKind) const
+Stroka TSlot::GetTmpfsPath(ESandboxKind sandboxKind, const Stroka& path) const
 {
-    return NFS::CombinePaths(SandboxPaths_[PathIndex_][sandboxKind], TmpfsDirName);
+    auto sandboxPath = SandboxPaths_[PathIndex_][sandboxKind];
+    auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, path));
+    if (!sandboxPath.is_prefix(tmpfsPath)) {
+        THROW_ERROR_EXCEPTION("Path of the tmpfs mount point must be inside the sandbox directory")
+            << TErrorAttribute("snadbox_path", sandboxPath)
+            << TErrorAttribute("tmpfs_path", tmpfsPath);
+    }
+    return tmpfsPath;
 }
 
 void TSlot::MakeLink(
     ESandboxKind sandboxKind,
     const Stroka& targetPath,
     const Stroka& linkName,
-    bool isExecutable) noexcept
+    bool isExecutable)
 {
     YCHECK(!IsFree());
 
     const auto& sandboxPath = SandboxPaths_[PathIndex_][sandboxKind];
     auto linkPath = NFS::CombinePaths(sandboxPath, linkName);
+    if (NFS::Exists(linkPath)) {
+        THROW_ERROR_EXCEPTION("Path %v already exists", linkPath);
+    }
+
     try {
         {
             // Take exclusive lock in blocking fashion to ensure that no
@@ -326,6 +344,29 @@ void TSlot::MakeLink(
             << ex);
     }
 }
+
+void TSlot::MakeCopy(
+    ESandboxKind sandboxKind,
+    const Stroka& sourcePath,
+    const Stroka& destinationName,
+    bool isExecutable)
+{
+    YCHECK(!IsFree());
+
+    const auto& sandboxPath = SandboxPaths_[PathIndex_][sandboxKind];
+    auto destinationPath = NFS::CombinePaths(sandboxPath, destinationName);
+
+    {
+        // Take exclusive lock in blocking fashion to ensure that no
+        // forked process is holding an open descriptor to the source file.
+        TFile file(sourcePath, RdOnly | CloseOnExec);
+        file.Flock(LOCK_EX);
+    }
+
+    NFS::SetExecutableMode(sourcePath, isExecutable);
+    NFs::Copy(sourcePath, destinationPath);
+}
+
 
 void TSlot::LogErrorAndExit(const TError& error)
 {
