@@ -191,8 +191,7 @@ def create_modules_archive_default(tempfiles_manager, client):
     files_to_compress = {}
     module_filter = get_config(client)["pickling"]["module_filter"]
     for module in sys.modules.values():
-        if module_filter is not None and \
-                not module_filter(module):
+        if module_filter is not None and not module_filter(module):
             continue
         if hasattr(module, "__file__"):
             file = find_file(module.__file__)
@@ -331,11 +330,12 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
             uploaded_files = []
             local_files_to_remove = tempfiles_manager._tempfiles_pool
         else:
-            file_args = map(os.path.basename, files)
+            file_args =  map(os.path.basename, files)
+            file_args[0] = "./" + file_args[0]
             uploaded_files = uploader(files)
             local_files_to_remove = []
 
-        cmd = "./" + " ".join(file_args)
+        cmd = " ".join(file_args)
 
         return cmd, uploaded_files, local_files_to_remove, 0
 
