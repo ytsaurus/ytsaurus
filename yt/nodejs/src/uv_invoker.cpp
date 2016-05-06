@@ -11,6 +11,10 @@ namespace NNodeJS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+COMMON_V8_USES
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TUVInvoker
     : public IInvoker
 {
@@ -60,6 +64,7 @@ private:
     static void Callback(uv_async_t* handle, int status)
     {
         THREAD_AFFINITY_IS_V8();
+        HandleScope scope;
 
         YCHECK(status == 0);
         YCHECK(handle->data);
