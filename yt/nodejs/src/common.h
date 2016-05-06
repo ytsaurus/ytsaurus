@@ -2,9 +2,6 @@
 
 #include <yt/core/misc/common.h>
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/lazy_ptr.h>
-
-#include <yt/core/ytree/public.h>
 
 #define BUILDING_NODE_EXTENSION
 
@@ -146,8 +143,6 @@ inline void Invoke(
     v8::Handle<v8::Value> args[] = {a1, a2, a3};
     node::MakeCallback(v8::Object::New(), callback, Y_ARRAY_SIZE(args), args);
 }
-
-IInvokerPtr GetUVInvoker();
 
 void InitializeCommon(v8::Handle<v8::Object> target);
 

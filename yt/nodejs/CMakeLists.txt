@@ -46,6 +46,7 @@ set( SRCS
   src/output_stub.cpp
   src/driver.cpp
   src/stream_stack.cpp
+  src/uv_invoker.cpp
 )
 
 NODE(ytnode ${SRCS} src/ytnode.cpp)
