@@ -129,8 +129,8 @@ void TestTableMethods(TServer& server, const char* tableName) {
             Cout << Sprintf(headerTemplate, "UpperBound", key)
                 << ItToString(table.UpperBound(key)) << "\n";
         }
+        yvector<char> value;
         for (const auto& key : KEYS) {
-            yvector<char> value;
             bool res = table.GetValueByKey(key, &value);
             Cout << Sprintf(headerTemplate, "GetValueByKey", key)
                 << res << " '" << TStringBuf(value.begin(), value.size()) << "'\n";
@@ -165,8 +165,8 @@ void TestTableMethods(TServer& server, const char* tableName) {
             Cout << Sprintf(headerTemplate, "UpperBoundSub", arg.first, arg.second)
                 << ItToString(table.UpperBoundSub(arg.first, arg.second)) << "\n";
         }
+        yvector<char> value;
         for (const auto& arg : ARGS) {
-            yvector<char> value;
             bool res = table.GetValueByKeySub(arg.first, arg.second, &value);
             Cout << Sprintf(headerTemplate, "GetValueByKeySub", arg.first, arg.second)
                 << res << " '" << TStringBuf(value.begin(), value.size()) << "'\n";
