@@ -2706,6 +2706,12 @@ private:
                 .DoMapFor(operation->Jobs(), [=] (TFluentMap fluent, TJobPtr job) {
                     BuildJobYson(job, fluent);
                 })
+                .Do(BIND([=] (IYsonConsumer* consumer) {
+                    WaitFor(
+                        BIND(&IOperationController::BuildMemoryDigestStatistics, controller)
+                            .AsyncVia(controller->GetInvoker())
+                            .Run(consumer));
+                    }))
             .EndMap();
     }
 
