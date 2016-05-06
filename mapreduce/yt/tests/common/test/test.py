@@ -33,4 +33,3 @@ def test(tmpdir_module, mapreduce, yt_stuff, test_name):
     assert mr_res.std_out == yt_res.std_out
     if yt_res.std_out:
         return yt_res.std_out
-

@@ -3,9 +3,11 @@ PROGRAM(common)
 OWNER(monster)
 
 SRCS(
-    operations.cpp
-    table.cpp
+    helpers.h
+    helpers.cpp
     main.cpp
+    test_operations.cpp
+    test_table.cpp
 )
 
 PEERDIR(
@@ -16,4 +18,3 @@ PEERDIR(
 END()
 
 RECURSE(test)
-
