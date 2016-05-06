@@ -1,5 +1,6 @@
 #include "future.h"
 #include "error.h"
+#include "uv_invoker.h"
 
 namespace NYT {
 namespace NNodeJS {
@@ -97,6 +98,7 @@ Handle<Value> TFutureWrap::Subscribe(const Arguments& args)
 
     auto future = TFutureWrap::UnwrapFuture(args.This());
     future.Subscribe(BIND([
+        // We trust UV invoker to never drop any actions.
         cb = Persistent<Function>::New(args[0].As<Function>())
     ] (const TError& error) mutable {
         THREAD_AFFINITY_IS_V8();

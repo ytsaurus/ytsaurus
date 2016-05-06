@@ -7,6 +7,7 @@
 #include "node.h"
 #include "output_stack.h"
 #include "output_stream.h"
+#include "uv_invoker.h"
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
@@ -55,80 +56,6 @@ static Persistent<String> DescriptorOutputType;
 static Persistent<String> DescriptorOutputTypeAsInteger;
 static Persistent<String> DescriptorIsVolatile;
 static Persistent<String> DescriptorIsHeavy;
-
-class TUVInvoker
-    : public IInvoker
-{
-public:
-    explicit TUVInvoker(uv_loop_t* loop)
-    {
-        memset(&AsyncHandle, 0, sizeof(AsyncHandle));
-        YCHECK(uv_async_init(loop, &AsyncHandle, &TUVInvoker::Callback) == 0);
-        AsyncHandle.data = this;
-    }
-
-    ~TUVInvoker()
-    {
-        uv_close((uv_handle_t*)&AsyncHandle, nullptr);
-    }
-
-    virtual void Invoke(const TClosure& callback) override
-    {
-        Queue.Enqueue(callback);
-
-        YCHECK(uv_async_send(&AsyncHandle) == 0);
-    }
-
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual NConcurrency::TThreadId GetThreadId() const override
-    {
-        return NConcurrency::InvalidThreadId;
-    }
-
-    virtual bool CheckAffinity(IInvokerPtr invoker) const override
-    {
-        return invoker.Get() == this;
-    }
-#endif
-
-private:
-    uv_async_t AsyncHandle;
-
-    TClosure Action;
-    TLockFreeQueue<TClosure> Queue;
-
-    static void Callback(uv_async_t* handle, int status)
-    {
-        THREAD_AFFINITY_IS_V8();
-
-        YCHECK(status == 0);
-        YCHECK(handle->data);
-
-        reinterpret_cast<TUVInvoker*>(handle->data)->CallbackImpl();
-    }
-
-    void CallbackImpl()
-    {
-        YCHECK(!Action);
-        while (Queue.Dequeue(&Action)) {
-            Action.Run();
-            Action.Reset();
-        }
-        YCHECK(!Action);
-    }
-};
-
-// uv_default_loop() is a static singleton object, so it is safe to call
-// function at the binding time.
-//
-static TLazyIntrusivePtr<IInvoker> DefaultUVInvoker(BIND([] () -> IInvokerPtr {
-    return New<TUVInvoker>(uv_default_loop());
-}));
-
-IInvokerPtr GetUVInvoker()
-{
-    return DefaultUVInvoker.Get();
-}
 
 class TResponseParametersConsumer
     : public TForwardingYsonConsumer
