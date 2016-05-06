@@ -42,6 +42,9 @@ Stroka GetFileNameWithoutExtension(const Stroka& path);
 //! Returns path of directory containing the file.
 Stroka GetDirectoryName(const Stroka& path);
 
+//! Returns the absolute path for the given (possibly relative) path.
+Stroka GetRealPath(const Stroka& path);
+
 //! Combines two strings into a path.
 Stroka CombinePaths(const Stroka& path1, const Stroka& path2);
 
@@ -122,6 +125,9 @@ void Umount(const Stroka& path);
 //! exceptions are being thrown. For all other exceptions, immediately terminates
 //! with fatal error.
 void ExpectIOErrors(std::function<void()> func);
+
+//! Sets a given mode on the path.
+void Chmod(const Stroka& path, int mode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

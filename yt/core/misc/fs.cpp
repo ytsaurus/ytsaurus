@@ -123,6 +123,27 @@ Stroka GetDirectoryName(const Stroka& path)
     return absPath.substr(0, slashPosition);
 }
 
+Stroka GetRealPath(const Stroka& path)
+{
+    auto curPath = CombinePaths(NFs::CurrentWorkingDirectory(), path);
+    std::vector<Stroka> parts;
+    while (!Exists(curPath)) {
+        auto filename = GetFileName(curPath);
+        if (filename == ".") {
+            // Do nothing.
+        } else if (filename == ".." || parts.empty() || parts.back() != "..") {
+            parts.push_back(filename);
+        } else {
+            parts.pop_back();
+        }
+        curPath = GetDirectoryName(curPath);
+    }
+    parts.push_back(RealPath(curPath));
+
+    reverse(parts.begin(), parts.end());
+    return CombinePaths(parts);
+}
+
 Stroka GetFileExtension(const Stroka& path)
 {
     size_t dotPosition = path.find_last_of('.');
@@ -519,6 +540,20 @@ void ExpectIOErrors(std::function<void()> func)
         TError error(CurrentExceptionMessage());
         LOG_FATAL(error, "Unexpected exception thrown during IO operation");
     }
+}
+
+void Chmod(const Stroka& path, int mode)
+{
+#ifdef _linux_
+    int result = ::Chmod(~path, mode);
+    if (result < 0) {
+        THROW_ERROR_EXCEPTION("Failed to change mode of %v", path)
+            << TErrorAttribute("mode", Format("%04o", mode))
+            << TError::FromSystem();
+    }
+#else
+    ThrowNotSupported();
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

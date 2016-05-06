@@ -243,6 +243,9 @@ public:
     i64 CustomStatisticsCountLimit;
 
     TNullable<i64> TmpfsSize;
+    Stroka TmpfsPath;
+
+    bool CopyFiles;
 
     TUserJobSpec()
     {
@@ -291,6 +294,10 @@ public:
         RegisterParameter("tmpfs_size", TmpfsSize)
             .Default()
             .GreaterThan(0);
+        RegisterParameter("tmpfs_path", TmpfsPath)
+            .Default("tmpfs");
+        RegisterParameter("copy_files", CopyFiles)
+            .Default(false);
     }
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig)

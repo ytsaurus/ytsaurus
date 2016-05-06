@@ -10,7 +10,7 @@ const NLogging::TLogger ExecAgentLogger("ExecAgent");
 const NProfiling::TProfiler ExecAgentProfiler("/exec_agent");
 
 const TEnumIndexedVector<Stroka, ESandboxKind> SandboxDirectoryNames{"sandbox", "udf", "home"};
-const Stroka TmpfsDirName("tmpfs");
+const int TmpfsRemoveAttemptCount = 5;
 
 ////////////////////////////////////////////////////////////////////
 
