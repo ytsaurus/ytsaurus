@@ -70,6 +70,13 @@ def main():
     objects.sort()
 
     to_remove = []
+    to_remove_set = set()
+    def add_to_remove(obj):
+        obj = str(obj)
+        if obj not in to_remove_set:
+            to_remove.append(obj)
+            to_remove_set.add(obj)
+
     disk_space = 0
     node_count = 0
     chunk_count = 0
@@ -81,8 +88,8 @@ def main():
             if "hash" in obj.attributes:
                 link = os.path.join(os.path.dirname(obj), "hash", obj.attributes["hash"])
                 if link in links:
-                    to_remove.append(link)
-            to_remove.append(obj)
+                    add_to_remove(link)
+            add_to_remove(obj)
 
     # log and remove
     for obj in to_remove:
