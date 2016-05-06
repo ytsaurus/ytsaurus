@@ -829,16 +829,12 @@ private:
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
-        std::vector<TRichYPath> result;
-        result.push_back(Spec->TablePath);
-        return result;
+        return {Spec->TablePath};
     }
 
     virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
-        std::vector<TRichYPath> result;
-        result.push_back(Spec->TablePath);
-        return result;
+        return {Spec->TablePath};
     }
 
     virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
