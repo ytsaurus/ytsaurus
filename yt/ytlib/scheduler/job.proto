@@ -163,6 +163,8 @@ message TSchedulerJobSpecExt
     optional TUserJobSpec user_job_spec = 12;
 
     optional TQuerySpec input_query_spec = 13;
+
+    optional int64 job_proxy_ref_counted_tracker_log_period = 17 [default = 5];
 }
 
 message TSchedulerJobResultExt

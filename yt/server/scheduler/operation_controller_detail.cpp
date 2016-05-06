@@ -360,6 +360,11 @@ void TOperationControllerBase::TTask::CheckCompleted()
     }
 }
 
+TUserJobSpecPtr TOperationControllerBase::TTask::GetUserJobSpec() const
+{
+    return nullptr;
+}
+
 void TOperationControllerBase::TTask::ScheduleJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits,
@@ -388,9 +393,10 @@ void TOperationControllerBase::TTask::ScheduleJob(
     }
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
-    joblet->MemoryReserveEnabled = IsMemoryReserveEnabled();
 
-    auto neededResources = GetNeededResources(joblet);
+    auto estimatedResourceUsage = GetNeededResources(joblet);
+
+    auto neededResources = ApplyMemoryReserve(estimatedResourceUsage);
 
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources)) {
@@ -405,8 +411,6 @@ void TOperationControllerBase::TTask::ScheduleJob(
         return;
     }
 
-    auto jobType = GetJobType();
-
     // Async part.
     auto controller = MakeStrong(Controller); // hold the controller
     auto jobSpecBuilder = BIND([=, this_ = MakeStrong(this)] (TJobSpec* jobSpec) {
@@ -417,6 +421,8 @@ void TOperationControllerBase::TTask::ScheduleJob(
         if (controller->Spec->JobProxyMemoryOvercommitLimit) {
             schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*controller->Spec->JobProxyMemoryOvercommitLimit);
         }
+        schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto(controller->Spec->JobProxyRefCountedTrackerLogPeriod));
+
         schedulerJobSpecExt->set_enable_sort_verification(controller->Spec->EnableSortVerification);
 
         // Adjust sizes if approximation flag is set.
@@ -437,6 +443,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
         }
     });
 
+    auto jobType = GetJobType();
     joblet->JobId = context->GenerateJobId();
     auto restarted = LostJobCookieMap.find(joblet->OutputCookie) != LostJobCookieMap.end();
     scheduleJobResult->JobStartRequest.Emplace(
@@ -448,11 +455,18 @@ void TOperationControllerBase::TTask::ScheduleJob(
 
     joblet->JobType = jobType;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
+    joblet->JobProxyMemoryReserveFactor = Controller->GetJobProxyMemoryDigest(jobType)->GetQuantile(Controller->Config->JobProxyMemoryReserveQuantile);
+    auto userJobSpec = GetUserJobSpec();
+    if (userJobSpec) {
+        joblet->UserJobMemoryReserveFactor = Controller->GetUserJobMemoryDigest(GetJobType())->GetQuantile(Controller->Config->UserJobMemoryReserveQuantile);
+    }
+    joblet->EstimatedResourceUsage = estimatedResourceUsage;
     joblet->ResourceLimits = neededResources;
 
     LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
-        "Approximate: %v, DataSize: %v (%v local), RowCount: %v, Restarted: %v, ResourceLimits: %v)",
+        "Approximate: %v, DataSize: %v (%v local), RowCount: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
+        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v)",
         joblet->JobId,
         Controller->OperationId,
         jobType,
@@ -465,6 +479,9 @@ void TOperationControllerBase::TTask::ScheduleJob(
         joblet->InputStripeList->LocalDataSize,
         joblet->InputStripeList->TotalRowCount,
         restarted,
+        FormatResources(estimatedResourceUsage),
+        joblet->JobProxyMemoryReserveFactor,
+        joblet->UserJobMemoryReserveFactor,
         FormatResources(neededResources));
 
     // Prepare chunk lists.
@@ -805,18 +822,39 @@ void TOperationControllerBase::TTask::ResetCachedMinNeededResources()
     CachedMinNeededResources.Reset();
 }
 
+TJobResources TOperationControllerBase::TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResources) const
+{
+    TJobResources result;
+    result.SetCpu(jobResources.GetCpu());
+    result.SetUserSlots(jobResources.GetUserSlots());
+    i64 memory = jobResources.GetFootprintMemory();
+    memory += jobResources.GetJobProxyMemory() * Controller->GetJobProxyMemoryDigest(GetJobType())->GetQuantile(Controller->Config->JobProxyMemoryReserveQuantile);
+    if (GetUserJobSpec()) {
+        memory += jobResources.GetUserJobMemory() * Controller->GetUserJobMemoryDigest(GetJobType())->GetQuantile(Controller->Config->UserJobMemoryReserveQuantile);
+    } else {
+        YCHECK(jobResources.GetUserJobMemory() == 0);
+    }
+    result.SetMemory(memory);
+    result.SetNetwork(jobResources.GetNetwork());
+    return result;
+}
+
+void TOperationControllerBase::TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const
+{
+    jobResources.SetFootprintMemory(GetFootprintMemorySize());
+    auto userJobSpec = GetUserJobSpec();
+    if (userJobSpec) {
+        jobResources.SetUserJobMemory(userJobSpec->MemoryLimit);
+    }
+}
+
 const TJobResources& TOperationControllerBase::TTask::GetMinNeededResources() const
 {
     if (!CachedMinNeededResources) {
         YCHECK(GetPendingJobCount() > 0);
-        CachedMinNeededResources = GetMinNeededResourcesHeavy();
+        CachedMinNeededResources = ApplyMemoryReserve(GetMinNeededResourcesHeavy());
     }
     return *CachedMinNeededResources;
-}
-
-TJobResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr /* joblet */) const
-{
-    return GetMinNeededResources();
 }
 
 void TOperationControllerBase::TTask::RegisterIntermediate(
@@ -895,6 +933,7 @@ void TOperationControllerBase::TTask::RegisterOutput(
 TOperationControllerBase::TOperationControllerBase(
     TSchedulerConfigPtr config,
     TOperationSpecBasePtr spec,
+    TOperationOptionsPtr options,
     IOperationHost* host,
     TOperation* operation)
     : Config(config)
@@ -912,6 +951,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(0)
     , Spec(spec)
+    , Options(options)
     , CachedNeededResources(ZeroJobResources())
     , CheckTimeLimitExecutor(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
@@ -1038,7 +1078,7 @@ void TOperationControllerBase::Prepare()
                 table.Path.GetPath(),
                 EObjectType::Table,
                 table.Type);
-        } 
+        }
     }
 
     GetUserObjectBasicAttributes<TOutputTable>(
@@ -1056,7 +1096,7 @@ void TOperationControllerBase::Prepare()
                 path,
                 EObjectType::Table,
                 table.Type);
-        } 
+        }
         if (outputTableIds.find(table.ObjectId) != outputTableIds.end()) {
             THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
                 path);
@@ -1713,6 +1753,31 @@ void TOperationControllerBase::OnJobStarted(const TJobId& jobId, TInstant startT
         .Item("job_type").Value(joblet->JobType);
 }
 
+void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistics statistics)
+{
+    auto jobType = joblet->JobType;
+    auto getValue = [] (const TSummary& summary) {
+        return summary.GetSum();
+    };
+    if (statistics.Data().find("/user_job/max_memory") != statistics.Data().end()) {
+        i64 userJobMaxMemoryUsage = GetValues<i64>(statistics, "/user_job/max_memory", getValue);
+        auto* digest = GetUserJobMemoryDigest(jobType);
+        double actualFactor = static_cast<double>(userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
+        LOG_DEBUG("Adding sample to the job proxy memory digest (JobType = %v, Sample = %v, JobId = %v)", jobType, actualFactor, joblet->JobId);
+        digest->AddSample(actualFactor);
+        UpdateAllTasksIfNeeded();
+    }
+    if (statistics.Data().find("/job_proxy/max_memory") != statistics.Data().end()) {
+        i64 jobProxyMaxMemoryUsage = GetValues<i64>(statistics, "/job_proxy/max_memory", getValue);
+        auto* digest = GetJobProxyMemoryDigest(jobType);
+        double actualFactor = static_cast<double>(jobProxyMaxMemoryUsage) /
+            (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
+        LOG_DEBUG("Adding sample to the user job memory digest (JobType = %v, Sample = %v, JobId = %v)", jobType, actualFactor, joblet->JobId);
+        digest->AddSample(actualFactor);
+        UpdateAllTasksIfNeeded();
+    }
+}
+
 void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
@@ -1727,6 +1792,8 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
     JobCounter.Completed(1);
 
     auto joblet = GetJoblet(jobId);
+
+    UpdateMemoryDigests(joblet, jobSummary->Statistics);
 
     FinalizeJoblet(joblet, jobSummary.get());
     LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
@@ -1826,6 +1893,9 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     JobCounter.Aborted(1, abortReason);
 
     auto joblet = GetJoblet(jobId);
+    if (abortReason == EAbortReason::ResourceOverdraft) {
+        UpdateMemoryDigests(joblet, jobSummary->Statistics);
+    }
 
     if (jobSummary->ShouldLog) {
         FinalizeJoblet(joblet, jobSummary.get());
@@ -1866,6 +1936,8 @@ void TOperationControllerBase::FinalizeJoblet(
     if (jobSummary->ExecDuration) {
         statistics.AddSample("/time/exec", *jobSummary->ExecDuration);
     }
+
+    statistics.AddSample("/job_proxy/memory_reserve_factor_x1000", static_cast<int>(1e4 * joblet->JobProxyMemoryReserveFactor));
 }
 
 TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
@@ -2191,6 +2263,14 @@ void TOperationControllerBase::UpdateAllTasks()
     for (auto& task: Tasks) {
         task->ResetCachedMinNeededResources();
         UpdateTask(task);
+    }
+}
+
+void TOperationControllerBase::UpdateAllTasksIfNeeded()
+{
+    if (TInstant::Now() - LastTaskUpdateTime_ >= Config->TaskUpdatePeriod) {
+        LastTaskUpdateTime_ = TInstant::Now();
+        UpdateAllTasks();
     }
 }
 
@@ -2628,6 +2708,15 @@ TJobResources TOperationControllerBase::GetNeededResources() const
 
     TReaderGuard guard(CachedNeededResourcesLock);
     return CachedNeededResources;
+}
+
+i64 TOperationControllerBase::ComputeUserJobMemoryReserve(EJobType jobType, TUserJobSpecPtr userJobSpec) const
+{
+    if (userJobSpec) {
+        return userJobSpec->MemoryLimit * GetUserJobMemoryDigest(jobType)->GetQuantile(Config->UserJobMemoryReserveQuantile);
+    } else {
+        return 0;
+    }
 }
 
 void TOperationControllerBase::OnOperationCompleted()
@@ -3641,30 +3730,6 @@ bool TOperationControllerBase::IsBoundaryKeysFetchEnabled() const
     return false;
 }
 
-void TOperationControllerBase::UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter)
-{
-    if (jobCounter.GetAborted(EAbortReason::ResourceOverdraft) == Spec->MaxMemoryReserveAbortJobCount) {
-        UpdateAllTasks();
-    }
-}
-
-bool TOperationControllerBase::IsMemoryReserveEnabled(const TProgressCounter& jobCounter) const
-{
-    return jobCounter.GetAborted(EAbortReason::ResourceOverdraft) < Spec->MaxMemoryReserveAbortJobCount;
-}
-
-i64 TOperationControllerBase::GetMemoryReserve(bool memoryReserveEnabled, TUserJobSpecPtr userJobSpec) const
-{
-    i64 size = 0;
-    if (memoryReserveEnabled) {
-        size += static_cast<i64>(userJobSpec->MemoryLimit * userJobSpec->MemoryReserveFactor);
-    } else {
-        size += userJobSpec->MemoryLimit;
-    }
-
-    return size;
-}
-
 void TOperationControllerBase::RegisterOutput(
     const TChunkTreeId& chunkTreeId,
     int key,
@@ -4154,6 +4219,75 @@ const std::vector<TExecNodeDescriptor>& TOperationControllerBase::GetExecNodeDes
     return ExecNodesDescriptors_;
 }
 
+void TOperationControllerBase::BuildMemoryDigestStatistics(IYsonConsumer* consumer) const
+{
+    VERIFY_INVOKER_AFFINITY(Invoker);
+
+    BuildYsonMapFluently(consumer)
+        .Item("job_proxy_memory_digest")
+        .DoMapFor(JobProxyMemoryDigests_, [&] (
+                TFluentMap fluent,
+                const TMemoryDigestMap::value_type& item)
+        {
+            BuildYsonMapFluently(fluent)
+                .Item(ToString(item.first)).Value(
+                    item.second->GetQuantile(Config->JobProxyMemoryReserveQuantile));
+        })
+        .Item("user_job_memory_digest")
+        .DoMapFor(JobProxyMemoryDigests_, [&] (
+                TFluentMap fluent,
+                const TMemoryDigestMap::value_type& item)
+        {
+            BuildYsonMapFluently(fluent)
+                .Item(ToString(item.first)).Value(
+                    item.second->GetQuantile(Config->UserJobMemoryReserveQuantile));
+        });
+}
+
+void TOperationControllerBase::RegisterUserJobMemoryDigest(EJobType jobType, double memoryReserveFactor)
+{
+    YCHECK(UserJobMemoryDigests_.find(jobType) == UserJobMemoryDigests_.end());
+    auto config = New<TLogDigestConfig>();
+    config->LowerBound = memoryReserveFactor;
+    config->UpperBound = 1.0;
+    config->RelativePrecision = Config->UserJobMemoryDigestPrecision;
+    UserJobMemoryDigests_[jobType] = CreateLogDigest(config);
+}
+
+IDigest* TOperationControllerBase::GetUserJobMemoryDigest(EJobType jobType)
+{
+    auto iter = UserJobMemoryDigests_.find(jobType);
+    YCHECK(iter != UserJobMemoryDigests_.end());
+    return iter->second.get();
+}
+
+const IDigest* TOperationControllerBase::GetUserJobMemoryDigest(EJobType jobType) const
+{
+    auto iter = UserJobMemoryDigests_.find(jobType);
+    YCHECK(iter != UserJobMemoryDigests_.end());
+    return iter->second.get();
+}
+
+void TOperationControllerBase::RegisterJobProxyMemoryDigest(EJobType jobType, const TLogDigestConfigPtr& config)
+{
+    YCHECK(JobProxyMemoryDigests_.find(jobType) == JobProxyMemoryDigests_.end());
+    JobProxyMemoryDigests_[jobType] = CreateLogDigest(config);
+}
+
+IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobType)
+{
+    auto iter = JobProxyMemoryDigests_.find(jobType);
+    YCHECK(iter != JobProxyMemoryDigests_.end());
+    return iter->second.get();
+}
+
+const IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobType) const
+{
+    auto iter = JobProxyMemoryDigests_.find(jobType);
+    YCHECK(iter != JobProxyMemoryDigests_.end());
+    return iter->second.get();
+}
+
 void TOperationControllerBase::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -4210,6 +4344,22 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 
     Persist(context, RowCountLimitTableIndex);
     Persist(context, RowCountLimit);
+
+    Persist<
+        TMapSerializer<
+            TDefaultSerializer,
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, JobProxyMemoryDigests_);
+
+    Persist<
+        TMapSerializer<
+            TDefaultSerializer,
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, UserJobMemoryDigests_);
 
     if (context.IsLoad()) {
         for (const auto& task : Tasks) {

@@ -64,7 +64,7 @@ public:
         TSortOperationOptionsBasePtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, host, operation)
+        : TOperationControllerBase(config, spec, options, host, operation)
         , Spec(spec)
         , Options(options)
         , Config(config)
@@ -323,12 +323,12 @@ protected:
             return Controller->Spec->PartitionLocalityTimeout;
         }
 
-        virtual TJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
         {
-            auto resources = Controller->GetPartitionResources(
-                joblet->InputStripeList->GetStatistics(),
-                joblet->MemoryReserveEnabled);
-            return resources;
+            auto result = Controller->GetPartitionResources(
+                joblet->InputStripeList->GetStatistics());
+            AddFootprintAndUserJobResources(result);
+            return result;
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -421,23 +421,19 @@ protected:
                 newAvgAdjustedScheduledDataSize + Controller->Spec->PartitionedDataBalancingTolerance * adjustedJobDataSize;
         }
 
-        virtual bool IsMemoryReserveEnabled() const override
-        {
-            return Controller->IsMemoryReserveEnabled(Controller->PartitionJobCounter);
-        }
-
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
             // TODO(psushin): Distinguish between map and partition.
             return Controller->PartitionTableReaderOptions;
         }
 
-        virtual TJobResources GetMinNeededResourcesHeavy() const override
+        virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
             auto statistics = ChunkPool->GetApproximateStripeStatistics();
-            return Controller->GetPartitionResources(
-                statistics,
-                IsMemoryReserveEnabled());
+            auto result = Controller->GetPartitionResources(
+                statistics);
+            AddFootprintAndUserJobResources(result);
+            return result;
         }
 
         virtual bool IsIntermediateOutput() const override
@@ -447,7 +443,12 @@ protected:
 
         virtual EJobType GetJobType() const override
         {
-            return EJobType(Controller->PartitionJobSpecTemplate.type());
+            return Controller->GetPartitionJobType();
+        }
+
+        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        {
+            return Controller->GetPartitionUserJobSpec();
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -530,7 +531,6 @@ protected:
 
             UpdateNodeDataSize(joblet->NodeDescriptor, -joblet->InputStripeList->TotalDataSize);
             Controller->PartitionJobCounter.Aborted(1, jobSummary.AbortReason);
-            Controller->UpdateAllTasksIfNeeded(Controller->PartitionJobCounter);
         }
 
         virtual void OnTaskCompleted() override
@@ -659,11 +659,12 @@ protected:
             return Controller->SortTaskGroup;
         }
 
-        virtual TJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
         {
-            return GetNeededResourcesForChunkStripe(
-                joblet->InputStripeList->GetAggregateStatistics(),
-                joblet->MemoryReserveEnabled);
+            auto result = GetNeededResourcesForChunkStripe(
+                joblet->InputStripeList->GetAggregateStatistics());
+            AddFootprintAndUserJobResources(result);
+            return result;
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -681,34 +682,21 @@ protected:
         }
 
     protected:
-        virtual bool IsMemoryReserveEnabled() const override
-        {
-            if (Controller->IsSortedMergeNeeded(Partition)) {
-                return Controller->IsMemoryReserveEnabled(Controller->IntermediateSortJobCounter);
-            } else {
-                return Controller->IsMemoryReserveEnabled(Controller->FinalSortJobCounter);
-            }
-        }
-
-        TJobResources GetNeededResourcesForChunkStripe(
-            const TChunkStripeStatistics& stat,
-            bool memoryReserveEnabled) const
+        TExtendedJobResources GetNeededResourcesForChunkStripe(
+            const TChunkStripeStatistics& stat) const
         {
             if (Controller->SimpleSort) {
-                // Value count estimate has been remove, using 0 instead.
+                // Value count estimate has been removed, using 0 instead.
                 i64 valueCount = 0;
                 return Controller->GetSimpleSortResources(
                     stat,
                     valueCount);
             } else {
-                return Controller->GetPartitionSortResources(
-                    Partition,
-                    stat,
-                    memoryReserveEnabled);
+                return Controller->GetPartitionSortResources(Partition, stat);
             }
         }
 
-        virtual TJobResources GetMinNeededResourcesHeavy() const override
+        virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
             auto stat = GetChunkPoolOutput()->GetApproximateStripeStatistics();
             if (Controller->SimpleSort && stat.size() > 1) {
@@ -716,7 +704,9 @@ protected:
             } else {
                 YCHECK(stat.size() == 1);
             }
-            return GetNeededResourcesForChunkStripe(stat.front(), IsMemoryReserveEnabled());
+            auto result = GetNeededResourcesForChunkStripe(stat.front());
+            AddFootprintAndUserJobResources(result);
+            return result;
         }
 
         virtual bool IsIntermediateOutput() const override
@@ -726,10 +716,9 @@ protected:
 
         virtual EJobType GetJobType() const override
         {
-            return EJobType(
-                Controller->IsSortedMergeNeeded(Partition)
-                ? Controller->IntermediateSortJobSpecTemplate.type()
-                : Controller->FinalSortJobSpecTemplate.type());
+            return Controller->IsSortedMergeNeeded(Partition)
+                ? Controller->GetIntermediateSortJobType()
+                : Controller->GetFinalSortJobType();
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -830,7 +819,6 @@ protected:
                 Controller->IntermediateSortJobCounter.Aborted(1, jobSummary.AbortReason);
             } else {
                 Controller->FinalSortJobCounter.Aborted(1, jobSummary.AbortReason);
-                Controller->UpdateAllTasksIfNeeded(Controller->FinalSortJobCounter);
             }
 
             TTask::OnJobAborted(joblet, jobSummary);
@@ -876,7 +864,6 @@ protected:
             return Format("Sort(%v)", Partition->Index);
         }
 
-
         virtual TDuration GetLocalityTimeout() const override
         {
             return Partition->AssignedNodeId != InvalidNodeId
@@ -898,6 +885,11 @@ protected:
 
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionSortTask, 0x4f9a6cd9);
+
+        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        {
+            return Controller->GetPartitionSortUserJobSpec(Partition);
+        }
 
         virtual bool IsActive() const override
         {
@@ -1025,11 +1017,12 @@ protected:
                 : Controller->Spec->MergeLocalityTimeout;
         }
 
-        virtual TJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
         {
-            return Controller->GetSortedMergeResources(
-                joblet->InputStripeList->GetStatistics(),
-                joblet->MemoryReserveEnabled);
+            auto result = Controller->GetSortedMergeResources(
+                joblet->InputStripeList->GetStatistics());
+            AddFootprintAndUserJobResources(result);
+            return result;
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -1055,16 +1048,12 @@ protected:
             return Controller->MergeStartThresholdReached && !Partition->Maniac;
         }
 
-        virtual bool IsMemoryReserveEnabled() const override
+        virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
-            return Controller->IsMemoryReserveEnabled(Controller->SortedMergeJobCounter);
-        }
-
-        virtual TJobResources GetMinNeededResourcesHeavy() const override
-        {
-            return Controller->GetSortedMergeResources(
-                ChunkPool->GetApproximateStripeStatistics(),
-                IsMemoryReserveEnabled());
+            auto result = Controller->GetSortedMergeResources(
+                ChunkPool->GetApproximateStripeStatistics());
+            AddFootprintAndUserJobResources(result);
+            return result;
         }
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
@@ -1074,7 +1063,7 @@ protected:
 
         virtual EJobType GetJobType() const override
         {
-            return EJobType(Controller->SortedMergeJobSpecTemplate.type());
+            return Controller->GetSortedMergeJobType();
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -1112,8 +1101,6 @@ protected:
         {
             Controller->SortedMergeJobCounter.Aborted(1, jobSummary.AbortReason);
 
-            Controller->UpdateAllTasksIfNeeded(Controller->SortedMergeJobCounter);
-
             TMergeTask::OnJobAborted(joblet, jobSummary);
         }
 
@@ -1150,10 +1137,12 @@ protected:
             return TDuration::Zero();
         }
 
-        virtual TJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
         {
-            return Controller->GetUnorderedMergeResources(
+            auto result = Controller->GetUnorderedMergeResources(
                 joblet->InputStripeList->GetStatistics());
+            AddFootprintAndUserJobResources(result);
+            return result;
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -1174,15 +1163,12 @@ protected:
              return Controller->MergeStartThresholdReached && Partition->Maniac;
         }
 
-        virtual bool IsMemoryReserveEnabled() const override
+        virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
-            return true;
-        }
-
-        virtual TJobResources GetMinNeededResourcesHeavy() const override
-        {
-            return Controller->GetUnorderedMergeResources(
+            auto result = Controller->GetUnorderedMergeResources(
                 Partition->ChunkPoolOutput->GetApproximateStripeStatistics());
+            AddFootprintAndUserJobResources(result);
+            return result;
         }
 
         virtual bool HasInputLocality() const override
@@ -1192,7 +1178,7 @@ protected:
 
         virtual EJobType GetJobType() const override
         {
-            return EJobType(Controller->UnorderedMergeJobSpecTemplate.type());
+            return EJobType::UnorderedMerge;
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -1240,6 +1226,15 @@ protected:
 
     };
 
+    virtual TUserJobSpecPtr GetPartitionUserJobSpec() const
+    {
+        return nullptr;
+    }
+
+    virtual TUserJobSpecPtr GetPartitionSortUserJobSpec(TPartitionPtr partition) const
+    {
+        return nullptr;
+    }
 
     // Custom bits of preparation pipeline.
 
@@ -1512,24 +1507,21 @@ protected:
     virtual int GetSortCpuLimit() const = 0;
     virtual int GetMergeCpuLimit() const = 0;
 
-    virtual TJobResources GetPartitionResources(
-        const TChunkStripeStatisticsVector& statistics,
-        bool memoryReserveEnabled) const = 0;
+    virtual TExtendedJobResources GetPartitionResources(
+        const TChunkStripeStatisticsVector& statistics) const = 0;
 
-    virtual TJobResources GetSimpleSortResources(
+    virtual TExtendedJobResources GetSimpleSortResources(
         const TChunkStripeStatistics& stat,
         i64 valueCount) const = 0;
 
-    virtual TJobResources GetPartitionSortResources(
+    virtual TExtendedJobResources GetPartitionSortResources(
         TPartitionPtr partition,
-        const TChunkStripeStatistics& stat,
-        bool memoryReserveEnabled) const = 0;
+        const TChunkStripeStatistics& stat) const = 0;
 
-    virtual TJobResources GetSortedMergeResources(
-        const TChunkStripeStatisticsVector& statistics,
-        bool memoryReserveEnabled) const = 0;
+    virtual TExtendedJobResources GetSortedMergeResources(
+        const TChunkStripeStatisticsVector& statistics) const = 0;
 
-    virtual TJobResources GetUnorderedMergeResources(
+    virtual TExtendedJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const = 0;
 
     // Unsorted helpers.
@@ -1787,6 +1779,11 @@ protected:
                 account);
         }
     }
+
+    virtual EJobType GetPartitionJobType() const = 0;
+    virtual EJobType GetIntermediateSortJobType() const = 0;
+    virtual EJobType GetFinalSortJobType() const = 0;
+    virtual EJobType GetSortedMergeJobType() const = 0;
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TPartitionTask);
@@ -1813,7 +1810,14 @@ public:
             host,
             operation)
         , Spec(spec)
-    { }
+    {
+        RegisterJobProxyMemoryDigest(EJobType::Partition, spec->PartitionJobProxyMemoryDigest);
+        RegisterJobProxyMemoryDigest(EJobType::SimpleSort, spec->SortJobProxyMemoryDigest);
+        RegisterJobProxyMemoryDigest(EJobType::IntermediateSort, spec->SortJobProxyMemoryDigest);
+        RegisterJobProxyMemoryDigest(EJobType::FinalSort, spec->SortJobProxyMemoryDigest);
+        RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->MergeJobProxyMemoryDigest);
+        RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, spec->MergeJobProxyMemoryDigest);
+    }
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortController, 0xbca37afe);
@@ -2124,6 +2128,21 @@ private:
         InitFinalOutputConfig(UnorderedMergeJobIOConfig);
     }
 
+    virtual EJobType GetIntermediateSortJobType() const override
+    {
+        return SimpleSort ? EJobType::SimpleSort : EJobType::IntermediateSort;
+    }
+
+    virtual EJobType GetFinalSortJobType() const override
+    {
+        return SimpleSort ? EJobType::SimpleSort : EJobType::FinalSort;
+    }
+
+    virtual EJobType GetSortedMergeJobType() const override
+    {
+        return EJobType::SortedMerge;
+    }
+
     void InitJobSpecTemplates()
     {
         {
@@ -2155,14 +2174,14 @@ private:
 
         {
             IntermediateSortJobSpecTemplate = sortJobSpecTemplate;
-            IntermediateSortJobSpecTemplate.set_type(static_cast<int>(SimpleSort ? EJobType::SimpleSort : EJobType::IntermediateSort));
+            IntermediateSortJobSpecTemplate.set_type(static_cast<int>(GetIntermediateSortJobType()));
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
         }
 
         {
             FinalSortJobSpecTemplate = sortJobSpecTemplate;
-            FinalSortJobSpecTemplate.set_type(static_cast<int>(SimpleSort ? EJobType::SimpleSort : EJobType::FinalSort));
+            FinalSortJobSpecTemplate.set_type(static_cast<int>(GetFinalSortJobType()));
             auto* schedulerJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).Data());
         }
@@ -2210,11 +2229,9 @@ private:
         return 1;
     }
 
-    virtual TJobResources GetPartitionResources(
-        const TChunkStripeStatisticsVector& statistics,
-        bool memoryReserveEnabled) const override
+    virtual TExtendedJobResources GetPartitionResources(
+        const TChunkStripeStatisticsVector& statistics) const override
     {
-        Y_UNUSED(memoryReserveEnabled);
         auto stat = AggregateStatistics(statistics).front();
 
         i64 outputBufferSize = std::min(
@@ -2227,75 +2244,61 @@ private:
             outputBufferSize,
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
-        TJobResources result;
+        TExtendedJobResources result;
         result.SetUserSlots(1);
         result.SetCpu(GetPartitionCpuLimit());
-        result.SetMemory(
-            // NB: due to large MaxBufferSize for partition that was accounted in buffer size
-            // we eliminate number of output streams to zero.
-            GetInputIOMemorySize(PartitionJobIOConfig, stat) +
-            outputBufferSize +
-            GetOutputWindowMemorySize(PartitionJobIOConfig) +
-            GetFootprintMemorySize());
+        result.SetJobProxyMemory(GetInputIOMemorySize(PartitionJobIOConfig, stat)
+            + outputBufferSize
+            + GetOutputWindowMemorySize(PartitionJobIOConfig));
         return result;
     }
 
-    virtual TJobResources GetSimpleSortResources(
+    virtual TExtendedJobResources GetSimpleSortResources(
         const TChunkStripeStatistics& stat,
         i64 valueCount) const override
     {
         // ToDo(psushin): rewrite simple sort estimates.
-        TJobResources result;
+        TExtendedJobResources result;
         result.SetUserSlots(1);
         result.SetCpu(GetSortCpuLimit());
-        result.SetMemory(
-            GetSortInputIOMemorySize(stat) +
+        result.SetJobProxyMemory(GetSortInputIOMemorySize(stat) +
             GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
             GetSortBuffersMemorySize(stat) +
             // TODO(babenko): *2 are due to lack of reserve, remove this once simple sort
             // starts reserving arrays of appropriate sizes.
-            (i64) 32 * valueCount * 2 +
-            GetFootprintMemorySize());
+            (i64) 32 * valueCount * 2);
         return result;
     }
 
-    virtual TJobResources GetPartitionSortResources(
+    virtual TExtendedJobResources GetPartitionSortResources(
         TPartitionPtr partition,
-        const TChunkStripeStatistics& stat,
-        bool memoryReserveEnabled) const override
+        const TChunkStripeStatistics& stat) const override
     {
-        Y_UNUSED(memoryReserveEnabled);
-        i64 memory =
+        i64 jobProxyMemory =
             GetSortBuffersMemorySize(stat) +
-            GetSortInputIOMemorySize(stat) +
-            GetFootprintMemorySize();
+            GetSortInputIOMemorySize(stat);
 
         if (IsSortedMergeNeeded(partition)) {
-            memory += GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig);
+            jobProxyMemory += GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig);
         } else {
-            memory += GetFinalOutputIOMemorySize(FinalSortJobIOConfig);
+            jobProxyMemory += GetFinalOutputIOMemorySize(FinalSortJobIOConfig);
         }
 
-        TJobResources result;
+        TExtendedJobResources result;
         result.SetUserSlots(1);
         result.SetCpu(GetSortCpuLimit());
-        result.SetMemory(memory);
+        result.SetJobProxyMemory(jobProxyMemory);
         result.SetNetwork(Spec->ShuffleNetworkLimit);
         return result;
     }
 
-    virtual TJobResources GetSortedMergeResources(
-        const TChunkStripeStatisticsVector& statistics,
-        bool memoryReserveEnabled) const override
+    virtual TExtendedJobResources GetSortedMergeResources(
+        const TChunkStripeStatisticsVector& statistics) const override
     {
-        Y_UNUSED(memoryReserveEnabled);
-
-        TJobResources result;
+        TExtendedJobResources result;
         result.SetUserSlots(1);
         result.SetCpu(GetMergeCpuLimit());
-        result.SetMemory(
-            GetFinalIOMemorySize(SortedMergeJobIOConfig, statistics) +
-            GetFootprintMemorySize());
+        result.SetJobProxyMemory(GetFinalIOMemorySize(SortedMergeJobIOConfig, statistics));
         return result;
     }
 
@@ -2304,15 +2307,13 @@ private:
         return true;
     }
 
-    virtual TJobResources GetUnorderedMergeResources(
+    virtual TExtendedJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const override
     {
-        TJobResources result;
+        TExtendedJobResources result;
         result.SetUserSlots(1);
         result.SetCpu(GetMergeCpuLimit());
-        result.SetMemory(
-            GetFinalIOMemorySize(UnorderedMergeJobIOConfig, AggregateStatistics(statistics)) +
-            GetFootprintMemorySize());
+        result.SetJobProxyMemory(GetFinalIOMemorySize(UnorderedMergeJobIOConfig, AggregateStatistics(statistics)));
         return result;
     }
 
@@ -2366,6 +2367,10 @@ private:
             .Item("unordered_merge_jobs").Value(UnorderedMergeJobCounter);
     }
 
+    virtual EJobType GetPartitionJobType() const override
+    {
+        return EJobType::Partition;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortController);
@@ -2399,7 +2404,27 @@ public:
         , Spec(spec)
         , MapStartRowIndex(0)
         , ReduceStartRowIndex(0)
-    { }
+    {
+        if (spec->Mapper) {
+            RegisterJobProxyMemoryDigest(EJobType::PartitionMap, spec->PartitionJobProxyMemoryDigest);
+            RegisterUserJobMemoryDigest(EJobType::PartitionMap, spec->Mapper->MemoryReserveFactor);
+        } else {
+            RegisterJobProxyMemoryDigest(EJobType::Partition, spec->PartitionJobProxyMemoryDigest);
+        }
+
+        if (spec->ReduceCombiner) {
+            RegisterJobProxyMemoryDigest(EJobType::ReduceCombiner, spec->ReduceCombinerJobProxyMemoryDigest);
+            RegisterUserJobMemoryDigest(EJobType::ReduceCombiner, spec->ReduceCombiner->MemoryReserveFactor);
+        } else {
+            RegisterJobProxyMemoryDigest(EJobType::IntermediateSort, spec->SortJobProxyMemoryDigest);
+        }
+
+        RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->SortedReduceJobProxyMemoryDigest);
+        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->MemoryReserveFactor);
+
+        RegisterJobProxyMemoryDigest(EJobType::PartitionReduce, spec->PartitionReduceJobProxyMemoryDigest);
+        RegisterUserJobMemoryDigest(EJobType::PartitionReduce, spec->Reducer->MemoryReserveFactor);
+    }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
@@ -2587,10 +2612,30 @@ private:
         InitFinalOutputConfig(SortedMergeJobIOConfig);
     }
 
+    virtual EJobType GetPartitionJobType() const override
+    {
+        return Spec->Mapper ? EJobType::PartitionMap : EJobType::Partition;
+    }
+
+    virtual EJobType GetIntermediateSortJobType() const override
+    {
+        return Spec->ReduceCombiner ? EJobType::ReduceCombiner : EJobType::IntermediateSort;
+    }
+
+    virtual EJobType GetFinalSortJobType() const override
+    {
+        return EJobType::PartitionReduce;
+    }
+
+    virtual EJobType GetSortedMergeJobType() const override
+    {
+        return EJobType::SortedReduce;
+    }
+
     void InitJobSpecTemplates()
     {
         {
-            PartitionJobSpecTemplate.set_type(static_cast<int>(Spec->Mapper ? EJobType::PartitionMap : EJobType::Partition));
+            PartitionJobSpecTemplate.set_type(static_cast<int>(GetPartitionJobType()));
 
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
@@ -2733,7 +2778,7 @@ private:
         InitUserJobSpec(
             schedulerJobSpecExt->mutable_user_job_spec(),
             joblet,
-            GetMemoryReserve(joblet->MemoryReserveEnabled, userJobSpec));
+            ComputeUserJobMemoryReserve(EJobType(jobSpec->type()), userJobSpec));
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
@@ -2764,9 +2809,8 @@ private:
         return Spec->Reducer->CpuLimit;
     }
 
-    virtual TJobResources GetPartitionResources(
-            const TChunkStripeStatisticsVector& statistics,
-            bool memoryReserveEnabled) const override
+    virtual TExtendedJobResources GetPartitionResources(
+        const TChunkStripeStatisticsVector& statistics) const override
     {
         auto stat = AggregateStatistics(statistics).front();
 
@@ -2775,88 +2819,84 @@ private:
             reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
-        TJobResources result;
+        TExtendedJobResources result;
         result.SetUserSlots(1);
         if (Spec->Mapper) {
-            bufferSize += GetOutputWindowMemorySize(PartitionJobIOConfig);
             result.SetCpu(Spec->Mapper->CpuLimit);
-            result.SetMemory(
+            result.SetJobProxyMemory(
                 GetInputIOMemorySize(PartitionJobIOConfig, stat) +
-                bufferSize +
-                GetMemoryReserve(memoryReserveEnabled, Spec->Mapper) +
-                GetFootprintMemorySize());
+                GetOutputWindowMemorySize(PartitionJobIOConfig) +
+                bufferSize);
         } else {
-            bufferSize = std::min(bufferSize, stat.DataSize + reserveSize);
-            bufferSize += GetOutputWindowMemorySize(PartitionJobIOConfig);
             result.SetCpu(1);
-            result.SetMemory(
+            bufferSize = std::min(bufferSize, stat.DataSize + reserveSize);
+            result.SetJobProxyMemory(
                 GetInputIOMemorySize(PartitionJobIOConfig, stat) +
-                bufferSize +
-                GetFootprintMemorySize());
+                GetOutputWindowMemorySize(PartitionJobIOConfig) +
+                bufferSize);
         }
         return result;
     }
 
-    virtual TJobResources GetSimpleSortResources(
+    virtual TExtendedJobResources GetSimpleSortResources(
         const TChunkStripeStatistics& stat,
         i64 valueCount) const override
     {
         YUNREACHABLE();
     }
 
-    virtual TJobResources GetPartitionSortResources(
-        TPartitionPtr partition,
-        const TChunkStripeStatistics& stat,
-        bool memoryReserveEnabled) const override
+    virtual TUserJobSpecPtr GetPartitionSortUserJobSpec(
+        TPartitionPtr partition) const override
     {
-        TJobResources result;
+        if (!IsSortedMergeNeeded(partition)) {
+            return Spec->Reducer;
+        } else if (Spec->ReduceCombiner) {
+            return Spec->ReduceCombiner;
+        } else {
+            return nullptr;
+        }
+    }
+
+    virtual TExtendedJobResources GetPartitionSortResources(
+        TPartitionPtr partition,
+        const TChunkStripeStatistics& stat) const override
+    {
+        TExtendedJobResources result;
         result.SetUserSlots(1);
 
         i64 memory =
             GetSortInputIOMemorySize(stat) +
-            GetSortBuffersMemorySize(stat) +
-            GetFootprintMemorySize();
+            GetSortBuffersMemorySize(stat);
 
         if (!IsSortedMergeNeeded(partition)) {
             result.SetCpu(Spec->Reducer->CpuLimit);
-            result.SetMemory(
-                memory +
-                GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
-                GetMemoryReserve(memoryReserveEnabled, Spec->Reducer));
+            memory += GetFinalOutputIOMemorySize(FinalSortJobIOConfig);
+            result.SetJobProxyMemory(memory);
         } else if (Spec->ReduceCombiner) {
             result.SetCpu(Spec->ReduceCombiner->CpuLimit);
-            result.SetMemory(
-                memory +
-                GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
-                GetMemoryReserve(memoryReserveEnabled, Spec->ReduceCombiner));
+            memory += GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig);
+            result.SetJobProxyMemory(memory);
         } else {
             result.SetCpu(1);
-            result.SetMemory(
-                memory +
-                GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig));
+            memory += GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig);
+            result.SetJobProxyMemory(memory);
         }
 
         result.SetNetwork(Spec->ShuffleNetworkLimit);
         return result;
     }
 
-    virtual TJobResources GetSortedMergeResources(
-        const TChunkStripeStatisticsVector& statistics,
-        bool memoryReserveEnabled) const override
+    virtual TExtendedJobResources GetSortedMergeResources(
+        const TChunkStripeStatisticsVector& statistics) const override
     {
-        TJobResources result;
+        TExtendedJobResources result;
         result.SetUserSlots(1);
         result.SetCpu(Spec->Reducer->CpuLimit);
-        result.SetMemory(
-            GetFinalIOMemorySize(
-                SortedMergeJobIOConfig,
-                statistics) +
-            GetMemoryReserve(memoryReserveEnabled, Spec->Reducer) +
-            GetFootprintMemorySize());
+        result.SetJobProxyMemory(GetFinalIOMemorySize(SortedMergeJobIOConfig, statistics));
         return result;
     }
 
-    virtual TJobResources GetUnorderedMergeResources(
+    virtual TExtendedJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const override
     {
         YUNREACHABLE();
@@ -2912,7 +2952,10 @@ private:
             .Item("sorted_reduce_jobs").Value(SortedMergeJobCounter);
     }
 
-
+    virtual TUserJobSpecPtr GetPartitionUserJobSpec() const override
+    {
+        return Spec->Mapper;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceController);
