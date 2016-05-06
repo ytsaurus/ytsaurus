@@ -6,6 +6,8 @@
 
 #include <yt/core/misc/raw_formatter.h>
 
+#include <yt/core/concurrency/fls.h>
+
 #include <util/system/defaults.h>
 
 #include <signal.h>
@@ -53,7 +55,7 @@ namespace {
 // introducing yet another #ifdef complication.
 const struct {
     int Number;
-    const char *Name;
+    const char* Name;
 } FailureSignals[] = {
     { SIGSEGV, "SIGSEGV" },
     { SIGILL,  "SIGILL"  },
@@ -161,7 +163,7 @@ void WriteToStderr(const char* buffer, int length)
  */
 void DumpTimeInfo()
 {
-    time_t timeSinceEpoch = time(NULL);
+    auto timeSinceEpoch = time(nullptr);
 
     TRawFormatter<256> formatter;
 
@@ -178,7 +180,7 @@ void DumpTimeInfo()
 void DumpSignalInfo(int signal, siginfo_t* si)
 {
     // Get the signal name.
-    const char* name = NULL;
+    const char* name = nullptr;
     for (size_t i = 0; i < Y_ARRAY_SIZE(FailureSignals); ++i) {
         if (signal == FailureSignals[i].Number) {
             name = FailureSignals[i].Name;
@@ -268,7 +270,9 @@ void Terminate(int signal)
 // This variable is used for protecting CrashSignalHandler() from
 // dumping stuff while another thread is doing it. Our policy is to let
 // the first thread dump stuff and let other threads wait.
-static pthread_t* crashingThreadId = NULL;
+std::atomic<pthread_t*> CrashingThreadId;
+
+NConcurrency::TFls<std::vector<Stroka>> CodicilsStack;
 
 // Dumps signal and stack frame information, and invokes the default
 // signal handler once our job is done.
@@ -278,20 +282,16 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
 
     // We assume pthread_self() is async signal safe, though it's not
     // officially guaranteed.
-    pthread_t currentThreadId = pthread_self();
+    auto currentThreadId = pthread_self();
     // NOTE: We could simply use pthread_t rather than pthread_t* for this,
     // if pthread_self() is guaranteed to return non-zero value for thread
     // ids, but there is no such guarantee. We need to distinguish if the
     // old value (value returned from __sync_val_compare_and_swap) is
     // different from the original value (in this case NULL).
-    pthread_t* previousThreadId = __sync_val_compare_and_swap(
-        &crashingThreadId,
-        static_cast<pthread_t*>(NULL),
-        &currentThreadId);
-
-    if (previousThreadId != NULL) {
+    pthread_t* expectedCrashingThreadId = nullptr;
+    if (!CrashingThreadId.compare_exchange_strong(expectedCrashingThreadId, &currentThreadId)) {
         // We've already entered the signal handler. What should we do?
-        if (pthread_equal(currentThreadId, *crashingThreadId)) {
+        if (pthread_equal(currentThreadId, *expectedCrashingThreadId)) {
             // It looks the current thread is reentering the signal handler.
             // Something must be going wrong (maybe we are reentering by another
             // type of signal?). Kill ourself by the default signal handler.
@@ -311,18 +311,35 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     // This is the first time we enter the signal handler. We are going to
     // do some interesting stuff from here.
 
-    TRawFormatter<256> prefix;
+    TRawFormatter<256> formatter;
 
     // When did the crash happen?
     DumpTimeInfo();
 
-    // Where did the crash happen?
-    void *pc = GetPC(uc);
+    // Dump codicils.
+    if (!CodicilsStack->empty()) {
+        formatter.Reset();
+        formatter.AppendString("*** Begin codicils ***\n");
+        WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 
+        for (const auto& data : *CodicilsStack) {
+            formatter.Reset();
+            formatter.AppendString(data.c_str());
+            formatter.AppendString("\n");
+            WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+        }
+
+        formatter.Reset();
+        formatter.AppendString("*** End codicils ***\n");
+        WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+    }
+
+    // Where did the crash happen?
     {
-        prefix.Reset();
-        prefix.AppendString("PC: ");
-        WriteToStderr(prefix.GetData(), prefix.GetBytesWritten());
+        void* pc = GetPC(uc);
+        formatter.Reset();
+        formatter.AppendString("PC: ");
+        WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
         DumpStackFrameInfo(pc);
     }
 
@@ -334,24 +351,24 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
 
     // Dump the stack trace.
     for (int i = 0; i < depth; ++i) {
-        prefix.Reset();
-        prefix.AppendNumber(i + 1, 10, 2);
-        prefix.AppendString(". ");
-        WriteToStderr(prefix.GetData(), prefix.GetBytesWritten());
+        formatter.Reset();
+        formatter.AppendNumber(i + 1, 10, 2);
+        formatter.AppendString(". ");
+        WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
         DumpStackFrameInfo(stack[i]);
     }
 
-    prefix.Reset();
-    prefix.AppendString("*** Wait for logger to shut down ***\n");
-    WriteToStderr(prefix.GetData(), prefix.GetBytesWritten());
+    formatter.Reset();
+    formatter.AppendString("*** Wait for logger to shut down ***\n");
+    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 
     // Okay, we have done enough, so now we can do unsafe (async signal unsafe)
     // things. The process could be terminated or hung at any time.
     NLogging::TLogManager::StaticShutdown();
 
-    prefix.Reset();
-    prefix.AppendString("*** Terminate ***\n");
-    WriteToStderr(prefix.GetData(), prefix.GetBytesWritten());
+    formatter.Reset();
+    formatter.AppendString("*** Terminate ***\n");
+    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 
     // Kill ourself by the default signal handler.
     Terminate(signal);
@@ -375,6 +392,58 @@ void InstallCrashSignalHandler()
         YCHECK(sigaction(FailureSignals[i].Number, &sa, NULL) == 0);
     }
 #endif
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PushCodicil(const Stroka& data)
+{
+    CodicilsStack->push_back(data);
+}
+
+void PopCodicil()
+{
+    YCHECK(!CodicilsStack->empty());
+    CodicilsStack->pop_back();
+}
+
+TCodicilGuard::TCodicilGuard()
+    : Active_(false)
+{ }
+
+TCodicilGuard::TCodicilGuard(const Stroka& data)
+    : Active_(true)
+{
+    PushCodicil(data);
+}
+
+TCodicilGuard::~TCodicilGuard()
+{
+    Release();
+}
+
+TCodicilGuard::TCodicilGuard(TCodicilGuard&& other)
+    : Active_(other.Active_)
+{
+    other.Active_ = false;
+}
+
+TCodicilGuard& TCodicilGuard::operator=(TCodicilGuard&& other)
+{
+    if (this != &other) {
+        Release();
+        Active_ = other.Active_;
+        other.Active_ = false;
+    }
+    return *this;
+}
+
+void TCodicilGuard::Release()
+{
+    if (Active_) {
+        PopCodicil();
+        Active_ = false;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
