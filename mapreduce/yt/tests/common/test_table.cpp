@@ -17,10 +17,10 @@ class TTableFixture
     : public NTest::TTest
 {
 public:
-    static constexpr auto TABLE = "tmp/table";
-    static constexpr auto SORTED_TABLE = "tmp/sorted_table";
-    static constexpr auto EMPTY_TABLE = "tmp/empty_table";
-    static constexpr auto UNEXIST_TABLE = "tmp/unexist_table";
+    static constexpr auto TABLE = "tmp/table_test/table";
+    static constexpr auto SORTED_TABLE = "tmp/table_test/sorted_table";
+    static constexpr auto EMPTY_TABLE = "tmp/table_test/empty_table";
+    static constexpr auto UNEXIST_TABLE = "tmp/table_test/unexist_table";
 
     void SetUp() override {
         TTest::SetUp();
@@ -35,19 +35,6 @@ public:
 
     TServer& GetServer() {
         return *Server;
-    }
-
-protected:
-    void PrintTable(const char* tableName) {
-        Cout << "~~~~~~" << tableName << "~~~~~~" << Endl;
-        TClient client(GetServer());
-        TTable table(client, tableName);
-        for (auto&& it = table.Begin(); it != table.End(); ++it) {
-            Cout << it.GetKey().AsString()
-                << "\t" << it.GetSubKey().AsString()
-                << "\t" << it.GetValue().AsString()
-                << "\n";
-        }
     }
 
 private:
@@ -89,11 +76,9 @@ private:
 Stroka ItToString(const TTableIterator&& it) {
     TStringStream ss;
     ss << "IsValid: " << it.IsValid()
-        << " GetTableIndex: " << it.GetTableIndex()
         << " GetRecordIndex: " << it.GetRecordIndex();
     return ss.Str();
 }
-
 
 void TestTableMethods(TServer& server, const char* tableName) {
     Cout << "=======" << tableName << "=======" << Endl;
