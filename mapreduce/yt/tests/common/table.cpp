@@ -2,6 +2,7 @@
 
 #include <mapreduce/interface/all.h>
 
+#include <limits>
 #include <utility>
 
 
@@ -108,8 +109,22 @@ void TestTableMethods(TServer& server, const char* tableName) {
         Cout << Sprintf(headerTemplate, "IsWriteLocked") << table.IsWriteLocked() << "\n";
         Cout << Sprintf(headerTemplate, "GetRecordCount") << table.GetRecordCount() << "\n";
     }
+    {
+        const yvector<ui64> INDICIES = {
+            0, 1, 2, 3, 4, 5, 6, 100, std::numeric_limits<ui64>::max()
+        };
+        const bool USE_SUBKEY = true;
+
+        auto headerTemplate = "TTable.GetIteratorByIndex: index=%" PRIu64 " useSub: %d ";
+        for (auto index : INDICIES) {
+            Cout << Sprintf(headerTemplate, index, USE_SUBKEY)
+                << ItToString(table.GetIteratorByIndex(index, USE_SUBKEY)) << "\n";
+            Cout << Sprintf(headerTemplate, index, !USE_SUBKEY)
+                << ItToString(table.GetIteratorByIndex(index, !USE_SUBKEY)) << "\n";
+        }
+    }
     { // Args = {key}: Find, LowerBound, UpperBound, GetValueByKey.
-        yvector<const char*> keys = {
+        const yvector<const char*> KEYS = {
                 "a", "b", "c",
                 "d", "e", "g",
                 "i", "j", "aa",
@@ -117,19 +132,19 @@ void TestTableMethods(TServer& server, const char* tableName) {
                 "", "zzz"
             };
         auto headerTemplate = "TTable.%s key='%s': ";
-        for (const auto& key : keys) {
+        for (const auto& key : KEYS) {
             Cout << Sprintf(headerTemplate, "Find", key)
                 << ItToString(table.Find(key)) << "\n";
         }
-        for (const auto& key : keys) {
+        for (const auto& key : KEYS) {
             Cout << Sprintf(headerTemplate, "LowerBound", key)
                 << ItToString(table.LowerBound(key)) << "\n";
         }
-        for (const auto& key : keys) {
+        for (const auto& key : KEYS) {
             Cout << Sprintf(headerTemplate, "UpperBound", key)
                 << ItToString(table.UpperBound(key)) << "\n";
         }
-        for (const auto& key : keys) {
+        for (const auto& key : KEYS) {
             yvector<char> value;
             bool res = table.GetValueByKey(key, &value);
             Cout << Sprintf(headerTemplate, "GetValueByKey", key)
@@ -138,7 +153,7 @@ void TestTableMethods(TServer& server, const char* tableName) {
     }
     { // Args = {key, subkey}: FindSub, LowerBoundSub, UpperBoundSub, GetValueByKeySub
         using TKeySubkey = std::pair<const char*, const char*>;
-        yvector<TKeySubkey> args = {
+        const yvector<TKeySubkey> ARGS = {
                 { "a", "a" },
                 { "a", "zzz" },
                 { "a", "" },
@@ -153,19 +168,19 @@ void TestTableMethods(TServer& server, const char* tableName) {
                 { "", "" }
             };
         auto headerTemplate = "TTable.%s key='%s' subkey='%s': ";
-        for (const auto& arg : args) {
+        for (const auto& arg : ARGS) {
             Cout << Sprintf(headerTemplate, "FindSub", arg.first, arg.second)
                 << ItToString(table.FindSub(arg.first, arg.second)) << "\n";
         }
-        for (const auto& arg : args) {
+        for (const auto& arg : ARGS) {
             Cout << Sprintf(headerTemplate, "LowerBoundSub", arg.first, arg.second)
                 << ItToString(table.LowerBoundSub(arg.first, arg.second)) << "\n";
         }
-        for (const auto& arg : args) {
+        for (const auto& arg : ARGS) {
             Cout << Sprintf(headerTemplate, "UpperBoundSub", arg.first, arg.second)
                 << ItToString(table.UpperBoundSub(arg.first, arg.second)) << "\n";
         }
-        for (const auto& arg : args) {
+        for (const auto& arg : ARGS) {
             yvector<char> value;
             bool res = table.GetValueByKeySub(arg.first, arg.second, &value);
             Cout << Sprintf(headerTemplate, "GetValueByKeySub", arg.first, arg.second)
