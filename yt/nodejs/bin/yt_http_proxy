@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/node --expose-gc
 
 // Standard modules.
 var cluster = require("cluster");
