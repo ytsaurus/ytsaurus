@@ -261,6 +261,18 @@ application = connect()
         next();
     })
     // End of asynchronous middleware.
+    .use("/gc", function(req, rsp, next) {
+        if (req.url === "/") {
+            if (global.gc) {
+                global.gc();
+                rsp.statusCode = 200;
+            } else {
+                rsp.statusCode = 500;
+            }
+            return void yt.utils.dispatchAs(rsp, "");
+        }
+        next();
+    })
     .use("/ping", function(req, rsp, next) {
         if (req.url === "/") {
             var isSelfAlive = yt.YtRegistry.get("coordinator").isSelfAlive();
