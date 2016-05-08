@@ -40,6 +40,7 @@ TOperation::TOperation(
     , StartTime_(startTime)
     , StderrCount_(0)
     , MaxStderrCount_(0)
+    , CodicilData_(Format("OperationId: %v", Id_))
 { }
 
 TFuture<TOperationPtr> TOperation::GetStarted()
@@ -89,6 +90,11 @@ bool TOperation::HasControllerProgress() const
     return (State_ == EOperationState::Running || IsFinishedState()) &&
         Controller_ &&
         Controller_->HasProgress();
+}
+
+TCodicilGuard TOperation::MakeCodicilGuard()
+{
+    return TCodicilGuard(CodicilData_);
 }
 
 ////////////////////////////////////////////////////////////////////

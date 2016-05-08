@@ -375,6 +375,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
                 operation->GetId(),
@@ -400,6 +402,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             return MakeFuture(TError(
                 EErrorCode::InvalidOperationState,
@@ -419,6 +423,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         if (!operation->GetSuspended()) {
             return MakeFuture(TError(
                 EErrorCode::InvalidOperationState,
@@ -437,6 +443,8 @@ public:
     TFuture<void> CompleteOperation(TOperationPtr operation, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
@@ -751,6 +759,8 @@ public:
         auto operation = FindOperation(operationId);
         YCHECK(operation);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         operation->SetActivated(true);
         if (operation->GetPrepared()) {
             MaterializeOperation(operation);
@@ -1055,6 +1065,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         TerminateOperation(
             operation,
             EOperationState::Aborting,
@@ -1066,6 +1078,8 @@ private:
     void OnSchedulerTransactionAborted(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         TerminateOperation(
             operation,
@@ -1258,6 +1272,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         if (operation->GetState() != EOperationState::Initializing) {
             throw TFiberCanceledException();
         }
@@ -1308,6 +1324,8 @@ private:
     void DoPrepareOperation(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         if (operation->GetState() != EOperationState::Initializing) {
             throw TFiberCanceledException();
@@ -1380,6 +1398,8 @@ private:
 
     void ReviveOperation(TOperationPtr operation)
     {
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         const auto& operationId = operation->GetId();
 
         LOG_INFO("Reviving operation (OperationId: %v)",
@@ -1421,6 +1441,8 @@ private:
     void DoReviveOperation(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         if (operation->GetState() != EOperationState::Reviving) {
             throw TFiberCanceledException();
@@ -2187,6 +2209,7 @@ private:
         }
     }
 
+
     TYsonString DoStrace(const TJobId& jobId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2302,6 +2325,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         if (operation->IsFinishedState() || operation->IsFinishingState()) {
             // Operation is probably being aborted.
             return;
@@ -2368,6 +2393,8 @@ private:
     void DoFailOperation(TOperationPtr operation, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         LOG_INFO(error, "Operation failed (OperationId: %v)",
              operation->GetId());
@@ -2437,6 +2464,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         LOG_INFO("Aborting operation (OperationId: %v)",
              operation->GetId());
 
@@ -2486,6 +2515,8 @@ private:
 
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
     {
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         auto controller = operation->GetController();
         bool hasControllerProgress = operation->HasControllerProgress();
         BuildYsonMapFluently(consumer)
@@ -2597,6 +2628,8 @@ private:
         auto operation = FindOperation(job->GetOperationId());
         YCHECK(operation);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         Logger.AddTag("JobType: %v, State: %v, OperationId: %v",
             job->GetType(),
             state,
@@ -2695,8 +2728,7 @@ TScheduler::TScheduler(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-TScheduler::~TScheduler()
-{ }
+TScheduler::~TScheduler() = default;
 
 void TScheduler::Initialize()
 {
