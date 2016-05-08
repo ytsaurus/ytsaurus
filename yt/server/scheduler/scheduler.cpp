@@ -657,16 +657,19 @@ public:
 
         TLeaseManager::RenewLease(node->GetLease());
 
+        bool isThrottlingActive = false;
         if (ConcurrentHeartbeatCount_ > Config_->HardConcurrentHeartbeatLimit) {
-            THROW_ERROR_EXCEPTION("Hard heartbeat limit reached")
-                << TErrorAttribute("hard_limit", Config_->HardConcurrentHeartbeatLimit);
-        }
-
-        if (ConcurrentHeartbeatCount_ > Config_->SoftConcurrentHeartbeatLimit &&
+            isThrottlingActive = true;
+            LOG_INFO("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v)",
+                node->GetDefaultAddress(),
+                Config_->HardConcurrentHeartbeatLimit);
+        } else if (ConcurrentHeartbeatCount_ > Config_->SoftConcurrentHeartbeatLimit &&
             node->GetLastSeenTime() + Config_->HeartbeatProcessBackoff > TInstant::Now())
         {
-            THROW_ERROR_EXCEPTION("Soft heartbeat limit reached")
-                << TErrorAttribute("soft_limit", Config_->SoftConcurrentHeartbeatLimit);
+            isThrottlingActive = true;
+            LOG_INFO("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v)",
+                node->GetDefaultAddress(),
+                Config_->SoftConcurrentHeartbeatLimit);
         }
 
         yhash_set<TOperationPtr> operationsToLog;
@@ -692,8 +695,14 @@ public:
                         &operationsToLog);
                 }
 
-                if (hasWaitingJobs) {
-                    LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
+                if (hasWaitingJobs || isThrottlingActive) {
+                    if (hasWaitingJobs) {
+                        LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
+                    }
+                    if (isThrottlingActive) {
+                        LOG_DEBUG("Throttling is active, suppressing new jobs scheduling");
+                    }
+                    response->set_scheduling_skipped(true);
                 } else {
                     auto schedulingContext = CreateSchedulingContext(
                         Config_,
@@ -713,6 +722,7 @@ public:
                         schedulingContext,
                         response,
                         &operationsToLog);
+                    response->set_scheduling_skipped(false);
                 }
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Failed to process heartbeat");
