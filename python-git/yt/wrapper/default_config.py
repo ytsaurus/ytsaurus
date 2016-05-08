@@ -223,6 +223,7 @@ default_config = {
         "enable": True,
         "allow_multiple_ranges": False,
         "retry_count": 30,
+        "chunk_unavailable_timeout": 60000,
         "create_transaction_and_take_snapshot_lock": True
     },
 
