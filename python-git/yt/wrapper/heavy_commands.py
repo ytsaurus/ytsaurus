@@ -153,6 +153,9 @@ def make_read_request(command_name, path, params, process_response_action, retri
                         if attempt + 1 == retry_count:
                             raise
                         logger.warning(str(err))
+                        backoff = get_config(client)["proxy"]["heavy_request_retry_timeout"] / 1000.0
+                        logger.warning("Sleep for %.2lf seconds before next retry", backoff)
+                        time.sleep(backoff)
                         logger.warning("New retry (%d) ...", attempt + 2)
             except exceptions.GeneratorExit:
                 pass

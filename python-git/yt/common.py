@@ -69,7 +69,7 @@ class YtResponseError(YtError):
 
     def is_chunk_unavailable(self):
         """Chunk unavailable."""
-        return self.contains_code(716)
+        return self.contains_code(716) or self.contains_text(" is unavailable")
 
     def is_request_timed_out(self):
         """Request timed out"""
