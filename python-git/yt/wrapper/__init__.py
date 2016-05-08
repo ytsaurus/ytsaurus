@@ -15,7 +15,7 @@ from cypress_commands import set, get, list, exists, remove, search,\
                              mkdir, copy, move, link, concatenate,\
                              get_type, create, find_free_subpath,\
                              has_attribute, get_attribute, set_attribute, list_attributes, \
-                             join_paths
+                             join_paths, escape_ypath_literal
 from acl_commands import check_permission, add_member, remove_member
 from table_commands import create_table, create_temp_table, write_table, read_table, \
                            records_count, row_count, is_sorted, is_empty, \

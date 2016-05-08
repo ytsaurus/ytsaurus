@@ -45,6 +45,19 @@ def join_paths(*paths):
 
     return "".join(result)
 
+def escape_ypath_literal(literal):
+    def escape_char(ch):
+        if ch in ["\\", "/", "@", "&", "[", "{"]:
+            return "\\" + ch
+        num = ord(ch)
+        if num >= 256:
+            raise YtError("YPath literals should consist of bytes with code in [0, 255]")
+        if num < 32: # or num >= 128:
+            return "\\x" + string.hexdigits[num / 16] + string.hexdigits[num % 16]
+        return ch
+
+    return "".join(map(escape_char, literal))
+
 def get(path, attributes=None, format=None, ignore_opaque=False, client=None):
     """Get Cypress node content (attribute tree).
 
@@ -391,7 +404,7 @@ def search(root="", node_type=None,
             else:
                 iteritems = object.iteritems()
             for key, value in iteritems:
-                for obj in walk("{0}/{1}".format(path, key), value, depth + 1):
+                for obj in walk("{0}/{1}".format(path, escape_ypath_literal(key)), value, depth + 1):
                     yield obj
 
         if isinstance(object, __builtin__.list):
