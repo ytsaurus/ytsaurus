@@ -38,6 +38,7 @@ int ParseListIndex(const TStringBuf& token)
 
 Stroka ToYPathLiteral(const TStringBuf& value)
 {
+    //! Keep it synchronized with the same functions in python, C++ and other APIs.
     static const char* HexChars = "0123456789abcdef";
     Stroka result;
     result.reserve(value.length() + 16);
