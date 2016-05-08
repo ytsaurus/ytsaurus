@@ -29,7 +29,7 @@ size_t TJobWriter::GetStreamCount() const
 TOutputStream* TJobWriter::GetStream(size_t tableIndex)
 {
     if (tableIndex >= Streams_.size()) {
-        FAIL("Table index %" PRISZT " is out of range", tableIndex);
+        Y_FAIL("Table index %" PRISZT " is out of range", tableIndex);
     }
     return Streams_[tableIndex].BufferedOutput.Get();
 }
