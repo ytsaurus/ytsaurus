@@ -36,11 +36,23 @@ private:
     StreamSource* const Source_;
 };
 
-size_t EstimateCompressedSize(size_t inputLength)
+class TBrotliStreamSourceOut
+    : public brotli::BrotliOut
 {
-    // TODO(acid): Replace this with appropriate call to API when it is available.
-    return inputLength * 1.2 + 10240;
-}
+public:
+    explicit TBrotliStreamSourceOut(StreamSink* sink)
+        : Sink_(sink)
+    { }
+
+    virtual bool Write(const void *buf, size_t n) override
+    {
+        Sink_->Append(static_cast<const char*>(buf), n);
+        return true;
+    }
+
+private:
+    StreamSink* const Sink_;
+};
 
 } // namespace
 
@@ -52,8 +64,7 @@ void BrotliCompress(int level, StreamSource* source, TBlob* output)
     brotliParams.quality = level;
 
     ui64 totalInputSize = source->Available();
-    size_t maxCompressedSize = EstimateCompressedSize(source->Available());
-    output->Resize(sizeof(totalInputSize) + maxCompressedSize);
+    output->Resize(sizeof(totalInputSize));
 
     ui64 curOutputPos = 0;
     // Write input size that will be used during decompression.
@@ -64,12 +75,9 @@ void BrotliCompress(int level, StreamSource* source, TBlob* output)
     }
 
     TBrotliStreamSourceIn sourceAdaptor(source);
-    brotli::BrotliMemOut outputAdaptor(output->Begin() + curOutputPos, maxCompressedSize);
-    YCHECK(brotli::BrotliCompress(brotliParams, &sourceAdaptor, &outputAdaptor));
-
-    size_t compressedSize = outputAdaptor.position();
-    curOutputPos += compressedSize;
-    output->Resize(curOutputPos);
+    TDynamicByteArraySink sink(output);
+    TBrotliStreamSourceOut sinkAdaptor(&sink);
+    YCHECK(brotli::BrotliCompress(brotliParams, &sourceAdaptor, &sinkAdaptor));
 }
 
 void BrotliDecompress(StreamSource* source, TBlob* output)
