@@ -30,7 +30,8 @@ class TestCypress(YTEnvSetup):
             "max_map_node_key_length": 300,
 
             # To make expiration tests run faster
-            "expiration_check_period": 10
+            "expiration_check_period": 10,
+            "expiration_backoff_time": 10
         }
     }
 

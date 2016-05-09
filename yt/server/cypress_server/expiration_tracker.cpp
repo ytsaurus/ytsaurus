@@ -71,10 +71,11 @@ void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode
     }
 
     if (trunkNode->GetExpirationTime()) {
+        auto expirationTime = *trunkNode->GetExpirationTime();
         LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration time set (NodeId: %v, ExpirationTime: %v)",
             trunkNode->GetId(),
-            trunkNode->GetExpirationTime());
-        RegisterNodeExpiration(trunkNode);
+            expirationTime);
+        RegisterNodeExpiration(trunkNode, expirationTime);
     } else {
         LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration time reset (NodeId: %v)",
             trunkNode->GetId());
@@ -91,19 +92,19 @@ void TExpirationTracker::OnNodeDestroyed(TCypressNodeBase* trunkNode)
     }
 }
 
-void TExpirationTracker::OnNodeUnlocked(TCypressNodeBase* trunkNode)
+void TExpirationTracker::OnNodeRemovalFailed(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(trunkNode->IsTrunk());
 
     if (!trunkNode->GetExpirationIterator() && trunkNode->GetExpirationTime()) {
-        RegisterNodeExpiration(trunkNode);
+        RegisterNodeExpiration(trunkNode, TInstant::Now() + Config_->ExpirationBackoffTime);
     }
 }
 
-void TExpirationTracker::RegisterNodeExpiration(TCypressNodeBase* trunkNode)
+void TExpirationTracker::RegisterNodeExpiration(TCypressNodeBase* trunkNode, TInstant expirationTime)
 {
-    auto it = ExpirationTimeToNode_.insert(std::make_pair(*trunkNode->GetExpirationTime(), trunkNode));
+    auto it = ExpirationTimeToNode_.insert(std::make_pair(expirationTime, trunkNode));
     trunkNode->SetExpirationIterator(it);
 }
 
