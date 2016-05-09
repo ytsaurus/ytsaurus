@@ -10,6 +10,12 @@ class TSortedDynamicStoreTestBase
     : public TDynamicStoreTestBase
 {
 protected:
+    virtual void SetupTablet() override
+    {
+        Tablet_->CreateInitialPartition();
+        Tablet_->StartEpoch(nullptr);
+    }
+
     virtual TTableSchema GetSchema() const override
     {
         // NB: Key columns must go first.
