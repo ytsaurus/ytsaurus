@@ -12,6 +12,11 @@ class TOrderedDynamicStoreTestBase
     : public TDynamicStoreTestBase
 {
 protected:
+    virtual void SetupTablet() override
+    {
+        Tablet_->StartEpoch(nullptr);
+    }
+
     virtual TTableSchema GetSchema() const override
     {
         return TTableSchema({

@@ -119,12 +119,11 @@ protected:
             sorted ? MinKey() : TOwningKey(),
             sorted ? MaxKey() : TOwningKey(),
             GetAtomicity());
-        if (schema.IsSorted()) {
-            Tablet_->CreateInitialPartition();
-        }
 
-        Tablet_->StartEpoch(nullptr);
+        SetupTablet();
     }
+
+    virtual void SetupTablet() = 0;
 
     virtual TTableSchema GetSchema() const = 0;
 
@@ -332,10 +331,8 @@ class TStoreManagerTestBase
 protected:
     virtual IStoreManagerPtr GetStoreManager() = 0;
 
-    virtual void SetUp() override
+    virtual void SetupTablet() override
     {
-        TBase::SetUp();
-
         auto storeManager = GetStoreManager();
         storeManager->StartEpoch(nullptr);
         storeManager->Mount({});
