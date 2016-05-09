@@ -492,6 +492,101 @@ TEST(TYsonSerializableTest, SaveLite)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTestConfigWithAliases
+    : public TYsonSerializable
+{
+public:
+    Stroka Value;
+
+    TTestConfigWithAliases()
+    {
+        RegisterParameter("key", Value)
+            .Alias("alias1")
+            .Alias("alias2");
+    }
+};
+
+TEST(TYsonSerializableTest, Aliases1)
+{
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    BuildYsonFluently(builder.get())
+        .BeginMap()
+            .Item("key").Value("value")
+        .EndMap();
+    auto configNode = builder->EndTree();
+
+    auto config = New<TTestConfigWithAliases>();
+    config->Load(configNode->AsMap(), false);
+
+    EXPECT_EQ("value", config->Value);
+}
+
+TEST(TYsonSerializableTest, Aliases2)
+{
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    BuildYsonFluently(builder.get())
+        .BeginMap()
+            .Item("alias1").Value("value")
+        .EndMap();
+    auto configNode = builder->EndTree();
+
+    auto config = New<TTestConfigWithAliases>();
+    config->Load(configNode->AsMap(), false);
+
+    EXPECT_EQ("value", config->Value);
+}
+
+TEST(TYsonSerializableTest, Aliases3)
+{
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    BuildYsonFluently(builder.get())
+        .BeginMap()
+            .Item("alias1").Value("value")
+            .Item("alias2").Value("value")
+        .EndMap();
+    auto configNode = builder->EndTree();
+
+    auto config = New<TTestConfigWithAliases>();
+    config->Load(configNode->AsMap(), false);
+
+    EXPECT_EQ("value", config->Value);
+}
+
+TEST(TYsonSerializableTest, Aliases4)
+{
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    BuildYsonFluently(builder.get())
+        .BeginMap()
+            .Item("alias1").Value("value1")
+            .Item("alias2").Value("value2")
+        .EndMap();
+    auto configNode = builder->EndTree();
+
+    auto config = New<TTestConfigWithAliases>();
+
+    EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
+}
+
+TEST(TYsonSerializableTest, Aliases5)
+{
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    BuildYsonFluently(builder.get())
+        .BeginMap()
+        .EndMap();
+    auto configNode = builder->EndTree();
+
+    auto config = New<TTestConfigWithAliases>();
+
+    EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYTree
 } // namespace NYT
