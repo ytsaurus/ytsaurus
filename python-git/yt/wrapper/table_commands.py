@@ -438,9 +438,15 @@ def _get_format_from_tables(tables, ignore_unexisting_tables):
             format_name = get(table_name + "/@_format", format=YsonFormat())
             return create_format(format_name)
         return None
+
     formats = map(extract_format, tables_to_extract)
 
-    require(len(set(repr(format) for format in formats)) == 1,
+    def format_repr(format):
+        if format is not None:
+            return yson.dumps(format._name, boolean_as_string=True)
+        return repr(None)
+
+    require(len(set(format_repr(format) for format in formats)) == 1,
             lambda: YtError("Tables have different attribute _format: " + repr(formats)))
 
     return formats[0]
