@@ -591,6 +591,25 @@ class TestAcls(YTEnvSetup):
             "inherit_acl": False})
         assert len(get("//tmp/t/@acl")) == 1
 
+    def test_group_write_acl(self):
+        create_user("u")
+        create_group("g")
+        with pytest.raises(YtError): add_member("u", "g", user="guest")
+        set("//sys/groups/g/@acl/end", self._make_ace("allow", "guest", "write"))
+        add_member("u", "g", user="guest")
+
+    def test_user_remove_acl(self):
+        create_user("u")
+        with pytest.raises(YtError): remove("//sys/users/u", user="guest")
+        set("//sys/users/u/@acl/end", self._make_ace("allow", "guest", "remove"))
+        remove("//sys/users/u", user="guest")
+
+    def test_group_remove_acl(self):
+        create_group("g")
+        with pytest.raises(YtError): remove("//sys/groups/g", user="guest")
+        set("//sys/groups/g/@acl/end", self._make_ace("allow", "guest", "remove"))
+        remove("//sys/groups/g", user="guest")
+
 ##################################################################
 
 class TestAclsMulticell(TestAcls):

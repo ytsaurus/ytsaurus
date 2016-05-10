@@ -14,6 +14,7 @@ using namespace NObjectClient;
 
 TSubject::TSubject(const TAccountId& id)
     : TNonversionedObjectBase(id)
+    , Acd_(this)
 { }
 
 void TSubject::Save(NCellMaster::TSaveContext& context) const
@@ -25,6 +26,7 @@ void TSubject::Save(NCellMaster::TSaveContext& context) const
     Save(context, MemberOf_);
     Save(context, RecursiveMemberOf_);
     Save(context, LinkedObjects_);
+    Save(context, Acd_);
 }
 
 void TSubject::Load(NCellMaster::TLoadContext& context)
@@ -36,6 +38,9 @@ void TSubject::Load(NCellMaster::TLoadContext& context)
     Load(context, MemberOf_);
     Load(context, RecursiveMemberOf_);
     Load(context, LinkedObjects_);
+    if (context.GetVersion() >= 214) {
+        Load(context, Acd_);
+    }
 }
 
 TUser* TSubject::AsUser()
