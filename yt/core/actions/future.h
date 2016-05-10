@@ -481,13 +481,23 @@ struct TFutureCombineTraits<void>
 //! Combines a number of same-typed asynchronous computations into a single one.
 /*!
  *  If |T| is |void|, then the asynchronous return type is |void|, otherwise
- *  it is |std::vector<T>|.
+ *  it is |std::vector<T>|. The order of results always coincides with that of #futures.
  *
  *  If any of #futures fails, the others are canceled and the error is propagated immediately.
  */
 template <class T>
 TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
     const std::vector<TFuture<T>>& futures);
+
+//! Same as #Combine but only wait for #quorum successful results.
+/*!
+ *  A single local failure, however, still propagates into a global failure.
+ *  In contrast to #Combine, for non-void results their relative order is not guaranteed.
+ */
+template <class T>
+TFuture<typename TFutureCombineTraits<T>::TCombined> CombineQuorum(
+    const std::vector<TFuture<T>>& futures,
+    int quorum);
 
 //! A variant of |Combine| that accepts future holders instead of futures.
 template <class T>
