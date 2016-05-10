@@ -2097,7 +2097,9 @@ private:
             if (stderrChunkId) {
                 operation->SetStderrCount(operation->GetStderrCount() + 1);
             }
-            MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId);
+            if (operation->GetJobNodeCount() < Config_->MaxJobNodesPerOperation) {
+                MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId);
+            }
             return;
         }
 
@@ -2108,7 +2110,9 @@ private:
         }
 
         // Job has not failed, but has stderr.
-        if (operation->GetStderrCount() < operation->GetMaxStderrCount()) {
+        if (operation->GetStderrCount() < operation->GetMaxStderrCount() &&
+            operation->GetJobNodeCount() < Config_->MaxJobNodesPerOperation)
+        {
             MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId);
             operation->SetStderrCount(operation->GetStderrCount() + 1);
         } else {
