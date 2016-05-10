@@ -173,6 +173,11 @@ private:
         return Format("user %Qv", user->GetName());
     }
 
+    virtual TAccessControlDescriptor* DoFindAcd(TUser* user) override
+    {
+        return &user->Acd();
+    }
+
     virtual IObjectProxyPtr DoGetProxy(TUser* user, TTransaction* transaction) override;
 
     virtual void DoZombifyObject(TUser* user) override;
@@ -217,6 +222,11 @@ private:
     virtual Stroka DoGetName(const TGroup* group) override
     {
         return Format("group %Qv", group->GetName());
+    }
+
+    virtual TAccessControlDescriptor* DoFindAcd(TGroup* group) override
+    {
+        return &group->Acd();
     }
 
     virtual IObjectProxyPtr DoGetProxy(TGroup* group, TTransaction* transaction) override;
@@ -1193,7 +1203,6 @@ private:
         }
 
         ValidatePermission(group, EPermission::Write);
-        ValidatePermission(member, EPermission::Write);
     }
 
 

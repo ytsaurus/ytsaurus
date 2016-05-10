@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "acl.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 
@@ -29,6 +30,8 @@ public:
     typedef yhash_map<TObjectBase*, int> TLinkedObjects;
     //! Objects whose ACLs reference this particular subject, with counters.
     DEFINE_BYREF_RW_PROPERTY(TLinkedObjects, LinkedObjects);
+
+    DEFINE_BYREF_RW_PROPERTY(TAccessControlDescriptor, Acd);
 
 public:
     explicit TSubject(const TSubjectId& id);
