@@ -284,15 +284,26 @@ test_smart_format()
         "has_subkey":"true"
     }
 }'
+    same_format_with_other_repr='{
+    "$value":"yamred_dsv",
+    "$attributes":{
+        "key_column_names":["x","y"],
+        "subkey_column_names":["subkey"],
+        "has_subkey":"true"
+    }
+}'
     export YT_SMART_FORMAT=1
     ./mapreduce -createtable "ignat/smart_x"
     ./mapreduce -createtable "ignat/smart_z"
+    ./mapreduce -createtable "ignat/smart_w"
 
     ./mapreduce -set "ignat/smart_x/@_format" -value "$format"
     ./mapreduce -set "ignat/smart_z/@_format" -value "$format"
+    ./mapreduce -set "ignat/smart_w/@_format" -value "$same_format_with_other_repr"
 
     # test read/write
     echo -e "1 2\t\tz=10" | ./mapreduce -subkey -write "ignat/smart_x"
+    echo -e "3 4\t\tz=20" | ./mapreduce -subkey -write "ignat/smart_w"
     check "1 2\tz=10" "`./mapreduce -read "ignat/smart_x"`"
     check "`printf "\x00\x00\x00\x031 2\x00\x00\x00\x04z=10"`" "`./mapreduce -lenval -read "ignat/smart_x"`"
     check "1 2\t\tz=10" "`./mapreduce -subkey -read "ignat/smart_x"`"
@@ -303,6 +314,9 @@ test_smart_format()
     check_failed "./mapreduce -read ${ranged_table}"
     set -B
     check "x=1\tz=10" "`./mapreduce -read ${ranged_table} -dsv`"
+    ./mapreduce -map cat -src ignat/smart_x -src ignat/smart_w -dst ignat/output
+    ./mapreduce -read ignat/output -dsv
+    check "key=1 2\nkey=3 4" "`./mapreduce -read ignat/output\{key\} -dsv`"
 
     unset YT_SMART_FORMAT
     # write in yamr
