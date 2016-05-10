@@ -51,16 +51,16 @@ private:
     virtual void DoFinish() override;
     void FlushBlock();
 
-    const NApi::TFileWriterConfigPtr Config;
-    const NChunkClient::TMultiChunkWriterOptionsPtr Options;
+    const NApi::TFileWriterConfigPtr Config_;
+    const NChunkClient::TMultiChunkWriterOptionsPtr Options_;
 
-    NApi::IClientPtr Client;
-    NObjectClient::TTransactionId TransactionId;
+    NApi::IClientPtr Client_;
+    NObjectClient::TTransactionId TransactionId_;
 
-    NChunkClient::IChunkWriterPtr ChunkWriter;
-    IFileChunkWriterPtr Writer;
+    NChunkClient::IChunkWriterPtr ConfirmingChunkWriter_;
+    IFileChunkWriterPtr FileChunkWriter_;
 
-    const i64 SizeLimit;
+    const i64 SizeLimit_;
 
     NLogging::TLogger Logger;
 };
