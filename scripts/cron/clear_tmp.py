@@ -11,11 +11,7 @@ import logging
 
 logger.set_formatter(logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config.http.PROXY)))
 
-now = datetime.now()
-
 def get_time(obj):
-    if "access_time" in obj.attributes:
-        return obj.attributes["access_time"]
     return obj.attributes["modification_time"]
 
 def get_age(obj):
@@ -24,7 +20,7 @@ def get_age(obj):
 
     time_str = get_time(obj)
     time_str = time_str.rsplit(".")[0]
-    return now - datetime.strptime(time_str, pattern)
+    return datetime.utcnow() - datetime.strptime(time_str, pattern)
 
 def is_locked(obj):
     return any(map(lambda l: l["mode"] in ["exclusive", "shared"], obj.attributes["locks"]))
@@ -36,7 +32,7 @@ def main():
     parser.add_argument("--max-disk-space", type=int, default=None)
     parser.add_argument("--max-chunk-count", type=int, default=None)
     parser.add_argument("--max-node-count", type=int, default=50000)
-    parser.add_argument("--safe-age", type=int, default=60, help="Objects that youner than safe-age minutes will not be removed")
+    parser.add_argument("--safe-age", type=int, default=10, help="Objects that younger than safe-age minutes will not be removed")
     parser.add_argument("--max-age", type=int, default=7, help="Objects that older than max-age days will be removed")
     args = parser.parse_args()
 
