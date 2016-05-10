@@ -1019,7 +1019,7 @@ void TOperationControllerBase::Initialize(bool cleanStart)
         DoInitialize();
     }
 
-    Operation->SetMaxStderrCount(Spec->MaxStderrCount.Get(Config->MaxStderrCount));
+    Operation->SetMaxStderrCount(Spec->MaxStderrCount);
     Operation->SetSchedulingTag(Spec->SchedulingTag);
 
     LOG_INFO("Operation initialized");
@@ -1760,7 +1760,7 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
     }
 
     int failedJobCount = JobCounter.GetFailed();
-    int maxFailedJobCount = Spec->MaxFailedJobCount.Get(Config->MaxFailedJobCount);
+    int maxFailedJobCount = Spec->MaxFailedJobCount;
     if (failedJobCount >= maxFailedJobCount) {
         OnOperationFailed(TError("Failed jobs limit exceeded")
             << TErrorAttribute("max_failed_job_count", maxFailedJobCount));
@@ -3732,14 +3732,14 @@ bool TOperationControllerBase::IsBoundaryKeysFetchEnabled() const
 
 void TOperationControllerBase::UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter)
 {
-    if (jobCounter.GetAborted(EAbortReason::ResourceOverdraft) == Config->MaxMemoryReserveAbortJobCount) {
+    if (jobCounter.GetAborted(EAbortReason::ResourceOverdraft) == Spec->MaxMemoryReserveAbortJobCount) {
         UpdateAllTasks();
     }
 }
 
 bool TOperationControllerBase::IsMemoryReserveEnabled(const TProgressCounter& jobCounter) const
 {
-    return jobCounter.GetAborted(EAbortReason::ResourceOverdraft) < Config->MaxMemoryReserveAbortJobCount;
+    return jobCounter.GetAborted(EAbortReason::ResourceOverdraft) < Spec->MaxMemoryReserveAbortJobCount;
 }
 
 i64 TOperationControllerBase::GetMemoryReserve(bool memoryReserveEnabled, TUserJobSpecPtr userJobSpec) const
