@@ -245,6 +245,15 @@ public:
         return it == IdToOperation_.end() ? nullptr : it->second;
     }
 
+    TOperationPtr GetOperation(const TOperationId& id)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(id);
+        YCHECK(operation);
+        return operation;
+    }
+
     TOperationPtr GetOperationOrThrow(const TOperationId& id)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -756,8 +765,7 @@ public:
 
     virtual void ActivateOperation(const TOperationId& operationId) override
     {
-        auto operation = FindOperation(operationId);
-        YCHECK(operation);
+        auto operation = GetOperation(operationId);
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
@@ -1859,8 +1867,7 @@ private:
 
     void RegisterJob(TJobPtr job)
     {
-        auto operation = FindOperation(job->GetOperationId());
-        YCHECK(operation);
+        auto operation = GetOperation(job->GetOperationId());
 
         auto node = job->GetNode();
 
@@ -1878,8 +1885,7 @@ private:
 
     void UnregisterJob(TJobPtr job)
     {
-        auto operation = FindOperation(job->GetOperationId());
-        YCHECK(operation);
+        auto operation = GetOperation(job->GetOperationId());
 
         auto node = job->GetNode();
 
@@ -1930,8 +1936,7 @@ private:
         job->SetResult(std::move(result));
         OnJobFinished(job);
 
-        auto operation = FindOperation(job->GetOperationId());
-        YCHECK(operation);
+        auto operation = GetOperation(job->GetOperationId());
 
         if (operation->GetState() == EOperationState::Running) {
             const auto& controller = operation->GetController();
@@ -1978,8 +1983,7 @@ private:
 
             OnJobFinished(job);
 
-            auto operation = FindOperation(job->GetOperationId());
-            YCHECK(operation);
+            auto operation = GetOperation(job->GetOperationId());
 
             if (operation->GetState() == EOperationState::Running) {
                 const auto& controller = operation->GetController();
@@ -2005,8 +2009,7 @@ private:
 
             OnJobFinished(job);
 
-            auto operation = FindOperation(job->GetOperationId());
-            YCHECK(operation);
+            auto operation = GetOperation(job->GetOperationId());
 
             if (operation->GetState() == EOperationState::Running) {
                 const auto& controller = operation->GetController();
@@ -2036,8 +2039,7 @@ private:
 
             OnJobFinished(job);
 
-            auto operation = FindOperation(job->GetOperationId());
-            YCHECK(operation);
+            auto operation = GetOperation(job->GetOperationId());
 
             if (operation->GetState() == EOperationState::Running) {
                 const auto& controller = operation->GetController();
@@ -2089,8 +2091,7 @@ private:
             ? FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id())
             : NullChunkId;
 
-        auto operation = FindOperation(job->GetOperationId());
-        YCHECK(operation);
+        auto operation = GetOperation(job->GetOperationId());
 
         if (jobFailedOrAborted) {
             if (stderrChunkId) {
@@ -2625,8 +2626,7 @@ private:
             return nullptr;
         }
 
-        auto operation = FindOperation(job->GetOperationId());
-        YCHECK(operation);
+        auto operation = GetOperation(job->GetOperationId());
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
