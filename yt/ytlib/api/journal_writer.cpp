@@ -220,6 +220,8 @@ private:
             TDataNodeServiceProxy HeavyProxy;
             TPeriodicExecutorPtr PingExecutor;
 
+            bool Started = false;
+
             i64 FirstPendingBlockIndex = 0;
             i64 FirstPendingRowIndex = 0;
 
@@ -580,11 +582,11 @@ private:
                     ToProto(req->mutable_workload_descriptor(), Config_->WorkloadDescriptor);
                     req->set_enable_multiplexing(Options_.EnableMultiplexing);
                     auto asyncRsp = req->Invoke().Apply(
-                        BIND(&TImpl::OnChunkStarted, MakeStrong(this), node)
+                        BIND(&TImpl::OnChunkStarted, MakeStrong(this), session, node)
                             .AsyncVia(Invoker_));
                     asyncResults.push_back(asyncRsp);
                 }
-                auto result = WaitFor(Combine(asyncResults));
+                auto result = WaitFor(CombineQuorum(asyncResults, WriteQuorum_));
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
             } catch (const std::exception& ex) {
                 LOG_WARNING(TError(ex));
@@ -957,13 +959,16 @@ private:
         }
 
 
-        void OnChunkStarted(TNodePtr node, const TDataNodeServiceProxy::TErrorOrRspStartChunkPtr& rspOrError)
+        void OnChunkStarted(TChunkSessionPtr session, TNodePtr node, const TDataNodeServiceProxy::TErrorOrRspStartChunkPtr& rspOrError)
         {
             if (rspOrError.IsOK()) {
                 LOG_DEBUG("Chunk session started (Address: %v)",
                     node->Descriptor.GetDefaultAddress());
+                node->Started = true;
+                MaybeFlushBlocks(node);
             } else {
                 BanNode(node->Descriptor.GetDefaultAddress());
+                EnqueueCommand(TSwitchChunkCommand{session});
                 THROW_ERROR_EXCEPTION("Error starting session at %v",
                     node->Descriptor.GetDefaultAddress())
                     << rspOrError;
@@ -985,8 +990,17 @@ private:
 
         void MaybeFlushBlocks(TNodePtr node)
         {
-            if (!node->InFlightBatches.empty() || node->PendingBatches.empty())
+            if (!node->Started) {
                 return;
+            }
+
+            if (!node->InFlightBatches.empty()) {
+                return;
+            }
+
+            if (node->PendingBatches.empty()) {
+                return;
+            }
 
             i64 flushRowCount = 0;
             i64 flushDataSize = 0;
@@ -1077,7 +1091,6 @@ private:
                 promise.Set();
             }
         }
-
 
         void OnReplicaFailed(const TError& error, TNodePtr node, TChunkSessionPtr session)
         {
