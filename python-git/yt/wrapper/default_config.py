@@ -12,6 +12,18 @@ default_config = {
     # If backend equals None, thenits value will be automatically detected.
     "backend": None,
 
+    "backoff": {
+        # Policy of backoff.
+        # Supported values:
+        # to_timeout - we will sleep due to timeout of the request (applyable only for light requests).
+        # constant_time - the back equals to time specified below.
+        # exponential - backoffs will be exponential to time (of request timeout if time is noe specified).
+        "policy": "to_timeout",
+        "time": None,
+        "exponential_start_timeout": 1000.0,
+        "exponential_multiplier": 2.0
+    },
+
     # Configuration of proxy connection.
     "proxy": {
         "url": None,

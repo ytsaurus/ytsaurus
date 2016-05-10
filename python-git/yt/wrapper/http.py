@@ -152,8 +152,8 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
         logger.debug("Body: %r", kwargs["data"])
 
     for attempt in xrange(get_config(client)["proxy"]["request_retry_count"]):
-        current_time = datetime.now()
-        _process_request_backoff(current_time, client=client)
+        request_start_time = datetime.now()
+        _process_request_backoff(request_start_time, client=client)
         request_info = {"headers": headers, "url": url, "params": params}
         try:
             try:
@@ -194,7 +194,12 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
             if make_retries and attempt + 1 < get_config(client)["proxy"]["request_retry_count"]:
                 if retry_action is not None:
                     retry_action(error, kwargs)
-                backoff = get_backoff(get_config(client)["proxy"]["request_retry_timeout"], current_time)
+                backoff = get_backoff(
+                    request_start_time=request_start_time,
+                    request_timeout=get_config(client)["proxy"]["request_retry_timeout"],
+                    request_type="light",
+                    attempt=attempt,
+                    backoff_config=get_config(client)["backoff"])
                 if backoff:
                     logger.warning("Sleep for %.2lf seconds before next retry", backoff)
                     time.sleep(backoff)

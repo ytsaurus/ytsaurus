@@ -96,8 +96,8 @@ class YtTestEnvironment(object):
         self.config["proxy"]["url"] = "localhost:" + self.env.get_proxy_address().split(":", 1)[1]
         # NB: to decrease probability of retries test failure.
         self.config["proxy"]["request_retry_count"] = 10
-        self.config["proxy"]["heavy_request_retry_timeout"] = 2000
-        self.config["proxy"]["request_retry_timeout"] = 2000
+        self.config["backoff"]["policy"] = "constant_time"
+        self.config["backoff"]["time"] = 500
         self.config["enable_token"] = False
         self.config["pickling"]["enable_tmpfs_archive"] = ENABLE_JOB_CONTROL
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__

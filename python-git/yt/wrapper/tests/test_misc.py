@@ -149,6 +149,7 @@ class TestRetries(object):
         old_value = yt.config["read_retries"]["enable"]
         yt.config["read_retries"]["enable"] = True
         yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = True
+        yt.config._ENABLE_HTTP_CHAOS_MONKEY = True
         try:
             table = TEST_DIR + "/table"
 
@@ -177,6 +178,7 @@ class TestRetries(object):
             rsp.close()
         finally:
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
+            yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
             yt.config["read_retries"]["enable"] = old_value
 
     def test_read_ranges_with_retries(self, yt_env):

@@ -2,7 +2,7 @@
 
 import yt.logger as logger
 import config
-from config import get_option, get_config, get_total_request_timeout, get_single_request_timeout, get_request_retry_count
+from config import get_option, get_config, get_total_request_timeout, get_request_retry_count
 from common import get_backoff, chunk_iter_blobs, YtError
 from errors import YtResponseError, YtRetriableError
 from table import to_table, to_name
@@ -15,7 +15,6 @@ from lock import lock
 import time
 import random
 import exceptions
-from datetime import datetime
 
 class FakeTransaction(object):
     def __enter__(self):
@@ -69,7 +68,6 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                     .format(command_name, len(chunk), get_option("TRANSACTION", client)))
 
                 for attempt in xrange(get_request_retry_count(client)):
-                    current_time = datetime.now()
                     try:
                         if get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
                             raise YtRetriableError()
@@ -88,7 +86,12 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                         if attempt + 1 == get_request_retry_count(client):
                             raise
                         logger.warning("%s: %s", type(err), str(err))
-                        backoff = get_backoff(get_single_request_timeout(client), current_time)
+                        backoff = get_backoff(
+                            request_start_time=None,
+                            request_timeout=get_config(client)["proxy"]["heavy_request_retry_timeout"],
+                            request_type="heavy",
+                            attempt=attempt,
+                            backoff_config=get_config(client)["backoff"])
                         if backoff:
                             logger.warning("Sleep for %.2lf seconds before next retry", backoff)
                             time.sleep(backoff)
@@ -153,7 +156,12 @@ def make_read_request(command_name, path, params, process_response_action, retri
                         if attempt + 1 == retry_count:
                             raise
                         logger.warning(str(err))
-                        backoff = get_config(client)["proxy"]["heavy_request_retry_timeout"] / 1000.0
+                        backoff = get_backoff(
+                            request_start_time=None,
+                            request_timeout=get_config(client)["proxy"]["heavy_request_retry_timeout"],
+                            request_type="heavy",
+                            attempt=attempt,
+                            backoff_config=get_config(client)["backoff"])
                         logger.warning("Sleep for %.2lf seconds before next retry", backoff)
                         time.sleep(backoff)
                         logger.warning("New retry (%d) ...", attempt + 2)
