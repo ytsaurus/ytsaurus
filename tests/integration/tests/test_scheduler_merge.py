@@ -412,6 +412,24 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("#" + chunk_id + "/@replication_factor") == 3
         assert get("#" + chunk_id + "/@vital")
 
+    @unix_only
+    def test_chunk_indices(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        for i in xrange(5):
+            write_table("<sorted_by=[a];append=%true>//tmp/t1", [{"a": i}])
+
+        merge(mode="sorted",
+            in_=yson.to_yson_type("//tmp/t1", attributes={"ranges": [
+                {
+                    "lower_limit": {"chunk_index": 1},
+                    "upper_limit": {"chunk_index": 3}
+                }
+            ]}),
+            out="//tmp/t2")
+
+        assert read_table("//tmp/t2") == [{"a": i} for i in xrange(1, 3)]
+
 ##################################################################
 
 class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
