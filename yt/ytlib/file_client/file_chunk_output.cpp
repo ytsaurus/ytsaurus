@@ -55,16 +55,24 @@ TFileChunkOutput::TFileChunkOutput(
     YCHECK(Config_);
     YCHECK(Client_);
 
-    LOG_INFO("File chunk output opened (TransactionId: %v, Account: %v, ReplicationFactor: %v, UploadReplicationFactor: %v)",
+    auto connection = Client_->GetConnection();
+    const auto& secondaryCellTags = connection->GetSecondaryMasterCellTags();
+    auto cellTag = secondaryCellTags.empty()
+        ? connection->GetPrimaryMasterCellTag()
+        : secondaryCellTags[RandomNumber(secondaryCellTags.size())];
+
+    LOG_INFO("File chunk output opened (TransactionId: %v, Account: %v, ReplicationFactor: %v, "
+        "UploadReplicationFactor: %v, CellTag: %v)",
         TransactionId_,
         Options_->Account,
         Options_->ReplicationFactor,
-        Config_->UploadReplicationFactor);
+        Config_->UploadReplicationFactor,
+        cellTag);
 
     ConfirmingChunkWriter_ = CreateConfirmingWriter(
         Config_,
         Options_,
-        Client_->GetConnection()->GetPrimaryMasterCellTag(),
+        cellTag,
         TransactionId_,
         NullChunkListId,
         New<TNodeDirectory>(),
