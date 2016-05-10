@@ -57,9 +57,13 @@ TFuture<void> TJournalSession::DoStart()
 
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
     auto asyncChangelog = dispatcher->CreateChangelog(Location_, ChunkId_, Options_.EnableMultiplexing);
-    return asyncChangelog.Apply(BIND([=, this_ = MakeStrong(this)] (IChangelogPtr changelog) {
-        if (Chunk_->IsRemoveScheduled())
+    return asyncChangelog.Apply(BIND([=, this_ = MakeStrong(this)] (const IChangelogPtr& changelog) {
+        if (!Active_) {
             return;
+        }
+        if (Chunk_->IsRemoveScheduled()) {
+            return;
+        }
         Chunk_->AttachChangelog(changelog);
     }).AsyncVia(Bootstrap_->GetControlInvoker()));
 }
