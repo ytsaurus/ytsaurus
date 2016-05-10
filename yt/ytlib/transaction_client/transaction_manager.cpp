@@ -77,9 +77,11 @@ private:
     yhash_set<TTransaction::TImpl*> AliveTransactions_;
 
 
-    TTransactionSupervisorServiceProxy MakeSupervisorProxy(IChannelPtr channel)
+    TTransactionSupervisorServiceProxy MakeSupervisorProxy(IChannelPtr channel, bool retry = true)
     {
-        channel = CreateRetryingChannel(Config_, std::move(channel));
+        if (retry) {
+            channel = CreateRetryingChannel(Config_, std::move(channel));
+        }
         TTransactionSupervisorServiceProxy proxy(std::move(channel));
         proxy.SetDefaultTimeout(Config_->RpcTimeout);
         return proxy;
@@ -737,7 +739,7 @@ private:
                 continue;
             }
 
-            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel));
+            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), false);
             auto req = proxy.PingTransaction();
             ToProto(req->mutable_transaction_id(), Id_);
             if (cellId == Owner_->CellId_) {
