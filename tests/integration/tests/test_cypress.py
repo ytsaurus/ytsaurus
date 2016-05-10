@@ -84,14 +84,15 @@ class TestCypress(YTEnvSetup):
         set("//tmp/@test_attribute", 10)
         remove("//tmp/@test_attribute")
 
-        for path in ["//tmp/@test_attribute", "//tmp/@test_attribute/inner", "//tmp/@key/inner", "//tmp/@erasure_codec",
+        for path in ["//tmp/@test_attribute", "//tmp/@test_attribute/inner", "//tmp/@erasure_codec",
                      "//tmp/@recursive_resource_usage/disk_space", "//tmp/@recursive_resource_usage/missing"]:
             with pytest.raises(YtError):
                 remove(path)
             remove(path, force=True)
 
-        with pytest.raises(YtError):
-            remove("//tmp/@key", force=True)
+        for builtin_path in ["//tmp/@key", "//tmp/@key/inner"]:
+            with pytest.raises(YtError):
+                remove(builtin_path, force=True)
 
     def test_list(self):
         set("//tmp/list", [1,2,"some string"])
