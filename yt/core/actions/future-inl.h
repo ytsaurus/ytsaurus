@@ -1089,19 +1089,20 @@ class TFutureCombiner
     : public TRefCounted
 {
 public:
-    explicit TFutureCombiner(const std::vector<TFuture<T>>& items)
-        : Items_(items)
-        , ResultHolder_(Items_.size())
-        , PendingResponseCount_(Items_.size())
+    TFutureCombiner(const std::vector<TFuture<T>>& futures, int quorum)
+        : Quorum_(quorum)
+        , Futures_(futures)
+        , ResultHolder_(quorum < 0 ? Futures_.size() : quorum)
+        , PendingResponseCount_(quorum < 0 ? Futures_.size() : quorum)
     { }
 
     TFuture<typename TFutureCombineTraits<T>::TCombined> Run()
     {
-        if (Items_.empty()) {
+        if (Futures_.empty() || Quorum_ == 0) {
             ResultHolder_.SetPromise(Promise_);
         } else {
-            for (int index = 0; index < Items_.size(); ++index) {
-                Items_[index].Subscribe(BIND(&TFutureCombiner::OnSet, MakeStrong(this), index));
+            for (int index = 0; index < Futures_.size(); ++index) {
+                Futures_[index].Subscribe(BIND(&TFutureCombiner::OnSet, MakeStrong(this), index));
             }
             Promise_.OnCanceled(BIND(&TFutureCombiner::OnCanceled, MakeWeak(this)));
         }
@@ -1109,7 +1110,10 @@ public:
     }
 
 private:
-    std::vector<TFuture<T>> Items_;
+    // -1 indicates that we must wait for all results.
+    const int Quorum_;
+
+    std::vector<TFuture<T>> Futures_;
 
     TPromise<typename TFutureCombineTraits<T>::TCombined> Promise_ = NewPromise<typename TFutureCombineTraits<T>::TCombined>();
     TFutureCombinerResultHolder<T> ResultHolder_;
@@ -1118,17 +1122,20 @@ private:
 
     void OnCanceled()
     {
-        for (int index = 0; index < Items_.size(); ++index) {
-            Items_[index].Cancel();
+        for (int index = 0; index < Futures_.size(); ++index) {
+            Futures_[index].Cancel();
         }
     }
 
-    void OnSet(int index, const TErrorOr<T>& result)
+    void OnSet(int futureIndex, const TErrorOr<T>& result)
     {
         if (result.IsOK()) {
-            ResultHolder_.SetItem(index, result);
-            if (--PendingResponseCount_ == 0) {
-                ResultHolder_.SetPromise(Promise_);
+            int remainingResponseCount = --PendingResponseCount_;
+            if (remainingResponseCount >= 0) {
+                ResultHolder_.SetItem(Quorum_ < 0 ? futureIndex : remainingResponseCount, result);
+                if (remainingResponseCount == 0) {
+                    ResultHolder_.SetPromise(Promise_);
+                }
             }
         } else {
             OnCanceled();
@@ -1142,19 +1149,19 @@ class TAllFutureCombiner
     : public TRefCounted
 {
 public:
-    explicit TAllFutureCombiner(const std::vector<TFuture<T>>& items)
-        : Items_(items)
-        , Results_(Items_.size())
-        , PendingResponseCount_(Items_.size())
+    explicit TAllFutureCombiner(const std::vector<TFuture<T>>& futures)
+        : Futures_(futures)
+        , Results_(Futures_.size())
+        , PendingResponseCount_(Futures_.size())
     { }
 
     TFuture<std::vector<TErrorOr<T>>> Run()
     {
-        if (Items_.empty()) {
+        if (Futures_.empty()) {
             Promise_.Set(std::move(Results_));
         } else {
-            for (int index = 0; index < Items_.size(); ++index) {
-                Items_[index].Subscribe(BIND(&TAllFutureCombiner::OnSet, MakeStrong(this), index));
+            for (int index = 0; index < Futures_.size(); ++index) {
+                Futures_[index].Subscribe(BIND(&TAllFutureCombiner::OnSet, MakeStrong(this), index));
             }
             Promise_.OnCanceled(BIND(&TAllFutureCombiner::OnCanceled, MakeWeak(this)));
         }
@@ -1162,7 +1169,7 @@ public:
     }
 
 private:
-    std::vector<TFuture<T>> Items_;
+    std::vector<TFuture<T>> Futures_;
 
     TPromise<std::vector<TErrorOr<T>>> Promise_ = NewPromise<std::vector<TErrorOr<T>>>();
     std::vector<TErrorOr<T>> Results_;
@@ -1171,14 +1178,14 @@ private:
 
     void OnCanceled()
     {
-        for (int index = 0; index < Items_.size(); ++index) {
-            Items_[index].Cancel();
+        for (int index = 0; index < Futures_.size(); ++index) {
+            Futures_[index].Cancel();
         }
     }
 
-    void OnSet(int index, const TErrorOr<T>& result)
+    void OnSet(int futureIndex, const TErrorOr<T>& result)
     {
-        Results_[index] = result;
+        Results_[futureIndex] = result;
         if (--PendingResponseCount_ == 0) {
             Promise_.Set(std::move(Results_));
         }
@@ -1191,7 +1198,16 @@ template <class T>
 TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
     const std::vector<TFuture<T>>& futures)
 {
-    return New<NDetail::TFutureCombiner<T>>(futures)->Run();
+    return New<NDetail::TFutureCombiner<T>>(futures, -1)->Run();
+}
+
+template <class T>
+TFuture<typename TFutureCombineTraits<T>::TCombined> CombineQuorum(
+    const std::vector<TFuture<T>>& futures,
+    int quorum)
+{
+    YASSERT(quorum >= 0);
+    return New<NDetail::TFutureCombiner<T>>(futures, quorum)->Run();
 }
 
 template <class T>
