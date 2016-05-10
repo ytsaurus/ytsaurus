@@ -531,7 +531,7 @@ void TSchemafulOverlappingRangeChunkReaderBase<TRowMerger>::UpdateReadyEvent()
 
 class TSchemafulOverlappingRangeChunkReader
     : public ISchemafulReader
-    , TSchemafulOverlappingRangeChunkReaderBase<TSchemafulRowMerger>
+    , public TSchemafulOverlappingRangeChunkReaderBase<TSchemafulRowMerger>
 {
 public:
     static ISchemafulReaderPtr Create(
