@@ -9,7 +9,6 @@ import time
 import __builtin__
 import os
 
-
 ##################################################################
 
 def get_statistics(statistics, complex_key):
@@ -18,6 +17,15 @@ def get_statistics(statistics, complex_key):
         if part:
             result = result[part]
     return result
+
+def check_all_stderrs(op, expected_content, expected_count, substring=False):
+    jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+    assert get(jobs_path + "/@count") == expected_count
+    for job_id in ls(jobs_path):
+        if substring:
+            assert expected_content in read_file("{0}/{1}/stderr".format(jobs_path, job_id))
+        else:
+            assert read_file("{0}/{1}/stderr".format(jobs_path, job_id)) == expected_content
 
 ##################################################################
 
