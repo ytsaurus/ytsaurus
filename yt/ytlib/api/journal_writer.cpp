@@ -201,7 +201,7 @@ private:
 
         ITransactionPtr Transaction_;
         ITransactionPtr UploadTransaction_;
-        
+
         int ReplicationFactor_ = -1;
         int ReadQuorum_ = -1;
         int WriteQuorum_ = -1;
@@ -269,7 +269,7 @@ private:
         typedef TBatchPtr TBatchCommand;
 
         struct TCloseCommand { };
-        
+
         struct TCancelCommand { };
 
         struct TSwitchChunkCommand
@@ -293,7 +293,7 @@ private:
         {
             CommandQueue_.Enqueue(std::move(command));
         }
-        
+
         TCommand DequeueCommand()
         {
             return WaitFor(CommandQueue_.Dequeue())
@@ -712,17 +712,7 @@ private:
 
         void HandleBatch(TBatchPtr batch)
         {
-            i64 rowCount = batch->Rows.size();
-
-            LOG_DEBUG("Batch ready (Rows: %v-%v)",
-                CurrentRowIndex_,
-                CurrentRowIndex_ + rowCount - 1);
-
-            batch->FirstRowIndex = CurrentRowIndex_;
-            CurrentRowIndex_ += rowCount;
-
             PendingBatches_.push_back(batch);
-
             EnqueueBatchToSession(batch);
         }
 
@@ -735,7 +725,7 @@ private:
 
         void EnqueueBatchToSession(TBatchPtr batch)
         {
-            // Reset flushed replica count: this batch might have already been 
+            // Reset flushed replica count: this batch might have already been
             // flushed (partially) by the previous (failed session).
             if (batch->FlushedReplicas > 0) {
                 LOG_DEBUG("Resetting flushed replica counter (Rows: %v-%v, FlushCounter: %v)",
@@ -747,6 +737,10 @@ private:
 
             CurrentSession_->RowCount += batch->Rows.size();
             CurrentSession_->DataSize += batch->DataSize;
+
+            LOG_DEBUG("Batch enqueued (Rows: %v-%v)",
+                batch->FirstRowIndex,
+                batch->FirstRowIndex + batch->Rows.size() - 1);
 
             for (const auto& node : CurrentSession_->Nodes) {
                 node->PendingBatches.push(batch);
@@ -870,11 +864,12 @@ private:
         }
 
 
-        static TFuture<void> AppendToBatch(const TBatchPtr& batch, const TSharedRef& row)
+        TFuture<void> AppendToBatch(const TBatchPtr& batch, const TSharedRef& row)
         {
             YASSERT(row);
             batch->Rows.push_back(row);
             batch->DataSize += row.Size();
+            ++CurrentRowIndex_;
             return batch->FlushedPromise;
         }
 
@@ -892,6 +887,7 @@ private:
 
             if (!CurrentBatch_) {
                 CurrentBatch_ = New<TBatch>();
+                CurrentBatch_->FirstRowIndex = CurrentRowIndex_;
                 CurrentBatchFlushCookie_ = TDelayedExecutor::Submit(
                     BIND(&TImpl::OnBatchTimeout, MakeWeak(this), CurrentBatch_)
                         .Via(Invoker_),
@@ -913,14 +909,16 @@ private:
         {
             VERIFY_SPINLOCK_AFFINITY(CurrentBatchSpinLock_);
 
-            if (CurrentBatchFlushCookie_) {
-                TDelayedExecutor::CancelAndClear(CurrentBatchFlushCookie_);
-            }
+            TDelayedExecutor::CancelAndClear(CurrentBatchFlushCookie_);
+
+            LOG_DEBUG("Flushing batch (Rows: %v-%v)",
+                CurrentBatch_->FirstRowIndex,
+                CurrentBatch_->FirstRowIndex + CurrentBatch_->Rows.size() - 1);
 
             EnqueueCommand(TBatchCommand(CurrentBatch_));
             CurrentBatch_.Reset();
         }
-  
+
 
         void SendPing(TChunkSessionWeakPtr session_, TNodeWeakPtr node_)
         {
