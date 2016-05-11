@@ -10,14 +10,14 @@
 
 #include <yt/ytlib/chunk_client/data_statistics.h>
 
-#include <yt/ytlib/table_client/versioned_row.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/overlapping_reader.h>
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/row_merger.h>
-#include <yt/ytlib/table_client/config.h>
-#include <yt/ytlib/table_client/versioned_reader.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
-#include <yt/ytlib/table_client/schemaful_overlapping_chunk_reader.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/versioned_reader.h>
+#include <yt/ytlib/table_client/versioned_row.h>
 
 #include <yt/ytlib/query_client/config.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
@@ -1279,7 +1279,7 @@ TEST_F(TSchemafulMergingReaderTest, Merge1)
 
     auto merger = GetTypicalMerger();
 
-    auto reader = CreateSchemafulOverlappingRangeChunkReader(
+    auto reader = CreateSchemafulOverlappingRangeReader(
         boundaries,
         std::move(merger),
         [readers] (int index) {
@@ -1322,7 +1322,7 @@ TEST_F(TSchemafulMergingReaderTest, Merge2)
 
     auto merger = GetTypicalMerger();
 
-    auto reader = CreateSchemafulOverlappingRangeChunkReader(
+    auto reader = CreateSchemafulOverlappingRangeReader(
         boundaries,
         std::move(merger),
         [readers] (int index) {
@@ -1363,7 +1363,7 @@ TEST_F(TSchemafulMergingReaderTest, Lookup)
 
     auto merger = GetTypicalMerger();
 
-    auto reader = CreateSchemafulOverlappingLookupChunkReader(
+    auto reader = CreateSchemafulOverlappingLookupReader(
         std::move(merger),
         [readers, index = 0] () mutable -> IVersionedReaderPtr {
             if (index < readers.size()) {
@@ -1428,7 +1428,7 @@ TEST_F(TVersionedMergingReaderTest, Merge1)
 
     auto merger = GetTypicalMerger(config, SecondsToTimestamp(1000), 0);
 
-    auto reader = CreateVersionedOverlappingRangeChunkReader(
+    auto reader = CreateVersionedOverlappingRangeReader(
         boundaries,
         std::move(merger),
         [readers] (int index) {

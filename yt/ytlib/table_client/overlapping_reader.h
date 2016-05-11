@@ -17,18 +17,18 @@ using TOverlappingReaderKeyComparer = std::function<int(
     const TUnversionedValue*,
     const TUnversionedValue*)>;
 
-ISchemafulReaderPtr CreateSchemafulOverlappingLookupChunkReader(
+ISchemafulReaderPtr CreateSchemafulOverlappingLookupReader(
     TSchemafulRowMergerPtr rowMerger,
     std::function<IVersionedReaderPtr()> readerFactory);
 
-ISchemafulReaderPtr CreateSchemafulOverlappingRangeChunkReader(
+ISchemafulReaderPtr CreateSchemafulOverlappingRangeReader(
     const std::vector<TOwningKey>& boundaries,
     TSchemafulRowMergerPtr rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
     int minConcurrentReaders = DefaultMinConcurrentOverlappingReaders);
 
-IVersionedReaderPtr CreateVersionedOverlappingRangeChunkReader(
+IVersionedReaderPtr CreateVersionedOverlappingRangeReader(
     const std::vector<TOwningKey>& boundaries,
     TVersionedRowMergerPtr rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,

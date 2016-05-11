@@ -1,19 +1,19 @@
-#include "schemaless_chunk_reader.h"
-#include "private.h"
+#include "cached_versioned_chunk_meta.h"
 #include "chunk_reader_base.h"
 #include "config.h"
 #include "helpers.h"
 #include "legacy_table_chunk_reader.h"
-#include "versioned_chunk_reader.h"
-#include "schemaful_overlapping_chunk_reader.h"
 #include "name_table.h"
+#include "overlapping_reader.h"
+#include "private.h"
+#include "row_buffer.h"
+#include "row_merger.h"
 #include "row_sampler.h"
 #include "schema.h"
-#include "schemaless_block_reader.h"
-#include "cached_versioned_chunk_meta.h"
 #include "schemaful_reader.h"
-#include "row_merger.h"
-#include "row_buffer.h"
+#include "schemaless_block_reader.h"
+#include "schemaless_chunk_reader.h"
+#include "versioned_chunk_reader.h"
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/connection.h>
@@ -1055,7 +1055,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         columnFilter,
         client->GetConnection()->GetColumnEvaluatorCache()->Find(tableSchema));
 
-    auto reader = CreateSchemafulOverlappingRangeChunkReader(
+    auto reader = CreateSchemafulOverlappingRangeReader(
         std::move(boundaries),
         std::move(rowMerger),
         createReader,

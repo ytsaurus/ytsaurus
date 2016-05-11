@@ -242,6 +242,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/legacy_chunk_meta.proto
   ${CMAKE_CURRENT_LIST_DIR}/table_client/legacy_table_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/name_table.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/overlapping_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/partition_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/partitioner.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/pipe.cpp
@@ -257,7 +258,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_block_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_concatenating_reader.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_overlapping_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_reader_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_writer_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_block_reader.cpp
