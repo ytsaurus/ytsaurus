@@ -6,14 +6,14 @@
 #include "tablet.h"
 #include "tablet_slot.h"
 
+#include <yt/ytlib/table_client/overlapping_reader.h>
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/row_merger.h>
+#include <yt/ytlib/table_client/schemaful_concatencaing_reader.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/unordered_schemaful_reader.h>
 #include <yt/ytlib/table_client/versioned_reader.h>
 #include <yt/ytlib/table_client/versioned_row.h>
-#include <yt/ytlib/table_client/schemaful_overlapping_chunk_reader.h>
-#include <yt/ytlib/table_client/unordered_schemaful_reader.h>
-#include <yt/ytlib/table_client/schemaful_concatencaing_reader.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -107,7 +107,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
         boundaries.push_back(store->GetMinKey());
     }
 
-    return CreateSchemafulOverlappingRangeChunkReader(
+    return CreateSchemafulOverlappingRangeReader(
         std::move(boundaries),
         std::move(rowMerger),
         [=, stores = std::move(stores)] (int index) {
@@ -281,7 +281,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
         columnFilter,
         tabletSnapshot->ColumnEvaluator);
 
-    return CreateSchemafulOverlappingLookupChunkReader(
+    return CreateSchemafulOverlappingLookupReader(
         std::move(rowMerger),
         [=, stores = std::move(stores), index = 0] () mutable -> IVersionedReaderPtr {
             if (index < stores.size()) {
@@ -407,7 +407,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         boundaries.push_back(store->GetMinKey());
     }
 
-    return CreateVersionedOverlappingRangeChunkReader(
+    return CreateVersionedOverlappingRangeReader(
         std::move(boundaries),
         std::move(rowMerger),
         [=, stores = std::move(stores)] (int index) {
