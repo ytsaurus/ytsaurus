@@ -257,13 +257,7 @@ private:
         THREAD_AFFINITY_IS_V8();
 
         try {
-            if (Y_LIKELY(OutputStack.HasAnyData())) {
-                OutputStack.Finish();
-            } else {
-                // In this case we have to prematurely destroy the stream to avoid
-                // writing middleware-induced framing overhead.
-                OutputStack.GetBaseStream()->DoDestroy();
-            }
+            OutputStack.Finish();
         } catch (const std::exception& ex) {
             LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
         }

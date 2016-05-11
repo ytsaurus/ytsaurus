@@ -46,7 +46,7 @@ public:
     const ui64 GetBytesEnqueued() const;
     const ui64 GetBytesDequeued() const;
 
-    void MarkAsCompleted();
+    void MarkAsFinishing();
 
 protected:
     // C++ API.
@@ -65,8 +65,8 @@ private:
     TMutex Mutex_;
 
     bool IsFlowing_ = false;
+    bool IsFinishing_ = false;
     bool IsDestroyed_ = false;
-    bool IsCompleted_ = false;
 
     ui64 BytesInFlight_ = 0;
     ui64 BytesEnqueued_ = 0;
