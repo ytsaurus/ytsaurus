@@ -349,7 +349,7 @@ public:
         }
     }
 
-    template <class U, TEnableIf<TIsBaseOf<Message, U>::Value>* = nullptr>
+    template <class U, TEnableIf<std::is_base_of<Message, U>::value>* = nullptr>
     void AddRow(const U& row, size_t tableIndex = 0)
     {
         Writer_->AddRow(row, tableIndex);
