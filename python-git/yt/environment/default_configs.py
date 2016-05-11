@@ -135,7 +135,6 @@ def get_scheduler_config():
 
     scheduler = {
         strategy = fair_share;
-        max_failed_job_count = 10;
         snapshot_period = 100000000;
         lock_transaction_timeout = 5000;
         transactions_refresh_period = 500;
@@ -146,6 +145,12 @@ def get_scheduler_config():
         connect_grace_delay = 0;
         environment = {
              PYTHONUSERBASE = "/tmp"
+        };
+
+        operation_options = {
+            spec_template = {
+                max_failed_job_count = 10;
+            }
         };
 
         enable_snapshot_loading = %true;
