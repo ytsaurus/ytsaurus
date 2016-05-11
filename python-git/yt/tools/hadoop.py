@@ -82,10 +82,7 @@ class Airflow(object):
             raise AirflowError("Unsupported airflow task type: {0}".format(task_type))
 
         src = pattern.format(cluster=source_cluster, path=source_path)
-        if task_type == "hbasecp":
-            dst = destination_cluster
-        else:
-            dst = pattern.format(cluster=destination_cluster, path=destination_path)
+        dst = pattern.format(cluster=destination_cluster, path=destination_path)
 
         task_id = generate_uuid()
         data = {
