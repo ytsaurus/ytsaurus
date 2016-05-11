@@ -12,8 +12,7 @@ var uid_number = require("uid-number");
 
 var Q = require("bluebird");
 
-var profiler = require("profiler");
-var heapdump = require("heapdump");
+var v8_heapdump = require("heapdump");
 
 // Program arguments.
 var opts = optimist
@@ -38,15 +37,10 @@ var opts = optimist
     .alias("h", "help")
     .boolean("h")
     .describe("h", "Show help message and exit")
-
-    .boolean("agent")
-    .describe("agent", "Enable V8 profiler agent")
-    .default("agent", false)
     ;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-var agent;
 var config;
 var version;
 
@@ -114,7 +108,6 @@ config = {
     concurrency_limit : null,
     show_ports        : false,
     rewrite_yandex_team_domain : false,
-    agent             : opts.argv.agent,
 
     bind_retry_count  : 1,
     bind_retry_backoff: 1000,
@@ -207,12 +200,6 @@ config = merge(config, {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-if (config.agent) {
-    agent = require("webkit-devtools-agent");
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 function ensureFileExistsAndOwned(path, user, group) {
     return Q
         .promisify(fs.exists)(path)
@@ -244,7 +231,6 @@ function provideLogger(stream) {
         name: "yt",
         streams: [stream],
         hostname: config.fqdn,
-        src: false,
         serializers: null,
     });
 }
@@ -287,13 +273,13 @@ function runProxy(logger, profiler) {
     process.env.YT_PROXY_VERSION = JSON.stringify(version);
     process.env.YT_PROXY_MASTER = process.pid.toString();
 
+    logger.info("Logging started");
+
     var master = new (require(__dirname + "/../lib/master.js").that)(
         logger, profiler, config, {
             exec : __dirname + "/../lib/worker.js",
             args : []
     });
-
-    logger.info("Logging started");
 
     checkConnection(master);
 
@@ -332,12 +318,10 @@ function runProxy(logger, profiler) {
 
     process.on("SIGUSR1", function() {
         console.error("Writing a heap snapshot (" + process.pid + ")");
-        heapdump.writeSnapshot();
+        v8_heapdump.writeSnapshot();
     });
-    process.on("SIGUSR2", master.restartWorkers.bind(master));
 
-    // process.on("SIGTERM", master.shutdownWorkers.bind(master));
-    // process.on("SIGKILL", master.shutdownWorkers.bind(master));
+    process.on("SIGUSR2", master.restartWorkers.bind(master));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
