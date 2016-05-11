@@ -316,6 +316,7 @@ test_smart_format()
     check "x=1\tz=10" "`./mapreduce -read ${ranged_table} -dsv`"
     ./mapreduce -map cat -src ignat/smart_x -src ignat/smart_w -dst ignat/output
     ./mapreduce -read ignat/output -dsv
+    ./mapreduce -sort -src ignat/output -dst ignat/output
     check "key=1 2\nkey=3 4" "`./mapreduce -read ignat/output\{key\} -dsv`"
 
     unset YT_SMART_FORMAT
