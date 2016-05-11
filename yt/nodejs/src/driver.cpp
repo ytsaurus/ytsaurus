@@ -225,8 +225,6 @@ public:
         if (Y_LIKELY(!Wrap->IsEcho())) {
             NTracing::TTraceContextGuard guard(TraceContext);
             future = Wrap->GetDriver()->Execute(DriverRequest);
-            //future = future.Apply(
-            //    BIND(&TResponseParametersConsumer::Flush, &ResponseParametersConsumer));
        } else {
             future =
                 BIND([this] () {
@@ -242,6 +240,17 @@ public:
                 .Run();
         }
 
+        // Stream flush may incur extra call to compressor, so we do it in compression
+        // invoker.
+        future = future.Apply(
+            BIND([this] () {
+                try {
+                    OutputStack.Finish();
+                } catch (const std::exception& ex) {
+                    LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
+                }
+            }).Via(compressionInvoker));
+
         future.Subscribe(
             BIND(&TExecuteRequest::OnResponse, Owned(this_.release()))
                 .Via(GetUVInvoker()));
@@ -255,12 +264,6 @@ private:
     void OnResponse(const TErrorOr<void>& response)
     {
         THREAD_AFFINITY_IS_V8();
-
-        try {
-            OutputStack.Finish();
-        } catch (const std::exception& ex) {
-            LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
-        }
 
         // XXX(sandello): We cannot represent ui64 precisely in V8, because there
         // is no native ui64 integer type. So we convert ui64 to double (v8::Number)
