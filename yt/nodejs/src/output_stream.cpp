@@ -208,8 +208,8 @@ void TOutputStreamWrap::DoDestroy()
     THREAD_AFFINITY_IS_V8();
 
     ProtectedUpdateAndNotifyWriter([&] () {
+        IsFinishing_ = true;
         IsDestroyed_ = true;
-        IsCompleted_ = true;
 
         Queue_.clear();
     });
@@ -266,10 +266,10 @@ const ui64 TOutputStreamWrap::GetBytesDequeued() const
     return BytesDequeued_;
 }
 
-void TOutputStreamWrap::MarkAsCompleted()
+void TOutputStreamWrap::MarkAsFinishing()
 {
     ProtectedUpdateAndNotifyWriter([&] () {
-        IsCompleted_ = true;
+        IsFinishing_ = true;
     });
 }
 
@@ -320,7 +320,7 @@ void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
 
 bool TOutputStreamWrap::CanFlow() const
 {
-    return IsDestroyed_ || IsCompleted_ || BytesInFlight_ < Watermark_;
+    return IsFinishing_ || IsDestroyed_ || BytesInFlight_ < Watermark_;
 }
 
 void TOutputStreamWrap::ProtectedUpdateAndNotifyWriter(std::function<void()> mutator)
