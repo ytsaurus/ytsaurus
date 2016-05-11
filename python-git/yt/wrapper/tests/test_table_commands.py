@@ -467,14 +467,14 @@ class TestTableCommands(object):
         if yt.config["api_version"] != "v3":
             pytest.skip()
 
-        yt.config["proxy"]["content_encoding"] = "identity"
-        table = TEST_DIR + "/table"
-        try:
-            yt.write_table(table, iter(['{"abc": "123"}\n'] * 100000 + ["{a:b}"] + ['{"abc": "123"}\n'] * 100000), raw=True, format=yt.JsonFormat())
-        except yt.YtResponseError as err:
-            assert "JSON" in str(err), "Incorrect error message: " + str(err)
-        else:
-            assert False, "Failed to catch response error"
+        with set_config_option("proxy/content_encoding", "identity"):
+            table = TEST_DIR + "/table"
+            try:
+                yt.write_table(table, iter(['{"abc": "123"}\n'] * 100000 + ["{a:b}"] + ['{"abc": "123"}\n'] * 100000), raw=True, format=yt.JsonFormat())
+            except yt.YtResponseError as err:
+                assert "JSON" in str(err), "Incorrect error message: " + str(err)
+            else:
+                assert False, "Failed to catch response error"
 
     def test_reliable_remove_tempfiles_in_py_wrap(self):
         def foo(rec):
@@ -503,7 +503,7 @@ class TestTableCommands(object):
         with gzip.GzipFile(filename, "w", 5) as fout:
             fout.write("x=1\nx=2\nx=3\n")
 
-        with open(filename) as f:
+        with open(filename) as f, set_config_option("proxy/content_encoding", "gzip"):
             if yt.config["backend"] == "native":
                 with pytest.raises(yt.YtError):  # not supported for native backend
                     yt.write_table(TEST_DIR + "/table", f, format="dsv", is_stream_compressed=True, raw=True)
