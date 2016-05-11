@@ -245,6 +245,15 @@ public:
         return it == IdToOperation_.end() ? nullptr : it->second;
     }
 
+    TOperationPtr GetOperation(const TOperationId& id)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(id);
+        YCHECK(operation);
+        return operation;
+    }
+
     TOperationPtr GetOperationOrThrow(const TOperationId& id)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -375,6 +384,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
                 operation->GetId(),
@@ -400,6 +411,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             return MakeFuture(TError(
                 EErrorCode::InvalidOperationState,
@@ -419,6 +432,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         if (!operation->GetSuspended()) {
             return MakeFuture(TError(
                 EErrorCode::InvalidOperationState,
@@ -437,6 +452,8 @@ public:
     TFuture<void> CompleteOperation(TOperationPtr operation, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
@@ -738,8 +755,9 @@ public:
 
     virtual void ActivateOperation(const TOperationId& operationId) override
     {
-        auto operation = FindOperation(operationId);
-        YCHECK(operation);
+        auto operation = GetOperation(operationId);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         operation->SetActivated(true);
         if (operation->GetPrepared()) {
@@ -1045,6 +1063,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         TerminateOperation(
             operation,
             EOperationState::Aborting,
@@ -1056,6 +1076,8 @@ private:
     void OnSchedulerTransactionAborted(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         TerminateOperation(
             operation,
@@ -1246,6 +1268,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         if (operation->GetState() != EOperationState::Initializing) {
             throw TFiberCanceledException();
         }
@@ -1296,6 +1320,8 @@ private:
     void DoPrepareOperation(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         if (operation->GetState() != EOperationState::Initializing) {
             throw TFiberCanceledException();
@@ -1368,6 +1394,8 @@ private:
 
     void ReviveOperation(TOperationPtr operation)
     {
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         const auto& operationId = operation->GetId();
 
         LOG_INFO("Reviving operation (OperationId: %v)",
@@ -1409,6 +1437,8 @@ private:
     void DoReviveOperation(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         if (operation->GetState() != EOperationState::Reviving) {
             throw TFiberCanceledException();
@@ -1825,8 +1855,7 @@ private:
 
     void RegisterJob(TJobPtr job)
     {
-        auto operation = FindOperation(job->GetOperationId());
-        YCHECK(operation);
+        auto operation = GetOperation(job->GetOperationId());
 
         auto node = job->GetNode();
 
@@ -1844,8 +1873,7 @@ private:
 
     void UnregisterJob(TJobPtr job)
     {
-        auto operation = FindOperation(job->GetOperationId());
-        YCHECK(operation);
+        auto operation = GetOperation(job->GetOperationId());
 
         auto node = job->GetNode();
 
@@ -1896,8 +1924,7 @@ private:
         job->SetStatus(std::move(status));
         OnJobFinished(job);
 
-        auto operation = FindOperation(job->GetOperationId());
-        YCHECK(operation);
+        auto operation = GetOperation(job->GetOperationId());
 
         if (operation->GetState() == EOperationState::Running) {
             const auto& controller = operation->GetController();
@@ -1952,8 +1979,7 @@ private:
 
             OnJobFinished(job);
 
-            auto operation = FindOperation(job->GetOperationId());
-            YCHECK(operation);
+            auto operation = GetOperation(job->GetOperationId());
 
             if (operation->GetState() == EOperationState::Running) {
                 const auto& controller = operation->GetController();
@@ -1979,8 +2005,7 @@ private:
 
             OnJobFinished(job);
 
-            auto operation = FindOperation(job->GetOperationId());
-            YCHECK(operation);
+            auto operation = GetOperation(job->GetOperationId());
 
             if (operation->GetState() == EOperationState::Running) {
                 const auto& controller = operation->GetController();
@@ -2010,8 +2035,7 @@ private:
 
             OnJobFinished(job);
 
-            auto operation = FindOperation(job->GetOperationId());
-            YCHECK(operation);
+            auto operation = GetOperation(job->GetOperationId());
 
             if (operation->GetState() == EOperationState::Running) {
                 const auto& controller = operation->GetController();
@@ -2058,8 +2082,7 @@ private:
         auto stderrChunkId = FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id());
         auto failContextChunkId = FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id());
 
-        auto operation = FindOperation(job->GetOperationId());
-        YCHECK(operation);
+        auto operation = GetOperation(job->GetOperationId());
 
         if (jobFailedOrAborted) {
             if (stderrChunkId) {
@@ -2304,6 +2327,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         if (operation->IsFinishedState() || operation->IsFinishingState()) {
             // Operation is probably being aborted.
             return;
@@ -2370,6 +2395,8 @@ private:
     void DoFailOperation(TOperationPtr operation, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         LOG_INFO(error, "Operation failed (OperationId: %v)",
              operation->GetId());
@@ -2439,6 +2466,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         LOG_INFO("Aborting operation (OperationId: %v)",
              operation->GetId());
 
@@ -2490,6 +2519,8 @@ private:
 
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
     {
+        auto codicilGuard = operation->MakeCodicilGuard();
+
         auto controller = operation->GetController();
         bool hasControllerProgress = operation->HasControllerProgress();
         BuildYsonMapFluently(consumer)
@@ -2598,8 +2629,9 @@ private:
             return nullptr;
         }
 
-        auto operation = FindOperation(job->GetOperationId());
-        YCHECK(operation);
+        auto operation = GetOperation(job->GetOperationId());
+
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         Logger.AddTag("JobType: %v, State: %v, OperationId: %v",
             job->GetType(),
@@ -2695,8 +2727,7 @@ TScheduler::TScheduler(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-TScheduler::~TScheduler()
-{ }
+TScheduler::~TScheduler() = default;
 
 void TScheduler::Initialize()
 {

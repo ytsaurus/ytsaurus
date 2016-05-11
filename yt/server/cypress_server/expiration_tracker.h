@@ -26,7 +26,7 @@ public:
 
     void OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode);
     void OnNodeDestroyed(TCypressNodeBase* trunkNode);
-    void OnNodeUnlocked(TCypressNodeBase* trunkNode);
+    void OnNodeRemovalFailed(TCypressNodeBase* trunkNode);
 
 private:
     const TCypressManagerConfigPtr Config_;
@@ -39,7 +39,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
-    void RegisterNodeExpiration(TCypressNodeBase* trunkNode);
+    void RegisterNodeExpiration(TCypressNodeBase* trunkNode, TInstant expirationTime);
     void UnregisterNodeExpiration(TCypressNodeBase* trunkNode);
 
     void OnCheck();

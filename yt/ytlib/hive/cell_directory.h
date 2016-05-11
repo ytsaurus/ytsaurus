@@ -43,7 +43,7 @@ public:
     TCellPeerDescriptor();
     TCellPeerDescriptor(const NNodeTrackerClient::TNodeDescriptor& other, bool voting = true);
     TCellPeerDescriptor(const TCellPeerDescriptor& other) = default;
-    explicit TCellPeerDescriptor(const NElection::TCellPeerConfig& config);
+    TCellPeerDescriptor(const NElection::TCellPeerConfig& config, const Stroka& networkName);
 
     NElection::TCellPeerConfig ToConfig(const Stroka& networkName) const;
 

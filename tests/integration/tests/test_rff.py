@@ -49,10 +49,14 @@ class TestRff(YTEnvSetup):
     def test_leader_fallback(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
+
         assert ls("//sys/lost_vital_chunks", read_from="follower") == []
-        assert all(not c.attributes["overreplicated"] for c in ls("//sys/chunks", attributes=["overreplicated"], read_from="follower"))
-        
-        assert all(n.attributes["state"] == "online" for n in ls("//sys/nodes", attributes=["state"], read_from="follower"))
+
+        assert all(not c.attributes["replication_status"]["overreplicated"]
+                   for c in ls("//sys/chunks", attributes=["replication_status"], read_from="follower"))
+
+        assert all(n.attributes["state"] == "online"
+                   for n in ls("//sys/nodes", attributes=["state"], read_from="follower"))
 
         assert get("//sys/@chunk_replicator_enabled", read_from="follower")
 

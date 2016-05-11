@@ -795,6 +795,14 @@ class TestTables(YTEnvSetup):
 
 ##################################################################
 
+def check_multicell_statistics(path, chunk_count_map):
+    statistics = get(path + '/@multicell_statistics')
+    assert len(statistics) == len(chunk_count_map)
+    for cell_tag in statistics:
+        assert statistics[cell_tag]["chunk_count"] == chunk_count_map[cell_tag]
+
+##################################################################
+
 class TestTablesMulticell(TestTables):
     NUM_SECONDARY_MASTER_CELLS = 3
 
@@ -811,9 +819,11 @@ class TestTablesMulticell(TestTables):
 
         concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
         assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}]
+        check_multicell_statistics("//tmp/union", {"1": 1, "2": 1})
 
         concatenate(["//tmp/t1", "//tmp/t2"], "<append=true>//tmp/union")
         assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}] * 2
+        check_multicell_statistics("//tmp/union", {"1": 2, "2": 2})
 
     def test_concatenate_sorted_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
@@ -835,6 +845,7 @@ class TestTablesMulticell(TestTables):
         concatenate(["//tmp/t2", "//tmp/t1"], "<append=true>//tmp/union")
         assert read_table("//tmp/union") == [{"key": "y"}, {"key": "x"}]
         assert get("//tmp/union/@sorted", "false")
+        check_multicell_statistics("//tmp/union", {"1": 1, "2": 1})
 
     def test_concatenate_foreign_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
@@ -844,5 +855,8 @@ class TestTablesMulticell(TestTables):
         write_table("//tmp/t1", {"key": "x"})
         concatenate(["//tmp/t1", "//tmp/t1"], "//tmp/t2")
         assert read_table("//tmp/t2") == [{"key": "x"}] * 2
+        check_multicell_statistics("//tmp/t2", {"1": 2})
+
         concatenate(["//tmp/t2", "//tmp/t2"], "//tmp/t3")
         assert read_table("//tmp/t3") == [{"key": "x"}] * 4
+        check_multicell_statistics("//tmp/t3", {"1": 4})

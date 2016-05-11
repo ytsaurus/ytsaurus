@@ -43,8 +43,26 @@ TCellPeerDescriptor::TCellPeerDescriptor(const TNodeDescriptor& other, bool voti
     , Voting_(voting)
 { }
 
-TCellPeerDescriptor::TCellPeerDescriptor(const TCellPeerConfig& config)
-    : TNodeDescriptor(config.Address)
+namespace {
+
+TAddressMap ToAddressMap(const TCellPeerConfig& config, const Stroka& networkName)
+{
+    if (config.Address) {
+        return {
+            {DefaultNetworkName, *config.Address},
+            {networkName, *config.Address}
+        };
+    } else {
+        return {};
+    }
+}
+
+} // namespace
+
+TCellPeerDescriptor::TCellPeerDescriptor(
+    const TCellPeerConfig& config,
+    const Stroka& networkName)
+    : TNodeDescriptor(ToAddressMap(config, networkName))
     , Voting_(config.Voting)
 { }
 
@@ -211,7 +229,7 @@ public:
         descriptor.CellId = config->CellId;
         descriptor.ConfigVersion = configVersion;
         for (const auto& peer : config->Peers) {
-            descriptor.Peers.push_back(TCellPeerDescriptor(peer));
+            descriptor.Peers.push_back(TCellPeerDescriptor(peer, NetworkName_));
         }
         return ReconfigureCell(descriptor);
     }

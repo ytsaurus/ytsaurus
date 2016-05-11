@@ -76,17 +76,7 @@ private:
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor("vital")
             .SetPresent(!isForeign));
-        descriptors->push_back(TAttributeDescriptor("overreplicated")
-            .SetPresent(!isForeign));
-        descriptors->push_back(TAttributeDescriptor("underreplicated")
-            .SetPresent(!isForeign));
-        descriptors->push_back(TAttributeDescriptor("lost")
-            .SetPresent(!isForeign));
-        descriptors->push_back(TAttributeDescriptor("data_missing")
-            .SetPresent(chunk->IsErasure() && !isForeign));
-        descriptors->push_back(TAttributeDescriptor("parity_missing")
-            .SetPresent(chunk->IsErasure() && !isForeign));
-        descriptors->push_back(TAttributeDescriptor("unsafely_placed")
+        descriptors->push_back(TAttributeDescriptor("replication_status")
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor("available")
             .SetPresent(!isForeign));
@@ -149,17 +139,12 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        RequireLeader();
-
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto cypressManager = Bootstrap_->GetCypressManager();
+        auto multicellManager = Bootstrap_->GetMulticellManager();
 
         auto* chunk = GetThisTypedImpl();
-        auto status = chunkManager->ComputeChunkStatus(chunk);
-
         auto isForeign = chunk->IsForeign();
-
-        auto multicellManager = Bootstrap_->GetMulticellManager();
 
         typedef std::function<void(TFluentList fluent, TNodePtrWithIndex replica)> TReplicaSerializer;
 
@@ -232,39 +217,18 @@ private:
                 return true;
             }
 
-            if (key == "underreplicated") {
+            if (key == "replication_status") {
+                RequireLeader();
+                auto status = chunkManager->ComputeChunkStatus(chunk);
                 BuildYsonFluently(consumer)
-                    .Value(Any(status & EChunkStatus::Underreplicated));
-                return true;
-            }
-
-            if (key == "overreplicated") {
-                BuildYsonFluently(consumer)
-                    .Value(Any(status & EChunkStatus::Overreplicated));
-                return true;
-            }
-
-            if (key == "lost") {
-                BuildYsonFluently(consumer)
-                    .Value(Any(status & EChunkStatus::Lost));
-                return true;
-            }
-
-            if (key == "data_missing") {
-                BuildYsonFluently(consumer)
-                    .Value(Any(status & EChunkStatus::DataMissing));
-                return true;
-            }
-
-            if (key == "parity_missing") {
-                BuildYsonFluently(consumer)
-                    .Value(Any(status & EChunkStatus::ParityMissing));
-                return true;
-            }
-
-            if (key == "unsafely_placed") {
-                BuildYsonFluently(consumer)
-                    .Value(Any(status & EChunkStatus::UnsafelyPlaced));
+                    .BeginMap()
+                        .Item("underreplicated").Value(Any(status & EChunkStatus::Underreplicated))
+                        .Item("overreplicated").Value(Any(status & EChunkStatus::Overreplicated))
+                        .Item("lost").Value(Any(status & EChunkStatus::Lost))
+                        .Item("data_missing").Value(Any(status & EChunkStatus::DataMissing))
+                        .Item("parity_missing").Value(Any(status & EChunkStatus::ParityMissing))
+                        .Item("unsafely_placed").Value(Any(status & EChunkStatus::UnsafelyPlaced))
+                    .EndMap();
                 return true;
             }
 

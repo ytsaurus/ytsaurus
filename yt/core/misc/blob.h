@@ -163,9 +163,9 @@ public:
     friend void swap(TBlob& left, TBlob& right);
 
 private:
-    char* Begin_;
-    size_t Size_;
-    size_t Capacity_;
+    char* Begin_ = nullptr;
+    size_t Size_ = 0;
+    size_t Capacity_ = 0;
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     TRefCountedTypeCookie TypeCookie_ = NullRefCountedTypeCookie;
