@@ -325,6 +325,36 @@ class YsonFormat(Format):
         """Not supported"""
         raise YtFormatError("load_row is not supported in Yson")
 
+    class Iterator(object):
+        def __init__(self, rows):
+            self.rows = rows
+            self.table_index = None
+            self.row_index = None
+            self.range_index = None
+            self._increment_row_index = False
+
+        def next(self):
+            for row in self.rows:
+                if isinstance(row, yson.YsonEntity):
+                    self._increment_row_index = False
+                    if "table_index" in row.attributes:
+                        self.table_index = row.attributes["table_index"]
+                    if "row_index" in row.attributes:
+                        self.row_index = row.attributes["row_index"]
+                    if "range_index" in row.attributes:
+                        self.range_index = row.attributes["range_index"]
+                    continue
+                else:
+                    if self._increment_row_index and self.row_index is not None:
+                        self.row_index += 1
+                    self._increment_row_index = True
+                    return row
+
+            raise StopIteration
+
+        def __iter__(self):
+            return self
+
     def _process_input_rows(self, rows):
         def generator():
             table_index = 0
@@ -351,40 +381,11 @@ class YsonFormat(Format):
                 if row_index is not None:
                     row_index += 1
 
-        class Iterator(object):
-            def __init__(self):
-                self.table_index = None
-                self.row_index = None
-                self.range_index = None
-                self._increment_row_index = False
-
-            def next(self):
-                for row in rows:
-                    if isinstance(row, yson.YsonEntity):
-                        self._increment_row_index = False
-                        if "table_index" in row.attributes:
-                            self.table_index = row.attributes["table_index"]
-                        if "row_index" in row.attributes:
-                            self.row_index = row.attributes["row_index"]
-                        if "range_index" in row.attributes:
-                            self.range_index = row.attributes["range_index"]
-                        continue
-                    else:
-                        if self._increment_row_index and self.row_index is not None:
-                            self.row_index += 1
-                        self._increment_row_index = True
-                        return row
-
-                raise StopIteration
-
-            def __iter__(self):
-                return self
-
         if self.process_table_index is None:
             if self.control_attributes_mode == "row_fields":
                 return generator()
             elif self.control_attributes_mode == "iterator":
-                return Iterator()
+                return Iterator(rows)
             else:
                 return rows
         elif self.process_table_index:
