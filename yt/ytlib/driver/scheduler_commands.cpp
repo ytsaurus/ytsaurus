@@ -128,7 +128,7 @@ EOperationType TRemoteCopyCommand::GetOperationType() const
 
 void TAbortOperationCommand::Execute(ICommandContextPtr context)
 {
-    WaitFor(context->GetClient()->AbortOperation(OperationId))
+    WaitFor(context->GetClient()->AbortOperation(OperationId, Options))
         .ThrowOnError();
 }
 

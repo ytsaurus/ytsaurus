@@ -343,6 +343,19 @@ bool TYsonSerializableLite::TParameter<T>::HasValue() const
 }
 
 template <class T>
+TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Alias(const Stroka& name)
+{
+    Aliases.push_back(name);
+    return *this;
+}
+
+template <class T>
+const std::vector<Stroka>& TYsonSerializableLite::TParameter<T>::GetAliases() const
+{
+    return Aliases;
+}
+
+template <class T>
 TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Describe(const char* description)
 {
     Description = description;

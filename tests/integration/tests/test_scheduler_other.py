@@ -248,6 +248,15 @@ class TestSchedulerOther(YTEnvSetup):
 
         set_banned_flag(False)
 
+    def test_abort_custom_error_message(self):
+        self._prepare_tables()
+
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 3")
+        op.abort(abort_message="Test abort")
+
+        assert op.get_state() == "aborted"
+        assert get("//sys/operations/{0}/@result/error/inner_errors/0/message".format(op.id)) == "Test abort"
+
 
 class TestStrategies(YTEnvSetup):
     NUM_MASTERS = 1

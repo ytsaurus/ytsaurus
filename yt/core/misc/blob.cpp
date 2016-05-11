@@ -7,7 +7,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 const size_t InitialBlobCapacity = 16;
-const double BlobCapacityMultiplier = 2.0;
+const double BlobCapacityMultiplier = 1.5;
 
 TBlob::TBlob(TRefCountedTypeCookie tagCookie, size_t size, bool initiailizeStorage)
 {
@@ -103,6 +103,7 @@ TBlob& TBlob::operator = (TBlob&& rhs)
     if (this != &rhs) {
         Free();
         SetTypeCookie(rhs);
+        YCHECK(!Begin_);
         Begin_ = rhs.Begin_;
         Size_ = rhs.Size_;
         Capacity_ = rhs.Capacity_;
@@ -145,6 +146,7 @@ void TBlob::Reset()
 
 void TBlob::Allocate(size_t newCapacity)
 {
+    YCHECK(!Begin_);
     Begin_ = new char[newCapacity];
     Capacity_ = newCapacity;
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
@@ -153,7 +155,7 @@ void TBlob::Allocate(size_t newCapacity)
 }
 void TBlob::Reallocate(size_t newCapacity)
 {
-    if (Begin_ == nullptr) {
+    if (!Begin_) {
         Allocate(newCapacity);
         return;
     }
@@ -169,13 +171,14 @@ void TBlob::Reallocate(size_t newCapacity)
 
 void TBlob::Free()
 {
-    if (Begin_ == nullptr) {
+    if (!Begin_) {
         return;
     }
     delete[] Begin_;
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     TRefCountedTracker::Get()->Free(TypeCookie_, Capacity_);
 #endif
+    Reset();
 }
 
 void TBlob::SetTypeCookie(TRefCountedTypeCookie tagCookie)

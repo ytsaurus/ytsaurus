@@ -414,7 +414,9 @@ void TOperationControllerBase::TTask::ScheduleJob(
         controller->CustomizeJobSpec(joblet, jobSpec);
 
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_enable_job_proxy_memory_control(controller->Spec->EnableJobProxyMemoryControl);
+        if (controller->Spec->JobProxyMemoryOvercommitLimit) {
+            schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*controller->Spec->JobProxyMemoryOvercommitLimit);
+        }
         schedulerJobSpecExt->set_enable_sort_verification(controller->Spec->EnableSortVerification);
 
         // Adjust sizes if approximation flag is set.
@@ -927,6 +929,8 @@ void TOperationControllerBase::Initialize(bool cleanStart)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    auto codicilGuard = MakeCodicilGuard();
+
     LOG_INFO("Initializing operation (Title: %v)",
         Spec->Title);
 
@@ -1018,6 +1022,8 @@ void TOperationControllerBase::Prepare()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    auto codicilGuard = MakeCodicilGuard();
+
     GetUserObjectBasicAttributes<TInputTable>(
         AuthenticatedInputMasterClient,
         InputTables,
@@ -1075,6 +1081,8 @@ void TOperationControllerBase::Materialize()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    auto codicilGuard = MakeCodicilGuard();
+
     try {
         FetchInputTables();
         FetchUserFiles(&Files);
@@ -1123,6 +1131,8 @@ void TOperationControllerBase::Materialize()
 
 void TOperationControllerBase::SaveSnapshot(TOutputStream* output)
 {
+    auto codicilGuard = MakeCodicilGuard();
+
     DoSaveSnapshot(output);
 }
 
@@ -1137,6 +1147,8 @@ void TOperationControllerBase::DoSaveSnapshot(TOutputStream* output)
 void TOperationControllerBase::Revive(const TSharedRef& snapshot)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    auto codicilGuard = MakeCodicilGuard();
 
     InitChunkListPool();
 
@@ -1476,6 +1488,8 @@ void TOperationControllerBase::Commit()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    auto codicilGuard = MakeCodicilGuard();
+
     // XXX(babenko): hotfix for YT-4636
     {
         auto client = Host->GetMasterClient();
@@ -1673,6 +1687,8 @@ void TOperationControllerBase::OnJobStarted(const TJobId& jobId, TInstant startT
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    auto codicilGuard = MakeCodicilGuard();
+
     auto joblet = GetJoblet(jobId);
     joblet->StartTime = startTime;
 
@@ -1687,6 +1703,8 @@ void TOperationControllerBase::OnJobStarted(const TJobId& jobId, TInstant startT
 void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    auto codicilGuard = MakeCodicilGuard();
 
     jobSummary->ParseStatistics();
 
@@ -1744,6 +1762,8 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    auto codicilGuard = MakeCodicilGuard();
+
     jobSummary->ParseStatistics();
 
     const auto& jobId = jobSummary->Id;
@@ -1782,6 +1802,8 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
 void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    auto codicilGuard = MakeCodicilGuard();
 
     jobSummary->ParseStatistics();
 
@@ -2028,6 +2050,8 @@ void TOperationControllerBase::Abort()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    auto codicilGuard = MakeCodicilGuard();
+
     LOG_INFO("Aborting operation");
 
     State = EControllerState::Finished;
@@ -2040,6 +2064,8 @@ void TOperationControllerBase::Abort()
 void TOperationControllerBase::Complete()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto codicilGuard = MakeCodicilGuard();
 
     LOG_INFO("Completing operation");
 
@@ -2073,6 +2099,8 @@ TScheduleJobResultPtr TOperationControllerBase::ScheduleJob(
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    auto codicilGuard = MakeCodicilGuard();
+
     // ScheduleJob must be a synchronous action, any context switches are prohibited.
     TContextSwitchedGuard contextSwitchGuard(BIND([] { YUNREACHABLE(); }));
 
@@ -2089,6 +2117,8 @@ TScheduleJobResultPtr TOperationControllerBase::ScheduleJob(
 void TOperationControllerBase::UpdateConfig(TSchedulerConfigPtr config)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    auto codicilGuard = MakeCodicilGuard();
 
     Config = config;
 }
@@ -2518,12 +2548,16 @@ TFuture<void> TOperationControllerBase::Suspend()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    auto codicilGuard = MakeCodicilGuard();
+
     return SuspendableInvoker->Suspend();
 }
 
 void TOperationControllerBase::Resume()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto codicilGuard = MakeCodicilGuard();
 
     SuspendableInvoker->Resume();
 }
@@ -2538,6 +2572,8 @@ bool TOperationControllerBase::GetCleanStart() const
 int TOperationControllerBase::GetPendingJobCount() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    auto codicilGuard = MakeCodicilGuard();
 
     // Avoid accessing the state while not prepared.
     if (!IsPrepared()) {
@@ -2556,6 +2592,8 @@ int TOperationControllerBase::GetPendingJobCount() const
 int TOperationControllerBase::GetTotalJobCount() const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    auto codicilGuard = MakeCodicilGuard();
 
     // Avoid accessing the state while not prepared.
     if (!IsPrepared()) {
@@ -4130,6 +4168,11 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
             task->Initialize();
         }
     }
+}
+
+TCodicilGuard TOperationControllerBase::MakeCodicilGuard() const
+{
+    return Operation->MakeCodicilGuard();
 }
 
 ////////////////////////////////////////////////////////////////////

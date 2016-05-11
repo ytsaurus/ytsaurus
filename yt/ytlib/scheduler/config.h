@@ -117,7 +117,7 @@ public:
     TNullable<int> MaxFailedJobCount;
     TNullable<int> MaxStderrCount;
 
-    bool EnableJobProxyMemoryControl;
+    TNullable<i64> JobProxyMemoryOvercommitLimit;
 
     bool EnableSortVerification;
 
@@ -169,8 +169,9 @@ public:
         RegisterParameter("max_stderr_count", MaxStderrCount)
             .Default();
 
-        RegisterParameter("enable_job_proxy_memory_control", EnableJobProxyMemoryControl)
-            .Default(true);
+        RegisterParameter("job_proxy_memory_overcommit_limit", JobProxyMemoryOvercommitLimit)
+            .Default()
+            .GreaterThanOrEqual(0);
 
         RegisterParameter("enable_sort_verification", EnableSortVerification)
             .Default(true);

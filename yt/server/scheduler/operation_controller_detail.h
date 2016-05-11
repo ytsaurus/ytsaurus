@@ -131,8 +131,6 @@ public:
 
     virtual void Persist(TPersistenceContext& context) override;
 
-    const std::vector<TExecNodeDescriptor>& GetExecNodeDescriptors();
-
 protected:
     // Forward declarations.
     class TTask;
@@ -763,8 +761,6 @@ protected:
 
     virtual bool IsCompleted() const = 0;
 
-    void SetState(EControllerState state);
-
     //! Returns |true| when the controller is prepared.
     /*!
      *  Preparation happens in a controller thread.
@@ -894,6 +890,8 @@ protected:
 
     void ValidateUserFileCount(TUserJobSpecPtr spec, const Stroka& operation);
 
+    const std::vector<TExecNodeDescriptor>& GetExecNodeDescriptors();
+
 private:
     typedef TOperationControllerBase TThis;
 
@@ -951,7 +949,6 @@ private:
     void GetExecNodesInformation();
     int GetExecNodeCount();
 
-
     void UpdateJobStatistics(const TJobSummary& jobSummary);
 
     NApi::IClientPtr CreateClient();
@@ -971,6 +968,9 @@ private:
         const TJobSummary& jobSummary);
 
     virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
+
+    TCodicilGuard MakeCodicilGuard() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

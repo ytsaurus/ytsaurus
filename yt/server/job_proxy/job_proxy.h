@@ -44,7 +44,13 @@ private:
     const NYTree::INodePtr ConfigNode_;
     const NJobAgent::TJobId JobId_;
 
-    i64 JobProxyMemoryLimit_;
+    // Job proxy memory limit by the scheduler.
+    i64 JobProxyInitialMemoryLimit_;
+    // Job proxy memory limit possibly after increases because of memory overcommit.
+    i64 JobProxyCurrentMemoryLimit_;
+    // If this limit for job proxy memory overcommit is exceeded, the job proxy is terminated.
+    TNullable<i64> JobProxyMemoryOvercommitLimit_;
+
     const NConcurrency::TActionQueuePtr JobThread_;
     const NConcurrency::TActionQueuePtr ControlThread_;
 
@@ -58,7 +64,6 @@ private:
     
     NApi::IClientPtr Client_;
 
-    std::atomic<bool> EnableJobProxyMemoryControl_ = {false};
 
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
     NNodeTrackerClient::TNodeDirectoryPtr AuxNodeDirectory_;

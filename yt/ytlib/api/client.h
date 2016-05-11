@@ -407,7 +407,9 @@ struct TStartOperationOptions
 
 struct TAbortOperationOptions
     : public TTimeoutOptions
-{ };
+{
+    TNullable<Stroka> AbortMessage;
+};
 
 struct TSuspendOperationOptions
     : public TTimeoutOptions

@@ -111,10 +111,15 @@ private:
 
         ValidatePermission(user, operationId, EPermission::Write);
 
+        auto error = TError("Operation aborted by user request");
+        if (request->has_abort_message()) {
+            error = error << TError(request->abort_message());
+        }
+
         auto operation = scheduler->GetOperationOrThrow(operationId);
         auto asyncResult = scheduler->AbortOperation(
             operation,
-            TError("Operation aborted by user request"));
+            error);
 
         context->ReplyFrom(asyncResult);
     }

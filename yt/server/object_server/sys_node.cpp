@@ -57,9 +57,8 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        RequireLeader();
-
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
 
         if (key == "cell_tag") {
             BuildYsonFluently(consumer)
@@ -86,14 +85,13 @@ private:
         }
 
         if (key == "current_commit_revision") {
-            auto hydraManager = hydraFacade->GetHydraManager();
             BuildYsonFluently(consumer)
                 .Value(hydraManager->GetAutomatonVersion().ToRevision());
             return true;
         }
 
         if (key == "chunk_replicator_enabled") {
-            auto chunkManager = Bootstrap_->GetChunkManager();
+            RequireLeader();
             BuildYsonFluently(consumer)
                 .Value(chunkManager->IsReplicatorEnabled());
             return true;

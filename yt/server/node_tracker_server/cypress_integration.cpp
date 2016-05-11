@@ -167,8 +167,6 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        RequireLeader();
-
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         auto chunkManager = Bootstrap_->GetChunkManager();
 
@@ -220,6 +218,7 @@ private:
         }
 
         if (key == "chunk_replicator_enabled") {
+            RequireLeader();
             BuildYsonFluently(consumer)
                 .Value(chunkManager->IsReplicatorEnabled());
             return true;

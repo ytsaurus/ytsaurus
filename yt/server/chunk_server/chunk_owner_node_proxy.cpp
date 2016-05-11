@@ -32,6 +32,8 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/system_attribute_provider.h>
 
+#include <type_traits>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -424,18 +426,26 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TCodecExtractor>
-class TCodecStatisticsVisitor
+template <class TKeyExtractor>
+class TChunkStatisticsVisitor
     : public TChunkVisitorBase
 {
 public:
-    TCodecStatisticsVisitor(
+    TChunkStatisticsVisitor(
         NCellMaster::TBootstrap* bootstrap,
-        TChunkList* chunkList)
+        TChunkList* chunkList,
+        TKeyExtractor keyExtractor)
         : TChunkVisitorBase(bootstrap, chunkList)
+        , KeyExtractor_(keyExtractor)
     { }
 
 private:
+    const TKeyExtractor KeyExtractor_;
+
+    using TKey = typename std::result_of<TKeyExtractor(const TChunk*)>::type;
+    using TStatiticsMap = yhash_map<TKey, TChunkTreeStatistics>;
+    TStatiticsMap StatisticsMap_;
+
     virtual bool OnChunk(
         TChunk* chunk,
         i64 /*rowIndex*/,
@@ -444,7 +454,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        CodecInfo_[CodecExtractor_(chunk)].Accumulate(chunk->GetStatistics());
+        StatisticsMap_[KeyExtractor_(chunk)].Accumulate(chunk->GetStatistics());
         return true;
     }
 
@@ -453,11 +463,11 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto result = BuildYsonStringFluently()
-            .DoMapFor(CodecInfo_, [=] (TFluentMap fluent, const typename TCodecInfoMap::value_type& pair) {
+            .DoMapFor(StatisticsMap_, [=] (TFluentMap fluent, const typename TStatiticsMap::value_type& pair) {
                 const auto& statistics = pair.second;
                 // TODO(panin): maybe use here the same method as in attributes
                 fluent
-                    .Item(FormatEnum(pair.first)).BeginMap()
+                    .Item(FormatKey(pair.first)).BeginMap()
                         .Item("chunk_count").Value(statistics.ChunkCount)
                         .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
                         .Item("compressed_data_size").Value(statistics.CompressedDataSize)
@@ -466,21 +476,35 @@ private:
         Promise_.Set(result);
     }
 
-    typedef yhash_map<typename TCodecExtractor::TValue, TChunkTreeStatistics> TCodecInfoMap;
-    TCodecInfoMap CodecInfo_;
 
-    TCodecExtractor CodecExtractor_;
+    template <class T>
+    static Stroka FormatKey(T value, typename TEnumTraits<T>::TType* = 0)
+    {
+        return FormatEnum(value);
+    }
 
+    static Stroka FormatKey(TCellTag value)
+    {
+        return ToString(value);
+    }
 };
 
-template <class TVisitor>
-TFuture<void> ComputeCodecStatistics(
+namespace {
+
+template <class TKeyExtractor>
+TFuture<TYsonString> ComputeChunkStatistics(
     NCellMaster::TBootstrap* bootstrap,
-    TChunkList* chunkList)
+    TChunkList* chunkList,
+    TKeyExtractor keyExtractor)
 {
-    auto visitor = New<TVisitor>(bootstrap, chunkList);
+    auto visitor = New<TChunkStatisticsVisitor<TKeyExtractor>>(
+        bootstrap,
+        chunkList,
+        keyExtractor);
     return visitor->Run();
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -522,6 +546,9 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetExternal(isExternal)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("erasure_statistics")
+        .SetExternal(isExternal)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("multicell_statistics")
         .SetExternal(isExternal)
         .SetOpaque(true));
     descriptors->push_back("chunk_count");
@@ -619,33 +646,24 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(const Stroka
         }
 
         if (key == "compression_statistics") {
-            struct TExtractCompressionCodec
-            {
-                typedef NCompression::ECodec TValue;
-                TValue operator() (const TChunk* chunk)
-                {
-                    return TValue(chunk->MiscExt().compression_codec());
-                }
-            };
-            typedef TCodecStatisticsVisitor<TExtractCompressionCodec> TCompressionStatisticsVisitor;
-
-            auto visitor = New<TCompressionStatisticsVisitor>(Bootstrap_, chunkList);
-            return visitor->Run();
+            return ComputeChunkStatistics(
+                Bootstrap_,
+                chunkList,
+                [] (const TChunk* chunk) { return NCompression::ECodec(chunk->MiscExt().compression_codec()); });
         }
 
         if (key == "erasure_statistics") {
-            struct TExtractErasureCodec
-            {
-                typedef NErasure::ECodec TValue;
-                TValue operator() (const TChunk* chunk)
-                {
-                    return chunk->GetErasureCodec();
-                }
-            };
-            typedef TCodecStatisticsVisitor<TExtractErasureCodec> TErasureStatisticsVisitor;
+            return ComputeChunkStatistics(
+                Bootstrap_,
+                chunkList,
+                [] (const TChunk* chunk) { return chunk->GetErasureCodec(); });
+        }
 
-            auto visitor = New<TErasureStatisticsVisitor>(Bootstrap_, chunkList);
-            return visitor->Run();
+        if (key == "multicell_statistics") {
+            return ComputeChunkStatistics(
+                Bootstrap_,
+                chunkList,
+                [] (const TChunk* chunk) { return CellTagFromId(chunk->GetId()); });
         }
     }
 
