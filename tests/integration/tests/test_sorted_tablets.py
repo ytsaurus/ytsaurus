@@ -289,17 +289,6 @@ class TestSortedTablets(YTEnvSetup):
 
         with pytest.raises(YtError): write_table("//tmp/t", [{"key": 1, "value": 2}])
 
-    # TODO(savrus): more testcases?
-    def test_computed_columns_schema_validation(self):
-        with pytest.raises(YtError):
-            create("table", "//tmp/t1", attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "key1", "type": "int64", "expression": "key2", "sort_order": "ascending"},
-                    {"name": "key2", "type": "uint64", "sort_order": "ascending"},
-                    {"name": "value", "type": "string"}
-                ]})
-
     def _test_computed_columns(self, optimize_for):
         self.sync_create_cells(1, 1)
         self._create_table_with_computed_column("//tmp/t", optimize_for)
