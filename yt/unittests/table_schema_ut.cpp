@@ -2,11 +2,14 @@
 
 #include <yt/ytlib/table_client/schema.h>
 
+#include <yt/core/ytree/convert.h>
+
 namespace NYT {
 namespace NTableClient {
 namespace {
 
 using namespace NYson;
+using namespace NYTree;
 
 class TTableSchemaTest
     : public ::testing::Test
@@ -615,6 +618,32 @@ TEST_F(TTableSchemaTest, InferInputSchema)
     EXPECT_EQ(schema89ns, InferInputSchema({schema8, schema9ns}, false /* discardKeyColumns */));
     EXPECT_EQ(schema89ns, InferInputSchema({schema8ns, schema9ns}, false /* discardKeyColumns */));
 }
+
+class TInvalidSchemaTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<const char*>
+{ };
+
+TEST_P(TInvalidSchemaTest, Basic)
+{
+    const auto& schemaString = GetParam();
+
+    TTableSchema schema;
+    Deserialize(schema, ConvertToNode(TYsonString(schemaString)));
+
+    EXPECT_THROW(ValidateTableSchema(schema), std::exception);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    TInvalidSchemaTest,
+    TInvalidSchemaTest,
+    ::testing::Values(
+        "[{name=x;type=int64;sort_order=ascending;expression=z}; {name=y;type=uint64;sort_order=ascending}; {name=a;type=int64}]",
+        "[{name=x;type=int64;sort_order=ascending;expression=a}; {name=y;type=uint64;sort_order=ascending}; {name=a;type=int64}]",
+        "[{name=x;type=int64;sort_order=ascending;expression=y}; {name=y;type=uint64;sort_order=ascending}; {name=a;type=int64}]",
+        "[{name=x;type=int64;sort_order=ascending;expression=x}; {name=y;type=uint64;sort_order=ascending}; {name=a;type=int64}]",
+        "[{name=x;type=int64;sort_order=ascending;expression=\"uint64(y)\"}; {name=y;type=uint64;sort_order=ascending}; {name=a;type=int64}]"
+));
 
 ////////////////////////////////////////////////////////////////////////////////
 
