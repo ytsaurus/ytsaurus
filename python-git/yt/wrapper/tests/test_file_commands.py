@@ -1,6 +1,6 @@
 import yt.wrapper as yt
 
-from helpers import TEST_DIR
+from helpers import TEST_DIR, set_config_option
 
 import os
 import pytest
@@ -61,7 +61,7 @@ class TestFileCommands(object):
         with gzip.GzipFile(filename, "w", 5) as fout:
             fout.write("test write compressed file data")
 
-        with open(filename) as f:
+        with open(filename) as f, set_config_option("proxy/content_encoding", "gzip"):
             if yt.config["backend"] == "native":
                 with pytest.raises(yt.YtError):  # not supported for native backend
                     yt.write_file(TEST_DIR + "/file", f, is_stream_compressed=True)
