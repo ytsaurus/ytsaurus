@@ -259,6 +259,22 @@ Handle<Value> TOutputStreamWrap::DoIsFinished()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TOutputStreamWrap::CanFlow() const
+{
+    return
+        IsFinishing_ || IsFinished_ || IsDestroyed_ ||
+        BytesInFlight_ < Watermark_;
+}
+
+void TOutputStreamWrap::RunFlow(bool withinV8)
+{
+    if (!IsFlowing_) {
+        IsFlowing_ = true;
+        AsyncRef(withinV8);
+        EIO_PUSH(TOutputStreamWrap::AsyncOnFlowing, this);
+    }
+}
+
 int TOutputStreamWrap::AsyncOnFlowing(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
@@ -268,15 +284,6 @@ int TOutputStreamWrap::AsyncOnFlowing(eio_req* request)
     node::MakeCallback(stream->handle_, OnFlowingSymbol, 0, nullptr);
 
     return 0;
-}
-
-void TOutputStreamWrap::Flow(bool withinV8)
-{
-    if (!IsFlowing_) {
-        IsFlowing_ = true;
-        AsyncRef(withinV8);
-        EIO_PUSH(TOutputStreamWrap::AsyncOnFlowing, this);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -355,14 +362,7 @@ void TOutputStreamWrap::DoFinish()
     // In case of TDriverWrap an instance TNodeJSInputStack holds a lock
     // and TDriverWrap implementation guarantees that all Write() calls
     // are within scope of the lock.
-    Flow(false);
-}
-
-bool TOutputStreamWrap::CanFlow() const
-{
-    return
-        IsFinishing_ || IsFinished_ || IsDestroyed_ ||
-        BytesInFlight_ < Watermark_;
+    RunFlow(false);
 }
 
 void TOutputStreamWrap::ProtectedUpdateAndNotifyWriter(std::function<void()> mutator)
@@ -417,7 +417,7 @@ void TOutputStreamWrap::PushToQueue(std::unique_ptr<char[]> buffer, size_t lengt
     // In case of TDriverWrap an instance TNodeJSInputStack holds a lock
     // and TDriverWrap implementation guarantees that all Write() calls
     // are within scope of the lock.
-    Flow(false);
+    RunFlow(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
