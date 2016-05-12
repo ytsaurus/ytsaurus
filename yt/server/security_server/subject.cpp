@@ -38,7 +38,7 @@ void TSubject::Load(NCellMaster::TLoadContext& context)
     Load(context, MemberOf_);
     Load(context, RecursiveMemberOf_);
     Load(context, LinkedObjects_);
-    if (context.GetVersion() >= 214) {
+    if (context.GetVersion() >= 300) {
         Load(context, Acd_);
     }
 }

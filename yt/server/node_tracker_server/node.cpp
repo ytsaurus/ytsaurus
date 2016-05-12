@@ -178,7 +178,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Addresses_);
     Load(context, MulticellStates_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 213) {
+    if (context.GetVersion() >= 300) {
         Load(context, UserTags_);
         Load(context, NodeTags_);
     }
