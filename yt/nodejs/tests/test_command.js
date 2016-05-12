@@ -1063,7 +1063,7 @@ describe("YtCommand - v2 output format selection", function() {
         function(rsp) {
             rsp.should.be.http2xx;
             rsp.should.have.content_disposition("inline; filename=\"yt_sys_operations_111_jobs_222_stderr\"");
-            rsp.should.have.content_type("text/plain");
+            rsp.should.have.content_type("text/plain; charset=\"utf-8\"");
             stub.should.have.been.calledOnce;
         }, done).end();
     });
@@ -1382,7 +1382,7 @@ describe("YtCommand - v3 output format selection", function() {
         function(rsp) {
             rsp.should.be.http2xx;
             rsp.should.have.content_disposition("inline; filename=\"yt_sys_operations_111_jobs_222_stderr\"");
-            rsp.should.have.content_type("text/plain");
+            rsp.should.have.content_type("text/plain; charset=\"utf-8\"");
             stub.should.have.been.calledOnce;
         }, done).end();
     });
