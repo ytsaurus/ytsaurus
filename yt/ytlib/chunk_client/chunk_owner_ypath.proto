@@ -50,7 +50,6 @@ message TRspGetUploadParams
 message TReqEndUpload
 {
     optional TDataStatistics statistics = 1;
-    optional bool derive_statistics = 2 [default = false];
     repeated string key_columns = 3;
     optional bool chunk_properties_update_needed = 4 [default = false];
 }

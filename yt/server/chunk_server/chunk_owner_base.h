@@ -41,7 +41,6 @@ public:
     virtual void BeginUpload(NChunkClient::EUpdateMode mode);
     virtual void EndUpload(
         const NChunkClient::NProto::TDataStatistics* statistics,
-        bool deriveStatistics,
         const NTableClient::TTableSchema& schema);
     virtual bool IsSorted() const;
 

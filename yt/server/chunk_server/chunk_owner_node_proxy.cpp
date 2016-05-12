@@ -1022,7 +1022,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     // TOOD(babenko): should we be passing schema here?
     auto keyColumns = FromProto<TKeyColumns>(request->key_columns());
     const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
-    bool deriveStatistics = request->derive_statistics();
     bool chunkPropertiesUpdateNeeded = request->chunk_properties_update_needed();
 
     context->SetRequestInfo("KeyColumns: %v, ChunkPropertiesUpdateNeeded: %v",
@@ -1036,13 +1035,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     YCHECK(node->GetTransaction() == Transaction);
 
     if (node->IsExternal()) {
-        if (deriveStatistics) {
-            THROW_ERROR_EXCEPTION("Cannot derive data statistics for external node");
-        }
         PostToMaster(context, node->GetExternalCellTag());
     }
 
-    node->EndUpload(statistics, deriveStatistics, schema);
+    node->EndUpload(statistics, schema);
 
     node->SetChunkPropertiesUpdateNeeded(chunkPropertiesUpdateNeeded);
 
