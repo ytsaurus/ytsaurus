@@ -1,0 +1,7 @@
+{
+    "type" = "table";
+    "format" = "dsv";
+    "attributes" = {
+        "force_nightly_compress" = %true
+    }
+}
