@@ -16,6 +16,7 @@ struct TConfig
     Stroka Token;
     Stroka Prefix;
     Stroka ApiVersion;
+    Stroka LogLevel;
 
     Stroka ContentEncoding;
     Stroka AcceptEncoding;
