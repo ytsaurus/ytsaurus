@@ -55,11 +55,10 @@ void TTableNode::BeginUpload(EUpdateMode mode)
 
 void TTableNode::EndUpload(
     const TDataStatistics* statistics,
-    bool deriveStatistics,
     const TTableSchema& schema)
 {
     TableSchema_ = schema;
-    TChunkOwnerBase::EndUpload(statistics, deriveStatistics, schema);
+    TChunkOwnerBase::EndUpload(statistics, schema);
 }
 
 bool TTableNode::IsSorted() const

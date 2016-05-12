@@ -109,7 +109,6 @@ void TChunkOwnerBase::BeginUpload(EUpdateMode mode)
 
 void TChunkOwnerBase::EndUpload(
     const TDataStatistics* statistics,
-    bool deriveStatistics,
     const NTableClient::TTableSchema& /*schema*/)
 {
     TNullable<TDataStatistics> updateStatistics;
@@ -118,9 +117,7 @@ void TChunkOwnerBase::EndUpload(
         updateStatistics = ComputeUpdateStatistics();
     }
 
-    if (deriveStatistics) {
-        statistics = &*updateStatistics;
-    } else if (statistics && updateStatistics) {
+    if (statistics && updateStatistics) {
         YCHECK(*statistics == *updateStatistics);
     }
 
