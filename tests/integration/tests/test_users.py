@@ -47,6 +47,13 @@ class TestUsers(YTEnvSetup):
         create_user("u")
         set("//sys/users/u/@request_queue_size_limit", 1)
 
+    def test_request_queue_size_limit3(self):
+        create_user("u")
+        set("//sys/users/u/@request_queue_size_limit", 0)
+        with pytest.raises(YtError): ls("/", user="u")
+        set("//sys/users/u/@request_queue_size_limit", 1)
+        ls("/", user="u")
+
     def test_access_counter1(self):
         create_user("u")
         assert get("//sys/users/u/@request_count") == 0
