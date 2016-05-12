@@ -115,19 +115,18 @@ private:
 class TExecuteRequest
 {
 private:
-    TDriverWrap* Wrap;
+    TDriverWrap* Wrap_;
+    TDriverRequest Request_;
 
-    TNodeJSInputStack InputStack;
-    TNodeJSOutputStack OutputStack;
+    std::unique_ptr<TNodeJSInputStack> InputStack_;
+    std::unique_ptr<TNodeJSOutputStack> OutputStack_;
 
-    Persistent<Function> ExecuteCallback;
-    Persistent<Function> ParameterCallback;
+    Persistent<Function> ExecuteCallback_;
+    Persistent<Function> ParameterCallback_;
 
-    TResponseParametersConsumer ResponseParametersConsumer;
+    TResponseParametersConsumer ResponseParametersConsumer_;
 
-    TDriverRequest DriverRequest;
-
-    NTracing::TTraceContext TraceContext;
+    NTracing::TTraceContext TraceContext_;
 
 public:
     TExecuteRequest(
@@ -136,29 +135,29 @@ public:
         TOutputStreamWrap* outputStream,
         Handle<Function> executeCallback,
         Handle<Function> parameterCallback)
-        : Wrap(wrap)
-        , InputStack(inputStream)
-        , OutputStack(outputStream)
-        , ExecuteCallback(Persistent<Function>::New(executeCallback))
-        , ParameterCallback(Persistent<Function>::New(parameterCallback))
-        , ResponseParametersConsumer(ParameterCallback)
+        : Wrap_(wrap)
+        , InputStack_(std::make_unique<TNodeJSInputStack>(inputStream))
+        , OutputStack_(std::make_unique<TNodeJSOutputStack>(outputStream))
+        , ExecuteCallback_(Persistent<Function>::New(executeCallback))
+        , ParameterCallback_(Persistent<Function>::New(parameterCallback))
+        , ResponseParametersConsumer_(ParameterCallback_)
     {
         THREAD_AFFINITY_IS_V8();
 
-        Wrap->Ref();
+        Wrap_->Ref();
     }
 
     ~TExecuteRequest()
     {
         THREAD_AFFINITY_IS_V8();
 
-        ExecuteCallback.Dispose();
-        ExecuteCallback.Clear();
+        ExecuteCallback_.Dispose();
+        ExecuteCallback_.Clear();
 
-        ParameterCallback.Dispose();
-        ParameterCallback.Clear();
+        ParameterCallback_.Dispose();
+        ParameterCallback_.Clear();
 
-        Wrap->Unref();
+        Wrap_->Unref();
     }
 
     void SetCommand(
@@ -167,31 +166,31 @@ public:
         INodePtr parameters,
         ui64 requestId)
     {
-        DriverRequest.Id = requestId;
-        DriverRequest.CommandName = std::move(commandName);
-        DriverRequest.AuthenticatedUser = std::move(authenticatedUser);
-        DriverRequest.Parameters = parameters->AsMap();
+        Request_.Id = requestId;
+        Request_.CommandName = std::move(commandName);
+        Request_.AuthenticatedUser = std::move(authenticatedUser);
+        Request_.Parameters = parameters->AsMap();
 
-        auto trace = DriverRequest.Parameters->FindChild("trace");
+        auto trace = Request_.Parameters->FindChild("trace");
         if (trace && ConvertTo<bool>(trace)) {
-            TraceContext = NTracing::CreateRootTraceContext();
+            TraceContext_ = NTracing::CreateRootTraceContext();
             if (requestId) {
-                TraceContext = NTracing::TTraceContext(
+                TraceContext_ = NTracing::TTraceContext(
                     requestId,
-                    TraceContext.GetSpanId(),
-                    TraceContext.GetParentSpanId());
+                    TraceContext_.GetSpanId(),
+                    TraceContext_.GetParentSpanId());
             }
         }
     }
 
     void SetInputCompression(ECompression compression)
     {
-        InputStack.AddCompression(compression);
+        InputStack_->AddCompression(compression);
     }
 
     void SetOutputCompression(ECompression compression)
     {
-        OutputStack.AddCompression(compression);
+        OutputStack_->AddCompression(compression);
     }
 
     Handle<Value> Run(std::unique_ptr<TExecuteRequest> this_)
@@ -203,22 +202,22 @@ public:
 
         auto compressionInvoker =
             NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker();
-        DriverRequest.InputStream = CreateAsyncAdapter(&InputStack, compressionInvoker);
-        DriverRequest.OutputStream = CreateAsyncAdapter(&OutputStack, compressionInvoker);
-        DriverRequest.ResponseParametersConsumer = &ResponseParametersConsumer;
+        Request_.InputStream = CreateAsyncAdapter(InputStack_.get(), compressionInvoker);
+        Request_.OutputStream = CreateAsyncAdapter(OutputStack_.get(), compressionInvoker);
+        Request_.ResponseParametersConsumer = &ResponseParametersConsumer_;
  
         TFuture<void> future;
         auto wrappedFuture = TFutureWrap::ConstructorTemplate->GetFunction()->NewInstance();
 
-        if (Y_LIKELY(!Wrap->IsEcho())) {
-            NTracing::TTraceContextGuard guard(TraceContext);
-            future = Wrap->GetDriver()->Execute(DriverRequest);
+        if (Y_LIKELY(!Wrap_->IsEcho())) {
+            NTracing::TTraceContextGuard guard(TraceContext_);
+            future = Wrap_->GetDriver()->Execute(Request_);
        } else {
             future =
                 BIND([this] () {
                     TTempBuf buffer;
-                    auto inputStream = CreateSyncAdapter(DriverRequest.InputStream);
-                    auto outputStream = CreateSyncAdapter(DriverRequest.OutputStream);
+                    auto inputStream = CreateSyncAdapter(Request_.InputStream);
+                    auto outputStream = CreateSyncAdapter(Request_.OutputStream);
 
                     while (size_t length = inputStream->Load(buffer.Data(), buffer.Size())) {
                         outputStream->Write(buffer.Data(), length);
@@ -227,17 +226,6 @@ public:
                 .AsyncVia(compressionInvoker)
                 .Run();
         }
-
-        // Stream flush may incur extra call to compressor, so we do it in compression
-        // invoker.
-        future = future.Apply(
-            BIND([this] () {
-                try {
-                    OutputStack.Finish();
-                } catch (const std::exception& ex) {
-                    LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
-                }
-            }).Via(compressionInvoker));
 
         future.Subscribe(
             BIND(&TExecuteRequest::OnResponse, Owned(this_.release()))
@@ -253,15 +241,23 @@ private:
     {
         THREAD_AFFINITY_IS_V8();
 
+        try {
+            OutputStack_->Finish();
+        } catch (const std::exception& ex) {
+            LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
+        }
+
         // XXX(sandello): We cannot represent ui64 precisely in V8, because there
         // is no native ui64 integer type. So we convert ui64 to double (v8::Number)
         // to precisely represent all integers up to 2^52
         // (see http://en.wikipedia.org/wiki/Double_precision).
-        double bytesIn = InputStack.GetBytes();
-        double bytesOut = OutputStack.GetBytes();
+        double bytesIn = InputStack_->GetBytes();
+        InputStack_.reset();
+        double bytesOut = OutputStack_->GetBytes();
+        OutputStack_.reset();
 
         Invoke(
-            ExecuteCallback,
+            ExecuteCallback_,
             ConvertErrorToV8(response),
             Number::New(bytesIn),
             Number::New(bytesOut));
