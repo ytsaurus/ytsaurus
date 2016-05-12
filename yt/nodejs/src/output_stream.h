@@ -44,6 +44,7 @@ public:
 
     // Asynchronous JS API.
     static int AsyncOnFlowing(eio_req* request);
+    void Flow(bool withinV8);
 
     // Diagnostics.
     const ui64 GetBytesEnqueued() const;
