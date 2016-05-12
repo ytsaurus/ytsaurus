@@ -45,7 +45,7 @@ public:
     // Limits and bans.
     DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
 
-    DEFINE_BYVAL_RW_PROPERTY(double, RequestRateLimit);
+    DEFINE_BYVAL_RW_PROPERTY(int, RequestRateLimit);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::IReconfigurableThroughputThrottlerPtr, RequestRateThrottler);
 
     DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueLimit);

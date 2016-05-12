@@ -76,7 +76,7 @@ TUserStatistics operator + (const TUserStatistics& lhs, const TUserStatistics& r
 TUser::TUser(const TUserId& id)
     : TSubject(id)
     , Banned_(false)
-    , RequestRateLimit_(100.0)
+    , RequestRateLimit_(100)
     , RequestQueueLimit_(100)
     , RequestQueueSize_(0)
     , LocalStatisticsPtr_(nullptr)
@@ -101,8 +101,16 @@ void TUser::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, Banned_);
-    Load(context, RequestRateLimit_);
-    Load(context, RequestQueueLimit_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 213) {
+        Load(context, RequestRateLimit_);
+    } else {
+        RequestRateLimit_ = static_cast<int>(Load<double>(context));
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 213) {
+        Load(context, RequestQueueLimit_);
+    }
     // COMPAT(babenko)
     if (context.GetVersion() >= 200) {
         Load(context, MulticellStatistics_);

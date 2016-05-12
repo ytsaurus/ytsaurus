@@ -43,7 +43,7 @@ public:
 
     void SetUserRequestRateLimit(
         TUser* user,
-        double limit);
+        int limit);
 
     void ReconfigureUserRequestRateThrottler(TUser* user);
 

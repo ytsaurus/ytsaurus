@@ -942,7 +942,7 @@ public:
         return RequestTracker_->ThrottleUser(user, requestCount);
     }
 
-    void SetUserRequestRateLimit(TUser* user, double limit)
+    void SetUserRequestRateLimit(TUser* user, int limit)
     {
         RequestTracker_->SetUserRequestRateLimit(user, limit);
     }
@@ -1382,7 +1382,7 @@ private:
         if (!RootUser_) {
             // root
             RootUser_ = DoCreateUser(RootUserId_, RootUserName);
-            RootUser_->SetRequestRateLimit(1000000.0);
+            RootUser_->SetRequestRateLimit(1000000);
         }
 
         GuestUser_ = FindUser(GuestUserId_);
@@ -1395,14 +1395,14 @@ private:
         if (!JobUser_) {
             // job
             JobUser_ = DoCreateUser(JobUserId_, JobUserName);
-            JobUser_->SetRequestRateLimit(1000000.0);
+            JobUser_->SetRequestRateLimit(1000000);
         }
 
         SchedulerUser_ = FindUser(SchedulerUserId_);
         if (!SchedulerUser_) {
             // scheduler
             SchedulerUser_ = DoCreateUser(SchedulerUserId_, SchedulerUserName);
-            SchedulerUser_->SetRequestRateLimit(1000000.0);
+            SchedulerUser_->SetRequestRateLimit(1000000);
         }
 
         // Accounts
@@ -2087,7 +2087,7 @@ TFuture<void> TSecurityManager::ThrottleUser(TUser* user, int requestCount)
     return Impl_->ThrottleUser(user, requestCount);
 }
 
-void TSecurityManager::SetUserRequestRateLimit(TUser* user, double limit)
+void TSecurityManager::SetUserRequestRateLimit(TUser* user, int limit)
 {
     Impl_->SetUserRequestRateLimit(user, limit);
 }
