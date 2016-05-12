@@ -42,10 +42,6 @@ public:
     static v8::Handle<v8::Value> IsFinished(const v8::Arguments& args);
     v8::Handle<v8::Value> DoIsFinished();
 
-    // Asynchronous JS API.
-    static int AsyncOnFlowing(eio_req* request);
-    void Flow(bool withinV8);
-
     // Diagnostics.
     const ui64 GetBytesEnqueued() const;
     const ui64 GetBytesDequeued() const;
@@ -60,6 +56,9 @@ protected:
 
 private:
     bool CanFlow() const;
+    void RunFlow(bool withinV8);
+    static int AsyncOnFlowing(eio_req* request);
+
     void ProtectedUpdateAndNotifyWriter(std::function<void()> mutator);
     void PushToQueue(std::unique_ptr<char[]> blob, size_t length);
 
