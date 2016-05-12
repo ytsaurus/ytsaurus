@@ -78,7 +78,7 @@ TFuture<void> TBufferedStream::Write(const TSharedRef& data)
     YCHECK(!Finished_);
 
     {
-        if (Data_.End() - (Begin_ + Size_) < data.Size()) {
+        if (Data_.End() < Begin_ + Size_ + data.Size()) {
             if (Size_ + data.Size() > Data_.Size()) {
                 Reallocate(std::max(Size_ + data.Size(), Data_.Size() * 2));
             } else if (Size_ <= Begin_ - Data_.Begin()) {
@@ -158,7 +158,7 @@ Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict& kwargs)
         rawResult = Stream_->Read(size.asLongLong());
         Py_END_ALLOW_THREADS
     }
-    return Py::String(rawResult);
+    return Py::String(rawResult, true);
 }
 
 Py::Object TBufferedStreamWrap::Empty(Py::Tuple& args, Py::Dict& kwargs)
