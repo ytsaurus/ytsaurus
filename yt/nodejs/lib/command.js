@@ -581,7 +581,7 @@ YtCommand.prototype._getOutputFormat = function() {
         this.output_format = _PREDEFINED_YSON_FORMAT;
         // XXX(sandello): Allow browsers to display data inline.
         if (disposition === "inline") {
-            this.mime_type = "text/plain";
+            this.mime_type = "text/plain; charset=\"utf-8\"";
         } else {
             this.mime_type = "application/octet-stream";
         }
