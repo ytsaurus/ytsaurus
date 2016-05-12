@@ -4,48 +4,129 @@ from yt.tools.atomic import process_tasks_from_list
 from yt.tools.conversion_tools import convert_to_erasure
 
 from yt.wrapper.cli_helpers import die
-from yt.wrapper.common import parse_bool
+from yt.wrapper.common import parse_bool, get_value
 
 import yt.logger as logger
 import yt.wrapper as yt
+import yt.yson as yson
 
+from copy import deepcopy
 from argparse import ArgumentParser
 
-def compress(table):
+DEFAULT_COMPRESSION_CODEC = "zlib_9"
+DEFAULT_ERASURE_CODEC = "lrc_12_2_2"
+
+def compress(task):
+    table = task["table"]
     try:
         if not yt.exists(table):
             return
-        
-        try:
-            if not parse_bool(yt.get(table + "/@force_nightly_compress")):
-                return
-        except yt.YtResponseError as error:
-            if error.is_resolve_error():
-                return
 
         if yt.check_permission("cron", "write", table)["action"] != "allow":
             logger.warning("Have no permission to write table %s", table)
             return
 
-        logger.info("Compressing table %s", table)
-        convert_to_erasure(table, erasure_codec="lrc_12_2_2", compression_codec="zlib_9")
-        yt.remove(table + "/@force_nightly_compress")
+        chunk_count = yt.get_attribute(table, "chunk_count")
+        if chunk_count == 0:
+            return
 
+        compression_stats = yt.get_attribute(table, "compression_statistics")
+        erasure_stats = yt.get_attribute(table, "erasure_statistics")
+
+        compressed_chunk_count = compression_stats.get(task["compression_codec"], {}).get("chunk_count", 0)
+        chunk_count_in_erasure = erasure_stats.get(task["erasure_codec"], {}).get("chunk_count", 0)
+        # XXX(asaitgalin): Make it less strict?
+        if compressed_chunk_count == chunk_count and chunk_count_in_erasure == chunk_count:
+            logger.info("Table %s is already has proper compression and erasure codecs", table)
+            return
+
+        logger.info("Compressing table %s", table)
+        convert_to_erasure(table,
+                           erasure_codec=task["erasure_codec"],
+                           compression_codec=task["compression_codec"])
+
+        if yt.exists(table + "/@force_nightly_compress"):
+            yt.remove(table + "/@force_nightly_compress")
     except yt.YtError as e:
         logger.error("Failed to merge table %s with error %s", table, repr(e))
+
+def safe_get(path, **kwargs):
+    try:
+        return yt.get(path, **kwargs)
+    except yt.YtResponseError as err:
+        if err.is_access_denied():
+            logger.warning("Failed to get node %s, access denied", path)
+        else:
+            raise
+
+    return yson.YsonMap({}, attributes={"type": "map_node"})
+
+def escape(s):
+    def escape_char(ch):
+        return "\\" + ch if ch in ["\\", "/", "@", "&", "[", "{"] else ch
+
+    return "".join(escape_char(char) for char in s)
+
+def make_compression_task(table, compression_codec=None, erasure_codec=None):
+    compression_codec = get_value(compression_codec, DEFAULT_COMPRESSION_CODEC)
+    erasure_codec = get_value(erasure_codec, DEFAULT_ERASURE_CODEC)
+    return {
+        "table": table,
+        "compression_codec": compression_codec,
+        "erasure_codec": erasure_codec
+    }
+
+def find(root):
+    tables = []
+    ignore_nodes = ["//sys"]
+
+    requested_attributes = ["type", "opaque", "force_nightly_compress",
+                            "uncompressed_data_size", "nightly_compression_settings"]
+
+    def walk(path, object, compression_settings=None):
+        if path in ignore_nodes:
+            return
+
+        if object.attributes["type"] == "table":
+            if parse_bool(object.attributes.get("force_nightly_compress", "false")):
+                tables.append(make_compression_task(path))
+                return
+
+            if compression_settings is None or not isinstance(compression_settings, dict):
+                return
+
+            params = deepcopy(compression_settings)
+            min_table_size = params.pop("min_table_size", 0)
+            enabled = parse_bool(params.pop("enabled", "false"))
+
+            if enabled and object.attributes["uncompressed_data_size"] > min_table_size:
+                tables.append(make_compression_task(path, **params))
+        elif object.attributes["type"] == "map_node":
+            if parse_bool(object.attributes.get("opaque", "false")):
+                object = safe_get(path, attributes=requested_attributes)
+
+            compression_settings = object.attributes.get("nightly_compression_settings",
+                                                         compression_settings)
+
+            for key, value in object.iteritems():
+                walk("{0}/{1}".format(path, escape(key)), value, compression_settings)
+        else:
+            logger.debug("Skipping %s %s", object.attributes["type"], path)
+
+    root_obj = safe_get(root, attributes=requested_attributes)
+    walk(root, root_obj)
+
+    return tables
 
 def main():
     parser = ArgumentParser(description="Find tables to compress and run compression")
     parser.add_argument("action", help="Action should be 'find' or 'run'")
-    parser.add_argument('--queue', required=True, help="Path to the queue with tables")
+    parser.add_argument("--queue", required=True, help="Path to the queue with tables")
+    parser.add_argument("--path", default="/", help='Search path. Default is cypress root "/"')
     args = parser.parse_args()
 
     if args.action == "find":
-        tables = []
-        for table in yt.search("//tmp", node_type="table", attributes=["force_nightly_compress"]):
-            if parse_bool(table.attributes.get("force_nightly_compress", "false")):
-                tables.append(table)
-        yt.set(args.queue, tables)
+        yt.set(args.queue, find(args.path))
     elif args.action == "run":
         process_tasks_from_list(args.queue, compress)
     else:
@@ -53,5 +134,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
