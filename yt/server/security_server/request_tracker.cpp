@@ -152,7 +152,7 @@ void TRequestTracker::SetUserRequestQueueSizeLimit(TUser* user, int limit)
 bool TRequestTracker::TryIncreaseRequestQueueSize(TUser* user)
 {
     auto size = user->GetRequestQueueSize();
-    auto limit = user->GetRequestQueueSize();
+    auto limit = user->GetRequestQueueSizeLimit();
     if (size >= limit) {
         return false;
     }
