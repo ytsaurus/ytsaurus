@@ -6,7 +6,6 @@
 #include <mapreduce/yt/io/job_reader.h>
 #include <mapreduce/yt/http/requests.h>
 
-#include <util/generic/singleton.h>
 #include <util/string/cast.h>
 #include <util/folder/dirut.h>
 
@@ -21,7 +20,22 @@ void WriteVersionToLog()
 
 void Initialize(int argc, const char* argv[])
 {
-    SetLogger(CreateStdErrLogger(ILogger::DEBUG));
+    auto logLevelStr = to_lower(TConfig::Get()->LogLevel);
+    ILogger::ELevel logLevel;
+    if (logLevelStr == "fatal") {
+        logLevel = ILogger::FATAL;
+    } else if (logLevelStr == "error") {
+        logLevel = ILogger::ERROR;
+    } else if (logLevelStr == "info") {
+        logLevel = ILogger::INFO;
+    } else if (logLevelStr == "debug") {
+        logLevel = ILogger::DEBUG;
+    } else {
+        Cerr << "Invalid log level: " << TConfig::Get()->LogLevel << Endl;
+        exit(1);
+    }
+    SetLogger(CreateStdErrLogger(logLevel));
+
     TProcessState::Get()->SetCommandLine(argc, argv);
 
     if (argc != 5) {
