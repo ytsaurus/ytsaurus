@@ -8,7 +8,7 @@
 
 #include <array>
 
-#include <yajl/yajl_parse.h>
+#include <contrib/libs/yajl/api/yajl_parse.h>
 
 namespace NYT {
 namespace NFormats {
