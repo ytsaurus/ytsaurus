@@ -15,7 +15,7 @@ TNodeJSOutputStack::TNodeJSOutputStack(TOutputStreamWrap* base)
     : TGrowingStreamStack(base)
 {
     THREAD_AFFINITY_IS_V8();
-    YASSERT(base == Bottom());
+    YASSERT(Bottom() == base);
     GetBaseStream()->AsyncRef(true);
 }
 
@@ -29,9 +29,19 @@ TOutputStreamWrap* TNodeJSOutputStack::GetBaseStream()
     return static_cast<TOutputStreamWrap*>(Bottom());
 }
 
+const TOutputStreamWrap* TNodeJSOutputStack::GetBaseStream() const
+{
+    return static_cast<const TOutputStreamWrap*>(Bottom());
+}
+
 void TNodeJSOutputStack::AddCompression(ECompression compression)
 {
     AddCompressionToStack(*this, compression);
+}
+
+ui64 TNodeJSOutputStack::GetBytes() const
+{
+    return GetBaseStream()->GetBytesEnqueued();
 }
 
 void TNodeJSOutputStack::DoWrite(const void* buffer, size_t length)

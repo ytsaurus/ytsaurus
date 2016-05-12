@@ -64,6 +64,7 @@ void TOutputStreamWrap::Initialize(Handle<Object> target)
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Destroy", TOutputStreamWrap::Destroy);
 
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsFlowing", TOutputStreamWrap::IsFlowing);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsFinished", TOutputStreamWrap::IsFinished);
 
     target->Set(
         String::NewSymbol("TOutputStreamWrap"),
@@ -144,12 +145,6 @@ Handle<Value> TOutputStreamWrap::DoPull()
     ProtectedUpdateAndNotifyWriter([&] () {
         YCHECK(IsFlowing_);
 
-        if (IsDestroyed_) {
-            AsyncUnref();
-            IsFlowing_ = false;
-            return;
-        }
-
         for (int i = 0; i < MaxPartsPerPull; ++i) {
             if (Queue_.empty()) {
                 break;
@@ -208,7 +203,6 @@ void TOutputStreamWrap::DoDestroy()
     THREAD_AFFINITY_IS_V8();
 
     ProtectedUpdateAndNotifyWriter([&] () {
-        IsFinishing_ = true;
         IsDestroyed_ = true;
 
         Queue_.clear();
@@ -237,6 +231,30 @@ Handle<Value> TOutputStreamWrap::DoIsFlowing()
     THREAD_AFFINITY_IS_V8();
     auto guard = Guard(Mutex_);
     return Boolean::New(IsFlowing_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TOutputStreamWrap::IsFinished(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Unwrap.
+    auto* stream = ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
+
+    // Validate arguments.
+    YCHECK(args.Length() == 0);
+
+    // Do the work.
+    return scope.Close(stream->DoIsFinished());
+}
+
+Handle<Value> TOutputStreamWrap::DoIsFinished()
+{
+    THREAD_AFFINITY_IS_V8();
+    auto guard = Guard(Mutex_);
+    return Boolean::New(IsFinished_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -318,9 +336,18 @@ void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
     PushToQueue(std::move(buffer), length);
 }
 
+void TOutputStreamWrap::DoFinish()
+{
+    auto guard = Guard(Mutex_);
+    IsFinishing_ = true;
+    IsFinished_ = true;
+}
+
 bool TOutputStreamWrap::CanFlow() const
 {
-    return IsFinishing_ || IsDestroyed_ || BytesInFlight_ < Watermark_;
+    return
+        IsFinishing_ || IsFinished_ || IsDestroyed_ ||
+        BytesInFlight_ < Watermark_;
 }
 
 void TOutputStreamWrap::ProtectedUpdateAndNotifyWriter(std::function<void()> mutator)
@@ -345,6 +372,9 @@ void TOutputStreamWrap::PushToQueue(std::unique_ptr<char[]> buffer, size_t lengt
     THREAD_AFFINITY_IS_ANY();
 
     auto guard = Guard(Mutex_);
+
+    // This bit should be set once we
+    YCHECK(!IsFinished_);
 
     if (!CanFlow()) {
         YCHECK(!WritePromise_);

@@ -39,6 +39,9 @@ public:
     static v8::Handle<v8::Value> IsFlowing(const v8::Arguments& args);
     v8::Handle<v8::Value> DoIsFlowing();
 
+    static v8::Handle<v8::Value> IsFinished(const v8::Arguments& args);
+    v8::Handle<v8::Value> DoIsFinished();
+
     // Asynchronous JS API.
     static int AsyncOnFlowing(eio_req* request);
 
@@ -50,8 +53,9 @@ public:
 
 protected:
     // C++ API.
-    void DoWrite(const void* buffer, size_t length) override;
-    void DoWriteV(const TPart* parts, size_t count) override;
+    virtual void DoWrite(const void* buffer, size_t length) override;
+    virtual void DoWriteV(const TPart* parts, size_t count) override;
+    virtual void DoFinish() override;
 
 private:
     bool CanFlow() const;
@@ -66,6 +70,7 @@ private:
 
     bool IsFlowing_ = false;
     bool IsFinishing_ = false;
+    bool IsFinished_ = false;
     bool IsDestroyed_ = false;
 
     ui64 BytesInFlight_ = 0;
