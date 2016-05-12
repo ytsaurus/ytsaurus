@@ -48,7 +48,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, RequestRateLimit);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::IReconfigurableThroughputThrottlerPtr, RequestRateThrottler);
 
-    DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueLimit);
+    DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueSizeLimit);
     DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueSize);
 
     // Statistics

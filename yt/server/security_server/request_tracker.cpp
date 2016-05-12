@@ -144,15 +144,15 @@ void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
     user->GetRequestRateThrottler()->Reconfigure(std::move(config));
 }
 
-void TRequestTracker::SetUserRequestQueueLimit(TUser* user, int limit)
+void TRequestTracker::SetUserRequestQueueSizeLimit(TUser* user, int limit)
 {
-    user->SetRequestQueueLimit(limit);
+    user->SetRequestQueueSizeLimit(limit);
 }
 
 bool TRequestTracker::TryIncreaseRequestQueueSize(TUser* user)
 {
     auto size = user->GetRequestQueueSize();
-    auto limit = user->GetRequestQueueLimit();
+    auto limit = user->GetRequestQueueSize();
     if (size >= limit) {
         return false;
     }

@@ -77,7 +77,7 @@ TUser::TUser(const TUserId& id)
     : TSubject(id)
     , Banned_(false)
     , RequestRateLimit_(100)
-    , RequestQueueLimit_(100)
+    , RequestQueueSizeLimit_(100)
     , RequestQueueSize_(0)
     , LocalStatisticsPtr_(nullptr)
     , RequestStatisticsUpdateIndex_(-1)
@@ -90,7 +90,7 @@ void TUser::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, Banned_);
     Save(context, RequestRateLimit_);
-    Save(context, RequestQueueLimit_);
+    Save(context, RequestQueueSizeLimit_);
     Save(context, MulticellStatistics_);
     Save(context, ClusterStatistics_);
 }
@@ -109,7 +109,7 @@ void TUser::Load(NCellMaster::TLoadContext& context)
     }
     // COMPAT(babenko)
     if (context.GetVersion() >= 213) {
-        Load(context, RequestQueueLimit_);
+        Load(context, RequestQueueSizeLimit_);
     }
     // COMPAT(babenko)
     if (context.GetVersion() >= 200) {

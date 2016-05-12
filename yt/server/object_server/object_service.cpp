@@ -304,9 +304,9 @@ private:
             if (!SecurityManager_->TryIncreaseRequestQueueSize(user)) {
                 THROW_ERROR_EXCEPTION(
                     NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded,
-                    "User %Qv has exceeded its request queue limit",
+                    "User %Qv has exceeded its request queue size limit",
                     user->GetName())
-                    << TErrorAttribute("limit", user->GetRequestQueueLimit());
+                    << TErrorAttribute("limit", user->GetRequestQueueSizeLimit());
             }
             RequestQueueSizeIncreased_ = true;
         }

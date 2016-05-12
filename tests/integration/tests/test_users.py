@@ -39,13 +39,13 @@ class TestUsers(YTEnvSetup):
         create_user("u")
         set("//sys/users/u/@request_rate_limit", 1)
 
-    def test_request_queue_limit1(self):
+    def test_request_queue_size_limit1(self):
         create_user("u")
-        with pytest.raises(YtError): set("//sys/users/u/@request_rate_limit", -1)
+        with pytest.raises(YtError): set("//sys/users/u/@request_queue_size_limit", -1)
 
-    def test_request_queue_limit2(self):
+    def test_request_queue_size_limit2(self):
         create_user("u")
-        set("//sys/users/u/@request_queue_limit", 1)
+        set("//sys/users/u/@request_queue_size_limit", 1)
 
     def test_access_counter1(self):
         create_user("u")

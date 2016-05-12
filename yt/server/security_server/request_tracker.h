@@ -47,7 +47,7 @@ public:
 
     void ReconfigureUserRequestRateThrottler(TUser* user);
 
-    void SetUserRequestQueueLimit(
+    void SetUserRequestQueueSizeLimit(
         TUser* user,
         int limit);
 

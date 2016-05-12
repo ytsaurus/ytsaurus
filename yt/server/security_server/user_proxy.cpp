@@ -44,7 +44,7 @@ private:
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("request_rate_limit")
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("request_queue_limit")
+        descriptors->push_back(TAttributeDescriptor("request_queue_size_limit")
             .SetReplicated(true));
         descriptors->push_back("access_time");
         descriptors->push_back("request_count");
@@ -71,9 +71,9 @@ private:
             return true;
         }
 
-        if (key == "request_queue_limit") {
+        if (key == "request_queue_size_limit") {
             BuildYsonFluently(consumer)
-                .Value(user->GetRequestQueueLimit());
+                .Value(user->GetRequestQueueSizeLimit());
             return true;
         }
 
@@ -132,12 +132,12 @@ private:
             return true;
         }
 
-        if (key == "request_queue_limit") {
+        if (key == "request_queue_size_limit") {
             auto limit = ConvertTo<int>(value);
             if (limit < 0) {
-                THROW_ERROR_EXCEPTION("\"request_queue_limit\" cannot be negative");
+                THROW_ERROR_EXCEPTION("\"request_queue_size_limit\" cannot be negative");
             }
-            securityManager->SetUserRequestQueueLimit(user, limit);
+            securityManager->SetUserRequestQueueSizeLimit(user, limit);
             return true;
         }
 
