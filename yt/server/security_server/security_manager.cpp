@@ -947,9 +947,9 @@ public:
         RequestTracker_->SetUserRequestRateLimit(user, limit);
     }
 
-    void SetUserRequestQueueLimit(TUser* user, int limit)
+    void SetUserRequestQueueSizeLimit(TUser* user, int limit)
     {
-        RequestTracker_->SetUserRequestQueueLimit(user, limit);
+        RequestTracker_->SetUserRequestQueueSizeLimit(user, limit);
     }
 
     bool TryIncreaseRequestQueueSize(TUser* user)
@@ -2092,9 +2092,9 @@ void TSecurityManager::SetUserRequestRateLimit(TUser* user, int limit)
     Impl_->SetUserRequestRateLimit(user, limit);
 }
 
-void TSecurityManager::SetUserRequestQueueLimit(TUser* user, int limit)
+void TSecurityManager::SetUserRequestQueueSizeLimit(TUser* user, int limit)
 {
-    Impl_->SetUserRequestQueueLimit(user, limit);
+    Impl_->SetUserRequestQueueSizeLimit(user, limit);
 }
 
 bool TSecurityManager::TryIncreaseRequestQueueSize(TUser* user)
