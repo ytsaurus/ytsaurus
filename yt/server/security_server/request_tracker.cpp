@@ -127,7 +127,7 @@ TFuture<void> TRequestTracker::ThrottleUser(TUser* user, int requestCount)
     return user->GetRequestRateThrottler()->Throttle(requestCount);
 }
 
-void TRequestTracker::SetUserRequestRateLimit(TUser* user, double limit)
+void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit)
 {
     user->SetRequestRateLimit(limit);
     ReconfigureUserRequestRateThrottler(user);

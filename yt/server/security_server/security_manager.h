@@ -234,7 +234,7 @@ public:
         int requestCount);
 
     //! Updates the user request rate limit.
-    void SetUserRequestRateLimit(TUser* user, double limit);
+    void SetUserRequestRateLimit(TUser* user, int limit);
 
     //! Updates the user request queue limit.
     void SetUserRequestQueueLimit(TUser* user, int limit);
