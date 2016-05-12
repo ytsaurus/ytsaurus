@@ -270,6 +270,15 @@ int TOutputStreamWrap::AsyncOnFlowing(eio_req* request)
     return 0;
 }
 
+void TOutputStreamWrap::Flow(bool withinV8)
+{
+    if (!IsFlowing_) {
+        IsFlowing_ = true;
+        AsyncRef(withinV8);
+        EIO_PUSH(TOutputStreamWrap::AsyncOnFlowing, this);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const ui64 TOutputStreamWrap::GetBytesEnqueued() const
@@ -341,6 +350,12 @@ void TOutputStreamWrap::DoFinish()
     auto guard = Guard(Mutex_);
     IsFinishing_ = true;
     IsFinished_ = true;
+
+    // We require that calling party holds a synchronous lock on the stream.
+    // In case of TDriverWrap an instance TNodeJSInputStack holds a lock
+    // and TDriverWrap implementation guarantees that all Write() calls
+    // are within scope of the lock.
+    Flow(false);
 }
 
 bool TOutputStreamWrap::CanFlow() const
@@ -402,11 +417,7 @@ void TOutputStreamWrap::PushToQueue(std::unique_ptr<char[]> buffer, size_t lengt
     // In case of TDriverWrap an instance TNodeJSInputStack holds a lock
     // and TDriverWrap implementation guarantees that all Write() calls
     // are within scope of the lock.
-    if (!IsFlowing_) {
-        IsFlowing_ = true;
-        AsyncRef(false);
-        EIO_PUSH(TOutputStreamWrap::AsyncOnFlowing, this);
-    }
+    Flow(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
