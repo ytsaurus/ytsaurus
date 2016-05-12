@@ -26,6 +26,7 @@
 #include <util/string/printf.h>
 #include <util/string/builder.h>
 #include <util/system/execpath.h>
+#include <util/system/rwlock.h>
 #include <util/folder/path.h>
 #include <util/stream/file.h>
 #include <util/stream/buffer.h>
@@ -45,6 +46,34 @@ Stroka ToString(EMergeMode mode)
         default:
             LOG_FATAL("Invalid merge mode %i", mode);
     }
+}
+
+bool IsLocalMode(const TAuth& auth)
+{
+    static yhash_map<Stroka, bool> localModeMap;
+    static TRWMutex mutex;
+
+    {
+        TReadGuard guard(mutex);
+        auto it = localModeMap.find(auth.ServerName);
+        if (it != localModeMap.end()) {
+            return it->second;
+        }
+    }
+
+    bool isLocalMode = false;
+    Stroka localModeAttr("//sys/@local_mode_fqdn");
+    if (Exists(auth, TTransactionId(), localModeAttr)) {
+        auto fqdn = NodeFromYsonString(Get(auth, TTransactionId(), localModeAttr)).AsString();
+        isLocalMode = (fqdn == TProcessState::Get()->HostName);
+    }
+
+    {
+        TWriteGuard guard(mutex);
+        localModeMap[auth.ServerName] = isLocalMode;
+    }
+
+    return isLocalMode;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,7 +96,7 @@ public:
         UploadJobState(job);
 
         Stroka binaryPath;
-        if (!auth.IsLocalMode) {
+        if (!IsLocalMode(auth)) {
             UploadBinary();
             binaryPath = "./cppbinary";
         } else {
@@ -381,7 +410,7 @@ void WaitForOperation(
     const TOperationId& operationId)
 {
     const TDuration checkOperationStateInterval =
-        auth.IsLocalMode ? TDuration::MilliSeconds(100) : TDuration::Seconds(1);
+        IsLocalMode(auth) ? TDuration::MilliSeconds(100) : TDuration::Seconds(1);
 
     while (true) {
         auto status = CheckOperation(auth, transactionId, operationId);

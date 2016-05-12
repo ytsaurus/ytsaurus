@@ -14,7 +14,6 @@ struct TAuth
 {
     Stroka ServerName;
     Stroka Token;
-    bool IsLocalMode = false;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
