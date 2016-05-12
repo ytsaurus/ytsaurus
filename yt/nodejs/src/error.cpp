@@ -143,6 +143,10 @@ void InitializeError(Handle<Object> target)
         Integer::New(static_cast<int>(NSecurityClient::EErrorCode::UserBanned)));
 
     target->Set(
+        String::NewSymbol("RequestQueueSizeLimitExceededYtErrorCode"),
+        Integer::New(static_cast<int>(NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)));
+
+    target->Set(
         String::NewSymbol("AllTargetNodesFailedYtErrorCode"),
         Integer::New(static_cast<int>(NChunkClient::EErrorCode::AllTargetNodesFailed)));
 

@@ -947,6 +947,21 @@ public:
         RequestTracker_->SetUserRequestRateLimit(user, limit);
     }
 
+    void SetUserRequestQueueLimit(TUser* user, int limit)
+    {
+        RequestTracker_->SetUserRequestQueueLimit(user, limit);
+    }
+
+    bool TryIncreaseRequestQueueSize(TUser* user)
+    {
+        return RequestTracker_->TryIncreaseRequestQueueSize(user);
+    }
+
+    void DecreaseRequestQueueSize(TUser* user)
+    {
+        RequestTracker_->DecreaseRequestQueueSize(user);
+    }
+
 private:
     friend class TAccountTypeHandler;
     friend class TUserTypeHandler;
@@ -1629,6 +1644,7 @@ private:
             Profiler.Enqueue("/user_read_time", localStatistics.ReadRequestTime.MicroSeconds(), tagIds);
             Profiler.Enqueue("/user_write_time", localStatistics.WriteRequestTime.MicroSeconds(), tagIds);
             Profiler.Enqueue("/user_request_count", localStatistics.RequestCount, tagIds);
+            Profiler.Enqueue("/user_request_queue_size", user->GetRequestQueueSize(), tagIds);
             // COMPAT(babenko)
             Profiler.Enqueue("/user_request_counter", localStatistics.RequestCount, tagIds);
         }
@@ -2074,6 +2090,21 @@ TFuture<void> TSecurityManager::ThrottleUser(TUser* user, int requestCount)
 void TSecurityManager::SetUserRequestRateLimit(TUser* user, double limit)
 {
     Impl_->SetUserRequestRateLimit(user, limit);
+}
+
+void TSecurityManager::SetUserRequestQueueLimit(TUser* user, int limit)
+{
+    Impl_->SetUserRequestQueueLimit(user, limit);
+}
+
+bool TSecurityManager::TryIncreaseRequestQueueSize(TUser* user)
+{
+    return Impl_->TryIncreaseRequestQueueSize(user);
+}
+
+void TSecurityManager::DecreaseRequestQueueSize(TUser* user)
+{
+    Impl_->DecreaseRequestQueueSize(user);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, *Impl_)

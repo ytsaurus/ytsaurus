@@ -236,6 +236,16 @@ public:
     //! Updates the user request rate limit.
     void SetUserRequestRateLimit(TUser* user, double limit);
 
+    //! Updates the user request queue limit.
+    void SetUserRequestQueueLimit(TUser* user, int limit);
+
+    //! Attempts to increase the queue size for a given #user and validates the limit.
+    //! Returns |true| on success.
+    bool TryIncreaseRequestQueueSize(TUser* user);
+
+    //! Unconditionally decreases the queue size for a given #user.
+    void DecreaseRequestQueueSize(TUser* user);
+
 private:
     class TImpl;
     class TAccountTypeHandler;

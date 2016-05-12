@@ -64,6 +64,7 @@ void TRequestTracker::Stop()
     for (const auto& pair : securityManager->Users()) {
         auto* user = pair.second;
         user->SetRequestRateThrottler(nullptr);
+        user->SetRequestQueueSize(0);
     }
 
     FlushExecutor_.Reset();
@@ -141,6 +142,29 @@ void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
     config->Period = Config_->RequestRateSmoothingPeriod;
     config->Limit = user->GetRequestRateLimit();
     user->GetRequestRateThrottler()->Reconfigure(std::move(config));
+}
+
+void TRequestTracker::SetUserRequestQueueLimit(TUser* user, int limit)
+{
+    user->SetRequestQueueLimit(limit);
+}
+
+bool TRequestTracker::TryIncreaseRequestQueueSize(TUser* user)
+{
+    auto size = user->GetRequestQueueSize();
+    auto limit = user->GetRequestQueueLimit();
+    if (size >= limit) {
+        return false;
+    }
+    user->SetRequestQueueSize(size + 1);
+    return true;
+}
+
+void TRequestTracker::DecreaseRequestQueueSize(TUser* user)
+{
+    auto size = user->GetRequestQueueSize();
+    YCHECK(size > 0);
+    user->SetRequestQueueSize(size - 1);
 }
 
 void TRequestTracker::Reset()

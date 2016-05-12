@@ -47,6 +47,13 @@ public:
 
     void ReconfigureUserRequestRateThrottler(TUser* user);
 
+    void SetUserRequestQueueLimit(
+        TUser* user,
+        int limit);
+
+    bool TryIncreaseRequestQueueSize(TUser* user);
+    void DecreaseRequestQueueSize(TUser* user);
+
 private:
     const TSecurityManagerConfigPtr Config_;
     const NCellMaster::TBootstrap* Bootstrap_;

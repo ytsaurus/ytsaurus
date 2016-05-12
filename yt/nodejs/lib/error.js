@@ -80,6 +80,10 @@ YtError.prototype.isUserBanned = function() {
     return checkForErrorCode(this, binding.UserBannedYtErrorCode);
 };
 
+YtError.prototype.isRequestQueueSizeLimitExceeded = function() {
+    return checkForErrorCode(this, binding.RequestQueueSizeLimitExceededYtErrorCode);
+};
+
 YtError.prototype.isAllTargetNodesFailed = function() {
     return checkForErrorCode(this, binding.AllTargetNodesFailedYtErrorCode);
 };
