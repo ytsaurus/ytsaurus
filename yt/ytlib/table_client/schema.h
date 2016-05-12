@@ -99,7 +99,7 @@ public:
     //! For ordered tables, prepends the current schema with |(tablet_index, row_index)| key columns.
     TTableSchema ToQuery() const;
 
-    //! For sorted tables, return the current schema as-is.
+    //! For sorted tables, return the current schema without computed columns.
     //! For ordered tables, prepends the current schema with |(tablet_index)| key columns.
     TTableSchema ToWrite() const;
 

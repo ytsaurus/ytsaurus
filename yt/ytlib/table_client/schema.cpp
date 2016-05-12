@@ -301,7 +301,13 @@ TTableSchema TTableSchema::ToQuery() const
 TTableSchema TTableSchema::ToWrite() const
 {
     if (IsSorted()) {
-        return *this;
+        std::vector<TColumnSchema> columns;
+        for (const auto& column : Columns_) {
+            if (!column.Expression) {
+                columns.push_back(column);
+            }
+        }
+        return TTableSchema(columns);
     } else {
         std::vector<TColumnSchema> columns {
             TColumnSchema(TabletIndexColumnName, EValueType::Int64)
