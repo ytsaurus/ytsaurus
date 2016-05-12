@@ -9,7 +9,8 @@ var __DBG = require("./debug").that("B", "Writable Stream");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtWritableStream(low_watermark, high_watermark) {
+function YtWritableStream(low_watermark, high_watermark)
+{
     "use strict";
     stream.Stream.call(this);
 
@@ -19,30 +20,38 @@ function YtWritableStream(low_watermark, high_watermark) {
     this._ended = false;
     this._closed = false;
 
-    var self = this;
-
     this._binding = new binding.TInputStreamWrap(low_watermark, high_watermark);
-    this._binding.on_drain = function() {
-        self.__DBG("Bindings (InputStream) -> on_drain");
-        if (!self._ended) {
-            self.emit("drain");
-        }
-    };
+    this._binding.on_drain = this._onDrain.bind(this);
+
     this.__DBG = __DBG.Tagged(this._binding.cxx_id);
     this.__DBG("New");
 }
 
 util.inherits(YtWritableStream, stream.Stream);
 
-YtWritableStream.prototype._emitClose = function() {
+YtWritableStream.prototype._onDrain = function YtWritableStream$_onDrain()
+{
+    "use strict";
+    this.__DBG("Bindings (InputStream) -> on_drain");
+    if (!this._ended) {
+        this.emit("drain");
+    }
+};
+
+YtWritableStream.prototype._emitClose = function YtWritableStream$_emitClose()
+{
+    "use strict";
     this.__DBG("_emitClose");
     if (!this._closed) {
         this.emit("close");
+        this.writable = false;
+        this._closed = true;
     }
-    this._closed = true;
 };
 
-YtWritableStream.prototype.write = function(chunk, encoding) {
+YtWritableStream.prototype.write = function YtWritableStream$write(chunk, encoding)
+{
+    "use strict";
     this.__DBG("write");
 
     if (typeof(chunk) !== "string" && !Buffer.isBuffer(chunk)) {
@@ -65,7 +74,9 @@ YtWritableStream.prototype.write = function(chunk, encoding) {
     }
 };
 
-YtWritableStream.prototype.end = function(chunk, encoding) {
+YtWritableStream.prototype.end = function YtWritableStream$end(chunk, encoding)
+{
+    "use strict";
     this.__DBG("end");
     if (chunk) {
         this.write(chunk, encoding);
@@ -73,7 +84,21 @@ YtWritableStream.prototype.end = function(chunk, encoding) {
     this.destroySoon();
 };
 
-YtWritableStream.prototype.destroy = function() {
+YtWritableStream.prototype.destroySoon = function YtWritableStream$destroySoon()
+{
+    "use strict";
+    this.__DBG("destroySoon");
+
+    this._binding.End();
+
+    this._ended = true;
+
+    process.nextTick(this._emitClose.bind(this));
+};
+
+YtWritableStream.prototype.destroy = function YtWritableStream$destroy()
+{
+    "use strict";
     this.__DBG("destroy");
 
     this._binding.Destroy();
@@ -81,18 +106,6 @@ YtWritableStream.prototype.destroy = function() {
     this.writable = false;
     this._ended = true;
     this._closed = true;
-};
-
-YtWritableStream.prototype.destroySoon = function() {
-    this.__DBG("destroySoon");
-
-    this._binding.End();
-
-    this.writable = false;
-    this._ended = true;
-
-    var self = this;
-    process.nextTick(function() { self._emitClose(); });
 };
 
 ////////////////////////////////////////////////////////////////////////////////

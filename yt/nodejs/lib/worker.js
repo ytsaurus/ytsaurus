@@ -202,7 +202,8 @@ process.on("SIGUSR1", function() {
     v8_heapdump.writeSnapshot();
 });
 
-process.on("SIGCONT", function() {
+/*
+process.on("SIGUSR2", function() {
     if (__PROFILE) {
         console.error("Pausing V8 profiler.");
         v8_profiler.pause();
@@ -212,6 +213,7 @@ process.on("SIGCONT", function() {
     }
     __PROFILE = !__PROFILE;
 });
+*/
 
 // Setup message handlers.
 process.on("message", function(message) {

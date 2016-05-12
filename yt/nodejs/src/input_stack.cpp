@@ -15,7 +15,7 @@ TNodeJSInputStack::TNodeJSInputStack(TInputStreamWrap* base)
     : TGrowingStreamStack(base)
 {
     THREAD_AFFINITY_IS_V8();
-    YASSERT(base == Bottom());
+    YASSERT(Bottom() == base);
     GetBaseStream()->AsyncRef(true);
 }
 
@@ -29,9 +29,19 @@ TInputStreamWrap* TNodeJSInputStack::GetBaseStream()
     return static_cast<TInputStreamWrap*>(Bottom());
 }
 
+const TInputStreamWrap* TNodeJSInputStack::GetBaseStream() const
+{
+    return static_cast<const TInputStreamWrap*>(Bottom());
+}
+
 void TNodeJSInputStack::AddCompression(ECompression compression)
 {
     AddCompressionToStack(*this, compression);
+}
+
+ui64 TNodeJSInputStack::GetBytes() const
+{
+    return GetBaseStream()->GetBytesEnqueued();
 }
 
 size_t TNodeJSInputStack::DoRead(void* data, size_t length)

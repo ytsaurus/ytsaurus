@@ -3,10 +3,8 @@
 #include "error.h"
 #include "future.h"
 #include "input_stack.h"
-#include "input_stream.h"
 #include "node.h"
 #include "output_stack.h"
-#include "output_stream.h"
 #include "uv_invoker.h"
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -163,16 +161,6 @@ public:
         Wrap->Unref();
     }
 
-    TInputStreamWrap* GetNodeJSInputStream()
-    {
-        return InputStack.GetBaseStream();
-    }
-
-    TOutputStreamWrap* GetNodeJSOutputStream()
-    {
-        return OutputStack.GetBaseStream();
-    }
-
     void SetCommand(
         Stroka commandName,
         Stroka authenticatedUser,
@@ -269,8 +257,8 @@ private:
         // is no native ui64 integer type. So we convert ui64 to double (v8::Number)
         // to precisely represent all integers up to 2^52
         // (see http://en.wikipedia.org/wiki/Double_precision).
-        double bytesIn = InputStack.GetBaseStream()->GetBytesEnqueued();
-        double bytesOut = OutputStack.GetBaseStream()->GetBytesEnqueued();
+        double bytesIn = InputStack.GetBytes();
+        double bytesOut = OutputStack.GetBytes();
 
         Invoke(
             ExecuteCallback,
