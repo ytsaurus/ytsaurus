@@ -73,7 +73,7 @@ def check_direction(src_cluster, dst_cluster, clusters_clients, availability_gra
 
     src_client, dst_client = get_client(src_cluster), get_client(dst_cluster)
     if src_client._type not in ["yt", "yamr"] or dst_client._type not in ["yt", "yamr"]:
-        logger.warning("Direction from {0} to {1} skipped because it has non-YT and non-YAMR cluster",
+        logger.warning("Direction from %s to %s skipped because it has non-YT and non-YAMR cluster",
                        src_cluster, dst_cluster)
         return
 
@@ -226,7 +226,10 @@ def main():
         # Check all available directions.
         for cluster in graph:
             for neighbour in graph[cluster]:
-                check_direction(cluster, neighbour, clusters_clients, graph)
+                try:
+                    check_direction(cluster, neighbour, clusters_clients, graph)
+                except:
+                    logger.exception("Check from %s to %s failed", cluster, neighbour)
         return
 
     for src_cluster, dst_cluster in args.direction:
