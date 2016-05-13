@@ -18,14 +18,10 @@ BATCH_SIZE = 50000
 OUTPUT_ROW_LIMIT = 100000000
 # Maximum number of input rows
 INPUT_ROW_LIMIT = 100000000
-# Mapper job options.
-JOB_COUNT = 100
 # Maximum number of simultaneously running jobs.
 USER_SLOTS = 100
 # Maximum amount of memory allowed for a job
 JOB_MEMORY_LIMIT = "4GB"
-# Maximum number of failed jobs which doensn't imply operation failure.
-MAX_FAILDED_JOB_COUNT = 10
 # Attribute prefix
 ATTRIBUTE_PREFIX = "_yt_dump_restore_"
 
@@ -192,11 +188,12 @@ def make_parser():
 
     parser.add_argument("--force", action="store_true", help="Overwrite destination table if it exists")
     parser.add_argument("--proxy", type=str, help="YT proxy")
-    parser.add_argument("--job_count", type=int, default=JOB_COUNT, help="Numbser of jobs in copy task")
+    parser.add_argument("--job_count", type=int, help="Numbser of jobs in copy task")
     parser.add_argument("--user_slots", type=int, default=USER_SLOTS, help="Maximum number of simultaneous jobs running")
-    parser.add_argument("--max_failed_job_count", type=int, default=MAX_FAILDED_JOB_COUNT, help="Maximum number of failed jobs")
+    parser.add_argument("--max_failed_job_count", type=int, help="Maximum number of failed jobs")
     parser.add_argument("--job_memory_limit", type=parse_size, default=JOB_MEMORY_LIMIT, help="Memory limit for a copy task")
-    parser.add_argument("--memory_limit", type=parse_size, default=None, help="Memory limit for a copy task (deprecated backwards-compatibility option)")
+    parser.add_argument("--memory_limit", type=parse_size, help="Memory limit for a copy task (deprecated backwards-compatibility option)")
+    parser.add_argument("--data_size_per_job", type=parse_size, help="Memory limit for a copy task (deprecated backwards-compatibility option)")
     parser.add_argument("--batch_size", type=int, default=BATCH_SIZE, help="Number of rows passed to the 'yt insert/delete' call")
     parser.add_argument("--input_row_limit", type=int, default=INPUT_ROW_LIMIT, help="Limit the input of the 'yt select' call")
     parser.add_argument("--output_row_limit", type=int, default=OUTPUT_ROW_LIMIT, help="Limit the output of the 'yt select' call")
