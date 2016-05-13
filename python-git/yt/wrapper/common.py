@@ -116,26 +116,20 @@ def chunk_iter_string(string, chunk_size):
 def total_seconds(td):
     return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6) / 10 ** 6
 
-def get_backoff(request_start_time, request_timeout, request_type, attempt, backoff_config):
+def get_backoff(request_start_time, request_timeout, is_request_heavy, attempt, backoff_config):
     now = datetime.now()
-    if backoff_config["policy"] == "to_timeout":
-        if request_type == "light":
-            return max(0.0, request_timeout / 1000.0 - total_seconds(now - request_start_time))
-        else:
+    if backoff_config["policy"] == "rounded_up_to_request_timeout":
+        if is_request_heavy:
             return request_timeout / 1000.0
-    elif backoff_config["policy"] == "constant_time":
-        if backoff_config["time"] is None:
-            raise YtError("Parameter 'time' must be specified for contant_time policy")
-        return backoff_config["time"] / 1000.0
-    elif backoff_config["policy"] == "exponential":
-        backoff = None
-        if backoff_config["time"] is not None:
-            backoff = backoff_config["time"]
         else:
-            backoff = request_timeout
-        backoff = min(backoff, backoff_config["exponential_start_timeout"] * (backoff_config["exponential_multiplier"] ** attempt))
+            return max(0.0, request_timeout / 1000.0 - total_seconds(now - request_start_time))
+    elif backoff_config["policy"] == "constant_time":
+        return backoff_config["constant_time"] / 1000.0
+    elif backoff_config["policy"] == "exponential":
+        return  min(backoff_config["exponential_max_timeout"] / 1000.0,
+                    backoff_config["exponential_start_timeout"] * (backoff_config["exponential_multiplier"] ** attempt))
     else:
-        raise YtError("Incorrect backoff policy '{0}'".format(backoff_config["policy"]))
+        raise YtError("Incorrect retry backoff policy '{0}'".format(backoff_config["policy"]))
 
 
 def generate_uuid(generator=None):

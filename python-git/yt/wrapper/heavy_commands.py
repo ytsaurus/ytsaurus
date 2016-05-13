@@ -91,9 +91,9 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                         backoff = get_backoff(
                             request_start_time=None,
                             request_timeout=get_config(client)["proxy"]["heavy_request_retry_timeout"],
-                            request_type="heavy",
+                            is_request_heavy=True,
                             attempt=attempt,
-                            backoff_config=get_config(client)["backoff"])
+                            backoff_config=get_config(client)["retry_backoff"])
                         if backoff:
                             logger.warning("Sleep for %.2lf seconds before next retry", backoff)
                             time.sleep(backoff)
@@ -162,9 +162,9 @@ def make_read_request(command_name, path, params, process_response_action, retri
                         backoff = get_backoff(
                             request_start_time=None,
                             request_timeout=get_config(client)["proxy"]["heavy_request_retry_timeout"],
-                            request_type="heavy",
+                            is_request_heavy=True,
                             attempt=attempt,
-                            backoff_config=get_config(client)["backoff"])
+                            backoff_config=get_config(client)["retry_backoff"])
                         logger.warning("Sleep for %.2lf seconds before next retry", backoff)
                         time.sleep(backoff)
                         logger.warning("New retry (%d) ...", attempt + 2)
