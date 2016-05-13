@@ -69,7 +69,7 @@ public:
     //! Constructs a schema with given columns and strictness flag.
     //! No validation is performed.
     explicit TTableSchema(
-        const std::vector<TColumnSchema>& columns,
+        std::vector<TColumnSchema> columns,
         bool strict = true);
 
     const TColumnSchema* FindColumn(const TStringBuf& name) const;

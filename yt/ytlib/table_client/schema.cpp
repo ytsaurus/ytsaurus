@@ -155,10 +155,10 @@ TTableSchema::TTableSchema()
 { }
 
 TTableSchema::TTableSchema(
-    const std::vector<TColumnSchema>& columns,
+    std::vector<TColumnSchema> columns,
     bool strict)
-    : Columns_(columns)
-      , Strict_(strict)
+    : Columns_(std::move(columns))
+    , Strict_(strict)
 {
     for (const auto& column : Columns_) {
         if (column.SortOrder) {
@@ -224,7 +224,7 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
         }
         columns.push_back(Columns_[id]);
     }
-    return TTableSchema(columns);
+    return TTableSchema(std::move(columns));
 }
 
 void TTableSchema::AppendColumn(const TColumnSchema& column)
@@ -294,7 +294,7 @@ TTableSchema TTableSchema::ToQuery() const
                 .SetSortOrder(ESortOrder::Ascending)
         };
         columns.insert(columns.end(), Columns_.begin(), Columns_.end());
-        return TTableSchema(columns);
+        return TTableSchema(std::move(columns));
     }
 }
 
@@ -307,27 +307,27 @@ TTableSchema TTableSchema::ToWrite() const
                 columns.push_back(column);
             }
         }
-        return TTableSchema(columns);
+        return TTableSchema(std::move(columns));
     } else {
         std::vector<TColumnSchema> columns {
             TColumnSchema(TabletIndexColumnName, EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
         };
         columns.insert(columns.end(), Columns_.begin(), Columns_.end());
-        return TTableSchema(columns);
+        return TTableSchema(std::move(columns));
     }
 }
 
 TTableSchema TTableSchema::ToKeys() const
 {
     std::vector<TColumnSchema> columns(Columns_.begin(), Columns_.begin() + KeyColumnCount_);
-    return TTableSchema(columns);
+    return TTableSchema(std::move(columns));
 }
 
 TTableSchema TTableSchema::ToValues() const
 {
     std::vector<TColumnSchema> columns(Columns_.begin() + KeyColumnCount_, Columns_.end());
-    return TTableSchema(columns);
+    return TTableSchema(std::move(columns));
 }
 
 void TTableSchema::Save(TStreamSaveContext& context) const
@@ -392,7 +392,7 @@ void FromProto(
         columnSchema.SortOrder = ESortOrder::Ascending;
     }
     *schema = TTableSchema(
-        columns,
+        std::move(columns),
         protoSchema.strict());
 }
 
@@ -913,7 +913,7 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
         }
     }
 
-    return TTableSchema(columns, strict);
+    return TTableSchema(std::move(columns), strict);
 }
 
 //! Validates that read schema is consistent with existing table schema.
