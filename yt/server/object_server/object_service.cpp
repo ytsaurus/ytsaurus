@@ -163,6 +163,7 @@ private:
     IInvokerPtr EpochAutomatonInvoker_;
     bool NeedsUpstreamSync_ = true;
     bool NeedsUserAccessValidation_ = true;
+    bool RequestQueueSizeIncreased_ = false;
 
     std::atomic<bool> Replied_ = {false};
     std::atomic<int> SubresponseCount_ = {0};
@@ -297,6 +298,17 @@ private:
         if (NeedsUserAccessValidation_) {
             NeedsUserAccessValidation_ = false;
             SecurityManager_->ValidateUserAccess(user);
+        }
+
+        if (!RequestQueueSizeIncreased_) {
+            if (!SecurityManager_->TryIncreaseRequestQueueSize(user)) {
+                THROW_ERROR_EXCEPTION(
+                    NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded,
+                    "User %Qv has exceeded its request queue size limit",
+                    user->GetName())
+                    << TErrorAttribute("limit", user->GetRequestQueueSizeLimit());
+            }
+            RequestQueueSizeIncreased_ = true;
         }
 
         while (CurrentSubrequestIndex_ < SubrequestCount_ ) {
@@ -447,6 +459,11 @@ private:
         NRpc::TDispatcher::Get()
             ->GetInvoker()
             ->Invoke(BIND(&TExecuteSession::DoReply, MakeStrong(this), error));
+
+        if (RequestQueueSizeIncreased_) {
+            EpochAutomatonInvoker_->Invoke(
+                BIND(&TExecuteSession::DoDecreaseRequestQueueSize, MakeStrong(this)));
+        }
     }
 
     void DoReply(const TError& error)
@@ -471,6 +488,14 @@ private:
         }
      
         Context_->Reply(error);
+    }
+
+    void DoDecreaseRequestQueueSize()
+    {
+        auto* user = SecurityManager_->FindUserByName(UserName_);
+        if (user) {
+            SecurityManager_->DecreaseRequestQueueSize(user);
+        }
     }
 };
 

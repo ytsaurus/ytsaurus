@@ -114,8 +114,14 @@ public:
 
     i64 MaxDataSizePerJob;
 
-    TNullable<int> MaxFailedJobCount;
-    TNullable<int> MaxStderrCount;
+    //! Once this limit is reached the operation fails.
+    int MaxFailedJobCount;
+
+    //! Once this limit is reached the memory reserve is disabled.
+    int MaxMemoryReserveAbortJobCount;
+
+    //! Maximum number of saved stderr per job type.
+    int MaxStderrCount;
 
     TNullable<i64> JobProxyMemoryOvercommitLimit;
 
@@ -165,9 +171,17 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
-            .Default();
+            .Default(100)
+            .GreaterThanOrEqual(0)
+            .LessThanOrEqual(10000);
+        RegisterParameter("max_memory_reserve_abort_job_count", MaxMemoryReserveAbortJobCount)
+            .Default(100)
+            .GreaterThanOrEqual(0)
+            .LessThanOrEqual(1000);
         RegisterParameter("max_stderr_count", MaxStderrCount)
-            .Default();
+            .Default(100)
+            .GreaterThanOrEqual(0)
+            .LessThanOrEqual(100);
 
         RegisterParameter("job_proxy_memory_overcommit_limit", JobProxyMemoryOvercommitLimit)
             .Default()
@@ -243,6 +257,9 @@ public:
     i64 CustomStatisticsCountLimit;
 
     TNullable<i64> TmpfsSize;
+    Stroka TmpfsPath;
+
+    bool CopyFiles;
 
     TUserJobSpec()
     {
@@ -291,6 +308,10 @@ public:
         RegisterParameter("tmpfs_size", TmpfsSize)
             .Default()
             .GreaterThan(0);
+        RegisterParameter("tmpfs_path", TmpfsPath)
+            .Default("tmpfs");
+        RegisterParameter("copy_files", CopyFiles)
+            .Default(false);
     }
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig)

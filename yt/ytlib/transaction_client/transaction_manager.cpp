@@ -77,28 +77,22 @@ private:
     yhash_set<TTransaction::TImpl*> AliveTransactions_;
 
 
-    std::unique_ptr<TTransactionSupervisorServiceProxy> MakeSupervisorProxy(const TCellId& cellId, bool required = true)
+    TTransactionSupervisorServiceProxy MakeSupervisorProxy(IChannelPtr channel, bool retry = true)
     {
-        auto cellChannel = required
-            ? CellDirectory_->GetChannelOrThrow(cellId)
-            : CellDirectory_->FindChannel(cellId);
-        if (!cellChannel) {
-            return nullptr;
+        if (retry) {
+            channel = CreateRetryingChannel(Config_, std::move(channel));
         }
-        auto retryingChannel = CreateRetryingChannel(Config_, cellChannel);
-        auto proxy = std::make_unique<TTransactionSupervisorServiceProxy>(retryingChannel);
-        proxy->SetDefaultTimeout(Config_->RpcTimeout);
+        TTransactionSupervisorServiceProxy proxy(std::move(channel));
+        proxy.SetDefaultTimeout(Config_->RpcTimeout);
         return proxy;
     }
 
-    std::unique_ptr<TTabletServiceProxy> MakeTabletProxy(const TCellId& cellId)
+    TTabletServiceProxy MakeTabletProxy(IChannelPtr channel)
     {
-        auto cellChannel = CellDirectory_->GetChannelOrThrow(cellId);
-        auto proxy = std::make_unique<TTabletServiceProxy>(cellChannel);
-        proxy->SetDefaultTimeout(Config_->RpcTimeout);
+        TTabletServiceProxy proxy(std::move(channel));
+        proxy.SetDefaultTimeout(Config_->RpcTimeout);
         return proxy;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -139,7 +133,7 @@ public:
         try {
             ValidateStartOptions(type, options);
         } catch (const std::exception& ex) {
-            return MakeFuture(TError(ex));
+            return MakeFuture<void>(ex);
         }
 
         Type_ = type;
@@ -199,75 +193,79 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            if (!Error_.IsOK()) {
-                return MakeFuture(Error_);
+        try {
+
+            {
+                TGuard<TSpinLock> guard(SpinLock_);
+                Error_.ThrowOnError();
+                switch (State_) {
+                    case ETransactionState::Committing:
+                        THROW_ERROR_EXCEPTION("Transaction is already being committed");
+
+                    case ETransactionState::Committed:
+                        THROW_ERROR_EXCEPTION("Transaction is already committed");
+
+                    case ETransactionState::Aborted:
+                        THROW_ERROR_EXCEPTION("Transaction is already aborted");
+
+                    case ETransactionState::Active:
+                        State_ = ETransactionState::Committing;
+                        break;
+
+                    default:
+                        YUNREACHABLE();
+                }
             }
-            switch (State_) {
-                case ETransactionState::Committing:
-                    return MakeFuture(TError("Transaction is already being committed"));
 
-                case ETransactionState::Committed:
-                    return MakeFuture(TError("Transaction is already committed"));
+            switch (Atomicity_) {
+                case EAtomicity::Full: {
+                    auto participantGuids = GetParticipantIds();
+                    if (participantGuids.empty()) {
+                        {
+                            TGuard<TSpinLock> guard(SpinLock_);
+                            if (State_ != ETransactionState::Committing) {
+                                Error_.ThrowOnError();
+                            }
+                            State_ = ETransactionState::Committed;
+                        }
 
-                case ETransactionState::Aborted:
-                    return MakeFuture(TError("Transaction is already aborted"));
+                        LOG_INFO("Trivial transaction committed (TransactionId: %v)",
+                            Id_);
+                        return VoidFuture;
+                    }
 
-                case ETransactionState::Active:
-                    State_ = ETransactionState::Committing;
-                    break;
+                    auto coordinatorCellId = Type_ == ETransactionType::Master
+                        ? Owner_->CellId_
+                        : participantGuids[RandomNumber(participantGuids.size())];
+
+                    LOG_INFO("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
+                        Id_,
+                        coordinatorCellId);
+
+                    auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
+                    auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel));
+                    auto req = proxy.CommitTransaction();
+                    ToProto(req->mutable_transaction_id(), Id_);
+                    for (const auto& cellId : participantGuids) {
+                        if (cellId != coordinatorCellId) {
+                            ToProto(req->add_participant_cell_ids(), cellId);
+                        }
+                    }
+                    SetOrGenerateMutationId(req, options.MutationId, options.Retry);
+
+                    return req->Invoke().Apply(
+                        BIND(&TImpl::OnAtomicTransactionCommitted, MakeStrong(this), coordinatorCellId));
+                }
+
+                case EAtomicity::None:
+                    SetTransactionCommitted();
+                    return VoidFuture;
 
                 default:
                     YUNREACHABLE();
             }
-        }
-
-        switch (Atomicity_) {
-            case EAtomicity::Full: {
-                auto participantGuids = GetParticipantIds();
-                if (participantGuids.empty()) {
-                    {
-                        TGuard<TSpinLock> guard(SpinLock_);
-                        if (State_ != ETransactionState::Committing) {
-                            return MakeFuture(Error_);
-                        }
-                        State_ = ETransactionState::Committed;
-                    }
-
-                    LOG_INFO("Trivial transaction committed (TransactionId: %v)",
-                        Id_);
-                    return VoidFuture;
-                }
-
-                auto coordinatorCellId = Type_ == ETransactionType::Master
-                    ? Owner_->CellId_
-                    : participantGuids[RandomNumber(participantGuids.size())];
-
-                LOG_INFO("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
-                    Id_,
-                    coordinatorCellId);
-
-                auto proxy = Owner_->MakeSupervisorProxy(coordinatorCellId);
-                auto req = proxy->CommitTransaction();
-                ToProto(req->mutable_transaction_id(), Id_);
-                for (const auto& cellId : participantGuids) {
-                    if (cellId != coordinatorCellId) {
-                        ToProto(req->add_participant_cell_ids(), cellId);
-                    }
-                }
-                SetOrGenerateMutationId(req, options.MutationId, options.Retry);
-
-                return req->Invoke().Apply(
-                    BIND(&TImpl::OnAtomicTransactionCommitted, MakeStrong(this), coordinatorCellId));
-            }
-
-            case EAtomicity::None:
-                SetTransactionCommitted();
-                return VoidFuture;
-
-            default:
-                YUNREACHABLE();
+        } catch (const std::exception& ex) {
+            return MakeFuture<void>(ex);
         }
     }
 
@@ -288,12 +286,16 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (Atomicity_ != EAtomicity::Full) {
-            return MakeFuture(TError("Cannot ping a transaction with %Qlv atomicity",
-                Atomicity_));
-        }
+        try {
+            if (Atomicity_ != EAtomicity::Full) {
+                THROW_ERROR_EXCEPTION("Cannot ping a transaction with %Qlv atomicity",
+                    Atomicity_);
+            }
 
-        return SendPing();
+            return SendPing();
+        } catch (const std::exception& ex) {
+            return MakeFuture<void>(ex);
+        }
     }
 
     void Detach()
@@ -378,50 +380,54 @@ public:
         VERIFY_THREAD_AFFINITY(ClientThread);
         YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
 
-        if (Atomicity_ != EAtomicity::Full) {
-            return VoidFuture;
-        }
-
-        if (TypeFromId(Id_) == EObjectType::NestedTransaction) {
-            return MakeFuture(TError("Nested master transactions cannot be used at tablets"));
-        }
-
-        TPromise<void> promise;
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-
-            if (State_ != ETransactionState::Active) {
-                return MakeFuture(TError("Transaction is not active"));
+        try {
+            if (Atomicity_ != EAtomicity::Full) {
+                return VoidFuture;
             }
 
-            if (!Error_.IsOK()) {
-                THROW_ERROR Error_;
+            if (TypeFromId(Id_) == EObjectType::NestedTransaction) {
+                THROW_ERROR_EXCEPTION("Nested master transactions cannot be used at tablets");
             }
 
-            auto it = CellIdToStartTransactionResult_.find(cellId);
-            if (it != CellIdToStartTransactionResult_.end()) {
-                return it->second;
+            TPromise<void> promise;
+            {
+                TGuard<TSpinLock> guard(SpinLock_);
+
+                if (State_ != ETransactionState::Active) {
+                    THROW_ERROR_EXCEPTION("Transaction is not active");
+                }
+
+                if (!Error_.IsOK()) {
+                    THROW_ERROR Error_;
+                }
+
+                auto it = CellIdToStartTransactionResult_.find(cellId);
+                if (it != CellIdToStartTransactionResult_.end()) {
+                    return it->second;
+                }
+
+                promise = NewPromise<void>();
+                YCHECK(CellIdToStartTransactionResult_.insert(std::make_pair(cellId, promise)).second);
             }
 
-            promise = NewPromise<void>();
-            YCHECK(CellIdToStartTransactionResult_.insert(std::make_pair(cellId, promise)).second);
+            LOG_DEBUG("Adding transaction tablet participant (TransactionId: %v, CellId: %v)",
+                Id_,
+                cellId);
+
+            auto channel = Owner_->CellDirectory_->GetChannelOrThrow(cellId);
+            auto proxy = Owner_->MakeTabletProxy(std::move(channel));
+            auto req = proxy.StartTransaction();
+            ToProto(req->mutable_transaction_id(), Id_);
+            req->set_start_timestamp(StartTimestamp_);
+            req->set_timeout(ToProto(Timeout_.Get(Owner_->Config_->DefaultTransactionTimeout)));
+
+            req->Invoke().Subscribe(
+                BIND(&TImpl::OnTabletParticipantAdded, MakeStrong(this), cellId, promise));
+
+            return promise;
+        } catch (const std::exception& ex) {
+            return MakeFuture<void>(ex);
         }
-
-        LOG_DEBUG("Adding transaction tablet participant (TransactionId: %v, CellId: %v)",
-            Id_,
-            cellId);
-
-        auto proxy = Owner_->MakeTabletProxy(cellId);
-
-        auto req = proxy->StartTransaction();
-        ToProto(req->mutable_transaction_id(), Id_);
-        req->set_start_timestamp(StartTimestamp_);
-        req->set_timeout(ToProto(Timeout_.Get(Owner_->Config_->DefaultTransactionTimeout)));
-
-        req->Invoke().Subscribe(
-            BIND(&TImpl::OnTabletParticipantAdded, MakeStrong(this), cellId, promise));
-
-        return promise;
     }
 
 
@@ -728,11 +734,14 @@ private:
                 Id_,
                 cellId);
 
-            auto proxy = Owner_->MakeSupervisorProxy(cellId);
+            auto channel = Owner_->CellDirectory_->FindChannel(cellId);
+            if (!channel) {
+                continue;
+            }
 
-            auto req = proxy->PingTransaction();
+            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), false);
+            auto req = proxy.PingTransaction();
             ToProto(req->mutable_transaction_id(), Id_);
-
             if (cellId == Owner_->CellId_) {
                 req->set_ping_ancestors(PingAncestors_);
             }
@@ -809,12 +818,13 @@ private:
                 Id_,
                 cellId);
 
-            auto proxy = Owner_->MakeSupervisorProxy(cellId, false);
-            if (!proxy) {
+            auto channel = Owner_->CellDirectory_->FindChannel(cellId);
+            if (!channel) {
                 continue;
             }
 
-            auto req = proxy->AbortTransaction();
+            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel));
+            auto req = proxy.AbortTransaction();
             ToProto(req->mutable_transaction_id(), Id_);
             req->set_force(options.Force);
             SetMutationId(req, options.MutationId, options.Retry);

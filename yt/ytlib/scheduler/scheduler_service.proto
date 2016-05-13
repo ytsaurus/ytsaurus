@@ -30,6 +30,7 @@ message TRspStartOperation
 message TReqAbortOperation
 {
     required NYT.NProto.TGuid operation_id = 1;
+    optional string abort_message = 2;
 }
 
 message TRspAbortOperation

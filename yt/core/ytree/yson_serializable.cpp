@@ -48,9 +48,21 @@ void TYsonSerializableLite::Load(
     auto mapNode = node->AsMap();
     for (const auto& pair : Parameters) {
         auto name = pair.first;
-        auto childPath = path + "/" + name;
+        auto& parameter = pair.second;
+        Stroka key = name;
         auto child = mapNode->FindChild(name); // can be NULL
-        pair.second->Load(child, childPath);
+        for (const auto& alias : parameter->GetAliases()) {
+            auto otherChild = mapNode->FindChild(alias);
+            if (child && otherChild && !AreNodesEqual(child, otherChild)) {
+                THROW_ERROR_EXCEPTION("Different values for aliased parameters %Qv and %Qv", key, alias);
+            }
+            if (!child && otherChild) {
+                child = otherChild;
+                key = alias;
+            }
+        }
+        auto childPath = path + "/" + key;
+        parameter->Load(child, childPath);
     }
 
     if (KeepOptions_) {

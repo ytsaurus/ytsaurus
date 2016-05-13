@@ -15,6 +15,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref.h>
+#include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/ytree/node.h>
 
@@ -85,6 +86,9 @@ public:
     //! Number of stderrs generated so far.
     DEFINE_BYVAL_RW_PROPERTY(int, StderrCount);
 
+    //! Number of job nodes in Cypress.
+    DEFINE_BYVAL_RW_PROPERTY(int, JobNodeCount);
+
     //! Maximum number of stderrs to capture.
     DEFINE_BYVAL_RW_PROPERTY(int, MaxStderrCount);
 
@@ -128,6 +132,9 @@ public:
     //! Returns |true| if operation controller progress can be built.
     bool HasControllerProgress() const;
 
+    //! Returns the codicil guard holding the operation id.
+    TCodicilGuard MakeCodicilGuard();
+
     TOperation(
         const TOperationId& operationId,
         EOperationType type,
@@ -141,6 +148,8 @@ public:
         bool suspended = false);
 
 private:
+    const Stroka CodicilData_;
+
     TPromise<void> StartedPromise_ = NewPromise<void>();
     TPromise<void> FinishedPromise_ = NewPromise<void>();
 

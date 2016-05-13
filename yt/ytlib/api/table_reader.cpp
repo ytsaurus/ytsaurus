@@ -374,7 +374,9 @@ void TSchemalessTableReader::RemoveUnavailableChunks(std::vector<TChunkSpec>* ch
     for (auto& chunkSpec : *chunkSpecs) {
         if (IsUnavailable(chunkSpec)) {
             if (!Config_->IgnoreUnavailableChunks) {
-                THROW_ERROR_EXCEPTION("Chunk %v is unavailable",
+                THROW_ERROR_EXCEPTION(
+                    NChunkClient::EErrorCode::ChunkUnavailable,
+                    "Chunk %v is unavailable",
                     NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
             }
         } else {

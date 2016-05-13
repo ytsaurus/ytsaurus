@@ -34,11 +34,12 @@ DEFINE_ENUM(ESecurityAction,
 );
 
 DEFINE_ENUM(EErrorCode,
-    ((AuthenticationError)     (900))
-    ((AuthorizationError)      (901))
-    ((AccountLimitExceeded)    (902))
-    ((UserBanned)              (903))
-    ((NoSuchAccount)           (905))
+    ((AuthenticationError)          (900))
+    ((AuthorizationError)           (901))
+    ((AccountLimitExceeded)         (902))
+    ((UserBanned)                   (903))
+    ((RequestQueueSizeLimitExceeded)(904))
+    ((NoSuchAccount)                (905))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

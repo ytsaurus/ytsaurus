@@ -77,14 +77,14 @@ extern const Stroka RootUserName;
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
-    ((TransportError)              (100))
-    ((ProtocolError)               (101))
-    ((NoSuchService)               (102))
-    ((NoSuchMethod)                (103))
-    ((Unavailable)                 (105))
-    ((PoisonPill)                  (106))
-    ((Abandoned)                   (107))
-    ((RequestQueueLimitExceeded)   (108))
+    ((TransportError)               (100))
+    ((ProtocolError)                (101))
+    ((NoSuchService)                (102))
+    ((NoSuchMethod)                 (103))
+    ((Unavailable)                  (105))
+    ((PoisonPill)                   (106))
+    ((Abandoned)                    (107))
+    ((RequestQueueSizeLimitExceeded)(108))
 );
 
 bool IsRetriableError(const TError& error);
