@@ -1,6 +1,6 @@
 from config import get_config, get_option
 from driver import make_request, make_formatted_request
-from common import update, bool_to_string, get_value
+from common import update, bool_to_string, get_value, get_started_by
 from copy import deepcopy
 
 def transaction_params(transaction=None, ping_ancestor_transactions=None, client=None):
@@ -33,7 +33,7 @@ def start_transaction(parent_transaction=None, timeout=None, attributes=None, ty
     timeout = get_value(timeout, get_config(client)["transaction_timeout"])
     if timeout is not None:
         params["timeout"] = int(timeout)
-    params["attributes"] = get_value(attributes, {})
+    params["attributes"] = update(get_started_by(), get_value(attributes, {}))
     params["type"] = type
     params["sticky"] = bool_to_string(sticky)
     return make_formatted_request("start_tx", params, None, client=client)

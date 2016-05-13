@@ -45,7 +45,7 @@ Operation run under self-pinged transaction, if `yt.wrapper.get_config(client)["
 from config import get_config
 import py_wrapper
 from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
-                   compose, bool_to_string, chunk_iter_stream, get_version, MB, EMPTY_GENERATOR, \
+                   compose, bool_to_string, chunk_iter_stream, get_started_by, MB, EMPTY_GENERATOR, \
                    run_with_retries, forbidden_inside_job
 from errors import YtIncorrectResponse, YtError, YtOperationFailedError, YtConcurrentOperationsLimitExceeded
 from driver import make_request
@@ -176,7 +176,7 @@ def _reliably_upload_files(files, client=None):
         return []
 
     file_paths = []
-    with Transaction(transaction_id=null_transaction_id, client=client):
+    with Transaction(transaction_id=null_transaction_id, attributes={"title": "Python wrapper: upload operation files"}, client=client):
         for file in flatten(files):
             if isinstance(file, basestring):
                 path = smart_upload_file(file, client=client)
@@ -343,12 +343,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
     return spec
 
 def _configure_spec(spec, client):
-    started_by = {
-        "hostname": socket.getfqdn(),
-        "pid": os.getpid(),
-        "user": getpass.getuser(),
-        "command": sys.argv,
-        "wrapper_version": get_version()}
+    started_by = get_started_by()
     spec = update({"started_by": started_by}, spec)
     spec = update(deepcopy(get_config(client)["spec_defaults"]), spec)
     return spec

@@ -19,7 +19,7 @@ def main():
     parser.add_argument('--conflict-exit-code', type=int, default=1)
     args = parser.parse_args()
 
-    with yt.Transaction() as tx:
+    with yt.Transaction(attributes={"title": "yt_lock transaction"}) as tx:
         try:
             yt.lock(args.path)
         except yt.YtResponseError as error:

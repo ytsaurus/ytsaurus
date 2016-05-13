@@ -6,6 +6,8 @@ import yt.yson as yson
 import os
 import sys
 import inspect
+import socket
+import getpass
 import random
 import time
 import functools
@@ -153,6 +155,14 @@ def get_version():
 
 def get_python_version():
     return sys.version_info[:3]
+
+def get_started_by():
+    return {
+        "hostname": socket.getfqdn(),
+        "pid": os.getpid(),
+        "user": getpass.getuser(),
+        "command": sys.argv,
+        "wrapper_version": get_version()}
 
 def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,), except_action=None,
                      backoff_action=None):
