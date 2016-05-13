@@ -72,9 +72,9 @@ def list_entities(type, prefix, exact, jsonoutput):
         die("Option jsonoutput is not supported for files")
 
     if prefix is not None and config["yamr_mode"]["use_yamr_style_prefix"]:
-        prefix = yt.join_paths(config["prefix"], prefix)
+        prefix = yt.ypath_join(config["prefix"], prefix)
     elif exact is not None:
-        prefix = yt.join_paths(config["prefix"], exact)
+        prefix = yt.ypath_join(config["prefix"], exact)
     else:
         prefix = config["prefix"]
 

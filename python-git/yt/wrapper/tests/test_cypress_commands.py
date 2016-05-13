@@ -131,6 +131,16 @@ class TestCypressCommands(object):
                [list_node] + ["{0}/{1}".format(list_node, i) for i in [2, 0, 1]]
         assert "//sys/accounts/tmp" in yt.search("//sys", node_type="account")
 
+        yt.mkdir(TEST_DIR + "/dir_with_slash")
+        yt.mkdir(TEST_DIR + "/dir_with_slash" + "/dir_\\\\_x")
+        yt.set(TEST_DIR + "/dir_with_slash" + "/dir_\\\\_x" + "/@opaque", True)
+        yt.mkdir(TEST_DIR + "/dir_with_slash" + "/dir_\\\\_x" + "/inner_dir")
+        assert ["dir_\\_x"] == yt.list(TEST_DIR + "/dir_with_slash")
+        assert [TEST_DIR + "/dir_with_slash",
+                TEST_DIR + "/dir_with_slash" + "/dir_\\\\_x",
+                TEST_DIR + "/dir_with_slash" + "/dir_\\\\_x" + "/inner_dir"] \
+                == list(yt.search(TEST_DIR + "/dir_with_slash"))
+
     def test_create(self):
         with pytest.raises(yt.YtError):
             yt.create("map_node", TEST_DIR + "/map", attributes={"type": "table"})

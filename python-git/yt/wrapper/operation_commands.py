@@ -4,7 +4,7 @@ from errors import YtError, YtOperationFailedError, YtTimeoutError, YtResponseEr
 from driver import make_request
 from http import get_proxy_url, get_retriable_errors
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
-from cypress_commands import get_attribute, exists, get, list, join_paths
+from cypress_commands import get_attribute, exists, get, list, ypath_join
 from file_commands import read_file
 import yson
 
@@ -125,7 +125,7 @@ def get_operation_state(operation, client=None):
     old_retry_count = config["proxy"]["request_retry_count"]
     config["proxy"]["request_retry_count"] = config["proxy"]["operation_state_discovery_retry_count"]
 
-    operation_path = join_paths(OPERATIONS_PATH, operation)
+    operation_path = ypath_join(OPERATIONS_PATH, operation)
     require(exists(operation_path, client=client), lambda: YtError("Operation %s doesn't exist" % operation))
     state = OperationState(get_attribute(operation_path, "state", client=client))
 
@@ -134,7 +134,7 @@ def get_operation_state(operation, client=None):
     return state
 
 def get_operation_progress(operation, client=None):
-    operation_path = join_paths(OPERATIONS_PATH, operation)
+    operation_path = ypath_join(OPERATIONS_PATH, operation)
     try:
         progress = get_attribute(operation_path, "progress/jobs", client=client)
         if isinstance(progress["aborted"], dict):
@@ -164,7 +164,7 @@ class PrintOperationInfo(object):
         self.state = None
         self.progress = None
 
-        creation_time_str = get_attribute(join_paths(OPERATIONS_PATH, self.operation), "creation_time", client=client)
+        creation_time_str = get_attribute(ypath_join(OPERATIONS_PATH, self.operation), "creation_time", client=client)
         creation_time = dateutil_parser.parse(creation_time_str).replace(tzinfo=None)
         local_creation_time = creation_time + (datetime.now() - datetime.utcnow())
 
@@ -254,7 +254,7 @@ def get_operation_state_monitor(operation, time_watcher, action=lambda: None, cl
 
 
 def get_stderrs(operation, only_failed_jobs, client=None):
-    jobs_path = join_paths(OPERATIONS_PATH, operation, "jobs")
+    jobs_path = ypath_join(OPERATIONS_PATH, operation, "jobs")
     if not exists(jobs_path, client=client):
         return []
     jobs = list(jobs_path, attributes=["error", "address"], absolute=True, client=client)
@@ -270,7 +270,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
         if only_failed_jobs:
             job_with_stderr["error"] = path.attributes["error"]
 
-        stderr_path = join_paths(path, "stderr")
+        stderr_path = ypath_join(path, "stderr")
         has_stderr = exists(stderr_path, client=client)
         ignore_errors = get_config(client)["operation_tracker"]["ignore_stderr_if_download_failed"]
         if has_stderr:
@@ -322,7 +322,7 @@ def add_failed_operation_stderrs_to_error_message(func):
     return decorator(_add_failed_operation_stderrs_to_error_message, func)
 
 def get_operation_error(operation, client=None):
-    operation_path = join_paths(OPERATIONS_PATH, operation)
+    operation_path = ypath_join(OPERATIONS_PATH, operation)
     # NB(ignat): conversion to json type necessary for json.dumps in TM.
     # TODO(ignat): we should decide what format should be used in errors (now it is yson both here and in http.py).
     result = yson.yson_to_json(get_attribute(operation_path, "result", client=client))
