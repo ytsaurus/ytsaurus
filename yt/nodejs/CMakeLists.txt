@@ -33,6 +33,7 @@ include_directories(
 )
 
 set( SRCS
+  src/async_ref_counted.cpp
   src/common.cpp
   src/error.cpp
   src/future.cpp

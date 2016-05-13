@@ -92,11 +92,10 @@ Handle<Value> TOutputStreamWrap::New(const Arguments& args)
 
     EXPECT_THAT_IS(args[0], Uint32);
 
-    ui64 watermark = args[0]->Uint32Value();
-
-    TOutputStreamWrap* stream = nullptr;
     try {
-        stream = new TOutputStreamWrap(watermark);
+        ui64 watermark = args[0]->Uint32Value();
+
+        auto stream = new TOutputStreamWrap(watermark);
         stream->Wrap(args.This());
 
         stream->handle_->Set(
@@ -110,10 +109,6 @@ Handle<Value> TOutputStreamWrap::New(const Arguments& args)
 
         return scope.Close(args.This());
     } catch (const std::exception& ex) {
-        if (stream) {
-            delete stream;
-        }
-
         return ThrowException(Exception::Error(String::New(ex.what())));
     }
 }
@@ -195,7 +190,7 @@ Handle<Value> TOutputStreamWrap::Destroy(const Arguments& args)
     // Do the work.
     stream->DoDestroy();
 
-    return Undefined();
+    return scope.Close(Undefined());
 }
 
 void TOutputStreamWrap::DoDestroy()
@@ -266,11 +261,11 @@ bool TOutputStreamWrap::CanFlow() const
         BytesInFlight_ < Watermark_;
 }
 
-void TOutputStreamWrap::RunFlow(bool withinV8)
+void TOutputStreamWrap::RunFlow()
 {
     if (!IsFlowing_) {
         IsFlowing_ = true;
-        AsyncRef(withinV8);
+        AsyncRef();
         EIO_PUSH(TOutputStreamWrap::AsyncOnFlowing, this);
     }
 }
@@ -315,7 +310,7 @@ void TOutputStreamWrap::DoWrite(const void* data, size_t length)
         return;
     }
 
-    TScopedRef<false> guardAsyncRef(this);
+    TIntrusivePtr<IAsyncRefCounted> ref(this);
 
     std::unique_ptr<char[]> buffer(new char[length]);
 
@@ -332,7 +327,7 @@ void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
         return;
     }
 
-    TScopedRef<false> guardAsyncRef(this);
+    TIntrusivePtr<IAsyncRefCounted> ref(this);
 
     size_t offset = 0;
     size_t length = 0;
@@ -358,11 +353,7 @@ void TOutputStreamWrap::DoFinish()
     IsFinishing_ = true;
     IsFinished_ = true;
 
-    // We require that calling party holds a synchronous lock on the stream.
-    // In case of TDriverWrap an instance TNodeJSInputStack holds a lock
-    // and TDriverWrap implementation guarantees that all Write() calls
-    // are within scope of the lock.
-    RunFlow(false);
+    RunFlow();
 }
 
 void TOutputStreamWrap::ProtectedUpdateAndNotifyWriter(std::function<void()> mutator)
@@ -413,11 +404,7 @@ void TOutputStreamWrap::PushToQueue(std::unique_ptr<char[]> buffer, size_t lengt
     BytesEnqueued_ += length;
     BytesInFlight_ += length;
 
-    // We require that calling party holds a synchronous lock on the stream.
-    // In case of TDriverWrap an instance TNodeJSInputStack holds a lock
-    // and TDriverWrap implementation guarantees that all Write() calls
-    // are within scope of the lock.
-    RunFlow(false);
+    RunFlow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

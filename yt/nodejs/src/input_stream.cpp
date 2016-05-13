@@ -92,12 +92,11 @@ Handle<Value> TInputStreamWrap::New(const Arguments& args)
     EXPECT_THAT_IS(args[0], Uint32);
     EXPECT_THAT_IS(args[1], Uint32);
 
-    ui64 lowWatermark = args[0]->Uint32Value();
-    ui64 highWatermark = args[1]->Uint32Value();
-
-    TInputStreamWrap* stream = nullptr;
     try {
-        stream = new TInputStreamWrap(lowWatermark, highWatermark);
+        ui64 lowWatermark = args[0]->Uint32Value();
+        ui64 highWatermark = args[1]->Uint32Value();
+
+        auto* stream = new TInputStreamWrap(lowWatermark, highWatermark);
         stream->Wrap(args.This());
 
         stream->handle_->Set(
@@ -115,10 +114,6 @@ Handle<Value> TInputStreamWrap::New(const Arguments& args)
 
         return scope.Close(args.This());
     } catch (const std::exception& ex) {
-        if (stream) {
-            delete stream;
-        }
-
         return ThrowException(Exception::Error(String::New(ex.what())));
     }
 }
@@ -140,15 +135,17 @@ Handle<Value> TInputStreamWrap::Push(const Arguments& args)
     EXPECT_THAT_IS(args[1], Uint32);
     EXPECT_THAT_IS(args[2], Uint32);
 
+    auto handle = Persistent<Value>::New(args[0]);
+    auto buffer = node::Buffer::Data(args[0].As<Object>());
+    auto offset = args[1]->Uint32Value();
+    auto length = args[2]->Uint32Value();
+
     // Do the work.
-    return scope.Close(stream->DoPush(
-        /* handle */ Persistent<Value>::New(args[0]),
-        /* buffer */ node::Buffer::Data(args[0].As<Object>()),
-        /* offset */ args[1]->Uint32Value(),
-        /* length */ args[2]->Uint32Value()));
+    auto canPushAgain = stream->DoPush(handle, buffer, offset, length);
+    return scope.Close(Boolean::New(canPushAgain));
 }
 
-Handle<Value> TInputStreamWrap::DoPush(Persistent<Value> handle, char* buffer, size_t offset, size_t length)
+bool TInputStreamWrap::DoPush(Persistent<Value> handle, char* buffer, size_t offset, size_t length)
 {
     THREAD_AFFINITY_IS_V8();
 
@@ -173,7 +170,7 @@ Handle<Value> TInputStreamWrap::DoPush(Persistent<Value> handle, char* buffer, s
         canPushAgain = BytesInFlight_ < HighWatermark_;
     });
 
-    return Boolean::New(canPushAgain);
+    return canPushAgain;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,7 +189,7 @@ Handle<Value> TInputStreamWrap::End(const Arguments& args)
     // Do the work.
     stream->DoEnd();
 
-    return Undefined();
+    return scope.Close(Undefined());
 }
 
 void TInputStreamWrap::DoEnd()
@@ -203,7 +200,7 @@ void TInputStreamWrap::DoEnd()
         IsPushable_ = false;
     });
 
-    EnqueueSweep(true);
+    EnqueueSweep();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,7 +219,7 @@ Handle<Value> TInputStreamWrap::Destroy(const Arguments& args)
     // Do the work.
     stream->DoDestroy();
 
-    return Undefined();
+    return scope.Close(Undefined());
 }
 
 void TInputStreamWrap::DoDestroy()
@@ -231,7 +228,7 @@ void TInputStreamWrap::DoDestroy()
 
     DisposeStream();
 
-    EnqueueDrain(true);
+    EnqueueDrain();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -276,11 +273,11 @@ int TInputStreamWrap::AsyncSweep(eio_req* request)
     return 0;
 }
 
-void TInputStreamWrap::EnqueueSweep(bool withinV8)
+void TInputStreamWrap::EnqueueSweep()
 {
     bool expected = false;
     if (SweepRequestPending_.compare_exchange_strong(expected, true, std::memory_order_acquire)) {
-        AsyncRef(withinV8);
+        AsyncRef();
         EIO_PUSH(TInputStreamWrap::AsyncSweep, this);
     }
 }
@@ -292,7 +289,7 @@ void TInputStreamWrap::DoSweep()
     {
         TTryGuard<TMutex, TSpinningLockOps<TMutex>> guard(&Mutex_);
         if (!guard) {
-            EnqueueSweep(true);
+            EnqueueSweep();
             return;
         }
 
@@ -315,11 +312,11 @@ int TInputStreamWrap::AsyncDrain(eio_req* request)
     return 0;
 }
 
-void TInputStreamWrap::EnqueueDrain(bool withinV8)
+void TInputStreamWrap::EnqueueDrain()
 {
     bool expected = false;
     if (DrainRequestPending_.compare_exchange_strong(expected, true, std::memory_order_acquire)) {
-        AsyncRef(withinV8);
+        AsyncRef();
         EIO_PUSH(TInputStreamWrap::AsyncDrain, this);
     }
 }
@@ -342,7 +339,7 @@ size_t TInputStreamWrap::DoRead(void* data, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
 
-    TScopedRef<false> guardAsyncRef(this);
+    TIntrusivePtr<IAsyncRefCounted> ref(this);
     TGuard<TMutex> guard(&Mutex_);
 
     size_t result = 0;
@@ -418,14 +415,14 @@ size_t TInputStreamWrap::DoRead(void* data, size_t length)
     // are within scope of the lock.
 
     if (!InactiveQueue_.empty()) {
-        EnqueueSweep(false);
+        EnqueueSweep();
     }
 
     BytesDequeued_ += result;
     BytesInFlight_ -= result;
 
     if (BytesInFlight_ < LowWatermark_ && LowWatermark_ <= BytesInFlight_ + result) {
-        EnqueueDrain(false);
+        EnqueueDrain();
     }
 
     return result;

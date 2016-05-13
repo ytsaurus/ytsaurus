@@ -31,7 +31,7 @@ public:
     static v8::Handle<v8::Value> New(const v8::Arguments& args);
 
     static v8::Handle<v8::Value> Push(const v8::Arguments& args);
-    v8::Handle<v8::Value> DoPush(v8::Persistent<v8::Value> handle, char* data, size_t offset, size_t length);
+    bool DoPush(v8::Persistent<v8::Value> handle, char* data, size_t offset, size_t length);
 
     static v8::Handle<v8::Value> End(const v8::Arguments& args);
     void DoEnd();
@@ -41,11 +41,11 @@ public:
 
     // Asynchronous JS API.
     static int AsyncSweep(eio_req* request);
-    void EnqueueSweep(bool withinV8);
+    void EnqueueSweep();
     void DoSweep();
 
     static int AsyncDrain(eio_req* request);
-    void EnqueueDrain(bool withinV8);
+    void EnqueueDrain();
 
     // Diagnostics.
     const ui64 GetBytesEnqueued() const;
@@ -80,10 +80,6 @@ private:
     TPromise<void> ReadPromise_;
     std::deque<std::unique_ptr<TInputPart>> ActiveQueue_;
     std::deque<std::unique_ptr<TInputPart>> InactiveQueue_;
-
-private:
-    TInputStreamWrap(const TInputStreamWrap&) = delete;
-    TInputStreamWrap& operator=(const TInputStreamWrap&) = delete;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

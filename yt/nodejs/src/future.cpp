@@ -76,10 +76,10 @@ Handle<Value> TFutureWrap::New(const Arguments& args)
     YCHECK(args.Length() == 0);
 
     try {
-        std::unique_ptr<TFutureWrap> wrappedFuture(new TFutureWrap());
-        wrappedFuture.release()->Wrap(args.This());
+        auto wrap = new TFutureWrap();
+        wrap->Wrap(args.This());
 
-        return args.This();
+        return scope.Close(args.This());
     } catch (const std::exception& ex) {
         return ThrowException(ConvertErrorToV8(ex));
     }
@@ -110,7 +110,7 @@ Handle<Value> TFutureWrap::Subscribe(const Arguments& args)
         cb.Clear();
     }).Via(GetUVInvoker()));
 
-    return Undefined();
+    return scope.Close(Undefined());
 }
 
 Handle<Value> TFutureWrap::Cancel(const Arguments& args)
@@ -123,7 +123,7 @@ Handle<Value> TFutureWrap::Cancel(const Arguments& args)
     auto future = TFutureWrap::UnwrapFuture(args.This());
     future.Cancel();
 
-    return Undefined();
+    return scope.Close(Undefined());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

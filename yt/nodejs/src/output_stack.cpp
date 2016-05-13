@@ -16,7 +16,7 @@ TNodeJSOutputStack::TNodeJSOutputStack(TOutputStreamWrap* base)
 {
     THREAD_AFFINITY_IS_V8();
     YASSERT(Bottom() == base);
-    GetBaseStream()->AsyncRef(true);
+    GetBaseStream()->AsyncRef();
 }
 
 TNodeJSOutputStack::~TNodeJSOutputStack() throw()
