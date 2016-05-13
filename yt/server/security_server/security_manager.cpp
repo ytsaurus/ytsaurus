@@ -1017,6 +1017,8 @@ private:
 
     TUser* AuthenticatedUser_ = nullptr;
 
+    bool SetInitialRequestQueueSizeLimits_ = false;
+
 
     void UpdateNodeCachedResourceUsage(TCypressNodeBase* node)
     {
@@ -1259,6 +1261,8 @@ private:
         AccountMap_.LoadValues(context);
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
+        // COMPAT(babenko)
+        SetInitialRequestQueueSizeLimits_ = (context.GetVersion() < 213);
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1401,6 +1405,13 @@ private:
             // scheduler
             SchedulerUser_ = DoCreateUser(SchedulerUserId_, SchedulerUserName);
             SchedulerUser_->SetRequestRateLimit(1000000);
+        }
+
+        // COMPAT(babenko)
+        if (SetInitialRequestQueueSizeLimits_) {
+            RootUser_->SetRequestQueueSize(1000000);
+            JobUser_->SetRequestQueueSize(1000000);
+            SchedulerUser_->SetRequestQueueSize(1000000);
         }
 
         // Accounts
