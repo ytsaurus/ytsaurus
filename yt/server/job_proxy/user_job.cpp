@@ -937,8 +937,9 @@ private:
         for (int pid : pids) {
             try {
                 i64 processRss = GetProcessRss(pid);
-                LOG_DEBUG("PID: %v, RSS: %v",
+                LOG_DEBUG("PID: %v, ProcessName: %Qv, RSS: %v",
                     pid,
+                    GetProcessName(pid),
                     processRss);
                 rss += processRss;
             } catch (const std::exception& ex) {
