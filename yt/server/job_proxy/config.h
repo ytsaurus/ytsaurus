@@ -45,7 +45,7 @@ public:
 
     TNullable<int> UserId;
 
-    Stroka TmpfsPath;
+    TNullable<Stroka> TmpfsPath;
 
     bool EnableIopsThrottling;
 

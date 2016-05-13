@@ -14,7 +14,7 @@ namespace NExecAgent {
 extern const NLogging::TLogger ExecAgentLogger;
 extern const NProfiling::TProfiler ExecAgentProfiler;
 
-extern const Stroka TmpfsDirName;
+extern const int TmpfsRemoveAttemptCount;
 
 ////////////////////////////////////////////////////////////////////
 

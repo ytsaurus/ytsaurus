@@ -77,7 +77,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/address.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/assert.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/async_stream_state.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/backtrace.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/bitmap.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/blob.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/blob_output.cpp

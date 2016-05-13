@@ -1808,7 +1808,6 @@ private:
         }
 
         // Make as many acquisitions as possible.
-        bool acquired = false;
         auto it = trunkNode->PendingLocks().begin();
         while (it != trunkNode->PendingLocks().end()) {
             // Be prepared to possible iterator invalidation.
@@ -1830,11 +1829,6 @@ private:
             }
 
             DoAcquireLock(lock);
-            acquired = true;
-        }
-
-        if (!acquired && Bootstrap_->IsPrimaryMaster() && IsLeader()) {
-            ExpirationTracker_->OnNodeUnlocked(trunkNode);
         }
     }
 
@@ -2223,7 +2217,7 @@ private:
                     nodeId);
 
                 if (Bootstrap_->IsPrimaryMaster() && HydraManager_->IsLeader()) {
-                    ExpirationTracker_->OnNodeUnlocked(trunkNode);
+                    ExpirationTracker_->OnNodeRemovalFailed(trunkNode);
                 }
             }
         }

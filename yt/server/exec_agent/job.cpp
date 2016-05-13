@@ -404,7 +404,7 @@ private:
                     YCHECK(JobState_ == EJobState::Aborting);
                     return;
                 }
-                
+
                 LOG_ERROR(ex, "Scheduler job failed");
 
                 DoSetResult(ex);
@@ -472,6 +472,7 @@ private:
         LOG_INFO("Preparing job proxy config");
 
         INodePtr ioConfigNode;
+        const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         try {
             const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             ioConfigNode = ConvertToNode(TYsonString(schedulerJobSpecExt.io_config()));
@@ -491,9 +492,10 @@ private:
         auto proxyConfig = CloneYsonSerializable(Bootstrap_->GetJobProxyConfig());
         proxyConfig->JobIO = ioConfig;
         proxyConfig->UserId = Slot_->GetUserId();
-        proxyConfig->TmpfsPath = Slot_->GetTmpfsPath(ESandboxKind::User);
-
         proxyConfig->RpcServer = Slot_->GetRpcServerConfig();
+        if (schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().has_tmpfs_size()) {
+            proxyConfig->TmpfsPath = Slot_->GetTmpfsPath(ESandboxKind::User, schedulerJobSpecExt.user_job_spec().tmpfs_path());
+        }
 
         auto proxyConfigPath = NFS::CombinePaths(
             Slot_->GetWorkingDirectory(),
@@ -540,7 +542,7 @@ private:
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             if (userJobSpec.has_tmpfs_size()) {
-                Slot_->PrepareTmpfs(ESandboxKind::User, userJobSpec.tmpfs_size());
+                Slot_->PrepareTmpfs(ESandboxKind::User, userJobSpec.tmpfs_size(), userJobSpec.tmpfs_path());
             }
         }
     }
@@ -689,21 +691,39 @@ private:
 
         CachedChunks_.insert(CachedChunks_.end(), chunks.begin(), chunks.end());
 
+        const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        bool copyFiles = schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().copy_files();
+
         for (size_t index = 0; index < chunks.size(); ++index) {
             const auto& info = infos[index];
             const auto& chunk = chunks[index];
 
-            try {
-                Slot_->MakeLink(
-                    sandboxKind,
-                    chunk->GetFileName(),
-                    info.Name,
-                    info.IsExecutable);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION(
-                    "Failed to create a symlink for user file %Qv",
-                    info.Name)
-                    << ex;
+            if (copyFiles) {
+                try {
+                    Slot_->MakeCopy(
+                        sandboxKind,
+                        chunk->GetFileName(),
+                        info.Name,
+                        info.IsExecutable);
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION(
+                        "Failed to create a copy of user file %Qv",
+                        info.Name)
+                        << ex;
+                }
+            } else {
+                try {
+                    Slot_->MakeLink(
+                        sandboxKind,
+                        chunk->GetFileName(),
+                        info.Name,
+                        info.IsExecutable);
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION(
+                        "Failed to create a symlink for user file %Qv",
+                        info.Name)
+                        << ex;
+                }
             }
 
             LOG_INFO("User file prepared successfully (FileName: %v)",

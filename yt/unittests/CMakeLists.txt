@@ -28,6 +28,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/fls_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/format_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/framework.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/fs_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/future_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/guid_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hash_filter_ut.cpp

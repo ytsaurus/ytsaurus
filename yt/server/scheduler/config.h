@@ -291,7 +291,7 @@ public:
         // Minimum is 1 for tests.
         RegisterParameter("min_uncompressed_block_size", MinUncompressedBlockSize)
             .Default(1024 * 1024)
-            .GreaterThanOrEqual(1); 
+            .GreaterThanOrEqual(1);
     }
 };
 
@@ -381,14 +381,8 @@ public:
     //! Maximum allowed running time of operation. Null value is interpreted as infinity.
     TNullable<TDuration> OperationTimeLimit;
 
-    //! Once this limit is reached the operation fails.
-    int MaxFailedJobCount;
-
-    //! Once this limit is reached the memory reserve is disabled.
-    int MaxMemoryReserveAbortJobCount;
-
-    //! Limits the number of stderrs the operation is allowed to produce.
-    int MaxStderrCount;
+    //! Maximum number of job nodes per operation.
+    int MaxJobNodesPerOperation;
 
     //! Number of chunk lists to be allocated when an operation starts.
     int ChunkListPreallocationCount;
@@ -553,15 +547,10 @@ public:
         RegisterParameter("operation_time_limit", OperationTimeLimit)
             .Default();
 
-        RegisterParameter("max_failed_job_count", MaxFailedJobCount)
-            .Default(100)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("max_memory_reserve_abort_job_count", MaxMemoryReserveAbortJobCount)
-            .Default(100)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("max_stderr_count", MaxStderrCount)
-            .Default(100)
-            .GreaterThanOrEqual(0);
+        RegisterParameter("max_job_nodes_per_operation", MaxJobNodesPerOperation)
+            .Default(200)
+            .GreaterThanOrEqual(0)
+            .LessThanOrEqual(200);
 
         RegisterParameter("chunk_list_preallocation_count", ChunkListPreallocationCount)
             .Default(128)

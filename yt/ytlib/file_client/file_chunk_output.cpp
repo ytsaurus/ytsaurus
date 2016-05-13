@@ -45,46 +45,53 @@ TFileChunkOutput::TFileChunkOutput(
     NApi::IClientPtr client,
     const TTransactionId& transactionId,
     i64 sizeLimit)
-    : Config(config)
-    , Options(options)
-    , Client(client)
-    , TransactionId(transactionId)
-    , SizeLimit(sizeLimit)
+    : Config_(config)
+    , Options_(options)
+    , Client_(client)
+    , TransactionId_(transactionId)
+    , SizeLimit_(sizeLimit)
     , Logger(FileClientLogger)
 {
-    YCHECK(Config);
-    YCHECK(Client);
+    YCHECK(Config_);
+    YCHECK(Client_);
 
-    LOG_INFO("File chunk output opened (TransactionId: %v, Account: %v, ReplicationFactor: %v, UploadReplicationFactor: %v)",
-        TransactionId,
-        Options->Account,
-        Options->ReplicationFactor,
-        Config->UploadReplicationFactor);
+    auto connection = Client_->GetConnection();
+    const auto& secondaryCellTags = connection->GetSecondaryMasterCellTags();
+    auto cellTag = secondaryCellTags.empty()
+        ? connection->GetPrimaryMasterCellTag()
+        : secondaryCellTags[RandomNumber(secondaryCellTags.size())];
 
-    auto nodeDirectory = New<TNodeDirectory>();
-    ChunkWriter = CreateConfirmingWriter(
-        Config,
-        Options,
-        Client->GetConnection()->GetPrimaryMasterCellTag(),
-        TransactionId,
+    LOG_INFO("File chunk output opened (TransactionId: %v, Account: %v, ReplicationFactor: %v, "
+        "UploadReplicationFactor: %v, CellTag: %v)",
+        TransactionId_,
+        Options_->Account,
+        Options_->ReplicationFactor,
+        Config_->UploadReplicationFactor,
+        cellTag);
+
+    ConfirmingChunkWriter_ = CreateConfirmingWriter(
+        Config_,
+        Options_,
+        cellTag,
+        TransactionId_,
         NullChunkListId,
-        nodeDirectory,
-        Client);
+        New<TNodeDirectory>(),
+        Client_);
 
-    Writer = CreateFileChunkWriter(
-        Config,
+    FileChunkWriter_ = CreateFileChunkWriter(
+        Config_,
         New<TEncodingWriterOptions>(),
-        ChunkWriter);
+        ConfirmingChunkWriter_);
 }
 
 void TFileChunkOutput::DoWrite(const void* buf, size_t len)
 {
-    if (GetSize() > SizeLimit) {
+    if (GetSize() > SizeLimit_) {
         return;
     }
 
-    if (!Writer->Write(TRef(const_cast<void*>(buf), len))) {
-        WaitFor(Writer->GetReadyEvent())
+    if (!FileChunkWriter_->Write(TRef(const_cast<void*>(buf), len))) {
+        WaitFor(FileChunkWriter_->GetReadyEvent())
             .ThrowOnError();
     }
 }
@@ -94,7 +101,7 @@ void TFileChunkOutput::DoFinish()
     if (GetSize() > 0) {
         LOG_INFO("Closing file writer");
 
-        WaitFor(Writer->Close())
+        WaitFor(FileChunkWriter_->Close())
             .ThrowOnError();
     }
 
@@ -103,12 +110,12 @@ void TFileChunkOutput::DoFinish()
 
 TChunkId TFileChunkOutput::GetChunkId() const
 {
-    return ChunkWriter->GetChunkId();
+    return ConfirmingChunkWriter_->GetChunkId();
 }
 
 i64 TFileChunkOutput::GetSize() const
 {
-    return Writer->GetDataSize();
+    return FileChunkWriter_->GetDataSize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

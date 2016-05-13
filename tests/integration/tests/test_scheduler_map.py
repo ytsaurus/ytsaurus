@@ -9,7 +9,6 @@ import time
 import __builtin__
 import os
 
-
 ##################################################################
 
 def get_statistics(statistics, complex_key):
@@ -18,6 +17,20 @@ def get_statistics(statistics, complex_key):
         if part:
             result = result[part]
     return result
+
+def check_all_stderrs(op, expected_content, expected_count, substring=False):
+    jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+    assert get(jobs_path + "/@count") == expected_count
+    for job_id in ls(jobs_path):
+        stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)
+        if is_multicell:
+            assert get(stderr_path + "/@external")
+        actual_content = read_file(stderr_path)
+        assert get(stderr_path + "/@uncompressed_data_size") == len(actual_content)
+        if substring:
+            assert expected_content in actual_content
+        else:
+            assert actual_content == expected_content
 
 ##################################################################
 
@@ -1651,6 +1664,125 @@ class TestSandboxTmpfs(YTEnvSetup):
         assert get(jobs_path + "/@count") == 1
         words = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr").strip().split()
         assert ["file", "content"] == words
+
+    def test_custom_tmpfs_path(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(
+            command="cat; echo 'content' > my_dir/file; ls my_dir/ >&2; cat my_dir/file >&2;",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024 * 1024,
+                    "tmpfs_path": "my_dir",
+                }
+            })
+
+        jobs_path = "//sys/operations/" + op.id + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        words = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr").strip().split()
+        assert ["file", "content"] == words
+
+    def test_dot_tmpfs_path(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(
+            command="cat; mkdir my_dir; echo 'content' > my_dir/file; ls my_dir/ >&2; cat my_dir/file >&2;",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024 * 1024,
+                    "tmpfs_path": ".",
+                }
+            })
+
+        jobs_path = "//sys/operations/" + op.id + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        words = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr").strip().split()
+        assert ["file", "content"] == words
+
+        create("file", "//tmp/test_file")
+        write_file("//tmp/test_file", "".join(["0"] * (1024 * 1024 + 1)))
+        map(command="cat",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024 * 1024,
+                    "tmpfs_path": ".",
+                    "file_paths": ["//tmp/test_file"]
+                }
+            })
+
+        with pytest.raises(YtError):
+            map(command="cat; cp test_file local_file",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "tmpfs_size": 1024 * 1024,
+                        "tmpfs_path": ".",
+                        "file_paths": ["//tmp/test_file"]
+                    },
+                    "max_failed_job_count": 1,
+                })
+
+        map(command="cat",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024 * 1024 + 1000,
+                    "tmpfs_path": ".",
+                    "file_paths": ["//tmp/test_file"],
+                    "copy_files": True,
+                },
+                "max_failed_job_count": 1,
+            })
+
+        with pytest.raises(YtError):
+            map(command="cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "tmpfs_size": 1024 * 1024,
+                        "tmpfs_path": ".",
+                        "file_paths": ["//tmp/test_file"],
+                        "copy_files": True,
+                    },
+                    "max_failed_job_count": 1,
+                })
+
+    def test_incorrect_tmpfs_path(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        with pytest.raises(YtError):
+            map(command="cat", in_="//tmp/t_input", out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "tmpfs_size": 1024 * 1024,
+                        "tmpfs_path": "../",
+                    }
+                })
+
+        with pytest.raises(YtError):
+            map(command="cat", in_="//tmp/t_input", out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "tmpfs_size": 1024 * 1024,
+                        "tmpfs_path": "/tmp",
+                    }
+                })
+
 
     def test_remove_failed(self):
         create("table", "//tmp/t_input")

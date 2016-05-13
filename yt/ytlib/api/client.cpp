@@ -2501,10 +2501,13 @@ private:
 
     void DoAbortOperation(
         const TOperationId& operationId,
-        const TAbortOperationOptions& /*options*/)
+        const TAbortOperationOptions& options)
     {
         auto req = SchedulerProxy_->AbortOperation();
         ToProto(req->mutable_operation_id(), operationId);
+        if (options.AbortMessage) {
+            req->set_abort_message(*options.AbortMessage);
+        }
 
         WaitFor(req->Invoke())
             .ThrowOnError();
