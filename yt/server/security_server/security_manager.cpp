@@ -975,8 +975,6 @@ private:
     TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
     TPeriodicExecutorPtr UserStatisticsGossipExecutor_;
 
-    bool InitMulticell_ = false;
-
     NHydra::TEntityMap<TAccount> AccountMap_;
     yhash_map<Stroka, TAccount*> AccountNameMap_;
 
