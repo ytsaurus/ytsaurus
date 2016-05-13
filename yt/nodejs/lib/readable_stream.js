@@ -20,8 +20,7 @@ function YtReadableStream(watermark)
 
     this._paused = false;
     this._ended = false;
-
-    this._pending = [];
+    this._flowing = false;
 
     this._binding = new binding.TOutputStreamWrap(watermark);
     this._binding.on_flowing = this._onFlowing.bind(this);
@@ -36,6 +35,7 @@ YtReadableStream.prototype._onFlowing = function YtReadableStream$_onFlowing()
 {
     "use strict";
     this.__DBG("Bindings (OutputStream) -> on_flowing");
+    this._flowing = true;
     this._consumeData();
 };
 
@@ -44,7 +44,7 @@ YtReadableStream.prototype._consumeData = function YtReadableStream$_consumeData
     "use strict";
     this.__DBG("_consumeData");
 
-    if (this._paused || this._ended) {
+    if (this._paused || this._ended || !this._flowing) {
         return;
     }
 
@@ -65,6 +65,7 @@ YtReadableStream.prototype._consumeData = function YtReadableStream$_consumeData
     if (i > 0) {
         process.nextTick(this._consumeData.bind(this));
     } else {
+        this._flowing = false;
         if (this._binding.IsFinished()) {
             this._emitEnd();
         }
@@ -111,6 +112,7 @@ YtReadableStream.prototype.destroy = function YtReadableStream$destroy()
     this.readable = false;
     this._paused = false;
     this._ended = true;
+    this._flowing = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
