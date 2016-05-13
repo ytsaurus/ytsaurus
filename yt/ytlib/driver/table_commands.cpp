@@ -221,18 +221,6 @@ void TSelectRowsCommand::Execute(ICommandContextPtr context)
         statistics.WriteTime.MilliSeconds(),
         statistics.IncompleteInput,
         statistics.IncompleteOutput);
-
-    BuildYsonMapFluently(context->Request().ResponseParametersConsumer)
-        .Item("rows_read").Value(statistics.RowsRead)
-        .Item("rows_written").Value(statistics.RowsWritten)
-        .Item("async_time").Value(statistics.AsyncTime)
-        .Item("sync_time").Value(statistics.SyncTime)
-        .Item("execute_time").Value(statistics.ExecuteTime)
-        .Item("read_time").Value(statistics.ReadTime)
-        .Item("write_time").Value(statistics.WriteTime)
-        .Item("codegen_time").Value(statistics.CodegenTime)
-        .Item("incomplete_input").Value(statistics.IncompleteInput)
-        .Item("incomplete_output").Value(statistics.IncompleteOutput);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
