@@ -226,7 +226,7 @@ def main():
         # Check all available directions.
         for cluster in graph:
             for neighbour in graph[cluster]:
-                check_direction(cluster, neighbour, clusters_clients)
+                check_direction(cluster, neighbour, clusters_clients, graph)
         return
 
     for src_cluster, dst_cluster in args.direction:
