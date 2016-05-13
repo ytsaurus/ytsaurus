@@ -237,8 +237,6 @@ process.on("message", function(message) {
     }
 });
 
-process.on("exit", binding.ShutdownSingletons);
-
 process.on("uncaughtException", function(err) {
     console.error("*** Uncaught Exception");
     console.error(err);
@@ -248,8 +246,8 @@ process.on("uncaughtException", function(err) {
     if (err.stack) {
         console.error(err.stack);
     }
-    binding.ShutdownSingletons();
-    process.exit(1);
+    // Wipe process.
+    binding._Exit(1);
 });
 
 // Fire up the head.
