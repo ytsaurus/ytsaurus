@@ -38,6 +38,8 @@ class YtResponseError(yt.common.YtResponseError):
         super(YtResponseError, self).__init__(*args, **kwargs)
         if self.is_request_rate_limit_exceeded():
             self.__class__ = YtRequestRateLimitExceeded
+        if self.is_request_queue_size_limit_exceeded():
+            self.__class__ = YtRequestQueueSizeLimitExceeded
         if self.is_concurrent_operations_limit_reached():
             self.__class__ = YtConcurrentOperationsLimitExceeded
         if self.is_request_timed_out():
@@ -60,6 +62,11 @@ class YtHttpResponseError(YtResponseError):
 
 class YtRequestRateLimitExceeded(YtHttpResponseError):
     """ Request rate limit exceeded error. """
+    """ It is used in retries. """
+    pass
+
+class YtRequestQueueSizeLimitExceeded(YtHttpResponseError):
+    """ Request queue size limit exceeded error. """
     """ It is used in retries. """
     pass
 

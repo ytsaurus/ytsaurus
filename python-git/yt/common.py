@@ -67,6 +67,10 @@ class YtResponseError(YtError):
         """Request rate limit exceeded."""
         return self.contains_code(904)
 
+    def is_request_queue_size_limit_exceeded(self):
+        """Request rate limit exceeded."""
+        return self.contains_code(108)
+
     def is_chunk_unavailable(self):
         """Chunk unavailable."""
         return self.contains_code(716) or self.contains_text(" is unavailable")
