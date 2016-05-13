@@ -15,7 +15,7 @@ using namespace NMR;
 
 namespace {
 
-class TTableFixture
+class TTableTestFixture
     : public NTest::TTest
 {
 public:
@@ -187,7 +187,7 @@ void TestTableMethods(TServer& server, const char* tableName) {
 
 } // anonymous namespace
 
-YT_TEST(TTableFixture, TestMethods) {
+YT_TEST(TTableTestFixture, TestMethods) {
     TestTableMethods(GetServer(), TABLE);
     TestTableMethods(GetServer(), SORTED_TABLE);
     TestTableMethods(GetServer(), EMPTY_TABLE);
