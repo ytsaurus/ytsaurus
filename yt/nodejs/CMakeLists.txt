@@ -33,6 +33,7 @@ include_directories(
 )
 
 set( SRCS
+  src/async_ref_counted.cpp
   src/common.cpp
   src/error.cpp
   src/future.cpp
@@ -46,6 +47,7 @@ set( SRCS
   src/output_stub.cpp
   src/driver.cpp
   src/stream_stack.cpp
+  src/uv_invoker.cpp
 )
 
 NODE(ytnode ${SRCS} src/ytnode.cpp)

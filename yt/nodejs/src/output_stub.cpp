@@ -124,7 +124,7 @@ Handle<Value> TOutputStreamStub::Reset(const Arguments& args)
     // Do the work.
     switch (args.Length()) {
         case 0:
-            host->Stack = NULL;
+            host->Stack = nullptr;
             break;
 
         case 1:
@@ -221,7 +221,7 @@ void TOutputStreamStub::WriteAfter(uv_work_t* workRequest)
     {
         TryCatch block;
 
-        request->Callback->Call(Context::GetCurrent()->Global(), 0, NULL);
+        request->Callback->Call(Context::GetCurrent()->Global(), 0, nullptr);
 
         if (block.HasCaught()) {
             node::FatalException(block);

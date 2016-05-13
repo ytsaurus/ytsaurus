@@ -2,9 +2,9 @@
 
 #include "stream_base.h"
 
-#include <yt/core/concurrency/event_count.h>
+#include <yt/core/actions/future.h>
 
-#include <util/thread/lfqueue.h>
+#include <util/system/mutex.h>
 
 namespace NYT {
 namespace NNodeJS {
@@ -19,13 +19,10 @@ class TOutputStreamWrap
     , public TOutputStream
 {
 protected:
-    TOutputStreamWrap(ui64 lowWatermark, ui64 highWatermark);
+    TOutputStreamWrap(ui64 watermark);
     ~TOutputStreamWrap() throw();
 
 public:
-    using node::ObjectWrap::Ref;
-    using node::ObjectWrap::Unref;
-
     static v8::Persistent<v8::FunctionTemplate> ConstructorTemplate;
     static void Initialize(v8::Handle<v8::Object> target);
     static bool HasInstance(v8::Handle<v8::Value> value);
@@ -36,92 +33,53 @@ public:
     static v8::Handle<v8::Value> Pull(const v8::Arguments& args);
     v8::Handle<v8::Value> DoPull();
 
-    static v8::Handle<v8::Value> Drain(const v8::Arguments& args);
-    void DoDrain();
-
     static v8::Handle<v8::Value> Destroy(const v8::Arguments& args);
     void DoDestroy();
 
-    static v8::Handle<v8::Value> IsEmpty(const v8::Arguments& args);
-    static v8::Handle<v8::Value> IsDestroyed(const v8::Arguments& args);
-    static v8::Handle<v8::Value> IsPaused(const v8::Arguments& args);
-    static v8::Handle<v8::Value> IsCompleted(const v8::Arguments& args);
+    static v8::Handle<v8::Value> IsFlowing(const v8::Arguments& args);
+    v8::Handle<v8::Value> DoIsFlowing();
 
-    // Asynchronous JS API.
-    static int AsyncOnData(eio_req* request);
-    void EmitAndStifleOnData();
-    void IgniteOnData();
+    static v8::Handle<v8::Value> IsFinished(const v8::Arguments& args);
+    v8::Handle<v8::Value> DoIsFinished();
 
     // Diagnostics.
-    const ui32 GetBytesEnqueued()
-    {
-        return BytesEnqueued;
-    }
+    const ui64 GetBytesEnqueued() const;
+    const ui64 GetBytesDequeued() const;
 
-    const ui32 GetBytesDequeued()
-    {
-        return BytesDequeued;
-    }
-
-    void SetCompleted();
+    void MarkAsFinishing();
 
 protected:
     // C++ API.
-    void DoWrite(const void* buffer, size_t length) override;
-    void DoWriteV(const TPart* parts, size_t count) override;
+    virtual void DoWrite(const void* buffer, size_t length) override;
+    virtual void DoWriteV(const TPart* parts, size_t count) override;
+    virtual void DoFinish() override;
 
 private:
-    void WritePrologue();
-    void WriteEpilogue(char* buffer, size_t length);
+    bool CanFlow() const;
+    void RunFlow();
+    static int AsyncOnFlowing(eio_req* request);
 
-    void DisposeBuffers();
-
-private:
-    // XXX(sandello): I believe these atomics are subject to false sharing due
-    // to in-memory locality. But whatever -- it is not a bottleneck.
-    TAtomic IsDestroyed_;
-    TAtomic IsPaused_;
-    TAtomic IsCompleted_;
-
-    TAtomic BytesInFlight;
-    TAtomic BytesEnqueued;
-    TAtomic BytesDequeued;
-
-    const ui64 LowWatermark;
-    const ui64 HighWatermark;
-
-    NConcurrency::TEventCount Conditional;
-    TLockFreeQueue<TOutputPart> Queue;
+    void ProtectedUpdateAndNotifyWriter(std::function<void()> mutator);
+    void PushToQueue(std::unique_ptr<char[]> blob, size_t length);
 
 private:
-    TOutputStreamWrap(const TOutputStreamWrap&);
-    TOutputStreamWrap& operator=(const TOutputStreamWrap&);
+    const ui64 Watermark_;
+
+    // Protects everything below.
+    TMutex Mutex_;
+
+    bool IsFlowing_ = false;
+    bool IsFinishing_ = false;
+    bool IsFinished_ = false;
+    bool IsDestroyed_ = false;
+
+    ui64 BytesInFlight_ = 0;
+    ui64 BytesEnqueued_ = 0;
+    ui64 BytesDequeued_ = 0;
+
+    TPromise<void> WritePromise_;
+    std::deque<TOutputPart> Queue_;
 };
-
-inline void TOutputStreamWrap::EmitAndStifleOnData()
-{
-    if (AtomicCas(&IsPaused_, 1, 0)) {
-        // Post to V8 thread.
-        AsyncRef(false);
-        EIO_PUSH(TOutputStreamWrap::AsyncOnData, this);
-    }
-}
-
-inline void TOutputStreamWrap::IgniteOnData()
-{
-    if (AtomicCas(&IsPaused_, 0, 1)) {
-        if (!Queue.IsEmpty()) {
-            EmitAndStifleOnData();
-        }
-    }
-}
-
-inline void TOutputStreamWrap::SetCompleted()
-{
-    AtomicSet(IsCompleted_, 1);
-
-    Conditional.NotifyAll();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
