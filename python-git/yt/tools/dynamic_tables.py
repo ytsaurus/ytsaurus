@@ -23,20 +23,23 @@ class DynamicTablesClient(object):
     # Defaults:
 
     # Mapper job options.
-    job_count = 100
+    job_count = None
     # maximum number of simultaneously running jobs.
     # (supposedly only applied if a pool is used)
-    user_slots = 100
+    user_slots = None
     # maximum amount of memory allowed for a job
-    job_memory_limit = 4 * 2**30  # 4GiB
+    job_memory_limit = None
     # maximum number of failed jobs which doesn't imply operation failure.
-    max_failed_job_count = 20
+    max_failed_job_count = None
+    # data size per job
+    data_size_per_job = None
     # maximum number of output rows
     output_row_limit = 100000000
     # maximum number of input rows
     input_row_limit = 100000000
-    # ...
+    # Pool name
     pool = None
+    # Workload descriptor (batch/realtime)
     workload_descriptor = None
 
     default_client_config = {
@@ -103,11 +106,18 @@ class DynamicTablesClient(object):
         """ Build map operation spec, e.g. from command line args """
         spec = {
             "enable_job_proxy_memory_control": False,
-            "job_count": self.job_count,
-            "max_failed_job_count": self.max_failed_job_count,
-            "job_proxy_memory_control": False,
-            "mapper": {"memory_limit": self.job_memory_limit},
-            "resource_limits": {"user_slots": self.user_slots}}
+            "job_proxy_memory_control": False}
+
+        if self.job_count:
+            spec["job_count"] = self.job_count
+        if self.user_slots:
+            spec["resource_limits"] = {"user_slots": self.user_slots}
+        if self.job_memory_limit:
+            spec["mapper"] = {"memory_limit": self.job_memory_limit}
+        if self.max_failed_job_count:
+            spec["max_failed_job_count"] = self.max_failed_job_count
+        if self.data_size_per_job:
+            spec["data_size_per_job"] = self.data_size_per_job
         if self.pool is not None:
             spec['pool'] = self.pool
         return spec
