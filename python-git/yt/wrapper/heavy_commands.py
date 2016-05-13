@@ -219,6 +219,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 if self.last_response is not None:
                     self.last_response.close()
                 tx.abort()
+                self.iterator.close()
 
         try:
             if tx:
