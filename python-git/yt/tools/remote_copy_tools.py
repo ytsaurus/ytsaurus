@@ -319,7 +319,7 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
         if not err.is_resolve_error():
             raise
 
-    with destination_client.Transaction():
+    with destination_client.Transaction(attributes={"title": "copy_yt_to_yt transaction"}):
         if cluster_connection is not None:
             kwargs = {"cluster_connection": cluster_connection}
         else:
@@ -349,9 +349,11 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
     intermediate_format = yt.create_format(get_value(intermediate_format, "json"))
     enable_row_count_check = get_value(enable_row_count_check, True)
 
+    attributes = {"title": "copy_yt_to_yt_through_proxy"}
+
     destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
     try:
-        with source_client.Transaction(), destination_client.Transaction():
+        with source_client.Transaction(attributes=attributes), destination_client.Transaction(attributes=attributes):
             # NB: for reliable access to table under snapshot lock we should use id.
             src = yt.TablePath(src, client=source_client)
             src.name = yson.to_yson_type("#" + source_client.get(src.name + "/@id"), attributes=src.attributes)
@@ -473,7 +475,7 @@ done"""
 
     logger.info("Pull import: run map '%s' with spec '%s'", command, repr(spec))
     try:
-        with yt_client.Transaction():
+        with yt_client.Transaction(attributes={"title": "copy_yamr_to_yt"}):
             set_compression_codec(yt_client, dst, compression_codec)
 
             if is_sorted:
@@ -535,7 +537,7 @@ while True:
     enable_row_count_check = get_value(enable_row_count_check, True)
 
     try:
-        with yt_client.Transaction():
+        with yt_client.Transaction(attributes={"title": "copy_yt_to_yamr"}):
             # NB: for reliable access to table under snapshot lock we should use id.
             src = yt.TablePath(src, client=yt_client)
             src.name = yson.to_yson_type("#" + yt_client.get(src.name + "/@id"), attributes=src.attributes)
@@ -715,7 +717,7 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
     tmp_dir = tempfile.mkdtemp(dir=kwargs.get("tmp_dir"))
     enable_row_count_check = get_value(kwargs.pop("enable_row_count_check", None), False)
     try:
-        with yt_client.Transaction():
+        with yt_client.Transaction(attributes={"title": "copy_yt_to_kiwi"}):
             yt_client.lock(src, mode="snapshot")
 
             files = _prepare_read_from_yt_command(

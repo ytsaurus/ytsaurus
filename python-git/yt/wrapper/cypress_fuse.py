@@ -328,7 +328,7 @@ class OpenedFile(object):
                 self._offset = max(offset + length - self._length, 0)
             else:
                 self._offset = offset
-            with self._client.Transaction(transaction_id=self._tx.transaction_id):
+            with self._client.Transaction(transaction_id=self._tx.transaction_id, attributes={"title": "Fuse read transaction"}):
                 self._buffer = self._client.read_file(
                     self.ypath,
                     length=self._length, offset=self._offset
@@ -341,7 +341,7 @@ class OpenedFile(object):
         return self._buffer[buffer_offset:(buffer_offset + length)]
 
     def _read_all(self):
-        with self._client.Transaction(transaction_id=self._tx.transaction_id):
+        with self._client.Transaction(transaction_id=self._tx.transaction_id, attributes={"title": "Fuse read transaction"}):
             self._buffer = self._client.read_file(self.ypath).read()
             self._offset = 0
             self._length = len(self._buffer)
@@ -411,7 +411,7 @@ class OpenedTable(object):
                 end_index=next_upper_row,
                 client=self._client
             )
-            with self._client.Transaction(transaction_id=self._tx.transaction_id):
+            with self._client.Transaction(transaction_id=self._tx.transaction_id, attributes={"title": "Fuse read transaction"}):
                 slice_content = "".join(
                     self._client.read_table(slice_ypath, format=self._format, raw=True)
                 )
@@ -429,7 +429,7 @@ class OpenedTable(object):
                 end_index=self._lower_row,
                 client=self._client
             )
-            with self._client.Transaction(transaction_id=self._tx.transaction_id):
+            with self._client.Transaction(transaction_id=self._tx.transaction_id, attributes={"title": "Fuse read transaction"}):
                 slice_content = "".join(
                     self._client.read_table(slice_ypath, format=self._format, raw=True)
                 )

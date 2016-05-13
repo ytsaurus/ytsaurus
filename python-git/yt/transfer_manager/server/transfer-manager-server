@@ -559,7 +559,7 @@ class Application(object):
 
     def _take_lock(self):
         yt_client = deepcopy(self._yt)
-        with yt_client.Transaction() as tx:
+        with yt_client.Transaction(attributes={"title": "Transfer manager lock"}) as tx:
             while True:
                 try:
                     yt_client.lock(self._lock_path)

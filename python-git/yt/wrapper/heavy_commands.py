@@ -121,7 +121,6 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 logger.warning(str(err))
                 logger.warning("New retry (%d) ...", attempt + 2)
 
-
     if not get_config(client)["read_retries"]["enable"]:
         response = _make_transactional_request(
             command_name,
@@ -134,6 +133,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
         return response
     else:
         retry_count = get_config(client)["read_retries"]["retry_count"]
+        title = "Python wrapper: {0} {1}".format(command_name, path)
 
         if get_config(client)["read_retries"]["create_transaction_and_take_snapshot_lock"]:
             title = "Python wrapper: read {0}".format(to_name(path, client=client))
@@ -223,7 +223,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
 
         try:
             if tx:
-                with Transaction(transaction_id=tx.transaction_id, client=client):
+                with Transaction(transaction_id=tx.transaction_id, attributes={"title": title}, client=client):
                     lock(path, mode="snapshot", client=client)
             iterator = Iterator()
             return ResponseStream(
