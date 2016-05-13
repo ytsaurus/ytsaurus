@@ -2,6 +2,8 @@
 
 #include <mapreduce/interface/all.h>
 
+#include <util/generic/vector.h>
+
 #include <limits>
 #include <utility>
 
@@ -38,24 +40,33 @@ public:
     }
 
 private:
+    yvector<yvector<Stroka>> GetData() const {
+        static yvector<yvector<Stroka>> data =  {
+            { "a", "a", "a" },
+            { "c", "c", "c" },
+            { "e", "e", "e" },
+            { "g", "g", "g" },
+            { "i", "i", "i" }
+        };
+        return data;
+    }
+
     void CreateTables() {
         {
             TClient client(GetServer());
             TUpdate update(client, TABLE);
-            update.AddSub("a", "a", "a");
-            update.AddSub("c", "c", "c");
-            update.AddSub("e", "e", "e");
-            update.AddSub("g", "g", "g");
-            update.AddSub("i", "i", "i");
+            auto&& data = GetData();
+            for (const auto& d : data) {
+                update.AddSub(d[0], d[1], d[2]);
+            }
         }
         {
             TClient client(GetServer());
             TUpdate updateSorted(client, SORTED_TABLE, UM_SORTED);
-            updateSorted.AddSub("a", "a", "a");
-            updateSorted.AddSub("c", "c", "c");
-            updateSorted.AddSub("e", "e", "e");
-            updateSorted.AddSub("g", "g", "g");
-            updateSorted.AddSub("i", "i", "i");
+            auto&& data = GetData();
+            for (const auto& d : data) {
+                updateSorted.AddSub(d[0], d[1], d[2]);
+            }
         }
         {
             TClient client(GetServer());
