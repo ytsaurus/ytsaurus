@@ -56,7 +56,7 @@ protected:
 
 private:
     bool CanFlow() const;
-    void RunFlow(bool withinV8);
+    void RunFlow();
     static int AsyncOnFlowing(eio_req* request);
 
     void ProtectedUpdateAndNotifyWriter(std::function<void()> mutator);
@@ -79,10 +79,6 @@ private:
 
     TPromise<void> WritePromise_;
     std::deque<TOutputPart> Queue_;
-
-private:
-    TOutputStreamWrap(const TOutputStreamWrap&) = delete;
-    TOutputStreamWrap& operator=(const TOutputStreamWrap&) = delete;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -40,7 +40,8 @@ Handle<Value> IsBasicYtError(const Arguments& args)
     bool result =
         args[0]->IsObject() &&
         ConstructorTemplate->HasInstance(args[0]);
-    return result ? v8::True() : v8::False();
+
+    return scope.Close(result ? v8::True() : v8::False());
 }
 
 Handle<Value> SpawnBasicYtError(const Arguments& args)

@@ -57,6 +57,7 @@ Handle<Value> GetEioInformation(const Arguments& args)
     result->Set(String::NewSymbol("nready"),   Integer::NewFromUnsigned(eio_nready()));
     result->Set(String::NewSymbol("npending"), Integer::NewFromUnsigned(eio_npending()));
     result->Set(String::NewSymbol("nthreads"), Integer::NewFromUnsigned(eio_nthreads()));
+
     return scope.Close(result);
 }
 
@@ -72,7 +73,8 @@ Handle<Value> SetEioConcurrency(const Arguments& args)
     YCHECK(numberOfThreads > 0);
     eio_set_min_parallel(numberOfThreads);
     eio_set_max_parallel(numberOfThreads);
-    return Undefined();
+
+    return scope.Close(Undefined());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,7 +120,7 @@ Handle<Value> ConfigureSingletons(const Arguments& args)
                 String::New(ex.what()))));
     }
 
-    return Undefined();
+    return scope.Close(Undefined());
 }
 
 Handle<Value> ShutdownSingletons(const Arguments& args)
@@ -128,7 +130,7 @@ Handle<Value> ShutdownSingletons(const Arguments& args)
 
     Shutdown();
 
-    return Undefined();
+    return scope.Close(Undefined());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,6 +155,23 @@ Handle<Value> EscapeC(const Arguments& args)
     return scope.Close(String::New(escaped.c_str()));
 }
 
+Handle<Value> _Exit(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Validate arguments.
+    YCHECK(args.Length() == 1);
+
+    EXPECT_THAT_IS(args[0], Number);
+
+    ui32 exitCode = args[0]->Uint32Value();
+
+    _exit(exitCode);
+
+    return scope.Close(Undefined());
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,6 +193,9 @@ void InitializeCommon(Handle<Object> target)
     target->Set(
         String::NewSymbol("EscapeC"),
         FunctionTemplate::New(EscapeC)->GetFunction());
+    target->Set(
+        String::NewSymbol("_Exit"),
+        FunctionTemplate::New(_Exit)->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,7 +15,7 @@ class TDriverWrap
     : public node::ObjectWrap
 {
 protected:
-    TDriverWrap(bool echo, v8::Handle<v8::Object> configObject);
+    TDriverWrap(bool echo, NDriver::IDriverPtr driver);
     ~TDriverWrap();
 
 public:
@@ -38,16 +38,11 @@ public:
     // Asynchronous JS API.
     static v8::Handle<v8::Value> Execute(const v8::Arguments& args);
 
-    // C++ API.
-    NDriver::IDriverPtr GetDriver() const;
-    const bool IsEcho() const;
-
 private:
-    NDriver::IDriverPtr Driver;
-    Stroka Message;
-
     // This is for testing purposes only.
     const bool Echo;
+    // This is for real.
+    NDriver::IDriverPtr Driver;
 
 private:
     TDriverWrap(const TDriverWrap&);
