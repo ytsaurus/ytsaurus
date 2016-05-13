@@ -197,9 +197,9 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                 backoff = get_backoff(
                     request_start_time=request_start_time,
                     request_timeout=get_config(client)["proxy"]["request_retry_timeout"],
-                    request_type="light",
+                    is_request_heavy=False,
                     attempt=attempt,
-                    backoff_config=get_config(client)["backoff"])
+                    backoff_config=get_config(client)["retry_backoff"])
                 if backoff:
                     logger.warning("Sleep for %.2lf seconds before next retry", backoff)
                     time.sleep(backoff)

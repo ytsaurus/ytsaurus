@@ -12,16 +12,18 @@ default_config = {
     # If backend equals None, thenits value will be automatically detected.
     "backend": None,
 
-    "backoff": {
-        # Policy of backoff.
+    "retry_backoff": {
+        # Policy of backoff for failed requests.
         # Supported values:
-        # to_timeout - we will sleep due to timeout of the request (applyable only for light requests).
-        # constant_time - the back equals to time specified below.
-        # exponential - backoffs will be exponential to time (of request timeout if time is noe specified).
-        "policy": "to_timeout",
-        "time": None,
+        # rounded_up_to_request_timeout - we will sleep due to the timeout of the request.
+        #     For heavy requests we will sleep heave_request_timeout time.
+        # constant_time - we will sleep time specified in constant time option.
+        # exponential - we will sleep min(exponnetial_max_timeout, exponential_start_timeout * exponential_base ^ retry_attempt)
+        "policy": "rounded_up_to_request_timeout",
+        "constant_time": 1000.0,
         "exponential_start_timeout": 1000.0,
-        "exponential_multiplier": 2.0
+        "exponential_base": 2.0,
+        "exponnetial_max_timeout": 60000.0,
     },
 
     # Configuration of proxy connection.
@@ -44,7 +46,7 @@ default_config = {
         # More retries in case of operation state discovery.
         "operation_state_discovery_retry_count": 100,
 
-        # Forces backoff between consequent requests.
+        # Forces backoff between consequent requests (for all requests, not just failed).
         # !!! It is not proxy specific !!!
         "request_backoff_time": None,
 
