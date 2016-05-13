@@ -121,6 +121,8 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
         # read files by chunks, not by lines
         stream = chunk_iter_stream(stream, chunk_size)
     if isinstance(stream, basestring):
+        if isinstance(stream, unicode):
+            stream = stream.encode("utf-8")
         if len(stream) <= chunk_size:
             is_one_small_blob = True
             stream = [stream]

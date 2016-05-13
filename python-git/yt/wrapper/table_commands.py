@@ -86,6 +86,8 @@ def _set_option(params, name, value, transform=None):
 
 def _to_chunk_stream(stream, format, raw, split_rows, chunk_size):
     if isinstance(stream, basestring):
+        if isinstance(stream, unicode):
+            stream = stream.encode("utf-8")
         stream = StringIO(stream)
 
     is_iterable = any([isinstance(stream, type) for type in [types.ListType, types.GeneratorType]]) or hasattr(stream, "next")

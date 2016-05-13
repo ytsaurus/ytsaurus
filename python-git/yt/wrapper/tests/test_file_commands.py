@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import yt.wrapper as yt
 
 from helpers import TEST_DIR, set_config_option
@@ -53,6 +55,13 @@ class TestFileCommands(object):
         destination = yt.smart_upload_file(filename, placement_strategy="ignore")
         yt.smart_upload_file(filename, placement_strategy="ignore")
         assert yt.read_file(destination).read() == "some content"
+
+    def test_unicode(self):
+        data = u"строка"
+        path = TEST_DIR + "/filename"
+        yt.create("file", path)
+        yt.write_file(path, data)
+        assert yt.read_file(path).read().decode("utf-8") == data
 
     def test_write_compressed_file_data(self):
         fd, filename = tempfile.mkstemp()
