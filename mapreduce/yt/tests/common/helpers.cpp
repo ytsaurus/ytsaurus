@@ -9,7 +9,6 @@ namespace NCommonTest {
 using namespace NMR;
 
 void PrintTable(TServer& server, const char* tableName, TOutputStream& out) {
-    out << "~~~~~~" << tableName << "~~~~~~" << Endl;
     TClient client(server);
     TTable table(client, tableName);
     for (auto&& it = table.Begin(); it != table.End(); ++it) {
