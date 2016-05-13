@@ -165,6 +165,7 @@ void ProcessFetchResponse(
                         chunkId);
                 }
                 foreignChunkSpecs[globalIndex]->mutable_replicas()->Swap(subresponse->mutable_replicas());
+                foreignChunkSpecs[globalIndex]->set_erasure_codec(subresponse->erasure_codec());
             }
         }
     }
