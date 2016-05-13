@@ -46,6 +46,8 @@ def ypath_join(*paths):
     return "".join(result)
 
 def escape_ypath_literal(literal):
+    """ Escapes string to use it as key in ypath.
+    """
     def escape_char(ch):
         if ch in ["\\", "/", "@", "&", "[", "{"]:
             return "\\" + ch

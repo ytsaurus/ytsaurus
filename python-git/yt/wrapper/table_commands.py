@@ -69,8 +69,6 @@ import os
 import sys
 import time
 import types
-import socket
-import getpass
 from cStringIO import StringIO
 from copy import deepcopy
 
