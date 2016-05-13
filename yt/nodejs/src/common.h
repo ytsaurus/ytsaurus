@@ -1,9 +1,6 @@
 #pragma once
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/lazy_ptr.h>
-
-#include <yt/core/ytree/public.h>
 
 #define BUILDING_NODE_EXTENSION
 
@@ -109,12 +106,19 @@ DEFINE_ENUM(ECompression,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Assuming presence of outer HandleScope.
+// Assuming presence of outer v8::HandleScope.
+inline void Invoke(
+    const v8::Handle<v8::Function>& callback)
+{
+    node::MakeCallback(v8::Object::New(), callback, 0, nullptr);
+}
+
+// Assuming presence of outer v8::HandleScope.
 inline void Invoke(
     const v8::Handle<v8::Function>& callback,
     const v8::Handle<v8::Value>& a1)
 {
-    v8::Handle<v8::Value> args[] = { a1 };
+    v8::Handle<v8::Value> args[] = {a1};
     node::MakeCallback(v8::Object::New(), callback, Y_ARRAY_SIZE(args), args);
 }
 
@@ -124,7 +128,7 @@ inline void Invoke(
     const v8::Handle<v8::Value>& a1,
     const v8::Handle<v8::Value>& a2)
 {
-    v8::Handle<v8::Value> args[] = { a1, a2 };
+    v8::Handle<v8::Value> args[] = {a1, a2};
     node::MakeCallback(v8::Object::New(), callback, Y_ARRAY_SIZE(args), args);
 }
 
@@ -135,11 +139,9 @@ inline void Invoke(
     const v8::Handle<v8::Value>& a2,
     const v8::Handle<v8::Value>& a3)
 {
-    v8::Handle<v8::Value> args[] = { a1, a2, a3 };
+    v8::Handle<v8::Value> args[] = {a1, a2, a3};
     node::MakeCallback(v8::Object::New(), callback, Y_ARRAY_SIZE(args), args);
 }
-
-IInvokerPtr GetUVInvoker();
 
 void InitializeCommon(v8::Handle<v8::Object> target);
 

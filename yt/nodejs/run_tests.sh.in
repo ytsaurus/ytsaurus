@@ -17,6 +17,7 @@ export NODE_PATH=$CMB:$CMB/node_modules:$NODE_PATH
 (cd $CMS/tests && exec $CMB/node_modules/.bin/mocha \
   --reporter "spec" \
   --require "common.js" \
+  --expose-gc \
   "$@" \
   test_*.js \
   )

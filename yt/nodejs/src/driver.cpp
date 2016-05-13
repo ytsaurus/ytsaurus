@@ -3,15 +3,18 @@
 #include "error.h"
 #include "future.h"
 #include "input_stack.h"
-#include "input_stream.h"
 #include "node.h"
 #include "output_stack.h"
-#include "output_stream.h"
+#include "uv_invoker.h"
+
+#include <yt/ytlib/chunk_client/dispatcher.h>
 
 #include <yt/ytlib/driver/config.h>
 #include <yt/ytlib/driver/driver.h>
 
 #include <yt/ytlib/formats/format.h>
+
+#include <yt/core/actions/bind_helpers.h>
 
 #include <yt/core/concurrency/async_stream.h>
 
@@ -55,88 +58,12 @@ static Persistent<String> DescriptorOutputTypeAsInteger;
 static Persistent<String> DescriptorIsVolatile;
 static Persistent<String> DescriptorIsHeavy;
 
-class TUVInvoker
-    : public IInvoker
-{
-public:
-    explicit TUVInvoker(uv_loop_t* loop)
-    {
-        memset(&AsyncHandle, 0, sizeof(AsyncHandle));
-        YCHECK(uv_async_init(loop, &AsyncHandle, &TUVInvoker::Callback) == 0);
-        AsyncHandle.data = this;
-    }
-
-    ~TUVInvoker()
-    {
-        uv_close((uv_handle_t*)&AsyncHandle, nullptr);
-    }
-
-    virtual void Invoke(const TClosure& callback) override
-    {
-        Queue.Enqueue(callback);
-
-        YCHECK(uv_async_send(&AsyncHandle) == 0);
-    }
-
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual NConcurrency::TThreadId GetThreadId() const override
-    {
-        return NConcurrency::InvalidThreadId;
-    }
-
-    virtual bool CheckAffinity(IInvokerPtr invoker) const override
-    {
-        return invoker.Get() == this;
-    }
-#endif
-
-private:
-    uv_async_t AsyncHandle;
-
-    TClosure Action;
-    TLockFreeQueue<TClosure> Queue;
-
-    static void Callback(uv_async_t* handle, int status)
-    {
-        THREAD_AFFINITY_IS_V8();
-
-        YCHECK(status == 0);
-        YCHECK(handle->data);
-
-        reinterpret_cast<TUVInvoker*>(handle->data)->CallbackImpl();
-    }
-
-    void CallbackImpl()
-    {
-        YCHECK(!Action);
-        while (Queue.Dequeue(&Action)) {
-            Action.Run();
-            Action.Reset();
-        }
-        YCHECK(!Action);
-    }
-};
-
-// uv_default_loop() is a static singleton object, so it is safe to call
-// function at the binding time.
-//
-static TLazyIntrusivePtr<IInvoker> DefaultUVInvoker(BIND([] () -> IInvokerPtr {
-    return New<TUVInvoker>(uv_default_loop());
-}));
-
-IInvokerPtr GetUVInvoker()
-{
-    return DefaultUVInvoker.Get();
-}
-
 class TResponseParametersConsumer
     : public TForwardingYsonConsumer
 {
 public:
     TResponseParametersConsumer(const Persistent<Function>& callback)
-        : FlushClosure_(BIND(&TResponseParametersConsumer::DoFlush, this))
-        , FlushPending_(0)
-        , Callback_(callback)
+        : Callback_(callback)
     {
         THREAD_AFFINITY_IS_V8();
     }
@@ -148,189 +75,226 @@ public:
 
     virtual void OnMyKeyedItem(const TStringBuf& keyRef) override
     {
+        THREAD_AFFINITY_IS_ANY();
+
         auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+        auto builder_ = builder.get();
 
-        builder->BeginTree();
+        builder_->BeginTree();
         Forward(
-            builder.get(),
-            BIND(&TResponseParametersConsumer::DoSaveBit, this, Stroka(keyRef), Owned(builder.get())));
-
-        builder.release();
-    }
-
-    TFuture<void> Flush()
-    {
-        auto flushFuture = FlushFuture_;
-        if (!flushFuture) {
-            TGuard<TSpinLock> guard(Lock_);
-            if (!FlushFuture_) {
-                FlushFuture_ = FlushClosure_
-                    .AsyncVia(GetUVInvoker())
-                    .Run();
-            }
-            return FlushFuture_;
-        }
-        return flushFuture;
+            builder_,
+            BIND(&TResponseParametersConsumer::DoSavePair,
+                this,
+                Passed(Stroka(keyRef)),
+                Passed(std::move(builder))));
     }
 
 private:
-    typedef std::tuple<Stroka, INodePtr> Bit;
-
-    TSpinLock Lock_;
-    std::deque<Bit> Bits_;
-
-    TClosure FlushClosure_;
-    TAtomic FlushPending_;
-    TFuture<void> FlushFuture_;
-
     const Persistent<Function>& Callback_;
 
-    void DoFlush()
+    void DoSavePair(Stroka key, std::unique_ptr<ITreeBuilder> builder)
     {
-        THREAD_AFFINITY_IS_V8();
-        HandleScope scope;
+        auto pair = std::make_pair(std::move(key), builder->EndTree());
+        auto future =
+            BIND([this, pair = std::move(pair)] () {
+                THREAD_AFFINITY_IS_V8();
+                HandleScope scope;
+                auto keyHandle = String::New(pair.first.c_str());
+                auto valueHandle = TNodeWrap::ConstructorTemplate->GetFunction()->NewInstance();
+                TNodeWrap::Unwrap(valueHandle)->SetNode(pair.second);
+                Invoke(Callback_, keyHandle, valueHandle);
+            })
+            .AsyncVia(GetUVInvoker())
+            .Run();
 
-        std::deque<Bit> bitsToFlush;
-        {
-            TGuard<TSpinLock> guard(Lock_);
-            bitsToFlush.swap(Bits_);
-            FlushFuture_.Reset();
-        }
-
-        for (const auto& bit : bitsToFlush) {
-            auto keyHandle = String::New(std::get<0>(bit).c_str());
-            auto valueHandle = TNodeWrap::ConstructorTemplate->GetFunction()->NewInstance();
-            TNodeWrap::Unwrap(valueHandle)->SetNode(std::get<1>(bit));
-            Invoke(Callback_, keyHandle, valueHandle);
-        }
+        // Await for the future, see YT-1095.
+        WaitFor(std::move(future));
     }
-
-    void DoSaveBit(const Stroka& key, ITreeBuilder* builder)
-    {
-        {
-            TGuard<TSpinLock> guard(Lock_);
-            Bits_.emplace_back(std::forward_as_tuple(
-                std::move(key),
-                builder->EndTree()));
-        }
-
-        // Await for flush. See YT-1095.
-        WaitFor(Flush());
-    }
-
 };
 
-// TODO(sandello): Refactor this huge mess.
-struct TExecuteRequest
+class TExecuteRequest
+    : public IAsyncRefCounted
 {
-    uv_work_t Request;
-    TDriverWrap* Wrap;
+private:
+    const bool Echo_;
+    const IDriverPtr Driver_;
 
-    Persistent<Function> ExecuteCallback;
-    Persistent<Function> ParameterCallback;
+    TDriverRequest Request_;
 
-    TNodeJSInputStack InputStack;
-    TNodeJSOutputStack OutputStack;
-    TResponseParametersConsumer ResponseParametersConsumer;
+    std::unique_ptr<TNodeJSInputStack> InputStack_;
+    std::unique_ptr<TNodeJSOutputStack> OutputStack_;
 
-    TDriverRequest DriverRequest;
-    TPromise<void> DriverResponse = NewPromise<void>();
+    Persistent<Function> ExecuteCallback_;
+    Persistent<Function> ParameterCallback_;
 
-    NTracing::TTraceContext TraceContext;
+    TResponseParametersConsumer ResponseParametersConsumer_;
 
+    NTracing::TTraceContext TraceContext_;
+
+    std::atomic<bool> DestructionInProgress_ = {false};
+
+public:
     TExecuteRequest(
-        TDriverWrap* wrap,
+        bool echo,
+        IDriverPtr driver,
         TInputStreamWrap* inputStream,
         TOutputStreamWrap* outputStream,
         Handle<Function> executeCallback,
         Handle<Function> parameterCallback)
-        : Wrap(wrap)
-        , ExecuteCallback(Persistent<Function>::New(executeCallback))
-        , ParameterCallback(Persistent<Function>::New(parameterCallback))
-        , InputStack(inputStream)
-        , OutputStack(outputStream)
-        , ResponseParametersConsumer(ParameterCallback)
+        : Echo_(echo)
+        , Driver_(std::move(driver))
+        , InputStack_(std::make_unique<TNodeJSInputStack>(inputStream))
+        , OutputStack_(std::make_unique<TNodeJSOutputStack>(outputStream))
+        , ExecuteCallback_(Persistent<Function>::New(executeCallback))
+        , ParameterCallback_(Persistent<Function>::New(parameterCallback))
+        , ResponseParametersConsumer_(ParameterCallback_)
     {
         THREAD_AFFINITY_IS_V8();
-        YASSERT(Wrap);
-
-        Wrap->Ref();
     }
 
     ~TExecuteRequest()
     {
         THREAD_AFFINITY_IS_V8();
 
-        ExecuteCallback.Dispose();
-        ExecuteCallback.Clear();
+        ExecuteCallback_.Dispose();
+        ExecuteCallback_.Clear();
 
-        ParameterCallback.Dispose();
-        ParameterCallback.Clear();
-
-        Wrap->Unref();
+        ParameterCallback_.Dispose();
+        ParameterCallback_.Clear();
     }
 
-    TInputStreamWrap* GetNodeJSInputStream()
+    void Ref()
     {
-        return InputStack.GetBaseStream();
+        AsyncRef();
     }
 
-    TOutputStreamWrap* GetNodeJSOutputStream()
+    void Unref()
     {
-        return OutputStack.GetBaseStream();
+        AsyncUnref();
     }
 
-    void SetCommand(
+    void Prepare(
+        ui64 requestId,
         Stroka commandName,
         Stroka authenticatedUser,
         INodePtr parameters,
-        ui64 requestId)
+        ECompression inputCompression,
+        ECompression outputCompression)
     {
-        DriverRequest.Id = requestId;
-        DriverRequest.CommandName = std::move(commandName);
-        DriverRequest.AuthenticatedUser = std::move(authenticatedUser);
-        DriverRequest.Parameters = parameters->AsMap();
+        THREAD_AFFINITY_IS_V8();
 
-        auto trace = DriverRequest.Parameters->FindChild("trace");
+        Request_.Id = requestId;
+        Request_.CommandName = std::move(commandName);
+        Request_.AuthenticatedUser = std::move(authenticatedUser);
+        Request_.Parameters = parameters->AsMap();
+
+        auto trace = Request_.Parameters->FindChild("trace");
         if (trace && ConvertTo<bool>(trace)) {
-            TraceContext = NTracing::CreateRootTraceContext();
+            TraceContext_ = NTracing::CreateRootTraceContext();
             if (requestId) {
-                TraceContext = NTracing::TTraceContext(
+                TraceContext_ = NTracing::TTraceContext(
                     requestId,
-                    TraceContext.GetSpanId(),
-                    TraceContext.GetParentSpanId());
+                    TraceContext_.GetSpanId(),
+                    TraceContext_.GetParentSpanId());
             }
+        }
+
+        auto compressionInvoker =
+            NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker();
+
+        InputStack_->AddCompression(inputCompression);
+        Request_.InputStream = CreateAsyncAdapter(InputStack_.get(), compressionInvoker);
+
+        OutputStack_->AddCompression(outputCompression);
+        Request_.OutputStream = CreateAsyncAdapter(OutputStack_.get(), compressionInvoker);
+
+        Request_.ResponseParametersConsumer = &ResponseParametersConsumer_;
+    }
+
+    Handle<Value> Run()
+    {
+        THREAD_AFFINITY_IS_V8();
+        // Assume outer handle scope.
+
+        // May acquire sync-reference.
+        auto this_ = MakeStrong(this);
+
+        TFuture<void> future;
+        auto wrappedFuture = TFutureWrap::ConstructorTemplate->GetFunction()->NewInstance();
+
+        if (Y_LIKELY(!Echo_)) {
+            NTracing::TTraceContextGuard guard(TraceContext_);
+            future = Driver_->Execute(Request_);
+        } else {
+            future =
+                BIND(&TExecuteRequest::PipeInputToOutput, this_)
+                .AsyncVia(NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker())
+                .Run();
+        }
+
+        future.Subscribe(
+            BIND(&TExecuteRequest::OnResponse, this_)
+            .Via(GetUVInvoker()));
+
+        TFutureWrap::Unwrap(wrappedFuture)->SetFuture(std::move(future));
+
+        return wrappedFuture;
+    }
+
+private:
+    void PipeInputToOutput()
+    {
+        THREAD_AFFINITY_IS_ANY();
+
+        TTempBuf buffer;
+        auto inputStream = CreateSyncAdapter(Request_.InputStream);
+        auto outputStream = CreateSyncAdapter(Request_.OutputStream);
+
+        while (size_t length = inputStream->Load(buffer.Data(), buffer.Size())) {
+            outputStream->Write(buffer.Data(), length);
         }
     }
 
-    void SetInputCompression(ECompression compression)
+    void OnResponse(const TErrorOr<void>& response)
     {
-        InputStack.AddCompression(compression);
+        THREAD_AFFINITY_IS_V8();
+        HandleScope scope;
+
+        try {
+            OutputStack_->Finish();
+        } catch (const std::exception& ex) {
+            LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
+        }
+
+        // XXX(sandello): We cannot represent ui64 precisely in V8, because there
+        // is no native ui64 integer type. So we convert ui64 to double (v8::Number)
+        // to precisely represent all integers up to 2^52
+        // (see http://en.wikipedia.org/wiki/Double_precision).
+        double bytesIn = InputStack_->GetBytes();
+        InputStack_.reset();
+        double bytesOut = OutputStack_->GetBytes();
+        OutputStack_.reset();
+
+        Invoke(
+            ExecuteCallback_,
+            ConvertErrorToV8(response),
+            Number::New(bytesIn),
+            Number::New(bytesOut));
     }
 
-    void SetOutputCompression(ECompression compression)
+    void SyncRef()
     {
-        OutputStack.AddCompression(compression);
+        YCHECK(!DestructionInProgress_);
     }
 
-    void Prepare()
+    void SyncUnref()
     {
-        Request.data = this;
+        bool expected = false;
+        YCHECK(DestructionInProgress_.compare_exchange_strong(expected, true));
 
-        DriverRequest.InputStream = CreateAsyncAdapter(&InputStack);
-        DriverRequest.OutputStream = CreateAsyncAdapter(&OutputStack);
-        DriverRequest.ResponseParametersConsumer = &ResponseParametersConsumer;
-    }
-
-    void Finish()
-    {
-        OutputStack.Finish();
-    }
-
-    void Await()
-    {
-        DriverResponse.Get();
-        ResponseParametersConsumer.Flush().Get();
+        BIND([this] () { delete this; })
+            .Via(GetUVInvoker())
+            .Run();
     }
 };
 
@@ -397,34 +361,12 @@ void ExportEnumeration(
 
 Persistent<FunctionTemplate> TDriverWrap::ConstructorTemplate;
 
-TDriverWrap::TDriverWrap(bool echo, Handle<Object> configObject)
+TDriverWrap::TDriverWrap(bool echo, IDriverPtr driver)
     : node::ObjectWrap()
     , Echo(echo)
+    , Driver(std::move(driver))
 {
     THREAD_AFFINITY_IS_V8();
-
-    INodePtr configNode = ConvertV8ValueToNode(configObject);
-    if (!configNode) {
-        Message = "Error converting from V8 to YSON";
-        return;
-    }
-
-    NNodeJS::THttpProxyConfigPtr config;
-    try {
-        // Qualify namespace to avoid collision with class method New().
-        config = NYT::New<NYT::NNodeJS::THttpProxyConfig>();
-        config->Load(configNode);
-    } catch (const std::exception& ex) {
-        Message = Format("Error loading configuration\n%v", ex.what());
-        return;
-    }
-
-    try {
-        Driver = CreateDriver(config->Driver);
-    } catch (const std::exception& ex) {
-        Message = Format("Error initializing driver instance\n%v", ex.what());
-        return;
-    }
 }
 
 TDriverWrap::~TDriverWrap()
@@ -485,23 +427,25 @@ Handle<Value> TDriverWrap::New(const Arguments& args)
     EXPECT_THAT_IS(args[0], Boolean);
     EXPECT_THAT_IS(args[1], Object);
 
-    TDriverWrap* wrap = NULL;
     try {
-        wrap = new TDriverWrap(
-            args[0]->BooleanValue(),
-            args[1].As<Object>());
+        bool echo = args[0]->BooleanValue();
+
+        auto configNode = ConvertV8ValueToNode(args[1].As<Object>());
+        if (!configNode) {
+            return ThrowException(Exception::Error(String::New(
+                "Error converting from V8 to YSON")));
+        }
+
+        auto config = NYT::New<NYT::NNodeJS::THttpProxyConfig>();
+        config->Load(configNode);
+
+        auto driver = CreateDriver(config->Driver);
+
+        auto wrap = new TDriverWrap(echo, std::move(driver));
         wrap->Wrap(args.This());
 
-        if (wrap->Driver) {
-            return args.This();
-        } else {
-            return ThrowException(Exception::Error(String::New(~wrap->Message)));
-        }
+        return scope.Close(args.This());
     } catch (const std::exception& ex) {
-        if (wrap) {
-            delete wrap;
-        }
-
         return ThrowException(Exception::Error(String::New(ex.what())));
     }
 }
@@ -514,7 +458,7 @@ Handle<Value> TDriverWrap::FindCommandDescriptor(const Arguments& args)
     HandleScope scope;
 
     // Unwrap object.
-    TDriverWrap* driver = ObjectWrap::Unwrap<TDriverWrap>(args.This());
+    auto* driver = ObjectWrap::Unwrap<TDriverWrap>(args.This());
 
     // Validate arguments.
     YCHECK(args.Length() == 1);
@@ -547,7 +491,7 @@ Handle<Value> TDriverWrap::GetCommandDescriptors(const Arguments& args)
     HandleScope scope;
 
     // Unwrap.
-    TDriverWrap* driver = ObjectWrap::Unwrap<TDriverWrap>(args.This());
+    auto* driver = ObjectWrap::Unwrap<TDriverWrap>(args.This());
 
     // Validate arguments.
     YCHECK(args.Length() == 0);
@@ -594,22 +538,18 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
     EXPECT_THAT_IS(args[9], Function); // ParameterCallback
 
     // Unwrap arguments.
-    TDriverWrap* host = ObjectWrap::Unwrap<TDriverWrap>(args.This());
+    auto* wrap = ObjectWrap::Unwrap<TDriverWrap>(args.This());
 
     String::AsciiValue commandName(args[0]);
     String::AsciiValue authenticatedUser(args[1]);
 
-    TInputStreamWrap* inputStream =
-        ObjectWrap::Unwrap<TInputStreamWrap>(args[2].As<Object>());
-    ECompression inputCompression =
-        (ECompression)args[3]->Uint32Value();
+    auto* inputStream = ObjectWrap::Unwrap<TInputStreamWrap>(args[2].As<Object>());
+    auto inputCompression = (ECompression)args[3]->Uint32Value();
 
-    TOutputStreamWrap* outputStream =
-        ObjectWrap::Unwrap<TOutputStreamWrap>(args[4].As<Object>());
-    ECompression outputCompression =
-        (ECompression)args[5]->Uint32Value();
+    auto* outputStream = ObjectWrap::Unwrap<TOutputStreamWrap>(args[4].As<Object>());
+    auto outputCompression = (ECompression)args[5]->Uint32Value();
 
-    INodePtr parameters = TNodeWrap::UnwrapNode(args[6]);
+    auto parameters = TNodeWrap::UnwrapNode(args[6]);
 
     ui64 requestId = 0;
 
@@ -621,101 +561,30 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
         }
     }
 
-    Local<Function> executeCallback = args[8].As<Function>();
-    Local<Function> parameterCallback = args[9].As<Function>();
+    auto executeCallback = args[8].As<Function>();
+    auto parameterCallback = args[9].As<Function>();
 
     // Build an atom of work.
     YCHECK(parameters);
     YCHECK(parameters->GetType() == ENodeType::Map);
 
-    std::unique_ptr<TExecuteRequest> request(new TExecuteRequest(
-        host,
+    TIntrusivePtr<TExecuteRequest> request(new TExecuteRequest(
+        wrap->Echo,
+        wrap->Driver,
         inputStream,
         outputStream,
         executeCallback,
         parameterCallback));
 
-    request->SetCommand(
+    request->Prepare(
+        requestId,
         Stroka(*commandName, commandName.length()),
         Stroka(*authenticatedUser, authenticatedUser.length()),
         std::move(parameters),
-        requestId);
+        inputCompression,
+        outputCompression);
 
-    request->SetInputCompression(inputCompression);
-    request->SetOutputCompression(outputCompression);
-
-    request->Prepare();
-
-    auto future = request->DriverResponse.ToFuture();
-    auto futureWrap = TFutureWrap::ConstructorTemplate->GetFunction()->NewInstance();
-    TFutureWrap::Unwrap(futureWrap)->SetFuture(std::move(future));
-
-    uv_queue_work(
-        uv_default_loop(), &request.release()->Request,
-        TDriverWrap::ExecuteWork, TDriverWrap::ExecuteAfter);
-
-    return scope.Close(futureWrap);
-}
-
-void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
-{
-    THREAD_AFFINITY_IS_UV();
-    TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
-
-    if (Y_LIKELY(!request->Wrap->Echo)) {
-        NTracing::TTraceContextGuard guard(request->TraceContext);
-
-        // Execute() method is guaranteed to be exception-safe,
-        // so no try-catch here.
-        auto response = request->Wrap->Driver->Execute(request->DriverRequest);
-
-        request->DriverResponse.TrySetFrom(response);
-        request->Await();
-    } else {
-        TTempBuf buffer;
-        auto inputStream = CreateSyncAdapter(request->DriverRequest.InputStream);
-        auto outputStream = CreateSyncAdapter(request->DriverRequest.OutputStream);
-
-        while (size_t length = inputStream->Load(buffer.Data(), buffer.Size())) {
-            outputStream->Write(buffer.Data(), length);
-        }
-
-        request->DriverResponse.Set(TError());
-    }
-}
-
-void TDriverWrap::ExecuteAfter(uv_work_t* workRequest)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    std::unique_ptr<TExecuteRequest> request(
-        container_of(workRequest, TExecuteRequest, Request));
-
-    try {
-        if (Y_LIKELY(request->OutputStack.HasAnyData())) {
-            request->Finish();
-        } else {
-            // In this case we have to prematurely destroy the stream to avoid
-            // writing middleware-induced framing overhead.
-            request->OutputStack.GetBaseStream()->DoDestroy();
-        }
-    } catch (const std::exception& ex) {
-        LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
-    }
-
-    // XXX(sandello): We cannot represent ui64 precisely in V8, because there
-    // is no native ui64 integer type. So we convert ui64 to double (v8::Number)
-    // to precisely represent all integers up to 2^52
-    // (see http://en.wikipedia.org/wiki/Double_precision).
-    double bytesIn = request->InputStack.GetBaseStream()->GetBytesEnqueued();
-    double bytesOut = request->OutputStack.GetBaseStream()->GetBytesEnqueued();
-
-    Invoke(
-        request->ExecuteCallback,
-        ConvertErrorToV8(request->DriverResponse.Get()),
-        Number::New(bytesIn),
-        Number::New(bytesOut));
+    return scope.Close(request->Run());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
