@@ -150,7 +150,10 @@ var violentlyDie = function violentDeath() {
     process.nextTick(function() {
         cluster.worker.disconnect();
         cluster.worker.destroy();
-        process.exit();
+        process.nextTick(function() {
+            // Wipe process.
+            binding._Exit(0);
+        });
     });
 };
 
