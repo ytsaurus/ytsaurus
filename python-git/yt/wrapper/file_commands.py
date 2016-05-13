@@ -7,7 +7,7 @@ from errors import YtError, YtResponseError
 from http import get_api_version
 from heavy_commands import make_write_request, make_read_request
 from cypress_commands import remove, exists, set_attribute, mkdir, find_free_subpath, \
-                             create, link, get_attribute, set, join_paths
+                             create, link, get_attribute, set, ypath_join
 from table import to_table
 
 from yt.yson import to_yson_type
@@ -200,8 +200,8 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
 
     if destination is None:
         # create file storage dir and hash subdir
-        mkdir(join_paths(get_config(client)["remote_temp_files_directory"], "hash"), recursive=True, client=client)
-        prefix = join_paths(get_config(client)["remote_temp_files_directory"], os.path.basename(filename))
+        mkdir(ypath_join(get_config(client)["remote_temp_files_directory"], "hash"), recursive=True, client=client)
+        prefix = ypath_join(get_config(client)["remote_temp_files_directory"], os.path.basename(filename))
         destination = prefix
         if placement_strategy == "random":
             destination = find_free_subpath(prefix, client=client)
@@ -224,8 +224,8 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     if placement_strategy == "hash":
         if hash is None:
             hash = md5sum(filename)
-        hash_path = join_paths(get_config(client)["remote_temp_files_directory"], "hash")
-        destination = join_paths(hash_path, hash)
+        hash_path = ypath_join(get_config(client)["remote_temp_files_directory"], "hash")
+        destination = ypath_join(hash_path, hash)
 
         destination_is_file = False
         try:

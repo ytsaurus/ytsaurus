@@ -246,7 +246,7 @@ def list(**args):
         if args["attributes"] is not None:
             print >> sys.stderr, "Attributes are ignored if format is not specified!"
         for elem in list:
-            formatted_print(elem, yt.join_paths(args["path"], yt.escape_ypath_literal(elem)), args["long_format"])
+            formatted_print(elem, yt.ypath_join(args["path"], yt.escape_ypath_literal(elem)), args["long_format"])
     else:
         sys.stdout.write(list)
 
