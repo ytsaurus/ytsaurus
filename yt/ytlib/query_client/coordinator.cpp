@@ -39,7 +39,7 @@ TTableSchema GetIntermediateSchema(TConstGroupClausePtr groupClause)
             item.StateType));
     }
 
-    return TTableSchema(columns);
+    return TTableSchema(std::move(columns));
 }
 
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
