@@ -90,7 +90,7 @@ public:
     explicit TColumnEvaluatorCache(
         TColumnEvaluatorCacheConfigPtr config,
         const TConstTypeInferrerMapPtr& typeInferrers = BuiltinTypeInferrersMap,
-        const TConstFunctionProfilerMapPtr& profilers = BuiltinFunctionCG.Get());
+        const TConstFunctionProfilerMapPtr& profilers = BuiltinFunctionCG);
     ~TColumnEvaluatorCache();
 
     TColumnEvaluatorPtr Find(const TTableSchema& schema);
