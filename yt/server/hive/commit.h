@@ -9,6 +9,7 @@
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/property.h>
+#include <yt/core/misc/ref_tracked.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -21,6 +22,7 @@ DECLARE_ENTITY_TYPE(TCommit, TTransactionId, ::THash<TTransactionId>)
 
 class TCommit
     : public NHydra::TEntityBase
+    , public TRefTracked<TCommit>
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, TransactionId);
