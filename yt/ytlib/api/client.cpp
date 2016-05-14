@@ -3188,7 +3188,6 @@ private:
             , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].Columns().size())
             , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].GetKeyColumnCount())
             , ColumnEvaluator_(std::move(columnEvauator))
-            , RowBuffer_(New<TRowBuffer>())
             , Logger(owner->Logger)
         {
             Logger.AddTag("TabletId: %v", TabletInfo_->TabletId);
