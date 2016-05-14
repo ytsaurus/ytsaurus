@@ -12,13 +12,11 @@ class BinaryDistribution(Distribution):
         return False
 
 def main():
-    if not os.path.exists("yt/bindings/yson"):
-        shutil.copytree("yt_yson_bindings", "yt/bindings/yson")
     setup(
         name = "yandex-yt-yson-bindings",
         version = get_version(),
-        packages = ["yt.bindings", "yt.bindings.yson", "yt_yson_bindings"],
-        package_data = {"yt.bindings.yson": ["yson_lib.so"], "yt_yson_bindings": ["yson_lib.so"] },
+        packages = ["yt_yson_bindings"],
+        package_data = {"yt_yson_bindings": ["yson_lib.so"] },
 
         author = "Ignat Kolesnichenko",
         author_email = "ignat@yandex-team.ru",
