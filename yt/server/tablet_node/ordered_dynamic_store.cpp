@@ -1,5 +1,6 @@
 #include "ordered_dynamic_store.h"
 #include "tablet.h"
+#include "transaction.h"
 #include "automaton.h"
 #include "config.h"
 
@@ -137,6 +138,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TNullable<int> GetTimestampColumnId(const TTableSchema& schema)
+{
+    const auto* column = schema.FindColumn(TimestampColumnName);
+    if (!column) {
+        return Null;
+    }
+    return schema.GetColumnIndex(*column);
+}
+
+} // namespace
+
 TOrderedDynamicStore::TOrderedDynamicStore(
     TTabletManagerConfigPtr config,
     const TStoreId& id,
@@ -144,6 +158,7 @@ TOrderedDynamicStore::TOrderedDynamicStore(
     : TStoreBase(config, id, tablet)
     , TDynamicStoreBase(config, id, tablet)
     , TOrderedStoreBase(config, id, tablet)
+    , TimestampColumnId_(GetTimestampColumnId(Schema_))
 {
     AllocateCurrentSegment(InitialOrderedDynamicSegmentIndex);
 
@@ -203,9 +218,12 @@ TOrderedDynamicRow TOrderedDynamicStore::MigrateRow(TTransaction* /*transaction*
 void TOrderedDynamicStore::PrepareRow(TTransaction* /*transaction*/, TOrderedDynamicRow /*row*/)
 { }
 
-void TOrderedDynamicStore::CommitRow(TTransaction* /*transaction*/, TOrderedDynamicRow row)
+void TOrderedDynamicStore::CommitRow(TTransaction* transaction, TOrderedDynamicRow row)
 {
     DoCommitRow(row);
+    if (TimestampColumnId_) {
+        row[*TimestampColumnId_] = MakeUnversionedUint64Value(transaction->GetCommitTimestamp(), *TimestampColumnId_);
+    }
     Unlock();
 }
 

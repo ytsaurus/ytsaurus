@@ -171,7 +171,9 @@ TEST_F(TOrderedDynamicStoreTest, SerializeEmpty)
 
     check();
 
+    auto dump = DumpStore();
     ReserializeStore();
+    EXPECT_EQ(dump, DumpStore());
 
     check();
 }
@@ -188,7 +190,9 @@ TEST_F(TOrderedDynamicStoreTest, SerializeNonempty1)
 
     check();
 
+    auto dump = DumpStore();
     ReserializeStore();
+    EXPECT_EQ(dump, DumpStore());
 
     check();
 }
@@ -209,7 +213,9 @@ TEST_F(TOrderedDynamicStoreTest, SerializeNonempty2)
 
     check();
 
+    auto dump = DumpStore();
     ReserializeStore();
+    EXPECT_EQ(dump, DumpStore());
 
     check();
 }
@@ -347,6 +353,46 @@ INSTANTIATE_TEST_CASE_P(
         1000,
         2000,
         10000));
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TOrderedDynamicStoreTimestampColumnTest
+    : public TOrderedDynamicStoreTest
+{
+protected:
+    virtual TTableSchema GetSchema() const override
+    {
+        return TTableSchema({
+            TColumnSchema("a", EValueType::Int64),
+            TColumnSchema("$timestamp", EValueType::Uint64)
+        });
+    }
+};
+
+TEST_F(TOrderedDynamicStoreTimestampColumnTest, Write)
+{
+    auto ts1 = WriteRow(BuildRow("a=1"));
+    auto ts2 = WriteRow(BuildRow("a=2"));
+    auto ts3 = WriteRow(BuildRow("a=3"));
+
+    auto rows = Store_->GetAllRows();
+    EXPECT_EQ(3, rows.size());
+
+    EXPECT_TRUE(AreRowsEqual(rows[0], Format("a=1;\"$timestamp\"=%vu", ts1)));
+    EXPECT_TRUE(AreRowsEqual(rows[1], Format("a=2;\"$timestamp\"=%vu", ts2)));
+    EXPECT_TRUE(AreRowsEqual(rows[2], Format("a=3;\"$timestamp\"=%vu", ts3)));
+}
+
+TEST_F(TOrderedDynamicStoreTimestampColumnTest, Serialize)
+{
+    WriteRow(BuildRow("a=1"));
+    WriteRow(BuildRow("a=2"));
+    WriteRow(BuildRow("a=3"));
+
+    auto dump = DumpStore();
+    ReserializeStore();
+    EXPECT_EQ(dump, DumpStore());
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 

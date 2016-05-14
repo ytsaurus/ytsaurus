@@ -65,6 +65,8 @@ public:
 private:
     class TReader;
 
+    const TNullable<int> TimestampColumnId_;
+
     std::atomic<i64> StoreRowCount_ = {0};
 
     std::array<std::unique_ptr<TOrderedDynamicRowSegment>, MaxOrderedDynamicSegments> Segments_;
@@ -82,7 +84,7 @@ private:
 
     TOrderedDynamicRow DoWriteSchemafulRow(NTableClient::TUnversionedRow row);
     TOrderedDynamicRow DoWriteSchemalessRow(NTableClient::TUnversionedRow row);
-    void DoCommitRow(NTableClient::TUnversionedRow row);
+    void DoCommitRow(TOrderedDynamicRow row);
     void LoadRow(NTableClient::TUnversionedRow row);
 
     NTableClient::ISchemafulReaderPtr DoCreateReader(

@@ -63,6 +63,7 @@ extern const Stroka TableIndexColumnName;
 extern const Stroka RowIndexColumnName;
 extern const Stroka RangeIndexColumnName;
 extern const Stroka TabletIndexColumnName;
+extern const Stroka TimestampColumnName;
 
 ////////////////////////////////////////////////////////////////////////////////
 

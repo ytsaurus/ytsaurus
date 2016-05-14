@@ -100,7 +100,8 @@ public:
     TTableSchema ToQuery() const;
 
     //! For sorted tables, return the current schema without computed columns.
-    //! For ordered tables, prepends the current schema with |(tablet_index)| key columns.
+    //! For ordered tables, prepends the current schema with |(tablet_index)| key column
+    //! but without |$timestamp| column, if any.
     TTableSchema ToWrite() const;
 
     //! Trims all non-key columns.
