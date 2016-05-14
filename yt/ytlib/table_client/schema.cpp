@@ -300,22 +300,23 @@ TTableSchema TTableSchema::ToQuery() const
 
 TTableSchema TTableSchema::ToWrite() const
 {
+    std::vector<TColumnSchema> columns;
     if (IsSorted()) {
-        std::vector<TColumnSchema> columns;
         for (const auto& column : Columns_) {
             if (!column.Expression) {
                 columns.push_back(column);
             }
         }
-        return TTableSchema(std::move(columns));
     } else {
-        std::vector<TColumnSchema> columns {
-            TColumnSchema(TabletIndexColumnName, EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
-        };
-        columns.insert(columns.end(), Columns_.begin(), Columns_.end());
-        return TTableSchema(std::move(columns));
+        columns.push_back(TColumnSchema(TabletIndexColumnName, EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending));
+        for (const auto& column : Columns_) {
+            if (column.Name != TimestampColumnName) {
+                columns.push_back(column);
+            }
+        }
     }
+    return TTableSchema(std::move(columns));
 }
 
 TTableSchema TTableSchema::ToKeys() const
@@ -742,6 +743,37 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
     }
 }
 
+//! Validates |$timestamp| column, if any.
+/*!
+ *  Validate that:
+ *  - |$timestamp| column cannot be a part of key.
+ *  - |$timestamp| column can only be present in unsorted tables.
+ *  - |$timestamp| column has type |uint64|.
+ */
+void ValidateTimestampColumn(const TTableSchema& schema)
+{
+    auto* column = schema.FindColumn(TimestampColumnName);
+    if (!column) {
+        return;
+    }
+
+    if (column->SortOrder) {
+        THROW_ERROR_EXCEPTION("%Qv column cannot be a part of key",
+            TimestampColumnName);
+    }
+
+    if (column->Type != EValueType::Uint64) {
+        THROW_ERROR_EXCEPTION("%Qv column must have %Qlv type",
+            TimestampColumnName,
+            EValueType::Uint64);
+    }
+
+    if (schema.IsSorted()) {
+        THROW_ERROR_EXCEPTION("%Qv column cannot appear in a sorted table",
+            TimestampColumnName);
+    }
+}
+
 void ValidateTableSchema(const TTableSchema& schema)
 {
     for (const auto& column : schema.Columns()) {
@@ -752,6 +784,7 @@ void ValidateTableSchema(const TTableSchema& schema)
     ValidateKeyColumnsFormPrefix(schema);
     ValidateComputedColumns(schema);
     ValidateAggregatedColumns(schema);
+    ValidateTimestampColumn(schema);
 }
 
 //! TODO(max42): document this functions somewhere (see also https://st.yandex-team.ru/YT-1433).

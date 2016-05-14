@@ -469,8 +469,8 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TOrderedDynamicRow = NTableClient::TUnversionedRow;
-using TOrderedDynamicRowSegment = std::vector<std::atomic<const NTableClient::TUnversionedRowHeader*>>;
+using TOrderedDynamicRow = NTableClient::TMutableUnversionedRow;
+using TOrderedDynamicRowSegment = std::vector<std::atomic<NTableClient::TUnversionedRowHeader*>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
