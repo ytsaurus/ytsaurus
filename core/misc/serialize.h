@@ -530,7 +530,7 @@ struct TSharedRefArraySerializer
     template <class C>
     static void Load(C& context, TSharedRefArray& value)
     {
-        UNUSED(value);
+        Y_UNUSED(value);
         size_t size = TSizeSerializer::LoadSuspended(context);
         std::vector<TSharedRef> parts(size);
 

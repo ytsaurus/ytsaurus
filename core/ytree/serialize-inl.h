@@ -263,7 +263,7 @@ void Deserialize(std::vector<T>& value, INodePtr node)
 template <class T>
 void Deserialize(yhash_set<T>& value, INodePtr node)
 {
-    UNUSED(value);
+    Y_UNUSED(value);
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
     for (int i = 0; i < size; ++i) {

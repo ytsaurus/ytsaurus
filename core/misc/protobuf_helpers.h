@@ -118,7 +118,7 @@ inline void ToProto(
     const std::vector<TOriginal>& originalArray,
     bool clear = true)
 {
-    UNUSED(clear);
+    Y_UNUSED(clear);
     ToProtoArrayImpl(serializedArray, originalArray);
 }
 
@@ -128,7 +128,7 @@ inline void ToProto(
     const std::vector<TOriginal>& originalArray,
     bool clear = true)
 {
-    UNUSED(clear);
+    Y_UNUSED(clear);
     ToProtoArrayImpl(serializedArray, originalArray);
 }
 
@@ -138,7 +138,7 @@ inline void ToProto(
     const SmallVectorImpl<TOriginal>& originalArray,
     bool clear = true)
 {
-    UNUSED(clear);
+    Y_UNUSED(clear);
     ToProtoArrayImpl(serializedArray, originalArray);
 }
 
@@ -148,7 +148,7 @@ inline void ToProto(
     const SmallVectorImpl<TOriginal>& originalArray,
     bool clear = true)
 {
-    UNUSED(clear);
+    Y_UNUSED(clear);
     ToProtoArrayImpl(serializedArray, originalArray);
 }
 
@@ -158,7 +158,7 @@ inline void ToProto(
     const TRange<TOriginal>& originalArray,
     bool clear = true)
 {
-    UNUSED(clear);
+    Y_UNUSED(clear);
     ToProtoArrayImpl(serializedArray, originalArray);
 }
 
@@ -168,7 +168,7 @@ inline void ToProto(
     const TRange<TOriginal>& originalArray,
     bool clear = true)
 {
-    UNUSED(clear);
+    Y_UNUSED(clear);
     ToProtoArrayImpl(serializedArray, originalArray);
 }
 

@@ -17,27 +17,27 @@ class TNullYsonConsumer
 {
     virtual void OnStringScalar(const TStringBuf& value) override
     {
-        UNUSED(value);
+        Y_UNUSED(value);
     }
 
     virtual void OnInt64Scalar(i64 value) override
     {
-        UNUSED(value);
+        Y_UNUSED(value);
     }
 
     virtual void OnUint64Scalar(ui64 value) override
     {
-        UNUSED(value);
+        Y_UNUSED(value);
     }
 
     virtual void OnDoubleScalar(double value) override
     {
-        UNUSED(value);
+        Y_UNUSED(value);
     }
 
     virtual void OnBooleanScalar(bool value) override
     {
-        UNUSED(value);
+        Y_UNUSED(value);
     }
 
     virtual void OnEntity() override
@@ -57,7 +57,7 @@ class TNullYsonConsumer
 
     virtual void OnKeyedItem(const TStringBuf& name) override
     {
-        UNUSED(name);
+        Y_UNUSED(name);
     }
 
     virtual void OnEndMap() override
@@ -71,8 +71,8 @@ class TNullYsonConsumer
 
     virtual void OnRaw(const TStringBuf& yson, EYsonType type)
     {
-        UNUSED(yson);
-        UNUSED(type);
+        Y_UNUSED(yson);
+        Y_UNUSED(type);
     }
 };
 

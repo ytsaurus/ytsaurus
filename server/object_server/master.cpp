@@ -104,7 +104,7 @@ private:
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, UnstageObject)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         DeclareMutating();
 

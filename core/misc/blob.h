@@ -43,7 +43,7 @@ public:
     explicit TBlob(TTag tag, size_t size, bool initiailizeStorage = true)
         : TBlob(GetRefCountedTypeCookie<TTag>(), size, initiailizeStorage)
     {
-        UNUSED(tag);
+        Y_UNUSED(tag);
     }
 
     //! Copies a chunk of memory into a new instance.
@@ -51,7 +51,7 @@ public:
     TBlob(TTag tag, const void* data, size_t size)
         : TBlob(GetRefCountedTypeCookie<TTag>(), data, size)
     {
-        UNUSED(tag);
+        Y_UNUSED(tag);
     }
 
     //! Remind user about the tag argument.

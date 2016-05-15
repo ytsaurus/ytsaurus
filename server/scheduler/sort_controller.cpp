@@ -2055,7 +2055,7 @@ private:
         const TChunkStripeStatisticsVector& statistics,
         bool memoryReserveEnabled) const override
     {
-        UNUSED(memoryReserveEnabled);
+        Y_UNUSED(memoryReserveEnabled);
         auto stat = AggregateStatistics(statistics).front();
 
         i64 outputBufferSize = std::min(
@@ -2105,7 +2105,7 @@ private:
         const TChunkStripeStatistics& stat,
         bool memoryReserveEnabled) const override
     {
-        UNUSED(memoryReserveEnabled);
+        Y_UNUSED(memoryReserveEnabled);
         i64 memory =
             GetSortBuffersMemorySize(stat) +
             GetSortInputIOMemorySize(stat) +
@@ -2131,7 +2131,7 @@ private:
         const TChunkStripeStatisticsVector& statistics,
         bool memoryReserveEnabled) const override
     {
-        UNUSED(memoryReserveEnabled);
+        Y_UNUSED(memoryReserveEnabled);
 
         TNodeResources result;
         result.set_user_slots(1);
