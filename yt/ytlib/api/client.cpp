@@ -3097,13 +3097,14 @@ private:
             const auto& writeSchema = TableInfo_->Schemas[ETableSchemaKind::Write];
             const auto& writeIdMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_, ETableSchemaKind::Write);
             const auto& rowBuffer = Transaction_->GetRowBuffer();
-            auto randomTabletInfo = TableInfo_->GetRandomMountedTabled();
+            auto randomTabletInfo = TableInfo_->GetRandomMountedTablet();
 
             for (auto row : rows) {
                 validateRow(row, writeSchema, writeIdMapping);
 
-                auto tabletInfo = GetOrderedTabletForRow(TableInfo_, randomTabletInfo, TabletIndexColumnId_, row);
                 auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, primarySchema, primaryIdMapping);
+
+                auto tabletInfo = GetOrderedTabletForRow(TableInfo_, randomTabletInfo, TabletIndexColumnId_, row);
                 auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
                 session->SubmitRow(command, capturedRow);
             }
