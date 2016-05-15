@@ -3057,20 +3057,22 @@ private:
             TRowValidator validateRow,
             const TWriteRowsOptions& writeOptions)
         {
-            const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_, ETableSchemaKind::Write);
-            const auto& schema = TableInfo_->Schemas[ETableSchemaKind::Write];
+            const auto& primarySchema = TableInfo_->Schemas[ETableSchemaKind::Primary];
+            const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_, ETableSchemaKind::Primary);
+            const auto& writeSchema = TableInfo_->Schemas[ETableSchemaKind::Write];
+            const auto& writeIdMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_, ETableSchemaKind::Write);
             const auto& rowBuffer = Transaction_->GetRowBuffer();
             auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
-            auto evaluator = TableInfo_->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
+            auto evaluator = TableInfo_->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
 
             for (auto row : rows) {
-                validateRow(row, schema, idMapping);
+                validateRow(row, writeSchema, writeIdMapping);
 
-                auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, schema, idMapping);
+                auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, primarySchema, primaryIdMapping);
 
-                for (int index = schema.GetKeyColumnCount(); index < capturedRow.GetCount(); ++index) {
+                for (int index = primarySchema.GetKeyColumnCount(); index < capturedRow.GetCount(); ++index) {
                     auto& value = capturedRow[index];
-                    const auto& columnSchema = schema.Columns()[value.Id];
+                    const auto& columnSchema = primarySchema.Columns()[value.Id];
                     value.Aggregate = columnSchema.Aggregate ? writeOptions.Aggregate : false;
                 }
 
@@ -3458,7 +3460,7 @@ private:
         if (it == TabletToSession_.end()) {
             AsyncTransactionStartResults_.push_back(Transaction_->AddTabletParticipant(tabletInfo->CellId));
             auto evaluatorCache = GetConnection()->GetColumnEvaluatorCache();
-            auto evaluator = evaluatorCache->Find(tableInfo->Schemas[ETableSchemaKind::Write]);
+            auto evaluator = evaluatorCache->Find(tableInfo->Schemas[ETableSchemaKind::Primary]);
             it = TabletToSession_.insert(std::make_pair(
                 tabletId,
                 New<TTabletCommitSession>(
