@@ -109,7 +109,7 @@ YtClusterHandle.prototype.handleMessage = function(message)
 
     switch (message.type) {
         case "log":
-            this.handleLog(message.level, message.message, message.payload);
+            this.handleLog(message.level, message.json);
             break;
         case "profile":
             this.handleProfile(message.method, message.metric, message.tags, message.value);
@@ -140,10 +140,10 @@ YtClusterHandle.prototype.handleMessage = function(message)
     }
 };
 
-YtClusterHandle.prototype.handleLog = function(level, message, payload)
+YtClusterHandle.prototype.handleLog = function(level, json)
 {
     if (process.memoryUsage().rss < this.rss_limit) {
-        this.logger[level](message, payload);
+        this.logger._logRawString(level, json);
     } else {
         var time_now = +(new Date());
         var time_next = MEMORY_PRESSURE_HIT_TIMESTAMP + MEMORY_PRESSURE_HIT_COOLDOWN;
@@ -189,9 +189,9 @@ YtClusterHandle.prototype.ageToDeath = function()
     }
 
     this.logger.info("Worker is not responding", {
-        wid : this.getWid(),
-        pid : this.getPid(),
-        handle : this.toString()
+        worker_wid: this.getWid(),
+        worker_pid: this.getPid(),
+        handle: this.toString()
     });
 
     this.certifyDeath();
@@ -204,9 +204,9 @@ YtClusterHandle.prototype.certifyDeath = function()
     }
 
     this.logger.info("Worker is dead", {
-        wid : this.getWid(),
-        pid : this.getPid(),
-        handle : this.toString()
+        worker_wid: this.getWid(),
+        worker_pid: this.getPid(),
+        handle: this.toString()
     });
 
     try {
@@ -238,17 +238,12 @@ function YtClusterMaster(bunyan_logger, profiler, config, cluster_options)
 
     var getTS = function getTS() { return new Date().toISOString(); };
 
-    function logEvent(level, message, payload) {
-        payload = payload || {};
-        payload.name = undefined;
-        bunyan_logger[level](payload, message);
-    }
-
     this.logger = {
-        debug: function(m, p) { return logEvent("debug", m, p); },
-        info: function(m, p) { return logEvent("debug", m, p); },
-        warn: function(m, p) { return logEvent("debug", m, p); },
-        error: function(m, p) { return logEvent("debug", m, p); },
+        debug: function(m, p) { return bunyan_logger.debug(p, m); },
+        info: function(m, p) { return bunyan_logger.debug(p, m); },
+        warn: function(m, p) { return bunyan_logger.debug(p, m); },
+        error: function(m, p) { return bunyan_logger.debug(p, m); },
+        _logRawString: bunyan_logger._logRawString.bind(bunyan_logger),
     };
 
     this.profiler = profiler;
@@ -276,10 +271,10 @@ function YtClusterMaster(bunyan_logger, profiler, config, cluster_options)
             "Received |message| event from the dead worker");
 
         self.logger.info("Worker has exited", {
-            wid    : worker.id,
-            pid    : worker.process.pid,
-            code   : code,
-            signal : signal
+            worker_wid: worker.id,
+            worker_pid: worker.process.pid,
+            exit_code: code,
+            exit_signal: signal
         });
 
         self.workers_handles[worker.id].certifyDeath();

@@ -32,8 +32,8 @@ public:
     TDuration FairSharePreemptionTimeout;
     double FairShareStarvationTolerance;
 
-    TNullable<TDuration> FairShareUpdatePeriod;
-    TNullable<TDuration> FairShareLogPeriod;
+    TDuration FairShareUpdatePeriod;
+    TDuration FairShareLogPeriod;
 
     //! Any operation with usage less than this cannot be preempted.
     double MinPreemptableRatio;
@@ -76,9 +76,11 @@ public:
             .Default(0.8);
 
         RegisterParameter("fair_share_update_period", FairShareUpdatePeriod)
+            .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
             .Default(TDuration::MilliSeconds(1000));
 
         RegisterParameter("fair_share_log_period", FairShareLogPeriod)
+            .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
             .Default(TDuration::MilliSeconds(1000));
 
         RegisterParameter("min_preemptable_ratio", MinPreemptableRatio)

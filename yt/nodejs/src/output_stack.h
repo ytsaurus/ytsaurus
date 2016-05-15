@@ -13,14 +13,12 @@ class TNodeJSOutputStack
     , public TGrowingOutputStreamStack
 {
 public:
-    TNodeJSOutputStack(TOutputStreamWrap* base);
+    explicit TNodeJSOutputStack(TOutputStreamWrap* base);
     virtual ~TNodeJSOutputStack() throw();
-
-    TOutputStreamWrap* GetBaseStream();
 
     void AddCompression(ECompression compression);
 
-    bool HasAnyData();
+    ui64 GetBytes() const;
 
 protected:
     virtual void DoWrite(const void* buffer, size_t length) override;
@@ -29,7 +27,8 @@ protected:
     virtual void DoFinish() override;
 
 private:
-    bool HasAnyData_;
+    TOutputStreamWrap* GetBaseStream();
+    const TOutputStreamWrap* GetBaseStream() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

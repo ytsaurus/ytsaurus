@@ -1,6 +1,6 @@
 #include "output_stream.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NNodeJS {
@@ -9,20 +9,21 @@ namespace NNodeJS {
 
 COMMON_V8_USES
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
 static const int MaxPartsPerPull = 8;
 
-static Persistent<String> OnDataSymbol;
+static Persistent<String> OnFlowingSymbol;
 
-void DeleteCallback(char* data, void* hint)
+void DeleteCallback(char* buffer, void* hint)
 {
-    // God bless the C++ compiler.
-    const int hintAsInt = static_cast<int>(reinterpret_cast<size_t>(hint));
-    v8::V8::AdjustAmountOfExternalAllocatedMemory(-hintAsInt);
-    delete[] data;
+    const size_t length = (size_t)hint;
+    v8::V8::AdjustAmountOfExternalAllocatedMemory(-length);
+    delete[] buffer;
 }
 
 } // namespace
@@ -31,16 +32,9 @@ void DeleteCallback(char* data, void* hint)
 
 Persistent<FunctionTemplate> TOutputStreamWrap::ConstructorTemplate;
 
-TOutputStreamWrap::TOutputStreamWrap(ui64 lowWatermark, ui64 highWatermark)
+TOutputStreamWrap::TOutputStreamWrap(ui64 watermark)
     : TNodeJSStreamBase()
-    , IsDestroyed_(0)
-    , IsPaused_(0)
-    , IsCompleted_(0)
-    , BytesInFlight(0)
-    , BytesEnqueued(0)
-    , BytesDequeued(0)
-    , LowWatermark(lowWatermark)
-    , HighWatermark(highWatermark)
+    , Watermark_(watermark)
 {
     THREAD_AFFINITY_IS_V8();
 }
@@ -48,8 +42,6 @@ TOutputStreamWrap::TOutputStreamWrap(ui64 lowWatermark, ui64 highWatermark)
 TOutputStreamWrap::~TOutputStreamWrap() throw()
 {
     THREAD_AFFINITY_IS_V8();
-
-    DisposeBuffers();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,7 +51,7 @@ void TOutputStreamWrap::Initialize(Handle<Object> target)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    OnDataSymbol = NODE_PSYMBOL("on_data");
+    OnFlowingSymbol = NODE_PSYMBOL("on_flowing");
 
     ConstructorTemplate = Persistent<FunctionTemplate>::New(
         FunctionTemplate::New(TOutputStreamWrap::New));
@@ -69,13 +61,10 @@ void TOutputStreamWrap::Initialize(Handle<Object> target)
 
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Pull", TOutputStreamWrap::Pull);
 
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Drain", TOutputStreamWrap::Drain);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Destroy", TOutputStreamWrap::Destroy);
 
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsEmpty", TOutputStreamWrap::IsEmpty);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsDestroyed", TOutputStreamWrap::IsDestroyed);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsPaused", TOutputStreamWrap::IsPaused);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsCompleted", TOutputStreamWrap::IsCompleted);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsFlowing", TOutputStreamWrap::IsFlowing);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsFinished", TOutputStreamWrap::IsFinished);
 
     target->Set(
         String::NewSymbol("TOutputStreamWrap"),
@@ -99,34 +88,27 @@ Handle<Value> TOutputStreamWrap::New(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YCHECK(args.Length() == 2);
+    YCHECK(args.Length() == 1);
 
     EXPECT_THAT_IS(args[0], Uint32);
-    EXPECT_THAT_IS(args[1], Uint32);
 
-    ui64 lowWatermark = args[0]->Uint32Value();
-    ui64 highWatermark = args[1]->Uint32Value();
-
-    TOutputStreamWrap* stream = NULL;
     try {
-        stream = new TOutputStreamWrap(lowWatermark, highWatermark);
+        ui64 watermark = args[0]->Uint32Value();
+
+        auto stream = new TOutputStreamWrap(watermark);
         stream->Wrap(args.This());
 
         stream->handle_->Set(
-            String::NewSymbol("low_watermark"),
-            Integer::NewFromUnsigned(lowWatermark),
+            String::NewSymbol("watermark"),
+            Integer::NewFromUnsigned(watermark),
             (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
         stream->handle_->Set(
-            String::NewSymbol("high_watermark"),
-            Integer::NewFromUnsigned(highWatermark),
+            String::NewSymbol("cxx_id"),
+            Integer::NewFromUnsigned(stream->Id_),
             (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
 
         return scope.Close(args.This());
     } catch (const std::exception& ex) {
-        if (stream) {
-            delete stream;
-        }
-
         return ThrowException(Exception::Error(String::New(ex.what())));
     }
 }
@@ -139,8 +121,7 @@ Handle<Value> TOutputStreamWrap::Pull(const Arguments& args)
     HandleScope scope;
 
     // Unwrap.
-    TOutputStreamWrap* stream =
-        ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
+    auto* stream = ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
     YCHECK(args.Length() == 0);
@@ -153,64 +134,44 @@ Handle<Value> TOutputStreamWrap::DoPull()
 {
     THREAD_AFFINITY_IS_V8();
 
-    if (AtomicGet(IsDestroyed_)) {
-        return Undefined();
-    }
-
-    TOutputPart part;
     Local<Array> parts = Array::New(MaxPartsPerPull);
+    size_t count = 0;
 
-    for (int i = 0; i < MaxPartsPerPull; ++i) {
-        if (!Queue.Dequeue(&part)) {
-            break;
+    ProtectedUpdateAndNotifyWriter([&] () {
+        YCHECK(IsFlowing_);
+
+        for (int i = 0; i < MaxPartsPerPull; ++i) {
+            if (Queue_.empty()) {
+                break;
+            }
+
+            auto part = std::move(Queue_.front());
+            Queue_.pop_front();
+
+            YCHECK(static_cast<bool>(part));
+
+            auto* buffer = node::Buffer::New(
+                part.Buffer.release(),
+                part.Length,
+                DeleteCallback,
+                (void*)part.Length);
+
+            parts->Set(i, buffer->handle_);
+            ++count;
+
+            v8::V8::AdjustAmountOfExternalAllocatedMemory(part.Length);
+
+            BytesDequeued_ += part.Length;
+            BytesInFlight_ -= part.Length;
         }
 
-        node::Buffer* buffer = node::Buffer::New(
-            part.Buffer,
-            part.Length,
-            DeleteCallback,
-            (void*)part.Length);
-        parts->Set(i, buffer->handle_);
-
-        v8::V8::AdjustAmountOfExternalAllocatedMemory(+(int)part.Length);
-
-        AtomicAdd(BytesDequeued, part.Length);
-        auto transientSize = AtomicSub(BytesInFlight, part.Length);
-        if (transientSize < LowWatermark && LowWatermark <= transientSize + part.Length) {
-            Conditional.NotifyAll();
+        if (count == 0) {
+            AsyncUnref();
+            IsFlowing_ = false;
         }
-    }
+    });
 
     return parts;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-Handle<Value> TOutputStreamWrap::Drain(const Arguments& args)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    // Unwrap.
-    TOutputStreamWrap* stream =
-        ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
-
-    // Validate arguments.
-    YCHECK(args.Length() == 0);
-
-    // Do the work.
-    stream->DoDrain();
-
-    return Undefined();
-}
-
-void TOutputStreamWrap::DoDrain()
-{
-    THREAD_AFFINITY_IS_V8();
-
-    YASSERT(!AtomicGet(IsDestroyed_));
-
-    IgniteOnData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,8 +182,7 @@ Handle<Value> TOutputStreamWrap::Destroy(const Arguments& args)
     HandleScope scope;
 
     // Unwrap.
-    TOutputStreamWrap* stream =
-        ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
+    auto* stream = ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
     YCHECK(args.Length() == 0);
@@ -230,130 +190,144 @@ Handle<Value> TOutputStreamWrap::Destroy(const Arguments& args)
     // Do the work.
     stream->DoDestroy();
 
-    return Undefined();
+    return scope.Close(Undefined());
 }
 
 void TOutputStreamWrap::DoDestroy()
 {
     THREAD_AFFINITY_IS_V8();
 
-    AtomicSet(IsDestroyed_, 1);
-    AtomicSet(IsPaused_, 0);
+    ProtectedUpdateAndNotifyWriter([&] () {
+        IsDestroyed_ = true;
 
-    Conditional.NotifyAll();
-
-    DisposeBuffers();
+        Queue_.clear();
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TOutputStreamWrap::IsEmpty(const Arguments& args)
+Handle<Value> TOutputStreamWrap::IsFlowing(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TOutputStreamWrap* stream =
-        ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
+    auto* stream = ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
     YCHECK(args.Length() == 0);
 
     // Do the work.
-    return scope.Close(Boolean::New(stream->Queue.IsEmpty()));
+    return scope.Close(stream->DoIsFlowing());
 }
 
-Handle<Value> TOutputStreamWrap::IsDestroyed(const Arguments& args)
+Handle<Value> TOutputStreamWrap::DoIsFlowing()
 {
     THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    // Unwrap.
-    TOutputStreamWrap* stream =
-        ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
-
-    // Validate arguments.
-    YCHECK(args.Length() == 0);
-
-    // Do the work.
-    return scope.Close(Boolean::New(AtomicGet(stream->IsDestroyed_)));
-}
-
-Handle<Value> TOutputStreamWrap::IsPaused(const Arguments& args)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    // Unwrap.
-    TOutputStreamWrap* stream =
-        ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
-
-    // Validate arguments.
-    YCHECK(args.Length() == 0);
-
-    // Do the work.
-    return scope.Close(Boolean::New(AtomicGet(stream->IsPaused_)));
-}
-
-Handle<Value> TOutputStreamWrap::IsCompleted(const Arguments& args)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    // Unwrap.
-    TOutputStreamWrap* stream =
-        ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
-
-    // Validate arguments.
-    YCHECK(args.Length() == 0);
-
-    // Do the work.
-    return scope.Close(Boolean::New(AtomicGet(stream->IsCompleted_)));
+    auto guard = Guard(Mutex_);
+    return Boolean::New(IsFlowing_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int TOutputStreamWrap::AsyncOnData(eio_req* request)
+Handle<Value> TOutputStreamWrap::IsFinished(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
 
-    TOutputStreamWrap* stream = static_cast<TOutputStreamWrap*>(request->data);
-    node::MakeCallback(stream->handle_, OnDataSymbol, 0, NULL);
+    // Unwrap.
+    auto* stream = ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
-    stream->AsyncUnref();
+    // Validate arguments.
+    YCHECK(args.Length() == 0);
+
+    // Do the work.
+    return scope.Close(stream->DoIsFinished());
+}
+
+Handle<Value> TOutputStreamWrap::DoIsFinished()
+{
+    THREAD_AFFINITY_IS_V8();
+    auto guard = Guard(Mutex_);
+    return Boolean::New(IsFinished_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TOutputStreamWrap::CanFlow() const
+{
+    return
+        IsFinishing_ || IsFinished_ || IsDestroyed_ ||
+        BytesInFlight_ < Watermark_;
+}
+
+void TOutputStreamWrap::RunFlow()
+{
+    if (!IsFlowing_) {
+        IsFlowing_ = true;
+        AsyncRef();
+        EIO_PUSH(TOutputStreamWrap::AsyncOnFlowing, this);
+    }
+}
+
+int TOutputStreamWrap::AsyncOnFlowing(eio_req* request)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    auto* stream = static_cast<TOutputStreamWrap*>(request->data);
+    node::MakeCallback(stream->handle_, OnFlowingSymbol, 0, nullptr);
 
     return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const ui64 TOutputStreamWrap::GetBytesEnqueued() const
+{
+    auto guard = Guard(Mutex_);
+    return BytesEnqueued_;
+}
+
+const ui64 TOutputStreamWrap::GetBytesDequeued() const
+{
+    auto guard = Guard(Mutex_);
+    return BytesDequeued_;
+}
+
+void TOutputStreamWrap::MarkAsFinishing()
+{
+    ProtectedUpdateAndNotifyWriter([&] () {
+        IsFinishing_ = true;
+    });
+}
+
 void TOutputStreamWrap::DoWrite(const void* data, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
 
-    if (data == NULL || length == 0) {
+    if (data == nullptr || length == 0) {
         return;
     }
 
-    WritePrologue();
+    TIntrusivePtr<IAsyncRefCounted> ref(this);
 
-    char* buffer = new char[length];
-    YASSERT(buffer);
+    std::unique_ptr<char[]> buffer(new char[length]);
 
-    ::memcpy(buffer, data, length);
+    ::memcpy(&buffer[0], data, length);
 
-    WriteEpilogue(buffer, length);
+    PushToQueue(std::move(buffer), length);
 }
 
 void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
 {
     THREAD_AFFINITY_IS_ANY();
 
-    if (parts == NULL || count == 0) {
+    if (parts == nullptr || count == 0) {
         return;
     }
 
-    WritePrologue();
+    TIntrusivePtr<IAsyncRefCounted> ref(this);
 
     size_t offset = 0;
     size_t length = 0;
@@ -362,57 +336,75 @@ void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
         length += parts[i].len;
     }
 
-    char* buffer = new char[length];
-    YASSERT(buffer);
+    std::unique_ptr<char[]> buffer(new char[length]);
 
     for (size_t i = 0; i < count; ++i) {
         const auto& part = parts[i];
-        ::memcpy(buffer + offset, part.buf, part.len);
+        ::memcpy(&buffer[offset], part.buf, part.len);
         offset += part.len;
     }
 
-    WriteEpilogue(buffer, length);
+    PushToQueue(std::move(buffer), length);
 }
 
-void TOutputStreamWrap::WritePrologue()
+void TOutputStreamWrap::DoFinish()
 {
-    Conditional.Await([&] () -> bool {
-        return
-            AtomicGet(IsDestroyed_) ||
-            AtomicGet(IsCompleted_) ||
-            (AtomicGet(BytesInFlight) < HighWatermark);
-    });
+    auto guard = Guard(Mutex_);
+    IsFinishing_ = true;
+    IsFinished_ = true;
 
-    if (AtomicGet(IsDestroyed_)) {
+    RunFlow();
+}
+
+void TOutputStreamWrap::ProtectedUpdateAndNotifyWriter(std::function<void()> mutator)
+{
+    TPromise<void> writePromise;
+    {
+        auto guard = Guard(Mutex_);
+        mutator();
+        if (WritePromise_) {
+            if (CanFlow()) {
+                writePromise = std::move(WritePromise_);
+            }
+        }
+    }
+    if (writePromise) {
+        WritePromise_.Set();
+    }
+}
+
+void TOutputStreamWrap::PushToQueue(std::unique_ptr<char[]> buffer, size_t length)
+{
+    THREAD_AFFINITY_IS_ANY();
+
+    auto guard = Guard(Mutex_);
+
+    // This bit should be set once we
+    YCHECK(!IsFinished_);
+
+    if (!CanFlow()) {
+        YCHECK(!WritePromise_);
+        WritePromise_ = NewPromise<void>();
+
+        auto writePromise = WritePromise_;
+
+        {
+            auto unguard = Unguard(Mutex_);
+            WaitFor(writePromise.ToFuture())
+                .ThrowOnError();
+        }
+    }
+
+    if (IsDestroyed_) {
         THROW_ERROR_EXCEPTION("TOutputStreamWrap was terminated");
     }
-}
 
-void TOutputStreamWrap::WriteEpilogue(char* buffer, size_t length)
-{
-    TOutputPart part;
-    part.Buffer = buffer;
-    part.Length = length;
-    Queue.Enqueue(part);
+    Queue_.emplace_back(std::move(buffer), length);
 
-    AtomicAdd(BytesInFlight, length);
-    AtomicAdd(BytesEnqueued, length);
+    BytesEnqueued_ += length;
+    BytesInFlight_ += length;
 
-    // We require that calling party holds a synchronous lock on the stream.
-    // In case of TDriverWrap an instance TNodeJSInputStack holds a lock
-    // and TDriverWrap implementation guarantees that all Write() calls
-    // are within scope of the lock.
-    EmitAndStifleOnData();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TOutputStreamWrap::DisposeBuffers()
-{
-    TOutputPart part;
-    while (Queue.Dequeue(&part)) {
-        DeleteCallback(part.Buffer, NULL);
-    }
+    RunFlow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

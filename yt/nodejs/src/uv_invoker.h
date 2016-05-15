@@ -1,15 +1,18 @@
-#include "stream_base.h"
+#pragma once
+
+#include "common.h"
+
+#include <yt/core/actions/public.h>
 
 namespace NYT {
 namespace NNodeJS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeJSStreamBase::TNodeJSStreamBase() = default;
-
-TNodeJSStreamBase::~TNodeJSStreamBase() = default;
+IInvokerPtr GetUVInvoker();
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NNodeJS
 } // namespace NYT
+

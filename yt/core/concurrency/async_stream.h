@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/core/actions/future.h>
+#include <yt/core/actions/invoker_util.h>
 
 #include <yt/core/misc/ref.h>
 
@@ -36,7 +37,14 @@ std::unique_ptr<TInputStream> CreateSyncAdapter(
     ESyncStreamAdapterStrategy strategy = ESyncStreamAdapterStrategy::WaitFor);
 
 //! Creates an asynchronous adapter from a given synchronous stream.
-IAsyncInputStreamPtr CreateAsyncAdapter(TInputStream* underlyingStream);
+/*!
+ *  Caller may provide an invoker for all calls to the underlying stream.
+ *  This way one can ensure that current thread will not block in calls
+ *  to the adapter.
+ */
+IAsyncInputStreamPtr CreateAsyncAdapter(
+    TInputStream* underlyingStream,
+    IInvokerPtr invoker = GetSyncInvoker());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,7 +73,14 @@ std::unique_ptr<TOutputStream> CreateSyncAdapter(
     ESyncStreamAdapterStrategy strategy = ESyncStreamAdapterStrategy::WaitFor);
 
 //! Creates an asynchronous adapter from a given synchronous stream.
-IAsyncOutputStreamPtr CreateAsyncAdapter(TOutputStream* underlyingStream);
+/*!
+ *  Caller may provide an invoker for all calls to the underlying stream.
+ *  This way one can ensure that current thread will not block in calls
+ *  to the adapter.
+ */
+IAsyncOutputStreamPtr CreateAsyncAdapter(
+    TOutputStream* underlyingStream,
+    IInvokerPtr invoker = GetSyncInvoker());
 
 ////////////////////////////////////////////////////////////////////////////////
 

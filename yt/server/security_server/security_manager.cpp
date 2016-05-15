@@ -1409,9 +1409,9 @@ private:
 
         // COMPAT(babenko)
         if (SetInitialRequestQueueSizeLimits_) {
-            RootUser_->SetRequestQueueSize(1000000);
-            JobUser_->SetRequestQueueSize(1000000);
-            SchedulerUser_->SetRequestQueueSize(1000000);
+            RootUser_->SetRequestQueueSizeLimit(1000000);
+            JobUser_->SetRequestQueueSizeLimit(1000000);
+            SchedulerUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // Accounts

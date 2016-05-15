@@ -98,7 +98,7 @@ public:
 
     T* const* end() const
     {
-        return Stack + N - 1;
+        return Stack + N;
     }
 
 private:
