@@ -88,17 +88,18 @@ if (!format) {
     var inspect = util.inspect;
     var formatRegExp = /%[sdj%]/g;
     format = function format(f) {
+        var i, len;
         if (typeof (f) !== 'string') {
             var objects = [];
-            for (var i = 0; i < arguments.length; i++) {
+            for (i = 0, len = arguments.length; i < len; i++) {
                 objects.push(inspect(arguments[i]));
             }
             return objects.join(' ');
         }
 
-        var i = 1;
         var args = arguments;
-        var len = args.length;
+        i = 1;
+        len = args.length;
         var str = String(f).replace(formatRegExp, function (x) {
             if (i >= len)
                 return x;
@@ -189,10 +190,6 @@ Object.keys(levelFromName).forEach(function (name) {
     nameFromLevel[levelFromName[name]] = name;
 });
 
-// Dtrace probes.
-var dtp = undefined;
-var probes = dtrace && {};
-
 /**
  * Resolve a level number, name (upper or lowercase) to a level number value.
  *
@@ -230,8 +227,6 @@ function resolveLevel(nameOrNum) {
  *        with `streams`)
  *      - `stream`: the output stream for a logger with just one, e.g.
  *        `process.stdout` (cannot be used with `streams`)
- *      - `src`: Boolean (default false). Set true to enable 'src' automatic
- *        field with log call source info.
  *    All other keys are log record fields.
  *
  * An alternative *internal* call signature is used for creating a child:
@@ -243,103 +238,31 @@ function resolveLevel(nameOrNum) {
  *    creation.
  */
 function Logger(options, _childOptions, _childSimple) {
-    xxx('Logger start:', options)
+    xxx('Logger start:', options);
     if (!(this instanceof Logger)) {
         return new Logger(options, _childOptions);
     }
 
-    // Input arg validation.
-    var parent;
-    if (_childOptions !== undefined) {
-        parent = options;
-        options = _childOptions;
-        if (!(parent instanceof Logger)) {
-            throw new TypeError(
-                'invalid Logger creation: do not pass a second arg');
-        }
-    }
     if (!options) {
         throw new TypeError('options (object) is required');
     }
-    if (!parent) {
-        if (!options.name) {
-            throw new TypeError('options.name (string) is required');
-        }
-    } else {
-        if (options.name) {
-            throw new TypeError(
-                'invalid options.name: child cannot set logger name');
-        }
+    if (!options.name) {
+        throw new TypeError('options.name (string) is required');
     }
     if (options.stream && options.streams) {
         throw new TypeError('cannot mix "streams" and "stream" options');
     }
     if (options.streams && !Array.isArray(options.streams)) {
-        throw new TypeError('invalid options.streams: must be an array')
+        throw new TypeError('invalid options.streams: must be an array');
     }
 
     EventEmitter.call(this);
 
-    // Fast path for simple child creation.
-    if (parent && _childSimple) {
-        // `_isSimpleChild` is a signal to stream close handling that this child
-        // owns none of its streams.
-        this._isSimpleChild = true;
-
-        this._level = parent._level;
-        this.streams = parent.streams;
-        this.src = parent.src;
-        var fields = this.fields = {};
-        var parentFieldNames = Object.keys(parent.fields);
-        for (var i = 0; i < parentFieldNames.length; i++) {
-            var name = parentFieldNames[i];
-            fields[name] = parent.fields[name];
-        }
-        var names = Object.keys(options);
-        for (var i = 0; i < names.length; i++) {
-            var name = names[i];
-            fields[name] = options[name];
-        }
-        return;
-    }
-
     // Start values.
     var self = this;
-    if (parent) {
-        this._level = parent._level;
-        this.streams = [];
-        for (var i = 0; i < parent.streams.length; i++) {
-            var s = objCopy(parent.streams[i]);
-            s.closeOnExit = false; // Don't own parent stream.
-            this.streams.push(s);
-        }
-        this.src = parent.src;
-        this.fields = objCopy(parent.fields);
-        if (options.level) {
-            this.level(options.level);
-        }
-    } else {
-        this._level = Number.POSITIVE_INFINITY;
-        this.streams = [];
-        this.src = false;
-        this.fields = {};
-    }
-
-    if (!dtp && dtrace) {
-        dtp = dtrace.createDTraceProvider('bunyan');
-
-        for (var level in levelFromName) {
-            var probe;
-
-            probes[levelFromName[level]] = probe =
-                dtp.addProbe('log-' + level, 'char *');
-
-            // Explicitly add a reference to dtp to prevent it from being GC'd
-            probe.dtp = dtp;
-        }
-
-        dtp.enable();
-    }
+    this._level = DEBUG;
+    this.streams = [];
+    this.fields = {};
 
     // Handle *config* options (i.e. options that are not just plain data
     // for log records).
@@ -347,16 +270,13 @@ function Logger(options, _childOptions, _childSimple) {
         self.addStream({
             type: 'stream',
             stream: options.stream,
-            closeOnExit: false,
-            level: options.level
+            closeOnExit: false
         });
     } else if (options.streams) {
         options.streams.forEach(function (s) {
-            self.addStream(s, options.level);
+            self.addStream(s);
         });
-    } else if (parent && options.level) {
-        this.level(options.level);
-    } else if (!parent) {
+    } else {
         if (isBrowser) {
             /*
              * In the browser we'll be emitting to console.log by default.
@@ -368,22 +288,20 @@ function Logger(options, _childOptions, _childSimple) {
             self.addStream({
                 type: 'raw',
                 stream: new ConsoleRawStream(),
-                closeOnExit: false,
-                level: options.level
+                closeOnExit: false
             });
         } else {
             self.addStream({
                 type: 'stream',
                 stream: process.stdout,
-                closeOnExit: false,
-                level: options.level
+                closeOnExit: false
             });
         }
     }
-    if (options.src) {
-        this.src = true;
+    if (options.level) {
+        this._level = resolveLevel(options.level);
     }
-    xxx('Logger: ', self)
+    xxx('Logger: ', self);
 
     // Fields.
     // These are the default fields for log records (minus the attributes
@@ -391,11 +309,11 @@ function Logger(options, _childOptions, _childSimple) {
     // (unrendered), `this.fields` must never be mutated. Create a copy for
     // any changes.
     var fields = objCopy(options);
+    delete fields.name;
     delete fields.stream;
     delete fields.level;
     delete fields.streams;
     delete fields.serializers;
-    delete fields.src;
     if (!fields.hostname) {
         fields.hostname = os.hostname();
     }
@@ -430,7 +348,7 @@ util.inherits(Logger, EventEmitter);
 Logger.prototype.addStream = function addStream(s, defaultLevel) {
     var self = this;
     if (defaultLevel === null || defaultLevel === undefined) {
-        defaultLevel = INFO;
+        defaultLevel = DEBUG;
     }
 
     s = objCopy(s);
@@ -441,19 +359,10 @@ Logger.prototype.addStream = function addStream(s, defaultLevel) {
         if (s.stream) {
             s.type = 'stream';
         } else if (s.path) {
-            s.type = 'file'
+            s.type = 'file';
         }
     }
     s.raw = (s.type === 'raw');  // PERF: Allow for faster check in `_emit`.
-
-    if (s.level) {
-        s.level = resolveLevel(s.level);
-    } else {
-        s.level = resolveLevel(defaultLevel);
-    }
-    if (s.level < self._level) {
-        self._level = s.level;
-    }
 
     switch (s.type) {
     case 'stream':
@@ -487,39 +396,7 @@ Logger.prototype.addStream = function addStream(s, defaultLevel) {
 
     self.streams.push(s);
     delete self.haveNonRawStreams;  // reset
-}
-
-
-/**
- * Create a child logger, typically to add a few log record fields.
- *
- * This can be useful when passing a logger to a sub-component, e.g. a
- * 'wuzzle' component of your service:
- *
- *    var wuzzleLog = log.child({component: 'wuzzle'})
- *    var wuzzle = new Wuzzle({..., log: wuzzleLog})
- *
- * Then log records from the wuzzle code will have the same structure as
- * the app log, *plus the component='wuzzle' field*.
- *
- * @param options {Object} Optional. Set of options to apply to the child.
- *    All of the same options for a new Logger apply here. Notes:
- *      - The parent's streams are inherited and cannot be removed in this
- *        call. Any given `streams` are *added* to the set inherited from
- *        the parent.
- *      - The parent's serializers are inherited, though can effectively be
- *        overwritten by using duplicate keys.
- *      - Can use `level` to set the level of the streams inherited from
- *        the parent. The level for the parent is NOT affected.
- * @param simple {Boolean} Optional. Set to true to assert that `options`
- *    (a) only add fields (no config) and (b) no serialization handling is
- *    required for them. IOW, this is a fast path for frequent child
- *    creation. See 'tools/timechild.js' for numbers.
- */
-Logger.prototype.child = function (options, simple) {
-    return new (this.constructor)(this, options || {}, simple);
-}
-
+};
 
 /**
  * A convenience method to reopen 'file' streams on a logger. This can be
@@ -558,31 +435,6 @@ Logger.prototype.reopenFileStreams = function () {
 };
 
 
-/* BEGIN JSSTYLED */
-/**
- * Close this logger.
- *
- * This closes streams (that it owns, as per 'endOnClose' attributes on
- * streams), etc. Typically you **don't** need to bother calling this.
-Logger.prototype.close = function () {
-    if (this._closed) {
-        return;
-    }
-    if (!this._isSimpleChild) {
-        self.streams.forEach(function (s) {
-            if (s.endOnClose) {
-                xxx('closing stream s:', s);
-                s.stream.end();
-                s.endOnClose = false;
-            }
-        });
-    }
-    this._closed = true;
-}
- */
-/* END JSSTYLED */
-
-
 /**
  * Get/set the level of all streams on this logger.
  *
@@ -598,83 +450,8 @@ Logger.prototype.level = function level(value) {
     if (value === undefined) {
         return this._level;
     }
-    var newLevel = resolveLevel(value);
-    var len = this.streams.length;
-    for (var i = 0; i < len; i++) {
-        this.streams[i].level = newLevel;
-    }
-    this._level = newLevel;
-}
-
-
-/**
- * Get/set the level of a particular stream on this logger.
- *
- * Get Usage:
- *    // Returns an array of the levels of each stream.
- *    log.levels() -> [TRACE, INFO]
- *
- *    // Returns a level of the identified stream.
- *    log.levels(0) -> TRACE      // level of stream at index 0
- *    log.levels('foo')           // level of stream with name 'foo'
- *
- * Set Usage:
- *    log.levels(0, INFO)         // set level of stream 0 to INFO
- *    log.levels(0, 'info')       // can use 'info' et al aliases
- *    log.levels('foo', WARN)     // set stream named 'foo' to WARN
- *
- * Stream names: When streams are defined, they can optionally be given
- * a name. For example,
- *       log = new Logger({
- *         streams: [
- *           {
- *             name: 'foo',
- *             path: '/var/log/my-service/foo.log'
- *             level: 'trace'
- *           },
- *         ...
- *
- * @param name {String|Number} The stream index or name.
- * @param value {Number|String} The level value (INFO) or alias ('info').
- *    If not given, this is a 'get' operation.
- * @throws {Error} If there is no stream with the given name.
- */
-Logger.prototype.levels = function levels(name, value) {
-    if (name === undefined) {
-        assert.equal(value, undefined);
-        return this.streams.map(
-            function (s) { return s.level });
-    }
-    var stream;
-    if (typeof (name) === 'number') {
-        stream = this.streams[name];
-        if (stream === undefined) {
-            throw new Error('invalid stream index: ' + name);
-        }
-    } else {
-        var len = this.streams.length;
-        for (var i = 0; i < len; i++) {
-            var s = this.streams[i];
-            if (s.name === name) {
-                stream = s;
-                break;
-            }
-        }
-        if (!stream) {
-            throw new Error(format('no stream with name "%s"', name));
-        }
-    }
-    if (value === undefined) {
-        return stream.level;
-    } else {
-        var newLevel = resolveLevel(value);
-        stream.level = newLevel;
-        if (newLevel < this._level) {
-            this._level = newLevel;
-        }
-    }
-}
-
+    this._level = resolveLevel(value);
+};
 
 /**
  * Emit a log record.
@@ -718,18 +495,24 @@ Logger.prototype._emit = function (rec, noemit) {
     if (noemit)
         return str;
 
-    var level = rec.level;
     for (i = 0; i < this.streams.length; i++) {
         var s = this.streams[i];
-        if (s.level <= level) {
-            xxx('writing log rec "%s" to "%s" stream (%d <= %d): %j',
-                rec.message, s.type, s.level, level, rec);
-            s.stream.write(s.raw ? rec : str);
-        }
-    };
+        s.stream.write(s.raw ? rec : str);
+    }
 
     return str;
-}
+};
+
+Logger.prototype._logRawString = function (level, rec) {
+    level = resolveLevel(level);
+    for (i = 0; i < this.streams.length; i++) {
+        var s = this.streams[i];
+        if (this._level <= level) {
+            s.stream.write(rec);
+            s.stream.write("\n");
+        }
+    }
+};
 
 
 /**
@@ -743,22 +526,25 @@ function mkLogEmitter(msgLevel) {
             fields = {};
         }
 
+        if (typeof(fields) === "undefined") {
+            fields = {};
+        }
+
         var rec = objCopy(this.fields);
         Object.keys(fields).forEach(function(k) {
             rec[k] = fields[k];
         });
 
-        rec.level = msgLevel;
         rec.message = msg;
 
         if (!rec.time) {
             rec.time = (new Date());
         }
 
-        if (this._level >= msgLevel) {
+        if (this._level <= msgLevel) {
             this._emit(rec);
         }
-    }
+    };
 }
 
 

@@ -11,6 +11,8 @@ var utils = require("./utils");
 
 var __DBG = require("./debug").that("U", "Upravlyator");
 
+var MAX_SIZE_FOR_LIST = 10000;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtApplicationUpravlyator(logger, driver)
@@ -87,6 +89,7 @@ YtApplicationUpravlyator.prototype._getManagedUsers = function(force)
 
     return this.driver.executeSimple("list", {
         path: "//sys/users",
+        max_size: MAX_SIZE_FOR_LIST,
         attributes: [
             "upravlyator_managed",
             "member_of"
@@ -97,7 +100,7 @@ YtApplicationUpravlyator.prototype._getManagedUsers = function(force)
         var total, managed;
         var result;
 
-        result = users
+        result = utils.getYsonValue(users)
         .filter(function(user) {
             return utils.getYsonAttribute(user, "upravlyator_managed") === "true";
         })
@@ -127,6 +130,7 @@ YtApplicationUpravlyator.prototype._getManagedGroups = function()
 
     return this.driver.executeSimple("list", {
         path: "//sys/groups",
+        max_size: MAX_SIZE_FOR_LIST,
         attributes: [
             "upravlyator_managed",
             "upravlyator_name",
@@ -138,7 +142,7 @@ YtApplicationUpravlyator.prototype._getManagedGroups = function()
         var total, managed;
         var result = {};
 
-        groups
+        utils.getYsonValue(groups)
         .filter(function(group) {
             return utils.getYsonAttribute(group, "upravlyator_managed") === "true";
         })
@@ -364,6 +368,9 @@ YtApplicationUpravlyator.prototype._dispatchGetAllRoles = function(req, rsp)
                 return { group: group };
             });
             return { login: login, roles: roles };
+        });
+        users = users.filter(function(user) {
+            return user.roles.length > 0;
         });
         utils.dispatchJson(rsp, { code: 0, users: users });
     })

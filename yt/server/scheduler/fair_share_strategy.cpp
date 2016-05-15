@@ -6,6 +6,7 @@
 #include "scheduler_strategy.h"
 
 #include <yt/core/concurrency/async_rw_lock.h>
+#include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/profiling/profile_manager.h>
@@ -171,6 +172,7 @@ struct TFairShareContext
     TDuration TotalScheduleJobDuration;
     TDuration ExecScheduleJobDuration;
     TEnumIndexedVector<int, EScheduleJobFailReason> FailedScheduleJob;
+    yhash_map<TJobPtr, TOperationElementPtr> JobToOperationElement;
 };
 
 class TDynamicAttributesList
@@ -1264,7 +1266,8 @@ public:
         const auto& jobStartRequest = scheduleJobResult->JobStartRequest.Get();
         context.SchedulingContext->ResourceUsage() += jobStartRequest.ResourceLimits;
         OnJobStarted(jobStartRequest.Id, jobStartRequest.ResourceLimits);
-        context.SchedulingContext->StartJob(Operation_, jobStartRequest);
+        auto job = context.SchedulingContext->StartJob(Operation_, jobStartRequest);
+        context.JobToOperationElement[job] = this;
 
         UpdateDynamicAttributes(context.AttributesIndex);
         updateAncestorsAttributes();
@@ -1744,68 +1747,31 @@ public:
             BIND(&TFairShareStrategy::OnOperationRuntimeParamsUpdated, this));
 
         RootElement = New<TRootElement>(Host, config);
-    }
 
+        FairShareUpdateExecutor_ = New<TPeriodicExecutor>(
+            GetCurrentInvoker(),
+            BIND(&TFairShareStrategy::OnFairShareUpdate, this),
+            Config->FairShareUpdatePeriod);
+
+        FairShareLoggingExecutor_ = New<TPeriodicExecutor>(
+            GetCurrentInvoker(),
+            BIND(&TFairShareStrategy::OnFairShareLogging, this),
+            Config->FairShareLogPeriod);
+    }
 
     virtual void ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
     {
         auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&ScheduleJobsLock))
             .Value();
 
-        auto now = schedulingContext->GetNow();
         int attributesIndex = AllocateAttributesIndex();
         TFairShareContext context(schedulingContext, attributesIndex);
 
+        for (const auto& job : schedulingContext->RunningJobs()) {
+            context.JobToOperationElement[job] = FindOperationElement(job->GetOperationId());
+        }
+
         RootElement->BeginHeartbeat();
-
-        // Run periodic update.
-        if (Config->FairShareUpdatePeriod && (!LastUpdateTime || now > LastUpdateTime.Get() + *Config->FairShareUpdatePeriod)) {
-            PROFILE_TIMING ("/fair_share_update_time") {
-                // The root element gets the whole cluster.
-                RootElement->Update();
-            }
-            LastUpdateTime = now;
-        }
-
-        // Update starvation flags for all operations.
-        for (const auto& pair : OperationToElement) {
-            pair.second->CheckForStarvation(now);
-        }
-
-        // Update starvation flags for all pools.
-        if (Config->EnablePoolStarvation) {
-            for (const auto& pair : Pools) {
-                pair.second->CheckForStarvation(now);
-            }
-        }
-
-        // Run periodic logging.
-        if (Config->FairShareLogPeriod && (!LastLogTime || now > LastLogTime.Get() + *Config->FairShareLogPeriod)) {
-            // Log pools information.
-            Host->LogEventFluently(ELogEventType::FairShareInfo, now)
-                .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
-                .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
-                    const auto& operationId = pair.first;
-                    BuildYsonMapFluently(fluent)
-                        .Item(ToString(operationId))
-                        .BeginMap()
-                            .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operationId))
-                        .EndMap();
-                });
-            for (auto& pair : OperationToElement) {
-                const auto& operationId = pair.first;
-                LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
-                    GetOperationLoggingProgress(operationId),
-                    operationId);
-            }
-            LastLogTime = now;
-        }
-
-        // First-chance scheduling.
-        LOG_DEBUG("Scheduling new jobs");
-        PROFILE_AGGREGATED_TIMING(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
-            RootElement->PrescheduleJob(context, false);
-        }
 
         auto profileTimings = [&] (
             TProfilingCounters& counters,
@@ -1833,6 +1799,12 @@ public:
             }
         };
 
+        // First-chance scheduling.
+        LOG_DEBUG("Scheduling new jobs");
+        PROFILE_AGGREGATED_TIMING(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
+            RootElement->PrescheduleJob(context, false);
+        }
+
         int nonPreemptiveScheduleJobCount = 0;
         {
             NProfiling::TScopedTimer timer;
@@ -1854,7 +1826,7 @@ public:
         std::vector<TJobPtr> preemptableJobs;
         PROFILE_TIMING ("/analyze_preemptable_jobs_time") {
             for (const auto& job : schedulingContext->RunningJobs()) {
-                const auto& operationElement = FindOperationElement(job->GetOperationId());
+                const auto& operationElement = context.JobToOperationElement.at(job);
                 if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
                     LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
                         job->GetId(),
@@ -1862,7 +1834,7 @@ public:
                     continue;
                 }
 
-                if (IsJobPreemptable(job) && !operationElement->HasStarvingParent()) {
+                if (IsJobPreemptable(job, operationElement) && !operationElement->HasStarvingParent()) {
                     TCompositeSchedulerElement* pool = operationElement->GetPool();
                     while (pool) {
                         if (pool->IsActive(GlobalAttributesIndex)) {
@@ -1928,7 +1900,7 @@ public:
             });
 
         auto poolLimitsViolated = [&] (const TJobPtr& job) -> bool {
-            const auto& operationElement = FindOperationElement(job->GetOperationId());
+            const auto& operationElement = context.JobToOperationElement.at(job);
             if (!operationElement) {
                 return false;
             }
@@ -1956,7 +1928,7 @@ public:
         bool poolsLimitsViolated = true;
 
         for (const auto& job : preemptableJobs) {
-            const auto& operationElement = FindOperationElement(job->GetOperationId());
+            const auto& operationElement = context.JobToOperationElement.at(job);
             if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
                 LOG_INFO("Dangling preemptable job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
@@ -1977,7 +1949,7 @@ public:
             }
 
             if (nodeLimitsViolated || (poolsLimitsViolated && poolLimitsViolated(job))) {
-                PreemptJob(job, context);
+                PreemptJob(job, operationElement, context);
             }
         }
 
@@ -1996,15 +1968,28 @@ public:
             preemptiveScheduleJobCount);
     }
 
+    virtual void StartPeriodicActivity() override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        FairShareLoggingExecutor_->Start();
+        FairShareUpdateExecutor_->Start();
+    }
+
     virtual void ResetState() override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        FairShareLoggingExecutor_->Stop();
+        FairShareUpdateExecutor_->Stop();
+
         LastPoolsNodeUpdate.Reset();
-        LastUpdateTime.Reset();
-        LastLogTime.Reset();
     }
 
     virtual TError CanAddOperation(TOperationPtr operation) override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto spec = ParseSpec(operation, operation->GetSpec());
         auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
         auto pool = FindPool(poolName);
@@ -2033,6 +2018,8 @@ public:
 
     virtual void BuildOperationAttributes(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& element = GetOperationElement(operationId);
         auto serializedParams = ConvertToAttributes(element->GetRuntimeParams());
         BuildYsonMapFluently(consumer)
@@ -2041,6 +2028,8 @@ public:
 
     virtual void BuildOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& element = FindOperationElement(operationId);
         if (!element) {
             return;
@@ -2056,6 +2045,8 @@ public:
 
     virtual void BuildBriefOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& element = FindOperationElement(operationId);
         if (!element) {
             return;
@@ -2068,8 +2059,17 @@ public:
             .Item("fair_share_ratio").Value(attributes.FairShareRatio);
     }
 
+    virtual void BuildOrchid(IYsonConsumer* consumer) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        BuildPoolsInformation(consumer);
+    }
+
     virtual Stroka GetOperationLoggingProgress(const TOperationId& operationId) override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& element = GetOperationElement(operationId);
         const auto& attributes = element->Attributes();
         const auto& dynamicAttributes = element->DynamicAttributes(GlobalAttributesIndex);
@@ -2094,40 +2094,10 @@ public:
             element->PreemptableJobs().size());
     }
 
-    void BuildPoolsInformation(IYsonConsumer* consumer)
-    {
-        BuildYsonMapFluently(consumer)
-            .Item("pools").DoMapFor(Pools, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
-                const auto& id = pair.first;
-                const auto& pool = pair.second;
-                const auto& config = pool->GetConfig();
-                fluent
-                    .Item(id).BeginMap()
-                        .Item("mode").Value(config->Mode)
-                        .Item("running_operation_count").Value(pool->RunningOperationCount())
-                        .Item("operation_count").Value(pool->OperationCount())
-                        .Item("max_running_operation_count").Value(pool->GetMaxRunningOperationCount())
-                        .Item("max_operation_count").Value(pool->GetMaxOperationCount())
-                        .DoIf(config->Mode == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
-                            fluent
-                                .Item("fifo_sort_parameters").Value(config->FifoSortParameters);
-                        })
-                        .DoIf(pool->GetParent(), [&] (TFluentMap fluent) {
-                            fluent
-                                .Item("parent").Value(pool->GetParent()->GetId());
-                        })
-                        .Do(BIND(&TFairShareStrategy::BuildElementYson, RootElement, pool))
-                    .EndMap();
-            });
-    }
-
-    virtual void BuildOrchid(IYsonConsumer* consumer) override
-    {
-        BuildPoolsInformation(consumer);
-    }
-
     virtual void BuildBriefSpec(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& element = GetOperationElement(operationId);
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(element->GetPool()->GetId());
@@ -2147,8 +2117,6 @@ private:
     std::list<TOperationPtr> OperationQueue;
 
     TRootElementPtr RootElement;
-    TNullable<TInstant> LastUpdateTime;
-    TNullable<TInstant> LastLogTime;
 
     TAsyncReaderWriterLock ScheduleJobsLock;
 
@@ -2184,10 +2152,71 @@ private:
     TProfilingCounters NonPreemptiveProfilingCounters;
     TProfilingCounters PreemptiveProfilingCounters;
 
-    bool IsJobPreemptable(const TJobPtr& job)
-    {
-        const auto& element = GetOperationElement(job->GetOperationId());
+    TPeriodicExecutorPtr FairShareUpdateExecutor_;
+    TPeriodicExecutorPtr FairShareLoggingExecutor_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+    TInstant GetNow()
+    {
+        // TODO(acid): For this to work in simulator we need to store current time globally in
+        // strategy and update it in simulator.
+        return TInstant::Now();
+    }
+
+    void OnFairShareUpdate()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto now = GetNow();
+
+        // Run periodic update.
+        PROFILE_TIMING ("/fair_share_update_time") {
+            // The root element gets the whole cluster.
+            RootElement->Update();
+        }
+
+        // Update starvation flags for all operations.
+        for (const auto& pair : OperationToElement) {
+            pair.second->CheckForStarvation(now);
+        }
+
+        // Update starvation flags for all pools.
+        if (Config->EnablePoolStarvation) {
+            for (const auto& pair : Pools) {
+                pair.second->CheckForStarvation(now);
+            }
+        }
+    }
+
+    void OnFairShareLogging()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto now = GetNow();
+
+        // Log pools information.
+        Host->LogEventFluently(ELogEventType::FairShareInfo, now)
+            .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
+            .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
+                const auto& operationId = pair.first;
+                BuildYsonMapFluently(fluent)
+                    .Item(ToString(operationId))
+                    .BeginMap()
+                        .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operationId))
+                    .EndMap();
+            });
+
+        for (auto& pair : OperationToElement) {
+            const auto& operationId = pair.first;
+            LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
+                GetOperationLoggingProgress(operationId),
+                operationId);
+        }
+    }
+
+    bool IsJobPreemptable(const TJobPtr& job, const TOperationElementPtr& element)
+    {
         double usageRatio = element->Attributes().UsageRatio;
         if (usageRatio < Config->MinPreemptableRatio) {
             return false;
@@ -2205,10 +2234,11 @@ private:
         return true;
     }
 
-    void PreemptJob(const TJobPtr& job, TFairShareContext& context)
+    void PreemptJob(
+        const TJobPtr& job,
+        const TOperationElementPtr& operationElement,
+        TFairShareContext& context)
     {
-        const auto& operationElement = GetOperationElement(job->GetOperationId());
-
         context.SchedulingContext->ResourceUsage() -= job->ResourceUsage();
         operationElement->IncreaseJobResourceUsage(job->GetId(), -job->ResourceUsage());
         job->ResourceUsage() = ZeroJobResources();
@@ -2237,6 +2267,8 @@ private:
 
     bool CanAddOperationToPool(const TPoolPtr& pool)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         TCompositeSchedulerElement* element = pool.Get();
         while (element) {
             if (element->RunningOperationCount() >= element->GetMaxRunningOperationCount()) {
@@ -2249,6 +2281,8 @@ private:
 
     void OnOperationRegistered(TOperationPtr operation)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto spec = ParseSpec(operation, operation->GetSpec());
         auto params = BuildInitialRuntimeParams(spec);
         auto operationElement = New<TOperationElement>(
@@ -2311,6 +2345,8 @@ private:
 
     void ActivateOperation(const TOperationId& operationId)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& operationElement = GetOperationElement(operationId);
         auto* pool = operationElement->GetPool();
         pool->EnableChild(operationElement);
@@ -2325,6 +2361,8 @@ private:
 
     void OnOperationUnregistered(TOperationPtr operation)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto operationElement = GetOperationElement(operation->GetId());
         auto* pool = operationElement->GetPool();
 
@@ -2375,6 +2413,8 @@ private:
         TOperationPtr operation,
         INodePtr update)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& element = FindOperationElement(operation->GetId());
         if (!element)
             return;
@@ -2394,24 +2434,32 @@ private:
 
     void OnJobFinished(const TJobPtr& job)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& element = GetOperationElement(job->GetOperationId());
         element->OnJobFinished(job->GetId());
     }
 
     void OnJobUpdated(const TJobPtr& job, const TJobResources& resourcesDelta)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& element = GetOperationElement(job->GetOperationId());
         element->IncreaseJobResourceUsage(job->GetId(), resourcesDelta);
     }
 
     void RegisterPool(const TPoolPtr& pool)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
         LOG_INFO("Pool registered (Pool: %v)", pool->GetId());
     }
 
     void RegisterPool(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
         pool->SetParent(parent.Get());
         parent->AddChild(pool);
@@ -2423,6 +2471,8 @@ private:
 
     void UnregisterPool(const TPoolPtr& pool)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         YCHECK(Pools.erase(pool->GetId()) == 1);
         pool->DynamicAttributes(GlobalAttributesIndex).Active = false;
         pool->SetAlive(false);
@@ -2436,6 +2486,8 @@ private:
 
     void SetPoolParent(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         if (pool->GetParent() == parent)
             return;
 
@@ -2474,6 +2526,8 @@ private:
 
     TPoolPtr FindPool(const Stroka& id)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto it = Pools.find(id);
         return it == Pools.end() ? nullptr : it->second;
     }
@@ -2488,6 +2542,8 @@ private:
 
     TOperationElementPtr FindOperationElement(const TOperationId& operationId)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto it = OperationToElement.find(operationId);
         return it == OperationToElement.end() ? nullptr : it->second;
     }
@@ -2501,6 +2557,8 @@ private:
 
     void OnPoolsUpdated(INodePtr poolsNode)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         if (LastPoolsNodeUpdate && NYTree::AreNodesEqual(LastPoolsNodeUpdate, poolsNode)) {
             LOG_INFO("Pools are not changed, skipping update");
             return;
@@ -2584,6 +2642,33 @@ private:
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error updating pools");
         }
+    }
+
+    void BuildPoolsInformation(IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Item("pools").DoMapFor(Pools, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
+                const auto& id = pair.first;
+                const auto& pool = pair.second;
+                const auto& config = pool->GetConfig();
+                fluent
+                    .Item(id).BeginMap()
+                        .Item("mode").Value(config->Mode)
+                        .Item("running_operation_count").Value(pool->RunningOperationCount())
+                        .Item("operation_count").Value(pool->OperationCount())
+                        .Item("max_running_operation_count").Value(pool->GetMaxRunningOperationCount())
+                        .Item("max_operation_count").Value(pool->GetMaxOperationCount())
+                        .DoIf(config->Mode == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
+                            fluent
+                                .Item("fifo_sort_parameters").Value(config->FifoSortParameters);
+                        })
+                        .DoIf(pool->GetParent(), [&] (TFluentMap fluent) {
+                            fluent
+                                .Item("parent").Value(pool->GetParent()->GetId());
+                        })
+                        .Do(BIND(&TFairShareStrategy::BuildElementYson, RootElement, pool))
+                    .EndMap();
+            });
     }
 
     static void BuildElementYson(

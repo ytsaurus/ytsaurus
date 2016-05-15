@@ -13,6 +13,8 @@
 
 #include <yt/ytlib/api/client.h>
 
+#include <yt/ytlib/scheduler/public.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
@@ -67,7 +69,7 @@ void TSchedulerConnector::SendHeartbeat()
         return;
     }
 
-    if (TInstant::Now() < LastFailedHeartbeatTime_ + Config_->FailedHeartbeatBackoffTime) {
+    if (TInstant::Now() < LastUnsuccessHeartbeatTime_ + Config_->UnsuccessHeartbeatBackoffTime) {
         LOG_INFO("Skipping heartbeat");
         return;
     }
@@ -90,7 +92,7 @@ void TSchedulerConnector::SendHeartbeat()
     auto rspOrError = WaitFor(req->Invoke());
 
     if (!rspOrError.IsOK()) {
-        LastFailedHeartbeatTime_ = TInstant::Now();
+        LastUnsuccessHeartbeatTime_ = TInstant::Now();
         LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler");
         return;
     }
@@ -98,6 +100,9 @@ void TSchedulerConnector::SendHeartbeat()
     LOG_INFO("Successfully reported heartbeat to scheduler");
 
     const auto& rsp = rspOrError.Value();
+    if (rsp->scheduling_skipped()) {
+        LastUnsuccessHeartbeatTime_ = TInstant::Now();
+    }
     jobController->ProcessHeartbeatResponse(rsp.Get());
 }
 
