@@ -104,10 +104,18 @@ public:
     //! but without |$timestamp| column, if any.
     TTableSchema ToWrite() const;
 
-    //! Trims all non-key columns.
+    //! For sorted tables, returns the non-computed key columns.
+    //! For ordered tables, returns an empty schema.
+    TTableSchema ToLookup() const;
+
+    //! For sorted tables, returns the non-computed key columns.
+    //! For ordered tables, returns an empty schema.
+    TTableSchema ToDelete() const;
+
+    //! Returns just the key columns.
     TTableSchema ToKeys() const;
 
-    //! Trims all key columns.
+    //! Returns the non-key columns.
     TTableSchema ToValues() const;
 
     void Save(TStreamSaveContext& context) const;

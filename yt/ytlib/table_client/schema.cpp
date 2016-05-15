@@ -319,10 +319,25 @@ TTableSchema TTableSchema::ToWrite() const
     return TTableSchema(std::move(columns));
 }
 
+TTableSchema TTableSchema::ToLookup() const
+{
+    std::vector<TColumnSchema> columns;
+    for (const auto& column : Columns_) {
+        if (column.SortOrder && !column.Expression) {
+            columns.push_back(column);
+        }
+    }
+    return TTableSchema(std::move(columns));
+}
+
+TTableSchema TTableSchema::ToDelete() const
+{
+    return ToLookup();
+}
+
 TTableSchema TTableSchema::ToKeys() const
 {
-    std::vector<TColumnSchema> columns(Columns_.begin(), Columns_.begin() + KeyColumnCount_);
-    return TTableSchema(std::move(columns));
+    return TTableSchema(std::vector<TColumnSchema>(Columns_.begin(), Columns_.begin() + KeyColumnCount_));
 }
 
 TTableSchema TTableSchema::ToValues() const
