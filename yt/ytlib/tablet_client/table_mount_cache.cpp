@@ -139,7 +139,7 @@ TTabletInfoPtr TTableMountInfo::GetTabletForRow(TUnversionedRow row) const
     return it == Tablets.begin() ? nullptr : *(--it);
 }
 
-TTabletInfoPtr TTableMountInfo::GetRandomMountedTabled() const
+TTabletInfoPtr TTableMountInfo::GetRandomMountedTablet() const
 {
     ValidateDynamic();
 

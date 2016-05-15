@@ -81,7 +81,7 @@ struct TTableMountInfo
     bool IsSorted() const;
 
     TTabletInfoPtr GetTabletForRow(NTableClient::TUnversionedRow row) const;
-    TTabletInfoPtr GetRandomMountedTabled() const;
+    TTabletInfoPtr GetRandomMountedTablet() const;
 
     void ValidateDynamic() const;
 };
