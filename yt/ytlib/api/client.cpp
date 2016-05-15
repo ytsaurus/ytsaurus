@@ -3044,19 +3044,6 @@ private:
             TRowValidator validateRow,
             const TWriteRowsOptions& writeOptions = TWriteRowsOptions())
         {
-            if (TableInfo_->IsSorted()) {
-                WriteRequestSorted(rows, command, validateRow, writeOptions);
-            } else {
-                WriteRequestOrdered(rows, command, validateRow, writeOptions);
-            }
-        }
-
-        void WriteRequestSorted(
-            const TSharedRange<TUnversionedRow>& rows,
-            EWireProtocolCommand command,
-            TRowValidator validateRow,
-            const TWriteRowsOptions& writeOptions)
-        {
             const auto& primarySchema = TableInfo_->Schemas[ETableSchemaKind::Primary];
             const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_, ETableSchemaKind::Primary);
             const auto& writeSchema = TableInfo_->Schemas[ETableSchemaKind::Write];
@@ -3064,39 +3051,6 @@ private:
             const auto& rowBuffer = Transaction_->GetRowBuffer();
             auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
             auto evaluator = TableInfo_->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
-
-            for (auto row : rows) {
-                validateRow(row, writeSchema, writeIdMapping);
-
-                auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, primarySchema, primaryIdMapping);
-
-                for (int index = primarySchema.GetKeyColumnCount(); index < capturedRow.GetCount(); ++index) {
-                    auto& value = capturedRow[index];
-                    const auto& columnSchema = primarySchema.Columns()[value.Id];
-                    value.Aggregate = columnSchema.Aggregate ? writeOptions.Aggregate : false;
-                }
-
-                if (evaluator) {
-                    evaluator->EvaluateKeys(capturedRow, rowBuffer);
-                }
-
-                auto tabletInfo = GetSortedTabletForRow(TableInfo_, capturedRow);
-                auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
-                session->SubmitRow(command, capturedRow);
-            }
-        }
-
-        void WriteRequestOrdered(
-            const TSharedRange<TUnversionedRow>& rows,
-            EWireProtocolCommand command,
-            TRowValidator validateRow,
-            const TWriteRowsOptions& /*writeOptions*/)
-        {
-            const auto& primarySchema = TableInfo_->Schemas[ETableSchemaKind::Primary];
-            const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_, ETableSchemaKind::Primary);
-            const auto& writeSchema = TableInfo_->Schemas[ETableSchemaKind::Write];
-            const auto& writeIdMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_, ETableSchemaKind::Write);
-            const auto& rowBuffer = Transaction_->GetRowBuffer();
             auto randomTabletInfo = TableInfo_->GetRandomMountedTablet();
 
             for (auto row : rows) {
@@ -3104,7 +3058,23 @@ private:
 
                 auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, primarySchema, primaryIdMapping);
 
-                auto tabletInfo = GetOrderedTabletForRow(TableInfo_, randomTabletInfo, TabletIndexColumnId_, row);
+                TTabletInfoPtr tabletInfo;
+                if (TableInfo_->IsSorted()) {
+                    for (int index = primarySchema.GetKeyColumnCount(); index < capturedRow.GetCount(); ++index) {
+                        auto& value = capturedRow[index];
+                        const auto& columnSchema = primarySchema.Columns()[value.Id];
+                        value.Aggregate = columnSchema.Aggregate ? writeOptions.Aggregate : false;
+                    }
+
+                    if (evaluator) {
+                        evaluator->EvaluateKeys(capturedRow, rowBuffer);
+                    }
+
+                    tabletInfo = GetSortedTabletForRow(TableInfo_, capturedRow);
+                } else {
+                    tabletInfo = GetOrderedTabletForRow(TableInfo_, randomTabletInfo, TabletIndexColumnId_, row);
+                }
+
                 auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
                 session->SubmitRow(command, capturedRow);
             }
