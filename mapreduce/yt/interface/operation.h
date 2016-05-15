@@ -155,12 +155,12 @@ class IJob
 public:
     virtual void Save(TOutputStream& stream) const
     {
-        UNUSED(stream);
+        Y_UNUSED(stream);
     }
 
     virtual void Load(TInputStream& stream)
     {
-        UNUSED(stream);
+        Y_UNUSED(stream);
     }
 };
 
@@ -174,14 +174,14 @@ public:
 
     virtual void Start(TWriter* writer)
     {
-        UNUSED(writer);
+        Y_UNUSED(writer);
     }
 
     virtual void Do(TReader* reader, TWriter* writer) = 0;
 
     virtual void Finish(TWriter* writer)
     {
-        UNUSED(writer);
+        Y_UNUSED(writer);
     }
 };
 
@@ -196,14 +196,14 @@ public:
 
     virtual void Start(TWriter* writer)
     {
-        UNUSED(writer);
+        Y_UNUSED(writer);
     }
 
     virtual void Do(TReader* reader, TWriter* writer) = 0;
 
     virtual void Finish(TWriter* writer)
     {
-        UNUSED(writer);
+        Y_UNUSED(writer);
     }
 };
 

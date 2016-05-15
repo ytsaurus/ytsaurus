@@ -570,7 +570,7 @@ public:
         const TNode::TList& keys,
         const TLookupRowsOptions& options) override
     {
-        UNUSED(options);
+        Y_UNUSED(options);
         THttpHeader header("PUT", "lookup_rows");
         header.AddPath(path);
         header.SetDataStreamFormat(DSF_YSON_BINARY);
