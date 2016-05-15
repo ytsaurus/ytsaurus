@@ -16,9 +16,9 @@ class TNullLogger
 public:
     void Log(ELevel level, const char* format, va_list args) override
     {
-        UNUSED(level);
-        UNUSED(format);
-        UNUSED(args);
+        Y_UNUSED(level);
+        Y_UNUSED(format);
+        Y_UNUSED(args);
     }
 };
 
