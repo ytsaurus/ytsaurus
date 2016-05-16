@@ -385,7 +385,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             row_count = source_client.get(src.name + "/@row_count")
 
             temp_table = destination_client.create_temp_table(prefix=os.path.basename(src.name))
-            destination_client.write_table(temp_table, ({"start": start, "end": end} for start, end in ranges), format=yt.JsonFormat())
+            destination_client.write_table(temp_table, ({"start": start, "end": end} for start, end in ranges), format=yt.JsonFormat(), raw=False)
 
             spec = deepcopy(get_value(copy_spec_template, {}))
             spec["data_size_per_job"] = 1
