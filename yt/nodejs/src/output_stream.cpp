@@ -369,7 +369,7 @@ void TOutputStreamWrap::ProtectedUpdateAndNotifyWriter(std::function<void()> mut
         }
     }
     if (writePromise) {
-        WritePromise_.Set();
+        writePromise.Set();
     }
 }
 

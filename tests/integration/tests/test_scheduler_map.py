@@ -718,37 +718,45 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         file1 = "//tmp/some_file.txt"
         file2 = "//tmp/renamed_file.txt"
+        file3 = "//tmp/link_file.txt"
 
         create("file", file1)
         create("file", file2)
 
         write_file(file1, "{value=42};\n")
         write_file(file2, "{a=b};\n")
+        link(file2, file3)
 
         create("table", "//tmp/table_file")
         write_table("//tmp/table_file", {"text": "info"})
 
-        command= "cat > /dev/null; cat some_file.txt; cat my_file.txt; cat table_file;"
+        map(in_="//tmp/input",
+            out="//tmp/output",
+            command="cat > /dev/null; cat some_file.txt; cat my_file.txt; cat table_file;",
+            file=[file1, "<file_name=my_file.txt>" + file2, "<format=yson>//tmp/table_file"])
+
+        assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text": "info"}]
 
         map(in_="//tmp/input",
             out="//tmp/output",
-            command=command,
-            file=[file1, "<file_name=my_file.txt>" + file2, "<format=yson>//tmp/table_file"])
+            command="cat > /dev/null; cat link_file.txt; cat my_file.txt;",
+            file=[file3, "<file_name=my_file.txt>" + file3])
+
+        assert read_table("//tmp/output") == [{"a": "b"}, {"a": "b"}]
 
         with pytest.raises(YtError):
             map(in_="//tmp/input",
                 out="//tmp/output",
-                command=command,
+                command="cat",
                 file=["<format=invalid_format>//tmp/table_file"])
 
         # missing format
         with pytest.raises(YtError):
             map(in_="//tmp/input",
                 out="//tmp/output",
-                command=command,
+                command="cat",
                 file=["//tmp/table_file"])
 
-        assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text": "info"}]
 
     @unix_only
     def test_empty_user_files(self):
