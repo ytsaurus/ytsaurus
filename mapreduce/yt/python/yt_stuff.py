@@ -103,6 +103,7 @@ class YtStuff(object):
         self.env["PYTHONPATH"] = self.yt_python_path
         self.env["YT_LOCAL_THOR_PATH"] = self.yt_thor_path
         self.env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
+        self.env["YT_LOG_LEVEL"] = "DEBUG"
 
     def _import_wrapper(self):
         sys.path.insert(0, self.yt_python_path)
