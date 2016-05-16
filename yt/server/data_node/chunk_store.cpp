@@ -402,14 +402,6 @@ bool TChunkStore::CanStartNewSession(
     EObjectType chunkType,
     const TWorkloadDescriptor& workloadDescriptor)
 {
-    if (location->IsFull()) {
-        return false;
-    }
-
-    if (!location->IsEnabled()) {
-        return false;
-    }
-
     if (!location->IsChunkTypeAccepted(chunkType)) {
         return false;
     }
