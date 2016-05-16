@@ -18,9 +18,9 @@ def test():
         ],
         data_path=data_path,
         input_tables=[
-            mr_utils.TableSpec(file_path='cnts_aggr_sample.dopp_word', mapreduce_io_flags=['-fs', ',']),
+            mr_utils.TableSpec(file_path='cnts_aggr_sample/dopp_word', mapreduce_io_flags=['-fs', ',']),
         ],
         output_tables=[
-            mr_utils.TableSpec(file_path="cnts_aggr_sample.dopp_word.qd_prepare"),
+            mr_utils.TableSpec(file_path="cnts_aggr_sample/dopp_word_qd_prepare"),
         ],
     )
