@@ -610,6 +610,14 @@ bool TStoreLocation::HasEnoughSpace(i64 size) const
 
 bool TStoreLocation::IsChunkTypeAccepted(EObjectType chunkType)
 {
+    if (!IsEnabled()) {
+        return false;
+    }
+
+    if (IsFull()) {
+        return false;
+    }
+
     switch (chunkType) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
