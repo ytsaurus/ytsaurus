@@ -723,7 +723,8 @@ void TDecoratedAutomaton::LoadSnapshot(
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     LOG_INFO("Started loading snapshot (SnapshotId: %v, Version: %v)",
-        snapshotId);
+        snapshotId,
+        version);
 
     PROFILE_TIMING ("/snapshot_load_time") {
         Automaton_->Clear();
