@@ -8,8 +8,8 @@ IF (YMAKE)
     OWNER(pg)
 
     PEERDIR(
-        yt/core
-        yt/ytlib
+        yt/17_4/yt/core
+        yt/17_4/yt/ytlib
         contrib/libs/pycxx
     )
 
