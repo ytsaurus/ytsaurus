@@ -1064,7 +1064,7 @@ describe("YtCommand - v2 output format selection", function() {
         function(rsp) {
             rsp.should.be.http2xx;
             rsp.should.have.content_disposition("inline; filename=\"yt_sys_operations_111_jobs_222_stderr\"");
-            rsp.should.have.content_type("text/plain");
+            rsp.should.have.content_type("text/plain; charset=\"utf-8\"");
             stub.should.have.been.calledOnce;
         }, done).end();
     });
@@ -1383,7 +1383,7 @@ describe("YtCommand - v3 output format selection", function() {
         function(rsp) {
             rsp.should.be.http2xx;
             rsp.should.have.content_disposition("inline; filename=\"yt_sys_operations_111_jobs_222_stderr\"");
-            rsp.should.have.content_type("text/plain");
+            rsp.should.have.content_type("text/plain; charset=\"utf-8\"");
             stub.should.have.been.calledOnce;
         }, done).end();
     });
@@ -1424,6 +1424,17 @@ describe("YtCommand - specific behaviour", function() {
         ));
         ask("PUT", V + "/write", {}, function(rsp) {
             rsp.statusCode.should.eql(403);
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
+
+    it("should reply with 429 on RequestQueueSizeLimit error", function(done) {
+        var stub = sinon.stub(this.driver, "execute");
+        stub.returns(Q.reject(
+            new YtError("RequestQueueSizeLimitExceeded").withCode(binding.RequestQueueSizeLimitExceededYtErrorCode)
+        ));
+        ask("PUT", V + "/write", {}, function(rsp) {
+            rsp.statusCode.should.eql(429);
             stub.should.have.been.calledOnce;
         }, done).end();
     });

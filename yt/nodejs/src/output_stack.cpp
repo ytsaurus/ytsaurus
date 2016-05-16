@@ -13,11 +13,10 @@ namespace NNodeJS {
 
 TNodeJSOutputStack::TNodeJSOutputStack(TOutputStreamWrap* base)
     : TGrowingStreamStack(base)
-    , HasAnyData_(false)
 {
     THREAD_AFFINITY_IS_V8();
-    YASSERT(base == Bottom());
-    GetBaseStream()->AsyncRef(true);
+    YASSERT(Bottom() == base);
+    GetBaseStream()->AsyncRef();
 }
 
 TNodeJSOutputStack::~TNodeJSOutputStack() throw()
@@ -30,19 +29,23 @@ TOutputStreamWrap* TNodeJSOutputStack::GetBaseStream()
     return static_cast<TOutputStreamWrap*>(Bottom());
 }
 
+const TOutputStreamWrap* TNodeJSOutputStack::GetBaseStream() const
+{
+    return static_cast<const TOutputStreamWrap*>(Bottom());
+}
+
 void TNodeJSOutputStack::AddCompression(ECompression compression)
 {
     AddCompressionToStack(*this, compression);
 }
 
-bool TNodeJSOutputStack::HasAnyData()
+ui64 TNodeJSOutputStack::GetBytes() const
 {
-    return HasAnyData_;
+    return GetBaseStream()->GetBytesEnqueued();
 }
 
 void TNodeJSOutputStack::DoWrite(const void* buffer, size_t length)
 {
-    HasAnyData_ = true;
     return Top()->Write(buffer, length);
 }
 
@@ -58,7 +61,7 @@ void TNodeJSOutputStack::DoFlush()
 
 void TNodeJSOutputStack::DoFinish()
 {
-    GetBaseStream()->SetCompleted();
+    GetBaseStream()->MarkAsFinishing();
 
     for (auto* current : *this) {
         current->Finish();

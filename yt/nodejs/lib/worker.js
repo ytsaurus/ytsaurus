@@ -3,6 +3,7 @@ var cluster = require("cluster");
 var fs = require("fs");
 var http = require("http");
 var https = require("https");
+var os = require("os");
 
 var yt = require("yt");
 
@@ -10,8 +11,8 @@ var connect = require("connect");
 var node_static = require("node-static");
 var Q = require("bluebird");
 
-var profiler = require("profiler");
-var heapdump = require("heapdump");
+var v8_profiler = require("profiler");
+var v8_heapdump = require("heapdump");
 
 var binding = require("./ytnode");
 
@@ -22,18 +23,31 @@ var __PROFILE = false;
 // Load configuration.
 var config = JSON.parse(process.env.YT_PROXY_CONFIGURATION);
 
+// Cache hostname.
+var os_hostname = os.hostname();
+var hostname = config.fqdn || os_hostname;
+
 // Set up logging (the hard way).
 var logger_mediate = function(level, message, payload) {
     // Capture real message time before sending an event.
     payload = payload || {};
-    payload.time = new Date().toISOString();
-    payload.pid = process.pid;
+
+    var record = {};
+    record.hostname = hostname;
+    record.pid = process.pid;
+    record.wid = cluster.worker.id;
+    record.time = new Date().toISOString();
+    record.message = message;
+    Object.keys(payload).forEach(function(key) {
+        if (!record.hasOwnProperty(key)) {
+            record[key] = payload[key];
+        }
+    });
 
     process.send({
         type: "log",
         level: level,
-        message: message,
-        payload: payload,
+        json: JSON.stringify(record),
     });
 };
 
@@ -110,7 +124,7 @@ yt.YtRegistry.set("authority", new yt.YtAuthority(
     yt.YtRegistry.get("driver")));
 yt.YtRegistry.set("coordinator", new yt.YtCoordinator(
     config.coordination,
-    new yt.utils.TaggedLogger(logger, { wid: cluster.worker.id }),
+    logger,
     yt.YtRegistry.get("driver"),
     yt.YtRegistry.get("fqdn"),
     yt.YtRegistry.get("port")));
@@ -147,7 +161,7 @@ var gracefullyDie = function gracefulDeath() {
 
     logger.info("Prepairing to die", { wid : cluster.worker.id, pid : process.pid });
 
-    unbuffered_profiler.mergeTo(buffered_profiler);
+    buffered_profiler.mergeTo(unbuffered_profiler);
     process.send({ type : "stopping" });
 
     try {
@@ -183,21 +197,23 @@ if (!__DBG.On) {
 }
 
 // Setup signal handlers.
-process.on("SIGUSR2", function() {
+process.on("SIGUSR1", function() {
     console.error("Writing a heap snapshot (" + process.pid + ")");
-    heapdump.writeSnapshot();
+    v8_heapdump.writeSnapshot();
 });
 
-process.on("SIGUSR1", function() {
+/*
+process.on("SIGUSR2", function() {
     if (__PROFILE) {
         console.error("Pausing V8 profiler.");
-        profiler.pause();
+        v8_profiler.pause();
     } else {
         console.error("Resuming V8 profiler.");
-        profiler.resume();
+        v8_profiler.resume();
     }
     __PROFILE = !__PROFILE;
 });
+*/
 
 // Setup message handlers.
 process.on("message", function(message) {
@@ -232,6 +248,9 @@ process.on("uncaughtException", function(err) {
     if (err.trace) {
         console.error(err.trace);
     }
+    if (err.stack) {
+        console.error(err.stack);
+    }
     // Call _exit to avoid subtle shutdown issues.
     binding.WipeOutCurrentProcess(1);
 });
@@ -261,6 +280,18 @@ application = connect()
         next();
     })
     // End of asynchronous middleware.
+    .use("/gc", function(req, rsp, next) {
+        if (req.url === "/") {
+            if (global.gc) {
+                global.gc();
+                rsp.statusCode = 200;
+            } else {
+                rsp.statusCode = 500;
+            }
+            return void yt.utils.dispatchAs(rsp, "");
+        }
+        next();
+    })
     .use("/ping", function(req, rsp, next) {
         if (req.url === "/") {
             var isSelfAlive = yt.YtRegistry.get("coordinator").isSelfAlive();

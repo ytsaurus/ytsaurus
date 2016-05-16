@@ -25,6 +25,10 @@ function TraceUVTicks(n) {
     TraceUVTick();
 }
 
+function GC() {
+    global.gc && global.gc();
+}
+
 function GenerateString(target_length) {
     var alphabet = "abcdefghijklmnopqrstuvwxyz01234567890";
     var result = "";
@@ -46,20 +50,28 @@ function GenerateString(target_length) {
 
 describe("input stream interface", function() {
     beforeEach(function() {
+        GC();
+
         this.stream = new binding.TInputStreamWrap(100, 1000);
         this.reader = new binding.TInputStreamStub();
         this.reader.Reset(this.stream);
 
         this.stream.on_drain = sinon.spy();
+
+        GC();
     });
 
     afterEach(function() {
+        GC();
+
         this.stream = null;
         this.reader = null;
 
         if (this.clock) {
             this.clock.restore();
         }
+
+        GC();
     });
 
     it("should set low_watermark and high_watermark properties", function() {
@@ -70,6 +82,8 @@ describe("input stream interface", function() {
     it("should be able to read whole input byte-by-byte", function() {
         this.stream.Push(new Buffer("foo"), 0, 3);
         this.stream.Push(new Buffer("bar"), 0, 3);
+
+        GC();
 
         expect(this.reader.ReadSynchronously(1)).to.be.a("string").and.to.eql("f");
         expect(this.reader.ReadSynchronously(1)).to.be.a("string").and.to.eql("o");
@@ -83,6 +97,8 @@ describe("input stream interface", function() {
         this.stream.Push(new Buffer("foo"), 0, 3);
         this.stream.Push(new Buffer("bar"), 0, 3);
 
+        GC();
+
         expect(this.reader.ReadSynchronously(6))
             .to.be.a("string").and.to.eql("foobar");
     });
@@ -91,63 +107,73 @@ describe("input stream interface", function() {
         this.stream.Push(new Buffer("foo"), 0, 3);
         this.stream.Push(new Buffer("bar"), 0, 3);
 
+        GC();
+
         expect(this.reader.ReadSynchronously(1000))
             .to.be.a("string").and.to.eql("foobar");
     });
 
     it("should wait for new data while not closed", function(done) {
-        var add_new_data = (function() {
-            this.stream.Push(new Buffer("12345"), 0, 5);
-        }).bind(this);
-        var close_stream = (function() {
-            this.stream.End();
-        }).bind(this);
+        var self = this;
 
-        setTimeout(add_new_data, 20);
-        setTimeout(close_stream, 40);
+        process.nextTick(function() {
+            self.stream.Push(new Buffer("12345"), 0, 5);
+        });
 
-        this.reader.Read(5, (function(error, length, buffer) {
+        GC();
+        self.reader.Read(5, function(error, length, buffer) {
             expect(error.code).to.eql(0);
             expect(length).to.eql(5);
             expect(buffer).to.equal("12345");
 
-            this.reader.Read(5, (function(error, length, buffer) {
+            process.nextTick(function() {
+                self.stream.End();
+            });
+
+            GC();
+            self.reader.Read(5, function(error, length, buffer) {
                 expect(error.code).to.eql(0);
                 expect(length).to.eql(0);
                 expect(buffer).to.be.empty;
 
+                GC();
                 done();
-            }).bind(this));
-        }).bind(this));
+            });
+        });
     });
 
     it("should wait for new data while not destroyed", function(done) {
-        var add_new_data = (function() {
-            this.stream.Push(new Buffer("12345"), 0, 5);
-        }).bind(this);
-        var close_stream = (function() {
-            this.stream.Destroy();
-        }).bind(this);
+        var self = this;
 
-        setTimeout(add_new_data, 20);
-        setTimeout(close_stream, 40);
+        process.nextTick(function() {
+            self.stream.Push(new Buffer("12345"), 0, 5);
+        });
 
-        this.reader.Read(5, (function(error, length, buffer) {
+        GC();
+        self.reader.Read(5, function(error, length, buffer) {
             expect(error.code).to.eql(0);
             expect(length).to.eql(5);
             expect(buffer).to.be.equal("12345");
 
-            this.reader.Read(5, (function(error, length, buffer) {
+            process.nextTick(function() {
+                self.stream.Destroy();
+            });
+
+            GC();
+            self.reader.Read(5, function(error, length, buffer) {
                 expect(error.code).not.to.eql(0);
 
+                GC();
                 done();
-            }).bind(this));
-        }).bind(this));
+            });
+        });
     });
 
     it("should not be able to read whole input if the stream was closed", function(done) {
         this.stream.Push(new Buffer("foo"), 0, 3);
         this.stream.Push(new Buffer("bar"), 0, 3);
+
+        GC();
 
         expect(this.reader.ReadSynchronously(2))
             .to.be.a("string").and.to.eql("fo");
@@ -156,6 +182,8 @@ describe("input stream interface", function() {
 
         this.stream.End();
 
+        GC();
+
         expect(this.reader.ReadSynchronously(2))
             .to.be.a("string").and.to.eql("ar");
         expect(this.reader.ReadSynchronously(2))
@@ -163,10 +191,13 @@ describe("input stream interface", function() {
         expect(this.reader.ReadSynchronously(2))
             .to.be.a("string").and.to.be.empty;
 
+        GC();
         this.reader.Read(100, (function(error, length, buffer) {
             expect(error.code).to.eql(0);
             expect(length).to.eql(0);
             expect(buffer).to.be.empty;
+
+            GC();
             done();
         }).bind(this));
     });
@@ -182,9 +213,11 @@ describe("input stream interface", function() {
 
         this.stream.Destroy();
 
+        GC();
         this.reader.Read(100, (function(error, length, buffer) {
             expect(error.code).not.to.eql(0);
 
+            GC();
             done();
         }).bind(this));
     });
@@ -198,6 +231,8 @@ describe("input stream interface", function() {
         this.stream.Push(data_2, 0, 3); // bar
         this.stream.Push(data_1, 0, 3); // foo
         this.stream.End();
+
+        GC();
 
         expect(this.reader.ReadSynchronously(100))
             .to.be.a("string").and.to.eql("foobarbarbarfoo");
@@ -236,16 +271,21 @@ describe("input stream interface", function() {
                 self.reader.AddCompression(compression);
                 compressor(case_data, function(err, compressed) {
                     expect(err).to.be.null;
+
                     self.stream.Push(compressed, 0, compressed.length);
                     self.stream.End();
+                    GC();
+
                     var decompressed = "";
                     while (true) {
                         var chunk = self.reader.ReadSynchronously(1 * 1024 * 1024);
+                        GC();
                         if (chunk.length === 0) {
                             break;
                         }
                         decompressed += chunk;
                     }
+                    GC();
 
                     decompressed.length.should.eql(case_data.length);
                     decompressed.should.be.equal(case_data);
@@ -258,28 +298,35 @@ describe("input stream interface", function() {
 
 describe("output stream interface", function() {
     beforeEach(function() {
-        this.stream = new binding.TOutputStreamWrap(100, 1000);
+        this.stream = new binding.TOutputStreamWrap(100);
         this.writer = new binding.TOutputStreamStub();
         this.writer.Reset(this.stream);
 
-        this.stream.on_data = sinon.spy();
+        this.stream.on_flowing = sinon.spy();
     });
 
     afterEach(function() {
+        GC();
+
         this.stream = null;
         this.writer = null;
 
         if (this.clock) {
             this.clock.restore();
         }
+
+        GC();
     });
 
     it("should be able to write one chunk", function(done) {
-        this.stream.on_data = (function() {
+        this.stream.on_flowing = (function() {
             var pulled_chunks = this.stream.Pull();
+            GC();
+
             var chunks = pulled_chunks.filter(function(x) { return !!x; });
             expect(chunks.length).to.be.equal(1);
             expect(chunks[0].toString()).to.be.equal("hello");
+
             done();
         }).bind(this);
 
@@ -287,13 +334,16 @@ describe("output stream interface", function() {
     });
 
     it("should be able to write many chunks", function(done) {
-        this.stream.on_data = (function() {
+        this.stream.on_flowing = (function() {
             // Since this is an off-V8-scheduled callback all data should be in place.
             var pulled_chunks = this.stream.Pull();
+            GC();
+
             var chunks = pulled_chunks.filter(function(x) { return !!x; });
             expect(chunks.length).to.be.equal(2);
             expect(chunks[0].toString()).to.be.equal("hello");
             expect(chunks[1].toString()).to.be.equal("dolly");
+
             done();
         }).bind(this);
 
@@ -329,15 +379,18 @@ describe("output stream interface", function() {
                 var self = this;
                 var chunks = [];
 
-                self.stream.on_data = function() {
+                self.stream.on_flowing = function() {
                     while (true) {
                         var pulled_chunks = self.stream.Pull().filter(function(x) { return !!x; })
+                        GC();
                         if (pulled_chunks.length) {
                             chunks = chunks.concat(pulled_chunks);
                         } else {
                             break;
                         }
                     }
+                    GC();
+
                     var compressed = buffertools.concat.apply(undefined, chunks);
                     decompressor(compressed, function(err, decompressed) {
                         expect(err).to.be.null;
@@ -350,6 +403,7 @@ describe("output stream interface", function() {
                 self.writer.AddCompression(decompression);
                 self.writer.WriteSynchronously(case_data);
                 self.writer.Finish();
+                GC();
             });
         });
     });
@@ -359,7 +413,7 @@ describe("high-level interoperation", function() {
     it("should properly compress/decompress data");
 
     it("should play nice together", function(done) {
-        var readable = new YtReadableStream(100, 1000);
+        var readable = new YtReadableStream(100);
         var writable = new YtWritableStream(100, 1000);
 
         var reader = new binding.TInputStreamStub(); reader.Reset(writable._binding);
@@ -373,7 +427,9 @@ describe("high-level interoperation", function() {
         writer.Finish();
 
         // Skip two ticks to allow streams pipe content between them.
+        GC();
         process.nextTick(function() {
+            GC();
             process.nextTick(function() {
                 reader.Read(1000, function(error, length, buffer) {
                     expect(error.code).to.eql(0);

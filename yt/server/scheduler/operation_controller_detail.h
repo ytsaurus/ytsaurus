@@ -650,7 +650,7 @@ protected:
     void BeginUploadOutputTables();
     void GetOutputTablesUploadParams();
     void FetchUserFiles(std::vector<TUserFile>* files);
-    void LockUserFiles(std::vector<TUserFile>* files, const std::vector<Stroka>& attributeKeys);
+    void LockUserFiles(std::vector<TUserFile>* files);
     void CreateLivePreviewTables();
     void LockLivePreviewTables();
     void CollectTotals();

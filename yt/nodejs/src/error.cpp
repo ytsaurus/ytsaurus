@@ -41,7 +41,8 @@ Handle<Value> IsBasicYtError(const Arguments& args)
     bool result =
         args[0]->IsObject() &&
         ConstructorTemplate->HasInstance(args[0]);
-    return result ? v8::True() : v8::False();
+
+    return scope.Close(result ? v8::True() : v8::False());
 }
 
 Handle<Value> SpawnBasicYtError(const Arguments& args)
@@ -141,6 +142,10 @@ void InitializeError(Handle<Object> target)
     target->Set(
         String::NewSymbol("UserBannedYtErrorCode"),
         Integer::New(static_cast<int>(NSecurityClient::EErrorCode::UserBanned)));
+
+    target->Set(
+        String::NewSymbol("RequestQueueSizeLimitExceededYtErrorCode"),
+        Integer::New(static_cast<int>(NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)));
 
     target->Set(
         String::NewSymbol("AllTargetNodesFailedYtErrorCode"),

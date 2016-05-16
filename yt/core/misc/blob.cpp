@@ -87,9 +87,7 @@ TBlob& TBlob::operator = (const TBlob& rhs)
     if (this != &rhs) {
         Free();
         SetTypeCookie(rhs);
-        if (rhs.Size_ == 0) {
-            Reset();
-        } else {
+        if (rhs.Size_ > 0) {
             Allocate(std::max(InitialBlobCapacity, rhs.Size_));
             memcpy(Begin_, rhs.Begin_, rhs.Size_);
             Size_ = rhs.Size_;
@@ -153,6 +151,7 @@ void TBlob::Allocate(size_t newCapacity)
     TRefCountedTracker::Get()->Allocate(TypeCookie_, newCapacity);
 #endif
 }
+
 void TBlob::Reallocate(size_t newCapacity)
 {
     if (!Begin_) {

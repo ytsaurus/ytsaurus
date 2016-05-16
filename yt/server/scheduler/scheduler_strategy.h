@@ -48,6 +48,9 @@ struct ISchedulerStrategy
 
     virtual void ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
 
+    //! Starts periodic updates and logging.
+    virtual void StartPeriodicActivity() = 0;
+
     //! Resets memoized state.
     virtual void ResetState() = 0;
 

@@ -11,12 +11,13 @@ namespace NConcurrency {
 namespace {
 
 template <class T>
-TErrorOr<T> WaitForWithStrategy(TFuture<T> future, ESyncStreamAdapterStrategy strategy)
+TErrorOr<T> WaitForWithStrategy(
+    TFuture<T>&& future,
+    ESyncStreamAdapterStrategy strategy)
 {
     switch (strategy) {
-
         case ESyncStreamAdapterStrategy::WaitFor:
-            return WaitFor(future);
+            return WaitFor(std::move(future));
         case ESyncStreamAdapterStrategy::Get:
             return future.Get();
         default:
@@ -35,36 +36,30 @@ public:
     TSyncInputStreamAdapter(
         IAsyncInputStreamPtr underlyingStream,
         ESyncStreamAdapterStrategy strategy)
-        : UnderlyingStream_(underlyingStream)
+        : UnderlyingStream_(std::move(underlyingStream))
         , Strategy_(strategy)
-    {
-        YCHECK(UnderlyingStream_);
-    }
-
-    virtual ~TSyncInputStreamAdapter() throw()
     { }
 
 private:
     const IAsyncInputStreamPtr UnderlyingStream_;
     const ESyncStreamAdapterStrategy Strategy_;
 
-
-    virtual size_t DoRead(void* buf, size_t len) override
+    virtual size_t DoRead(void* buffer, size_t length) override
     {
-        auto buffer = TSharedMutableRef(buf, len, nullptr);
-        return WaitForWithStrategy(UnderlyingStream_->Read(buffer), Strategy_)
+        auto future = UnderlyingStream_->Read(TSharedMutableRef(buffer, length, nullptr));
+        return WaitForWithStrategy(std::move(future), Strategy_)
             .ValueOrThrow();
     }
-
 };
 
 std::unique_ptr<TInputStream> CreateSyncAdapter(
     IAsyncInputStreamPtr underlyingStream,
     ESyncStreamAdapterStrategy strategy)
 {
-    return std::unique_ptr<TInputStream>(new TSyncInputStreamAdapter(
-        underlyingStream,
-        strategy));
+    YCHECK(underlyingStream);
+    return std::make_unique<TSyncInputStreamAdapter>(
+        std::move(underlyingStream),
+        strategy);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,38 +68,38 @@ class TAsyncInputStreamAdapter
     : public IAsyncInputStream
 {
 public:
-    explicit TAsyncInputStreamAdapter(TInputStream* underlyingStream)
+    TAsyncInputStreamAdapter(
+        TInputStream* underlyingStream,
+        IInvokerPtr invoker)
         : UnderlyingStream_(underlyingStream)
-    {
-        YCHECK(UnderlyingStream_);
-    }
+        , Invoker_(std::move(invoker))
+    { }
 
     virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
-        if (Failed_) {
-            return Result_;
-        }
-
-        try {
-            return MakeFuture<size_t>(UnderlyingStream_->Read(buffer.Begin(), buffer.Size()));
-        } catch (const std::exception& ex) {
-            Result_ = MakeFuture<size_t>(TError(ex));
-            Failed_ = true;
-            return Result_;
-        }
+        return
+            BIND(&TAsyncInputStreamAdapter::DoRead, MakeStrong(this), buffer)
+            .AsyncVia(Invoker_)
+            .Run();
     }
-    
+
+private:
+    size_t DoRead(const TSharedMutableRef& buffer) const
+    {
+        return UnderlyingStream_->Read(buffer.Begin(), buffer.Size());
+    }
+
 private:
     TInputStream* const UnderlyingStream_;
-
-    TFuture<size_t> Result_;
-    bool Failed_ = false;
-
+    const IInvokerPtr Invoker_;
 };
 
-IAsyncInputStreamPtr CreateAsyncAdapter(TInputStream* asyncStream)
+IAsyncInputStreamPtr CreateAsyncAdapter(
+    TInputStream* underlyingStream,
+    IInvokerPtr invoker)
 {
-    return New<TAsyncInputStreamAdapter>(asyncStream);
+    YCHECK(underlyingStream);
+    return New<TAsyncInputStreamAdapter>(underlyingStream, std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,11 +111,9 @@ public:
     TSyncOutputStreamAdapter(
         IAsyncOutputStreamPtr underlyingStream,
         ESyncStreamAdapterStrategy strategy)
-        : UnderlyingStream_(underlyingStream)
+        : UnderlyingStream_(std::move(underlyingStream))
         , Strategy_(strategy)
-    {
-        YCHECK(UnderlyingStream_);
-    }
+    { }
 
     virtual ~TSyncOutputStreamAdapter() throw()
     { }
@@ -129,10 +122,10 @@ private:
     const IAsyncOutputStreamPtr UnderlyingStream_;
     const ESyncStreamAdapterStrategy Strategy_;
 
-    virtual void DoWrite(const void* buf, size_t len) override
+    virtual void DoWrite(const void* buffer, size_t length) override
     {
-        auto buffer = TSharedRef(buf, len, nullptr);
-        WaitForWithStrategy(UnderlyingStream_->Write(buffer), Strategy_)
+        auto future = UnderlyingStream_->Write(TSharedRef(buffer, length, nullptr));
+        WaitForWithStrategy(std::move(future), Strategy_)
             .ThrowOnError();
     }
 };
@@ -141,9 +134,10 @@ std::unique_ptr<TOutputStream> CreateSyncAdapter(
     IAsyncOutputStreamPtr underlyingStream,
     ESyncStreamAdapterStrategy strategy)
 {
-    return std::unique_ptr<TOutputStream>(new TSyncOutputStreamAdapter(
-        underlyingStream,
-        strategy));
+    YCHECK(underlyingStream);
+    return std::make_unique<TSyncOutputStreamAdapter>(
+        std::move(underlyingStream),
+        strategy);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,39 +146,38 @@ class TAsyncOutputStreamAdapter
     : public IAsyncOutputStream
 {
 public:
-    explicit TAsyncOutputStreamAdapter(TOutputStream* underlyingStream)
+    TAsyncOutputStreamAdapter(
+        TOutputStream* underlyingStream,
+        IInvokerPtr invoker)
         : UnderlyingStream_(underlyingStream)
-    {
-        YCHECK(UnderlyingStream_);
-    }
-    
+        , Invoker_(std::move(invoker))
+    { }
+
     virtual TFuture<void> Write(const TSharedRef& buffer) override
     {
-        if (Failed_) {
-            return Result_;
-        }
+        return
+            BIND(&TAsyncOutputStreamAdapter::DoWrite, MakeStrong(this), buffer)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
 
-        try {
-            UnderlyingStream_->Write(buffer.Begin(), buffer.Size());
-        } catch (const std::exception& ex) {
-            Result_ = MakeFuture<void>(TError(ex));
-            Failed_ = true;
-            return Result_;
-        }
-        return VoidFuture;
+private:
+    void DoWrite(const TSharedRef& buffer) const
+    {
+        UnderlyingStream_->Write(buffer.Begin(), buffer.Size());
     }
 
 private:
     TOutputStream* const UnderlyingStream_;
-
-    TFuture<void> Result_;
-    bool Failed_ = false;
-
+    const IInvokerPtr Invoker_;
 };
 
-IAsyncOutputStreamPtr CreateAsyncAdapter(TOutputStream* underlyingStream)
+IAsyncOutputStreamPtr CreateAsyncAdapter(
+    TOutputStream* underlyingStream,
+    IInvokerPtr invoker)
 {
-    return New<TAsyncOutputStreamAdapter>(underlyingStream);
+    YCHECK(underlyingStream);
+    return New<TAsyncOutputStreamAdapter>(underlyingStream, std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,19 +189,20 @@ public:
     TZeroCopyInputStreamAdapter(
         IAsyncInputStreamPtr underlyingStream,
         size_t blockSize)
-        : UnderlyingStream_(underlyingStream)
+        : UnderlyingStream_(std::move(underlyingStream))
         , BlockSize_(blockSize)
-    {
-        YCHECK(UnderlyingStream_);
-        YCHECK(BlockSize_ > 0);
-    }
+    { }
 
     virtual TFuture<TSharedRef> Read() override
     {
-        struct TZeroCopyInputStreamAdapterBlockTag { };
-        auto block = TSharedMutableRef::Allocate<TZeroCopyInputStreamAdapterBlockTag>(BlockSize_, false);
+        struct TZeroCopyInputStreamAdapterBlockTag
+        { };
+
         auto promise = NewPromise<TSharedRef>();
-        DoRead(promise, block, 0);
+        auto block = TSharedMutableRef::Allocate<TZeroCopyInputStreamAdapterBlockTag>(BlockSize_, false);
+
+        DoRead(promise, std::move(block), 0);
+
         return promise;
     }
 
@@ -219,22 +213,26 @@ private:
 
     void DoRead(
         TPromise<TSharedRef> promise,
-        const TSharedMutableRef& block,
+        TSharedMutableRef block,
         size_t offset)
     {
         if (block.Size() == offset) {
-            promise.Set(block);
+            promise.Set(std::move(block));
             return;
         }
 
-        auto slice = block.Slice(offset, block.Size());
-        UnderlyingStream_->Read(slice).Subscribe(
-            BIND(&TZeroCopyInputStreamAdapter::OnRead, MakeStrong(this), promise, block, offset));
+        UnderlyingStream_->Read(block.Slice(offset, block.Size())).Subscribe(
+            BIND(
+                &TZeroCopyInputStreamAdapter::OnRead,
+                MakeStrong(this),
+                std::move(promise),
+                std::move(block),
+                offset));
     }
 
     void OnRead(
         TPromise<TSharedRef> promise,
-        const TSharedMutableRef& block,
+        TSharedMutableRef block,
         size_t offset,
         const TErrorOr<size_t>& result)
     {
@@ -244,20 +242,21 @@ private:
         }
 
         auto bytes = result.Value();
+
         if (bytes == 0) {
             promise.Set(offset == 0 ? TSharedRef() : block.Slice(0, offset));
             return;
         }
 
-        DoRead(promise, block, offset + bytes);
+        DoRead(std::move(promise), std::move(block), offset + bytes);
     }
-
 };
 
 IAsyncZeroCopyInputStreamPtr CreateZeroCopyAdapter(
     IAsyncInputStreamPtr underlyingStream,
     size_t blockSize)
 {
+    YCHECK(underlyingStream);
     return New<TZeroCopyInputStreamAdapter>(underlyingStream, blockSize);
 }
 

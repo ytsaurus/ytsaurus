@@ -952,9 +952,24 @@ public:
         return RequestTracker_->ThrottleUser(user, requestCount);
     }
 
-    void SetUserRequestRateLimit(TUser* user, double limit)
+    void SetUserRequestRateLimit(TUser* user, int limit)
     {
         RequestTracker_->SetUserRequestRateLimit(user, limit);
+    }
+
+    void SetUserRequestQueueSizeLimit(TUser* user, int limit)
+    {
+        RequestTracker_->SetUserRequestQueueSizeLimit(user, limit);
+    }
+
+    bool TryIncreaseRequestQueueSize(TUser* user)
+    {
+        return RequestTracker_->TryIncreaseRequestQueueSize(user);
+    }
+
+    void DecreaseRequestQueueSize(TUser* user)
+    {
+        RequestTracker_->DecreaseRequestQueueSize(user);
     }
 
 private:
@@ -969,8 +984,6 @@ private:
 
     TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
     TPeriodicExecutorPtr UserStatisticsGossipExecutor_;
-
-    bool InitMulticell_ = false;
 
     NHydra::TEntityMap<TAccount> AccountMap_;
     yhash_map<Stroka, TAccount*> AccountNameMap_;
@@ -1013,6 +1026,8 @@ private:
     TGroup* SuperusersGroup_ = nullptr;
 
     TUser* AuthenticatedUser_ = nullptr;
+
+    bool SetInitialRequestQueueSizeLimits_ = false;
 
 
     void UpdateNodeCachedResourceUsage(TCypressNodeBase* node)
@@ -1255,6 +1270,8 @@ private:
         AccountMap_.LoadValues(context);
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
+        // COMPAT(babenko)
+        SetInitialRequestQueueSizeLimits_ = (context.GetVersion() < 213);
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1376,7 +1393,7 @@ private:
         if (!RootUser_) {
             // root
             RootUser_ = DoCreateUser(RootUserId_, RootUserName);
-            RootUser_->SetRequestRateLimit(1000000.0);
+            RootUser_->SetRequestRateLimit(1000000);
         }
 
         GuestUser_ = FindUser(GuestUserId_);
@@ -1389,14 +1406,21 @@ private:
         if (!JobUser_) {
             // job
             JobUser_ = DoCreateUser(JobUserId_, JobUserName);
-            JobUser_->SetRequestRateLimit(1000000.0);
+            JobUser_->SetRequestRateLimit(1000000);
         }
 
         SchedulerUser_ = FindUser(SchedulerUserId_);
         if (!SchedulerUser_) {
             // scheduler
             SchedulerUser_ = DoCreateUser(SchedulerUserId_, SchedulerUserName);
-            SchedulerUser_->SetRequestRateLimit(1000000.0);
+            SchedulerUser_->SetRequestRateLimit(1000000);
+        }
+
+        // COMPAT(babenko)
+        if (SetInitialRequestQueueSizeLimits_) {
+            RootUser_->SetRequestQueueSizeLimit(1000000);
+            JobUser_->SetRequestQueueSizeLimit(1000000);
+            SchedulerUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // Accounts
@@ -1638,6 +1662,7 @@ private:
             Profiler.Enqueue("/user_read_time", localStatistics.ReadRequestTime.MicroSeconds(), tagIds);
             Profiler.Enqueue("/user_write_time", localStatistics.WriteRequestTime.MicroSeconds(), tagIds);
             Profiler.Enqueue("/user_request_count", localStatistics.RequestCount, tagIds);
+            Profiler.Enqueue("/user_request_queue_size", user->GetRequestQueueSize(), tagIds);
             // COMPAT(babenko)
             Profiler.Enqueue("/user_request_counter", localStatistics.RequestCount, tagIds);
         }
@@ -2080,9 +2105,24 @@ TFuture<void> TSecurityManager::ThrottleUser(TUser* user, int requestCount)
     return Impl_->ThrottleUser(user, requestCount);
 }
 
-void TSecurityManager::SetUserRequestRateLimit(TUser* user, double limit)
+void TSecurityManager::SetUserRequestRateLimit(TUser* user, int limit)
 {
     Impl_->SetUserRequestRateLimit(user, limit);
+}
+
+void TSecurityManager::SetUserRequestQueueSizeLimit(TUser* user, int limit)
+{
+    Impl_->SetUserRequestQueueSizeLimit(user, limit);
+}
+
+bool TSecurityManager::TryIncreaseRequestQueueSize(TUser* user)
+{
+    return Impl_->TryIncreaseRequestQueueSize(user);
+}
+
+void TSecurityManager::DecreaseRequestQueueSize(TUser* user)
+{
+    Impl_->DecreaseRequestQueueSize(user);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, *Impl_)

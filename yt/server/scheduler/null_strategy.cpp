@@ -19,6 +19,9 @@ public:
     virtual void ScheduleJobs(const ISchedulingContextPtr& /*context*/) override
     { }
 
+    virtual void StartPeriodicActivity() override
+    { }
+
     virtual void ResetState() override
     { }
 

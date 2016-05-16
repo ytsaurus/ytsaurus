@@ -232,7 +232,7 @@ private:
         TSupportsAttributes* const Owner_;
 
         mutable bool HasCachedData_ = false;
-        mutable yhash_set<Stroka> CachedBuiltinKeys_;
+        mutable yhash_set<const char*> CachedBuiltinKeys_;
         mutable std::vector<ISystemAttributeProvider::TAttributeDescriptor> CachedSystemAttributes_;
 
         void PrecacheData() const;
