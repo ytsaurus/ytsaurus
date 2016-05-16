@@ -31,13 +31,28 @@ class TestUsers(YTEnvSetup):
     def test_user_ban2(self):
         with pytest.raises(YtError): set("//sys/users/root/@banned", True)
 
-    def test_request_rate1(self):
+    def test_request_rate_limit1(self):
         create_user("u")
-        with pytest.raises(YtError): set("//sys/users/u/@request_rate_limit", -1.0)
+        with pytest.raises(YtError): set("//sys/users/u/@request_rate_limit", -1)
 
-    def test_request_rate2(self):
+    def test_request_rate_limit2(self):
         create_user("u")
-        set("//sys/users/u/@request_rate_limit", 1.0)
+        set("//sys/users/u/@request_rate_limit", 1)
+
+    def test_request_queue_size_limit1(self):
+        create_user("u")
+        with pytest.raises(YtError): set("//sys/users/u/@request_queue_size_limit", -1)
+
+    def test_request_queue_size_limit2(self):
+        create_user("u")
+        set("//sys/users/u/@request_queue_size_limit", 1)
+
+    def test_request_queue_size_limit3(self):
+        create_user("u")
+        set("//sys/users/u/@request_queue_size_limit", 0)
+        with pytest.raises(YtError): ls("/", user="u")
+        set("//sys/users/u/@request_queue_size_limit", 1)
+        ls("/", user="u")
 
     def test_access_counter1(self):
         create_user("u")

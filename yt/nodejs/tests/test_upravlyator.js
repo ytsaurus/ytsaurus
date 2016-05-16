@@ -44,11 +44,16 @@ var FIXTURE_USERS = {
     "sandello": {
         name: "sandello",
         member_of: [ "unmanaged1", "managed1" ],
-        upravlyator_managed: "true"
+        upravlyator_managed: "true",
+    },
+    "stunder": {
+        name: "stunder",
+        member_of: [ "unmanaged1" ],
+        upravlyator_managed: "true",
     },
     "anonymous": {
         name: "anonymous",
-        member_of: [ "unmanaged2", "managed2" ]
+        member_of: [ "unmanaged2", "managed2" ],
     },
 };
 

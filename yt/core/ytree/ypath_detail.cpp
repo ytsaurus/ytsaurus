@@ -337,6 +337,7 @@ void TSupportsAttributes::TCombinedAttributeDictionary::PrecacheData() const
     auto* provider = Owner_->GetBuiltinAttributeProvider();
     if (provider) {
         provider->ListSystemAttributes(&CachedSystemAttributes_);
+        CachedBuiltinKeys_.resize(CachedSystemAttributes_.size());
         for (const auto& descriptor : CachedSystemAttributes_) {
             if (!descriptor.Custom) {
                 YCHECK(CachedBuiltinKeys_.insert(descriptor.Key).second);

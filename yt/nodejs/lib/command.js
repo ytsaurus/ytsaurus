@@ -242,7 +242,7 @@ YtCommand.prototype._epilogue = function(result) {
     });
 
     if (!result.isOK()) {
-        if (result.isUserBanned()) {
+        if (result.isUserBanned() || result.isRequestQueueSizeLimitExceeded()) {
             this.sticky_cache.set(this.user, {
                 code: this.rsp.statusCode,
                 body: result.toJson()
@@ -581,7 +581,7 @@ YtCommand.prototype._getOutputFormat = function() {
         this.output_format = _PREDEFINED_YSON_FORMAT;
         // XXX(sandello): Allow browsers to display data inline.
         if (disposition === "inline") {
-            this.mime_type = "text/plain";
+            this.mime_type = "text/plain; charset=\"utf-8\"";
         } else {
             this.mime_type = "application/octet-stream";
         }
@@ -862,6 +862,10 @@ YtCommand.prototype._execute = function(cb) {
 
         if (result.isUserBanned()) {
             self.rsp.statusCode = 403;
+        }
+
+        if (result.isRequestQueueSizeLimitExceeded()) {
+            self.rsp.statusCode = 429;
         }
 
         return result;

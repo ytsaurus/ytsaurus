@@ -56,13 +56,21 @@ public:
         ESandboxKind sandboxKind,
         const Stroka& targetPath,
         const Stroka& linkName,
-        bool isExecutable) noexcept;
+        bool isExecutable);
+
+    //! Creates a copy of #sourcePath to #destinationName in the sandbox.
+    void MakeCopy(
+        ESandboxKind sandboxKind,
+        const Stroka& sourcePath,
+        const Stroka& destinationName,
+        bool isExecutable);
 
     void PrepareTmpfs(
         ESandboxKind sandboxKind,
-        i64 size);
+        i64 size,
+        Stroka path);
 
-    Stroka GetTmpfsPath(ESandboxKind sandboxKind) const;
+    Stroka GetTmpfsPath(ESandboxKind sandboxKind, const Stroka& path) const;
 
     const Stroka& GetWorkingDirectory() const;
 

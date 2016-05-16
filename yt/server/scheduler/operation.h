@@ -86,6 +86,9 @@ public:
     //! Number of stderrs generated so far.
     DEFINE_BYVAL_RW_PROPERTY(int, StderrCount);
 
+    //! Number of job nodes in Cypress.
+    DEFINE_BYVAL_RW_PROPERTY(int, JobNodeCount);
+
     //! Maximum number of stderrs to capture.
     DEFINE_BYVAL_RW_PROPERTY(int, MaxStderrCount);
 

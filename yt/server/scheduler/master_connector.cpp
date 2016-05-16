@@ -1237,7 +1237,14 @@ private:
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+        auto error = GetCumulativeError(batchRspOrError);
+        if (!error.IsOK()) {
+            if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
+                LOG_ERROR(error, "Account limit exceeded while creating job nodes");
+            } else {
+                THROW_ERROR_EXCEPTION("Failed to create job nodes") << error;
+            }
+        }
     }
 
     struct TJobFile

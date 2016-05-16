@@ -135,9 +135,7 @@ YtDriver.prototype.execute = function(
     this.__DBG("execute");
 
     var wrapped_input_stream = new YtWritableStream(this.low_watermark, this.high_watermark);
-    var wrapped_output_stream = new YtReadableStream(this.low_watermark, this.high_watermark);
-
-    this.__DBG("execute <<(" + wrapped_input_stream.__UUID + ") >>(" + wrapped_output_stream.__UUID + ")");
+    var wrapped_output_stream = new YtReadableStream(this.high_watermark);
 
     var deferred = Q.defer();
     var self = this;
@@ -183,8 +181,6 @@ YtDriver.prototype.execute = function(
         parameters, request_id,
         function(result) {
             self.__DBG("execute -> (on-execute callback)");
-            // XXX(sandello): Can we move |_endSoon| to C++?
-            wrapped_output_stream._endSoon();
 
             if (typeof(result_interceptor) === "function") {
                 self.__DBG("execute -> (interceptor)");
@@ -249,7 +245,8 @@ YtDriver.prototype.find_command_descriptor = function(name)
     return this._binding.FindCommandDescriptor(name);
 };
 
-YtDriver.prototype.get_command_descriptors = function() {
+YtDriver.prototype.get_command_descriptors = function()
+{
     this.__DBG("get_command_descriptors");
     return this._binding.GetCommandDescriptors();
 };

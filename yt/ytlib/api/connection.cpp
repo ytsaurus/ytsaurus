@@ -193,7 +193,16 @@ private:
             GetBusChannelFactory(),
             kind);
 
-        channel = CreateRetryingChannel(config, channel, BIND(&IsRetriableError));
+        auto isRetryableError = BIND([options = Options_] (const TError& error) {
+            if (options.RetryRequestQueueSizeLimitExceeded &&
+                error.GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)
+            {
+                return true;
+            }
+
+            return IsRetriableError(error);
+        });
+        channel = CreateRetryingChannel(config, channel, isRetryableError);
 
         channel = CreateDefaultTimeoutChannel(channel, config->RpcTimeout);
 

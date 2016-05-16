@@ -214,7 +214,6 @@ Handle<Value> ConvertNodeToV8Value(const INodePtr& node)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
-
     return scope.Close(ProduceV8(node));
 }
 
@@ -383,10 +382,10 @@ Handle<Value> TNodeWrap::New(const Arguments& args)
                 "There are only 0-ary, 1-ary and 3-ary constructors of TNodeWrap");
         }
 
-        std::unique_ptr<TNodeWrap> wrappedNode(new TNodeWrap(node));
-        wrappedNode.release()->Wrap(args.This());
+        auto wrap = new TNodeWrap(node);
+        wrap->Wrap(args.This());
 
-        return args.This();
+        return scope.Close(args.This());
     } catch (const std::exception& ex) {
         return ThrowException(ConvertErrorToV8(ex));
     }
@@ -423,7 +422,7 @@ Handle<Value> TNodeWrap::CreateMerged(const Arguments& args)
     Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
     TNodeWrap::Unwrap(handle)->SetNode(std::move(result));
 
-    return scope.Close(std::move(handle));
+    return scope.Close(handle);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -446,7 +445,7 @@ Handle<Value> TNodeWrap::CreateV8(const Arguments& args)
     Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
     TNodeWrap::Unwrap(handle)->SetNode(std::move(node));
 
-    return scope.Close(std::move(handle));
+    return scope.Close(handle);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -478,7 +477,7 @@ Handle<Value> TNodeWrap::Print(const Arguments& args)
         handle = String::New(result.c_str(), result.length());
     }
 
-    return scope.Close(std::move(handle));
+    return scope.Close(handle);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -518,7 +517,7 @@ Handle<Value> TNodeWrap::GetByYPath(const Arguments& args)
     Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
     TNodeWrap::Unwrap(handle)->SetNode(std::move(node));
 
-    return scope.Close(std::move(handle));
+    return scope.Close(handle);
 }
 
 Handle<Value> TNodeWrap::SetByYPath(const Arguments& args)
@@ -542,7 +541,7 @@ Handle<Value> TNodeWrap::SetByYPath(const Arguments& args)
         return ThrowException(ConvertErrorToV8(ex));
     }
 
-    return args.This();
+    return scope.Close(args.This());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -569,7 +568,7 @@ Handle<Value> TNodeWrap::GetAttribute(const Arguments& args)
     Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
     TNodeWrap::Unwrap(handle)->SetNode(std::move(node));
 
-    return scope.Close(std::move(handle));
+    return scope.Close(handle);
 }
 
 Handle<Value> TNodeWrap::SetAttribute(const Arguments& args)
@@ -593,7 +592,7 @@ Handle<Value> TNodeWrap::SetAttribute(const Arguments& args)
         return ThrowException(ConvertErrorToV8(ex));
     }
 
-    return args.This();
+    return scope.Close(args.This());
 }
 
 Handle<Value> TNodeWrap::GetNodeType(const Arguments& args)

@@ -43,9 +43,16 @@ public:
 
     void SetUserRequestRateLimit(
         TUser* user,
-        double limit);
+        int limit);
 
     void ReconfigureUserRequestRateThrottler(TUser* user);
+
+    void SetUserRequestQueueSizeLimit(
+        TUser* user,
+        int limit);
+
+    bool TryIncreaseRequestQueueSize(TUser* user);
+    void DecreaseRequestQueueSize(TUser* user);
 
 private:
     const TSecurityManagerConfigPtr Config_;

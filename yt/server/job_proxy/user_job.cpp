@@ -937,8 +937,9 @@ private:
         for (int pid : pids) {
             try {
                 i64 processRss = GetProcessRss(pid);
-                LOG_DEBUG("PID: %v, RSS: %v",
+                LOG_DEBUG("PID: %v, ProcessName: %Qv, RSS: %v",
                     pid,
+                    GetProcessName(pid),
                     processRss);
                 rss += processRss;
             } catch (const std::exception& ex) {
@@ -984,8 +985,8 @@ private:
         }
 
         i64 tmpfsSize = 0;
-        if (UserJobSpec_.has_tmpfs_size()) {
-            auto diskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->TmpfsPath);
+        if (Config_->TmpfsPath) {
+            auto diskSpaceStatistics = NFS::GetDiskSpaceStatistics(*Config_->TmpfsPath);
             tmpfsSize = diskSpaceStatistics.TotalSpace - diskSpaceStatistics.AvailableSpace;
         }
 

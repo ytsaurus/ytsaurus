@@ -849,9 +849,9 @@ private:
         if (!rspOrError.IsOK()) {
             auto error = TError("Error fetching blocks from node %v", address) << rspOrError;
             if (rspOrError.GetCode() != NRpc::EErrorCode::Unavailable || 
-                rspOrError.GetCode() != NRpc::EErrorCode::RequestQueueLimitExceeded) 
+                rspOrError.GetCode() != NRpc::EErrorCode::RequestQueueSizeLimitExceeded)
             {
-                // Do not ban node if it says "Unavailable" or "RequestQueueLimitExceeded".
+                // Do not ban node if it says "Unavailable" or "RequestQueueSizeLimitExceeded".
                 BanPeer(address, rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk);
                 RegisterError(error);
             } else {
@@ -1123,9 +1123,9 @@ private:
         if (!rspOrError.IsOK()) {
             auto error = TError("Error fetching blocks from node %v", address) << rspOrError;
             if (rspOrError.GetCode() != NRpc::EErrorCode::Unavailable || 
-                rspOrError.GetCode() != NRpc::EErrorCode::RequestQueueLimitExceeded) 
+                rspOrError.GetCode() != NRpc::EErrorCode::RequestQueueSizeLimitExceeded)
             {
-                // Do not ban node if it says "Unavailable" or "RequestQueueLimitExceeded".
+                // Do not ban node if it says "Unavailable" or "RequestQueueSizeLimitExceeded".
                 BanPeer(address, rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk);
                 RegisterError(error);
             } else {

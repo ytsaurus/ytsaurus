@@ -223,9 +223,10 @@ public:
             }
 
             auto row = BlockReader_->GetRow(&MemoryPool_);
-            if (row && rows->back()) {
+            if (row) {
                 YASSERT(
                     rows->empty() ||
+                    !rows->back() ||
                     CompareRows(
                         rows->back().BeginKeys(), rows->back().EndKeys(),
                         row.BeginKeys(), row.EndKeys()) < 0);
