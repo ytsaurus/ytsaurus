@@ -1278,7 +1278,7 @@ class Finalizer(object):
         mode = "sorted" if is_sorted(table, client=self.client) else "unordered"
 
         if get_config(self.client)["auto_merge_output"]["action"] == "merge":
-            table = TablePath(table)
+            table = TablePath(table, client=self.client)
             table.attributes.clear()
             try:
                 run_merge(source_table=table, destination_table=table, mode=mode,
@@ -1504,7 +1504,7 @@ def _run_operation(binary, source_table, destination_table,
                 temp_table = create_temp_table(client=client)
                 run_sort(source_table, temp_table, sort_by=sort_by, client=client)
                 finalize = lambda: remove(temp_table, client=client)
-                source_table = [TablePath(temp_table)]
+                source_table = [TablePath(temp_table, client=client)]
 
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and _are_default_empty_table(source_table):
         _remove_tables(destination_table, client=client)
