@@ -1039,7 +1039,7 @@ void TOperationControllerBase::Prepare()
     GetFilesBasicAttributes(&Files);
 
     LockInputTables();
-    LockUserFiles(&Files, {});
+    LockUserFiles(&Files);
 
     BeginUploadOutputTables();
     GetOutputTablesUploadParams();
@@ -3296,9 +3296,7 @@ void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
     }
 }
 
-void TOperationControllerBase::LockUserFiles(
-    std::vector<TUserFile>* files,
-    const std::vector<Stroka>& attributeKeys_)
+void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
 {
     LOG_INFO("Locking user files");
 
@@ -3335,7 +3333,7 @@ void TOperationControllerBase::LockUserFiles(
             {
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
                 SetTransactionId(req, InputTransactionId);
-                auto attributeKeys = attributeKeys_;
+                std::vector<Stroka> attributeKeys;
                 attributeKeys.push_back("file_name");
                 switch (file.Type) {
                     case EObjectType::File:
@@ -3355,10 +3353,20 @@ void TOperationControllerBase::LockUserFiles(
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 batchReq->AddRequest(req, "get_attributes");
             }
+
+            {
+                auto req = TYPathProxy::Get(file.Path.GetPath() + "&/@");
+                SetTransactionId(req, InputTransactionId);
+                std::vector<Stroka> attributeKeys;
+                attributeKeys.push_back("key");
+                attributeKeys.push_back("file_name");
+                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                batchReq->AddRequest(req, "get_link_attributes");
+            }
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of user files");
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting attributes of user files");
         const auto& batchRsp = batchRspOrError.Value();
 
         TEnumIndexedVector<yhash_set<Stroka>, EOperationStage> userFileNames;
@@ -3378,19 +3386,29 @@ void TOperationControllerBase::LockUserFiles(
         };
 
         auto getAttributesRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_attributes");
+        auto getLinkAttributesRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_link_attributes");
         for (int index = 0; index < files->size(); ++index) {
             auto& file = (*files)[index];
             const auto& path = file.Path.GetPath();
 
             {
-                const auto& rsp = getAttributesRspsOrError[index].Value();
+                const auto& rspOrError = getAttributesRspsOrError[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of user file %Qv", path);
+                const auto& rsp = rspOrError.Value();
+                const auto& linkRsp = getLinkAttributesRspsOrError[index];
 
                 file.Attributes = ConvertToAttributes(TYsonString(rsp->value()));
                 const auto& attributes = *file.Attributes;
 
                 try {
-                    file.FileName = attributes.Get<Stroka>("key");
-                    file.FileName = attributes.Find<Stroka>("file_name").Get(file.FileName);
+                    if (linkRsp.IsOK()) {
+                        auto linkAttributes = ConvertToAttributes(TYsonString(linkRsp.Value()->value()));
+                        file.FileName = linkAttributes->Get<Stroka>("key");
+                        file.FileName = linkAttributes->Find<Stroka>("file_name").Get(file.FileName);
+                    } else {
+                        file.FileName = attributes.Get<Stroka>("key");
+                        file.FileName = attributes.Find<Stroka>("file_name").Get(file.FileName);
+                    }
                     file.FileName = file.Path.GetFileName().Get(file.FileName);
                 } catch (const std::exception& ex) {
                     // NB: Some of the above Gets and Finds may throw due to, e.g., type mismatch.
