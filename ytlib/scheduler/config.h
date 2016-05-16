@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/server/security_server/acl.h>
-
 #include <yt/ytlib/api/config.h>
 
 #include <yt/ytlib/formats/format.h>
