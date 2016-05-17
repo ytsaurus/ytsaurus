@@ -27,9 +27,13 @@ def test(tmpdir_module, mapreduce, yt_stuff, test_name):
         env={"WRITE_TO_LOG": "1", "MR_RUNTIME": "YT"}
     )
 
-    mr_res.wait(check_exit_code=True)
-    yt_res.wait(check_exit_code=True)
+    mr_res.wait(check_exit_code=False)
+    yt_res.wait(check_exit_code=False)
 
     assert mr_res.std_out == yt_res.std_out
+
+    if mr_res.exit_code != yt_res.exit_code:
+        return "Both error"
+
     if yt_res.std_out:
         return yt_res.std_out
