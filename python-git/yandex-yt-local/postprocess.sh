@@ -22,7 +22,7 @@ sandbox_request() {
                 -H "Authorization: OAuth $SANDBOX_TOKEN" \
                 "$@")
 
-    if [[ $http_code -ne 200 ]]; then
+    if [[ $(($http_code / 100)) -ne "2" ]]; then
         echo "Sandbox request failed with error: $(cat _curl_out)"
         exit 1
     fi
