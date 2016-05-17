@@ -16,7 +16,7 @@ UBUNTU_CODENAME=$(lsb_release -c -s)
 sandbox_request() {
     local method="$1" && shift
     local path="$1" && shift
-    http_code=$(curl -X "$method" -s -k -L -o "_curl_out" -w '%{http_code}' \
+    http_code=$(curl -X "$method" -sS -k -L -o "_curl_out" -w '%{http_code}' \
                 "https://sandbox.yandex-team.ru/api/v1.0/${path}" \
                 -H "Content-Type: application/json" \
                 -H "Authorization: OAuth $SANDBOX_TOKEN" \
