@@ -32,6 +32,7 @@ TSyncSlruCacheBase<TKey, TValue, THash>::TSyncSlruCacheBase(
     , Profiler(profiler)
     , HitWeightCounter_("/hit")
     , MissedWeightCounter_("/missed")
+    , DroppedWeightCounter_("/dropped")
     , YoungerWeightCounter_("/younger")
     , OlderWeightCounter_("/older")
 { }
@@ -56,6 +57,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Clear()
 
     Profiler.Update(HitWeightCounter_, 0);
     Profiler.Update(MissedWeightCounter_, 0);
+    Profiler.Update(DroppedWeightCounter_, 0);
 
     guard.Release();
 
@@ -112,9 +114,11 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(TValuePtr value, TValueP
     DrainTouchBuffer();
 
     const auto& key = value->GetKey();
+    auto weight = GetWeight(value);
 
     auto itemIt = ItemMap_.find(key);
     if (itemIt != ItemMap_.end()) {
+        Profiler.Increment(DroppedWeightCounter_, weight);
         if (existingValue) {
             *existingValue = itemIt->second->Value;
         }
@@ -125,7 +129,6 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(TValuePtr value, TValueP
     YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
     ++ItemMapSize_;
 
-    auto weight = GetWeight(value);
     Profiler.Increment(MissedWeightCounter_, weight);
 
     PushToYounger(item);
