@@ -656,13 +656,15 @@ namespace NAst {
 
 void TParser::error(const location_type& location, const std::string& message)
 {
-    Stroka mark;
-    for (int index = 0; index <= location.second; ++index) {
-        mark += index < location.first ? ' ' : '^';
-    }
+    auto leftContextStart = std::max(location.first - 16, 0);
+    auto rightContextEnd = std::min(location.second + 16, source.size());
+
     THROW_ERROR_EXCEPTION("Error while parsing query: %v", message)
         << TErrorAttribute("position", Format("%v-%v", location.first, location.second))
-        << TErrorAttribute("query", Format("\n%v\n%v", source, mark));
+        << TErrorAttribute("query", Format("%v >>>>> %v <<<<< %v",
+            source.substr(leftContextStart, location.first - leftContextStart),
+            source.substr(location.first, location.second - location.first),
+            source.substr(location.second, rightContextEnd - location.second)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
