@@ -27,6 +27,7 @@
 #include <yt/core/ytree/ypath_detail.h>
 
 #include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/profiler.h>
 
 #include <atomic>
 
@@ -45,6 +46,12 @@ using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NObjectServer;
 using namespace NCellMaster;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Profiler = ObjectServerProfiler;
+static NProfiling::TSimpleCounter CumulativeReadRequestTimeCounter("/cumulative_read_request_time");
+static NProfiling::TSimpleCounter CumulativeWriteRequestTimeCounter("/cumulative_write_request_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -339,7 +346,7 @@ private:
                 NTracing::ServerReceiveAnnotation);
 
             if (subrequest.Mutation) {
-                ExecuteMutatingSubrequest(&subrequest, user);
+                ExecuteWriteSubrequest(&subrequest, user);
                 LastMutatingSubRequestIndex_ = CurrentSubrequestIndex_;
             } else {
                 // Cannot serve new read requests before previous write ones are done.
@@ -379,14 +386,18 @@ private:
         OnSubresponse(subrequest, TError());
     }
 
-    void ExecuteMutatingSubrequest(TSubrequest* subrequest, TUser* user)
+    void ExecuteWriteSubrequest(TSubrequest* subrequest, TUser* user)
     {
+        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &CumulativeWriteRequestTimeCounter);
+
         subrequest->Mutation->Commit().Subscribe(
             BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
     }
 
     void ExecuteReadSubrequest(TSubrequest* subrequest, TUser* user)
     {
+        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &CumulativeReadRequestTimeCounter);
+
         const auto& context = subrequest->Context;
         auto asyncResponseMessage = context->GetAsyncResponseMessage();
         NProfiling::TScopedTimer timer;
