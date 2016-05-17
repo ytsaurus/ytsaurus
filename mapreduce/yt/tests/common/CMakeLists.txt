@@ -8,6 +8,7 @@ SRCS(
     main.cpp
     test_operations.cpp
     test_table.cpp
+    test_update.cpp
 )
 
 PEERDIR(

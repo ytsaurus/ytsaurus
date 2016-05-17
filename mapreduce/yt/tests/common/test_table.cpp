@@ -79,6 +79,7 @@ private:
         client.Drop(TABLE);
         client.Drop(SORTED_TABLE);
         client.Drop(EMPTY_TABLE);
+        client.Drop(UNEXIST_TABLE);
     }
 
     THolder<TServer> Server;

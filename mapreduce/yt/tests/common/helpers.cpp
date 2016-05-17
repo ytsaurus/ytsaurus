@@ -12,9 +12,9 @@ void PrintTable(TServer& server, const char* tableName, TOutputStream& out) {
     TClient client(server);
     TTable table(client, tableName);
     for (auto&& it = table.Begin(); it != table.End(); ++it) {
-        out << it.GetKey().AsString()
-            << "\t" << it.GetSubKey().AsString()
-            << "\t" << it.GetValue().AsString()
+        out << "'" << it.GetKey().AsString() << "'"
+            << "\t'" << it.GetSubKey().AsString() << "'"
+            << "\t'" << it.GetValue().AsString() << "'"
             << "\n";
     }
 }
