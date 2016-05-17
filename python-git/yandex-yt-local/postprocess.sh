@@ -16,6 +16,8 @@ UBUNTU_CODENAME=$(lsb_release -c -s)
 sandbox_request() {
     local method="$1" && shift
     local path="$1" && shift
+
+    touch _curl_out
     http_code=$(curl -X "$method" -sS -k -L -o "_curl_out" -w '%{http_code}' \
                 "https://sandbox.yandex-team.ru/api/v1.0/${path}" \
                 -H "Content-Type: application/json" \
@@ -63,7 +65,7 @@ upload_to_sandbox() {
     local task;
     local task_id;
     local task_params;
-    
+
     task=$(cat <<EOF
 {
     "type": "REMOTE_COPY_RESOURCE",
