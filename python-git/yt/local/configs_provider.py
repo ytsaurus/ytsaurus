@@ -1,5 +1,5 @@
 from yt.common import YtError, update
-from yt.environment.configs_provider import ConfigsProvider_17, ConfigsProvider_18, _get_hydra_manager_config
+from yt.environment.configs_provider import ConfigsProvider_17, ConfigsProvider_18
 from yt.environment.helpers import versions_cmp
 
 class ConfigsProviderFactory(object):
@@ -205,8 +205,6 @@ class LocalModeConfigsProvider_17(ConfigsProvider_17):
 
         for cell_index in xrange(secondary_master_cell_count + 1):
             for config in configs[cell_index]:
-                config["hydra_manager"] = _get_hydra_manager_config()
-
                 for patch in MASTER_CONFIG_PATCHES:
                     update(config, patch)
                 _remove_none_fields(config)
