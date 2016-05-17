@@ -59,30 +59,21 @@ def initialize_world(client=None):
     for schema in ["user", "group", "tablet_cell"]:
         client.set("//sys/schemas/%s/@acl" % schema,
             [
-                {"action": "allow", "subjects": ["everyone"], "permissions": ["read"]},
                 {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "create"]}
             ])
 
     client.set("//sys/schemas/account/@acl",
         [
-            {"action": "allow", "subjects": ["everyone"], "permissions": ["read"]},
             {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "create", "administer", "use"]}
         ])
 
     client.set("//sys/schemas/rack/@acl",
         [
-            {"action": "allow", "subjects": ["everyone"], "permissions": ["read"]},
             {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "create", "administer"]}
-        ])
-
-    client.set("//sys/schemas/lock/@acl",
-        [
-            {"action": "allow", "subjects": ["everyone"], "permissions": ["read"]},
         ])
 
     client.set("//sys/schemas/transaction/@acl",
         [
-            {"action": "allow", "subjects": ["everyone"], "permissions": ["read"]},
             {"action": "allow", "subjects": ["users"], "permissions": ["write", "create"]}
         ])
 
