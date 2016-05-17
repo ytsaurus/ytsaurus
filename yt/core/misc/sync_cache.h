@@ -87,6 +87,7 @@ private:
     NProfiling::TProfiler Profiler;
     NProfiling::TSimpleCounter HitWeightCounter_;
     NProfiling::TSimpleCounter MissedWeightCounter_;
+    NProfiling::TSimpleCounter DroppedWeightCounter_;
     NProfiling::TSimpleCounter YoungerWeightCounter_;
     NProfiling::TSimpleCounter OlderWeightCounter_;
 
