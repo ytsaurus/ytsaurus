@@ -60,7 +60,11 @@ upload_to_sandbox() {
 
     local archive_path="$1" && shift
 
-    local task=$(cat <<EOF
+    local task;
+    local task_id;
+    local task_params;
+    
+    task=$(cat <<EOF
 {
     "type": "REMOTE_COPY_RESOURCE",
     "context":
@@ -80,13 +84,13 @@ upload_to_sandbox() {
 }
 EOF
 )
-    local task_id=$(echo -ne "$task" | \
-                    sandbox_request "POST" "task" -d @- | \
-                    python -c 'import sys, json; print json.load(sys.stdin)["id"]')
+    task_id=$(echo -ne "$task" | \
+              sandbox_request "POST" "task" -d @- | \
+              python -c 'import sys, json; print json.load(sys.stdin)["id"]')
 
     echo "Created sandbox task: $task_id"
 
-    local task_params=$(cat <<EOF
+    task_params=$(cat <<EOF
 {
     "description": "Upload YT local archive",
     "notifications": [
@@ -144,7 +148,7 @@ create_and_upload_archive() {
              "    yandex-yt-python=${yt_python_version}\n" \
              "    yandex-yt-python-yson=${yt_yson_bindings_version}\n"
 
-    if [ "$($YT exists ${archive_path})" = "true" ]; then
+    if [ "$($YT exists "${archive_path}/@success")" = "true" ]; then
         echo "Appropriate archive already exists"
         return
     fi
@@ -180,6 +184,8 @@ create_and_upload_archive() {
                       "$yt_python_version" \
                       "$yt_yson_bindings_version" \
                       "$archive_path"
+
+    $YT set "${archive_path}/@success" "%true"
 
     echo "Done! Archive path: $archive_path"
 }
