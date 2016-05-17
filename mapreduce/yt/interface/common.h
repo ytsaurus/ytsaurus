@@ -132,6 +132,7 @@ struct TReadRange
 
     FLUENT_FIELD(TReadLimit, LowerLimit);
     FLUENT_FIELD(TReadLimit, UpperLimit);
+    FLUENT_FIELD(TReadLimit, Exact);
 
     static TReadRange FromRowIndexes(i64 lowerLimit, i64 upperLimit)
     {

@@ -61,6 +61,10 @@ YT_TEST(TIo, ReadMultipleRangesNode)
     path.AddRange(TReadRange()
         .LowerLimit(TReadLimit().Key(70))
         .UpperLimit(TReadLimit().Key(80)));
+    path.AddRange(TReadRange()
+        .Exact(TReadLimit().RowIndex(90)));
+    path.AddRange(TReadRange()
+        .Exact(TReadLimit().Key(95)));
 
     auto reader = Client()->CreateTableReader<TNode>(path);
     for (; reader->IsValid(); reader->Next()) {
@@ -95,6 +99,10 @@ YT_TEST(TIo, ReadMultipleRangesYaMR)
     path.AddRange(TReadRange()
         .LowerLimit(TReadLimit().Key("70"))
         .UpperLimit(TReadLimit().Key("80")));
+    path.AddRange(TReadRange()
+        .Exact(TReadLimit().RowIndex(90)));
+    path.AddRange(TReadRange()
+        .Exact(TReadLimit().Key("95")));
 
     auto reader = Client()->CreateTableReader<TYaMRRow>(path);
     for (; reader->IsValid(); reader->Next()) {
