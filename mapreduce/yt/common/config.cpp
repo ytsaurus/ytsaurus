@@ -1,6 +1,8 @@
 #include "config.h"
 
 #include "log.h"
+#include "node_builder.h"
+#include "helpers.h"
 
 #include <library/json/json_reader.h>
 #include <library/svnversion/svnversion.h>
@@ -108,10 +110,15 @@ void TConfig::LoadToken()
 void TConfig::LoadSpec()
 {
     Stroka strSpec = GetEnv("YT_SPEC", "{}");
+
     TStringInput input(strSpec);
-    if (!NJson::ReadJsonTree(&input, &Spec, false)) {
+    TNodeBuilder builder(&Spec);
+    TYson2JsonCallbacksAdapter callbacks(&builder);
+
+    if (!NJson::ReadJson(&input, &callbacks)) {
         LOG_FATAL("YT_SPEC: Cannot parse json");
     }
+
     if (!Spec.IsMap()) {
         LOG_FATAL("YT_SPEC: Not a map node");
     }
