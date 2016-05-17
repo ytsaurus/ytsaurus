@@ -5,7 +5,7 @@ export YT_PROXY=locke.yt.yandex.net
 
 # Tokens belong to teamcity@ user
 export YT_TOKEN=1da6afc98d189e8ba59d2ea39f29d0f1
-export SANDBOX_TOKEN=4420f146b4bf4829b809ae1cbbfabbfc
+export SANDBOX_TOKEN=c80fbd1794784f2fbea86ac39ec92f8f
 
 export PYTHONPATH="$(pwd)"
 
