@@ -108,6 +108,9 @@ void Serialize(const TReadRange& readRange, IYsonConsumer* consumer)
         .DoIf(!IsTrivial(readRange.UpperLimit_), [&] (TFluentMap fluent) {
             fluent.Item("upper_limit").Value(readRange.UpperLimit_);
         })
+        .DoIf(!IsTrivial(readRange.Exact_), [&] (TFluentMap fluent) {
+            fluent.Item("exact").Value(readRange.Exact_);
+        })
     .EndMap();
 }
 
