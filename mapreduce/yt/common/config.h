@@ -1,6 +1,6 @@
 #pragma once
 
-#include <library/json/json_value.h>
+#include <mapreduce/yt/interface/node.h>
 
 #include <util/generic/stroka.h>
 #include <util/datetime/base.h>
@@ -27,7 +27,7 @@ struct TConfig
     bool ForceIpV6;
     bool UseHosts;
 
-    NJson::TJsonValue Spec;
+    TNode Spec;
 
     TDuration ConnectTimeout;
     TDuration SocketTimeout;

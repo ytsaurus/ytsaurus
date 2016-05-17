@@ -532,6 +532,7 @@ void BuildPathPrefix(TFluentList fluent, const TRichYPath& path)
 
 Stroka MergeSpec(TNode& dst, const TOperationOptions& options)
 {
+    MergeNodes(dst["spec"], TConfig::Get()->Spec);
     if (options.Spec_) {
         MergeNodes(dst["spec"], *options.Spec_);
     }
