@@ -17,6 +17,8 @@ using namespace NMR;
 
 namespace {
 
+using TData = yvector<yvector<Stroka>>;
+
 
 class TUpdateTestFixture
     : public NTest::TTest
@@ -45,8 +47,8 @@ public:
         };
     }
 
-    static yvector<yvector<Stroka>> GetTableData() {
-        static yvector<yvector<Stroka>> data =  {
+    static TData GetTableData() {
+        static TData data =  {
             { "a", "a", "a" },
             { "c", "c", "c" },
             { "e", "e", "e" },
@@ -56,7 +58,7 @@ public:
         return data;
     }
 
-    static yvector<yvector<Stroka>> GetTestData(bool isSorted) {
+    static TData GetBigTestData() {
         auto toAdd = GetTableData();
         toAdd.push_back({ "", "1", "2" });
         toAdd.push_back({ "1", "", "1" });
@@ -65,15 +67,25 @@ public:
         toAdd.push_back({ "", "b", "" });
         toAdd.push_back({ "", "", "c" });
         toAdd.push_back({ "", "", "" });
-
-        if (isSorted) {
-            Sort(toAdd.begin(), toAdd.end(),
-                [](const yvector<Stroka>& v1, const yvector<Stroka>& v2) {
-                    return v1[0] < v2[0] || (v1[0] == v2[0] && v1[1] < v2[1]);
-                }
-            );
+        for (int i = 0; i < 200; ++i) {
+            Stroka key = Sprintf("%d", (int) 'a' + (i % 26));
+            Stroka subkey = Sprintf("%d", (int) 'a' + (i % 7));
+            toAdd.push_back({ key, subkey, key });
         }
+        return toAdd;
+    }
 
+    static TData GetSmallSortedTestData() {
+        yvector<yvector<Stroka>> toAdd;
+        toAdd.push_back({ "xx", "xx", "xxx" });
+        toAdd.push_back({ "xy", "xy", "yyy"  });
+        toAdd.push_back({ "xz", "xz", "zzz"  });
+        toAdd.push_back({ "yx", "yx", "xxx" });
+        toAdd.push_back({ "yy", "yy", "yyy"  });
+        toAdd.push_back({ "yz", "yz", "zzz"  });
+        toAdd.push_back({ "zx", "zx", "xxx" });
+        toAdd.push_back({ "zy", "zy", "yyy"  });
+        toAdd.push_back({ "zz", "zz", "zzz"  });
         return toAdd;
     }
 
@@ -129,11 +141,14 @@ private:
     THolder<TServer> Server;
 };
 
+
+
 } // anonymous namespace
 
-void DoTestSingleUpdate(TServer& server, TUpdateTable&& updateTable, bool isSorted) {
-    const auto&& toAdd = TUpdateTestFixture::GetTestData(isSorted);
 
+///////////////////////////////////////////////////////////////////////////////
+
+void DoTestSingleUpdate(TServer& server, TUpdateTable&& updateTable, TData&& toAdd) {
     try {
         TClient client(server);
         TUpdate up(client, updateTable);
@@ -144,28 +159,84 @@ void DoTestSingleUpdate(TServer& server, TUpdateTable&& updateTable, bool isSort
     } catch (const yexception& ex) {
         Cout << "EXCEPTION OCCURED" << Endl;
     }
-    PrintTable(server, ~updateTable.Name, Cout);
-
 }
 
-//void TestMultiUpdate(yvector<TUpdateTable>&& updates, bool isSorted) {
-//}
-
 YT_TEST(TUpdateTestFixture, TestSingleUpdate) {
-    constexpr bool ADD_SORTED = true;
+    Cout << "======TEST SINGLE UPDATE======\n";
     for (auto tableName : GetTables()) {
         for (auto updateMode : GetUpdateModes()) {
             RefreshTables();
-            Cout << "~~~~~~" << tableName << "::" << (int) updateMode << "::add sorted data~~~~~~\n";
-            DoTestSingleUpdate(GetServer(), TUpdateTable(tableName, updateMode), ADD_SORTED);
+            DoTestSingleUpdate(GetServer(), TUpdateTable(tableName, updateMode), GetBigTestData());
+            Cout << "~~~~~~" << tableName << "::" << (int) updateMode << "::GetBigTestData~~~~~~\n";
+            PrintTable(GetServer(), tableName, Cout);
 
             RefreshTables();
-            Cout << "~~~~~~" << tableName << "::" << (int) updateMode << "::add not sorted data~~~~~~\n";
-            DoTestSingleUpdate(GetServer(), TUpdateTable(tableName, updateMode), !ADD_SORTED);
+            DoTestSingleUpdate(GetServer(), TUpdateTable(tableName, updateMode), GetSmallSortedTestData());
+            Cout << "~~~~~~" << tableName << "::" << (int) updateMode << "::GetSmallSortedTestData~~~~~~\n";
+            PrintTable(GetServer(), tableName, Cout);
         }
     }
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
+void DoTestMultiUpdate(TServer& server, const yvector<TUpdateTable>& updates, TData&& toAdd) {
+    try {
+        TClient client(server);
+        TUpdate up(client, updates);
+
+        const auto TABLES_COUNT = up.GetUpdateTableCount();
+        Y_VERIFY((int) updates.size() == TABLES_COUNT);
+
+        int curTableInd = 0;
+        for (size_t i = 0, end = toAdd.size(); i < end; ++i) {
+            auto&& d = toAdd[i];
+            Y_VERIFY(d.size() == 3);
+            up.AddSub(d[0], d[1], d[2]);
+
+            if (i % 7 == 0) {
+                curTableInd = (curTableInd + 1) % TABLES_COUNT;
+                up.SetCurrentTable(curTableInd);
+            }
+        }
+    } catch (const yexception& ex) {
+        Cout << "EXCEPTION OCCURED" << Endl;
+    }
+}
+
+
+YT_TEST(TUpdateTestFixture, TestMultiUpdate) {
+    Cout << "======TEST MULTI UPDATE======\n";
+
+    #define X(name, mode) TUpdateTable(name, mode)
+
+    static const yvector<yvector<TUpdateTable>> allUpdates = {
+        { X(EMPTY_TABLE, UM_APPEND), X(UNEXIST_TABLE, UM_APPEND) },
+        { X(EMPTY_TABLE, UM_APPEND), X(TABLE, UM_REPLACE) },
+        { X(SORTED_TABLE, UM_APPEND), X(UNEXIST_TABLE, UM_REPLACE) },
+        { X(SORTED_TABLE, UM_APPEND), X(TABLE, UM_REPLACE) },
+        { X(SORTED_TABLE, UM_SORTED), X(TABLE, UM_SORTED) },
+        { X(SORTED_TABLE, UM_APPEND_SORTED), X(TABLE, UM_APPEND_SORTED), X(UNEXIST_TABLE, UM_APPEND) },
+    };
+
+    #undef X
+
+    for (const auto& updates : allUpdates) {
+        RefreshTables();
+        DoTestMultiUpdate(GetServer(), updates, GetBigTestData());
+        for (const auto& update : updates) {
+            Cout << "~~~~~~" << update.Name << "::" << (int) update.Mode << "::GetBigTestData~~~~~~\n";
+            PrintTable(GetServer(), ~update.Name, Cout);
+        }
+
+        RefreshTables();
+        DoTestMultiUpdate(GetServer(), updates, GetSmallSortedTestData());
+        for (const auto& update : updates) {
+            Cout << "~~~~~~" << update.Name << "::" << (int) update.Mode << "::GetSmallSortedTestData~~~~~~\n";
+            PrintTable(GetServer(), ~update.Name, Cout);
+        }
+    }
+}
 
 } // NCommonTest
 } // NYT
