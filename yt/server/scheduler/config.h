@@ -32,6 +32,10 @@ public:
     TDuration FairSharePreemptionTimeout;
     double FairShareStarvationTolerance;
 
+    TDuration MinSharePreemptionTimeoutLimit;
+    TDuration FairSharePreemptionTimeoutLimit;
+    double FairShareStarvationToleranceLimit;
+
     TDuration FairShareUpdatePeriod;
     TDuration FairShareLogPeriod;
 
@@ -72,6 +76,14 @@ public:
         RegisterParameter("fair_share_preemption_timeout", FairSharePreemptionTimeout)
             .Default(TDuration::Seconds(30));
         RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
+            .InRange(0.0, 1.0)
+            .Default(0.8);
+
+        RegisterParameter("min_share_preemption_timeout_limit", MinSharePreemptionTimeoutLimit)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("fair_share_preemption_timeout_limit", FairSharePreemptionTimeoutLimit)
+            .Default(TDuration::Seconds(30));
+        RegisterParameter("fair_share_starvation_tolerance_limit", FairShareStarvationToleranceLimit)
             .InRange(0.0, 1.0)
             .Default(0.8);
 
