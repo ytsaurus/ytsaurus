@@ -68,7 +68,8 @@ public:
 
     ~TProfilingTimingGuard()
     {
-        Profiler_.Increment(*Counter_, GetCpuInstant() - StartInstant_);
+        auto duration = CpuDurationToDuration(GetCpuInstant() - StartInstant_);
+        Profiler_.Increment(*Counter_, duration.MicroSeconds());
     }
 
 private:
