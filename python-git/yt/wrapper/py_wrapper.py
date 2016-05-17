@@ -422,6 +422,12 @@ def enable_python_job_processing_for_standalone_binary():
         SINGLE_INDEPENDENT_BINARY_CASE = True
 
 def initialize_python_job_processing():
+    """
+    Check that program is build as standalone binary.
+    And call enable_python_job_processing_for_standalone_binary if it is the case.
+
+    You should call this function in the beggining of the program.
+    """
     if getattr(sys, "is_standalone_binary", False):
         enable_python_job_processing_for_standalone_binary()
 
