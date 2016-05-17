@@ -131,7 +131,7 @@ private:
 
 } // anonymous namespace
 
-void DoTestSingleUpdate(TServer& server, TUpdateTable&& updateTable, bool isSorted = true) {
+void DoTestSingleUpdate(TServer& server, TUpdateTable&& updateTable, bool isSorted) {
     const auto&& toAdd = TUpdateTestFixture::GetTestData(isSorted);
 
     try {
@@ -148,7 +148,7 @@ void DoTestSingleUpdate(TServer& server, TUpdateTable&& updateTable, bool isSort
 
 }
 
-//void TestMultiUpdate(yvector<TUpdateTable>&& updates) {
+//void TestMultiUpdate(yvector<TUpdateTable>&& updates, bool isSorted) {
 //}
 
 YT_TEST(TUpdateTestFixture, TestSingleUpdate) {
@@ -157,14 +157,15 @@ YT_TEST(TUpdateTestFixture, TestSingleUpdate) {
         for (auto updateMode : GetUpdateModes()) {
             RefreshTables();
             Cout << "~~~~~~" << tableName << "::" << (int) updateMode << "::add sorted data~~~~~~\n";
-            DoTestSingleUpdate(GetServer(), TUpdateTable(tableName, updateMode));
+            DoTestSingleUpdate(GetServer(), TUpdateTable(tableName, updateMode), ADD_SORTED);
 
             RefreshTables();
             Cout << "~~~~~~" << tableName << "::" << (int) updateMode << "::add not sorted data~~~~~~\n";
-            DoTestSingleUpdate(GetServer(), TUpdateTable(tableName, updateMode), ADD_SORTED);
+            DoTestSingleUpdate(GetServer(), TUpdateTable(tableName, updateMode), !ADD_SORTED);
         }
     }
 }
+
 
 } // NCommonTest
 } // NYT
