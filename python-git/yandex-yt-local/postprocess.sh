@@ -27,6 +27,7 @@ sandbox_request() {
         exit 1
     fi
 
+    cat _curl_out
     rm -f "_curl_out"
 }
 
