@@ -39,7 +39,6 @@ TSessionBase::TSessionBase(
 {
     YCHECK(bootstrap);
     YCHECK(location);
-    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 
     Logger.AddTag("LocationId: %v, ChunkId: %v",
         Location_->GetId(),
@@ -93,7 +92,7 @@ TFuture<void> TSessionBase::Start()
         Active_ = true;
 
         LOG_DEBUG("Session started");
-    }).AsyncVia(Bootstrap_->GetControlInvoker()));
+    }));
 }
 
 void TSessionBase::Ping()
