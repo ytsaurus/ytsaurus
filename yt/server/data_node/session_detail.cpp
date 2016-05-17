@@ -85,24 +85,21 @@ TFuture<void> TSessionBase::Start()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_DEBUG("Starting session");
+    LOG_DEBUG("Session started");
 
-    return DoStart().Apply(BIND([=, this_ = MakeStrong(this)] {
-        YCHECK(!Active_);
-        Active_ = true;
+    YCHECK(!Active_);
+    Active_ = true;
 
-        LOG_DEBUG("Session started");
-    }));
+    return DoStart();
 }
 
 void TSessionBase::Ping()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    // Let's be generous and accept pings in any state.
-    if (Lease_) {
-        TLeaseManager::RenewLease(Lease_);
-    }
+    ValidateActive();
+
+    TLeaseManager::RenewLease(Lease_);
 }
 
 void TSessionBase::Cancel(const TError& error)
