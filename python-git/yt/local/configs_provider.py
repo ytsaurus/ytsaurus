@@ -1,5 +1,5 @@
 from yt.common import YtError, update
-from yt.environment.configs_provider import ConfigsProvider_17, ConfigsProvider_18
+from yt.environment.configs_provider import ConfigsProvider_17, ConfigsProvider_18, _get_hydra_manager_config
 from yt.environment.helpers import versions_cmp
 
 class ConfigsProviderFactory(object):
@@ -205,15 +205,7 @@ class LocalModeConfigsProvider_17(ConfigsProvider_17):
 
         for cell_index in xrange(secondary_master_cell_count + 1):
             for config in configs[cell_index]:
-                config["hydra_manager"] = {
-                    "leader_lease_check_period": 100,
-                    "leader_lease_timeout": 200,
-                    "disable_leader_lease_grace_delay": True,
-                    "response_keeper": {
-                        "expiration_time": 25000,
-                        "warmup_time": 30000,
-                    }
-                }
+                config["hydra_manager"] = _get_hydra_manager_config()
 
                 for patch in MASTER_CONFIG_PATCHES:
                     update(config, patch)
