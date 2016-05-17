@@ -60,6 +60,8 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             NObjectClient::TObjectServiceProxy::GetServiceName(),
+            // Execute method is being handled in RPC thread pool anyway.
+            EAutomatonThreadQueue::Default,
             ObjectServerLogger,
             NObjectClient::TObjectServiceProxy::GetProtocolVersion())
         , Config_(std::move(config))
@@ -130,7 +132,7 @@ public:
         }
 
         HydraFacade_
-            ->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::RpcService)
+            ->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ObjectService)
             ->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)));
     }
 
@@ -279,7 +281,7 @@ private:
         auto batchDeadlineTime = batchStartTime + NProfiling::DurationToCpuDuration(Owner_->Config_->YieldTimeout);
 
         if (!EpochAutomatonInvoker_) {
-            EpochAutomatonInvoker_ = HydraFacade_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::RpcService);
+            EpochAutomatonInvoker_ = HydraFacade_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService);
         }
 
         if (NeedsUpstreamSync_) {
