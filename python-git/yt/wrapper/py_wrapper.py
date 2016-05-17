@@ -421,6 +421,10 @@ def enable_python_job_processing_for_standalone_binary():
     else:
         SINGLE_INDEPENDENT_BINARY_CASE = True
 
+def initialize_python_job_processing():
+    if getattr(sys, "is_standalone_binary", False):
+        enable_python_job_processing_for_standalone_binary()
+
 def _set_attribute(func, key, value):
     if not hasattr(func, "attributes"):
         func.attributes = {}
