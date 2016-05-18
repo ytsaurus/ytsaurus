@@ -18,25 +18,17 @@ class TWithBTTableTestFixture
     : public NTest::TTest
 {
 public:
-    static constexpr auto OUT_TABLE = "temptable_test_out_table";
-
     void SetUp() override {
         TTest::SetUp();
         Server.Reset(new TServer(ServerName()));
     }
 
     void TearDown() override {
-        DropTables();
         TTest::TearDown();
     }
 
     TServer& GetServer() {
         return *Server;
-    }
-
-    void DropTables() {
-        TClient client(GetServer());
-        client.Drop(OUT_TABLE);
     }
 
     THolder<TServer> Server;
@@ -108,6 +100,7 @@ YT_TEST(TWithBTTableTestFixture, SimpleTestNonEmptyTableException) {
 }
 
 YT_TEST(TWithBTTableTestFixture, NonFailedOpEmptyTableTest) {
+    static constexpr auto OUT_TABLE = "temptable_test_out_table_NonFailedOpEmptyTableTest";
     Cout << "====Non-failed map with empty table====" << Endl;
     Stroka tableName;
     {
@@ -119,6 +112,7 @@ YT_TEST(TWithBTTableTestFixture, NonFailedOpEmptyTableTest) {
 }
 
 YT_TEST(TWithBTTableTestFixture, NonFailedOpNonEmptyTableTest) {
+    static constexpr auto OUT_TABLE = "temptable_test_out_table_NonFailedOpNonEmptyTableTest";
     Cout << "====Non-failed map with non-empty table====" << Endl;
     Stroka tableName;
     {
@@ -136,6 +130,7 @@ YT_TEST(TWithBTTableTestFixture, NonFailedOpNonEmptyTableTest) {
 }
 
 YT_TEST(TWithBTTableTestFixture, FailedOpEmptyTableTest) {
+    static constexpr auto OUT_TABLE = "temptable_test_out_table_FailedOpEmptyTableTest";
     Cout << "====Failed map with empty table====" << Endl;
     Stroka tableName;
     {
@@ -147,6 +142,7 @@ YT_TEST(TWithBTTableTestFixture, FailedOpEmptyTableTest) {
 }
 
 YT_TEST(TWithBTTableTestFixture, FailedOpNonEmptyTableTest) {
+    static constexpr auto OUT_TABLE = "temptable_test_out_table_FailedOpNonEmptyTableTest";
     Cout << "====Failed map with non-empty table====" << Endl;
     Stroka tableName;
     {
