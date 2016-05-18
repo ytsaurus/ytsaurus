@@ -364,12 +364,6 @@ public:
     }
 };
 
-typedef TScalarNode<Stroka> TStringNode;
-typedef TScalarNode<i64>    TInt64Node;
-typedef TScalarNode<ui64>   TUint64Node;
-typedef TScalarNode<double> TDoubleNode;
-typedef TScalarNode<bool>   TBooleanNode;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>

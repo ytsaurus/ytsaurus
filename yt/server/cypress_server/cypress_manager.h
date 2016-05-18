@@ -81,7 +81,7 @@ public:
         ENodeCloneMode mode);
 
     //! Returns the root node.
-    TCypressNodeBase* GetRootNode() const;
+    TMapNode* GetRootNode() const;
 
     //! Finds node by id, throws if nothing is found.
     TCypressNodeBase* GetNodeOrThrow(const TVersionedNodeId& id);
