@@ -280,8 +280,6 @@ void TTablet::Load(TLoadContext& context)
             PartitionList_.push_back(std::move(partition));
         }
     }
-
-    PostInitialize();
 }
 
 TCallback<void(TSaveContext&)> TTablet::AsyncSave()
@@ -361,6 +359,8 @@ void TTablet::AsyncLoad(TLoadContext& context)
             }
         }
     }
+
+    PostInitialize();
 }
 
 const std::vector<std::unique_ptr<TPartition>>& TTablet::PartitionList() const
