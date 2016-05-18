@@ -1210,7 +1210,7 @@ struct TSerializerTraits<
     typename NMpl::TEnableIfC<
         NMpl::TAndC<
             NMpl::TIsPod<T>::Value,
-            NMpl::TNotC<TTypeTraits<T>::IsPointer>::Value
+            !std::is_pointer<T>::value
         >::Value
     >::TType
 >

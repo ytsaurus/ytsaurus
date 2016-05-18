@@ -1,3 +1,4 @@
+#pragma once
 #ifndef PHOENIX_INL_H_
 #error "Direct inclusion of this file is not allowed, include phoenix.h"
 #endif
@@ -287,7 +288,7 @@ struct TSerializerTraits<
     C,
     typename NMpl::TEnableIfC<
         NMpl::TAndC<
-            TTypeTraits<T>::IsPointer,
+            std::is_pointer<T>::value,
             NMpl::TIsConvertible<C&, NPhoenix::TContextBase&>::Value
         >::Value
     >::TType
