@@ -289,6 +289,8 @@ TJobResult TJobProxy::DoRun()
             << ex;
     }
 
+    LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack);
+
     RpcServer_ = CreateBusServer(CreateTcpBusServer(Config_->RpcServer));
     RpcServer_->RegisterService(CreateJobProberService(this));
     RpcServer_->Start();
@@ -454,6 +456,11 @@ TNodeDirectoryPtr TJobProxy::GetInputNodeDirectory() const
 TNodeDirectoryPtr TJobProxy::GetAuxNodeDirectory() const
 {
     return AuxNodeDirectory_;
+}
+
+const NNodeTrackerClient::TNodeDescriptor& TJobProxy::LocalDescriptor() const
+{
+    return LocalDescriptor_;
 }
 
 void TJobProxy::CheckMemoryUsage()

@@ -4160,12 +4160,6 @@ i64 TOperationControllerBase::GetFinalIOMemorySize(
     return result;
 }
 
-void TOperationControllerBase::InitIntermediateInputConfig(TJobIOConfigPtr config)
-{
-    // Disable master requests.
-    config->TableReader->AllowFetchingSeedsFromMaster = false;
-}
-
 void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr config)
 {
     // Don't replicate intermediate output.
@@ -4188,6 +4182,13 @@ NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReader
     options->EnableRowIndex = ioConfig->ControlAttributes->EnableRowIndex;
     options->EnableTableIndex = ioConfig->ControlAttributes->EnableTableIndex;
     options->EnableRangeIndex = ioConfig->ControlAttributes->EnableRangeIndex;
+    return options;
+}
+
+NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateIntermediateTableReaderOptions()
+{
+    auto options = New<TTableReaderOptions>();
+    options->AllowFetchingSeedsFromMaster = false;
     return options;
 }
 

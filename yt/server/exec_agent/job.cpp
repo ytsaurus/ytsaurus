@@ -510,6 +510,9 @@ private:
         proxyConfig->JobIO = ioConfig;
         proxyConfig->UserId = Slot_->GetUserId();
         proxyConfig->RpcServer = Slot_->GetRpcServerConfig();
+        proxyConfig->Rack = Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetRack();
+        proxyConfig->Addresses = Bootstrap_->GetMasterConnector()->GetLocalDescriptor().Addresses();
+
         if (schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().has_tmpfs_size()) {
             proxyConfig->TmpfsPath = Slot_->GetTmpfsPath(ESandboxKind::User, schedulerJobSpecExt.user_job_spec().tmpfs_path());
         }
