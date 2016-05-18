@@ -1,5 +1,8 @@
 RECURSE(
     lib
-    native
+    util
+
     common
+    library
+    native
 )

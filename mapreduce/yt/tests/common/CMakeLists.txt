@@ -3,8 +3,6 @@ PROGRAM(common)
 OWNER(monster)
 
 SRCS(
-    helpers.h
-    helpers.cpp
     main.cpp
     test_operations.cpp
     test_table.cpp
@@ -13,6 +11,7 @@ SRCS(
 
 PEERDIR(
     mapreduce/yt/tests/lib
+    mapreduce/yt/tests/util
     mapreduce/lib
 )
 
