@@ -1,6 +1,5 @@
-#include "helpers.h"
-
 #include <mapreduce/yt/tests/lib/lib.h>
+#include <mapreduce/yt/tests/util/helpers.h>
 
 #include <mapreduce/interface/all.h>
 
