@@ -68,7 +68,7 @@ public:
 } // anonymous namespace
 
 YT_TEST(TWithBTTableTestFixture, SimpleTestEmptyTable) {
-    Cout << "====Empty table====\n";
+    Cout << "====Empty table====" << Endl;
     Stroka tableName;
     {
         WithUniqBTTable t(GetServer(), "tmp/");
@@ -78,7 +78,7 @@ YT_TEST(TWithBTTableTestFixture, SimpleTestEmptyTable) {
 }
 
 YT_TEST(TWithBTTableTestFixture, SimpleTestNonEmptyTable) {
-    Cout << "====Non-empty table====\n";
+    Cout << "====Non-empty table====" << Endl;
     Stroka tableName;
     {
         WithUniqBTTable t(GetServer(), "tmp/");
@@ -92,7 +92,7 @@ YT_TEST(TWithBTTableTestFixture, SimpleTestNonEmptyTable) {
 }
 
 YT_TEST(TWithBTTableTestFixture, SimpleTestNonEmptyTableException) {
-    Cout << "====Non-empty table with exception====\n";
+    Cout << "====Non-empty table with exception====" << Endl;
     Stroka tableName;
     try {
         WithUniqBTTable t(GetServer(), "tmp/");
@@ -108,7 +108,7 @@ YT_TEST(TWithBTTableTestFixture, SimpleTestNonEmptyTableException) {
 }
 
 YT_TEST(TWithBTTableTestFixture, NonFailedOpEmptyTableTest) {
-    Cout << "====Non-failed map with empty table====\n";
+    Cout << "====Non-failed map with empty table====" << Endl;
     Stroka tableName;
     {
         WithUniqBTTable t(GetServer(), "tmp/");
@@ -119,7 +119,7 @@ YT_TEST(TWithBTTableTestFixture, NonFailedOpEmptyTableTest) {
 }
 
 YT_TEST(TWithBTTableTestFixture, NonFailedOpNonEmptyTableTest) {
-    Cout << "====Non-failed map with non-empty table====\n";
+    Cout << "====Non-failed map with non-empty table====" << Endl;
     Stroka tableName;
     {
         WithUniqBTTable t(GetServer(), "tmp/");
@@ -136,7 +136,7 @@ YT_TEST(TWithBTTableTestFixture, NonFailedOpNonEmptyTableTest) {
 }
 
 YT_TEST(TWithBTTableTestFixture, FailedOpEmptyTableTest) {
-    Cout << "====Failed map with empty table====\n";
+    Cout << "====Failed map with empty table====" << Endl;
     Stroka tableName;
     {
         WithUniqBTTable t(GetServer(), "tmp/");
@@ -147,7 +147,7 @@ YT_TEST(TWithBTTableTestFixture, FailedOpEmptyTableTest) {
 }
 
 YT_TEST(TWithBTTableTestFixture, FailedOpNonEmptyTableTest) {
-    Cout << "====Failed map with non-empty table====\n";
+    Cout << "====Failed map with non-empty table====" << Endl;
     Stroka tableName;
     {
         WithUniqBTTable t(GetServer(), "tmp/");
