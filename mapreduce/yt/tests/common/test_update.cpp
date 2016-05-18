@@ -211,12 +211,31 @@ YT_TEST(TUpdateTestFixture, TestMultiUpdate) {
     #define X(name, mode) TUpdateTable(name, mode)
 
     static const yvector<yvector<TUpdateTable>> allUpdates = {
-        { X(EMPTY_TABLE, UM_APPEND), X(UNEXIST_TABLE, UM_APPEND) },
-        { X(EMPTY_TABLE, UM_APPEND), X(TABLE, UM_REPLACE) },
-        { X(SORTED_TABLE, UM_APPEND), X(UNEXIST_TABLE, UM_REPLACE) },
-        { X(SORTED_TABLE, UM_APPEND), X(TABLE, UM_REPLACE) },
-        { X(SORTED_TABLE, UM_SORTED), X(TABLE, UM_SORTED) },
-        { X(SORTED_TABLE, UM_APPEND_SORTED), X(TABLE, UM_APPEND_SORTED), X(UNEXIST_TABLE, UM_APPEND) },
+        {
+            X(EMPTY_TABLE, UM_APPEND),
+            X(UNEXIST_TABLE, UM_APPEND)
+        },
+        {
+            X(EMPTY_TABLE, UM_APPEND),
+            X(TABLE, UM_REPLACE)
+        },
+        {
+            X(SORTED_TABLE, UM_APPEND),
+            X(UNEXIST_TABLE, UM_REPLACE)
+        },
+        {
+            X(SORTED_TABLE, UM_APPEND),
+            X(TABLE, UM_REPLACE)
+        },
+        {
+            X(SORTED_TABLE, UM_SORTED),
+            X(TABLE, UM_SORTED)
+        },
+        {
+            X(SORTED_TABLE, UM_APPEND_SORTED),
+            X(TABLE, UM_APPEND_SORTED),
+            X(UNEXIST_TABLE, UM_APPEND)
+        },
     };
 
     #undef X
