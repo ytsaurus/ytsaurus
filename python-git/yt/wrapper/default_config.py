@@ -133,6 +133,8 @@ default_config = {
         "fresh_files_threshold": 3600,
         # Enables using tmpfs for modules archive.
         "enable_tmpfs_archive": True,
+        # Add tmpfs archive size to memory limit.
+        "add_tmpfs_archive_size_to_memory_limit": True,
         # Enable collecting different statistics of job.
         "enable_job_statistics": True,
         # Should we assume that client and server are run on the same node.

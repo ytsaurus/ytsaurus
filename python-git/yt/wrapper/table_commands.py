@@ -339,7 +339,16 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
     # NB: Configured by common rule now.
     memory_limit = get_value(memory_limit, get_config(client)["memory_limit"])
     if memory_limit is not None:
-        spec = update({op_type: {"memory_limit": int(memory_limit)}}, spec)
+        memory_limit = int(memory_limit)
+    if get_config(client)["pickling"]["add_tmpfs_archive_size_to_memory_limit"]:
+        if memory_limit is None:
+            if tmpfs_size > 0:
+                # Guess that memory limit is 512 MB.
+                memory_limit = 512 * 1024 * 1024 + tmpfs_size
+        else:
+            memory_limit += tmpfs_size
+    if memory_limit is not None:
+        spec = update({op_type: {"memory_limit": memory_limit}}, spec)
     return spec
 
 def _configure_spec(spec, client):
