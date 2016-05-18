@@ -16,6 +16,9 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsRetriableError(const TError& error);
+bool IsChannelFailureError(const TError& error);
+
 //! Returns a wrapper that sets the timeout for every request (unless it is given
 //! explicitly in the request itself).
 IChannelPtr CreateDefaultTimeoutChannel(

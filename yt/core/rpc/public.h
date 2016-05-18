@@ -87,9 +87,6 @@ DEFINE_ENUM(EErrorCode,
     ((RequestQueueSizeLimitExceeded)(108))
 );
 
-bool IsRetriableError(const TError& error);
-bool IsChannelFailureError(const TError& error);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc
