@@ -11,11 +11,14 @@ using namespace NMR;
 void PrintTable(TServer& server, const char* tableName, TOutputStream& out) {
     TClient client(server);
     TTable table(client, tableName);
+    if (table.IsEmpty()) {
+        out << "Table is empty" << Endl;
+    }
     for (auto&& it = table.Begin(); it != table.End(); ++it) {
         out << "'" << it.GetKey().AsString() << "'"
             << "\t'" << it.GetSubKey().AsString() << "'"
             << "\t'" << it.GetValue().AsString() << "'"
-            << "\n";
+            << Endl;
     }
 }
 
