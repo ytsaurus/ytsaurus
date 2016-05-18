@@ -1578,7 +1578,7 @@ private:
         auto scheduleJobResultFutureWithTimeout = scheduleJobResultFuture
             .WithTimeout(StrategyConfig_->ControllerScheduleJobTimeLimit);
 
-        auto scheduleJobResultWithTimeoutOrError = std::move(WaitFor(scheduleJobResultFutureWithTimeout));
+        auto scheduleJobResultWithTimeoutOrError = WaitFor(scheduleJobResultFutureWithTimeout);
 
         if (!scheduleJobResultWithTimeoutOrError.IsOK()) {
             if (scheduleJobResultWithTimeoutOrError.GetCode() == NYT::EErrorCode::Timeout) {
