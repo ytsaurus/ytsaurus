@@ -409,9 +409,14 @@ public:
 
     virtual void ResetAllObjects() override
     {
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        for (const auto& pair : cypressManager->Nodes()) {
-            DoResetObject(pair.second);
+        // NB: All node type handlers share the same map.
+        // No need to reset nodes multiple times.
+        // NB: The choice of type is pretty much arbitrary.
+        if (GetType() ==  EObjectType::MapNode) {
+            auto cypressManager = Bootstrap_->GetCypressManager();
+            for (const auto& pair : cypressManager->Nodes()) {
+                DoResetObject(pair.second);
+            }
         }
     }
 
