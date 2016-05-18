@@ -37,6 +37,7 @@ def test_scheme(yt_stuff):
     wrapper.write_table(
         "//test/schema_test",
         """{"a"=1}""",
-        format=wrapper.YsonFormat()
+        format=wrapper.YsonFormat(),
+        raw=True
     )
 
