@@ -18,6 +18,6 @@ DEPENDS(
     quality/mapreduce
 )
 
-TIMEOUT(100)
+TIMEOUT(300)
 
 END()
