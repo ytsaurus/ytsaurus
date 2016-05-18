@@ -39,9 +39,6 @@ TStoreManagerBase::TStoreManagerBase(
     Logger.AddTag("TabletId: %v, CellId: %v",
         Tablet_->GetId(),
         TabletContext_->GetCellId());
-
-    // This schedules preload of in-memory tablets.
-    UpdateInMemoryMode();
 }
 
 TTablet* TStoreManagerBase::GetTablet() const
@@ -83,6 +80,9 @@ void TStoreManagerBase::StartEpoch(TTabletSlotPtr slot)
     LastRotated_ = TInstant::Now() - RandomDuration(config->DynamicStoreAutoFlushPeriod);
 
     RotationScheduled_ = false;
+
+    // This schedules preload of in-memory tablets.
+    UpdateInMemoryMode();
 }
 
 void TStoreManagerBase::StopEpoch()
