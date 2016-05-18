@@ -83,7 +83,6 @@ DEFINE_ENUM(EErrorCode,
     ((NoSuchMethod)                 (103))
     ((Unavailable)                  (105))
     ((PoisonPill)                   (106))
-    ((Abandoned)                    (107))
     ((RequestQueueSizeLimitExceeded)(108))
 );
 
