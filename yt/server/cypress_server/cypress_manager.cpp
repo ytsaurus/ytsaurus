@@ -409,9 +409,14 @@ public:
 
     virtual void ResetAllObjects() override
     {
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        for (const auto& pair : cypressManager->Nodes()) {
-            DoResetObject(pair.second);
+        // NB: All node type handlers share the same map.
+        // No need to reset nodes multiple times.
+        // NB: The choice of type is pretty much arbitrary.
+        if (GetType() ==  EObjectType::MapNode) {
+            auto cypressManager = Bootstrap_->GetCypressManager();
+            for (const auto& pair : cypressManager->Nodes()) {
+                DoResetObject(pair.second);
+            }
         }
     }
 
@@ -719,7 +724,7 @@ public:
     }
 
 
-    TCypressNodeBase* GetRootNode() const
+    TMapNode* GetRootNode() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1131,7 +1136,7 @@ private:
     TEnumIndexedVector<INodeTypeHandlerPtr, NObjectClient::EObjectType> TypeToHandler_;
 
     TNodeId RootNodeId_;
-    TCypressNodeBase* RootNode_ = nullptr;
+    TMapNode* RootNode_ = nullptr;
 
     // COMPAT(babenko)
     bool RecomputeChunkOwnerStatistics_ = false;
@@ -1240,8 +1245,11 @@ private:
 
     void InitBuiltin()
     {
-        RootNode_ = FindNode(TVersionedNodeId(RootNodeId_));
-        if (!RootNode_) {
+        auto* untypedRootNode = FindNode(TVersionedNodeId(RootNodeId_));
+        if (untypedRootNode) {
+            // Root already exists.
+            RootNode_ = static_cast<TMapNode*>(untypedRootNode);
+        } else {
             // Create the root.
             auto securityManager = Bootstrap_->GetSecurityManager();
             auto rootNodeHolder = std::make_unique<TMapNode>(TVersionedNodeId(RootNodeId_));
@@ -1254,7 +1262,8 @@ private:
                 EPermission::Read));
             rootNodeHolder->Acd().SetOwner(securityManager->GetRootUser());
 
-            RootNode_ = NodeMap_.Insert(TVersionedNodeId(RootNodeId_), std::move(rootNodeHolder));
+            RootNode_ = rootNodeHolder.get();
+            NodeMap_.Insert(TVersionedNodeId(RootNodeId_), std::move(rootNodeHolder));
             YCHECK(RootNode_->RefObject() == 1);
         }
     }
@@ -2347,7 +2356,7 @@ TCypressNodeBase* TCypressManager::CloneNode(
     return Impl_->CloneNode(sourceNode, factory, mode);
 }
 
-TCypressNodeBase* TCypressManager::GetRootNode() const
+TMapNode* TCypressManager::GetRootNode() const
 {
     return Impl_->GetRootNode();
 }

@@ -14,6 +14,7 @@
 #include <yt/server/chunk_server/chunk_list.h>
 
 #include <yt/server/cypress_server/cypress_manager.h>
+#include <yt/server/cypress_server/node_detail.h>
 
 #include <yt/server/election/election_manager.h>
 

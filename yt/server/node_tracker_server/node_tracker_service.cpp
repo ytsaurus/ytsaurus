@@ -41,6 +41,7 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             TNodeTrackerServiceProxy::GetServiceName(),
+            EAutomatonThreadQueue::NodeTrackerService,
             NodeTrackerServerLogger,
             TNodeTrackerServiceProxy::GetProtocolVersion())
         , Config_(config)

@@ -18,6 +18,7 @@ protected:
     TMasterHydraServiceBase(
         TBootstrap* bootstrap,
         const Stroka& serviceName,
+        EAutomatonThreadQueue defaultQueue,
         const NLogging::TLogger& logger,
         int protocolVersion = NRpc::TProxyBase::DefaultProtocolVersion);
 

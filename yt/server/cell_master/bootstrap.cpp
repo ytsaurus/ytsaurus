@@ -464,7 +464,7 @@ void TBootstrap::DoInitialize()
         Config_->HiveManager,
         CellDirectory_,
         CellId_,
-        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::RpcService),
+        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::HiveManager),
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton());
 
