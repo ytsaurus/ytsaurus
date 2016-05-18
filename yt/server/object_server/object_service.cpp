@@ -52,6 +52,8 @@ using namespace NCellMaster;
 static const auto& Profiler = ObjectServerProfiler;
 static NProfiling::TSimpleCounter CumulativeReadRequestTimeCounter("/cumulative_read_request_time");
 static NProfiling::TSimpleCounter CumulativeMutationScheduleTimeCounter("/cumulative_mutation_schedule_time");
+static NProfiling::TSimpleCounter ReadRequestCounter("/read_request_count");
+static NProfiling::TSimpleCounter WriteRequestCounter("/write_request_count");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -388,6 +390,7 @@ private:
 
     void ExecuteWriteSubrequest(TSubrequest* subrequest, TUser* user)
     {
+        Profiler.Increment(WriteRequestCounter);
         NProfiling::TProfilingTimingGuard timingGuard(Profiler, &CumulativeMutationScheduleTimeCounter);
 
         subrequest->Mutation->Commit().Subscribe(
@@ -396,6 +399,7 @@ private:
 
     void ExecuteReadSubrequest(TSubrequest* subrequest, TUser* user)
     {
+        Profiler.Increment(ReadRequestCounter);
         NProfiling::TProfilingTimingGuard timingGuard(Profiler, &CumulativeReadRequestTimeCounter);
 
         const auto& context = subrequest->Context;
