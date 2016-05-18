@@ -110,6 +110,7 @@ public:
         Persist(context, UnorderedMergeJobIOConfig);
 
         Persist(context, PartitionTableReaderOptions);
+        Persist(context, PartitionBoundTableReaderOptions);
 
         Persist(context, ShufflePool);
         Persist(context, SimpleSortPool);
@@ -273,6 +274,7 @@ protected:
 
     //! Table reader options for various job types.
     TTableReaderOptionsPtr PartitionTableReaderOptions;
+    TTableReaderOptionsPtr PartitionBoundTableReaderOptions;
 
     std::unique_ptr<IShuffleChunkPool> ShufflePool;
     std::unique_ptr<IChunkPool> SimpleSortPool;
@@ -620,8 +622,11 @@ protected:
 
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
-            static const auto options = New<TTableReaderOptions>();
-            return options;
+            if (Controller->SimpleSort) {
+                return Controller->PartitionTableReaderOptions;
+            } else {
+                return Controller->PartitionBoundTableReaderOptions;
+            }
         }
 
     };
@@ -1749,6 +1754,9 @@ protected:
         InitIntermediateOutputConfig(PartitionJobIOConfig);
 
         PartitionTableReaderOptions = CreateTableReaderOptions(Spec->PartitionJobIO);
+
+        // Partition bound tasks read only intermediate chunks, 
+        PartitionBoundTableReaderOptions = CreateIntermediateTableReaderOptions();
     }
 };
 
@@ -2073,25 +2081,17 @@ private:
         TSortControllerBase::InitJobIOConfigs();
 
         IntermediateSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
-        if (!SimpleSort) {
-            InitIntermediateInputConfig(IntermediateSortJobIOConfig);
-        }
         InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
 
         // Final sort: reader like sort and output like merge.
         FinalSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
         FinalSortJobIOConfig->TableWriter = CloneYsonSerializable(Spec->MergeJobIO->TableWriter);
-        if (!SimpleSort) {
-            InitIntermediateInputConfig(FinalSortJobIOConfig);
-        }
         InitFinalOutputConfig(FinalSortJobIOConfig);
 
         SortedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
-        InitIntermediateInputConfig(SortedMergeJobIOConfig);
         InitFinalOutputConfig(SortedMergeJobIOConfig);
 
         UnorderedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
-        InitIntermediateInputConfig(UnorderedMergeJobIOConfig);
         InitFinalOutputConfig(UnorderedMergeJobIOConfig);
     }
 
@@ -2533,18 +2533,15 @@ private:
         InitIntermediateOutputConfig(PartitionJobIOConfig);
 
         IntermediateSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
-        InitIntermediateInputConfig(IntermediateSortJobIOConfig);
         InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
 
         // Partition reduce: writer like in merge and reader like in sort.
         FinalSortJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
         FinalSortJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
-        InitIntermediateInputConfig(FinalSortJobIOConfig);
         InitFinalOutputConfig(FinalSortJobIOConfig);
 
         // Sorted reduce.
         SortedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
-        InitIntermediateInputConfig(SortedMergeJobIOConfig);
         InitFinalOutputConfig(SortedMergeJobIOConfig);
     }
 

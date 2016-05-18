@@ -41,6 +41,8 @@ struct IJobHost
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const = 0;
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetAuxNodeDirectory() const = 0;
 
+    virtual const NNodeTrackerClient::TNodeDescriptor& LocalDescriptor() const = 0;
+
     virtual NLogging::TLogger GetLogger() const = 0;
 };
 

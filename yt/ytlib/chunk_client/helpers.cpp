@@ -292,7 +292,7 @@ IChunkReaderPtr CreateRemoteReader(
     TRemoteReaderOptionsPtr options,
     NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const TNullable<TNodeDescriptor>& localDescriptor,
+    const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     IThroughputThrottlerPtr throttler)
 {

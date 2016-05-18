@@ -500,10 +500,9 @@ private:
             YCHECK(!partReplicas.empty());
 
             auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
-            auto options = New<TRemoteReaderOptions>();
             auto reader = CreateReplicationReader(
                 Config_->RepairReader,
-                options,
+                New<TRemoteReaderOptions>(),
                 Bootstrap_->GetMasterClient(),
                 nodeDirectory,
                 Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
@@ -626,13 +625,12 @@ private:
 
             auto replicas = FromProto<TChunkReplicaList>(SealJobSpecExt_.replicas());
 
-            auto options = New<TRemoteReaderOptions>();
             auto reader = CreateReplicationReader(
                 Config_->SealReader,
-                options,
+                New<TRemoteReaderOptions>(),
                 Bootstrap_->GetMasterClient(),
                 nodeDirectory,
-                Null,
+                Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
                 ChunkId_,
                 replicas,
                 Bootstrap_->GetBlockCache(),

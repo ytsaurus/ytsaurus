@@ -256,6 +256,8 @@ void TSchemalessTableReader::DoOpen()
             Config_,
             options,
             Client_,
+            // HTTP proxy doesn't have a node descriptor.
+            TNodeDescriptor(),
             Client_->GetConnection()->GetBlockCache(),
             nodeDirectory,
             std::move(chunkSpecs),
@@ -270,6 +272,8 @@ void TSchemalessTableReader::DoOpen()
             Config_,
             options,
             Client_,
+            // HTTP proxy doesn't have a node descriptor.
+            TNodeDescriptor(),
             Client_->GetConnection()->GetBlockCache(),
             nodeDirectory,
             std::move(chunkSpecs),

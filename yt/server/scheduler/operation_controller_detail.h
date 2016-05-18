@@ -894,12 +894,11 @@ protected:
         TJobIOConfigPtr ioConfig,
         const TChunkStripeStatisticsVector& stripeStatistics) const;
 
-    static void InitIntermediateInputConfig(TJobIOConfigPtr config);
-
     static void InitIntermediateOutputConfig(TJobIOConfigPtr config);
     void InitFinalOutputConfig(TJobIOConfigPtr config);
 
     static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(TJobIOConfigPtr ioConfig);
+    static NTableClient::TTableReaderOptionsPtr CreateIntermediateTableReaderOptions();
 
     void ValidateUserFileCount(TUserJobSpecPtr spec, const Stroka& operation);
 
