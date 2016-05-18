@@ -129,8 +129,7 @@ TTablet::TTablet(
         NextPivotKey_))
     , Context_(context)
 {
-    PreInitialize();
-    PostInitialize();
+    Initialize();
 }
 
 ETabletState TTablet::GetPersistentState() const
@@ -168,6 +167,11 @@ void TTablet::SetWriterOptions(TTabletWriterOptionsPtr options)
 const IStoreManagerPtr& TTablet::GetStoreManager() const
 {
     return StoreManager_;
+}
+
+void TTablet::SetStoreManager(IStoreManagerPtr storeManager)
+{
+    StoreManager_ = std::move(storeManager);
 }
 
 const TTabletPerformanceCountersPtr& TTablet::GetPerformanceCounters() const
@@ -226,8 +230,8 @@ void TTablet::Load(TLoadContext& context)
     Load(context, HashTableSize_);
 
     // NB: Stores that we're about to create may request some tablet properties (e.g. column lock count)
-    // during construction. PreInitialize() will take care of this.
-    PreInitialize();
+    // during construction. Initialize() will take care of this.
+    Initialize();
 
     int storeCount = TSizeSerializer::LoadSuspended(context);
     SERIALIZATION_DUMP_WRITE(context, "stores[%v]", storeCount);
@@ -359,8 +363,6 @@ void TTablet::AsyncLoad(TLoadContext& context)
             }
         }
     }
-
-    PostInitialize();
 }
 
 const std::vector<std::unique_ptr<TPartition>>& TTablet::PartitionList() const
@@ -718,7 +720,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     return snapshot;
 }
 
-void TTablet::PreInitialize()
+void TTablet::Initialize()
 {
     PerformanceCounters_ = New<TTabletPerformanceCounters>();
 
@@ -759,11 +761,6 @@ void TTablet::PreInitialize()
     ColumnLockCount_ = groupToIndex.size() + 1;
 
     ColumnEvaluator_ = Context_->GetColumnEvaluatorCache()->Find(Schema_);
-}
-
-void TTablet::PostInitialize()
-{
-    StoreManager_ = Context_->CreateStoreManager(this);
 }
 
 TPartition* TTablet::GetContainingPartition(const ISortedStorePtr& store)

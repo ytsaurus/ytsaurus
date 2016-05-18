@@ -91,7 +91,7 @@ protected:
         }
     }
 
-    virtual IStoreManagerPtr CreateStoreManager(TTablet* /*tablet*/) override
+    virtual IStoreManagerPtr CreateStoreManager(TTablet* /*tablet*/)
     {
         return nullptr;
     }
@@ -119,6 +119,9 @@ protected:
             sorted ? MinKey() : TOwningKey(),
             sorted ? MaxKey() : TOwningKey(),
             GetAtomicity());
+
+        auto storeManager = CreateStoreManager(Tablet_.get());
+        Tablet_->SetStoreManager(storeManager);
 
         SetupTablet();
     }

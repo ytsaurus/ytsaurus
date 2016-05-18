@@ -113,7 +113,6 @@ struct ITabletContext
         EStoreType type,
         const TStoreId& storeId,
         const NTabletNode::NProto::TAddStoreDescriptor* descriptor) = 0;
-    virtual IStoreManagerPtr CreateStoreManager(TTablet* tablet) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,6 +173,7 @@ public:
     void SetWriterOptions(TTabletWriterOptionsPtr options);
 
     const IStoreManagerPtr& GetStoreManager() const;
+    void SetStoreManager(IStoreManagerPtr storeManager);
 
     const TTabletPerformanceCountersPtr& GetPerformanceCounters() const;
 
@@ -246,8 +246,7 @@ private:
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
 
-    void PreInitialize();
-    void PostInitialize();
+    void Initialize();
 
     TPartition* GetContainingPartition(const ISortedStorePtr& store);
 

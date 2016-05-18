@@ -340,11 +340,6 @@ private:
             return Owner_->CreateStore(tablet, type, storeId, descriptor);
         }
 
-        virtual IStoreManagerPtr CreateStoreManager(TTablet* tablet) override
-        {
-            return Owner_->CreateStoreManager(tablet);
-        }
-
     private:
         TImpl* const Owner_;
 
@@ -425,6 +420,12 @@ private:
 
         Load(context, LastCommittedTimestamp_);
         TabletMap_.LoadValues(context);
+
+        for (const auto& pair : TabletMap_) {
+            auto* tablet = pair.second;
+            auto storeManager = CreateStoreManager(tablet);
+            tablet->SetStoreManager(storeManager);
+        }
     }
 
     void LoadAsync(TLoadContext& context)
@@ -612,7 +613,9 @@ private:
             atomicity);
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
-        const auto& storeManager = tablet->GetStoreManager();
+        auto storeManager = CreateStoreManager(tablet);
+        tablet->SetStoreManager(storeManager);
+
         storeManager->Mount(storeDescriptors);
 
         // TODO(babenko): move somewhere?
