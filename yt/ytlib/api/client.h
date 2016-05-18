@@ -90,7 +90,7 @@ struct TMutatingOptions
 
 struct TMasterReadOptions
 {
-    EMasterChannelKind ReadFrom = EMasterChannelKind::LeaderOrFollower;
+    EMasterChannelKind ReadFrom = EMasterChannelKind::Follower;
 };
 
 struct TPrerequisiteOptions
