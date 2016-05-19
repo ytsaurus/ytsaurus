@@ -700,10 +700,10 @@ private:
             auto upperBound = rangesIt->second;
 
             if (lowerBound < tableInfo->LowerCapBound) {
-                lowerBound = tableInfo->LowerCapBound.Get();
+                lowerBound = rowBuffer->Capture(tableInfo->LowerCapBound.Get());
             }
             if (upperBound > tableInfo->UpperCapBound) {
-                upperBound = tableInfo->UpperCapBound.Get();
+                upperBound = rowBuffer->Capture(tableInfo->UpperCapBound.Get());
             }
 
             if (lowerBound >= upperBound) {
