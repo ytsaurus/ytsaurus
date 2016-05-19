@@ -192,6 +192,9 @@ void TSchemalessTableReader::DoOpen()
 
         if (dynamic) {
             schema = attributes.Get<TTableSchema>("schema");
+            if (!schema.IsSorted()) {
+                THROW_ERROR_EXCEPTION("Table is not sorted");
+            }
         }
     }
 
