@@ -1139,13 +1139,16 @@ protected:
 
         // NB: Register groups in the order of _descending_ priority.
         MergeTaskGroup = New<TTaskGroup>();
+        MergeTaskGroup->MinNeededResources.set_cpu(GetMergeCpuLimit());
         RegisterTaskGroup(MergeTaskGroup);
 
         SortTaskGroup = New<TTaskGroup>();
         SortTaskGroup->MinNeededResources.set_network(Spec->ShuffleNetworkLimit);
+        SortTaskGroup->MinNeededResources.set_cpu(GetSortCpuLimit());
         RegisterTaskGroup(SortTaskGroup);
 
         PartitionTaskGroup = New<TTaskGroup>();
+        PartitionTaskGroup->MinNeededResources.set_cpu(GetPartitionCpuLimit());
         RegisterTaskGroup(PartitionTaskGroup);
     }
 
@@ -1397,6 +1400,10 @@ protected:
     }
 
     // Resource management.
+
+    virtual int GetPartitionCpuLimit() const = 0;
+    virtual int GetSortCpuLimit() const = 0;
+    virtual int GetMergeCpuLimit() const = 0;
 
     virtual TNodeResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics,
@@ -2058,6 +2065,21 @@ private:
 
     // Resource management.
 
+    virtual int GetPartitionCpuLimit() const override
+    {
+        return 1;
+    }
+
+    virtual int GetSortCpuLimit() const override
+    {
+        return 1;
+    }
+
+    virtual int GetMergeCpuLimit() const override
+    {
+        return 1;
+    }
+
     virtual TNodeResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics,
         bool memoryReserveEnabled) const override
@@ -2077,7 +2099,7 @@ private:
 
         TNodeResources result;
         result.set_user_slots(1);
-        result.set_cpu(1);
+        result.set_cpu(GetPartitionCpuLimit());
         result.set_memory(
             // NB: due to large MaxBufferSize for partition that was accounted in buffer size
             // we eliminate number of output streams to zero.
@@ -2095,7 +2117,7 @@ private:
         // ToDo(psushin): rewrite simple sort estimates.
         TNodeResources result;
         result.set_user_slots(1);
-        result.set_cpu(1);
+        result.set_cpu(GetSortCpuLimit());
         result.set_memory(
             GetSortInputIOMemorySize(stat) +
             GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
@@ -2127,7 +2149,7 @@ private:
 
         TNodeResources result;
         result.set_user_slots(1);
-        result.set_cpu(1);
+        result.set_cpu(GetSortCpuLimit());
         result.set_memory(memory);
         result.set_network(Spec->ShuffleNetworkLimit);
 
@@ -2142,7 +2164,7 @@ private:
 
         TNodeResources result;
         result.set_user_slots(1);
-        result.set_cpu(1);
+        result.set_cpu(GetMergeCpuLimit());
         result.set_memory(
             GetFinalIOMemorySize(SortedMergeJobIOConfig, statistics) +
             GetFootprintMemorySize());
@@ -2159,7 +2181,7 @@ private:
     {
         TNodeResources result;
         result.set_user_slots(1);
-        result.set_cpu(1);
+        result.set_cpu(GetMergeCpuLimit());
         result.set_memory(
             GetFinalIOMemorySize(UnorderedMergeJobIOConfig, AggregateStatistics(statistics)) +
             GetFootprintMemorySize());
@@ -2594,6 +2616,22 @@ private:
     }
 
     // Resource management.
+
+    virtual int GetPartitionCpuLimit() const override
+    {
+        return Spec->Mapper ? Spec->Mapper->CpuLimit : 1;
+    }
+
+    virtual int GetSortCpuLimit() const override
+    {
+        // At least one cpu, may be more in PartitionReduce job.
+        return 1;
+    }
+
+    virtual int GetMergeCpuLimit() const override
+    {
+        return Spec->Reducer->CpuLimit;
+    }
 
     virtual TNodeResources GetPartitionResources(
             const TChunkStripeStatisticsVector& statistics,
