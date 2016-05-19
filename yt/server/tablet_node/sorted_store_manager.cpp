@@ -48,6 +48,8 @@ using NTableClient::TKey;
 
 static const size_t MaxRowsPerFlushRead = 1024;
 
+static const auto BlockedRowWaitQuantum = TDuration::MilliSeconds(100);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSortedStoreManager::TSortedStoreManager(
@@ -376,6 +378,8 @@ void TSortedStoreManager::CreateActiveStore()
         ->CreateStore(Tablet_, EStoreType::SortedDynamic, storeId, nullptr)
         ->AsSortedDynamic();
 
+    ActiveStore_->SetRowBlockedHandler(CreateRowBlockedHandler(ActiveStore_));
+
     Tablet_->AddStore(ActiveStore_);
     Tablet_->SetActiveStore(ActiveStore_);
 
@@ -602,6 +606,81 @@ void TSortedStoreManager::DoMergePartitions(int firstPartitionIndex, int lastPar
     if (!IsRecovery()) {
         Tablet_->PartitionList()[firstPartitionIndex]->StartEpoch();
     }
+}
+
+void TSortedStoreManager::StartEpoch(TTabletSlotPtr slot)
+{
+    TStoreManagerBase::StartEpoch(slot);
+
+    EpochInvoker_ = slot->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read);
+
+    for (const auto& pair : Tablet_->StoreIdMap()) {
+        const auto& store = pair.second;
+        if (store->GetType() == EStoreType::SortedDynamic) {
+            auto sortedDynamicStore = store->AsSortedDynamic();
+            sortedDynamicStore->SetRowBlockedHandler(CreateRowBlockedHandler(store));
+        }
+    }
+}
+
+void TSortedStoreManager::StopEpoch()
+{
+    for (const auto& pair : Tablet_->StoreIdMap()) {
+        const auto& store = pair.second;
+        if (store->GetType() == EStoreType::SortedDynamic) {
+            store->AsSortedDynamic()->ResetRowBlockedHandler();
+        }
+    }
+
+    EpochInvoker_.Reset();
+
+    TStoreManagerBase::StopEpoch();
+}
+
+TSortedDynamicStore::TRowBlockedHandler TSortedStoreManager::CreateRowBlockedHandler(
+    const IStorePtr& store)
+{
+    return BIND(
+        &TSortedStoreManager::OnRowBlocked,
+        MakeWeak(this),
+        Unretained(store.Get()),
+        EpochInvoker_);
+}
+
+void TSortedStoreManager::OnRowBlocked(
+    IStore* store,
+    IInvokerPtr invoker,
+    TSortedDynamicRow row,
+    int lockIndex)
+{
+    WaitFor(
+        BIND(
+            &TSortedStoreManager::WaitOnBlockedRow,
+            MakeStrong(this),
+            MakeStrong(store),
+            row,
+            lockIndex)
+        .AsyncVia(invoker)
+        .Run());
+}
+
+void TSortedStoreManager::WaitOnBlockedRow(
+    IStorePtr /*store*/,
+    TSortedDynamicRow row,
+    int lockIndex)
+{
+    const auto& lock = row.BeginLocks(Tablet_->GetKeyColumnCount())[lockIndex];
+    const auto* transaction = lock.Transaction;
+    if (!transaction) {
+        return;
+    }
+
+    LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v)",
+        RowToKey(Tablet_->Schema(), row),
+        lockIndex,
+        transaction->GetId());
+
+    WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
