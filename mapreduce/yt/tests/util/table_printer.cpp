@@ -1,3 +1,5 @@
+#include "table_printer.h"
+
 #include <mapreduce/interface/all.h>
 
 #include <util/stream/output.h>
