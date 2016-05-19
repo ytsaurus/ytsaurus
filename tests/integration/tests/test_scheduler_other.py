@@ -39,6 +39,7 @@ class TestSchedulerOther(YTEnvSetup):
         "scheduler": {
             "operation_time_limit_check_period" : 100,
             "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
         }
     }
 
@@ -215,7 +216,7 @@ class TestSchedulerOther(YTEnvSetup):
         for i in xrange(1, 4):
             ops.append(
                 map(dont_track=True,
-                    command="sleep 0.3; cat >/dev/null",
+                    command="sleep 0.5; cat >/dev/null",
                     in_=["//tmp/in" + str(i)],
                     out="//tmp/out" + str(i),
                     spec={"pool": "fifo_pool", "data_size_per_job": 1}))
