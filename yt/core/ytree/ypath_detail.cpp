@@ -40,21 +40,17 @@ IYPathService::TResolveResult TYPathServiceBase::Resolve(
     IServiceContextPtr context)
 {
     NYPath::TTokenizer tokenizer(path);
-    switch (tokenizer.Advance()) {
-        case NYPath::ETokenType::EndOfStream:
-            return ResolveSelf(tokenizer.GetSuffix(), context);
+    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+        return ResolveSelf(tokenizer.GetSuffix(), context);
+    }
 
-        case NYPath::ETokenType::Slash: {
-            if (tokenizer.Advance() == NYPath::ETokenType::At) {
-                return ResolveAttributes(tokenizer.GetSuffix(), context);
-            } else {
-                return ResolveRecursive(tokenizer.GetInput(), context);
-            }
-        }
+    tokenizer.Skip(NYPath::ETokenType::Ampersand);
+    tokenizer.Expect(NYPath::ETokenType::Slash);
 
-        default:
-            tokenizer.ThrowUnexpected();
-            YUNREACHABLE();
+    if (tokenizer.Advance() == NYPath::ETokenType::At) {
+        return ResolveAttributes(tokenizer.GetSuffix(), context);
+    } else {
+        return ResolveRecursive(tokenizer.GetInput(), context);
     }
 }
 
@@ -121,22 +117,20 @@ void TYPathServiceBase::WriteAttributesFragment(
     DEFINE_RPC_SERVICE_METHOD(TSupports##method, method) \
     { \
         NYPath::TTokenizer tokenizer(GetRequestYPath(context->RequestHeader())); \
-        switch (tokenizer.Advance()) { \
-            case NYPath::ETokenType::EndOfStream: \
-                method##Self(request, response, context); \
-                break; \
-            \
-            case NYPath::ETokenType::Slash: \
-                if (tokenizer.Advance() == NYPath::ETokenType::At) { \
-                    method##Attribute(tokenizer.GetSuffix(), request, response, context); \
-                } else { \
-                    method##Recursive(tokenizer.GetInput(), request, response, context); \
-                } \
-                break; \
-            \
-            default: \
-                onPathError \
+        if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) { \
+            method##Self(request, response, context); \
+            return; \
         } \
+        tokenizer.Skip(NYPath::ETokenType::Ampersand); \
+        if (tokenizer.GetType() == NYPath::ETokenType::Slash) { \
+            if (tokenizer.Advance() == NYPath::ETokenType::At) { \
+                method##Attribute(tokenizer.GetSuffix(), request, response, context); \
+            } else { \
+                method##Recursive(tokenizer.GetInput(), request, response, context); \
+            } \
+            return; \
+        } \
+        onPathError \
     }
 
 #define IMPLEMENT_SUPPORTS_VERB(method) \

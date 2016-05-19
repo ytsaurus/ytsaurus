@@ -1056,6 +1056,21 @@ class TestCypress(YTEnvSetup):
     def test_no_expiration_time_for_root(self):
         with pytest.raises(YtError): set("//@expiration_time", str(self._now()))
 
+    def test_ignore_ampersand1(self):
+        set("//tmp/map", {})
+        set("//tmp&/map&/a", "b")
+        assert get("//tmp&/map&/a") == "b"
+        assert get("//tmp/map&/@type") == "map_node"
+
+    def test_ignore_ampersand2(self):
+        set("//tmp/list", [])
+        set("//tmp&/list&/end", "x")
+        assert get("//tmp&/list&/0") == "x"
+        assert get("//tmp/list&/@type") == "list_node"
+
+    def test_ignore_ampersand3(self):
+        assert get("//sys/chunks&/@type") == "chunk_map"
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):

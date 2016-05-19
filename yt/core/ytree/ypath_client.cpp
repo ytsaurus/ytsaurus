@@ -446,6 +446,7 @@ INodePtr GetNodeByYPath(
     auto currentNode = root;
     NYPath::TTokenizer tokenizer(path);
     while (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
+        tokenizer.Skip(NYPath::ETokenType::Ampersand);
         tokenizer.Expect(NYPath::ETokenType::Slash);
         tokenizer.Advance();
         tokenizer.Expect(NYPath::ETokenType::Literal);
@@ -486,6 +487,7 @@ void SetNodeByYPath(
     Stroka currentToken;
     Stroka currentLiteralValue;
     auto nextSegment = [&] () {
+        tokenizer.Skip(NYPath::ETokenType::Ampersand);
         tokenizer.Expect(NYPath::ETokenType::Slash);
         tokenizer.Advance();
         tokenizer.Expect(NYPath::ETokenType::Literal);
@@ -560,6 +562,7 @@ void ForceYPath(
     Stroka currentToken;
     Stroka currentLiteralValue;
     auto nextSegment = [&] () {
+        tokenizer.Skip(NYPath::ETokenType::Ampersand);
         tokenizer.Expect(NYPath::ETokenType::Slash);
         tokenizer.Advance();
         tokenizer.Expect(NYPath::ETokenType::Literal);

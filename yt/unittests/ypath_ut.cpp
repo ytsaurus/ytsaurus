@@ -363,6 +363,27 @@ TEST_F(TYPathTest, ParseRichYPath7)
                 "]}"))));
 }
 
+TEST_F(TYPathTest, IgnoreAmpersand1)
+{
+    Set("&/a", "b");
+    Check("/a", "b");
+    Check("&/a", "b");
+}
+
+TEST_F(TYPathTest, IgnoreAmpersand2)
+{
+    Set("/list", "[]");
+    Set("/list&/end", "0");
+    Check("/list", "[0]");
+}
+
+TEST_F(TYPathTest, IgnoreAmpersand3)
+{
+    Set("/map", "{}");
+    Set("/map/@attr", "value");
+    Check("/map&/@attr", "value");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
