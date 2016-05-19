@@ -499,7 +499,7 @@ void TServiceBase::HandleRequest(
     try {
         if (Stopped_) {
             THROW_ERROR_EXCEPTION(
-                EErrorCode::Abandoned,
+                EErrorCode::Unavailable,
                 "Service is stopped");
         }
 
