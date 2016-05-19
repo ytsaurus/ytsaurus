@@ -8,9 +8,9 @@ class TServer;
 
 
 namespace NYT {
-namespace NCommonTest {
+namespace NTestUtil {
 
 void PrintTable(NMR::TServer& server, const char* tableName, TOutputStream& out);
 
-} // namespace NCommonTest
+} // namespace NTestUtil
 } // namespace NYT
