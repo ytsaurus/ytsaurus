@@ -7,6 +7,7 @@ SRCS(
     test_operations.cpp
     test_table.cpp
     test_update.cpp
+    test_meta_attrs.cpp
 )
 
 PEERDIR(
