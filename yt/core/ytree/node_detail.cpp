@@ -311,6 +311,7 @@ void TMapNodeMixin::SetChild(
 
     auto currentNode = AsMap();
     while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
+        tokenizer.Skip(NYPath::ETokenType::Ampersand);
         tokenizer.Expect(NYPath::ETokenType::Slash);
 
         tokenizer.Advance();
@@ -425,6 +426,7 @@ void TListNodeMixin::SetChild(
     NYPath::TTokenizer tokenizer(path);
 
     tokenizer.Advance();
+    tokenizer.Skip(NYPath::ETokenType::Ampersand);
     tokenizer.Expect(NYPath::ETokenType::Slash);
 
     tokenizer.Advance();
