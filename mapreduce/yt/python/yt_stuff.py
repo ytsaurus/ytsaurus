@@ -92,6 +92,7 @@ class YtStuff(object):
 
         self.yt_local_out = open(os.path.join(self.yt_work_dir, "yt_local_%s.out" % self.yt_id), 'w')
         self.yt_local_err = open(os.path.join(self.yt_work_dir, "yt_local_%s.err" % self.yt_id), 'w')
+        self.yt_wrapper_log_path = os.path.join(self.yt_work_dir, "yt_wrapper_%s.log" % self.yt_id)
 
     def _prepare_env(self):
         self.env = {}
@@ -117,7 +118,6 @@ class YtStuff(object):
         import yt.logger
 
         yt.logger.LOGGER.setLevel(logging.DEBUG)
-        self.yt_wrapper_log_path = os.path.join(self.yt_work_dir, "yt_wrapper_%s.log" % self.yt_id)
         handler = logging.FileHandler(self.yt_wrapper_log_path)
         handler.setFormatter(yt.logger.BASIC_FORMATTER)
         handler.setLevel(logging.DEBUG)
