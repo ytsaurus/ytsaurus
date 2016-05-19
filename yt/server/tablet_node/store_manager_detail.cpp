@@ -128,7 +128,7 @@ void TStoreManagerBase::AddStore(IStorePtr store, bool onMount)
         if (!onMount) {
             chunkData = InMemoryManager_->EvictInterceptedChunkData(chunkStore->GetId());
         }
-        if (!chunkData || !TryPreloadStoreFromInterceptedData(chunkStore, chunkData)) {
+        if (!TryPreloadStoreFromInterceptedData(chunkStore, chunkData)) {
             ScheduleStorePreload(chunkStore);
         }
     }
@@ -255,7 +255,12 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
     TInMemoryChunkDataPtr chunkData)
 {
     YCHECK(store);
-    YCHECK(chunkData);
+
+    if (!chunkData) {
+        LOG_WARNING("Intercepted chunk data for in-memory store is missing (StoreId: %v)",
+            store->GetId());
+        return false;
+    }
 
     auto state = store->GetPreloadState();
     YCHECK(state == EStorePreloadState::None);
