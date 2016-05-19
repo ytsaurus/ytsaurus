@@ -33,6 +33,8 @@ class YtStuff(object):
     def __init__(self, config=None):
         self.config = config or YtConfig()
 
+        self.yt_id = self.config.yt_id or str(uuid.uuid4())
+
         self._prepare_logger()
         self._prepare_files()
         self._prepare_env()
@@ -88,6 +90,9 @@ class YtStuff(object):
         self.yt_work_dir = os.path.join(self.yt_path, "wd")
         os.mkdir(self.yt_work_dir)
 
+        self.yt_local_out = open(os.path.join(self.yt_work_dir, "yt_local_%s.out" % self.yt_id), 'w')
+        self.yt_local_err = open(os.path.join(self.yt_work_dir, "yt_local_%s.err" % self.yt_id), 'w')
+
     def _prepare_env(self):
         self.env = {}
         self.env["PATH"] = ":".join([
@@ -115,17 +120,17 @@ class YtStuff(object):
     def _yt_local(self, *args):
         cmd = [sys.executable, self.yt_local_path] + list(args)
         self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
+
         res = yatest.common.process.execute(
             cmd,
             env=self.env,
-            cwd=self.yt_work_dir
+            cwd=self.yt_work_dir,
+            stdout=self.yt_local_out,
+            stderr=self.yt_local_err,
         )
-        self._log(res.std_out)
-        self._log(res.std_err)
         return res
 
     def _start_local_yt(self):
-        self.yt_id = self.config.yt_id or str(uuid.uuid4())
         self.yt_proxy_port = devtools.swag.ports.find_free_port() if self.config.proxy_port is None else self.config.proxy_port
 
         self._log("Try to start local YT with id=%s", self.yt_id)
