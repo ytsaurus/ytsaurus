@@ -75,7 +75,7 @@ Stroka FormatResourceUsage(
 Stroka FormatResources(const TJobResources& resources)
 {
     return Format(
-        "UserSlots: %v, Cpu: %v, Memory: %v, Network: %v",
+        "{UserSlots: %v, Cpu: %v, Memory: %v, Network: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
         resources.GetMemory() / (1024 * 1024),
