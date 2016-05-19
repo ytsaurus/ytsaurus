@@ -95,9 +95,6 @@ public:
     //! Metadata cache service configuration.
     NObjectServer::TMasterCacheServiceConfigPtr MasterCacheService;
 
-    //! Jobs-to-master redirector.
-    NRpc::TThrottlingChannelConfigPtr MasterRedirectorService;
-
     //! Chunk Service batcher and redirector.
     TBatchingChunkServiceConfigPtr BatchingChunkService;
 
@@ -130,8 +127,6 @@ public:
         RegisterParameter("query_agent", QueryAgent)
             .DefaultNew();
         RegisterParameter("master_cache_service", MasterCacheService)
-            .DefaultNew();
-        RegisterParameter("master_redirector_service", MasterRedirectorService)
             .DefaultNew();
         RegisterParameter("batching_chunk_service", BatchingChunkService)
             .DefaultNew();
