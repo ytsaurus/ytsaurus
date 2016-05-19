@@ -112,7 +112,17 @@ class YtStuff(object):
 
     def _import_wrapper(self):
         sys.path.insert(0, self.yt_python_path)
+
         import yt.wrapper
+        import yt.logger
+
+        yt.logger.LOGGER.setLevel(logging.DEBUG)
+        self.yt_wrapper_log_path = os.path.join(self.yt_work_dir, "yt_wrapper_%s.log" % self.yt_id)
+        handler = logging.FileHandler(self.yt_wrapper_log_path)
+        handler.setFormatter(yt.logger.BASIC_FORMATTER)
+        handler.setLevel(logging.DEBUG)
+        yt.logger.LOGGER.handlers = [handler]
+
         self.yt_wrapper = yt.wrapper
         self.yt_wrapper.config.PREFIX = _YT_PREFIX
         self.yt_wrapper.config["pickling"]["python_binary"] = sys.executable
@@ -160,6 +170,7 @@ class YtStuff(object):
         self.yt_wrapper.config["proxy"]["url"] = self.get_server()
         self.yt_wrapper.config["proxy"]["enable_proxy_discovery"] = False
         self.env["YT_PROXY"] = self.get_server()
+        self._log("Local YT was started with id=%s", self.yt_id)
         return True
 
     def get_yt_wrapper(self):
