@@ -330,13 +330,7 @@ private:
         try {
             // Kill everything for sanity reasons: main user process completed,
             // but its children may still be alive.
-            Stroka freezerFullPath;
-            {
-                TGuard<TSpinLock> guard(FreezerLock_);
-                freezerFullPath = Freezer_.GetFullPath();
-            }
-
-            RunKiller(freezerFullPath);
+            RunKiller(Freezer_.GetFullPath());
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to clean up user processes");
         }
