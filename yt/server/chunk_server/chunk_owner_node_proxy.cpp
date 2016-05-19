@@ -507,18 +507,21 @@ TFuture<TYsonString> ComputeChunkStatistics(
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkOwnerNodeProxy::TChunkOwnerNodeProxy(
-    INodeTypeHandlerPtr typeHandler,
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
     TTransaction* transaction,
     TChunkOwnerBase* trunkNode)
     : TNontemplateCypressNodeProxyBase(
-        typeHandler,
         bootstrap,
         metadata,
         transaction,
         trunkNode)
 { }
+
+ENodeType TChunkOwnerNodeProxy::GetType() const
+{
+    return ENodeType::Entity;
+}
 
 bool TChunkOwnerNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
 {

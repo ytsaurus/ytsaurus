@@ -27,13 +27,11 @@ class TFileNodeProxy
 {
 public:
     TFileNodeProxy(
-        INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         TObjectTypeMetadata* metadata,
         TTransaction* transaction,
         TFileNode* trunkNode)
         : TBase(
-            typeHandler,
             bootstrap,
             metadata,
             transaction,
@@ -96,14 +94,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ICypressNodeProxyPtr CreateFileNodeProxy(
-    INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
     TTransaction* transaction,
     TFileNode* trunkNode)
 {
     return New<TFileNodeProxy>(
-        typeHandler,
         bootstrap,
         metadata,
         transaction,

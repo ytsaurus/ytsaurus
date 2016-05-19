@@ -30,13 +30,11 @@ class TJournalNodeProxy
 {
 public:
     TJournalNodeProxy(
-        INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         TObjectTypeMetadata* metadata,
         TTransaction* transaction,
         TJournalNode* trunkNode)
         : TBase(
-            typeHandler,
             bootstrap,
             metadata,
             transaction,
@@ -158,7 +156,6 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ICypressNodeProxyPtr CreateJournalNodeProxy(
-    INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
     TTransaction* transaction,
@@ -166,7 +163,6 @@ ICypressNodeProxyPtr CreateJournalNodeProxy(
 {
 
     return New<TJournalNodeProxy>(
-        typeHandler,
         bootstrap,
         metadata,
         transaction,
