@@ -260,12 +260,16 @@ TSupportsAttributes::TCombinedAttributeDictionary::TCombinedAttributeDictionary(
 
 std::vector<Stroka> TSupportsAttributes::TCombinedAttributeDictionary::List() const
 {
-    PrecacheData();
-
     std::vector<Stroka> keys;
-    for (const auto& descriptor : CachedSystemAttributes_) {
-        if (descriptor.Present && !descriptor.Custom && !descriptor.Opaque) {
-            keys.push_back(descriptor.Key);
+
+    auto* provider = Owner_->GetBuiltinAttributeProvider();
+    if (provider) {
+        std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
+        provider->ListSystemAttributes(&descriptors);
+        for (const auto& descriptor : descriptors) {
+            if (descriptor.Present && !descriptor.Custom && !descriptor.Opaque) {
+                keys.push_back(descriptor.Key);
+            }
         }
     }
 
@@ -280,72 +284,56 @@ std::vector<Stroka> TSupportsAttributes::TCombinedAttributeDictionary::List() co
 
 TNullable<TYsonString> TSupportsAttributes::TCombinedAttributeDictionary::FindYson(const Stroka& key) const
 {
-    PrecacheData();
-
-    if (CachedBuiltinKeys_.find(key) == CachedBuiltinKeys_.end()) {
-        auto* customAttributes = Owner_->GetCustomAttributes();
-        if (!customAttributes) {
-            return Null;
+    auto* provider = Owner_->GetBuiltinAttributeProvider();
+    if (provider) {
+        const auto& builtinKeys = provider->GetBuiltinAttributeKeys();
+        if (builtinKeys.find(key) != builtinKeys.end()) {
+            return provider->FindBuiltinAttribute(key);
         }
-        return customAttributes->FindYson(key);
-    } else {
-        auto* provider = Owner_->GetBuiltinAttributeProvider();
-        return provider->FindBuiltinAttribute(key);
     }
+
+    auto* customAttributes = Owner_->GetCustomAttributes();
+    if (!customAttributes) {
+        return Null;
+    }
+    return customAttributes->FindYson(key);
 }
 
 void TSupportsAttributes::TCombinedAttributeDictionary::SetYson(const Stroka& key, const TYsonString& value)
 {
-    PrecacheData();
-
-    if (CachedBuiltinKeys_.find(key) == CachedBuiltinKeys_.end()) {
-        auto* customAttributes = Owner_->GetCustomAttributes();
-        if (!customAttributes) {
-            ThrowNoSuchBuiltinAttribute(key);
-        }
-        customAttributes->SetYson(key, value);
-    } else {
-        auto* provider = Owner_->GetBuiltinAttributeProvider();
-        if (!provider->SetBuiltinAttribute(key, value)) {
-            ThrowCannotSetBuiltinAttribute(key);
+    auto* provider = Owner_->GetBuiltinAttributeProvider();
+    if (provider) {
+        const auto& builtinKeys = provider->GetBuiltinAttributeKeys();
+        if (builtinKeys.find(key) != builtinKeys.end()) {
+            if (!provider->SetBuiltinAttribute(key, value)) {
+                ThrowCannotSetBuiltinAttribute(key);
+            }
+            return;
         }
     }
+
+    auto* customAttributes = Owner_->GetCustomAttributes();
+    if (!customAttributes) {
+        ThrowNoSuchBuiltinAttribute(key);
+    }
+    customAttributes->SetYson(key, value);
 }
 
 bool TSupportsAttributes::TCombinedAttributeDictionary::Remove(const Stroka& key)
 {
-    PrecacheData();
-
-    if (CachedBuiltinKeys_.find(key) == CachedBuiltinKeys_.end()) {
-        auto* customAttributes = Owner_->GetCustomAttributes();
-        if (!customAttributes) {
-            ThrowNoSuchBuiltinAttribute(key);
-        }
-        return customAttributes->Remove(key);
-    } else {
-        auto* provider = Owner_->GetBuiltinAttributeProvider();
-        return provider->RemoveBuiltinAttribute(key);
-    }
-}
-
-void TSupportsAttributes::TCombinedAttributeDictionary::PrecacheData() const
-{
-    if (HasCachedData_) {
-        return;
-    }
-
     auto* provider = Owner_->GetBuiltinAttributeProvider();
     if (provider) {
-        provider->ListSystemAttributes(&CachedSystemAttributes_);
-        CachedBuiltinKeys_.resize(CachedSystemAttributes_.size());
-        for (const auto& descriptor : CachedSystemAttributes_) {
-            if (!descriptor.Custom) {
-                YCHECK(CachedBuiltinKeys_.insert(descriptor.Key).second);
-            }
+        const auto& builtinKeys = provider->GetBuiltinAttributeKeys();
+        if (builtinKeys.find(key) != builtinKeys.end()) {
+            return provider->RemoveBuiltinAttribute(key);
         }
     }
 
-    HasCachedData_ = true;
+    auto* customAttributes = Owner_->GetCustomAttributes();
+    if (!customAttributes) {
+        ThrowNoSuchBuiltinAttribute(key);
+    }
+    return customAttributes->Remove(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1045,6 +1033,25 @@ TFuture<void> TSupportsAttributes::GuardedRemoveBuiltinAttribute(const Stroka& k
     // NB: Async removal is not currently supported.
 
     return Null;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const yhash_set<const char*>& TBuiltinAttributeKeysCache::GetBuiltinAttributeKeys(
+    ISystemAttributeProvider* provider)
+{
+    if (!Initialized_) {
+        std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
+        provider->ListSystemAttributes(&descriptors);
+        BuiltinKeys_.resize(descriptors.size());
+        for (const auto& descriptor : descriptors) {
+            if (!descriptor.Custom) {
+                YCHECK(BuiltinKeys_.insert(descriptor.Key).second);
+            }
+        }
+        Initialized_ = true;
+    }
+    return BuiltinKeys_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

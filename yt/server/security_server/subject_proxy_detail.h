@@ -25,8 +25,11 @@ class TSubjectProxy
     : public NObjectServer::TNonversionedObjectProxyBase<TImpl>
 {
 public:
-    TSubjectProxy(NCellMaster::TBootstrap* bootstrap, TImpl* subject)
-        : TBase(bootstrap, subject)
+    TSubjectProxy(
+        NCellMaster::TBootstrap* bootstrap,
+        NObjectServer::TObjectTypeMetadata* metadata,
+        TImpl* subject)
+        : TBase(bootstrap, metadata, subject)
     { }
 
 private:

@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "object_detail.h"
+#include "type_handler_detail.h"
 
 #include <yt/server/cell_master/public.h>
 
@@ -20,7 +21,11 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IObjectProxyPtr CreateMasterProxy(NCellMaster::TBootstrap* bootstrap, TMasterObject* object);
+IObjectProxyPtr CreateMasterProxy(
+    NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
+    TMasterObject* object);
+
 IObjectTypeHandlerPtr CreateMasterTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////

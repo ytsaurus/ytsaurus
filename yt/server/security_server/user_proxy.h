@@ -13,6 +13,7 @@ namespace NSecurityServer {
 
 NObjectServer::IObjectProxyPtr CreateUserProxy(
     NCellMaster::TBootstrap* bootstrap,
+    NObjectServer::TObjectTypeMetadata* metadata,
     TUser* user);
 
 ////////////////////////////////////////////////////////////////////////////////

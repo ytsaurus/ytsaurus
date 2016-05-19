@@ -13,6 +13,7 @@ namespace NChunkServer {
 
 NObjectServer::IObjectProxyPtr CreateChunkProxy(
     NCellMaster::TBootstrap* bootstrap,
+    NObjectServer::TObjectTypeMetadata* metadata,
     TChunk* chunk);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -194,9 +194,10 @@ private:
 TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     INodeTypeHandlerPtr typeHandler,
     NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TTransaction* transaction,
     TCypressNodeBase* trunkNode)
-    : TObjectProxyBase(bootstrap, trunkNode)
+    : TObjectProxyBase(bootstrap, metadata, trunkNode)
     , TypeHandler(typeHandler)
     , Config(Bootstrap_->GetConfig()->CypressManager)
     , Transaction(transaction)
@@ -1071,11 +1072,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 TNontemplateCompositeCypressNodeProxyBase::TNontemplateCompositeCypressNodeProxyBase(
     INodeTypeHandlerPtr typeHandler,
     NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TTransaction* transaction,
     TCypressNodeBase* trunkNode)
     : TNontemplateCypressNodeProxyBase(
         typeHandler,
         bootstrap,
+        metadata,
         transaction,
         trunkNode)
 { }
@@ -1117,11 +1120,13 @@ bool TNontemplateCompositeCypressNodeProxyBase::CanHaveChildren() const
 TMapNodeProxy::TMapNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TTransaction* transaction,
     TMapNode* trunkNode)
     : TBase(
         typeHandler,
         bootstrap,
+        metadata,
         transaction,
         trunkNode)
 { }
@@ -1293,7 +1298,6 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
         }
     }
 
-    // COMPAT(babenko)
     return "?";
 }
 
@@ -1364,11 +1368,13 @@ void TMapNodeProxy::DoRemoveChild(
 TListNodeProxy::TListNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TTransaction* transaction,
     TListNode* trunkNode)
     : TBase(
         typeHandler,
         bootstrap,
+        metadata,
         transaction,
         trunkNode)
 { }
@@ -1548,11 +1554,13 @@ IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
 TLinkNodeProxy::TLinkNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TTransaction* transaction,
     TLinkNode* trunkNode)
     : TBase(
         typeHandler,
         bootstrap,
+        metadata,
         transaction,
         trunkNode)
 { }
@@ -1712,11 +1720,13 @@ bool TLinkNodeProxy::IsBroken(const NObjectServer::TObjectId& id) const
 TDocumentNodeProxy::TDocumentNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TTransaction* transaction,
     TDocumentNode* trunkNode)
     : TBase(
         typeHandler,
         bootstrap,
+        metadata,
         transaction,
         trunkNode)
 { }

@@ -17,6 +17,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NChunkServer;
 using namespace NCypressServer;
+using namespace NObjectServer;
 using namespace NYTree;
 using namespace NYson;
 using namespace NTransactionServer;
@@ -31,11 +32,13 @@ public:
     TJournalNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
         TTransaction* transaction,
         TJournalNode* trunkNode)
         : TBase(
             typeHandler,
             bootstrap,
+            metadata,
             transaction,
             trunkNode)
     { }
@@ -157,6 +160,7 @@ private:
 ICypressNodeProxyPtr CreateJournalNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TTransaction* transaction,
     TJournalNode* trunkNode)
 {
@@ -164,6 +168,7 @@ ICypressNodeProxyPtr CreateJournalNodeProxy(
     return New<TJournalNodeProxy>(
         typeHandler,
         bootstrap,
+        metadata,
         transaction,
         trunkNode);
 }
