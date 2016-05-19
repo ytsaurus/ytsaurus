@@ -479,6 +479,7 @@ private:
     TFuture<void> Prefetch(TGuard<TSpinLock>* guard)
     {
         if (OutstandingResult_) {
+            guard->Release();
             return OutstandingResult_;
         }
         auto promise = NewPromise<void>();
