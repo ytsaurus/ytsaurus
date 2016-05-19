@@ -215,7 +215,7 @@ void TBootstrap::DoRun()
         "/ref_counted",
         TRefCountedTracker::Get()->GetMonitoringProducer());
 
-    auto createMasterRedirectorService = [&] (TMasterConnectionConfigPtr config) {
+    auto createBatchingChunkService = [&] (TMasterConnectionConfigPtr config) {
         RpcServer->RegisterService(CreateBatchingChunkService(
             ToRedirectorCellId(config->CellId),
             Config->BatchingChunkService,
@@ -223,9 +223,9 @@ void TBootstrap::DoRun()
             MasterConnection->GetLightChannelFactory()));
     };
 
-    createMasterRedirectorService(Config->ClusterConnection->PrimaryMaster);
+    createBatchingChunkService(Config->ClusterConnection->PrimaryMaster);
     for (const auto& config : Config->ClusterConnection->SecondaryMasters) {
-        createMasterRedirectorService(config);
+        createBatchingChunkService(config);
     }
 
     BlobReaderCache = New<TBlobReaderCache>(Config->DataNode);
