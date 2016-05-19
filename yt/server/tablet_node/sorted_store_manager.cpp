@@ -612,7 +612,9 @@ void TSortedStoreManager::StartEpoch(TTabletSlotPtr slot)
 {
     TStoreManagerBase::StartEpoch(slot);
 
-    EpochInvoker_ = slot->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read);
+    if (slot) {
+        EpochInvoker_ = slot->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read);
+    }
 
     for (const auto& pair : Tablet_->StoreIdMap()) {
         const auto& store = pair.second;
@@ -640,6 +642,10 @@ void TSortedStoreManager::StopEpoch()
 TSortedDynamicStore::TRowBlockedHandler TSortedStoreManager::CreateRowBlockedHandler(
     const IStorePtr& store)
 {
+    if (!EpochInvoker_) {
+        return TSortedDynamicStore::TRowBlockedHandler();
+    }
+
     return BIND(
         &TSortedStoreManager::OnRowBlocked,
         MakeWeak(this),
