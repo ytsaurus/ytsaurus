@@ -7,14 +7,15 @@
 
 
 namespace NYT {
-namespace NCommonTest {
+namespace NLibraryTest {
 
 using namespace NMR;
+using namespace NTestUtil;
 
 namespace {
 
 
-class TWithBTTableTestFixture
+class TWithBTTable
     : public NTest::TTest
 {
 public:
@@ -59,7 +60,7 @@ public:
 
 } // anonymous namespace
 
-YT_TEST(TWithBTTableTestFixture, SimpleTestEmptyTable) {
+YT_TEST(TWithBTTable, EmptyTable) {
     Cout << "====Empty table====" << Endl;
     Stroka tableName;
     {
@@ -69,7 +70,7 @@ YT_TEST(TWithBTTableTestFixture, SimpleTestEmptyTable) {
     PrintTable(GetServer(), ~tableName, Cout);
 }
 
-YT_TEST(TWithBTTableTestFixture, SimpleTestNonEmptyTable) {
+YT_TEST(TWithBTTable, NonEmptyTable) {
     Cout << "====Non-empty table====" << Endl;
     Stroka tableName;
     {
@@ -83,7 +84,7 @@ YT_TEST(TWithBTTableTestFixture, SimpleTestNonEmptyTable) {
     PrintTable(GetServer(), ~tableName, Cout);
 }
 
-YT_TEST(TWithBTTableTestFixture, SimpleTestNonEmptyTableException) {
+YT_TEST(TWithBTTable, NonEmptyTableException) {
     Cout << "====Non-empty table with exception====" << Endl;
     Stroka tableName;
     try {
@@ -99,8 +100,8 @@ YT_TEST(TWithBTTableTestFixture, SimpleTestNonEmptyTableException) {
     PrintTable(GetServer(), ~tableName, Cout);
 }
 
-YT_TEST(TWithBTTableTestFixture, NonFailedOpEmptyTableTest) {
-    static constexpr auto OUT_TABLE = "temptable_test_out_table_NonFailedOpEmptyTableTest";
+YT_TEST(TWithBTTable, NonFailedOpEmptyTable) {
+    static constexpr auto OUT_TABLE = "temptable_test_out_table_NonFailedOpEmptyTable";
     Cout << "====Non-failed map with empty table====" << Endl;
     Stroka tableName;
     {
@@ -111,8 +112,8 @@ YT_TEST(TWithBTTableTestFixture, NonFailedOpEmptyTableTest) {
     PrintTable(GetServer(), ~tableName, Cout);
 }
 
-YT_TEST(TWithBTTableTestFixture, NonFailedOpNonEmptyTableTest) {
-    static constexpr auto OUT_TABLE = "temptable_test_out_table_NonFailedOpNonEmptyTableTest";
+YT_TEST(TWithBTTable, NonFailedOpNonEmptyTable) {
+    static constexpr auto OUT_TABLE = "temptable_test_out_table_NonFailedOpNonEmptyTable";
     Cout << "====Non-failed map with non-empty table====" << Endl;
     Stroka tableName;
     {
@@ -129,8 +130,8 @@ YT_TEST(TWithBTTableTestFixture, NonFailedOpNonEmptyTableTest) {
     PrintTable(GetServer(), ~tableName, Cout);
 }
 
-YT_TEST(TWithBTTableTestFixture, FailedOpEmptyTableTest) {
-    static constexpr auto OUT_TABLE = "temptable_test_out_table_FailedOpEmptyTableTest";
+YT_TEST(TWithBTTable, FailedOpEmptyTable) {
+    static constexpr auto OUT_TABLE = "temptable_test_out_table_FailedOpEmptyTable";
     Cout << "====Failed map with empty table====" << Endl;
     Stroka tableName;
     {
@@ -141,8 +142,8 @@ YT_TEST(TWithBTTableTestFixture, FailedOpEmptyTableTest) {
     PrintTable(GetServer(), ~tableName, Cout);
 }
 
-YT_TEST(TWithBTTableTestFixture, FailedOpNonEmptyTableTest) {
-    static constexpr auto OUT_TABLE = "temptable_test_out_table_FailedOpNonEmptyTableTest";
+YT_TEST(TWithBTTable, FailedOpNonEmptyTable) {
+    static constexpr auto OUT_TABLE = "temptable_test_out_table_FailedOpNonEmptyTable";
     Cout << "====Failed map with non-empty table====" << Endl;
     Stroka tableName;
     {
@@ -159,10 +160,9 @@ YT_TEST(TWithBTTableTestFixture, FailedOpNonEmptyTableTest) {
     PrintTable(GetServer(), ~tableName, Cout);
 }
 
-} // NCommonTest
+} // NLibraryTest
 } // NYT
 
-
-using namespace NYT::NCommonTest;
+using namespace NYT::NLibraryTest;
 REGISTER_SAVELOAD_CLASS(0x00000002, TCopyMap);
 REGISTER_SAVELOAD_CLASS(0x00000003, TFailMap);

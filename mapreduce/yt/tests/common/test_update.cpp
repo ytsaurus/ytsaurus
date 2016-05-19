@@ -12,14 +12,14 @@
 namespace NYT {
 namespace NCommonTest {
 
-using namespace NMR;
+using namespace NTestUtil;
 
 namespace {
 
 using TData = yvector<yvector<Stroka>>;
 
 
-class TUpdateTestFixture
+class TUpdate
     : public NTest::TTest
 {
 public:
@@ -37,12 +37,12 @@ public:
         };
     }
 
-    static yvector<EUpdateMode> GetUpdateModes()  {
+    static yvector<NMR::EUpdateMode> GetUpdateModes()  {
         return {
-            UM_REPLACE,
-            UM_APPEND,
-            UM_SORTED,
-            UM_APPEND_SORTED
+            NMR::UM_REPLACE,
+            NMR::UM_APPEND,
+            NMR::UM_SORTED,
+            NMR::UM_APPEND_SORTED
         };
     }
 
@@ -90,7 +90,7 @@ public:
 
     void SetUp() override {
         TTest::SetUp();
-        Server.Reset(new TServer(ServerName()));
+        Server.Reset(new NMR::TServer(ServerName()));
     }
 
     void TearDown() override {
@@ -98,7 +98,7 @@ public:
         TTest::TearDown();
     }
 
-    TServer& GetServer() {
+    NMR::TServer& GetServer() {
         return *Server;
     }
 
@@ -110,47 +110,44 @@ public:
 private:
     void CreateTables() {
         {
-            TClient client(GetServer());
-            TUpdate update(client, TABLE);
+            NMR::TClient client(GetServer());
+            NMR::TUpdate update(client, TABLE);
             for (auto&& d : GetTableData()) {
                 update.AddSub(d[0], d[1], d[2]);
             }
         }
         {
-            TClient client(GetServer());
-            TUpdate updateSorted(client, SORTED_TABLE, UM_SORTED);
+            NMR::TClient client(GetServer());
+            NMR::TUpdate updateSorted(client, SORTED_TABLE, NMR::UM_SORTED);
             for (auto&& d : GetTableData()) {
                 updateSorted.AddSub(d[0], d[1], d[2]);
             }
         }
         {
-            TClient client(GetServer());
-            TUpdate update(client, EMPTY_TABLE);
+            NMR::TClient client(GetServer());
+            NMR::TUpdate update(client, EMPTY_TABLE);
         }
     }
 
     void DropTables() {
-        TClient client(GetServer());
+        NMR::TClient client(GetServer());
         client.Drop(TABLE);
         client.Drop(SORTED_TABLE);
         client.Drop(EMPTY_TABLE);
         client.Drop(UNEXIST_TABLE);
     }
 
-    THolder<TServer> Server;
+    THolder<NMR::TServer> Server;
 };
-
-
 
 } // anonymous namespace
 
-
 ///////////////////////////////////////////////////////////////////////////////
 
-void DoTestSingleUpdate(TServer& server, TUpdateTable&& updateTable, TData&& toAdd) {
+void DoTestSingleUpdate(NMR::TServer& server, NMR::TUpdateTable&& updateTable, TData&& toAdd) {
     try {
-        TClient client(server);
-        TUpdate up(client, updateTable);
+        NMR::TClient client(server);
+        NMR::TUpdate up(client, updateTable);
         for (auto&& d : toAdd) {
             Y_VERIFY(d.size() == 3);
             up.AddSub(d[0], d[1], d[2]);
@@ -160,17 +157,17 @@ void DoTestSingleUpdate(TServer& server, TUpdateTable&& updateTable, TData&& toA
     }
 }
 
-YT_TEST(TUpdateTestFixture, TestSingleUpdate) {
+YT_TEST(TUpdate, SingleUpdate) {
     Cout << "======TEST SINGLE UPDATE======\n";
     for (auto tableName : GetTables()) {
         for (auto updateMode : GetUpdateModes()) {
             RefreshTables();
-            DoTestSingleUpdate(GetServer(), TUpdateTable(tableName, updateMode), GetBigTestData());
+            DoTestSingleUpdate(GetServer(), NMR::TUpdateTable(tableName, updateMode), GetBigTestData());
             Cout << "~~~~~~" << tableName << "::" << (int) updateMode << "::GetBigTestData~~~~~~\n";
             PrintTable(GetServer(), tableName, Cout);
 
             RefreshTables();
-            DoTestSingleUpdate(GetServer(), TUpdateTable(tableName, updateMode), GetSmallSortedTestData());
+            DoTestSingleUpdate(GetServer(), NMR::TUpdateTable(tableName, updateMode), GetSmallSortedTestData());
             Cout << "~~~~~~" << tableName << "::" << (int) updateMode << "::GetSmallSortedTestData~~~~~~\n";
             PrintTable(GetServer(), tableName, Cout);
         }
@@ -179,10 +176,10 @@ YT_TEST(TUpdateTestFixture, TestSingleUpdate) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void DoTestMultiUpdate(TServer& server, const yvector<TUpdateTable>& updates, TData&& toAdd) {
+void DoTestMultiUpdate(NMR::TServer& server, const yvector<NMR::TUpdateTable>& updates, TData&& toAdd) {
     try {
-        TClient client(server);
-        TUpdate up(client, updates);
+        NMR::TClient client(server);
+        NMR::TUpdate up(client, updates);
 
         const auto TABLES_COUNT = up.GetUpdateTableCount();
         Y_VERIFY((int) updates.size() == TABLES_COUNT);
@@ -204,36 +201,36 @@ void DoTestMultiUpdate(TServer& server, const yvector<TUpdateTable>& updates, TD
 }
 
 
-YT_TEST(TUpdateTestFixture, TestMultiUpdate) {
+YT_TEST(TUpdate, MultiUpdate) {
     Cout << "======TEST MULTI UPDATE======\n";
 
-    #define X(name, mode) TUpdateTable(name, mode)
+    #define X(name, mode) NMR::TUpdateTable(name, mode)
 
-    static const yvector<yvector<TUpdateTable>> allUpdates = {
+    static const yvector<yvector<NMR::TUpdateTable>> allUpdates = {
         {
-            X(EMPTY_TABLE, UM_APPEND),
-            X(UNEXIST_TABLE, UM_APPEND)
+            X(EMPTY_TABLE, NMR::UM_APPEND),
+            X(UNEXIST_TABLE, NMR::UM_APPEND)
         },
         {
-            X(EMPTY_TABLE, UM_APPEND),
-            X(TABLE, UM_REPLACE)
+            X(EMPTY_TABLE, NMR::UM_APPEND),
+            X(TABLE, NMR::UM_REPLACE)
         },
         {
-            X(SORTED_TABLE, UM_APPEND),
-            X(UNEXIST_TABLE, UM_REPLACE)
+            X(SORTED_TABLE, NMR::UM_APPEND),
+            X(UNEXIST_TABLE, NMR::UM_REPLACE)
         },
         {
-            X(SORTED_TABLE, UM_APPEND),
-            X(TABLE, UM_REPLACE)
+            X(SORTED_TABLE, NMR::UM_APPEND),
+            X(TABLE, NMR::UM_REPLACE)
         },
         {
-            X(SORTED_TABLE, UM_SORTED),
-            X(TABLE, UM_SORTED)
+            X(SORTED_TABLE, NMR::UM_SORTED),
+            X(TABLE, NMR::UM_SORTED)
         },
         {
-            X(SORTED_TABLE, UM_APPEND_SORTED),
-            X(TABLE, UM_APPEND_SORTED),
-            X(UNEXIST_TABLE, UM_APPEND)
+            X(SORTED_TABLE, NMR::UM_APPEND_SORTED),
+            X(TABLE, NMR::UM_APPEND_SORTED),
+            X(UNEXIST_TABLE, NMR::UM_APPEND)
         },
     };
 

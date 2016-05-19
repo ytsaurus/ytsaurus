@@ -4,7 +4,7 @@
 
 
 namespace NYT {
-namespace NCommonTest {
+namespace NTestUtil {
 
 using namespace NMR;
 
@@ -22,5 +22,5 @@ void PrintTable(TServer& server, const char* tableName, TOutputStream& out) {
     }
 }
 
-} // namespace NCommonTest
+} // namespace NTestUtil
 } // namespace NYT
