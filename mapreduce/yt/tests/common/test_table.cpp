@@ -11,11 +11,9 @@
 namespace NYT {
 namespace NCommonTest {
 
-using namespace NMR;
-
 namespace {
 
-class TTableTestFixture
+class TTable
     : public NTest::TTest
 {
 public:
@@ -26,7 +24,7 @@ public:
 
     void SetUp() override {
         TTest::SetUp();
-        Server.Reset(new TServer(ServerName()));
+        Server.Reset(new NMR::TServer(ServerName()));
         CreateTables();
     }
 
@@ -35,7 +33,7 @@ public:
         TTest::TearDown();
     }
 
-    TServer& GetServer() {
+    NMR::TServer& GetServer() {
         return *Server;
     }
 
@@ -53,49 +51,49 @@ private:
 
     void CreateTables() {
         {
-            TClient client(GetServer());
-            TUpdate update(client, TABLE);
+            NMR::TClient client(GetServer());
+            NMR::TUpdate update(client, TABLE);
             auto&& data = GetData();
             for (const auto& d : data) {
                 update.AddSub(d[0], d[1], d[2]);
             }
         }
         {
-            TClient client(GetServer());
-            TUpdate updateSorted(client, SORTED_TABLE, UM_SORTED);
+            NMR::TClient client(GetServer());
+            NMR::TUpdate updateSorted(client, SORTED_TABLE, NMR::UM_SORTED);
             auto&& data = GetData();
             for (const auto& d : data) {
                 updateSorted.AddSub(d[0], d[1], d[2]);
             }
         }
         {
-            TClient client(GetServer());
-            TUpdate update(client, EMPTY_TABLE);
+            NMR::TClient client(GetServer());
+            NMR::TUpdate update(client, EMPTY_TABLE);
         }
     }
 
     void DropTables() {
-        TClient client(GetServer());
+        NMR::TClient client(GetServer());
         client.Drop(TABLE);
         client.Drop(SORTED_TABLE);
         client.Drop(EMPTY_TABLE);
         client.Drop(UNEXIST_TABLE);
     }
 
-    THolder<TServer> Server;
+    THolder<NMR::TServer> Server;
 };
 
-Stroka ItToString(const TTableIterator&& it) {
+Stroka ItToString(const NMR::TTableIterator&& it) {
     TStringStream ss;
     ss << "IsValid: " << it.IsValid()
         << " GetRecordIndex: " << it.GetRecordIndex();
     return ss.Str();
 }
 
-void TestTableMethods(TServer& server, const char* tableName) {
+void TestTableMethods(NMR::TServer& server, const char* tableName) {
     Cout << "=======" << tableName << "=======" << Endl;
-    TClient client(server);
-    TTable table(client, tableName);
+    NMR::TClient client(server);
+    NMR::TTable table(client, tableName);
 
     { // Args = {}: Begin, End, IsEmpty, IsSorted, IsWriteLocked, GetRecordCount.
         auto headerTemplate = "TTable.%s: ";
@@ -188,10 +186,19 @@ void TestTableMethods(TServer& server, const char* tableName) {
 
 } // anonymous namespace
 
-YT_TEST(TTableTestFixture, TestMethods) {
+YT_TEST(TTable, MethodsTable) {
     TestTableMethods(GetServer(), TABLE);
+}
+
+YT_TEST(TTable, MethodsSortedTable) {
     TestTableMethods(GetServer(), SORTED_TABLE);
+}
+
+YT_TEST(TTable, MethodsEmptyTable) {
     TestTableMethods(GetServer(), EMPTY_TABLE);
+}
+
+YT_TEST(TTable, MethodsUnexistTable) {
     TestTableMethods(GetServer(), UNEXIST_TABLE);
 }
 
