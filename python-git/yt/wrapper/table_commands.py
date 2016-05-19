@@ -919,7 +919,7 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
 
     make_request("mount_table", params, client=client)
 
-def alter_table(path, schema=None, client=None):
+def alter_table(path, schema=None, dynamic=None, client=None):
     """Sets schema of the table. NB! This command is not currently supported! The feature is coming with 0.18+ version!
 
     :param table: string or `TablePath`
@@ -930,6 +930,8 @@ def alter_table(path, schema=None, client=None):
 
     if schema is not None:
         params["schema"] = schema
+    if dynamic is not None:
+        params["dynamic"] = dynamic
 
     make_request("alter_table", params, client=client)
 
