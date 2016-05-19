@@ -89,10 +89,6 @@ using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto BlockedRowWaitQuantum = TDuration::MilliSeconds(100);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTabletManager::TImpl
     : public TTabletAutomatonPart
 {
@@ -1638,17 +1634,6 @@ private:
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->RegisterTabletSnapshot(Slot_, tablet);
-
-        for (const auto& pair : tablet->StoreIdMap()) {
-            const auto& store = pair.second;
-            if (store->GetType() == EStoreType::SortedDynamic) {
-                auto sortedDynamicStore = store->AsSortedDynamic();
-                auto rowBlockedHandler = CreateRowBlockedHandler(
-                    sortedDynamicStore,
-                    tablet);
-                sortedDynamicStore->SetRowBlockedHandler(rowBlockedHandler);
-            }
-        }
     }
 
     void StopTabletEpoch(TTablet* tablet)
@@ -1658,13 +1643,6 @@ private:
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->UnregisterTabletSnapshot(Slot_, tablet);
-
-        for (const auto& pair : tablet->StoreIdMap()) {
-            const auto& store = pair.second;
-            if (store->GetType() == EStoreType::SortedDynamic) {
-                store->AsSortedDynamic()->ResetRowBlockedHandler();
-            }
-        }
     }
 
 
@@ -1915,52 +1893,6 @@ private:
     }
 
 
-    void OnRowBlocked(
-        IStore* store,
-        const TTabletId& tabletId,
-        IInvokerPtr invoker,
-        TSortedDynamicRow row,
-        int lockIndex)
-    {
-        WaitFor(
-            BIND(
-                &TImpl::WaitOnBlockedRow,
-                MakeStrong(this),
-                MakeStrong(store),
-                tabletId,
-                row,
-                lockIndex)
-            .AsyncVia(invoker)
-            .Run());
-    }
-
-    void WaitOnBlockedRow(
-        IStorePtr /*store*/,
-        const TTabletId& tabletId,
-        TSortedDynamicRow row,
-        int lockIndex)
-    {
-        auto* tablet = FindTablet(tabletId);
-        if (!tablet) {
-            return;
-        }
-
-        const auto& lock = row.BeginLocks(tablet->GetKeyColumnCount())[lockIndex];
-        const auto* transaction = lock.Transaction;
-        if (!transaction) {
-            return;
-        }
-
-        LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TabletId: %v, TransactionId: %v)",
-            RowToKey(tablet->Schema(), row),
-            lockIndex,
-            tabletId,
-            transaction->GetId());
-
-        WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
-    }
-
-
     IStoreManagerPtr CreateStoreManager(TTablet* tablet)
     {
         if (tablet->IsSorted()) {
@@ -2043,18 +1975,6 @@ private:
             default:
                 YUNREACHABLE();
         }
-    }
-
-    TSortedDynamicStore::TRowBlockedHandler CreateRowBlockedHandler(
-        const IStorePtr& store,
-        TTablet* tablet)
-    {
-        return BIND(
-            &TImpl::OnRowBlocked,
-            MakeWeak(this),
-            Unretained(store.Get()),
-            tablet->GetId(),
-            Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read));
     }
 
 };

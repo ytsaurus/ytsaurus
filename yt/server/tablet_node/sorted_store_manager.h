@@ -2,6 +2,7 @@
 
 #include "store_manager_detail.h"
 #include "dynamic_store_bits.h"
+#include "sorted_dynamic_store.h"
 
 #include <yt/server/cell_node/public.h>
 
@@ -53,6 +54,9 @@ public:
         TTimestamp commitTimestamp,
         TKey key);
 
+    virtual void StartEpoch(TTabletSlotPtr slot) override;
+    virtual void StopEpoch() override;
+
     static void LockRow(TTransaction* transaction, bool prelock, const TSortedDynamicRowRef& rowRef);
     void ConfirmRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
     void PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
@@ -89,6 +93,7 @@ private:
     TSortedDynamicStorePtr ActiveStore_;
     std::multimap<TTimestamp, ISortedStorePtr> MaxTimestampToStore_;
 
+    IInvokerPtr EpochInvoker_;
 
     virtual IDynamicStore* GetActiveStore() const override;
     virtual void ResetActiveStore() override;
@@ -119,6 +124,18 @@ private:
     void DoMergePartitions(
         int firstPartitionIndex,
         int lastPartitionIndex);
+
+    TSortedDynamicStore::TRowBlockedHandler CreateRowBlockedHandler(
+        const IStorePtr& store);
+    void OnRowBlocked(
+        IStore* store,
+        IInvokerPtr invoker,
+        TSortedDynamicRow row,
+        int lockIndex);
+    void WaitOnBlockedRow(
+        IStorePtr store,
+        TSortedDynamicRow row,
+        int lockIndex);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortedStoreManager)
