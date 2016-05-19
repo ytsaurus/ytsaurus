@@ -32,8 +32,12 @@ def test(tmpdir_module, mapreduce, yt_stuff, test_name):
 
     assert mr_res.std_out == yt_res.std_out
 
-    if mr_res.exit_code != yt_res.exit_code:
-        return "Both error"
+    if mr_res.exit_code != 0 and yt_res.exit_code != 0:
+        return "BOTH ERROR"
+    elif mr_res.exit_code == 0 and yt_res.exit_code != 0:
+        return "YT ERROR"
+    elif mr_res.exit_code != 0 and yt_res.exit_code == 0:
+        return "YAMR ERROR"
 
     if yt_res.std_out:
         return yt_res.std_out
