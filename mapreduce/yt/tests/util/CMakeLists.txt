@@ -3,8 +3,8 @@ OWNER(monster)
 LIBRARY()
 
 SRCS(
-    helpers.cpp
-    helpers.h
+    table_printer.cpp
+    table_printer.h
 )
 
 PEERDIR(
