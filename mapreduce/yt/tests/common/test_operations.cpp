@@ -1,11 +1,15 @@
+#include <mapreduce/yt/tests/operations/id_map.h>
+
 #include <mapreduce/yt/tests/lib/lib.h>
 
 #include <mapreduce/interface/all.h>
+
 
 namespace NYT {
 namespace NCommonTest {
 
 using namespace NMR;
+using namespace NTestOps;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,16 +47,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIdMap
-    : public IMap
-{
-    OBJECT_METHODS(TIdMap);
-public:
-    void DoSub(TValue k, TValue s, TValue v, TUpdate& update) override {
-        update.AddSub(k, s, v);
-    }
-};
-
 YT_TEST(TOperation, IdMap)
 {
     {
@@ -79,11 +73,5 @@ YT_TEST(TOperation, IdMap)
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NCommonTest
 } // namespace NYT
-
-using namespace NYT::NCommonTest;
-REGISTER_SAVELOAD_CLASS(0x00000001, TIdMap);
-

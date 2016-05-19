@@ -1,4 +1,6 @@
 #include <mapreduce/yt/tests/lib/lib.h>
+#include <mapreduce/yt/tests/operations/fail_map.h>
+#include <mapreduce/yt/tests/operations/id_map.h>
 #include <mapreduce/yt/tests/util/table_printer.h>
 
 #include <mapreduce/interface/all.h>
@@ -10,6 +12,7 @@ namespace NYT {
 namespace NLibraryTest {
 
 using namespace NMR;
+using namespace NTestOps;
 using namespace NTestUtil;
 
 namespace {
@@ -33,29 +36,6 @@ public:
     }
 
     THolder<TServer> Server;
-};
-
-class TCopyMap
-    : public IMap
-{
-    OBJECT_METHODS(TCopyMap);
-
-public:
-    void DoSub(TValue k, TValue s, TValue v, TUpdate& update) override {
-        update.AddSub(k, s, v);
-    }
-};
-
-
-class TFailMap
-    : public IMap
-{
-    OBJECT_METHODS(TFailMap);
-
-public:
-    void DoSub(TValue, TValue, TValue, TUpdate&) override {
-        throw yexception();
-    }
 };
 
 } // anonymous namespace
@@ -107,7 +87,7 @@ YT_TEST(TWithBTTable, NonFailedOpEmptyTable) {
     {
         WithUniqBTTable t(GetServer(), "tmp/");
         tableName = t.Name();
-        GetServer().Map(tableName, OUT_TABLE, new TCopyMap);
+        GetServer().Map(tableName, OUT_TABLE, new TIdMap);
     }
     PrintTable(GetServer(), ~tableName, Cout);
 }
@@ -125,7 +105,7 @@ YT_TEST(TWithBTTable, NonFailedOpNonEmptyTable) {
             update.AddSub("a", "a", "a");
             update.AddSub("b", "b", "b");
         }
-        GetServer().Map(tableName, OUT_TABLE, new TCopyMap);
+        GetServer().Map(tableName, OUT_TABLE, new TIdMap);
     }
     PrintTable(GetServer(), ~tableName, Cout);
 }
@@ -162,7 +142,3 @@ YT_TEST(TWithBTTable, FailedOpNonEmptyTable) {
 
 } // NLibraryTest
 } // NYT
-
-using namespace NYT::NLibraryTest;
-REGISTER_SAVELOAD_CLASS(0x00000002, TCopyMap);
-REGISTER_SAVELOAD_CLASS(0x00000003, TFailMap);

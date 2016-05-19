@@ -11,10 +11,13 @@ SRCS(
 
 PEERDIR(
     mapreduce/yt/tests/lib
+    mapreduce/yt/tests/operations
     mapreduce/yt/tests/util
     mapreduce/lib
 )
 
 END()
 
-RECURSE(test)
+RECURSE(
+    test
+)
