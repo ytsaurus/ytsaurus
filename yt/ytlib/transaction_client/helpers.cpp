@@ -101,7 +101,7 @@ void ValidateTabletTransactionId(const TTransactionId& id)
         type != EObjectType::AtomicTabletTransaction &&
         type != EObjectType::NonAtomicTabletTransaction)
     {
-        THROW_ERROR_EXCEPTION("Transaction %v cannot be accepted by tablets since is has invalid type",
+        THROW_ERROR_EXCEPTION("Transaction %v cannot be accepted by tablets since it has invalid type",
             id);
     }
 }
@@ -112,7 +112,7 @@ void ValidateMasterTransactionId(const TTransactionId& id)
     if (type != EObjectType::Transaction &&
         type != EObjectType::NestedTransaction)
     {
-        THROW_ERROR_EXCEPTION("Transaction %v cannot be accepted by masters since is has invalid type",
+        THROW_ERROR_EXCEPTION("Transaction %v cannot be accepted by masters since it has invalid type",
             id);
     }
 }
