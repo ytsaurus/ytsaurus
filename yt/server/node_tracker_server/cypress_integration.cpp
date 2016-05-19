@@ -48,13 +48,11 @@ class TClusterNodeNodeProxy
 {
 public:
     TClusterNodeNodeProxy(
-        INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         TObjectTypeMetadata* metadata,
         TTransaction* transaction,
         TMapNode* trunkNode)
         : TMapNodeProxy(
-            typeHandler,
             bootstrap,
             metadata,
             transaction,
@@ -119,7 +117,6 @@ private:
         TTransaction* transaction) override
     {
         return New<TClusterNodeNodeProxy>(
-            this,
             Bootstrap_,
             &Metadata_,
             transaction,
@@ -139,13 +136,11 @@ class TClusterNodeMapProxy
 {
 public:
     TClusterNodeMapProxy(
-        INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         TObjectTypeMetadata* metadata,
         TTransaction* transaction,
         TMapNode* trunkNode)
         : TMapNodeProxy(
-            typeHandler,
             bootstrap,
             metadata,
             transaction,
@@ -250,7 +245,6 @@ private:
         TTransaction* transaction) override
     {
         return New<TClusterNodeMapProxy>(
-            this,
             Bootstrap_,
             &Metadata_,
             transaction,

@@ -22,10 +22,15 @@ using namespace NSecurityServer;
 namespace NDetail {
 
 const EObjectType TCypressScalarTypeTraits<Stroka>::ObjectType = EObjectType::StringNode;
+const ENodeType   TCypressScalarTypeTraits<Stroka>::NodeType   = ENodeType::String;
 const EObjectType TCypressScalarTypeTraits<i64>::ObjectType    = EObjectType::Int64Node;
+const ENodeType   TCypressScalarTypeTraits<i64>::NodeType      = ENodeType::Int64;
 const EObjectType TCypressScalarTypeTraits<ui64>::ObjectType   = EObjectType::Uint64Node;
+const ENodeType   TCypressScalarTypeTraits<ui64>::NodeType     = ENodeType::Uint64;
 const EObjectType TCypressScalarTypeTraits<double>::ObjectType = EObjectType::DoubleNode;
+const ENodeType   TCypressScalarTypeTraits<double>::NodeType   = ENodeType::Double;
 const EObjectType TCypressScalarTypeTraits<bool>::ObjectType   = EObjectType::BooleanNode;
+const ENodeType   TCypressScalarTypeTraits<bool>::NodeType     = ENodeType::Boolean;
 
 } // namespace NDetail
 
@@ -321,7 +326,6 @@ ICypressNodeProxyPtr TMapNodeTypeHandler::DoGetProxy(
     TTransaction* transaction)
 {
     return New<TMapNodeProxy>(
-        this,
         Bootstrap_,
         &Metadata_,
         transaction,
@@ -439,7 +443,6 @@ ICypressNodeProxyPtr TListNodeTypeHandler::DoGetProxy(
     TTransaction* transaction)
 {
     return New<TListNodeProxy>(
-        this,
         Bootstrap_,
         &Metadata_,
         transaction,
@@ -565,7 +568,6 @@ ICypressNodeProxyPtr TLinkNodeTypeHandler::DoGetProxy(
     TTransaction* transaction)
 {
     return New<TLinkNodeProxy>(
-        this,
         Bootstrap_,
         &Metadata_,
         transaction,
@@ -678,7 +680,6 @@ ICypressNodeProxyPtr TDocumentNodeTypeHandler::DoGetProxy(
     TTransaction* transaction)
 {
     return New<TDocumentNodeProxy>(
-        this,
         Bootstrap_,
         &Metadata_,
         transaction,

@@ -143,7 +143,6 @@ protected:
         TTransaction* transaction) override
     {
         return CreateJournalNodeProxy(
-            this,
             Bootstrap_,
             &Metadata_,
             transaction,

@@ -54,7 +54,6 @@ protected:
         TTransaction* transaction) override
     {
         return CreateFileNodeProxy(
-            this,
             Bootstrap_,
             &Metadata_,
             transaction,
