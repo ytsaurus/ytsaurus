@@ -903,9 +903,8 @@ def is_sorted(table, client=None):
                           client=client))
 
 def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=None, client=None):
-    """Mount table (or a part of it).  NB! This command is not currently supported! The feature is coming with 0.17+ version!
+    """Mount table.
 
-    description is coming with tablets
     TODO
     """
     # TODO(ignat): Add path preparetion
@@ -920,10 +919,11 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
     make_request("mount_table", params, client=client)
 
 def alter_table(path, schema=None, dynamic=None, client=None):
-    """Sets schema of the table. NB! This command is not currently supported! The feature is coming with 0.18+ version!
+    """Sets schema of the dynamic table.
 
     :param table: string or `TablePath`
     :param schema: json-able object
+    :param dynamic: (bool)
     """
 
     params = {"path": path}
@@ -936,9 +936,8 @@ def alter_table(path, schema=None, dynamic=None, client=None):
     make_request("alter_table", params, client=client)
 
 def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None, client=None):
-    """Unmount table (or a part of it).  NB! This command is not currently supported! The feature is coming with 0.17+ version!
+    """Unmount table.
 
-    description is coming with tablets
     TODO
     """
     params = {"path": path}
@@ -952,9 +951,8 @@ def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=N
     make_request("unmount_table", params, client=client)
 
 def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
-    """Remount table (or a part of it).  NB! This command is not currently supported! The feature is coming with 0.17+ version!
+    """Remount table.
 
-    description is coming with tablets
     TODO
     """
     params = {"path": path}
@@ -966,9 +964,8 @@ def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=
     make_request("remount_table", params, client=client)
 
 def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None, client=None):
-    """Change pivot keys separating tablets of a given table.  NB! This command is not currently supported! The feature is coming with 0.17+ version!
+    """Change pivot keys separating tablets of a given table.
 
-    description is coming with tablets
     TODO
     """
     params = {"path": path}
@@ -983,7 +980,7 @@ def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=N
 def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
                 fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None, workload_descriptor=None,
                 format=None, raw=None, client=None):
-    """Execute a SQL-like query. NB! This command is not currently supported! The feature is coming with 0.17+ version!
+    """Execute a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
 
@@ -1023,7 +1020,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
 
 def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_missing_rows=None,
                 format=None, raw=None, client=None):
-    """Lookup rows in dynamic table. NB! This command is not currently supported! The feature is coming with 0.17+ version!
+    """Lookup rows in dynamic table.
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
 
@@ -1061,7 +1058,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
 
 def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None, durability=None,
                 format=None, raw=None, client=None):
-    """Write rows from input_stream to table.
+    """Insert rows from input_stream to dynamic table.
 
     :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
                 `TablePath` attributes for append mode or something like this. Table can not exist.
@@ -1097,7 +1094,7 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
         client=client)
 
 def delete_rows(table, input_stream, atomicity=None, durability=None, format=None, raw=None, client=None):
-    """Delete rows with keys from input_stream from table.
+    """Delete rows with keys from input_stream from dynamic table.
 
     :param table: (string or :py:class:`yt.wrapper.table.TablePath`) table to remove rows from.
     :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
