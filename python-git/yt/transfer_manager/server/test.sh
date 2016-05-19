@@ -496,6 +496,12 @@ test_copy_with_annotated_json() {
     check "$(yt2 read //tmp/test_table1 --format '<format=text>yson' --proxy plato)" '{"x"=12u};'
 }
 
+test_kiwi_copy() {
+    echo "Test kiwi copy"
+    id=$(run_task '{"source_table": "//home/ignat/tm_kiwi_test_table", "source_cluster": "freud", "destination_cluster": "kiwi_apteryx", "kiwi_user": "flux"}')
+    wait_task $id
+}
+
 # Different transfers
 test_copy_empty_table
 test_various_transfers
@@ -518,3 +524,4 @@ test_intermediate_format
 test_delete_tasks
 test_copy_inefficiently_stored_table
 test_copy_with_annotated_json
+test_kiwi_copy
