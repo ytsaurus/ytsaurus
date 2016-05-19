@@ -29,21 +29,21 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/transaction_executors.h
 )
 
-add_executable( yt ${SRCS} ${HDRS} )
+add_executable( yt_old ${SRCS} ${HDRS} )
 
-target_link_libraries( yt
+target_link_libraries( yt_old
   ytlib
   ytext-arcadia-library-lfalloc
 )
 
 if (NOT WIN32)
-  set_target_properties( yt
+  set_target_properties( yt_old
     PROPERTIES
     LINK_FLAGS "-static-libstdc++"
   )
 endif()
 
-set_target_properties( yt PROPERTIES
+set_target_properties( yt_old PROPERTIES
   LINK_FLAGS "-static-libstdc++"
 )
 
