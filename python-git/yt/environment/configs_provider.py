@@ -102,7 +102,7 @@ def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, f
 
 def _get_hydra_manager_config():
     return {"leader_lease_check_period": 100,
-            "leader_lease_timeout": 500,
+            "leader_lease_timeout": 5000,
             "disable_leader_lease_grace_delay": True,
             "response_keeper": {
                 "expiration_time": 25000,
