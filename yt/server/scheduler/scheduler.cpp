@@ -2344,7 +2344,7 @@ private:
         if (job->GetState() != EJobState::Running &&
             job->GetState() != EJobState::Waiting)
         {
-            THROW_ERROR_EXCEPTION("Cannot abandon job %v since is not running",
+            THROW_ERROR_EXCEPTION("Cannot abandon job %v since it is not running",
                 jobId);
         }
 
