@@ -132,16 +132,15 @@ class YtStuff(object):
         try:
             args = [
                 "start",
-                "--id=%s" % self.yt_id,
-                "--path=%s" % self.yt_work_dir,
-                "--proxy-port=%d" % self.yt_proxy_port,
+                "--id", self.yt_id,
+                "--path", self.yt_work_dir,
+                "--proxy-port", str(self.yt_proxy_port),
                 "--fqdn", self.config.fqdn
             ]
-            if self.tmpfs_path:
-                args.append("--tmpfs-path=%s" % self.tmpfs_path)
             if yatest.common.get_param("yt_enable_debug_logging"):
-                args.append("--enable-debug-logging")
-
+                args += ["--enable-debug-logging"]
+            if self.tmpfs_path:
+                args += ["--tmpfs-path", self.tmpfs_path]
             if self.config.node_config:
                 args += ["--node-config", self.config.node_config]
             if self.config.scheduler_config:
