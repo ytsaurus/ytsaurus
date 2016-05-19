@@ -110,12 +110,12 @@ def _get_hydra_manager_config():
             }}
 
 def _set_memory_limit_options(config, operations_memory_limit):
-    resource_limits = config.get("resource_limits", {})
     if operations_memory_limit is None:
         return
 
     config["exec_agent"]["job_controller"]["resource_limits"]["memory"] = operations_memory_limit
 
+    resource_limits = config.get("resource_limits", {})
     if "memory" in resource_limits:
         return
 
