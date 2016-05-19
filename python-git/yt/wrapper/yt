@@ -474,6 +474,7 @@ def add_alter_table_parser(add_parser):
     parser = add_parser("alter-table", yt.alter_table)
     add_ypath_argument(parser, "path", hybrid=True)
     parser.add_argument("--schema", action=ParseStructuredArgument, nargs="?", help="new schema value, in {0} format.".format(YT_ARGUMENTS_FORMAT))
+    parser.add_argument("--dynamic", action="store_true", default=False)
 
 def select_rows(**args):
     write_silently(chunk_iter_stream(yt.select_rows(raw=True, **args), 16 * MB))
