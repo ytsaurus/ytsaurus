@@ -1,7 +1,10 @@
+from yamr import _check_output
+
 from yt.wrapper.common import generate_uuid, bool_to_string, MB
 from yt.tools.conversion_tools import transform
 from yt.common import get_value
 import yt.yson as yson
+import yt.json as json
 import yt.logger as logger
 import yt.wrapper as yt
 
@@ -102,11 +105,12 @@ def _pack_token(token, output_dir):
 
     return filename
 
-def _split_rows(row_count, split_size, total_size):
-    if row_count == 0:
+def _split(item_count, split_size, total_size):
+    if item_count == 0:
         return []
-    split_row_count = max(1, (row_count * split_size) / total_size)
-    return [(i * split_row_count, min((i + 1) * split_row_count, row_count)) for i in xrange(1 + ((row_count - 1) / split_row_count))]
+    split_item_count = max(1, (item_count * split_size) / total_size)
+    return [(i * split_item_count, min((i + 1) * split_item_count, item_count))
+            for i in xrange(1 + ((item_count - 1) / split_item_count))]
 
 def _estimate_split_size(total_size):
     # XXX(asaitgalin): if table is bigger than 100 TiB and sorted it is not ok to
@@ -120,11 +124,26 @@ def _estimate_split_size(total_size):
         return int(scale_factor * split_size)
     return split_size
 
-def _split_rows_yt(yt_client, table, split_size=None):
-    row_count = yt_client.get(table + "/@row_count")
-    data_size = yt_client.get(table + "/@uncompressed_data_size")
+def _slice_yamr_table_evenly(client, table, split_size, record_count=None, size=None):
+    """ Return list with row ranges. """
+    if _which("mr_slicetable") is None:
+        if record_count is None:
+            record_count = client.records_count(table, allow_cache=True)
+        if size is None:
+            size = client.data_size(table)
+        return _split(record_count, split_size, size)
+    else:
+        data = _check_output(["mr_slicetable", "--server", client.server, "--table", table, "--desired-size", str(split_size)])
+        return [map(int, line.split()) for line in data.split("\n") if line.strip()]
+
+def _slice_yt_table_evenly(client, table, split_size=None):
+    """ Return list with correct YT ranges. """
+    # TODO(ignat): Implement fetch command in driver and slice it by chunks.
+    chunk_count = client.get(table + "/@chunk_count")
+    data_size = client.get(table + "/@uncompressed_data_size")
     split_size = get_value(split_size, _estimate_split_size(data_size))
-    return _split_rows(row_count, split_size, data_size)
+    return [{"lower_limit": {"chunk_index": start}, "upper_limit": {"chunk_index": end}}
+            for start, end in _split(chunk_count, split_size, data_size)]
 
 def _set_mapper_settings_for_read_from_yt(spec):
     if "mapper" not in spec:
@@ -133,22 +152,17 @@ def _set_mapper_settings_for_read_from_yt(spec):
     spec["mapper"]["memory_limit"] = 4 * 1024 * 1024 * 1024
     spec["mapper"]["memory_reserve_factor"] = 0.2
 
-def _get_read_ranges_command(prepare_command, read_command):
-    return """\
-set -uxe
+def shellquote(s):
+    return "'" + s.replace("'", "'\\''") + "'"
 
-{0}
+def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pack=False, enable_row_count_check=True, input_type="json"):
+    package_files = []
+    if pack:
+        package_files += [
+            _pack_module("yt", tmp_dir),
+            _pack_module("yt_yson_bindings", tmp_dir),
+        ]
 
-while true; do
-    set +e
-    read -r start end;
-    result="$?"
-    set -e
-    if [ "$result" != "0" ]; then break; fi;
-    {1}
-done;""".format(prepare_command, read_command)
-
-def _get_read_from_yt_command(yt_client, src, format_, fastbone, enable_row_count_check):
     assert yt_client.TRANSACTION is not None
     config = {
         "proxy": {
@@ -162,113 +176,31 @@ def _get_read_from_yt_command(yt_client, src, format_, fastbone, enable_row_coun
         "default_api_version_for_http": None
     }
 
-    command = """export PYTHONPATH=.\n"""\
-              """export YT_PROXY="{0}"\n"""\
-              """TABLE_PATH="$(python merge_limits.py '{1}' ${{start}} ${{end}})"\n"""\
-              """PATH=".:$PATH" yt2 read ${{TABLE_PATH}} --format '{2}' --config '{3}' --tx {4}"""\
-              .format(yt_client.config["proxy"]["url"], src, format_, yson.dumps(config, boolean_as_string=False), yt_client.TRANSACTION)
-    if enable_row_count_check:
-        command += " | python check_record_count.py ${{TABLE_PATH}} '{0}'".format(format_)
+    command = "./read_from_yt.py --proxy {proxy} --format {format} --table {table} --input-type {input_type}"\
+        .format(proxy=yt_client.config["proxy"]["url"],
+                format=shellquote(format),
+                table=shellquote(src),
+                input_type=input_type,
+                tx=yt_client.TRANSACTION)
 
-    return command
+    if yt_client.TRANSACTION is not None:
+        command += " --tx " + yt_client.TRANSACTION
 
-def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pack=False, enable_row_count_check=True):
-    merge_limits_script = """
-import yt.yson
-import yt.wrapper
+    for file in package_files:
+        command += " --package-file " + os.path.basename(file)
 
-import sys
-
-def set_row_index(attributes, limit_name, value, func):
-    if "ranges" in attributes:
-        if not attributes["ranges"]:
-            attributes["ranges"].append({})
-        obj = attributes["ranges"][0]
-    else:
-        obj = attributes
-
-    if limit_name not in obj:
-        obj[limit_name] = {}
-    if "row_index" not in obj[limit_name]:
-        obj[limit_name]["row_index"] = value
-    else:
-        obj[limit_name]["row_index"] = func(obj[limit_name]["row_index"], value)
-
-
-if __name__ == "__main__":
-    path, start_index, end_index = sys.argv[1:]
-    start_index = int(start_index)
-    end_index = int(end_index)
-    parsed_path = yt.wrapper.table.TablePath(path)
-    assert len(parsed_path.attributes.get("ranges", [])) <= 1
-    set_row_index(parsed_path.attributes, "lower_limit", start_index, max)
-    set_row_index(parsed_path.attributes, "upper_limit", end_index, min)
-    print parsed_path.to_yson_string()
-"""
-
-    files = []
-    prepare_command = ""
-
+    files = package_files + [os.path.abspath(os.path.join(os.path.dirname(__file__), "read_from_yt.py"))]
     if "token" in yt_client.config:
-        files.append(_pack_token(yt_client.config["token"], tmp_dir))
+        token_file = _pack_token(yt_client.config["token"], tmp_dir)
+        files.append(token_file)
+        command += " --token-file " + os.path.basename(token_file)
 
-        prepare_command += """
-set +x
-export YT_TOKEN=$(gzip -d -c yt_token)
-set -x
-"""
+    if config:
+        config_file = _pack_string("config.json", json.dumps(config, indent=2), tmp_dir)
+        files.append(config_file)
+        command += " --config-file " + os.path.basename(config_file)
 
-    if pack:
-        files += [_pack_module("yt", tmp_dir), _which("yt2")]
-        prepare_command += """
-set -e
-tar xvf yt.tar >/dev/null
-set +e"""
-
-        files.append(_pack_module("yt_yson_bindings", tmp_dir))
-        prepare_command += """
-set -e
-tar xvf yt_yson_bindings.tar >/dev/null
-set +e"""
-
-    check_record_count_script = """\
-import yt.wrapper
-
-import sys
-
-table = yt.wrapper.TablePath(sys.argv[1])
-format_ = yt.wrapper.create_format(sys.argv[2])
-
-def extract_limit(table, limit_name):
-    ranges = table.attributes.get("ranges")
-    if ranges is not None:
-        assert len(ranges) == 1
-        return ranges[0][limit_name]["row_index"]
-
-    return table.attributes[limit_name]["row_index"]
-
-actual_row_count = 0
-for row in format_.load_rows(sys.stdin, raw=True):
-    actual_row_count += 1
-    format_.dump_row(row, sys.stdout, raw=True)
-
-start = extract_limit(table, "lower_limit")
-end = extract_limit(table, "upper_limit")
-
-row_count = max(0, end - start)
-
-if actual_row_count != row_count:
-    assert False, "Range [{0}, {1}) read mismatch. " \
-                  "Expected row count: {2}, actual row count: {3}".format(start, end, row_count, actual_row_count)
-"""
-
-    read_command = _get_read_from_yt_command(yt_client, src, format, fastbone, enable_row_count_check)
-    files.append(_pack_string("read_from_yt.sh", _get_read_ranges_command(prepare_command, read_command), tmp_dir))
-    files.append(_pack_string("merge_limits.py", merge_limits_script, tmp_dir))
-    if enable_row_count_check:
-        files.append(_pack_string("check_record_count.py", check_record_count_script, tmp_dir))
-
-    return files
+    return command, files
 
 def check_permission(client, permission, path):
      user_name = client.get_user_name(client.config["token"])
@@ -365,7 +297,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 erasure_codec = source_client.get(str(src) + "/@erasure_codec")
             set_compression_codec(destination_client, dst, compression_codec)
 
-            files = _prepare_read_from_yt_command(
+            command, files = _prepare_read_from_yt_command(
                 source_client,
                 src.to_yson_string(),
                 str(intermediate_format),
@@ -374,7 +306,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 pack=True,
                 enable_row_count_check=enable_row_count_check)
 
-            ranges = _split_rows_yt(source_client, src.name)
+            ranges = _slice_yt_table_evenly(source_client, src.name)
 
             sorted_by = None
             dst_table = dst
@@ -385,7 +317,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             row_count = source_client.get(src.name + "/@row_count")
 
             temp_table = destination_client.create_temp_table(prefix=os.path.basename(src.name))
-            destination_client.write_table(temp_table, ({"start": start, "end": end} for start, end in ranges), format=yt.JsonFormat(), raw=False)
+            destination_client.write_table(temp_table, ranges, format=yt.JsonFormat(), raw=False)
 
             spec = deepcopy(get_value(copy_spec_template, {}))
             spec["data_size_per_job"] = 1
@@ -393,12 +325,12 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             spec["job_io"] = {"table_writer": {"max_row_weight": 128 * 1024 * 1024}}
 
             destination_client.run_map(
-                "bash read_from_yt.sh",
+                command,
                 temp_table,
                 dst_table,
                 files=files,
                 spec=spec,
-                input_format=yt.SchemafulDsvFormat(columns=["start", "end"]),
+                input_format=yt.JsonFormat(),
                 output_format=intermediate_format)
 
             result_row_count = destination_client.records_count(dst)
@@ -442,7 +374,8 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, copy_spec_t
     logger.info("Importing table '%s' (row count: %d, sorted: %d)", src, record_count, is_sorted)
 
     data_size = yamr_client.data_size(src)
-    ranges = _split_rows(record_count, _estimate_split_size(data_size), data_size)
+    #ranges = _split_rows(record_count, _estimate_split_size(data_size), data_size)
+    ranges = _slice_yamr_table_evenly(yamr_client, src, _estimate_split_size(data_size), record_count, data_size)
 
     read_commands = yamr_client.create_read_range_commands(ranges, src, fastbone=fastbone, transaction_id=transaction_id, enable_logging=True, timeout=job_timeout)
     temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
@@ -512,28 +445,6 @@ done"""
 def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, parallel_job_count=None, force_sort=None, fastbone=True, default_tmp_dir=None, enable_row_count_check=None):
     tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
 
-    lenval_to_nums_file = _pack_string(
-        "lenval_to_nums.py",
-"""\
-import sys
-import struct
-
-count = 0
-
-while True:
-    s = sys.stdin.read(4)
-    if not s:
-        break
-    length = struct.unpack('i', s)[0]
-    sys.stdout.write(sys.stdin.read(length))
-    if count % 3 == 2:
-        sys.stdout.write('\\n')
-    else:
-        sys.stdout.write('\\t')
-
-    count += 1""",
-        tmp_dir)
-
     enable_row_count_check = get_value(enable_row_count_check, True)
 
     try:
@@ -547,24 +458,20 @@ while True:
 
             row_count = yt_client.get(src.name + "/@row_count")
 
-            ranges = _split_rows_yt(yt_client, src.name, 1024 * yt.common.MB)
+            ranges = _slice_yt_table_evenly(yt_client, src.name, 1024 * yt.common.MB)
 
             temp_yamr_table = "tmp/yt/" + generate_uuid()
-            yamr_client.write(temp_yamr_table,
-                              "".join(["\t".join(map(str, range)) + "\n" for range in ranges]))
+            yamr_client.write_rows_as_values(temp_yamr_table, ranges)
 
-            files = _prepare_read_from_yt_command(
+            command, files = _prepare_read_from_yt_command(
                 yt_client,
                 src.to_yson_string(),
                 "<has_subkey=true;lenval=true>yamr",
                 tmp_dir,
                 fastbone,
                 pack=True,
-                enable_row_count_check=enable_row_count_check)
-
-            files.append(lenval_to_nums_file)
-
-            command = "python lenval_to_nums.py | bash read_from_yt.sh"
+                enable_row_count_check=enable_row_count_check,
+                input_type="lenval")
 
             if parallel_job_count is None:
                 parallel_job_count = 200
@@ -653,10 +560,7 @@ while True:
 """
 
     range_table = kiwi_transmittor.create_temp_table(prefix=os.path.basename(src))
-    kiwi_transmittor.write_table(range_table,
-                                 ["\t".join(map(str, range)) + "\n" for range in ranges],
-                                 format=yt.YamrFormat(lenval=False, has_subkey=False),
-                                 raw=True)
+    kiwi_transmittor.write_table(range_table, ranges, format=yt.JsonFormat())
 
     output_table = kiwi_transmittor.create_temp_table()
     kiwi_transmittor.set(output_table + "/@replication_factor", 1)
@@ -702,14 +606,14 @@ while True:
             range_table,
             output_table,
             files=files,
-            input_format=yt.YamrFormat(lenval=False,has_subkey=False),
+            input_format=yt.JsonFormat(),
             output_format=output_format,
             spec=spec)
     finally:
         shutil.rmtree(tmp_dir)
 
 def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
-    ranges = _split_rows_yt(yt_client, src, 512 * yt.common.MB)
+    ranges = _slice_yt_table_evenly(yt_client, src, 512 * yt.common.MB)
     fastbone = kwargs.get("fastbone", True)
     if "fastbone" in kwargs:
         del kwargs["fastbone"]
@@ -720,7 +624,7 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
         with yt_client.Transaction(attributes={"title": "copy_yt_to_kiwi"}):
             yt_client.lock(src, mode="snapshot")
 
-            files = _prepare_read_from_yt_command(
+            command, files = _prepare_read_from_yt_command(
                 yt_client,
                 src,
                 "<lenval=true>yamr",
@@ -729,7 +633,7 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
                 pack=True,
                 enable_row_count_check=enable_row_count_check)
 
-            _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command="bash read_from_yt.sh", ranges=ranges, files=files, **kwargs)
+            _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command=command, ranges=ranges, files=files, **kwargs)
     finally:
         shutil.rmtree(tmp_dir)
 
