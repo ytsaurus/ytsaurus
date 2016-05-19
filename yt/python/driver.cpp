@@ -236,11 +236,8 @@ public:
         }
 
         if (HasArgument(args, kwargs, "cell_id")) {
-            auto cellId = ExtractArgument(args, kwargs, "cell_id");
-            if (!cellId.isNone()) {
-                auto cellIdStr = ConvertToStroka(ConvertToString(cellId));
-                options.CellId = TTabletCellId::FromString(cellIdStr);
-            }
+            auto cellIdStr = ConvertToStroka(ConvertToString(ExtractArgument(args, kwargs, "cell_id")));
+            options.CellId = TTabletCellId::FromString(cellIdStr);
         }
 
         ValidateArgumentsEmpty(args, kwargs);

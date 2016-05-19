@@ -48,7 +48,7 @@ set_target_properties( yt PROPERTIES
 )
 
 install(
-  TARGETS yt_old
+  TARGETS yt
   RUNTIME DESTINATION bin
 )
 
