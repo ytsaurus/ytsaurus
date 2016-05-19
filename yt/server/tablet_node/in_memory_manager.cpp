@@ -100,8 +100,6 @@ public:
 
         auto it = ChunkIdToData_.find(chunkId);
         if (it == ChunkIdToData_.end()) {
-            LOG_WARNING("Intercepted chunk data for in-memory store is missing (ChunkId: %v)",
-                chunkId);
             return nullptr;
         }
 
@@ -135,7 +133,7 @@ public:
         }
 
         if (!data) {
-            LOG_INFO("Cannot find intercepted chunk (TabletId: %v, Mode: %v, ChunkId: %v)",
+            LOG_INFO("Cannot find intercepted chunk data for finalization (TabletId: %v, Mode: %v, ChunkId: %v)",
                 tabletSnapshot->TabletId,
                 mode,
                 chunkId);
@@ -492,7 +490,6 @@ private:
         const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         return tracker->IsExceeded(EMemoryCategory::TabletStatic);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -503,8 +500,7 @@ TInMemoryManager::TInMemoryManager(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-TInMemoryManager::~TInMemoryManager()
-{ }
+TInMemoryManager::~TInMemoryManager() = default;
 
 IBlockCachePtr TInMemoryManager::CreateInterceptingBlockCache(EInMemoryMode mode)
 {
