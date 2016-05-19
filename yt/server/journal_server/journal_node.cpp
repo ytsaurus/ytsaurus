@@ -145,6 +145,7 @@ protected:
         return CreateJournalNodeProxy(
             this,
             Bootstrap_,
+            &Metadata_,
             transaction,
             trunkNode);
     }

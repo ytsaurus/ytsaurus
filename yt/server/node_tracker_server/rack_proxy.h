@@ -13,6 +13,7 @@ namespace NNodeTrackerServer {
 
 NObjectServer::IObjectProxyPtr CreateRackProxy(
     NCellMaster::TBootstrap* bootstrap,
+    NObjectServer::TObjectTypeMetadata* metadata,
     TRack* rack);
 
 ///////////////////////////////////////////////////////////////////////////////

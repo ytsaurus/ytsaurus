@@ -37,6 +37,7 @@ namespace NTableServer {
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NCypressServer;
+using namespace NObjectServer;
 using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
@@ -57,11 +58,13 @@ public:
     TTableNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
         TTransaction* transaction,
         TTableNode* trunkNode)
         : TBase(
             typeHandler,
             bootstrap,
+            metadata,
             transaction,
             trunkNode)
     { }
@@ -475,7 +478,6 @@ private:
 
         context->Reply();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -483,12 +485,14 @@ private:
 ICypressNodeProxyPtr CreateTableNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TTransaction* transaction,
     TTableNode* trunkNode)
 {
     return New<TTableNodeProxy>(
         typeHandler,
         bootstrap,
+        metadata,
         transaction,
         trunkNode);
 }

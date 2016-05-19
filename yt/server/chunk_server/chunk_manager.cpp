@@ -1969,7 +1969,7 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandlerBase::DoGetProxy(
     TChunk* chunk,
     TTransaction* /*transaction*/)
 {
-    return CreateChunkProxy(Bootstrap_, chunk);
+    return CreateChunkProxy(Bootstrap_, &Metadata_, chunk);
 }
 
 void TChunkManager::TChunkTypeHandlerBase::DoDestroyObject(TChunk* chunk)
@@ -1997,7 +1997,7 @@ IObjectProxyPtr TChunkManager::TChunkListTypeHandler::DoGetProxy(
     TChunkList* chunkList,
     TTransaction* /*transaction*/)
 {
-    return CreateChunkListProxy(Bootstrap_, chunkList);
+    return CreateChunkListProxy(Bootstrap_, &Metadata_, chunkList);
 }
 
 void TChunkManager::TChunkListTypeHandler::DoDestroyObject(TChunkList* chunkList)
@@ -2022,8 +2022,7 @@ TChunkManager::TChunkManager(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-TChunkManager::~TChunkManager()
-{ }
+TChunkManager::~TChunkManager() = default;
 
 void TChunkManager::Initialize()
 {

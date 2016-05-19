@@ -13,6 +13,7 @@ namespace NSecurityServer {
 
 NObjectServer::IObjectProxyPtr CreateGroupProxy(
     NCellMaster::TBootstrap* bootstrap,
+    NObjectServer::TObjectTypeMetadata* metadata,
     TGroup* group);
 
 ////////////////////////////////////////////////////////////////////////////////
