@@ -149,7 +149,12 @@ class YtStuff(object):
                 "--proxy-port", str(self.yt_proxy_port),
                 "--fqdn", self.config.fqdn
             ]
-            if yatest.common.get_param("yt_enable_debug_logging"):
+
+            enable_debug_log = yatest.common.get_param("yt_enable_debug_logging")
+            # Temporary hack: we want to analyse problems mr_apps tests.
+            if "quality/mr_apps/" in yatest.common.work_path():
+                enable_debug_log = True;
+            if enable_debug_log:
                 args += ["--enable-debug-logging"]
             if self.tmpfs_path:
                 args += ["--tmpfs-path", self.tmpfs_path]
