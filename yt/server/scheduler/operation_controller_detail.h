@@ -849,6 +849,9 @@ protected:
     NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag);
     void ReleaseChunkLists(const std::vector<NChunkClient::TChunkListId>& ids);
 
+    //! Called after preparation to decrease memory footprint.
+    void ClearInputChunkBoundaryKeys();
+
     //! Returns the list of all input chunks collected from all primary input tables.
     std::vector<NChunkClient::TRefCountedChunkSpecPtr> CollectPrimaryInputChunks() const;
 
