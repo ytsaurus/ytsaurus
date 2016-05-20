@@ -10,7 +10,7 @@ TEST_SRCS(
     test_with_config.py
 )
 
-TIMEOUT(100)
+TIMEOUT(300)
 
 DEPENDS(mapreduce/yt/python)
 

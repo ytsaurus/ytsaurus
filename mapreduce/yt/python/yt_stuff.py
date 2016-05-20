@@ -11,6 +11,7 @@ import uuid
 import pytest
 import yatest.common
 
+import devtools.swag.daemon
 import devtools.swag.ports
 
 _YT_ARCHIVE_NAME = "mapreduce/yt/python/yt.tar" # comes by FROM_SANDBOX
@@ -90,9 +91,16 @@ class YtStuff(object):
         self.yt_work_dir = os.path.join(self.yt_path, "wd")
         os.mkdir(self.yt_work_dir)
 
-        self.yt_local_out = open(os.path.join(self.yt_work_dir, "yt_local_%s.out" % self.yt_id), 'w')
-        self.yt_local_err = open(os.path.join(self.yt_work_dir, "yt_local_%s.err" % self.yt_id), 'w')
         self.yt_wrapper_log_path = os.path.join(self.yt_work_dir, "yt_wrapper_%s.log" % self.yt_id)
+
+        # Create files for yt_local stdout/stderr. We can't just open them in 'w' mode, because
+        # devtools.swag.daemon.run_daemon do reads from them. So we create files and open them in 'r+' mode.
+        yt_local_out_path = os.path.join(self.yt_work_dir, "yt_local_%s.out" % self.yt_id)
+        yt_local_err_path = os.path.join(self.yt_work_dir, "yt_local_%s.err" % self.yt_id)
+        open(yt_local_out_path, 'a').close()
+        open(yt_local_err_path, 'a').close()
+        self.yt_local_out = open(yt_local_out_path, "r+")
+        self.yt_local_err = open(yt_local_err_path, "r+")
 
     def _prepare_env(self):
         self.env = {}
@@ -127,26 +135,15 @@ class YtStuff(object):
         self.yt_wrapper.config.PREFIX = _YT_PREFIX
         self.yt_wrapper.config["pickling"]["python_binary"] = sys.executable
 
-    def _yt_local(self, *args):
-        cmd = [sys.executable, self.yt_local_path] + list(args)
-        self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
-
-        res = yatest.common.process.execute(
-            cmd,
-            env=self.env,
-            cwd=self.yt_work_dir,
-            stdout=self.yt_local_out,
-            stderr=self.yt_local_err,
-        )
-        return res
-
     def _start_local_yt(self):
         self.yt_proxy_port = devtools.swag.ports.find_free_port() if self.config.proxy_port is None else self.config.proxy_port
 
         self._log("Try to start local YT with id=%s", self.yt_id)
         try:
+            # Prepare arguments.
             args = [
                 "start",
+                "--sync",
                 "--id", self.yt_id,
                 "--path", self.yt_work_dir,
                 "--proxy-port", str(self.yt_proxy_port),
@@ -163,7 +160,30 @@ class YtStuff(object):
             if self.config.proxy_config:
                 args += ["--proxy-config", self.config.proxy_config]
 
-            res = self._yt_local(*args)
+            cmd = [sys.executable, self.yt_local_path] + list(args)
+            self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
+
+            special_file = os.path.join(self.yt_work_dir, self.yt_id, "info.yson")
+            assert not os.path.lexists(special_file)
+
+            yt_daemon = devtools.swag.daemon.run_daemon(
+                cmd,
+                env=self.env,
+                cwd=self.yt_work_dir,
+                stdout=self.yt_local_out,
+                stderr=self.yt_local_err,
+            )
+            # Wait until special file will appear. It means that yt_local had been started. See YT-4425 for details.
+            MAX_WAIT_TIME, SLEEP_TIME = 20, 0.1 # in seconds
+            NUM_TRIES = int(MAX_WAIT_TIME / SLEEP_TIME)
+            for i in xrange(NUM_TRIES):
+                if os.path.lexists(special_file):
+                    break
+                time.sleep(SLEEP_TIME)
+            else:
+                yt_daemon.stop()
+                self._log("Can't find yson.info file for %d seconds.", MAX_WAIT_TIME)
+                return False
         except Exception, e:
             self._log("Failed to start local YT:\n%s", str(e))
             return False
@@ -217,7 +237,18 @@ class YtStuff(object):
     @_timing
     def stop_local_yt(self):
         try:
-            self._yt_local("stop", os.path.join(self.yt_work_dir, self.yt_id))
+            cmd = [
+                sys.executable, self.yt_local_path,
+                "stop", os.path.join(self.yt_work_dir, self.yt_id),
+            ]
+            self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
+            yatest.common.process.execute(
+                cmd,
+                env=self.env,
+                cwd=self.yt_work_dir,
+                stdout=self.yt_local_out,
+                stderr=self.yt_local_err,
+            )
         except Exception, e:
             self._log("Errors while stopping local YT:\n%s", str(e))
             self._save_logs(save_yt_all=True)
