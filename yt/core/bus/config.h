@@ -20,6 +20,9 @@ public:
     int BindRetryCount;
     TDuration BindRetryBackoff;
 
+    TDuration ReadStallTimeout;
+    TDuration WriteStallTimeout;
+
     TTcpBusConfig()
     {
         RegisterParameter("priority", Priority)
@@ -33,6 +36,10 @@ public:
             .Default(1);
         RegisterParameter("bind_retry_backoff", BindRetryBackoff)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("read_stall_timeout", ReadStallTimeout)
+            .Default(TDuration::Minutes(5));
+        RegisterParameter("write_stall_timeout", WriteStallTimeout)
+            .Default(TDuration::Minutes(5));
     }
 };
 
