@@ -168,7 +168,7 @@ class YtStuff(object):
             cmd = [sys.executable, self.yt_local_path] + list(args)
             self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
 
-            special_file = os.path.join(self.yt_work_dir, self.yt_id, "info.yson")
+            special_file = os.path.join(self.yt_work_dir, self.yt_id, "started")
             assert not os.path.lexists(special_file)
 
             yt_daemon = devtools.swag.daemon.run_daemon(
@@ -187,7 +187,7 @@ class YtStuff(object):
                 time.sleep(SLEEP_TIME)
             else:
                 yt_daemon.stop()
-                self._log("Can't find yson.info file for %d seconds.", MAX_WAIT_TIME)
+                self._log("Can't find 'started' file for %d seconds.", MAX_WAIT_TIME)
                 return False
         except Exception, e:
             self._log("Failed to start local YT:\n%s", str(e))
