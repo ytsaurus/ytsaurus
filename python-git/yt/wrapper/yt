@@ -122,7 +122,7 @@ def yson_dumps(data):
 
 YT_ARGUMENTS_FORMAT = os.environ.get("YT_ARGUMENTS_FORMAT", "yson")
 YT_STRUCTURED_DATA_FORMAT = os.environ.get("YT_STRUCTURED_DATA_FORMAT", "yson")
-PARSERS = {"json": json.loads, "yson": yson.loads}
+PARSERS = {"json": lambda string: yson.json_to_yson(json.loads(string)), "yson": yson.loads}
 DUMPERS = {"json": lambda data: json.dumps(yson.yson_to_json(data), indent=2),
            "yson": yson_dumps}
 try:

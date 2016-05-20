@@ -495,7 +495,7 @@ Examples:
     spec = {}
     if args.ytspec is not None:
         for spec_arg in args.ytspec:
-            spec.update(json.loads(spec_arg))
+            spec.update(yson.json_to_yson(json.loads(spec_arg)))
 
     if args.title is not None:
         spec["title"] = args.title
@@ -615,9 +615,9 @@ Examples:
         attributes["compression_codec"] = args.codec
 
     if args.tablewriter is not None:
-        args.tablewriter = json.loads(args.tablewriter)
+        args.tablewriter = yson.json_to_yson(json.loads(args.tablewriter))
     if args.tablereader is not None:
-        args.tablereader = json.loads(args.tablereader)
+        args.tablereader = yson.json_to_yson(json.loads(args.tablereader))
 
 
     if args.list:
