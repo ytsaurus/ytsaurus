@@ -5,6 +5,10 @@ MIRRORS_DIRECTORY="$HOME/mirrors"
 set -x
 set -e
 
+# git-svn may mangle commit messages when running with improper encoding.
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+
 ################################################################################
 
 for repo in $MIRRORS_DIRECTORY/github-*.git ; do
