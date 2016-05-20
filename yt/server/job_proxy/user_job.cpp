@@ -867,31 +867,40 @@ private:
         return statistics;
     }
 
+    void OnIOErrorOrFinished(const TError& error, const Stroka& message) {
+        if (error.IsOK() || error.FindMatching(NPipes::EErrorCode::Aborted)) {
+            return;
+        }
+
+        if (!JobErrorPromise_.TrySet(error)) {
+            return;
+        }
+
+        LOG_ERROR(error, "%v", message);
+
+        // This is a workaround for YT-2837.
+        BIND(&TUserJob::CleanupUserProcesses, MakeWeak(this))
+            .Via(PipeIOPool_->GetInvoker())
+            .Run();
+
+
+        for (const auto& reader : TablePipeReaders_) {
+            reader->Abort();
+        }
+
+        for (const auto& writer : TablePipeWriters_) {
+            writer->Abort();
+        }
+    }
+
     void DoJobIO()
     {
         auto onIOError = BIND([=] (const TError& error) {
-            if (error.IsOK() || error.FindMatching(NPipes::EErrorCode::Aborted)) {
-                return;
-            }
+            OnIOErrorOrFinished(error, "Job input/output error, aborting");
+        });
 
-            if (!JobErrorPromise_.TrySet(error)) {
-                return;
-            }
-
-            LOG_ERROR(error, "Job input/output error, aborting");
-
-            // This is a workaround for YT-2837.
-            BIND(&TUserJob::CleanupUserProcesses, MakeWeak(this))
-                .Via(PipeIOPool_->GetInvoker())
-                .Run();
-
-            for (const auto& reader : TablePipeReaders_) {
-                reader->Abort();
-            }
-
-            for (const auto& writer : TablePipeWriters_) {
-                writer->Abort();
-            }
+        auto onProcessFinished = BIND([=] (const TError& error) {
+            OnIOErrorOrFinished(error, "Job control process has finished, aborting");
         });
 
         auto runActions = [&] (const std::vector<TCallback<void()>>& actions) {
@@ -908,6 +917,8 @@ private:
 
         auto inputFutures = runActions(InputActions_);
         auto outputFutures = runActions(OutputActions_);
+
+        ProcessFinished_.Subscribe(onProcessFinished);
 
         // First, wait for all job output pipes.
         // If job successfully completes or dies prematurely, they close automatically.
