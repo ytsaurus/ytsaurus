@@ -119,7 +119,7 @@ class YsonParserTestBase(object):
             ''',
             {'path' : '/home/sandello', 'mode' : 755, 'read' : ['*.sh', '*.py']})
 
-    def test_convert(self):
+    def test_convert_json_to_yson(self):
         x = convert.json_to_yson({
             "$value": {
                 "x": {
@@ -143,6 +143,35 @@ class YsonParserTestBase(object):
         self.assertEqual(x.attributes, "abc")
 
         self.assertEqual(convert.json_to_yson("abc"), "abc")
+
+
+    def test_convert_yson_to_json(self):
+        from yt.yson import to_yson_type
+
+        x = convert.yson_to_json({
+            "a": to_yson_type(10, attributes={"attr": 1}),
+            "b": to_yson_type(5.0, attributes={"attr": 2}),
+            "c": to_yson_type("string", attributes={"attr": 3}),
+            "d": to_yson_type(
+                {
+                    "key": [1, 2]
+                },
+                attributes={
+                    "attr": 4,
+                    "$xxx": "yyy",
+                    "other_attr": to_yson_type(10, attributes={}),
+                    u"ключ": None
+                }),
+                "e": to_yson_type(None, attributes={"x": "y"})
+        })
+
+        self.assertEqual(x["a"], {"$value": 10, "$attributes": {"attr": 1}})
+        self.assertEqual(x["b"], {"$value": 5.0, "$attributes": {"attr": 2}})
+        self.assertEqual(x["c"], {"$value": "string", "$attributes": {"attr": 3}})
+        self.assertEqual(x["d"], {"$value": {"key": [1, 2]}, "$attributes": {"attr": 4, "$$xxx": "yyy", "other_attr": 10, u"ключ": None}})
+        self.assertEqual(x["e"], {"$value": None, "$attributes": {"x": "y"}})
+        self.assertEqual(set(x.keys()), set(["a", "b", "c", "d", "e"]))
+
 
 class TestParser(unittest.TestCase, YsonParserTestBase):
     YsonParserTestBase.parser = parser
