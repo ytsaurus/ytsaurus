@@ -94,16 +94,16 @@ wait_task() {
 }
 
 test_copy_empty_table() {
-    echo "Importing empty table from Plato to Smith"
-    yt2 create table //tmp/empty_table --proxy plato --ignore-existing
-    yt2 set "//tmp/empty_table/@test_attr" 10 --proxy plato
-    id=$(run_task '{"source_table": "//tmp/empty_table", "source_cluster": "plato", "destination_table": "//tmp/empty_table", "destination_cluster": "smith", "pool": "ignat"}')
+    echo "Importing empty table from Banach to Smith"
+    yt2 create table //tmp/empty_table --proxy banach --ignore-existing
+    yt2 set "//tmp/empty_table/@test_attr" 10 --proxy banach
+    id=$(run_task '{"source_table": "//tmp/empty_table", "source_cluster": "banach", "destination_table": "//tmp/empty_table", "destination_cluster": "smith", "pool": "ignat"}')
     wait_task $id
 
     check "true" "$(yt2 exists //tmp/empty_table --proxy smith)"
     check "10" "$(yt2 get //tmp/empty_table/@test_attr --proxy smith)"
 
-    id=$(run_task '{"source_table": "//tmp/empty_table", "source_cluster": "plato", "destination_table": "tmp/empty_table", "destination_cluster": "sakura"}')
+    id=$(run_task '{"source_table": "//tmp/empty_table", "source_cluster": "banach", "destination_table": "tmp/empty_table", "destination_cluster": "sakura"}')
     wait_task $id
 }
 
@@ -125,45 +125,45 @@ test_copy_from_sakura_to_cedar() {
     wait_task $id
 }
 
-test_copy_from_cedar_to_plato() {
-    echo "Importing from Cedar to Plato"
-    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "mr_user": "userdata", "pool": "ignat"}')
+test_copy_from_cedar_to_banach() {
+    echo "Importing from Cedar to Banach"
+    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table", "destination_cluster": "banach", "mr_user": "userdata", "pool": "ignat"}')
     wait_task $id
-    check "true" "$(yt2 exists //tmp/test_table/@sorted --proxy plato.yt.yandex.net)"
+    check "true" "$(yt2 exists //tmp/test_table/@sorted --proxy banach.yt.yandex.net)"
 }
 
-test_copy_from_plato_to_smith() {
-    echo "Importing from Plato to Smith"
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "smith", "pool": "ignat"}')
-    wait_task $id
-
-    check \
-        "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)" \
-        "$(yt2 read //tmp/test_table_from_plato --proxy smith.yt.yandex.net --format yamr)"
-
-    check "true" "$(yt2 exists //tmp/test_table_from_plato/@sorted --proxy smith.yt.yandex.net)"
-}
-
-test_copy_from_plato_to_quine() {
-    echo "Importing from Plato to Quine"
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "quine", "pool": "ignat"}')
+test_copy_from_banach_to_smith() {
+    echo "Importing from Banach to Smith"
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "banach", "destination_table": "//tmp/test_table_from_banach", "destination_cluster": "smith", "pool": "ignat"}')
     wait_task $id
 
     check \
         "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)" \
-        "$(yt2 read //tmp/test_table_from_plato --proxy quine.yt.yandex.net --format yamr)"
+        "$(yt2 read //tmp/test_table_from_banach --proxy smith.yt.yandex.net --format yamr)"
 
-    check "true" "$(yt2 exists //tmp/test_table_from_plato/@sorted --proxy quine.yt.yandex.net)"
+    check "true" "$(yt2 exists //tmp/test_table_from_banach/@sorted --proxy smith.yt.yandex.net)"
 }
 
-test_copy_from_sakura_to_plato() {
-    echo "Importing from Sakura to Plato"
+test_copy_from_banach_to_quine() {
+    echo "Importing from Banach to Quine"
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "banach", "destination_table": "//tmp/test_table_from_banach", "destination_cluster": "quine", "pool": "ignat"}')
+    wait_task $id
+
+    check \
+        "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)" \
+        "$(yt2 read //tmp/test_table_from_banach --proxy quine.yt.yandex.net --format yamr)"
+
+    check "true" "$(yt2 exists //tmp/test_table_from_banach/@sorted --proxy quine.yt.yandex.net)"
+}
+
+test_copy_from_sakura_to_banach() {
+    echo "Importing from Sakura to Banach"
     # mr_user: asaitgalin because this user has zero quota
-    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "sakura", "destination_table": "//tmp/test_table_from_sakura", "destination_cluster": "plato", "mr_user": "asaitgalin", "pool": "ignat"}')
+    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "sakura", "destination_table": "//tmp/test_table_from_sakura", "destination_cluster": "banach", "mr_user": "asaitgalin", "pool": "ignat"}')
     wait_task $id
 
     check \
-        "$(yt2 read //tmp/test_table_from_sakura --proxy plato.yt.yandex.net --format yamr)" \
+        "$(yt2 read //tmp/test_table_from_sakura --proxy banach.yt.yandex.net --format yamr)" \
         "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)"
 }
 
@@ -173,31 +173,31 @@ test_various_transfers() {
 
     test_copy_from_smith_to_sakura
     test_copy_from_sakura_to_cedar
-    test_copy_from_cedar_to_plato
-    test_copy_from_plato_to_smith
-    test_copy_from_plato_to_quine
-    test_copy_from_sakura_to_plato
+    test_copy_from_cedar_to_banach
+    test_copy_from_banach_to_smith
+    test_copy_from_banach_to_quine
+    test_copy_from_sakura_to_banach
 }
 
 test_incorrect_copy_to_yamr() {
-    yt2 remove //tmp/test_table --force --proxy plato
+    yt2 remove //tmp/test_table --force --proxy banach
 
     # Incorrect column names.
-    echo -e "a=b" | yt2 write //tmp/test_table --format dsv --proxy plato
-    run_task_that_should_fail '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "tmp/test_table_from_plato", "destination_cluster": "sakura"}'
+    echo -e "a=b" | yt2 write //tmp/test_table --format dsv --proxy banach
+    run_task_that_should_fail '{"source_table": "//tmp/test_table", "source_cluster": "banach", "destination_table": "tmp/test_table_from_banach", "destination_cluster": "sakura"}'
 
     # Incorrect type of values.
-    echo -e '{"key": "a", "value": 10}' | yt2 write //tmp/test_table --format json --proxy plato
-    run_task_that_should_fail '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "tmp/test_table_from_plato", "destination_cluster": "sakura"}'
+    echo -e '{"key": "a", "value": 10}' | yt2 write //tmp/test_table --format json --proxy banach
+    run_task_that_should_fail '{"source_table": "//tmp/test_table", "source_cluster": "banach", "destination_table": "tmp/test_table_from_banach", "destination_cluster": "sakura"}'
 }
 
 test_abort_restart_task() {
     echo "Test abort and restart"
 
-    yt2 remove --force //tmp/test_table_from_plato --proxy smith
-    yt2 remove --force //tmp/test_table --proxy plato
-    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy plato
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "smith", "pool": "ignat"}')
+    yt2 remove --force //tmp/test_table_from_banach --proxy smith
+    yt2 remove --force //tmp/test_table --proxy banach
+    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy banach
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "banach", "destination_table": "//tmp/test_table_from_banach", "destination_cluster": "smith", "pool": "ignat"}')
     echo "Aborting, than restarting task"
     abort_task $id
     restart_task $id
@@ -205,14 +205,14 @@ test_abort_restart_task() {
 
     check \
         "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)" \
-        "$(yt2 read //tmp/test_table_from_plato --proxy smith.yt.yandex.net --format yamr)"
+        "$(yt2 read //tmp/test_table_from_banach --proxy smith.yt.yandex.net --format yamr)"
 }
 
 test_lease() {
     echo "Test task lease"
 
-    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy plato
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "smith", "pool": "ignat", "lease_timeout": 2}')
+    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy banach
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "banach", "destination_table": "//tmp/test_table_from_banach", "destination_cluster": "smith", "pool": "ignat", "lease_timeout": 2}')
     sleep 10.0
 
     check '"aborted"' "$(get_task_state $id)"
@@ -223,12 +223,12 @@ test_copy_table_range() {
 
     echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
 
-    id=$(run_task '{"source_table": "//tmp/test_table[#1:#2]", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "plato", "pool" : "ignat", "copy_method": "proxy"}')
+    id=$(run_task '{"source_table": "//tmp/test_table[#1:#2]", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "banach", "pool" : "ignat", "copy_method": "proxy"}')
     wait_task $id
 
     check \
         "c\td\n" \
-        "$(yt2 read //tmp/test_table_from_smith --proxy plato.yt.yandex.net --format yamr)"
+        "$(yt2 read //tmp/test_table_from_smith --proxy banach.yt.yandex.net --format yamr)"
 }
 
 test_copy_table_range_with_codec() {
@@ -236,24 +236,24 @@ test_copy_table_range_with_codec() {
 
     echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
 
-    id=$(run_task '{"source_table": "//tmp/test_table[#1:#2]", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "plato", "pool" : "ignat", "copy_method": "proxy", "destination_compression_codec": "zlib9"}')
+    id=$(run_task '{"source_table": "//tmp/test_table[#1:#2]", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "banach", "pool" : "ignat", "copy_method": "proxy", "destination_compression_codec": "zlib9"}')
     wait_task $id
 
     check \
         "c\td\n" \
-        "$(yt2 read //tmp/test_table_from_smith --proxy plato.yt.yandex.net --format yamr)"
+        "$(yt2 read //tmp/test_table_from_smith --proxy banach.yt.yandex.net --format yamr)"
 
     # Remote copy do not support ranges.
-    #id=$(run_task '{"source_table": "//tmp/test_table[#1:#2]", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "plato", "pool" : "ignat", "destination_compression_codec": "zlib9"}')
+    #id=$(run_task '{"source_table": "//tmp/test_table[#1:#2]", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "banach", "pool" : "ignat", "destination_compression_codec": "zlib9"}')
     #wait_task $id
 
     #check \
     #    "c\td\n" \
-    #    "$(yt2 read //tmp/test_table_from_smith --proxy plato.yt.yandex.net --format yamr)"
+    #    "$(yt2 read //tmp/test_table_from_smith --proxy banach.yt.yandex.net --format yamr)"
 }
 
 test_copy_table_attributes() {
-    echo "Importing from Smith to Plato (attributes copying test)"
+    echo "Importing from Smith to Banach (attributes copying test)"
 
     set_attribute() {
         yt2 set //tmp/test_table/@$1 "$2" --proxy smith.yt.yandex.net
@@ -263,12 +263,12 @@ test_copy_table_attributes() {
     set_attribute "erasure_codec" "lrc_12_2_2"
     set_attribute "compression_codec" "zlib9"
 
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "plato", "pool": "ignat"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "banach", "pool": "ignat"}')
     wait_task $id
 
     check_attribute() {
         check \
-            "$(yt2 get //tmp/test_table_from_smith/@$1 --proxy plato.yt.yandex.net)" \
+            "$(yt2 get //tmp/test_table_from_smith/@$1 --proxy banach.yt.yandex.net)" \
             "$(yt2 get //tmp/test_table/@$1 --proxy smith.yt.yandex.net)"
     }
 
@@ -276,7 +276,7 @@ test_copy_table_attributes() {
         check_attribute $attribute
     done
 
-    yt2 remove //tmp/test_table_from_smith --proxy plato.yt.yandex.net --force
+    yt2 remove //tmp/test_table_from_smith --proxy banach.yt.yandex.net --force
 
     unset -f set_attribute
     unset -f check_attribute
@@ -291,14 +291,14 @@ test_copy_to_yamr_table_with_spaces_in_name() {
 test_recursive_path_creation() {
     echo "Test recursive path creation at destination"
 
-    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy plato.yt.yandex.net
+    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy banach.yt.yandex.net
 
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test/table/from/plato", "destination_cluster": "quine", "pool": "ignat"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "banach", "destination_table": "//tmp/test/table/from/banach", "destination_cluster": "quine", "pool": "ignat"}')
     wait_task $id
 
     check \
-        "$(yt2 read //tmp/test_table --proxy plato.yt.yandex.net --format yamr)" \
-        "$(yt2 read //tmp/test/table/from/plato --proxy quine.yt.yandex.net --format yamr)"
+        "$(yt2 read //tmp/test_table --proxy banach.yt.yandex.net --format yamr)" \
+        "$(yt2 read //tmp/test/table/from/banach --proxy quine.yt.yandex.net --format yamr)"
 }
 
 strip_quotes() {
@@ -312,9 +312,9 @@ test_passing_custom_spec() {
     echo "Test passing spec to Transfer Manager tasks and passing queue name"
 
     yt2 remove //tmp/test_table --force --proxy quine
-    yt2 set //tmp/test_table/@erasure_codec lrc_12_2_2 --proxy plato
+    yt2 set //tmp/test_table/@erasure_codec lrc_12_2_2 --proxy banach
 
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table", "destination_cluster": "quine", "copy_spec": {"type": "copy", "pool": "copy"}, "postprocess_spec": {"type": "postprocess"}, "copy_method": "proxy", "queue_name": "ignat"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "banach", "destination_table": "//tmp/test_table", "destination_cluster": "quine", "copy_spec": {"type": "copy", "pool": "copy"}, "postprocess_spec": {"type": "postprocess"}, "copy_method": "proxy", "queue_name": "ignat"}')
     wait_task $id
 
     local task_descr=$(get_task $id)
@@ -339,7 +339,7 @@ test_clusters_configuration_reloading() {
     echo $config | jq ".availability_graph.cedar = []" > $TM_CONFIG
     echo "Sleeping for $sleeping_time seconds to ensure that config is reloaded" && sleep $sleeping_time
 
-    local task_descr='{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "mr_user": "userdata", "pool": "ignat"}'
+    local task_descr='{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table", "destination_cluster": "banach", "mr_user": "userdata", "pool": "ignat"}'
     local content=$(request "POST" "tasks/" -d "$task_descr")
     check_result=$(echo $content | jq ".inner_errors[0].message" | grep "not available")
     check "$?" "0"
@@ -354,10 +354,10 @@ test_types_preserving_during_copy() {
 
     yt2 remove --force //tmp/test_table --proxy quine
     echo '{"a": true, "b": 0, "c": "str"}' | yt2 write //tmp/test_table --proxy quine --format json
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "copy_method": "proxy"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "banach", "copy_method": "proxy"}')
     wait_task $id
 
-    check "$(yt2 read //tmp/test_table --proxy quine --format json)" "$(yt2 read //tmp/test_table --proxy plato --format json)"
+    check "$(yt2 read //tmp/test_table --proxy quine --format json)" "$(yt2 read //tmp/test_table --proxy banach --format json)"
 
     unset YT_VERSION
 }
@@ -366,12 +366,12 @@ test_skip_if_destination_exists() {
     echo "Test skipped state of task"
 
     echo 'a=b' | yt2 write //tmp/test_table --proxy quine --format dsv
-    echo 'c=d' | yt2 write //tmp/test_table --proxy plato --format dsv
+    echo 'c=d' | yt2 write //tmp/test_table --proxy banach --format dsv
 
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "skip_if_destination_exists": true}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "banach", "skip_if_destination_exists": true}')
     wait_task $id
 
-    check "c=d" "$(yt2 read //tmp/test_table --proxy plato --format dsv)"
+    check "c=d" "$(yt2 read //tmp/test_table --proxy banach --format dsv)"
 }
 
 test_mutating_requests_retries() {
@@ -381,7 +381,7 @@ test_mutating_requests_retries() {
     echo "Waiting for $sleep_time seconds to ensure that TM will process retry requests"
     sleep $sleep_time
 
-    local task='{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "plato"}'
+    local task='{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "banach"}'
     echo "Adding task with mutation id"
     task_id=$(request "POST" "tasks/" -d "$task" --header 'X-TM-Parameters:{"mutation_id": "tm_test_mutation_id_123"}')
     sleep 3.0
@@ -406,11 +406,11 @@ test_destination_codecs() {
 
     echo 'a=b' | yt2 write //tmp/test_table --proxy quine --format dsv
 
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "destination_compression_codec": "zlib6"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "banach", "destination_compression_codec": "zlib6"}')
     wait_task $id
 
-    check "a=b" "$(yt2 read //tmp/test_table --proxy plato --format dsv)"
-    check '"zlib6"' "$(yt2 get //tmp/test_table/@compression_codec --proxy plato)"
+    check "a=b" "$(yt2 read //tmp/test_table --proxy banach --format dsv)"
+    check '"zlib6"' "$(yt2 get //tmp/test_table/@compression_codec --proxy banach)"
 }
 
 test_source_codecs() {
@@ -420,11 +420,11 @@ test_source_codecs() {
     yt2 create table //tmp/test_table --proxy quine --attributes '{compression_codec=zlib6}'
     echo 'a=b' | yt2 write //tmp/test_table --proxy quine --format dsv
 
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "plato"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "banach"}')
     wait_task $id
 
-    check "a=b" "$(yt2 read //tmp/test_table --proxy plato --format dsv)"
-    check '"zlib6"' "$(yt2 get //tmp/test_table/@compression_codec --proxy plato)"
+    check "a=b" "$(yt2 read //tmp/test_table --proxy banach --format dsv)"
+    check '"zlib6"' "$(yt2 get //tmp/test_table/@compression_codec --proxy banach)"
 }
 
 test_intermediate_format() {
@@ -432,10 +432,10 @@ test_intermediate_format() {
 
     echo 'a=b' | yt2 write //tmp/test_table --proxy quine --format dsv
 
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "copy_method": "proxy", "intermediate_format": "<boolean_as_string=false>yson"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "banach", "copy_method": "proxy", "intermediate_format": "<boolean_as_string=false>yson"}')
     wait_task $id
 
-    check "a=b" "$(yt2 read //tmp/test_table --proxy plato --format dsv)"
+    check "a=b" "$(yt2 read //tmp/test_table --proxy banach --format dsv)"
 }
 
 test_delete_tasks() {
@@ -443,8 +443,8 @@ test_delete_tasks() {
 
     echo 'a=b' | yt2 write //tmp/test_table --proxy quine --format dsv
 
-    t1=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table1", "destination_cluster": "plato"}')
-    t2=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table2", "destination_cluster": "plato"}')
+    t1=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table1", "destination_cluster": "banach"}')
+    t2=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table2", "destination_cluster": "banach"}')
 
     http_code=$(request "DELETE" "tasks/" -d "[\"$t1\", \"$t2\"]" --silent --write-out %{http_code} --output /dev/null)
     check "$http_code" "404"
@@ -468,13 +468,13 @@ test_copy_inefficiently_stored_table()
         done
     }
 
-    yt2 remove --force '//tmp/test_table' --proxy plato
-    gen | yt2 write '<append=true>//tmp/test_table' --proxy plato --format dsv --config '{write_retries={chunk_size=1}}'
+    yt2 remove --force '//tmp/test_table' --proxy banach
+    gen | yt2 write '<append=true>//tmp/test_table' --proxy banach --format dsv --config '{write_retries={chunk_size=1}}'
 
-    check "$(yt2 get //tmp/test_table/@chunk_count --proxy plato)" "101"
-    check "$(yt2 get //tmp/test_table/@row_count --proxy plato)" "101"
+    check "$(yt2 get //tmp/test_table/@chunk_count --proxy banach)" "101"
+    check "$(yt2 get //tmp/test_table/@row_count --proxy banach)" "101"
 
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/new_test_table", "destination_cluster": "smith", "pool": "ignat"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "banach", "destination_table": "//tmp/new_test_table", "destination_cluster": "smith", "pool": "ignat"}')
     wait_task $id
 
     check "$(yt2 get //tmp/new_test_table/@row_count --proxy smith)" "101"
@@ -483,17 +483,11 @@ test_copy_inefficiently_stored_table()
 test_copy_with_annotated_json() {
     echo "Test copy with annotated JSON"
 
-    echo -ne '{"x"=12u}\n' | yt2 write //tmp/test_table --proxy marx --format yson
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "marx", "destination_table": "//tmp/new_test_table", "destination_cluster": "plato", "pool": "ignat", "copy_method": "proxy"}')
-    wait_task $id
-
-    check "$(yt2 read //tmp/new_test_table --format '<format=text>yson' --proxy plato)" '{"x"=12};'
-
     echo -ne '{"x"=12u}\n' | yt2 write //tmp/test_table --proxy quine --format yson
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table1", "destination_cluster": "plato", "copy_method": "proxy"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table1", "destination_cluster": "banach", "copy_method": "proxy"}')
     wait_task $id
 
-    check "$(yt2 read //tmp/test_table1 --format '<format=text>yson' --proxy plato)" '{"x"=12u};'
+    check "$(yt2 read //tmp/test_table1 --format '<format=text>yson' --proxy banach)" '{"x"=12u;};'
 }
 
 test_kiwi_copy() {
