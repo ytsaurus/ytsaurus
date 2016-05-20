@@ -35,9 +35,6 @@ static const size_t MaxFragmentsPerWrite = 256;
 static const size_t MaxBatchWriteSize    = 64 * 1024;
 static const size_t MaxWriteCoalesceSize = 4 * 1024;
 
-static const auto ReadStallTimeout = TDuration::Minutes(5);
-static const auto WriteStallTimeout = TDuration::Minutes(5);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTcpConnectionReadBufferTag { };
@@ -79,7 +76,9 @@ TTcpConnection::TTcpConnection(
     , Statistics_(DispatcherThread_->GetStatistics(InterfaceType_))
     , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueuedThunk, MakeWeak(this)))
     , Decoder_(Logger)
+    , ReadStallTimeout_(NProfiling::DurationToCpuDuration(Config_->ReadStallTimeout))
     , Encoder_(Logger)
+    , WriteStallTimeout_(NProfiling::DurationToCpuDuration(Config_->WriteStallTimeout))
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(Handler_);
@@ -167,21 +166,26 @@ void TTcpConnection::SyncCheck()
 
     auto now = NProfiling::GetCpuInstant();
 
-    if (HasUnsentData() && LastWriteTime_ < now - NProfiling::DurationToCpuDuration(WriteStallTimeout)) {
+    if (HasUnsentData() &&
+        LastBeginWriteTime_ < now - WriteStallTimeout_ &&
+        LastWriteTime_ < now - WriteStallTimeout_)
+    {
         ++Statistics_->StalledWrites;
         SyncClose(TError(
             NRpc::EErrorCode::TransportError,
             "Socket write stalled")
-            << TErrorAttribute("timeout", WriteStallTimeout));
+            << TErrorAttribute("timeout", Config_->ReadStallTimeout));
         return;
     }
 
-    if (HasUnreadData() && LastReadTime_ < now - NProfiling::DurationToCpuDuration(ReadStallTimeout)) {
+    if (HasUnreadData() &&
+        LastReadTime_ < now - ReadStallTimeout_)
+    {
         ++Statistics_->StalledReads;
         SyncClose(TError(
             NRpc::EErrorCode::TransportError,
             "Socket read stalled")
-            << TErrorAttribute("timeout", ReadStallTimeout));
+            << TErrorAttribute("timeout", Config_->WriteStallTimeout));
         return;
     }
 }
@@ -1135,8 +1139,18 @@ void TTcpConnection::DiscardUnackedMessages(const TError& error)
 
 void TTcpConnection::UpdateSocketWatcher()
 {
-    if (State_ == EState::Open) {
-        SocketWatcher_->set(HasUnsentData() ? ev::READ|ev::WRITE : ev::READ);
+    if (State_ != EState::Open) {
+        return;
+    }
+
+    if (HasUnsentData()) {
+        SocketWatcher_->set(ev::READ|ev::WRITE);
+        if (LastBeginWriteTime_ == std::numeric_limits<NProfiling::TCpuInstant>::max()) {
+            LastBeginWriteTime_ = NProfiling::GetCpuInstant();
+        }
+    } else {
+        SocketWatcher_->set(ev::READ);
+        LastWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
     }
 }
 
