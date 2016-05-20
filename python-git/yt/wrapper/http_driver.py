@@ -2,7 +2,7 @@ import yson
 from config import get_config, get_option
 from compression_wrapper import create_zlib_generator
 from common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job
-from errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded
+from errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut
 from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, parse_error_from_headers, get_header_format
 from response_stream import ResponseStream
 
@@ -10,6 +10,12 @@ import yt.json as json
 
 from copy import deepcopy
 from datetime import datetime
+
+def get_proxy_ban_errors():
+    from yt.packages.requests import ConnectionError
+    from httplib import BadStatusLine
+    from socket import error as SocketError
+    return (ConnectionError, BadStatusLine, SocketError, YtRequestTimedOut, YtProxyUnavailable)
 
 def escape_utf8(obj):
     def escape_symbol(sym):
@@ -184,7 +190,7 @@ def make_request(command_name, params,
             response_should_be_json=response_should_be_json,
             timeout=timeout,
             client=client)
-    except YtProxyUnavailable:
+    except get_proxy_ban_errors():
         ban_host(proxy, client=client)
         raise
 
