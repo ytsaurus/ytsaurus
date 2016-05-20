@@ -9,16 +9,16 @@ def to_yson_type(value, attributes = None):
     if isinstance(value, str):
         result = YsonString(value)
     elif value is False or value is True:
-        return YsonBoolean(value)
+        result = YsonBoolean(value)
     elif isinstance(value, (int, long)):
         if value < -2 ** 63 or value >= 2 ** 64:
             raise TypeError("Integer {0} cannot be represented in YSON "
                             "since it is out of range [-2^63, 2^64 - 1])".format(value))
         greater_than_max_int64 = value >= 2 ** 63
         if greater_than_max_int64 or isinstance(value, YsonUint64):
-            return YsonUint64(value)
+            result = YsonUint64(value)
         else:
-            return YsonInt64(value)
+            result = YsonInt64(value)
     elif isinstance(value, float):
         result = YsonDouble(value)
     elif isinstance(value, list):
@@ -66,8 +66,13 @@ def json_to_yson(json_tree, encode_key=False):
     return result
 
 def yson_to_json(yson_tree, print_attributes=True):
+    def fix_key(key):
+        if key and key[0] == "$":
+            return "$" + key
+        return key
+
     def process_dict(d):
-        return dict((k, yson_to_json(v)) for k, v in d.iteritems())
+        return dict((fix_key(k), yson_to_json(v)) for k, v in d.iteritems())
 
     if hasattr(yson_tree, "attributes") and yson_tree.attributes and print_attributes:
         return {"$attributes": process_dict(yson_tree.attributes),
@@ -81,7 +86,15 @@ def yson_to_json(yson_tree, print_attributes=True):
     elif isinstance(yson_tree, bool) or isinstance(yson_tree, YsonBoolean):
         return "true" if yson_tree else "false"
     else:
+        if type(yson_tree) is YsonEntity:
+            return None
+
         bases = type(yson_tree).__bases__
+        iter = 0
+        while len(bases) == 1 and YsonType not in bases:
+            bases = bases[0].__bases__
+            iter += 1
+
         if YsonType in bases:
             other = list(set(bases) - set([YsonType]))[0]
             return other(yson_tree)
