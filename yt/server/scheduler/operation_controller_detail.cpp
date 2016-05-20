@@ -3560,6 +3560,18 @@ void TOperationControllerBase::CollectTotals()
 void TOperationControllerBase::CustomPrepare()
 { }
 
+void TOperationControllerBase::ClearInputChunkBoundaryKeys()
+{
+    for (auto& pair : InputChunkMap) {
+        auto& inputChunkDescriptor = pair.second;
+        for (auto chunkSpec : inputChunkDescriptor.ChunkSpecs) {
+            // We don't need boundary key ext after preparation phase.
+            RemoveProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunkSpec->mutable_chunk_meta()->mutable_extensions());
+            RemoveProtoExtension<NTableClient::NProto::TOldBoundaryKeysExt>(chunkSpec->mutable_chunk_meta()->mutable_extensions());
+        }
+    }
+}
+
 // NB: must preserve order of chunks in the input tables, no shuffling.
 std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectPrimaryInputChunks() const
 {
