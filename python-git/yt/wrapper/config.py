@@ -164,7 +164,7 @@ class Config(types.ModuleType, client_state.ClientState):
             if isinstance(None, var_type):
                 var_type = str
             if var_type == dict:
-                var_type = json.loads
+                var_type = lambda obj: self.yson_module.json_to_yson(self.json_module.loads(obj))
             return var_type
 
         def apply_type(type, key, value):

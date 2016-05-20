@@ -274,6 +274,28 @@ test_stderr()
     check_failed "./mapreduce -subkey -map 'cat &>2 && exit(1)' -src 'ignat/temp' -dst 'ignat/tmp' 2>/dev/null"
 }
 
+test_spec()
+{
+    ./mapreduce -subkey -write "ignat/input" <table_file
+    ./mapreduce -map 'cat >/dev/null; echo -e "${YT_OPERATION_ID}\t"' \
+        -ytspec '{"opt1": 10, "opt2": {"$attributes": {"my_attr": "ignat"}, "$value": 0.5}}' \
+        -src "ignat/input" \
+        -dst "ignat/output"
+
+    op_id="`./mapreduce -read "ignat/output" | tr -d '[[:space:]]'`"
+    check "10" "`./mapreduce -get "//sys/operations/${op_id}/@spec/opt1"`"
+    check "0.5" "`./mapreduce -get "//sys/operations/${op_id}/@spec/opt2" | python -c 'import sys, json; print json.loads(sys.stdin.read())["$value"]'`"
+
+    YT_SPEC='{"opt3": "hello", "opt4": {"$attributes": {}, "$value": null}}' ./mapreduce \
+        -map 'cat >/dev/null; echo -e "${YT_OPERATION_ID}\t"' \
+        -src "ignat/input" \
+        -dst "ignat/output"
+
+    op_id="`./mapreduce -read "ignat/output" | tr -d '[[:space:]]'`"
+    check '"hello"' "`./mapreduce -get "//sys/operations/${op_id}/@spec/opt3"`"
+    check 'null' "`./mapreduce -get "//sys/operations/${op_id}/@spec/opt4"`"
+}
+
 test_smart_format()
 {
     format='{
@@ -661,6 +683,7 @@ test_range_map
 test_uploaded_files
 test_ignore_positional_arguments
 test_stderr
+test_spec
 test_smart_format
 test_drop
 test_create_table
