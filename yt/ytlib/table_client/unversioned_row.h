@@ -179,10 +179,10 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetByteSize(const TUnversionedValue& value);
-int GetDataWeight(const TUnversionedValue& value);
-int WriteValue(char* output, const TUnversionedValue& value);
-int ReadValue(const char* input, TUnversionedValue* value);
+size_t GetByteSize(const TUnversionedValue& value);
+size_t GetDataWeight(const TUnversionedValue& value);
+size_t WriteValue(char* output, const TUnversionedValue& value);
+size_t ReadValue(const char* input, TUnversionedValue* value);
 
 void Save(TStreamSaveContext& context, const TUnversionedValue& value);
 void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryPool* pool);
@@ -236,7 +236,7 @@ TFingerprint GetFarmFingerprint(TUnversionedRow row, int keyColumnCount = std::n
 size_t GetUnversionedRowByteSize(int valueCount);
 
 //! Returns the storage-invariant data weight of a given row.
-i64 GetDataWeight(TUnversionedRow row);
+size_t GetDataWeight(TUnversionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 
