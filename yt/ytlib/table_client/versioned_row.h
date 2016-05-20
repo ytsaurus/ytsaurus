@@ -95,11 +95,11 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetByteSize(const TVersionedValue& value);
-int GetDataWeight(const TVersionedValue& value);
+size_t GetByteSize(const TVersionedValue& value);
+size_t GetDataWeight(const TVersionedValue& value);
 
-int ReadValue(const char* input, TVersionedValue* value);
-int WriteValue(char* output, const TVersionedValue& value);
+size_t ReadValue(const char* input, TVersionedValue* value);
+size_t WriteValue(char* output, const TVersionedValue& value);
 
 Stroka ToString(const TVersionedValue& value);
 
@@ -227,7 +227,7 @@ static_assert(
     sizeof(TVersionedRow) == sizeof(intptr_t),
     "TVersionedRow size must match that of a pointer.");
 
-i64 GetDataWeight(TVersionedRow row);
+size_t GetDataWeight(TVersionedRow row);
 size_t GetHash(TVersionedRow row);
 
 //! Compares versioned rows for equality.

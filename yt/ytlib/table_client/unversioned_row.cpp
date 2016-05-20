@@ -36,7 +36,7 @@ struct TOwningRowTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetByteSize(const TUnversionedValue& value)
+size_t GetByteSize(const TUnversionedValue& value)
 {
     int result = MaxVarUint32Size * 2; // id and type
 
@@ -72,7 +72,7 @@ int GetByteSize(const TUnversionedValue& value)
     return result;
 }
 
-int GetDataWeight(const TUnversionedValue& value)
+size_t GetDataWeight(const TUnversionedValue& value)
 {
     switch (value.Type) {
         case EValueType::Null:
@@ -102,7 +102,7 @@ int GetDataWeight(const TUnversionedValue& value)
     }
 }
 
-int WriteValue(char* output, const TUnversionedValue& value)
+size_t WriteValue(char* output, const TUnversionedValue& value)
 {
     char* current = output;
 
@@ -147,7 +147,7 @@ int WriteValue(char* output, const TUnversionedValue& value)
     return current - output;
 }
 
-int ReadValue(const char* input, TUnversionedValue* value)
+size_t ReadValue(const char* input, TUnversionedValue* value)
 {
     const char* current = input;
 
@@ -517,13 +517,13 @@ size_t GetUnversionedRowByteSize(int valueCount)
     return sizeof(TUnversionedRowHeader) + sizeof(TUnversionedValue) * valueCount;
 }
 
-i64 GetDataWeight(TUnversionedRow row)
+size_t GetDataWeight(TUnversionedRow row)
 {
     return std::accumulate(
         row.Begin(),
         row.End(),
-        0ll,
-        [] (i64 x, const TUnversionedValue& value) {
+        0ULL,
+        [] (size_t x, const TUnversionedValue& value) {
             return GetDataWeight(value) + x;
         });
 }

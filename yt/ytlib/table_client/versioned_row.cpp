@@ -12,24 +12,24 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetByteSize(const TVersionedValue& value)
+size_t GetByteSize(const TVersionedValue& value)
 {
     return GetByteSize(static_cast<TUnversionedValue>(value)) + MaxVarInt64Size;
 }
 
-int GetDataWeight(const TVersionedValue& value)
+size_t GetDataWeight(const TVersionedValue& value)
 {
     return GetDataWeight(static_cast<TUnversionedValue>(value)) + sizeof(TTimestamp);
 }
 
-int ReadValue(const char* input, TVersionedValue* value)
+size_t ReadValue(const char* input, TVersionedValue* value)
 {
     int result = ReadValue(input, static_cast<TUnversionedValue*>(value));
     result += ReadVarUint64(input + result, &value->Timestamp);
     return result;
 }
 
-int WriteValue(char* output, const TVersionedValue& value)
+size_t WriteValue(char* output, const TVersionedValue& value)
 {
     int result = WriteValue(output, static_cast<TUnversionedValue>(value));
     result += WriteVarUint64(output + result, value.Timestamp);
@@ -71,14 +71,14 @@ size_t GetVersionedRowByteSize(
         sizeof(TTimestamp) * deleteTimestampCount;
 }
 
-i64 GetDataWeight(TVersionedRow row)
+size_t GetDataWeight(TVersionedRow row)
 {
-    i64 result = 0;
+    size_t result = 0;
     result += std::accumulate(
         row.BeginValues(),
         row.EndValues(),
         0ll,
-        [] (i64 x, const TVersionedValue& value) {
+        [] (size_t x, const TVersionedValue& value) {
             return GetDataWeight(value) + x;
         });
 
@@ -86,7 +86,7 @@ i64 GetDataWeight(TVersionedRow row)
         row.BeginKeys(),
         row.EndKeys(),
         0ll,
-        [] (i64 x, const TUnversionedValue& value) {
+        [] (size_t x, const TUnversionedValue& value) {
             return GetDataWeight(value) + x;
         });
 
