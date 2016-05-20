@@ -94,7 +94,7 @@ class YtStuff(object):
         self.yt_wrapper_log_path = os.path.join(self.yt_work_dir, "yt_wrapper_%s.log" % self.yt_id)
 
         # Create files for yt_local stdout/stderr. We can't just open them in 'w' mode, because
-        # devtools.swag.daemon.run_daemon do reads from them. So we create files and open them in 'r+' mode.
+        # devtools.swag.daemon.run_daemon reads from them. So we create files and open them in 'r+' mode.
         yt_local_out_path = os.path.join(self.yt_work_dir, "yt_local_%s.out" % self.yt_id)
         yt_local_err_path = os.path.join(self.yt_work_dir, "yt_local_%s.err" % self.yt_id)
         open(yt_local_out_path, 'a').close()
