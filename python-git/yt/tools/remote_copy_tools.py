@@ -252,10 +252,10 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
             raise
 
     with destination_client.Transaction(attributes={"title": "copy_yt_to_yt transaction"}):
+        kwargs = {"cluster_name": source_client._name}
         if cluster_connection is not None:
-            kwargs = {"cluster_connection": cluster_connection}
-        else:
-            kwargs = {"cluster_name": source_client._name}
+            kwargs["cluster_connection"] = cluster_connection
+
         destination_client.run_remote_copy(
             src,
             dst,
