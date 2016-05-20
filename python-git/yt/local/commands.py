@@ -57,6 +57,9 @@ def get_root_path(path=None):
     else:
         return os.environ.get("YT_LOCAL_ROOT_PATH", os.getcwd())
 
+def touch(path):
+    open(path, 'a').close()
+
 def _get_bool_from_env(name, default=False):
     value = os.environ.get(name, None)
     if value is None:
@@ -231,6 +234,9 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
             raise YtError("Instance with id {0} is already running".format(sandbox_id))
 
     sandbox_tmpfs_path = os.path.join(tmpfs_path, sandbox_id) if tmpfs_path else None
+    is_started_file = os.path.join(sandbox_path, "started")
+    if os.path.exists(is_started_file):
+        os.remove(is_started_file)
     environment.start(sandbox_path, pids_file_path,
                       proxy_port=proxy_port,
                       enable_debug_logging=enable_debug_logging,
@@ -257,6 +263,7 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
             _synchronize_cypress_with_local_dir(local_cypress_dir, client)
 
     log_started_instance_info(environment, start_proxy, prepare_only)
+    touch(is_started_file)
 
     return environment
 
