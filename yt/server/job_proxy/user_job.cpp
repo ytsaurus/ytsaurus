@@ -324,6 +324,13 @@ private:
 
     void CleanupUserProcesses()
     {
+        BIND(&TUserJob::DoCleanupUserProcesses, MakeWeak(this))
+            .Via(PipeIOPool_->GetInvoker())
+            .Run();
+    }
+
+    void DoCleanupUserProcesses()
+    {
         ShellManager_->CleanupProcesses();
 
         if (!Config_->EnableCGroups) {
@@ -878,11 +885,7 @@ private:
 
         LOG_ERROR(error, "%v", message);
 
-        // This is a workaround for YT-2837.
-        BIND(&TUserJob::CleanupUserProcesses, MakeWeak(this))
-            .Via(PipeIOPool_->GetInvoker())
-            .Run();
-
+        CleanupUserProcesses();
 
         for (const auto& reader : TablePipeReaders_) {
             reader->Abort();
