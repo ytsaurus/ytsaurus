@@ -78,8 +78,7 @@ public:
                     break;
 
                 case EReaderState::Failed:
-                    ReadResultPromise_.Set(TError("Reader failed")
-                        << TErrorAttribute("fd", FD_));
+                    ReadResultPromise_.Set(Error_);
                     break;
 
                 case EReaderState::Active:
@@ -126,6 +125,7 @@ private:
 
     std::atomic<bool> AbortRequested_ = { false };
     EReaderState State_ = EReaderState::Active;
+    TError Error_;
 
     TSharedMutableRef Buffer_;
     int Position_ = 0;
@@ -165,15 +165,19 @@ private:
 
             YCHECK(errno != EBADF);
 
-            auto error = TError("Reader failed")
+            Error_ = TError("Reader failed")
                 << TErrorAttribute("fd", FD_)
                 << TError::FromSystem();
-            LOG_ERROR(error);
+            LOG_ERROR(Error_);
             Close();
 
             State_ = EReaderState::Failed;
             FDWatcher_.stop();
-            ReadResultPromise_.Set(error);
+            if (Position_ != 0) {
+                ReadResultPromise_.Set(Position_);
+            } else {
+                ReadResultPromise_.Set(Error_);
+            }
             return;
         }
 
