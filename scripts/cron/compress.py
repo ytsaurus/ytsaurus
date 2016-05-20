@@ -13,7 +13,7 @@ import yt.yson as yson
 from copy import deepcopy
 from argparse import ArgumentParser
 
-DEFAULT_COMPRESSION_CODEC = "zlib_9"
+DEFAULT_COMPRESSION_CODEC = "gzip_best_compression"
 DEFAULT_ERASURE_CODEC = "lrc_12_2_2"
 
 def compress(task):
@@ -47,8 +47,8 @@ def compress(task):
 
         if yt.exists(table + "/@force_nightly_compress"):
             yt.remove(table + "/@force_nightly_compress")
-    except yt.YtError as e:
-        logger.error("Failed to merge table %s with error %s", table, repr(e))
+    except yt.YtError:
+        logger.exception("Failed to merge table %s", table)
 
 def safe_get(path, **kwargs):
     try:
