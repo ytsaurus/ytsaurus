@@ -476,8 +476,7 @@ private:
         ETransactionType type,
         const TTransactionStartOptions& options)
     {
-        switch (type)
-        {
+        switch (type) {
             case ETransactionType::Master:
                 ValidateMasterStartOptions(options);
                 break;
