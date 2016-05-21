@@ -661,7 +661,7 @@ private:
                     MakeSharedRange(std::move(rows), std::move(rowBuffer)));
             }
 
-            LOG_DEBUG("Rows processing confirmed (TabletIndex: %v RowIndexes: %v-%v, TransactionId: %v)",
+            LOG_DEBUG("Rows processing confirmed (TabletIndex: %v, RowIndexes: %v-%v, TransactionId: %v)",
                 batch.TabletIndex,
                 batch.BeginRowIndex,
                 batch.EndRowIndex - 1,
