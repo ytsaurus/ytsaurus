@@ -3385,7 +3385,7 @@ void TOperationControllerBase::InitQuerySpec(
 
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
     ToProto(querySpec->mutable_query(), query);
-    ToProto(querySpec->mutable_cg_info(), *externalCGInfo);
+    ToProto(querySpec->mutable_external_functions(), externalCGInfo->Functions);
 
     externalCGInfo->NodeDirectory->DumpTo(querySpec->mutable_node_directory());
 }

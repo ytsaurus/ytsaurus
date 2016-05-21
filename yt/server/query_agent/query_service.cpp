@@ -76,11 +76,10 @@ private:
         LOG_DEBUG("Deserializing subfragment");
 
         auto query = FromProto(request->query());
-        auto externalCGInfo = New<TExternalCGInfo>();
-        for (const auto& cgInfo : request->cg_info()) {
-            externalCGInfo->push_back(FromProto(cgInfo));
-        }
+        context->SetRequestInfo("FragmentId: %v", query->Id);
 
+        auto externalCGInfo = New<TExternalCGInfo>();
+        externalCGInfo->Functions = FromProto<std::vector<TExternalFunctionImpl>>(request->external_functions());
         externalCGInfo->NodeDirectory->MergeFrom(request->node_directory());
 
         auto options = FromProto(request->options());
@@ -92,8 +91,6 @@ private:
         }
 
         LOG_DEBUG("Deserialized subfragment");
-
-        context->SetRequestInfo("FragmentId: %v", query->Id);
 
         const auto& user = context->GetUser();
         auto securityManager = Bootstrap_->GetSecurityManager();

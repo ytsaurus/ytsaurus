@@ -82,9 +82,7 @@ void RunQuery(
     auto writer = CreateSchemafulWriterAdapter(schemalessWriter);
 
     auto externalCGInfo = New<TExternalCGInfo>();
-    for (const auto cgInfo : querySpec.cg_info()) {
-        externalCGInfo->push_back(FromProto(cgInfo));
-    }
+    externalCGInfo->Functions = FromProto<std::vector<TExternalFunctionImpl>>(querySpec.external_functions());
 
     auto functionGenerators = New<TFunctionProfilerMap>();
     auto aggregateGenerators = New<TAggregateProfilerMap>();

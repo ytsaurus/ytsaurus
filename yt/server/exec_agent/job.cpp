@@ -616,13 +616,13 @@ private:
             AuxNodeDirectory_->MergeFrom(querySpec.node_directory());
 
             std::vector<TArtifactInfo> infos;
-            for (const auto& cgInfo : querySpec.cg_info()) {
+            for (const auto& function : querySpec.external_functions()) {
                 TArtifactKey key;
                 key.set_type(static_cast<int>(NObjectClient::EObjectType::File));
-                key.mutable_chunks()->MergeFrom(cgInfo.chunk_specs());
+                key.mutable_chunks()->MergeFrom(function.chunk_specs());
 
                 infos.push_back(TArtifactInfo{
-                    cgInfo.name(),
+                    function.name(),
                     false,
                     key});
             }

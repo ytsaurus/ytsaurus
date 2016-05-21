@@ -989,7 +989,7 @@ private:
             {
                 NProfiling::TAggregatingTimingGuard timingGuard(&serializationTime);
                 ToProto(req->mutable_query(), query);
-                ToProto(req->mutable_cg_info(), *externalCGInfo);
+                ToProto(req->mutable_external_functions(), externalCGInfo->Functions);
                 externalCGInfo->NodeDirectory->DumpTo(req->mutable_node_directory());
                 ToProto(req->mutable_options(), options);
                 ToProto(req->mutable_data_sources(), dataSources);
