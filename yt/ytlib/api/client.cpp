@@ -653,11 +653,14 @@ private:
                 subrange.first = rowBuffer->Capture(std::max(lowerBound, keyRange.first.Get()));
                 subrange.second = rowBuffer->Capture(std::min(upperBound, keyRange.second.Get()));
 
-                TDataRanges dataSource{
-                    GetObjectIdFromDataSplit(chunkSpec),
-                    MakeSharedRange(SmallVector<TRowRange, 1>{subrange}, rowBuffer, ranges.GetHolder())};
+                TDataRanges dataSource;
+                dataSource.Id = GetObjectIdFromDataSplit(chunkSpec);
+                dataSource.Ranges = MakeSharedRange(
+                    SmallVector<TRowRange, 1>{subrange},
+                    rowBuffer,
+                    ranges.GetHolder());
 
-                subsources.emplace_back(dataSource, address);
+                subsources.emplace_back(std::move(dataSource), address);
             }
         }
 
@@ -736,14 +739,15 @@ private:
 
                 const auto& address = getAddress(tabletInfo);
 
-                TDataRanges dataSource{
-                    tabletInfo->TabletId,
-                    MakeSharedRange(
-                        MakeRange<TRowRange>(rangesIt, rangesItEnd),
-                        rowBuffer,
-                        ranges.GetHolder())};
+                TDataRanges dataSource;
+                dataSource.Id = tabletInfo->TabletId;
+                dataSource.Ranges = MakeSharedRange(
+                    MakeRange<TRowRange>(rangesIt, rangesItEnd),
+                    rowBuffer,
+                    ranges.GetHolder());
+                dataSource.LookupSupported = tableInfo->IsSorted();
 
-                subsources.emplace_back(dataSource, address);
+                subsources.emplace_back(std::move(dataSource), address);
                 rangesIt = rangesItEnd;
             } else {
                 for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
@@ -763,11 +767,15 @@ private:
                     subrange.first = it == startIt ? lowerBound : rowBuffer->Capture(pivotKey.Get());
                     subrange.second = isLast ? upperBound : rowBuffer->Capture(nextPivotKey.Get());
 
-                    TDataRanges dataSource{
-                        tabletInfo->TabletId,
-                        MakeSharedRange(SmallVector<TRowRange, 1>{subrange}, rowBuffer, ranges.GetHolder())};
+                    TDataRanges dataSource;
+                    dataSource.Id = tabletInfo->TabletId;
+                    dataSource.Ranges = MakeSharedRange(
+                        SmallVector<TRowRange, 1>{subrange},
+                        rowBuffer,
+                        ranges.GetHolder());
+                    dataSource.LookupSupported = tableInfo->IsSorted();
 
-                    subsources.emplace_back(dataSource, address);
+                    subsources.emplace_back(std::move(dataSource), address);
 
                     if (isLast) {
                         break;

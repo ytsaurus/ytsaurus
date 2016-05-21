@@ -94,6 +94,8 @@ struct TDataRanges
     //! Either a chunk id or tablet id.
     NObjectClient::TObjectId Id;
     TSharedRange<TRowRange> Ranges;
+    //! If |true|, these ranges could be reclassified into a set of discrete lookup keys.
+    bool LookupSupported = true;
 };
 
 struct TDataKeys

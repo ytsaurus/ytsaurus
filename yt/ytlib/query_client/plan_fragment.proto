@@ -178,6 +178,7 @@ message TDataRanges
 {
     required NYT.NProto.TGuid id = 1;
     required bytes ranges = 2;
+    optional bool lookup_supported = 3 [default = true];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

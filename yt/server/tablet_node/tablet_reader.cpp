@@ -137,17 +137,19 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
     TTimestamp /*timestamp*/,
     const TWorkloadDescriptor& workloadDescriptor)
 {
-    YCHECK(lowerBound.GetCount() >= 1 && lowerBound.GetCount() <= 2);
-    YCHECK(upperBound.GetCount() >= 1 && upperBound.GetCount() <= 2);
+    YCHECK(lowerBound.GetCount() >= 1);
+    YCHECK(upperBound.GetCount() >= 1);
+
+    const i64 infinity = std::numeric_limits<i64>::max() / 2;
 
     auto valueToInt = [] (const TUnversionedValue& value) {
         switch (value.Type) {
             case EValueType::Int64:
-                return value.Data.Int64;
+                return std::max(std::min(value.Data.Int64, +infinity), -infinity);
             case EValueType::Min:
-                return std::numeric_limits<i64>::min();
+                return -infinity;
             case EValueType::Max:
-                return std::numeric_limits<i64>::max();
+                return +infinity;
             default:
                 YUNREACHABLE();
         }
@@ -166,13 +168,23 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
                lowerBound[0].Data.Int64 == upperBound[0].Data.Int64 ||
                lowerBound[0].Data.Int64 + 1 == upperBound[0].Data.Int64);
 
-        if (lowerBound.GetCount() == 2) {
+        if (lowerBound.GetCount() >= 2) {
             lowerRowIndex = valueToInt(lowerBound[1]);
+            if (lowerBound.GetCount() >= 3) {
+                ++lowerRowIndex;
+            }
         }
 
-        if (upperBound.GetCount() == 2) {
+        if (upperBound.GetCount() >= 2) {
             upperRowIndex = valueToInt(upperBound[1]);
+            if (upperBound.GetCount() >= 3) {
+                ++upperRowIndex;
+            }
         }
+    }
+
+    if (lowerRowIndex < 0) {
+        lowerRowIndex = 0;
     }
 
     std::vector<ISchemafulReaderPtr> readers;

@@ -9,13 +9,13 @@
 
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 
-#include <cmath>
 #include <limits>
 
 namespace NYT {
 namespace NQueryClient {
 
 using namespace NTableClient;
+using namespace NObjectClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -143,7 +143,7 @@ Stroka InferName(TConstQueryPtr query, bool omitValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TExpression* serialized, TConstExpressionPtr original)
+void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& original)
 {
     if (!original) {
         serialized->set_kind(static_cast<int>(EExpressionKind::None));
@@ -350,7 +350,7 @@ void ToProto(NProto::TEquation* proto, std::pair<TConstExpressionPtr, TConstExpr
     ToProto(proto->mutable_right(), original.second);
 }
 
-void ToProto(NProto::TJoinClause* proto, TConstJoinClausePtr original)
+void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
 {
     ToProto(proto->mutable_equations(), original->Equations);
     ToProto(proto->mutable_joined_table_schema(), original->JoinedTableSchema);
@@ -366,7 +366,7 @@ void ToProto(NProto::TJoinClause* proto, TConstJoinClausePtr original)
     ToProto(proto->mutable_evaluated_columns(), original->EvaluatedColumns);
 }
 
-void ToProto(NProto::TGroupClause* proto, TConstGroupClausePtr original)
+void ToProto(NProto::TGroupClause* proto, const TConstGroupClausePtr& original)
 {
     ToProto(proto->mutable_group_items(), original->GroupItems);
     ToProto(proto->mutable_aggregate_items(), original->AggregateItems);
@@ -376,7 +376,7 @@ void ToProto(NProto::TGroupClause* proto, TConstGroupClausePtr original)
     proto->set_totals_mode(static_cast<int>(original->TotalsMode));
 }
 
-void ToProto(NProto::TProjectClause* proto, TConstProjectClausePtr original)
+void ToProto(NProto::TProjectClause* proto, const TConstProjectClausePtr original)
 {
     ToProto(proto->mutable_projections(), original->Projections);
 }
@@ -387,12 +387,12 @@ void ToProto(NProto::TOrderItem* serialized, const TOrderItem& original)
     serialized->set_is_descending(original.second);
 }
 
-void ToProto(NProto::TOrderClause* proto, TConstOrderClausePtr original)
+void ToProto(NProto::TOrderClause* proto, const TConstOrderClausePtr& original)
 {
     ToProto(proto->mutable_order_items(), original->OrderItems);
 }
 
-void ToProto(NProto::TQuery* proto, TConstQueryPtr original)
+void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original)
 {
     proto->set_input_row_limit(original->InputRowLimit);
     proto->set_output_row_limit(original->OutputRowLimit);
@@ -535,7 +535,7 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
     auto query = New<TQuery>(
         serialized.input_row_limit(),
         serialized.output_row_limit(),
-        NYT::FromProto<TGuid>(serialized.id()));
+        FromProto<TGuid>(serialized.id()));
 
     query->Limit = serialized.limit();
 
@@ -606,27 +606,29 @@ void ToProto(NProto::TDataRanges* proto, const TDataRanges& dataSource)
         writer.WriteUnversionedRow(range.first);
         writer.WriteUnversionedRow(range.second);
     }
-
     ToProto(proto->mutable_ranges(), ToString(MergeRefs(writer.Flush())));
+
+    proto->set_lookup_supported(dataSource.LookupSupported);
 }
 
 TDataRanges FromProto(const NProto::TDataRanges& serialized)
 {
     TDataRanges result;
-    FromProto(&result.Id, serialized.id());
+
+    result.Id = FromProto<TObjectId>(serialized.id());
 
     auto rowBuffer = New<TRowBuffer>();
     TRowRanges ranges;
-
     NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(serialized.ranges()));
     while (!reader.IsFinished()) {
         auto lowerBound = rowBuffer->Capture(reader.ReadUnversionedRow());
         auto upperBound = rowBuffer->Capture(reader.ReadUnversionedRow());
-
         ranges.emplace_back(lowerBound, upperBound);
     }
-
     result.Ranges = MakeSharedRange(std::move(ranges), rowBuffer);
+
+    result.LookupSupported = serialized.lookup_supported();
+
     return result;
 }
 

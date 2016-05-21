@@ -151,6 +151,23 @@ class TestOrderedTablets(YTEnvSetup):
         query_rows = [{"$tablet_index": 0, "$row_index": i, "a": i % 100} for i in xrange(10, 490)]
         assert select_rows("[$tablet_index], [$row_index], a from [//tmp/t] where [$row_index] between 10 and 489") == query_rows
         
+    def test_select_with_limits(self):
+        self.sync_create_cells(1, 1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        write_rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(100)]
+        insert_rows("//tmp/t", write_rows)
+
+        query_rows = [{"a": i} for i in xrange(100)]
+        assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] >= 10") == query_rows[10:]
+        assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] > 10") == query_rows[11:]
+        assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] = 10") == query_rows[10:11]
+        assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] < 10") == query_rows[:10]
+        assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] <= 10") == query_rows[:11]
+        assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] >= 10 and [$row_index] < 20") == query_rows[10:20]
+        assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] >= 10 and [$row_index] <= 20") == query_rows[10:21]
+
 ##################################################################
 
 class TestOrderedTabletsMulticell(TestOrderedTablets):

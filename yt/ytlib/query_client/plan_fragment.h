@@ -403,7 +403,7 @@ struct TQuery
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
 
-void ToProto(NProto::TQuery* proto, TConstQueryPtr original);
+void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original);
 TQueryPtr FromProto(const NProto::TQuery& serialized);
 
 void ToProto(NProto::TQueryOptions* proto, const TQueryOptions& options);
