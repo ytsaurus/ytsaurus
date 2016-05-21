@@ -25,8 +25,11 @@ class TChunkListProxy
     : public TNonversionedObjectProxyBase<TChunkList>
 {
 public:
-    TChunkListProxy(NCellMaster::TBootstrap* bootstrap, TChunkList* chunkList)
-        : TBase(bootstrap, chunkList)
+    TChunkListProxy(
+        NCellMaster::TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
+        TChunkList* chunkList)
+        : TBase(bootstrap, metadata, chunkList)
     { }
 
 private:
@@ -130,9 +133,10 @@ private:
 
 IObjectProxyPtr CreateChunkListProxy(
     NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TChunkList* chunkList)
 {
-    return New<TChunkListProxy>(bootstrap, chunkList);
+    return New<TChunkListProxy>(bootstrap, metadata, chunkList);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

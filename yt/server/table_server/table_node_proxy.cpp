@@ -37,6 +37,7 @@ namespace NTableServer {
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NCypressServer;
+using namespace NObjectServer;
 using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
@@ -57,11 +58,13 @@ public:
     TTableNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
         TTransaction* transaction,
         TTableNode* trunkNode)
         : TBase(
             typeHandler,
             bootstrap,
+            metadata,
             transaction,
             trunkNode)
     { }
@@ -273,7 +276,13 @@ private:
             const auto& lowerLimit = range.LowerLimit();
             const auto& upperLimit = range.UpperLimit();
             if ((upperLimit.HasKey() || lowerLimit.HasKey()) && !table->TableSchema().IsSorted()) {
-                THROW_ERROR_EXCEPTION("Cannot fetch a range of an unsorted table");
+                THROW_ERROR_EXCEPTION("Cannot fetch a key range of an unsorted table");
+            }
+            if ((upperLimit.HasRowIndex() || lowerLimit.HasRowIndex()) && table->IsDynamic()) {
+                THROW_ERROR_EXCEPTION("Cannot fetch a row index range of a dynamic table");
+            }
+            if ((upperLimit.HasChunkIndex() || lowerLimit.HasChunkIndex()) && table->IsDynamic()) {
+                THROW_ERROR_EXCEPTION("Cannot fetch a chunk index range of a dynamic table");
             }
             if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
                 THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
@@ -475,7 +484,6 @@ private:
 
         context->Reply();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -483,12 +491,14 @@ private:
 ICypressNodeProxyPtr CreateTableNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TTransaction* transaction,
     TTableNode* trunkNode)
 {
     return New<TTableNodeProxy>(
         typeHandler,
         bootstrap,
+        metadata,
         transaction,
         trunkNode);
 }

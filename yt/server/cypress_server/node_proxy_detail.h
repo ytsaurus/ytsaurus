@@ -29,6 +29,7 @@ public:
     TNontemplateCypressNodeProxyBase(
         INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
+        NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
         TCypressNodeBase* trunkNode);
 
@@ -55,10 +56,10 @@ protected:
     class TCustomAttributeDictionary;
     class TResourceUsageVisitor;
 
-    INodeTypeHandlerPtr TypeHandler;
-    TCypressManagerConfigPtr Config;
-    NTransactionServer::TTransaction* Transaction;
-    TCypressNodeBase* TrunkNode;
+    const INodeTypeHandlerPtr TypeHandler;
+    const TCypressManagerConfigPtr Config;
+    NTransactionServer::TTransaction* const Transaction;
+    TCypressNodeBase* const TrunkNode;
 
     mutable TCypressNodeBase* CachedNode = nullptr;
     mutable NYTree::INodeResolverPtr CachedResolver;
@@ -205,6 +206,7 @@ protected:
     TNontemplateCompositeCypressNodeProxyBase(
         INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
+        NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
         TCypressNodeBase* trunkNode);
 
@@ -226,11 +228,13 @@ public:
     TCypressNodeProxyBase(
         INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
+        NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
         TImpl* trunkNode)
         : TBase(
             typeHandler,
             bootstrap,
+            metadata,
             transaction,
             trunkNode)
     { }
@@ -264,11 +268,13 @@ public:
     TScalarNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
+        NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
         TScalarNode<TValue>* trunkNode)
         : TBase(
             typeHandler,
             bootstrap,
+            metadata,
             transaction,
             trunkNode)
     { }
@@ -305,11 +311,13 @@ private:
         T##key##NodeProxy( \
             INodeTypeHandlerPtr typeHandler, \
             NCellMaster::TBootstrap* bootstrap, \
+            NObjectServer::TObjectTypeMetadata* metadata, \
             NTransactionServer::TTransaction* transaction, \
             TScalarNode<type>* node) \
             : TScalarNodeProxy<type, NYTree::I##key##Node, T##key##Node>( \
                 typeHandler, \
                 bootstrap, \
+                metadata, \
                 transaction, \
                 node) \
         { }
@@ -325,6 +333,7 @@ private:
         return New<T##key##NodeProxy>( \
             this, \
             Bootstrap_, \
+            &Metadata_, \
             transaction, \
             node); \
     }
@@ -372,6 +381,7 @@ public:
     TMapNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
+        NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
         TMapNode* trunkNode);
 
@@ -418,6 +428,7 @@ public:
     TListNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
+        NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
         TListNode* trunkNode);
 
@@ -459,6 +470,7 @@ public:
     TLinkNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
+        NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
         TLinkNode* trunkNode);
 
@@ -489,6 +501,7 @@ public:
     TDocumentNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
+        NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
         TDocumentNode* trunkNode);
 

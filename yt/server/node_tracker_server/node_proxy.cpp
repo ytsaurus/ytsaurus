@@ -22,7 +22,6 @@ using namespace NYTree;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NObjectServer;
-using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,8 +29,11 @@ class TClusterNodeProxy
     : public TNonversionedObjectProxyBase<TNode>
 {
 public:
-    TClusterNodeProxy(TBootstrap* bootstrap, TNode* node)
-        : TNonversionedObjectProxyBase(bootstrap, node)
+    TClusterNodeProxy(
+        NCellMaster::TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
+        TNode* node)
+        : TNonversionedObjectProxyBase(bootstrap, metadata, node)
     { }
 
 private:
@@ -285,15 +287,14 @@ private:
             THROW_ERROR_EXCEPTION("Cannot remove node since it is not offline");
         }
     }
-
 };
 
-IObjectProxyPtr CreateClusterNodeProxy(TBootstrap* bootstrap, TNode* node)
+IObjectProxyPtr CreateClusterNodeProxy(
+    NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
+    TNode* node)
 {
-    YASSERT(bootstrap);
-    YASSERT(node);
-
-    return New<TClusterNodeProxy>(bootstrap, node);
+    return New<TClusterNodeProxy>(bootstrap, metadata, node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

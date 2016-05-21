@@ -3,6 +3,7 @@
 #include "attribute_set.h"
 #include "object_manager.h"
 #include "object_service.h"
+#include "type_handler_detail.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config.h>
@@ -157,11 +158,14 @@ private:
 
 TObjectProxyBase::TObjectProxyBase(
     TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TObjectBase* object)
     : Bootstrap_(bootstrap)
+    , Metadata_(metadata)
     , Object_(object)
 {
     YASSERT(Bootstrap_);
+    YASSERT(Metadata_);
     YASSERT(Object_);
 }
 
@@ -455,6 +459,11 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
         .SetOpaque(true));
 }
 
+const yhash_set<const char*>& TObjectProxyBase::GetBuiltinAttributeKeys()
+{
+    return Metadata_->BuiltinAttributeKeysCache.GetBuiltinAttributeKeys(this);
+}
+
 bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     auto securityManager = Bootstrap_->GetSecurityManager();
@@ -741,8 +750,9 @@ void TObjectProxyBase::PostToMaster(IServiceContextPtr context, TCellTag cellTag
 
 TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase(
     NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TObjectBase* object)
-    : TObjectProxyBase(bootstrap, object)
+    : TObjectProxyBase(bootstrap, metadata, object)
 { }
 
 bool TNontemplateNonversionedObjectProxyBase::DoInvoke(IServiceContextPtr context)

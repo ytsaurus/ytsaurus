@@ -70,8 +70,11 @@ class TTransactionManager::TTransactionProxy
     : public TNonversionedObjectProxyBase<TTransaction>
 {
 public:
-    TTransactionProxy(NCellMaster::TBootstrap* bootstrap, TTransaction* transaction)
-        : TBase(bootstrap, transaction)
+    TTransactionProxy(
+        NCellMaster::TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
+        TTransaction* transaction)
+        : TBase(bootstrap, metadata, transaction)
     { }
 
 private:
@@ -399,7 +402,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TTransaction* transaction, TTransaction* /*dummyTransaction*/) override
     {
-        return New<TTransactionProxy>(Bootstrap_, transaction);
+        return New<TTransactionProxy>(Bootstrap_, &Metadata_, transaction);
     }
 
     virtual TAccessControlDescriptor* DoFindAcd(TTransaction* transaction) override

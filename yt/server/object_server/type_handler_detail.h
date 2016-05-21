@@ -11,8 +11,17 @@
 
 #include <yt/server/transaction_server/public.h>
 
+#include <yt/core/ytree/ypath_detail.h>
+
 namespace NYT {
 namespace NObjectServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TObjectTypeMetadata
+{
+    NYTree::TBuiltinAttributeKeysCache BuiltinAttributeKeysCache;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,6 +120,8 @@ public:
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
 
+    TObjectTypeMetadata Metadata_;
+
 
     virtual TCellTagList DoGetReplicationCellTags(const TObject* /*object*/)
     {
@@ -121,10 +132,7 @@ protected:
 
     virtual IObjectProxyPtr DoGetProxy(
         TObject* object,
-        NTransactionServer::TTransaction* /*transaction*/)
-    {
-        return New<TNonversionedObjectProxyBase<TObject>>(Bootstrap_, object);
-    }
+        NTransactionServer::TTransaction* transaction) = 0;
 
     virtual void DoZombifyObject(TObject* /*object*/)
     { }

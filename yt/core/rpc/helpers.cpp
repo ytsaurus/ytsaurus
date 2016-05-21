@@ -13,6 +13,25 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsRetriableError(const TError& error)
+{
+    auto code = error.GetCode();
+    return code == NRpc::EErrorCode::TransportError ||
+           code == NRpc::EErrorCode::Unavailable ||
+           code == NRpc::EErrorCode::RequestQueueSizeLimitExceeded ||
+           code == NYT::EErrorCode::Timeout;
+}
+
+bool IsChannelFailureError(const TError& error)
+{
+    auto code = error.GetCode();
+    return code == NRpc::EErrorCode::TransportError ||
+           code == NRpc::EErrorCode::Unavailable ||
+           code == NYT::EErrorCode::Timeout;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDefaultTimeoutChannel
     : public TChannelWrapper
 {

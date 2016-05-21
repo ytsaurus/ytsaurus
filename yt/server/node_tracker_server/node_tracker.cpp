@@ -1500,7 +1500,7 @@ IObjectProxyPtr TNodeTracker::TClusterNodeTypeHandler::DoGetProxy(
     TNode* node,
     TTransaction* /*transaction*/)
 {
-    return CreateClusterNodeProxy(Owner_->Bootstrap_, node);
+    return CreateClusterNodeProxy(Owner_->Bootstrap_, &Metadata_, node);
 }
 
 void TNodeTracker::TClusterNodeTypeHandler::DoZombifyObject(TNode* node)
@@ -1533,7 +1533,7 @@ IObjectProxyPtr TNodeTracker::TRackTypeHandler::DoGetProxy(
     TRack* rack,
     TTransaction* /*transaction*/)
 {
-    return CreateRackProxy(Owner_->Bootstrap_, rack);
+    return CreateRackProxy(Owner_->Bootstrap_, &Metadata_, rack);
 }
 
 void TNodeTracker::TRackTypeHandler::DoZombifyObject(TRack* rack)

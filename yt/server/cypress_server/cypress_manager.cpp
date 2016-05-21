@@ -481,9 +481,8 @@ private:
         TLock* lock,
         TTransaction* /*transaction*/) override
     {
-        return CreateLockProxy(Bootstrap_, lock);
+        return CreateLockProxy(Bootstrap_, &Metadata_, lock);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

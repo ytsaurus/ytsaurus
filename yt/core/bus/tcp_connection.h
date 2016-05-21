@@ -166,6 +166,7 @@ private:
     std::unique_ptr<ev::io> SocketWatcher_;
 
     TPacketDecoder Decoder_;
+    NProfiling::TCpuDuration ReadStallTimeout_;
     NProfiling::TCpuInstant LastReadTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
     TBlob ReadBuffer_;
 
@@ -173,7 +174,9 @@ private:
     TRingQueue<TPacket*> EncodedPackets_;
 
     TPacketEncoder Encoder_;
+    NProfiling::TCpuDuration WriteStallTimeout_;
     NProfiling::TCpuInstant LastWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
+    NProfiling::TCpuInstant LastBeginWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
     std::vector<std::unique_ptr<TBlob>> WriteBuffers_;
     TRingQueue<TRef> EncodedFragments_;
     TRingQueue<size_t> EncodedPacketSizes_;

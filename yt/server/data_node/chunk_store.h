@@ -101,12 +101,6 @@ public:
         NObjectClient::EObjectType chunkType,
         const TWorkloadDescriptor& workloadDescriptor);
 
-    //! Returns |true| if too much data is aleady scheduled for read.
-    bool IsReadThrottling(const TLocationPtr& location, const TWorkloadDescriptor& workloadDescriptor);
-
-    //! Returns |true| if too much data is aleady scheduled for write.
-    bool IsWriteThrottling(const TLocationPtr& location, const TWorkloadDescriptor& workloadDescriptor);
-
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);
 

@@ -45,7 +45,7 @@ int SafeDup(int fd);
 // Returns a pty with CLOSE_EXEC flag on master channel.
 void SafeOpenPty(int* masterFD, int* slaveFD, int height, int width);
 void SafeLoginTty(int fd);
-void SafeSetTtyWindowSize(int slaveFD, i32 height, i32 width);
+void SafeSetTtyWindowSize(int slaveFD, int height, int width);
 
 bool TryMakeNonblocking(int fd);
 void SafeMakeNonblocking(int fd);
