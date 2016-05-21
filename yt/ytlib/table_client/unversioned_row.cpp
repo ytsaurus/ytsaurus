@@ -1012,7 +1012,7 @@ void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRo
     ui32 valueCount;
     current += ReadVarUint32(current, &valueCount);
 
-    auto mutableRow = TMutableUnversionedRow::Allocate(rowBuffer->GetPool(), valueCount);
+    auto mutableRow = rowBuffer->Allocate(valueCount);
     *row = mutableRow;
 
     auto* values = mutableRow.Begin();

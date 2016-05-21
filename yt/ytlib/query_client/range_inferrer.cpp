@@ -325,7 +325,7 @@ void Copy(TRow source, TMutableRow dest, int count)
 TMutableRow CaptureRowWithSentinel(TRowBuffer* buffer, TRow src, int size, TNullable<TUnversionedValue> sentinel)
 {
     int rowSize = size + static_cast<bool>(sentinel);
-    auto row = TMutableUnversionedRow::Allocate(buffer->GetPool(), rowSize);
+    auto row = buffer->Allocate(rowSize);
     Copy(src, row, size);
     if (sentinel) {
         row[size] = sentinel.Get();
@@ -580,8 +580,8 @@ void EnrichKeyRange(
         }
     };
 
-    auto lowerRow = TMutableUnversionedRow::Allocate(buffer->GetPool(), keySize + 1);
-    auto upperRow = TMutableUnversionedRow::Allocate(buffer->GetPool(), keySize + 1);
+    auto lowerRow = buffer->Allocate(keySize + 1);
+    auto upperRow = buffer->Allocate(keySize + 1);
 
     size_t lowerSize = shrinkSize;
     while (lowerSize < range.first.GetCount() && !IsSentinelType(range.first[lowerSize].Type)) {
@@ -639,7 +639,7 @@ void EnrichKeyRange(
         }
     };
 
-    auto prefixRow = TMutableUnversionedRow::Allocate(buffer->GetPool(), keySize + 1);
+    auto prefixRow = buffer->Allocate(keySize + 1);
     Copy(range.first, prefixRow, prefixSize);
 
     if (canEnumerate && !divisors.empty()) {

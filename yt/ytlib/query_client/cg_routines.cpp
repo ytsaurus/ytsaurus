@@ -174,7 +174,7 @@ void InsertJoinRow(
         for (int index = 0; index < keySize; ++index) {
             context->PermanentBuffer->Capture(&key[index]);
         }
-        *keyPtr = TMutableRow::Allocate(context->PermanentBuffer->GetPool(), keySize);
+        *keyPtr = context->PermanentBuffer->Allocate(keySize);
     } else {
         auto& startIndex = inserted.first->second.first;
         chainedRows->back().second = startIndex;
@@ -274,7 +274,7 @@ void AllocatePermanentRow(TExecutionContext* context, int valueCount, TMutableRo
 {
     CHECK_STACK();
 
-    *row = TMutableRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
+    *row = context->PermanentBuffer->Allocate(valueCount);
 }
 
 const TRow* InsertGroupRow(
@@ -315,7 +315,7 @@ void AllocateIntermediateRow(TExpressionContext* context, int valueCount, TMutab
 {
     CHECK_STACK();
 
-    *row = TMutableRow::Allocate(context->IntermediateBuffer->GetPool(), valueCount);
+    *row = context->IntermediateBuffer->Allocate(valueCount);
 }
 
 void AddRow(TTopCollector* topCollector, TRow row)

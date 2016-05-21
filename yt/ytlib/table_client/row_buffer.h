@@ -36,6 +36,8 @@ public:
 
     TChunkedMemoryPool* GetPool();
 
+    TMutableUnversionedRow Allocate(int count);
+
     void Capture(TUnversionedValue* value);
     TVersionedValue Capture(const TVersionedValue& value);
     TUnversionedValue Capture(const TUnversionedValue& value);
