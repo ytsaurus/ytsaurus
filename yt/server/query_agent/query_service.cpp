@@ -75,20 +75,16 @@ private:
     {
         LOG_DEBUG("Deserializing subfragment");
 
-        auto query = FromProto(request->query());
+        auto query = FromProto<TConstQueryPtr>(request->query());
         context->SetRequestInfo("FragmentId: %v", query->Id);
 
         auto externalCGInfo = New<TExternalCGInfo>();
-        externalCGInfo->Functions = FromProto<std::vector<TExternalFunctionImpl>>(request->external_functions());
+        FromProto(&externalCGInfo->Functions, request->external_functions());
         externalCGInfo->NodeDirectory->MergeFrom(request->node_directory());
 
-        auto options = FromProto(request->options());
+        auto options = FromProto<TQueryOptions>(request->options());
 
-        std::vector<TDataRanges> dataSources;
-        dataSources.reserve(request->data_sources_size());
-        for (const auto& dataSource : request->data_sources()) {
-            dataSources.push_back(FromProto(dataSource));
-        }
+        auto dataSources = FromProto<std::vector<TDataRanges>>(request->data_sources());
 
         LOG_DEBUG("Deserialized subfragment");
 
