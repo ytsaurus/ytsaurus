@@ -212,11 +212,6 @@ TJoinEvaluator GetJoinEvaluator(
         }
     }
 
-    // self to joined indexes;
-    // foreign to joined indexes;
-    std::vector<size_t> selfToJoinedMapping;
-    std::vector<size_t> foreignToJoinedMapping;
-
     return [=] (
         TExecutionContext* context,
         THasherFunction* groupHasher,
