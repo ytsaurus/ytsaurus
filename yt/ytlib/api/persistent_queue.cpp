@@ -25,6 +25,7 @@ using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -244,7 +245,7 @@ private:
     }
 
 
-    std::vector<TStateTableRow> ReadStateTable()
+    std::vector<TStateTableRow> ReadStateTable(IClientBasePtr client)
     {
         // TODO(babenko): escaping
         auto query = Format(
@@ -255,7 +256,7 @@ private:
             StateTablePath_,
             TStateTable::TabletIndexColumnName,
             JoinToString(TabletIndexes_));
-        auto result = WaitFor(Client_->SelectRows(query))
+        auto result = WaitFor(client->SelectRows(query))
             .ValueOrThrow();
         const auto& rowset = result.first;
 
@@ -288,7 +289,7 @@ private:
     {
         LOG_INFO("Loading queue poller state for initialization");
 
-        auto stateRows = ReadStateTable();
+        auto stateRows = ReadStateTable(Client_);
 
         TGuard<TSpinLock> guard(state->SpinLock);
 
@@ -710,7 +711,7 @@ private:
 
         LOG_DEBUG("Loading queue poller state for trim");
 
-        auto stateRows = ReadStateTable();
+        auto stateRows = ReadStateTable(transaction);
 
         LOG_DEBUG("Queue poller state loaded");
 
