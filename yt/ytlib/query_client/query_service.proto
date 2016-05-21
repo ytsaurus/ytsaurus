@@ -11,7 +11,7 @@ import "yt/ytlib/query_client/functions_cache.proto";
 message TReqExecute
 {
     required TQuery query = 1;
-    repeated TExternalFunctionImpl cg_info = 5;
+    repeated TExternalFunctionImpl external_functions = 5;
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
     required TQueryOptions options = 2;
     repeated TDataRanges data_sources = 3;

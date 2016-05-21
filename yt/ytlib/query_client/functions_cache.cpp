@@ -316,7 +316,7 @@ void AppendUdfDescriptors(
                     functionDescriptor->ResultType.Type);
 
             typers->emplace(name, typer);
-            cgInfo->push_back(std::move(functionBody));
+            cgInfo->Functions.push_back(std::move(functionBody));
         }
 
         if (aggregateDescriptor) {
@@ -335,7 +335,7 @@ void AppendUdfDescriptors(
                 aggregateDescriptor->StateType.Type);
 
             typers->emplace(name, typer);
-            cgInfo->push_back(std::move(functionBody));
+            cgInfo->Functions.push_back(std::move(functionBody));
         }
     }
 }
@@ -574,26 +574,29 @@ void DoFetchImplementations(
     const TConstExternalCGInfoPtr& externalCGInfo,
     std::function<TSharedRef(const TExternalFunctionImpl&)> doFetch)
 {
-    for (const auto& info : *externalCGInfo) {
-        const auto& name = info.Name;
+    for (const auto& function : externalCGInfo->Functions) {
+        const auto& name = function.Name;
 
-        LOG_DEBUG("Fetching implementation for UDF function %v", name);
+        LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
 
-        auto impl = doFetch(info);
+        auto impl = doFetch(function);
         YCHECK(!impl.Empty());
 
-        if (info.IsAggregate) {
+        if (function.IsAggregate) {
             aggregateProfilers->emplace(name, New<TExternalAggregateCodegen>(
-                name, impl, info.CallingConvention, GetImplFingerprint(info.ChunkSpecs)));
+                name,
+                impl,
+                function.CallingConvention,
+                GetImplFingerprint(function.ChunkSpecs)));
         } else {
             functionProfilers->emplace(name, New<TExternalFunctionCodegen>(
                 name,
-                info.SymbolName,
+                function.SymbolName,
                 impl,
-                info.CallingConvention,
-                info.RepeatedArgType,
-                info.RepeatedArgIndex,
-                GetImplFingerprint(info.ChunkSpecs)));
+                function.CallingConvention,
+                function.RepeatedArgType,
+                function.RepeatedArgIndex,
+                GetImplFingerprint(function.ChunkSpecs)));
         }
     }
 }
@@ -709,19 +712,15 @@ void ToProto(NProto::TExternalFunctionImpl* proto, const TExternalFunctionImpl& 
     proto->set_repeated_arg_index(object.RepeatedArgIndex);
 }
 
-TExternalFunctionImpl FromProto(const NProto::TExternalFunctionImpl& serialized)
+void FromProto(TExternalFunctionImpl* original, const NProto::TExternalFunctionImpl& serialized)
 {
-    TExternalFunctionImpl result;
-    result.IsAggregate = serialized.is_aggregate();
-    result.Name = serialized.name();
-    result.SymbolName = serialized.symbol_name();
-    result.CallingConvention = ECallingConvention(serialized.calling_convention());
-    result.ChunkSpecs = FromProto<std::vector<NChunkClient::NProto::TChunkSpec>>(serialized.chunk_specs());
-
-    result.RepeatedArgType = ConvertTo<TDescriptorType>(NYson::TYsonString(serialized.repeated_arg_type())).Type;
-    result.RepeatedArgIndex = serialized.repeated_arg_index();
-
-    return result;
+    original->IsAggregate = serialized.is_aggregate();
+    original->Name = serialized.name();
+    original->SymbolName = serialized.symbol_name();
+    original->CallingConvention = ECallingConvention(serialized.calling_convention());
+    original->ChunkSpecs = FromProto<std::vector<NChunkClient::NProto::TChunkSpec>>(serialized.chunk_specs());
+    original->RepeatedArgType = ConvertTo<TDescriptorType>(NYson::TYsonString(serialized.repeated_arg_type())).Type;
+    original->RepeatedArgIndex = serialized.repeated_arg_index();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

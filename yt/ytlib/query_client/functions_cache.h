@@ -39,11 +39,11 @@ struct TExternalFunctionImpl
 };
 
 struct TExternalCGInfo
-    : public TRefCounted
-    , public std::vector<TExternalFunctionImpl>
+    : public TIntrinsicRefCounted
 {
     TExternalCGInfo();
 
+    std::vector<TExternalFunctionImpl> Functions;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
 };
 
@@ -108,7 +108,7 @@ void Deserialize(TDescriptorType& value, NYTree::INodePtr node);
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TExternalFunctionImpl* proto, const TExternalFunctionImpl& options);
-TExternalFunctionImpl FromProto(const NProto::TExternalFunctionImpl& serialized);
+void FromProto(TExternalFunctionImpl* original, const NProto::TExternalFunctionImpl& serialized);
 
 ////////////////////////////////////////////////////////////////////////////////
 

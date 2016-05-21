@@ -87,7 +87,7 @@ message TUserJobResult
 message TQuerySpec
 {
     required NYT.NQueryClient.NProto.TQuery query = 1;
-    repeated NYT.NQueryClient.NProto.TExternalFunctionImpl cg_info = 2;
+    repeated NYT.NQueryClient.NProto.TExternalFunctionImpl external_functions = 2;
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 3;
 }
 

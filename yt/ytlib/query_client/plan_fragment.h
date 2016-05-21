@@ -378,9 +378,8 @@ struct TQuery
             return !OrderClause && !GroupClause;
         } else {
             YCHECK(!OrderClause);
+            return false;
         }
-
-        return false;
     }
 
     TTableSchema GetTableSchema() const
