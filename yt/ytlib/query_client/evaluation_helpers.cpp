@@ -260,13 +260,12 @@ TJoinEvaluator GetJoinEvaluator(
         LOG_DEBUG("Executing subquery");
 
         auto pipe = New<NTableClient::TSchemafulPipe>();
-        context->ExecuteCallback(
-            subquery,
-            TDataRanges{
-                foreignDataId,
-                MakeSharedRange(std::move(ranges), std::move(permanentBuffer))
-            },
-            pipe->GetWriter());
+
+        TDataRanges dataSource;
+        dataSource.Id = foreignDataId;
+        dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(permanentBuffer));
+
+        context->ExecuteCallback(subquery, dataSource, pipe->GetWriter());
 
         // Join rowsets.
         // allRows have format (join key... , other columns...)

@@ -312,7 +312,8 @@ private:
                 auto lowerBound = range.first;
                 auto upperBound = range.second;
 
-                if (keySize == lowerBound.GetCount() &&
+                if (source.LookupSupported &&
+                    keySize == lowerBound.GetCount() &&
                     keySize + 1 == upperBound.GetCount() &&
                     upperBound[keySize].Type == EValueType::Max &&
                     CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + keySize) == 0)
@@ -324,14 +325,17 @@ private:
             }
 
             if (!rowRanges.empty()) {
-                rangesByTablePart.push_back({
-                    source.Id,
-                    MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder())});
+                TDataRanges item;
+                item.Id = source.Id;
+                item.Ranges = MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder());
+                item.LookupSupported = source.LookupSupported;
+                rangesByTablePart.emplace_back(std::move(item));
             }
             if (!keys.empty()) {
-                keysByTablePart.push_back({
-                    source.Id,
-                    MakeSharedRange(std::move(keys), source.Ranges.GetHolder())});
+                TDataKeys item;
+                item.Id = source.Id;
+                item.Keys = MakeSharedRange(std::move(keys), source.Ranges.GetHolder());
+                keysByTablePart.emplace_back(std::move(item));
             }
         }
 
