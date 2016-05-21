@@ -192,6 +192,58 @@ DEFINE_REFCOUNTED_TYPE(TJournalWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPersistentQueuePollerConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    //! Try to keep at most this many prefetched rows in memory. This limit is approximate.
+    int MaxPrefetchRowCount;
+
+    //! Try to keep at most this much prefetched data in memory. This limit is approximate.
+    i64 MaxPrefetchDataWeight;
+
+    //! The limit for the number of rows to be requested in a single background fetch request.
+    int MaxRowsPerFetch;
+
+    //! The limit for the number of rows to be returned by #TPersistentQueuePoller::Poll call.
+    int MaxRowsPerPoll;
+
+    //! How often the data table is to be polled.
+    TDuration DataPollPeriod;
+
+    //! How often the satte table is to be trimmed.
+    TDuration StateTrimPeriod;
+
+    //! For how long to backoff when a state conflict is detected.
+    TDuration BackoffTime;
+
+    TPersistentQueuePollerConfig()
+    {
+        RegisterParameter("max_prefetch_row_count", MaxPrefetchRowCount)
+            .GreaterThan(0)
+            .Default(1024);
+        RegisterParameter("max_prefetch_data_weight", MaxPrefetchDataWeight)
+            .GreaterThan(0)
+            .Default((i64) 16 * 1024 * 1024);
+        RegisterParameter("max_rows_per_fetch", MaxRowsPerFetch)
+            .GreaterThan(0)
+            .Default(512);
+        RegisterParameter("max_rows_per_poll", MaxRowsPerPoll)
+            .GreaterThan(0)
+            .Default(1);
+        RegisterParameter("data_poll_period", DataPollPeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("state_trim_period", StateTrimPeriod)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("backoff_time", BackoffTime)
+            .Default(TDuration::Seconds(5));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPersistentQueuePollerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NApi
 } // namespace NYT
 
