@@ -369,7 +369,7 @@ TConstExpressionPtr RefinePredicate(
             }
 
             auto rowBuffer = New<TRowBuffer>();
-            auto tempRow = TMutableUnversionedRow::Allocate(rowBuffer->GetPool(), keyColumns.size());
+            auto tempRow = rowBuffer->Allocate(keyColumns.size());
 
             auto inRange = [&, tempRow] (TRow literalTuple) mutable {
                 for (int tupleIndex = 0; tupleIndex < idMapping.size(); ++tupleIndex) {

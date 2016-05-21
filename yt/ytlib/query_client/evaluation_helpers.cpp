@@ -231,7 +231,7 @@ TJoinEvaluator GetJoinEvaluator(
             for (auto key : keys) {
                 auto lowerBound = key;
 
-                auto upperBound = TMutableRow::Allocate(permanentBuffer->GetPool(), keyPrefix + 1);
+                auto upperBound = permanentBuffer->Allocate(keyPrefix + 1);
                 for (int column = 0; column < keyPrefix; ++column) {
                     upperBound[column] = lowerBound[column];
                 }
@@ -302,7 +302,7 @@ TJoinEvaluator GetJoinEvaluator(
                     chainedRowIndex = chainedRows[chainedRowIndex].second)
                 {
                     auto row = chainedRows[chainedRowIndex].first;
-                    auto joinedRow = TMutableRow::Allocate(intermediateBuffer->GetPool(), columnMapping.size());
+                    auto joinedRow = intermediateBuffer->Allocate(columnMapping.size());
 
                     for (size_t column = 0; column < columnMapping.size(); ++column) {
                         const auto& joinedColumn = columnMapping[column];
@@ -351,7 +351,7 @@ TJoinEvaluator GetJoinEvaluator(
                     chainedRowIndex = chainedRows[chainedRowIndex].second)
                 {
                     auto row = chainedRows[chainedRowIndex].first;
-                    auto joinedRow = TMutableRow::Allocate(intermediateBuffer->GetPool(), columnMapping.size());
+                    auto joinedRow = intermediateBuffer->Allocate(columnMapping.size());
 
                     for (size_t column = 0; column < columnMapping.size(); ++column) {
                         const auto& joinedColumn = columnMapping[column];

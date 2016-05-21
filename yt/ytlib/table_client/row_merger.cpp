@@ -66,7 +66,7 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
 
     if (!Started_) {
         if (!MergedRow_) {
-            MergedRow_ = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), ColumnIds_.size());
+            MergedRow_ = RowBuffer_->Allocate(ColumnIds_.size());
         }
 
         const auto* keyBegin = row.BeginKeys();
@@ -232,7 +232,7 @@ TUnversionedRowMerger::TUnversionedRowMerger(
 void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
 {
     if (!Started_) {
-        MergedRow_ = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), ColumnCount_);
+        MergedRow_ = RowBuffer_->Allocate(ColumnCount_);
 
         for (int index = 0; index < ColumnCount_; ++index) {
             if (index < KeyColumnCount_) {
@@ -318,7 +318,7 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
     if (fullRow) {
         mergedRow = MergedRow_;
     } else {
-        mergedRow = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), ColumnCount_);
+        mergedRow = RowBuffer_->Allocate(ColumnCount_);
         int currentIndex = 0;
         for (int index = 0; index < MergedRow_.GetCount(); ++index) {
             if (ValidValues_[index]) {

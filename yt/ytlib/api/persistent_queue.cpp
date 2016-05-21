@@ -646,7 +646,7 @@ private:
                 auto rowBuffer = New<TRowBuffer>();
                 std::vector<TUnversionedRow> rows;
                 for (i64 rowIndex = batch.BeginRowIndex; rowIndex < batch.EndRowIndex; ++rowIndex) {
-                    auto row = TMutableUnversionedRow::Allocate(rowBuffer->GetPool(), 3);
+                    auto row = rowBuffer->Allocate(3);
                     row[0] = MakeUnversionedInt64Value(batch.TabletIndex, tabletIndexColumnId);
                     row[1] = MakeUnversionedInt64Value(rowIndex, rowIndexColumnId);
                     row[2] = MakeUnversionedInt64Value(static_cast<int>(ERowState::Consumed), stateColumnId);
@@ -747,7 +747,7 @@ private:
 
                     std::vector<TUnversionedRow> deleteKeys;
                     for (i64 rowIndex = statistics.LastTrimmedRowIndex; rowIndex < trimRowIndex; ++rowIndex) {
-                        auto key = TMutableUnversionedRow::Allocate(rowBuffer->GetPool(), 2);
+                        auto key = rowBuffer->Allocate(2);
                         key[0] = MakeUnversionedInt64Value(tabletIndex, tabletIndexColumnId);
                         key[1] = MakeUnversionedInt64Value(rowIndex, rowIndexColumnId);
                         deleteKeys.push_back(key);
@@ -759,7 +759,7 @@ private:
 
                     std::vector<TUnversionedRow> writeRows;
                     {
-                        auto row = TMutableUnversionedRow::Allocate(rowBuffer->GetPool(), 3);
+                        auto row = rowBuffer->Allocate(3);
                         row[0] = MakeUnversionedInt64Value(tabletIndex, tabletIndexColumnId);
                         row[1] = MakeUnversionedInt64Value(trimRowIndex, rowIndexColumnId);
                         row[2] = MakeUnversionedInt64Value(static_cast<int>(ERowState::ConsumedAndTrimmed), stateColumnId);

@@ -22,6 +22,11 @@ TChunkedMemoryPool* TRowBuffer::GetPool()
     return &Pool_;
 }
 
+TMutableUnversionedRow TRowBuffer::Allocate(int count)
+{
+    return TMutableUnversionedRow::Allocate(&Pool_, count);
+}
+
 void TRowBuffer::Capture(TUnversionedValue* value)
 {
     if (IsStringLikeType(value->Type)) {

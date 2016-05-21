@@ -581,7 +581,7 @@ private:
             Skip(nullBitmap.GetByteSize());
         }
 
-        auto row = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), valueCount);
+        auto row = RowBuffer_->Allocate(valueCount);
         for (int index = 0; index < valueCount; ++index) {
             ReadRowValue<Schemaful>(&row[index], schemaData, nullBitmap, index);
         }
