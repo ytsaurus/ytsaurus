@@ -23,8 +23,13 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const i64 PoolChunkSize = 32 * 1024;
-const i64 BufferLimit = 32 * PoolChunkSize;
+static const i64 PoolChunkSize = 32 * 1024;
+static const i64 BufferLimit = 32 * PoolChunkSize;
+
+struct TTopCollectorBufferTag
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
 
 TTopCollector::TTopCollector(i64 limit, TComparerFunction* comparer)
     : Comparer_(comparer)
@@ -43,7 +48,7 @@ std::pair<TMutableRow, int> TTopCollector::Capture(TRow row)
                 buffersToRows[Rows_[rowId].second].push_back(rowId);
             }
 
-            auto buffer = New<TRowBuffer>(PoolChunkSize);
+            auto buffer = New<TRowBuffer>(TTopCollectorBufferTag(), PoolChunkSize);
 
             TotalMemorySize_ = 0;
             AllocatedMemorySize_ = 0;
@@ -70,7 +75,7 @@ std::pair<TMutableRow, int> TTopCollector::Capture(TRow row)
         } else {
             // Allocate buffer and add to emptyBufferIds.
             EmptyBufferIds_.push_back(Buffers_.size());
-            Buffers_.push_back(New<TRowBuffer>(PoolChunkSize));
+            Buffers_.push_back(New<TRowBuffer>(TTopCollectorBufferTag(), PoolChunkSize));
         }
     }
 

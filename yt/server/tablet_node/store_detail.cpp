@@ -219,6 +219,9 @@ TOrderedChunkStorePtr TStoreBase::AsOrderedChunk()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDynamicStoreBufferTag
+{ };
+
 TDynamicStoreBase::TDynamicStoreBase(
     TTabletManagerConfigPtr config,
     const TStoreId& id,
@@ -226,6 +229,7 @@ TDynamicStoreBase::TDynamicStoreBase(
     : TStoreBase(std::move(config), id, tablet)
     , Atomicity_(Tablet_->GetAtomicity())
     , RowBuffer_(New<TRowBuffer>(
+        TDynamicStoreBufferTag(),
         Config_->PoolChunkSize,
         Config_->MaxPoolSmallBlockRatio))
 {

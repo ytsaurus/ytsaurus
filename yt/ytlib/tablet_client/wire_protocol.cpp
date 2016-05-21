@@ -24,10 +24,14 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TWireProtocolReaderPoolTag { };
+struct TWireProtocolReaderBufferTag
+{ };
+
+struct TWireProtocolWriterChunkTag
+{ };
+
 static const size_t ReaderChunkSize = 16384;
 
-struct TWireProtocolWriterChunkTag { };
 static const size_t WriterInitialBufferCapacity = 1024;
 static const size_t PreallocateBlockSize = 4096;
 
@@ -476,7 +480,7 @@ private:
     TIterator Current_;
 
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(
-        TWireProtocolReaderPoolTag{},
+        TWireProtocolReaderBufferTag(),
         ReaderChunkSize);
 
 

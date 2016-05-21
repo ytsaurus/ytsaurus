@@ -931,7 +931,7 @@ private:
     {
         auto Logger = BuildLogger(query);
 
-        auto rowBuffer = New<TRowBuffer>(TQueryHelperRowBufferTag{});
+        auto rowBuffer = New<TRowBuffer>(TQueryHelperRowBufferTag());
         auto allSplits = InferRanges(
             query,
             dataSource,
@@ -1769,7 +1769,7 @@ private:
         std::vector<std::pair<NTableClient::TKey, int>> sortedKeys;
         sortedKeys.reserve(keys.Size());
 
-        auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag{});
+        auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag());
         auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
         auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
 
@@ -3000,7 +3000,7 @@ private:
     struct TTransactionBufferTag
     { };
 
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TTransactionBufferTag{});
+    TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TTransactionBufferTag());
 
     TFuture<void> Outcome_;
 
@@ -3249,7 +3249,7 @@ private:
         { };
 
         TColumnEvaluatorPtr ColumnEvaluator_;
-        TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TCommitSessionBufferTag{});
+        TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TCommitSessionBufferTag());
 
         NLogging::TLogger Logger;
 

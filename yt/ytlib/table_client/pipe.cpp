@@ -10,12 +10,15 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSchemafulPipeBufferTag
+{ };
+
 struct TSchemafulPipe::TData
     : public TIntrinsicRefCounted
 {
     TSpinLock SpinLock;
 
-    const TRowBufferPtr RowBuffer = New<TRowBuffer>();
+    const TRowBufferPtr RowBuffer = New<TRowBuffer>(TSchemafulPipeBufferTag());
     TRingQueue<TUnversionedRow> RowQueue;
 
     TPromise<void> ReaderReadyEvent;

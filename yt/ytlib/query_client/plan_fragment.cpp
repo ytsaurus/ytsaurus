@@ -617,9 +617,13 @@ TDataRanges FromProto(const NProto::TDataRanges& serialized)
 
     result.Id = FromProto<TObjectId>(serialized.id());
 
-    auto rowBuffer = New<TRowBuffer>();
+    struct TDataRangesBufferTag
+    { };
+
+    auto rowBuffer = New<TRowBuffer>(TDataRangesBufferTag());
+
     TRowRanges ranges;
-    NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(serialized.ranges()));
+    NTabletClient::TWireProtocolReader reader(TSharedRef::FromString<TDataRangesBufferTag>(serialized.ranges()));
     while (!reader.IsFinished()) {
         auto lowerBound = rowBuffer->Capture(reader.ReadUnversionedRow());
         auto upperBound = rowBuffer->Capture(reader.ReadUnversionedRow());

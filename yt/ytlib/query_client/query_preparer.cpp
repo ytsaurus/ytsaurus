@@ -26,6 +26,9 @@ using namespace NTableClient;
 static const auto& Logger = QueryClientLogger;
 static const int PlanFragmentDepthLimit = 50;
 
+struct TQueryPreparerBufferTag
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef std::pair<NAst::TQuery, NAst::TAliasMap> TParsedQueryInfo;
@@ -754,7 +757,7 @@ protected:
         const std::vector<EValueType>& argTypes,
         const TStringBuf& source)
     {
-        auto rowBuffer = New<TRowBuffer>();
+        auto rowBuffer = New<TRowBuffer>(TQueryPreparerBufferTag());
         TUnversionedRowBuilder rowBuilder;
         std::vector<TRow> rows;
         for (const auto& tuple : literalTuples) {
@@ -1748,7 +1751,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     auto range = GetBothBoundsFromDataSplit(selfDataSplit);
 
     SmallVector<TRowRange, 1> rowRanges;
-    TRowBufferPtr buffer = New<TRowBuffer>();
+    TRowBufferPtr buffer = New<TRowBuffer>(TQueryPreparerBufferTag());
     rowRanges.push_back({
         buffer->Capture(range.first.Get()),
         buffer->Capture(range.second.Get())});

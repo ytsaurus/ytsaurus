@@ -36,6 +36,9 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSchemalessBufferedTableWriterBufferTag
+{ };
+
 namespace {
 
 class TBuffer
@@ -68,7 +71,7 @@ public:
     }
 
 private:
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemalessBufferedTableWriterBufferTag());
 
 };
 
@@ -76,11 +79,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBufferedTableWriter
+class TSchemalessBufferedTableWriter
     : public ISchemalessWriter
 {
 public:
-    TBufferedTableWriter(
+    TSchemalessBufferedTableWriter(
         TBufferedTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         IClientPtr client,
@@ -93,7 +96,7 @@ public:
         , Path_(path)
         , FlushExecutor_(New<TPeriodicExecutor>(
             NChunkClient::TDispatcher::Get()->GetWriterInvoker(),
-            BIND(&TBufferedTableWriter::OnPeriodicFlush, Unretained(this)), Config_->FlushPeriod))
+            BIND(&TSchemalessBufferedTableWriter::OnPeriodicFlush, Unretained(this)), Config_->FlushPeriod))
     {
         EmptyBuffers_.push(Buffers_);
         EmptyBuffers_.push(Buffers_ + 1);
@@ -209,7 +212,7 @@ private:
             buffer->GetIndex());
 
         NChunkClient::TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
-            &TBufferedTableWriter::FlushBuffer,
+            &TSchemalessBufferedTableWriter::FlushBuffer,
             MakeWeak(this),
             buffer));
     }
@@ -217,7 +220,7 @@ private:
     void ScheduleDelayedRetry(TBuffer* buffer)
     {
         TDelayedExecutor::Submit(
-            BIND(&TBufferedTableWriter::ScheduleBufferFlush, MakeWeak(this), buffer),
+            BIND(&TSchemalessBufferedTableWriter::ScheduleBufferFlush, MakeWeak(this), buffer),
             Config_->RetryBackoffTime);
     }
 
@@ -278,7 +281,7 @@ ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
     TNameTablePtr nameTable,
     const TYPath& path)
 {
-    return New<TBufferedTableWriter>(
+    return New<TSchemalessBufferedTableWriter>(
         config,
         options,
         client,

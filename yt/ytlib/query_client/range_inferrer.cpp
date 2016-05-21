@@ -734,7 +734,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
     ui64 rangeExpansionLimit,
     bool verboseLogging)
 {
-    auto buffer = New<TRowBuffer>(TRangeInferrerBufferTag{});
+    auto buffer = New<TRowBuffer>(TRangeInferrerBufferTag());
     auto keySize = renamedKeyColumns.size();
 
     auto evaluator = evaluatorCache->Find(schema);
@@ -816,7 +816,7 @@ TRangeInferrer CreateLightRangeInferrer(
     const TConstRangeExtractorMapPtr& rangeExtractors,
     bool verboseLogging)
 {
-    auto keyTrieBuffer = New<TRowBuffer>(TRangeInferrerBufferTag{});
+    auto keyTrieBuffer = New<TRowBuffer>(TRangeInferrerBufferTag());
     auto keyTrie = ExtractMultipleConstraints(
         predicate,
         keyColumns,

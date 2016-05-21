@@ -116,6 +116,9 @@ struct TDataSourceFormatter
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueryExecutorBufferTag
+{ };
+
 class TQueryExecutor
     : public ISubExecutor
 {
@@ -341,7 +344,7 @@ private:
 
         LOG_DEBUG("Splitting sources");
 
-        auto rowBuffer = New<TRowBuffer>();
+        auto rowBuffer = New<TRowBuffer>(TQueryExecutorBufferTag());
         auto splits = Split(std::move(rangesByTablePart), rowBuffer, Logger, options.VerboseLogging);
         int splitCount = splits.size();
         int splitOffset = 0;
@@ -470,7 +473,7 @@ private:
 
         auto Logger = BuildLogger(query);
 
-        auto rowBuffer = New<TRowBuffer>();
+        auto rowBuffer = New<TRowBuffer>(TQueryExecutorBufferTag());
         auto splits = Split(dataSources, rowBuffer, Logger, options.VerboseLogging);
 
         LOG_DEBUG("Sorting %v splits", splits.size());
