@@ -19,6 +19,11 @@ using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPlanHelpersBufferTag
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
 TKeyTriePtr ExtractMultipleConstraints(
     TConstExpressionPtr expr,
     const TKeyColumns& keyColumns,
@@ -368,7 +373,7 @@ TConstExpressionPtr RefinePredicate(
                 }
             }
 
-            auto rowBuffer = New<TRowBuffer>();
+            auto rowBuffer = New<TRowBuffer>(TPlanHelpersBufferTag());
             auto tempRow = rowBuffer->Allocate(keyColumns.size());
 
             auto inRange = [&, tempRow] (TRow literalTuple) mutable {

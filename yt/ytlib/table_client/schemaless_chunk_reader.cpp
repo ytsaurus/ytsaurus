@@ -1048,8 +1048,11 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             AsyncLastCommittedTimestamp);
     };
 
+    struct TSchemalessMergingMultiChunkReaderBufferTag
+    { };
+
     auto rowMerger = New<TSchemafulRowMerger>(
-        New<TRowBuffer>(),
+        New<TRowBuffer>(TSchemalessMergingMultiChunkReaderBufferTag()),
         tableSchema.Columns().size(),
         tableSchema.GetKeyColumnCount(),
         columnFilter,

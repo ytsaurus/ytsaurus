@@ -123,7 +123,7 @@ private:
     struct TSchemafulRowsetWriterBufferTag
     { };
 
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemafulRowsetWriterBufferTag{});
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemafulRowsetWriterBufferTag());
 
 };
 

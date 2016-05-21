@@ -28,6 +28,9 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPersistentQueuePollerBufferTag
+{ };
+
 namespace {
 
 DEFINE_ENUM(ERowState,
@@ -643,7 +646,7 @@ private:
                 auto rowIndexColumnId = nameTable->RegisterName(TStateTable::RowIndexColumnName);
                 auto stateColumnId = nameTable->RegisterName(TStateTable::StateColumnName);
 
-                auto rowBuffer = New<TRowBuffer>();
+                auto rowBuffer = New<TRowBuffer>(TPersistentQueuePollerBufferTag());
                 std::vector<TUnversionedRow> rows;
                 for (i64 rowIndex = batch.BeginRowIndex; rowIndex < batch.EndRowIndex; ++rowIndex) {
                     auto row = rowBuffer->Allocate(3);
@@ -743,7 +746,7 @@ private:
                 }
 
                 if (trimRowIndex > statistics.LastTrimmedRowIndex) {
-                    auto rowBuffer = New<TRowBuffer>();
+                    auto rowBuffer = New<TRowBuffer>(TPersistentQueuePollerBufferTag());
 
                     std::vector<TUnversionedRow> deleteKeys;
                     for (i64 rowIndex = statistics.LastTrimmedRowIndex; rowIndex < trimRowIndex; ++rowIndex) {

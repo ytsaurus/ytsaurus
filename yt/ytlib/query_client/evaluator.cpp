@@ -98,9 +98,9 @@ public:
 
                 LOG_DEBUG("Evaluating plan fragment");
 
-                auto permanentBuffer = New<TRowBuffer>(TEvaluatorBufferTag{});
-                auto outputBuffer = New<TRowBuffer>(TEvaluatorBufferTag{});
-                auto intermediateBuffer = New<TRowBuffer>(TEvaluatorBufferTag{});
+                auto permanentBuffer = New<TRowBuffer>(TEvaluatorBufferTag());
+                auto outputBuffer = New<TRowBuffer>(TEvaluatorBufferTag());
+                auto intermediateBuffer = New<TRowBuffer>(TEvaluatorBufferTag());
 
                 std::vector<TRow> outputBatchRows;
                 outputBatchRows.reserve(RowsetProcessingSize);

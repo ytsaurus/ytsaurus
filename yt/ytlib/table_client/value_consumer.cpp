@@ -119,10 +119,13 @@ void TBuildingValueConsumer::OnEndRow()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TWritingValueConsumerBufferTag
+{ };
+
 TWritingValueConsumer::TWritingValueConsumer(ISchemalessWriterPtr writer, bool flushImmediately)
     : Writer_(writer)
     , FlushImmediately_(flushImmediately)
-    , RowBuffer_(New<TRowBuffer>())
+    , RowBuffer_(New<TRowBuffer>(TWritingValueConsumerBufferTag()))
 {
     YCHECK(Writer_);
 }

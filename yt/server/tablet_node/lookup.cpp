@@ -36,6 +36,8 @@ static const int BufferCapacity = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLookupSessionBufferTag { };
+
 class TLookupSession
 {
 public:
@@ -151,7 +153,7 @@ private:
     const int KeyColumnCount_;
     const int SchemaColumnCount_;
 
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TLookupSessionBufferTag());
 
     TSharedRange<TUnversionedRow> LookupKeys_;
 
