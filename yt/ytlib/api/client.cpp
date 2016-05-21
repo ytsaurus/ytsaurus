@@ -2794,6 +2794,17 @@ public:
     }
 
 
+    virtual void SubscribeCommitted(const TClosure& callback) override
+    {
+        Transaction_->SubscribeCommitted(callback);
+    }
+
+    virtual void UnsubscribeCommitted(const TClosure& callback) override
+    {
+        Transaction_->UnsubscribeCommitted(callback);
+    }
+
+
     virtual void SubscribeAborted(const TClosure& callback) override
     {
         Transaction_->SubscribeAborted(callback);
