@@ -51,6 +51,7 @@ struct ITransaction
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions()) = 0;
     virtual void Detach() = 0;
 
+    DECLARE_INTERFACE_SIGNAL(void(), Committed);
     DECLARE_INTERFACE_SIGNAL(void(), Aborted);
 
     // Tables

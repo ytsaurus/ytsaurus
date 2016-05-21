@@ -102,6 +102,12 @@ public:
     TFuture<void> AddTabletParticipant(const NElection::TCellId& cellId);
 
 
+    //! Raised when the transaction is committed.
+    /*!
+     *  \note Thread affinity: any
+     */
+    DECLARE_SIGNAL(void(), Committed);
+
     //! Raised when the transaction is aborted.
     /*!
      *  \note Thread affinity: any

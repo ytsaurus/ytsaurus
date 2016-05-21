@@ -112,12 +112,6 @@ class TTransaction::TImpl
 public:
     explicit TImpl(TIntrusivePtr<TTransactionManager::TImpl> owner)
         : Owner_(owner)
-        , AutoAbort_(false)
-        , Ping_(false)
-        , PingAncestors_(false)
-        , State_(ETransactionState::Initializing)
-        , Aborted_(NewPromise<void>())
-        , StartTimestamp_(NullTimestamp)
     { }
 
     ~TImpl()
@@ -221,16 +215,7 @@ public:
                 case EAtomicity::Full: {
                     auto participantGuids = GetParticipantIds();
                     if (participantGuids.empty()) {
-                        {
-                            TGuard<TSpinLock> guard(SpinLock_);
-                            if (State_ != ETransactionState::Committing) {
-                                Error_.ThrowOnError();
-                            }
-                            State_ = ETransactionState::Committed;
-                        }
-
-                        LOG_INFO("Trivial transaction committed (TransactionId: %v)",
-                            Id_);
+                        SetTransactionCommitted();
                         return VoidFuture;
                     }
 
@@ -431,22 +416,33 @@ public:
     }
 
 
+    void SubscribeCommitted(const TCallback<void()>& handler)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        Committed_.Subscribe(handler);
+    }
+
+    void UnsubscribeCommitted(const TCallback<void()>& handler)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        Committed_.Unsubscribe(handler);
+    }
+
+
     void SubscribeAborted(const TCallback<void()>& handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        Aborted_.ToFuture().Subscribe(BIND([=] (const TError& error) {
-            if (error.IsOK()) {
-                handler.Run();
-            }
-        }));
+        Aborted_.Subscribe(handler);
     }
 
     void UnsubscribeAborted(const TCallback<void()>& handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YUNREACHABLE();
+        Aborted_.Unsubscribe(handler);
     }
 
 private:
@@ -454,17 +450,18 @@ private:
 
     TIntrusivePtr<TTransactionManager::TImpl> Owner_;
     ETransactionType Type_;
-    bool AutoAbort_;
+    bool AutoAbort_ = false;
     TNullable<TDuration> PingPeriod_;
-    bool Ping_;
-    bool PingAncestors_;
+    bool Ping_ = false;
+    bool PingAncestors_ = false;
     TNullable<TDuration> Timeout_;
     EAtomicity Atomicity_ = EAtomicity::Full;
     EDurability Durability_ = EDurability::Sync;
 
     TSpinLock SpinLock_;
-    ETransactionState State_;
-    TPromise<void> Aborted_;
+    ETransactionState State_ = ETransactionState::Initializing;
+    TSingleShotCallbackList<void()> Committed_;
+    TSingleShotCallbackList<void()> Aborted_;
     yhash_map<TCellId, TPromise<void>> CellIdToStartTransactionResult_;
     TError Error_;
 
@@ -693,6 +690,11 @@ private:
         promise.Set(rspOrError);
     }
 
+    void FireCommitted()
+    {
+        Committed_.Fire();
+    }
+
     void SetTransactionCommitted()
     {
         {
@@ -702,6 +704,8 @@ private:
             }
             State_ = ETransactionState::Committed;
         }
+
+        FireCommitted();
 
         LOG_INFO("Transaction committed (TransactionId: %v)",
             Id_);
@@ -858,7 +862,7 @@ private:
 
     void FireAborted()
     {
-        Aborted_.Set();
+        Aborted_.Fire();
     }
 
     void DoAbort(const TError& error)
@@ -888,7 +892,6 @@ private:
         }
         return result;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1018,6 +1021,7 @@ TFuture<void> TTransaction::AddTabletParticipant(const TCellId& cellId)
     return Impl_->AddTabletParticipant(cellId);
 }
 
+DELEGATE_SIGNAL(TTransaction, void(), Committed, *Impl_);
 DELEGATE_SIGNAL(TTransaction, void(), Aborted, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
