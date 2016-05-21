@@ -32,6 +32,7 @@ protected:
 
     // ISystemAttributeProvider overrides
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
+    virtual const yhash_set<const char*>& GetBuiltinAttributeKeys() override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
@@ -40,6 +41,8 @@ protected:
 
 private:
     const INodePtr OwningNode_;
+
+    TBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
 
 };
 

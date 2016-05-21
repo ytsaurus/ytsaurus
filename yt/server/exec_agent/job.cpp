@@ -287,6 +287,23 @@ public:
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error sending signal to job proxy");
     }
 
+    virtual TYsonString PollJobShell(const TYsonString& parameters) override
+    {
+        ValidateJobRunning();
+
+        auto jobProberProxy = CreateJobProber();
+        auto req = jobProberProxy.PollJobShell();
+
+        ToProto(req->mutable_job_id(), Id_);
+        ToProto(req->mutable_parameters(), parameters.Data());
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error polling job shell");
+        const auto& rsp = rspOrError.Value();
+
+        return TYsonString(rsp->result());
+    }
+
+
 private:
     const TJobId Id_;
     const TOperationId OperationId_;
@@ -493,6 +510,9 @@ private:
         proxyConfig->JobIO = ioConfig;
         proxyConfig->UserId = Slot_->GetUserId();
         proxyConfig->RpcServer = Slot_->GetRpcServerConfig();
+        proxyConfig->Rack = Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetRack();
+        proxyConfig->Addresses = Bootstrap_->GetMasterConnector()->GetLocalDescriptor().Addresses();
+
         if (schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().has_tmpfs_size()) {
             proxyConfig->TmpfsPath = Slot_->GetTmpfsPath(ESandboxKind::User, schedulerJobSpecExt.user_job_spec().tmpfs_path());
         }
@@ -753,7 +773,8 @@ private:
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterNotConnected) ||
-            resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed))
+            resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed) ||
+            resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed))
         {
             return EAbortReason::Other;
         }

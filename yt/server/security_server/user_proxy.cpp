@@ -20,8 +20,11 @@ class TUserProxy
     : public TSubjectProxy<TUser>
 {
 public:
-    TUserProxy(NCellMaster::TBootstrap* bootstrap, TUser* user)
-        : TBase(bootstrap, user)
+    TUserProxy(
+        NCellMaster::TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
+        TUser* user)
+        : TBase(bootstrap, metadata, user)
     { }
 
 private:
@@ -143,14 +146,14 @@ private:
 
         return TBase::SetBuiltinAttribute(key, value);
     }
-
 };
 
 IObjectProxyPtr CreateUserProxy(
     NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TUser* user)
 {
-    return New<TUserProxy>(bootstrap, user);
+    return New<TUserProxy>(bootstrap, metadata, user);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

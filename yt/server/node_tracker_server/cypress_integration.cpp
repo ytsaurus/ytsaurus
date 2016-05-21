@@ -50,11 +50,13 @@ public:
     TClusterNodeNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
         TTransaction* transaction,
         TMapNode* trunkNode)
         : TMapNodeProxy(
             typeHandler,
             bootstrap,
+            metadata,
             transaction,
             trunkNode)
     { }
@@ -96,7 +98,6 @@ private:
         auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(node, nullptr);
     }
-
 };
 
 class TClusterNodeNodeTypeHandler
@@ -120,10 +121,10 @@ private:
         return New<TClusterNodeNodeProxy>(
             this,
             Bootstrap_,
+            &Metadata_,
             transaction,
             trunkNode);
     }
-
 };
 
 INodeTypeHandlerPtr CreateClusterNodeNodeTypeHandler(TBootstrap* bootstrap)
@@ -140,11 +141,13 @@ public:
     TClusterNodeMapProxy(
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
         TTransaction* transaction,
         TMapNode* trunkNode)
         : TMapNodeProxy(
             typeHandler,
             bootstrap,
+            metadata,
             transaction,
             trunkNode)
     { }
@@ -249,10 +252,10 @@ private:
         return New<TClusterNodeMapProxy>(
             this,
             Bootstrap_,
+            &Metadata_,
             transaction,
             trunkNode);
     }
-
 };
 
 INodeTypeHandlerPtr CreateClusterNodeMapTypeHandler(TBootstrap* bootstrap)

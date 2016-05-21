@@ -541,9 +541,12 @@ private:
         try {
             TSessionCounterGuard sessionCounterGuard(location);
 
+            auto options = New<TRemoteReaderOptions>();
+            options->EnableP2P = true;
+
             auto chunkReader = CreateReplicationReader(
                 Config_->ArtifactCacheReader,
-                New<TRemoteReaderOptions>(),
+                options,
                 Bootstrap_->GetMasterClient(),
                 nodeDirectory,
                 Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
@@ -634,10 +637,14 @@ private:
     {
         std::vector<TChunkSpec> chunkSpecs(key.chunks().begin(), key.chunks().end());
 
+        auto options = New<TMultiChunkReaderOptions>();
+        options->EnableP2P = true;
+
         auto reader = CreateFileMultiChunkReader(
             Config_->ArtifactCacheReader,
-            New<TMultiChunkReaderOptions>(),
+            options,
             Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
             chunkSpecs,
@@ -684,10 +691,14 @@ private:
         std::vector<TChunkSpec> chunkSpecs;
         chunkSpecs.insert(chunkSpecs.end(), key.chunks().begin(), key.chunks().end());
 
+        auto options = New<NTableClient::TTableReaderOptions>();
+        options->EnableP2P = true;
+
         auto reader = CreateSchemalessSequentialMultiChunkReader(
             Config_->ArtifactCacheReader,
-            New<NTableClient::TTableReaderOptions>(),
+            options,
             Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
             std::move(chunkSpecs),

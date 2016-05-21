@@ -27,10 +27,11 @@ public:
     const Stroka& GetLiteralValue() const;
 
     void Expect(ETokenType expectedType);
+    void Skip(ETokenType expectedType);
     void ThrowUnexpected();
 
 private:
-    TYPath Path_;
+    const TYPath Path_;
 
     ETokenType Type_;
     TStringBuf Token_;

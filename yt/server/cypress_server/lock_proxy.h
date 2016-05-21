@@ -15,6 +15,7 @@ namespace NCypressServer {
 
 NObjectServer::IObjectProxyPtr CreateLockProxy(
     NCellMaster::TBootstrap* bootstrap,
+    NObjectServer::TObjectTypeMetadata* metadata,
     TLock* lock);
 
 ////////////////////////////////////////////////////////////////////////////////

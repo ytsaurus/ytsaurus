@@ -88,9 +88,7 @@ public:
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
-        const TWorkloadDescriptor& workloadDescriptor,
-        NChunkClient::IBlockCachePtr blockCache,
-        bool populateCache);
+        const TBlockReadOptions& options);
 
     //! Asynchronously reads a set of blocks from the store.
     /*!
@@ -102,9 +100,7 @@ public:
     TFuture<std::vector<TSharedRef>> ReadBlockSet(
         const TChunkId& chunkId,
         const std::vector<int>& blockIndexes,
-        const TWorkloadDescriptor& workloadDescriptor,
-        NChunkClient::IBlockCachePtr blockCache,
-        bool populateCache);
+        const TBlockReadOptions& options);
 
     //! Gets a vector of all blocks stored in the cache. Thread-safe.
     std::vector<TCachedBlockPtr> GetAllBlocks() const;

@@ -26,6 +26,8 @@
 #include <yt/ytlib/query_client/query_statistics.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 
+#include <yt/ytlib/shell/manager.h>
+
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaful_reader_adapter.h>
@@ -84,6 +86,7 @@ using namespace NQueryClient;
 using namespace NExecAgent;
 using namespace NYPath;
 using namespace NJobTrackerClient;
+using namespace NShell;
 
 using NJobTrackerClient::NProto::TJobResult;
 using NJobTrackerClient::NProto::TJobSpec;
@@ -134,6 +137,10 @@ public:
             AuxQueue_->GetInvoker(),
             BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
             Config_->BlockIOWatchdogPeriod))
+        , ShellManager_(CreateShellManager(
+            NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Home]),
+            Config_->UserId,
+            TNullable<Stroka>(Config_->EnableCGroups, Freezer_.GetFullPath())))
         , Logger(Host_->GetLogger())
     { }
 
@@ -273,6 +280,8 @@ private:
     const TPeriodicExecutorPtr MemoryWatchdogExecutor_;
     const TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
 
+    IShellManagerPtr ShellManager_;
+
     const NLogging::TLogger Logger;
 
     std::vector<TBlockIO::TStatisticsItem> LastServicedIOs_;
@@ -304,12 +313,16 @@ private:
         formatter.AddProperty("SandboxPath", NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::User]));
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
-            Process_->AddArguments({"--env", formatter.Format(UserJobSpec_.environment(i))});
+            auto var = formatter.Format(UserJobSpec_.environment(i));
+            Process_->AddArguments({"--env", var});
+            ShellManager_->AddEnvironment(var);
         }
     }
 
     void CleanupUserProcesses()
     {
+        ShellManager_->CleanupProcesses();
+
         if (!Config_->EnableCGroups) {
             return;
         }
@@ -317,13 +330,7 @@ private:
         try {
             // Kill everything for sanity reasons: main user process completed,
             // but its children may still be alive.
-            Stroka freezerFullPath;
-            {
-                TGuard<TSpinLock> guard(FreezerLock_);
-                freezerFullPath = Freezer_.GetFullPath();
-            }
-
-            RunKiller(freezerFullPath);
+            RunKiller(Freezer_.GetFullPath());
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to clean up user processes");
         }
@@ -480,10 +487,17 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error running job signaler tool");
     }
 
+    virtual TYsonString PollJobShell(const TYsonString& parameters) override
+    {
+        ValidatePrepared();
+
+        return ShellManager_->PollJobShell(parameters);
+    }
+
     void ValidatePrepared()
     {
         if (!Prepared_) {
-            THROW_ERROR_EXCEPTION("Cannot dump job context: job pipes haven't been prepared yet");
+            THROW_ERROR_EXCEPTION("Cannot operate on job: job has not been prepared yet");
         }
     }
 
@@ -741,7 +755,6 @@ private:
 
     void PrepareCGroups()
     {
-#ifdef _linux_
         if (!Config_->EnableCGroups) {
             return;
         }
@@ -776,7 +789,6 @@ private:
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to create required cgroups");
         }
-#endif
     }
 
     void AddCustomStatistics(const INodePtr& sample)
@@ -847,7 +859,7 @@ private:
             statistics.AddSample("/user_job/woodpecker", IsWoodpecker_ ? 1 : 0);
         }
 
-        statistics.AddSample("/user_job/memory_limit", UserJobSpec_.memory_limit()); 
+        statistics.AddSample("/user_job/memory_limit", UserJobSpec_.memory_limit());
 
         return statistics;
     }
@@ -968,48 +980,55 @@ private:
             return;
         }
 
-        i64 rss = GetMemoryUsageByUid(*Config_->UserId);
+        try {
+            i64 rss = GetMemoryUsageByUid(*Config_->UserId);
 
-        if (Memory_.IsCreated()) {
-            auto statistics = Memory_.GetStatistics();
+            if (Memory_.IsCreated()) {
+                auto statistics = Memory_.GetStatistics();
 
-            i64 uidRss = rss;
-            rss = UserJobSpec_.include_memory_mapped_files() ? statistics.MappedFile : 0;
-            rss += statistics.Rss;
+                i64 uidRss = rss;
+                rss = UserJobSpec_.include_memory_mapped_files() ? statistics.MappedFile : 0;
+                rss += statistics.Rss;
 
-            if (rss > 1.05 * uidRss && uidRss > 0) {
-                LOG_ERROR("Memory usage measured by cgroup is much greater than via procfs: %v > %v",
-                    rss,
-                    uidRss);
+                if (rss > 1.05 * uidRss && uidRss > 0) {
+                    LOG_ERROR("Memory usage measured by cgroup is much greater than via procfs: %v > %v",
+                        rss,
+                        uidRss);
+                }
             }
-        }
 
-        i64 tmpfsSize = 0;
-        if (Config_->TmpfsPath) {
-            auto diskSpaceStatistics = NFS::GetDiskSpaceStatistics(*Config_->TmpfsPath);
-            tmpfsSize = diskSpaceStatistics.TotalSpace - diskSpaceStatistics.AvailableSpace;
-        }
+            i64 tmpfsSize = 0;
+            if (Config_->TmpfsPath) {
+                auto diskSpaceStatistics = NFS::GetDiskSpaceStatistics(*Config_->TmpfsPath);
+                tmpfsSize = diskSpaceStatistics.TotalSpace - diskSpaceStatistics.AvailableSpace;
+            }
 
-        i64 memoryLimit = UserJobSpec_.memory_limit();
-        i64 currentMemoryUsage = rss + tmpfsSize;
+            i64 memoryLimit = UserJobSpec_.memory_limit();
+            i64 currentMemoryUsage = rss + tmpfsSize;
 
-        CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / (1024 * 1024)) * Config_->MemoryWatchdogPeriod.Seconds();
+            CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / (1024 * 1024)) * Config_->MemoryWatchdogPeriod.Seconds();
 
-        LOG_DEBUG("Checking memory usage (Tmpfs: %v, Rss: %v, MemoryLimit: %v)",
-            tmpfsSize,
-            rss,
-            memoryLimit);
+            LOG_DEBUG("Checking memory usage (Tmpfs: %v, Rss: %v, MemoryLimit: %v)",
+                tmpfsSize,
+                rss,
+                memoryLimit);
 
-        if (currentMemoryUsage > memoryLimit) {
-            JobErrorPromise_.TrySet(TError(
-                NJobProxy::EErrorCode::MemoryLimitExceeded,
-                "Memory limit exceeded")
-                << TErrorAttribute("rss", rss)
-                << TErrorAttribute("tmpfs", tmpfsSize)
-                << TErrorAttribute("limit", memoryLimit));
-            CleanupUserProcesses();
-        } else if (currentMemoryUsage > MemoryUsage_) {
-            UpdateMemoryUsage(currentMemoryUsage);
+            if (currentMemoryUsage > memoryLimit) {
+                JobErrorPromise_.TrySet(TError(
+                    NJobProxy::EErrorCode::MemoryLimitExceeded,
+                    "Memory limit exceeded")
+                    << TErrorAttribute("rss", rss)
+                    << TErrorAttribute("tmpfs", tmpfsSize)
+                    << TErrorAttribute("limit", memoryLimit));
+                CleanupUserProcesses();
+            } else if (currentMemoryUsage > MemoryUsage_) {
+                UpdateMemoryUsage(currentMemoryUsage);
+            }
+        } catch (const std::exception& ex) {
+                JobErrorPromise_.TrySet(TError(
+                    NJobProxy::EErrorCode::MemoryCheckFailed,
+                    "Failed to check user job memory usage") << ex);
+                CleanupUserProcesses();
         }
     }
 
@@ -1082,7 +1101,7 @@ IJobPtr CreateUserJob(
     const TJobId& jobId,
     std::unique_ptr<IUserJobIO> userJobIO)
 {
-    THROW_ERROR_EXCEPTION("Streaming jobs are supported only under Linux");
+    THROW_ERROR_EXCEPTION("Streaming jobs are supported only under Unix");
 }
 
 #endif

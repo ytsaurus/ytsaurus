@@ -146,5 +146,30 @@ IAsyncZeroCopyInputStreamPtr CreatePrefetchingAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Creates an adapter that prefetches data into the buffer on bytes scale.
+/*!
+ *  The adapder differs from PrefetchingAdapter:
+ *  - it is based on IAsyncInputStreamPtr underlying stream;
+ *  - it works with bytes instead of blocks, provided by zero-copy adapters.
+ */
+IAsyncZeroCopyInputStreamPtr CreateBufferingAdapter(
+    IAsyncInputStreamPtr underlyingStream,
+    size_t windowSize);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Creates an adapter that returns an error if no data is read within timeout.
+NConcurrency::IAsyncZeroCopyInputStreamPtr CreateExpiringAdapter(
+    NConcurrency::IAsyncZeroCopyInputStreamPtr underlyingStream,
+    TDuration timeout);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Creates an adapter that can process concurrent Read() requests.
+IAsyncZeroCopyInputStreamPtr CreateConcurrentAdapter(
+    IAsyncZeroCopyInputStreamPtr underlyingStream);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NConcurrency
 } // namespace NYT

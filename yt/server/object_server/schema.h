@@ -27,8 +27,13 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IObjectProxyPtr CreateSchemaProxy(NCellMaster::TBootstrap* bootstrap, TSchemaObject* object);
-IObjectTypeHandlerPtr CreateSchemaTypeHandler(NCellMaster::TBootstrap* bootstrap, EObjectType type);
+IObjectProxyPtr CreateSchemaProxy(
+    NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
+    TSchemaObject* object);
+IObjectTypeHandlerPtr CreateSchemaTypeHandler(
+    NCellMaster::TBootstrap* bootstrap,
+    EObjectType type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

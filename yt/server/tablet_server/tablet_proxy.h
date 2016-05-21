@@ -13,6 +13,7 @@ namespace NTabletServer {
 
 NObjectServer::IObjectProxyPtr CreateTabletProxy(
     NCellMaster::TBootstrap* bootstrap,
+    NObjectServer::TObjectTypeMetadata* metadata,
     TTablet* tablet);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -231,12 +231,6 @@ private:
     private:
         TSupportsAttributes* const Owner_;
 
-        mutable bool HasCachedData_ = false;
-        mutable yhash_set<const char*> CachedBuiltinKeys_;
-        mutable std::vector<ISystemAttributeProvider::TAttributeDescriptor> CachedSystemAttributes_;
-
-        void PrecacheData() const;
-
     };
 
     TCombinedAttributeDictionary CombinedAttributes_;
@@ -269,6 +263,19 @@ private:
 
     TFuture<void> GuardedSetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value);
     TFuture<void> GuardedRemoveBuiltinAttribute(const Stroka& key);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBuiltinAttributeKeysCache
+{
+public:
+    const yhash_set<const char*>& GetBuiltinAttributeKeys(ISystemAttributeProvider* provider);
+
+private:
+    bool Initialized_ = false;
+    yhash_set<const char*> BuiltinKeys_;
 
 };
 

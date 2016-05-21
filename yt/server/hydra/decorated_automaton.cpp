@@ -728,10 +728,12 @@ void TDecoratedAutomaton::LoadSnapshot(
     PROFILE_TIMING ("/snapshot_load_time") {
         Automaton_->Clear();
         try {
+            AutomatonVersion_ = CommittedVersion_ = TVersion(-1, -1);
             Automaton_->LoadSnapshot(reader);
         } catch (...) {
             // Don't leave the state corrupted.
-            Automaton_->Clear();
+            // NB: We could be in an arbitrary thread here.
+            AutomatonInvoker_->Invoke(BIND(&IAutomaton::Clear, Automaton_));
             throw;
         }
     }

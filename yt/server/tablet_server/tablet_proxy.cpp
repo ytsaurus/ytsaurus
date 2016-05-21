@@ -29,8 +29,11 @@ class TTabletProxy
     : public TNonversionedObjectProxyBase<TTablet>
 {
 public:
-    TTabletProxy(NCellMaster::TBootstrap* bootstrap, TTablet* tablet)
-        : TBase(bootstrap, tablet)
+    TTabletProxy(
+        NCellMaster::TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
+        TTablet* tablet)
+        : TBase(bootstrap, metadata, tablet)
     { }
 
 private:
@@ -129,14 +132,14 @@ private:
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
-
 };
 
 IObjectProxyPtr CreateTabletProxy(
     NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TTablet* tablet)
 {
-    return New<TTabletProxy>(bootstrap, tablet);
+    return New<TTabletProxy>(bootstrap, metadata, tablet);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

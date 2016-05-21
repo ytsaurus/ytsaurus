@@ -37,11 +37,13 @@ public:
     TTabletCellNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
         TTransaction* transaction,
         TMapNode* trunkNode)
         : TMapNodeProxy(
             typeHandler,
             bootstrap,
+            metadata,
             transaction,
             trunkNode)
     { }
@@ -85,7 +87,6 @@ private:
         auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(cell, nullptr);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,10 +112,10 @@ private:
         return New<TTabletCellNodeProxy>(
             this,
             Bootstrap_,
+            &Metadata_,
             transaction,
             trunkNode);
     }
-
 };
 
 INodeTypeHandlerPtr CreateTabletCellNodeTypeHandler(TBootstrap* bootstrap)
@@ -155,7 +156,6 @@ protected:
     {
         return "//sys/tablets";
     }
-
 };
 
 INodeTypeHandlerPtr CreateTabletMapTypeHandler(TBootstrap* bootstrap)

@@ -323,6 +323,7 @@ ICypressNodeProxyPtr TMapNodeTypeHandler::DoGetProxy(
     return New<TMapNodeProxy>(
         this,
         Bootstrap_,
+        &Metadata_,
         transaction,
         trunkNode);
 }
@@ -440,6 +441,7 @@ ICypressNodeProxyPtr TListNodeTypeHandler::DoGetProxy(
     return New<TListNodeProxy>(
         this,
         Bootstrap_,
+        &Metadata_,
         transaction,
         trunkNode);
 }
@@ -565,6 +567,7 @@ ICypressNodeProxyPtr TLinkNodeTypeHandler::DoGetProxy(
     return New<TLinkNodeProxy>(
         this,
         Bootstrap_,
+        &Metadata_,
         transaction,
         trunkNode);
 }
@@ -677,6 +680,7 @@ ICypressNodeProxyPtr TDocumentNodeTypeHandler::DoGetProxy(
     return New<TDocumentNodeProxy>(
         this,
         Bootstrap_,
+        &Metadata_,
         transaction,
         trunkNode);
 }

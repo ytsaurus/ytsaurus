@@ -1092,6 +1092,10 @@ protected:
         BuildTasks();
 
         FinishPreparation();
+
+        // Clear unused data, especially keys, to minimize memory footprint.
+        Endpoints.resize(0);
+        ClearInputChunkBoundaryKeys();
     }
 
     virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
@@ -1538,6 +1542,14 @@ public:
         using NYT::Persist;
         Persist(context, StartRowIndex);
         Persist(context, ForeignKeyColumnCount);
+    }
+
+    virtual void CustomPrepare() override
+    {
+        TSortedMergeControllerBase::CustomPrepare();
+
+        // Clean the rest, if anything left.
+        ForeignInputChunks.resize(0);
     }
 
 protected:

@@ -3,6 +3,7 @@
 #include "event_log.h"
 #include "fair_share_strategy.h"
 #include "helpers.h"
+#include "job_prober_service.h"
 #include "job_resources.h"
 #include "map_controller.h"
 #include "master_connector.h"
@@ -503,6 +504,20 @@ public:
     TFuture<void> AbandonJob(const TJobId& jobId)
     {
         return BIND(&TImpl::DoAbandonJob, MakeStrong(this), jobId)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+    }
+
+    TFuture<TYsonString> PollJobShell(const TJobId& jobId, const TYsonString& parameters)
+    {
+        return BIND(&TImpl::DoPollJobShell, MakeStrong(this), jobId, parameters)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+    }
+
+    TFuture<void> AbortJob(const TJobId& jobId)
+    {
+        return BIND(&TImpl::DoAbortJob, MakeStrong(this), jobId)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
     }
@@ -2244,12 +2259,12 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting strace dump of job %v",
             jobId);
 
-        auto& res = rspOrError.Value();
+        const auto& rsp = rspOrError.Value();
 
         LOG_INFO("Strace dump received (JobId: %v)",
             jobId);
 
-        return TYsonString(res->trace());
+        return TYsonString(rsp->trace());
     }
 
     void DoDumpInputContext(const TJobId& jobId, const TYPath& path)
@@ -2329,13 +2344,58 @@ private:
         if (job->GetState() != EJobState::Running &&
             job->GetState() != EJobState::Waiting)
         {
-            THROW_ERROR_EXCEPTION("Cannot abandon job %v since is not running",
+            THROW_ERROR_EXCEPTION("Cannot abandon job %v since it is not running",
                 jobId);
         }
 
         TJobResult result;
         job->SetState(EJobState::Abandoning);
         OnJobCompleted(job, &result);
+    }
+
+    TYsonString DoPollJobShell(const TJobId& jobId, const TYsonString& parameters)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto job = GetJobOrThrow(jobId);
+
+        LOG_INFO("Polling job shell (JobId: %v, Parameters: %v)",
+            jobId,
+            parameters);
+
+        auto proxy = CreateJobProberProxy(job);
+        auto req = proxy.PollJobShell();
+        ToProto(req->mutable_job_id(), jobId);
+        ToProto(req->mutable_parameters(), parameters.Data());
+
+        auto rspOrError = WaitFor(req->Invoke());
+        if (!rspOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error polling job shell for job %v", jobId)
+                << rspOrError
+                << TErrorAttribute("parameters", parameters);
+        }
+
+        const auto& rsp = rspOrError.Value();
+        return TYsonString(rsp->result());
+    }
+
+    void DoAbortJob(const TJobId& jobId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto job = GetJobOrThrow(jobId);
+
+        if (job->GetState() != EJobState::Running &&
+            job->GetState() != EJobState::Waiting)
+        {
+            THROW_ERROR_EXCEPTION("Cannot abort job %v since it is not running",
+                jobId);
+        }
+
+        TJobResult result;
+        ToProto(result.mutable_error(), TError("Job aborted by user request")
+            << TErrorAttribute("abort_reason", EAbortReason::UserRequest));
+        OnJobAborted(job, &result);
     }
 
     void DoCompleteOperation(TOperationPtr operation)
@@ -2848,6 +2908,16 @@ TFuture<void> TScheduler::SignalJob(const TJobId& jobId, const Stroka& signalNam
 TFuture<void> TScheduler::AbandonJob(const TJobId& jobId)
 {
     return Impl_->AbandonJob(jobId);
+}
+
+TFuture<TYsonString> TScheduler::PollJobShell(const TJobId& jobId, const TYsonString& parameters)
+{
+    return Impl_->PollJobShell(jobId, parameters);
+}
+
+TFuture<void> TScheduler::AbortJob(const TJobId& jobId)
+{
+    return Impl_->AbortJob(jobId);
 }
 
 void TScheduler::ProcessHeartbeat(TCtxHeartbeatPtr context)

@@ -22,8 +22,11 @@ class TRackProxy
     : public TNonversionedObjectProxyBase<TRack>
 {
 public:
-    TRackProxy(NCellMaster::TBootstrap* bootstrap, TRack* rack)
-        : TBase(bootstrap, rack)
+    TRackProxy(
+        NCellMaster::TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
+        TRack* rack)
+        : TBase(bootstrap, metadata, rack)
     { }
 
 private:
@@ -85,14 +88,14 @@ private:
 
         return TBase::SetBuiltinAttribute(key, value);
     }
-
 };
 
 IObjectProxyPtr CreateRackProxy(
     NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TRack* rack)
 {
-    return New<TRackProxy>(bootstrap, rack);
+    return New<TRackProxy>(bootstrap, metadata, rack);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

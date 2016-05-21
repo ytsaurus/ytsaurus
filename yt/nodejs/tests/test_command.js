@@ -306,6 +306,7 @@ describe("YtCommand - command descriptors", function() {
     it("should return proper methods for /v3", function(done) {
         var expected_methods = [
             'abandon_job',
+            'abort_job',
             'abort_op',
             'abort_tx',
             'add_member',
@@ -351,6 +352,7 @@ describe("YtCommand - command descriptors", function() {
             'start_tx',
             'strace_job',
             'signal_job',
+            'poll_job_shell',
             'suspend_op',
             'unmount_table',
             'write_file',

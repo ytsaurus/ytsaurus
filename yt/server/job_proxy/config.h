@@ -51,6 +51,10 @@ public:
 
     NScheduler::TJobIOConfigPtr JobIO;
 
+    //! Addresses derived from node local descriptor to leverage locality.
+    NNodeTrackerClient::TAddressMap Addresses;
+    TNullable<Stroka> Rack;
+
     NYTree::INodePtr Logging;
     NYTree::INodePtr Tracing;
 
@@ -87,6 +91,12 @@ public:
 
         RegisterParameter("job_io", JobIO)
             .DefaultNew();
+
+        RegisterParameter("addresses", Addresses)
+            .Default();
+
+        RegisterParameter("rack", Rack)
+            .Default(Null);
 
         RegisterParameter("logging", Logging)
             .Default();

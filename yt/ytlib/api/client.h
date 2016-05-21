@@ -436,6 +436,14 @@ struct TAbandonJobOptions
     : public TTimeoutOptions
 { };
 
+struct TPollJobShellOptions
+    : public TTimeoutOptions
+{ };
+
+struct TAbortJobOptions
+    : public TTimeoutOptions
+{ };
+
 typedef std::pair<IRowsetPtr, NQueryClient::TQueryStatistics> TSelectRowsResult;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -678,6 +686,15 @@ struct IClient
     virtual TFuture<void> AbandonJob(
         const NJobTrackerClient::TJobId& jobId,
         const TAbandonJobOptions& options = TAbandonJobOptions()) = 0;
+
+    virtual TFuture<NYson::TYsonString> PollJobShell(
+        const NJobTrackerClient::TJobId& jobId,
+        const NYson::TYsonString& parameters,
+        const TPollJobShellOptions& options = TPollJobShellOptions()) = 0;
+
+    virtual TFuture<void> AbortJob(
+        const NJobTrackerClient::TJobId& jobId,
+        const TAbortJobOptions& options = TAbortJobOptions()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

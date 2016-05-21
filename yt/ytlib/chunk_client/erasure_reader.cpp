@@ -28,6 +28,7 @@ using namespace NApi;
 using namespace NErasure;
 using namespace NConcurrency;
 using namespace NChunkClient::NProto;
+using namespace NNodeTrackerClient;
 
 using NYT::FromProto;
 
@@ -824,7 +825,8 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
                 options,
                 client,
                 nodeDirectory,
-                Null,
+                // Locality doesn't matter, since we typically have only one replica.
+                TNodeDescriptor(),
                 partId,
                 partReplicas,
                 blockCache,

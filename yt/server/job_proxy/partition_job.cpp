@@ -58,6 +58,7 @@ public:
                 config->JobIO->TableReader,
                 New<NTableClient::TTableReaderOptions>(),
                 Host_->GetClient(),
+                Host_->LocalDescriptor(),
                 Host_->GetBlockCache(),
                 Host_->GetInputNodeDirectory(),
                 std::move(chunkSpecs),

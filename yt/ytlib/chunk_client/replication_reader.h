@@ -24,7 +24,7 @@ IChunkReaderPtr CreateReplicationReader(
     TRemoteReaderOptionsPtr options,
     NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
+    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas = TChunkReplicaList(),
     IBlockCachePtr blockCache = GetNullBlockCache(),
