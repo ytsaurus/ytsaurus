@@ -71,7 +71,7 @@ void RunQuery(
     const NTableClient::TSchemalessReaderFactory& readerFactory,
     const NTableClient::TSchemalessWriterFactory& writerFactory)
 {
-    auto query = FromProto(querySpec.query());
+    auto query = FromProto<TConstQueryPtr>(querySpec.query());
     auto resultSchema = query->GetTableSchema();
     auto resultNameTable = TNameTable::FromSchema(resultSchema);
     auto schemalessWriter = writerFactory(resultNameTable);
@@ -82,7 +82,7 @@ void RunQuery(
     auto writer = CreateSchemafulWriterAdapter(schemalessWriter);
 
     auto externalCGInfo = New<TExternalCGInfo>();
-    externalCGInfo->Functions = FromProto<std::vector<TExternalFunctionImpl>>(querySpec.external_functions());
+    FromProto(&externalCGInfo->Functions, querySpec.external_functions());
 
     auto functionGenerators = New<TFunctionProfilerMap>();
     auto aggregateGenerators = New<TAggregateProfilerMap>();

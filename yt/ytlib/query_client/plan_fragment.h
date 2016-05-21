@@ -402,14 +402,14 @@ struct TQuery
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
 
-void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original);
-TQueryPtr FromProto(const NProto::TQuery& serialized);
+void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original);
+void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized);
 
-void ToProto(NProto::TQueryOptions* proto, const TQueryOptions& options);
-TQueryOptions FromProto(const NProto::TQueryOptions& serialized);
+void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original);
+void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized);
 
-void ToProto(NProto::TDataRanges* proto, const TDataRanges& dataSource);
-TDataRanges FromProto(const NProto::TDataRanges& serialized);
+void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original);
+void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized);
 
 Stroka InferName(TConstExpressionPtr expr, bool omitValues = false);
 Stroka InferName(TConstQueryPtr query, bool omitValues = false);

@@ -219,48 +219,43 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
     }
 }
 
-TExpressionPtr FromProto(const NProto::TExpression& serialized)
+void FromProto(TConstExpressionPtr* original, const NProto::TExpression& serialized)
 {
-    auto kind = EExpressionKind(serialized.kind());
-
-    if (kind == EExpressionKind::None) {
-        return nullptr;
-    }
-
     auto type = EValueType(serialized.type());
-
+    auto kind = EExpressionKind(serialized.kind());
     switch (kind) {
-        case EExpressionKind::None:
-            YUNREACHABLE();
-            break;
+        case EExpressionKind::None: {
+            *original = nullptr;
+            return;
+        }
 
         case EExpressionKind::Literal: {
-            auto typedResult = New<TLiteralExpression>(type);
-            const auto& data = serialized.GetExtension(NProto::TLiteralExpression::literal_expression);
+            auto result = New<TLiteralExpression>(type);
+            const auto& ext = serialized.GetExtension(NProto::TLiteralExpression::literal_expression);
 
             switch (type) {
                 case EValueType::Int64: {
-                    typedResult->Value = MakeUnversionedInt64Value(data.int64_value());
+                    result->Value = MakeUnversionedInt64Value(ext.int64_value());
                     break;
                 }
 
                 case EValueType::Uint64: {
-                    typedResult->Value = MakeUnversionedUint64Value(data.uint64_value());
+                    result->Value = MakeUnversionedUint64Value(ext.uint64_value());
                     break;
                 }
 
                 case EValueType::Double: {
-                    typedResult->Value = MakeUnversionedDoubleValue(data.double_value());
+                    result->Value = MakeUnversionedDoubleValue(ext.double_value());
                     break;
                 }
 
                 case EValueType::String: {
-                    typedResult->Value = MakeUnversionedStringValue(data.string_value());
+                    result->Value = MakeUnversionedStringValue(ext.string_value());
                     break;
                 }
 
                 case EValueType::Boolean: {
-                    typedResult->Value = MakeUnversionedBooleanValue(data.boolean_value());
+                    result->Value = MakeUnversionedBooleanValue(ext.boolean_value());
                     break;
                 }
 
@@ -268,63 +263,61 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
                     YUNREACHABLE();
             }
 
-            return typedResult;
+            *original = result;
+            return;
         }
 
         case EExpressionKind::Reference: {
-            auto typedResult = New<TReferenceExpression>(type);
+            auto result = New<TReferenceExpression>(type);
             const auto& data = serialized.GetExtension(NProto::TReferenceExpression::reference_expression);
-            typedResult->ColumnName = data.column_name();
-            return typedResult;
+            result->ColumnName = data.column_name();
+            *original = result;
+            return;
         }
 
         case EExpressionKind::Function: {
-            auto typedResult = New<TFunctionExpression>(type);
-            const auto& data = serialized.GetExtension(NProto::TFunctionExpression::function_expression);
-            typedResult->FunctionName = data.function_name();
-            typedResult->Arguments.reserve(data.arguments_size());
-            for (int i = 0; i < data.arguments_size(); ++i) {
-                typedResult->Arguments.push_back(FromProto(data.arguments(i)));
-            }
-            return typedResult;
+            auto result = New<TFunctionExpression>(type);
+            const auto& ext = serialized.GetExtension(NProto::TFunctionExpression::function_expression);
+            result->FunctionName = ext.function_name();
+            FromProto(&result->Arguments, ext.arguments());
+            *original = result;
+            return;
         }
 
         case EExpressionKind::UnaryOp: {
-            auto typedResult = New<TUnaryOpExpression>(type);
-            const auto& data = serialized.GetExtension(NProto::TUnaryOpExpression::unary_op_expression);
-            typedResult->Opcode = EUnaryOp(data.opcode());
-            typedResult->Operand = FromProto(data.operand());
-            return typedResult;
+            auto result = New<TUnaryOpExpression>(type);
+            const auto& ext = serialized.GetExtension(NProto::TUnaryOpExpression::unary_op_expression);
+            result->Opcode = EUnaryOp(ext.opcode());
+            FromProto(&result->Operand, ext.operand());
+            *original = result;
+            return;
         }
 
         case EExpressionKind::BinaryOp: {
-            auto typedResult = New<TBinaryOpExpression>(type);
-            const auto& data = serialized.GetExtension(NProto::TBinaryOpExpression::binary_op_expression);
-            typedResult->Opcode = EBinaryOp(data.opcode());
-            typedResult->Lhs = FromProto(data.lhs());
-            typedResult->Rhs = FromProto(data.rhs());
-            return typedResult;
+            auto result = New<TBinaryOpExpression>(type);
+            const auto& ext = serialized.GetExtension(NProto::TBinaryOpExpression::binary_op_expression);
+            result->Opcode = EBinaryOp(ext.opcode());
+            FromProto(&result->Lhs, ext.lhs());
+            FromProto(&result->Rhs, ext.rhs());
+            *original = result;
+            return;
         }
 
         case EExpressionKind::InOp: {
-            auto typedResult = New<TInOpExpression>(type);
-            const auto& data = serialized.GetExtension(NProto::TInOpExpression::in_op_expression);
-            typedResult->Arguments.reserve(data.arguments_size());
-            for (int i = 0; i < data.arguments_size(); ++i) {
-                typedResult->Arguments.push_back(FromProto(data.arguments(i)));
-            }
+            auto result = New<TInOpExpression>(type);
+            const auto& ext = serialized.GetExtension(NProto::TInOpExpression::in_op_expression);
+            FromProto(&result->Arguments, ext.arguments());
 
-            NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(data.values()));
-            typedResult->Values = reader.ReadUnversionedRowset();
+            NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(ext.values()));
+            result->Values = reader.ReadUnversionedRowset();
 
-            return typedResult;
+            *original = result;
+            return;
         }
 
         default:
             YUNREACHABLE();
     }
-
-    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -335,6 +328,15 @@ void ToProto(NProto::TNamedItem* serialized, const TNamedItem& original)
     ToProto(serialized->mutable_name(), original.Name);
 }
 
+void FromProto(TNamedItem* original, const NProto::TNamedItem& serialized)
+{
+    *original = TNamedItem(
+        FromProto<TConstExpressionPtr>(serialized.expression()),
+        serialized.name());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
 {
     ToProto(serialized->mutable_expression(), original.Expression);
@@ -344,11 +346,31 @@ void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
     ToProto(serialized->mutable_name(), original.Name);
 }
 
-void ToProto(NProto::TEquation* proto, std::pair<TConstExpressionPtr, TConstExpressionPtr> original)
+void FromProto(TAggregateItem* original, const NProto::TAggregateItem& serialized)
+{
+    *original = TAggregateItem(
+        FromProto<TConstExpressionPtr>(serialized.expression()),
+        serialized.aggregate_function_name(),
+        serialized.name(),
+        EValueType(serialized.state_type()),
+        EValueType(serialized.result_type()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TEquation* proto, const std::pair<TConstExpressionPtr, TConstExpressionPtr>& original)
 {
     ToProto(proto->mutable_left(), original.first);
     ToProto(proto->mutable_right(), original.second);
 }
+
+void FromProto(std::pair<TConstExpressionPtr, TConstExpressionPtr>* original, const NProto::TEquation& serialized)
+{
+    FromProto(&original->first, serialized.left());
+    FromProto(&original->second, serialized.right());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
 {
@@ -359,12 +381,30 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     proto->set_foreign_key_columns_count(original->ForeignKeyColumnsCount);
     ToProto(proto->mutable_foreign_data_id(), original->ForeignDataId);
     proto->set_is_left(original->IsLeft);
-
     proto->set_can_use_source_ranges(original->CanUseSourceRanges);
     proto->set_key_prefix(original->KeyPrefix);
     ToProto(proto->mutable_equation_by_index(), original->EquationByIndex);
     ToProto(proto->mutable_evaluated_columns(), original->EvaluatedColumns);
 }
+
+void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& serialized)
+{
+    auto result = New<TJoinClause>();
+    FromProto(&result->Equations, serialized.equations());
+    FromProto(&result->JoinedTableSchema, serialized.joined_table_schema());
+    FromProto(&result->ForeignTableSchema, serialized.foreign_table_schema());
+    FromProto(&result->RenamedTableSchema, serialized.renamed_table_schema());
+    FromProto(&result->ForeignKeyColumnsCount, serialized.foreign_key_columns_count());
+    FromProto(&result->ForeignDataId, serialized.foreign_data_id());
+    FromProto(&result->IsLeft, serialized.is_left());
+    FromProto(&result->CanUseSourceRanges, serialized.can_use_source_ranges());
+    FromProto(&result->KeyPrefix, serialized.key_prefix());
+    FromProto(&result->EquationByIndex, serialized.equation_by_index());
+    FromProto(&result->EvaluatedColumns, serialized.evaluated_columns());
+    *original = result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TGroupClause* proto, const TConstGroupClausePtr& original)
 {
@@ -376,10 +416,36 @@ void ToProto(NProto::TGroupClause* proto, const TConstGroupClausePtr& original)
     proto->set_totals_mode(static_cast<int>(original->TotalsMode));
 }
 
-void ToProto(NProto::TProjectClause* proto, const TConstProjectClausePtr original)
+void FromProto(TConstGroupClausePtr* original, const NProto::TGroupClause& serialized)
+{
+    auto result = New<TGroupClause>();
+    FromProto(&result->GroupedTableSchema, serialized.grouped_table_schema());
+    result->IsMerge = serialized.is_merge();
+    result->IsFinal = serialized.is_final();
+    result->TotalsMode = ETotalsMode(serialized.totals_mode());
+    FromProto(&result->GroupItems, serialized.group_items());
+    FromProto(&result->AggregateItems, serialized.aggregate_items());
+    *original = result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TProjectClause* proto, const TConstProjectClausePtr& original)
 {
     ToProto(proto->mutable_projections(), original->Projections);
 }
+
+void FromProto(TConstProjectClausePtr* original, const NProto::TProjectClause& serialized)
+{
+    auto result = New<TProjectClause>();
+    result->Projections.reserve(serialized.projections_size());
+    for (int i = 0; i < serialized.projections_size(); ++i) {
+        result->AddProjection(FromProto<TNamedItem>(serialized.projections(i)));
+    }
+    *original = result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TOrderItem* serialized, const TOrderItem& original)
 {
@@ -387,235 +453,142 @@ void ToProto(NProto::TOrderItem* serialized, const TOrderItem& original)
     serialized->set_is_descending(original.second);
 }
 
+void FromProto(TOrderItem* original, const NProto::TOrderItem& serialized)
+{
+    FromProto(&original->first, serialized.expression());
+    FromProto(&original->second, serialized.is_descending());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TOrderClause* proto, const TConstOrderClausePtr& original)
 {
     ToProto(proto->mutable_order_items(), original->OrderItems);
 }
 
-void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original)
+void FromProto(TConstOrderClausePtr* original, const NProto::TOrderClause& serialized)
 {
-    proto->set_input_row_limit(original->InputRowLimit);
-    proto->set_output_row_limit(original->OutputRowLimit);
+    auto result = New<TOrderClause>();
+    FromProto(&result->OrderItems, serialized.order_items());
+    *original = result;
+}
 
-    ToProto(proto->mutable_id(), original->Id);
+////////////////////////////////////////////////////////////////////////////////
 
-    proto->set_limit(original->Limit);
-    ToProto(proto->mutable_table_schema(), original->TableSchema);
-    ToProto(proto->mutable_renamed_table_schema(), original->RenamedTableSchema);
-    proto->set_key_columns_count(original->KeyColumnsCount);
+void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
+{
+    serialized->set_input_row_limit(original->InputRowLimit);
+    serialized->set_output_row_limit(original->OutputRowLimit);
 
-    ToProto(proto->mutable_join_clauses(), original->JoinClauses);
+    ToProto(serialized->mutable_id(), original->Id);
+
+    serialized->set_limit(original->Limit);
+    ToProto(serialized->mutable_table_schema(), original->TableSchema);
+    ToProto(serialized->mutable_renamed_table_schema(), original->RenamedTableSchema);
+    serialized->set_key_columns_count(original->KeyColumnsCount);
+
+    ToProto(serialized->mutable_join_clauses(), original->JoinClauses);
 
     if (original->WhereClause) {
-        ToProto(proto->mutable_predicate(), original->WhereClause);
+        ToProto(serialized->mutable_predicate(), original->WhereClause);
     }
 
     if (original->GroupClause) {
-        ToProto(proto->mutable_group_clause(), original->GroupClause);
+        ToProto(serialized->mutable_group_clause(), original->GroupClause);
     }
 
     if (original->HavingClause) {
-        ToProto(proto->mutable_having_clause(), original->HavingClause);
+        ToProto(serialized->mutable_having_clause(), original->HavingClause);
     }
 
     if (original->OrderClause) {
-        ToProto(proto->mutable_order_clause(), original->OrderClause);
+        ToProto(serialized->mutable_order_clause(), original->OrderClause);
     }
 
     if (original->ProjectClause) {
-        ToProto(proto->mutable_project_clause(), original->ProjectClause);
+        ToProto(serialized->mutable_project_clause(), original->ProjectClause);
     }
 }
 
-TNamedItem FromProto(const NProto::TNamedItem& serialized)
+void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
 {
-    return TNamedItem(
-        FromProto(serialized.expression()),
-        serialized.name());
-}
-
-TAggregateItem FromProto(const NProto::TAggregateItem& serialized)
-{
-    return TAggregateItem(
-        FromProto(serialized.expression()),
-        serialized.aggregate_function_name(),
-        serialized.name(),
-        EValueType(serialized.state_type()),
-        EValueType(serialized.result_type()));
-}
-
-TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
-{
-    auto result = New<TJoinClause>();
-
-    result->Equations.reserve(serialized.equations_size());
-    for (int i = 0; i < serialized.equations_size(); ++i) {
-        result->Equations.emplace_back(
-            FromProto(serialized.equations(i).left()),
-            FromProto(serialized.equations(i).right()));
-    }
-
-    FromProto(&result->JoinedTableSchema, serialized.joined_table_schema());
-    FromProto(&result->ForeignTableSchema, serialized.foreign_table_schema());
-    FromProto(&result->RenamedTableSchema, serialized.renamed_table_schema());
-    FromProto(&result->ForeignKeyColumnsCount, serialized.foreign_key_columns_count());
-    FromProto(&result->ForeignDataId, serialized.foreign_data_id());
-    FromProto(&result->IsLeft, serialized.is_left());
-
-    FromProto(&result->CanUseSourceRanges, serialized.can_use_source_ranges());
-    FromProto(&result->KeyPrefix, serialized.key_prefix());
-
-    result->EquationByIndex.reserve(serialized.equation_by_index_size());
-    for (int i = 0; i < serialized.equation_by_index_size(); ++i) {
-        result->EquationByIndex.push_back(serialized.equation_by_index(i));
-    }
-
-    result->EvaluatedColumns.reserve(serialized.evaluated_columns_size());
-    for (int i = 0; i < serialized.evaluated_columns_size(); ++i) {
-        result->EvaluatedColumns.push_back(
-            FromProto(serialized.evaluated_columns(i)));
-    }
-
-    return result;
-}
-
-TGroupClausePtr FromProto(const NProto::TGroupClause& serialized)
-{
-    auto result = New<TGroupClause>();
-    FromProto(&result->GroupedTableSchema, serialized.grouped_table_schema());
-    result->IsMerge = serialized.is_merge();
-    result->IsFinal = serialized.is_final();
-    result->TotalsMode = ETotalsMode(serialized.totals_mode());
-
-    result->GroupItems.reserve(serialized.group_items_size());
-    for (int i = 0; i < serialized.group_items_size(); ++i) {
-        result->GroupItems.push_back(FromProto(serialized.group_items(i)));
-    }
-    result->AggregateItems.reserve(serialized.aggregate_items_size());
-    for (int i = 0; i < serialized.aggregate_items_size(); ++i) {
-        result->AggregateItems.push_back(FromProto(serialized.aggregate_items(i)));
-    }
-
-    return result;
-}
-
-TProjectClausePtr FromProto(const NProto::TProjectClause& serialized)
-{
-    auto result = New<TProjectClause>();
-
-    result->Projections.reserve(serialized.projections_size());
-    for (int i = 0; i < serialized.projections_size(); ++i) {
-        result->AddProjection(FromProto(serialized.projections(i)));
-    }
-
-    return result;
-}
-
-TOrderItem FromProto(const NProto::TOrderItem& serialized)
-{
-    return TOrderItem(
-        FromProto(serialized.expression()),
-        serialized.is_descending());
-}
-
-TOrderClausePtr FromProto(const NProto::TOrderClause& serialized)
-{
-    auto result = New<TOrderClause>();
-
-    result->OrderItems.reserve(serialized.order_items_size());
-    for (int i = 0; i < serialized.order_items_size(); ++i) {
-        result->OrderItems.push_back(FromProto(serialized.order_items(i)));
-    }
-
-    return result;
-}
-
-TQueryPtr FromProto(const NProto::TQuery& serialized)
-{
-    auto query = New<TQuery>(
+    auto result = New<TQuery>(
         serialized.input_row_limit(),
         serialized.output_row_limit(),
         FromProto<TGuid>(serialized.id()));
 
-    query->Limit = serialized.limit();
+    result->Limit = serialized.limit();
 
-    FromProto(&query->TableSchema, serialized.table_schema());
-    FromProto(&query->RenamedTableSchema, serialized.renamed_table_schema());
-    FromProto(&query->KeyColumnsCount, serialized.key_columns_count());
+    FromProto(&result->TableSchema, serialized.table_schema());
+    FromProto(&result->RenamedTableSchema, serialized.renamed_table_schema());
+    FromProto(&result->KeyColumnsCount, serialized.key_columns_count());
 
-    query->JoinClauses.reserve(serialized.join_clauses_size());
-    for (int i = 0; i < serialized.join_clauses_size(); ++i) {
-        query->JoinClauses.push_back(FromProto(serialized.join_clauses(i)));
-    }
+    FromProto(&result->JoinClauses, serialized.join_clauses());
 
     if (serialized.has_predicate()) {
-        query->WhereClause = FromProto(serialized.predicate());
+        FromProto(&result->WhereClause, serialized.predicate());
     }
 
     if (serialized.has_group_clause()) {
-        query->GroupClause = FromProto(serialized.group_clause());
+        FromProto(&result->GroupClause, serialized.group_clause());
     }
 
     if (serialized.has_having_clause()) {
-        query->HavingClause = FromProto(serialized.having_clause());
+        FromProto(&result->HavingClause, serialized.having_clause());
     }
 
     if (serialized.has_order_clause()) {
-        query->OrderClause = FromProto(serialized.order_clause());
+        FromProto(&result->OrderClause, serialized.order_clause());
     }
 
     if (serialized.has_project_clause()) {
-        query->ProjectClause = FromProto(serialized.project_clause());
+        FromProto(&result->ProjectClause, serialized.project_clause());
     }
 
-    return query;
+    *original = result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TQueryOptions* proto, const TQueryOptions& options)
+void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
 {
-    proto->set_timestamp(options.Timestamp);
-    proto->set_verbose_logging(options.VerboseLogging);
-    proto->set_max_subqueries(options.MaxSubqueries);
-    proto->set_enable_code_cache(options.EnableCodeCache);
-    ToProto(proto->mutable_workload_descriptor(), options.WorkloadDescriptor);
+    serialized->set_timestamp(original.Timestamp);
+    serialized->set_verbose_logging(original.VerboseLogging);
+    serialized->set_max_subqueries(original.MaxSubqueries);
+    serialized->set_enable_code_cache(original.EnableCodeCache);
+    ToProto(serialized->mutable_workload_descriptor(), original.WorkloadDescriptor);
 }
 
-TQueryOptions FromProto(const NProto::TQueryOptions& serialized)
+void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 {
-    TQueryOptions result;
-    result.Timestamp = serialized.timestamp();
-    result.VerboseLogging = serialized.verbose_logging();
-    result.MaxSubqueries = serialized.max_subqueries();
-    result.EnableCodeCache = serialized.enable_code_cache();
+    original->Timestamp = serialized.timestamp();
+    original->VerboseLogging = serialized.verbose_logging();
+    original->MaxSubqueries = serialized.max_subqueries();
+    original->EnableCodeCache = serialized.enable_code_cache();
     if (serialized.has_workload_descriptor()) {
-        FromProto(&result.WorkloadDescriptor, serialized.workload_descriptor());
+        FromProto(&original->WorkloadDescriptor, serialized.workload_descriptor());
     }
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TDataRanges* proto, const TDataRanges& dataSource)
+void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original)
 {
-    ToProto(proto->mutable_id(), dataSource.Id);
+    ToProto(serialized->mutable_id(), original.Id);
 
     NTabletClient::TWireProtocolWriter writer;
-    for (const auto& range : dataSource.Ranges) {
+    for (const auto& range : original.Ranges) {
         writer.WriteUnversionedRow(range.first);
         writer.WriteUnversionedRow(range.second);
     }
-    ToProto(proto->mutable_ranges(), ToString(MergeRefs(writer.Flush())));
+    ToProto(serialized->mutable_ranges(), ToString(MergeRefs(writer.Flush())));
 
-    proto->set_lookup_supported(dataSource.LookupSupported);
+    serialized->set_lookup_supported(original.LookupSupported);
 }
 
-TDataRanges FromProto(const NProto::TDataRanges& serialized)
+void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized)
 {
-    TDataRanges result;
-
-    result.Id = FromProto<TObjectId>(serialized.id());
+    FromProto(&original->Id, serialized.id());
 
     struct TDataRangesBufferTag
     { };
@@ -629,11 +602,9 @@ TDataRanges FromProto(const NProto::TDataRanges& serialized)
         auto upperBound = rowBuffer->Capture(reader.ReadUnversionedRow());
         ranges.emplace_back(lowerBound, upperBound);
     }
-    result.Ranges = MakeSharedRange(std::move(ranges), rowBuffer);
+    original->Ranges = MakeSharedRange(std::move(ranges), rowBuffer);
 
-    result.LookupSupported = serialized.lookup_supported();
-
-    return result;
+    original->LookupSupported = serialized.lookup_supported();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
