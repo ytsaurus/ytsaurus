@@ -11,6 +11,12 @@ using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TFileReaderDataBufferTag
+{ };
+
+struct TFileReaderMetaBufferTag
+{ };
+
 namespace {
 
 template <class T>
@@ -139,8 +145,7 @@ std::vector<TSharedRef> TFileReader::DoReadBlocks(
     const auto& lastBlockInfo = blockExts.blocks(lastBlockIndex);
     i64 totalSize = lastBlockInfo.offset() + lastBlockInfo.size() - firstBlockInfo.offset();
 
-    struct TFileChunkBlockTag { };
-    auto data = TSharedMutableRef::Allocate<TFileChunkBlockTag>(totalSize, false);
+    auto data = TSharedMutableRef::Allocate<TFileReaderDataBufferTag>(totalSize, false);
 
     auto& file = GetDataFile();
     file.Pread(data.Begin(), data.Size(), firstBlockInfo.offset());
@@ -190,8 +195,7 @@ TChunkMeta TFileReader::DoGetMeta(
             sizeof (TChunkMetaHeaderBase));
     }
 
-    struct TFileChunkMetaTag { };
-    auto metaFileBlob = TSharedMutableRef::Allocate<TFileChunkMetaTag>(metaFile.GetLength());
+    auto metaFileBlob = TSharedMutableRef::Allocate<TFileReaderMetaBufferTag>(metaFile.GetLength());
 
     TBufferedFileInput metaFileInput(metaFile);
     metaFileInput.Read(metaFileBlob.Begin(), metaFile.GetLength());

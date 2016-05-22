@@ -25,9 +25,8 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileChunkBlockTag { };
-
-////////////////////////////////////////////////////////////////////////////////
+struct TFileChunkWriterBufferTag
+{ };
 
 class TFileChunkWriter
     : public IFileChunkWriter
@@ -57,12 +56,12 @@ public:
     virtual TDataStatistics GetDataStatistics() const override;
 
 private:
+    const TFileChunkWriterConfigPtr Config_;
+    const TEncodingChunkWriterPtr EncodingChunkWriter_;
+
     NLogging::TLogger Logger = FileClientLogger;
 
-    TFileChunkWriterConfigPtr Config_;
-    TEncodingChunkWriterPtr EncodingChunkWriter_;
-
-    TBlob Buffer_ { TFileChunkBlockTag() };
+    TBlob Buffer_ { TFileChunkWriterBufferTag() };
     
     TBlocksExt BlocksExt_;
     i64 BlocksExtSize_ = 0;
