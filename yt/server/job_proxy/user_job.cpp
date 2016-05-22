@@ -137,12 +137,13 @@ public:
             AuxQueue_->GetInvoker(),
             BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
             Config_->BlockIOWatchdogPeriod))
-        , ShellManager_(CreateShellManager(
+        , Logger(Host_->GetLogger())
+    { 
+        ShellManager_ = CreateShellManager(
             NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Home]),
             Config_->UserId,
-            TNullable<Stroka>(Config_->EnableCGroups, Freezer_.GetFullPath())))
-        , Logger(Host_->GetLogger())
-    { }
+            TNullable<Stroka>(Config_->EnableCGroups, Freezer_.GetFullPath()));
+    }
 
     virtual void Initialize() override
     { }
@@ -271,6 +272,10 @@ private:
     TProcessPtr Process_;
     TFuture<void> ProcessFinished_;
 
+    // Destroy shell manager before user job cgrops, since its cgroups are typically
+    // nested, and we need to mantain destroy order.
+    IShellManagerPtr ShellManager_;
+
     TCpuAccounting CpuAccounting_;
     TBlockIO BlockIO_;
     TMemory Memory_;
@@ -279,8 +284,6 @@ private:
 
     const TPeriodicExecutorPtr MemoryWatchdogExecutor_;
     const TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
-
-    IShellManagerPtr ShellManager_;
 
     const NLogging::TLogger Logger;
 
