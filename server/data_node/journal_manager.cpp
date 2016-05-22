@@ -76,7 +76,7 @@ struct TMultiplexedRecord
 } // namespace NDataNode
 } // namespace NYT
 
-DECLARE_PODTYPE(NYT::NDataNode::TMultiplexedRecordHeader);
+Y_DECLARE_PODTYPE(NYT::NDataNode::TMultiplexedRecordHeader);
 
 namespace NYT {
 namespace NDataNode {
