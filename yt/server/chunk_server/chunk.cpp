@@ -36,6 +36,10 @@ bool operator!= (const TChunkProperties& lhs, const TChunkProperties& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TChunk::TCachedReplicas TChunk::EmptyCachedReplicas;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunk::TChunk(const TChunkId& id)
     : TChunkTree(id)
 {
@@ -149,6 +153,11 @@ void TChunk::RemoveParent(TChunkList* parent)
     Parents_.erase(it);
 }
 
+const TChunk::TCachedReplicas& TChunk::CachedReplicas() const
+{
+    return CachedReplicas_ ? *CachedReplicas_ : EmptyCachedReplicas;
+}
+
 void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
 {
     if (cached) {
@@ -195,10 +204,10 @@ void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
 
 TNodePtrWithIndexList TChunk::GetReplicas() const
 {
-    TNodePtrWithIndexList result(StoredReplicas_.begin(), StoredReplicas_.end());
-    if (CachedReplicas_) {
-        result.insert(result.end(), CachedReplicas_->begin(), CachedReplicas_->end());
-    }
+    TNodePtrWithIndexList result;
+    result.reserve(StoredReplicas_.size() + CachedReplicas().size());
+    result.insert(result.end(), StoredReplicas_.begin(), StoredReplicas_.end());
+    result.insert(result.end(), CachedReplicas().begin(), CachedReplicas().end());
     return result;
 }
 

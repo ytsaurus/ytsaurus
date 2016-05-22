@@ -194,16 +194,13 @@ private:
 
         if (!isForeign) {
             if (key == "cached_replicas") {
-                TNodePtrWithIndexList replicas;
-                if (chunk->CachedReplicas()) {
-                    replicas = TNodePtrWithIndexList(chunk->CachedReplicas()->begin(), chunk->CachedReplicas()->end());
-                }
+                TNodePtrWithIndexList replicas(chunk->CachedReplicas().begin(), chunk->CachedReplicas().end());
                 serializeReplicas(consumer, replicas);
                 return true;
             }
 
             if (key == "stored_replicas") {
-                auto replicas = chunk->StoredReplicas();
+                TNodePtrWithIndexList replicas(chunk->StoredReplicas().begin(), chunk->StoredReplicas().end());
                 serializeReplicas(consumer, replicas);
                 return true;
             }
