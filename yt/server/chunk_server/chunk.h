@@ -85,11 +85,6 @@ public:
     typedef TNodePtrWithIndexList TStoredReplicas;
     DEFINE_BYREF_RO_PROPERTY(TStoredReplicas, StoredReplicas);
 
-    // This list is usually empty.
-    // Keeping a holder is very space efficient (takes just 8 bytes).
-    typedef std::unique_ptr<yhash_set<TNodePtrWithIndex>> TCachedReplicas;
-    DEFINE_BYREF_RO_PROPERTY(TCachedReplicas, CachedReplicas);
-
 public:
     explicit TChunk(const TChunkId& id);
 
@@ -103,6 +98,9 @@ public:
 
     void AddParent(TChunkList* parent);
     void RemoveParent(TChunkList* parent);
+
+    using TCachedReplicas = yhash_set<TNodePtrWithIndex>;
+    const TCachedReplicas& CachedReplicas() const;
 
     void AddReplica(TNodePtrWithIndex replica, bool cached);
     void RemoveReplica(TNodePtrWithIndex replica, bool cached);
@@ -230,6 +228,10 @@ private:
     ui8 ExportCounter_ = 0;
     //! Per-cell data, indexed by cell index; cf. TMulticellManager::GetRegisteredMasterCellIndex.
     TChunkExportDataList ExportDataList_ = {};
+
+    // This list is usually empty. Keeping a holder is very space efficient.
+    std::unique_ptr<TCachedReplicas> CachedReplicas_;
+    static const TCachedReplicas EmptyCachedReplicas;
 
 };
 
