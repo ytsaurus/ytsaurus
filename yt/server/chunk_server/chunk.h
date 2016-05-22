@@ -78,7 +78,7 @@ public:
     // This list is typically small, e.g. has the length of 1.
     // It may contain duplicates, i.e. when a chunk is added into the same
     // table multiple times during merge.
-    typedef SmallVector<TChunkList*, TypicalChunkParentCount> TParents;
+    using TParents = SmallVector<TChunkList*, TypicalChunkParentCount>;
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
 
     // This is usually small, e.g. has the length of 3.
