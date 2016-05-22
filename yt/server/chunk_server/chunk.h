@@ -81,10 +81,6 @@ public:
     using TParents = SmallVector<TChunkList*, TypicalChunkParentCount>;
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
 
-    // This is usually small, e.g. has the length of 3.
-    typedef TNodePtrWithIndexList TStoredReplicas;
-    DEFINE_BYREF_RO_PROPERTY(TStoredReplicas, StoredReplicas);
-
 public:
     explicit TChunk(const TChunkId& id);
 
@@ -101,6 +97,9 @@ public:
 
     using TCachedReplicas = yhash_set<TNodePtrWithIndex>;
     const TCachedReplicas& CachedReplicas() const;
+
+    using TStoredReplicas = TNodePtrWithIndexList;
+    const TStoredReplicas& StoredReplicas() const;
 
     void AddReplica(TNodePtrWithIndex replica, bool cached);
     void RemoveReplica(TNodePtrWithIndex replica, bool cached);
@@ -229,9 +228,14 @@ private:
     //! Per-cell data, indexed by cell index; cf. TMulticellManager::GetRegisteredMasterCellIndex.
     TChunkExportDataList ExportDataList_ = {};
 
-    // This list is usually empty. Keeping a holder is very space efficient.
+    //! This list is usually empty. Keeping a holder is very space efficient.
     std::unique_ptr<TCachedReplicas> CachedReplicas_;
     static const TCachedReplicas EmptyCachedReplicas;
+
+    //! This additional indirection helps to save up some space since
+    //! no replicas are being maintained for foreign chunks.
+    std::unique_ptr<TStoredReplicas> StoredReplicas_;
+    static const TStoredReplicas EmptyStoredReplicas;
 
 };
 

@@ -37,6 +37,7 @@ bool operator!= (const TChunkProperties& lhs, const TChunkProperties& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 const TChunk::TCachedReplicas TChunk::EmptyCachedReplicas;
+const TChunk::TStoredReplicas TChunk::EmptyStoredReplicas;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,7 +96,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, Parents_);
     // NB: RemoveReplica calls do not commute and their order is not
     // deterministic (i.e. when unregistering a node we traverse certain hashtables).
-    TVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, StoredReplicas_);
+    TNullableVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, StoredReplicas_);
     Save(context, CachedReplicas_);
     Save(context, ExportCounter_);
     if (ExportCounter_ > 0) {
@@ -158,24 +159,32 @@ const TChunk::TCachedReplicas& TChunk::CachedReplicas() const
     return CachedReplicas_ ? *CachedReplicas_ : EmptyCachedReplicas;
 }
 
+const TChunk::TStoredReplicas& TChunk::StoredReplicas() const
+{
+    return StoredReplicas_ ? *StoredReplicas_ : EmptyStoredReplicas;
+}
+
 void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
 {
     if (cached) {
         YASSERT(!IsJournal());
         if (!CachedReplicas_) {
-            CachedReplicas_.reset(new yhash_set<TNodePtrWithIndex>());
+            CachedReplicas_ = std::make_unique<TCachedReplicas>();
         }
         YCHECK(CachedReplicas_->insert(replica).second);
     } else {
+        if (!StoredReplicas_) {
+            StoredReplicas_ = std::make_unique<TStoredReplicas>();
+        }
         if (IsJournal()) {
-            for (auto& existingReplica : StoredReplicas_) {
+            for (auto& existingReplica : *StoredReplicas_) {
                 if (existingReplica.GetPtr() == replica.GetPtr()) {
                     existingReplica = replica;
                     return;
                 }
             }
         }
-        StoredReplicas_.push_back(replica);
+        StoredReplicas_->push_back(replica);
     }
 }
 
@@ -188,13 +197,15 @@ void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
             CachedReplicas_.reset();
         }
     } else {
-        for (auto it = StoredReplicas_.begin(); it != StoredReplicas_.end(); ++it) {
+        // NB: We don't release StoredReplicas_ when it becomes empty since
+        // the idea is just to save up some space for foreign chunks.
+        for (auto it = StoredReplicas_->begin(); it != StoredReplicas_->end(); ++it) {
             auto& existingReplica = *it;
             if (existingReplica == replica ||
                 IsJournal() && existingReplica.GetPtr() == replica.GetPtr())
             {
-                std::swap(existingReplica, StoredReplicas_.back());
-                StoredReplicas_.resize(StoredReplicas_.size() - 1);
+                std::swap(existingReplica, StoredReplicas_->back());
+                StoredReplicas_->pop_back();
                 return;
             }
         }
@@ -204,17 +215,20 @@ void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
 
 TNodePtrWithIndexList TChunk::GetReplicas() const
 {
+    const auto& storedReplicas = StoredReplicas();
+    const auto& cachedReplicas = CachedReplicas();
     TNodePtrWithIndexList result;
-    result.reserve(StoredReplicas_.size() + CachedReplicas().size());
-    result.insert(result.end(), StoredReplicas_.begin(), StoredReplicas_.end());
-    result.insert(result.end(), CachedReplicas().begin(), CachedReplicas().end());
+    result.reserve(cachedReplicas.size() + CachedReplicas().size());
+    result.insert(result.end(), storedReplicas.begin(), storedReplicas.end());
+    result.insert(result.end(), cachedReplicas.begin(), cachedReplicas.end());
     return result;
 }
 
 void TChunk::ApproveReplica(TNodePtrWithIndex replica)
 {
     if (IsJournal()) {
-        for (auto& existingReplica : StoredReplicas_) {
+        YCHECK(StoredReplicas_);
+        for (auto& existingReplica : *StoredReplicas_) {
             if (existingReplica.GetPtr() == replica.GetPtr()) {
                 existingReplica = replica;
                 return;
@@ -247,21 +261,25 @@ bool TChunk::IsConfirmed() const
 
 bool TChunk::IsAvailable() const
 {
+    if (!StoredReplicas_) {
+        // Actually it makes no sense calling IsAvailable for foreign chunks.
+        return false;
+    }
     if (IsRegular()) {
-        return !StoredReplicas_.empty();
+        return StoredReplicas_->empty();
     } else if (IsErasure()) {
         auto* codec = NErasure::GetCodec(GetErasureCodec());
         int dataPartCount = codec->GetDataPartCount();
         NErasure::TPartIndexSet missingIndexSet((1 << dataPartCount) - 1);
-        for (auto replica : StoredReplicas_) {
+        for (auto replica : *StoredReplicas_) {
             missingIndexSet.reset(replica.GetIndex());
         }
         return !missingIndexSet.any();
     } else if (IsJournal()) {
-        if (StoredReplicas_.size() >= GetReadQuorum()) {
+        if (StoredReplicas_->size() >= GetReadQuorum()) {
             return true;
         }
-        for (auto replica : StoredReplicas_) {
+        for (auto replica : *StoredReplicas_) {
             if (replica.GetIndex() == SealedChunkReplicaIndex) {
                 return true;
             }
