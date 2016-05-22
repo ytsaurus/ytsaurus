@@ -136,12 +136,16 @@ const Stroka& GetInterconnectAddress(const TAddressMap& addresses)
 
 EAddressLocality ComputeAddressLocality(const TNodeDescriptor& first, const TNodeDescriptor& second)
 {
-    if (GetServiceHostName(first.GetDefaultAddress()) == GetServiceHostName(second.GetDefaultAddress())) {
-        return EAddressLocality::SameHost;
-    }
+    try {
+        if (GetServiceHostName(first.GetDefaultAddress()) == GetServiceHostName(second.GetDefaultAddress())) {
+            return EAddressLocality::SameHost;
+        }
 
-    if (first.GetRack() && second.GetRack() && *first.GetRack() == *second.GetRack()) {
-        return EAddressLocality::SameRack;
+        if (first.GetRack() && second.GetRack() && *first.GetRack() == *second.GetRack()) {
+            return EAddressLocality::SameRack;
+        }
+    } catch (const std::exception& ex) {
+        // If one of the descriptors is malformed, treat it as None locality and ignore errors.
     }
 
     return EAddressLocality::None;

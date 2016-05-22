@@ -13,6 +13,7 @@ using namespace NScheduler;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NApi;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +48,28 @@ void TSignalJobCommand::Execute(ICommandContextPtr context)
 void TAbandonJobCommand::Execute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->AbandonJob(JobId))
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TPollJobShellCommand::Execute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->PollJobShell(
+        JobId,
+        TYsonString(Parameters),
+        Options);
+    auto result = WaitFor(asyncResult)
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TAbortJobCommand::Execute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->AbortJob(JobId))
         .ThrowOnError();
 }
 

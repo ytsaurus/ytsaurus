@@ -101,11 +101,7 @@ public:
     ~TServiceContext()
     {
         if (!RuntimeInfo_->Descriptor.OneWay && !Replied_ && !Canceled_.IsFired()) {
-            if (Started_) {
-                Reply(TError(NRpc::EErrorCode::Abandoned, "RPC request was abandoned"));
-            } else {
-                Reply(TError(NRpc::EErrorCode::Unavailable, "Service is currently unavailable"));
-            }
+            Reply(TError(NRpc::EErrorCode::Unavailable, "Service is unable to complete your request"));
         }
 
         Finalize();
@@ -503,7 +499,7 @@ void TServiceBase::HandleRequest(
     try {
         if (Stopped_) {
             THROW_ERROR_EXCEPTION(
-                EErrorCode::Abandoned,
+                EErrorCode::Unavailable,
                 "Service is stopped");
         }
 

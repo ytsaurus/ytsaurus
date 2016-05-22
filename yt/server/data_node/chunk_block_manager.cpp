@@ -103,9 +103,7 @@ public:
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
-        const TWorkloadDescriptor& workloadDescriptor,
-        IBlockCachePtr blockCache,
-        bool populateCache)
+        const TBlockReadOptions& options)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -119,9 +117,7 @@ public:
             auto asyncBlocks = chunk->ReadBlockRange(
                 firstBlockIndex,
                 blockCount,
-                workloadDescriptor,
-                populateCache,
-                blockCache);
+                options);
             // Release the read guard upon future completion.
             return asyncBlocks.Apply(BIND(&TImpl::OnBlocksRead, Passed(std::move(readGuard))));
         } catch (const std::exception& ex) {
@@ -132,9 +128,7 @@ public:
     TFuture<std::vector<TSharedRef>> ReadBlockSet(
         const TChunkId& chunkId,
         const std::vector<int>& blockIndexes,
-        const TWorkloadDescriptor& workloadDescriptor,
-        IBlockCachePtr blockCache,
-        bool populateCache)
+        const TBlockReadOptions& options)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -147,10 +141,13 @@ public:
                 // Thus the cache may contain a block not bound to any chunk in the registry.
                 // We must look for these blocks.
                 auto type = TypeFromId(DecodeChunkId(chunkId).Id);
-                if (type == EObjectType::Chunk || type == EObjectType::ErasureChunk) {
+                if (options.BlockCache &&
+                    options.FetchFromCache &&
+                    (type == EObjectType::Chunk || type == EObjectType::ErasureChunk))
+                {
                     for (int blockIndex : blockIndexes) {
                         auto blockId = TBlockId(chunkId, blockIndex);
-                        auto block = blockCache->Find(blockId, EBlockType::CompressedData);
+                        auto block = options.BlockCache->Find(blockId, EBlockType::CompressedData);
                         blocks.push_back(block);
                     }
                 }
@@ -158,11 +155,7 @@ public:
             }
 
             auto readGuard = TChunkReadGuard::AcquireOrThrow(chunk);
-            auto asyncBlocks = chunk->ReadBlockSet(
-                blockIndexes,
-                workloadDescriptor,
-                populateCache,
-                blockCache);
+            auto asyncBlocks = chunk->ReadBlockSet(blockIndexes, options);
             // Hold the read guard.
             return asyncBlocks.Apply(BIND(&TImpl::OnBlocksRead, Passed(std::move(readGuard))));
         } catch (const std::exception& ex) {
@@ -223,32 +216,24 @@ TFuture<std::vector<TSharedRef>> TChunkBlockManager::ReadBlockRange(
     const TChunkId& chunkId,
     int firstBlockIndex,
     int blockCount,
-    const TWorkloadDescriptor& workloadDescriptor,
-    IBlockCachePtr blockCache,
-    bool populateCache)
+    const TBlockReadOptions& options)
 {
     return Impl_->ReadBlockRange(
         chunkId,
         firstBlockIndex,
         blockCount,
-        workloadDescriptor,
-        std::move(blockCache),
-        populateCache);
+        options);
 }
 
 TFuture<std::vector<TSharedRef>> TChunkBlockManager::ReadBlockSet(
     const TChunkId& chunkId,
     const std::vector<int>& blockIndexes,
-    const TWorkloadDescriptor& workloadDescriptor,
-    IBlockCachePtr blockCache,
-    bool populateCache)
+    const TBlockReadOptions& options)
 {
     return Impl_->ReadBlockSet(
         chunkId,
         blockIndexes,
-        workloadDescriptor,
-        std::move(blockCache),
-        populateCache);
+        options);
 }
 
 std::vector<TCachedBlockPtr> TChunkBlockManager::GetAllBlocks() const

@@ -40,6 +40,8 @@ void Serialize(const TYsonString& yson, IYsonConsumer* consumer);
 bool operator == (const TYsonString& lhs, const TYsonString& rhs);
 bool operator != (const TYsonString& lhs, const TYsonString& rhs);
 
+Stroka ToString(const TYsonString& yson);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYson

@@ -33,17 +33,23 @@ public:
     //! Timeout for a meta request.
     TDuration MetaRpcTimeout;
 
+    //! Timeout for a queue size probing request.
+    TDuration ProbeRpcTimeout;
+
+    //! Maximum number of peers to poll for queue length each round.
+    int ProbePeerCount;
+
     //! Time to wait before asking the master for seeds.
-    TDuration RetryBackoffTime;
+    TDuration SeedsTimeout;
 
     //! Maximum number of attempts to fetch new seeds.
     int RetryCount;
 
     //! Time to wait before making another pass with same seeds.
     //! Increases exponentially with every pass, from MinPassBackoffTime to MaxPassBackoffTime.
-    TDuration MinPassBackoffTime;
-    TDuration MaxPassBackoffTime;
-    double PassBackoffTimeMultiplier;
+    TDuration MinBackoffTime;
+    TDuration MaxBackoffTime;
+    double BackoffTimeMultiplier;
 
     //! Maximum number of passes with same seeds.
     int PassCount;
@@ -58,8 +64,14 @@ public:
     //! If |true| then fetched blocks are cached by the node.
     bool PopulateCache;
 
-    //! If |true| then the master may be asked for seeds.
-    bool AllowFetchingSeedsFromMaster;
+    //! If |true| then local rack replicas are unconditionally preferred to remote replicas.
+    bool PreferLocalRack;
+
+    //! If |true| then local host replicas are unconditionally preferred to any other replicas.
+    bool PreferLocalHost;
+
+    //! If peer ban counter exceeds #MaxBanCount, peer is banned forever.
+    int MaxBanCount;
 
     TReplicationReaderConfig()
     {
@@ -67,15 +79,20 @@ public:
             .Default(TDuration::Seconds(120));
         RegisterParameter("meta_rpc_timeout", MetaRpcTimeout)
             .Default(TDuration::Seconds(30));
-        RegisterParameter("retry_backoff_time", RetryBackoffTime)
+        RegisterParameter("probe_rpc_timeout", ProbeRpcTimeout)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("probe_peer_count", ProbePeerCount)
+            .Default(3)
+            .GreaterThan(0);
+        RegisterParameter("seeds_timeout", SeedsTimeout)
             .Default(TDuration::Seconds(3));
         RegisterParameter("retry_count", RetryCount)
             .Default(20);
-        RegisterParameter("min_pass_backoff_time", MinPassBackoffTime)
+        RegisterParameter("min_backoff_time", MinBackoffTime)
             .Default(TDuration::Seconds(3));
-        RegisterParameter("max_pass_backoff_time", MaxPassBackoffTime)
+        RegisterParameter("max_backoff_time", MaxBackoffTime)
             .Default(TDuration::Seconds(60));
-        RegisterParameter("pass_backoff_time_multiplier", PassBackoffTimeMultiplier)
+        RegisterParameter("backoff_time_multiplier", BackoffTimeMultiplier)
             .GreaterThan(1)
             .Default(1.5);
         RegisterParameter("pass_count", PassCount)
@@ -86,8 +103,12 @@ public:
             .Default(TDuration::Seconds(300));
         RegisterParameter("populate_cache", PopulateCache)
             .Default(true);
-        RegisterParameter("allow_fetching_seeds_from_master", AllowFetchingSeedsFromMaster)
-            .Default(true);
+        RegisterParameter("prefer_local_host", PreferLocalHost)
+            .Default(false);
+        RegisterParameter("prefer_local_rack", PreferLocalRack)
+            .Default(false);
+        RegisterParameter("max_ban_count", MaxBanCount)
+            .Default(5);
     }
 };
 
@@ -97,7 +118,23 @@ DEFINE_REFCOUNTED_TYPE(TReplicationReaderConfig)
 
 class TRemoteReaderOptions
     : public virtual NYTree::TYsonSerializable
-{ };
+{
+public:
+    //! If |true| then the master may be asked for seeds.
+    bool AllowFetchingSeedsFromMaster;
+
+    //! Advertise current host as a P2P peer.
+    bool EnableP2P;
+
+    TRemoteReaderOptions()
+    {
+        RegisterParameter("allow_fetching_seeds_from_master", AllowFetchingSeedsFromMaster)
+            .Default(true);
+
+        RegisterParameter("enable_p2p", EnableP2P)
+            .Default(false);
+    }
+};
 
 DEFINE_REFCOUNTED_TYPE(TRemoteReaderOptions)
 

@@ -21,7 +21,7 @@ public:
         NDataNode::TChunkRegistryPtr chunkRegistry = nullptr,
         NDataNode::TChunkBlockManagerPtr chunkBlockManager = nullptr,
         NApi::IClientPtr client = nullptr,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor = Null);
+        const NNodeTrackerClient::TNodeDescriptor& localDescriptor = NNodeTrackerClient::TNodeDescriptor());
     ~TOrderedChunkStore();
 
     virtual void Initialize(const NTabletNode::NProto::TAddStoreDescriptor* descriptor) override;

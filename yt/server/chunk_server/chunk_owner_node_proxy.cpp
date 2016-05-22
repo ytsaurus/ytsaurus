@@ -511,11 +511,13 @@ TFuture<TYsonString> ComputeChunkStatistics(
 TChunkOwnerNodeProxy::TChunkOwnerNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TTransaction* transaction,
     TChunkOwnerBase* trunkNode)
     : TNontemplateCypressNodeProxyBase(
         typeHandler,
         bootstrap,
+        metadata,
         transaction,
         trunkNode)
 { }

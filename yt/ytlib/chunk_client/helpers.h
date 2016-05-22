@@ -81,16 +81,16 @@ IChunkReaderPtr CreateRemoteReader(
     TRemoteReaderOptionsPtr options,
     NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
+    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     NConcurrency::IThroughputThrottlerPtr throttler);
 
 IChunkReaderPtr CreateRemoteReader(
-    TChunkId chunkId, 
+    const TChunkId& chunkId, 
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NApi::IClientPtr client,
-    const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
+    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     NConcurrency::IThroughputThrottlerPtr throttler);
 

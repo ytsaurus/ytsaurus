@@ -1793,7 +1793,7 @@ IObjectProxyPtr TSecurityManager::TAccountTypeHandler::DoGetProxy(
     TAccount* account,
     TTransaction* /*transaction*/)
 {
-    return CreateAccountProxy(Owner_->Bootstrap_, account);
+    return CreateAccountProxy(Owner_->Bootstrap_, &Metadata_, account);
 }
 
 void TSecurityManager::TAccountTypeHandler::DoZombifyObject(TAccount* account)
@@ -1824,7 +1824,7 @@ IObjectProxyPtr TSecurityManager::TUserTypeHandler::DoGetProxy(
     TUser* user,
     TTransaction* /*transaction*/)
 {
-    return CreateUserProxy(Owner_->Bootstrap_, user);
+    return CreateUserProxy(Owner_->Bootstrap_, &Metadata_, user);
 }
 
 void TSecurityManager::TUserTypeHandler::DoZombifyObject(TUser* user)
@@ -1855,7 +1855,7 @@ IObjectProxyPtr TSecurityManager::TGroupTypeHandler::DoGetProxy(
     TGroup* group,
     TTransaction* /*transaction*/)
 {
-    return CreateGroupProxy(Owner_->Bootstrap_, group);
+    return CreateGroupProxy(Owner_->Bootstrap_, &Metadata_, group);
 }
 
 void TSecurityManager::TGroupTypeHandler::DoZombifyObject(TGroup* group)
@@ -1872,8 +1872,7 @@ TSecurityManager::TSecurityManager(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-TSecurityManager::~TSecurityManager()
-{ }
+TSecurityManager::~TSecurityManager() = default;
 
 void TSecurityManager::Initialize()
 {

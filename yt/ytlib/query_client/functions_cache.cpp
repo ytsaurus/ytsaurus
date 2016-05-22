@@ -489,6 +489,7 @@ public:
             New<NApi::TFileReaderConfig>(),
             New<NChunkClient::TMultiChunkReaderOptions>(),
             client,
+            NNodeTrackerClient::TNodeDescriptor(),
             client->GetConnection()->GetBlockCache(),
             std::move(nodeDirectory),
             std::move(chunks));

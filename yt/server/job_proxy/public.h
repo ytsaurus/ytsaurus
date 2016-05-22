@@ -34,6 +34,7 @@ DEFINE_ENUM(EJobProxyExitCode,
 
 DEFINE_ENUM(EErrorCode,
     ((MemoryLimitExceeded)  (1200))
+    ((MemoryCheckFailed)    (1201))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

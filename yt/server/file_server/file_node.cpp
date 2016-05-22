@@ -56,6 +56,7 @@ protected:
         return CreateFileNodeProxy(
             this,
             Bootstrap_,
+            &Metadata_,
             transaction,
             trunkNode);
     }

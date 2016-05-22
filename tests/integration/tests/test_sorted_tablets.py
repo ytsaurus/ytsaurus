@@ -195,6 +195,19 @@ class TestSortedTablets(YTEnvSetup):
         sleep(1)
         assert self._find_tablet_orchid(address, tablet_id) is None
 
+    def test_read_invalid_limits(self):
+        self.sync_create_cells(1, 1)
+
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows1)
+        self.sync_unmount_table("//tmp/t")
+
+        with pytest.raises(YtError):  read_table("//tmp/t[#5:]")
+        with pytest.raises(YtError):  read_table("<ranges=[{lower_limit={chunk_index = 0};upper_limit={chunk_index = 1}}]>//tmp/t")
+
     def _test_read_table(self, optimize_for):
         self.sync_create_cells(1, 1)
 

@@ -39,6 +39,7 @@ class TestSchedulerOther(YTEnvSetup):
         "scheduler": {
             "operation_time_limit_check_period" : 100,
             "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
         }
     }
 
@@ -215,7 +216,7 @@ class TestSchedulerOther(YTEnvSetup):
         for i in xrange(1, 4):
             ops.append(
                 map(dont_track=True,
-                    command="sleep 0.3; cat >/dev/null",
+                    command="sleep 0.5; cat >/dev/null",
                     in_=["//tmp/in" + str(i)],
                     out="//tmp/out" + str(i),
                     spec={"pool": "fifo_pool", "data_size_per_job": 1}))
@@ -947,7 +948,8 @@ class TestSchedulerPreemption(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "min_share_preemption_timeout": 100,
-            "fair_share_starvation_tolerance": 0.7
+            "fair_share_starvation_tolerance": 0.7,
+            "fair_share_starvation_tolerance_limit": 0.9
         }
     }
 
@@ -977,25 +979,33 @@ class TestSchedulerPreemption(YTEnvSetup):
         create("map_node", "//sys/pools/p1/p2")
         create("map_node", "//sys/pools/p1/p3", attributes={"fair_share_starvation_tolerance": 0.5})
         create("map_node", "//sys/pools/p1/p4", attributes={"fair_share_starvation_tolerance": 0.9})
+        create("map_node", "//sys/pools/p5", attributes={"fair_share_starvation_tolerance": 0.8})
+        create("map_node", "//sys/pools/p5/p6")
         time.sleep(1)
 
-        pool_share_path = "//sys/scheduler/orchid/scheduler/pools/{0}/adjusted_fair_share_starvation_tolerance"
-        assert get(pool_share_path.format("p1")) == 0.7
-        assert get(pool_share_path.format("p2")) == 0.6
-        assert get(pool_share_path.format("p3")) == 0.5
-        assert get(pool_share_path.format("p4")) == 0.6
+        get_pool_tolerance = lambda pool: \
+            get("//sys/scheduler/orchid/scheduler/pools/{0}/adjusted_fair_share_starvation_tolerance".format(pool))
+
+        assert get_pool_tolerance("p1") == 0.7
+        assert get_pool_tolerance("p2") == 0.6
+        assert get_pool_tolerance("p3") == 0.5
+        assert get_pool_tolerance("p4") == 0.6
+        assert get_pool_tolerance("p5") == 0.8
+        assert get_pool_tolerance("p6") == 0.8
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
         create("table", "//tmp/t_out1")
         create("table", "//tmp/t_out2")
+        create("table", "//tmp/t_out3")
+        create("table", "//tmp/t_out4")
 
         op1 = map(
             dont_track=True,
             command="sleep 1000; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out1",
-            spec={"pool": "p2", "fair_share_starvation_tolerance": 0.5})
+            spec={"pool": "p2", "fair_share_starvation_tolerance": 0.4})
 
         op2 = map(
             dont_track=True,
@@ -1004,10 +1014,29 @@ class TestSchedulerPreemption(YTEnvSetup):
             out="//tmp/t_out2",
             spec={"pool": "p2", "fair_share_starvation_tolerance": 0.8})
 
+        op3 = map(
+            dont_track=True,
+            command="sleep 1000; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out3",
+            spec={"pool": "p6"})
+
+        op4 = map(
+            dont_track=True,
+            command="sleep 1000; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out4",
+            spec={"pool": "p6", "fair_share_starvation_tolerance": 0.9})
+
         time.sleep(1)
-        operation_share_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/adjusted_fair_share_starvation_tolerance"
-        assert get(operation_share_path.format(op1.id)) == 0.5
-        assert get(operation_share_path.format(op2.id)) == 0.6
+
+        get_operation_tolerance = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/adjusted_fair_share_starvation_tolerance".format(op_id))
+
+        assert get_operation_tolerance(op1.id) == 0.4
+        assert get_operation_tolerance(op2.id) == 0.6
+        assert get_operation_tolerance(op3.id) == 0.8
+        assert get_operation_tolerance(op4.id) == 0.9
 
         op1.abort();
         op2.abort();

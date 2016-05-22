@@ -14,6 +14,7 @@
 #include <yt/server/chunk_server/chunk_list.h>
 
 #include <yt/server/cypress_server/cypress_manager.h>
+#include <yt/server/cypress_server/node_detail.h>
 
 #include <yt/server/election/election_manager.h>
 
@@ -661,7 +662,7 @@ void TObjectManager::Clear()
     MasterObject_.reset(new TMasterObject(MasterObjectId_));
     MasterObject_->RefObject();
 
-    MasterProxy_ = CreateMasterProxy(Bootstrap_, MasterObject_.get());
+    MasterProxy_ = GetProxy(MasterObject_.get());
 
     SchemaMap_.Clear();
 
@@ -695,7 +696,7 @@ void TObjectManager::InitSchemas()
 
         auto& entry = TypeToEntry_[type];
         entry.SchemaObject = SchemaMap_.Get(id);
-        entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
+        entry.SchemaProxy = GetProxy(entry.SchemaObject);
     }
 }
 

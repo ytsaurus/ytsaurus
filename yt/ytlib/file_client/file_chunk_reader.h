@@ -15,6 +15,7 @@
 #include <yt/core/misc/ref.h>
 
 #include <yt/core/rpc/public.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -45,6 +46,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
     NChunkClient::TMultiChunkReaderOptionsPtr options,
     NApi::IClientPtr client,
+    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,

@@ -244,6 +244,11 @@ void TVirtualMulticellMapBase::ListSystemAttributes(std::vector<TAttributeDescri
         .SetOpaque(true));
 }
 
+const yhash_set<const char*>& TVirtualMulticellMapBase::GetBuiltinAttributeKeys()
+{
+    return BuiltinAttributeKeysCache_.GetBuiltinAttributeKeys(this);
+}
+
 bool TVirtualMulticellMapBase::GetBuiltinAttribute(const Stroka& /*key*/, IYsonConsumer* /*consumer*/)
 {
     return false;
@@ -553,7 +558,6 @@ public:
     {
         return ENodeType::Entity;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -565,6 +569,7 @@ public:
     TVirtualNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
         TTransaction* transaction,
         TVirtualNode* trunkNode,
         EVirtualNodeOptions options,
@@ -572,6 +577,7 @@ public:
         : TBase(
             typeHandler,
             bootstrap,
+            metadata,
             transaction,
             trunkNode)
         , Options_(options)
@@ -684,7 +690,6 @@ private:
     {
         return Producer_.Run(this);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -727,12 +732,12 @@ private:
         return New<TVirtualNodeProxy>(
             this,
             Bootstrap_,
+            &Metadata_,
             transaction,
             trunkNode,
             Options_,
             Producer_);
     }
-
 };
 
 INodeTypeHandlerPtr CreateVirtualTypeHandler(

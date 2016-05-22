@@ -34,16 +34,12 @@ public:
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
-        const TWorkloadDescriptor& workloadDescriptor,
-        bool populateCache,
-        NChunkClient::IBlockCachePtr blockCache) override;
+        const TBlockReadOptions& options) override;
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
-        const TWorkloadDescriptor& workloadDescriptor,
-        bool populateCache,
-        NChunkClient::IBlockCachePtr blockCache) override;
+        const TBlockReadOptions& options) override;
 
     virtual void SyncRemove(bool force) override;
 

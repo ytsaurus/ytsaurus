@@ -10,6 +10,7 @@
 
 #include <yt/server/object_server/attribute_set.h>
 #include <yt/server/object_server/object_detail.h>
+#include <yt/server/object_server/type_handler_detail.h>
 
 #include <yt/server/security_server/account.h>
 #include <yt/server/security_server/security_manager.h>
@@ -39,6 +40,8 @@ public:
 
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
+
+    NObjectServer::TObjectTypeMetadata Metadata_;
 
 
     bool IsLeader() const;
@@ -363,12 +366,6 @@ public:
         Load(context, Value_);
     }
 };
-
-typedef TScalarNode<Stroka> TStringNode;
-typedef TScalarNode<i64>    TInt64Node;
-typedef TScalarNode<ui64>   TUint64Node;
-typedef TScalarNode<double> TDoubleNode;
-typedef TScalarNode<bool>   TBooleanNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

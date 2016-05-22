@@ -176,6 +176,7 @@ private:
             Config_,
             New<TMultiChunkReaderOptions>(),
             Client_,
+            TNodeDescriptor(),
             Client_->GetConnection()->GetBlockCache(),
             nodeDirectory,
             std::move(chunkSpecs));

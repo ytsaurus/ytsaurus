@@ -86,9 +86,8 @@ public:
     bool IsInitialized()
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
-        auto* root = dynamic_cast<TMapNode*>(cypressManager->GetRootNode());
-        YCHECK(root);
-        return !root->KeyToChild().empty();
+        auto* rootNode = cypressManager->GetRootNode();
+        return !rootNode->KeyToChild().empty();
     }
 
     void ValidateInitialized()

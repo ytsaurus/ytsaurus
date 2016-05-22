@@ -112,7 +112,7 @@ TOrderedChunkStore::TOrderedChunkStore(
     TChunkRegistryPtr chunkRegistry,
     TChunkBlockManagerPtr chunkBlockManager,
     IClientPtr client,
-    const TNullable<TNodeDescriptor>& localDescriptor)
+    const TNodeDescriptor& localDescriptor)
     : TStoreBase(config, id, tablet)
     , TChunkStoreBase(
         config,

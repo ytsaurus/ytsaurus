@@ -200,7 +200,7 @@ private:
                     options,
                     Client_,
                     NodeDirectory_,
-                    Null,
+                    TNodeDescriptor(),
                     chunkId,
                     replicas,
                     Client_->GetConnection()->GetBlockCache());

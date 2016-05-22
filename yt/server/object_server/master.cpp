@@ -39,8 +39,11 @@ class TMasterProxy
     : public TNonversionedObjectProxyBase<TMasterObject>
 {
 public:
-    TMasterProxy(TBootstrap* bootstrap, TMasterObject* object)
-        : TBase(bootstrap, object)
+    TMasterProxy(
+        TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
+        TMasterObject* object)
+        : TBase(bootstrap, metadata, object)
     { }
 
 private:
@@ -85,9 +88,12 @@ private:
     }
 };
 
-IObjectProxyPtr CreateMasterProxy(TBootstrap* bootstrap, TMasterObject* object)
+IObjectProxyPtr CreateMasterProxy(
+    TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
+    TMasterObject* object)
 {
-    return New<TMasterProxy>(bootstrap, object);
+    return New<TMasterProxy>(bootstrap, metadata, object);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,13 +138,11 @@ private:
     }
 
     virtual IObjectProxyPtr DoGetProxy(
-        TMasterObject* /*object*/,
+        TMasterObject* object,
         NTransactionServer::TTransaction* /*transaction*/) override
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
-        return objectManager->GetMasterProxy();
+        return CreateMasterProxy(Bootstrap_, &Metadata_, object);
     }
-
 };
 
 IObjectTypeHandlerPtr CreateMasterTypeHandler(TBootstrap* bootstrap)

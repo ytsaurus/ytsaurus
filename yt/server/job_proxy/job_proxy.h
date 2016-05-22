@@ -14,6 +14,8 @@
 #include <yt/ytlib/job_tracker_client/public.h>
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+
 #include <yt/core/concurrency/public.h>
 
 #include <yt/core/logging/log.h>
@@ -39,6 +41,7 @@ public:
     std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId);
     NYson::TYsonString Strace(const NJobTrackerClient::TJobId& jobId);
     void SignalJob(const NJobTrackerClient::TJobId& jobId, const Stroka& signalName);
+    NYson::TYsonString PollJobShell(const NJobTrackerClient::TJobId& jobId, const NYson::TYsonString& parameters);
 
 private:
     const NYTree::INodePtr ConfigNode_;
@@ -57,6 +60,8 @@ private:
     NLogging::TLogger Logger;
 
     const TJobProxyConfigPtr Config_ = New<TJobProxyConfig>();
+
+    NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
     NRpc::IServerPtr RpcServer_;
 
@@ -110,6 +115,8 @@ private:
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const override;
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetAuxNodeDirectory() const override;
+
+    virtual const NNodeTrackerClient::TNodeDescriptor& LocalDescriptor() const override;
 
     virtual NLogging::TLogger GetLogger() const override;
 

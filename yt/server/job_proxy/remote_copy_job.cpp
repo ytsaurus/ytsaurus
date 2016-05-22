@@ -250,7 +250,7 @@ private:
                 New<TRemoteReaderOptions>(),
                 RemoteClient_,
                 Host_->GetInputNodeDirectory(),
-                Null,
+                Host_->LocalDescriptor(),
                 inputChunkId,
                 TChunkReplicaList(),
                 Host_->GetBlockCache());

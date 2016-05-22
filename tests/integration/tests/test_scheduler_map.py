@@ -303,6 +303,80 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
+    def _poll_until_prompt(self, job_id, shell_id):
+        output = ""
+        while len(output) < 4 or output[-4:] != ":~$ ":
+            r = poll_job_shell(job_id, operation="poll", shell_id=shell_id)
+            output += r["output"]
+        return output
+
+    def _send_keys(self, job_id, shell_id, keys):
+        poll_job_shell(job_id, operation="update", shell_id=shell_id, keys=keys.encode("hex"))
+
+    def test_poll_job_shell(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"key": "foo"})
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="poll_job_shell",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="sleep 10; cat")
+
+        job_id = op.jobs[0]
+        r = poll_job_shell(job_id, operation="spawn", term="screen-256color", height=50, width=132)
+        shell_id = r["shell_id"]
+        output = self._poll_until_prompt(job_id, shell_id)
+
+        command = "echo $TERM; tput lines; tput cols; id -u; id -g\r"
+        self._send_keys(job_id, shell_id, command)
+        output = self._poll_until_prompt(job_id, shell_id)
+
+        expected = "{0}\nscreen-256color\r\n50\r\n132\r\n{1}\r\n{1}\r\n".format(command, os.getuid())
+        assert output.startswith(expected) == True
+
+        r = poll_job_shell(job_id, operation="terminate", shell_id=shell_id)
+        with pytest.raises(YtError):
+            output = self._poll_until_prompt(job_id, shell_id)
+
+        abandon_job(job_id)
+
+        op.resume_jobs()
+        op.track()
+        assert len(read_table("//tmp/t2")) == 0
+
+    @unix_only
+    def test_abort_job(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        for i in xrange(5):
+            write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="abort_job",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat",
+            spec={
+                "data_size_per_job": 1
+            })
+
+        abort_job(op.jobs[3])
+
+        op.resume_jobs()
+        op.track()
+
+        assert len(read_table("//tmp/t2")) == 5
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/user_request".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op.id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
+
 ##################################################################
 
 class TestSchedulerMapCommands(YTEnvSetup):

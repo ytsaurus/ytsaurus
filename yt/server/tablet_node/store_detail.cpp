@@ -333,7 +333,7 @@ TChunkStoreBase::TChunkStoreBase(
     TChunkRegistryPtr chunkRegistry,
     TChunkBlockManagerPtr chunkBlockManager,
     IClientPtr client,
-    const TNullable<TNodeDescriptor>& localDescriptor)
+    const TNodeDescriptor& localDescriptor)
     : TStoreBase(std::move(config), id, tablet)
     , BlockCache_(std::move(blockCache))
     , ChunkRegistry_(std::move(chunkRegistry))

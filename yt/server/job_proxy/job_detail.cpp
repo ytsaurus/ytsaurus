@@ -66,6 +66,11 @@ void TJob::SignalJob(const Stroka& /*signalName*/)
     THROW_ERROR_EXCEPTION("Signaling is not supported for built-in jobs");
 }
 
+TYsonString TJob::PollJobShell(const TYsonString& /*parameters*/)
+{
+    THROW_ERROR_EXCEPTION("Job shell is not supported for built-in jobs");
+}
+
 void RunQuery(
     const TQuerySpec& querySpec,
     const NTableClient::TSchemalessReaderFactory& readerFactory,

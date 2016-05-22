@@ -11,11 +11,10 @@ namespace NYPath {
 ////////////////////////////////////////////////////////////////////////////////
 
 TTokenizer::TTokenizer(const TYPath& path)
+    : Path_(path)
+    , Type_(ETokenType::StartOfStream)
+    , Input_(Path_)
 {
-    Path_ = path;
-    Input_ = Path_;
-    Token_ = TStringBuf();
-    Type_  = ETokenType::StartOfStream;
     LiteralValue_.reserve(Path_.length());
 }
 
@@ -157,6 +156,13 @@ void TTokenizer::Expect(ETokenType expectedType)
                 Type_,
                 Token_);
         }
+    }
+}
+
+void TTokenizer::Skip(ETokenType expectedType)
+{
+    if (Type_ == expectedType) {
+        Advance();
     }
 }
 
