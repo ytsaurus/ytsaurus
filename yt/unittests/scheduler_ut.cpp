@@ -25,10 +25,14 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto SleepQuantum = TDuration::MilliSeconds(50);
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 TFuture<T> MakeDelayedFuture(T x)
 {
-    return TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10))
+    return TDelayedExecutor::MakeDelayed(SleepQuantum)
         .Apply(BIND([=] () { return x; }));
 }
 
@@ -155,7 +159,7 @@ TEST_W(TSchedulerTest, WaitForCancelableInvoker1)
             context->Cancel();
             promise.Set();
         }),
-        TDuration::MilliSeconds(100));
+        SleepQuantum);
     WaitFor(BIND([=] () {
             EXPECT_THROW({ WaitFor(future).ThrowOnError(); }, TFiberCanceledException);
         })
@@ -301,7 +305,7 @@ TEST_F(TSchedulerTest, WaitForInSerializedInvoker1)
     auto invoker = CreateSerializedInvoker(Queue1->GetInvoker());
     BIND([&] () {
         for (int i = 0; i < 10; ++i) {
-            WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10)))
+            WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
                 .ThrowOnError();
         }
     }).AsyncVia(invoker).Run().Get().ThrowOnError();
@@ -317,7 +321,7 @@ TEST_F(TSchedulerTest, WaitForInSerializedInvoker2)
 
     bool finishedFirstAction = false;
     futures.emplace_back(BIND([&] () {
-        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10)))
+        WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
                 .ThrowOnError();
         finishedFirstAction = true;
     }).AsyncVia(invoker).Run());
@@ -336,7 +340,7 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker1)
     auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1);
     BIND([&] () {
         for (int i = 0; i < 10; ++i) {
-            WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10)))
+            WaitFor(TDelayedExecutor::MakeDelayed(SleepQuantum))
                 .ThrowOnError();
         }
     }).AsyncVia(invoker).Run().Get().ThrowOnError();
@@ -386,14 +390,14 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker3)
     invoker->Invoke(a1);
     invoker->Invoke(a2);
 
-    Sleep(TDuration::MilliSeconds(10));
+    Sleep(SleepQuantum);
     EXPECT_TRUE(a1called);
     EXPECT_FALSE(a1finished);
     EXPECT_FALSE(a2called);
 
     promise.Set();
 
-    Sleep(TDuration::MilliSeconds(10));
+    Sleep(SleepQuantum);
     EXPECT_TRUE(a1called);
     EXPECT_TRUE(a1finished);
     EXPECT_TRUE(a2called);
@@ -410,11 +414,11 @@ TEST_F(TSchedulerTest, PropagateFiberCancelationToFuture)
 
     auto f2 = a.AsyncVia(Queue1->GetInvoker()).Run();
 
-    Sleep(TDuration::MilliSeconds(10));
+    Sleep(SleepQuantum);
 
     f2.Cancel();
 
-    Sleep(TDuration::MilliSeconds(10));
+    Sleep(SleepQuantum);
 
     EXPECT_TRUE(p1.IsCanceled());
 }
@@ -423,16 +427,16 @@ TEST_F(TSchedulerTest, AsyncViaCanceledBeforeStart)
 {
     auto invoker = Queue1->GetInvoker();
     auto asyncResult1 = BIND([] () {
-        Sleep(TDuration::Seconds(1));
+        Sleep(SleepQuantum * 10);
     }).AsyncVia(invoker).Run();
     auto asyncResult2 = BIND([] () {
-        Sleep(TDuration::Seconds(1));
+        Sleep(SleepQuantum * 10);
     }).AsyncVia(invoker).Run();
     EXPECT_FALSE(asyncResult1.IsSet());
     EXPECT_FALSE(asyncResult2.IsSet());
     asyncResult2.Cancel();
     EXPECT_TRUE(asyncResult1.Get().IsOK());
-    Sleep(TDuration::Seconds(0.1));
+    Sleep(SleepQuantum);
     EXPECT_TRUE(asyncResult2.IsSet());
     EXPECT_EQ(NYT::EErrorCode::Canceled, asyncResult2.Get().GetCode());
 }
@@ -535,7 +539,7 @@ TEST_F(TSchedulerTest, SerializedDoubleWaitFor)
         WaitFor(VoidFuture);
         promise.Set();
 
-        Sleep(TDuration::MilliSeconds(100));
+        Sleep(SleepQuantum);
         flag = true;
     })
     .Via(serializedInvoker)
@@ -579,7 +583,7 @@ TEST_F(TSuspendableInvokerTest, PollSuspendFuture)
     auto suspendableInvoker = CreateSuspendableInvoker(Queue1->GetInvoker());
 
     BIND([&] () {
-        Sleep(TDuration::MilliSeconds(100));
+        Sleep(SleepQuantum * 10);
         flag = true;
     })
     .Via(suspendableInvoker)
@@ -589,7 +593,7 @@ TEST_F(TSuspendableInvokerTest, PollSuspendFuture)
 
     while (!flag) {
         EXPECT_EQ(flag, future.IsSet());
-        Sleep(TDuration::MilliSeconds(10));
+        Sleep(SleepQuantum);
     }
     EXPECT_EQ(flag, future.IsSet());
 }
@@ -605,11 +609,11 @@ TEST_F(TSuspendableInvokerTest, SuspendableDoubleWaitFor)
 
     auto setFlagFuture = BIND([&] () {
         WaitFor(VoidFuture);
-        Sleep(TDuration::MilliSeconds(10));
+        Sleep(SleepQuantum);
         WaitFor(VoidFuture);
         promise.Set();
 
-        Sleep(TDuration::MilliSeconds(100));
+        Sleep(SleepQuantum * 10);
         flag = true;
     })
     .AsyncVia(suspendableInvoker)
@@ -657,7 +661,7 @@ TEST_F(TSuspendableInvokerTest, ResumeBeforeFullSuspend)
     auto suspendableInvoker = CreateSuspendableInvoker(Queue1->GetInvoker());
 
     BIND([&] () {
-        Sleep(TDuration::MilliSeconds(10));
+        Sleep(SleepQuantum);
     })
     .Via(suspendableInvoker)
     .Run();
@@ -678,7 +682,7 @@ TEST_F(TSuspendableInvokerTest, AllowSuspendOnContextSwitch)
     auto future = promise.ToFuture();
 
     auto setFlagFuture = BIND([&] () {
-        Sleep(TDuration::MilliSeconds(10));
+        Sleep(SleepQuantum);
         WaitFor(future);
         flag = true;
     })
@@ -714,6 +718,7 @@ TEST_F(TSuspendableInvokerTest, SuspendResumeOnFinishedRace)
         flag = false;
         auto future = suspendableInvoker->Suspend()
             .Apply(BIND([=, &flag] () { flag = true; }));
+            .Apply(BIND([=, &flag] () { flag = true; }));
 
         if (future.IsSet()) {
             ++hits;
@@ -736,7 +741,7 @@ TEST_F(TSuspendableInvokerTest, ResumeInApply)
     auto suspendableInvoker = CreateSuspendableInvoker(Queue1->GetInvoker());
 
     BIND([&] () {
-        Sleep(TDuration::MilliSeconds(10));
+        Sleep(SleepQuantum);
     })
     .Via(suspendableInvoker)
     .Run();
