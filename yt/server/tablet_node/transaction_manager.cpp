@@ -58,7 +58,6 @@ public:
         , LeaseTracker_(New<TTransactionLeaseTracker>(
             Slot_->GetAutomatonInvoker(),
             Logger))
-        , OrchidService_(CreateOrchidService())
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -86,6 +85,10 @@ public:
             BIND(&TImpl::SaveAsync, Unretained(this)));
 
         RegisterMethod(BIND(&TImpl::HydraStartTransaction, Unretained(this)));
+
+        OrchidService_ = IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeStrong(this)))
+            ->Via(Slot_->GetAutomatonInvoker())
+            ->Cached(TDuration::Seconds(1));
     }
 
 
@@ -243,18 +246,10 @@ private:
 
     TEntityMap<TTransaction> TransactionMap_;
 
-    const IYPathServicePtr OrchidService_;
+    IYPathServicePtr OrchidService_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-
-    IYPathServicePtr CreateOrchidService()
-    {
-        auto producer = BIND(&TImpl::BuildOrchidYson, MakeStrong(this));
-        return IYPathService::FromProducer(producer)
-            ->Via(Slot_->GetAutomatonInvoker())
-            ->Cached(TDuration::Seconds(1));
-    }
 
     void BuildOrchidYson(IYsonConsumer* consumer)
     {
