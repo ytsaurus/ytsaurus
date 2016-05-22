@@ -21,6 +21,7 @@ public:
     TChunkOwnerNodeProxy(
         NCypressServer::INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
+        NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
         TChunkOwnerBase* trunkNode);
 

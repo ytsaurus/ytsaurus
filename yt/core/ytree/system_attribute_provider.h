@@ -18,8 +18,7 @@ namespace NYTree {
 
 struct ISystemAttributeProvider
 {
-    virtual ~ISystemAttributeProvider()
-    { }
+    virtual ~ISystemAttributeProvider() = default;
 
     //! Describes a system attribute.
     struct TAttributeDescriptor
@@ -93,6 +92,11 @@ struct ISystemAttributeProvider
      *  Must not clear #attributes since additional items may be added in inheritors.
      */
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) = 0;
+
+    //! Returns a (typically cached) set consisting of all non-custom attributes keys.
+    //! \see TAttributeDescriptor::Custom
+    //! \see ListSystemAttributes
+    virtual const yhash_set<const char*>& GetBuiltinAttributeKeys() = 0;
 
     //! Gets the value of a builtin attribute.
     /*!

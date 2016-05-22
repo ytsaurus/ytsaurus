@@ -994,32 +994,32 @@ public:
 
     virtual double GetFairShareStarvationTolerance() const override
     {
-        return Config_->FairShareStarvationTolerance.Get(StrategyConfig_->FairShareStarvationTolerance);
+        return Config_->FairShareStarvationTolerance.Get(Parent_->Attributes().AdjustedFairShareStarvationTolerance);
     }
 
     virtual TDuration GetMinSharePreemptionTimeout() const override
     {
-        return Config_->MinSharePreemptionTimeout.Get(StrategyConfig_->MinSharePreemptionTimeout);
+        return Config_->MinSharePreemptionTimeout.Get(Parent_->Attributes().AdjustedMinSharePreemptionTimeout);
     }
 
     virtual TDuration GetFairSharePreemptionTimeout() const override
     {
-        return Config_->FairSharePreemptionTimeout.Get(StrategyConfig_->FairSharePreemptionTimeout);
+        return Config_->FairSharePreemptionTimeout.Get(Parent_->Attributes().AdjustedFairSharePreemptionTimeout);
     }
 
     virtual double GetFairShareStarvationToleranceLimit() const override
     {
-        return Config_->FairShareStarvationToleranceLimit.Get(1.0);
+        return Config_->FairShareStarvationToleranceLimit.Get(StrategyConfig_->FairShareStarvationToleranceLimit);
     }
 
     virtual TDuration GetMinSharePreemptionTimeoutLimit() const override
     {
-        return Config_->MinSharePreemptionTimeoutLimit.Get(TDuration::Zero());
+        return Config_->MinSharePreemptionTimeoutLimit.Get(StrategyConfig_->MinSharePreemptionTimeoutLimit);
     }
 
     virtual TDuration GetFairSharePreemptionTimeoutLimit() const override
     {
-        return Config_->FairSharePreemptionTimeoutLimit.Get(TDuration::Zero());
+        return Config_->FairSharePreemptionTimeoutLimit.Get(StrategyConfig_->FairSharePreemptionTimeoutLimit);
     }
 
     virtual void SetStarving(bool starving) override
@@ -1137,17 +1137,17 @@ public:
 
     virtual double GetFairShareStarvationTolerance() const override
     {
-        return Spec_->FairShareStarvationTolerance.Get(StrategyConfig_->FairShareStarvationTolerance);
+        return Spec_->FairShareStarvationTolerance.Get(Pool_->Attributes().AdjustedFairShareStarvationTolerance);
     }
 
     virtual TDuration GetMinSharePreemptionTimeout() const override
     {
-        return Spec_->MinSharePreemptionTimeout.Get(StrategyConfig_->MinSharePreemptionTimeout);
+        return Spec_->MinSharePreemptionTimeout.Get(Pool_->Attributes().AdjustedMinSharePreemptionTimeout);
     }
 
     virtual TDuration GetFairSharePreemptionTimeout() const override
     {
-        return Spec_->FairSharePreemptionTimeout.Get(StrategyConfig_->FairSharePreemptionTimeout);
+        return Spec_->FairSharePreemptionTimeout.Get(Pool_->Attributes().AdjustedFairSharePreemptionTimeout);
     }
 
     virtual void UpdateBottomUp() override
@@ -1654,12 +1654,12 @@ public:
         Attributes_.FairShareRatio = 1.0;
         Attributes_.AdjustedMinShareRatio = 1.0;
         Mode = ESchedulingMode::FairShare;
-        Attributes_.AdjustedFairShareStarvationTolerance = 1.0;
-        Attributes_.AdjustedMinSharePreemptionTimeout = TDuration::Zero();
-        Attributes_.AdjustedFairSharePreemptionTimeout = TDuration::Zero();
-        AdjustedFairShareStarvationToleranceLimit_ = 1.0;
-        AdjustedMinSharePreemptionTimeoutLimit_ = TDuration::Zero();
-        AdjustedFairSharePreemptionTimeoutLimit_ = TDuration::Zero();
+        Attributes_.AdjustedFairShareStarvationTolerance = GetFairShareStarvationTolerance();
+        Attributes_.AdjustedMinSharePreemptionTimeout = GetMinSharePreemptionTimeout();
+        Attributes_.AdjustedFairSharePreemptionTimeout = GetFairSharePreemptionTimeout();
+        AdjustedFairShareStarvationToleranceLimit_ = GetFairShareStarvationToleranceLimit();
+        AdjustedMinSharePreemptionTimeoutLimit_ = GetMinSharePreemptionTimeoutLimit();
+        AdjustedFairSharePreemptionTimeoutLimit_ = GetFairSharePreemptionTimeoutLimit();
         Update();
     }
 
@@ -1690,17 +1690,17 @@ public:
 
     virtual double GetFairShareStarvationTolerance() const override
     {
-        return 1.0;
+        return StrategyConfig_->FairShareStarvationTolerance;
     }
 
     virtual TDuration GetMinSharePreemptionTimeout() const override
     {
-        return TDuration::Zero();
+        return StrategyConfig_->MinSharePreemptionTimeout;
     }
 
     virtual TDuration GetFairSharePreemptionTimeout() const override
     {
-        return TDuration::Zero();
+        return StrategyConfig_->FairSharePreemptionTimeout;
     }
 
     virtual TNullable<Stroka> GetNodeTag() const override

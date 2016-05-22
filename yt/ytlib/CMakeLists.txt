@@ -213,6 +213,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/security_client/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/security_client/user_ypath.proto
 
+  ${CMAKE_CURRENT_LIST_DIR}/shell/manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/shell/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/shell/shell.cpp
+
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/boolean_column_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/boolean_column_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/column_meta.proto

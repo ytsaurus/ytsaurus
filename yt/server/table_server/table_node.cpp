@@ -230,6 +230,7 @@ protected:
         return CreateTableNodeProxy(
             this,
             Bootstrap_,
+            &Metadata_,
             transaction,
             trunkNode);
     }

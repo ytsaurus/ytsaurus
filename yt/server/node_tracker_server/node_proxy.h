@@ -13,6 +13,7 @@ namespace NNodeTrackerServer {
 
 NObjectServer::IObjectProxyPtr CreateClusterNodeProxy(
     NCellMaster::TBootstrap* bootstrap,
+    NObjectServer::TObjectTypeMetadata* metadata,
     TNode* node);
 
 ///////////////////////////////////////////////////////////////////////////////

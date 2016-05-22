@@ -40,21 +40,17 @@ IYPathService::TResolveResult TYPathServiceBase::Resolve(
     IServiceContextPtr context)
 {
     NYPath::TTokenizer tokenizer(path);
-    switch (tokenizer.Advance()) {
-        case NYPath::ETokenType::EndOfStream:
-            return ResolveSelf(tokenizer.GetSuffix(), context);
+    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+        return ResolveSelf(tokenizer.GetSuffix(), context);
+    }
 
-        case NYPath::ETokenType::Slash: {
-            if (tokenizer.Advance() == NYPath::ETokenType::At) {
-                return ResolveAttributes(tokenizer.GetSuffix(), context);
-            } else {
-                return ResolveRecursive(tokenizer.GetInput(), context);
-            }
-        }
+    tokenizer.Skip(NYPath::ETokenType::Ampersand);
+    tokenizer.Expect(NYPath::ETokenType::Slash);
 
-        default:
-            tokenizer.ThrowUnexpected();
-            YUNREACHABLE();
+    if (tokenizer.Advance() == NYPath::ETokenType::At) {
+        return ResolveAttributes(tokenizer.GetSuffix(), context);
+    } else {
+        return ResolveRecursive(tokenizer.GetInput(), context);
     }
 }
 
@@ -121,22 +117,20 @@ void TYPathServiceBase::WriteAttributesFragment(
     DEFINE_RPC_SERVICE_METHOD(TSupports##method, method) \
     { \
         NYPath::TTokenizer tokenizer(GetRequestYPath(context->RequestHeader())); \
-        switch (tokenizer.Advance()) { \
-            case NYPath::ETokenType::EndOfStream: \
-                method##Self(request, response, context); \
-                break; \
-            \
-            case NYPath::ETokenType::Slash: \
-                if (tokenizer.Advance() == NYPath::ETokenType::At) { \
-                    method##Attribute(tokenizer.GetSuffix(), request, response, context); \
-                } else { \
-                    method##Recursive(tokenizer.GetInput(), request, response, context); \
-                } \
-                break; \
-            \
-            default: \
-                onPathError \
+        if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) { \
+            method##Self(request, response, context); \
+            return; \
         } \
+        tokenizer.Skip(NYPath::ETokenType::Ampersand); \
+        if (tokenizer.GetType() == NYPath::ETokenType::Slash) { \
+            if (tokenizer.Advance() == NYPath::ETokenType::At) { \
+                method##Attribute(tokenizer.GetSuffix(), request, response, context); \
+            } else { \
+                method##Recursive(tokenizer.GetInput(), request, response, context); \
+            } \
+            return; \
+        } \
+        onPathError \
     }
 
 #define IMPLEMENT_SUPPORTS_VERB(method) \
@@ -260,12 +254,16 @@ TSupportsAttributes::TCombinedAttributeDictionary::TCombinedAttributeDictionary(
 
 std::vector<Stroka> TSupportsAttributes::TCombinedAttributeDictionary::List() const
 {
-    PrecacheData();
-
     std::vector<Stroka> keys;
-    for (const auto& descriptor : CachedSystemAttributes_) {
-        if (descriptor.Present && !descriptor.Custom && !descriptor.Opaque) {
-            keys.push_back(descriptor.Key);
+
+    auto* provider = Owner_->GetBuiltinAttributeProvider();
+    if (provider) {
+        std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
+        provider->ListSystemAttributes(&descriptors);
+        for (const auto& descriptor : descriptors) {
+            if (descriptor.Present && !descriptor.Custom && !descriptor.Opaque) {
+                keys.push_back(descriptor.Key);
+            }
         }
     }
 
@@ -280,72 +278,56 @@ std::vector<Stroka> TSupportsAttributes::TCombinedAttributeDictionary::List() co
 
 TNullable<TYsonString> TSupportsAttributes::TCombinedAttributeDictionary::FindYson(const Stroka& key) const
 {
-    PrecacheData();
-
-    if (CachedBuiltinKeys_.find(key) == CachedBuiltinKeys_.end()) {
-        auto* customAttributes = Owner_->GetCustomAttributes();
-        if (!customAttributes) {
-            return Null;
+    auto* provider = Owner_->GetBuiltinAttributeProvider();
+    if (provider) {
+        const auto& builtinKeys = provider->GetBuiltinAttributeKeys();
+        if (builtinKeys.find(key) != builtinKeys.end()) {
+            return provider->FindBuiltinAttribute(key);
         }
-        return customAttributes->FindYson(key);
-    } else {
-        auto* provider = Owner_->GetBuiltinAttributeProvider();
-        return provider->FindBuiltinAttribute(key);
     }
+
+    auto* customAttributes = Owner_->GetCustomAttributes();
+    if (!customAttributes) {
+        return Null;
+    }
+    return customAttributes->FindYson(key);
 }
 
 void TSupportsAttributes::TCombinedAttributeDictionary::SetYson(const Stroka& key, const TYsonString& value)
 {
-    PrecacheData();
-
-    if (CachedBuiltinKeys_.find(key) == CachedBuiltinKeys_.end()) {
-        auto* customAttributes = Owner_->GetCustomAttributes();
-        if (!customAttributes) {
-            ThrowNoSuchBuiltinAttribute(key);
-        }
-        customAttributes->SetYson(key, value);
-    } else {
-        auto* provider = Owner_->GetBuiltinAttributeProvider();
-        if (!provider->SetBuiltinAttribute(key, value)) {
-            ThrowCannotSetBuiltinAttribute(key);
+    auto* provider = Owner_->GetBuiltinAttributeProvider();
+    if (provider) {
+        const auto& builtinKeys = provider->GetBuiltinAttributeKeys();
+        if (builtinKeys.find(key) != builtinKeys.end()) {
+            if (!provider->SetBuiltinAttribute(key, value)) {
+                ThrowCannotSetBuiltinAttribute(key);
+            }
+            return;
         }
     }
+
+    auto* customAttributes = Owner_->GetCustomAttributes();
+    if (!customAttributes) {
+        ThrowNoSuchBuiltinAttribute(key);
+    }
+    customAttributes->SetYson(key, value);
 }
 
 bool TSupportsAttributes::TCombinedAttributeDictionary::Remove(const Stroka& key)
 {
-    PrecacheData();
-
-    if (CachedBuiltinKeys_.find(key) == CachedBuiltinKeys_.end()) {
-        auto* customAttributes = Owner_->GetCustomAttributes();
-        if (!customAttributes) {
-            ThrowNoSuchBuiltinAttribute(key);
-        }
-        return customAttributes->Remove(key);
-    } else {
-        auto* provider = Owner_->GetBuiltinAttributeProvider();
-        return provider->RemoveBuiltinAttribute(key);
-    }
-}
-
-void TSupportsAttributes::TCombinedAttributeDictionary::PrecacheData() const
-{
-    if (HasCachedData_) {
-        return;
-    }
-
     auto* provider = Owner_->GetBuiltinAttributeProvider();
     if (provider) {
-        provider->ListSystemAttributes(&CachedSystemAttributes_);
-        CachedBuiltinKeys_.resize(CachedSystemAttributes_.size());
-        for (const auto& descriptor : CachedSystemAttributes_) {
-            if (!descriptor.Custom) {
-                YCHECK(CachedBuiltinKeys_.insert(descriptor.Key).second);
-            }
+        const auto& builtinKeys = provider->GetBuiltinAttributeKeys();
+        if (builtinKeys.find(key) != builtinKeys.end()) {
+            return provider->RemoveBuiltinAttribute(key);
         }
     }
 
-    HasCachedData_ = true;
+    auto* customAttributes = Owner_->GetCustomAttributes();
+    if (!customAttributes) {
+        ThrowNoSuchBuiltinAttribute(key);
+    }
+    return customAttributes->Remove(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1063,6 +1045,25 @@ TFuture<void> TSupportsAttributes::GuardedRemoveBuiltinAttribute(const Stroka& k
     // NB: Async removal is not currently supported.
 
     return Null;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const yhash_set<const char*>& TBuiltinAttributeKeysCache::GetBuiltinAttributeKeys(
+    ISystemAttributeProvider* provider)
+{
+    if (!Initialized_) {
+        std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
+        provider->ListSystemAttributes(&descriptors);
+        BuiltinKeys_.resize(descriptors.size());
+        for (const auto& descriptor : descriptors) {
+            if (!descriptor.Custom) {
+                YCHECK(BuiltinKeys_.insert(descriptor.Key).second);
+            }
+        }
+        Initialized_ = true;
+    }
+    return BuiltinKeys_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

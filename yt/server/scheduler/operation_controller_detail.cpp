@@ -3439,6 +3439,18 @@ void TOperationControllerBase::CollectTotals()
 void TOperationControllerBase::CustomPrepare()
 { }
 
+void TOperationControllerBase::ClearInputChunkBoundaryKeys()
+{
+    for (auto& pair : InputChunkMap) {
+        auto& inputChunkDescriptor = pair.second;
+        for (auto chunkSpec : inputChunkDescriptor.ChunkSpecs) {
+            // We don't need boundary key ext after preparation phase.
+            RemoveProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunkSpec->mutable_chunk_meta()->mutable_extensions());
+            RemoveProtoExtension<NTableClient::NProto::TOldBoundaryKeysExt>(chunkSpec->mutable_chunk_meta()->mutable_extensions());
+        }
+    }
+}
+
 // NB: must preserve order of chunks in the input tables, no shuffling.
 std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectPrimaryInputChunks() const
 {
@@ -4039,12 +4051,6 @@ i64 TOperationControllerBase::GetFinalIOMemorySize(
     return result;
 }
 
-void TOperationControllerBase::InitIntermediateInputConfig(TJobIOConfigPtr config)
-{
-    // Disable master requests.
-    config->TableReader->AllowFetchingSeedsFromMaster = false;
-}
-
 void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr config)
 {
     // Don't replicate intermediate output.
@@ -4067,6 +4073,13 @@ NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReader
     options->EnableRowIndex = ioConfig->ControlAttributes->EnableRowIndex;
     options->EnableTableIndex = ioConfig->ControlAttributes->EnableTableIndex;
     options->EnableRangeIndex = ioConfig->ControlAttributes->EnableRangeIndex;
+    return options;
+}
+
+NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateIntermediateTableReaderOptions()
+{
+    auto options = New<TTableReaderOptions>();
+    options->AllowFetchingSeedsFromMaster = false;
     return options;
 }
 

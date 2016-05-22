@@ -52,6 +52,8 @@ class TAttributeSet;
 class TObjectBase;
 class TNonversionedObjectBase;
 
+struct TObjectTypeMetadata;
+
 DECLARE_ENTITY_TYPE(TSchemaObject, TObjectId, ::THash<TObjectId>);
 
 class TMasterObject;

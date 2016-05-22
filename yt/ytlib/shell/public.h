@@ -1,0 +1,16 @@
+#pragma once
+
+#include <yt/core/misc/intrusive_ptr.h>
+
+namespace NYT {
+namespace NShell {
+
+///////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(IShell)
+DECLARE_REFCOUNTED_STRUCT(IShellManager)
+
+///////////////////////////////////////////////////////////////////////////////
+
+} // namespace NShell
+} // namespace NYT

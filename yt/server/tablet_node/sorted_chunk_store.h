@@ -26,7 +26,7 @@ public:
         NDataNode::TChunkRegistryPtr chunkRegistry = nullptr,
         NDataNode::TChunkBlockManagerPtr chunkBlockManager = nullptr,
         NApi::IClientPtr client = nullptr,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor = Null);
+        const NNodeTrackerClient::TNodeDescriptor& localDescriptor = NNodeTrackerClient::TNodeDescriptor());
     ~TSortedChunkStore();
 
     // IStore implementation.

@@ -46,11 +46,11 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             TJobTrackerServiceProxy::GetServiceName(),
+            EAutomatonThreadQueue::JobTracker,
             ChunkServerLogger,
             TJobTrackerServiceProxy::GetProtocolVersion())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
-            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::JobTracker))
             .SetHeavy(true));
     }
 

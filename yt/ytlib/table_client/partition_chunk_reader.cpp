@@ -150,8 +150,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                 options,
                 client,
                 nodeDirectory,
-                //XXX(babenko): hotfix for YT-3915
-                Null,
+                TNodeDescriptor(),
                 blockCache,
                 GetUnlimitedThrottler());
 

@@ -31,11 +31,13 @@ public:
     TSysNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
         TTransaction* transaction,
         TMapNode* trunkNode)
         : TBase(
             typeHandler,
             bootstrap,
+            metadata,
             transaction,
             trunkNode)
     { }
@@ -110,7 +112,6 @@ private:
             return;
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,10 +137,10 @@ private:
         return New<TSysNodeProxy>(
             this,
             Bootstrap_,
+            &Metadata_,
             transaction,
             trunkNode);
     }
-
 };
 
 INodeTypeHandlerPtr CreateSysNodeTypeHandler(TBootstrap* bootstrap)

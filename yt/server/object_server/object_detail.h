@@ -33,6 +33,7 @@ class TObjectProxyBase
 public:
     TObjectProxyBase(
         NCellMaster::TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
         TObjectBase* object);
 
     virtual bool ShouldHideAttributes() override;
@@ -52,6 +53,7 @@ protected:
     class TCustomAttributeDictionary;
 
     NCellMaster::TBootstrap* const Bootstrap_;
+    TObjectTypeMetadata* const Metadata_;
     TObjectBase* const Object_;
 
     std::unique_ptr<NYTree::IAttributeDictionary> CustomAttributes_;
@@ -92,6 +94,7 @@ protected:
 
     // NYTree::ISystemAttributeProvider members
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
+    virtual const yhash_set<const char*>& GetBuiltinAttributeKeys() override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
@@ -155,6 +158,7 @@ class TNontemplateNonversionedObjectProxyBase
 public:
     TNontemplateNonversionedObjectProxyBase(
         NCellMaster::TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
         TObjectBase* object);
 
 protected:
@@ -178,8 +182,11 @@ class TNonversionedObjectProxyBase
     : public TNontemplateNonversionedObjectProxyBase
 {
 public:
-    TNonversionedObjectProxyBase(NCellMaster::TBootstrap* bootstrap, TObject* object)
-        : TNontemplateNonversionedObjectProxyBase(bootstrap, object)
+    TNonversionedObjectProxyBase(
+        NCellMaster::TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
+        TObject* object)
+        : TNontemplateNonversionedObjectProxyBase(bootstrap, metadata, object)
     { }
 
 protected:

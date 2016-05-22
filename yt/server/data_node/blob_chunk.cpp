@@ -322,33 +322,30 @@ void TBlobChunkBase::DoReadBlockSet(
 
 TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
     const std::vector<int>& blockIndexes,
-    const TWorkloadDescriptor& workloadDescriptor,
-    bool populateCache,
-    IBlockCachePtr blockCache)
+    const TBlockReadOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
-    auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
-
-    bool canServeFromCache = true;
 
     auto session = New<TReadBlockSetSession>();
     session->Entries.resize(blockIndexes.size());
     session->Blocks.resize(blockIndexes.size());
 
+    bool diskFetchNeeded = false;
     std::vector<TFuture<void>> asyncResults;
-
     for (int localIndex = 0; localIndex < blockIndexes.size(); ++localIndex) {
         auto& entry = session->Entries[localIndex];
         entry.LocalIndex = localIndex;
         entry.BlockIndex = blockIndexes[localIndex];
 
         auto blockId = TBlockId(Id_, entry.BlockIndex);
-        auto block = blockCache->Find(blockId, EBlockType::CompressedData);
+        auto block = options.FetchFromCache && options.BlockCache
+            ? options.BlockCache->Find(blockId, EBlockType::CompressedData)
+            : TSharedRef();
         if (block) {
             session->Blocks[entry.LocalIndex] = std::move(block);
             entry.Cached = true;
-        } else if (populateCache) {
+        } else if (options.FetchFromDisk && options.PopulateCache) {
+            auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             entry.Cookie = chunkBlockManager->BeginInsertCachedBlock(blockId);
             if (!entry.Cookie.IsActive()) {
                 entry.Cached = true;
@@ -361,17 +358,17 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
         }
 
         if (!entry.Cached) {
-            canServeFromCache = false;
+            diskFetchNeeded = true;
         }
     }
 
     // Fast path: we can serve request right away.
-    if (canServeFromCache && asyncResults.empty()) {
+    if (!diskFetchNeeded && asyncResults.empty()) {
         return MakeFuture(std::move(session->Blocks));
     }
 
     // Slow path: either read data from chunk or wait for the cache to be filled.
-    if (!canServeFromCache) {
+    if (options.FetchFromDisk && diskFetchNeeded) {
         // Reorder blocks sequentially to improve read performance.
         std::sort(
             session->Entries.begin(),
@@ -380,9 +377,9 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
                 return lhs.BlockIndex < rhs.BlockIndex;
             });
 
-        auto asyncBlocksExtResult = LoadBlocksExt(workloadDescriptor);
+        auto asyncBlocksExtResult = LoadBlocksExt(options.WorkloadDescriptor);
         auto asyncReadResult = asyncBlocksExtResult.Apply(
-            BIND(&TBlobChunkBase::OnBlocksExtLoaded, MakeStrong(this), session, workloadDescriptor));
+            BIND(&TBlobChunkBase::OnBlocksExtLoaded, MakeStrong(this), session, options.WorkloadDescriptor));
         asyncResults.push_back(asyncReadResult);
     }
 
@@ -393,9 +390,7 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
 TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockRange(
     int firstBlockIndex,
     int blockCount,
-    const TWorkloadDescriptor& workloadDescriptor,
-    bool populateCache,
-    IBlockCachePtr blockCache)
+    const TBlockReadOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -407,11 +402,7 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockRange(
         blockIndexes.push_back(blockIndex);
     }
 
-    return ReadBlockSet(
-        blockIndexes,
-        workloadDescriptor,
-        populateCache,
-        std::move(blockCache));
+    return ReadBlockSet(blockIndexes, options);
 }
 
 void TBlobChunkBase::SyncRemove(bool force)

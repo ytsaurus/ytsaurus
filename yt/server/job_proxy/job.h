@@ -41,6 +41,8 @@ struct IJobHost
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const = 0;
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetAuxNodeDirectory() const = 0;
 
+    virtual const NNodeTrackerClient::TNodeDescriptor& LocalDescriptor() const = 0;
+
     virtual NLogging::TLogger GetLogger() const = 0;
 };
 
@@ -68,6 +70,7 @@ struct IJob
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
     virtual NYson::TYsonString StraceJob() = 0;
     virtual void SignalJob(const Stroka& signalName) = 0;
+    virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
 
 };
 

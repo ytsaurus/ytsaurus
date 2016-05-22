@@ -322,6 +322,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
     NApi::IClientPtr client,
+    const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
@@ -337,8 +338,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 options,
                 client,
                 nodeDirectory,
-                //XXX(babenko): hotfix for YT-3915
-                Null /* localDescriptor */,
+                localDescriptor,
                 blockCache,
                 throttler);
 

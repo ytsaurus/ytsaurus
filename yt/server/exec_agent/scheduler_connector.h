@@ -8,6 +8,8 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
+#include <yt/core/profiling/profiler.h>
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -27,13 +29,18 @@ private:
     const TSchedulerConnectorConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
     const IInvokerPtr ControlInvoker_;
-    TInstant LastUnsuccessHeartbeatTime_;
+    TInstant LastSentHeartbeatTime_;
+    TInstant LastFullyProcessedHeartbeatTime_;
+    TInstant LastThrottledHeartbeatTime_;
+    TInstant LastFailedHeartbeatTime_;
+
+    NProfiling::TAggregateCounter TimeBetweenSentHeartbeatsCounter_;
+    NProfiling::TAggregateCounter TimeBetweenAcknowledgedHeartbeatsCounter_;
+    NProfiling::TAggregateCounter TimeBetweenFullyProcessedHeartbeatsCounter_;
 
     NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
 
-
     void SendHeartbeat();
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnector)

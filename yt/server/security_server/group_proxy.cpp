@@ -19,8 +19,11 @@ class TGroupProxy
     : public TSubjectProxy<TGroup>
 {
 public:
-    TGroupProxy(NCellMaster::TBootstrap* bootstrap, TGroup* group)
-        : TBase(bootstrap, group)
+    TGroupProxy(
+        NCellMaster::TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
+        TGroup* group)
+        : TBase(bootstrap, metadata, group)
     { }
 
 private:
@@ -125,9 +128,10 @@ private:
 
 IObjectProxyPtr CreateGroupProxy(
     NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TGroup* group)
 {
-    return New<TGroupProxy>(bootstrap, group);
+    return New<TGroupProxy>(bootstrap, metadata, group);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

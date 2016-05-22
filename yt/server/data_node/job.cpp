@@ -227,6 +227,11 @@ public:
         THROW_ERROR_EXCEPTION("Signaling is not supported");
     }
 
+    virtual TYsonString PollJobShell(const TYsonString& /*parameters*/) override
+    {
+        THROW_ERROR_EXCEPTION("Job shell is not supported");
+    }
+
 protected:
     const TJobId JobId_;
     const TJobSpec JobSpec_;
@@ -399,18 +404,18 @@ private:
 
         int currentBlockIndex = 0;
         int blockCount = GetBlockCount(*meta);
-
-        auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
-        auto blockCache = Bootstrap_->GetBlockCache();
-
         while (currentBlockIndex < blockCount) {
+            TBlockReadOptions options;
+            options.WorkloadDescriptor = Config_->ReplicationWriter->WorkloadDescriptor;
+            options.BlockCache = Bootstrap_->GetBlockCache();
+
+            auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncReadBlocks = chunkBlockManager->ReadBlockRange(
                 ChunkId_,
                 currentBlockIndex,
                 blockCount - currentBlockIndex,
-                Config_->ReplicationWriter->WorkloadDescriptor,
-                blockCache,
-                false);
+                options);
+
             auto readBlocks = WaitFor(asyncReadBlocks)
                 .ValueOrThrow();
 
@@ -525,10 +530,9 @@ private:
             YCHECK(!partReplicas.empty());
 
             auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
-            auto options = New<TRemoteReaderOptions>();
             auto reader = CreateReplicationReader(
                 Config_->RepairReader,
-                options,
+                New<TRemoteReaderOptions>(),
                 Bootstrap_->GetMasterClient(),
                 nodeDirectory,
                 Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
@@ -651,13 +655,12 @@ private:
 
             auto replicas = FromProto<TChunkReplicaList>(SealJobSpecExt_.replicas());
 
-            auto options = New<TRemoteReaderOptions>();
             auto reader = CreateReplicationReader(
                 Config_->SealReader,
-                options,
+                New<TRemoteReaderOptions>(),
                 Bootstrap_->GetMasterClient(),
                 nodeDirectory,
-                Null,
+                Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
                 ChunkId_,
                 replicas,
                 Bootstrap_->GetBlockCache(),

@@ -27,6 +27,7 @@
 #include <yt/core/ytree/ypath_detail.h>
 
 #include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/profiler.h>
 
 #include <atomic>
 
@@ -48,6 +49,14 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Profiler = ObjectServerProfiler;
+static NProfiling::TSimpleCounter CumulativeReadRequestTimeCounter("/cumulative_read_request_time");
+static NProfiling::TSimpleCounter CumulativeMutationScheduleTimeCounter("/cumulative_mutation_schedule_time");
+static NProfiling::TSimpleCounter ReadRequestCounter("/read_request_count");
+static NProfiling::TSimpleCounter WriteRequestCounter("/write_request_count");
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TObjectService)
 
 class TObjectService
@@ -60,6 +69,8 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             NObjectClient::TObjectServiceProxy::GetServiceName(),
+            // Execute method is being handled in RPC thread pool anyway.
+            EAutomatonThreadQueue::Default,
             ObjectServerLogger,
             NObjectClient::TObjectServiceProxy::GetProtocolVersion())
         , Config_(std::move(config))
@@ -130,7 +141,7 @@ public:
         }
 
         HydraFacade_
-            ->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::RpcService)
+            ->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ObjectService)
             ->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)));
     }
 
@@ -279,7 +290,7 @@ private:
         auto batchDeadlineTime = batchStartTime + NProfiling::DurationToCpuDuration(Owner_->Config_->YieldTimeout);
 
         if (!EpochAutomatonInvoker_) {
-            EpochAutomatonInvoker_ = HydraFacade_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::RpcService);
+            EpochAutomatonInvoker_ = HydraFacade_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService);
         }
 
         if (NeedsUpstreamSync_) {
@@ -337,7 +348,7 @@ private:
                 NTracing::ServerReceiveAnnotation);
 
             if (subrequest.Mutation) {
-                ExecuteMutatingSubrequest(&subrequest, user);
+                ExecuteWriteSubrequest(&subrequest, user);
                 LastMutatingSubRequestIndex_ = CurrentSubrequestIndex_;
             } else {
                 // Cannot serve new read requests before previous write ones are done.
@@ -377,14 +388,20 @@ private:
         OnSubresponse(subrequest, TError());
     }
 
-    void ExecuteMutatingSubrequest(TSubrequest* subrequest, TUser* user)
+    void ExecuteWriteSubrequest(TSubrequest* subrequest, TUser* user)
     {
+        Profiler.Increment(WriteRequestCounter);
+        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &CumulativeMutationScheduleTimeCounter);
+
         subrequest->Mutation->Commit().Subscribe(
             BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
     }
 
     void ExecuteReadSubrequest(TSubrequest* subrequest, TUser* user)
     {
+        Profiler.Increment(ReadRequestCounter);
+        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &CumulativeReadRequestTimeCounter);
+
         const auto& context = subrequest->Context;
         auto asyncResponseMessage = context->GetAsyncResponseMessage();
         NProfiling::TScopedTimer timer;

@@ -44,6 +44,7 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             TChunkServiceProxy::GetServiceName(),
+            EAutomatonThreadQueue::ChunkService,
             ChunkServerLogger,
             TChunkServiceProxy::GetProtocolVersion())
     {

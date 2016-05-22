@@ -67,6 +67,7 @@ struct IJob
     virtual std::vector<NChunkClient::TChunkId> DumpInputContexts() const = 0;
     virtual NYson::TYsonString Strace() const = 0;
     virtual void SignalJob(const Stroka& signalName) = 0;
+    virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)

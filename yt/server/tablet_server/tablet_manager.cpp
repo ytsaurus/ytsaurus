@@ -137,7 +137,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TTabletCellBundle* bundle, TTransaction* /*transaction*/) override
     {
-        return CreateTabletCellBundleProxy(Bootstrap_, bundle);
+        return CreateTabletCellBundleProxy(Bootstrap_, &Metadata_, bundle);
     }
 
     virtual void DoDestroyObject(TTabletCellBundle* bundle) override;
@@ -186,7 +186,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TTabletCell* cell, TTransaction* /*transaction*/) override
     {
-        return CreateTabletCellProxy(Bootstrap_, cell);
+        return CreateTabletCellProxy(Bootstrap_, &Metadata_, cell);
     }
 
     virtual void DoZombifyObject(TTabletCell* cell) override;
@@ -216,7 +216,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TTablet* tablet, TTransaction* /*transaction*/) override
     {
-        return CreateTabletProxy(Bootstrap_, tablet);
+        return CreateTabletProxy(Bootstrap_, &Metadata_, tablet);
     }
 
     virtual void DoDestroyObject(TTablet* tablet) override;

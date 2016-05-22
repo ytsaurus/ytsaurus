@@ -559,12 +559,18 @@ private:
         FlushWriters();
 
         {
+            decltype(Writers_) writers;
+            decltype(CachedWriters_) cachedWriters;
+
             TGuard<TForkAwareSpinLock> guard(SpinLock_);
-
-            Writers_.clear();
-            CachedWriters_.clear();
-
+            Writers_.swap(writers);
+            CachedWriters_.swap(cachedWriters);
             Config_ = config;
+
+            guard.Release();
+
+            // writers and cachedWriter will die here where we don't
+            // hold the spinlock anymore. 
         }
 
         for (const auto& pair : Config_->WriterConfigs) {

@@ -16,6 +16,7 @@ using namespace NRpc;
 using namespace NJobProberClient;
 using namespace NConcurrency;
 using namespace NJobAgent;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -34,6 +35,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Strace));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
     }
 
 private:
@@ -75,6 +77,22 @@ private:
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         job->SignalJob(signalName);
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, PollJobShell)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        auto parameters = FromProto<Stroka>(request->parameters());
+
+        context->SetRequestInfo("JobId: %v, Parameters: %v",
+            jobId,
+            parameters);
+
+        auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
+        auto result = job->PollJobShell(TYsonString(parameters));
+
+        ToProto(response->mutable_result(), result.Data());
         context->Reply();
     }
 };

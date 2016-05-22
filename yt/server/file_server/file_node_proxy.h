@@ -8,6 +8,8 @@
 
 #include <yt/server/transaction_server/public.h>
 
+#include <yt/server/object_server/public.h>
+
 namespace NYT {
 namespace NFileServer {
 
@@ -16,6 +18,7 @@ namespace NFileServer {
 NCypressServer::ICypressNodeProxyPtr CreateFileNodeProxy(
     NCypressServer::INodeTypeHandlerPtr typeHandler,
     NCellMaster::TBootstrap* bootstrap,
+    NObjectServer::TObjectTypeMetadata* metadata,
     NTransactionServer::TTransaction* transaction,
     TFileNode* trunkNode);
 

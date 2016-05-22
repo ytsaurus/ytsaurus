@@ -107,9 +107,7 @@ TRefCountedChunkMetaPtr TJournalChunk::DoReadMeta(const TNullable<std::vector<in
 
 TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlockSet(
     const std::vector<int>& blockIndexes,
-    const TWorkloadDescriptor& workloadDescriptor,
-    bool populateCache,
-    IBlockCachePtr blockCache)
+    const TBlockReadOptions& options)
 {
     // Extract the initial contiguous segment of blocks.
     if (blockIndexes.empty()) {
@@ -122,24 +120,21 @@ TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlockSet(
         ++blockCount;
     }
 
-    return ReadBlockRange(
-        firstBlockIndex,
-        blockCount,
-        workloadDescriptor,
-        populateCache,
-        blockCache);
+    return ReadBlockRange(firstBlockIndex, blockCount, options);
 }
 
 TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlockRange(
     int firstBlockIndex,
     int blockCount,
-    const TWorkloadDescriptor& workloadDescriptor,
-    bool /*populateCache*/,
-    IBlockCachePtr /*blockCache*/)
+    const TBlockReadOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(firstBlockIndex >= 0);
     YCHECK(blockCount >= 0);
+
+    if (!options.FetchFromDisk) {
+        return MakeFuture(std::vector<TSharedRef>());
+    }
 
     auto promise = NewPromise<std::vector<TSharedRef>>();
 
@@ -150,7 +145,7 @@ TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlockRange(
         blockCount,
         promise);
 
-    auto priority = workloadDescriptor.GetPriority();
+    auto priority = options.WorkloadDescriptor.GetPriority();
     Location_
         ->GetDataReadInvoker()
         ->Invoke(callback, priority);

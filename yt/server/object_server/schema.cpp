@@ -52,8 +52,9 @@ class TSchemaProxy
 public:
     TSchemaProxy(
         NCellMaster::TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
         TSchemaObject* object)
-        : TBase(bootstrap, object)
+        : TBase(bootstrap, metadata, object)
     { }
 
 private:
@@ -70,12 +71,14 @@ private:
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
-
 };
 
-IObjectProxyPtr CreateSchemaProxy(NCellMaster::TBootstrap* bootstrap, TSchemaObject* object)
+IObjectProxyPtr CreateSchemaProxy(
+    NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
+    TSchemaObject* object)
 {
-    return New<TSchemaProxy>(bootstrap, object);
+    return New<TSchemaProxy>(bootstrap, metadata, object);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,11 +154,10 @@ private:
     }
 
     virtual IObjectProxyPtr DoGetProxy(
-        TSchemaObject* /*object*/,
+        TSchemaObject* object,
         NTransactionServer::TTransaction* /*transaction*/) override
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
-        return objectManager->GetSchemaProxy(Type_);
+        return CreateSchemaProxy(Bootstrap_, &Metadata_, object);
     }
 
     virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TSchemaObject* object) override
@@ -167,7 +169,6 @@ private:
     {
         return nullptr;
     }
-
 };
 
 IObjectTypeHandlerPtr CreateSchemaTypeHandler(NCellMaster::TBootstrap* bootstrap, EObjectType type)

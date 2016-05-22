@@ -16,8 +16,6 @@
 
 #include <yt/core/actions/signal.h>
 
-#include <yt/core/misc/nullable.h>
-
 #include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/logging/log.h>
@@ -170,7 +168,7 @@ public:
         NDataNode::TChunkRegistryPtr chunkRegistry,
         NDataNode::TChunkBlockManagerPtr chunkBlockManager,
         NApi::IClientPtr client,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor);
+        const NNodeTrackerClient::TNodeDescriptor& localDescriptor);
 
     virtual void Initialize(const NTabletNode::NProto::TAddStoreDescriptor* descriptor);
 
@@ -209,7 +207,7 @@ protected:
     const NDataNode::TChunkRegistryPtr ChunkRegistry_;
     const NDataNode::TChunkBlockManagerPtr ChunkBlockManager_;
     const NApi::IClientPtr Client_;
-    const TNullable<NNodeTrackerClient::TNodeDescriptor> LocalDescriptor_;
+    const NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
     EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;
     TFuture<void> PreloadFuture_;

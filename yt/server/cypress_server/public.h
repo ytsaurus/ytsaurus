@@ -40,6 +40,17 @@ using TCypressNodeExpirationMap = std::multimap<TInstant, TCypressNodeBase*>;
 
 struct TLockRequest;
 
+class TMapNode;
+class TListNode;
+
+template <class T>
+class TScalarNode;
+using TStringNode  = TScalarNode<Stroka>;
+using TInt64Node   = TScalarNode<i64>;
+using TUint64Node  = TScalarNode<ui64>;
+using TDoubleNode  = TScalarNode<double>;
+using TBooleanNode = TScalarNode<bool>;
+
 DECLARE_REFCOUNTED_CLASS(TCypressManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////

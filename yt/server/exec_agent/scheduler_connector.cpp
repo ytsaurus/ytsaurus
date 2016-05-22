@@ -29,6 +29,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ExecAgentLogger;
+static const auto& Profiler = ExecAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,6 +39,9 @@ TSchedulerConnector::TSchedulerConnector(
     : Config_(config)
     , Bootstrap_(bootstrap)
     , ControlInvoker_(bootstrap->GetControlInvoker())
+    , TimeBetweenSentHeartbeatsCounter_("/scheduler_connector/time_between_send_heartbeats")
+    , TimeBetweenAcknowledgedHeartbeatsCounter_("/scheduler_connector/time_between_acknowledged_heartbeats")
+    , TimeBetweenFullyProcessedHeartbeatsCounter_("/scheduler_connector/time_between_fully_processed_heartbeats")
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -45,6 +49,11 @@ TSchedulerConnector::TSchedulerConnector(
 
 void TSchedulerConnector::Start()
 {
+    auto now = TInstant::Now();
+    LastSentHeartbeatTime_ = now;
+    LastThrottledHeartbeatTime_ = now;
+    LastFullyProcessedHeartbeatTime_ = now;
+
     HeartbeatExecutor_ = New<TPeriodicExecutor>(
         ControlInvoker_,
         BIND(&TSchedulerConnector::SendHeartbeat, MakeWeak(this)),
@@ -69,7 +78,7 @@ void TSchedulerConnector::SendHeartbeat()
         return;
     }
 
-    if (TInstant::Now() < LastUnsuccessHeartbeatTime_ + Config_->UnsuccessHeartbeatBackoffTime) {
+    if (TInstant::Now() < std::max(LastFailedHeartbeatTime_, LastThrottledHeartbeatTime_) + Config_->UnsuccessHeartbeatBackoffTime) {
         LOG_INFO("Skipping heartbeat");
         return;
     }
@@ -89,10 +98,17 @@ void TSchedulerConnector::SendHeartbeat()
     LOG_INFO("Scheduler heartbeat sent (ResourceUsage: %v)",
         FormatResourceUsage(req->resource_usage(), req->resource_limits()));
 
+    auto timeBetweenSentHeartbeats = TInstant::Now() - LastSentHeartbeatTime_;
+    Profiler.Update(
+        TimeBetweenSentHeartbeatsCounter_,
+        timeBetweenSentHeartbeats.MilliSeconds());
+
+    LastSentHeartbeatTime_ = TInstant::Now();
+
     auto rspOrError = WaitFor(req->Invoke());
 
     if (!rspOrError.IsOK()) {
-        LastUnsuccessHeartbeatTime_ = TInstant::Now();
+        LastFailedHeartbeatTime_ = TInstant::Now();
         LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler");
         return;
     }
@@ -100,8 +116,21 @@ void TSchedulerConnector::SendHeartbeat()
     LOG_INFO("Successfully reported heartbeat to scheduler");
 
     const auto& rsp = rspOrError.Value();
+
+    auto now = TInstant::Now();
+    auto timeBetweenAcknowledgedHeartbeats = now - std::max(LastFullyProcessedHeartbeatTime_, LastThrottledHeartbeatTime_);
+    Profiler.Update(
+        TimeBetweenAcknowledgedHeartbeatsCounter_,
+        timeBetweenAcknowledgedHeartbeats.MilliSeconds());
+
     if (rsp->scheduling_skipped()) {
-        LastUnsuccessHeartbeatTime_ = TInstant::Now();
+        LastThrottledHeartbeatTime_ = now;
+    } else {
+        auto timeBetweenFullyProcessedHeartbeats = now - LastFullyProcessedHeartbeatTime_;
+        Profiler.Update(
+            TimeBetweenFullyProcessedHeartbeatsCounter_,
+            timeBetweenFullyProcessedHeartbeats.MilliSeconds());
+        LastFullyProcessedHeartbeatTime_ = now;
     }
     jobController->ProcessHeartbeatResponse(rsp.Get());
 }

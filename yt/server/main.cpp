@@ -46,6 +46,9 @@
 #ifdef _unix_
     #include <sys/resource.h>
 #endif
+#ifdef _linux_
+    #include <grp.h>
+#endif
 
 namespace NYT {
 
@@ -94,10 +97,11 @@ public:
         , CGroups("", "cgroup", "run in cgroup", false, "")
 #endif
         , Executor("", "executor", "start a user job")
+        , Shell("", "shell", "start a shell in job sandbox, agrument is FD for PTY", false, -1, "NUM")
         , PreparePipes("", "prepare-pipe", "prepare pipe descriptor  (for executor mode)", false, "FD")
         , EnableCoreDump("", "enable-core-dump", "enable core dump (for executor mode)")
-        , Uid("", "uid", "set uid  (for executor mode)", false, -1, "NUM")
-        , Environment("", "env", "set environment variable  (for executor mode)", false, "ENV")
+        , Uid("", "uid", "set uid  (for executor and shell mode)", false, -1, "NUM")
+        , Environment("", "env", "set environment variable  (for executor and shell mode)", false, "ENV")
         , Command("", "command", "command (for executor mode)", false, "", "COMMAND")
 #endif
     {
@@ -119,6 +123,7 @@ public:
         CmdLine.add(CGroups);
 #endif
         CmdLine.add(Executor);
+        CmdLine.add(Shell);
         CmdLine.add(PreparePipes);
         CmdLine.add(EnableCoreDump);
         CmdLine.add(Uid);
@@ -148,6 +153,7 @@ public:
     TCLAP::MultiArg<Stroka> CGroups;
 #endif
     TCLAP::SwitchArg Executor;
+    TCLAP::ValueArg<int> Shell;
     TCLAP::MultiArg<int> PreparePipes;
     TCLAP::SwitchArg EnableCoreDump;
     TCLAP::ValueArg<int> Uid;
@@ -179,6 +185,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 #ifdef _unix_
     Stroka toolName = parser.Tool.getValue();
     bool isExecutor = parser.Executor.getValue();
+    bool isShell = parser.Shell.isSet();
 #endif
 
     bool printConfigTemplate = parser.ConfigTemplate.getValue();
@@ -214,6 +221,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (isExecutor) {
         ++modeCount;
     }
+    if (isShell) {
+        ++modeCount;
+    }
 #endif
 
     if (modeCount != 1) {
@@ -243,7 +253,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     INodePtr configNode;
 
-    if (isExecutor) {
+    if (isExecutor || isShell) {
         // Don't start any other singleton or parse config in executor mode.
         NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
     } else if (!printConfigTemplate) {
@@ -315,6 +325,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
 #ifdef _unix_
     if (isExecutor) {
         TThread::CurrentThreadSetName("ExecutorMain");
+        if (parser.Command.getValue().empty()) {
+            THROW_ERROR_EXCEPTION("Missing or empty --command option");
+        }
 
         const int permissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
         for (auto fd : parser.PreparePipes.getValue()) {
@@ -332,34 +345,51 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 return EExitCode::ExecutorError;
             }
         }
+    }
+    if (isShell) {
+        TThread::CurrentThreadSetName("ShellMain");
+        auto pty = parser.Shell.getValue();
+        if (pty < 0) {
+            THROW_ERROR_EXCEPTION("Invalid argument for --shell option");
+        }
+        CloseAllDescriptors({pty});
+        setsid();
+        SafeLoginTty(pty);
+    }
 
+    if (isExecutor || isShell) {
         auto uid = parser.Uid.getValue();
         if (uid > 0) {
             // Set unprivileged uid and gid for user process.
             YCHECK(setuid(0) == 0);
+            YCHECK(setgroups(0, nullptr) == 0);
 
 #ifdef _linux_
             YCHECK(setresgid(uid, uid, uid) == 0);
+            YCHECK(setresuid(uid, uid, uid) == 0);
 #else
             YCHECK(setgid(uid) == 0);
-#endif
             YCHECK(setuid(uid) == 0);
+#endif
         }
 
         std::vector<char*> env;
         for (auto envVar : parser.Environment.getValue()) {
             env.push_back(const_cast<char*>(envVar.c_str()));
         }
+        env.push_back(const_cast<char*>("SHELL=/bin/bash"));
         env.push_back(nullptr);
 
-        // :; is added avoid fork/exec (oneshot) optimization
-        Stroka command = ":; " + parser.Command.getValue();
-        std::vector<const char*> args {
-            "/bin/bash",
-            "-c",
-            command.c_str(),
-            nullptr
-        };
+        std::vector<const char*> args;
+        args.push_back("/bin/bash");
+        Stroka command;
+        if (isExecutor) {
+            // :; is added avoid fork/exec (oneshot) optimization
+            command = ":; " + parser.Command.getValue();
+            args.push_back("-c");
+            args.push_back(command.c_str());
+        }
+        args.push_back(nullptr);
 
         TryExecve(
             "/bin/bash",
@@ -482,6 +512,7 @@ EExitCode Main(int argc, const char* argv[])
     euid = geteuid();
 #endif
     if (euid == 0) {
+        YCHECK(setgroups(0, nullptr) == 0);
         // if effective uid == 0 (e. g. set-uid-root), make
         // saved = effective, effective = real
 #ifdef _linux_

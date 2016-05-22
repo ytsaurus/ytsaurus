@@ -257,9 +257,11 @@ private:
             srcCellId,
             SelfCellId_);
 
+        ValidatePeer(EPeerKind::Leader);
+
         auto* mailbox = FindMailbox(srcCellId);
         auto lastOutcomingMessageId = mailbox
-            ? mailbox->GetFirstOutcomingMessageId() + mailbox->OutcomingMessages().size() - 1
+            ? mailbox->GetFirstOutcomingMessageId() + static_cast<int>(mailbox->OutcomingMessages().size()) - 1
             : -1;
 
         response->set_last_outcoming_message_id(lastOutcomingMessageId);
@@ -273,6 +275,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, SyncCells)
     {
         context->SetRequestInfo();
+
+        ValidatePeer(EPeerKind::Leader);
 
         auto registeredCellList = CellDirectory_->GetRegisteredCells();
         yhash_map<TCellId, NHive::TCellInfo> registeredCellMap;
@@ -341,7 +345,9 @@ private:
             SelfCellId_,
             firstMessageId,
             firstMessageId + request->messages_size() - 1);
-        
+
+        ValidatePeer(EPeerKind::Leader);
+
         CreatePostMessagesMutation(context)
             ->CommitAndReply(context);
     }
@@ -354,6 +360,8 @@ private:
             srcCellId,
             SelfCellId_,
             request->messages_size());
+
+        ValidatePeer(EPeerKind::Leader);
 
         CreateSendMessagesMutation(context)
             ->CommitAndReply(context);

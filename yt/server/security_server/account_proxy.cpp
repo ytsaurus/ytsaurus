@@ -23,8 +23,11 @@ class TAccountProxy
     : public TNonversionedObjectProxyBase<TAccount>
 {
 public:
-    TAccountProxy(NCellMaster::TBootstrap* bootstrap, TAccount* account)
-        : TBase(bootstrap, account)
+    TAccountProxy(
+        NCellMaster::TBootstrap* bootstrap,
+        TObjectTypeMetadata* metadata,
+        TAccount* account)
+        : TBase(bootstrap, metadata, account)
     { }
 
 private:
@@ -127,9 +130,10 @@ private:
 
 IObjectProxyPtr CreateAccountProxy(
     NCellMaster::TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
     TAccount* account)
 {
-    return New<TAccountProxy>(bootstrap, account);
+    return New<TAccountProxy>(bootstrap, metadata, account);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

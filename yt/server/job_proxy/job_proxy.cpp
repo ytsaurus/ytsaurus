@@ -103,6 +103,12 @@ void TJobProxy::SignalJob(const TJobId& jobId, const Stroka& signalName)
     Job_->SignalJob(signalName);
 }
 
+TYsonString TJobProxy::PollJobShell(const TJobId& jobId, const TYsonString& parameters)
+{
+    ValidateJobId(jobId);
+    return Job_->PollJobShell(parameters);
+}
+
 void TJobProxy::ValidateJobId(const TJobId& jobId)
 {
     if (JobId_ != jobId) {
@@ -283,6 +289,8 @@ TJobResult TJobProxy::DoRun()
             << ex;
     }
 
+    LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack);
+
     RpcServer_ = CreateBusServer(CreateTcpBusServer(Config_->RpcServer));
     RpcServer_->RegisterService(CreateJobProberService(this));
     RpcServer_->Start();
@@ -451,6 +459,11 @@ TNodeDirectoryPtr TJobProxy::GetInputNodeDirectory() const
 TNodeDirectoryPtr TJobProxy::GetAuxNodeDirectory() const
 {
     return AuxNodeDirectory_;
+}
+
+const NNodeTrackerClient::TNodeDescriptor& TJobProxy::LocalDescriptor() const
+{
+    return LocalDescriptor_;
 }
 
 void TJobProxy::CheckMemoryUsage()

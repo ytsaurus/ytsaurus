@@ -414,7 +414,7 @@ TEST_F(TRpcTest, NoReply)
 
     auto req = proxy.NoReply();
     auto rspOrError = req->Invoke().Get();
-    EXPECT_EQ(NRpc::EErrorCode::Abandoned, rspOrError.GetCode());
+    EXPECT_EQ(NRpc::EErrorCode::Unavailable, rspOrError.GetCode());
 }
 
 TEST_F(TRpcTest, CustomErrorMessage)
