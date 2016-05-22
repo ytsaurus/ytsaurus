@@ -56,10 +56,11 @@ public:
     virtual TDataStatistics GetDataStatistics() const override;
 
 private:
+    NLogging::TLogger Logger;
+
     const TFileChunkWriterConfigPtr Config_;
     const TEncodingChunkWriterPtr EncodingChunkWriter_;
 
-    NLogging::TLogger Logger = FileClientLogger;
 
     TBlob Buffer_ { TFileChunkWriterBufferTag() };
     
@@ -78,16 +79,16 @@ TFileChunkWriter::TFileChunkWriter(
     TEncodingWriterOptionsPtr options,
     IChunkWriterPtr chunkWriter,
     IBlockCachePtr blockCache)
-    : Config_(config)
+    : Logger(NLogging::TLogger(FileClientLogger)
+        .AddTag("FileChunkWriter: %p", this))
+    , Config_(config)
     , EncodingChunkWriter_(New<TEncodingChunkWriter>(
         config,
         options,
         chunkWriter,
         blockCache,
         Logger))
-{ 
-    Logger.AddTag("FileChunkWriter: %p", this);
-}
+{ }
 
 bool TFileChunkWriter::Write(const TRef& data)
 {
