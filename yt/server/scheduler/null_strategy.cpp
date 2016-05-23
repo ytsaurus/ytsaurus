@@ -22,6 +22,12 @@ public:
     virtual void StartPeriodicActivity() override
     { }
 
+    virtual void OnFairShareUpdateAt(TInstant now) override
+    { }
+
+    virtual void OnFairShareLoggingAt(TInstant now) override
+    { }
+
     virtual void ResetState() override
     { }
 
