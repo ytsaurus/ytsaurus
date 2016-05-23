@@ -718,7 +718,6 @@ TEST_F(TSuspendableInvokerTest, SuspendResumeOnFinishedRace)
         flag = false;
         auto future = suspendableInvoker->Suspend()
             .Apply(BIND([=, &flag] () { flag = true; }));
-            .Apply(BIND([=, &flag] () { flag = true; }));
 
         if (future.IsSet()) {
             ++hits;
