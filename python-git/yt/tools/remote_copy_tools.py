@@ -176,7 +176,10 @@ def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pac
         "default_api_version_for_http": None
     }
 
-    command = "./read_from_yt.py --proxy {proxy} --format {format} --table {table} --input-type {input_type}"\
+    if len(yt.TablePath(src, client=yt_client).attributes["ranges"]) > 1:
+        raise yt.YtError("Reading slices from table with multiple ranges is not supported")
+
+    command = "python read_from_yt.py --proxy {proxy} --format {format} --table {table} --input-type {input_type}"\
         .format(proxy=yt_client.config["proxy"]["url"],
                 format=shellquote(format),
                 table=shellquote(src),
