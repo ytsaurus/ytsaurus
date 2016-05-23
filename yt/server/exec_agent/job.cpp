@@ -242,7 +242,7 @@ public:
         }
     }
 
-    virtual std::vector<TChunkId> DumpInputContexts() override
+    virtual std::vector<TChunkId> DumpInputContext() override
     {
         ValidateJobRunning();
         EnsureJobProberProxy();

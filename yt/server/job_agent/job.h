@@ -54,7 +54,7 @@ struct IJob
 
     virtual void SetStatistics(const NJobTrackerClient::NProto::TStatistics& statistics) = 0;
 
-    virtual std::vector<NChunkClient::TChunkId> DumpInputContexts() = 0;
+    virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
     virtual NYson::TYsonString Strace() = 0;
     virtual void SignalJob(const Stroka& signalName) = 0;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;

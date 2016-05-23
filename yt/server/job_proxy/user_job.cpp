@@ -392,7 +392,7 @@ private:
     void DumpFailContexts(TSchedulerJobResultExt* schedulerResultExt)
     {
         auto contexts = DoGetInputContexts();
-        auto contextChunkIds = DoDumpInputContexts(contexts);
+        auto contextChunkIds = DoDumpInputContext(contexts);
 
         YCHECK(contextChunkIds.size() <= 1);
         if (!contextChunkIds.empty()) {
@@ -410,7 +410,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job input context");
         const auto& contexts = result.Value();
 
-        auto chunks = DoDumpInputContexts(contexts);
+        auto chunks = DoDumpInputContext(contexts);
         YCHECK(chunks.size() == 1);
 
         if (chunks.front() == NullChunkId) {
@@ -420,7 +420,7 @@ private:
         return chunks;
     }
 
-    std::vector<TChunkId> DoDumpInputContexts(const std::vector<TBlob>& contexts)
+    std::vector<TChunkId> DoDumpInputContext(const std::vector<TBlob>& contexts)
     {
         std::vector<TChunkId> result;
 

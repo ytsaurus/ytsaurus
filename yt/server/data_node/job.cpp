@@ -181,7 +181,7 @@ public:
         YUNREACHABLE();
     }
 
-    virtual std::vector<TChunkId> DumpInputContexts() override
+    virtual std::vector<TChunkId> DumpInputContext() override
     {
         THROW_ERROR_EXCEPTION("Input context dumping is not supported");
     }
