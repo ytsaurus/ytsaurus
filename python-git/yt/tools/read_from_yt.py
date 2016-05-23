@@ -55,6 +55,7 @@ def load(input_type):
         assert False, "Incorrect input format: " + input_type
 
 def read(proxy, token, config, transaction, format, table, input_type):
+    # We should import yt here since it can be unpacked in from local archive.
     from yt.wrapper.client import Yt
     import yt.wrapper as yt
 
