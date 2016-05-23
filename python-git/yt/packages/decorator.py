@@ -3,12 +3,12 @@
 ##   Copyright (c) 2005-2011, Michele Simionato
 ##   All rights reserved.
 ##
-##   Redistributions of source code must retain the above copyright 
+##   Redistributions of source code must retain the above copyright
 ##   notice, this list of conditions and the following disclaimer.
 ##   Redistributions in bytecode form must reproduce the above copyright
 ##   notice, this list of conditions and the following disclaimer in
 ##   the documentation and/or other materials provided with the
-##   distribution. 
+##   distribution.
 
 ##   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 ##   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
@@ -41,7 +41,7 @@ except ImportError: # for Python version < 2.5
         "A simple replacement of functools.partial"
         def __init__(self, func, *args, **kw):
             self.func = func
-            self.args = args                
+            self.args = args
             self.keywords = kw
         def __call__(self, *otherargs, **otherkw):
             kw = self.keywords.copy()
@@ -75,17 +75,20 @@ class FunctionMaker(object):
     methods update and make.
     """
     def __init__(self, func=None, name=None, signature=None,
-                 defaults=None, doc=None, module=None, funcdict=None):
+                 defaults=None, doc=None, module=None, funcdict=None, argspec_transformer=None):
         self.shortsignature = signature
         if func:
             # func can be a class or a callable, but not an instance method
             self.name = func.__name__
             if self.name == '<lambda>': # small hack for lambda functions
-                self.name = '_lambda_' 
+                self.name = '_lambda_'
             self.doc = func.__doc__
             self.module = func.__module__
+
             if inspect.isfunction(func):
                 argspec = getfullargspec(func)
+                if argspec_transformer is not None:
+                    argspec = argspec_transformer(argspec)
                 for a in ('args', 'varargs', 'varkw', 'defaults', 'kwonlyargs',
                           'kwonlydefaults', 'annotations'):
                     setattr(self, a, getattr(argspec, a))
@@ -140,7 +143,7 @@ class FunctionMaker(object):
         if mo is None:
             raise SyntaxError('not a valid function template\n%s' % src)
         name = mo.group(1) # extract the function name
-        names = set([name] + [arg.strip(' *') for arg in 
+        names = set([name] + [arg.strip(' *') for arg in
                              self.shortsignature.split(',')])
         for n in names:
             if n in ('_func_', '_call_'):
@@ -163,7 +166,7 @@ class FunctionMaker(object):
 
     @classmethod
     def create(cls, obj, body, evaldict, defaults=None,
-               doc=None, module=None, addsource=True, **attrs):
+               doc=None, module=None, addsource=True, argspec_transformer=None, **attrs):
         """
         Create a function from the strings name, signature and body.
         evaldict is the evaluation dictionary. If addsource is true an attribute
@@ -172,17 +175,17 @@ class FunctionMaker(object):
         """
         if isinstance(obj, str): # "name(signature)"
             name, rest = obj.strip().split('(', 1)
-            signature = rest[:-1] #strip a right parens            
+            signature = rest[:-1] #strip a right parens
             func = None
         else: # a function
             name = None
             signature = None
             func = obj
-        self = cls(func, name, signature, defaults, doc, module)
+        self = cls(func, name, signature, defaults, doc, module, argspec_transformer=argspec_transformer)
         ibody = '\n'.join('    ' + line for line in body.splitlines())
-        return self.make('def %(name)s(%(signature)s):\n' + ibody, 
+        return self.make('def %(name)s(%(signature)s):\n' + ibody,
                         evaldict, addsource, **attrs)
-  
+
 def decorator(caller, func=None):
     """
     decorator(caller) converts a caller function into a decorator;
@@ -204,7 +207,7 @@ def decorator(caller, func=None):
         evaldict['_call_'] = caller
         evaldict['decorator'] = decorator
         return FunctionMaker.create(
-            '%s(%s)' % (caller.__name__, first), 
+            '%s(%s)' % (caller.__name__, first),
             'return decorator(_call_, %s)' % first,
             evaldict, undecorated=caller, __wrapped__=caller,
             doc=caller.__doc__, module=caller.__module__)

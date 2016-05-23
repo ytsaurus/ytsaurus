@@ -500,8 +500,8 @@ def create_temp_table(path=None, prefix=None, client=None):
     return name
 
 def write_table(table, input_stream, format=None, table_writer=None, replication_factor=None,
-                compression_codec=None, is_stream_compressed=False,
-                client=None, raw=None):
+                compression_codec=None, is_stream_compressed=False, raw=None,
+                client=None):
     """Write rows from input_stream to table.
 
     :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
@@ -1559,25 +1559,72 @@ def _run_operation(binary, source_table, destination_table,
         if finalize is not None:
             finalize()
 
-def run_map(binary, source_table, destination_table, **kwargs):
+def run_map(binary, source_table, destination_table,
+            files=None, file_paths=None,
+            local_files=None, yt_files=None,
+            format=None, input_format=None, output_format=None,
+            sync=True,
+            job_io=None,
+            table_writer=None,
+            replication_factor=None,
+            compression_codec=None,
+            job_count=None,
+            memory_limit=None,
+            spec=None,
+            ordered=None,
+            client=None):
     """Run map operation.
 
     :param ordered: (bool) force ordered input for mapper
 
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
+    kwargs = locals()
     kwargs["op_name"] = "map"
-    return _run_operation(binary, source_table, destination_table, **kwargs)
+    return _run_operation(**kwargs)
 
-def run_reduce(binary, source_table, destination_table, **kwargs):
+def run_reduce(binary, source_table, destination_table,
+               files=None, file_paths=None,
+               local_files=None, yt_files=None,
+               format=None, input_format=None, output_format=None,
+               sync=True,
+               job_io=None,
+               table_writer=None,
+               replication_factor=None,
+               compression_codec=None,
+               job_count=None,
+               memory_limit=None,
+               spec=None,
+               op_name=None,
+               sort_by=None,
+               reduce_by=None,
+               join_by=None,
+               client=None):
     """Run reduce operation.
 
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
+    kwargs = locals()
     kwargs["op_name"] = "reduce"
-    return _run_operation(binary, source_table, destination_table, **kwargs)
+    return _run_operation(**kwargs)
 
-def run_join_reduce(binary, source_table, destination_table, **kwargs):
+def run_join_reduce(binary, source_table, destination_table,
+                    files=None, file_paths=None,
+                    local_files=None, yt_files=None,
+                    format=None, input_format=None, output_format=None,
+                    sync=True,
+                    job_io=None,
+                    table_writer=None,
+                    replication_factor=None,
+                    compression_codec=None,
+                    job_count=None,
+                    memory_limit=None,
+                    spec=None,
+                    op_name=None,
+                    sort_by=None,
+                    reduce_by=None,
+                    join_by=None,
+                    client=None):
     """Run join-reduce operation.
 
     .. note:: You should specity at least two input table and all except one \
@@ -1585,8 +1632,9 @@ def run_join_reduce(binary, source_table, destination_table, **kwargs):
 
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
+    kwargs = locals()
     kwargs["op_name"] = "join_reduce"
-    return _run_operation(binary, source_table, destination_table, **kwargs)
+    return _run_operation(**kwargs)
 
 def run_remote_copy(source_table, destination_table,
                     cluster_name=None, network_name=None, cluster_connection=None, copy_attributes=None,

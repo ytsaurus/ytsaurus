@@ -2,6 +2,7 @@
 
 from yt.common import require, flatten, update, which, YtError, update_from_env, unlist, get_value, filter_dict, date_string_to_timestamp
 import yt.yson as yson
+from yt.packages.decorator import decorator
 
 import os
 import sys
@@ -10,7 +11,6 @@ import socket
 import getpass
 import random
 import time
-import functools
 from datetime import datetime
 from itertools import ifilter, chain
 
@@ -189,15 +189,15 @@ def is_inside_job():
     """Returns True if the code is currently being run in the context of a YT job."""
     return bool(int(os.environ.get("YT_WRAPPER_IS_INSIDE_JOB", "0")))
 
-def forbidden_inside_job(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        flag = os.environ.get("YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB", "0")
-        if is_inside_job() and not bool(int(flag)):
-            raise YtError('HTTP requests to YT are forbidden inside jobs by default. '
-                          'Did you forget to surround code that runs YT operations with '
-                          'if __name__ == "__main__"? If not and you need to make requests '
-                          'you can override this behaviour by turning on '
-                          '"allow_http_requests_to_yt_from_job" option in config.')
-        return func(*args, **kwargs)
-    return wrapper
+
+@decorator
+def forbidden_inside_job(func, *args, **kwargs):
+    flag = os.environ.get("YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB", "0")
+    if is_inside_job() and not bool(int(flag)):
+        raise YtError('HTTP requests to YT are forbidden inside jobs by default. '
+                      'Did you forget to surround code that runs YT operations with '
+                      'if __name__ == "__main__"? If not and you need to make requests '
+                      'you can override this behaviour by turning on '
+                      '"allow_http_requests_to_yt_from_job" option in config.')
+    return func(*args, **kwargs)
+
