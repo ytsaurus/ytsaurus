@@ -172,7 +172,6 @@ struct TFairShareContext
         , DynamicAttributesList(treeSize)
     { }
 
-    // TODO(acid): Maybe get rid of this function.
     TDynamicAttributes& DynamicAttributes(ISchedulerElement* element)
     {
         int index = element->GetTreeIndex();
@@ -2210,6 +2209,57 @@ public:
             .Item("pool").Value(element->GetParent()->GetId());
     }
 
+    // NB: This function is public for testing purposes.
+    virtual void OnFairShareUpdateAt(TInstant now) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // Run periodic update.
+        PROFILE_TIMING ("/fair_share_update_time") {
+            // The root element gets the whole cluster.
+            RootElement->Update(GlobalDynamicAttributes_);
+        }
+
+        // Update starvation flags for all operations.
+        for (const auto& pair : OperationToElement) {
+            pair.second->CheckForStarvation(now);
+        }
+
+        // Update starvation flags for all pools.
+        if (Config->EnablePoolStarvation) {
+            for (const auto& pair : Pools) {
+                pair.second->CheckForStarvation(now);
+            }
+        }
+
+        RootElementSnapshot = RootElement->CloneRoot();
+    }
+
+    // NB: This function is public for testing purposes.
+    virtual void OnFairShareLoggingAt(TInstant now) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // Log pools information.
+        Host->LogEventFluently(ELogEventType::FairShareInfo, now)
+            .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
+            .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
+                const auto& operationId = pair.first;
+                BuildYsonMapFluently(fluent)
+                    .Item(ToString(operationId))
+                    .BeginMap()
+                        .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operationId))
+                    .EndMap();
+            });
+
+        for (auto& pair : OperationToElement) {
+            const auto& operationId = pair.first;
+            LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
+                GetOperationLoggingProgress(operationId),
+                operationId);
+        }
+    }
+
 private:
     const TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
@@ -2264,13 +2314,6 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    TInstant GetNow()
-    {
-        // TODO(acid): For this to work in simulator we need to store current time globally in
-        // strategy and update it in simulator.
-        return TInstant::Now();
-    }
-
     TDynamicAttributes GetGlobalDynamicAttributes(const ISchedulerElementPtr& element) const
     {
         int index = element->GetTreeIndex();
@@ -2283,55 +2326,12 @@ private:
 
     void OnFairShareUpdate()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto now = GetNow();
-
-        // Run periodic update.
-        PROFILE_TIMING ("/fair_share_update_time") {
-            // The root element gets the whole cluster.
-            RootElement->Update(GlobalDynamicAttributes_);
-        }
-
-        // Update starvation flags for all operations.
-        for (const auto& pair : OperationToElement) {
-            pair.second->CheckForStarvation(now);
-        }
-
-        // Update starvation flags for all pools.
-        if (Config->EnablePoolStarvation) {
-            for (const auto& pair : Pools) {
-                pair.second->CheckForStarvation(now);
-            }
-        }
-
-        RootElementSnapshot = RootElement->CloneRoot();
+        OnFairShareUpdateAt(TInstant::Now());
     }
 
     void OnFairShareLogging()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto now = GetNow();
-
-        // Log pools information.
-        Host->LogEventFluently(ELogEventType::FairShareInfo, now)
-            .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
-            .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
-                const auto& operationId = pair.first;
-                BuildYsonMapFluently(fluent)
-                    .Item(ToString(operationId))
-                    .BeginMap()
-                        .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operationId))
-                    .EndMap();
-            });
-
-        for (auto& pair : OperationToElement) {
-            const auto& operationId = pair.first;
-            LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
-                GetOperationLoggingProgress(operationId),
-                operationId);
-        }
+        OnFairShareLoggingAt(TInstant::Now());
     }
 
     void DoScheduleJobs(TFairShareContext& context, TRootElementPtr rootElement)

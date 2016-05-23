@@ -51,6 +51,12 @@ struct ISchedulerStrategy
     //! Starts periodic updates and logging.
     virtual void StartPeriodicActivity() = 0;
 
+    //! Called periodically to build new tree snapshot.
+    virtual void OnFairShareUpdateAt(TInstant now) = 0;
+
+    //! Called periodically to log scheduling tree state.
+    virtual void OnFairShareLoggingAt(TInstant now) = 0;
+
     //! Resets memoized state.
     virtual void ResetState() = 0;
 
