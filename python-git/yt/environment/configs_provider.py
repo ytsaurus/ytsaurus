@@ -116,10 +116,11 @@ def _set_memory_limit_options(config, operations_memory_limit):
     config["exec_agent"]["job_controller"]["resource_limits"]["memory"] = operations_memory_limit
 
     resource_limits = config.get("resource_limits", {})
-    if "memory" in resource_limits:
-        return
+    resource_limits.setdefault("memory", 0)
 
-    resource_limits["memory"] = int(1.1 * 1024 * MB) + operations_memory_limit
+    resource_limits["memory"] = max(resource_limits["memory"],
+                                    int(1.1 * 1024 * MB) + operations_memory_limit)
+
     update(config, {"resource_limits": resource_limits})
 
 class ConfigsProvider_17(ConfigsProvider):
