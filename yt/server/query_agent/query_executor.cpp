@@ -120,7 +120,7 @@ struct TQueryExecutorBufferTag
 { };
 
 class TQueryExecutor
-    : public ISubExecutor
+    : public ISubexecutor
 {
 public:
     TQueryExecutor(
@@ -955,7 +955,7 @@ private:
     }
 };
 
-ISubExecutorPtr CreateQueryExecutor(
+ISubexecutorPtr CreateQueryExecutor(
     TQueryAgentConfigPtr config,
     TBootstrap* bootstrap)
 {
