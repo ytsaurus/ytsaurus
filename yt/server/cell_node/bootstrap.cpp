@@ -622,7 +622,7 @@ NDataNode::TMasterConnectorPtr TBootstrap::GetMasterConnector() const
     return MasterConnector;
 }
 
-NQueryClient::ISubExecutorPtr TBootstrap::GetQueryExecutor() const
+NQueryClient::ISubexecutorPtr TBootstrap::GetQueryExecutor() const
 {
     return QueryExecutor;
 }

@@ -35,7 +35,7 @@ struct IExecutor
 
 DEFINE_REFCOUNTED_TYPE(IExecutor)
 
-struct ISubExecutor
+struct ISubexecutor
     : public virtual TRefCounted
 {
     virtual TFuture<TQueryStatistics> Execute(
@@ -47,7 +47,7 @@ struct ISubExecutor
 
 };
 
-DEFINE_REFCOUNTED_TYPE(ISubExecutor)
+DEFINE_REFCOUNTED_TYPE(ISubexecutor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
