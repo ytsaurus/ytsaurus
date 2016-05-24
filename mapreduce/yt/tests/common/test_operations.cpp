@@ -35,6 +35,18 @@ public:
     const char* Input() { return "tmp/input"; }
     const char* Output() { return "tmp/output"; }
 
+    void PrintTable(const char* tableName) {
+        TClient client(Server());
+        TTable table(client, tableName);
+        for (TTableIterator i = table.Begin(); i != table.End(); ++i) {
+            Cout <<
+                "key = " << i.GetKey().AsStringBuf() <<
+                ", subkey = " << i.GetSubKey().AsStringBuf() <<
+                ", value = " << i.GetValue().AsStringBuf() <<
+            Endl;
+        }
+    }
+
 private:
     void RemoveTables()
     {
@@ -61,17 +73,7 @@ YT_TEST(TOperation, IdMap)
         }
     }
     Server().Map(Input(), Output(), new TIdMap);
-    {
-        TClient client(Server());
-        TTable table(client, Output());
-        for (TTableIterator i = table.Begin(); i != table.End(); ++i) {
-            Cout <<
-                "key = " << i.GetKey().AsStringBuf() <<
-                ", subkey = " << i.GetSubKey().AsStringBuf() <<
-                ", value = " << i.GetValue().AsStringBuf() <<
-            Endl;
-        }
-    }
+    PrintTable(Output());
 }
 
 YT_TEST(TOperation, IdReduce) {
@@ -87,17 +89,7 @@ YT_TEST(TOperation, IdReduce) {
         }
     }
     Server().Reduce(Input(), Output(), new TIdReduce);
-    {
-        TClient client(Server());
-        TTable table(client, Output());
-        for (TTableIterator i = table.Begin(); i != table.End(); ++i) {
-            Cout <<
-                "key = " << i.GetKey().AsStringBuf() <<
-                ", subkey = " << i.GetSubKey().AsStringBuf() <<
-                ", value = " << i.GetValue().AsStringBuf() <<
-            Endl;
-        }
-    }
+    PrintTable(Output());
 }
 
 YT_TEST(TOperation, Sort) {
@@ -113,17 +105,7 @@ YT_TEST(TOperation, Sort) {
         }
     }
     Server().Sort(Input(), Output());
-    {
-        TClient client(Server());
-        TTable table(client, Output());
-        for (TTableIterator i = table.Begin(); i != table.End(); ++i) {
-            Cout <<
-                "key = " << i.GetKey().AsStringBuf() <<
-                ", subkey = " << i.GetSubKey().AsStringBuf() <<
-                ", value = " << i.GetValue().AsStringBuf() <<
-            Endl;
-        }
-    }
+    PrintTable(Output());
 }
 
 } // namespace NCommonTest
