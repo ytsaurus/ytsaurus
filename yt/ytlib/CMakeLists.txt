@@ -1,6 +1,9 @@
 IF(YMAKE)
   SET(CMAKE_CURRENT_LIST_DIR .)
+  SET(YT_ABI 17_4)
 ENDIF()
+
+SET(PROTO_NAMESPACE yt/${YT_ABI})
 
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/api/admin.cpp
@@ -97,6 +100,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/formats/format.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_callbacks.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_writer.cpp
@@ -307,8 +312,6 @@ ADDINCL(
 
 SRCS(
   ${YT_SRCS}
-  ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser_arc.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer_arc.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_if.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_registry_arc.cpp
 )
@@ -316,7 +319,8 @@ SRCS(
 PEERDIR(
   contrib/libs/llvm37/lib
   contrib/libs/re2
-  yt/core
+  contrib/libs/yajl
+  yt/${YT_ABI}/yt/core
 )
 
 END()
@@ -330,8 +334,6 @@ include(query_client/CMakeLists.txt)
 
 set(YT_SRCS
   ${YT_SRCS}
-  ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_if.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_is_prefix.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_registry.cpp
