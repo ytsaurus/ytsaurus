@@ -44,7 +44,7 @@ public:
         , LeaderChannel_(Connection_->GetMasterChannel(EMasterChannelKind::Leader))
     {
         Logger.AddTag("Admin: %p", this);
-        UNUSED(Options_);
+        Y_UNUSED(Options_);
     }
 
 #define DROP_BRACES(...) __VA_ARGS__

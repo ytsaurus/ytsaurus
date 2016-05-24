@@ -761,9 +761,9 @@ void TDecoratedAutomaton::LogLeaderMutation(
     TFuture<TMutationResponse>* commitResult)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(recordData);
-    YASSERT(localFlushResult);
-    YASSERT(commitResult);
+    Y_ASSERT(recordData);
+    Y_ASSERT(localFlushResult);
+    Y_ASSERT(commitResult);
 
     TPendingMutation pendingMutation;
     pendingMutation.Version = LoggedVersion_;

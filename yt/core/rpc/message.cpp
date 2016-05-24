@@ -171,7 +171,7 @@ TSharedRefArray SetRequestHeader(
     const TSharedRefArray& message,
     const TRequestHeader& header)
 {
-    YASSERT(GetMessageType(message) == EMessageType::Request);
+    Y_ASSERT(GetMessageType(message) == EMessageType::Request);
     auto parts = message.ToVector();
     parts[0] = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Request}, header);
     return TSharedRefArray(parts);
@@ -192,7 +192,7 @@ TSharedRefArray SetResponseHeader(
     const TSharedRefArray& message,
     const TResponseHeader& header)
 {
-    YASSERT(GetMessageType(message) == EMessageType::Response);
+    Y_ASSERT(GetMessageType(message) == EMessageType::Response);
     auto parts = message.ToVector();
     parts[0] = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Response}, header);
     return TSharedRefArray(parts);

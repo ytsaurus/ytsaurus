@@ -68,7 +68,7 @@ bool IsLocalServiceAddress(const Stroka& address)
     }
 #else
     // Abstract unix sockets (domain sockets) are supported only on Linux.
-    UNUSED(address);
+    Y_UNUSED(address);
     return false;
 #endif
 }

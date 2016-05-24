@@ -251,7 +251,7 @@ T& TVariant<Ts...>::As()
 {
     typedef ::NYT::NDetail::NVariant::TTagTraits<T, Ts...> TTagTraits;
     static_assert(TTagTraits::Tag != -1, "Type not in TVariant.");
-    YASSERT(Tag_ == TTagTraits::Tag);
+    Y_ASSERT(Tag_ == TTagTraits::Tag);
     return UncheckedAs<T>();
 }
 
@@ -261,7 +261,7 @@ const T& TVariant<Ts...>::As() const
 {
     typedef ::NYT::NDetail::NVariant::TTagTraits<T, Ts...> TTagTraits;
     static_assert(TTagTraits::Tag != -1, "Type not in TVariant.");
-    YASSERT(Tag_ == TTagTraits::Tag);
+    Y_ASSERT(Tag_ == TTagTraits::Tag);
     return UncheckedAs<T>();
 }
 

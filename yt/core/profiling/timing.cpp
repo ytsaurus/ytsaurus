@@ -97,7 +97,7 @@ TCpuInstant GetCpuInstant()
 TDuration CpuDurationToDuration(TCpuDuration duration)
 {
     // TDuration is unsigned and thus does not support negative values.
-    YASSERT(duration >= 0);
+    Y_ASSERT(duration >= 0);
     // TODO(babenko): get rid of this dependency on NHPTimer
     return TDuration::Seconds((double) duration / NClock::GetClockRate());
 }

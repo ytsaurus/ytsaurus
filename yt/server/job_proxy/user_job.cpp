@@ -25,6 +25,8 @@
 #include <yt/ytlib/query_client/public.h>
 #include <yt/ytlib/query_client/query_statistics.h>
 
+#include <yt/ytlib/security_client/public.h>
+
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaful_reader_adapter.h>
@@ -749,7 +751,7 @@ private:
         // all input streams into fd == 0.
 
         int maxReservedDescriptor = GetMaxReservedDescriptor();
-        YASSERT(maxReservedDescriptor > 0);
+        Y_ASSERT(maxReservedDescriptor > 0);
 
         // To avoid descriptor collisions between pipes on this, proxy side,
         // and "standard" descriptor numbers in forked job (see comments above)

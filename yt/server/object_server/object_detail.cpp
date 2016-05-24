@@ -82,7 +82,7 @@ public:
         if (attributes) {
             for (const auto& pair : attributes->Attributes()) {
                 // Attribute cannot be empty (i.e. deleted) in null transaction.
-                YASSERT(pair.second);
+                Y_ASSERT(pair.second);
                 keys.push_back(pair.first);
             }
         }
@@ -103,7 +103,7 @@ public:
         }
 
         // Attribute cannot be empty (i.e. deleted) in null transaction.
-        YASSERT(it->second);
+        Y_ASSERT(it->second);
         return it->second;
     }
 
@@ -134,7 +134,7 @@ public:
         }
 
         // Attribute cannot be empty (i.e. deleted) in null transaction.
-        YASSERT(it->second);
+        Y_ASSERT(it->second);
         attributes->Attributes().erase(it);
         if (attributes->Attributes().empty()) {
             object->ClearAttributes();
@@ -156,8 +156,8 @@ TObjectProxyBase::TObjectProxyBase(
     : Bootstrap_(bootstrap)
     , Object_(object)
 {
-    YASSERT(Bootstrap_);
-    YASSERT(Object_);
+    Y_ASSERT(Bootstrap_);
+    Y_ASSERT(Object_);
 }
 
 const TObjectId& TObjectProxyBase::GetId() const
@@ -815,7 +815,7 @@ bool TNontemplateNonversionedObjectProxyBase::DoInvoke(IServiceContextPtr contex
 
 void TNontemplateNonversionedObjectProxyBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
-    UNUSED(request);
+    Y_UNUSED(request);
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     context->SetRequestInfo();
@@ -831,8 +831,8 @@ void TNontemplateNonversionedObjectProxyBase::ValidateRemoval()
 
 void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
 {
-    UNUSED(request);
-    UNUSED(response);
+    Y_UNUSED(request);
+    Y_UNUSED(response);
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     context->SetRequestInfo();

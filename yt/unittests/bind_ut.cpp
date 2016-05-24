@@ -198,7 +198,7 @@ T PolymorphicPassThrough(T&& t)
 template <class T>
 void VoidPolymorphic1(T t)
 {
-    UNUSED(t);
+    Y_UNUSED(t);
 }
 
 int ArrayGet(const int array[], int n)

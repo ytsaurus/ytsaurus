@@ -240,8 +240,8 @@ void TDsvNodeConsumer::OnBeginMap()
 
 void TDsvNodeConsumer::OnKeyedItem(const TStringBuf& key)
 {
-    YASSERT(!AllowBeginMap_);
-    YASSERT(!AllowBeginList_);
+    Y_ASSERT(!AllowBeginMap_);
+    Y_ASSERT(!AllowBeginList_);
 
     if (BeforeFirstMapItem_) {
         BeforeFirstMapItem_ = false;
@@ -255,8 +255,8 @@ void TDsvNodeConsumer::OnKeyedItem(const TStringBuf& key)
 
 void TDsvNodeConsumer::OnEndMap()
 {
-    YASSERT(!AllowBeginMap_);
-    YASSERT(!AllowBeginList_);
+    Y_ASSERT(!AllowBeginMap_);
+    Y_ASSERT(!AllowBeginList_);
 }
 
 void TDsvNodeConsumer::OnBeginAttributes()
