@@ -1,4 +1,5 @@
 #include <mapreduce/yt/tests/operations/id_map.h>
+#include <mapreduce/yt/tests/operations/id_reduce.h>
 
 #include <mapreduce/yt/tests/lib/lib.h>
 
@@ -60,6 +61,32 @@ YT_TEST(TOperation, IdMap)
         }
     }
     Server().Map(Input(), Output(), new TIdMap);
+    {
+        TClient client(Server());
+        TTable table(client, Output());
+        for (TTableIterator i = table.Begin(); i != table.End(); ++i) {
+            Cout <<
+                "key = " << i.GetKey().AsStringBuf() <<
+                ", subkey = " << i.GetSubKey().AsStringBuf() <<
+                ", value = " << i.GetValue().AsStringBuf() <<
+            Endl;
+        }
+    }
+}
+
+YT_TEST(TOperation, IdReduce) {
+    {
+        TClient client(Server());
+        TUpdate update(client, Input());
+        for (int i = 0; i < 8; ++i) {
+            auto key = Sprintf("%d", i);
+            auto subkey = Sprintf("%d", i * 2);
+            auto value = Sprintf("%d", i * 4);
+            update.AddSub(key, subkey, value);
+            update.AddSub(key, subkey, value);
+        }
+    }
+    Server().Reduce(Input(), Output(), new TIdReduce);
     {
         TClient client(Server());
         TTable table(client, Output());
