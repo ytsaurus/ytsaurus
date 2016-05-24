@@ -947,10 +947,8 @@ private:
             unregisterReplica(replica, false);
         }
 
-        if (chunk->CachedReplicas()) {
-            for (auto replica : *chunk->CachedReplicas()) {
-                unregisterReplica(replica, true);
-            }
+        for (auto replica : chunk->CachedReplicas()) {
+            unregisterReplica(replica, true);
         }
 
         ++ChunksDestroyed_;
@@ -1498,18 +1496,17 @@ private:
         for (const auto& pair : ChunkMap_) {
             auto* chunk = pair.second;
 
-            for (auto nodePtrWithIndex : chunk->StoredReplicas()) {
+            auto addReplica = [&] (TNodePtrWithIndex nodePtrWithIndex, bool cached) {
                 TChunkPtrWithIndex chunkPtrWithIndex(chunk, nodePtrWithIndex.GetIndex());
                 nodePtrWithIndex.GetPtr()->AddReplica(chunkPtrWithIndex, false);
-            }
-            TotalReplicaCount_ += chunk->StoredReplicas().size();
+                ++TotalReplicaCount_;
+            };
 
-            if (chunk->CachedReplicas()) {
-                for (auto nodePtrWithIndex : *chunk->CachedReplicas()) {
-                    TChunkPtrWithIndex chunkPtrWithIndex(chunk, nodePtrWithIndex.GetIndex());
-                    nodePtrWithIndex.GetPtr()->AddReplica(chunkPtrWithIndex, true);
-                }
-                TotalReplicaCount_ += chunk->CachedReplicas()->size();
+            for (auto nodePtrWithIndex : chunk->StoredReplicas()) {
+                addReplica(nodePtrWithIndex, false);
+            }
+            for (auto nodePtrWithIndex : chunk->CachedReplicas()) {
+                addReplica(nodePtrWithIndex, true);
             }
 
             if (chunk->IsForeign()) {

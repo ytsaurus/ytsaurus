@@ -78,17 +78,8 @@ public:
     // This list is typically small, e.g. has the length of 1.
     // It may contain duplicates, i.e. when a chunk is added into the same
     // table multiple times during merge.
-    typedef SmallVector<TChunkList*, TypicalChunkParentCount> TParents;
+    using TParents = SmallVector<TChunkList*, TypicalChunkParentCount>;
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
-
-    // This is usually small, e.g. has the length of 3.
-    typedef TNodePtrWithIndexList TStoredReplicas;
-    DEFINE_BYREF_RO_PROPERTY(TStoredReplicas, StoredReplicas);
-
-    // This list is usually empty.
-    // Keeping a holder is very space efficient (takes just 8 bytes).
-    typedef std::unique_ptr<yhash_set<TNodePtrWithIndex>> TCachedReplicas;
-    DEFINE_BYREF_RO_PROPERTY(TCachedReplicas, CachedReplicas);
 
 public:
     explicit TChunk(const TChunkId& id);
@@ -103,6 +94,12 @@ public:
 
     void AddParent(TChunkList* parent);
     void RemoveParent(TChunkList* parent);
+
+    using TCachedReplicas = yhash_set<TNodePtrWithIndex>;
+    const TCachedReplicas& CachedReplicas() const;
+
+    using TStoredReplicas = TNodePtrWithIndexList;
+    const TStoredReplicas& StoredReplicas() const;
 
     void AddReplica(TNodePtrWithIndex replica, bool cached);
     void RemoveReplica(TNodePtrWithIndex replica, bool cached);
@@ -230,6 +227,15 @@ private:
     ui8 ExportCounter_ = 0;
     //! Per-cell data, indexed by cell index; cf. TMulticellManager::GetRegisteredMasterCellIndex.
     TChunkExportDataList ExportDataList_ = {};
+
+    //! This list is usually empty. Keeping a holder is very space efficient.
+    std::unique_ptr<TCachedReplicas> CachedReplicas_;
+    static const TCachedReplicas EmptyCachedReplicas;
+
+    //! This additional indirection helps to save up some space since
+    //! no replicas are being maintained for foreign chunks.
+    std::unique_ptr<TStoredReplicas> StoredReplicas_;
+    static const TStoredReplicas EmptyStoredReplicas;
 
 };
 

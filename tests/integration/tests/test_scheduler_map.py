@@ -122,6 +122,11 @@ class TestEventLog(YTEnvSetup):
                 user_time = get_statistics(stats, "user_job.cpu.user")
                 # our job should burn enough cpu
                 assert user_time > 0
+            if item["event_type"] == "job_started":
+                limits = item["resource_limits"]
+                assert limits["cpu"] > 0
+                assert limits["memory"] > 0
+                assert limits["user_slots"] > 0
         assert "operation_started" in event_types
 
     def test_scheduler_event_log_buffering(self):

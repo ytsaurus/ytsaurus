@@ -23,7 +23,7 @@ TSchemafulWriter::TSchemafulWriter(
 
 TFuture<void> TSchemafulWriter::Close()
 {
-    return VoidFuture;
+    return Result_;
 }
 
 bool TSchemafulWriter::Write(const std::vector<TUnversionedRow>& rows)
