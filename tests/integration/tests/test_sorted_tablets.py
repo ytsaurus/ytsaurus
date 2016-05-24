@@ -863,6 +863,8 @@ class TestSortedTablets(YTEnvSetup):
         rows = [{"key": i, "value": str(i)} for i in xrange(10)]
         keys = [{"key" : row["key"]} for row in rows]
         insert_rows("//tmp/t", rows)
+        self.sync_unmount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
 
         sleep(3.0)
 
