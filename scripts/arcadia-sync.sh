@@ -96,7 +96,7 @@ do_pull() {
 
     git_commit=$(git rev-parse HEAD)
     git_svn_commit=$(git rev-parse "refs/remotes/${arc_remote}")
-    svn_revision=$(git svn find-rev "refs/remotes/${arc_remote}")
+    svn_revision=$(git svn --svn-remote "$arc_remote" find-rev "refs/remotes/${arc_remote}")
 
     set +x
     message="Pull yt/$abi/ from Arcadia"$'\n'
@@ -117,7 +117,7 @@ do_push() {
     remote_tree=$(git cat-file -p "refs/remotes/${arc_remote}" | grep '^tree' | awk '{print $2}')
     git_commit=$(git rev-parse HEAD)
     git_svn_commit=$(git rev-parse "refs/remotes/${arc_remote}")
-    svn_revision=$(git svn find-rev "refs/remotes/${arc_remote}")
+    svn_revision=$(git svn --svn-remote "$arc_remote" find-rev "refs/remotes/${arc_remote}")
 
     set +x
     message="Push yt/$abi/ to Arcadia"$'\n'
@@ -136,7 +136,7 @@ do_push() {
     message="$message"$'\n'"yt:svn_revision:$svn_revision"
     set -x
 
-    git svn commit-diff -r "$svn_revision" -m "$message" "$remote_tree" "$local_tree"
+    git svn --svn-remote "$arc_remote" commit-diff -r "$svn_revision" -m "$message" "$remote_tree" "$local_tree" "$arc"
 }
 
 ################################################################################
