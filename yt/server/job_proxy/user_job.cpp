@@ -25,6 +25,8 @@
 #include <yt/ytlib/query_client/public.h>
 #include <yt/ytlib/query_client/query_statistics.h>
 
+#include <yt/ytlib/security_client/public.h>
+
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaful_reader_adapter.h>

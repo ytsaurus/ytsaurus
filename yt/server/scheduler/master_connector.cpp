@@ -41,7 +41,6 @@ using namespace NYPath;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
-using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NFileClient;
 using namespace NTransactionClient;
