@@ -20,7 +20,7 @@ def main():
     build_snapshot_parser = subparsers.add_parser("build-snapshot", help="Build snapshot")
     build_snapshot_parser.set_defaults(func=build_snapshot)
     build_snapshot_parser.add_argument("--set-read-only", action="store_true", default=False)
-    build_snapshot_parser.add_argument("--cell-id")
+    build_snapshot_parser.add_argument("--cell-id", required=True)
 
     gc_collect_parser = subparsers.add_parser("gc-collect", help="Run garbage collection")
     gc_collect_parser.set_defaults(func=gc_collect)
