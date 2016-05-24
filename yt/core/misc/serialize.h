@@ -857,6 +857,46 @@ struct TVectorSerializer
     }
 };
 
+template <
+    class TItemSerializer = TDefaultSerializer,
+    class TSortTag = TUnsortedTag
+>
+struct TNullableVectorSerializer
+{
+    template <class TVector, class C>
+    static void Save(C& context, const std::unique_ptr<TVector>& objects)
+    {
+        if (objects) {
+            TVectorSerializer<TItemSerializer, TSortTag>::Save(context, *objects);
+        } else {
+            TSizeSerializer::Save(context, 0);
+        }
+    }
+
+    template <class TVector, class C>
+    static void Load(C& context, std::unique_ptr<TVector>& objects)
+    {
+        size_t size = TSizeSerializer::LoadSuspended(context);
+        if (size == 0) {
+            objects.reset();
+            return;
+        }
+
+        objects.reset(new TVector());
+        objects->resize(size);
+
+        SERIALIZATION_DUMP_WRITE(context, "vector[%v]", size);
+        SERIALIZATION_DUMP_INDENT(context) {
+            for (size_t index = 0; index != size; ++index) {
+                SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
+                SERIALIZATION_DUMP_INDENT(context) {
+                    TItemSerializer::Load(context, (*objects)[index]);
+                }
+            }
+        }
+    }
+};
+
 template <class TItemSerializer = TDefaultSerializer>
 struct TListSerializer
 {
@@ -1313,6 +1353,18 @@ template <class T, class C>
 struct TSerializerTraits<yhash_multiset<T>, C, void>
 {
     typedef TMultiSetSerializer<> TSerializer;
+};
+
+template <class T, class A, class C>
+struct TSerializerTraits<std::unique_ptr<std::vector<T, A>>, C, void>
+{
+    typedef TNullableVectorSerializer<> TSerializer;
+};
+
+template <class T, unsigned size, class C>
+struct TSerializerTraits<std::unique_ptr<SmallVector<T, size>>, C, void>
+{
+    typedef TNullableVectorSerializer<> TSerializer;
 };
 
 template <class T, class A, class C>

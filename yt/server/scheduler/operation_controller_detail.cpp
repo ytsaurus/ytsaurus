@@ -448,6 +448,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
 
     joblet->JobType = jobType;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
+    joblet->ResourceLimits = neededResources;
 
     LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
