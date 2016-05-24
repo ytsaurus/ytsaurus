@@ -143,7 +143,7 @@ void TErrorResponse::Setup()
 
     int code = Error_.GetInnerCode();
     if (HttpCode_ / 100 == 4) {
-        if (HttpCode_ == 429 || code == 904) {
+        if (HttpCode_ == 429 || code == 904 || code == 108) {
             // request rate limit exceeded
             RetryInterval_ = TConfig::Get()->RateLimitExceededRetryInterval;
             return;
