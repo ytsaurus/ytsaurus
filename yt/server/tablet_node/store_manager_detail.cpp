@@ -493,9 +493,12 @@ void TStoreManagerBase::UpdateInMemoryMode()
     auto mode = Tablet_->GetConfig()->InMemoryMode;
 
     for (const auto& storeId : Tablet_->PreloadStoreIds()) {
-        auto chunkStore = Tablet_->FindStore(storeId)->AsChunk();
-        YCHECK(chunkStore->GetPreloadState() == EStorePreloadState::Scheduled);
-        chunkStore->SetPreloadState(EStorePreloadState::None);
+        auto store = Tablet_->FindStore(storeId);
+        if (store) {
+            auto chunkStore = store->AsChunk();
+            YCHECK(chunkStore->GetPreloadState() == EStorePreloadState::Scheduled);
+            chunkStore->SetPreloadState(EStorePreloadState::None);
+        }
     }
     Tablet_->PreloadStoreIds().clear();
 
