@@ -74,17 +74,17 @@ public:
         auto schemaData = TWireProtocolReader::GetSchemaData(TabletSnapshot_->TableSchema);
         LookupKeys_ = Reader_->ReadSchemafulRowset(schemaData);
 
+        LOG_DEBUG("Tablet lookup started (TabletId: %v, CellId: %v, KeyCount: %v)",
+            TabletSnapshot_->TabletId,
+            TabletSnapshot_->CellId,
+            LookupKeys_.Size());
+
         Merger_ = New<TSchemafulRowMerger>(
             RowBuffer_,
             SchemaColumnCount_,
             KeyColumnCount_,
             ColumnFilter_,
             TabletSnapshot_->ColumnEvaluator);
-
-        LOG_DEBUG("Performing tablet lookup (TabletId: %v, CellId: %v, KeyCount: %v)",
-            TabletSnapshot_->TabletId,
-            TabletSnapshot_->CellId,
-            LookupKeys_.Size());
 
         CreateReadSessions(&EdenSessions_, TabletSnapshot_->Eden, LookupKeys_);
 
@@ -107,6 +107,11 @@ public:
         LookupInPartition(
             currentPartitionSnapshot,
             LookupKeys_.Slice(currentPartitionStartOffset, LookupKeys_.Size()));
+
+        LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v)",
+            TabletSnapshot_->TabletId,
+            TabletSnapshot_->CellId,
+            FoundRowCount_);
     }
 
 private:
@@ -166,6 +171,7 @@ private:
     const TWorkloadDescriptor& WorkloadDescriptor_;
 
     TSchemafulRowMergerPtr Merger_;
+    int FoundRowCount_ = 0;
 
     void CreateReadSessions(
         TReadSessionList* sessions,
@@ -224,6 +230,7 @@ private:
 
             auto mergedRow = Merger_->BuildMergedRow();
             Writer_->WriteSchemafulRow(mergedRow);
+            ++FoundRowCount_;
         }
     }
 };
