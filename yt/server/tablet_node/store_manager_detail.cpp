@@ -124,12 +124,11 @@ void TStoreManagerBase::AddStore(IStorePtr store, bool onMount)
         Tablet_->GetConfig()->InMemoryMode != EInMemoryMode::None)
     {
         auto chunkStore = store->AsChunk();
-        TInMemoryChunkDataPtr chunkData;
         if (!onMount) {
-            chunkData = InMemoryManager_->EvictInterceptedChunkData(chunkStore->GetId());
-        }
-        if (!TryPreloadStoreFromInterceptedData(chunkStore, chunkData)) {
-            ScheduleStorePreload(chunkStore);
+            auto chunkData = InMemoryManager_->EvictInterceptedChunkData(chunkStore->GetId());
+            if (!TryPreloadStoreFromInterceptedData(chunkStore, chunkData)) {
+                ScheduleStorePreload(chunkStore);
+            }
         }
     }
 }
@@ -493,6 +492,11 @@ void TStoreManagerBase::UpdateInMemoryMode()
 {
     auto mode = Tablet_->GetConfig()->InMemoryMode;
 
+    for (const auto& storeId : Tablet_->PreloadStoreIds()) {
+        auto chunkStore = Tablet_->FindStore(storeId)->AsChunk();
+        YCHECK(chunkStore->GetPreloadState() == EStorePreloadState::Scheduled);
+        chunkStore->SetPreloadState(EStorePreloadState::None);
+    }
     Tablet_->PreloadStoreIds().clear();
 
     for (const auto& pair : Tablet_->StoreIdMap()) {
