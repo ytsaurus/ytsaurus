@@ -815,7 +815,7 @@ bool TNontemplateNonversionedObjectProxyBase::DoInvoke(IServiceContextPtr contex
 
 void TNontemplateNonversionedObjectProxyBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
-    UNUSED(request);
+    Y_UNUSED(request);
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     context->SetRequestInfo();
@@ -831,8 +831,8 @@ void TNontemplateNonversionedObjectProxyBase::ValidateRemoval()
 
 void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
 {
-    UNUSED(request);
-    UNUSED(response);
+    Y_UNUSED(request);
+    Y_UNUSED(response);
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     context->SetRequestInfo();

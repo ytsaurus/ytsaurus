@@ -59,8 +59,8 @@ public:
         TSharedRefArray message,
         IBusPtr replyBus) throw() override
     {
-        UNUSED(message);
-        UNUSED(replyBus);
+        Y_UNUSED(message);
+        Y_UNUSED(replyBus);
     }
 };
 

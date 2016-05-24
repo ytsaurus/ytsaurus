@@ -183,7 +183,7 @@ private:
 
     static void SigPipeHandler(int signum)
     {
-        UNUSED(signum);
+        Y_UNUSED(signum);
 
         static volatile sig_atomic_t inProgress = false;
         if (!inProgress) {

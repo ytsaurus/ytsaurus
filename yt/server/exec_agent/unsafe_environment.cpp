@@ -251,9 +251,9 @@ IProxyControllerPtr TUnsafeEnvironmentBuilder::CreateProxyController(
 #ifndef _win_
     return New<TUnsafeProxyController>(ProxyPath, jobId, slot, workingDirectory, this);
 #else
-    UNUSED(config);
-    UNUSED(slot);
-    UNUSED(workingDirectory);
+    Y_UNUSED(config);
+    Y_UNUSED(slot);
+    Y_UNUSED(workingDirectory);
     return New<TUnsafeProxyController>(jobId);
 #endif
 }

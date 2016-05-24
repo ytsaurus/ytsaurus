@@ -79,7 +79,7 @@ private:
 
     DECLARE_YPATH_SERVICE_METHOD(NSecurityClient::NProto, AddMember)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         DeclareMutating();
 
@@ -97,7 +97,7 @@ private:
 
     DECLARE_YPATH_SERVICE_METHOD(NSecurityClient::NProto, RemoveMember)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         DeclareMutating();
 

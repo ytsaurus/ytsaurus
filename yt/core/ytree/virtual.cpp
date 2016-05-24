@@ -37,7 +37,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
     const TYPath& path,
     IServiceContextPtr context)
 {
-    UNUSED(context);
+    Y_UNUSED(context);
 
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
@@ -155,8 +155,8 @@ bool TVirtualMapBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
 
 TFuture<void> TVirtualMapBase::GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
 {
-    UNUSED(key);
-    UNUSED(consumer);
+    Y_UNUSED(key);
+    Y_UNUSED(consumer);
     return Null;
 }
 
@@ -167,8 +167,8 @@ ISystemAttributeProvider* TVirtualMapBase::GetBuiltinAttributeProvider()
 
 bool TVirtualMapBase::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
 {
-    UNUSED(key);
-    UNUSED(value);
+    Y_UNUSED(key);
+    Y_UNUSED(value);
     return false;
 }
 
@@ -213,7 +213,7 @@ public:
         const TYPath& path,
         IServiceContextPtr context) override
     {
-        UNUSED(context);
+        Y_UNUSED(context);
 
         // TODO(babenko): handle ugly face
         return TResolveResult::There(UnderlyingService, path);

@@ -203,7 +203,7 @@ struct TProbableTraits
 
 MATCHER(IsAlive, "is alive")
 {
-    UNUSED(result_listener);
+    Y_UNUSED(result_listener);
     const TProbeState& state = TProbableTraits::ExtractState(arg);
     return
         state.Destructors <
@@ -212,7 +212,7 @@ MATCHER(IsAlive, "is alive")
 
 MATCHER(IsDead, "is dead")
 {
-    UNUSED(result_listener);
+    Y_UNUSED(result_listener);
     const TProbeState& state = TProbableTraits::ExtractState(arg);
     return
         state.Destructors ==
@@ -223,7 +223,7 @@ MATCHER_P2(HasCopyMoveCounts, copyCount, moveCount, "" + \
     ::testing::PrintToString(copyCount) + " copy constructors and " + \
     ::testing::PrintToString(moveCount) + " move constructors were called")
 {
-    UNUSED(result_listener);
+    Y_UNUSED(result_listener);
     const TProbeState& state = TProbableTraits::ExtractState(arg);
     return
         state.CopyConstructors == copyCount &&
@@ -232,21 +232,21 @@ MATCHER_P2(HasCopyMoveCounts, copyCount, moveCount, "" + \
 
 MATCHER(NoCopies, "no copies were made")
 {
-    UNUSED(result_listener);
+    Y_UNUSED(result_listener);
     const TProbeState& state = TProbableTraits::ExtractState(arg);
     return state.CopyConstructors == 0 && state.CopyAssignments == 0;
 }
 
 MATCHER(NoMoves, "no moves were made")
 {
-    UNUSED(result_listener);
+    Y_UNUSED(result_listener);
     const TProbeState& state = TProbableTraits::ExtractState(arg);
     return state.MoveConstructors == 0 && state.MoveAssignments == 0;
 }
 
 MATCHER(NoAssignments, "no assignments were made")
 {
-    UNUSED(result_listener);
+    Y_UNUSED(result_listener);
     const TProbeState& state = TProbableTraits::ExtractState(arg);
     return state.CopyAssignments == 0 && state.MoveAssignments == 0;
 }

@@ -380,7 +380,7 @@ void TLocation::RemoveChunkFilesPermanently(const TChunkId& chunkId)
 
 void TLocation::RemoveChunkFiles(const TChunkId& chunkId, bool force)
 {
-    UNUSED(force);
+    Y_UNUSED(force);
     RemoveChunkFilesPermanently(chunkId);
 }
 

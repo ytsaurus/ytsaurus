@@ -432,7 +432,7 @@ private:
 
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch)
     {
-        UNUSED(request);
+        Y_UNUSED(request);
 
         DeclareNonMutating();
 
@@ -459,7 +459,7 @@ private:
 
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Confirm)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         DeclareMutating();
 
@@ -487,7 +487,7 @@ private:
 
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Seal)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         DeclareMutating();
 
