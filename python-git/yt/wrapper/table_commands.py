@@ -552,7 +552,6 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     can_split_input = isinstance(input_stream, types.ListType) or format.is_raw_load_supported()
     enable_retries = get_config(client)["write_retries"]["enable"] and \
             can_split_input and \
-            "sorted_by" not in table.attributes and \
             not is_stream_compressed
     if get_config(client)["write_retries"]["enable"] and not can_split_input:
         logger.warning("Cannot split input into rows. Write is processing by one request.")
