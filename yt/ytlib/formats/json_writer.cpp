@@ -8,7 +8,11 @@
 #include <yt/core/ytree/forwarding_yson_consumer.h>
 #include <yt/core/ytree/null_yson_consumer.h>
 
+#ifdef YT_IN_ARCADIA
+#include <contrib/libs/yajl/api/yajl_gen.h>
+#else
 #include <yajl/yajl_gen.h>
+#endif
 
 namespace NYT {
 namespace NFormats {

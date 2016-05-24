@@ -35,7 +35,7 @@ TSkipList<TKey, TComparer>::TIterator::TIterator(const TIterator& other)
 template <class TKey, class TComparer>
 const TKey& TSkipList<TKey, TComparer>::TIterator::GetCurrent() const
 {
-    YASSERT(IsValid());
+    Y_ASSERT(IsValid());
     return Current_->GetKey();
 }
 
@@ -48,14 +48,14 @@ bool TSkipList<TKey, TComparer>::TIterator::IsValid() const
 template <class TKey, class TComparer>
 void TSkipList<TKey, TComparer>::TIterator::MovePrev()
 {
-    YASSERT(IsValid());
+    Y_ASSERT(IsValid());
     Current_ = Current_->GetPrev(0);
 }
 
 template <class TKey, class TComparer>
 void TSkipList<TKey, TComparer>::TIterator::MoveNext()
 {
-    YASSERT(IsValid());
+    Y_ASSERT(IsValid());
     Current_ = Current_->GetNext(0);
 }
 

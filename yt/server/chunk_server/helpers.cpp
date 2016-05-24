@@ -48,14 +48,14 @@ void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)
         case EObjectType::JournalChunk: {
             auto& parents = child->AsChunk()->Parents();
             auto it = std::find(parents.begin(), parents.end(), parent);
-            YASSERT(it != parents.end());
+            Y_ASSERT(it != parents.end());
             parents.erase(it);
             break;
         }
         case EObjectType::ChunkList: {
             auto& parents = child->AsChunkList()->Parents();
             auto it = parents.find(parent);
-            YASSERT(it != parents.end());
+            Y_ASSERT(it != parents.end());
             parents.erase(it);
             break;
         }
@@ -228,7 +228,7 @@ TOwningKey GetMaxKey(const TChunk* chunk)
 TOwningKey GetMaxKey(const TChunkList* chunkList)
 {
     const auto& children = chunkList->Children();
-    YASSERT(!children.empty());
+    Y_ASSERT(!children.empty());
     return GetMaxKey(children.back());
 }
 
@@ -268,7 +268,7 @@ TOwningKey GetMinKey(const TChunk* chunk)
 TOwningKey GetMinKey(const TChunkList* chunkList)
 {
     const auto& children = chunkList->Children();
-    YASSERT(!children.empty());
+    Y_ASSERT(!children.empty());
     return GetMinKey(children.front());
 }
 

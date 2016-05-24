@@ -1,12 +1,29 @@
 #!/bin/bash
 
+msg() {
+    echo "$*"
+}
+
+die() {
+    echo "$*" >&2
+    exit 1
+}
+
 # Options.
 force=
+review=
+abi=
 
-while getopts "f" opt; do
+while getopts "frv:" opt; do
     case "$opt" in
     f)
         force=y
+        ;;
+    r)
+        review=y
+        ;;
+    v)
+        abi="$OPTARG"
         ;;
     \?)
         die "ERROR: Invalid option: -$OPTARG" >&2
@@ -19,11 +36,30 @@ done
 
 shift "$((OPTIND - 1))"
 
-cmd=$1
+arc="svn+ssh://arcadia.yandex.ru/arc/trunk/arcadia/yt"
+cmd="$1"
 if [[ ! "$cmd" =~ ^init|pull|push$ ]]; then
-    echo "USAGE: $0: [-f] {init|pull|push}" >&2
-    exit 1
+    die "USAGE: $0: [-f] [-v VERSION] {init|pull|push}"
 fi
+
+_detect_abi() {
+    local ref=$(git rev-parse --abbrev-ref HEAD)
+    if ! echo "$ref" | grep -Eq "^(pre)?stable/" 2>&1; then
+        die "ERROR: Current branch must be either 'prestable/' or 'stable/'"
+    fi
+    abi=${ref#stable/}
+    abi=${abi#prestable/}
+    abi=${abi#0.}
+    abi=${abi/./_}
+}
+
+_check_abi() {
+    if ! svn info "${arc}/${abi}" >/dev/null 2>&1; then
+        die "ERROR: Missing appropriate branch in SVN."
+    fi
+    arc="${arc}/${abi}/yt"
+    arc_remote="arcadia_svn_${abi}"
+}
 
 _ensure_clean() {
     if ! git diff-index HEAD --exit-code --quiet 2>&1; then
@@ -41,50 +77,57 @@ _ensure_up_to_date() {
 }
 
 _fetch_svn_remote() {
-    git svn fetch --log-window-size 100000
+    git svn --svn-remote "$arc_remote" fetch --log-window-size 100000
 }
 
 do_init() {
     echo "*** Setting up git-svn..."
-    git config --local svn-remote.svn.url "svn+ssh://arcadia.yandex.ru/arc/trunk/arcadia/yt/"
-    git config --local svn-remote.svn.fetch ":refs/remotes/git-svn"
+
+    git config --local "svn-remote.${arc_remote}.url" "$arc"
+    git config --local "svn-remote.${arc_remote}.fetch" ":refs/remotes/${arc_remote}"
+
     _fetch_svn_remote
 }
 
 do_pull() {
     echo "*** Pulling all remote changes onto HEAD..."
+
     _fetch_svn_remote
 
     git_commit=$(git rev-parse HEAD)
-    git_svn_commit=$(git rev-parse refs/remotes/git-svn)
-    svn_revision=$(git svn find-rev refs/remotes/git-svn)
+    git_svn_commit=$(git rev-parse "refs/remotes/${arc_remote}")
+    svn_revision=$(git svn find-rev "refs/remotes/${arc_remote}")
 
     set +x
-    message="Pull yt/ from Arcadia"$'\n'
+    message="Pull yt/$abi/ from Arcadia"$'\n'
     message="$message"$'\n'"yt:git_commit:$git_commit"
     message="$message"$'\n'"yt:git_svn_commit:$git_svn_commit"
     message="$message"$'\n'"yt:svn_revision:$svn_revision"
     set -x
 
-    git merge -Xsubtree=yt refs/remotes/git-svn -m "$message"
+    git merge -Xsubtree=yt "refs/remotes/${arc_remote}" -m "$message"
 }
 
 do_push() {
     echo "*** Pushing changes to remote..."
+
     _fetch_svn_remote
 
     local_tree=$(git write-tree --prefix=yt/)
-    remote_tree=$(git cat-file -p refs/remotes/git-svn | grep '^tree' | awk '{print $2}')
+    remote_tree=$(git cat-file -p "refs/remotes/${arc_remote}" | grep '^tree' | awk '{print $2}')
     git_commit=$(git rev-parse HEAD)
-    git_svn_commit=$(git rev-parse refs/remotes/git-svn)
-    svn_revision=$(git svn find-rev refs/remotes/git-svn)
+    git_svn_commit=$(git rev-parse "refs/remotes/${arc_remote}")
+    svn_revision=$(git svn find-rev "refs/remotes/${arc_remote}")
 
     set +x
-    message="Push yt/ to Arcadia"$'\n'
+    message="Push yt/$abi/ to Arcadia"$'\n'
     if [[ "$force" == "y" ]]; then
         message="$message"$'\n'"__FORCE_COMMIT__"$'\n'
     else
         message="$message"$'\n'"__BYPASS_CHECKS__"$'\n'
+    fi
+    if [[ "$review" == "y" ]]; then
+        message="$message"$'\n'"REVIEW: NEW"$'\n'
     fi
     message="$message"$'\n'"yt:local_tree:$local_tree"
     message="$message"$'\n'"yt:remote_tree:$remote_tree"
@@ -103,6 +146,12 @@ cd "$root"
 
 _ensure_clean
 _ensure_up_to_date
+
+_detect_abi
+_check_abi
+
+msg "ABI: '$abi'"
+msg "ARC: '$arc'"
 
 set -ex
 

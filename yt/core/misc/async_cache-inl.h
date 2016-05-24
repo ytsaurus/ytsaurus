@@ -234,7 +234,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
         if (value) {
             auto* item = new TItem(value);
             auto value = item->Value;
-            YASSERT(value);
+            Y_ASSERT(value);
 
             YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
             ++ItemMapSize_;
@@ -391,7 +391,7 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(TValuePtr value)
         delete item;
     }
 
-    YASSERT(value->Cache_);
+    Y_ASSERT(value->Cache_);
     value->Cache_.Reset();
 
     guard.Release();
@@ -446,7 +446,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::OnRemoved(const TValuePtr& /*valu
 template <class TKey, class TValue, class THash>
 i64 TAsyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item)
 {
-    YASSERT(item->Empty());
+    Y_ASSERT(item->Empty());
     YoungerLruList_.PushFront(item);
     auto weight = GetWeight(item->Value);
     Profiler.Increment(YoungerWeightCounter_, +weight);
@@ -457,7 +457,7 @@ i64 TAsyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item)
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item)
 {
-    YASSERT(!item->Empty());
+    Y_ASSERT(!item->Empty());
     item->Unlink();
     YoungerLruList_.PushFront(item);
     if (!item->Younger) {
@@ -471,7 +471,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item)
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TItem* item)
 {
-    YASSERT(!item->Empty());
+    Y_ASSERT(!item->Empty());
     item->Unlink();
     OlderLruList_.PushFront(item);
     if (item->Younger) {
@@ -585,7 +585,7 @@ template <class TKey, class TValue, class THash>
 typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValueFuture
 TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::GetValue() const
 {
-    YASSERT(ValueFuture_);
+    Y_ASSERT(ValueFuture_);
     return ValueFuture_;
 }
 

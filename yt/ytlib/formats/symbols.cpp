@@ -134,7 +134,7 @@ static inline const char* FindNextSymbol(
 #undef DO_1
 #undef DO_4
 #undef DO_16
-    YASSERT(current == end);
+    Y_ASSERT(current == end);
     return current;
 }
 

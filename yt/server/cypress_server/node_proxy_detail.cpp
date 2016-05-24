@@ -203,9 +203,9 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     , Transaction(transaction)
     , TrunkNode(trunkNode)
 {
-    YASSERT(typeHandler);
-    YASSERT(trunkNode);
-    YASSERT(trunkNode->IsTrunk());
+    Y_ASSERT(typeHandler);
+    Y_ASSERT(trunkNode);
+    Y_ASSERT(trunkNode->IsTrunk());
 }
 
 INodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateFactory() const
@@ -1014,7 +1014,7 @@ INodePtr TMapNodeProxy::FindChild(const Stroka& key) const
 
 bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
 {
-    YASSERT(!key.empty());
+    Y_ASSERT(!key.empty());
 
     if (FindChild(key)) {
         return false;
@@ -1301,7 +1301,7 @@ void TListNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     auto* newChildImpl = LockImpl(newTrunkChildImpl);
 
     auto it = impl->ChildToIndex().find(oldTrunkChildImpl);
-    YASSERT(it != impl->ChildToIndex().end());
+    Y_ASSERT(it != impl->ChildToIndex().end());
 
     int index = it->second;
 

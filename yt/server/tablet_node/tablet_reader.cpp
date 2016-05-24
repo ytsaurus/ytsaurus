@@ -304,7 +304,7 @@ public:
                 --ActiveSessionsEnd_;
             } else {
                 #ifndef NDEBUG
-                YASSERT(KeyComparer_(
+                Y_ASSERT(KeyComparer_(
                     partialRow.BeginKeys(), partialRow.EndKeys(),
                     session->CurrentRow->BeginKeys(), session->CurrentRow->EndKeys()) < 0);
                 #endif
@@ -697,7 +697,7 @@ public:
         for (int index = 0; index < static_cast<int>(rows->size()) - 1; ++index) {
             auto lhs = (*rows)[index];
             auto rhs = (*rows)[index + 1];
-            YASSERT(KeyComparer_(
+            Y_ASSERT(KeyComparer_(
                 lhs.BeginKeys(), lhs.EndKeys(),
                 rhs.BeginKeys(), rhs.EndKeys()) < 0);
         }

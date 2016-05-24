@@ -15,7 +15,7 @@ TNodeJSInputStack::TNodeJSInputStack(TInputStreamWrap* base)
     : TGrowingStreamStack(base)
 {
     THREAD_AFFINITY_IS_V8();
-    YASSERT(Bottom() == base);
+    Y_ASSERT(Bottom() == base);
     GetBaseStream()->AsyncRef();
 }
 

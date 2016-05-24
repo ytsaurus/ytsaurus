@@ -831,7 +831,7 @@ void TElectionManager::TImpl::OnPeerReconfigured(TPeerId peerId)
 
 DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
 {
-    UNUSED(response);
+    Y_UNUSED(response);
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto epochId = FromProto<TEpochId>(request->epoch_id());
@@ -876,7 +876,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
 
 DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, GetStatus)
 {
-    UNUSED(request);
+    Y_UNUSED(request);
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     context->SetRequestInfo();

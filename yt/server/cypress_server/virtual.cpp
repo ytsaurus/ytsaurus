@@ -208,8 +208,8 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
         bootstrap,
         objectType,
         BIND([=] (TCypressNodeBase* trunkNode, TTransaction* transaction) -> IYPathServicePtr {
-            UNUSED(trunkNode);
-            UNUSED(transaction);
+            Y_UNUSED(trunkNode);
+            Y_UNUSED(transaction);
             return service;
         }),
         options);

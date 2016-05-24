@@ -1420,7 +1420,7 @@ private:
 
         virtual i64 GetLocality(const Stroka& address) const override
         {
-            UNUSED(address);
+            Y_UNUSED(address);
             YUNREACHABLE();
         }
 

@@ -122,7 +122,7 @@ TSharedRefArray TYPathRequest::Serialize()
 
 void TYPathResponse::Deserialize(TSharedRefArray message)
 {
-    YASSERT(message);
+    Y_ASSERT(message);
 
     NRpc::NProto::TResponseHeader header;
     if (!ParseResponseHeader(message, &header)) {
@@ -135,7 +135,7 @@ void TYPathResponse::Deserialize(TSharedRefArray message)
     }
 
     // Deserialize body.
-    YASSERT(message.Size() >= 2);
+    Y_ASSERT(message.Size() >= 2);
     DeserializeBody(message[1]);
 
     // Load attachments.
@@ -144,7 +144,7 @@ void TYPathResponse::Deserialize(TSharedRefArray message)
 
 void TYPathResponse::DeserializeBody(const TRef& data)
 {
-    UNUSED(data);
+    Y_UNUSED(data);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -169,8 +169,8 @@ void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path)
 TYPath ComputeResolvedYPath(const TYPath& wholePath, const TYPath& unresolvedPath)
 {
     int resolvedLength = static_cast<int>(wholePath.length()) - static_cast<int>(unresolvedPath.length());
-    YASSERT(resolvedLength >= 0 && resolvedLength <= static_cast<int>(wholePath.length()));
-    YASSERT(wholePath.substr(resolvedLength) == unresolvedPath);
+    Y_ASSERT(resolvedLength >= 0 && resolvedLength <= static_cast<int>(wholePath.length()));
+    Y_ASSERT(wholePath.substr(resolvedLength) == unresolvedPath);
     // Take care of trailing slash but don't reduce / to empty string.
     return
         resolvedLength > 1 && wholePath[resolvedLength - 1] == '/'
@@ -184,9 +184,9 @@ void ResolveYPath(
     IYPathServicePtr* suffixService,
     TYPath* suffixPath)
 {
-    YASSERT(rootService);
-    YASSERT(suffixService);
-    YASSERT(suffixPath);
+    Y_ASSERT(rootService);
+    Y_ASSERT(suffixService);
+    Y_ASSERT(suffixPath);
 
     auto currentService = rootService;
 

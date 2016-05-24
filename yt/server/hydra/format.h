@@ -163,9 +163,9 @@ static_assert(sizeof(TSnapshotHeader_0_16) == 48, "Binary size of TSnapshotHeade
 } // namespace NHydra
 } // namespace NYT
 
-DECLARE_PODTYPE(NYT::NHydra::TChangelogHeader);
-DECLARE_PODTYPE(NYT::NHydra::TChangelogRecordHeader);
-DECLARE_PODTYPE(NYT::NHydra::TChangelogIndexHeader);
-DECLARE_PODTYPE(NYT::NHydra::TChangelogIndexRecord);
-DECLARE_PODTYPE(NYT::NHydra::TSnapshotHeader);
-DECLARE_PODTYPE(NYT::NHydra::TSnapshotHeader_0_16);
+Y_DECLARE_PODTYPE(NYT::NHydra::TChangelogHeader);
+Y_DECLARE_PODTYPE(NYT::NHydra::TChangelogRecordHeader);
+Y_DECLARE_PODTYPE(NYT::NHydra::TChangelogIndexHeader);
+Y_DECLARE_PODTYPE(NYT::NHydra::TChangelogIndexRecord);
+Y_DECLARE_PODTYPE(NYT::NHydra::TSnapshotHeader);
+Y_DECLARE_PODTYPE(NYT::NHydra::TSnapshotHeader_0_16);

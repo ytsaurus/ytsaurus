@@ -114,8 +114,8 @@ std::unique_ptr<IAttributeDictionary> TYamrDelimitedBaseParser::GetDebugInfo() c
 
 void TYamrDelimitedBaseParser::ProcessTableSwitch(const TStringBuf& tableIndex)
 {
-    YASSERT(!ExpectingEscapedChar);
-    YASSERT(State == EState::InsideKey);
+    Y_ASSERT(!ExpectingEscapedChar);
+    Y_ASSERT(State == EState::InsideKey);
     i64 value;
     try {
          value = FromString<i64>(tableIndex);
@@ -133,24 +133,24 @@ void TYamrDelimitedBaseParser::ProcessTableSwitch(const TStringBuf& tableIndex)
 
 void TYamrDelimitedBaseParser::ProcessKey(const TStringBuf& key)
 {
-    YASSERT(!ExpectingEscapedChar);
-    YASSERT(State == EState::InsideKey);
+    Y_ASSERT(!ExpectingEscapedChar);
+    Y_ASSERT(State == EState::InsideKey);
     Consumer->ConsumeKey(key);
     State = HasSubkey ? EState::InsideSubkey : EState::InsideValue;
 }
 
 void TYamrDelimitedBaseParser::ProcessSubkey(const TStringBuf& subkey)
 {
-    YASSERT(!ExpectingEscapedChar);
-    YASSERT(State == EState::InsideSubkey);
+    Y_ASSERT(!ExpectingEscapedChar);
+    Y_ASSERT(State == EState::InsideSubkey);
     Consumer->ConsumeSubkey(subkey);
     State = EState::InsideValue;
 }
 
 void TYamrDelimitedBaseParser::ProcessSubkeyBadFormat(const TStringBuf& subkey)
 {
-    YASSERT(!ExpectingEscapedChar);
-    YASSERT(State == EState::InsideSubkey);
+    Y_ASSERT(!ExpectingEscapedChar);
+    Y_ASSERT(State == EState::InsideSubkey);
     Consumer->ConsumeSubkey(subkey);
     Consumer->ConsumeValue("");
     State = EState::InsideKey;
@@ -158,8 +158,8 @@ void TYamrDelimitedBaseParser::ProcessSubkeyBadFormat(const TStringBuf& subkey)
 
 void TYamrDelimitedBaseParser::ProcessValue(const TStringBuf& value)
 {
-    YASSERT(!ExpectingEscapedChar);
-    YASSERT(State == EState::InsideValue);
+    Y_ASSERT(!ExpectingEscapedChar);
+    Y_ASSERT(State == EState::InsideValue);
     Consumer->ConsumeValue(value);
     State = EState::InsideKey;
     Record += 1;
@@ -199,7 +199,7 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
         return begin + 1;
     }
 
-    YASSERT(!ExpectingEscapedChar);
+    Y_ASSERT(!ExpectingEscapedChar);
 
     const char* next = FindNext(begin, end, State == EState::InsideValue ? Table.ValueStops : Table.KeyStops);
     if (next == end) {
@@ -336,7 +336,7 @@ const char* TYamrLenvalBaseParser::ConsumeInt(const char* begin, const char* end
 
 const char* TYamrLenvalBaseParser::ConsumeLength(const char* begin, const char* end)
 {
-    YASSERT(ReadingLength);
+    Y_ASSERT(ReadingLength);
     const char* next = ConsumeInt(begin, end);
 
     if (BytesToRead == 0) {
@@ -366,7 +366,7 @@ const char* TYamrLenvalBaseParser::ConsumeLength(const char* begin, const char* 
 const char* TYamrLenvalBaseParser::ConsumeData(const char* begin, const char* end)
 {
     if (State == EState::InsideTableSwitch) {
-        YASSERT(CurrentToken.empty());
+        Y_ASSERT(CurrentToken.empty());
         const char* next = ConsumeInt(begin, end);
 
         if (BytesToRead == 0) {
@@ -386,7 +386,7 @@ const char* TYamrLenvalBaseParser::ConsumeData(const char* begin, const char* en
     if (current > end) {
         CurrentToken.append(begin, end);
         BytesToRead -= (end - begin);
-        YASSERT(BytesToRead > 0);
+        Y_ASSERT(BytesToRead > 0);
         return end;
     }
 

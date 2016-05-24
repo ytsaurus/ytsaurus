@@ -300,7 +300,7 @@ private:
 
             if (currentBlock.LastRow >= chunkReader->EndRowIndex_) {
                 for (auto &block : blockHeap) {
-                    YASSERT(block.LastRow >= chunkReader->EndRowIndex_);
+                    Y_ASSERT(block.LastRow >= chunkReader->EndRowIndex_);
                 }
                 break;
             }
@@ -576,7 +576,7 @@ i32 TLegacyTableChunkReader::GetRangeIndex() const
 
 void TLegacyTableChunkReader::ResetCurrentRow()
 {
-    YASSERT(CurrentKey_.size() == EmptyKey_.size());
+    Y_ASSERT(CurrentKey_.size() == EmptyKey_.size());
     std::memcpy(CurrentKey_.data(), EmptyKey_.data(), EmptyKey_.size() * sizeof(TUnversionedValue));
     CurrentRow_.resize(KeyColumns_.size());
     std::memcpy(CurrentRow_.data(), EmptyKey_.data(), KeyColumns_.size() * sizeof(TUnversionedValue));

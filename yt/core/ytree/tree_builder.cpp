@@ -93,7 +93,7 @@ public:
 
     virtual void OnMyListItem() override
     {
-        YASSERT(!Key);
+        Y_ASSERT(!Key);
     }
 
     virtual void OnMyEndList() override
@@ -119,7 +119,7 @@ public:
 
     virtual void OnMyBeginAttributes() override
     {
-        YASSERT(!AttributeConsumer);
+        Y_ASSERT(!AttributeConsumer);
         Attributes = CreateEphemeralAttributes();
         AttributeConsumer.reset(new TAttributeConsumer(Attributes.get()));
         Forward(AttributeConsumer.get(), TClosure(), NYson::EYsonType::MapFragment);
@@ -128,7 +128,7 @@ public:
     virtual void OnMyEndAttributes() override
     {
         AttributeConsumer.reset();
-        YASSERT(Attributes);
+        Y_ASSERT(Attributes);
     }
 
 private:

@@ -132,7 +132,7 @@ private:
 
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Attach)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         DeclareMutating();
 
