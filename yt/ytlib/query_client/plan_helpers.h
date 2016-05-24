@@ -37,14 +37,13 @@ bool IsEmpty(const TRowRange& keyRange);
 TConstExpressionPtr MakeAndExpression(TConstExpressionPtr lhs, TConstExpressionPtr rhs);
 TConstExpressionPtr MakeOrExpression(TConstExpressionPtr lhs, TConstExpressionPtr rhs);
 
-TConstExpressionPtr RefinePredicate(
-    const TRowRange& keyRange,
+TConstExpressionPtr EliminatePredicate(
+    const TRange<TRowRange>& keyRanges,
     TConstExpressionPtr expr,
     const TTableSchema& tableSchema,
-    const TKeyColumns& keyColumns,
-    TColumnEvaluatorPtr columnEvaluator);
+    const TKeyColumns& keyColumns);
 
-TConstExpressionPtr RefinePredicate(
+TConstExpressionPtr EliminatePredicate(
     const TRange<TRow>& lookupKeys,
     TConstExpressionPtr expr,
     const TKeyColumns& keyColumns);

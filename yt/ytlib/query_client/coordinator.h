@@ -42,8 +42,6 @@ TRowRanges GetPrunedRanges(
     ui64 rangeExpansionLimit,
     bool verboseLogging);
 
-TRowRange GetRange(const TSharedRange<TDataRange>& sources);
-
 typedef std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> TEvaluateResult;
 
 TQueryStatistics CoordinateAndExecute(

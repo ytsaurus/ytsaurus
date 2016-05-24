@@ -219,12 +219,125 @@ TConstExpressionPtr MakeOrExpression(TConstExpressionPtr lhs, TConstExpressionPt
         rhs);
 }
 
-TConstExpressionPtr RefinePredicate(
-    const TRowRange& keyRange,
+void SortRows(
+    std::vector<TRow>::iterator begin,
+    std::vector<TRow>::iterator end,
+    const std::vector<size_t>& mapping)
+{
+    std::sort(begin, end, [&] (TRow lhs, TRow rhs) {
+        for (auto index : mapping) {
+            int result = CompareRowValues(lhs.Begin()[index], rhs.Begin()[index]);
+
+            if (result != 0) {
+                return result < 0;
+            }
+        }
+        return false;
+    });
+};
+
+TConstExpressionPtr EliminateInExpression(
+    const TRange<TRow>& lookupKeys,
+    const TInOpExpression* inExpr,
+    const TKeyColumns& keyColumns,
+    size_t keyPrefixSize)
+{
+    static auto trueLiteral = New<TLiteralExpression>(
+        EValueType::Boolean,
+        MakeUnversionedBooleanValue(true));
+    static auto falseLiteral = New<TLiteralExpression>(
+        EValueType::Boolean,
+        MakeUnversionedBooleanValue(false));
+
+    std::vector<size_t> valueMapping;
+    std::vector<size_t> keyMapping;
+
+    bool allArgsAreKey = true;
+    for (size_t argumentIndex = 0; argumentIndex < inExpr->Arguments.size(); ++argumentIndex) {
+        const auto& argument = inExpr->Arguments[argumentIndex];
+        auto referenceExpr = argument->As<TReferenceExpression>();
+        int keyIndex = referenceExpr
+            ? ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName)
+            : -1;
+        if (keyIndex == -1 || keyIndex >= keyPrefixSize) {
+            allArgsAreKey = false;
+        } else {
+            valueMapping.push_back(argumentIndex);
+            keyMapping.push_back(keyIndex);
+        }
+    }
+
+    auto compareKeyAndValue = [&] (TRow lhs, TRow rhs) {
+        for (int index = 0; index < valueMapping.size(); ++index) {
+            int result = CompareRowValues(
+                lhs.Begin()[keyMapping[index]],
+                rhs.Begin()[valueMapping[index]]);
+
+            if (result != 0) {
+                return result;
+            }
+        }
+        return 0;
+    };
+
+    std::vector<TRow> sortedValues(inExpr->Values.Begin(), inExpr->Values.End());
+    if (!allArgsAreKey) {
+        SortRows(sortedValues.begin(), sortedValues.end(), valueMapping);
+    }
+
+    std::vector<TRow> sortedKeys(lookupKeys.Begin(), lookupKeys.End());
+    SortRows(sortedKeys.begin(), sortedKeys.end(), keyMapping);
+
+    std::vector<TRow> filteredValues;
+    bool hasExtraLookupKeys = false;
+    int keyIndex = 0;
+    int tupleIndex = 0;
+    while (keyIndex < sortedKeys.size() && tupleIndex < sortedValues.size()) {
+        auto currentKey = sortedKeys[keyIndex];
+        auto currentValue = sortedValues[tupleIndex];
+
+        int result = compareKeyAndValue(currentKey, currentValue);
+        if (result == 0) {
+            do {
+                filteredValues.push_back(sortedValues[tupleIndex]);
+                ++tupleIndex;
+            } while (tupleIndex < sortedValues.size() &&
+                compareKeyAndValue(currentValue, sortedValues[tupleIndex]) == 0);
+            do {
+                ++keyIndex;
+            } while (keyIndex < sortedKeys.size() &&
+                compareKeyAndValue(currentKey, sortedKeys[keyIndex]) == 0);
+        } else if (result < 0) {
+            hasExtraLookupKeys = true;
+            ++keyIndex;
+        } else {
+            ++tupleIndex;
+        }
+    }
+
+    if (keyIndex != sortedKeys.size()) {
+        hasExtraLookupKeys = true;
+    }
+
+    if (!hasExtraLookupKeys && allArgsAreKey) {
+        return trueLiteral;
+    } else {
+        if (filteredValues.empty()) {
+            return falseLiteral;
+        } else {
+            std::sort(filteredValues.begin(), filteredValues.end());
+            return New<TInOpExpression>(
+                inExpr->Arguments,
+                MakeSharedRange(std::move(filteredValues), inExpr->Values));
+        }
+    }
+}
+
+TConstExpressionPtr EliminatePredicate(
+    const TRange<TRowRange>& keyRanges,
     TConstExpressionPtr expr,
     const TTableSchema& tableSchema,
-    const TKeyColumns& keyColumns,
-    TColumnEvaluatorPtr columnEvaluator)
+    const TKeyColumns& keyColumns)
 {
     auto trueLiteral = New<TLiteralExpression>(
         EValueType::Boolean,
@@ -233,13 +346,16 @@ TConstExpressionPtr RefinePredicate(
         EValueType::Boolean,
         MakeUnversionedBooleanValue(false));
 
-    int rangeSize = std::min(keyRange.first.GetCount(), keyRange.second.GetCount());
-    int commonPrefixSize = 0;
-    while (commonPrefixSize < rangeSize) {
-        commonPrefixSize++;
-        if (keyRange.first[commonPrefixSize - 1] != keyRange.second[commonPrefixSize - 1]) {
-            break;
+    int minCommonPrefixSize = std::numeric_limits<int>::max();
+    for (const auto& keyRange : keyRanges) {
+        int rangeSize = std::min(keyRange.first.GetCount(), keyRange.second.GetCount());
+        int commonPrefixSize = 0;
+        while (commonPrefixSize < rangeSize &&
+            keyRange.first[commonPrefixSize] == keyRange.second[commonPrefixSize])
+        {
+            commonPrefixSize++;
         }
+        minCommonPrefixSize = std::min(minCommonPrefixSize, commonPrefixSize);
     }
 
     std::function<TConstExpressionPtr(TConstExpressionPtr expr)> refinePredicate =
@@ -270,7 +386,7 @@ TConstExpressionPtr RefinePredicate(
 
                 if (referenceExpr && constantExpr) {
                     int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
-                    if (keyPartIndex >= 0 && keyPartIndex < commonPrefixSize) {
+                    if (keyPartIndex >= 0 && keyPartIndex < minCommonPrefixSize) {
                         auto value = TValue(constantExpr->Value);
 
                         std::vector<TBound> bounds;
@@ -313,109 +429,50 @@ TConstExpressionPtr RefinePredicate(
                         }
 
                         if (!bounds.empty()) {
-                            auto lowerBound = keyRange.first[keyPartIndex];
-                            auto upperBound = keyRange.second[keyPartIndex];
-                            bool upperIncluded = keyPartIndex != keyRange.second.GetCount();
+                            bool allTrue = true;
+                            bool allFalse = true;
 
-                            std::vector<TBound> dataBounds;
+                            for (const auto& keyRange : keyRanges) {
+                                auto lowerBound = keyRange.first[keyPartIndex];
+                                auto upperBound = keyRange.second[keyPartIndex];
+                                bool upperIncluded = keyPartIndex != keyRange.second.GetCount();
 
-                            dataBounds.emplace_back(lowerBound, true);
-                            dataBounds.emplace_back(upperBound, upperIncluded);
+                                std::vector<TBound> dataBounds;
 
-                            auto resultBounds = IntersectBounds(bounds, dataBounds);
+                                dataBounds.emplace_back(lowerBound, true);
+                                dataBounds.emplace_back(upperBound, upperIncluded);
 
-                            if (resultBounds.empty()) {
-                                return falseLiteral;
-                            } else if (resultBounds == dataBounds) {
+                                auto resultBounds = IntersectBounds(bounds, dataBounds);
+
+                                if (resultBounds.empty()) {
+                                    allTrue = false;
+                                } else if (resultBounds == dataBounds) {
+                                    allFalse = false;
+                                } else {
+                                    allTrue = false;
+                                    allFalse = false;
+                                }
+                            }
+
+                            if (allTrue) {
                                 return trueLiteral;
+                            } else if (allFalse) {
+                                return falseLiteral;
                             }
                         }
                     }
                 }
             }
         } else if (auto inExpr = expr->As<TInOpExpression>()) {
-            TNameTableToSchemaIdMapping idMapping;
 
-            for (const auto& argument : inExpr->Arguments) {
-                auto referenceExpr = argument->As<TReferenceExpression>();
-                int index = referenceExpr
-                    ? ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName)
-                    : -1;
-                idMapping.push_back(index);
+            std::vector<TRow> lookupKeys;
+
+            for (const auto& keyRange : keyRanges) {
+                lookupKeys.push_back(keyRange.first);
             }
 
-            TNameTableToSchemaIdMapping reverseIdMapping(keyColumns.size(), -1);
-            for (int index = 0; index < idMapping.size(); ++index) {
-                if (idMapping[index] != -1) {
-                    reverseIdMapping[idMapping[index]] = index;
-                }
-            }
+            return EliminateInExpression(MakeRange(lookupKeys), inExpr, keyColumns, minCommonPrefixSize);
 
-            int rowSize = keyColumns.size();
-            for (int index = 0; index < rowSize; ++index) {
-                if (reverseIdMapping[index] == -1 && !tableSchema.Columns()[index].Expression) {
-                    rowSize = index;
-                }
-            }
-
-            const auto areValidReferences = [&] (int index) {
-                for (const auto& reference : columnEvaluator->GetReferenceIds(index)) {
-                    if (reference >= rowSize) {
-                        return false;
-                    }
-                }
-                return true;
-            };
-
-            for (int index = 0; index < rowSize; ++index) {
-                if (tableSchema.Columns()[index].Expression && !areValidReferences(index)) {
-                    rowSize = index;
-                }
-            }
-
-            auto rowBuffer = New<TRowBuffer>(TPlanHelpersBufferTag());
-            auto tempRow = rowBuffer->Allocate(keyColumns.size());
-
-            auto inRange = [&, tempRow] (TRow literalTuple) mutable {
-                for (int tupleIndex = 0; tupleIndex < idMapping.size(); ++tupleIndex) {
-                    int schemaIndex = idMapping[tupleIndex];
-
-                    if (schemaIndex >= 0 && schemaIndex < rowSize) {
-                        tempRow[schemaIndex] = literalTuple[tupleIndex];
-                    }
-                }
-
-                for (int index = 0; index < rowSize; ++index) {
-                    if (reverseIdMapping[index] == -1) {
-                        columnEvaluator->EvaluateKey(tempRow, rowBuffer, index);
-                    }
-                }
-
-                auto cmpLower = CompareRows(
-                    keyRange.first,
-                    tempRow,
-                    std::min(keyRange.first.GetCount(), rowSize));
-                auto cmpUpper = CompareRows(
-                    keyRange.second,
-                    tempRow,
-                    std::min(keyRange.second.GetCount(), rowSize));
-                return cmpLower <= 0 && cmpUpper >= 0;
-            };
-
-            std::vector<TRow> filteredValues;
-            for (auto value : inExpr->Values) {
-                if (inRange(value)) {
-                    filteredValues.push_back(value);
-                }
-            }
-
-            if (filteredValues.empty()) {
-                return falseLiteral;
-            } else {
-                return New<TInOpExpression>(
-                    inExpr->Arguments,
-                    MakeSharedRange(std::move(filteredValues), inExpr->Values));
-            }
         }
 
         return expr;
@@ -424,7 +481,7 @@ TConstExpressionPtr RefinePredicate(
     return refinePredicate(expr);
 }
 
-TConstExpressionPtr RefinePredicate(
+TConstExpressionPtr EliminatePredicate(
     const TRange<TRow>& lookupKeys,
     TConstExpressionPtr expr,
     const TKeyColumns& keyColumns)
@@ -455,108 +512,7 @@ TConstExpressionPtr RefinePredicate(
                     refinePredicate(rhsExpr));
             }
         } else if (auto inExpr = expr->As<TInOpExpression>()) {
-            TNameTableToSchemaIdMapping idMapping;
-
-            int maxIndex = 0;
-            for (const auto& argument : inExpr->Arguments) {
-                auto referenceExpr = argument->As<TReferenceExpression>();
-                if (!referenceExpr) {
-                    return inExpr;
-                }
-
-                int index = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
-                if (index == -1) {
-                    return inExpr;
-                }
-
-                idMapping.push_back(index);
-                maxIndex = std::max(maxIndex, index);
-            }
-
-            TNameTableToSchemaIdMapping reverseIdMapping(static_cast<size_t>(maxIndex + 1), -1);
-            for (int index = 0; index < idMapping.size(); ++index) {
-                reverseIdMapping[idMapping[index]] = index;
-            }
-            auto compareValues = [&] (TRow lhs, TRow rhs) {
-                for (int index = 0; index < reverseIdMapping.size(); ++index) {
-                    if (reverseIdMapping[index] != -1) {
-                        int result = CompareRowValues(
-                            lhs.Begin()[reverseIdMapping[index]],
-                            rhs.Begin()[reverseIdMapping[index]]);
-
-                        if (result != 0) {
-                            return result < 0;
-                        }
-                    }
-                }
-                return false;
-            };
-
-            auto compareKeys = [&] (TRow lhs, TRow rhs) {
-                for (int index = 0; index < reverseIdMapping.size(); ++index) {
-                    if (reverseIdMapping[index] != -1) {
-                        if (index >= lhs.GetCount() || index >= rhs.GetCount()) {
-                            return lhs.GetCount() < rhs.GetCount();
-                        }
-
-                        int result = CompareRowValues(
-                            lhs.Begin()[index],
-                            rhs.Begin()[index]);
-
-                        if (result != 0) {
-                            return result < 0;
-                        }
-                    }
-                }
-                return false;
-            };
-
-            auto compareKeyAndValue = [&] (TRow lhs, TRow rhs) {
-                for (int index = 0; index < reverseIdMapping.size(); ++index) {
-                    if (reverseIdMapping[index] != -1) {
-                        if (index >= lhs.GetCount()) {
-                            return -1;
-                        }
-
-                        int result = CompareRowValues(
-                            lhs.Begin()[index],
-                            rhs.Begin()[reverseIdMapping[index]]);
-
-                        if (result != 0) {
-                            return result;
-                        }
-                    }
-                }
-                return 0;
-            };
-
-            std::vector<TRow> sortedValues(inExpr->Values.Begin(), inExpr->Values.End());
-            std::sort(sortedValues.begin(), sortedValues.end(), compareValues);
-
-            std::vector<TRow> sortedKeys(lookupKeys.Begin(), lookupKeys.End());
-            std::sort(sortedKeys.begin(), sortedKeys.end(), compareKeys);
-
-            auto canOmitInExpr = [&] () {
-                int keyIndex = 0;
-                int tupleIndex = 0;
-                while (keyIndex < sortedKeys.size() && tupleIndex < sortedValues.size()) {
-                    int result = compareKeyAndValue(sortedKeys[keyIndex], sortedValues[tupleIndex]);
-                    if (result < 0) {
-                        return false;
-                    } else if (result == 0) {
-                        ++keyIndex;
-                    } else {
-                        ++tupleIndex;
-                    }
-                }
-                return keyIndex == sortedKeys.size();
-            };
-
-            if (canOmitInExpr()) {
-                return trueLiteral;
-            } else {
-                return inExpr;
-            }
+            return EliminateInExpression(lookupKeys, inExpr, keyColumns, keyColumns.size());
         }
 
         return expr;

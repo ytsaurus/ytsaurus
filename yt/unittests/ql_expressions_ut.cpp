@@ -9,11 +9,12 @@
 #include <yt/ytlib/query_client/query_statistics.h>
 #include <yt/ytlib/query_client/functions.h>
 #include <yt/ytlib/query_client/functions_cg.h>
+#include <yt/ytlib/query_client/coordinator.h>
 
 // Tests:
 // TCompareExpressionTest
-// TRefineLookupPredicateTest
-// TRefinePredicateTest
+// TEliminateLookupPredicateTest
+// TEliminatePredicateTest
 // TPrepareExpressionTest
 // TArithmeticTest
 // TCompareWithNullTest
@@ -96,7 +97,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRefineLookupPredicateTest
+class TEliminateLookupPredicateTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
         const char*,
@@ -122,14 +123,14 @@ protected:
             keys.push_back(lookupKey);
         }
 
-        return RefinePredicate(
+        return EliminatePredicate(
             keys,
             expr,
             keyColumns);
     }
 };
 
-TEST_P(TRefineLookupPredicateTest, Simple)
+TEST_P(TEliminateLookupPredicateTest, Simple)
 {
     const auto& args = GetParam();
     const auto& schemaString = std::get<0>(args);
@@ -164,14 +165,14 @@ TEST_P(TRefineLookupPredicateTest, Simple)
 }
 
 INSTANTIATE_TEST_CASE_P(
-    TRefineLookupPredicateTest,
-    TRefineLookupPredicateTest,
+    TEliminateLookupPredicateTest,
+    TEliminateLookupPredicateTest,
     ::testing::Values(
         std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(k,l) in ((1,2),(3,4))",
-            "(k,l) in ((1,2),(3,4))",
+            "false",
             std::vector<const char*>{"1;3"}),
         std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
@@ -189,7 +190,7 @@ INSTANTIATE_TEST_CASE_P(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(l,k) in ((1,2),(3,4))",
-            "(l,k) in ((1,2),(3,4))",
+            "false",
             std::vector<const char*>{"3;1"}),
         std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
@@ -225,7 +226,7 @@ INSTANTIATE_TEST_CASE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRefinePredicateTest
+class TEliminatePredicateTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::vector<const char*>>
     , public TCompareExpressionTest
@@ -242,19 +243,35 @@ protected:
         const TTableSchema& tableSchema,
         const TKeyColumns& keyColumns)
     {
-        return RefinePredicate(
-            TRowRange(keyRange.first, keyRange.second),
+        auto rowRange = TRowRange(keyRange.first, keyRange.second);
+
+        auto rowBuffer = New<TRowBuffer>();
+
+        auto rowRanges = GetPrunedRanges(
             expr,
             tableSchema,
             keyColumns,
-            ColumnEvaluatorCache_->Find(tableSchema));
+            TGuid(),
+            MakeSharedRange(MakeRange(&rowRange, 1)),
+            rowBuffer,
+            ColumnEvaluatorCache_,
+            New<TRangeExtractorMap>(),
+            1000,
+            false,
+            QueryClientLogger);
+
+        return EliminatePredicate(
+            rowRanges,
+            expr,
+            tableSchema,
+            keyColumns);
     }
 
 private:
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 };
 
-TEST_P(TRefinePredicateTest, Simple)
+TEST_P(TEliminatePredicateTest, Simple)
 {
     const auto& args = GetParam();
     const auto& schemaString = args[0];
@@ -284,28 +301,35 @@ TEST_P(TRefinePredicateTest, Simple)
 }
 
 INSTANTIATE_TEST_CASE_P(
-    TRefinePredicateTest,
-    TRefinePredicateTest,
+    TEliminatePredicateTest,
+    TEliminatePredicateTest,
     ::testing::Values(
         std::vector<const char*>{
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
-            "(k,l) in ((1,2),(3,4))",
-            "(k,l) in ((1,2),(3,4))",
+            "k = 1 and l in (1,2,3)",
+            "true",
+            _MIN_,
+            _MAX_},
+        std::vector<const char*>{
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in (1,2,3) and l = 1",
+            "true",
             _MIN_,
             _MAX_},
         std::vector<const char*>{
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(k,l) in ((1,2),(3,4))",
-            "(k,l) in ((1,2))",
-            "1",
-            "2"},
+            "true",
+            _MIN_,
+            _MAX_},
         std::vector<const char*>{
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(k) in ((2),(4))",
-            "(k) in ((2),(4))",
+            "true",
             _MIN_,
             _MAX_},
         std::vector<const char*>{
@@ -316,103 +340,68 @@ INSTANTIATE_TEST_CASE_P(
             _MIN_,
             _MAX_},
         std::vector<const char*>{
-            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
-            "[k;l]",
-            "(k) in ((2),(4))",
-            "(k) in ((2))",
-            "2;1",
-            "3;3"},
-        std::vector<const char*>{
             "[{name=k;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
             "[k;l]",
             "l in ((2),(4))",
+            "true",
+            _MIN_,
+            _MAX_},
+        std::vector<const char*>{
+            "[{name=k;type=int64;sort_order=ascending;expression=\"l+1\"}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
+            "[k;l]",
             "l in ((2),(4))",
+            "true",
             _MIN_,
             _MAX_},
         std::vector<const char*>{
             "[{name=k;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
             "[k;l]",
-            "l in ((2),(4))",
-            "l in ((4))",
-            "3;3",
+            "l in ((0),(2),(4))",
+            "true",
+            _MIN_,
             _MAX_},
         std::vector<const char*>{
-            "[{name=k;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
+            "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
-            "l in ((2),(4))",
-            "l in ((2))",
+            "k in ((0),(2),(4))",
+            "true",
             _MIN_,
-            "3;3"},
-        std::vector<const char*>{
-            "[{name=k;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
-            "[k;l]",
-            "l in ((0),(2),(4))",
-            "l in ((2))",
-            "1;1",
-            "3;3"},
-        std::vector<const char*>{
-            "[{name=k;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
-            "[k;l]",
-            "l in ((0),(2),(4))",
-            "l in ((2))",
-            "1",
-            "3"},
-        std::vector<const char*>{
-            "[{name=k;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=m;type=int64}; {name=a;type=int64}]",
-            "[k;l]",
-            "l in ((0),(2),(4))",
-            "l in ((2))",
-            "2;2;2",
-            "3;3;3"},
-        std::vector<const char*>{
-            "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
-            "[k;l]",
-            "k in ((0),(2),(4))",
-            "k in ((2))",
-            "2;1",
-            "3;3"},
-        std::vector<const char*>{
-            "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
-            "[k;l]",
-            "k in ((0),(2),(4))",
-            "k in ((2))",
-            "2;1",
-            "3;3"},
+            _MAX_},
         std::vector<const char*>{
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
             "k in ((0),(2),(4),(6))",
-            "k in ((2),(4))",
-            "2;1",
-            "4;5"},
+            "true",
+            _MIN_,
+            _MAX_},
         std::vector<const char*>{
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
-            "k in ((0),(2),(4),(6))",
-            "k in ((4))",
-            "2;3",
-            "4;5"},
+            "k in (1,2,3,4,5,6,7) or k > 10",
+            "k in (1,2,3,4,5,6,7) or k > 10",
+            _MIN_,
+            _MAX_},
         std::vector<const char*>{
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
-            "k in ((0),(2),(4),(6))",
-            "k in ((2))",
-            "2;1",
-            "4;3"},
+            "k in (1,2,3,4,5,6,7) or k > 10",
+            "true",
+            _MIN_,
+            "10"},
         std::vector<const char*>{
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
-            "k in ((0),(2),(4),(6))",
-            "k in ((2))",
-            "2",
-            "3"},
+            "k in (1,2,3,4,5,6,7) or k in (10,11,12,14,15)",
+            "k in (4,5,6,7) or k in (10,11,12)",
+            "4",
+            "13"},
         std::vector<const char*>{
-            "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=m;type=int64}; {name=a;type=int64}]",
+            "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
-            "k in ((0),(2),(4))",
-            "k in ((2))",
-            "2;2;2",
-            "3;3;3"}
+            "k in ((0),(2)) or k in ((4),(6))",
+            "k in ((0),(2)) or k in ((4),(6))",
+            _MIN_,
+            _MAX_}
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
