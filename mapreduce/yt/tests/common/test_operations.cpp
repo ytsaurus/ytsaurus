@@ -110,5 +110,21 @@ YT_TEST(TOperation, Sort)
     PrintTable(Output());
 }
 
+YT_TEST(TOperation, IdMapIdReduce)
+{
+    {
+        TClient client(Server());
+        TUpdate update(client, Input());
+        for (int i = 0; i < 1024; ++i) {
+            auto key = Sprintf("%d", (i * 13) % 17);
+            auto subkey = Sprintf("%d", (i * 7) % 19);
+            auto value = "0";
+            update.AddSub(key, subkey, value);
+        }
+    }
+    Server().MapReduce(Input(), Output(), new TIdMap, new TIdReduce);
+    PrintTable(Output());
+}
+
 } // namespace NCommonTest
 } // namespace NYT
