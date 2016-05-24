@@ -3,6 +3,7 @@
 #include "format.h"
 
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/checksum.h>
 
 namespace NYT {
 namespace NChunkClient {

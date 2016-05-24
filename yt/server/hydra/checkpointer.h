@@ -11,7 +11,6 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/misc/checksum.h>
 #include <yt/core/misc/error.h>
 
 #include <tuple>

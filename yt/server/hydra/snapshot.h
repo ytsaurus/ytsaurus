@@ -8,8 +8,6 @@
 
 #include <yt/core/concurrency/async_stream.h>
 
-#include <yt/core/misc/checksum.h>
-
 namespace NYT {
 namespace NHydra {
 
