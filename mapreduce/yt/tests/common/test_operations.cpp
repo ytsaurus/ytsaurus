@@ -76,7 +76,8 @@ YT_TEST(TOperation, IdMap)
     PrintTable(Output());
 }
 
-YT_TEST(TOperation, IdReduce) {
+YT_TEST(TOperation, IdReduce)
+{
     {
         TClient client(Server());
         TUpdate update(client, Input());
@@ -92,7 +93,8 @@ YT_TEST(TOperation, IdReduce) {
     PrintTable(Output());
 }
 
-YT_TEST(TOperation, Sort) {
+YT_TEST(TOperation, Sort)
+{
     {
         TClient client(Server());
         TUpdate update(client, Input());
