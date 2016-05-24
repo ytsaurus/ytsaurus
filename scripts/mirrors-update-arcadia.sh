@@ -13,7 +13,8 @@ export LC_ALL=en_US.UTF-8
 
 SVN_LWS=100000
 
-for repo in $MIRRORS_DIRECTORY/arcadia-*.git ; do
+sync() {
+    local repo="$1"
     echo "=== $repo"
     # Carefully work around "Restored trunk" commits in SVN as git-svn is incapable of
     # tracking child-parent relation between these.
@@ -24,5 +25,10 @@ for repo in $MIRRORS_DIRECTORY/arcadia-*.git ; do
     (cd $repo && git svn fetch --log-window-size $SVN_LWS --revision 907137:HEAD)
     (cd $repo && git branch -f master $(git show-ref -s refs/remotes/git-svn))
     (cd $repo && git push origin)
+}
+
+for repo in $MIRRORS_DIRECTORY/arcadia-*.git ; do
+    sync "$repo" &
 done
+wait
 
