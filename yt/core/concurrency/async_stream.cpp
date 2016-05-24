@@ -567,10 +567,13 @@ public:
     virtual TFuture<TSharedRef> Read() override
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        if (!Error_.IsOK()) {
-            return MakeFuture<TSharedRef>(Error_);
-        }
         if (PrefetchedSize_ == 0) {
+            if (EndOfStream_) {
+                return MakeFuture<TSharedRef>(TSharedRef());
+            }
+            if (!Error_.IsOK()) {
+                return MakeFuture<TSharedRef>(Error_);
+            }
             return Prefetch(&guard).Apply(
                 BIND(&TBufferingInputStreamAdapter::OnPrefetched, MakeStrong(this)));
         }
@@ -586,6 +589,7 @@ private:
     TSharedMutableRef Prefetched_;
     TSharedMutableRef Buffer_;
     size_t PrefetchedSize_ = 0;
+    bool EndOfStream_ = false;
     TFuture<void> OutstandingResult_;
 
     TFuture<void> Prefetch(TGuard<TSpinLock>* guard)
@@ -610,7 +614,6 @@ private:
             TGuard<TSpinLock> guard(SpinLock_);
             AppendPrefetched(&guard, result);
         }
-        YASSERT(!result.IsOK() || PrefetchedSize_ != 0);
         promise.Set(result);
     }
 
@@ -628,6 +631,9 @@ private:
         if (!result.IsOK()) {
             Error_ = TError(result);
             return;
+        } else if (result.Value() == 0) {
+            EndOfStream_ = true;
+            return;
         }
         size_t bytes = result.Value();
         if (bytes != 0) {
@@ -637,8 +643,9 @@ private:
             } else {
                 ::memcpy(Prefetched_.Begin() + PrefetchedSize_, Buffer_.Begin(), bytes);
             }
+            PrefetchedSize_ += bytes;
+
         }
-        PrefetchedSize_ += bytes;
         // Stop reading on the end of stream or full buffer.
         if (bytes != 0 && PrefetchedSize_ < WindowSize_) {
             Prefetch(guard);

@@ -846,9 +846,6 @@ private:
             return;
         }
 
-        auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
-        auto samples = FromProto<std::vector<TOwningKey>>(samplesExt.entries());
-
         auto lowerKey = sampleRequest->has_lower_key()
             ? FromProto<TOwningKey>(sampleRequest->lower_key())
             : MinKey();
@@ -857,25 +854,27 @@ private:
             ? FromProto<TOwningKey>(sampleRequest->upper_key())
             : MaxKey();
 
-        auto it = std::remove_if(
-            samples.begin(),
-            samples.end(),
-            [&] (const TOwningKey& key) {
-                return  key < lowerKey || key >= upperKey;
-            });
+        auto blocksExt = GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions());
 
-        std::random_shuffle(samples.begin(), it);
+        std::vector<TOwningKey> samples;
+        for (const auto& block : blocksExt.blocks()) {
+            YCHECK(block.has_last_key());
+            auto key = FromProto<TOwningKey>(block.last_key());
+            if (key >= lowerKey && key < upperKey) {
+                samples.push_back(WidenKey(key, keyColumns.size()));
+            }
+        }
+
+        // Don't return more than requested.
+        std::random_shuffle(samples.begin(), samples.end());
         auto count = std::min(
-            static_cast<int>(std::distance(samples.begin(), it)),
+            static_cast<int>(samples.size()),
             sampleRequest->sample_count());
         samples.erase(samples.begin() + count, samples.end());
 
         for (const auto& sample : samples) {
-            YCHECK(sample.GetCount() == chunkKeyColumns.size());
             auto* protoSample = chunkSamples->add_samples();
-            ToProto(
-                protoSample->mutable_key(), 
-                WidenKey(sample, keyColumns.size()));
+            ToProto(protoSample->mutable_key(), sample);
             protoSample->set_incomplete(false);
             protoSample->set_weight(1);
         }

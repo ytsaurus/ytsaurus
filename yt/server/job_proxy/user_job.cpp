@@ -137,12 +137,13 @@ public:
             AuxQueue_->GetInvoker(),
             BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
             Config_->BlockIOWatchdogPeriod))
-        , ShellManager_(CreateShellManager(
+        , Logger(Host_->GetLogger())
+    { 
+        ShellManager_ = CreateShellManager(
             NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Home]),
             Config_->UserId,
-            TNullable<Stroka>(Config_->EnableCGroups, Freezer_.GetFullPath())))
-        , Logger(Host_->GetLogger())
-    { }
+            TNullable<Stroka>(Config_->EnableCGroups, Freezer_.GetFullPath()));
+    }
 
     virtual void Initialize() override
     { }
@@ -271,6 +272,10 @@ private:
     TProcessPtr Process_;
     TFuture<void> ProcessFinished_;
 
+    // Destroy shell manager before user job cgrops, since its cgroups are typically
+    // nested, and we need to mantain destroy order.
+    IShellManagerPtr ShellManager_;
+
     TCpuAccounting CpuAccounting_;
     TBlockIO BlockIO_;
     TMemory Memory_;
@@ -279,8 +284,6 @@ private:
 
     const TPeriodicExecutorPtr MemoryWatchdogExecutor_;
     const TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
-
-    IShellManagerPtr ShellManager_;
 
     const NLogging::TLogger Logger;
 
@@ -320,6 +323,13 @@ private:
     }
 
     void CleanupUserProcesses()
+    {
+        BIND(&TUserJob::DoCleanupUserProcesses, MakeWeak(this))
+            .Via(PipeIOPool_->GetInvoker())
+            .Run();
+    }
+
+    void DoCleanupUserProcesses()
     {
         ShellManager_->CleanupProcesses();
 
@@ -382,7 +392,7 @@ private:
     void DumpFailContexts(TSchedulerJobResultExt* schedulerResultExt)
     {
         auto contexts = DoGetInputContexts();
-        auto contextChunkIds = DoDumpInputContexts(contexts);
+        auto contextChunkIds = DoDumpInputContext(contexts);
 
         YCHECK(contextChunkIds.size() <= 1);
         if (!contextChunkIds.empty()) {
@@ -400,7 +410,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job input context");
         const auto& contexts = result.Value();
 
-        auto chunks = DoDumpInputContexts(contexts);
+        auto chunks = DoDumpInputContext(contexts);
         YCHECK(chunks.size() == 1);
 
         if (chunks.front() == NullChunkId) {
@@ -410,7 +420,7 @@ private:
         return chunks;
     }
 
-    std::vector<TChunkId> DoDumpInputContexts(const std::vector<TBlob>& contexts)
+    std::vector<TChunkId> DoDumpInputContext(const std::vector<TBlob>& contexts)
     {
         std::vector<TChunkId> result;
 
@@ -864,31 +874,36 @@ private:
         return statistics;
     }
 
+    void OnIOErrorOrFinished(const TError& error, const Stroka& message) {
+        if (error.IsOK() || error.FindMatching(NPipes::EErrorCode::Aborted)) {
+            return;
+        }
+
+        if (!JobErrorPromise_.TrySet(error)) {
+            return;
+        }
+
+        LOG_ERROR(error, "%v", message);
+
+        CleanupUserProcesses();
+
+        for (const auto& reader : TablePipeReaders_) {
+            reader->Abort();
+        }
+
+        for (const auto& writer : TablePipeWriters_) {
+            writer->Abort();
+        }
+    }
+
     void DoJobIO()
     {
         auto onIOError = BIND([=] (const TError& error) {
-            if (error.IsOK() || error.FindMatching(NPipes::EErrorCode::Aborted)) {
-                return;
-            }
+            OnIOErrorOrFinished(error, "Job input/output error, aborting");
+        });
 
-            if (!JobErrorPromise_.TrySet(error)) {
-                return;
-            }
-
-            LOG_ERROR(error, "Job input/output error, aborting");
-
-            // This is a workaround for YT-2837.
-            BIND(&TUserJob::CleanupUserProcesses, MakeWeak(this))
-                .Via(PipeIOPool_->GetInvoker())
-                .Run();
-
-            for (const auto& reader : TablePipeReaders_) {
-                reader->Abort();
-            }
-
-            for (const auto& writer : TablePipeWriters_) {
-                writer->Abort();
-            }
+        auto onProcessFinished = BIND([=] (const TError& error) {
+            OnIOErrorOrFinished(error, "Job control process has finished, aborting");
         });
 
         auto runActions = [&] (const std::vector<TCallback<void()>>& actions) {
@@ -905,6 +920,8 @@ private:
 
         auto inputFutures = runActions(InputActions_);
         auto outputFutures = runActions(OutputActions_);
+
+        ProcessFinished_.Subscribe(onProcessFinished);
 
         // First, wait for all job output pipes.
         // If job successfully completes or dies prematurely, they close automatically.

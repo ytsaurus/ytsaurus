@@ -47,7 +47,7 @@ private:
         context->SetRequestInfo("JobId: %v", jobId);
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
-        auto chunkIds = job->DumpInputContexts();
+        auto chunkIds = job->DumpInputContext();
 
         context->SetResponseInfo("ChunkIds: %v", chunkIds);
         ToProto(response->mutable_chunk_ids(), chunkIds);

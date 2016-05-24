@@ -19,11 +19,12 @@ class TChunkOwnerNodeProxy
 {
 public:
     TChunkOwnerNodeProxy(
-        NCypressServer::INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
         TChunkOwnerBase* trunkNode);
+
+    virtual NYTree::ENodeType GetType() const override;
 
 protected:
     virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override;

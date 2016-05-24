@@ -394,14 +394,22 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
         write_table("//tmp/in1", data, sorted_by="foo")
         write_table("//tmp/in2", data, sorted_by="foo")
 
-        merge(mode="ordered", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", spec={"force_transform": True})
+
+
+        op = merge(mode="ordered", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", spec={"force_transform": True})
         assert data + data == read_table("//tmp/out")
 
-        map(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
-        with pytest.raises(YtError):
-            merge(mode="sorted", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
-        with pytest.raises(YtError):
-            reduce(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", reduce_by=["foo"])
+        # Must be 2 jobs since input has 2 chunks.
+        assert get("//sys/operations/{0}/@progress/jobs/total".format(op.id)) == 2
+
+        op = map(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
+        assert get("//sys/operations/{0}/@progress/jobs/total".format(op.id)) == 2
+
+        op = merge(mode="sorted", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
+        assert get("//sys/operations/{0}/@progress/jobs/total".format(op.id)) == 2
+
+        op = reduce(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", reduce_by=["foo"])
+        assert get("//sys/operations/{0}/@progress/jobs/total".format(op.id)) == 2
 
 
 class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):

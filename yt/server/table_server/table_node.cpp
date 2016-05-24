@@ -228,7 +228,6 @@ protected:
         TTransaction* transaction) override
     {
         return CreateTableNodeProxy(
-            this,
             Bootstrap_,
             &Metadata_,
             transaction,

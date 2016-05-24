@@ -29,13 +29,11 @@ class TSysNodeProxy
 {
 public:
     TSysNodeProxy(
-        INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         TObjectTypeMetadata* metadata,
         TTransaction* transaction,
         TMapNode* trunkNode)
         : TBase(
-            typeHandler,
             bootstrap,
             metadata,
             transaction,
@@ -135,7 +133,6 @@ private:
         NTransactionServer::TTransaction* transaction) override
     {
         return New<TSysNodeProxy>(
-            this,
             Bootstrap_,
             &Metadata_,
             transaction,
