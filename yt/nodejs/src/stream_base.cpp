@@ -32,7 +32,7 @@ void TNodeJSStreamBase::AsyncRef(bool acquireSyncRef)
 void TNodeJSStreamBase::AsyncUnref()
 {
     auto oldRefCounter = AsyncRefCounter_--;
-    YASSERT(oldRefCounter > 0);
+    Y_ASSERT(oldRefCounter > 0);
     if (oldRefCounter == 1) {
         EIO_PUSH(TNodeJSStreamBase::UnrefCallback, this);
     }
@@ -45,7 +45,7 @@ int TNodeJSStreamBase::UnrefCallback(eio_req* request)
 
     TNodeJSStreamBase* stream = static_cast<TNodeJSStreamBase*>(request->data);
 
-    YASSERT(stream->AsyncRefCounter_.load() == 0);
+    Y_ASSERT(stream->AsyncRefCounter_.load() == 0);
 
     stream->Unref();
 

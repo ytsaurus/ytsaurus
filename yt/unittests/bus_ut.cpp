@@ -36,7 +36,7 @@ TSharedRefArray Serialize(Stroka str)
 
 Stroka Deserialize(TSharedRefArray message)
 {
-    YASSERT(message.Size() == 1);
+    Y_ASSERT(message.Size() == 1);
     const auto& part = message[0];
     return Stroka(part.Begin(), part.Size());
 }

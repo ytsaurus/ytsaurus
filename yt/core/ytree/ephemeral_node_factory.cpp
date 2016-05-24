@@ -76,7 +76,7 @@ public:
 
     virtual void SetParent(ICompositeNodePtr parent) override
     {
-        YASSERT(!parent || Parent.IsExpired());
+        Y_ASSERT(!parent || Parent.IsExpired());
         Parent = parent;
     }
 
@@ -237,8 +237,8 @@ public:
 
     virtual bool AddChild(INodePtr child, const Stroka& key) override
     {
-        YASSERT(!key.empty());
-        YASSERT(child);
+        Y_ASSERT(!key.empty());
+        Y_ASSERT(child);
 
         if (KeyToChild.insert(std::make_pair(key, child)).second) {
             YCHECK(ChildToKey.insert(std::make_pair(child, key)).second);
@@ -265,12 +265,12 @@ public:
 
     virtual void RemoveChild(INodePtr child) override
     {
-        YASSERT(child);
+        Y_ASSERT(child);
 
         child->SetParent(nullptr);
 
         auto it = ChildToKey.find(child);
-        YASSERT(it != ChildToKey.end());
+        Y_ASSERT(it != ChildToKey.end());
 
         // NB: don't use const auto& here, it becomes invalid!
         auto key = it->second;
@@ -280,14 +280,14 @@ public:
 
     virtual void ReplaceChild(INodePtr oldChild, INodePtr newChild) override
     {
-        YASSERT(oldChild);
-        YASSERT(newChild);
+        Y_ASSERT(oldChild);
+        Y_ASSERT(newChild);
 
         if (oldChild == newChild)
             return;
 
         auto it = ChildToKey.find(oldChild);
-        YASSERT(it != ChildToKey.end());
+        Y_ASSERT(it != ChildToKey.end());
 
         // NB: don't use const auto& here, it becomes invalid!
         auto key = it->second;
@@ -302,10 +302,10 @@ public:
 
     virtual Stroka GetChildKey(IConstNodePtr child) override
     {
-        YASSERT(child);
+        Y_ASSERT(child);
 
         auto it = ChildToKey.find(const_cast<INode*>(child.Get()));
-        YASSERT(it != ChildToKey.end());
+        Y_ASSERT(it != ChildToKey.end());
         return it->second;
     }
 
@@ -362,7 +362,7 @@ public:
 
     virtual void AddChild(INodePtr child, int beforeIndex = -1) override
     {
-        YASSERT(child);
+        Y_ASSERT(child);
 
         if (beforeIndex < 0) {
             YCHECK(ChildToIndex.insert(std::make_pair(child, static_cast<int>(IndexToChild.size()))).second);
@@ -398,14 +398,14 @@ public:
 
     virtual void ReplaceChild(INodePtr oldChild, INodePtr newChild) override
     {
-        YASSERT(oldChild);
-        YASSERT(newChild);
+        Y_ASSERT(oldChild);
+        Y_ASSERT(newChild);
 
         if (oldChild == newChild)
             return;
 
         auto it = ChildToIndex.find(oldChild);
-        YASSERT(it != ChildToIndex.end());
+        Y_ASSERT(it != ChildToIndex.end());
 
         int index = it->second;
 
@@ -419,7 +419,7 @@ public:
 
     virtual void RemoveChild(INodePtr child) override
     {
-        YASSERT(child);
+        Y_ASSERT(child);
 
         int index = GetChildIndex(child);
         YCHECK(RemoveChild(index));
@@ -427,10 +427,10 @@ public:
 
     virtual int GetChildIndex(IConstNodePtr child) override
     {
-        YASSERT(child);
+        Y_ASSERT(child);
 
         auto it = ChildToIndex.find(const_cast<INode*>(child.Get()));
-        YASSERT(it != ChildToIndex.end());
+        Y_ASSERT(it != ChildToIndex.end());
         return it->second;
     }
 

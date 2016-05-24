@@ -63,7 +63,7 @@ class TEphemeralAttributeDictionary
 
     virtual void SetYson(const Stroka& key, const TYsonString& value) override
     {
-        YASSERT(value.GetType() == EYsonType::Node);
+        Y_ASSERT(value.GetType() == EYsonType::Node);
         Map[key] = value.Data();
     }
 

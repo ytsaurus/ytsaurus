@@ -52,20 +52,20 @@ public:
     inline void Ref() noexcept
     {
         auto oldStrongCount = StrongCount_++;
-        YASSERT(oldStrongCount > 0 && WeakCount_.load() > 0);
+        Y_ASSERT(oldStrongCount > 0 && WeakCount_.load() > 0);
     }
 
     //! Removes a strong reference from the counter.
     inline void Unref() // noexcept
     {
         auto oldStrongCount = StrongCount_--;
-        YASSERT(oldStrongCount > 0);
+        Y_ASSERT(oldStrongCount > 0);
 
         if (oldStrongCount == 1) {
             Dispose();
 
             auto oldWeakCount = WeakCount_--;
-            YASSERT(oldWeakCount > 0);
+            Y_ASSERT(oldWeakCount > 0);
 
             if (oldWeakCount == 1) {
                 Destroy();
@@ -76,7 +76,7 @@ public:
     //! Tries to add a strong reference to the counter.
     inline bool TryRef() noexcept
     {
-        YASSERT(WeakCount_.load() > 0);
+        Y_ASSERT(WeakCount_.load() > 0);
         return AtomicallyIncrementIfNonZero(StrongCount_) > 0;
     }
 
@@ -84,14 +84,14 @@ public:
     inline void WeakRef() noexcept
     {
         auto oldWeakCount = WeakCount_++;
-        YASSERT(oldWeakCount > 0);
+        Y_ASSERT(oldWeakCount > 0);
     }
 
     //! Removes a weak reference from the counter.
     inline void WeakUnref() // noexcept
     {
         auto oldWeakCount = WeakCount_--;
-        YASSERT(oldWeakCount > 0);
+        Y_ASSERT(oldWeakCount > 0);
         if (oldWeakCount == 1) {
             Destroy();
         }
@@ -251,7 +251,7 @@ public:
 #ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
         ::std::fprintf(stderr, "=== %p === Ref(): %" PRId64 " -> %" PRId64, this, oldRefCount, oldRefCount + 1);
 #endif
-        YASSERT(oldRefCount > 0);
+        Y_ASSERT(oldRefCount > 0);
     }
 
     //! Decrements the reference counter.
@@ -262,7 +262,7 @@ public:
 #ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
         ::std::fprintf(stderr, "=== %p === Unref(): %" PRId64 " -> %" PRId64, this, oldRefCount, oldRefCount - 1);
 #endif
-        YASSERT(oldRefCount > 0);
+        Y_ASSERT(oldRefCount > 0);
         if (oldRefCount == 1) {
             delete this;
         }

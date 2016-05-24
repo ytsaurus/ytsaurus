@@ -187,7 +187,7 @@ public:
 
     IInvokerPtr GetInvoker(int index)
     {
-        YASSERT(0 <= index && index < static_cast<int>(Buckets_.size()));
+        Y_ASSERT(0 <= index && index < static_cast<int>(Buckets_.size()));
         return Buckets_[index].Queue;
     }
 
@@ -386,7 +386,7 @@ private:
 
         void Activate()
         {
-            YASSERT(!Activated_);
+            Y_ASSERT(!Activated_);
             Activated_ = true;
         }
 

@@ -32,7 +32,7 @@ public:
     TFiberId Generate()
     {
         const TFiberId Factor = std::numeric_limits<TFiberId>::max() - 173864;
-        YASSERT(Factor % 2 == 1); // Factor must be coprime with 2^n.
+        Y_ASSERT(Factor % 2 == 1); // Factor must be coprime with 2^n.
 
         while (true) {
             auto seed = Seed_++;
@@ -102,7 +102,7 @@ void TFiber::SetRunning()
     // THREAD_AFFINITY(OwnerThread);
 
     TGuard<TSpinLock> guard(SpinLock_);
-    YASSERT(State_ != EFiberState::Terminated);
+    Y_ASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Running;
     AwaitedFuture_.Reset();
 }
@@ -112,9 +112,9 @@ void TFiber::SetSleeping(TFuture<void> awaitedFuture)
     // THREAD_AFFINITY(OwnerThread);
 
     TGuard<TSpinLock> guard(SpinLock_);
-    YASSERT(State_ != EFiberState::Terminated);
+    Y_ASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Sleeping;
-    YASSERT(!AwaitedFuture_);
+    Y_ASSERT(!AwaitedFuture_);
     AwaitedFuture_ = std::move(awaitedFuture);
 }
 
@@ -123,7 +123,7 @@ void TFiber::SetSuspended()
     // THREAD_AFFINITY(OwnerThread);
 
     TGuard<TSpinLock> guard(SpinLock_);
-    YASSERT(State_ != EFiberState::Terminated);
+    Y_ASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Suspended;
     AwaitedFuture_.Reset();
 }
@@ -203,7 +203,7 @@ void TFiber::FsdResize()
     int oldSize = static_cast<int>(Fsd_.size());
     int newSize = NDetail::FlsCountSlots();
 
-    YASSERT(newSize > oldSize);
+    Y_ASSERT(newSize > oldSize);
 
     Fsd_.resize(newSize);
 
@@ -215,7 +215,7 @@ void TFiber::FsdResize()
 void TFiber::Trampoline(void* opaque)
 {
     auto* fiber = reinterpret_cast<TFiber*>(opaque);
-    YASSERT(fiber);
+    Y_ASSERT(fiber);
 
     try {
         fiber->Callee_.Run();

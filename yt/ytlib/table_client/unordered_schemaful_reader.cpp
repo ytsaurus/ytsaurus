@@ -73,7 +73,7 @@ public:
                 return true;
             }
 
-            YASSERT(!session.ReadyEvent);
+            Y_ASSERT(!session.ReadyEvent);
             session.ReadyEvent = session.Reader->GetReadyEvent();
             CancelableContext_->PropagateTo(*session.ReadyEvent);
             pending = true;

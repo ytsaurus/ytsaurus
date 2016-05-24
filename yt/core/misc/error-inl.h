@@ -108,14 +108,14 @@ template <class T>
 TErrorOr<T>::TErrorOr(const TError& other)
     : TError(other)
 {
-    YASSERT(!IsOK());
+    Y_ASSERT(!IsOK());
 }
 
 template <class T>
 TErrorOr<T>::TErrorOr(TError&& other) noexcept
     : TError(std::move(other))
 {
-    YASSERT(!IsOK());
+    Y_ASSERT(!IsOK());
 }
 
 template <class T>
@@ -198,14 +198,14 @@ const T& TErrorOr<T>::ValueOrThrow() const
 template <class T>
 T& TErrorOr<T>::Value()
 {
-    YASSERT(IsOK());
+    Y_ASSERT(IsOK());
     return *Value_;
 }
 
 template <class T>
 const T& TErrorOr<T>::Value() const
 {
-    YASSERT(IsOK());
+    Y_ASSERT(IsOK());
     return *Value_;
 }
 

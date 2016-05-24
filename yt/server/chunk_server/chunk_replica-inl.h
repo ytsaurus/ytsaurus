@@ -20,8 +20,8 @@ template <class T>
 Y_FORCE_INLINE TPtrWithIndex<T>::TPtrWithIndex(T* ptr, int index)
     : Value_(reinterpret_cast<uintptr_t>(ptr) | (static_cast<uintptr_t>(index) << 56))
 {
-    YASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xff00000000000000LL) == 0);
-    YASSERT(index >= 0 && index <= 0xff);
+    Y_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xff00000000000000LL) == 0);
+    Y_ASSERT(index >= 0 && index <= 0xff);
 }
 
 template <class T>

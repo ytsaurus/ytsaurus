@@ -43,7 +43,7 @@ public:
 
         Header_->set_start_time(TInstant::Now().MicroSeconds());
 
-        YASSERT(Message_.Size() >= 2);
+        Y_ASSERT(Message_.Size() >= 2);
         auto body = Message_[1];
         auto attachments = std::vector<TSharedRef>(Message_.Begin() + 2, Message_.End());
         return CreateRequestMessage(*Header_, body, attachments);

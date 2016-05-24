@@ -78,7 +78,7 @@ struct TReadRequest
             Buffer = new char[Length];
         }
 
-        YASSERT(Buffer || !Length);
+        Y_ASSERT(Buffer || !Length);
     }
 
     ~TReadRequest()

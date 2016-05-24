@@ -565,7 +565,7 @@ void EnrichKeyRange(
             if (!generator || generator->Finished()) {
                 --evalIndex;
             } else {
-                YASSERT(generator);
+                Y_ASSERT(generator);
                 prefixRow[columnIndex] = generator->Next();
                 while (evalIndex < computedColumns.size()) {
                     ++evalIndex;
@@ -630,7 +630,7 @@ void EnrichKeyRange(
     {
         auto lower = finalizeRow(lowerRow, lowerSize, Null, lowerSentinel);
         auto upper = finalizeRow(upperRow, upperSize, MakeUnversionedSentinelValue(EValueType::Max), upperSentinel);
-        YASSERT(lower <= upper);
+        Y_ASSERT(lower <= upper);
         if (lower < upper) {
             ranges.push_back(std::make_pair(lower, upper));
         }

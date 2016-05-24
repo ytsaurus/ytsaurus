@@ -237,7 +237,7 @@ public:
 
     TSaveContext& SaveContext()
     {
-        YASSERT(SaveContext_);
+        Y_ASSERT(SaveContext_);
         return *SaveContext_;
     }
 
@@ -248,7 +248,7 @@ public:
 
     TLoadContext& LoadContext()
     {
-        YASSERT(LoadContext_);
+        Y_ASSERT(LoadContext_);
         return *LoadContext_;
     }
 

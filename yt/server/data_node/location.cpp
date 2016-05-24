@@ -257,7 +257,7 @@ TPendingIOGuard TLocation::IncreasePendingIOSize(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    YASSERT(delta >= 0);
+    Y_ASSERT(delta >= 0);
     auto category = ToIOCategory(workloadDescriptor);
     UpdatePendingIOSize(direction, category, delta);
     return TPendingIOGuard(direction, category, delta, this);

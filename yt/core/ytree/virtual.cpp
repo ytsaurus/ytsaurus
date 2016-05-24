@@ -58,7 +58,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
 
 void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
-    YASSERT(!NYson::TTokenizer(GetRequestYPath(context)).ParseNext());
+    Y_ASSERT(!NYson::TTokenizer(GetRequestYPath(context)).ParseNext());
 
     auto attributeFilter =
         request->has_attribute_filter()
@@ -189,13 +189,13 @@ public:
 
     virtual INodeFactoryPtr CreateFactory() const override
     {
-        YASSERT(Parent);
+        Y_ASSERT(Parent);
         return Parent->CreateFactory();
     }
 
     virtual INodeResolverPtr GetResolver() const override
     {
-        YASSERT(Parent);
+        Y_ASSERT(Parent);
         return Parent->GetResolver();
     }
 

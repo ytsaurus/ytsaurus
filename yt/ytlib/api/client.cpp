@@ -576,7 +576,7 @@ private:
             } else {
                 for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
                     const auto& tabletInfo = *it;
-                    YASSERT(upperBound > tabletInfo->PivotKey);
+                    Y_ASSERT(upperBound > tabletInfo->PivotKey);
 
                     const auto& addresses = getAddresses(tabletInfo);
                     const auto& address = addresses[RandomNumber(addresses.size())];

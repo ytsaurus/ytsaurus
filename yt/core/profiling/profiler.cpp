@@ -199,12 +199,12 @@ TDuration TProfiler::DoTimingStop(
     const TNullable<TTagIdList>& totalTagIds) const
 {
     // Failure here means that the timer was not started or already stopped.
-    YASSERT(timer.Start != 0);
+    Y_ASSERT(timer.Start != 0);
 
     auto now = GetCpuInstant();
     auto cpuDuration = now - timer.Start;
     auto value = CpuDurationToValue(cpuDuration);
-    YASSERT(value >= 0);
+    Y_ASSERT(value >= 0);
 
     auto path = key ? timer.Path + "/" + ToYPathLiteral(*key) : timer.Path;
     auto tagIds = totalTagIds ? timer.TagIds + *totalTagIds : timer.TagIds;
@@ -235,7 +235,7 @@ TDuration TProfiler::DoTimingCheckpoint(
     const TNullable<TTagIdList>& checkpointTagIds) const
 {
     // Failure here means that the timer was not started or already stopped.
-    YASSERT(timer.Start != 0);
+    Y_ASSERT(timer.Start != 0);
 
     auto now = GetCpuInstant();
 
@@ -251,7 +251,7 @@ TDuration TProfiler::DoTimingCheckpoint(
         case ETimerMode::Sequential: {
             auto lastCheckpoint = timer.LastCheckpoint == 0 ? timer.Start : timer.LastCheckpoint;
             auto duration = CpuDurationToValue(now - lastCheckpoint);
-            YASSERT(duration >= 0);
+            Y_ASSERT(duration >= 0);
             Enqueue(path, duration, tagIds);
             timer.LastCheckpoint = now;
             return CpuDurationToDuration(duration);
@@ -259,7 +259,7 @@ TDuration TProfiler::DoTimingCheckpoint(
 
         case ETimerMode::Parallel: {
             auto duration = CpuDurationToValue(now - timer.Start);
-            YASSERT(duration >= 0);
+            Y_ASSERT(duration >= 0);
             Enqueue(path, duration, tagIds);
             return CpuDurationToDuration(duration);
         }

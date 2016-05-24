@@ -750,7 +750,7 @@ private:
         // all input streams into fd == 0.
 
         int maxReservedDescriptor = GetMaxReservedDescriptor();
-        YASSERT(maxReservedDescriptor > 0);
+        Y_ASSERT(maxReservedDescriptor > 0);
 
         // To avoid descriptor collisions between pipes on this, proxy side,
         // and "standard" descriptor numbers in forked job (see comments above)

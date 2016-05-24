@@ -25,7 +25,7 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
         TGuard<TSpinLock> guard(SpinLock_);
 
         FreeSlots_ += slots;
-        YASSERT(FreeSlots_ <= TotalSlots_);
+        Y_ASSERT(FreeSlots_ <= TotalSlots_);
 
         if (ReadyEvent_ && FreeSlots_ > 0) {
             swap(ready, ReadyEvent_);

@@ -10,7 +10,7 @@ namespace NCypressServer {
 ICypressNodeProxy* ICypressNodeProxy::FromNode(NYTree::INode* ptr)
 {
     auto* result = dynamic_cast<ICypressNodeProxy*>(ptr);
-    YASSERT(result);
+    Y_ASSERT(result);
     return result;
 }
 
@@ -22,7 +22,7 @@ TIntrusivePtr<ICypressNodeProxy> ICypressNodeProxy::FromNode(const TIntrusivePtr
 const ICypressNodeProxy* ICypressNodeProxy::FromNode(const NYTree::INode* ptr)
 {
     auto* result = dynamic_cast<const ICypressNodeProxy*>(ptr);
-    YASSERT(result);
+    Y_ASSERT(result);
     return result;
 }
 

@@ -163,7 +163,7 @@ Handle<Value> TInputStreamWrap::DoPush(Persistent<Value> handle, char* buffer, s
     }
 
     TInputPart* part = new TInputPart();
-    YASSERT(part);
+    Y_ASSERT(part);
 
     part->Stream = this;
     part->Handle = handle;
@@ -400,10 +400,10 @@ size_t TInputStreamWrap::DoRead(void* data, size_t length)
             part->Offset += canRead;
             part->Length -= canRead;
 
-            YASSERT(length == 0 || part->Length == 0);
+            Y_ASSERT(length == 0 || part->Length == 0);
 
             if (part->Length == 0) {
-                YASSERT(it == kt);
+                Y_ASSERT(it == kt);
                 ++it;
                 ++kt;
             } else {

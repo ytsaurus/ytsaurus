@@ -39,8 +39,8 @@ void TPacketDecoder::Restart()
 
 bool TPacketDecoder::Advance(size_t size)
 {
-    YASSERT(FragmentRemaining_ != 0);
-    YASSERT(size <= FragmentRemaining_);
+    Y_ASSERT(FragmentRemaining_ != 0);
+    Y_ASSERT(size <= FragmentRemaining_);
 
     FragmentRemaining_ -= size;
     FragmentPtr_ += size;
@@ -144,7 +144,7 @@ bool TPacketDecoder::EndMessagePartPhase()
 
 void TPacketDecoder::NextMessagePartPhase()
 {
-    YASSERT(PartIndex_ < PartCount_);
+    Y_ASSERT(PartIndex_ < PartCount_);
 
     while (true) {
         ++PartIndex_;
@@ -289,7 +289,7 @@ bool TPacketEncoder::EndMessagePartPhase()
 
 void TPacketEncoder::NextMessagePartPhase()
 {
-    YASSERT(PartIndex_ < PartCount_);
+    Y_ASSERT(PartIndex_ < PartCount_);
 
     while (true) {
         ++PartIndex_;

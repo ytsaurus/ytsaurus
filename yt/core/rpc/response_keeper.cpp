@@ -87,7 +87,7 @@ public:
 
     TFuture<TSharedRefArray> TryBeginRequest(const TMutationId& id, bool isRetry)
     {
-        YASSERT(id);
+        Y_ASSERT(id);
 
         TGuard<TSpinLock> guard(SpinLock_);
 
@@ -130,7 +130,7 @@ public:
 
     void EndRequest(const TMutationId& id, TSharedRefArray response)
     {
-        YASSERT(id);
+        Y_ASSERT(id);
 
         TPromise<TSharedRefArray> promise;
         {
@@ -163,7 +163,7 @@ public:
 
     void CancelRequest(const TMutationId& id)
     {
-        YASSERT(id);
+        Y_ASSERT(id);
 
         {
             TGuard<TSpinLock> guard(SpinLock_);

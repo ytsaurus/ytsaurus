@@ -82,7 +82,7 @@ void TSlot::Initialize()
             SandboxPaths_.emplace_back();
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                 const auto& sandboxName = SandboxDirectoryNames[sandboxKind];
-                YASSERT(sandboxName);
+                Y_ASSERT(sandboxName);
                 SandboxPaths_[pathIndex][sandboxKind] = NFS::CombinePaths(path, sandboxName);
             }
             DoCleanSandbox(pathIndex);

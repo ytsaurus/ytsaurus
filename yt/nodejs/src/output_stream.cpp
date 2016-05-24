@@ -208,7 +208,7 @@ void TOutputStreamWrap::DoDrain()
 {
     THREAD_AFFINITY_IS_V8();
 
-    YASSERT(!AtomicGet(IsDestroyed_));
+    Y_ASSERT(!AtomicGet(IsDestroyed_));
 
     IgniteOnData();
 }
@@ -338,7 +338,7 @@ void TOutputStreamWrap::DoWrite(const void* data, size_t length)
     WritePrologue();
 
     char* buffer = new char[length];
-    YASSERT(buffer);
+    Y_ASSERT(buffer);
 
     ::memcpy(buffer, data, length);
 
@@ -363,7 +363,7 @@ void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
     }
 
     char* buffer = new char[length];
-    YASSERT(buffer);
+    Y_ASSERT(buffer);
 
     for (size_t i = 0; i < count; ++i) {
         const auto& part = parts[i];

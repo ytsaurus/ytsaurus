@@ -597,13 +597,13 @@ Stroka TAddressResolver::GetLocalHostName()
 
 void TAddressResolver::PurgeCache()
 {
-    YASSERT(Impl_);
+    Y_ASSERT(Impl_);
     return Impl_->PurgeCache();
 }
 
 void TAddressResolver::Configure(TAddressResolverConfigPtr config)
 {
-    YASSERT(Impl_);
+    Y_ASSERT(Impl_);
     return Impl_->Configure(std::move(config));
 }
 
