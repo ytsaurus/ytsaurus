@@ -144,7 +144,7 @@ void TYPathResponse::Deserialize(TSharedRefArray message)
 
 void TYPathResponse::DeserializeBody(const TRef& data)
 {
-    UNUSED(data);
+    Y_UNUSED(data);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

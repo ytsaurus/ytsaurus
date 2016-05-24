@@ -1350,9 +1350,9 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
             const TReadLimit& startLimit,
             const TReadLimit& endLimit) override
         {
-            UNUSED(rowIndex);
-            UNUSED(startLimit);
-            UNUSED(endLimit);
+            Y_UNUSED(rowIndex);
+            Y_UNUSED(startLimit);
+            Y_UNUSED(endLimit);
 
             Replicator->SchedulePropertiesUpdate(chunk);
             return true;

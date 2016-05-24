@@ -82,9 +82,9 @@ Bind(
     NYT::NDetail::TCheckReferencesInBoundArgs<typename TTypedBindState::TBoundArgsPack> checkReferencesInBoundArgs;
     NYT::NDetail::TCheckParamsIsRawPtrToRefCountedType<typename NMpl::TDecay<TAs>::TType...> checkParamsIsRawPtrToRefCountedType;
 
-    UNUSED(checkFirstArgument);
-    UNUSED(checkReferencesInBoundArgs);
-    UNUSED(checkParamsIsRawPtrToRefCountedType);
+    Y_UNUSED(checkFirstArgument);
+    Y_UNUSED(checkReferencesInBoundArgs);
+    Y_UNUSED(checkParamsIsRawPtrToRefCountedType);
 
     return TCallback<typename TTypedBindState::TUnboundSignature>(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING

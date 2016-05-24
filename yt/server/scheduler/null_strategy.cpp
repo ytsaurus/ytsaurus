@@ -50,7 +50,7 @@ public:
 
 std::unique_ptr<ISchedulerStrategy> CreateNullStrategy(ISchedulerStrategyHost* host)
 {
-    UNUSED(host);
+    Y_UNUSED(host);
     return std::unique_ptr<ISchedulerStrategy>(new TNullStrategy());
 }
 

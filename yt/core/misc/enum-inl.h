@@ -307,7 +307,7 @@ TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector(std::initializer_list<T> 
 template <class T, class E, E Min, E Max>
 T& TEnumIndexedVector<T, E, Min, Max>::operator[] (E index)
 {
-    YASSERT(index >= Min && index <= Max);
+    Y_ASSERT(index >= Min && index <= Max);
     return Items_[static_cast<TUnderlying>(index) - static_cast<TUnderlying>(Min)];
 }
 

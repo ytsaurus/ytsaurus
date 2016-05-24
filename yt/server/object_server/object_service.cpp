@@ -362,8 +362,8 @@ private:
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
-    UNUSED(request);
-    UNUSED(response);
+    Y_UNUSED(request);
+    Y_UNUSED(response);
 
     ValidatePeer(EPeerKind::LeaderOrFollower);
 
@@ -372,8 +372,8 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
 {
-    UNUSED(request);
-    UNUSED(response);
+    Y_UNUSED(request);
+    Y_UNUSED(response);
 
     ValidatePeer(EPeerKind::Leader);
 
