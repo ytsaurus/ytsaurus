@@ -1,0 +1,16 @@
+#include "private.h"
+
+#include <yt/core/misc/common.h>
+
+namespace NYT {
+namespace NHive {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const NLogging::TLogger HiveLogger("Hive");
+const NProfiling::TProfiler HiveProfiler("/hive");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NHive
+} // namespace NYT

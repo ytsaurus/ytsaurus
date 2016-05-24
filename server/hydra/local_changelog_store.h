@@ -1,0 +1,17 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT {
+namespace NHydra {
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
+    const Stroka& threadName,
+    TFileChangelogStoreConfigPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NHydra
+} // namespace NYT

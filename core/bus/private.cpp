@@ -1,0 +1,16 @@
+#include "private.h"
+
+#include <yt/core/misc/common.h>
+
+namespace NYT {
+namespace NBus {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const NLogging::TLogger BusLogger("Bus");
+const NProfiling::TProfiler BusProfiler("/bus");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NBus
+} // namespace NYT

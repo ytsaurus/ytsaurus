@@ -1,0 +1,14 @@
+package NYT.NDataNode.NProto;
+
+import "yt/ytlib/chunk_client/chunk_spec.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TArtifactKey
+{
+    required int32 type = 1;
+    repeated NChunkClient.NProto.TChunkSpec chunks = 2;
+    optional bytes format = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

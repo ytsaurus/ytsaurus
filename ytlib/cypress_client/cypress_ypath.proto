@@ -1,0 +1,55 @@
+package NYT.NCypressClient.NProto;
+
+import "yt/core/misc/guid.proto";
+import "yt/core/ytree/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLock
+{
+    required int32 mode = 1;
+    optional bool waitable = 2 [default = false];
+    optional string child_key = 3;
+    optional string attribute_key = 4;
+}
+
+message TRspLock
+{
+    required NYT.NProto.TGuid lock_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreate
+{
+    required int32 type = 1;
+    optional NYT.NYTree.NProto.TAttributes node_attributes = 2;
+    optional bool recursive = 3 [default = false];
+    optional bool ignore_existing = 4 [default = false];
+
+    extensions 100 to max;
+}
+
+message TRspCreate
+{
+    required NYT.NProto.TGuid node_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCopy
+{
+    required string source_path = 1;
+    optional bool preserve_account = 2 [default = false];
+    // "move" is actually "copy" with "remove_source" set to true.
+    optional bool remove_source = 3 [default = false];
+    optional bool recursive = 4 [default = false];
+    optional bool force = 5 [default = false];
+}
+
+message TRspCopy
+{
+    required NYT.NProto.TGuid object_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

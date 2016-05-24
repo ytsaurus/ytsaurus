@@ -1,0 +1,345 @@
+#include "hydra_facade.h"
+#include "private.h"
+#include "automaton.h"
+#include "config.h"
+
+#include <yt/server/cell_master/bootstrap.h>
+
+#include <yt/server/cypress_server/cypress_manager.h>
+#include <yt/server/cypress_server/node_detail.h>
+
+#include <yt/server/election/election_manager.h>
+
+#include <yt/server/hive/transaction_supervisor.h>
+
+#include <yt/server/hydra/changelog.h>
+#include <yt/server/hydra/composite_automaton.h>
+#include <yt/server/hydra/distributed_hydra_manager.h>
+#include <yt/server/hydra/file_helpers.h>
+#include <yt/server/hydra/private.h>
+#include <yt/server/hydra/snapshot.h>
+
+#include <yt/server/object_server/private.h>
+
+#include <yt/server/security_server/acl.h>
+#include <yt/server/security_server/group.h>
+#include <yt/server/security_server/security_manager.h>
+
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/ytlib/election/cell_manager.h>
+
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/scheduler.h>
+
+#include <yt/core/logging/log.h>
+
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
+
+#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/response_keeper.h>
+#include <yt/core/rpc/server.h>
+
+#include <yt/core/ypath/token.h>
+
+#include <yt/core/ytree/ypath_client.h>
+#include <yt/core/ytree/ypath_proxy.h>
+
+namespace NYT {
+namespace NCellMaster {
+
+using namespace NConcurrency;
+using namespace NRpc;
+using namespace NElection;
+using namespace NHydra;
+using namespace NYTree;
+using namespace NYPath;
+using namespace NCypressServer;
+using namespace NCypressClient;
+using namespace NTransactionClient;
+using namespace NHive;
+using namespace NHive::NProto;
+using namespace NObjectClient;
+using namespace NObjectServer;
+using namespace NSecurityServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = CellMasterLogger;
+static const auto SnapshotCleanupPeriod = TDuration::Seconds(10);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THydraFacade::TImpl
+    : public TRefCounted
+{
+public:
+    TImpl(
+        TCellMasterConfigPtr config,
+        TBootstrap* bootstrap)
+        : Config_(config)
+        , Bootstrap_(bootstrap)
+    {
+        YCHECK(Config_);
+        YCHECK(Bootstrap_);
+
+        AutomatonQueue_ = New<TFairShareActionQueue>("Automaton", TEnumTraits<EAutomatonThreadQueue>::GetDomainNames());
+        Automaton_ = New<TMasterAutomaton>(Bootstrap_);
+
+        ResponseKeeper_ = New<TResponseKeeper>(
+            Config_->HydraManager->ResponseKeeper,
+            NObjectServer::ObjectServerLogger,
+            NObjectServer::ObjectServerProfiler);
+
+        TDistributedHydraManagerOptions hydraManagerOptions;
+        hydraManagerOptions.ResponseKeeper = ResponseKeeper_;
+        hydraManagerOptions.UseFork = true;
+        HydraManager_ = CreateDistributedHydraManager(
+            Config_->HydraManager,
+            Bootstrap_->GetControlInvoker(),
+            GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
+            Automaton_,
+            Bootstrap_->GetRpcServer(),
+            Bootstrap_->GetCellManager(),
+            Bootstrap_->GetChangelogStoreFactory(),
+            Bootstrap_->GetSnapshotStore(),
+            hydraManagerOptions);
+
+        HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+
+        HydraManager_->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+
+        for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
+            auto unguardedInvoker = GetAutomatonInvoker(queue);
+            GuardedInvokers_[queue] = HydraManager_->CreateGuardedAutomatonInvoker(unguardedInvoker);
+        }
+    }
+
+    void Start()
+    {
+        HydraManager_->Initialize();
+
+        SnapshotCleanupExecutor_ = New<TPeriodicExecutor>(
+            GetHydraIOInvoker(),
+            BIND(&TImpl::OnSnapshotCleanup, MakeWeak(this)),
+            SnapshotCleanupPeriod);
+        SnapshotCleanupExecutor_->Start();
+    }
+
+    void LoadSnapshot(ISnapshotReaderPtr reader, bool dump)
+    {
+        WaitFor(reader->Open())
+            .ThrowOnError();
+
+        Automaton_->SetSerializationDumpEnabled(dump);
+        Automaton_->Clear();
+        Automaton_->LoadSnapshot(reader);
+    }
+
+    TMasterAutomatonPtr GetAutomaton() const
+    {
+        return Automaton_;
+    }
+
+    IHydraManagerPtr GetHydraManager() const
+    {
+        return HydraManager_;
+    }
+
+    TResponseKeeperPtr GetResponseKeeper() const
+    {
+        return ResponseKeeper_;
+    }
+
+    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
+    {
+        return AutomatonQueue_->GetInvoker(static_cast<int>(queue));
+    }
+
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
+    {
+        return EpochInvokers_[queue];
+    }
+
+    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
+    {
+        return GuardedInvokers_[queue];
+    }
+
+private:
+    const TCellMasterConfigPtr Config_;
+    TBootstrap* const Bootstrap_;
+
+    TFairShareActionQueuePtr AutomatonQueue_;
+    TMasterAutomatonPtr Automaton_;
+    IHydraManagerPtr HydraManager_;
+
+    TResponseKeeperPtr ResponseKeeper_;
+
+    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedInvokers_;
+    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochInvokers_;
+
+    TPeriodicExecutorPtr SnapshotCleanupExecutor_;
+
+
+    void OnStartEpoch()
+    {
+        auto cancelableContext = HydraManager_->GetAutomatonCancelableContext();
+        for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
+            auto unguardedInvoker = GetAutomatonInvoker(queue);
+            EpochInvokers_[queue] = cancelableContext->CreateInvoker(unguardedInvoker);
+        }
+    }
+
+    void OnStopEpoch()
+    {
+        std::fill(EpochInvokers_.begin(), EpochInvokers_.end(), nullptr);
+    }
+
+
+    void OnSnapshotCleanup()
+    {
+        auto snapshotsPath = Config_->Snapshots->Path;
+
+        std::vector<int> snapshotIds;
+        auto snapshotFileNames = NFS::EnumerateFiles(snapshotsPath);
+        for (const auto& fileName : snapshotFileNames) {
+            if (NFS::GetFileExtension(fileName) != SnapshotExtension)
+                continue;
+
+            int snapshotId;
+            try {
+                snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
+            } catch (const std::exception& ex) {
+                LOG_WARNING("Unrecognized item %v in snapshot store",
+                    fileName);
+                continue;
+            }
+            snapshotIds.push_back(snapshotId);
+        }
+
+        if (snapshotIds.size() <= Config_->HydraManager->MaxSnapshotsToKeep)
+            return;
+
+        std::sort(snapshotIds.begin(), snapshotIds.end());
+        int thresholdId = snapshotIds[snapshotIds.size() - Config_->HydraManager->MaxSnapshotsToKeep];
+
+        for (const auto& fileName : snapshotFileNames) {
+            if (NFS::GetFileExtension(fileName) != SnapshotExtension)
+                continue;
+
+            int snapshotId;
+            try {
+                snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
+            } catch (const std::exception& ex) {
+                // Ignore, cf. logging above.
+                continue;
+            }
+
+            if (snapshotId < thresholdId) {
+                LOG_INFO("Removing snapshot %v",
+                    snapshotId);
+
+                try {
+                    NFS::Remove(NFS::CombinePaths(snapshotsPath, fileName));
+                } catch (const std::exception& ex) {
+                    LOG_WARNING(ex, "Error removing %v from snapshot store",
+                        fileName);
+                }
+            }
+        }
+
+        auto changelogsPath = Config_->Changelogs->Path;
+        auto changelogFileNames = NFS::EnumerateFiles(changelogsPath);
+        for (const auto& fileName : changelogFileNames) {
+            if (NFS::GetFileExtension(fileName) != ChangelogExtension)
+                continue;
+
+            int changelogId;
+            try {
+                changelogId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
+            } catch (const std::exception& ex) {
+                LOG_WARNING("Unrecognized item %v in changelog store",
+                    fileName);
+                continue;
+            }
+
+            if (changelogId < thresholdId) {
+                LOG_INFO("Removing changelog %v",
+                    changelogId);
+                try {
+                    RemoveChangelogFiles(NFS::CombinePaths(changelogsPath, fileName));
+                } catch (const std::exception& ex) {
+                    LOG_WARNING(ex, "Error removing %v from changelog store",
+                        fileName);
+                }
+            }
+        }
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+THydraFacade::THydraFacade(
+    TCellMasterConfigPtr config,
+    TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(config, bootstrap))
+{ }
+
+THydraFacade::~THydraFacade()
+{ }
+
+void THydraFacade::Start()
+{
+    Impl_->Start();
+}
+
+void THydraFacade::LoadSnapshot(ISnapshotReaderPtr reader, bool dump)
+{
+    Impl_->LoadSnapshot(reader, dump);
+}
+
+TMasterAutomatonPtr THydraFacade::GetAutomaton() const
+{
+    return Impl_->GetAutomaton();
+}
+
+IHydraManagerPtr THydraFacade::GetHydraManager() const
+{
+    return Impl_->GetHydraManager();
+}
+
+TResponseKeeperPtr THydraFacade::GetResponseKeeper() const
+{
+    return Impl_->GetResponseKeeper();
+}
+
+IInvokerPtr THydraFacade::GetAutomatonInvoker(EAutomatonThreadQueue queue) const
+{
+    return Impl_->GetAutomatonInvoker(queue);
+}
+
+IInvokerPtr THydraFacade::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
+{
+    return Impl_->GetEpochAutomatonInvoker(queue);
+}
+
+IInvokerPtr THydraFacade::GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
+{
+    return Impl_->GetGuardedAutomatonInvoker(queue);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NCellMaster
+} // namespace NYT
+

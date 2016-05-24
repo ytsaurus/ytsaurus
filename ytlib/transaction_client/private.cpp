@@ -1,0 +1,16 @@
+#include "private.h"
+
+#include <yt/core/misc/common.h>
+
+namespace NYT {
+namespace NTransactionClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const NLogging::TLogger TransactionClientLogger("TransactionClient");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NTransactionClient
+} // namespace NYT
+

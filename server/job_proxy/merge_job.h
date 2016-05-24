@@ -1,0 +1,17 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT {
+namespace NJobProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJobPtr CreateOrderedMergeJob(IJobHost* host);
+
+IJobPtr CreateUnorderedMergeJob(IJobHost* host);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NJobProxy
+} // namespace NYTNYT
