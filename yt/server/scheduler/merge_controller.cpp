@@ -302,12 +302,6 @@ protected:
     {
         YCHECK(HasActiveTask());
 
-        if (CurrentChunkCount > Config->MaxChunkStripesPerJob) {
-            OnOperationFailed(TError("Maximum number of chunk per job exceeded: %v > %v",
-                CurrentChunkCount,
-                Config->MaxChunkStripesPerJob));
-        }
-
         task->AddInput(CurrentTaskStripes);
         task->FinishInput();
         RegisterTask(task);
@@ -1377,7 +1371,12 @@ private:
                 EndTaskIfActive();
             };
 
-            while (!HasLargeActiveTask() && !maniacs.empty()) {
+            auto hasLargeActiveTask = [&] () {
+                return HasLargeActiveTask() || 
+                    CurrentChunkCount + globalOpenedSlices.size() >= Config->MaxChunkStripesPerJob;
+            };
+
+            while (!hasLargeActiveTask() && !maniacs.empty()) {
                 AddPendingChunkSlice(maniacs.back());
                 maniacs.pop_back();
             }
@@ -1402,7 +1401,7 @@ private:
                 }
             }
 
-            if (HasLargeActiveTask()) {
+            if (hasLargeActiveTask()) {
                 endTask();
             }
 
@@ -1966,6 +1965,11 @@ private:
         yhash_set<TChunkSlicePtr> openedSlices;
         TNullable<TOwningKey> lastBreakpoint = Null;
 
+        auto hasLargeActiveTask = [&] () {
+            return HasLargeActiveTask() || 
+                CurrentChunkCount + openedSlices.size() >= Config->MaxChunkStripesPerJob;
+        };
+
         int startIndex = 0;
         while (startIndex < static_cast<int>(Endpoints.size())) {
             auto& key = Endpoints[startIndex].GetKey();
@@ -2013,7 +2017,7 @@ private:
                 ++currentIndex;
             }
 
-            if (HasLargeActiveTask()) {
+            if (hasLargeActiveTask()) {
                 YCHECK(!lastBreakpoint || CompareRows(key, *lastBreakpoint, prefixLength) != 0);
 
                 auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength);

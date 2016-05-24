@@ -27,7 +27,6 @@ class TNontemplateCypressNodeProxyBase
 {
 public:
     TNontemplateCypressNodeProxyBase(
-        INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
@@ -44,8 +43,6 @@ public:
 
     virtual TCypressNodeBase* GetTrunkNode() const override;
 
-    virtual NYTree::ENodeType GetType() const override;
-
     virtual NYTree::ICompositeNodePtr GetParent() const override;
     virtual void SetParent(NYTree::ICompositeNodePtr parent) override;
 
@@ -56,7 +53,6 @@ protected:
     class TCustomAttributeDictionary;
     class TResourceUsageVisitor;
 
-    const INodeTypeHandlerPtr TypeHandler;
     const TCypressManagerConfigPtr Config;
     NTransactionServer::TTransaction* const Transaction;
     TCypressNodeBase* const TrunkNode;
@@ -204,7 +200,6 @@ public:
 
 protected:
     TNontemplateCompositeCypressNodeProxyBase(
-        INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
@@ -226,13 +221,11 @@ class TCypressNodeProxyBase
 {
 public:
     TCypressNodeProxyBase(
-        INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
         TImpl* trunkNode)
         : TBase(
-            typeHandler,
             bootstrap,
             metadata,
             transaction,
@@ -266,18 +259,21 @@ class TScalarNodeProxy
 {
 public:
     TScalarNodeProxy(
-        INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
         TScalarNode<TValue>* trunkNode)
         : TBase(
-            typeHandler,
             bootstrap,
             metadata,
             transaction,
             trunkNode)
     { }
+
+    virtual NYTree::ENodeType GetType() const override
+    {
+        return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
+    }
 
     virtual typename NMpl::TCallTraits<TValue>::TType GetValue() const override
     {
@@ -296,7 +292,6 @@ private:
 
     virtual void ValidateValue(typename NMpl::TCallTraits<TValue>::TType /*value*/)
     { }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -309,13 +304,11 @@ private:
     \
     public: \
         T##key##NodeProxy( \
-            INodeTypeHandlerPtr typeHandler, \
             NCellMaster::TBootstrap* bootstrap, \
             NObjectServer::TObjectTypeMetadata* metadata, \
             NTransactionServer::TTransaction* transaction, \
             TScalarNode<type>* node) \
             : TScalarNodeProxy<type, NYTree::I##key##Node, T##key##Node>( \
-                typeHandler, \
                 bootstrap, \
                 metadata, \
                 transaction, \
@@ -331,7 +324,6 @@ private:
         NTransactionServer::TTransaction* transaction) \
     { \
         return New<T##key##NodeProxy>( \
-            this, \
             Bootstrap_, \
             &Metadata_, \
             transaction, \
@@ -379,7 +371,6 @@ class TMapNodeProxy
 
 public:
     TMapNodeProxy(
-        INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
@@ -426,7 +417,6 @@ class TListNodeProxy
 
 public:
     TListNodeProxy(
-        INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
@@ -468,7 +458,6 @@ class TLinkNodeProxy
 
 public:
     TLinkNodeProxy(
-        INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
@@ -499,7 +488,6 @@ class TDocumentNodeProxy
 {
 public:
     TDocumentNodeProxy(
-        INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,

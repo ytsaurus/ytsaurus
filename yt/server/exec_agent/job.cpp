@@ -242,12 +242,12 @@ public:
         }
     }
 
-    virtual std::vector<TChunkId> DumpInputContexts() const override
+    virtual std::vector<TChunkId> DumpInputContext() override
     {
         ValidateJobRunning();
+        EnsureJobProberProxy();
 
-        auto jobProberProxy = CreateJobProber();
-        auto req = jobProberProxy.DumpInputContext();
+        auto req = JobProberProxy_->DumpInputContext();
 
         ToProto(req->mutable_job_id(), Id_);
         auto rspOrError = WaitFor(req->Invoke());
@@ -257,12 +257,12 @@ public:
         return FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
     }
 
-    virtual TYsonString Strace() const override
+    virtual TYsonString Strace() override
     {
         ValidateJobRunning();
+        EnsureJobProberProxy();
 
-        auto jobProberProxy = CreateJobProber();
-        auto req = jobProberProxy.Strace();
+        auto req = JobProberProxy_->Strace();
 
         ToProto(req->mutable_job_id(), Id_);
         auto rspOrError = WaitFor(req->Invoke());
@@ -275,11 +275,10 @@ public:
     virtual void SignalJob(const Stroka& signalName) override
     {
         ValidateJobRunning();
+        EnsureJobProberProxy();
 
         Signaled_ = true;
-
-        auto jobProberProxy = CreateJobProber();
-        auto req = jobProberProxy.SignalJob();
+        auto req = JobProberProxy_->SignalJob();
 
         ToProto(req->mutable_job_id(), Id_);
         ToProto(req->mutable_signal_name(), signalName);
@@ -290,9 +289,9 @@ public:
     virtual TYsonString PollJobShell(const TYsonString& parameters) override
     {
         ValidateJobRunning();
+        EnsureJobProberProxy();
 
-        auto jobProberProxy = CreateJobProber();
-        auto req = jobProberProxy.PollJobShell();
+        auto req = JobProberProxy_->PollJobShell();
 
         ToProto(req->mutable_job_id(), Id_);
         ToProto(req->mutable_parameters(), parameters.Data());
@@ -339,6 +338,8 @@ private:
 
     TNodeDirectoryPtr AuxNodeDirectory_ = New<TNodeDirectory>();
 
+    TNullable<TJobProberServiceProxy> JobProberProxy_;
+
     NLogging::TLogger Logger = ExecAgentLogger;
 
     void ValidateJobRunning() const
@@ -349,16 +350,17 @@ private:
         }
     }
 
-    TJobProberServiceProxy CreateJobProber() const
+    void EnsureJobProberProxy()
     {
-        YCHECK(Slot_);
+        if (!JobProberProxy_) {
+            YCHECK(Slot_);
 
-        auto jobProberClient = CreateTcpBusClient(Slot_->GetRpcClientConfig());
-        auto jobProberChannel = CreateBusChannel(jobProberClient);
+            auto jobProberClient = CreateTcpBusClient(Slot_->GetRpcClientConfig());
+            auto jobProberChannel = CreateBusChannel(jobProberClient);
 
-        TJobProberServiceProxy jobProberProxy(jobProberChannel);
-        jobProberProxy.SetDefaultTimeout(Bootstrap_->GetConfig()->ExecAgent->JobProberRpcTimeout);
-        return jobProberProxy;
+            JobProberProxy_.Emplace(jobProberChannel);
+            JobProberProxy_->SetDefaultTimeout(Bootstrap_->GetConfig()->ExecAgent->JobProberRpcTimeout);
+        }
     }
 
     void DoPrepare()

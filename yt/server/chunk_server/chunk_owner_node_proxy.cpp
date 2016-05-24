@@ -267,15 +267,13 @@ private:
             addReplica(replica);
         }
 
-        if (chunk->CachedReplicas()) {
-            int cachedReplicaCount = 0;
-            for (auto replica : *chunk->CachedReplicas()) {
-                if (cachedReplicaCount >= config->MaxCachedReplicasPerFetch) {
-                    break;
-                }
-                if (addReplica(replica)) {
-                    ++cachedReplicaCount;
-                }
+        int cachedReplicaCount = 0;
+        for (auto replica : chunk->CachedReplicas()) {
+            if (cachedReplicaCount >= config->MaxCachedReplicasPerFetch) {
+                break;
+            }
+            if (addReplica(replica)) {
+                ++cachedReplicaCount;
             }
         }
 
@@ -509,18 +507,21 @@ TFuture<TYsonString> ComputeChunkStatistics(
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkOwnerNodeProxy::TChunkOwnerNodeProxy(
-    INodeTypeHandlerPtr typeHandler,
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
     TTransaction* transaction,
     TChunkOwnerBase* trunkNode)
     : TNontemplateCypressNodeProxyBase(
-        typeHandler,
         bootstrap,
         metadata,
         transaction,
         trunkNode)
 { }
+
+ENodeType TChunkOwnerNodeProxy::GetType() const
+{
+    return ENodeType::Entity;
+}
 
 bool TChunkOwnerNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
 {

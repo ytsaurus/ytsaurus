@@ -567,7 +567,6 @@ class TVirtualNodeProxy
 {
 public:
     TVirtualNodeProxy(
-        INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         TObjectTypeMetadata* metadata,
         TTransaction* transaction,
@@ -575,7 +574,6 @@ public:
         EVirtualNodeOptions options,
         TYPathServiceProducer producer)
         : TBase(
-            typeHandler,
             bootstrap,
             metadata,
             transaction,
@@ -583,6 +581,11 @@ public:
         , Options_(options)
         , Producer_(producer)
     { }
+
+    virtual ENodeType GetType() const override
+    {
+        return ENodeType::Entity;
+    }
 
 private:
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TVirtualNode> TBase;
@@ -730,7 +733,6 @@ private:
         TTransaction* transaction) override
     {
         return New<TVirtualNodeProxy>(
-            this,
             Bootstrap_,
             &Metadata_,
             transaction,

@@ -56,13 +56,11 @@ class TTableNodeProxy
 {
 public:
     TTableNodeProxy(
-        INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         TObjectTypeMetadata* metadata,
         TTransaction* transaction,
         TTableNode* trunkNode)
         : TBase(
-            typeHandler,
             bootstrap,
             metadata,
             transaction,
@@ -489,14 +487,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ICypressNodeProxyPtr CreateTableNodeProxy(
-    INodeTypeHandlerPtr typeHandler,
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
     TTransaction* transaction,
     TTableNode* trunkNode)
 {
     return New<TTableNodeProxy>(
-        typeHandler,
         bootstrap,
         metadata,
         transaction,

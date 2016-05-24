@@ -211,6 +211,7 @@ private:
             // Kill everything for sanity reasons: main user process completed,
             // but its children may still be alive.
             RunKiller(Freezer_.GetFullPath());
+            Freezer_.Destroy();
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to clean up shell processes");
         }

@@ -35,13 +35,11 @@ class TTabletCellNodeProxy
 {
 public:
     TTabletCellNodeProxy(
-        INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         TObjectTypeMetadata* metadata,
         TTransaction* transaction,
         TMapNode* trunkNode)
         : TMapNodeProxy(
-            typeHandler,
             bootstrap,
             metadata,
             transaction,
@@ -110,7 +108,6 @@ private:
         TTransaction* transaction) override
     {
         return New<TTabletCellNodeProxy>(
-            this,
             Bootstrap_,
             &Metadata_,
             transaction,
