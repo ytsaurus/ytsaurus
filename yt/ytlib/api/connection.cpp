@@ -229,19 +229,16 @@ private:
             MasterChannels_[channelKind][cellTag] = CreatePeerChannel(config, peerKind);
         };
 
+        auto leaderPeerKind = EPeerKind::Leader;
+        auto followerPeerKind = Config_->EnableReadFromFollowers ? EPeerKind::Follower : EPeerKind::Leader;
+        auto leaderOrFollowerPeerKind = Config_->EnableReadFromFollowers
+            ? (Config_->ForceReadFromFollowers ? EPeerKind::Follower : EPeerKind::LeaderOrFollower)
+            : EPeerKind::Leader;
+
         auto initMasterChannels = [&] (const TMasterConnectionConfigPtr& config) {
-            initMasterChannel(
-                EMasterChannelKind::Leader,
-                config,
-                EPeerKind::Leader);
-            initMasterChannel(
-                EMasterChannelKind::Follower,
-                config,
-                Config_->EnableReadFromFollowers ? EPeerKind::Follower : EPeerKind::Leader);
-            initMasterChannel(
-                EMasterChannelKind::LeaderOrFollower,
-                config,
-                Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
+            initMasterChannel(EMasterChannelKind::Leader, config, leaderPeerKind);
+            initMasterChannel(EMasterChannelKind::Follower, config, followerPeerKind);
+            initMasterChannel(EMasterChannelKind::LeaderOrFollower, config, leaderOrFollowerPeerKind);
         };
 
         initMasterChannels(Config_->PrimaryMaster);
@@ -251,10 +248,7 @@ private:
 
         // NB: Caching is only possible for the primary master.
         auto masterCacheConfig = Config_->MasterCache ? Config_->MasterCache : Config_->PrimaryMaster;
-        initMasterChannel(
-            EMasterChannelKind::Cache,
-            masterCacheConfig,
-            Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
+        initMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, leaderOrFollowerPeerKind);
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
