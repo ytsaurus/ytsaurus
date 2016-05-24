@@ -58,7 +58,7 @@ int GetLinuxVersion()
 {
     utsname sysInfo;
 
-    VERIFY(!uname(&sysInfo), "Error while call uname: %s", LastSystemErrorText());
+    Y_VERIFY(!uname(&sysInfo), "Error while call uname: %s", LastSystemErrorText());
 
     TStringBuf release(sysInfo.release);
     release = release.substr(0, release.find_first_not_of(".0123456789"));
