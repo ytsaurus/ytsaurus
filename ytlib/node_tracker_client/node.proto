@@ -1,0 +1,95 @@
+package NYT.NNodeTrackerClient.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Describes the current state of a storage location.
+message TLocationStatistics
+{
+    required int64 available_space = 1;
+    required int64 used_space = 2;
+    required int32 chunk_count = 3;
+    required int32 session_count = 4;
+    required bool enabled = 5;
+    required bool full = 6;
+}
+
+// Provides detailed information on memory consumption.
+message TMemoryStatistics
+{
+    message TCategory
+    {
+        required int32 type = 1; // EMemoryCategory
+        required int64 used = 2;
+        optional int64 limit = 3;
+    }
+
+    required int64 total_limit = 1;
+    required int64 total_used = 2;
+    repeated TCategory categories = 3;
+}
+
+// Describes the current state of the whole node.
+message TNodeStatistics
+{
+    optional int64 total_available_space = 1;
+    optional int64 total_used_space = 2;
+    optional int32 total_chunk_count = 3;
+    optional int32 total_user_session_count = 4;
+    optional int32 total_replication_session_count = 7;
+    optional int32 total_repair_session_count = 8;
+    optional int64 total_low_watermark_space = 14;
+    optional bool full = 5;
+    repeated TLocationStatistics locations = 6;
+    optional int32 max_replication_session_count = 9;
+    optional int32 max_repair_session_count = 10;
+    optional int32 available_tablet_slots = 11;
+    optional int32 used_tablet_slots = 12;
+    repeated int32 accepted_chunk_types = 13;
+    required TMemoryStatistics memory = 15;
+}
+
+// Measures limits and utilization of various resources.
+message TNodeResources
+{
+    optional int32 user_slots        = 1;
+    optional int32 cpu               = 2;
+    optional int64 memory            = 3;
+    optional int32 network           = 4;
+    optional int32 replication_slots = 5;
+    optional int32 removal_slots     = 6;
+    optional int32 repair_slots      = 7;
+    optional int32 seal_slots        = 8;
+}
+
+// A collection of network name to address mappings.
+message TAddressMap
+{
+    message TAddressEntry
+    {
+        required string network = 1;
+        required string address = 2;
+    }
+
+    repeated TAddressEntry entries = 3;
+}
+
+message TNodeDescriptor
+{
+    required TAddressMap addresses = 1;
+    optional string rack = 2;
+}
+
+// Provides a mapping from node ids to descriptors.
+// Used for unpacking replica information.
+message TNodeDirectory
+{
+    message TItem
+    {
+        required int32 node_id = 1;
+        required TNodeDescriptor node_descriptor = 2;
+    }
+
+    repeated TItem items = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
