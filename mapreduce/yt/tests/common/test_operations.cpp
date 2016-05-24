@@ -100,5 +100,31 @@ YT_TEST(TOperation, IdReduce) {
     }
 }
 
+YT_TEST(TOperation, Sort) {
+    {
+        TClient client(Server());
+        TUpdate update(client, Input());
+        for (int i = 0; i < 1024; ++i) {
+            auto key = Sprintf("%d", (i * 13) % 17);
+            auto subkey = Sprintf("%d", (i * 7) % 17);
+            auto value = "0"; // Use always const value because YT sorts by value too.
+            update.AddSub(key, subkey, value);
+            update.AddSub(subkey, key, value);
+        }
+    }
+    Server().Sort(Input(), Output());
+    {
+        TClient client(Server());
+        TTable table(client, Output());
+        for (TTableIterator i = table.Begin(); i != table.End(); ++i) {
+            Cout <<
+                "key = " << i.GetKey().AsStringBuf() <<
+                ", subkey = " << i.GetSubKey().AsStringBuf() <<
+                ", value = " << i.GetValue().AsStringBuf() <<
+            Endl;
+        }
+    }
+}
+
 } // namespace NCommonTest
 } // namespace NYT
