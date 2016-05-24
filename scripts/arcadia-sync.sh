@@ -11,12 +11,16 @@ die() {
 
 # Options.
 force=
+review=
 abi=
 
-while getopts "fv:" opt; do
+while getopts "frv:" opt; do
     case "$opt" in
     f)
         force=y
+        ;;
+    r)
+        review=y
         ;;
     v)
         abi="$OPTARG"
@@ -121,6 +125,9 @@ do_push() {
         message="$message"$'\n'"__FORCE_COMMIT__"$'\n'
     else
         message="$message"$'\n'"__BYPASS_CHECKS__"$'\n'
+    fi
+    if [[ "$review" == "y" ]]; then
+        message="$message"$'\n'"REVIEW: NEW"$'\n'
     fi
     message="$message"$'\n'"yt:local_tree:$local_tree"
     message="$message"$'\n'"yt:remote_tree:$remote_tree"
