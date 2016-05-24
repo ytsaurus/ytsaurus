@@ -16,7 +16,7 @@ TNodeJSOutputStack::TNodeJSOutputStack(TOutputStreamWrap* base)
     , HasAnyData_(false)
 {
     THREAD_AFFINITY_IS_V8();
-    YASSERT(base == Bottom());
+    Y_ASSERT(base == Bottom());
     GetBaseStream()->AsyncRef(true);
 }
 

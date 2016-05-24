@@ -296,7 +296,7 @@ bool TSchemafulWriterForSchemafulDsv::Write(const std::vector<TUnversionedRow>& 
     for (const auto& row : rows) {
         CurrentRowValues_.assign(CurrentRowValues_.size(), nullptr);
         for (auto item = row.Begin(); item != row.End(); ++item) {
-            YASSERT(item->Id >= 0 && item->Id < IdToIndexInRow_.size());
+            Y_ASSERT(item->Id >= 0 && item->Id < IdToIndexInRow_.size());
             if (IdToIndexInRow_[item->Id] != -1) {
                 CurrentRowValues_[IdToIndexInRow_[item->Id]] = item;
             }

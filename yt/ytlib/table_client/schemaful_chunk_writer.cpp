@@ -250,7 +250,7 @@ void TChunkWriter::WriteValue(const TUnversionedValue& value)
 
     switch (columnDescriptor.Type) {
         case EValueType::Int64:
-            YASSERT(value.Type == EValueType::Int64 || value.Type == EValueType::Null);
+            Y_ASSERT(value.Type == EValueType::Int64 || value.Type == EValueType::Null);
             CurrentBlock->WriteInt64(value, columnDescriptor.IndexInBlock);
             if (columnDescriptor.IsKeyPart) {
                 if (value.Data.Int64 != columnDescriptor.PreviousValue.Int64) {
@@ -261,7 +261,7 @@ void TChunkWriter::WriteValue(const TUnversionedValue& value)
             break;
 
         case EValueType::Uint64:
-            YASSERT(value.Type == EValueType::Uint64 || value.Type == EValueType::Null);
+            Y_ASSERT(value.Type == EValueType::Uint64 || value.Type == EValueType::Null);
             CurrentBlock->WriteUint64(value, columnDescriptor.IndexInBlock);
             if (columnDescriptor.IsKeyPart) {
                 if (value.Data.Uint64 != columnDescriptor.PreviousValue.Uint64) {
@@ -273,7 +273,7 @@ void TChunkWriter::WriteValue(const TUnversionedValue& value)
 
 
         case EValueType::Double:
-            YASSERT(value.Type == EValueType::Double || value.Type == EValueType::Null);
+            Y_ASSERT(value.Type == EValueType::Double || value.Type == EValueType::Null);
             CurrentBlock->WriteDouble(value, columnDescriptor.IndexInBlock);
             if (columnDescriptor.IsKeyPart) {
                 if (value.Data.Double != columnDescriptor.PreviousValue.Double) {
@@ -284,7 +284,7 @@ void TChunkWriter::WriteValue(const TUnversionedValue& value)
             break;
 
         case EValueType::Boolean:
-            YASSERT(value.Type == EValueType::Boolean || value.Type == EValueType::Null);
+            Y_ASSERT(value.Type == EValueType::Boolean || value.Type == EValueType::Null);
             CurrentBlock->WriteBoolean(value, columnDescriptor.IndexInBlock);
             if (columnDescriptor.IsKeyPart) {
                 if (value.Data.Boolean != columnDescriptor.PreviousValue.Boolean) {
@@ -295,7 +295,7 @@ void TChunkWriter::WriteValue(const TUnversionedValue& value)
             break;
 
         case EValueType::String:
-            YASSERT(value.Type == EValueType::String || value.Type == EValueType::Null);
+            Y_ASSERT(value.Type == EValueType::String || value.Type == EValueType::Null);
             if (columnDescriptor.IsKeyPart) {
                 auto newKey = CurrentBlock->WriteKeyString(value, columnDescriptor.IndexInBlock);
                 auto oldKey = TStringBuf(

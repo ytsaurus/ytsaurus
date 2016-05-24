@@ -94,7 +94,7 @@ void AdjustHeapBack(TIterator begin, TIterator end, const TComparer& comparer)
 template <class TIterator, class TComparer>
 void ExtractHeap(TIterator begin, TIterator end, const TComparer& comparer)
 {
-    YASSERT(begin != end);
+    Y_ASSERT(begin != end);
     auto newEnd = end - 1;
     std::swap(*begin, *newEnd);
     NYT::NDetail::SiftDown(begin, newEnd, begin, comparer);

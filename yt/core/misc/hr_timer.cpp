@@ -56,11 +56,11 @@ void GetHRInstant(THRInstant* instant)
 THRDuration GetHRDuration(const THRInstant& begin, const THRInstant& end)
 {
     if (end.Seconds == begin.Seconds) {
-        YASSERT(end.Nanoseconds >= begin.Nanoseconds);
+        Y_ASSERT(end.Nanoseconds >= begin.Nanoseconds);
         return end.Nanoseconds - begin.Nanoseconds;
     }
 
-    YASSERT(
+    Y_ASSERT(
         end.Seconds > begin.Seconds &&
         end.Seconds - begin.Seconds <
             std::numeric_limits<THRDuration>::max() / NumberOfNsInS);
