@@ -40,4 +40,3 @@ def test_scheme(yt_stuff):
         format=wrapper.YsonFormat(),
         raw=True
     )
-
