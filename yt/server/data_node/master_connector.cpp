@@ -304,9 +304,15 @@ void TMasterConnector::RegisterAtMaster()
 
     for (auto cellTag : MasterCellTags_) {
         SendNodeHeartbeat(cellTag);
+        // NB: SendNodeHeartbeat can fail during sending full heartbeat.
+        if (!IsConnected()) {
+            break;
+        }
     }
 
-    SendJobHeartbeat();
+    if (IsConnected()) {
+        SendJobHeartbeat();
+    }
 }
 
 void TMasterConnector::OnLeaseTransactionAborted()
