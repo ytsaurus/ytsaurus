@@ -32,11 +32,12 @@ using namespace NTabletClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
-static const int BufferCapacity = 1000;
+static const size_t RowBufferCapacity = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLookupSessionBufferTag { };
+struct TLookupSessionBufferTag
+{ };
 
 class TLookupSession
 {
@@ -115,7 +116,7 @@ private:
         explicit TReadSession(IVersionedReaderPtr reader)
             : Reader_(std::move(reader))
         {
-            Rows_.reserve(BufferCapacity);
+            Rows_.reserve(RowBufferCapacity);
         }
 
         TVersionedRow FetchRow()
@@ -138,7 +139,6 @@ private:
     private:
         const IVersionedReaderPtr Reader_;
 
-        static const int BufferCapacity = 1000;
         std::vector<TVersionedRow> Rows_;
 
         int RowIndex_ = -1;
