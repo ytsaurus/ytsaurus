@@ -225,16 +225,6 @@ TRowRanges GetPrunedRanges(
         Logger);
 }
 
-TRowRange GetRange(const TSharedRange<TDataRange>& sources)
-{
-    YCHECK(!sources.Empty());
-    return std::accumulate(sources.Begin() + 1, sources.End(), sources.Begin()->Range, [] (
-        TRowRange keyRange, const TDataRange & source) -> TRowRange
-    {
-        return Unite(keyRange, source.Range);
-    });
-}
-
 TQueryStatistics CoordinateAndExecute(
     TConstQueryPtr query,
     ISchemafulWriterPtr writer,
