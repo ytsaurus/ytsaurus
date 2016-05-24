@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include <yt/core/misc/checksum.h>
-
 namespace NYT {
 namespace NChunkClient {
 
