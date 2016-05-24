@@ -295,22 +295,6 @@ class DynamicTablesClient(object):
             self.quote_value(val)
             for val in bound])
 
-    def prepare_bounds_query(self, source, left, right, key_columns, select_columns_str):
-
-        def expand_bound(bound_values):
-            # Get something like ((key1, key2, key3), (bound1, bound2, bound3)) from a bound.
-            keys = key_columns[:len(bound_values)]
-            vals = bound_values
-            return self.get_bound_key(keys), self.get_bound_value(vals)
-
-        left = "(%s) >= (%s)" % expand_bound(left) if left else None
-        right = "(%s) < (%s)" % expand_bound(right) if right else None
-        bounds = [val for val in [left, right] if val]
-        where = (" where " + " and ".join(bounds)) if bounds else ""
-        query = "%s from [%s]%s" % (select_columns_str, source, where)
-
-        return query
-
     def schema_to_select_columns_str(self, schema, include_list=None):
         column_names = [
             col["name"] for col in schema
@@ -337,29 +321,37 @@ class DynamicTablesClient(object):
         select_columns_str = self.schema_to_select_columns_str(
             schema, include_list=columns)
 
-        # Get records from source table.
-        def run_query(left, right):
-            query = self.prepare_bounds_query(
-                source=src_table, left=left, right=right,
-                key_columns=key_columns, select_columns_str=select_columns_str)
+        def prepare_bounds_query(left, right):
+            def expand_bound(bound_values):
+                # Get something like ((key1, key2, key3), (bound1, bound2, bound3)) from a bound.
+                keys = key_columns[:len(bound_values)]
+                vals = bound_values
+                return self.get_bound_key(keys), self.get_bound_value(vals)
 
+            left = "(%s) >= (%s)" % expand_bound(left) if left else None
+            right = "(%s) < (%s)" % expand_bound(right) if right else None
+            bounds = [val for val in [left, right, predicate] if val]
+            where = (" where " + " and ".join(bounds)) if bounds else ""
+            query = "%s from [%s]%s" % (select_columns_str, src_table, where)
+
+            return query
+
+        # Get records from source table.
+        @yt_module.aggregator
+        def select_mapper(bounds):
             client = self.make_driver_yt_client()
 
-            def do_select():
-                return client.select_rows(
-                    query,
-                    input_row_limit=input_row_limit,
-                    output_row_limit=output_row_limit,
-                    workload_descriptor=self.workload_descriptor,
-                    raw=False)
-
-            return run_with_retries(do_select, except_action=self.log_exception)
-
-        def dump_mapper(bound):
-            rows = run_query(bound["left"], bound["right"])
-
-            for res in mapper(rows):
-                yield res
+            for bound in bounds:
+                def do_select():
+                    return client.select_rows(
+                        prepare_bounds_query(bound["left"], bound["right"]),
+                        input_row_limit=input_row_limit,
+                        output_row_limit=output_row_limit,
+                        workload_descriptor=self.workload_descriptor,
+                        raw=False)
+                rows = run_with_retries(do_select, except_action=self.log_exception))
+                for res in mapper(rows):
+                    yield res
 
         map_spec = self.build_spec_from_options()
 
@@ -367,7 +359,7 @@ class DynamicTablesClient(object):
             self.extract_partition_bounds(src_table, partition_bounds_table)
 
             self.yt.run_map(
-                dump_mapper,
+                select_mapper,
                 partition_bounds_table,
                 dst_table,
                 spec=map_spec,
