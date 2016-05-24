@@ -1403,9 +1403,6 @@ private:
 
         YCHECK(ControlEpochContext_);
         ControlEpochContext_->CancelableContext->Cancel();
-        ControlEpochContext_->ActiveUpstreamSyncPromise.Reset();
-        ControlEpochContext_->PendingUpstreamSyncPromise.Reset();
-        ControlEpochContext_->LeaderSyncPromise.Reset();
         ControlEpochContext_.Reset();
 
         LeaderLease_->Invalidate();
