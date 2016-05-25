@@ -32,10 +32,10 @@ TNode NodeFromYsonString(const Stroka& input, EYsonType type)
     return result;
 }
 
-Stroka NodeToYsonString(const TNode& node)
+Stroka NodeToYsonString(const TNode& node, EYsonFormat format)
 {
     TStringStream stream;
-    TYsonWriter writer(&stream, YF_TEXT);
+    TYsonWriter writer(&stream, format);
     TNodeVisitor visitor(&writer);
     visitor.Visit(node);
     return stream.Str();
