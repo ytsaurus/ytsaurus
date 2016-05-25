@@ -489,6 +489,7 @@ Examples:
         config["write_retries"]["chunk_size"] = args.chunksize
     if args.server is not None:
         config["proxy"]["url"] = args.server
+
     if args.prefix is not None and not config["yamr_mode"]["use_yamr_style_prefix"]:
         config["prefix"] = args.prefix
     if config["prefix"] is None:

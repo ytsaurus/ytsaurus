@@ -98,6 +98,9 @@ test_base_functionality()
     ./mapreduce -reduce "cat" -src "ignat/other_table" -dst "ignat/temp"
     check 2 `./mapreduce -read "ignat/temp" | wc -l`
 
+    MR_TABLE_PREFIX="ignat/" ./mapreduce -reduce "cat" -src "other_table" -dst "temp2"
+    check 2 `./mapreduce -read "ignat/temp2" | wc -l`
+
     ./mapreduce -hash-reduce "cat" -src "ignat/other_table" -dst "ignat/temp"
     check 2 `./mapreduce -read "ignat/temp" | wc -l`
 }
@@ -115,6 +118,7 @@ test_list()
     check "ignat/test_dir/table1\nignat/test_dir/table2\n" "`./mapreduce -list -prefix "ignat/test_dir/tab"`"
     check "ignat/test_dir/table1\n" "`./mapreduce -list -prefix "ignat/test_dir/table1"`"
     check "ignat/test_dir/table1\n" "`./mapreduce -list -exact "ignat/test_dir/table1"`"
+    check "test_dir/table1\n" "`MR_TABLE_PREFIX='ignat/' ./mapreduce -list -exact "test_dir/table1"`"
     check "" "`./mapreduce -list -exact "ignat/test_dir/table"`"
     check "" "`./mapreduce -list -exact "ignat/test_dir"`"
     check_failed './mapreduce -list -exact "ignat/test_dir/" -prefix "ignat"'
