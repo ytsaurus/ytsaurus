@@ -865,15 +865,6 @@ def extract_key(rec, fields):
     else:
         return FrozenDict((key, rec[key]) for key in fields if key in rec)
 
-def set_yamr_mode(client=None):
-    """Configure global config to be yamr compatible"""
-    config = get_config(client)
-    for option in config["yamr_mode"]:
-        if option in ["abort_transactions_with_remove", "use_yamr_style_prefix"]:
-            continue
-        config["yamr_mode"][option] = True
-    config["tabular_data_format"] = YamrFormat(has_subkey=True, lenval=False)
-
 def create_table_switch(table_index):
     table_switch = yson.YsonEntity()
     table_switch.attributes["table_index"] = table_index
