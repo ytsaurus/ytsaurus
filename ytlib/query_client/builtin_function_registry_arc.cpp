@@ -3,6 +3,7 @@
 #include "user_defined_functions.h"
 #include "udf/is_null_arc.h"
 #include "udf/sum_arc.h"
+#include "udf/farm_hash_arc.h"
 
 namespace NYT {
 namespace NQueryClient {
@@ -43,6 +44,23 @@ IFunctionRegistryPtr CreateBuiltinFunctionRegistry()
             sum_bc_len,
             nullptr),
         ECallingConvention::UnversionedValue));
+
+    auto hashTypes = TUnionType{
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Boolean,
+        EValueType::String};
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "farm_hash",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{},
+        hashTypes,
+        EValueType::Uint64,
+        TSharedRef(
+            farm_hash_bc,
+            farm_hash_bc_len,
+            nullptr)));
 
     return registry;
 }
