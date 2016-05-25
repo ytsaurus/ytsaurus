@@ -101,6 +101,7 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
     auto options = New<TTableWriterOptions>();
     options->ValidateDuplicateIds = true;
     options->ValidateRowWeight = true;
+    options->ValidateColumnCount = true;
 
     auto writer = CreateSchemalessTableWriter(
         config,

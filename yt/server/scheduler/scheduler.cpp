@@ -166,6 +166,7 @@ public:
         auto options = New<TTableWriterOptions>();
         options->ValidateDuplicateIds = true;
         options->ValidateRowWeight = true;
+        options->ValidateColumnCount = true;
 
         EventLogWriter_ = CreateSchemalessBufferedTableWriter(
             Config_->EventLog,

@@ -60,6 +60,9 @@ const int MaxColumnGroupLength = 256;
 // so one probaly should never want to do it.
 const int MaxSampleSize = 64 * 1024;
 
+// This is a hard limit for static tables.
+const int MaxColumnsPerRow = 64 * 1024;
+
 const int DefaultPartitionTag = -1;
 
 extern const Stroka SystemColumnNamePrefix;
