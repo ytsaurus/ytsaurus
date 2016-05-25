@@ -109,6 +109,17 @@ void TChunkWriterBase::ValidateRowWeight(i64 weight)
         << TErrorAttribute("row_weight_limit", Config_->MaxRowWeight);
 }
 
+void TChunkWriterBase::ValidateColumnCount(int columnCount)
+{
+    if (!Options_->ValidateColumnCount || columnCount < MaxColumnsPerRow) {
+        return;
+    }
+
+    THROW_ERROR_EXCEPTION("Too many columns in row")
+        << TErrorAttribute("column_count", columnCount)
+        << TErrorAttribute("max_column_count", MaxColumnsPerRow);
+}
+
 void TChunkWriterBase::ValidateDuplicateIds(TUnversionedRow row, const TNameTablePtr& nameTable)
 {
     if (!Options_->ValidateDuplicateIds) {
@@ -226,6 +237,7 @@ void TSequentialChunkWriterBase::OnRow(TUnversionedRow row)
 {
     i64 weight = GetDataWeight(row);
     ValidateRowWeight(weight);
+    ValidateColumnCount(row.GetCount());
     DataWeight_ += weight;
     OnRow(row.Begin(), row.End());
 }

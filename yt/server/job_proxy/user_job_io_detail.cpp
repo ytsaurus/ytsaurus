@@ -56,6 +56,7 @@ void TUserJobIOBase::Init()
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->ValidateDuplicateIds = true;
         options->ValidateRowWeight = true;
+        options->ValidateColumnCount = true;
 
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         TKeyColumns keyColumns;

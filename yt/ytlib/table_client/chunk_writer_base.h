@@ -66,6 +66,7 @@ protected:
 
 
     void ValidateRowWeight(i64 weight);
+    void ValidateColumnCount(int columnCount);
     void ValidateDuplicateIds(TUnversionedRow row, const TNameTablePtr& nameTable);
 
     void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const;
