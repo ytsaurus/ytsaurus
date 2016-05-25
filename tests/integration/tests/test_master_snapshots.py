@@ -11,7 +11,7 @@ class TestSnapshot(YTEnvSetup):
     def test(self):
         set("//tmp/a", 42)
 
-        build_snapshot()
+        build_snapshot(cell_id=None)
 
         self.Env.kill_service("master")
         self.Env.start_masters("master")
