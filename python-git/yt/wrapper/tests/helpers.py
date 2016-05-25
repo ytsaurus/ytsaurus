@@ -1,6 +1,10 @@
 import yt.wrapper as yt
 
 import os
+import glob
+import shutil
+import subprocess
+import tempfile
 from contextlib import contextmanager
 
 TEST_DIR = "//home/wrapper_tests"
@@ -58,3 +62,25 @@ def get_environment_for_binary_test():
         env["YT_DRIVER_CONFIG_PATH"] = yt.config["driver_config_path"]
     return env
 
+def build_python_egg(egg_contents_dir, temp_dir=None):
+    dir_ = tempfile.mkdtemp(dir=temp_dir)
+
+    for obj in os.listdir(egg_contents_dir):
+        src = os.path.join(egg_contents_dir, obj)
+        dst = os.path.join(dir_, obj)
+        if os.path.isdir(src):
+            shutil.copytree(src, dst)
+        else:  # file
+            shutil.copy2(src, dst)
+
+    _, egg_filename = tempfile.mkstemp(dir=temp_dir, suffix=".egg")
+    try:
+        subprocess.check_call(["python", "setup.py", "bdist_egg"], cwd=dir_)
+
+        eggs = glob.glob(os.path.join(dir_, "dist", "*.egg"))
+        assert len(eggs) == 1
+
+        shutil.copy2(eggs[0], egg_filename)
+        return egg_filename
+    finally:
+        shutil.rmtree(dir_, ignore_errors=True)

@@ -22,16 +22,23 @@ def main():
         with open(__modules_info_filename, "rb") as fin:
             modules_info = standard_pickle.load(fin)
 
+        __python_eggs = []
         for info in modules_info:
             destination = "modules"
             if info.get("tmpfs") and os.path.exists("tmpfs"):
                 destination = "tmpfs/modules"
+
+            # Python eggs which will be added to sys.path
+            eggs = info.get("eggs")
+            if eggs is not None:
+                __python_eggs.extend([os.path.join(".", destination, egg) for egg in eggs])
+
             # Unfortunately we cannot use fixed version of ZipFile.
             __zip = zipfile.ZipFile(info["filename"])
             __zip.extractall(destination)
             __zip.close()
 
-        sys.path = ["./modules", "./tmpfs/modules"] + sys.path
+        sys.path = __python_eggs + ["./modules", "./tmpfs/modules"] + sys.path
 
         main_module = imp.load_module(__main_module_name,
                                       open(__main_filename, 'rb'),

@@ -6,7 +6,8 @@ from yt.wrapper.table import TablePath
 import yt.wrapper as yt
 import yt.logger as logger
 
-from helpers import TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option
+from helpers import TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, \
+                    build_python_egg
 
 import os
 import sys
@@ -867,3 +868,37 @@ if __name__ == "__main__":
         yt.run_sort(table, sort_by=["x", "y"])
         op = yt.run_reduce("cat", table, table, format=yt.JsonFormat(), reduce_by=["x"], sort_by=["x", "y"])
         assert "sort_by" in op.get_attributes()["spec"]
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_eggs_file_usage_from_operation(self, yt_env):
+        script = """\
+import yt.wrapper as yt
+from module_in_egg import hello_provider
+
+def mapper(rec):
+    yield {{"x": hello_provider.get_message()}}
+
+if __name__ == "__main__":
+    yt.config["proxy"]["url"] = "{0}"
+    yt.config["pickling"]["enable_tmpfs_archive"] = False
+    print yt.run_map(mapper, "{1}", "{2}", spec={3}, sync=False).id
+"""
+        yt.write_table(TEST_DIR + "/table", [{"x": 1, "y": 1}])
+
+        dir_ = yt_env.env.path_to_run
+        with tempfile.NamedTemporaryFile(dir=dir_, prefix="mapper", delete=False) as f:
+            mapper = script.format(yt.config["proxy"]["url"],
+                                   TEST_DIR + "/table",
+                                   TEST_DIR + "/other_table",
+                                   str({"max_failed_job_count": 1}))
+            f.write(mapper)
+
+        module_egg = build_python_egg(get_test_file_path("yt_test_module"), temp_dir=dir_)
+
+        operation_id = subprocess.check_output(
+            "PYTHONPATH={0}:$PYTHONPATH python {1}".format(module_egg, f.name),
+            shell=True).strip()
+
+        op = yt.Operation("map", operation_id)
+        op.wait()
+        assert list(yt.read_table(TEST_DIR + "/other_table")) == [{"x": "hello"}]

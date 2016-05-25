@@ -165,6 +165,7 @@ class Zip(object):
         self.filename = tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],
                                                           prefix=prefix, suffix=".zip")
         self.size = 0
+        self.python_eggs = []
         self.hash = init_md5()
 
     def __enter__(self):
@@ -173,6 +174,8 @@ class Zip(object):
         return self
 
     def append(self, filepath, relpath):
+        if relpath.endswith(".egg"):
+            self.python_eggs.append(relpath)
         self.zip.write(filepath, relpath)
         self.size += get_disk_size(filepath)
         self.hash = merge_md5(self.hash, calc_md5_from_file(filepath))
@@ -252,7 +255,8 @@ def create_modules_archive_default(tempfiles_manager, client):
             "filename": archive.filename,
             "tmpfs": get_config(client)["pickling"]["enable_tmpfs_archive"] and not is_local_mode(client),
             "size": archive.size,
-            "hash": archive.md5
+            "hash": archive.md5,
+            "eggs": archive.python_eggs
         }
         for archive in archives]
 
