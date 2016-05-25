@@ -2,7 +2,6 @@
 
 import sys
 import argparse
-import gzip
 import tarfile
 import json
 import struct
@@ -69,6 +68,15 @@ def read(proxy, token, config, transaction, format, table, input_type):
             for chunk in read_stream:
                 sys.stdout.write(chunk)
 
+def get_token(token_file):
+    from yt.zip import GzipFile
+
+    if token_file is not None:
+        with GzipFile(token_file, "rb") as fin:
+            return fin.read().strip()
+
+    return None
+
 def main():
     parser = argparse.ArgumentParser(description="Command to read from yt cluster")
     parser.add_argument("--proxy", required=True)
@@ -81,11 +89,6 @@ def main():
     parser.add_argument("--package-file", action="append")
     args = parser.parse_args()
 
-    token = None
-    if args.token_file is not None:
-        with gzip.open(args.token_file, "rb") as fin:
-            token = fin.read().strip()
-
     if args.package_file:
         for package_file in args.package_file:
             assert package_file.endswith(".tar"), "Package must have .tar extension"
@@ -95,7 +98,7 @@ def main():
         sys.path.insert(0, ".")
 
     read(proxy=args.proxy,
-         token=token,
+         token=get_token(args.token_file),
          config=json.load(open(args.config_file)),
          table=args.table,
          transaction=args.tx,
