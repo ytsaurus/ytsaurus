@@ -13,7 +13,7 @@ namespace NYT {
 
 TNode NodeFromYsonString(const Stroka& input, EYsonType type = YT_NODE);
 
-Stroka NodeToYsonString(const TNode& node);
+Stroka NodeToYsonString(const TNode& node, EYsonFormat format = YF_TEXT);
 
 Stroka NodeListToYsonString(const TNode::TList& nodes);
 
