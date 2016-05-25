@@ -280,7 +280,7 @@ Examples:
                                             "format", "inputformat", "outputformat", "tx", "value",
                                             "replicationfactor", "memlimit", "timeout", "title", "fs", "rs",
                                             "mode", "tablereader", "tablewriter", "compress", "exact"])
-    add_multiple_args(parser, ["src", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
+    add_multiple_args(parser, ["src", "file", "mapfile", "file-map", "reducefile", "file-reduce", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
     add_multiple_args_to_one_dest(parser, ["dst", "dstappend", "dstsorted"], "dst")
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached", "waitfor", "stderrlevel", "maxjobfails", "count"])
 
@@ -354,6 +354,8 @@ Examples:
              "specifies map operation command"),
             ("mapfile",
              "NEW! file for the map stage of mapreduce operation"),
+            ("file-map",
+             "NEW! file for the map stage of mapreduce operation"),
             ("maxjobfails",
              "OLD! Limit to the number of failed jobs of operation"),
             ("memlimit",
@@ -384,6 +386,8 @@ Examples:
             ("reduce",
              "specifies reduce operation command"),
             ("reducefile",
+             "NEW! file for the reduce stage of mapreduce operation"),
+            ("file-reduce",
              "NEW! file for the reduce stage of mapreduce operation"),
             ("reducews",
              "specifies reduce operation command"),
@@ -547,8 +551,8 @@ Examples:
             return []
         else:
             return flatten(arg)
-    map_files = to_list(args.file) + to_list(args.mapfile)
-    reduce_files = to_list(args.file) + to_list(args.reducefile)
+    map_files = to_list(args.file) + to_list(args.mapfile) + to_list(args.file_map)
+    reduce_files = to_list(args.file) + to_list(args.reducefile) + to_list(args.file_reduce)
 
     enable_table_index = args.tableindex or args.tablerecordindex
     format = yt.YamrFormat(lenval=args.lenval,
