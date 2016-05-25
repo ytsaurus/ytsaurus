@@ -315,8 +315,13 @@ class TestJobProber(YTEnvSetup):
             output += r["output"]
         return output
 
-    def _send_keys(self, job_id, shell_id, keys):
-        poll_job_shell(job_id, operation="update", shell_id=shell_id, keys=keys.encode("hex"))
+    def _send_keys(self, job_id, shell_id, keys, input_offset):
+        poll_job_shell(
+            job_id,
+            operation="update",
+            shell_id=shell_id,
+            keys=keys.encode("hex"),
+            input_offset=input_offset)
 
     def test_poll_job_shell(self):
         create("table", "//tmp/t1")
@@ -337,7 +342,7 @@ class TestJobProber(YTEnvSetup):
         output = self._poll_until_prompt(job_id, shell_id)
 
         command = "echo $TERM; tput lines; tput cols; id -u; id -g\r"
-        self._send_keys(job_id, shell_id, command)
+        self._send_keys(job_id, shell_id, command, 0)
         output = self._poll_until_prompt(job_id, shell_id)
 
         expected = "{0}\nscreen-256color\r\n50\r\n132\r\n{1}\r\n{1}\r\n".format(command, os.getuid())
