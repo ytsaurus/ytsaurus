@@ -154,6 +154,7 @@ struct TRichYPath
     FLUENT_FIELD_OPTION(bool, Teleport);
     FLUENT_FIELD_OPTION(bool, Primary);
     FLUENT_FIELD_OPTION(bool, Foreign);
+    FLUENT_FIELD_OPTION(i64, RowCountLimit);
 
     TRichYPath()
     { }
