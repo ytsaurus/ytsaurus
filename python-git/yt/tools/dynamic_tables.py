@@ -5,14 +5,13 @@ import yt.wrapper as yt_module
 import yt.yson as yson
 import sys
 import time
-import inspect
 import logging
 import itertools as it
 
-from yt.common import YtError, update, set_pdeathsig
+from yt.common import YtError
 from yt.wrapper.common import run_with_retries
 from yt.wrapper.client import Yt
-from random import randint, shuffle
+from random import shuffle
 
 # XXXX/TODO: global stuff. Find a way to avoid this.
 yt_module.config["pickling"]["module_filter"] = lambda module: not hasattr(module, "__file__") or "yt_driver_bindings" not in module.__file__
@@ -349,7 +348,7 @@ class DynamicTablesClient(object):
                         output_row_limit=output_row_limit,
                         workload_descriptor=self.workload_descriptor,
                         raw=False)
-                rows = run_with_retries(do_select, except_action=self.log_exception))
+                rows = run_with_retries(do_select, except_action=self.log_exception)
                 for res in mapper(rows):
                     yield res
 
