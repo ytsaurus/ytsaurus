@@ -238,7 +238,7 @@ Stroka ToString(const TUnversionedValue& value)
             return Format("<%v>", value.Type);
 
         case EValueType::Int64:
-            return Format("%vi", value.Data.Int64);
+            return Format("%v", value.Data.Int64);
 
         case EValueType::Uint64:
             return Format("%vu", value.Data.Uint64);
