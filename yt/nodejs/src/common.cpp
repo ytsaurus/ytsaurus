@@ -14,6 +14,8 @@
 
 #include <util/string/escape.h>
 
+#include <dlfcn.h>
+
 extern "C" {
     // XXX(sandello): This is extern declaration of eio's internal functions.
     // -lrt will dynamically bind these symbols. We do this dirty-dirty stuff
@@ -172,6 +174,65 @@ Handle<Value> _Exit(const Arguments& args)
     return scope.Close(Undefined());
 }
 
+void JemallocWriteCb(void*, const char* string)
+{
+    ::write(2, string, strlen(string));
+}
+
+Handle<Value> JemallocStats(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YCHECK(args.Length() == 0);
+
+    void* ptr = nullptr;
+    void (*malloc_stats_print)(void (*)(void *, const char *), void *, const char*) = nullptr;
+
+    ptr = dlsym(nullptr, "malloc_stats_print");
+    malloc_stats_print = (decltype(malloc_stats_print))(ptr);
+    if (!malloc_stats_print) {
+        return ThrowException(String::New("Jemalloc is not in use"));
+    }
+
+    malloc_stats_print(&JemallocWriteCb, nullptr, "a");
+
+    return scope.Close(Undefined());
+}
+
+Handle<Value> JemallocCtlWrite(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YCHECK(args.Length() == 2);
+
+    EXPECT_THAT_IS(args[0], String);
+
+    String::Utf8Value key(args[0]);
+
+    void* ptr = nullptr;
+    int (*mallctl)(const char*, void*, size_t, void*, size_t) = nullptr;
+
+    ptr = dlsym(nullptr, "mallctl");
+    mallctl = (decltype(mallctl))(ptr);
+    if (!mallctl) {
+        return ThrowException(String::New("Jemalloc is not in use"));
+    }
+
+    if (args[1]->IsString()) {
+        String::Utf8Value value(args[1]);
+        mallctl(*key, nullptr, 0, *value, value.length());
+    } else if (args[1]->IsNumber()) {
+        unsigned int value = args[1]->Uint32Value();
+        mallctl(*key, nullptr, 0, &value, sizeof(value));
+    } else if (args[1]->IsNull()) {
+        mallctl(*key, nullptr, 0, nullptr, 0);
+    }
+
+    return scope.Close(Undefined());
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,6 +257,12 @@ void InitializeCommon(Handle<Object> target)
     target->Set(
         String::NewSymbol("_Exit"),
         FunctionTemplate::New(_Exit)->GetFunction());
+    target->Set(
+        String::NewSymbol("JemallocStats"),
+        FunctionTemplate::New(JemallocStats)->GetFunction());
+    target->Set(
+        String::NewSymbol("JemallocCtlWrite"),
+        FunctionTemplate::New(JemallocCtlWrite)->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
