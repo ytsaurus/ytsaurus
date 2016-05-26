@@ -111,7 +111,7 @@ protected:
     virtual void SetUp() override
     { }
 
-    TConstExpressionPtr Refine(
+    TConstExpressionPtr Eliminate(
         std::vector<TOwningKey>& lookupKeys,
         TConstExpressionPtr expr,
         const TKeyColumns& keyColumns)
@@ -153,7 +153,7 @@ TEST_P(TEliminateLookupPredicateTest, Simple)
 
     auto predicate = PrepareExpression(predicateString, tableSchema);
     auto expected = PrepareExpression(refinedString, tableSchema);
-    auto refined = Refine(keys, predicate, keyColumns);
+    auto refined = Eliminate(keys, predicate, keyColumns);
 
     EXPECT_TRUE(Equal(refined, expected))
         << "schema: " << schemaString << std::endl
@@ -226,18 +226,13 @@ INSTANTIATE_TEST_CASE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEliminatePredicateTest
+class TEliminatePredicateTest0
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::vector<const char*>>
     , public TCompareExpressionTest
 {
 protected:
-    virtual void SetUp() override
-    {
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(New<TColumnEvaluatorCacheConfig>());
-    }
-
-    TConstExpressionPtr Refine(
+    TConstExpressionPtr Eliminate(
         const TKeyRange& keyRange,
         TConstExpressionPtr expr,
         const TTableSchema& tableSchema,
@@ -245,33 +240,14 @@ protected:
     {
         auto rowRange = TRowRange(keyRange.first, keyRange.second);
 
-        auto rowBuffer = New<TRowBuffer>();
-
-        auto rowRanges = GetPrunedRanges(
-            expr,
-            tableSchema,
-            keyColumns,
-            TGuid(),
-            MakeSharedRange(MakeRange(&rowRange, 1)),
-            rowBuffer,
-            ColumnEvaluatorCache_,
-            New<TRangeExtractorMap>(),
-            1000,
-            false,
-            QueryClientLogger);
-
         return EliminatePredicate(
-            rowRanges,
+            MakeRange(&rowRange, 1),
             expr,
-            tableSchema,
             keyColumns);
     }
-
-private:
-    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 };
 
-TEST_P(TEliminatePredicateTest, Simple)
+TEST_P(TEliminatePredicateTest0, Simple)
 {
     const auto& args = GetParam();
     const auto& schemaString = args[0];
@@ -289,7 +265,81 @@ TEST_P(TEliminatePredicateTest, Simple)
     auto predicate = PrepareExpression(predicateString, tableSchema);
     auto expected = PrepareExpression(refinedString, tableSchema);
     auto range = TKeyRange{BuildKey(lowerString), BuildKey(upperString)};
-    auto refined = Refine(range, predicate, tableSchema, keyColumns);
+    auto refined = Eliminate(range, predicate, tableSchema, keyColumns);
+
+    EXPECT_TRUE(Equal(refined, expected))
+        << "schema: " << schemaString << std::endl
+        << "key_columns: " << keyString << std::endl
+        << "range: [" << lowerString << ", " << upperString << "]" << std::endl
+        << "predicate: " << predicateString << std::endl
+        << "refined: " << ::testing::PrintToString(refined) << std::endl
+        << "expected: " << ::testing::PrintToString(expected);
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TEliminatePredicateTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*,
+        const char*,
+        const char*,
+        const char*,
+        std::vector<const char*>>>
+    , public TCompareExpressionTest
+{
+protected:
+    TConstExpressionPtr Eliminate(
+        const std::vector<TKeyRange>& keyRanges,
+        TConstExpressionPtr expr,
+        const TTableSchema& tableSchema,
+        const TKeyColumns& keyColumns)
+    {
+        TRowRanges rowRanges;
+        for (const auto& keyRange : keyRanges) {
+            rowRanges.emplace_back(keyRange.first.Get(), keyRange.second.Get());
+        }
+
+        return EliminatePredicate(
+            rowRanges,
+            expr,
+            keyColumns);
+    }
+};
+
+TEST_P(TEliminatePredicateTest, Simple)
+{
+    const auto& args = GetParam();
+    const auto& schemaString = std::get<0>(args);
+    const auto& keyString = std::get<1>(args);
+    const auto& predicateString = std::get<2>(args);
+    const auto& refinedString = std::get<3>(args);
+    const auto& keyStrings = std::get<4>(args);
+
+    const auto& lowerString = keyStrings[0];
+    const auto& upperString = keyStrings[1];
+
+    TTableSchema tableSchema;
+    TKeyColumns keyColumns;
+    Deserialize(tableSchema, ConvertToNode(TYsonString(schemaString)));
+    Deserialize(keyColumns, ConvertToNode(TYsonString(keyString)));
+
+    auto predicate = PrepareExpression(predicateString, tableSchema);
+    auto expected = PrepareExpression(refinedString, tableSchema);
+    auto range = TKeyRange{BuildKey(lowerString), BuildKey(upperString)};
+
+
+
+    std::vector<TKeyRange> owningRanges;
+    for (size_t i = 0; i < keyStrings.size() / 2; ++i) {
+        owningRanges.emplace_back(BuildKey(keyStrings[2 * i]), BuildKey(keyStrings[2 * i + 1]));
+    }
+
+    auto refined = Eliminate(owningRanges, predicate, tableSchema, keyColumns);
+
+
 
     EXPECT_TRUE(Equal(refined, expected))
         << "schema: " << schemaString << std::endl
@@ -301,107 +351,165 @@ TEST_P(TEliminatePredicateTest, Simple)
 }
 
 INSTANTIATE_TEST_CASE_P(
+    TEliminatePredicateTestOld,
+    TEliminatePredicateTest,
+    ::testing::Values(
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k,l) in ((1,2),(3,4))",
+            "(k,l) in ((1,2),(3,4))",
+            std::vector<const char*>{_MIN_, _MAX_}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k,l) in ((1,2),(3,4))",
+            "(k,l) in ((1,2))",
+            std::vector<const char*>{"1", "2"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k) in ((2),(4))",
+            "(k) in ((2),(4))",
+            std::vector<const char*>{_MIN_, _MAX_}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(l) in ((2),(4))",
+            "(l) in ((2),(4))",
+            std::vector<const char*>{_MIN_, _MAX_}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k) in ((2),(4))",
+            "(k) in ((2))",
+            std::vector<const char*>{"2;1", "3;3"}),
+        std::make_tuple(
+            "[{name=k;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in ((2),(4))",
+            "l in ((2),(4))",
+            std::vector<const char*>{_MIN_, _MAX_}),
+        std::make_tuple(
+            "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4))",
+            "k in ((2))",
+            std::vector<const char*>{"2;1", "3;3"}),
+        std::make_tuple(
+            "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4))",
+            "k in ((2))",
+            std::vector<const char*>{"2;1", "3;3"}),
+        std::make_tuple(
+            "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4),(6))",
+            "k in ((2),(4))",
+            std::vector<const char*>{"2;1", "4;5"}),
+        std::make_tuple(
+            "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4),(6))",
+            "k in ((2))",
+            std::vector<const char*>{"2", "3"}),
+        std::make_tuple(
+            "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=m;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4))",
+            "k in ((2))",
+            std::vector<const char*>{"2;2;2", "3;3;3"})
+));
+
+INSTANTIATE_TEST_CASE_P(
     TEliminatePredicateTest,
     TEliminatePredicateTest,
     ::testing::Values(
-        std::vector<const char*>{
+        std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "k = 1 and l in (1,2,3)",
             "true",
-            _MIN_,
-            _MAX_},
-        std::vector<const char*>{
+            std::vector<const char*>{"1;1", "1;1;" _MAX_, "1;2", "1;2;" _MAX_, "1;3", "1;3;" _MAX_}),
+        std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "k in (1,2,3) and l = 1",
             "true",
-            _MIN_,
-            _MAX_},
-        std::vector<const char*>{
+            std::vector<const char*>{"1;1", "1;1;" _MAX_, "2;1", "2;1;" _MAX_, "3;1", "3;1;" _MAX_}),
+        std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(k,l) in ((1,2),(3,4))",
             "true",
-            _MIN_,
-            _MAX_},
-        std::vector<const char*>{
+            std::vector<const char*>{"1;2", "1;2;" _MAX_, "3;4", "3;4;" _MAX_}),
+        std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(k) in ((2),(4))",
             "true",
-            _MIN_,
-            _MAX_},
-        std::vector<const char*>{
+            std::vector<const char*>{"2", "2;" _MAX_, "4", "4;" _MAX_}),
+        std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(l) in ((2),(4))",
             "(l) in ((2),(4))",
-            _MIN_,
-            _MAX_},
-        std::vector<const char*>{
+            std::vector<const char*>{_MIN_, _MAX_}),
+        std::make_tuple(
             "[{name=k;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
             "[k;l]",
             "l in ((2),(4))",
             "true",
-            _MIN_,
-            _MAX_},
-        std::vector<const char*>{
+            std::vector<const char*>{"2;2", "2;2;" _MAX_, "4;4", "4;4;" _MAX_}),
+        std::make_tuple(
             "[{name=k;type=int64;sort_order=ascending;expression=\"l+1\"}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
             "[k;l]",
             "l in ((2),(4))",
             "true",
-            _MIN_,
-            _MAX_},
-        std::vector<const char*>{
+            std::vector<const char*>{"3;2", "3;2;" _MAX_, "5;4", "5;4;" _MAX_}),
+        std::make_tuple(
             "[{name=k;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
             "[k;l]",
             "l in ((0),(2),(4))",
             "true",
-            _MIN_,
-            _MAX_},
-        std::vector<const char*>{
+            std::vector<const char*>{"0;0", "0;0;" _MAX_, "2;2", "2;2;" _MAX_, "4;4", "4;4;" _MAX_}),
+        std::make_tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
             "k in ((0),(2),(4))",
             "true",
-            _MIN_,
-            _MAX_},
-        std::vector<const char*>{
+            std::vector<const char*>{"0;0", "0;0;" _MAX_, "2;2", "2;2;" _MAX_, "4;4", "4;4;" _MAX_}),
+        std::make_tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
             "k in ((0),(2),(4),(6))",
             "true",
-            _MIN_,
-            _MAX_},
-        std::vector<const char*>{
+            std::vector<const char*>{"0;0", "0;0;" _MAX_, "2;2", "2;2;" _MAX_, "4;4", "4;4;" _MAX_, "6;6", "6;6;" _MAX_}),
+        std::make_tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
-            "k in (1,2,3,4,5,6,7) or k > 10",
-            "k in (1,2,3,4,5,6,7) or k > 10",
-            _MIN_,
-            _MAX_},
-        std::vector<const char*>{
+            "k in (1,2,3,4,5) or k > 10",
+            "k in (1,2,3,4,5) or k > 10",
+            std::vector<const char*>{"1;1", "1;1;" _MAX_, "2;2", "2;2;" _MAX_, "3;3", "3;3;" _MAX_, "4;4", "4;4;" _MAX_, "5;5", "5;5;" _MAX_, "10;" _MAX_, _MAX_}),
+        std::make_tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
-            "k in (1,2,3,4,5,6,7) or k > 10",
+            "k in (1,2,3,4,5) or k > 10",
             "true",
-            _MIN_,
-            "10"},
-        std::vector<const char*>{
+            std::vector<const char*>{"1;1", "1;1;" _MAX_, "2;2", "2;2;" _MAX_, "3;3", "3;3;" _MAX_, "4;4", "4;4;" _MAX_, "5;5", "5;5;" _MAX_}),
+        std::make_tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
-            "k in (1,2,3,4,5,6,7) or k in (10,11,12,14,15)",
-            "k in (4,5,6,7) or k in (10,11,12)",
-            "4",
-            "13"},
-        std::vector<const char*>{
+            "k in (1,2,3,4,5) or k in (11,12,14,15)",
+            "k in (4,5) or k in (11,12)",
+            std::vector<const char*>{"4;4", "4;4;" _MAX_, "5;5", "5;5;" _MAX_, "11;11", "11;11;" _MAX_, "12;12", "12;12;" _MAX_}),
+        std::make_tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
             "k in ((0),(2)) or k in ((4),(6))",
             "k in ((0),(2)) or k in ((4),(6))",
-            _MIN_,
-            _MAX_}
+            std::vector<const char*>{"0;0", "0;0;" _MAX_, "2;2", "2;2;" _MAX_, "4;4", "4;4;" _MAX_, "6;6", "6;6;" _MAX_})
 ));
 
 ////////////////////////////////////////////////////////////////////////////////

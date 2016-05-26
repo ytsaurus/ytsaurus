@@ -236,11 +236,29 @@ void SortRows(
     });
 };
 
+void SortRows(
+    std::vector<std::pair<TRow, size_t>>::iterator begin,
+    std::vector<std::pair<TRow, size_t>>::iterator end,
+    const std::vector<size_t>& mapping)
+{
+    std::sort(begin, end, [&] (const std::pair<TRow, size_t>& lhs, const std::pair<TRow, size_t>& rhs) {
+        for (auto index : mapping) {
+            int result = CompareRowValues(lhs.first.Begin()[index], rhs.first.Begin()[index]);
+
+            if (result != 0) {
+                return result < 0;
+            }
+        }
+        return false;
+    });
+};
+
 TConstExpressionPtr EliminateInExpression(
     const TRange<TRow>& lookupKeys,
     const TInOpExpression* inExpr,
     const TKeyColumns& keyColumns,
-    size_t keyPrefixSize)
+    size_t keyPrefixSize,
+    const std::vector<std::pair<TBound, TBound>>* bounds)
 {
     static auto trueLiteral = New<TLiteralExpression>(
         EValueType::Boolean,
@@ -251,6 +269,7 @@ TConstExpressionPtr EliminateInExpression(
 
     std::vector<size_t> valueMapping;
     std::vector<size_t> keyMapping;
+    TNullable<size_t> rangeArgIndex;
 
     bool allArgsAreKey = true;
     for (size_t argumentIndex = 0; argumentIndex < inExpr->Arguments.size(); ++argumentIndex) {
@@ -264,6 +283,10 @@ TConstExpressionPtr EliminateInExpression(
         } else {
             valueMapping.push_back(argumentIndex);
             keyMapping.push_back(keyIndex);
+        }
+
+        if (bounds && keyIndex == keyPrefixSize) {
+            rangeArgIndex.Assign(argumentIndex);
         }
     }
 
@@ -285,28 +308,51 @@ TConstExpressionPtr EliminateInExpression(
         SortRows(sortedValues.begin(), sortedValues.end(), valueMapping);
     }
 
-    std::vector<TRow> sortedKeys(lookupKeys.Begin(), lookupKeys.End());
+    std::vector<std::pair<TRow, size_t>> sortedKeys(lookupKeys.Size());
+    for (size_t index = 0; index < lookupKeys.Size(); ++index) {
+        sortedKeys[index] = std::make_pair(lookupKeys[index], index);
+    }
     SortRows(sortedKeys.begin(), sortedKeys.end(), keyMapping);
 
     std::vector<TRow> filteredValues;
     bool hasExtraLookupKeys = false;
-    int keyIndex = 0;
-    int tupleIndex = 0;
+    size_t keyIndex = 0;
+    size_t tupleIndex = 0;
     while (keyIndex < sortedKeys.size() && tupleIndex < sortedValues.size()) {
         auto currentKey = sortedKeys[keyIndex];
         auto currentValue = sortedValues[tupleIndex];
 
-        int result = compareKeyAndValue(currentKey, currentValue);
+        int result = compareKeyAndValue(currentKey.first, currentValue);
         if (result == 0) {
+            auto keyIndexBegin = keyIndex;
             do {
-                filteredValues.push_back(sortedValues[tupleIndex]);
+                ++keyIndex;
+            } while (keyIndex < sortedKeys.size()
+                && compareKeyAndValue(currentKey.first, sortedKeys[keyIndex].first) == 0);
+
+            // from keyIndexBegin to keyIndex
+            std::vector<TBound> unitedBounds;
+            if (bounds) {
+                std::vector<std::vector<TBound>> allBounds;
+                for (size_t index = keyIndexBegin; index < keyIndex; ++index) {
+                    auto lowerAndUpper = (*bounds)[sortedKeys[index].second];
+
+                    allBounds.push_back(std::vector<TBound>{lowerAndUpper.first, lowerAndUpper.second});
+                }
+
+                UniteBounds(&allBounds);
+
+                YCHECK(!allBounds.empty());
+                unitedBounds = std::move(allBounds.front());
+            }
+
+            do {
+                if (!rangeArgIndex || Covers(unitedBounds, sortedValues[tupleIndex][*rangeArgIndex])) {
+                    filteredValues.push_back(sortedValues[tupleIndex]);
+                }
                 ++tupleIndex;
             } while (tupleIndex < sortedValues.size() &&
                 compareKeyAndValue(currentValue, sortedValues[tupleIndex]) == 0);
-            do {
-                ++keyIndex;
-            } while (keyIndex < sortedKeys.size() &&
-                compareKeyAndValue(currentKey, sortedKeys[keyIndex]) == 0);
         } else if (result < 0) {
             hasExtraLookupKeys = true;
             ++keyIndex;
@@ -336,7 +382,6 @@ TConstExpressionPtr EliminateInExpression(
 TConstExpressionPtr EliminatePredicate(
     const TRange<TRowRange>& keyRanges,
     TConstExpressionPtr expr,
-    const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns)
 {
     auto trueLiteral = New<TLiteralExpression>(
@@ -348,14 +393,39 @@ TConstExpressionPtr EliminatePredicate(
 
     int minCommonPrefixSize = std::numeric_limits<int>::max();
     for (const auto& keyRange : keyRanges) {
-        int rangeSize = std::min(keyRange.first.GetCount(), keyRange.second.GetCount());
         int commonPrefixSize = 0;
-        while (commonPrefixSize < rangeSize &&
-            keyRange.first[commonPrefixSize] == keyRange.second[commonPrefixSize])
+        while (commonPrefixSize < keyRange.first.GetCount()
+            && commonPrefixSize + 1 < keyRange.second.GetCount()
+            && keyRange.first[commonPrefixSize] == keyRange.second[commonPrefixSize])
         {
             commonPrefixSize++;
         }
         minCommonPrefixSize = std::min(minCommonPrefixSize, commonPrefixSize);
+    }
+
+    auto getBounds = [] (const TRowRange& keyRange, size_t keyPartIndex) -> std::pair<TBound, TBound> {
+        auto lower = keyPartIndex < keyRange.first.GetCount()
+            ? TBound(keyRange.first[keyPartIndex], true)
+            : TBound(MakeUnversionedSentinelValue(EValueType::Min), false);
+
+        YCHECK(keyPartIndex < keyRange.second.GetCount());
+        auto upper = TBound(keyRange.second[keyPartIndex], keyPartIndex + 1 < keyRange.second.GetCount());
+
+        return std::make_pair(lower, upper);
+    };
+
+    // Is it a good idea? Heavy, not always useful calculation.
+    std::vector<std::vector<TBound>> unitedBoundsByColumn(minCommonPrefixSize + 1);
+    for (size_t keyPartIndex = 0; keyPartIndex <= minCommonPrefixSize; ++keyPartIndex) {
+        std::vector<std::vector<TBound>> allBounds;
+        for (const auto& keyRange : keyRanges) {
+            auto bounds = getBounds(keyRange, keyPartIndex);
+            allBounds.push_back(std::vector<TBound>{bounds.first, bounds.second});
+        }
+
+        UniteBounds(&allBounds);
+        YCHECK(!allBounds.empty());
+        unitedBoundsByColumn[keyPartIndex] = std::move(allBounds.front());
     }
 
     std::function<TConstExpressionPtr(TConstExpressionPtr expr)> refinePredicate =
@@ -386,7 +456,7 @@ TConstExpressionPtr EliminatePredicate(
 
                 if (referenceExpr && constantExpr) {
                     int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
-                    if (keyPartIndex >= 0 && keyPartIndex < minCommonPrefixSize) {
+                    if (keyPartIndex >= 0 && keyPartIndex <= minCommonPrefixSize) {
                         auto value = TValue(constantExpr->Value);
 
                         std::vector<TBound> bounds;
@@ -429,50 +499,26 @@ TConstExpressionPtr EliminatePredicate(
                         }
 
                         if (!bounds.empty()) {
-                            bool allTrue = true;
-                            bool allFalse = true;
+                            auto resultBounds = IntersectBounds(bounds, unitedBoundsByColumn[keyPartIndex]);
 
-                            for (const auto& keyRange : keyRanges) {
-                                auto lowerBound = keyRange.first[keyPartIndex];
-                                auto upperBound = keyRange.second[keyPartIndex];
-                                bool upperIncluded = keyPartIndex != keyRange.second.GetCount();
-
-                                std::vector<TBound> dataBounds;
-
-                                dataBounds.emplace_back(lowerBound, true);
-                                dataBounds.emplace_back(upperBound, upperIncluded);
-
-                                auto resultBounds = IntersectBounds(bounds, dataBounds);
-
-                                if (resultBounds.empty()) {
-                                    allTrue = false;
-                                } else if (resultBounds == dataBounds) {
-                                    allFalse = false;
-                                } else {
-                                    allTrue = false;
-                                    allFalse = false;
-                                }
-                            }
-
-                            if (allTrue) {
-                                return trueLiteral;
-                            } else if (allFalse) {
+                            if (resultBounds.empty()) {
                                 return falseLiteral;
+                            } else if (resultBounds == unitedBoundsByColumn[keyPartIndex]) {
+                                return trueLiteral;
                             }
                         }
                     }
                 }
             }
         } else if (auto inExpr = expr->As<TInOpExpression>()) {
-
             std::vector<TRow> lookupKeys;
-
+            std::vector<std::pair<TBound, TBound>> bounds;
             for (const auto& keyRange : keyRanges) {
                 lookupKeys.push_back(keyRange.first);
+                bounds.push_back(getBounds(keyRange, minCommonPrefixSize));
             }
 
-            return EliminateInExpression(MakeRange(lookupKeys), inExpr, keyColumns, minCommonPrefixSize);
-
+            return EliminateInExpression(MakeRange(lookupKeys), inExpr, keyColumns, minCommonPrefixSize, &bounds);
         }
 
         return expr;
@@ -486,13 +532,6 @@ TConstExpressionPtr EliminatePredicate(
     TConstExpressionPtr expr,
     const TKeyColumns& keyColumns)
 {
-    static auto trueLiteral = New<TLiteralExpression>(
-        EValueType::Boolean,
-        MakeUnversionedBooleanValue(true));
-    static auto falseLiteral = New<TLiteralExpression>(
-        EValueType::Boolean,
-        MakeUnversionedBooleanValue(false));
-
     std::function<TConstExpressionPtr(TConstExpressionPtr expr)> refinePredicate =
         [&] (TConstExpressionPtr expr)->TConstExpressionPtr
     {
@@ -512,7 +551,7 @@ TConstExpressionPtr EliminatePredicate(
                     refinePredicate(rhsExpr));
             }
         } else if (auto inExpr = expr->As<TInOpExpression>()) {
-            return EliminateInExpression(lookupKeys, inExpr, keyColumns, keyColumns.size());
+            return EliminateInExpression(lookupKeys, inExpr, keyColumns, keyColumns.size(), nullptr);
         }
 
         return expr;
