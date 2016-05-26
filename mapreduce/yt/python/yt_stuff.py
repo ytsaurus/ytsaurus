@@ -65,6 +65,11 @@ class YtStuff(object):
         import subprocess
         subprocess.check_output(['tar', '-xf', tgz], cwd=where, stderr=subprocess.STDOUT)
 
+    @_timing
+    def _pack_tar(self, archive_path, file_path):
+        import subprocess
+        subprocess.check_output(['tar', '-cvzf', archive_path, file_path], stderr=subprocess.STDOUT)
+
     def _prepare_files(self):
         build_path = yatest.common.runtime.build_path()
         work_path = yatest.common.runtime.work_path()
@@ -294,6 +299,15 @@ class YtStuff(object):
         shutil.copytree(src=self.yt_work_dir, dst=yt_output_dir, ignore=_ignore)
         os.system("chmod -R 0775 " + yt_output_dir)
 
+        # Pack huge files, because ya.test cuts them.
+        FILE_SIZE_LIMIT = 2 * 1024 * 1024 # See https://a.yandex-team.ru/arc/trunk/arcadia/devtools/ya/test/node/run_test.py?rev=2316309#L30
+        for root, dirs, files in os.walk(yt_output_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                if os.path.getsize(file_path) >= FILE_SIZE_LIMIT:
+                    archive_path = "%s.tgz" % file_path
+                    self._pack_tar(archive_path=archive_path, file_path=file_path)
+                    os.remove(file_path)
 
 @pytest.fixture(scope="module")
 def yt_stuff(request):
