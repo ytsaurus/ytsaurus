@@ -46,17 +46,17 @@ ui64 TNodeJSOutputStack::GetBytes() const
 
 void TNodeJSOutputStack::DoWrite(const void* buffer, size_t length)
 {
-    return Top()->Write(buffer, length);
+    Top()->Write(buffer, length);
 }
 
 void TNodeJSOutputStack::DoWriteV(const TPart* parts, size_t count)
 {
-    return Top()->Write(parts, count);
+    Top()->Write(parts, count);
 }
 
 void TNodeJSOutputStack::DoFlush()
 {
-    return Top()->Flush();
+    Top()->Flush();
 }
 
 void TNodeJSOutputStack::DoFinish()
