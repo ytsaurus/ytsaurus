@@ -392,7 +392,8 @@ size_t TInputStreamWrap::DoRead(void* data, size_t length)
 
         if (!canReadSomething) {
             if (!IsPushable_) {
-                return 0;
+                length = 0;
+                break;
             }
 
             YCHECK(!ReadPromise_);

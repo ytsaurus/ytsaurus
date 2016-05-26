@@ -24,6 +24,23 @@ function promisinglyPipe(source, destination)
 {
     return new Q(function(resolve, reject) {
         var debug = __DBG.Tagged("Pipe");
+        var clean = false;
+
+        function resolve_and_clear() {
+            if (!clean) {
+                cleanup();
+                clean = true;
+            }
+            resolve();
+        }
+
+        function reject_and_clear(err) {
+            if (!clean) {
+                cleanup();
+                clean = true;
+            }
+            reject(err);
+        }
 
         function on_data(chunk) {
             if (destination.writable && destination.write(chunk) === false) {
@@ -44,20 +61,19 @@ function promisinglyPipe(source, destination)
 
         function on_end() {
             debug("Piping has ended");
-            resolve();
+            resolve_and_clear();
         }
         function on_source_close() {
             debug("Source stream has been closed");
-            reject(new YtError("Source stream in the pipe has been closed"));
+            reject_and_clear(new YtError("Source stream in the pipe has been closed"));
         }
         function on_destination_close() {
             debug("Destination stream has been closed");
-            reject(new YtError("Destination stream in the pipe has been closed"));
+            reject_and_clear(new YtError("Destination stream in the pipe has been closed"));
         }
         function on_error(err) {
             debug("An error occured");
-            cleanup();
-            reject(err);
+            reject_and_clear(err);
         }
 
         source.on("end", on_end);
@@ -86,12 +102,6 @@ function promisinglyPipe(source, destination)
             destination.removeListener("end", cleanup);
             destination.removeListener("close", cleanup);
         }
-
-        source.on("end", cleanup);
-        source.on("close", cleanup);
-
-        destination.on("end", cleanup);
-        destination.on("close", cleanup);
 
         destination.emit("pipe", source);
     });
@@ -140,38 +150,47 @@ YtDriver.prototype.execute = function(
     var deferred = Q.defer();
     var self = this;
 
-    var wrapped_stream_flags = { destroyed: false };
-    function destroy_wrapped_streams() {
-        if (!wrapped_stream_flags.destroyed) {
-            wrapped_input_stream.destroy();
-            wrapped_output_stream.destroy();
-            wrapped_stream_flags.destroyed = true;
+    var destroyer_state = {
+        fired: false,
+        objects: [wrapped_input_stream, wrapped_output_stream, input_stream, output_stream]
+    };
+
+    function destroyer() {
+        if (!destroyer_state.fired) {
+            for (var i = 0, n = destroyer_state.objects.length; i < n; ++i) {
+                destroyer_state.objects[i].destroy();
+            }
+            destroyer_state.objects = null;
+            destroyer_state.fired = true;
         }
+    }
+
+    function undestroyer() {
+        destroyer_state.objects = null;
+        destroyer_state.fired = true;
     }
 
     var input_pipe_promise = promisinglyPipe(input_stream, wrapped_input_stream)
         .then(
-        function() {
+        function ip_promise_then() {
             self.__DBG("execute -> input_pipe_promise has been resolved");
             wrapped_input_stream.end();
         },
-        function(err) {
+        function ip_promise_catch(err) {
             self.__DBG("execute -> input_pipe_promise has been rejected");
-            input_stream.destroy();
-            destroy_wrapped_streams();
+            destroyer();
             deferred.reject(new YtError("Input pipe has been canceled", err));
         });
 
     var output_pipe_promise = promisinglyPipe(wrapped_output_stream, output_stream)
         .then(
-        function() {
+        function op_promise_then() {
             // Do not close |output_stream| here since we have to write out trailers.
             self.__DBG("execute -> output_pipe_promise has been resolved");
         },
-        function(err) {
+        function op_promise_catch(err) {
             self.__DBG("execute -> output_pipe_promise has been rejected");
-            output_stream.destroy();
-            destroy_wrapped_streams();
+            destroyer();
             deferred.reject(new YtError("Output pipe has been canceled", err));
         });
 
@@ -195,7 +214,7 @@ YtDriver.prototype.execute = function(
                 deferred.resolve(Array.prototype.slice.call(arguments));
             } else {
                 self.__DBG("execute -> execute_promise has been rejected");
-                destroy_wrapped_streams();
+                destroyer();
                 deferred.reject(result);
             }
         },
@@ -208,8 +227,11 @@ YtDriver.prototype.execute = function(
     process.nextTick(function() { pause.unpause(); });
 
     return Q
-        .all([ deferred.promise, input_pipe_promise, output_pipe_promise ])
-        .spread(function(result, ir, or) { return result; });
+        .all([deferred.promise, input_pipe_promise, output_pipe_promise])
+        .spread(function(result, ir, or) {
+            undestroyer();
+            return result;
+        });
 };
 
 YtDriver.prototype.executeSimple = function(name, parameters, data)
