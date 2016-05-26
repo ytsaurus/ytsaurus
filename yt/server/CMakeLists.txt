@@ -230,6 +230,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/event_log.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/exec_node.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_strategy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_tree.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_memory.cpp

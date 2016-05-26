@@ -24,6 +24,7 @@
 #include <yt/ytlib/chunk_client/data_statistics.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/ytlib/scheduler/public.h>
 
