@@ -33,8 +33,11 @@ YtWritableStream.prototype._onDrain = function YtWritableStream$_onDrain()
 {
     "use strict";
     this.__DBG("Bindings (InputStream) -> on_drain");
+
     if (!this._ended) {
         this.emit("drain");
+    } else {
+        process.nextTick(this._emitClose.bind(this));
     }
 };
 
@@ -42,10 +45,14 @@ YtWritableStream.prototype._emitClose = function YtWritableStream$_emitClose()
 {
     "use strict";
     this.__DBG("_emitClose");
+
     if (!this._closed) {
-        this.emit("close");
-        this.writable = false;
         this._closed = true;
+
+        this.writable = false;
+        this._binding = null;
+
+        this.emit("close");
     }
 };
 
@@ -53,6 +60,10 @@ YtWritableStream.prototype.write = function YtWritableStream$write(chunk, encodi
 {
     "use strict";
     this.__DBG("write");
+
+    if (this._ended || this._closed) {
+        return false;
+    }
 
     if (typeof(chunk) !== "string" && !Buffer.isBuffer(chunk)) {
         throw new TypeError("Expected first argument to be a String or a Buffer");
@@ -62,14 +73,10 @@ YtWritableStream.prototype.write = function YtWritableStream$write(chunk, encodi
         chunk = new Buffer(chunk, encoding);
     }
 
-    if (!this._ended /* && !this._closed */) {
-        if (this._binding.Push(chunk, 0, chunk.length)) {
-            return true;
-        } else {
-            this.__DBG("write -> (queue is full)");
-            return false;
-        }
+    if (this._binding.Push(chunk, 0, chunk.length)) {
+        return true;
     } else {
+        this.__DBG("write -> (queue is full)");
         return false;
     }
 };
@@ -78,9 +85,11 @@ YtWritableStream.prototype.end = function YtWritableStream$end(chunk, encoding)
 {
     "use strict";
     this.__DBG("end");
+
     if (chunk) {
         this.write(chunk, encoding);
     }
+
     this.destroySoon();
 };
 
@@ -89,11 +98,11 @@ YtWritableStream.prototype.destroySoon = function YtWritableStream$destroySoon()
     "use strict";
     this.__DBG("destroySoon");
 
-    this._binding.End();
+    if (this._binding) {
+        this._binding.End();
+    }
 
     this._ended = true;
-
-    process.nextTick(this._emitClose.bind(this));
 };
 
 YtWritableStream.prototype.destroy = function YtWritableStream$destroy()
@@ -101,11 +110,13 @@ YtWritableStream.prototype.destroy = function YtWritableStream$destroy()
     "use strict";
     this.__DBG("destroy");
 
-    this._binding.Destroy();
+    if (this._binding) {
+        this._binding.Destroy();
+    }
 
-    this.writable = false;
     this._ended = true;
-    this._closed = true;
+
+    this._emitClose();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
