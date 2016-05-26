@@ -422,13 +422,13 @@ YtCommand.prototype._redirectHeavyRequests = function() {
 
     if (this.descriptor.is_heavy && this.coordinator.getSelf().role !== "data") {
         var target = this.coordinator.allocateProxy("data");
-        if (typeof(target) !== "undefined") {
+        if (target) {
             var is_ssl;
             is_ssl = this.req.connection.getCipher && this.req.connection.getCipher();
             is_ssl = !!is_ssl;
             var url =
                 (is_ssl ? "https://" : "http://") +
-                target.host +
+                target.name +
                 this.req.originalUrl;
             utils.redirectTo(this.rsp, url, 307);
             throw new YtError();
