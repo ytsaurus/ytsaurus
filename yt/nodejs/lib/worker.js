@@ -201,22 +201,27 @@ if (!__DBG.On) {
 
 // Setup signal handlers.
 process.on("SIGUSR1", function() {
-    console.error("Writing a heap snapshot (" + process.pid + ")");
-    v8_heapdump.writeSnapshot();
-});
-
-/*
-process.on("SIGUSR2", function() {
-    if (__PROFILE) {
-        console.error("Pausing V8 profiler.");
-        v8_profiler.pause();
-    } else {
-        console.error("Resuming V8 profiler.");
-        v8_profiler.resume();
+    console.error("[" + process.pid + "] Writing V8 heap dump...");
+    try {
+        v8_heapdump.writeSnapshot();
+    } catch (ex) {
+        console.error("Caught exception: " + ex.toString());
     }
-    __PROFILE = !__PROFILE;
+
+    console.error("[" + process.pid + "] Dumping Jemalloc profile...");
+    try {
+        binding.JemallocCtlWrite("prof.dump", null);
+    } catch (ex) {
+        console.error("Caught exception: " + ex.toString());
+    }
+
+    console.error("[" + process.pid + "] Dumping Jemalloc statistics...");
+    try {
+        binding.JemallocPrintStats();
+    } catch (ex) {
+        console.error("Caught exception: " + ex.toString());
+    }
 });
-*/
 
 // Setup message handlers.
 process.on("message", function(message) {
@@ -241,7 +246,7 @@ process.on("message", function(message) {
 });
 
 process.on("uncaughtException", function(err) {
-    console.error("*** Uncaught Exception");
+    console.error("*** Uncaught Exception ***");
     console.error(err);
     if (err.trace) {
         console.error(err.trace);
