@@ -24,6 +24,7 @@ function stubRegistry()
     YtRegistry.set("config", config);
     YtRegistry.set("logger", logger);
     YtRegistry.set("driver", { executeSimple: function(){ return Q.resolve(); } });
+    YtRegistry.set("authority", { ensureUser: function(){ return Q.resolve(); } });
 }
 
 function map(object, iterator, context)
@@ -163,6 +164,14 @@ function mockMetaStateFailure(mock)
         .returns(Q.reject(new YtError("Something is broken")));
 }
 
+function mockUserExists(mock, login, exists)
+{
+    return mock
+        .expects("ensureUser")
+        .withExactArgs(sinon.match.any, login, true)
+        .returns(exists ? Q.resolve() : Q.reject(new YtError("Something is broken")));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 describe("ApplicationUpravlyator", function() {
@@ -212,9 +221,12 @@ describe("ApplicationUpravlyator", function() {
             var mock = sinon.mock(YtRegistry.get("driver"));
             mockGetUser(mock, "sandello");
             mockGetGroup(mock, "managed1");
+            var mock2 = sinon.mock(YtRegistry.get("authority"));
+            mockUserExists(mock2, "sandello", true);
             ask("POST", "/add-role", {}, function(rsp) {
                 rsp.should.be.http2xx;
                 mock.verify();
+                mock2.verify();
                 expect(rsp.json.code).to.eql(0);
                 expect(rsp.json.warning).to.be.a("string");
                 rsp.json.warning.should.match(/\bsandello\b/);
@@ -235,9 +247,12 @@ describe("ApplicationUpravlyator", function() {
                     member: "sandello",
                     group: "managed2"
                 }));
+            var mock2 = sinon.mock(YtRegistry.get("authority"));
+            mockUserExists(mock2, "sandello", true);
             ask("POST", "/add-role", {}, function(rsp) {
                 rsp.should.be.http2xx;
                 mock.verify();
+                mock2.verify();
                 expect(rsp.json.code).to.eql(0);
                 expect(rsp.json).to.have.keys([ "code" ]);
             }, done).end(querystring.stringify({
@@ -258,9 +273,12 @@ describe("ApplicationUpravlyator", function() {
                     member: "sandello",
                     group: "managed1"
                 }));
+            var mock2 = sinon.mock(YtRegistry.get("authority"));
+            mockUserExists(mock2, "sandello", true);
             ask("POST", "/remove-role", {}, function(rsp) {
                 rsp.should.be.http2xx;
                 mock.verify();
+                mock2.verify();
                 expect(rsp.json.code).to.eql(0);
                 expect(rsp.json).to.have.keys([ "code" ]);
             }, done).end(querystring.stringify({
@@ -273,9 +291,12 @@ describe("ApplicationUpravlyator", function() {
             var mock = sinon.mock(YtRegistry.get("driver"));
             mockGetUser(mock, "sandello");
             mockGetGroup(mock, "managed2");
+            var mock2 = sinon.mock(YtRegistry.get("authority"));
+            mockUserExists(mock2, "sandello", true);
             ask("POST", "/remove-role", {}, function(rsp) {
                 rsp.should.be.http2xx;
                 mock.verify();
+                mock2.verify();
                 expect(rsp.json.code).to.eql(0);
                 expect(rsp.json.warning).to.be.a("string");
                 rsp.json.warning.should.match(/\bsandello\b/);
