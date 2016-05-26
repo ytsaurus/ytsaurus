@@ -154,7 +154,7 @@ TRow TColumnEvaluator::EvaluateKeys(
     for (int index = 0; index < partialRow.GetCount(); ++index) {
         int id = partialRow[index].Id;
         int schemaId = idMapping[id];
-        int place = id < KeySize_ ? id : dataColumnId++;
+        int place = schemaId < KeySize_ ? schemaId : dataColumnId++;
         fullRow[place] = partialRow[index];
         fullRow[place].Id = schemaId;
     }
