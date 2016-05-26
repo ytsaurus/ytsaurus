@@ -195,6 +195,10 @@ TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries)
             bounds[i] = UniteBounds(bounds[2 * i], bounds[2 * i + 1]);
             ++i;
         }
+        if (2 * i < bounds.size()) {
+            bounds[i] = bounds[2 * i];
+            ++i;
+        }
         bounds.resize(i);
     }
 
