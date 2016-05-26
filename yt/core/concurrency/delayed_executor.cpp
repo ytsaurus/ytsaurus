@@ -135,17 +135,26 @@ private:
     {
         TDelayedExecutorEntryPtr entry;
 
+        auto now = TInstant::Now();
+
         while (SubmitQueue_.Dequeue(&entry)) {
-            if (entry->Canceled)
+            if (entry->Canceled) {
                 continue;
+            }
+            if (entry->Deadline + LateWarningThreshold < now) {
+                LOG_WARNING("Found a late delayed submitted callback (Deadline: %v, Now: %v)",
+                    entry->Deadline,
+                    now);
+            }
             auto pair = ScheduledEntries_.insert(entry);
             YCHECK(pair.second);
             entry->Iterator = pair.first;
         }
 
         while (CancelQueue_.Dequeue(&entry)) {
-            if (entry->Canceled)
+            if (entry->Canceled) {
                 continue;
+            }
             entry->Canceled = true;
             entry->Callback.Reset();
             if (entry->Iterator) {
@@ -154,7 +163,6 @@ private:
             }
         }
 
-        auto now = TInstant::Now();
         while (!ScheduledEntries_.empty()) {
             auto it = ScheduledEntries_.begin();
             const auto& entry = *it;
@@ -163,7 +171,7 @@ private:
             if (entry->Deadline > now)
                 break;
             if (entry->Deadline + LateWarningThreshold < now) {
-                LOG_WARNING("Delayed callback is late (Deadline: %v, Now: %v)",
+                LOG_WARNING("Found a late delayed scheduled callback (Deadline: %v, Now: %v)",
                     entry->Deadline,
                     now);
             }
