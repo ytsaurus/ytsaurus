@@ -16,7 +16,6 @@ extern const NLogging::TLogger QueryClientLogger;
 
 typedef std::function<TConstExpressionPtr(
     TConstExpressionPtr expr,
-    const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns)> TRefiner;
 
 TRowRanges GetPrunedRanges(

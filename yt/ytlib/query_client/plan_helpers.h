@@ -40,7 +40,6 @@ TConstExpressionPtr MakeOrExpression(TConstExpressionPtr lhs, TConstExpressionPt
 TConstExpressionPtr EliminatePredicate(
     const TRange<TRowRange>& keyRanges,
     TConstExpressionPtr expr,
-    const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns);
 
 TConstExpressionPtr EliminatePredicate(

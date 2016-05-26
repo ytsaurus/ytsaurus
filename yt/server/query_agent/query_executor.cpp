@@ -378,10 +378,9 @@ private:
 
             refiners.push_back([MOVE(keyRanges)] (
                 TConstExpressionPtr expr,
-                const TTableSchema& schema,
                 const TKeyColumns& keyColumns)
             {
-                return EliminatePredicate(keyRanges, expr, schema, keyColumns);
+                return EliminatePredicate(keyRanges, expr, keyColumns);
             });
             subreaderCreators.push_back([&, MOVE(groupedSplit)] () {
                 if (options.VerboseLogging) {
@@ -423,7 +422,7 @@ private:
             const auto& tablePartId = keySource.Id;
             auto& keys = keySource.Keys;
 
-            refiners.push_back([&] (TConstExpressionPtr expr, const TTableSchema& schema, const TKeyColumns& keyColumns) {
+            refiners.push_back([&] (TConstExpressionPtr expr, const TKeyColumns& keyColumns) {
                 return EliminatePredicate(keys, expr, keyColumns);
             });
             subreaderCreators.push_back([&, MOVE(keys)] () {
@@ -502,8 +501,8 @@ private:
         std::vector<TSubreaderCreator> subreaderCreators;
 
         for (const auto& dataSplit : splits) {
-            refiners.push_back([&] (TConstExpressionPtr expr, const TTableSchema& schema, const TKeyColumns& keyColumns) {
-                return EliminatePredicate(MakeRange(&dataSplit.Range, 1), expr, schema, keyColumns);
+            refiners.push_back([&] (TConstExpressionPtr expr, const TKeyColumns& keyColumns) {
+                return EliminatePredicate(MakeRange(&dataSplit.Range, 1), expr, keyColumns);
             });
             subreaderCreators.push_back([&] () {
                 return GetReader(query->TableSchema, dataSplit.Id, dataSplit.Range, options);

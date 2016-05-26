@@ -831,7 +831,6 @@ private:
 
         std::vector<TRefiner> refiners(subrangesCount, [] (
             TConstExpressionPtr expr,
-            const TTableSchema& schema,
             const TKeyColumns& keyColumns) {
                 return expr;
             });
@@ -967,7 +966,7 @@ private:
             });
     }
 
-   std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> Delegate(
+    std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> Delegate(
         TConstQueryPtr query,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
@@ -2278,7 +2277,7 @@ private:
         if (options.Retry) {
             THROW_ERROR_EXCEPTION("\"concatenate\" command is not retriable");
         }
-        
+
         using NChunkClient::NProto::TDataStatistics;
 
         try {

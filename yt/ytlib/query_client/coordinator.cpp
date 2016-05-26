@@ -140,7 +140,6 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         if (query->WhereClause) {
             subquery->WhereClause = refiner(
                 query->WhereClause,
-                subquery->TableSchema,
                 TableSchemaToKeyColumns(
                     subquery->RenamedTableSchema,
                     subquery->KeyColumnsCount));

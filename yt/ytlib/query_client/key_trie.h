@@ -11,7 +11,7 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBound
-{    
+{
     TValue Value;
     bool Included;
 
@@ -32,6 +32,11 @@ struct TBound
     }
 
 };
+
+void UniteBounds(std::vector<std::vector<TBound>>* bounds);
+int CompareBound(const TBound& lhs, const TBound& rhs, bool lhsDir, bool rhsDir);
+
+bool Covers(const std::vector<TBound>& bounds, const TValue& point);
 
 std::vector<TBound> IntersectBounds(
     const std::vector<TBound>& lhs,

@@ -44,7 +44,7 @@ int CompareBound(const TBound& lhs, const TBound& rhs, bool lhsDir, bool rhsDir)
         // >= - (true, true)
 
         // (< x) < (>= x) < (<= x) < (> x)
-        return (included? -1 : 2) * (direction? 1 : -1);
+        return (included ? -1 : 2) * (direction ? 1 : -1);
     };
 
     int result = CompareRowValues(lhs.Value, rhs.Value);
@@ -54,10 +54,7 @@ int CompareBound(const TBound& lhs, const TBound& rhs, bool lhsDir, bool rhsDir)
 };
 
 template <class TEachCallback>
-void MergeBounds(
-    const std::vector<TBound>& lhs,
-    const std::vector<TBound>& rhs,
-    TEachCallback eachCallback)
+void MergeBounds(const std::vector<TBound>& lhs, const std::vector<TBound>& rhs, TEachCallback eachCallback)
 {
     auto first = lhs.begin();
     auto second = rhs.begin();
@@ -90,9 +87,7 @@ void MergeBounds(
     }
 }
 
-std::vector<TBound> UniteBounds(
-    const std::vector<TBound>& lhs,
-    const std::vector<TBound>& rhs)
+std::vector<TBound> UniteBounds(const std::vector<TBound>& lhs, const std::vector<TBound>& rhs)
 {
     int cover = 0;
     std::vector<TBound> result;
@@ -110,9 +105,23 @@ std::vector<TBound> UniteBounds(
     return result;
 }
 
-std::vector<TBound> IntersectBounds(
-    const std::vector<TBound>& lhs,
-    const std::vector<TBound>& rhs)
+void UniteBounds(std::vector<std::vector<TBound>>* bounds)
+{
+    while (bounds->size() > 1) {
+        size_t i = 0;
+        while (2 * i + 1 < bounds->size()) {
+            (*bounds)[i] = UniteBounds((*bounds)[2 * i], (*bounds)[2 * i + 1]);
+            ++i;
+        }
+        if (2 * i < bounds->size()) {
+            (*bounds)[i] = (*bounds)[2 * i];
+            ++i;
+        }
+        bounds->resize(i);
+    }
+}
+
+std::vector<TBound> IntersectBounds(const std::vector<TBound>& lhs, const std::vector<TBound>& rhs)
 {
     int cover = 0;
     std::vector<TBound> result;
@@ -189,18 +198,7 @@ TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries)
         }
     }
 
-    while (bounds.size() > 1) {
-        size_t i = 0;
-        while (2 * i + 1 < bounds.size()) {
-            bounds[i] = UniteBounds(bounds[2 * i], bounds[2 * i + 1]);
-            ++i;
-        }
-        if (2 * i < bounds.size()) {
-            bounds[i] = bounds[2 * i];
-            ++i;
-        }
-        bounds.resize(i);
-    }
+    UniteBounds(&bounds);
 
     YCHECK(bounds.size() <= 1);
     if (!bounds.empty()) {
@@ -289,6 +287,25 @@ TKeyTriePtr UniteKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
     return UniteKeyTrie({lhs, rhs});
 };
 
+bool Covers(const std::vector<TBound>& bounds, const TValue& point)
+{
+    auto found = std::lower_bound(
+        bounds.begin(),
+        bounds.end(),
+        point,
+        [] (const TBound& bound, const TValue& point) {
+            return bound.Value < point;
+        });
+
+    bool isClose = (found - bounds.begin()) & 1;
+    if (found != bounds.end()) {
+        return ((found->Value > point) && isClose) ||
+            (found->Value == point && found->Included);
+    } else {
+        return false;
+    }
+}
+
 TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
 {
     auto lhsOffset = lhs ? lhs->Offset : std::numeric_limits<size_t>::max();
@@ -342,32 +359,14 @@ TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
 
     result->Bounds.erase(jt, kt);
 
-    auto covers = [] (const std::vector<TBound>& bounds, const TValue& point) {
-        auto found = std::lower_bound(
-            bounds.begin(),
-            bounds.end(),
-            point,
-            [] (const TBound& bound, const TValue& point) {
-                return bound.Value < point;
-            });
-
-        bool isClose = (found - bounds.begin()) & 1;
-        if (found != bounds.end()) {
-            return ((found->Value > point) && isClose) ||
-                (found->Value == point && found->Included);
-        } else {
-            return false;
-        }
-    };
-
     for (const auto& next : lhs->Next) {
-        if (covers(rhs->Bounds, next.first)) {
+        if (Covers(rhs->Bounds, next.first)) {
             result->Next.push_back(next);
         }
     }
 
     for (const auto& next : rhs->Next) {
-        if (covers(lhs->Bounds, next.first)) {
+        if (Covers(lhs->Bounds, next.first)) {
             result->Next.push_back(next);
         }
     }
