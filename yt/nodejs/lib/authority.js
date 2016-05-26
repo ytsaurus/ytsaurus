@@ -51,6 +51,13 @@ function YtAuthority(config, driver)
         maxAge: this.config.cache_max_exist_age,
     });
 
+    // Caches user domain attachment.
+    this.domain_cache = lru_cache({
+        max: this.config.cache_max_size,
+        maxAge: this.config.cache_max_exist_age,
+    });
+
+
     // Well, see YT-3772 and related issues.
     this.optimistic_cache = {};
 
@@ -80,6 +87,7 @@ function YtAuthority$authenticateByToken(logger, profiler, party, token)
         party: party,
         cache_key: "T" + token,
         token: token,
+        domain: false,
     };
 
     var result = createNewResult();
@@ -93,7 +101,7 @@ function YtAuthority$authenticateByToken(logger, profiler, party, token)
     return Q.resolve()
     .then(this._asyncQueryCypress.bind(this, context, result))
     .then(this._asyncQueryBlackboxToken.bind(this, context, result))
-    .then(this._ensureUserExists.bind(this, context, result))
+    .then(this._asyncUserExists.bind(this, context, result))
     .then(this._syncFinalize.bind(this, context, result));
 });
 
@@ -112,6 +120,7 @@ function YtAuthority$authenticateByCookie(logger, profiler, party, sessionid, ss
         cache_key: "C" + sessionid + "/" + sslsessionid,
         sessionid: sessionid,
         sslsessionid: sslsessionid,
+        domain: false,
     };
 
     var result = createNewResult();
@@ -124,7 +133,7 @@ function YtAuthority$authenticateByCookie(logger, profiler, party, sessionid, ss
     // Perform proper authentication here.
     return Q.resolve()
     .then(this._asyncQueryBlackboxCookie.bind(this, context, result))
-    .then(this._ensureUserExists.bind(this, context, result))
+    .then(this._asyncUserExists.bind(this, context, result))
     .then(this._syncFinalize.bind(this, context, result));
 });
 
@@ -166,6 +175,21 @@ function YtAuthority$oAuthBuildUrlToRedirect(logger, party, key, state)
     }
 
     return external_services.oAuthBuildUrlToRedirect(app.client_id, state);
+});
+
+YtAuthority.prototype.ensureUser = Q.method(
+function YtAuthority$ensureUser(logger, login, domain)
+{
+    this.__DBG("ensureUser");
+
+    var self = this;
+    var promise = this._ensureUserExists(logger, login);
+    if (domain) {
+        promise = promise.then(function() {
+            self._ensureUserDomain(logger, login);
+        });
+    }
+    return promise;
 });
 
 YtAuthority.prototype._findOAuthApplicationBy = function(key, value)
@@ -260,12 +284,14 @@ YtAuthority.prototype._asyncQueryBlackboxToken = function(context, result)
 
         result.login = data.login;
         result.realm = "blackbox-" + realm;
+        result.domain = true;
     })
     .catch(function(err) {
         var optimistic_login = self.optimistic_cache[context.token];
         if (typeof(optimistic_login) === "string") {
             result.login = optimistic_login;
             result.realm = "optimistic_cache";
+            result.domain = true;
         } else {
             return Q.reject(err);
         }
@@ -300,6 +326,7 @@ YtAuthority.prototype._asyncQueryBlackboxCookie = function(context, result)
                 context.logger.debug("Blackbox has approved the cookie");
                 result.login = data.login;
                 result.realm = "blackbox_session_cookie";
+                result.domain = true;
                 break;
             /*
             case 2: // EXPIRED
@@ -370,6 +397,7 @@ YtAuthority.prototype._asyncQueryCypress = function(context, result)
 
         result.login = login;
         result.realm = "cypress";
+        result.domain = false;
     },
     function(error) {
         if (error.checkFor(500)) {
@@ -380,34 +408,78 @@ YtAuthority.prototype._asyncQueryCypress = function(context, result)
     });
 };
 
-YtAuthority.prototype._ensureUserExists = function(context, result)
+YtAuthority.prototype._asyncUserExists = function(context, result)
+{
+    this.__DBG("_asyncUserExists");
+
+    var self = this;
+    var promise = Q.resolve();
+
+    var logger = context.logger;
+    var login = result.login;
+
+    if (result.isAuthenticated) {
+        promise = promise.then(function() {
+            self._ensureUserExists(logger, login);
+        });
+    }
+
+    if (result.domain) {
+        promise = promise.then(function() {
+            self._ensureUserDomain(logger, login);
+        });
+    }
+
+    return promise;
+};
+
+YtAuthority.prototype._ensureUserExists = function(logger, name)
 {
     this.__DBG("_ensureUserExists");
 
     var self = this;
-    var name = result.login;
 
-    if (!result.isAuthenticated || this.exist_cache.get(name)) {
+    if (this.exist_cache.get(name)) {
         return Q.resolve();
     }
 
     return this.driver.executeSimple("create", {
         type: "user",
-        attributes: { name: name }
+        attributes: {name: name}
     })
     .then(
-    function(create) {
-        context.logger.debug("User created", { name: name });
+    function(created) {
+        logger.debug("User created", {name: name});
         self.exist_cache.set(name, true);
     },
     function(error) {
         if (error.checkFor(501)) {
-            context.logger.debug("User already exists", { name: name });
+            logger.debug("User already exists", {name: name});
             self.exist_cache.set(name, true);
             return;
         } else {
             return Q.reject(error);
         }
+    });
+};
+
+YtAuthority.prototype._ensureUserDomain = function(logger, name)
+{
+    this.__DBG("_ensureUserDomain");
+
+    var self = this;
+
+    if (this.domain_cache.get(name)) {
+        return Q.resolve();
+    }
+
+    return this.driver.executeSimple("set", {
+        path: "//sys/users/" + utils.escapeYPath(name) + "/@upravlyator_managed"
+    }, true)
+    .then(
+    function(set) {
+        logger.debug("User is in domain", {name: name});
+        self.domain_cache.set(name, true);
     });
 };
 
