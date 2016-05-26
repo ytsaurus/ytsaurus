@@ -2,9 +2,6 @@
 
 #include "public.h"
 
-#include <yt/server/scheduler/job_resources.h>
-#include <yt/server/security_server/acl.h>
-
 #include <yt/ytlib/api/config.h>
 
 #include <yt/ytlib/formats/format.h>
@@ -969,17 +966,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ESchedulingMode,
-    (Fifo)
-    (FairShare)
-);
-
-DEFINE_ENUM(EFifoSortParameter,
-    (Weight)
-    (StartTime)
-    (PendingJobCount)
-);
-
 class TResourceLimitsConfig
     : public NYTree::TYsonSerializable
 {
@@ -1003,24 +989,6 @@ public:
         RegisterParameter("memory", Memory)
             .Default()
             .GreaterThanOrEqual(0);
-    }
-
-    TJobResources ToJobResources() const
-    {
-        auto perTypeLimits = InfiniteJobResources();
-        if (UserSlots) {
-            perTypeLimits.SetUserSlots(*UserSlots);
-        }
-        if (Cpu) {
-            perTypeLimits.SetCpu(*Cpu);
-        }
-        if (Network) {
-            perTypeLimits.SetNetwork(*Network);
-        }
-        if (Memory) {
-            perTypeLimits.SetMemory(*Memory);
-        }
-        return perTypeLimits;
     }
 };
 

@@ -69,6 +69,17 @@ DEFINE_ENUM(EJobFinalState,
     (Completed)
 );
 
+DEFINE_ENUM(ESchedulingMode,
+    (Fifo)
+    (FairShare)
+);
+
+DEFINE_ENUM(EFifoSortParameter,
+    (Weight)
+    (StartTime)
+    (PendingJobCount)
+);
+
 class TSchedulerServiceProxy;
 
 class TJobIOConfig;
