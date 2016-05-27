@@ -214,7 +214,6 @@ YtDriver.prototype.execute = function(
                 deferred.resolve(Array.prototype.slice.call(arguments));
             } else {
                 self.__DBG("execute -> execute_promise has been rejected");
-                destroyer();
                 deferred.reject(result);
             }
         },
