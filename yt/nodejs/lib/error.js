@@ -73,19 +73,21 @@ YtError.prototype.isOK = function() {
 };
 
 YtError.prototype.isUnavailable = function() {
-    return checkForErrorCode(this, binding.UnavailableYtErrorCode);
+    return checkForErrorCode(this, binding.NRpc_UnavailableYtErrorCode);
 };
 
 YtError.prototype.isUserBanned = function() {
-    return checkForErrorCode(this, binding.UserBannedYtErrorCode);
+    return checkForErrorCode(this, binding.NSecurityClient_UserBannedYtErrorCode);
 };
 
 YtError.prototype.isRequestQueueSizeLimitExceeded = function() {
-    return checkForErrorCode(this, binding.RequestQueueSizeLimitExceededYtErrorCode);
+    return false ||
+        checkForErrorCode(this, binding.NSecurityClient_RequestQueueSizeLimitExceededYtErrorCode) ||
+        checkForErrorCode(this, binding.NRpc_RequestQueueSizeLimitExceededYtErrorCode);
 };
 
 YtError.prototype.isAllTargetNodesFailed = function() {
-    return checkForErrorCode(this, binding.AllTargetNodesFailedYtErrorCode);
+    return checkForErrorCode(this, binding.NChunkClient_AllTargetNodesFailedYtErrorCode);
 };
 
 YtError.prototype.checkFor = function(code) {
