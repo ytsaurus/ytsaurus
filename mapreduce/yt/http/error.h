@@ -53,6 +53,8 @@ public:
     bool IsRetriable() const;
     TDuration GetRetryInterval() const;
 
+    bool IsResolveError() const;
+
 private:
     int HttpCode_;
     Stroka RequestId_;

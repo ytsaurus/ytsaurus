@@ -136,6 +136,11 @@ TDuration TErrorResponse::GetRetryInterval() const
     return RetryInterval_;
 }
 
+bool TErrorResponse::IsResolveError() const
+{
+    return Error_.GetInnerCode() == 500;
+}
+
 void TErrorResponse::Setup()
 {
     Retriable_ = true;
