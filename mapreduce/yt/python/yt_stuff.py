@@ -138,7 +138,7 @@ class YtStuff(object):
 
         self.yt_wrapper = yt.wrapper
         self.yt_wrapper.config.PREFIX = _YT_PREFIX
-        self.yt_wrapper.config["pickling"]["python_binary"] = sys.executable
+        self.yt_wrapper.config["pickling"]["python_binary"] = yatest.common.python_path()
 
     def _start_local_yt(self):
         self.yt_proxy_port = devtools.swag.ports.find_free_port() if self.config.proxy_port is None else self.config.proxy_port
@@ -170,7 +170,7 @@ class YtStuff(object):
             if self.config.proxy_config:
                 args += ["--proxy-config", self.config.proxy_config]
 
-            cmd = [sys.executable, self.yt_local_path] + list(args)
+            cmd = [yatest.common.python_path(), self.yt_local_path] + list(args)
             self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
 
             special_file = os.path.join(self.yt_work_dir, self.yt_id, "started")
@@ -214,7 +214,7 @@ class YtStuff(object):
 
     # Dear user! Please, look at run_mapreduce_yt() method!
     # Do you really want to use get_mapreduce_yt() directly?
-    # If yes, please don't forget to use sys.executable and to set environment
+    # If yes, please don't forget to use yatest.common.python_path() and to set environment
     # (right, like in run_mapreduce_yt() method).
     def get_mapreduce_yt(self):
         return self.mapreduce_yt_path
@@ -224,7 +224,7 @@ class YtStuff(object):
             env = {}
 
         env.update(self.env)
-        cmd = [sys.executable, self.mapreduce_yt_path] + cmd
+        cmd = [yatest.common.python_path(), self.mapreduce_yt_path] + cmd
 
         return yatest.common.execute(cmd, env=env, *args, **kwargs)
 
@@ -251,7 +251,7 @@ class YtStuff(object):
     def stop_local_yt(self):
         try:
             cmd = [
-                sys.executable, self.yt_local_path,
+                yatest.common.python_path(), self.yt_local_path,
                 "stop", os.path.join(self.yt_work_dir, self.yt_id),
             ]
             self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
