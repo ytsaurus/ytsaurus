@@ -528,7 +528,7 @@ public:
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        const TTabletCellId& cellId)
+        TTabletCell* hintCell)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
@@ -539,12 +539,17 @@ public:
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
-        TTabletCell* hintedCell;
-        if (!cellId) {
-            ValidateHasHealthyCells(); // may throw
-            hintedCell = nullptr;
-        } else {
-            hintedCell = GetTabletCellOrThrow(cellId); // may throw
+        if (hintCell && hintCell->GetCellBundle() != table->GetTabletCellBundle()) {
+            // Will throw :)
+            THROW_ERROR_EXCEPTION("Cannot mount tablets into cell %v since it belongs to bundle %Qv while the table "
+                "is configured to use bundle %Qv",
+                hintCell->GetId(),
+                hintCell->GetCellBundle()->GetName(),
+                table->GetTabletCellBundle()->GetName());
+        }
+
+        if (!hintCell) {
+            ValidateHasHealthyCells(table->GetTabletCellBundle()); // may throw
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
@@ -582,7 +587,7 @@ public:
         auto assignment = ComputeTabletAssignment(
             table,
             mountConfig,
-            hintedCell,
+            hintCell,
             std::move(tabletsToMount));
 
         for (const auto& pair : assignment) {
@@ -1896,26 +1901,28 @@ private:
     }
 
 
-    void ValidateHasHealthyCells()
+    void ValidateHasHealthyCells(TTabletCellBundle* cellBundle)
     {
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
-            if (cell->GetHealth() == ETabletCellHealth::Good)
+            if (cell->GetCellBundle() == cellBundle && cell->GetHealth() == ETabletCellHealth::Good) {
                 return;
+            }
         }
-        THROW_ERROR_EXCEPTION("No healthy tablet cells");
+        THROW_ERROR_EXCEPTION("No healthy tablet cells in bundle %Qv",
+            cellBundle->GetName());
     }
 
     std::vector<std::pair<TTablet*, TTabletCell*>> ComputeTabletAssignment(
         TTableNode* table,
         TTableMountConfigPtr mountConfig,
-        TTabletCell* hintedCell,
+        TTabletCell* hintCell,
         std::vector<TTablet*> tabletsToMount)
     {
-        if (hintedCell) {
+        if (hintCell) {
             std::vector<std::pair<TTablet*, TTabletCell*>> assignment;
             for (auto* tablet : tabletsToMount) {
-                assignment.emplace_back(tablet, hintedCell);
+                assignment.emplace_back(tablet, hintCell);
             }
             return assignment;
         }
@@ -1957,7 +1964,9 @@ private:
         std::set<TCellKey> cellKeys;
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
-            if (cell->GetHealth() == ETabletCellHealth::Good) {
+            if (cell->GetCellBundle() == table->GetTabletCellBundle() &&
+                cell->GetHealth() == ETabletCellHealth::Good)
+            {
                 YCHECK(cellKeys.insert(TCellKey{getCellSize(cell), cell}).second);
             }
         }
@@ -2461,13 +2470,13 @@ void TTabletManager::MountTable(
     TTableNode* table,
     int firstTabletIndex,
     int lastTabletIndex,
-    const TTabletCellId& cellId)
+    TTabletCell* hintCell)
 {
     Impl_->MountTable(
         table,
         firstTabletIndex,
         lastTabletIndex,
-        cellId);
+        hintCell);
 }
 
 void TTabletManager::UnmountTable(
