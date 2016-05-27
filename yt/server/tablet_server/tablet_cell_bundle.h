@@ -6,6 +6,8 @@
 
 #include <yt/server/object_server/object.h>
 
+#include <yt/server/security_server/acl.h>
+
 #include <yt/server/cell_master/public.h>
 
 #include <yt/ytlib/tablet_client/public.h>
@@ -23,6 +25,8 @@ class TTabletCellBundle
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(Stroka, Name);
+
+    DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellOptionsPtr, Options);
 

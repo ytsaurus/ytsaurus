@@ -1,6 +1,7 @@
 #include "tablet_cell_bundle_proxy.h"
 #include "tablet_cell_bundle.h"
 #include "tablet_cell.h"
+#include "tablet_manager.h"
 #include "private.h"
 
 #include <yt/core/ytree/fluent.h>
@@ -15,6 +16,7 @@ namespace NYT {
 namespace NTabletServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,8 +28,8 @@ public:
     TTabletCellBundleProxy(
         NCellMaster::TBootstrap* bootstrap,
         TObjectTypeMetadata* metadata,
-        TTabletCellBundle* bundle)
-        : TBase(bootstrap, metadata, bundle)
+        TTabletCellBundle* cellBundle)
+        : TBase(bootstrap, metadata, cellBundle)
     { }
 
 private:
@@ -35,38 +37,46 @@ private:
 
     virtual void ValidateRemoval() override
     {
-        const auto* bundle = GetThisTypedImpl();
-        if (!bundle->TabletCells().empty()) {
+        const auto* cellBundle = GetThisTypedImpl();
+        if (!cellBundle->TabletCells().empty()) {
             THROW_ERROR_EXCEPTION("Cannot remove tablet cell bundle %Qv since it has %v active tablet cell(s)",
-                bundle->GetName(),
-                bundle->TabletCells().size());
+                cellBundle->GetName(),
+                cellBundle->TabletCells().size());
         }
     }
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
-        attributes->push_back("options");
+        attributes->push_back(TAttributeDescriptor("name")
+            .SetReplicated(true));
+        attributes->push_back(TAttributeDescriptor("options")
+            .SetReplicated(true));
         attributes->push_back("tablet_cell_count");
         attributes->push_back(TAttributeDescriptor("tablet_cell_ids")
-            .SetPresent(true)
             .SetOpaque(true));
 
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        const auto* bundle = GetThisTypedImpl();
+        const auto* cellBundle = GetThisTypedImpl();
+
+        if (key == "name") {
+            BuildYsonFluently(consumer)
+                .Value(cellBundle->GetName());
+            return true;
+        }
 
         if (key == "options") {
             BuildYsonFluently(consumer)
-              .Value(bundle->GetOptions());
+                .Value(cellBundle->GetOptions());
             return true;
         }
 
         if (key == "tablet_cell_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(bundle->TabletCells(), [] (TFluentList fluent, const TTabletCell* cell) {
+                .DoListFor(cellBundle->TabletCells(), [] (TFluentList fluent, const TTabletCell* cell) {
                     fluent
                         .Item().Value(cell->GetId());
                 });
@@ -75,20 +85,45 @@ private:
 
         if (key == "tablet_cell_count") {
             BuildYsonFluently(consumer)
-                .Value(bundle->TabletCells().size());
+                .Value(cellBundle->TabletCells().size());
             return true;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
+    {
+        auto tabletManager = Bootstrap_->GetTabletManager();
+
+        auto* cellBundle = GetThisTypedImpl();
+
+        if (key == "name") {
+            auto newName = ConvertTo<Stroka>(value);
+            tabletManager->RenameTabletCellBundle(cellBundle, newName);
+            return true;
+        }
+
+        if (key == "options") {
+            auto options = ConvertTo<TTabletCellOptionsPtr>(value);
+            if (!cellBundle->TabletCells().empty()) {
+                THROW_ERROR_EXCEPTION("Cannot change options since tablet cell bundle has %v tablet cell(s)",
+                    cellBundle->TabletCells().size());
+            }
+            cellBundle->SetOptions(options);
+            return true;
+        }
+
+        return TBase::SetBuiltinAttribute(key, value);
     }
 };
 
 IObjectProxyPtr CreateTabletCellBundleProxy(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
-    TTabletCellBundle* bundle)
+    TTabletCellBundle* cellBundle)
 {
-    return New<TTabletCellBundleProxy>(bootstrap, metadata, bundle);
+    return New<TTabletCellBundleProxy>(bootstrap, metadata, cellBundle);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

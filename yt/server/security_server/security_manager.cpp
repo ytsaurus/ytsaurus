@@ -30,6 +30,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
+#include <yt/ytlib/security_client/helpers.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -308,9 +309,7 @@ public:
 
     TAccount* CreateAccount(const Stroka& name, const TObjectId& hintId)
     {
-        if (name.empty()) {
-            THROW_ERROR_EXCEPTION("Account name cannot be empty");
-        }
+        ValidateAccountName(name);
 
         if (FindAccountByName(name)) {
             THROW_ERROR_EXCEPTION(
@@ -408,8 +407,11 @@ public:
 
     void RenameAccount(TAccount* account, const Stroka& newName)
     {
-        if (newName == account->GetName())
+        ValidateAccountName(newName);
+
+        if (newName == account->GetName()) {
             return;
+        }
 
         if (FindAccountByName(newName)) {
             THROW_ERROR_EXCEPTION(
@@ -477,9 +479,7 @@ public:
 
     TUser* CreateUser(const Stroka& name, const TObjectId& hintId)
     {
-        if (name.empty()) {
-            THROW_ERROR_EXCEPTION("User name cannot be empty");
-        }
+        ValidateSubjectName(name);
 
         if (FindUserByName(name)) {
             THROW_ERROR_EXCEPTION(
@@ -551,9 +551,7 @@ public:
 
     TGroup* CreateGroup(const Stroka& name, const TObjectId& hintId)
     {
-        if (name.empty()) {
-            THROW_ERROR_EXCEPTION("Group name cannot be empty");
-        }
+        ValidateSubjectName(name);
 
         if (FindGroupByName(name)) {
             THROW_ERROR_EXCEPTION(
@@ -677,8 +675,7 @@ public:
 
     void RenameSubject(TSubject* subject, const Stroka& newName)
     {
-        if (newName == subject->GetName())
-            return;
+        ValidateSubjectName(newName);
 
         if (FindSubjectByName(newName)) {
             THROW_ERROR_EXCEPTION(
@@ -1765,6 +1762,20 @@ private:
         }
     }
 
+
+    static void ValidateAccountName(const Stroka& name)
+    {
+        if (name.empty()) {
+            THROW_ERROR_EXCEPTION("Account name cannot be empty");
+        }
+    }
+
+    static void ValidateSubjectName(const Stroka& name)
+    {
+        if (name.empty()) {
+            THROW_ERROR_EXCEPTION("Subject name cannot be empty");
+        }
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, AccountMap_)

@@ -73,6 +73,11 @@ public:
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
     TTabletCellBundle* FindTabletCellBundleByName(const Stroka& name);
+    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const Stroka& name);
+    void RenameTabletCellBundle(TTabletCellBundle* cellBundle, const Stroka& newName);
+    TTabletCellBundle* GetDefaultTabletCellBundle();
+    void SetTabletCellBundle(NTableServer::TTableNode* table, TTabletCellBundle* cellBundle);
+    void ResetTabletCellBundle(NTableServer::TTableNode* table);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell);
     TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id);

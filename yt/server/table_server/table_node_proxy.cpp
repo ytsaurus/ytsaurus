@@ -97,6 +97,8 @@ private:
         descriptors->push_back(TAttributeDescriptor("tablet_statistics")
             .SetPresent(isDynamic)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("tablet_cell_bundle")
+            .SetPresent(table->GetTabletCellBundle() != nullptr));
         descriptors->push_back("atomicity");
         descriptors->push_back(TAttributeDescriptor("optimize_for")
             .SetCustom(true));
@@ -106,6 +108,7 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* table = GetThisTypedImpl();
+        const auto* trunkTable = table->GetTrunkNode();
         auto statistics = table->ComputeTotalStatistics();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
@@ -154,19 +157,19 @@ private:
 
         if (key == "dynamic") {
             BuildYsonFluently(consumer)
-                .Value(table->IsDynamic());
+                .Value(trunkTable->IsDynamic());
             return true;
         }
 
-        if (key == "tablet_count" && table->IsDynamic()) {
+        if (key == "tablet_count" && trunkTable->IsDynamic()) {
             BuildYsonFluently(consumer)
-                .Value(table->Tablets().size());
+                .Value(trunkTable->Tablets().size());
             return true;
         }
 
-        if (key == "tablets" && table->IsDynamic()) {
+        if (key == "tablets" && trunkTable->IsDynamic()) {
             BuildYsonFluently(consumer)
-                .DoListFor(table->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
+                .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
                     auto* cell = tablet->GetCell();
                     fluent
                         .Item().BeginMap()
@@ -186,9 +189,9 @@ private:
             return true;
         }
 
-        if (key == "tablet_statistics" && table->IsDynamic()) {
+        if (key == "tablet_statistics" && trunkTable->IsDynamic()) {
             TTabletStatistics tabletStatistics;
-            for (const auto& tablet : table->Tablets()) {
+            for (const auto& tablet : trunkTable->Tablets()) {
                 tabletStatistics += tabletManager->GetTabletStatistics(tablet);
             }
             BuildYsonFluently(consumer)
@@ -196,9 +199,15 @@ private:
             return true;
         }
 
+        if (key == "tablet_cell_bundle" && trunkTable->GetTabletCellBundle()) {
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetTabletCellBundle()->GetName());
+            return true;
+        }
+
         if (key == "atomicity") {
             BuildYsonFluently(consumer)
-                .Value(table->GetAtomicity());
+                .Value(trunkTable->GetAtomicity());
             return true;
         }
 
@@ -233,6 +242,18 @@ private:
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
+        if (key == "tablet_cell_bundle") {
+            ValidateNoTransaction();
+
+            auto name = ConvertTo<Stroka>(value);
+            auto tabletManager = Bootstrap_->GetTabletManager();
+            auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
+
+            auto* table = LockThisTypedImpl();
+            tabletManager->SetTabletCellBundle(table, cellBundle);
+            return true;
+        }
+
         if (key == "atomicity") {
             ValidateNoTransaction();
 

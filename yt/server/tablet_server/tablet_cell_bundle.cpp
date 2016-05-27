@@ -13,6 +13,7 @@ using namespace NTabletClient;
 
 TTabletCellBundle::TTabletCellBundle(const TTabletCellBundleId& id)
     : TNonversionedObjectBase(id)
+    , Acd_(this)
     , Options_(New<TTabletCellOptions>())
 { }
 
@@ -22,6 +23,7 @@ void TTabletCellBundle::Save(TSaveContext& context) const
 
     using NYT::Save;
     Save(context, Name_);
+    Save(context, Acd_);
     Save(context, *Options_);
 }
 
@@ -31,6 +33,10 @@ void TTabletCellBundle::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, Name_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 400) {
+        Load(context, Acd_);
+    }
     Load(context, *Options_);
 }
 

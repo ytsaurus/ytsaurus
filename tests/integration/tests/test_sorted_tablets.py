@@ -22,12 +22,13 @@ class TestSortedTablets(YTEnvSetup):
         }
     }
 
-    def _create_simple_table(self, path, atomicity="full", optimize_for="lookup"):
+    def _create_simple_table(self, path, atomicity="full", optimize_for="lookup", tablet_cell_bundle="default"):
         create("table", path,
             attributes={
                 "dynamic": True,
                 "atomicity": atomicity,
                 "optimize_for": optimize_for,
+                "tablet_cell_bundle": tablet_cell_bundle,
                 "schema": [
                     {"name": "key", "type": "int64", "sort_order": "ascending"},
                     {"name": "value", "type": "string"}]
@@ -86,18 +87,14 @@ class TestSortedTablets(YTEnvSetup):
         tablets = get(path + "/@tablets")
         return [tablet["pivot_key"] for tablet in tablets]
 
-    def test_table_cell_bundle(self):
-        id = create_tablet_cell_bundle("test_bundle")
-        assert ls("//sys/tablet_cell_bundles") == ["test_bundle"]
-
-        test_bundle = get("//sys/tablet_cell_bundles/test_bundle/@")
-        assert test_bundle["id"] == id
-
-        remove_tablet_cell_bundle("test_bundle")
-        assert ls ("//sys/tablet_cell_bundles") == []
-
+    def _ban_all_peers(self, cell_id):
+        peers = get("#" + cell_id + "/@peers")
+        for x in peers:
+            self.set_node_banned(x["address"], True)
+        clear_metadata_caches()
+    
     def test_mount(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
 
         self.sync_mount_table("//tmp/t")
@@ -110,7 +107,7 @@ class TestSortedTablets(YTEnvSetup):
         assert tablet_ids == [tablet_id]
 
     def test_unmount(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
 
         self.sync_mount_table("//tmp/t")
@@ -125,7 +122,7 @@ class TestSortedTablets(YTEnvSetup):
         self.sync_unmount_table("//tmp/t")
 
     def test_mount_unmount(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
@@ -143,7 +140,7 @@ class TestSortedTablets(YTEnvSetup):
         assert_items_equal(actual, rows)
 
     def test_reshard_unmounted(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         create("table", "//tmp/t",attributes={
             "dynamic": True,
             "schema": [
@@ -182,21 +179,8 @@ class TestSortedTablets(YTEnvSetup):
         with pytest.raises(YtError): reshard_table("//tmp/t", [[], [100, 200]])
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
-    def test_force_unmount_on_remove(self):
-        self.sync_create_cells(1, 1)
-        self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
-
-        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        address = self._get_tablet_leader_address(tablet_id)
-        assert self._find_tablet_orchid(address, tablet_id) is not None
-
-        remove("//tmp/t")
-        sleep(1)
-        assert self._find_tablet_orchid(address, tablet_id) is None
-
     def test_read_invalid_limits(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
 
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
@@ -209,7 +193,7 @@ class TestSortedTablets(YTEnvSetup):
         with pytest.raises(YtError):  read_table("<ranges=[{lower_limit={chunk_index = 0};upper_limit={chunk_index = 1}}]>//tmp/t")
 
     def _test_read_table(self, optimize_for):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", optimize_for=optimize_for)
         self.sync_mount_table("//tmp/t")
@@ -228,7 +212,7 @@ class TestSortedTablets(YTEnvSetup):
         self._test_read_table("lookup")
 
     def test_read_snapshot_lock(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
@@ -296,14 +280,14 @@ class TestSortedTablets(YTEnvSetup):
         verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
 
     def test_write_table(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
         with pytest.raises(YtError): write_table("//tmp/t", [{"key": 1, "value": 2}])
 
     def _test_computed_columns(self, optimize_for):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_table_with_computed_column("//tmp/t", optimize_for)
         self.sync_mount_table("//tmp/t")
 
@@ -344,7 +328,7 @@ class TestSortedTablets(YTEnvSetup):
         self._test_computed_columns("scan")
 
     def _test_computed_hash(self, optimize_for):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
 
         self._create_table_with_hash("//tmp/t", optimize_for)
         self.sync_mount_table("//tmp/t")
@@ -372,7 +356,7 @@ class TestSortedTablets(YTEnvSetup):
         self._test_computed_hash("lookup")
 
     def _test_computed_column_update_consistency(self, optimize_for):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
 
         create("table", "//tmp/t",
 
@@ -410,7 +394,7 @@ class TestSortedTablets(YTEnvSetup):
         self._test_computed_column_update_consistency("lookup")
 
     def _test_aggregate_columns(self, optimize_for):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_table_with_aggregate_column("//tmp/t", optimize_for=optimize_for)
         self.sync_mount_table("//tmp/t")
 
@@ -490,7 +474,7 @@ class TestSortedTablets(YTEnvSetup):
         self._test_aggregate_columns("lookup")
 
     def test_aggregate_min_max(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_table_with_aggregate_column("//tmp/t", "min", "scan")
         self.sync_mount_table("//tmp/t")
 
@@ -505,7 +489,7 @@ class TestSortedTablets(YTEnvSetup):
         assert_items_equal(select_rows("max(value) as max from [//tmp/t] group by 1"), [{"max": 20}])
 
     def test_aggregate_alter(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "time", "type": "int64"},
@@ -535,7 +519,7 @@ class TestSortedTablets(YTEnvSetup):
         test_row({"key": 1, "time": 3, "value": 10}, {"key": 1, "time": 3, "value": 30}, aggregate=True)
 
     def test_reshard_data(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t1", optimize_for = "scan")
         self.sync_mount_table("//tmp/t1")
 
@@ -557,114 +541,8 @@ class TestSortedTablets(YTEnvSetup):
         reshard([[]])
         assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
 
-    def test_metadata_cache_invalidation(self):
-        def sync_mount_table_and_preserve_cache(path, **kwargs):
-            kwargs["path"] = path
-            execute_command("mount_table", kwargs)
-            wait(lambda: all(x["state"] == "mounted" for x in get(path + "/@tablets")))
-
-        def sync_unmount_table_and_preserve_cache(path, **kwargs):
-            kwargs["path"] = path
-            execute_command("unmount_table", kwargs)
-            wait(lambda: all(x["state"] == "unmounted" for x in get(path + "/@tablets")))
-
-        def reshard_and_preserve_cache(path, pivots):
-            sync_unmount_table_and_preserve_cache(path)
-            reshard_table(path, pivots)
-            sync_mount_table_and_preserve_cache(path)
-
-        self.sync_create_cells(1, 1)
-        self._create_simple_table("//tmp/t1")
-        self.sync_mount_table("//tmp/t1")
-
-        rows = [{"key": i, "value": str(i)} for i in xrange(3)]
-        keys = [{"key": row["key"]} for row in rows]
-        insert_rows("//tmp/t1", rows)
-        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
-
-        sync_unmount_table_and_preserve_cache("//tmp/t1")
-        with pytest.raises(YtError): lookup_rows("//tmp/t1", keys)
-        clear_metadata_caches()
-        sync_mount_table_and_preserve_cache("//tmp/t1")
-
-        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
-
-        sync_unmount_table_and_preserve_cache("//tmp/t1")
-        with pytest.raises(YtError): select_rows("* from [//tmp/t1]")
-        clear_metadata_caches()
-        sync_mount_table_and_preserve_cache("//tmp/t1")
-
-        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
-
-        reshard_and_preserve_cache("//tmp/t1", [[], [1]])
-        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
-
-        reshard_and_preserve_cache("//tmp/t1", [[], [1], [2]])
-        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
-
-
-    def test_no_copy(self):
-        self.sync_create_cells(1, 1)
-        self._create_simple_table("//tmp/t1")
-        self.sync_mount_table("//tmp/t1")
-
-        with pytest.raises(YtError): copy("//tmp/t1", "//tmp/t2")
-
-    def test_no_move_mounted(self):
-        self.sync_create_cells(1, 1)
-        self._create_simple_table("//tmp/t1")
-        self.sync_mount_table("//tmp/t1")
-
-        with pytest.raises(YtError): move("//tmp/t1", "//tmp/t2")
-
-    def test_move_unmounted(self):
-        self.sync_create_cells(1, 1)
-        self._create_simple_table("//tmp/t1")
-        self.sync_mount_table("//tmp/t1")
-        self.sync_unmount_table("//tmp/t1")
-
-        table_id1 = get("//tmp/t1/@id")
-        tablet_id = get("//tmp/t1/@tablets/0/tablet_id")
-        assert get("#" + tablet_id + "/@table_id") == table_id1
-
-        move("//tmp/t1", "//tmp/t2")
-
-        mount_table("//tmp/t2")
-        sleep(1)
-        assert get("//tmp/t2/@tablets/0/state") == "mounted"
-
-        table_id2 = get("//tmp/t2/@id")
-        assert get("#" + tablet_id + "/@table_id") == table_id2
-        assert get("//tmp/t2/@tablets/0/tablet_id") == tablet_id
-
-    def test_move_multiple_rollback(self):
-        self.sync_create_cells(1, 1)
-
-        set("//tmp/x", {})
-        self._create_simple_table("//tmp/x/a")
-        self._create_simple_table("//tmp/x/b")
-        self.sync_mount_table("//tmp/x/a")
-        self.sync_unmount_table("//tmp/x/a")
-        self.sync_mount_table("//tmp/x/b")
-
-        def get_tablet_ids(path):
-            return list(x["tablet_id"] for x in get(path + "/@tablets"))
-
-        # NB: children are moved in lexicographic order
-        # //tmp/x/a is fine to move
-        # //tmp/x/b is not
-        tablet_ids_a = get_tablet_ids("//tmp/x/a")
-        tablet_ids_b = get_tablet_ids("//tmp/x/b")
-
-        with pytest.raises(YtError): move("//tmp/x", "//tmp/y")
-
-        assert get("//tmp/x/a/@dynamic")
-        assert get("//tmp/x/b/@dynamic")
-        assert_items_equal(get_tablet_ids("//tmp/x/a"), tablet_ids_a)
-        assert_items_equal(get_tablet_ids("//tmp/x/b"), tablet_ids_b)
-
     def _test_any_value_type(self, optimize_for):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         create("table", "//tmp/t1",
             attributes={
                 "dynamic": True,
@@ -697,23 +575,8 @@ class TestSortedTablets(YTEnvSetup):
     def test_any_value_lookup(self):
         self._test_any_value_type("lookup")
 
-    def test_swap(self):
-        self.test_move_unmounted()
-
-        self._create_simple_table("//tmp/t3")
-        self.sync_mount_table("//tmp/t3")
-        self.sync_unmount_table("//tmp/t3")
-
-        reshard_table("//tmp/t3", [[], [100], [200], [300], [400]])
-        self.sync_mount_table("//tmp/t3")
-        self.sync_unmount_table("//tmp/t3")
-
-        move("//tmp/t3", "//tmp/t1")
-
-        assert self._get_pivot_keys("//tmp/t1") == [[], [100], [200], [300], [400]]
-
     def _prepare_allowed(self, permission):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
         create_user("u")
@@ -721,7 +584,7 @@ class TestSortedTablets(YTEnvSetup):
         set("//tmp/t/@acl", [{"permissions": [permission], "action": "allow", "subjects": ["u"]}])
 
     def _prepare_denied(self, permission):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
         create_user("u")
@@ -774,7 +637,7 @@ class TestSortedTablets(YTEnvSetup):
         with pytest.raises(YtError): delete_rows("//tmp/t", [{"key": 1}], user="u")
 
     def _test_read_from_chunks(self, optimize_for):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for = optimize_for)
 
         pivots = [[]] + [[x] for x in range(100, 1000, 100)]
@@ -816,7 +679,7 @@ class TestSortedTablets(YTEnvSetup):
         self._test_read_from_chunks("lookup")
 
     def test_store_rotation(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
 
         set("//tmp/t/@max_dynamic_store_row_count", 10)
@@ -836,7 +699,7 @@ class TestSortedTablets(YTEnvSetup):
         assert len(tablet_data["partitions"][0]["stores"]) == 1
 
     def _test_in_memory(self, mode, optimize_for):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for=optimize_for)
 
         set("//tmp/t/@in_memory_mode", mode)
@@ -900,7 +763,7 @@ class TestSortedTablets(YTEnvSetup):
         self._test_in_memory("uncompressed", "scan")
 
     def test_lookup_hash_table(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
 
         set("//tmp/t/@in_memory_mode", "uncompressed")
@@ -955,23 +818,23 @@ class TestSortedTablets(YTEnvSetup):
         assert lookup_rows("//tmp/t", _keys(0, 50), column_names=["key", "value"]) == _rows(10, 30)
 
     def test_update_key_columns_fail1(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
         with pytest.raises(YtError): set("//tmp/t/@key_columns", ["key", "key2"])
 
     def test_update_key_columns_fail2(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         with pytest.raises(YtError): set("//tmp/t/@key_columns", ["key2", "key3"])
 
     def test_update_key_columns_fail3(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         with pytest.raises(YtError): set("//tmp/t/@key_columns", [])
 
     def test_update_schema_fails(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
         # We have to insert at least one row to the table because any
@@ -1011,7 +874,7 @@ class TestSortedTablets(YTEnvSetup):
             {"name": "value", "type": "string"}])
 
     def _test_update_key_columns_success(self, optimize_for):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for = optimize_for)
 
         self.sync_mount_table("//tmp/t")
@@ -1049,7 +912,7 @@ class TestSortedTablets(YTEnvSetup):
 
     def test_atomicity_mode_should_match(self):
         def do(a1, a2):
-            self.sync_create_cells(1, 1)
+            self.sync_create_cells(1)
             self._create_simple_table("//tmp/t", atomicity=a1)
             self.sync_mount_table("//tmp/t")
             rows = [{"key": i, "value": str(i)} for i in xrange(100)]
@@ -1060,7 +923,7 @@ class TestSortedTablets(YTEnvSetup):
         do("none", "full")
 
     def _test_snapshots(self, atomicity):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         cell_id = ls("//sys/tablet_cells")[0]
 
         self._create_simple_table("//tmp/t", atomicity=atomicity)
@@ -1095,7 +958,7 @@ class TestSortedTablets(YTEnvSetup):
         self._test_snapshots("none")
 
     def _test_stress_tablet_readers(self, optimize_for):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for = optimize_for)
         self.sync_mount_table("//tmp/t")
 
@@ -1157,119 +1020,10 @@ class TestSortedTablets(YTEnvSetup):
     def test_stress_tablet_readers_lookup(self):
         self._test_stress_tablet_readers("lookup")
 
-    def test_read_only_mode(self):
-        self.sync_create_cells(1, 1)
-        self._create_simple_table("//tmp/t")
-        set("//tmp/t/@read_only", True)
-        self.sync_mount_table("//tmp/t")
-
-        rows = [{"key": i, "value": str(i)} for i in xrange(1)]
-
-        with pytest.raises(YtError): insert_rows("//tmp/t", rows)
-
-        remove("//tmp/t/@read_only")
-        remount_table("//tmp/t")
-
-        insert_rows("//tmp/t", rows)
-
-        set("//tmp/t/@read_only", True)
-        remount_table("//tmp/t")
-
-        with pytest.raises(YtError): insert_rows("//tmp/t", rows)
-
-    def test_tablet_assignment(self):
-        self.sync_create_cells(1, 3)
-        self._create_simple_table("//tmp/t")
-        reshard_table("//tmp/t", [[]] + [[i] for i in xrange(11)])
-        assert get("//tmp/t/@tablet_count") == 12
-
-        self.sync_mount_table("//tmp/t")
-
-        cells = ls("//sys/tablet_cells", attributes=["tablet_count"])
-        assert len(cells) == 3
-        for cell in cells:
-            assert cell.attributes["tablet_count"] == 4
-
-    def test_follower_start(self):
-        self.sync_create_cells(2, 1)
-        self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
-
-        for i in xrange(0, 10):
-            rows = [{"key": i, "value": "test"}]
-            keys = [{"key": i}]
-            insert_rows("//tmp/t", rows)
-            assert lookup_rows("//tmp/t", keys) == rows
-
-    def test_follower_catchup(self):
-        self.sync_create_cells(2, 1)
-        self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
-
-        cell_id = ls("//sys/tablet_cells")[0]
-        peers = get("#" + cell_id + "/@peers")
-        follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
-        self.set_node_banned(follower_address, True)
-
-        for i in xrange(0, 100):
-            rows = [{"key": i, "value": "test"}]
-            keys = [{"key": i}]
-            insert_rows("//tmp/t", rows)
-            assert lookup_rows("//tmp/t", keys) == rows
-
-        assert get("#" + cell_id + "/@health") == "good"
-
-    def test_run_reassign_leader(self):
-        self.sync_create_cells(2, 1)
-        self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
-
-        rows = [{"key": 1, "value": "2"}]
-        keys = [{"key": 1}]
-        insert_rows("//tmp/t", rows)
-
-        cell_id = ls("//sys/tablet_cells")[0]
-        peers = get("#" + cell_id + "/@peers")
-        leader_address = list(x["address"] for x in peers if x["state"] == "leading")[0]
-        follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
-
-        self.set_node_banned(leader_address, True)
-        sleep(3.0)
-        clear_metadata_caches()
-
-        assert get("#" + cell_id + "/@health") == "good"
-        peers = get("#" + cell_id + "/@peers")
-        leaders = list(x["address"] for x in peers if x["state"] == "leading")
-        assert len(leaders) == 1
-        assert leaders[0] == follower_address
-
-        assert lookup_rows("//tmp/t", keys) == rows
-
-    def _ban_all_peers(self, cell_id):
-        peers = get("#" + cell_id + "/@peers")
-        for x in peers:
-            self.set_node_banned(x["address"], True)
-        clear_metadata_caches()
-
-    def test_run_reassign_all_peers(self):
-        self.sync_create_cells(2, 1)
-        self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
-
-        rows = [{"key": 1, "value": "2"}]
-        keys = [{"key": 1}]
-        insert_rows("//tmp/t", rows)
-
-        cell_id = ls("//sys/tablet_cells")[0]
-        self._ban_all_peers(cell_id)
-        sleep(3.0)
-
-        assert get("#" + cell_id + "/@health") == "good"
-        assert lookup_rows("//tmp/t", keys) == rows
-
     def test_recover_from_snapshot(self):
-        self.sync_create_cells(2, 1)
-        self._create_simple_table("//tmp/t")
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
+        self.sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_simple_table("//tmp/t", tablet_cell_bundle="b")
         self.sync_mount_table("//tmp/t")
 
         rows = [{"key": 1, "value": "2"}]
@@ -1286,15 +1040,16 @@ class TestSortedTablets(YTEnvSetup):
         assert lookup_rows("//tmp/t", keys) == rows
 
     def test_rff_requires_async_last_committed(self):
-        self.sync_create_cells(3, 1)
-        self._create_simple_table("//tmp/t", optimize_for = "scan")
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 3}})
+        self.sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_simple_table("//tmp/t", optimize_for = "scan", tablet_cell_bundle="b")
         self.sync_mount_table("//tmp/t")
 
         keys = [{"key": 1}]
         with pytest.raises(YtError): lookup_rows("//tmp/t", keys, read_from="follower")
 
     def test_rff_when_only_leader_exists(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
@@ -1305,8 +1060,9 @@ class TestSortedTablets(YTEnvSetup):
         assert lookup_rows("//tmp/t", keys, read_from="follower") == rows
 
     def test_rff_lookup(self):
-        self.sync_create_cells(3, 1)
-        self._create_simple_table("//tmp/t", optimize_for = "scan")
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 3}})
+        self.sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_simple_table("//tmp/t", optimize_for = "scan", tablet_cell_bundle="b")
         self.sync_mount_table("//tmp/t")
 
         rows = [{"key": 1, "value": "2"}]
@@ -1317,8 +1073,9 @@ class TestSortedTablets(YTEnvSetup):
         assert lookup_rows("//tmp/t", keys, read_from="follower", timestamp=AsyncLastCommittedTimestamp) == rows
 
     def test_lookup_with_backup(self):
-        self.sync_create_cells(3, 1)
-        self._create_simple_table("//tmp/t")
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 3}})
+        self.sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_simple_table("//tmp/t", tablet_cell_bundle="b")
         self.sync_mount_table("//tmp/t")
 
         rows = [{"key": 1, "value": "2"}]
@@ -1329,19 +1086,8 @@ class TestSortedTablets(YTEnvSetup):
         for delay in xrange(0, 10):
             assert lookup_rows("//tmp/t", keys, read_from="follower", backup_request_delay=delay, timestamp=AsyncLastCommittedTimestamp) == rows
 
-    def test_tablet_cell_create_permission(self):
-        create_user("u")
-        set("//sys/schemas/tablet_cell/@acl/end", {"subjects": ["u"], "permissions": ["create"], "action": "allow"})
-        id = create_tablet_cell(1, user="u")
-        assert exists("//sys/tablet_cells/{0}/changelogs".format(id))
-        assert exists("//sys/tablet_cells/{0}/snapshots".format(id))
-
-    def test_tablet_cell_create_attributes(self):
-        id = create_tablet_cell(1, attributes={"snapshot_replication_factor": 1})
-        assert get("//sys/tablet_cells/{0}/@snapshot_replication_factor".format(id)) == 1
-
     def test_erasure(self):
-        self.sync_create_cells(3, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for = "scan")
         set("//tmp/t/@erasure_codec", "lrc_12_2_2")
         self.sync_mount_table("//tmp/t")
@@ -1360,42 +1106,8 @@ class TestSortedTablets(YTEnvSetup):
         self.sync_mount_table("//tmp/t")
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
-    def test_validate_dynamic_attr(self):
-        create("table", "//tmp/t")
-        assert not get("//tmp/t/@dynamic")
-        with pytest.raises(YtError): mount_table("//tmp/t")
-        with pytest.raises(YtError): unmount_table("//tmp/t")
-        with pytest.raises(YtError): remount_table("//tmp/t")
-        with pytest.raises(YtError): reshard_table("//tmp/t", [[]])
-
-    def test_dynamic_table_schema_validation(self):
-        with pytest.raises(YtError): create("table", "//tmp/t",
-            attributes={
-                "dynamic": True,
-                "schema": [{"data": "string"}]
-            })
-
-    def test_mount_permission_denied(self):
-        self.sync_create_cells(3, 1)
-        self._create_simple_table("//tmp/t")
-        create_user("u")
-        with pytest.raises(YtError): mount_table("//tmp/t", user="u")
-        with pytest.raises(YtError): unmount_table("//tmp/t", user="u")
-        with pytest.raises(YtError): remount_table("//tmp/t", user="u")
-        with pytest.raises(YtError): reshard_table("//tmp/t", [[]], user="u")
-
-    def test_mount_permission_allowed(self):
-        self.sync_create_cells(3, 1)
-        self._create_simple_table("//tmp/t")
-        create_user("u")
-        set("//tmp/t/@acl/end", {"subjects": ["u"], "permissions": ["mount"], "action": "allow"})
-        self.sync_mount_table("//tmp/t", user="u")
-        self.sync_unmount_table("//tmp/t", user="u")
-        remount_table("//tmp/t", user="u")
-        reshard_table("//tmp/t", [[]], user="u")
-
     def test_keep_missing_rows(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 

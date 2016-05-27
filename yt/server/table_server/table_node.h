@@ -36,6 +36,8 @@ public:
     typedef TTabletList::iterator TTabletListIterator; 
     DEFINE_BYREF_RW_PROPERTY(TTabletList, Tablets);
 
+    DEFINE_BYVAL_RW_PROPERTY(NTabletServer::TTabletCellBundle*, TabletCellBundle);
+
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
 
 public:

@@ -57,7 +57,6 @@ private:
 
         const auto* cell = GetThisTypedImpl();
 
-        descriptors->push_back("peer_count");
         descriptors->push_back("leading_peer_id");
         descriptors->push_back("health");
         descriptors->push_back("peers");
@@ -68,17 +67,12 @@ private:
         descriptors->push_back("total_statistics");
         descriptors->push_back(TAttributeDescriptor("prerequisite_transaction_id")
             .SetPresent(cell->GetPrerequisiteTransaction()));
+        descriptors->push_back("tablet_cell_bundle");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
         const auto* cell = GetThisTypedImpl();
-
-        if (key == "peer_count") {
-            BuildYsonFluently(consumer)
-                .Value(cell->GetPeerCount());
-            return true;
-        }
 
         if (key == "leading_peer_id") {
             BuildYsonFluently(consumer)
@@ -144,6 +138,12 @@ private:
         if (key == "prerequisite_transaction_id" && cell->GetPrerequisiteTransaction()) {
             BuildYsonFluently(consumer)
                 .Value(cell->GetPrerequisiteTransaction()->GetId());
+            return true;
+        }
+
+        if (key == "tablet_cell_bundle" && cell->GetCellBundle()) {
+            BuildYsonFluently(consumer)
+                .Value(cell->GetCellBundle()->GetName());
             return true;
         }
 

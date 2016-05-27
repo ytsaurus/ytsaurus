@@ -26,7 +26,7 @@ using NTabletClient::TTabletId;
 using NTabletClient::NullTabletId;
 using NTabletClient::TStoreId;
 using NTabletClient::ETabletState;
-using NTabletClient::TypicalCellSize;
+using NTabletClient::TypicalPeerCount;
 
 using NTabletClient::TTabletCellConfig;
 using NTabletClient::TTabletCellConfigPtr;
@@ -56,7 +56,7 @@ struct TTabletStatistics;
 struct TTabletPerformanceCounter;
 struct TTabletPerformanceCounters;
 
-const int MaxPeerCount = 5;
+extern const Stroka DefaultTabletCellBundleName;
 
 ////////////////////////////////////////////////////////////////////////////////
 

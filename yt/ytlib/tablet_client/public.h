@@ -35,7 +35,8 @@ DEFINE_ENUM(EErrorCode,
     ((TabletNotMounted)         (1702))
 );
 
-static const int TypicalCellSize = 5;
+static const int TypicalPeerCount = 5;
+static const int MaxPeerCount = 10;
 
 ///////////////////////////////////////////////////////////////////////////////
 

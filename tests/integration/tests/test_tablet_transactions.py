@@ -30,7 +30,7 @@ class TestTabletTransactions(YTEnvSetup):
 
     @pytest.mark.skipif("True")
     def test_sticky_tablet_transactions(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 

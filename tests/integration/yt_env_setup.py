@@ -167,6 +167,7 @@ class YTEnvSetup(YTEnv):
             self._remove_users()
             self._remove_groups()
             self._remove_tablet_cells()
+            self._remove_tablet_cell_bundles()
             self._remove_racks()
 
             yt_commands.gc_collect()
@@ -194,9 +195,11 @@ class YTEnvSetup(YTEnv):
         print "Waiting for tablet cells to become healthy..."
         wait(lambda: all(c.attributes["health"] == "good" for c in yt_commands.ls("//sys/tablet_cells", attributes=["health"])))
 
-    def sync_create_cells(self, peer_count, cell_count):
+    def sync_create_cells(self, cell_count, tablet_cell_bundle="default"):
         for _ in xrange(cell_count):
-            yt_commands.create_tablet_cell(peer_count)
+            yt_commands.create_tablet_cell(attributes={
+                "tablet_cell_bundle": tablet_cell_bundle
+            })
         self.wait_for_cells()
 
     def wait_for_tablet_state(self, path, states):
@@ -274,6 +277,12 @@ class YTEnvSetup(YTEnv):
         cells = yt_commands.get_tablet_cells()
         for id in cells:
             yt_commands.remove_tablet_cell(id)
+
+    def _remove_tablet_cell_bundles(self):
+        bundles = yt_commands.ls("//sys/tablet_cell_bundles", attributes=["builtin"])
+        for bundle in bundles:
+            if not bundle.attributes["builtin"]:
+                yt_commands.remove_tablet_cell_bundle(str(bundle))
 
     def _remove_racks(self):
         racks = yt_commands.get_racks()
