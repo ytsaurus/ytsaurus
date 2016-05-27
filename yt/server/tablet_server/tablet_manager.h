@@ -44,7 +44,7 @@ public:
         NTableServer::TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        const TTabletCellId& cellId);
+        TTabletCell* hintCell);
 
     void UnmountTable(
         NTableServer::TTableNode* table,

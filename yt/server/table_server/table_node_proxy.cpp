@@ -351,14 +351,20 @@ private:
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
+        auto tabletManager = Bootstrap_->GetTabletManager();
+
+        TTabletCell* cell = nullptr;
+        if (cellId) {
+            cell = tabletManager->GetTabletCellOrThrow(cellId);
+        }
+
         auto* table = LockThisTypedImpl();
 
-        auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->MountTable(
             table,
             firstTabletIndex,
             lastTabletIndex,
-            cellId);
+            cell);
 
         context->Reply();
     }
