@@ -62,7 +62,7 @@ bool operator <  (const TGuid& lhs, const TGuid& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_PODTYPE(NYT::TGuid);
+Y_DECLARE_PODTYPE(NYT::TGuid);
 
 //! A hasher for TGuid.
 template <>

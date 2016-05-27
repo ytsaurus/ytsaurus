@@ -276,7 +276,7 @@ public:
         const auto& id = proxy->GetId();
         if (IsVersionedType(TypeFromId(id))) {
             auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(proxy.Get());
-            YASSERT(nodeProxy);
+            Y_ASSERT(nodeProxy);
             auto resolver = nodeProxy->GetResolver();
             return resolver->GetPath(nodeProxy);
         } else {
@@ -449,7 +449,7 @@ const IObjectTypeHandlerPtr& TObjectManager::GetHandler(EObjectType type) const
     VERIFY_THREAD_AFFINITY_ANY();
 
     const auto& handler = FindHandler(type);
-    YASSERT(handler);
+    Y_ASSERT(handler);
     return handler;
 }
 
@@ -493,7 +493,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 void TObjectManager::RefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(object->IsTrunk());
+    Y_ASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
     LOG_TRACE_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
@@ -505,7 +505,7 @@ void TObjectManager::RefObject(TObjectBase* object)
 void TObjectManager::UnrefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(object->IsTrunk());
+    Y_ASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject();
     LOG_TRACE_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
@@ -523,8 +523,8 @@ void TObjectManager::UnrefObject(TObjectBase* object)
 void TObjectManager::WeakRefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(!IsRecovery());
-    YASSERT(object->IsTrunk());
+    Y_ASSERT(!IsRecovery());
+    Y_ASSERT(object->IsTrunk());
 
     int weakRefCounter = object->WeakRefObject();
     if (weakRefCounter == 1) {
@@ -535,8 +535,8 @@ void TObjectManager::WeakRefObject(TObjectBase* object)
 void TObjectManager::WeakUnrefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(!IsRecovery());
-    YASSERT(object->IsTrunk());
+    Y_ASSERT(!IsRecovery());
+    Y_ASSERT(object->IsTrunk());
 
     int weakRefCounter = object->WeakUnrefObject();
     if (weakRefCounter == 0) {

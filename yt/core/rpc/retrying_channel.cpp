@@ -44,8 +44,8 @@ public:
         TNullable<TDuration> timeout,
         bool requestAck) override
     {
-        YASSERT(request);
-        YASSERT(responseHandler);
+        Y_ASSERT(request);
+        Y_ASSERT(responseHandler);
 
         return New<TRetryingRequest>(
             Config_,
@@ -84,10 +84,10 @@ private:
             , RequestAck_(requestAck)
             , IsRetriableError_(std::move(isRetriableError))
         {
-            YASSERT(Config_);
-            YASSERT(UnderlyingChannel_);
-            YASSERT(Request_);
-            YASSERT(ResponseHandler_);
+            Y_ASSERT(Config_);
+            Y_ASSERT(UnderlyingChannel_);
+            Y_ASSERT(Request_);
+            Y_ASSERT(ResponseHandler_);
 
             YCHECK(!Request_->IsOneWay());
 

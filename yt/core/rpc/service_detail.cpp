@@ -89,10 +89,10 @@ public:
         , TraceContext_(traceContext)
         , ArrivalTime_(GetCpuInstant())
     {
-        YASSERT(RequestMessage_);
-        YASSERT(ReplyBus_);
-        YASSERT(Service_);
-        YASSERT(RuntimeInfo_);
+        Y_ASSERT(RequestMessage_);
+        Y_ASSERT(ReplyBus_);
+        Y_ASSERT(Service_);
+        Y_ASSERT(RuntimeInfo_);
 
         Initialize();
     }
@@ -305,7 +305,7 @@ private:
 
         TDelayedExecutor::CancelAndClear(TimeoutCookie_);
 
-        YASSERT(RunningSync_);
+        Y_ASSERT(RunningSync_);
         RunningSync_ = false;
 
         if (Profiler.GetEnabled() && RuntimeInfo_->Descriptor.OneWay) {

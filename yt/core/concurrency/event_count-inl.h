@@ -75,7 +75,7 @@ inline TEventCount::TCookie TEventCount::PrepareWait()
 inline void TEventCount::CancelWait()
 {
     ui64 prev = Value_.fetch_add(SubWaiter, std::memory_order_seq_cst);
-    YASSERT((prev & WaiterMask) != 0);
+    Y_ASSERT((prev & WaiterMask) != 0);
 }
 
 inline void TEventCount::Wait(TCookie cookie)
@@ -97,7 +97,7 @@ inline void TEventCount::Wait(TCookie cookie)
     }
 #endif
     ui64 prev = Value_.fetch_add(SubWaiter, std::memory_order_seq_cst);
-    YASSERT((prev & WaiterMask) != 0);
+    Y_ASSERT((prev & WaiterMask) != 0);
 }
 
 template <class TCondition>

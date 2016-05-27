@@ -67,7 +67,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 
 void TNodeBase::GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKeyPtr context)
 {
-    UNUSED(request);
+    Y_UNUSED(request);
 
     context->SetRequestInfo();
 
@@ -100,7 +100,7 @@ void TNodeBase::GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKey
 
 void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
 {
-    UNUSED(response);
+    Y_UNUSED(response);
 
     context->SetRequestInfo();
 
@@ -146,7 +146,7 @@ void TCompositeNodeMixin::SetRecursive(
     TRspSet* response,
     TCtxSetPtr context)
 {
-    UNUSED(response);
+    Y_UNUSED(response);
 
     context->SetRequestInfo();
 
@@ -166,8 +166,8 @@ void TCompositeNodeMixin::RemoveRecursive(
     TSupportsRemove::TRspRemove* response,
     TSupportsRemove::TCtxRemovePtr context)
 {
-    UNUSED(request);
-    UNUSED(response);
+    Y_UNUSED(request);
+    Y_UNUSED(response);
 
     context->SetRequestInfo();
 

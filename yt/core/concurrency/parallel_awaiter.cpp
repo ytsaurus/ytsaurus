@@ -23,7 +23,7 @@ TFuture<void> TParallelAwaiter::Complete(TClosure onComplete)
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
-        YASSERT(!Completed_);
+        Y_ASSERT(!Completed_);
         if (Canceled_ || Terminated_) {
             return CompletedPromise_;
         }
@@ -61,7 +61,7 @@ void TParallelAwaiter::Cancel()
 bool TParallelAwaiter::TryAwait()
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    YASSERT(!Completed_);
+    Y_ASSERT(!Completed_);
 
     if (Canceled_ || Terminated_) {
         return false;

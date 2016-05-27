@@ -14,7 +14,7 @@ namespace NRpc {
 TChannelWrapper::TChannelWrapper(IChannelPtr underlyingChannel)
     : UnderlyingChannel_(std::move(underlyingChannel))
 {
-    YASSERT(UnderlyingChannel_);
+    Y_ASSERT(UnderlyingChannel_);
 }
 
 TNullable<TDuration> TChannelWrapper::GetDefaultTimeout() const

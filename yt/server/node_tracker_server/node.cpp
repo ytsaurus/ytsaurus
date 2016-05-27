@@ -147,7 +147,7 @@ bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
 {
     auto* chunk = replica.GetPtr();
     if (cached) {
-        YASSERT(!chunk->IsJournal());
+        Y_ASSERT(!chunk->IsJournal());
         return AddCachedReplica(replica);
     } else  {
         if (chunk->IsJournal()) {
@@ -164,7 +164,7 @@ void TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
 {
     auto* chunk = replica.GetPtr();
     if (cached) {
-        YASSERT(!chunk->IsJournal());
+        Y_ASSERT(!chunk->IsJournal());
         RemoveCachedReplica(replica);
     } else {
         if (chunk->IsJournal()) {
@@ -182,7 +182,7 @@ bool TNode::HasReplica(TChunkPtrWithIndex replica, bool cached) const
 {
     auto* chunk = replica.GetPtr();
     if (cached) {
-        YASSERT(!chunk->IsJournal());
+        Y_ASSERT(!chunk->IsJournal());
         return ContainsCachedReplica(replica);
     } else {
         if (chunk->IsJournal()) {

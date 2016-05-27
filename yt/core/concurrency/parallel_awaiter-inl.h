@@ -13,7 +13,7 @@ namespace NConcurrency {
 template <class T>
 void TParallelAwaiter::Await(TFuture<T> future, TCallback<void(const TErrorOr<T>&)> onResult)
 {
-    YASSERT(future);
+    Y_ASSERT(future);
     if (TryAwait()) {
         future.Subscribe(BIND(
             &TParallelAwaiter::HandleResult<T>,

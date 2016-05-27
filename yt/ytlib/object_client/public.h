@@ -202,7 +202,7 @@ bool operator <  (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_PODTYPE(NYT::NObjectClient::TVersionedObjectId);
+Y_DECLARE_PODTYPE(NYT::NObjectClient::TVersionedObjectId);
 
 //! A hasher for TVersionedNodeId.
 template <>

@@ -59,7 +59,7 @@ void TServiceContextBase::Initialize()
         ? RequestHeader_->user()
         : RootUserName;
 
-    YASSERT(RequestMessage_.Size() >= 2);
+    Y_ASSERT(RequestMessage_.Size() >= 2);
     RequestBody_ = RequestMessage_[1];
     RequestAttachments_ = std::vector<TSharedRef>(
         RequestMessage_.Begin() + 2,
@@ -68,7 +68,7 @@ void TServiceContextBase::Initialize()
 
 void TServiceContextBase::Reply(const TError& error)
 {
-    YASSERT(!Replied_);
+    Y_ASSERT(!Replied_);
 
     Error_ = error;
     Replied_ = true;
@@ -91,9 +91,9 @@ void TServiceContextBase::Reply(const TError& error)
 
 void TServiceContextBase::Reply(TSharedRefArray responseMessage)
 {
-    YASSERT(!Replied_);
-    YASSERT(!IsOneWay());
-    YASSERT(responseMessage.Size() >= 1);
+    Y_ASSERT(!Replied_);
+    Y_ASSERT(!IsOneWay());
+    Y_ASSERT(responseMessage.Size() >= 1);
 
     // NB: One must parse responseMessage and only use its content since,
     // e.g., responseMessage may contain invalid request id.
@@ -104,7 +104,7 @@ void TServiceContextBase::Reply(TSharedRefArray responseMessage)
         Error_ = FromProto<TError>(header.error());
     }
     if (Error_.IsOK()) {
-        YASSERT(responseMessage.Size() >= 2);
+        Y_ASSERT(responseMessage.Size() >= 2);
         ResponseBody_ = responseMessage[1];
         ResponseAttachments_ = std::vector<TSharedRef>(
             responseMessage.Begin() + 2,
@@ -182,7 +182,7 @@ void TServiceContextBase::Cancel()
 
 const TError& TServiceContextBase::GetError() const
 {
-    YASSERT(Replied_);
+    Y_ASSERT(Replied_);
 
     return Error_;
 }
@@ -204,15 +204,15 @@ TSharedRef TServiceContextBase::GetResponseBody()
 
 void TServiceContextBase::SetResponseBody(const TSharedRef& responseBody)
 {
-    YASSERT(!Replied_);
-    YASSERT(!IsOneWay());
+    Y_ASSERT(!Replied_);
+    Y_ASSERT(!IsOneWay());
 
     ResponseBody_ = responseBody;
 }
 
 std::vector<TSharedRef>& TServiceContextBase::ResponseAttachments()
 {
-    YASSERT(!IsOneWay());
+    Y_ASSERT(!IsOneWay());
 
     return ResponseAttachments_;
 }
@@ -286,8 +286,8 @@ void TServiceContextBase::SetRawRequestInfo(const Stroka& info)
 
 void TServiceContextBase::SetRawResponseInfo(const Stroka& info)
 {
-    YASSERT(!Replied_);
-    YASSERT(!IsOneWay());
+    Y_ASSERT(!Replied_);
+    Y_ASSERT(!IsOneWay());
 
     ResponseInfo_ = info;
 }

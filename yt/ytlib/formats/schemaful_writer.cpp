@@ -30,7 +30,7 @@ bool TSchemafulWriter::Write(const std::vector<TUnversionedRow>& rows)
             continue;
         }
 
-        YASSERT(row.GetCount() >= columnCount);
+        Y_ASSERT(row.GetCount() >= columnCount);
         Writer_->OnBeginMap();
         for (int index = 0; index < columnCount; ++index) {
             const auto& value = row[index];

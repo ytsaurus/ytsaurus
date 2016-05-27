@@ -62,7 +62,7 @@ TVersion TVersion::FromRevision(i64 revision)
 
 TVersion TVersion::Advance(int delta)
 {
-    YASSERT(delta >= 0);
+    Y_ASSERT(delta >= 0);
     return TVersion(SegmentId, RecordId + delta);
 }
 

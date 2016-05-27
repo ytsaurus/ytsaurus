@@ -580,9 +580,9 @@ public:
 
     void StageChunkTree(TChunkTree* chunkTree, TTransaction* transaction, TAccount* account)
     {
-        YASSERT(transaction);
-        YASSERT(account);
-        YASSERT(!chunkTree->IsStaged());
+        Y_ASSERT(transaction);
+        Y_ASSERT(account);
+        Y_ASSERT(!chunkTree->IsStaged());
 
         chunkTree->SetStagingTransaction(transaction);
         chunkTree->SetStagingAccount(account);
@@ -1215,7 +1215,7 @@ private:
 
     void OnChunkSealed(TChunk* chunk)
     {
-        YASSERT(chunk->IsSealed());
+        Y_ASSERT(chunk->IsSealed());
 
         if (chunk->Parents().empty())
             return;
