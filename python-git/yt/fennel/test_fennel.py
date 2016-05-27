@@ -212,8 +212,9 @@ Partition: 0\r\n\r\n"""
 
         self._service_id = "fenneltest"
         self._source_id = uuid.uuid4().hex
+        self._logtype = "yt_scheduler_test"
 
-        self.logbroker = fennel.LogBroker(service_id=self._service_id, source_id=self._source_id, io_loop=self.io_loop, connection_factory=self._world_serialization)
+        self.logbroker = fennel.LogBroker(service_id=self._service_id, logtype=self._logtype, source_id=self._source_id, io_loop=self.io_loop, connection_factory=self._world_serialization)
 
     @testing.gen_test
     def test_save_one_chunk(self):
