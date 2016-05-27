@@ -24,10 +24,10 @@ $ transfer-manager add-task --src-cluster aristotle --src-table //tmp/t --dst-cl
 <task_id>
 
 Abort started above task:
-$ transfer-manager abort_task <task_id>
+$ transfer-manager abort-task <task_id>
 
 Start it again:
-$ transfer-manager restart_task <task_id>
+$ transfer-manager restart-task <task_id>
 
 See also:
     Transfer Manager wiki page:    https://wiki.yandex-team.ru/yt/userdoc/transfermanager/
