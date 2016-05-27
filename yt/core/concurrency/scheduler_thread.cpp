@@ -141,7 +141,7 @@ void TSchedulerThread::ThreadMain()
 
 void TSchedulerThread::ThreadMainStep()
 {
-    YASSERT(!CurrentFiber);
+    Y_ASSERT(!CurrentFiber);
 
     if (RunQueue.empty()) {
         // Spawn a new idle fiber to run the loop.
@@ -153,7 +153,7 @@ void TSchedulerThread::ThreadMainStep()
         RunQueue.push_back(IdleFiber);
     }
 
-    YASSERT(!RunQueue.empty());
+    Y_ASSERT(!RunQueue.empty());
 
     CurrentFiber = std::move(RunQueue.front());
     RunQueue.pop_front();
@@ -213,9 +213,9 @@ void TSchedulerThread::ThreadMainStep()
     EndExecute();
 
     // Check for a clear scheduling state.
-    YASSERT(!CurrentFiber);
-    YASSERT(!WaitForFuture);
-    YASSERT(!SwitchToInvoker);
+    Y_ASSERT(!CurrentFiber);
+    Y_ASSERT(!WaitForFuture);
+    Y_ASSERT(!SwitchToInvoker);
 }
 
 void TSchedulerThread::FiberMain(unsigned int spawnedEpoch)
@@ -358,7 +358,7 @@ void TSchedulerThread::Yield()
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     auto fiber = CurrentFiber.Get();
-    YASSERT(fiber);
+    Y_ASSERT(fiber);
 
     CheckForCanceledFiber(fiber);
 
@@ -470,7 +470,7 @@ void TSchedulerThread::UninterruptableWaitFor(TFuture<void> future, IInvokerPtr 
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     auto fiber = CurrentFiber.Get();
-    YASSERT(fiber);
+    Y_ASSERT(fiber);
 
     // Update scheduling state.
     YCHECK(!WaitForFuture);

@@ -81,8 +81,8 @@ TTcpConnection::TTcpConnection(
     , WriteStallTimeout_(NProfiling::DurationToCpuDuration(Config_->WriteStallTimeout))
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(Handler_);
-    YASSERT(DispatcherThread_);
+    Y_ASSERT(Handler_);
+    Y_ASSERT(DispatcherThread_);
 
     switch (ConnectionType_) {
         case EConnectionType::Client:
@@ -536,7 +536,7 @@ void TTcpConnection::UnsubscribeTerminated(const TCallback<void(const TError&)>&
 void TTcpConnection::OnSocket(ev::io&, int revents)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    YASSERT(State_ != EState::Closed);
+    Y_ASSERT(State_ != EState::Closed);
 
     if (revents & ev::ERROR) {
         SyncClose(TError(NRpc::EErrorCode::TransportError, "Socket failed"));
@@ -867,7 +867,7 @@ void TTcpConnection::FlushWrittenFragments(size_t bytesWritten)
     LOG_TRACE("Flushing fragments, %v bytes written", bytesWritten);
 
     while (bytesToFlush != 0) {
-        YASSERT(!EncodedFragments_.empty());
+        Y_ASSERT(!EncodedFragments_.empty());
         auto& fragment = EncodedFragments_.front();
 
         if (fragment.Size() > bytesToFlush) {
@@ -892,7 +892,7 @@ void TTcpConnection::FlushWrittenPackets(size_t bytesWritten)
     LOG_TRACE("Flushing packets, %v bytes written", bytesWritten);
 
     while (bytesToFlush != 0) {
-        YASSERT(!EncodedPacketSizes_.empty());
+        Y_ASSERT(!EncodedPacketSizes_.empty());
         auto& packetSize = EncodedPacketSizes_.front();
 
         if (packetSize > bytesToFlush) {

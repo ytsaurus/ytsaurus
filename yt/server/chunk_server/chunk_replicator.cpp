@@ -1053,7 +1053,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         }
 
         if (Any(statistics.Status & EChunkStatus::Sealed)) {
-            YASSERT(chunk->IsJournal());
+            Y_ASSERT(chunk->IsJournal());
             for (auto replica : chunk->StoredReplicas()) {
                 if (replica.GetIndex() == UnsealedChunkReplicaIndex) {
                     replica.GetPtr()->AddToChunkSealQueue(chunk);
@@ -1350,9 +1350,9 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
             const TReadLimit& startLimit,
             const TReadLimit& endLimit) override
         {
-            UNUSED(rowIndex);
-            UNUSED(startLimit);
-            UNUSED(endLimit);
+            Y_UNUSED(rowIndex);
+            Y_UNUSED(startLimit);
+            Y_UNUSED(endLimit);
 
             Replicator->SchedulePropertiesUpdate(chunk);
             return true;
@@ -1591,7 +1591,7 @@ void TChunkReplicator::UnregisterJob(TJobPtr job, EJobUnregisterFlags flags)
 
 void TChunkReplicator::AddToChunkRepairQueue(TChunk* chunk)
 {
-    YASSERT(!chunk->GetRepairQueueIterator());
+    Y_ASSERT(!chunk->GetRepairQueueIterator());
     auto it = ChunkRepairQueue_.insert(ChunkRepairQueue_.end(), chunk);
     chunk->SetRepairQueueIterator(it);
 }

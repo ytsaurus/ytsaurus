@@ -16,7 +16,7 @@ TYsonProducer::TYsonProducer(TYsonCallback callback, EYsonType type)
     : Type_(type)
     , Callback_(std::move(callback))
 {
-    YASSERT(Callback_);
+    Y_ASSERT(Callback_);
 }
 
 void TYsonProducer::Run(IYsonConsumer* consumer) const

@@ -55,7 +55,7 @@ void Yield()
 
 void SwitchTo(IInvokerPtr invoker)
 {
-    YASSERT(invoker);
+    Y_ASSERT(invoker);
     GetCurrentScheduler()->SwitchTo(std::move(invoker));
 }
 
@@ -95,8 +95,8 @@ void UninterruptableWaitFor(TFuture<void> future)
 
 void UninterruptableWaitFor(TFuture<void> future, IInvokerPtr invoker)
 {
-    YASSERT(future);
-    YASSERT(invoker);
+    Y_ASSERT(future);
+    Y_ASSERT(invoker);
 
     auto* scheduler = TryGetCurrentScheduler();
     if (scheduler) {
@@ -108,7 +108,7 @@ void UninterruptableWaitFor(TFuture<void> future, IInvokerPtr invoker)
         future.Get();
     }
 
-    YASSERT(future.IsSet());
+    Y_ASSERT(future.IsSet());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

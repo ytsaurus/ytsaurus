@@ -285,7 +285,7 @@ int TSyncSlruCacheBase<TKey, TValue, THash>::GetSize() const
 template <class TKey, class TValue, class THash>
 void TSyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item)
 {
-    YASSERT(item->Empty());
+    Y_ASSERT(item->Empty());
     YoungerLruList_.PushFront(item);
     auto weight = GetWeight(item->Value);
     Profiler.Increment(YoungerWeightCounter_, +weight);
@@ -295,7 +295,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item)
 template <class TKey, class TValue, class THash>
 void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item)
 {
-    YASSERT(!item->Empty());
+    Y_ASSERT(!item->Empty());
     item->Unlink();
     YoungerLruList_.PushFront(item);
     if (!item->Younger) {
@@ -309,7 +309,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item)
 template <class TKey, class TValue, class THash>
 void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TItem* item)
 {
-    YASSERT(!item->Empty());
+    Y_ASSERT(!item->Empty());
     item->Unlink();
     OlderLruList_.PushFront(item);
     if (item->Younger) {

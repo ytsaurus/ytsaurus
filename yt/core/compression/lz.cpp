@@ -34,8 +34,8 @@ static_assert(sizeof(THeader) == sizeof(TBlockHeader),
 } // namespace NCompression
 } // namespace NYT
 
-DECLARE_PODTYPE(NYT::NCompression::THeader);
-DECLARE_PODTYPE(NYT::NCompression::TBlockHeader);
+Y_DECLARE_PODTYPE(NYT::NCompression::THeader);
+Y_DECLARE_PODTYPE(NYT::NCompression::TBlockHeader);
 
 namespace NYT {
 namespace NCompression {

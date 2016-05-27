@@ -34,8 +34,8 @@ void TPacketDecoder::Restart()
 
 bool TPacketDecoder::Advance(size_t size)
 {
-    YASSERT(FragmentRemaining_ != 0);
-    YASSERT(size <= FragmentRemaining_);
+    Y_ASSERT(FragmentRemaining_ != 0);
+    Y_ASSERT(size <= FragmentRemaining_);
 
     PacketSize_ += size;
     FragmentRemaining_ -= size;

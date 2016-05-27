@@ -237,7 +237,7 @@ public:
 
     TSaveContext& SaveContext()
     {
-        YASSERT(SaveContext_);
+        Y_ASSERT(SaveContext_);
         return *SaveContext_;
     }
 
@@ -248,7 +248,7 @@ public:
 
     TLoadContext& LoadContext()
     {
-        YASSERT(LoadContext_);
+        Y_ASSERT(LoadContext_);
         return *LoadContext_;
     }
 
@@ -1207,12 +1207,7 @@ template <class T, class C>
 struct TSerializerTraits<
     T,
     C,
-    typename NMpl::TEnableIfC<
-        NMpl::TAndC<
-            NMpl::TIsPod<T>::Value,
-            NMpl::TNotC<TTypeTraits<T>::IsPointer>::Value
-        >::Value
-    >::TType
+    typename std::enable_if<NMpl::TIsPod<T>::Value && !std::is_pointer<T>::value>::type
 >
 {
     typedef TPodSerializer TSerializer;

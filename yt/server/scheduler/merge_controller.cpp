@@ -509,7 +509,7 @@ protected:
 
     virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const
     {
-        UNUSED(memoryReserveEnabled);
+        Y_UNUSED(memoryReserveEnabled);
         return 0;
     }
 

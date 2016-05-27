@@ -139,7 +139,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
 {
     if (cached) {
-        YASSERT(!IsJournal());
+        Y_ASSERT(!IsJournal());
         if (!CachedReplicas_) {
             CachedReplicas_.reset(new yhash_set<TNodePtrWithIndex>());
         }
@@ -160,7 +160,7 @@ void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
 void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
 {
     if (cached) {
-        YASSERT(CachedReplicas_);
+        Y_ASSERT(CachedReplicas_);
         YCHECK(CachedReplicas_->erase(replica) == 1);
         if (CachedReplicas_->empty()) {
             CachedReplicas_.reset();
@@ -215,7 +215,7 @@ void TChunk::Confirm(
     ChunkMeta_.Swap(chunkMeta);
     MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
 
-    YASSERT(IsConfirmed());
+    Y_ASSERT(IsConfirmed());
 }
 
 bool TChunk::IsConfirmed() const

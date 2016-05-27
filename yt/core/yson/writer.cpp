@@ -14,7 +14,7 @@ namespace NYson {
 namespace {
 
 static inline char HexDigit(char value) {
-    YASSERT(value < 16);
+    Y_ASSERT(value < 16);
     if (value < 10)
         return '0' + value;
     else
@@ -22,7 +22,7 @@ static inline char HexDigit(char value) {
 }
 
 static inline char OctDigit(char value) {
-    YASSERT(value < 8);
+    Y_ASSERT(value < 8);
     return '0' + value;
 }
 
@@ -128,7 +128,7 @@ TYsonWriter::TYsonWriter(
     , BooleanAsString(booleanAsString)
     , IndentSize(indent)
 {
-    YASSERT(stream);
+    Y_ASSERT(stream);
 }
 
 void TYsonWriter::WriteIndent()

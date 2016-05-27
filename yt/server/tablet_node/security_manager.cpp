@@ -152,13 +152,13 @@ public:
 
     void SetAuthenticatedUser(const Stroka& user)
     {
-        YASSERT(!*AuthenticatedUser_);
+        Y_ASSERT(!*AuthenticatedUser_);
         *AuthenticatedUser_ = user;
     }
 
     void ResetAuthenticatedUser()
     {
-        YASSERT(*AuthenticatedUser_);
+        Y_ASSERT(*AuthenticatedUser_);
         AuthenticatedUser_->Reset();
     }
 

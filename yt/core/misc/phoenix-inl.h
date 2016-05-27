@@ -287,7 +287,7 @@ struct TSerializerTraits<
     C,
     typename NMpl::TEnableIfC<
         NMpl::TAndC<
-            TTypeTraits<T>::IsPointer,
+            std::is_pointer<T>::value,
             NMpl::TIsConvertible<C&, NPhoenix::TContextBase&>::Value
         >::Value
     >::TType

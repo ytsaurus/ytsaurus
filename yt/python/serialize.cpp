@@ -129,11 +129,14 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
 
     const char* attributesStr = "attributes";
     if ((!ignoreInnerAttributes || depth == 0) && PyObject_HasAttrString(*obj, attributesStr)) {
-        auto attributes = Py::Mapping(PyObject_GetAttrString(*obj, attributesStr), true);
-        if (attributes.length() > 0) {
-            consumer->OnBeginAttributes();
-            SerializeMapFragment(attributes, consumer, ignoreInnerAttributes, depth);
-            consumer->OnEndAttributes();
+        auto objAttributes = Py::Object(PyObject_GetAttrString(*obj, attributesStr), true);
+        if (!objAttributes.isNone()) {
+            auto attributes = Py::Mapping(objAttributes);
+            if (attributes.length() > 0) {
+                consumer->OnBeginAttributes();
+                SerializeMapFragment(attributes, consumer, ignoreInnerAttributes, depth);
+                consumer->OnEndAttributes();
+            }
         }
     }
 

@@ -3,10 +3,6 @@
 #include "public.h"
 #include "chunk_meta_extensions.h"
 
-#include <yt/server/chunk_server/public.h>
-
-#include <yt/server/object_server/public.h>
-
 #include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/chunk_client/chunk_replica.h>
