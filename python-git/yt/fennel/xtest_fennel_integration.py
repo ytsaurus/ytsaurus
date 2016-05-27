@@ -13,6 +13,7 @@ pytestmark = pytest.mark.skipif("sys.version_info < (2,7)", reason="requires pyt
 
 KAFKA_ENDPOINT = "kafka17h.stat.yandex.net"
 TEST_SERVICE_ID = "fenneltest"
+TEST_LOGTYPE = "yt_scheduler_test"
 
 
 class TestLogBrokerIntegration(testing.AsyncTestCase):
@@ -35,10 +36,10 @@ class TestLogBrokerIntegration(testing.AsyncTestCase):
         try:
             self.source_id = uuid.uuid4().hex
 
-            self.l = fennel.LogBroker(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
+            self.l = fennel.LogBroker(service_id=TEST_SERVICE_ID, logtype=TEST_LOGTYPE, source_id=self.source_id, io_loop=self.io_loop)
             seqno = yield self.l.connect(KAFKA_ENDPOINT)
             assert seqno == 0
-        except BaseException as e:
+        except BaseException:
             self._init_exception_info = sys.exc_info()
         finally:
             self.stop()

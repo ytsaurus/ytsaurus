@@ -283,8 +283,9 @@ class LogBroker(object):
 
     MAX_CHUNK_SIZE = 10 * 1024 * 1024
 
-    def __init__(self, service_id, source_id, io_loop=None, connection_factory=None):
+    def __init__(self, service_id, logtype, source_id, io_loop=None, connection_factory=None):
         self._service_id = service_id
+        self._logtype = logtype
         self._source_id = source_id
 
         self._chunk_id = 0
@@ -306,7 +307,7 @@ class LogBroker(object):
         assert self._session is None
         assert self._push is None
 
-        self._session = SessionReader(service_id=self._service_id, source_id=self._source_id, io_loop=self._io_loop, connection_factory=self._connection_factory)
+        self._session = SessionReader(service_id=self._service_id, logtype=self._logtype, source_id=self._source_id, io_loop=self._io_loop, connection_factory=self._connection_factory)
         self.log.info("Connect session stream")
         yield self._session.connect((hostname, 80))
         session_id = yield self._session.get_id()
@@ -739,7 +740,7 @@ class Application(object):
         try:
             while True:
                 try:
-                    self._log_broker = LogBroker(self._service_id, self._source_id, io_loop=self._io_loop)
+                    self._log_broker = LogBroker(service_id=self._service_id, logtype=self._logtype, source_id=self._source_id, io_loop=self._io_loop)
 
                     hostname = _get_logbroker_hostname(logbroker_url=self._logbroker_url, ident=self._service_id, logtype=self._logtype, sourceid=self._source_id)
                     self._last_acked_seqno = yield self._log_broker.connect(hostname)
@@ -804,7 +805,7 @@ class LastSeqnoGetter(object):
         try:
             with ExceptionLoggingContext(self.log):
                 hostname = _get_logbroker_hostname(self._logbroker_url, ident=self._service_id, logtype=self._logtype, sourceid=self._source_id)
-                session = SessionReader(service_id=self._service_id, source_id=self._source_id, io_loop=self._io_loop, connection_factory=self._connection_factory)
+                session = SessionReader(service_id=self._service_id, source_id=self._source_id, logtype=self._logtype, io_loop=self._io_loop, connection_factory=self._connection_factory)
                 self.log.info("Connect session stream")
                 yield session.connect((hostname, 80))
                 self._last_seqno = yield session.get_seqno()
