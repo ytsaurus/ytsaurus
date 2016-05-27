@@ -769,10 +769,11 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     else:
         return format.load_rows(response)
 
-def _are_nodes(source_tables, destination_table):
+def _are_valid_nodes(source_tables, destination_table):
     return len(source_tables) == 1 and \
            not source_tables[0].has_delimiters() and \
-           not destination_table.append
+           not destination_table.append and \
+           destination_table.name != source_tables[0].name
 
 def copy_table(source_table, destination_table, replace=True, client=None):
     """Copy table(s).
@@ -792,11 +793,12 @@ def copy_table(source_table, destination_table, replace=True, client=None):
         remove(to_table(destination_table).name, client=client, force=True)
         return
     destination_table = to_table(destination_table, client=client)
-    if _are_nodes(source_tables, destination_table):
+    if _are_valid_nodes(source_tables, destination_table):
         if replace and exists(destination_table.name, client=client) and \
            to_name(source_tables[0], client=client) != to_name(destination_table, client=client):
             # in copy destination should be missing
             remove(destination_table.name, client=client)
+        # TODO(ignat): implement dirname for cypress paths.
         dirname = os.path.dirname(destination_table.name)
         if dirname != "//":
             mkdir(dirname, recursive=True, client=client)
@@ -825,7 +827,7 @@ def move_table(source_table, destination_table, replace=True, client=None):
         remove(to_table(destination_table).name, client=client, force=True)
         return
     destination_table = to_table(destination_table, client=client)
-    if _are_nodes(source_tables, destination_table):
+    if _are_valid_nodes(source_tables, destination_table):
         if source_tables[0] == destination_table:
             return
         if replace and exists(destination_table.name, client=client):
