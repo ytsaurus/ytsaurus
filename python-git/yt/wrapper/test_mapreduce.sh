@@ -81,6 +81,8 @@ test_base_functionality()
     check "4\t5\t6\n1\t2\t3\n" "`./mapreduce -read "ignat/other_table"`"
     ./mapreduce -copy -src "ignat/other_table" -dst "ignat/temp"
     check "4\t5\t6\n1\t2\t3\n" "`./mapreduce -read "ignat/other_table"`"
+    ./mapreduce -copy -src "ignat/other_table" -dst "ignat/other_table"
+    check "4\t5\t6\n1\t2\t3\n" "`./mapreduce -read "ignat/other_table"`"
     ./mapreduce -drop "ignat/temp"
     ./mapreduce -sort  -src "ignat/other_table" -dst "ignat/other_table"
     check "1\t2\t3\n4\t5\t6\n" "`./mapreduce -read "ignat/other_table"`"
