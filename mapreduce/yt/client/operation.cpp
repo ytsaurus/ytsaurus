@@ -12,6 +12,7 @@
 #include <library/yson/json_writer.h>
 
 #include <mapreduce/yt/http/requests.h>
+#include <mapreduce/yt/http/error.h>
 
 #include <mapreduce/yt/io/job_reader.h>
 #include <mapreduce/yt/io/job_writer.h>
@@ -181,6 +182,14 @@ private:
             YT_WRAPPER_FILE_CACHE << "hash/" << buf;
 
         if (Exists(Auth_, TTransactionId(), cypressPath)) {
+            Set(Auth_, TTransactionId(), cypressPath + "/@touched", "\"true\"");
+            try {
+                Set(Auth_, TTransactionId(), cypressPath + "&/@touched", "\"true\"");
+            } catch (TErrorResponse& e) {
+                if (!e.IsResolveError()) {
+                    throw;
+                }
+            }
             return cypressPath;
         }
 
