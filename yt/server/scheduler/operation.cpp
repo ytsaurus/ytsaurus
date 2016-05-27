@@ -9,6 +9,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NApi;
+using namespace NJobTrackerClient;
 using namespace NRpc;
 using namespace NYTree;
 
@@ -84,6 +85,11 @@ bool TOperation::IsSchedulable() const
 void TOperation::UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value)
 {
     ControllerTimeStatistics_.AddSample(name, value.MicroSeconds());
+}
+
+void TOperation::UpdateControllerTimeStatistics(const TStatistics& statistics)
+{
+    ControllerTimeStatistics_.Update(statistics);
 }
 
 bool TOperation::HasControllerProgress() const

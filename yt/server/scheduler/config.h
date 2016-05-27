@@ -74,6 +74,9 @@ public:
     double PreemptionSatisfactionThreshold;
     double AggressivePreemptionSatisfactionThreshold;
 
+    //! Number of concurrent threads to serve schedule jobs requests.
+    int StrategyScheduleJobsThreadCount;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -161,6 +164,10 @@ public:
 
         RegisterParameter("aggressive_preemption_satisfaction_threshold", AggressivePreemptionSatisfactionThreshold)
             .Default(0.5)
+            .GreaterThan(0);
+
+        RegisterParameter("strategy_schedule_jobs_thread_count", StrategyScheduleJobsThreadCount)
+            .Default(4)
             .GreaterThan(0);
 
         RegisterValidator([&] () {

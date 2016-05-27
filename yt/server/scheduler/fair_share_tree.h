@@ -125,6 +125,7 @@ struct ISchedulerElement
     virtual void SetParent(TCompositeSchedulerElement* parent) = 0;
 
     virtual ISchedulerElementPtr Clone() = 0;
+    virtual void SetCloned(bool cloned) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -152,7 +153,9 @@ const int UnassignedTreeIndex = -1;
 class TSchedulerElementBaseFixedState
 {
 protected:
-    explicit TSchedulerElementBaseFixedState(const TJobResources& totalResourceLimits);
+    explicit TSchedulerElementBaseFixedState(ISchedulerStrategyHost* host);
+
+    ISchedulerStrategyHost* const Host_;
 
     TSchedulableAttributes Attributes_;
 
@@ -169,6 +172,8 @@ protected:
     int PendingJobCount_ = 0;
 
     int TreeIndex_ = UnassignedTreeIndex;
+
+    bool Cloned_ = false;
 
 };
 
@@ -248,14 +253,17 @@ public:
     virtual double GetResourceUsageRatio() const override;
     virtual void IncreaseLocalResourceUsage(const TJobResources& delta) override;
 
+    virtual void SetCloned(bool cloned) override;
+
 protected:
-    ISchedulerStrategyHost* const Host_;
     const TFairShareStrategyConfigPtr StrategyConfig_;
 
     TSchedulerElementBaseSharedStatePtr SharedState_;
 
     TSchedulerElementBase(ISchedulerStrategyHost* host, TFairShareStrategyConfigPtr strategyConfig);
     TSchedulerElementBase(const TSchedulerElementBase& other);
+
+    ISchedulerStrategyHost* GetHost() const;
 
     double ComputeLocalSatisfactionRatio() const;
 
@@ -416,8 +424,11 @@ protected:
     explicit TOperationElementFixedState(TOperationPtr operation);
 
     const TOperationId OperationId_;
+    TInstant StartTime_;
+    bool IsSchedulable_;
+    TOperation* const Operation_;
 
-    DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
+    DEFINE_BYVAL_RO_PROPERTY(IOperationControllerPtr, Controller);
 };
 
 class TOperationElementSharedState
@@ -454,9 +465,13 @@ public:
         int maxConcurrentScheduleJobCalls,
         TDuration scheduleJobFailBackoffTime);
 
-    void FinishScheduleJob();
+    void FinishScheduleJob(
+        bool success,
+        bool enableBackoff,
+        TDuration scheduleJobDuration,
+        TInstant now);
 
-    void EnableScheduleJobBackoff(TInstant now);
+    NJobTrackerClient::TStatistics GetControllerTimeStatistics();
 
 private:
     typedef std::list<TJobId> TJobIdList;
@@ -515,6 +530,8 @@ private:
     TInstant LastScheduleJobFailTime_;
     bool BackingOff_ = false;
     NConcurrency::TReaderWriterSpinLock ConcurrentScheduleJobCallsLock_;
+
+    DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::TStatistics, ControllerTimeStatistics);
 
     bool IsBlockedImpl(
         TInstant now,
@@ -582,6 +599,8 @@ public:
     void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage);
     void OnJobFinished(const TJobId& jobId);
 
+    NJobTrackerClient::TStatistics GetControllerTimeStatistics();
+
     virtual ISchedulerElementPtr Clone() override;
 
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
@@ -589,6 +608,8 @@ public:
 
 private:
     TOperationElementSharedStatePtr SharedState_;
+
+    TOperation* GetOperation() const;
 
     bool IsBlocked(TInstant now) const;
 

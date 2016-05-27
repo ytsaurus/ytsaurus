@@ -523,7 +523,7 @@ public:
             .Run();
     }
 
-    
+
     void ProcessHeartbeatJobs(
         TExecNodePtr node,
         NJobTrackerClient::NProto::TReqHeartbeat* request,
@@ -561,9 +561,11 @@ public:
                 switch (job->GetState()) {
                     case EJobState::Completed:
                     case EJobState::Failed:
-                    case EJobState::Aborted:
-                        operationsToLog->insert(job->GetOperation());
+                    case EJobState::Aborted: {
+                        auto operation = GetOperation(job->GetOperationId());
+                        operationsToLog->insert(operation);
                         break;
+                    }
                     case EJobState::Running:
                         runningJobs->push_back(job);
                         break;
@@ -629,7 +631,7 @@ public:
         }
 
         for (const auto& job : schedulingContext->PreemptedJobs()) {
-            if (!FindOperation(job->GetOperationId())) {
+            if (!FindOperation(job->GetOperationId()) || job->GetHasPendingUnregistration()) {
                 LOG_DEBUG("Dangling preempted job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
                     job->GetOperationId());
@@ -729,6 +731,14 @@ public:
                         schedulingContext,
                         response,
                         &operationsToLog);
+
+                    auto jobs = node->Jobs();
+                    for (const auto job : jobs) {
+                        if (job->GetHasPendingUnregistration()) {
+                            DoUnregisterJob(job);
+                        }
+                    }
+
                     response->set_scheduling_skipped(false);
                 }
             } catch (const std::exception& ex) {
@@ -1777,7 +1787,9 @@ private:
             UnregisterJob(job);
         }
 
-        YCHECK(operation->Jobs().empty());
+        for (const auto& job : operation->Jobs()) {
+            YCHECK(job->GetHasPendingUnregistration());
+        }
     }
 
     void UnregisterOperation(TOperationPtr operation)
@@ -1877,6 +1889,8 @@ private:
         if (!operation->GetFinished().IsSet()) {
             operation->SetFinished();
             operation->SetController(nullptr);
+            operation->UpdateControllerTimeStatistics(
+                Strategy_->GetOperationTimeStatistics(operation->GetId()));
             UnregisterOperation(operation);
         }
     }
@@ -1902,21 +1916,38 @@ private:
 
     void UnregisterJob(TJobPtr job)
     {
-        auto operation = GetOperation(job->GetOperationId());
+        auto node = job->GetNode();
 
+        if (node->GetHasOngoingHeartbeat()) {
+            job->SetHasPendingUnregistration(true);
+        } else {
+            DoUnregisterJob(job);
+        }
+    }
+
+    void DoUnregisterJob(TJobPtr job)
+    {
+        auto operation = FindOperation(job->GetOperationId());
         auto node = job->GetNode();
 
         --JobTypeCounters_[job->GetType()];
 
         YCHECK(IdToJob_.erase(job->GetId()) == 1);
-        YCHECK(operation->Jobs().erase(job) == 1);
         YCHECK(node->Jobs().erase(job) == 1);
 
-        JobFinished_.Fire(job);
+        if (operation) {
+            YCHECK(operation->Jobs().erase(job) == 1);
+            JobFinished_.Fire(job);
 
-        LOG_DEBUG("Job unregistered (JobId: %v, OperationId: %v)",
-            job->GetId(),
-            operation->GetId());
+            LOG_DEBUG("Job unregistered (JobId: %v, OperationId: %v)",
+                job->GetId(),
+                job->GetOperationId());
+        } else {
+            LOG_DEBUG("Dangling job unregistered (JobId: %v, OperationId: %v)",
+                job->GetId(),
+                job->GetOperationId());
+        }
+
     }
 
     TJobPtr FindJob(const TJobId& jobId)
@@ -2144,7 +2175,8 @@ private:
 
     void ReleaseStderrChunk(TJobPtr job, const TChunkId& chunkId)
     {
-        auto transaction = job->GetOperation()->GetAsyncSchedulerTransaction();
+        auto operation = GetOperation(job->GetOperationId());
+        auto transaction = operation->GetAsyncSchedulerTransaction();
         if (!transaction)
             return;
 
@@ -2537,9 +2569,9 @@ private:
             controller->Abort();
         }
 
-        LogOperationFinished(operation, logEventType, error);
-
         FinishOperation(operation);
+
+        LogOperationFinished(operation, logEventType, error);
     }
 
     void AbortAbortingOperation(TOperationPtr operation)

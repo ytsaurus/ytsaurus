@@ -63,6 +63,9 @@ struct ISchedulerStrategy
     //! Validate that operation can be added without violating pool limits.
     virtual TError CanAddOperation(TOperationPtr operation) = 0;
 
+    //! Retrieves operation job scheduling timings statistics.
+    virtual NJobTrackerClient::TStatistics GetOperationTimeStatistics(const TOperationId& operationId) = 0;
+
     //! Builds a YSON structure containing a set of attributes to be assigned to operation's node
     //! in Cypress during creation.
     virtual void BuildOperationAttributes(
@@ -91,7 +94,6 @@ struct ISchedulerStrategy
     virtual void BuildBriefSpec(
         const TOperationId& operationId,
         NYson::IYsonConsumer* consumer) = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -104,6 +104,7 @@ public:
     //! Operation result, becomes set when the operation finishes.
     DEFINE_BYREF_RW_PROPERTY(NProto::TOperationResult, Result);
 
+    //! Stores statistics about operation preparation and schedule job timings.
     DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::TStatistics, ControllerTimeStatistics);
 
     //! Gets set when the operation is started.
@@ -127,7 +128,9 @@ public:
     //! Checks whether current operation state allows starting new jobs.
     bool IsSchedulable() const;
 
+    //! Adds new sample to controller time statistics.
     void UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value);
+    void UpdateControllerTimeStatistics(const NJobTrackerClient::TStatistics& statistics);
 
     //! Returns |true| if operation controller progress can be built.
     bool HasControllerProgress() const;

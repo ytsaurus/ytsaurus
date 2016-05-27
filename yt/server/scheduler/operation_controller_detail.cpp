@@ -1816,7 +1816,7 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
 
     auto joblet = GetJoblet(jobId);
 
-    if (abortReason != EAbortReason::SchedulingTimeout) {
+    if (jobSummary->ShouldLog) {
         FinalizeJoblet(joblet, jobSummary.get());
         LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
             .Item("reason").Value(abortReason);
