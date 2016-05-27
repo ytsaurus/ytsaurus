@@ -7,6 +7,7 @@
 
 #include <yt/core/concurrency/async_rw_lock.h>
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/scoped_timer.h>
@@ -15,10 +16,11 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NConcurrency;
+using namespace NJobTrackerClient;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
 using namespace NYson;
 using namespace NYTree;
-using namespace NObjectClient;
-using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -55,6 +57,7 @@ public:
         , Host(host)
         , NonPreemptiveProfilingCounters("/non_preemptive")
         , PreemptiveProfilingCounters("/preemptive")
+        , ScheduleJobsThreadPool_(New<TThreadPool>(Config->StrategyScheduleJobsThreadCount, "ScheduleJob"))
     {
         Host->SubscribeOperationRegistered(BIND(&TFairShareStrategy::OnOperationRegistered, this));
         Host->SubscribeOperationUnregistered(BIND(&TFairShareStrategy::OnOperationUnregistered, this));
@@ -86,9 +89,12 @@ public:
         auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&ScheduleJobsLock))
             .Value();
 
-        TFairShareContext context(schedulingContext, RootElementSnapshot->GetTreeSize());
+        auto asyncResult = BIND(&TFairShareStrategy::DoScheduleJobs, this)
+            .AsyncVia(ScheduleJobsThreadPool_->GetInvoker())
+            .Run(schedulingContext, RootElementSnapshot);
 
-        DoScheduleJobs(context, RootElementSnapshot);
+        WaitFor(asyncResult)
+            .ThrowOnError();
     }
 
     virtual void StartPeriodicActivity() override
@@ -137,6 +143,12 @@ public:
                 poolWithViolatedLimit->GetId());
         }
         return TError();
+    }
+
+    virtual TStatistics GetOperationTimeStatistics(const TOperationId& operationId) override
+    {
+        auto element = GetOperationElement(operationId);
+        return element->GetControllerTimeStatistics();
     }
 
     virtual void BuildOperationAttributes(const TOperationId& operationId, IYsonConsumer* consumer) override
@@ -334,6 +346,8 @@ private:
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
 
+    TThreadPoolPtr ScheduleJobsThreadPool_;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     TDynamicAttributes GetGlobalDynamicAttributes(const ISchedulerElementPtr& element) const
@@ -356,10 +370,9 @@ private:
         OnFairShareLoggingAt(TInstant::Now());
     }
 
-    void DoScheduleJobs(TFairShareContext& context, TRootElementPtr rootElement)
+    void DoScheduleJobs(const ISchedulingContextPtr schedulingContext, const TRootElementPtr rootElement)
     {
-        const auto& schedulingContext = context.SchedulingContext;
-
+        auto context = TFairShareContext(schedulingContext, rootElement->GetTreeSize());
         rootElement->BuildJobToOperationMapping(context);
 
         auto profileTimings = [&] (
@@ -556,7 +569,10 @@ private:
             context.HasAggressivelyStarvingNodes);
     }
 
-    bool IsJobPreemptable(const TJobPtr& job, const TOperationElementPtr& element, bool aggressivePreemptionEnabled)
+    bool IsJobPreemptable(
+        const TJobPtr& job,
+        const TOperationElementPtr& element,
+        bool aggressivePreemptionEnabled) const
     {
         double usageRatio = element->GetResourceUsageRatio();
         if (usageRatio < Config->MinPreemptableRatio) {
@@ -581,7 +597,7 @@ private:
     void PreemptJob(
         const TJobPtr& job,
         const TOperationElementPtr& operationElement,
-        TFairShareContext& context)
+        TFairShareContext& context) const
     {
         context.SchedulingContext->ResourceUsage() -= job->ResourceUsage();
         operationElement->IncreaseJobResourceUsage(job->GetId(), -job->ResourceUsage());
@@ -721,7 +737,7 @@ private:
 
         bool isPending = false;
         for (auto it = OperationQueue.begin(); it != OperationQueue.end(); ++it) {
-            if (*it == operationElement->GetOperation()) {
+            if (*it == operation) {
                 isPending = true;
                 OperationQueue.erase(it);
                 break;

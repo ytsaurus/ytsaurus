@@ -9,6 +9,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NYson;
+using namespace NJobTrackerClient;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -34,6 +35,11 @@ public:
     virtual TError CanAddOperation(TOperationPtr operation) override
     {
         return TError();
+    }
+
+    virtual TStatistics GetOperationTimeStatistics(const TOperationId& operationId) override
+    {
+        return TStatistics();
     }
 
     virtual void BuildOperationAttributes(const TOperationId& /*operationId*/, IYsonConsumer* /*consumer*/) override
