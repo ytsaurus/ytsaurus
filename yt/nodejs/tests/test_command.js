@@ -1400,7 +1400,7 @@ describe("YtCommand - specific behaviour", function() {
     it("should reply with 503 on AllTargetNodesFailed error", function(done) {
         var stub = sinon.stub(this.driver, "execute");
         stub.returns(Q.reject(
-            new YtError("YTADMIN-1685").withCode(binding.AllTargetNodesFailedYtErrorCode)
+            new YtError("YTADMIN-1685").withCode(binding.NChunkClient_AllTargetNodesFailedYtErrorCode)
         ));
         ask("PUT", V + "/write", {}, function(rsp) {
             rsp.statusCode.should.eql(503);
@@ -1411,7 +1411,7 @@ describe("YtCommand - specific behaviour", function() {
     it("should reply with 503 on Unavailable error", function(done) {
         var stub = sinon.stub(this.driver, "execute");
         stub.returns(Q.reject(
-            new YtError("Unavailable").withCode(binding.UnavailableYtErrorCode)
+            new YtError("Unavailable").withCode(binding.NRpc_UnavailableYtErrorCode)
         ));
         ask("PUT", V + "/write", {}, function(rsp) {
             rsp.statusCode.should.eql(503);
@@ -1422,7 +1422,7 @@ describe("YtCommand - specific behaviour", function() {
     it("should reply with 403 on UserBanned error", function(done) {
         var stub = sinon.stub(this.driver, "execute");
         stub.returns(Q.reject(
-            new YtError("Banned").withCode(binding.UserBannedYtErrorCode)
+            new YtError("Banned").withCode(binding.NSecurityClient_UserBannedYtErrorCode)
         ));
         ask("PUT", V + "/write", {}, function(rsp) {
             rsp.statusCode.should.eql(403);
@@ -1430,10 +1430,21 @@ describe("YtCommand - specific behaviour", function() {
         }, done).end();
     });
 
-    it("should reply with 429 on RequestQueueSizeLimit error", function(done) {
+    it("should reply with 429 on NSecurityClient_RequestQueueSizeLimitExceeded error", function(done) {
         var stub = sinon.stub(this.driver, "execute");
         stub.returns(Q.reject(
-            new YtError("RequestQueueSizeLimitExceeded").withCode(binding.RequestQueueSizeLimitExceededYtErrorCode)
+            new YtError("RequestQueueSizeLimitExceeded").withCode(binding.NSecurityClient_RequestQueueSizeLimitExceededYtErrorCode)
+        ));
+        ask("PUT", V + "/write", {}, function(rsp) {
+            rsp.statusCode.should.eql(429);
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
+
+    it("should reply with 429 on NRpc_RequestQueueSizeLimitExceeded error", function(done) {
+        var stub = sinon.stub(this.driver, "execute");
+        stub.returns(Q.reject(
+            new YtError("RequestQueueSizeLimitExceeded").withCode(binding.NRpc_RequestQueueSizeLimitExceededYtErrorCode)
         ));
         ask("PUT", V + "/write", {}, function(rsp) {
             rsp.statusCode.should.eql(429);

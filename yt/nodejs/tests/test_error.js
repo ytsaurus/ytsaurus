@@ -127,7 +127,7 @@ describe("wrapped errors", function() {
     });
 
     it("should find unavailable codes", function() {
-        var err1 = makeError(binding.UnavailableYtErrorCode, "Foo", {});
+        var err1 = makeError(binding.NRpc_UnavailableYtErrorCode, "Foo", {});
         var err2 = new YtError("Bar", err1);
         var err3 = new YtError("Baz");
 

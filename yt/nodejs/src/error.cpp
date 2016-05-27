@@ -136,19 +136,23 @@ void InitializeError(Handle<Object> target)
         FunctionTemplate::New(SpawnBasicYtError)->GetFunction());
 
     target->Set(
-        String::NewSymbol("UnavailableYtErrorCode"),
+        String::NewSymbol("NRpc_UnavailableYtErrorCode"),
         Integer::New(static_cast<int>(NRpc::EErrorCode::Unavailable)));
 
     target->Set(
-        String::NewSymbol("UserBannedYtErrorCode"),
+        String::NewSymbol("NSecurityClient_UserBannedYtErrorCode"),
         Integer::New(static_cast<int>(NSecurityClient::EErrorCode::UserBanned)));
 
     target->Set(
-        String::NewSymbol("RequestQueueSizeLimitExceededYtErrorCode"),
+        String::NewSymbol("NSecurityClient_RequestQueueSizeLimitExceededYtErrorCode"),
         Integer::New(static_cast<int>(NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)));
 
     target->Set(
-        String::NewSymbol("AllTargetNodesFailedYtErrorCode"),
+        String::NewSymbol("NRpc_RequestQueueSizeLimitExceededYtErrorCode"),
+        Integer::New(static_cast<int>(NRpc::EErrorCode::RequestQueueSizeLimitExceeded)));
+
+    target->Set(
+        String::NewSymbol("NChunkClient_AllTargetNodesFailedYtErrorCode"),
         Integer::New(static_cast<int>(NChunkClient::EErrorCode::AllTargetNodesFailed)));
 
     ErrorCode = NODE_PSYMBOL("code");
