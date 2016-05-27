@@ -196,13 +196,13 @@ private:
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
         auto tabletManager = Bootstrap_->GetTabletManager();
-        auto* bundle = tabletManager->FindTabletCellBundleByName(Stroka(key));
-        if (!IsObjectAlive(bundle)) {
+        auto* cellBundle = tabletManager->FindTabletCellBundleByName(Stroka(key));
+        if (!IsObjectAlive(cellBundle)) {
             return nullptr;
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        return objectManager->GetProxy(bundle);
+        return objectManager->GetProxy(cellBundle);
     }
 };
 

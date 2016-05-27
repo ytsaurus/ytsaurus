@@ -33,9 +33,6 @@ class TTabletCell
     , public TRefTracked<TTablet>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(int, PeerCount);
-
-public:
     struct TPeer
     {
         NNodeTrackerClient::TNodeDescriptor Descriptor;
@@ -43,22 +40,21 @@ public:
         TInstant LastSeenTime;
 
         void Persist(NCellMaster::TPersistenceContext& context);
-
     };
 
-    typedef SmallVector<TPeer, TypicalCellSize> TPeerList;
+    using TPeerList = SmallVector<TPeer, TypicalPeerCount>;
     DEFINE_BYREF_RW_PROPERTY(TPeerList, Peers);
     DEFINE_BYVAL_RW_PROPERTY(int, LeadingPeerId);
 
     DEFINE_BYVAL_RW_PROPERTY(int, ConfigVersion);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellConfigPtr, Config);
 
-    DEFINE_BYVAL_RW_PROPERTY(TTabletCellOptionsPtr, Options);
-
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTablet*>, Tablets);
     DEFINE_BYREF_RW_PROPERTY(TTabletStatistics, TotalStatistics);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, PrerequisiteTransaction);
+
+    DEFINE_BYVAL_RW_PROPERTY(TTabletCellBundle*, CellBundle);
 
 public:
     explicit TTabletCell(const TTabletCellId& id);

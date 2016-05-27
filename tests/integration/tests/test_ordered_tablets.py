@@ -31,7 +31,7 @@ class TestOrderedTablets(YTEnvSetup):
 
 
     def test_mount(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
 
         self.sync_mount_table("//tmp/t")
@@ -47,7 +47,7 @@ class TestOrderedTablets(YTEnvSetup):
         assert tablet_ids == [tablet_id]
 
     def test_unmount(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
 
         self.sync_mount_table("//tmp/t")
@@ -59,7 +59,7 @@ class TestOrderedTablets(YTEnvSetup):
         self.sync_unmount_table("//tmp/t")
 
     def test_insert(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
@@ -70,7 +70,7 @@ class TestOrderedTablets(YTEnvSetup):
         self.sync_mount_table("//tmp/t")
 
     def test_flush(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
@@ -85,7 +85,7 @@ class TestOrderedTablets(YTEnvSetup):
         assert get("#" + chunk_id + "/@row_count") == 100
 
     def test_insert_with_explicit_tablet_index(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         reshard_table("//tmp/t", 10)
         self.sync_mount_table("//tmp/t")
@@ -97,7 +97,7 @@ class TestOrderedTablets(YTEnvSetup):
             assert select_rows("a from [//tmp/t] where [$tablet_index] = " + str(i)) == [{"a": i}]
     
     def _test_select_from_single_tablet(self, dynamic):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
@@ -123,7 +123,7 @@ class TestOrderedTablets(YTEnvSetup):
         self._test_select_from_single_tablet(dynamic=False)
 
     def test_select_from_dynamic_multi_tablet(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         reshard_table("//tmp/t", 10)
         self.sync_mount_table("//tmp/t")
@@ -136,7 +136,7 @@ class TestOrderedTablets(YTEnvSetup):
         assert_items_equal(select_rows("a from [//tmp/t]"), [{"a": j} for i in xrange(10) for j in xrange(100)])
 
     def test_select_from_multi_store(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
@@ -152,7 +152,7 @@ class TestOrderedTablets(YTEnvSetup):
         assert select_rows("[$tablet_index], [$row_index], a from [//tmp/t] where [$row_index] between 10 and 489") == query_rows
         
     def test_select_with_limits(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 

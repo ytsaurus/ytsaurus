@@ -114,7 +114,7 @@ public:
         void Persist(NCellMaster::TPersistenceContext& context);
     };
 
-    using TTabletSlotList = SmallVector<TTabletSlot, NTabletClient::TypicalCellSize>;
+    using TTabletSlotList = SmallVector<TTabletSlot, NTabletClient::TypicalPeerCount>;
     DEFINE_BYREF_RW_PROPERTY(TTabletSlotList, TabletSlots);
 
 public:

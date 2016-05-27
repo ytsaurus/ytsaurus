@@ -33,7 +33,7 @@ class TestOrchid(YTEnvSetup):
 
     @skip_if_multicell
     def test_at_tablet_cells(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         cells = ls("//sys/tablet_cells")
         assert len(cells) == 1
         for cell in cells:

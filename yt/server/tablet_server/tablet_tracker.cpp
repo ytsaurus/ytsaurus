@@ -2,6 +2,7 @@
 #include "private.h"
 #include "config.h"
 #include "tablet_cell.h"
+#include "tablet_cell_bundle.h"
 #include "tablet_manager.h"
 
 #include <yt/server/cell_master/bootstrap.h>
@@ -57,7 +58,7 @@ public:
 
     TNode* TryAllocate(
         TTabletCell* cell,
-        const SmallSet<Stroka, TypicalCellSize>& forbiddenAddresses)
+        const SmallSet<Stroka, TypicalPeerCount>& forbiddenAddresses)
     {
         for (auto it = MinusSpareSlotsToNode_.begin(); it != MinusSpareSlotsToNode_.end(); ++it) {
             int spare = it->first;
@@ -219,14 +220,14 @@ void TTabletTracker::SchedulePeerAssignment(TTabletCell* cell, TCandidatePool* p
     TReqAssignPeers request;
     ToProto(request.mutable_cell_id(), cell->GetId());
 
-    SmallSet<Stroka, TypicalCellSize> forbiddenAddresses;
+    SmallSet<Stroka, TypicalPeerCount> forbiddenAddresses;
     for (const auto& peer : peers) {
         if (!peer.Descriptor.IsNull()) {
             forbiddenAddresses.insert(peer.Descriptor.GetDefaultAddress());
         }
     }
 
-    for (TPeerId id = 0; id < cell->GetPeerCount(); ++id) {
+    for (TPeerId id = 0; id < static_cast<int>(cell->Peers().size()); ++id) {
         if (!peers[id].Descriptor.IsNull())
             continue;
 
@@ -321,7 +322,7 @@ bool TTabletTracker::IsGood(const TNode* node)
 
 int TTabletTracker::FindGoodPeer(const TTabletCell* cell)
 {
-    for (TPeerId id = 0; id < cell->GetPeerCount(); ++id) {
+    for (TPeerId id = 0; id < static_cast<int>(cell->Peers().size()); ++id) {
         const auto& peer = cell->Peers()[id];
         if (IsGood(peer.Node)) {
             return id;

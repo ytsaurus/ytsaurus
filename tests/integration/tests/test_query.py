@@ -96,7 +96,7 @@ class TestQuery(YTEnvSetup):
         assert_items_equal(actual, expected)
 
     def test_merging_group_by(self):
-        self.sync_create_cells(3, 3)
+        self.sync_create_cells(1)
 
         create("table", "//tmp/t",
             attributes={
@@ -127,7 +127,7 @@ class TestQuery(YTEnvSetup):
         assert expected == actual
 
     def test_merging_group_by2(self):
-        self.sync_create_cells(3, 3)
+        self.sync_create_cells(1)
 
         create("table", "//tmp/t",
             attributes={
@@ -160,7 +160,7 @@ class TestQuery(YTEnvSetup):
         assert expected == actual
 
     def test_order_by(self):
-        self.sync_create_cells(3, 1)
+        self.sync_create_cells(1)
 
         create("table", "//tmp/t",
             attributes={
@@ -192,7 +192,7 @@ class TestQuery(YTEnvSetup):
         assert expected == actual
 
     def test_join(self):
-        self.sync_create_cells(3, 1)
+        self.sync_create_cells(1)
 
         self._create_table(
             "//tmp/jl",
@@ -260,7 +260,7 @@ class TestQuery(YTEnvSetup):
         assert expected == actual
 
     def test_join_many(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
 
         self._create_table(
             "//tmp/a",
@@ -331,7 +331,7 @@ class TestQuery(YTEnvSetup):
                 '{"a"=10;"b"=%false;"c"="hello";"d"=32u;};\n'
 
     def test_tablets(self):
-        self.sync_create_cells(3, 1)
+        self.sync_create_cells(1)
 
         create("table", "//tmp/t",
             attributes={
@@ -361,7 +361,7 @@ class TestQuery(YTEnvSetup):
         with pytest.raises(YtError): select_rows("* from [//tmp/t] where key < 51")
 
     def test_computed_column_simple(self):
-        self.sync_create_cells(3, 1)
+        self.sync_create_cells(1)
 
         create("table", "//tmp/t",
                 attributes={
@@ -390,7 +390,7 @@ class TestQuery(YTEnvSetup):
         assert_items_equal(actual, expected)
 
     def test_computed_column_far_divide(self):
-        self.sync_create_cells(3, 1)
+        self.sync_create_cells(1)
 
         create("table", "//tmp/t",
             attributes={
@@ -424,7 +424,7 @@ class TestQuery(YTEnvSetup):
         assert_items_equal(actual, expected([30]))
 
     def test_computed_column_modulo(self):
-        self.sync_create_cells(3, 1)
+        self.sync_create_cells(1)
 
         create("table", "//tmp/t",
              attributes={
@@ -595,7 +595,7 @@ class TestQuery(YTEnvSetup):
         assert_items_equal(actual, expected)
 
     def test_cardinality(self):
-        self.sync_create_cells(3, 3)
+        self.sync_create_cells(1)
 
         create("table", "//tmp/card",
             attributes={
@@ -649,7 +649,7 @@ class TestQuery(YTEnvSetup):
         assert_items_equal(actual, expected)
 
     def test_yt_2375(self):
-        self.sync_create_cells(3, 3)
+        self.sync_create_cells(1)
         create("table", "//tmp/t",
             attributes={
                 "dynamic": True,

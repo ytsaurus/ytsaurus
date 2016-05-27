@@ -1,4 +1,5 @@
 #include "tablet_cell.h"
+#include "tablet_cell_bundle.h"
 #include "tablet.h"
 
 #include <yt/server/cell_master/serialize.h>
@@ -33,12 +34,11 @@ void TTabletCell::TPeer::Persist(NCellMaster::TPersistenceContext& context)
 
 TTabletCell::TTabletCell(const TTabletCellId& id)
     : TNonversionedObjectBase(id)
-    , PeerCount_(0)
     , LeadingPeerId_(0)
     , ConfigVersion_(0)
     , Config_(New<TTabletCellConfig>())
-    , Options_(New<TTabletCellOptions>())
     , PrerequisiteTransaction_(nullptr)
+    , CellBundle_(nullptr)
 { }
 
 void TTabletCell::Save(TSaveContext& context) const
@@ -46,15 +46,14 @@ void TTabletCell::Save(TSaveContext& context) const
     TNonversionedObjectBase::Save(context);
 
     using NYT::Save;
-    Save(context, PeerCount_);
     Save(context, LeadingPeerId_);
     Save(context, Peers_);
     Save(context, ConfigVersion_);
     Save(context, *Config_);
-    Save(context, *Options_);
     Save(context, Tablets_);
     Save(context, TotalStatistics_);
     Save(context, PrerequisiteTransaction_);
+    Save(context, CellBundle_);
 }
 
 void TTabletCell::Load(TLoadContext& context)
@@ -62,7 +61,10 @@ void TTabletCell::Load(TLoadContext& context)
     TNonversionedObjectBase::Load(context);
 
     using NYT::Load;
-    Load(context, PeerCount_);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 400) {
+        Load<int>(context);
+    }
     // COMPAT(babenko)
     if (context.GetVersion() >= 206) {
         Load(context, LeadingPeerId_);
@@ -70,10 +72,18 @@ void TTabletCell::Load(TLoadContext& context)
     Load(context, Peers_);
     Load(context, ConfigVersion_);
     Load(context, *Config_);
-    Load(context, *Options_);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 400) {
+        auto options = New<TTabletCellOptions>();
+        Load(context, *options);
+    }
     Load(context, Tablets_);
     Load(context, TotalStatistics_);
     Load(context, PrerequisiteTransaction_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 400) {
+        Load(context, CellBundle_);
+    }
 }
 
 TPeerId TTabletCell::FindPeerId(const Stroka& address) const
@@ -152,10 +162,6 @@ void TTabletCell::UpdatePeerSeenTime(TPeerId peerId, TInstant when)
 
 ETabletCellHealth TTabletCell::GetHealth() const
 {
-    if (PeerCount_ == 0) {
-        return ETabletCellHealth::Failed;
-    }
-
     const auto& leaderPeer = Peers_[LeadingPeerId_];
     auto* leaderNode = leaderPeer.Node;
     if (!IsObjectAlive(leaderNode)) {
@@ -167,9 +173,10 @@ ETabletCellHealth TTabletCell::GetHealth() const
         return Tablets_.empty() ? ETabletCellHealth::Initializing : ETabletCellHealth::Failed;
     }
 
-    for (auto peerId = 0; peerId < PeerCount_; ++peerId) {
-        if (peerId == LeadingPeerId_)
+    for (auto peerId = 0; peerId < static_cast<int>(Peers_.size()); ++peerId) {
+        if (peerId == LeadingPeerId_) {
             continue;
+        }
         const auto& peer = Peers_[peerId];
         auto* node = peer.Node;
         if (!IsObjectAlive(node)) {
@@ -189,7 +196,7 @@ TCellDescriptor TTabletCell::GetDescriptor() const
     TCellDescriptor descriptor;
     descriptor.CellId = Id_;
     descriptor.ConfigVersion = ConfigVersion_;
-    for (auto peerId = 0; peerId < PeerCount_; ++peerId) {
+    for (auto peerId = 0; peerId < static_cast<int>(Peers_.size()); ++peerId) {
         descriptor.Peers.push_back(TCellPeerDescriptor(
             Peers_[peerId].Descriptor,
             peerId == LeadingPeerId_));

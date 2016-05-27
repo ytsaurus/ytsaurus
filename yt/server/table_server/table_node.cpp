@@ -35,6 +35,7 @@ using namespace NTabletServer;
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
     , PreserveSchemaOnWrite_(false)
+    , TabletCellBundle_(nullptr)
     , Atomicity_(NTransactionClient::EAtomicity::Full)
 { }
 
@@ -82,6 +83,7 @@ void TTableNode::Save(TSaveContext& context) const
     Save(context, PreserveSchemaOnWrite_);
     Save(context, Tablets_);
     Save(context, Atomicity_);
+    Save(context, TabletCellBundle_);
 }
 
 void TTableNode::Load(TLoadContext& context)
@@ -122,6 +124,11 @@ void TTableNode::Load(TLoadContext& context)
         if (IsDynamic()) {
             PreserveSchemaOnWrite_ = true;
         }
+	}
+	
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 400) {
+        Load(context, TabletCellBundle_);
     }
 
     // COMPAT(max42)
@@ -283,6 +290,10 @@ protected:
             attributes->Set("optimize_for", EOptimizeFor::Lookup);
         }
 
+        if (!attributes->Contains("tablet_cell_bundle")) {
+            attributes->Set("tablet_cell_bundle", DefaultTabletCellBundleName);
+        }
+
         bool dynamic = attributes->Get<bool>("dynamic", false);
         attributes->Remove("dynamic");
 
@@ -325,6 +336,7 @@ protected:
         if (table->IsTrunk()) {
             auto tabletManager = Bootstrap_->GetTabletManager();
             tabletManager->ClearTablets(table);
+            tabletManager->ResetTabletCellBundle(table);
         }
     }
 
