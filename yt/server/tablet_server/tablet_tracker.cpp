@@ -39,36 +39,17 @@ class TTabletTracker::TCandidatePool
 public:
     explicit TCandidatePool(NCellMaster::TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-    {
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
-        auto tabletManager = Bootstrap_->GetTabletManager();
-        for (const auto& pair : nodeTracker->Nodes()) {
-            auto* node = pair.second;
-            if (!IsGood(node)) {
-                continue;
-            }
-            int total = node->GetTotalTabletSlots();
-            int used = tabletManager->GetAssignedTabletCellCount(node->GetDefaultAddress());
-            int spare = total - used;
-            if (used < total) {
-                MinusSpareSlotsToNode_.insert(std::make_pair(-spare, node));
-            }
-        }
-    }
+    { }
 
     TNode* TryAllocate(
         TTabletCell* cell,
         const SmallSet<Stroka, TypicalPeerCount>& forbiddenAddresses)
     {
-        for (auto it = MinusSpareSlotsToNode_.begin(); it != MinusSpareSlotsToNode_.end(); ++it) {
-            int spare = it->first;
-            auto* node = it->second;
+        const auto& data = GetData(cell->GetCellBundle());
+        for (const auto& pair : data.Nodes) {
+            auto* node = pair.second;
             if (forbiddenAddresses.count(node->GetDefaultAddress()) == 0) {
-                MinusSpareSlotsToNode_.erase(it);
-                --spare;
-                if (spare > 0) {
-                    MinusSpareSlotsToNode_.insert(std::make_pair(-spare, node));
-                }
+                ChargeNode(node);
                 return node;
             }
         }
@@ -78,10 +59,66 @@ public:
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
 
-    // NB: "Minus" is to avoid iterating backwards and converting reserve iterator to forward iterator
-    // in call to erase.
-    std::multimap<int, TNode*> MinusSpareSlotsToNode_;
+    struct TPerTagData
+    {
+        //! Key is minus the number of spare slots.
+        std::multimap<int, TNode*> Nodes;
+        yhash_map<TNode*, std::multimap<int, TNode*>::iterator> NodeToIterator;
+    };
 
+    yhash_map<TNullable<Stroka>, TPerTagData> TagToData_;
+
+
+    void InsertNode(TPerTagData* data, TNode* node)
+    {
+        if (!IsGood(node)) {
+            return;
+        }
+        int total = node->GetTotalTabletSlots();
+        auto tabletManager = Bootstrap_->GetTabletManager();
+        int used = tabletManager->GetAssignedTabletCellCount(node->GetDefaultAddress());
+        int spare = total - used;
+        if (used >= total) {
+            return;
+        }
+        auto it = data->Nodes.insert(std::make_pair(-spare, node));
+        YCHECK(data->NodeToIterator.insert(std::make_pair(node, it)).second);
+    }
+
+    const TPerTagData& GetData(TTabletCellBundle* cellBundle)
+    {
+        auto tag = cellBundle->GetNodeTag();
+        auto it = TagToData_.find(tag);
+        if (it == TagToData_.end()) {
+            it = TagToData_.insert(std::make_pair(tag, TPerTagData())).first;
+            auto& data = it->second;
+            auto nodeTracker = Bootstrap_->GetNodeTracker();
+            for (const auto& pair : nodeTracker->Nodes()) {
+                auto* node = pair.second;
+                if (node->HasTag(tag)) {
+                    InsertNode(&data, node);
+                }
+            }
+        }
+        return it->second;
+    }
+
+    void ChargeNode(TNode* node)
+    {
+        for (auto& pair : TagToData_) {
+            auto& data = pair.second;
+            auto it1 = data.NodeToIterator.find(node);
+            if (it1 != data.NodeToIterator.end()) {
+                auto it2 = it1->second;
+                int spare = -it2->first;
+                data.Nodes.erase(it2);
+                --spare;
+                if (spare > 0) {
+                    data.NodeToIterator[node] = data.Nodes.insert(std::make_pair(-spare, node));
+                }
+            }
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -282,17 +319,27 @@ bool TTabletTracker::IsFailed(const TTabletCell* cell, TPeerId peerId, TDuration
         return false;
     }
 
-    if (peer.Node) {
+    auto nodeTracker = Bootstrap_->GetNodeTracker();
+    const auto* node = nodeTracker->FindNodeByAddress(peer.Descriptor.GetDefaultAddress());
+    if (node) {
+        if (node->GetBanned()) {
+            return true;
+        }
+
+        if (node->GetDecommissioned()) {
+            return true;
+        }
+
+        if (!node->HasTag(cell->GetCellBundle()->GetNodeTag())) {
+            return true;
+        }
+    }
+
+    if (peer.LastSeenTime + timeout > TInstant::Now()) {
         return false;
     }
 
-    auto nodeTracker = Bootstrap_->GetNodeTracker();
-    const auto* node = nodeTracker->FindNodeByAddress(peer.Descriptor.GetDefaultAddress());
-    if (node && (node->GetBanned() || node->GetDecommissioned())) {
-        return true;
-    }
-
-    if (peer.LastSeenTime > TInstant::Now() - timeout) {
+    if (peer.Node) {
         return false;
     }
 

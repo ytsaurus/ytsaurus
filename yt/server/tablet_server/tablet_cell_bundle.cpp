@@ -25,6 +25,7 @@ void TTabletCellBundle::Save(TSaveContext& context) const
     Save(context, Name_);
     Save(context, Acd_);
     Save(context, *Options_);
+    Save(context, NodeTag_);
 }
 
 void TTabletCellBundle::Load(TLoadContext& context)
@@ -38,6 +39,10 @@ void TTabletCellBundle::Load(TLoadContext& context)
         Load(context, Acd_);
     }
     Load(context, *Options_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 400) {
+        Load(context, NodeTag_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
