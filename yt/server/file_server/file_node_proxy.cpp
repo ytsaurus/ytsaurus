@@ -82,10 +82,11 @@ private:
         for (const auto& range : ranges) {
             const auto& lowerLimit = range.LowerLimit();
             const auto& upperLimit = range.UpperLimit();
-            if (upperLimit.HasKey() || upperLimit.HasRowIndex() ||
-                lowerLimit.HasKey() || lowerLimit.HasRowIndex())
-            {
-                THROW_ERROR_EXCEPTION("Row selectors are not supported for files");
+            if (upperLimit.HasKey() || lowerLimit.HasKey()) {
+                THROW_ERROR_EXCEPTION("Key selectors are not supported for files");
+            }
+            if (lowerLimit.HasRowIndex() || upperLimit.HasRowIndex()) {
+                THROW_ERROR_EXCEPTION("Row index selectors are not supported for files");
             }
         }
     }

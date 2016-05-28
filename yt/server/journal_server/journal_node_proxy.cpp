@@ -14,7 +14,6 @@ namespace NYT {
 namespace NJournalServer {
 
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using namespace NChunkServer;
 using namespace NCypressServer;
 using namespace NObjectServer;
@@ -111,7 +110,7 @@ private:
             auto chunkManager = Bootstrap_->GetChunkManager();
             return chunkManager
                 ->GetChunkQuorumInfo(chunk)
-                .Apply(BIND([=] (const TMiscExt& miscExt) {
+                .Apply(BIND([=] (const NChunkClient::NProto::TMiscExt& miscExt) {
                     return ConvertToYsonString(penultimateRowCount + miscExt.row_count());
                 }));
         }
@@ -133,6 +132,26 @@ private:
     {
         DISPATCH_YPATH_SERVICE_METHOD(Seal);
         return TBase::DoInvoke(context);
+    }
+
+    virtual void ValidateFetchParameters(
+        const TChannel& channel,
+        const std::vector<TReadRange>& ranges) override
+    {
+        if (!channel.IsUniversal()) {
+            THROW_ERROR_EXCEPTION("Column selectors are not supported for journals");
+        }
+
+        for (const auto& range : ranges) {
+            const auto& lowerLimit = range.LowerLimit();
+            const auto& upperLimit = range.UpperLimit();
+            if (upperLimit.HasKey() || lowerLimit.HasKey()) {
+                THROW_ERROR_EXCEPTION("Key selectors are not supported for journals");
+            }
+            if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
+                THROW_ERROR_EXCEPTION("Offset selectors are not supported for journals");
+            }
+        }
     }
 
     DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, Seal)
