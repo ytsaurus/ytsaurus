@@ -389,16 +389,21 @@ protected:
         clonedNode->TableSchema() = sourceNode->TableSchema();
         clonedNode->PreserveSchemaOnWrite() = sourceNode->PreserveSchemaOnWrite();
 
+        auto* trunkSourceNode = sourceNode->GetTrunkNode();
+
+        auto tabletManager = Bootstrap_->GetTabletManager();
+        tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());
+
         if (sourceNode->IsDynamic()) {
-            auto tablets = std::move(sourceNode->Tablets());
+            auto tablets = std::move(trunkSourceNode->Tablets());
             factory->RegisterCommitHandler([clonedNode, tablets] () mutable {
                 clonedNode->Tablets() = std::move(tablets);
                 for (auto* tablet : clonedNode->Tablets()) {
                     tablet->SetTable(clonedNode);
                 }
             });
-            factory->RegisterRollbackHandler([sourceNode, tablets] () mutable {
-                sourceNode->Tablets() = std::move(tablets);
+            factory->RegisterRollbackHandler([trunkSourceNode, tablets] () mutable {
+                trunkSourceNode->Tablets() = std::move(tablets);
             });
         }
     }
