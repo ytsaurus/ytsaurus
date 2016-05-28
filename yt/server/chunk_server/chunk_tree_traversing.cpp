@@ -27,6 +27,41 @@ static const int MaxChunksPerStep = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TIterator, class TKey, class TIsLess, class TIsMissing>
+TIterator UpperBoundWithMissingValues(
+    TIterator start,
+    TIterator end,
+    const TKey& key,
+    TIsLess isLess,
+    TIsMissing isMissing)
+{
+    while (true) {
+        auto distance = std::distance(start, end);
+        if (distance <= 1) {
+            break;
+        }
+        auto median = start + (distance / 2);
+        auto cur = median;
+        while (cur > start && isMissing(*cur)) {
+            --cur;
+        }
+        if (isMissing(*cur)) {
+            start = median;
+        } else {
+            if (isLess(key, *cur)) {
+                end = cur;
+            } else {
+                start = median;
+            }
+        }
+    }
+    if (!isMissing(*start) && isLess(key, *start)) {
+        return start;
+    } else {
+        return end;
+    }
+}
+
 class TChunkTreeTraverser
     : public TRefCounted
 {
@@ -201,7 +236,7 @@ protected:
                 }
 
                 case EObjectType::Chunk:
-                case EObjectType::ErasureChunk: 
+                case EObjectType::ErasureChunk:
                 case EObjectType::JournalChunk: {
                     auto* childChunk = child->AsChunk();
                     if (!Visitor_->OnChunk(childChunk, rowIndex, subtreeStartLimit, subtreeEndLimit)) {
@@ -267,14 +302,20 @@ protected:
             typedef std::vector<TChunkTree*>::const_iterator TChildrenIterator;
             std::reverse_iterator<TChildrenIterator> rbegin(chunkList->Children().end());
             std::reverse_iterator<TChildrenIterator> rend(chunkList->Children().begin());
-            auto it = std::upper_bound(
+
+            auto it = UpperBoundWithMissingValues(
                 rbegin,
                 rend,
                 lowerBound.GetKey(),
+                // isLess
                 [] (const TOwningKey& key, const TChunkTree* chunkTree) {
-                    // YT-4840: Don't call GetMaxKey for chunk trees without chunks.
-                    return IsEmpty(chunkTree) || key > GetMaxKey(chunkTree);
+                    return key > GetMaxKey(chunkTree);
+                },
+                // isMissing
+                [] (const TChunkTree* chunkTree) {
+                    return IsEmpty(chunkTree);
                 });
+
             result = std::max(result, static_cast<int>(rend - it));
         }
 
