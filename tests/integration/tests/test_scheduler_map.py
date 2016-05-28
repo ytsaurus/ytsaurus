@@ -1,6 +1,7 @@
 from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
 
+from yt.yson import *
 from yt.wrapper import JsonFormat
 from yt.environment.helpers import assert_items_equal
 
@@ -8,6 +9,7 @@ import pytest
 import time
 import __builtin__
 import os
+import sys
 
 ##################################################################
 
@@ -611,10 +613,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
             label="job_progress",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat")
+            command="cat",
+            spec={"test_flag": to_yson_type("value", attributes={"attr": 0})})
 
         progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, op.jobs[0]))
         assert progress >= 0
+
+        test_flag = get("//sys/scheduler/orchid/scheduler/operations/{0}/spec/test_flag".format(op.id))
+        assert str(test_flag) == "value"
+        assert test_flag.attributes == {"attr": 0}
 
         op.resume_jobs()
         op.track()
