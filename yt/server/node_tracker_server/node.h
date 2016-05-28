@@ -59,8 +59,12 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TMulticellStates, MulticellStates);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState*, LocalStatePtr);
 
-    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, UserTags);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, NodeTags);
+    //! Tags specified by user in "user_tags" attribute.
+    DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, UserTags);
+    //! Tags received from node during registration (those typically come from config).
+    DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, NodeTags);
+    //! User tags plus node tags.
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<Stroka>, Tags);
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, RegisterTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
@@ -139,8 +143,6 @@ public:
     //! Sets the local state by dereferencing local state pointer.
     void SetLocalState(ENodeState state) const;
 
-    std::vector<Stroka> GetTags() const;
-
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
@@ -148,7 +150,7 @@ public:
     void ReserveStoredReplicas(int sizeHint);
     void ReserveCachedReplicas(int sizeHint);
     bool AddReplica(TChunkPtrWithIndex replica, bool cached);
-    //! Retruns |true| if this was an approved non-cached replica.
+    //! Returns |true| if this was an approved non-cached replica.
     bool RemoveReplica(TChunkPtrWithIndex replica, bool cached);
     bool HasReplica(TChunkPtrWithIndex, bool cached) const;
     TChunkPtrWithIndex PickRandomReplica();
@@ -218,9 +220,14 @@ private:
 
     // Private accessors for TNodeTracker.
     friend class TNodeTracker;
+
     void SetRack(TRack* rack);
     void SetBanned(bool value);
     void SetDecommissioned(bool value);
+
+    void SetNodeTags(const std::vector<Stroka>& tags);
+    void SetUserTags(const std::vector<Stroka>& tags);
+    void RebuildTags();
 
 };
 

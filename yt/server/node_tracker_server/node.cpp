@@ -50,6 +50,7 @@ TNode::TNode(
     , Addresses_(addresses)
 {
     Init();
+    RebuildTags();
 }
 
 TNode::TNode(const TObjectId& objectId)
@@ -124,21 +125,9 @@ void TNode::SetLocalState(ENodeState state) const
     *LocalStatePtr_ = state;
 }
 
-
-std::vector<Stroka> TNode::GetTags() const
+const yhash_set<Stroka>& TNode::Tags() const
 {
-    std::vector<Stroka> result;
-
-    result.insert(result.end(), UserTags_.begin(), UserTags_.end());
-    result.insert(result.end(), NodeTags_.begin(), NodeTags_.end());
-    result.push_back(Stroka(GetServiceHostName(GetDefaultAddress())));
-    if (Rack_) {
-        result.push_back(Rack_->GetName());
-    }
-
-    std::sort(result.begin(), result.end());
-    result.erase(std::unique(result.begin(), result.end()), result.end());
-    return result;
+    return Tags_;
 }
 
 void TNode::Save(NCellMaster::TSaveContext& context) const
@@ -544,6 +533,7 @@ bool TNode::ContainsCachedReplica(TChunkPtrWithIndex replica) const
 void TNode::SetRack(TRack* rack)
 {
     Rack_ = rack;
+    RebuildTags();
 }
 
 void TNode::SetBanned(bool value)
@@ -554,6 +544,29 @@ void TNode::SetBanned(bool value)
 void TNode::SetDecommissioned(bool value)
 {
     Decommissioned_ = value;
+}
+
+void TNode::SetNodeTags(const std::vector<Stroka>& tags)
+{
+    NodeTags_ = tags;
+    RebuildTags();
+}
+
+void TNode::SetUserTags(const std::vector<Stroka>& tags)
+{
+    UserTags_ = UserTags_;
+    RebuildTags();
+}
+
+void TNode::RebuildTags()
+{
+    Tags_.clear();
+    Tags_.insert(UserTags_.begin(), UserTags_.end());
+    Tags_.insert(NodeTags_.begin(), NodeTags_.end());
+    Tags_.insert(Stroka(GetServiceHostName(GetDefaultAddress())));
+    if (Rack_) {
+        Tags_.insert(Rack_->GetName());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
