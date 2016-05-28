@@ -243,13 +243,15 @@ class YTEnvSetup(YTEnv):
                 pass
 
     def _reset_nodes(self):
-        nodes = yt_commands.ls("//sys/nodes", attributes=["banned", "resource_limits_overrides"])
+        nodes = yt_commands.ls("//sys/nodes", attributes=["banned", "resource_limits_overrides", "user_tags"])
         for node in nodes:
             node_name = str(node)
             if node.attributes["banned"]:
                 yt_commands.set("//sys/nodes/%s/@banned" % node_name, False)
             if node.attributes["resource_limits_overrides"] != {}:
                 yt_commands.set("//sys/nodes/%s/@resource_limits_overrides" % node_name, {})
+            if node.attributes["user_tags"] != []:
+                yt_commands.set("//sys/nodes/%s/@user_tags" % node_name, [])
 
     def _reenable_chunk_replicator(self):
         if yt_commands.exists("//sys/@disable_chunk_replicator"):
