@@ -295,7 +295,6 @@ void TTabletTracker::SchedulePeerRevocation(TTabletCell* cell)
 
     const auto& cellId = cell->GetId();
 
-    // Look for timed out peers.
     TReqRevokePeers request;
     ToProto(request.mutable_cell_id(), cellId);
     for (TPeerId peerId = 0; peerId < cell->Peers().size(); ++peerId) {
