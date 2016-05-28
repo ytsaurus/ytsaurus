@@ -330,6 +330,7 @@ bool IsEmpty(const TChunkTree* chunkTree)
     switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
+        case EObjectType::JournalChunk:
             return false;
 
         case EObjectType::ChunkList:
