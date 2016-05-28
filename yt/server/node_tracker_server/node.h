@@ -72,14 +72,14 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides, ResourceLimitsOverrides);
 
-    DEFINE_BYVAL_RW_PROPERTY(TRack*, Rack);
+    DEFINE_BYVAL_RO_PROPERTY(TRack*, Rack);
 
     // Lease tracking.
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, LeaseTransaction);
 
     // Chunk Manager stuff.
-    DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Decommissioned);
+    DEFINE_BYVAL_RO_PROPERTY(bool, Banned);
+    DEFINE_BYVAL_RO_PROPERTY(bool, Decommissioned);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<NChunkServer::TFillFactorToNodeIterator>, FillFactorIterator);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<NChunkServer::TLoadFactorToNodeIterator>, LoadFactorIterator);
 
@@ -215,6 +215,12 @@ private:
     bool AddCachedReplica(TChunkPtrWithIndex replica);
     bool RemoveCachedReplica(TChunkPtrWithIndex replica);
     bool ContainsCachedReplica(TChunkPtrWithIndex replica) const;
+
+    // Private accessors for TNodeTracker.
+    friend class TNodeTracker;
+    void SetRack(TRack* rack);
+    void SetBanned(bool value);
+    void SetDecommissioned(bool value);
 
 };
 

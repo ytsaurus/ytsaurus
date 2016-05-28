@@ -541,6 +541,21 @@ bool TNode::ContainsCachedReplica(TChunkPtrWithIndex replica) const
     return CachedReplicas_.find(replica) != CachedReplicas_.end();
 }
 
+void TNode::SetRack(TRack* rack)
+{
+    Rack_ = rack;
+}
+
+void TNode::SetBanned(bool value)
+{
+    Banned_ = value;
+}
+
+void TNode::SetDecommissioned(bool value)
+{
+    Decommissioned_ = value;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NNodeTrackerServer
