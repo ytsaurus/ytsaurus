@@ -124,6 +124,9 @@ public:
     //! Sets the rack and notifies the subscribers.
     void SetNodeRack(TNode* node, TRack* rack);
 
+    //! Sets the user tags for the node.
+    void SetNodeUserTags(TNode* node, const std::vector<Stroka>& tags);
+
 
     //! Creates a new rack with a given name. Throws on name conflict.
     TRack* CreateRack(const Stroka& name);

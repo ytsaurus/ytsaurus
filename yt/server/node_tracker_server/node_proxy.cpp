@@ -128,7 +128,7 @@ private:
 
         if (key == "tags") {
             BuildYsonFluently(consumer)
-                .Value(node->GetTags());
+                .Value(node->Tags());
             return true;
         }
 
@@ -279,7 +279,7 @@ private:
         }
 
         if (key == "user_tags") {
-            node->UserTags() = ConvertTo<std::vector<Stroka>>(value);
+            nodeTracker->SetNodeUserTags(node, ConvertTo<std::vector<Stroka>>(value));
             return true;
         }
 

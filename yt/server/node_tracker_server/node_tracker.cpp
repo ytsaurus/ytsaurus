@@ -420,6 +420,11 @@ public:
         }
     }
 
+    void SetNodeUserTags(TNode* node, const std::vector<Stroka>& tags)
+    {
+        node->SetUserTags(tags);
+    }
+
 
     TRack* CreateRack(const Stroka& name, const TObjectId& hintId)
     {
@@ -483,6 +488,12 @@ public:
         YCHECK(NameToRackMap_.erase(rack->GetName()) == 1);
         YCHECK(NameToRackMap_.insert(std::make_pair(newName, rack)).second);
         rack->SetName(newName);
+
+        // Rebuild node tags since they depend on rack name.
+        auto nodes = GetRackNodes(rack);
+        for (auto* node : nodes) {
+            node->RebuildTags();
+        }
     }
 
     TRack* FindRackByName(const Stroka& name)
@@ -672,7 +683,7 @@ private:
         }
 
         node->SetLocalState(ENodeState::Registered);
-        node->NodeTags() = tags;
+        node->SetNodeTags(tags);
         node->Statistics() = statistics;
 
         UpdateLastSeenTime(node);
@@ -893,6 +904,7 @@ private:
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
 
+            node->RebuildTags();
             InitializeNodeStates(node);
             InsertToAddressMaps(node);
             UpdateNodeCounters(node, +1);
@@ -1426,6 +1438,11 @@ void TNodeTracker::SetNodeDecommissioned(TNode* node, bool value)
 void TNodeTracker::SetNodeRack(TNode* node, TRack* rack)
 {
     Impl_->SetNodeRack(node, rack);
+}
+
+void TNodeTracker::SetNodeUserTags(TNode* node, const std::vector<Stroka>& tags)
+{
+    Impl_->SetNodeUserTags(node, tags);
 }
 
 TRack* TNodeTracker::CreateRack(const Stroka& name)
