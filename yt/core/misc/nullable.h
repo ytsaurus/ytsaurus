@@ -447,3 +447,11 @@ bool operator!=(const T& rhs, const TNullable<T>& lhs)
 
 } // namespace NYT
 
+template <class T>
+struct hash<NYT::TNullable<T>>
+{
+    size_t operator()(const NYT::TNullable<T>& nullable) const
+    {
+        return nullable ? hash<T>()(*nullable) : 0;
+    }
+};
