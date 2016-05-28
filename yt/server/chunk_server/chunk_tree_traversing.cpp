@@ -57,6 +57,16 @@ protected:
 
     void DoTraverse()
     {
+        try {
+            GuardedTraverse();
+        } catch (const std::exception& ex) {
+            Shutdown();
+            Visitor_->OnError(TError(ex));
+        }
+    }
+
+    void GuardedTraverse()
+    {
         int visitedChunkCount = 0;
         while (visitedChunkCount < MaxChunksPerStep || !Callbacks_->IsPreemptable()) {
             if (IsStackEmpty()) {
@@ -69,12 +79,10 @@ protected:
             auto* chunkList = entry.ChunkList;
 
             if (!chunkList->IsAlive() || chunkList->GetVersion() != entry.ChunkListVersion) {
-                Shutdown();
-                Visitor_->OnError(TError(
+                THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::Unavailable,
                     "Optimistic locking failed for chunk list %v",
-                    chunkList->GetId()));
-                return;
+                    chunkList->GetId());
             }
 
             if (entry.ChildIndex == chunkList->Children().size()) {
@@ -84,6 +92,12 @@ protected:
 
             const auto& statistics = chunkList->Statistics();
             auto* child = chunkList->Children()[entry.ChildIndex];
+
+            // YT-4840: Skip empty children since Get(Min|Max)Key will not work for them.
+            if (IsEmpty(child)) {
+                ++entry.ChildIndex;
+                continue;
+            }
 
             TReadLimit childLowerBound;
             TReadLimit childUpperBound;
@@ -258,7 +272,8 @@ protected:
                 rend,
                 lowerBound.GetKey(),
                 [] (const TOwningKey& key, const TChunkTree* chunkTree) {
-                    return key > GetMaxKey(chunkTree);
+                    // YT-4840: Don't call GetMaxKey for chunk trees without chunks.
+                    return IsEmpty(chunkTree) || key > GetMaxKey(chunkTree);
                 });
             result = std::max(result, static_cast<int>(rend - it));
         }

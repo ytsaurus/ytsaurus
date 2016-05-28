@@ -320,6 +320,28 @@ TFuture<TYsonString> GetMulticellOwningNodes(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsEmpty(const TChunkList* chunkList)
+{
+    return chunkList->Statistics().ChunkCount == 0;
+}
+
+bool IsEmpty(const TChunkTree* chunkTree)
+{
+    switch (chunkTree->GetType()) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
+            return false;
+
+        case EObjectType::ChunkList:
+            return IsEmpty(chunkTree->AsChunkList());
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOwningKey GetMaxKey(const TChunk* chunk)
 {
     TOwningKey key;
@@ -338,25 +360,38 @@ TOwningKey GetMaxKey(const TChunk* chunk)
     return GetKeySuccessor(key);
 }
 
-TOwningKey GetMaxKey(const TChunkList* chunkList)
-{
-    const auto& children = chunkList->Children();
-    YASSERT(!children.empty());
-    return GetMaxKey(children.back());
-}
-
 TOwningKey GetMaxKey(const TChunkTree* chunkTree)
 {
-    switch (chunkTree->GetType()) {
-        case EObjectType::Chunk:
-        case EObjectType::ErasureChunk:
-            return GetMaxKey(chunkTree->AsChunk());
+    if (IsEmpty(chunkTree)) {
+        THROW_ERROR_EXCEPTION("Cannot compute max key in chunk list %v since it contains no chunks",
+            chunkTree->GetId());
+    }
 
-        case EObjectType::ChunkList:
-            return GetMaxKey(chunkTree->AsChunkList());
+    auto getLastNonemptyChild = [] (const TChunkList* chunkList) {
+        const auto& children = chunkList->Children();
+        for (auto it = children.rbegin(); it != children.rend(); ++it) {
+            const auto* child = *it;
+            if (!IsEmpty(child)) {
+                return child;
+            }
+        }
+        YUNREACHABLE();
+    };
 
-        default:
-            YUNREACHABLE();
+    const auto* currentChunkTree = chunkTree;
+    while (true) {
+        switch (currentChunkTree->GetType()) {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk:
+                return GetMaxKey(currentChunkTree->AsChunk());
+
+            case EObjectType::ChunkList:
+                currentChunkTree = getLastNonemptyChild(currentChunkTree->AsChunkList()); 
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
     }
 }
 
@@ -378,25 +413,38 @@ TOwningKey GetMinKey(const TChunk* chunk)
     return key;
 }
 
-TOwningKey GetMinKey(const TChunkList* chunkList)
-{
-    const auto& children = chunkList->Children();
-    YASSERT(!children.empty());
-    return GetMinKey(children.front());
-}
-
 TOwningKey GetMinKey(const TChunkTree* chunkTree)
 {
-    switch (chunkTree->GetType()) {
-        case EObjectType::Chunk:
-        case EObjectType::ErasureChunk:
-            return GetMinKey(chunkTree->AsChunk());
+    if (IsEmpty(chunkTree)) {
+        THROW_ERROR_EXCEPTION("Cannot compute min key in chunk list %v since it contains no chunks",
+            chunkTree->GetId());
+    }
 
-        case EObjectType::ChunkList:
-            return GetMinKey(chunkTree->AsChunkList());
+    auto getFirstNonemptyChild = [] (const TChunkList* chunkList) {
+        const auto& children = chunkList->Children();
+        for (auto it = children.begin(); it != children.end(); ++it) {
+            const auto* child = *it;
+            if (!IsEmpty(child)) {
+                return child;
+            }
+        }
+        YUNREACHABLE();
+    };
 
-        default:
-            YUNREACHABLE();
+    const auto* currentChunkTree = chunkTree;
+    while (true) {
+        switch (currentChunkTree->GetType()) {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk:
+                return GetMinKey(currentChunkTree->AsChunk());
+
+            case EObjectType::ChunkList:
+                currentChunkTree = getFirstNonemptyChild(currentChunkTree->AsChunkList()); 
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
     }
 }
 
