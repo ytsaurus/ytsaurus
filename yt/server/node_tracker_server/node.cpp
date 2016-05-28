@@ -93,6 +93,11 @@ const Stroka& TNode::GetDefaultAddress() const
     return NNodeTrackerClient::GetDefaultAddress(Addresses_);
 }
 
+bool TNode::HasTag(const TNullable<Stroka>& tag) const
+{
+    return !tag || Tags_.find(*tag) != Tags_.end();
+}
+
 TNodeDescriptor TNode::GetDescriptor() const
 {
     return TNodeDescriptor(
@@ -123,11 +128,6 @@ ENodeState TNode::GetAggregatedState() const
 void TNode::SetLocalState(ENodeState state) const
 {
     *LocalStatePtr_ = state;
-}
-
-const yhash_set<Stroka>& TNode::Tags() const
-{
-    return Tags_;
 }
 
 void TNode::Save(NCellMaster::TSaveContext& context) const

@@ -135,6 +135,8 @@ public:
     void SetAddresses(const TAddressMap& addresses);
     const Stroka& GetDefaultAddress() const;
 
+    bool HasTag(const TNullable<Stroka>& tag) const;
+
     //! Gets the local state by dereferencing local state pointer.
     ENodeState GetLocalState() const;
     //! If states are same for all cells then returns this common value.
