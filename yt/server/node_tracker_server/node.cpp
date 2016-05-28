@@ -554,7 +554,7 @@ void TNode::SetNodeTags(const std::vector<Stroka>& tags)
 
 void TNode::SetUserTags(const std::vector<Stroka>& tags)
 {
-    UserTags_ = UserTags_;
+    UserTags_ = tags;
     RebuildTags();
 }
 
