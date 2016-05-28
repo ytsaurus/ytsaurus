@@ -298,6 +298,17 @@ class TestTables(YTEnvSetup):
         result = read_table("//tmp/table[2:5]", control_attributes=control_attributes)
         assert result == [v1, v2, v3, v4, v5]
 
+    def test_row_key_selector_yt_4840(self):
+        create("table", "//tmp/table")
+        tx = start_transaction()
+
+        write_table("<append=true>//tmp/table", [], sorted_by="a", tx=tx)
+        write_table("<append=true>//tmp/table", [{"a": 0}, {"a": 1}, {"a": 2}, {"a": 3}], sorted_by="a", tx=tx)
+        write_table("<append=true>//tmp/table", [], sorted_by="a", tx=tx)
+        write_table("<append=true>//tmp/table", [{"a": 3}, {"a": 4}, {"a": 5}], sorted_by="a", tx=tx)
+        write_table("<append=true>//tmp/table", [], sorted_by="a", tx=tx)
+        assert read_table("//tmp/table[1:5]", tx=tx) == [{"a": 1}, {"a": 2}, {"a": 3}, {"a": 3}, {"a": 4}]
+
     def test_shared_locks_two_chunks(self):
         create("table", "//tmp/table")
         tx = start_transaction()
