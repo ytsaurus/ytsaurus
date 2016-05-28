@@ -289,7 +289,7 @@ class TestTablets(YTEnvSetup):
     def test_run_reassign_all_peers(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         self.sync_create_cells(1, tablet_cell_bundle="b")
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table("//tmp/t", tablet_cell_bundle="b")
         self.sync_mount_table("//tmp/t")
 
         rows = [{"key": 1, "value": "2"}]
