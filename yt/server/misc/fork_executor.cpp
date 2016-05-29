@@ -23,10 +23,6 @@ static const auto WatchdogCheckPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TForkExecutor::TForkExecutor(NLogging::TLogger& logger)
-    : Logger(logger)
-{ }
-
 TForkExecutor::~TForkExecutor()
 {
     YCHECK(ChildPid_ < 0);
