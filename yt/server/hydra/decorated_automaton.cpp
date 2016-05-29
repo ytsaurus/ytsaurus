@@ -203,18 +203,19 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDecoratedAutomaton::TSnapshotBuilderBase
-    : public virtual TRefCounted
+    : public virtual NLogging::TLoggerOwner
+    , public virtual TRefCounted
 {
 public:
     TSnapshotBuilderBase(
         TDecoratedAutomatonPtr owner,
-        TVersion snapshotVersion,
-        NLogging::TLogger& logger)
+        TVersion snapshotVersion)
         : Owner_(owner)
         , SnapshotVersion_(snapshotVersion)
         , SnapshotId_(SnapshotVersion_.SegmentId + 1)
-        , Logger(logger)
-    { }
+    {
+        Logger = Owner_->Logger;
+    }
 
     ~TSnapshotBuilderBase()
     {
@@ -248,7 +249,6 @@ protected:
     const TDecoratedAutomatonPtr Owner_;
     const TVersion SnapshotVersion_;
     const int SnapshotId_;
-    NLogging::TLogger& Logger;
 
     ISnapshotWriterPtr SnapshotWriter_;
 
@@ -307,9 +307,7 @@ public:
     TForkSnapshotBuilder(
         TDecoratedAutomatonPtr owner,
         TVersion snapshotVersion)
-        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion, Logger)
-        , TForkExecutor(Logger)
-        , Logger(owner->Logger)
+        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion)
     { }
 
 private:
@@ -317,8 +315,6 @@ private:
     std::unique_ptr<TFile> OutputFile_;
 
     TFuture<void> AsyncTransferResult_;
-
-    NLogging::TLogger Logger;
 
 
     virtual TFuture<void> DoRun() override
@@ -526,8 +522,7 @@ public:
     TNoForkSnapshotBuilder(
         TDecoratedAutomatonPtr owner,
         TVersion snapshotVersion)
-        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion, Logger)
-        , Logger(owner->Logger)
+        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion)
     { }
 
 private:
@@ -535,8 +530,6 @@ private:
 
     TFuture<void> AsyncOpenWriterResult_;
     TFuture<void> AsyncSaveSnapshotResult_;
-
-    NLogging::TLogger Logger;
 
 
     virtual TFuture<void> DoRun() override
