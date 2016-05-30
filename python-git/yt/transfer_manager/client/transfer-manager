@@ -141,6 +141,8 @@ def main():
                                 help="number of http retries for each request (default: 6)")
     options_parser.add_argument("--http-request-timeout", type=int, default=10000,
                                 help="http request timeout in ms (default: 10000)")
+    options_parser.add_argument("--force-ipv4", action="store_true", default=False, help="force ipv4 usage")
+    options_parser.add_argument("--force-ipv6", action="store_true", default=False, help="force ipv6 usage")
 
     parser = argparse.ArgumentParser(parents=[options_parser],
                                      formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -166,7 +168,9 @@ def main():
         token=args.pop("token", None),
         http_request_timeout=options.http_request_timeout,
         enable_retries=enable_retries,
-        retry_count=options.http_retry_count)
+        retry_count=options.http_retry_count,
+        force_ipv4=options.force_ipv4,
+        force_ipv6=options.force_ipv6)
 
     for key in dict(vars(options)):
         args.pop(key)

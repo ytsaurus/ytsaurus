@@ -1,6 +1,6 @@
 from yt.common import YtError
 from yt.wrapper.common import get_value, require, update, run_with_retries, generate_uuid, bool_to_string
-from yt.wrapper.http import get_retriable_errors, get_token
+from yt.wrapper.http import get_retriable_errors, get_token, configure_ip
 from yt.wrapper.errors import hide_token
 import yt.logger as logger
 
@@ -148,7 +148,8 @@ class Poller(object):
 
 class TransferManager(object):
     def __init__(self, url=None, token=None, http_request_timeout=10000,
-                 enable_retries=True, retry_count=6):
+                 enable_retries=True, retry_count=6, force_ipv4=False,
+                 force_ipv6=False):
         backend_url = get_value(url, TM_BACKEND_URL)
 
         # Backend url can be specified in short form.
@@ -156,6 +157,9 @@ class TransferManager(object):
             self.backend_url = backend_url
         else:
             self.backend_url = "http://{0}".format(backend_url)
+
+        self.session = requests.Session()
+        configure_ip(self.session, force_ipv4=force_ipv4, force_ipv6=force_ipv6)
 
         self.token = get_value(token, get_token())
 
@@ -249,7 +253,7 @@ class TransferManager(object):
 
         def make_request():
             update(headers, {"X-TM-Parameters": json.dumps(params)})
-            response = requests.request(
+            response = self.session.request(
                 method,
                 url,
                 headers=headers,
