@@ -186,7 +186,7 @@ function YtAuthority$ensureUser(logger, login, domain)
     var promise = this._ensureUserExists(logger, login);
     if (domain) {
         promise = promise.then(function() {
-            self._ensureUserDomain(logger, login);
+            return self._ensureUserDomain(logger, login);
         });
     }
     return promise;
@@ -420,13 +420,13 @@ YtAuthority.prototype._asyncUserExists = function(context, result)
 
     if (result.isAuthenticated) {
         promise = promise.then(function() {
-            self._ensureUserExists(logger, login);
+            return self._ensureUserExists(logger, login);
         });
     }
 
     if (result.domain) {
         promise = promise.then(function() {
-            self._ensureUserDomain(logger, login);
+            return self._ensureUserDomain(logger, login);
         });
     }
 
