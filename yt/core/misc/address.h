@@ -35,6 +35,12 @@ int GetServicePort(const TStringBuf& address);
 //! Extracts host name from a service address.
 TStringBuf GetServiceHostName(const TStringBuf& address);
 
+//! Strips '-i' from remote address if the DCs of local and remote addresses differ.
+//! If DC of local or remote address cannot be detected, than returns remote host name without changes.
+//! Supposes that address has the form {service_letter}{number}-{dc_name}[-i].*
+// NB: Function is public for testing purposes.
+Stroka StripInterconnectFromAddress(const Stroka& localHostName, const Stroka& remoteHostName);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Configuration for TAddressResolver singleton.
