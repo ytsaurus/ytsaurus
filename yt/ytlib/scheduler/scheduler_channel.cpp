@@ -2,6 +2,7 @@
 #include "config.h"
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/tcp_client.h>
@@ -22,6 +23,7 @@ using namespace NRpc;
 using namespace NObjectClient;
 using namespace NYTree;
 using namespace NYson;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +64,7 @@ public:
 
         TObjectServiceProxy proxy(MasterChannel_);
         auto batchReq = proxy.ExecuteBatch();
-        batchReq->AddRequest(TYPathProxy::Get("//sys/scheduler/@address"));
+        batchReq->AddRequest(TYPathProxy::Get("//sys/scheduler/@addresses"));
         return batchReq->Invoke()
             .Apply(BIND([=, this_ = MakeStrong(this)] (TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) -> IChannelPtr {
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
@@ -72,9 +74,9 @@ public:
 
                 THROW_ERROR_EXCEPTION_IF_FAILED(rsp, "Cannot determine scheduler address");
 
-                auto address = ConvertTo<Stroka>(TYsonString(rsp.Value()->value()));
+                auto addresses = ConvertTo<TAddressMap>(TYsonString(rsp.Value()->value()));
 
-                auto channel = ChannelFactory_->CreateChannel(address);
+                auto channel = ChannelFactory_->CreateChannel(GetInterconnectAddress(addresses));
                 channel = CreateFailureDetectingChannel(
                     channel,
                     BIND(&TSchedulerChannelProvider::OnChannelFailed, MakeWeak(this)));

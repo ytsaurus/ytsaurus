@@ -530,16 +530,16 @@ private:
         void AssumeControl()
         {
             auto batchReq = Owner->StartObjectBatchRequest();
-            auto schedulerAddress = Owner->Bootstrap->GetLocalAddress();
+            auto addresses = Owner->Bootstrap->GetLocalAddresses();
             {
-                auto req = TYPathProxy::Set("//sys/scheduler/@address");
-                req->set_value(ConvertToYsonString(schedulerAddress).Data());
+                auto req = TYPathProxy::Set("//sys/scheduler/@addresses");
+                req->set_value(ConvertToYsonString(addresses).Data());
                 GenerateMutationId(req);
-                batchReq->AddRequest(req, "set_scheduler_address");
+                batchReq->AddRequest(req, "set_scheduler_addresses");
             }
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/orchid/@remote_address");
-                req->set_value(ConvertToYsonString(schedulerAddress).Data());
+                req->set_value(ConvertToYsonString(NNodeTrackerClient::GetInterconnectAddress(addresses)).Data());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "set_orchid_address");
             }

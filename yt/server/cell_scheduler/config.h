@@ -29,6 +29,9 @@ public:
 
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
+    //! Known scheduler addresses.
+    NNodeTrackerClient::TAddressMap Addresses;
+
     TCellSchedulerConfig()
     {
         RegisterParameter("orchid_cache_update_period", OrchidCacheUpdatePeriod)
@@ -38,6 +41,8 @@ public:
             .DefaultNew();
         RegisterParameter("response_keeper", ResponseKeeper)
             .DefaultNew();
+        RegisterParameter("addresses", Addresses)
+            .Default();
 
         RegisterInitializer([&] () {
             ResponseKeeper->EnableWarmup = false;

@@ -35,6 +35,7 @@
 
 #include <yt/server/job_agent/job_controller.h>
 
+#include <yt/server/misc/address_helpers.h>
 #include <yt/server/misc/build_attributes.h>
 #include <yt/server/misc/memory_usage_tracker.h>
 
@@ -710,23 +711,7 @@ IThroughputThrottlerPtr TBootstrap::GetOutThrottler(const TWorkloadDescriptor& d
 
 TAddressMap TBootstrap::GetLocalAddresses()
 {
-    // First without port number.
-    auto hostNames = Config->Addresses;
-    if (hostNames.find(NNodeTrackerClient::DefaultNetworkName) == hostNames.end()) {
-        YCHECK(hostNames.insert(std::make_pair(
-            NNodeTrackerClient::DefaultNetworkName,
-            TAddressResolver::Get()->GetLocalHostName())).second);
-    }
-
-    // Now append port number.
-    TAddressMap addresses;
-    for (auto& pair : hostNames) {
-        YCHECK(addresses.insert(std::make_pair(
-            pair.first,
-            BuildServiceAddress(pair.second, Config->RpcPort))).second);
-    }
-
-    return addresses;
+    return NYT::GetLocalAddresses(Config->Addresses, Config->RpcPort);
 }
 
 void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)
