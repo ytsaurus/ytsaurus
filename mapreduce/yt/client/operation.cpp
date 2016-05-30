@@ -28,6 +28,7 @@
 #include <util/string/builder.h>
 #include <util/system/execpath.h>
 #include <util/system/rwlock.h>
+#include <util/system/mutex.h>
 #include <util/folder/path.h>
 #include <util/stream/file.h>
 #include <util/stream/buffer.h>
@@ -37,6 +38,8 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
 
 Stroka ToString(EMergeMode mode)
 {
@@ -76,6 +79,42 @@ bool IsLocalMode(const TAuth& auth)
 
     return isLocalMode;
 }
+
+class TOperationTracker
+{
+public:
+    void Start(const TOperationId& operationId)
+    {
+        with_lock(Lock_) {
+            StartTimes_[operationId] = TInstant::Now();
+        }
+    }
+
+    Stroka Finish(const TOperationId& operationId)
+    {
+        TDuration duration;
+        with_lock(Lock_) {
+            auto i = StartTimes_.find(operationId);
+            if (i == StartTimes_.end()) {
+                ythrow yexception() <<
+                    "Operation " << GetGuidAsString(operationId) << " did not start";
+            }
+            duration = TInstant::Now() - i->second;
+            StartTimes_.erase(i);
+        }
+        return ToString(duration);
+    }
+
+    static TOperationTracker* Get()
+    {
+        return Singleton<TOperationTracker>();
+    }
+
+private:
+    yhash_map<TOperationId, TInstant> StartTimes_;
+    TMutex Lock_;
+};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -348,12 +387,15 @@ void DumpOperationStderrs(
     stream << Endl;
 }
 
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperationId StartOperation(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const Stroka& operationName,
-    const Stroka& ysonSpec,
-    bool wait)
+    const Stroka& ysonSpec)
 {
     THttpHeader header("POST", operationName);
     header.AddTransactionId(transactionId);
@@ -361,11 +403,11 @@ TOperationId StartOperation(
     TOperationId operationId = ParseGuidFromResponse(
         RetryRequest(auth, header, ysonSpec, false, true));
 
-    LOG_INFO("Operation %s started", ~GetGuidAsString(operationId));
+    LOG_INFO("Operation %s started (%s)",
+        ~GetGuidAsString(operationId), ~operationName);
 
-    if (wait) {
-        WaitForOperation(auth, transactionId, operationId);
-    }
+    TOperationTracker::Get()->Start(operationId);
+
     return operationId;
 }
 
@@ -389,7 +431,10 @@ EOperationStatus CheckOperation(
         return OS_COMPLETED;
 
     } else if (state == "aborted" || state == "failed") {
-        LOG_ERROR("Operation %s %s", ~opIdStr, ~state);
+        LOG_ERROR("Operation %s %s (%s)",
+            ~opIdStr,
+            ~state,
+            ~TOperationTracker::Get()->Finish(operationId));
 
         auto errorPath = opPath + "/@result/error";
         Stroka error;
@@ -424,7 +469,9 @@ void WaitForOperation(
     while (true) {
         auto status = CheckOperation(auth, transactionId, operationId);
         if (status == OS_COMPLETED) {
-            LOG_INFO("Operation %s completed", ~GetGuidAsString(operationId));
+            LOG_INFO("Operation %s completed (%s)",
+                ~GetGuidAsString(operationId),
+                ~TOperationTracker::Get()->Finish(operationId));
             break;
         }
         Sleep(checkOperationStateInterval);
@@ -444,6 +491,8 @@ void AbortOperation(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
 
 void BuildUserJobFluently(
     const TJobPreparer& preparer,
@@ -566,6 +615,38 @@ void CreateOutputTables(
     }
 }
 
+void LogJob(const TOperationId& opId, IJob* job, const char* type)
+{
+    if (job) {
+        LOG_INFO("Operation %s; %s = %s",
+            ~GetGuidAsString(opId), type, ~TJobFactory::Get()->GetJobName(job));
+    }
+}
+
+Stroka DumpYPath(const TRichYPath& path)
+{
+    TStringStream stream;
+    TYsonWriter writer(&stream, YF_TEXT, YT_NODE);
+    Serialize(path, &writer);
+    return stream.Str();
+}
+
+void LogYPaths(const TOperationId& opId, const yvector<TRichYPath>& paths, const char* type)
+{
+    for (size_t i = 0; i < paths.size(); ++i) {
+        LOG_INFO("Operation %s; %s[%" PRISZT "] = %s",
+            ~GetGuidAsString(opId), type, i, ~DumpYPath(paths[i]));
+    }
+}
+
+void LogYPath(const TOperationId& opId, const TRichYPath& output, const char* type)
+{
+    LOG_INFO("Operation %s; %s = %s",
+        ~GetGuidAsString(opId), type, ~DumpYPath(output));
+}
+
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationId ExecuteMap(
@@ -614,12 +695,20 @@ TOperationId ExecuteMap(
         .Do(BuildCommonOperationPart)
     .EndMap().EndMap();
 
-    return StartOperation(
+    auto operationId = StartOperation(
         auth,
         transactionId,
         "map",
-        MergeSpec(specNode, options),
-        options.Wait_);
+        MergeSpec(specNode, options));
+
+    LogJob(operationId, mapper, "mapper");
+    LogYPaths(operationId, spec.Inputs_, "input");
+    LogYPaths(operationId, spec.Outputs_, "output");
+
+    if (options.Wait_) {
+        WaitForOperation(auth, transactionId, operationId);
+    }
+    return operationId;
 }
 
 TOperationId ExecuteReduce(
@@ -671,12 +760,20 @@ TOperationId ExecuteReduce(
         .Do(BuildCommonOperationPart)
     .EndMap().EndMap();
 
-    return StartOperation(
+    auto operationId = StartOperation(
         auth,
         transactionId,
         "reduce",
-        MergeSpec(specNode, options),
-        options.Wait_);
+        MergeSpec(specNode, options));
+
+    LogJob(operationId, reducer, "reducer");
+    LogYPaths(operationId, spec.Inputs_, "input");
+    LogYPaths(operationId, spec.Outputs_, "output");
+
+    if (options.Wait_) {
+        WaitForOperation(auth, transactionId, operationId);
+    }
+    return operationId;
 }
 
 TOperationId ExecuteJoinReduce(
@@ -724,12 +821,20 @@ TOperationId ExecuteJoinReduce(
         .Do(BuildCommonOperationPart)
     .EndMap().EndMap();
 
-    return StartOperation(
+    auto operationId = StartOperation(
         auth,
         transactionId,
         "join_reduce",
-        MergeSpec(specNode, options),
-        options.Wait_);
+        MergeSpec(specNode, options));
+
+    LogJob(operationId, reducer, "reducer");
+    LogYPaths(operationId, spec.Inputs_, "input");
+    LogYPaths(operationId, spec.Outputs_, "output");
+
+    if (options.Wait_) {
+        WaitForOperation(auth, transactionId, operationId);
+    }
+    return operationId;
 }
 
 TOperationId ExecuteMapReduce(
@@ -854,12 +959,22 @@ TOperationId ExecuteMapReduce(
         .Do(BuildCommonOperationPart)
     .EndMap().EndMap();
 
-    return StartOperation(
+    auto operationId = StartOperation(
         auth,
         transactionId,
         "map_reduce",
-        MergeSpec(specNode, options),
-        options.Wait_);
+        MergeSpec(specNode, options));
+
+    LogJob(operationId, mapper, "mapper");
+    LogJob(operationId, reduceCombiner, "reduce_combiner");
+    LogJob(operationId, reducer, "reducer");
+    LogYPaths(operationId, spec.Inputs_, "input");
+    LogYPaths(operationId, spec.Outputs_, "output");
+
+    if (options.Wait_) {
+        WaitForOperation(auth, transactionId, operationId);
+    }
+    return operationId;
 }
 
 
@@ -879,12 +994,19 @@ TOperationId ExecuteSort(
         .Do(BuildCommonOperationPart)
     .EndMap().EndMap();
 
-    return StartOperation(
+    auto operationId = StartOperation(
         auth,
         transactionId,
         "sort",
-        MergeSpec(specNode, options),
-        options.Wait_);
+        MergeSpec(specNode, options));
+
+    LogYPaths(operationId, spec.Inputs_, "input");
+    LogYPath(operationId, spec.Output_, "output");
+
+    if (options.Wait_) {
+        WaitForOperation(auth, transactionId, operationId);
+    }
+    return operationId;
 }
 
 TOperationId ExecuteMerge(
@@ -906,12 +1028,19 @@ TOperationId ExecuteMerge(
         .Do(BuildCommonOperationPart)
     .EndMap().EndMap();
 
-    return StartOperation(
+    auto operationId = StartOperation(
         auth,
         transactionId,
         "merge",
-        MergeSpec(specNode, options),
-        options.Wait_);
+        MergeSpec(specNode, options));
+
+    LogYPaths(operationId, spec.Inputs_, "input");
+    LogYPath(operationId, spec.Output_, "output");
+
+    if (options.Wait_) {
+        WaitForOperation(auth, transactionId, operationId);
+    }
+    return operationId;
 }
 
 TOperationId ExecuteErase(
@@ -927,12 +1056,18 @@ TOperationId ExecuteErase(
         .Do(BuildCommonOperationPart)
     .EndMap().EndMap();
 
-    return StartOperation(
+    auto operationId = StartOperation(
         auth,
         transactionId,
         "erase",
-        MergeSpec(specNode, options),
-        options.Wait_);
+        MergeSpec(specNode, options));
+
+    LogYPath(operationId, spec.TablePath_, "table_path");
+
+    if (options.Wait_) {
+        WaitForOperation(auth, transactionId, operationId);
+    }
+    return operationId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
