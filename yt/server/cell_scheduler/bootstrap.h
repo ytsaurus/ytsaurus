@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/monitoring/http_server.h>
 
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+
 #include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/core/bus/public.h>
@@ -17,7 +19,6 @@
 #include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/rpc/public.h>
-
 
 namespace NYT {
 namespace NCellScheduler {
@@ -37,7 +38,7 @@ public:
 
     TCellSchedulerConfigPtr GetConfig() const;
     NApi::IClientPtr GetMasterClient() const;
-    const Stroka& GetLocalAddress() const;
+    NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
     NScheduler::TSchedulerPtr GetScheduler() const;
     NHive::TClusterDirectoryPtr GetClusterDirectory() const;
@@ -55,7 +56,6 @@ private:
     NRpc::IServerPtr RpcServer_;
     std::unique_ptr<NHttp::TServer> HttpServer_;
     NApi::IClientPtr MasterClient_;
-    Stroka LocalAddress_;
     NScheduler::TSchedulerPtr Scheduler_;
     NHive::TClusterDirectoryPtr ClusterDirectory_;
     NRpc::TResponseKeeperPtr ResponseKeeper_;

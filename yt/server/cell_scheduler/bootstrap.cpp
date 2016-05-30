@@ -3,6 +3,7 @@
 
 #include <yt/server/job_proxy/config.h>
 
+#include <yt/server/misc/address_helpers.h>
 #include <yt/server/misc/build_attributes.h>
 
 #include <yt/server/scheduler/config.h>
@@ -113,12 +114,7 @@ void TBootstrap::DoRun()
                 << ex;
     }
 
-    LocalAddress_ = BuildServiceAddress(
-        TAddressResolver::Get()->GetLocalHostName(),
-        Config_->RpcPort);
-
-    LOG_INFO("Starting scheduler (LocalAddress: %v, MasterAddresses: %v)",
-        LocalAddress_,
+    LOG_INFO("Starting scheduler (MasterAddresses: %v)",
         Config_->ClusterConnection->PrimaryMaster->Addresses);
 
     TConnectionOptions connectionOptions;
@@ -214,9 +210,9 @@ IClientPtr TBootstrap::GetMasterClient() const
     return MasterClient_;
 }
 
-const Stroka& TBootstrap::GetLocalAddress() const
+NNodeTrackerClient::TAddressMap TBootstrap::GetLocalAddresses() const
 {
-    return LocalAddress_;
+    return NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 }
 
 IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const
