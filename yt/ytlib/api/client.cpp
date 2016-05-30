@@ -357,6 +357,14 @@ private:
         auto info = WaitFor(tableMountCache->GetTableInfo(path))
             .ValueOrThrow();
 
+        const auto& schema = info->Schema;
+        for (const auto& keyColumn : info->KeyColumns) {
+            if (!schema.FindColumn(keyColumn)) {
+                THROW_ERROR_EXCEPTION("Key column %Qv is not present in table schema", keyColumn)
+                    << TErrorAttribute("table_path", path); 
+            }
+        }
+
         TDataSplit result;
         SetObjectId(&result, info->TableId);
         SetTableSchema(&result, info->Schema);
