@@ -766,6 +766,10 @@ class TestSchedulerConfig(YTEnvSetup):
                     "max_failed_job_count": 10
                 }
             }
+        },
+        "addresses": {
+            "ipv4": "127.0.0.1",
+            "ipv6": "::1"
         }
     }
 
@@ -785,6 +789,11 @@ class TestSchedulerConfig(YTEnvSetup):
 
         assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 5000
         assert get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
+
+    def test_adresses(self):
+        adresses = get("//sys/scheduler/@addresses")
+        assert adresses["ipv4"].startswith("127.0.0.1:")
+        assert adresses["ipv6"].startswith("::1:")
 
     def test_specs(self):
         create("table", "//tmp/t_in")

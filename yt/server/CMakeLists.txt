@@ -189,6 +189,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/journal_server/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/journal_server/public.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/misc/address_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/build_attributes.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/fork_executor.cpp
 
