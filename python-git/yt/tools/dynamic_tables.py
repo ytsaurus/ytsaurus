@@ -153,7 +153,7 @@ class DynamicTablesClient(object):
 
     def _make_tablets_state_checker(self, table, possible_states):
         def state_checker():
-            tablets = {tablet["tablet_id"]: tablet["state"] for tablet in self.yt.get(table + "/@tablets")}
+            tablets = {tablet["tablet_id"]: tablet["state"] for tablet in self.yt.get_attribute(table, "tablets", default=[])}
             logging.info("Table %s tablets: %s" % (table, str(tablets)))
             return all(state in possible_states for state in tablets.itervalues())
         return state_checker
