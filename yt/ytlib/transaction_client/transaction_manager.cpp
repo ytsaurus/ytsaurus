@@ -795,7 +795,8 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Transaction ping scheduled");
+            LOG_DEBUG("Transaction ping scheduled (TransactionId: %v)",
+                Id_);
 
             TDelayedExecutor::Submit(
                 BIND(IgnoreResult(&TImpl::RunPeriodicPings), MakeWeak(this)),
