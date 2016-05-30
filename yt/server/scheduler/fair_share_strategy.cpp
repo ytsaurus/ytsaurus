@@ -1826,7 +1826,7 @@ public:
         std::vector<TJobPtr> preemptableJobs;
         PROFILE_TIMING ("/analyze_preemptable_jobs_time") {
             for (const auto& job : schedulingContext->RunningJobs()) {
-                const auto& operationElement = context.JobToOperationElement.at(job);
+                const auto& operationElement = GetJobOperationElement(context, job);
                 if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
                     LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
                         job->GetId(),
@@ -1900,7 +1900,7 @@ public:
             });
 
         auto poolLimitsViolated = [&] (const TJobPtr& job) -> bool {
-            const auto& operationElement = context.JobToOperationElement.at(job);
+            const auto& operationElement = GetJobOperationElement(context, job);
             if (!operationElement) {
                 return false;
             }
@@ -1928,7 +1928,7 @@ public:
         bool poolsLimitsViolated = true;
 
         for (const auto& job : preemptableJobs) {
-            const auto& operationElement = context.JobToOperationElement.at(job);
+            const auto& operationElement = GetJobOperationElement(context, job);
             if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
                 LOG_INFO("Dangling preemptable job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
@@ -2213,6 +2213,16 @@ private:
                 GetOperationLoggingProgress(operationId),
                 operationId);
         }
+    }
+
+    TOperationElementPtr GetJobOperationElement(TFairShareContext& context, const TJobPtr& job)
+    {
+        auto it = context.JobToOperationElement.find(job);
+        YCHECK(it != context.JobToOperationElement.end());
+        if (it->second && !it->second->GetAlive()) {
+            it->second = nullptr;
+        }
+        return it->second;
     }
 
     bool IsJobPreemptable(const TJobPtr& job, const TOperationElementPtr& element)
