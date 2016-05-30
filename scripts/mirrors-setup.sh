@@ -112,3 +112,4 @@ configure_github_mirror google-brotli
 configure_github_mirror kislyuk-argcomplete
 configure_github_mirror tornadoweb-tornado
 configure_github_mirror certifi-python-certifi
+configure_github_mirror cython-backports_abc
