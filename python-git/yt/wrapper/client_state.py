@@ -13,7 +13,6 @@ class ClientState(object):
 
         self._transaction_stack = None
         self._banned_proxies = {}
-        self._ip_configured = False
         self._driver = None
         self._requests_session = None
 

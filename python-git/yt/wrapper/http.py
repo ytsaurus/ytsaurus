@@ -41,26 +41,18 @@ def _cleanup_http_session(client=None):
     lazy_import_requests()
     set_option("_requests_session", requests.Session(), client)
 
-def configure_ip(client):
-    if get_option("_ip_configured", client):
-        return
-
-    set_option("_ip_configured", True, client)
-
-    force_ipv4 = get_config(client)["proxy"]["force_ipv4"]
-    force_ipv6 = get_config(client)["proxy"]["force_ipv6"]
-
+def configure_ip(session, force_ipv4=False, force_ipv6=False):
+    lazy_import_requests()
     if force_ipv4 or force_ipv6:
         import socket
-        origGetAddrInfo = socket.getaddrinfo
-
         protocol = socket.AF_INET if force_ipv4 else socket.AF_INET6
 
-        def getAddrInfoWrapper(host, port, family=0, socktype=0, proto=0, flags=0):
-            return origGetAddrInfo(host, port, protocol, socktype, proto, flags)
-
-        # replace the original socket.getaddrinfo by our version
-        socket.getaddrinfo = getAddrInfoWrapper
+        class HTTPAdapter(requests.adapters.HTTPAdapter):
+            def init_poolmanager(self, *args, **kwargs):
+                return super(HTTPAdapter, self).init_poolmanager(*args,
+                                                                 socket_af=protocol,
+                                                                 **kwargs)
+        session.mount("http://", HTTPAdapter())
 
 def parse_error_from_headers(headers):
     if int(headers.get("x-yt-response-code", 0)) != 0:
@@ -134,7 +126,9 @@ def raise_for_status(response, request_info):
 
 def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False,
                               params=None, timeout=None, retry_action=None, client=None,log_body=True, **kwargs):
-    configure_ip(client)
+    configure_ip(get_session(client),
+                 get_config(client)["proxy"]["force_ipv4"],
+                 get_config(client)["proxy"]["force_ipv6"])
 
     if timeout is None:
         timeout = get_config(client)["proxy"]["request_retry_timeout"] / 1000.0
