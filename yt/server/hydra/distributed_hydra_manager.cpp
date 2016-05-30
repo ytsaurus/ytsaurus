@@ -343,6 +343,7 @@ public:
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
                     .Item("active_leader").Value(IsActiveLeader())
                     .Item("active_follower").Value(IsActiveFollower())
+                    .Item("read_only").Value(GetReadOnly())
                 .EndMap();
         });
     }
