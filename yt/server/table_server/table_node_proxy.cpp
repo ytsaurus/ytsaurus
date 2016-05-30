@@ -145,7 +145,7 @@ private:
 
         if (key == "preserve_schema_on_write") {
             BuildYsonFluently(consumer)
-                .Value(table->PreserveSchemaOnWrite());
+                .Value(table->GetPreserveSchemaOnWrite());
             return true;
         }
 

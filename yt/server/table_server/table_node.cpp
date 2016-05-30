@@ -346,7 +346,7 @@ protected:
         ELockMode mode) override
     {
         branchedNode->TableSchema() = originatingNode->TableSchema();
-        branchedNode->PreserveSchemaOnWrite() = originatingNode->PreserveSchemaOnWrite();
+        branchedNode->SetPreserveSchemaOnWrite(originatingNode->GetPreserveSchemaOnWrite());
 
         TBase::DoBranch(originatingNode, branchedNode, mode);
     }
@@ -356,7 +356,7 @@ protected:
         TTableNode* branchedNode) override
     {
         originatingNode->TableSchema() = branchedNode->TableSchema();
-        originatingNode->PreserveSchemaOnWrite() = branchedNode->PreserveSchemaOnWrite();
+        originatingNode->SetPreserveSchemaOnWrite(branchedNode->GetPreserveSchemaOnWrite());
 
         TBase::DoMerge(originatingNode, branchedNode);
     }
@@ -387,7 +387,7 @@ protected:
         TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
         clonedNode->TableSchema() = sourceNode->TableSchema();
-        clonedNode->PreserveSchemaOnWrite() = sourceNode->PreserveSchemaOnWrite();
+        clonedNode->SetPreserveSchemaOnWrite(sourceNode->GetPreserveSchemaOnWrite());
 
         auto* trunkSourceNode = sourceNode->GetTrunkNode();
 

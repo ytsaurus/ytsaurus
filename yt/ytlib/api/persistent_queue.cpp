@@ -172,8 +172,8 @@ private:
             , State_(std::move(state))
             , Batch_(std::move(batch))
             , Rows_(
-                Batch_.Rowset->GetRows().begin() + Batch_.BeginRowIndex - Batch_.RowsetStartRowIndex,
-                Batch_.Rowset->GetRows().begin() + Batch_.EndRowIndex - Batch_.RowsetStartRowIndex)
+                Batch_.Rowset->Rows().begin() + Batch_.BeginRowIndex - Batch_.RowsetStartRowIndex,
+                Batch_.Rowset->Rows().begin() + Batch_.EndRowIndex - Batch_.RowsetStartRowIndex)
         { }
 
         ~TPolledRowset()
@@ -183,17 +183,12 @@ private:
             }
         }
 
-        virtual const TTableSchema& GetSchema() const override
+        virtual const TTableSchema& Schema() const override
         {
-            return Batch_.Rowset->GetSchema();
+            return Batch_.Rowset->Schema();
         }
 
-        virtual const NTableClient::TNameTablePtr& GetNameTable() const override
-        {
-            return Batch_.Rowset->GetNameTable();
-        }
-
-        virtual const std::vector<TUnversionedRow>& GetRows() const override
+        virtual const std::vector<TUnversionedRow>& Rows() const override
         {
             return Rows_;
         }
@@ -259,14 +254,14 @@ private:
         auto result = WaitFor(client->SelectRows(query))
             .ValueOrThrow();
         const auto& rowset = result.first;
-
-        auto tabletIndexColumnId = rowset->GetNameTable()->GetId(TStateTable::TabletIndexColumnName);
-        auto rowIndexColumnId = rowset->GetNameTable()->GetId(TStateTable::RowIndexColumnName);
-        auto stateColumnId = rowset->GetNameTable()->GetId(TStateTable::StateColumnName);
+        const auto& schema = rowset->Schema();
+        auto tabletIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::TabletIndexColumnName);
+        auto rowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
+        auto stateColumnId = schema.GetColumnIndexOrThrow(TStateTable::StateColumnName);
 
         std::vector<TStateTableRow> rows;
 
-        for (auto row : rowset->GetRows()) {
+        for (auto row : rowset->Rows()) {
             TStateTableRow stateRow;
 
             YASSERT(row[tabletIndexColumnId].Type == EValueType::Int64);
@@ -404,7 +399,8 @@ private:
         auto result = WaitFor(Client_->SelectRows(query))
             .ValueOrThrow();
         const auto& rowset = result.first;
-        const auto& rows = rowset->GetRows();
+        const auto& rows = rowset->Rows();
+        const auto& schema = rowset->Schema();
 
         LOG_DEBUG("Finished fetching data (TabletIndex: %v, RowCount: %v)",
             tabletIndex,
@@ -414,7 +410,7 @@ private:
             return;
         }
 
-        auto rowIndexColumnId = rowset->GetNameTable()->GetId(RowIndexColumnName);
+        auto rowIndexColumnId = schema.GetColumnIndexOrThrow(RowIndexColumnName);
 
         std::vector<TBatch> batches;
         i64 currentRowIndex = tablet.FetchRowIndex;
@@ -595,10 +591,12 @@ private:
                 auto result = WaitFor(transaction->SelectRows(query))
                     .ValueOrThrow();
                 const auto& rowset = result.first;
-                if (!rowset->GetRows().empty()) {
+                const auto& rows = rowset->Rows();
+                const auto& schema = rowset->Schema();
+                if (!rows.empty()) {
                     std::vector<i64> rowIndexes;
-                    auto rowIndexColumnId = rowset->GetNameTable()->GetId(TStateTable::RowIndexColumnName);
-                    for (auto row : rowset->GetRows()) {
+                    auto rowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
+                    for (auto row : rows) {
                         const auto& value = row[rowIndexColumnId];
                         YASSERT(value.Type == EValueType::Int64);
                         rowIndexes.push_back(value.Data.Int64);
@@ -623,11 +621,13 @@ private:
                 auto result = WaitFor(transaction->SelectRows(query))
                     .ValueOrThrow();
                 const auto& rowset = result.first;
-                if (!rowset->GetRows().empty()) {
-                    YCHECK(rowset->GetRows().size() == 1);
-                    auto row = rowset->GetRows()[0];
+                const auto& rows = rowset->Rows();
+                const auto& schema = rowset->Schema();
+                if (!rows.empty()) {
+                    YCHECK(rowset->Rows().size() == 1);
+                    auto row = rows[0];
 
-                    auto rowIndexColumnId = rowset->GetNameTable()->GetId(TStateTable::RowIndexColumnName);
+                    auto rowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
 
                     YASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
                     auto rowIndex = row[rowIndexColumnId].Data.Int64;
