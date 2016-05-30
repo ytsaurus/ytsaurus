@@ -23,27 +23,18 @@ class TRowsetBase
 {
 public:
     // IRowset implementation.
-    virtual const TTableSchema& GetSchema() const override
+    virtual const TTableSchema& Schema() const override
     {
         return Schema_;
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
-    {
-        if (!NameTable_) {
-            NameTable_ = TNameTable::FromSchema(Schema_);
-        }
-        return NameTable_;
-    }
-
-    virtual const std::vector<TUnversionedRow>& GetRows() const override
+    virtual const std::vector<TUnversionedRow>& Rows() const override
     {
         return Rows_;
     }
 
 protected:
     TTableSchema Schema_;
-    mutable TNameTablePtr NameTable_; // create on demand
     std::vector<TUnversionedRow> Rows_;
 
 };

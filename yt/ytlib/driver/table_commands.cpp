@@ -211,9 +211,9 @@ void TSelectRowsCommand::Execute(ICommandContextPtr context)
 
     auto format = context->GetOutputFormat();
     auto output = context->Request().OutputStream;
-    auto writer = CreateSchemafulWriterForFormat(format, rowset->GetSchema(), output);
+    auto writer = CreateSchemafulWriterForFormat(format, rowset->Schema(), output);
 
-    writer->Write(rowset->GetRows());
+    writer->Write(rowset->Rows());
 
     WaitFor(writer->Close())
         .ThrowOnError();
@@ -374,9 +374,9 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
 
     auto format = context->GetOutputFormat();
     auto output = context->Request().OutputStream;
-    auto writer = CreateSchemafulWriterForFormat(format, rowset->GetSchema(), output);
+    auto writer = CreateSchemafulWriterForFormat(format, rowset->Schema(), output);
 
-    writer->Write(rowset->GetRows());
+    writer->Write(rowset->Rows());
 
     WaitFor(writer->Close())
         .ThrowOnError();

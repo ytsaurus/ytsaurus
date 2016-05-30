@@ -732,7 +732,7 @@ protected:
 
             auto resultRowset = WaitFor(asyncResultRowset).ValueOrThrow();
 
-            resultMatcher(resultRowset->GetRows(), primaryQuery->GetTableSchema());
+            resultMatcher(resultRowset->Rows(), primaryQuery->GetTableSchema());
         };
 
         if (failureLocation != EFailureLocation::Nowhere) {

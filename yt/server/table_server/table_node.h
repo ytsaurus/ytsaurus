@@ -29,7 +29,7 @@ class TTableNode
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TTableSchema, TableSchema);
-    DEFINE_BYREF_RW_PROPERTY(bool, PreserveSchemaOnWrite);
+    DEFINE_BYVAL_RW_PROPERTY(bool, PreserveSchemaOnWrite);
 
     // For dynamic tables only.
     typedef std::vector<NTabletServer::TTablet*> TTabletList;
