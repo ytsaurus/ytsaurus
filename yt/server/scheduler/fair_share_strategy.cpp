@@ -127,6 +127,7 @@ struct ISchedulerElement
     virtual ISchedulerElementPtr GetBestLeafDescendant(int attributesIndex) = 0;
 
     virtual bool IsActive(int attributesIndex) const = 0;
+    virtual bool IsInitialized(int attributesIndex) const = 0;
 
     virtual int GetPendingJobCount() const = 0;
 
@@ -205,6 +206,11 @@ public:
             return false;
         }
         return DynamicAttributesListIterators_[index]->Active;
+    }
+
+    bool IsInitialized(int index) const
+    {
+        return index < DynamicAttributesListIterators_.size();
     }
 
 private:
@@ -323,6 +329,11 @@ public:
     virtual bool IsActive(int attributesIndex) const override
     {
         return DynamicAttributesList_.IsActive(attributesIndex);
+    }
+
+    virtual bool IsInitialized(int attributesIndex) const override
+    {
+        return DynamicAttributesList_.IsInitialized(attributesIndex);
     }
 
     ESchedulableStatus GetStatus(double defaultTolerance) const
@@ -1837,7 +1848,7 @@ public:
                 if (IsJobPreemptable(job, operationElement) && !operationElement->HasStarvingParent()) {
                     TCompositeSchedulerElement* pool = operationElement->GetPool();
                     while (pool) {
-                        if (pool->IsActive(GlobalAttributesIndex)) {
+                        if (pool->IsActive(GlobalAttributesIndex) && pool->IsInitialized(attributesIndex)) {
                             discountedPools.insert(pool);
                             pool->DynamicAttributes(attributesIndex).ResourceUsageDiscount += job->ResourceUsage();
                         }
