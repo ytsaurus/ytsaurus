@@ -334,7 +334,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         spec)
 
     if tmpfs_size > 0:
-        spec = update({op_type: {"tmpfs_size": tmpfs_size}}, spec)
+        spec = update({op_type: {"tmpfs_size": tmpfs_size, "tmpfs_path": "tmpfs"}}, spec)
 
     # NB: Configured by common rule now.
     memory_limit = get_value(memory_limit, get_config(client)["memory_limit"])
