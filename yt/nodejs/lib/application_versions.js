@@ -78,13 +78,13 @@ function YtApplicationVersions(driver)
                 var parsed_url = url.parse("http://" + name);
                 return new YtHttpRequest(parsed_url.hostname, parsed_url.port)
                 .withPath(url.format({
-                    pathname: "/version"
+                    pathname: "/service"
                 }))
                 .setTimeout(TIMEOUT)
                 .setNoResolve(true)
                 .fire()
                 .then(function (data) {
-                    return { version: data.toString() };
+                    return utils.pick(JSON.parse(data.toString()), ["start_time", "version"]);
                 });
             }),
         });
