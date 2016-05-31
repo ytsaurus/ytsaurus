@@ -262,7 +262,6 @@ process.on("uncaughtException", function(err) {
 logger.info("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : process.pid });
 
 application = connect()
-    .use(yt.YtIsolateRequest())
     .use(yt.YtLogRequest())
     .use(yt.YtAcao())
     .use(yt.YtCheckPythonWrapperVersion())

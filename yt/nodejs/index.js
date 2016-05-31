@@ -13,7 +13,6 @@ exports.YtApplicationUpravlyator = require("./lib/middleware/application_upravly
 
 exports.YtAcao = require("./lib/middleware/acao").that;
 exports.YtAuthentication = require("./lib/middleware/authentication").that;
-exports.YtIsolateRequest = require("./lib/middleware/isolate_request").that;
 exports.YtLogRequest = require("./lib/middleware/log_request").that;
 exports.YtLogSocket = require("./lib/middleware/log_socket").that;
 exports.YtCheckPythonWrapperVersion = require("./lib/middleware/check_python_wrapper_version").that;
