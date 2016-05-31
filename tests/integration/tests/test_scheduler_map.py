@@ -1755,7 +1755,8 @@ class TestSandboxTmpfs(YTEnvSetup):
             out="//tmp/t_output",
             spec={
                 "mapper": {
-                    "tmpfs_size": 1024 * 1024
+                    "tmpfs_size": 1024 * 1024,
+                    "tmpfs_path": "tmpfs",
                 }
             })
 
@@ -1894,7 +1895,8 @@ class TestSandboxTmpfs(YTEnvSetup):
                 out="//tmp/t_output",
                 spec={
                     "mapper": {
-                        "tmpfs_size": 1024 * 1024
+                        "tmpfs_size": 1024 * 1024,
+                        "tmpfs_path": "tmpfs",
                     },
                     "max_failed_job_count": 1
                 })
