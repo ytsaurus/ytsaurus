@@ -735,7 +735,7 @@ YtCommand.prototype._captureParameters = function() {
 YtCommand.prototype._captureBody = function() {
     this.__DBG("_captureBody");
 
-    // Avoid capturing |this| in handler to avoid back references.
+    // Avoid capturing |this| to avoid back references.
     var input_compression = this.input_compression;
     var input_format = this.input_format;
     var req = this.req;
