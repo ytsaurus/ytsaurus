@@ -166,8 +166,6 @@ private:
         while (!ScheduledEntries_.empty()) {
             auto it = ScheduledEntries_.begin();
             const auto& entry = *it;
-            if (entry->Canceled)
-                continue;
             if (entry->Deadline > now)
                 break;
             if (entry->Deadline + LateWarningThreshold < now) {
