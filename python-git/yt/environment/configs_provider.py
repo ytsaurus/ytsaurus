@@ -114,7 +114,9 @@ def _get_hydra_manager_config():
 def _get_retrying_channel_config():
     return {
         "retry_backoff_time": 0,
-        "retry_attempts": 3
+        "retry_attempts": 1,
+        "soft_backoff_time": 0,
+        "hard_backoff_time": 0,
     }
 
 def _get_rpc_config():
