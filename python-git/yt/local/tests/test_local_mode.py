@@ -56,7 +56,7 @@ class TestLocalMode(object):
         with pytest.raises(yt.YtError):
             start(master_count=0)
 
-        environment = start(master_count=3, node_count=0, scheduler_count=0)
+        environment = start(master_count=3, node_count=0, scheduler_count=0, enable_debug_logging=True)
         assert len(_read_pids_file(environment)) == 4  # + proxy
         assert len(environment.configs["master"]) == 3
         stop(environment.id, remove_working_dir=True)
