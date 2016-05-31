@@ -3661,9 +3661,6 @@ i64 TOperationControllerBase::GetMemoryReserve(bool memoryReserveEnabled, TUserJ
         size += userJobSpec->MemoryLimit;
     }
 
-    if (userJobSpec->TmpfsSize) {
-        size += *userJobSpec->TmpfsSize;
-    }
     return size;
 }
 
@@ -3944,9 +3941,12 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
     jobSpec->set_copy_files(config->CopyFiles);
 
-    if (config->TmpfsSize && Config->EnableTmpfs) {
-        jobSpec->set_tmpfs_size(*config->TmpfsSize);
-        jobSpec->set_tmpfs_path(config->TmpfsPath);
+    if (config->TmpfsPath && Config->EnableTmpfs) {
+        auto tmpfsSize = config->TmpfsSize
+            ? *config->TmpfsSize
+            : config->MemoryLimit;
+        jobSpec->set_tmpfs_size(tmpfsSize);
+        jobSpec->set_tmpfs_path(*config->TmpfsPath);
     }
 
     if (Config->UserJobBlkioWeight) {
