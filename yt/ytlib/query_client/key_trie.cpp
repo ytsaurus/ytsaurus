@@ -94,7 +94,7 @@ std::vector<TBound> UniteBounds(const std::vector<TBound>& lhs, const std::vecto
     bool resultIsOpen = false;
 
     MergeBounds(lhs, rhs, [&] (TBound bound, bool isOpen) {
-        if (isOpen? ++cover == 1 : --cover == 0) {
+        if ((isOpen ? cover++ : --cover) == 0) {
             if (result.empty() || !(result.back() == bound && isOpen == resultIsOpen)) {
                 result.push_back(bound);
                 resultIsOpen = !resultIsOpen;
@@ -127,17 +127,14 @@ std::vector<TBound> IntersectBounds(const std::vector<TBound>& lhs, const std::v
     std::vector<TBound> result;
     bool resultIsOpen = false;
 
-    MergeBounds(
-        lhs,
-        rhs,
-        [&] (TBound bound, bool isOpen) {
-            if (isOpen ? cover++ == 1 : --cover == 1) {
-                if (result.empty() || !(result.back() == bound && isOpen == resultIsOpen)) {
-                    result.push_back(bound);
-                    resultIsOpen = !resultIsOpen;
-                }
+    MergeBounds(lhs, rhs, [&] (TBound bound, bool isOpen) {
+        if ((isOpen ? cover++ : --cover) == 1) {
+            if (result.empty() || !(result.back() == bound && isOpen == resultIsOpen)) {
+                result.push_back(bound);
+                resultIsOpen = !resultIsOpen;
             }
-        });
+        }
+    });
 
     return result;
 }
