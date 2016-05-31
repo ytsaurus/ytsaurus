@@ -154,14 +154,7 @@ public:
             options.JobCommandSuffix_;
     }
 
-    struct TFile
-    {
-        Stroka SandboxName;
-        Stroka CypressPath;
-        bool Executable;
-    };
-
-    const yvector<TFile>& GetFiles() const
+    const yvector<TRichYPath>& GetFiles() const
     {
         return Files_;
     }
@@ -184,7 +177,7 @@ public:
 private:
     TAuth Auth_;
     TUserJobSpec Spec_;
-    yvector<TFile> Files_;
+    yvector<TRichYPath> Files_;
     bool HasState_ = false;
     Stroka ClassName_;
     Stroka Command_;
@@ -263,26 +256,31 @@ private:
 
     void UploadFilesFromSpec(const TUserJobSpec& spec)
     {
-        for (const auto& file : spec.Files_) {
-            Files_.push_back(TFile{"", file, false});
-        }
+        Files_ = spec.Files_;
+
         for (const auto& localFile : spec.LocalFiles_) {
             TFsPath path(localFile);
             path.CheckExists();
-            auto cachePath = UploadToCache(localFile);
 
             TFileStat stat;
             path.Stat(stat);
             bool isExecutable = stat.Mode & (S_IXUSR | S_IXGRP | S_IXOTH);
 
-            Files_.push_back(TFile{path.Basename(), cachePath, isExecutable});
+            auto cachePath = UploadToCache(localFile);
+
+            TRichYPath cypressPath(cachePath);
+            cypressPath.FileName(path.Basename());
+            if (isExecutable) {
+                cypressPath.Executable(true);
+            }
+            Files_.push_back(cypressPath);
         }
     }
 
     void UploadBinary()
     {
         auto cachePath = UploadToCache(GetExecPath());
-        Files_.push_back(TFile{"cppbinary", cachePath, true});
+        Files_.push_back(TRichYPath(cachePath).FileName("cppbinary").Executable(true));
     }
 
     void UploadJobState(IJob* job)
@@ -290,8 +288,8 @@ private:
         TBufferOutput output(1 << 20);
         job->Save(output);
         if (output.Buffer().Size()) {
-            Stroka cachePath = UploadToCache(output.Buffer());
-            Files_.push_back(TFile{"jobstate", cachePath, false});
+            auto cachePath = UploadToCache(output.Buffer());
+            Files_.push_back(TRichYPath(cachePath).FileName("jobstate"));
             HasState_ = true;
         }
     }
@@ -503,19 +501,7 @@ void BuildUserJobFluently(
 {
     // TODO: tables as files
     fluent
-    .Item("file_paths").DoListFor(preparer.GetFiles(),
-        [&] (TFluentList fluent, const TJobPreparer::TFile& file) {
-            fluent.Item()
-                .BeginAttributes()
-                    .DoIf(!file.SandboxName.Empty(), [&] (TFluentAttributes fluent) {
-                        fluent.Item("file_name").Value(file.SandboxName);
-                    })
-                    .DoIf(file.Executable, [&] (TFluentAttributes fluent) {
-                        fluent.Item("executable").Value(true);
-                    })
-                .EndAttributes()
-            .Value(file.CypressPath);
-        })
+    .Item("file_paths").List(preparer.GetFiles())
     .DoIf(inputDesc.Format == TMultiFormatDesc::F_YSON
         || inputDesc.Format == TMultiFormatDesc::F_PROTO, [] (TFluentMap fluent)
     {

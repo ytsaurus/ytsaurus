@@ -18,6 +18,8 @@ public:
         const TTransactionId& transactionId,
         const TFileWriterOptions& options = TFileWriterOptions());
 
+    ~TFileWriter() override;
+
 protected:
     void DoWrite(const void* buf, size_t len) override;
     void DoFinish() override;

@@ -147,14 +147,21 @@ struct TRichYPath
     using TSelf = TRichYPath;
 
     FLUENT_FIELD(TYPath, Path);
+
     FLUENT_FIELD_OPTION(bool, Append);
+    FLUENT_FIELD(TKeyColumns, SortedBy);
+
     FLUENT_VECTOR_FIELD(TReadRange, Range);
     FLUENT_FIELD(TKeyColumns, Columns);
-    FLUENT_FIELD(TKeyColumns, SortedBy);
+
     FLUENT_FIELD_OPTION(bool, Teleport);
     FLUENT_FIELD_OPTION(bool, Primary);
     FLUENT_FIELD_OPTION(bool, Foreign);
     FLUENT_FIELD_OPTION(i64, RowCountLimit);
+
+    FLUENT_FIELD_OPTION(Stroka, FileName);
+    FLUENT_FIELD_OPTION(bool, Executable);
+    FLUENT_FIELD_OPTION(TNode, Format);
 
     TRichYPath()
     { }
