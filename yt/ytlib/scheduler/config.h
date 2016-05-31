@@ -254,7 +254,7 @@ public:
     i64 CustomStatisticsCountLimit;
 
     TNullable<i64> TmpfsSize;
-    Stroka TmpfsPath;
+    TNullable<Stroka> TmpfsPath;
 
     bool CopyFiles;
 
@@ -303,12 +303,21 @@ public:
             .GreaterThan(0)
             .LessThanOrEqual(1024);
         RegisterParameter("tmpfs_size", TmpfsSize)
-            .Default()
+            .Default(Null)
             .GreaterThan(0);
         RegisterParameter("tmpfs_path", TmpfsPath)
-            .Default("tmpfs");
+            .Default(Null);
         RegisterParameter("copy_files", CopyFiles)
             .Default(false);
+
+        RegisterValidator([&] () {
+            if (TmpfsSize && *TmpfsSize > MemoryLimit) {
+                THROW_ERROR_EXCEPTION("Size of tmpfs must be less than or equal to memory limit")
+                    << TErrorAttribute("tmpfs_size", *TmpfsSize)
+                    << TErrorAttribute("memory_limit", MemoryLimit);
+            }
+        });
+
     }
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig)
