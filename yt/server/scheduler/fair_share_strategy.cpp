@@ -1837,7 +1837,7 @@ public:
                 if (IsJobPreemptable(job, operationElement) && !operationElement->HasStarvingParent()) {
                     TCompositeSchedulerElement* pool = operationElement->GetPool();
                     while (pool) {
-                        if (pool->IsActive(GlobalAttributesIndex)) {
+                        if (pool->IsActive(GlobalAttributesIndex) && pool->IsActive(attributesIndex)) {
                             discountedPools.insert(pool);
                             pool->DynamicAttributes(attributesIndex).ResourceUsageDiscount += job->ResourceUsage();
                         }
