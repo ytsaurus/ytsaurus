@@ -5,7 +5,7 @@ from yt.wrapper.native_driver import get_driver_instance
 from argparse import ArgumentParser
 
 def build_snapshot(*args, **kwargs):
-    get_driver_instance(None).build_snapshot(*args, **kwargs)
+    print get_driver_instance(None).build_snapshot(*args, **kwargs)
 
 def gc_collect(*args, **kwargs):
     get_driver_instance(None).gc_collect(*args, **kwargs)
