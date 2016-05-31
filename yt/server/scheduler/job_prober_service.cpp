@@ -52,7 +52,10 @@ private:
             jobId,
             path);
 
-        WaitFor(Bootstrap_->GetScheduler()->DumpInputContext(jobId, path))
+        auto scheduler = Bootstrap_->GetScheduler();
+        scheduler->ValidateConnected();
+
+        WaitFor(scheduler->DumpInputContext(jobId, path))
             .ThrowOnError();
 
         context->Reply();
@@ -63,7 +66,10 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
 
-        auto trace = WaitFor(Bootstrap_->GetScheduler()->Strace(jobId))
+        auto scheduler = Bootstrap_->GetScheduler();
+        scheduler->ValidateConnected();
+
+        auto trace = WaitFor(scheduler->Strace(jobId))
             .ValueOrThrow();
 
         context->SetResponseInfo("Trace: %v", trace.Data());
@@ -83,7 +89,10 @@ private:
             jobId,
             signalName);
 
-        WaitFor(Bootstrap_->GetScheduler()->SignalJob(jobId, signalName))
+        auto scheduler = Bootstrap_->GetScheduler();
+        scheduler->ValidateConnected();
+
+        WaitFor(scheduler->SignalJob(jobId, signalName))
             .ThrowOnError();
 
         context->Reply();
@@ -94,7 +103,10 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
 
-        WaitFor(Bootstrap_->GetScheduler()->AbandonJob(jobId))
+        auto scheduler = Bootstrap_->GetScheduler();
+        scheduler->ValidateConnected();
+
+        WaitFor(scheduler->AbandonJob(jobId))
             .ThrowOnError();
 
         context->Reply();
@@ -109,7 +121,10 @@ private:
             jobId,
             parameters);
 
-        auto result = WaitFor(Bootstrap_->GetScheduler()->PollJobShell(jobId, TYsonString(parameters)))
+        auto scheduler = Bootstrap_->GetScheduler();
+        scheduler->ValidateConnected();
+
+        auto result = WaitFor(scheduler->PollJobShell(jobId, TYsonString(parameters)))
             .ValueOrThrow();
 
         ToProto(response->mutable_result(), result.Data());
@@ -121,7 +136,10 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
 
-        WaitFor(Bootstrap_->GetScheduler()->AbortJob(jobId))
+        auto scheduler = Bootstrap_->GetScheduler();
+        scheduler->ValidateConnected();
+
+        WaitFor(scheduler->AbortJob(jobId))
             .ThrowOnError();
 
         context->Reply();
