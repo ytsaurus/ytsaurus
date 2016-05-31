@@ -412,7 +412,7 @@ exports.TaggedLogger = function(logger, delta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-exports.MemoryInputStream = function(data)
+exports.MemoryInputStream = function MemoryInputStream(data)
 {
     stream.Stream.call(this);
 
@@ -458,25 +458,25 @@ exports.MemoryInputStream = function(data)
 
 util.inherits(exports.MemoryInputStream, stream.Stream);
 
-exports.MemoryInputStream.prototype.pause = function()
+exports.MemoryInputStream.prototype.pause = function MemoryInputStream$pause()
 {
     this.paused = true;
 };
 
-exports.MemoryInputStream.prototype.resume = function()
+exports.MemoryInputStream.prototype.resume = function MemoryInputStream$resume()
 {
     this.paused = false;
     this._flow();
 };
 
-exports.MemoryInputStream.prototype.destroy = function()
+exports.MemoryInputStream.prototype.destroy = function MemoryInputStream$destroy()
 {
     this.readable = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-exports.MemoryOutputStream = function()
+exports.MemoryOutputStream = function MemoryOutputStream()
 {
     stream.Stream.call(this);
 
@@ -488,23 +488,26 @@ exports.MemoryOutputStream = function()
 
 util.inherits(exports.MemoryOutputStream, stream.Stream);
 
-exports.MemoryOutputStream.prototype.write = function(chunk)
+exports.MemoryOutputStream.prototype.write = function MemoryOutputStream$write(chunk)
 {
-    if (chunk) {
+    if (this.writable && chunk) {
         this.chunks.push(chunk);
     }
     return true;
 };
 
-exports.MemoryOutputStream.prototype.end = function(chunk)
+exports.MemoryOutputStream.prototype.end = function MemoryOutputStream$end(chunk)
 {
-    if (chunk) {
+    if (this.writable && chunk) {
         this.chunks.push(chunk);
     }
     this.writable = false;
 };
 
-exports.MemoryOutputStream.prototype.destroy = function(){};
+exports.MemoryOutputStream.prototype.destroy = function MemoryOutputStream$destroy()
+{
+    this.writable = false;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

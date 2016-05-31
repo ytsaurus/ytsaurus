@@ -51,7 +51,6 @@ function promisinglyPipe(source, destination)
         source.on("data", on_data);
 
         function on_drain() {
-            debug("on_drain");
             if (source.readable) {
                 source.resume();
             }
