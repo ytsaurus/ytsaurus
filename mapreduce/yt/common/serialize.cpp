@@ -119,16 +119,6 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
     BuildYsonFluently(consumer).BeginAttributes()
         .DoIf(!path.Ranges_.empty(), [&] (TFluentAttributes fluent) {
             fluent.Item("ranges").List(path.Ranges_);
-            /* 0.16
-            const TReadRange& range = path.Ranges_[0];
-            fluent
-            .DoIf(!range.LowerLimit_.IsTrivial(), [&] (TFluentAttributes fluent) {
-                fluent.Item("lower_limit").Value(range.LowerLimit_);
-            })
-            .DoIf(!range.UpperLimit_.IsTrivial(), [&] (TFluentAttributes fluent) {
-                fluent.Item("upper_limit").Value(range.UpperLimit_);
-            });
-            */
         })
         .DoIf(!path.Columns_.Parts_.empty(), [&] (TFluentAttributes fluent) {
             fluent.Item("columns").Value(path.Columns_);
@@ -150,6 +140,15 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
         })
         .DoIf(path.RowCountLimit_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("row_count_limit").Value(path.RowCountLimit_.GetRef());
+        })
+        .DoIf(path.FileName_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("file_name").Value(path.FileName_.GetRef());
+        })
+        .DoIf(path.Executable_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("executable").Value(path.Executable_.GetRef());
+        })
+        .DoIf(path.Format_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("format").Value(path.Format_.GetRef());
         })
     .EndAttributes()
     .Value(path.Path_);

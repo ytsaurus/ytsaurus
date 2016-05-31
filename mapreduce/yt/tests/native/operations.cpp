@@ -266,6 +266,124 @@ YT_TEST(TOperation, SimpleReduce)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMapperWithFile
+    : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    TMapperWithFile(const Stroka& fileName = Stroka())
+        : FileName_(fileName)
+    { }
+
+    Y_SAVELOAD_JOB(FileName_);
+
+    virtual void Do(
+        TTableReader<TNode>* input,
+        TTableWriter<TNode>* output) override
+    {
+        for (; input->IsValid(); input->Next()) {
+            TFileInput file(FileName_);
+            output->AddRow(TNode()("b", file.ReadAll()));
+        }
+    }
+
+private:
+    Stroka FileName_;
+};
+REGISTER_MAPPER(TMapperWithFile);
+
+class TOperationWith
+    : public TOperation
+{
+protected:
+    void WriteInput()
+    {
+        auto writer = Client()->CreateTableWriter<TNode>(Input());
+        writer->AddRow(TNode()("a", 1));
+        writer->Finish();
+    }
+
+    void ReadOutput()
+    {
+        auto reader = Client()->CreateTableReader<TNode>(Output());
+        for (; reader->IsValid(); reader->Next()) {
+            Cout << "b = " << reader->GetRow()["b"].AsString() << Endl;
+        }
+    }
+};
+
+YT_TEST(TOperationWith, CypressTable)
+{
+    WriteInput();
+    {
+        auto writer = Client()->CreateTableWriter<TNode>(Input2());
+        writer->AddRow(TNode()("key", "2")("value", "3"));
+        writer->AddRow(TNode()("key", "4")("value", "5"));
+        writer->AddRow(TNode()("key", "6")("value", "7"));
+        writer->Finish();
+    }
+
+    Stroka sandboxName("table_in_sandbox");
+    TNode format("yson");
+    format.Attributes()("format", "text");
+    Client()->Map(
+        TMapOperationSpec()
+            .AddInput<TNode>(Input())
+            .AddOutput<TNode>(Output())
+            .MapperSpec(TUserJobSpec()
+                .AddFile(TRichYPath(Stroka("//") + Input2())
+                    .Format(format)
+                    .FileName(sandboxName)
+                    .AddRange(TReadRange::FromRowIndexes(1,2)))),
+        new TMapperWithFile(sandboxName)
+    );
+
+    ReadOutput();
+}
+
+YT_TEST(TOperationWith, CypressFile)
+{
+    WriteInput();
+    {
+        auto writer = Client()->CreateFileWriter(Input2());
+        *writer << "file content" << Endl;
+        writer->Finish();
+    }
+
+    Stroka sandboxName("file_in_sandbox");
+    Client()->Map(
+        TMapOperationSpec()
+            .AddInput<TNode>(Input())
+            .AddOutput<TNode>(Output())
+            .MapperSpec(TUserJobSpec()
+                .AddFile(TRichYPath(Stroka("//") + Input2())
+                    .FileName(sandboxName))),
+        new TMapperWithFile(sandboxName)
+    );
+
+    ReadOutput();
+}
+
+YT_TEST(TOperationWith, LocalFile)
+{
+    WriteInput();
+    Stroka localName("local_file");
+    {
+        TFileOutput stream(localName);
+        stream << "file content" << Endl;
+    }
+
+    Client()->Map(
+        TMapOperationSpec()
+            .AddInput<TNode>(Input())
+            .AddOutput<TNode>(Output())
+            .MapperSpec(TUserJobSpec().AddLocalFile(localName)),
+        new TMapperWithFile(localName)
+    );
+
+    ReadOutput();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NNativeTest
 } // namespace NYT

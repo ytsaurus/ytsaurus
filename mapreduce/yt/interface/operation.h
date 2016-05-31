@@ -60,7 +60,7 @@ struct TUserJobSpec
     using TSelf = TUserJobSpec;
 
     FLUENT_VECTOR_FIELD(TLocalFilePath, LocalFile);
-    FLUENT_VECTOR_FIELD(TYPath, File);
+    FLUENT_VECTOR_FIELD(TRichYPath, File);
     FLUENT_FIELD_OPTION(i64, MemoryLimit);
 };
 
