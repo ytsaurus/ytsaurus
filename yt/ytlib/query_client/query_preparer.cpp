@@ -326,17 +326,6 @@ public:
     virtual void Finish()
     { }
 
-    struct TNamedExpression
-    {
-        TConstExpressionPtr Expr;
-        TNullable<Stroka> Name;
-
-        TNamedExpression(const TConstExpressionPtr& expr, const TNullable<Stroka>& name = TNullable<Stroka>())
-            : Expr(expr)
-            , Name(name)
-        { }
-    };
-
     TConstExpressionPtr BuildTypedExpression(
         const NAst::TExpression* expr,
         const Stroka& source,
