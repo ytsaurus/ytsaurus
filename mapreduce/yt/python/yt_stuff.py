@@ -93,8 +93,9 @@ class YtStuff(object):
         yt_archive_path = os.path.join(build_path, _YT_ARCHIVE_NAME)
         self._extract_tar(yt_archive_path, self.yt_path)
 
-        self.yt_work_dir = os.path.join(self.yt_path, "wd")
-        os.mkdir(self.yt_work_dir)
+        self.yt_work_dir = yatest.common.output_path("yt_wd")
+        if not os.path.isdir(self.yt_work_dir):
+            os.mkdir(self.yt_work_dir)
 
         self.yt_wrapper_log_path = os.path.join(self.yt_work_dir, "yt_wrapper_%s.log" % self.yt_id)
 
@@ -308,6 +309,8 @@ class YtStuff(object):
                     archive_path = "%s.tgz" % file_path
                     self._pack_tar(archive_path=archive_path, file_path=file_path)
                     os.remove(file_path)
+        shutil.rmtree(self.yt_work_dir)
+
 
 @pytest.fixture(scope="module")
 def yt_stuff(request):
