@@ -35,6 +35,7 @@ using namespace NPipes;
 static const char* CGroupShellPrefix = "/shell-";
 static const size_t ReaderBufferSize = 4096;
 static const auto PollTimeout = TDuration::Seconds(30);
+static const i64 InputOffsetWarningLevel = 65536;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,17 +105,30 @@ public:
             Process_->AddArguments({ "--env", var });
         }
 
-        if (Options_->Bashrc) {
-            auto bashrc = NFS::CombinePaths(home, ".bashrc");
+        if (Options_->MessageOfTheDay) {
+            auto path = NFS::CombinePaths(home, ".motd");
 
             try {
-                TFile file(bashrc, CreateAlways | WrOnly | Seq | CloseOnExec);
+                TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
+                TFileOutput output(file);
+                output.Write(Options_->MessageOfTheDay->c_str(), Options_->MessageOfTheDay->size());
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error saving shell message file")
+                    << ex
+                    << TErrorAttribute("path", path);
+            }
+        }
+        if (Options_->Bashrc) {
+            auto path = NFS::CombinePaths(home, ".bashrc");
+
+            try {
+                TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
                 TFileOutput output(file);
                 output.Write(Options_->Bashrc->c_str(), Options_->Bashrc->size());
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error saving shell config file")
                     << ex
-                    << TErrorAttribute("path", bashrc);
+                    << TErrorAttribute("path", path);
             }
         }
         ResizeWindow(CurrentHeight_, CurrentWidth_);
@@ -135,11 +149,28 @@ public:
         }
     }
 
-    virtual void SendKeys(const TSharedRef& keys) override
+    virtual ui64 SendKeys(const TSharedRef& keys, ui64 inputOffset) override
     {
-        if (!keys.Empty()) {
-            ZeroCopyWriter_->Write(keys);
+        if (ConsumedOffset_ < inputOffset) {
+            // Key sequence from the future is not possible.
+            THROW_ERROR_EXCEPTION("Input offset is more than consumed offset")
+                << TErrorAttribute("expected_input_offset", ConsumedOffset_)
+                << TErrorAttribute("actual_input_offset", inputOffset);
         }
+
+        if (inputOffset + InputOffsetWarningLevel < ConsumedOffset_) {
+            LOG_WARNING(
+                "Input offset is significantly less than consumed offset (InputOffset: %v, ConsumedOffset: %v)",
+                ConsumedOffset_,
+                inputOffset);
+        }
+
+        size_t offset = ConsumedOffset_ - inputOffset;
+        if (offset < keys.Size()) {
+            ConsumedOffset_ += keys.Size() - offset;
+            ZeroCopyWriter_->Write(keys.Slice(offset, keys.Size()));
+        }
+        return ConsumedOffset_;
     }
 
     virtual TFuture<TSharedRef> Poll() override
@@ -180,6 +211,7 @@ private:
 
     TAsyncWriterPtr Writer_;
     IAsyncZeroCopyOutputStreamPtr ZeroCopyWriter_;
+    ui64 ConsumedOffset_ = 0;
 
     TAsyncReaderPtr Reader_;
     IAsyncZeroCopyInputStreamPtr ConcurrentReader_;

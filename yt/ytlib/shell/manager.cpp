@@ -31,6 +31,7 @@ using namespace NConcurrency;
 // TMPDIR is used to specify a separate temp directory instead of common one.
 // TMOUT is a inactivity timeout (in seconds) to exit the shell.
 static const char* Bashrc =
+    "export PATH\n"
     "stty sane ignpar iutf8\n"
     "TMOUT=1800\n"
     "alias cp='cp -i'\n"
@@ -40,7 +41,7 @@ static const char* Bashrc =
     "mkdir -p \"$TMPDIR\"\n"
     "export G_HOME=\"$HOME\"\n"
     "echo\n"
-    "env | grep YT_ | sort\n"
+    "[ -f .motd ] && cat .motd\n"
     "echo\n"
     "ps -fu `id -u` --forest\n"
     "echo\n";
@@ -54,17 +55,20 @@ struct TShellParameters
     EShellOperation Operation;
     TNullable<Stroka> Term;
     Stroka Keys;
+    TNullable<ui64> InputOffset;
     int Height;
     int Width;
 
     TShellParameters()
     {
         RegisterParameter("shell_id", ShellId)
-            .Optional();
+            .Default();
         RegisterParameter("operation", Operation);
         RegisterParameter("term", Term)
-            .Optional();
+            .Default();
         RegisterParameter("keys", Keys)
+            .Default();
+        RegisterParameter("input_offset", InputOffset)
             .Default();
         RegisterParameter("height", Height)
             .Default(0);
@@ -77,6 +81,11 @@ struct TShellParameters
                     "Malformed request: shell id is not specified for %Qlv operation",
                     Operation);
             }
+            if (Operation == EShellOperation::Update && !Keys.empty() && !InputOffset) {
+                THROW_ERROR_EXCEPTION(
+                    "Malformed request: input offset is not specified for %Qlv operation",
+                    Operation);
+            }
         });
     }
 };
@@ -87,12 +96,14 @@ struct TShellResult
     : public TYsonSerializableLite
 {
     TShellId ShellId;
-    Stroka Output;
+    TNullable<Stroka> Output;
+    TNullable<ui64> ConsumedOffset;
 
     TShellResult()
     {
         RegisterParameter("shell_id", ShellId);
         RegisterParameter("output", Output);
+        RegisterParameter("consumed_offset", ConsumedOffset);
     }
 };
 
@@ -105,10 +116,12 @@ public:
     TShellManager(
         const Stroka& workingDir,
         TNullable<int> userId,
-        TNullable<Stroka> freezerFullPath)
+        TNullable<Stroka> freezerFullPath,
+        TNullable<Stroka> messageOfTheDay)
         : WorkingDir_(workingDir)
         , UserId_(userId)
         , FreezerFullPath_(freezerFullPath)
+        , MessageOfTheDay_(messageOfTheDay)
     { }
 
     virtual TYsonString PollJobShell(const TYsonString& serializedParameters) override
@@ -136,18 +149,26 @@ public:
                 if (options->Width != 0) {
                     options->Width = parameters.Width;
                 }
+                Environment_.emplace_back(Format("HOME=%v", WorkingDir_));
                 options->CGroupBasePath = FreezerFullPath_;
                 options->Environment = Environment_;
                 options->WorkingDir = WorkingDir_;
                 options->Bashrc = Bashrc;
+                options->MessageOfTheDay = MessageOfTheDay_;
 
                 shell = CreateShell(std::move(options));
                 Register(shell);
+                shell->ResizeWindow(parameters.Height, parameters.Width);
+                break;
             }
 
             case EShellOperation::Update: {
                 shell->ResizeWindow(parameters.Height, parameters.Width);
-                shell->SendKeys(TSharedRef::FromString(HexDecode(parameters.Keys)));
+                if (!parameters.Keys.empty()) {
+                    result.ConsumedOffset = shell->SendKeys(
+                        TSharedRef::FromString(HexDecode(parameters.Keys)),
+                        *parameters.InputOffset);
+                }
                 break;
             }
 
@@ -193,15 +214,11 @@ public:
         }
     }
 
-    virtual void AddEnvironment(const Stroka& var) override
-    {
-        Environment_.push_back(var);
-    }
-
 private:
     const Stroka WorkingDir_;
     TNullable<int> UserId_;
     TNullable<Stroka> FreezerFullPath_;
+    TNullable<Stroka> MessageOfTheDay_;
 
     std::vector<Stroka> Environment_;
     yhash_map<TShellId, IShellPtr> IdToShell_;
@@ -241,9 +258,10 @@ private:
 IShellManagerPtr CreateShellManager(
     const Stroka& workingDir,
     TNullable<int> userId,
-    TNullable<Stroka> freezerFullPath)
+    TNullable<Stroka> freezerFullPath,
+    TNullable<Stroka> messageOfTheDay)
 {
-    return New<TShellManager>(workingDir, userId, freezerFullPath);
+    return New<TShellManager>(workingDir, userId, freezerFullPath, messageOfTheDay);
 }
 
 #else

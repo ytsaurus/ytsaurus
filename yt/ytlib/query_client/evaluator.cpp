@@ -270,8 +270,7 @@ TEvaluator::TEvaluator(TExecutorConfigPtr config)
     : Impl_(New<TImpl>(std::move(config)))
 { }
 
-TEvaluator::~TEvaluator()
-{ }
+TEvaluator::~TEvaluator() = default;
 
 TQueryStatistics TEvaluator::RunWithExecutor(
     TConstQueryPtr query,

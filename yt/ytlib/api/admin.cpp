@@ -97,9 +97,7 @@ private:
         WaitFor(cellDirectory->Synchronize(LeaderChannel_))
             .ThrowOnError();
 
-        auto cellId = options.CellId
-            ? options.CellId
-            : Connection_->GetConfig()->PrimaryMaster->CellId;
+        auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
 
             THydraServiceProxy proxy(channel);

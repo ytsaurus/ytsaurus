@@ -796,6 +796,9 @@ private:
                 return;
             }
 
+            LOG_DEBUG("Transaction ping scheduled (TransactionId: %v)",
+                Id_);
+
             TDelayedExecutor::Submit(
                 BIND(IgnoreResult(&TImpl::RunPeriodicPings), MakeWeak(this)),
                 PingPeriod_.Get(Owner_->Config_->DefaultPingPeriod));

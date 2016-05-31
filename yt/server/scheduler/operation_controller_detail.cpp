@@ -1608,13 +1608,13 @@ void TOperationControllerBase::AttachOutputChunks()
             std::sort(
                 table.BoundaryKeys.begin(),
                 table.BoundaryKeys.end(),
-                [=] (const TJobBoundaryKeys& lhs, const TJobBoundaryKeys& rhs) -> bool {
-                    auto keysResult = CompareRows(lhs.MinKey, rhs.MinKey);
-                    if (keysResult != 0) {
-                        return keysResult < 0;
+                [&] (const TJobBoundaryKeys& lhs, const TJobBoundaryKeys& rhs) -> bool {
+                    auto minKeyResult = CompareRows(lhs.MinKey, rhs.MinKey);
+                    if (minKeyResult != 0) {
+                        return minKeyResult < 0;
                     }
                     return lhs.MaxKey < rhs.MaxKey;
-            });
+                });
 
             for (auto current = table.BoundaryKeys.begin(); current != table.BoundaryKeys.end(); ++current) {
                 auto next = current + 1;

@@ -56,6 +56,13 @@ const int MaxColumnNameLength = 256;
 const int MaxColumnLockLength = 256;
 const int MaxColumnGroupLength = 256;
 
+// NB(psushin): increasing this parameter requires rewriting all chunks,
+// so one probaly should never want to do it.
+const int MaxSampleSize = 64 * 1024;
+
+// This is a hard limit for static tables.
+const int MaxColumnsPerRow = 64 * 1024;
+
 const int DefaultPartitionTag = -1;
 
 extern const Stroka SystemColumnNamePrefix;

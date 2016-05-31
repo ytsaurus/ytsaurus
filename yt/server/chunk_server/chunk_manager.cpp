@@ -1498,7 +1498,7 @@ private:
 
             auto addReplica = [&] (TNodePtrWithIndex nodePtrWithIndex, bool cached) {
                 TChunkPtrWithIndex chunkPtrWithIndex(chunk, nodePtrWithIndex.GetIndex());
-                nodePtrWithIndex.GetPtr()->AddReplica(chunkPtrWithIndex, false);
+                nodePtrWithIndex.GetPtr()->AddReplica(chunkPtrWithIndex, cached);
                 ++TotalReplicaCount_;
             };
 
