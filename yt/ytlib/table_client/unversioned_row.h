@@ -96,38 +96,6 @@ private:
 
 };
 
-static_assert(
-    EValueType::Int64 < EValueType::Uint64 &&
-    EValueType::Uint64 < EValueType::Double,
-    "Incorrect type order.");
-
-////////////////////////////////////////////////////////////////////////////////
-
-inline bool IsIntegralType(EValueType type)
-{
-    return type == EValueType::Int64 || type == EValueType::Uint64;
-}
-
-inline bool IsArithmeticType(EValueType type)
-{
-    return IsIntegralType(type) || type == EValueType::Double;
-}
-
-inline bool IsStringLikeType(EValueType type)
-{
-    return type == EValueType::String || type == EValueType::Any;
-}
-
-inline bool IsComparableType(EValueType type)
-{
-    return IsArithmeticType(type) || type == EValueType::String || type == EValueType::Boolean;;
-}
-
-inline bool IsSentinelType(EValueType type)
-{
-    return type == EValueType::Min || type == EValueType::Max;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TUnversionedValue MakeUnversionedSentinelValue(EValueType type, int id = 0, bool aggregate = false)
