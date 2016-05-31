@@ -735,33 +735,71 @@ YtCommand.prototype._captureParameters = function() {
 YtCommand.prototype._captureBody = function() {
     this.__DBG("_captureBody");
 
-    var deferred = Q.defer();
+    // Avoid capturing |this| in handler to avoid back references.
+    var input_compression = this.input_compression;
+    var input_format = this.input_format;
+    var req = this.req;
+    var pause = this.pause;
 
-    var self = this;
-    var chunks = [];
+    return new Q(function(resolve, reject) {
+        var clean = false;
+        var chunks = [];
 
-    this.req.on("data", function(chunk) { chunks.push(chunk); });
-    this.req.on("end", function() {
-        try {
-            var body = buffertools.concat.apply(undefined, chunks);
-            if (body.length) {
-                deferred.resolve(new binding.TNodeWrap(
-                    body,
-                    self.input_compression,
-                    self.input_format));
-            } else {
-                deferred.resolve();
+        function resolve_and_clear(value) {
+            if (!clean) {
+                cleanup();
+                clean = true;
             }
-        } catch (err) {
-            deferred.reject(new YtError(
-                "Unable to parse parameters from the request body",
-                err));
+            resolve(value);
         }
+
+        function reject_and_clear(err) {
+            if (!clean) {
+                cleanup();
+                clean = true;
+            }
+            reject(err);
+        }
+
+        function capture_body_on_data(chunk) {
+            chunks.push(chunk);
+        }
+
+        function capture_body_on_end() {
+            try {
+                var body = buffertools.concat.apply(undefined, chunks);
+                if (body.length) {
+                    resolve_and_clear(new binding.TNodeWrap(body, input_compression, input_format));
+                } else {
+                    resolve_and_clear();
+                }
+            } catch (err) {
+                reject_and_clear(new YtError("Unable to parse parameters from the request body", err));
+            }
+        }
+
+        function capture_body_on_close() {
+            reject_and_clear(new YtError("Stream was closed"));
+        }
+
+        function capture_body_on_error(err) {
+            reject_and_clear(new YtError("An error occured", err));
+        }
+
+        req.on("data", capture_body_on_data);
+        req.on("end", capture_body_on_end);
+        req.on("close", capture_body_on_close);
+        req.on("error", capture_body_on_error);
+
+        function cleanup() {
+            req.removeListener("data", capture_body_on_data);
+            req.removeListener("end", capture_body_on_end);
+            req.removeListener("close", capture_body_on_close);
+            req.removeListener("error", capture_body_on_error);
+        }
+
+        pause.unpause();
     });
-
-    this.pause.unpause();
-
-    return deferred.promise;
 };
 
 YtCommand.prototype._logRequest = function() {
