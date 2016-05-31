@@ -94,6 +94,7 @@ setInterval(function() {
 var profiler = buffered_profiler;
 
 var version;
+var start_time = new Date().toISOString();
 
 try {
     version = JSON.parse(fs.readFileSync(__dirname + "/../package.json"));
@@ -297,6 +298,16 @@ application = connect()
             var isSelfAlive = yt.YtRegistry.get("coordinator").isSelfAlive();
             rsp.statusCode = isSelfAlive ? 200 : 503;
             return void yt.utils.dispatchAs(rsp, "");
+        }
+        next();
+    })
+    .use("/service", function(req, rsp, next) {
+        var service = {
+            start_time: start_time,
+            version: version.versionFull
+        };
+        if (req.url === "/") {
+            return void yt.utils.dispatchAs(rsp, JSON.stringify(service), "text/plain");
         }
         next();
     })

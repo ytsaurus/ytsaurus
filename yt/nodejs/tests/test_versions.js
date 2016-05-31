@@ -77,11 +77,11 @@ describe("YtApplicationVersions - discover versions", function() {
 
                 if (!version_data.hasOwnProperty("error")) {
                     nock("http://" + name)
-                        .get("/version")
-                        .reply(200, version_data["version"]);
+                        .get("/service")
+                        .reply(200, version_data);
                 } else {
                     nock("http://" + name)
-                        .get("/version")
+                        .get("/service")
                         .reply(503);
                 }
             }
@@ -118,7 +118,7 @@ describe("YtApplicationVersions - discover versions", function() {
                 "proxy1": {
                     "version": "1"
                 },
-                "proxy2": {"error":{"code":-2,"message":"Request to \'proxy2:80/version\' has responded with 503","attributes":{},"inner_errors":[]}}
+                "proxy2": {"error":{"code":-2,"message":"Request to \'proxy2:80/service\' has responded with 503","attributes":{},"inner_errors":[]}}
             })
         };
 
