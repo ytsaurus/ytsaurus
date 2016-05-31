@@ -88,8 +88,10 @@ default_config = {
     "driver_config": None,
 
     # Path to driver config.
-    # NB: it should be in YSON format and contain driver, logging and tracing parts.
-    # It is comptatible with native yt binary written in C++.
+    # ATTENTION: It is comptatible with native yt binary written in C++, it means
+    # that config should be in YSON format and contain driver, logging and tracing configurations.
+    # Do not use it for Yt client initialization, use driver_config instead.
+    # Logging and tracing initialization would be executed only once for first initialization.
     "driver_config_path": None,
 
     # Path to file with additional configuration.
