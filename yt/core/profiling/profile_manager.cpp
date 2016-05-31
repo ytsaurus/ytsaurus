@@ -130,7 +130,7 @@ public:
             .DoMapFor(TagKeyToValues, [] (TFluentMap fluent, const TTagKeyToValues::value_type& pair) {
                 fluent
                     .Item(pair.first)
-                    .DoListFor(pair.second, [] (TFluentList fluent, const TYsonString& value) {
+                    .DoListFor(pair.second, [] (TFluentList fluent, const Stroka& value) {
                         fluent
                             .Item().Value(value);
                     });
@@ -307,8 +307,8 @@ private:
 
     TForkAwareSpinLock TagSpinLock;
     std::vector<TTag> IdToTag;
-    yhash_map<std::pair<Stroka, TYsonString>, int> TagToId;
-    typedef yhash_map<Stroka, std::vector<TYsonString>> TTagKeyToValues;
+    yhash_map<std::pair<Stroka, Stroka>, int> TagToId;
+    typedef yhash_map<Stroka, std::vector<Stroka>> TTagKeyToValues;
     TTagKeyToValues TagKeyToValues;
 
 #ifdef _linux_
@@ -388,8 +388,7 @@ TProfileManager::TProfileManager()
     : Impl_(new TImpl())
 { }
 
-TProfileManager::~TProfileManager()
-{ }
+TProfileManager::~TProfileManager() = default;
 
 TProfileManager* TProfileManager::Get()
 {

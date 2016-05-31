@@ -276,14 +276,14 @@ private:
         for (const auto& range : ranges) {
             const auto& lowerLimit = range.LowerLimit();
             const auto& upperLimit = range.UpperLimit();
-            if ((upperLimit.HasKey() || lowerLimit.HasKey()) && !table->TableSchema().IsSorted()) {
-                THROW_ERROR_EXCEPTION("Cannot fetch a key range of an unsorted table");
+            if ((upperLimit.HasKey() || lowerLimit.HasKey()) && !table->IsSorted()) {
+                THROW_ERROR_EXCEPTION("Key selectors are not supported for unsorted tables");
             }
             if ((upperLimit.HasRowIndex() || lowerLimit.HasRowIndex()) && table->IsDynamic()) {
-                THROW_ERROR_EXCEPTION("Cannot fetch a row index range of a dynamic table");
+                THROW_ERROR_EXCEPTION("Row index selectors are not supported for dynamic tables");
             }
             if ((upperLimit.HasChunkIndex() || lowerLimit.HasChunkIndex()) && table->IsDynamic()) {
-                THROW_ERROR_EXCEPTION("Cannot fetch a chunk index range of a dynamic table");
+                THROW_ERROR_EXCEPTION("Chunk index selectors are not supported for dynamic tables");
             }
             if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
                 THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");

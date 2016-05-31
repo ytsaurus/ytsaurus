@@ -554,6 +554,16 @@ private:
             preemptiveScheduleJobCount);
     }
 
+    TOperationElementPtr GetJobOperationElement(TFairShareContext& context, const TJobPtr& job)
+    {
+        auto it = context.JobToOperationElement.find(job);
+        YCHECK(it != context.JobToOperationElement.end());
+        if (it->second && !it->second->GetAlive()) {
+            it->second = nullptr;
+        }
+        return it->second;
+    }
+
     bool IsJobPreemptable(const TJobPtr& job, const TOperationElementPtr& element)
     {
         double usageRatio = element->GetResourceUsageRatio();

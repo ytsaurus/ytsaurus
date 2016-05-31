@@ -1,5 +1,6 @@
 #include "delayed_executor.h"
 #include "ev_scheduler_thread.h"
+#include "private.h"
 
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/nullable.h>
@@ -15,6 +16,8 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto TimeQuantum = TDuration::MilliSeconds(1);
+static const auto LateWarningThreshold = TDuration::Seconds(1);
+static const auto& Logger = ConcurrencyLogger;
 
 const TDelayedExecutorCookie NullDelayedExecutorCookie;
 
@@ -132,17 +135,26 @@ private:
     {
         TDelayedExecutorEntryPtr entry;
 
+        auto now = TInstant::Now();
+
         while (SubmitQueue_.Dequeue(&entry)) {
-            if (entry->Canceled)
+            if (entry->Canceled) {
                 continue;
+            }
+            if (entry->Deadline + LateWarningThreshold < now) {
+                LOG_WARNING("Found a late delayed submitted callback (Deadline: %v, Now: %v)",
+                    entry->Deadline,
+                    now);
+            }
             auto pair = ScheduledEntries_.insert(entry);
             YCHECK(pair.second);
             entry->Iterator = pair.first;
         }
 
         while (CancelQueue_.Dequeue(&entry)) {
-            if (entry->Canceled)
+            if (entry->Canceled) {
                 continue;
+            }
             entry->Canceled = true;
             entry->Callback.Reset();
             if (entry->Iterator) {
@@ -151,7 +163,6 @@ private:
             }
         }
 
-        auto now = TInstant::Now();
         while (!ScheduledEntries_.empty()) {
             auto it = ScheduledEntries_.begin();
             const auto& entry = *it;
@@ -159,6 +170,11 @@ private:
                 continue;
             if (entry->Deadline > now)
                 break;
+            if (entry->Deadline + LateWarningThreshold < now) {
+                LOG_WARNING("Found a late delayed scheduled callback (Deadline: %v, Now: %v)",
+                    entry->Deadline,
+                    now);
+            }
             EnqueueCallback(entry->Callback);
             entry->Callback.Reset();
             entry->Iterator.Reset();

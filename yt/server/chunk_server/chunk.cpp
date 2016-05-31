@@ -218,7 +218,7 @@ TNodePtrWithIndexList TChunk::GetReplicas() const
     const auto& storedReplicas = StoredReplicas();
     const auto& cachedReplicas = CachedReplicas();
     TNodePtrWithIndexList result;
-    result.reserve(cachedReplicas.size() + CachedReplicas().size());
+    result.reserve(storedReplicas.size() + cachedReplicas.size());
     result.insert(result.end(), storedReplicas.begin(), storedReplicas.end());
     result.insert(result.end(), cachedReplicas.begin(), cachedReplicas.end());
     return result;

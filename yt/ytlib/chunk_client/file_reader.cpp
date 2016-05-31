@@ -56,26 +56,24 @@ TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
     blocks.reserve(blockIndexes.size());
 
     try {
-        NFS::ExpectIOErrors([&] () {
-            // Extract maximum contiguous ranges of blocks.
-            int localIndex = 0;
-            while (localIndex < blockIndexes.size()) {
-                int startLocalIndex = localIndex;
-                int startBlockIndex = blockIndexes[startLocalIndex];
-                int endLocalIndex = startLocalIndex;
-                while (endLocalIndex < blockIndexes.size() &&
-                       blockIndexes[endLocalIndex] == startBlockIndex + (endLocalIndex - startLocalIndex))
-                {
-                    ++endLocalIndex;
-                }
-
-                int blockCount = endLocalIndex - startLocalIndex;
-                auto subblocks = DoReadBlocks(startBlockIndex, blockCount);
-                blocks.insert(blocks.end(), subblocks.begin(), subblocks.end());
-
-                localIndex = endLocalIndex;
+        // Extract maximum contiguous ranges of blocks.
+        int localIndex = 0;
+        while (localIndex < blockIndexes.size()) {
+            int startLocalIndex = localIndex;
+            int startBlockIndex = blockIndexes[startLocalIndex];
+            int endLocalIndex = startLocalIndex;
+            while (endLocalIndex < blockIndexes.size() &&
+                   blockIndexes[endLocalIndex] == startBlockIndex + (endLocalIndex - startLocalIndex))
+            {
+                ++endLocalIndex;
             }
-        });
+
+            int blockCount = endLocalIndex - startLocalIndex;
+            auto subblocks = DoReadBlocks(startBlockIndex, blockCount);
+            blocks.insert(blocks.end(), subblocks.begin(), subblocks.end());
+
+            localIndex = endLocalIndex;
+        }
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TSharedRef>>(ex);
     }
@@ -149,7 +147,10 @@ std::vector<TSharedRef> TFileReader::DoReadBlocks(
     auto data = TSharedMutableRef::Allocate<TFileReaderDataBufferTag>(totalSize, false);
 
     auto& file = GetDataFile();
-    file.Pread(data.Begin(), data.Size(), firstBlockInfo.offset());
+
+    NFS::ExpectIOErrors([&] () {
+        file.Pread(data.Begin(), data.Size(), firstBlockInfo.offset());
+    });
 
     // Slice the result; validate checksums.
     std::vector<TSharedRef> blocks;

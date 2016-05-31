@@ -70,6 +70,7 @@ public:
     bool ValidateSorted;
     bool ValidateRowWeight;
     bool ValidateDuplicateIds;
+    bool ValidateColumnCount;
 
     EOptimizeFor OptimizeFor;
 
@@ -80,6 +81,8 @@ public:
         RegisterParameter("validate_row_weight", ValidateRowWeight)
             .Default(false);
         RegisterParameter("validate_duplicate_ids", ValidateDuplicateIds)
+            .Default(false);
+        RegisterParameter("validate_column_count", ValidateColumnCount)
             .Default(false);
 
         RegisterParameter("optimize_for", OptimizeFor)

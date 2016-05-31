@@ -109,6 +109,17 @@ void TChunkWriterBase::ValidateRowWeight(i64 weight)
         << TErrorAttribute("row_weight_limit", Config_->MaxRowWeight);
 }
 
+void TChunkWriterBase::ValidateColumnCount(int columnCount)
+{
+    if (!Options_->ValidateColumnCount || columnCount < MaxColumnsPerRow) {
+        return;
+    }
+
+    THROW_ERROR_EXCEPTION("Too many columns in row")
+        << TErrorAttribute("column_count", columnCount)
+        << TErrorAttribute("max_column_count", MaxColumnsPerRow);
+}
+
 void TChunkWriterBase::ValidateDuplicateIds(TUnversionedRow row, const TNameTablePtr& nameTable)
 {
     if (!Options_->ValidateDuplicateIds) {
@@ -226,6 +237,7 @@ void TSequentialChunkWriterBase::OnRow(TUnversionedRow row)
 {
     i64 weight = GetDataWeight(row);
     ValidateRowWeight(weight);
+    ValidateColumnCount(row.GetCount());
     DataWeight_ += weight;
     OnRow(row.Begin(), row.End());
 }
@@ -249,7 +261,21 @@ void TSequentialChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUn
 
 void TSequentialChunkWriterBase::EmitSample(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
-    auto entry = SerializeToString(begin, end);
+    SmallVector<TUnversionedValue, TypicalColumnCount> sampleValues;
+    for (auto it = begin; it != end; ++it) {
+        sampleValues.push_back(*it);
+        auto& value = sampleValues.back();
+        if (value.Type == EValueType::Any) {
+            // Composite types are non-comparable, so we don't store it inside samples.
+            value.Length = 0;
+        } 
+
+        if (value.Type == EValueType::String) {
+            value.Length = std::min(static_cast<int>(value.Length), MaxSampleSize);
+        }
+    }
+
+    auto entry = SerializeToString(sampleValues.begin(), sampleValues.end());
     SamplesExt_.add_entries(entry);
     SamplesExtSize_ += entry.length();
 }

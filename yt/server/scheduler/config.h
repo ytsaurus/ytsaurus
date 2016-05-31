@@ -292,7 +292,9 @@ public:
 
         RegisterParameter("max_sample_size", MaxSampleSize)
             .Default(10 * 1024)
-            .GreaterThan(1024);
+            .GreaterThan(1024)
+            // NB(psushin): removing this validator may lead to weird errors in sorting.
+            .LessThanOrEqual(NTableClient::MaxSampleSize);
 
         RegisterParameter("compressed_block_size", CompressedBlockSize)
             .Default(1 * 1024 * 1024)

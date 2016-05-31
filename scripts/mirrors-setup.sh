@@ -110,7 +110,8 @@ configure_github_mirror Cyan4973-zstd
 configure_github_mirror kennethreitz-requests
 configure_github_mirror google-brotli
 configure_github_mirror kislyuk-argcomplete
-#configure_github_mirror tornadoweb-tornado
-#configure_github_mirror certifi-python-certifi
 configure_github_mirror pympler-pympler
 configure_github_mirror cherrypy-cherrypy
+configure_github_mirror tornadoweb-tornado
+configure_github_mirror certifi-python-certifi
+configure_github_mirror cython-backports_abc
