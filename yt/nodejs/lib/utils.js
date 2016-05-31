@@ -342,15 +342,23 @@ exports.NullStream.prototype.destroy = function(){};
 
 exports.Pause = function(slave)
 {
-    var on_data, on_end, events = [];
+    var on_data, on_end, on_error, on_close, events = [];
     var dummy = function() {};
 
-    slave.on("data", on_data = function(data, encoding) {
+    slave.on("data", on_data = function pause_on_data(data, encoding) {
         events.push(["data", data, encoding]);
     });
 
-    slave.on("end", on_end = function(data, encoding) {
+    slave.on("end", on_end = function pause_on_end(data, encoding) {
         events.push(["end", data, encoding]);
+    });
+
+    slave.on("error", on_error = function pause_on_error(ex) {
+        events.push(["error", ex]);
+    });
+
+    slave.on("close", on_close = function pause_on_close() {
+        events.push(["close"]);
     });
 
     slave.pause();
@@ -359,6 +367,8 @@ exports.Pause = function(slave)
         dispose: function() {
             slave.removeListener("data", on_data);
             slave.removeListener("end", on_end);
+            slave.removeListener("error", on_error);
+            slave.removeListener("close", on_close);
         },
         unpause: function() {
             this.dispose();
@@ -366,7 +376,6 @@ exports.Pause = function(slave)
                 slave.emit.apply(slave, events[i]);
             }
             slave.resume();
-
             this.dispose = dummy;
             this.unpause = dummy;
         }
