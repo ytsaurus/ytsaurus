@@ -21,7 +21,7 @@ inline TObjectBase::~TObjectBase()
 
 inline void TObjectBase::SetDestroyed()
 {
-    YASSERT(RefCounter_ == 0);
+    Y_ASSERT(RefCounter_ == 0);
     Flags_.Destroyed = true;
 }
 
@@ -37,26 +37,26 @@ inline const TObjectId& TObjectBase::GetId() const
 
 inline int TObjectBase::RefObject()
 {
-    YASSERT(RefCounter_ >= 0);
+    Y_ASSERT(RefCounter_ >= 0);
     return ++RefCounter_;
 }
 
 inline int TObjectBase::UnrefObject(int count)
 {
-    YASSERT(RefCounter_ >= count);
+    Y_ASSERT(RefCounter_ >= count);
     return RefCounter_ -= count;
 }
 
 inline int TObjectBase::WeakRefObject()
 {
     YCHECK(IsAlive());
-    YASSERT(WeakRefCounter_ >= 0);
+    Y_ASSERT(WeakRefCounter_ >= 0);
     return ++WeakRefCounter_;
 }
 
 inline int TObjectBase::WeakUnrefObject()
 {
-    YASSERT(WeakRefCounter_ > 0);
+    Y_ASSERT(WeakRefCounter_ > 0);
     return --WeakRefCounter_;
 }
 
@@ -67,7 +67,7 @@ inline int TObjectBase::ImportRefObject()
 
 inline int TObjectBase::ImportUnrefObject()
 {
-    YASSERT(ImportRefCounter_ > 0);
+    Y_ASSERT(ImportRefCounter_ > 0);
     return --ImportRefCounter_;
 }
 

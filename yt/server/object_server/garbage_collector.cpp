@@ -92,7 +92,7 @@ TFuture<void> TGarbageCollector::Collect()
 void TGarbageCollector::RegisterZombie(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(!object->IsAlive());
+    Y_ASSERT(!object->IsAlive());
 
     if (Zombies_.empty() && CollectPromise_.IsSet()) {
         CollectPromise_ = NewPromise<void>();
@@ -106,7 +106,7 @@ void TGarbageCollector::RegisterZombie(TObjectBase* object)
 void TGarbageCollector::UnregisterZombie(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(object->GetObjectRefCounter() == 1);
+    Y_ASSERT(object->GetObjectRefCounter() == 1);
 
     if (Zombies_.erase(object) == 1) {
         LOG_DEBUG("Object has been resurrected (ObjectId: %v)",
@@ -142,8 +142,8 @@ void TGarbageCollector::DestroyZombie(TObjectBase* object)
 void TGarbageCollector::DisposeGhost(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(!object->IsAlive());
-    YASSERT(!object->IsLocked());
+    Y_ASSERT(!object->IsAlive());
+    Y_ASSERT(!object->IsLocked());
 
     if (object->IsDestroyed()) {
         LOG_TRACE("Ghost disposed (ObjectId: %v)",

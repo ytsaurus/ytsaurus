@@ -13,7 +13,7 @@ namespace NYson {
 namespace {
 
 static inline char HexDigit(char value) {
-    YASSERT(value < 16);
+    Y_ASSERT(value < 16);
     if (value < 10)
         return '0' + value;
     else
@@ -21,7 +21,7 @@ static inline char HexDigit(char value) {
 }
 
 static inline char OctDigit(char value) {
-    YASSERT(value < 8);
+    Y_ASSERT(value < 8);
     return '0' + value;
 }
 
@@ -124,7 +124,7 @@ TYsonWriter::TYsonWriter(
     , BooleanAsString_(booleanAsString)
     , IndentSize_(indent)
 {
-    YASSERT(Stream_);
+    Y_ASSERT(Stream_);
 }
 
 void TYsonWriter::WriteIndent()
@@ -343,7 +343,7 @@ TBufferedBinaryYsonWriter::TBufferedBinaryYsonWriter(
     , BufferEnd_(Buffer_ + BufferSize)
     , BufferCursor_(BufferStart_)
 {
-    YASSERT(Stream_);
+    Y_ASSERT(Stream_);
 }
 
 Y_FORCE_INLINE void TBufferedBinaryYsonWriter::WriteStringScalar(const TStringBuf& value)

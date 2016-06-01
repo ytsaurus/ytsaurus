@@ -20,10 +20,10 @@ function YtReadableStream(watermark)
 
     this._paused = false;
     this._ended = false;
-    this._flowing = false;
+    this._closed = false;
 
     this._binding = new binding.TOutputStreamWrap(watermark);
-    this._binding.on_flowing = this._onFlowing.bind(this);
+    this._binding.on_flowing = this._flow.bind(this);
 
     this.__DBG = __DBG.Tagged(this._binding.cxx_id);
     this.__DBG("New");
@@ -31,20 +31,16 @@ function YtReadableStream(watermark)
 
 util.inherits(YtReadableStream, stream.Stream);
 
-YtReadableStream.prototype._onFlowing = function YtReadableStream$_onFlowing()
+YtReadableStream.prototype._flow = function YtReadableStream$_flow()
 {
     "use strict";
-    this.__DBG("Bindings (OutputStream) -> on_flowing");
-    this._flowing = true;
-    this._consumeData();
-};
+    this.__DBG("_flow");
 
-YtReadableStream.prototype._consumeData = function YtReadableStream$_consumeData()
-{
-    "use strict";
-    this.__DBG("_consumeData");
+    if (this._paused || this._ended || this._closed) {
+        return;
+    }
 
-    if (this._paused || this._ended || !this._flowing) {
+    if (!this._binding.IsFlowing()) {
         return;
     }
 
@@ -63,30 +59,47 @@ YtReadableStream.prototype._consumeData = function YtReadableStream$_consumeData
     }
 
     if (i > 0) {
-        process.nextTick(this._consumeData.bind(this));
+        process.nextTick(this._flow.bind(this));
     } else {
-        this._flowing = false;
         if (this._binding.IsFinished()) {
             this._emitEnd();
         }
     }
 };
 
-YtReadableStream.prototype._emitEnd = function _emitEnd()
+YtReadableStream.prototype._emitEnd = function YtReadableStream$_emitEnd()
 {
     "use strict";
     this.__DBG("_emitEnd");
+
     if (!this._ended) {
-        this.emit("end");
-        this.readable = false;
         this._ended = true;
+        this.emit("end");
     }
+
+    this._emitClose();
 };
+
+YtReadableStream.prototype._emitClose = function YtReadableStream$_emitClose()
+{
+    "use strict";
+    this.__DBG("_emitClose");
+
+    if (this._closed) {
+        this._closed = true;
+
+        this.readable = false;
+        this._binding = null;
+
+        this.emit("close");
+    }
+}
 
 YtReadableStream.prototype.pause = function YtReadableStream$pause()
 {
     "use strict";
     this.__DBG("pause");
+
     this._paused = true;
 };
 
@@ -94,11 +107,10 @@ YtReadableStream.prototype.resume = function YtReadableStream$resume()
 {
     "use strict";
     this.__DBG("resume");
-    if (!this._paused) {
-        return;
-    } else {
+
+    if (this._paused) {
         this._paused = false;
-        process.nextTick(this._consumeData.bind(this));
+        process.nextTick(this._flow.bind(this));
     }
 };
 
@@ -107,12 +119,14 @@ YtReadableStream.prototype.destroy = function YtReadableStream$destroy()
     "use strict";
     this.__DBG("destroy");
 
-    this._binding.Destroy();
+    if (this._binding) {
+        this._binding.Destroy();
+    }
 
-    this.readable = false;
     this._paused = false;
     this._ended = true;
-    this._flowing = false;
+
+    this._emitClose();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -274,7 +274,7 @@ TFormat TRequestExecutor::GetFormat(EDataType dataType, const TNullable<TYsonStr
 
 void TRequestExecutor::BuildParameters(IYsonConsumer* consumer)
 {
-    UNUSED(consumer);
+    Y_UNUSED(consumer);
 }
 
 TInputStream* TRequestExecutor::GetInputStream()

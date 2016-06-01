@@ -12,9 +12,9 @@ void TForwardingYsonConsumer::Forward(
     const TClosure& onFinished,
     EYsonType type)
 {
-    YASSERT(!ForwardingConsumer_);
-    YASSERT(consumer);
-    YASSERT(ForwardingDepth_ == 0);
+    Y_ASSERT(!ForwardingConsumer_);
+    Y_ASSERT(consumer);
+    Y_ASSERT(ForwardingDepth_ == 0);
 
     ForwardingConsumer_ = consumer;
     OnFinished_ = onFinished;
@@ -32,7 +32,7 @@ bool TForwardingYsonConsumer::CheckForwarding(int depthDelta)
 void TForwardingYsonConsumer::UpdateDepth(int depthDelta, bool checkFinish)
 {
     ForwardingDepth_ += depthDelta;
-    YASSERT(ForwardingDepth_ >= 0);
+    Y_ASSERT(ForwardingDepth_ >= 0);
     if (checkFinish && ForwardingType_ == EYsonType::Node && ForwardingDepth_ == 0) {
         FinishForwarding();
     }

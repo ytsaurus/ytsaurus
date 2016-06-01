@@ -111,7 +111,7 @@ IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
 
 void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
-    YASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
+    Y_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
     auto attributeKeys = request->has_attributes()
         ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))

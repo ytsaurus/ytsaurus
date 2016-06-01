@@ -340,7 +340,7 @@ protected:
             stackEntry.UpperBound.GetRowIndex() < childUpperBound.GetRowIndex())
         {
             i64 newUpperBound = stackEntry.UpperBound.GetRowIndex() - childLowerBound.GetRowIndex();
-            YASSERT(newUpperBound > 0);
+            Y_ASSERT(newUpperBound > 0);
             endLimit->SetRowIndex(newUpperBound);
         }
 
@@ -370,7 +370,7 @@ protected:
             stackEntry.UpperBound.GetOffset() < childUpperBound.GetOffset())
         {
             i64 newUpperBound = stackEntry.UpperBound.GetOffset() - childLowerBound.GetOffset();
-            YASSERT(newUpperBound > 0);
+            Y_ASSERT(newUpperBound > 0);
             endLimit->SetOffset(newUpperBound);
         }
 

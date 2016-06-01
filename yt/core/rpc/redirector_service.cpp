@@ -37,11 +37,14 @@ public:
         if (!FirstTimeSerialization_) {
             Header_->set_retry(true);
         }
+
         FirstTimeSerialization_ = false;
 
-        YASSERT(Message_.Size() >= 2);
+        Y_ASSERT(Message_.Size() >= 2);
+
         auto body = Message_[1];
         auto attachments = std::vector<TSharedRef>(Message_.Begin() + 2, Message_.End());
+
         return CreateRequestMessage(*Header_, body, attachments);
     }
 

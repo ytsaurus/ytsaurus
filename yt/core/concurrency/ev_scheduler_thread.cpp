@@ -11,7 +11,7 @@ TEVSchedulerThread::TInvoker::TInvoker(TEVSchedulerThread* owner)
 
 void TEVSchedulerThread::TInvoker::Invoke(const TClosure& callback)
 {
-    YASSERT(callback);
+    Y_ASSERT(callback);
     Owner->EnqueueCallback(callback);
 }
 

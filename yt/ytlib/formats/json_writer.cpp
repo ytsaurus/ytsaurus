@@ -3,7 +3,11 @@
 #include "helpers.h"
 #include "utf8_decoder.h"
 
+#ifdef YT_IN_ARCADIA
+#include <contrib/libs/yajl/api/yajl_gen.h>
+#else
 #include <yajl/yajl_gen.h>
+#endif
 
 namespace NYT {
 namespace NFormats {

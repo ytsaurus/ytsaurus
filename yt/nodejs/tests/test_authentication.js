@@ -324,6 +324,11 @@ describe("YtAuthentication", function() {
                 attributes: { name: "anakin" }
             }))
             .returns(Q.resolve("0-0-0-0"));
+        mock2
+            .expects("executeSimple")
+            .once()
+            .withExactArgs("set", sinon.match({path: "//sys/users/anakin/@upravlyator_managed"}), true)
+            .returns(Q.resolve());
         ask("GET", "/",
         { "Authorization": "OAuth some-token" },
         function(rsp) {
@@ -356,6 +361,11 @@ describe("YtAuthentication", function() {
                 attributes: { name: "anakin" }
             }))
             .returns(Q.reject(new YtError("Already exists").withCode(501)));
+        mock2
+            .expects("executeSimple")
+            .once()
+            .withExactArgs("set", sinon.match({path: "//sys/users/anakin/@upravlyator_managed"}), true)
+            .returns(Q.resolve());
         ask("GET", "/",
         { "Authorization": "OAuth some-token" },
         function(rsp) {
@@ -388,6 +398,32 @@ describe("YtAuthentication", function() {
         function(rsp) {
             rsp.should.be.http2xx;
             rsp.body.should.eql("unknown-user");
+            mock.verify();
+        }, done).end();
+    });
+
+    it("should not mark Cypress-authenticated users as managed", function(done) {
+        var mock = sinon.mock(YtRegistry.get("driver"));
+        mock
+            .expects("executeSimple")
+            .once()
+            .withExactArgs("get", sinon.match({
+                path: "//sys/tokens/cypress-token"
+            }))
+            .returns(Q.resolve("cypress-user"));
+        mock
+            .expects("executeSimple")
+            .once()
+            .withExactArgs("create", sinon.match({
+                type: "user",
+                attributes: { name: "cypress-user" }
+            }))
+            .returns(Q.resolve("0-0-0-0"));
+        ask("GET", "/",
+        { "Authorization": "OAuth cypress-token" },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.eql("cypress-user");
             mock.verify();
         }, done).end();
     });

@@ -453,7 +453,7 @@ private:
 
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch)
     {
-        UNUSED(request);
+        Y_UNUSED(request);
 
         DeclareNonMutating();
 

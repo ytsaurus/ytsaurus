@@ -373,10 +373,10 @@ size_t TInputStreamWrap::DoRead(void* data, size_t length)
             part->Offset += canRead;
             part->Length -= canRead;
 
-            YASSERT(length == 0 || part->Length == 0);
+            Y_ASSERT(length == 0 || part->Length == 0);
 
             if (part->Length == 0) {
-                YASSERT(it == kt);
+                Y_ASSERT(it == kt);
                 ++it;
                 ++kt;
             } else {
@@ -392,7 +392,8 @@ size_t TInputStreamWrap::DoRead(void* data, size_t length)
 
         if (!canReadSomething) {
             if (!IsPushable_) {
-                return 0;
+                length = 0;
+                break;
             }
 
             YCHECK(!ReadPromise_);

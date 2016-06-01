@@ -16,11 +16,11 @@ TRefCountedBase::~TRefCountedBase()
 
 void TRefCountedBase::InitializeTracking(TRefCountedTypeCookie typeCookie, size_t instanceSize)
 {
-    YASSERT(TypeCookie_ == NullRefCountedTypeCookie);
+    Y_ASSERT(TypeCookie_ == NullRefCountedTypeCookie);
     TypeCookie_ = typeCookie;
 
-    YASSERT(InstanceSize_ == 0);
-    YASSERT(instanceSize != 0);
+    Y_ASSERT(InstanceSize_ == 0);
+    Y_ASSERT(instanceSize != 0);
     InstanceSize_ = instanceSize;
 
     TRefCountedTracker::Get()->Allocate(typeCookie, instanceSize);
@@ -28,8 +28,8 @@ void TRefCountedBase::InitializeTracking(TRefCountedTypeCookie typeCookie, size_
 
 void TRefCountedBase::FinalizeTracking()
 {
-    YASSERT(TypeCookie_ != NullRefCountedTypeCookie);
-    YASSERT(InstanceSize_ != 0);
+    Y_ASSERT(TypeCookie_ != NullRefCountedTypeCookie);
+    Y_ASSERT(InstanceSize_ != 0);
     TRefCountedTracker::Get()->Free(TypeCookie_, InstanceSize_);
 }
 
@@ -49,7 +49,7 @@ TExtrinsicRefCounted::~TExtrinsicRefCounted()
     //   (possibly inside auto_ptr, unique_ptr, shared_ptr or similar helpers),
     //   or declaring an instance with static or automatic durations.
     // - Throwing an exception from ctor.
-    YASSERT(RefCounter_->GetRefCount() == 0);
+    Y_ASSERT(RefCounter_->GetRefCount() == 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,7 +61,7 @@ TIntrinsicRefCounted::TIntrinsicRefCounted()
 TIntrinsicRefCounted::~TIntrinsicRefCounted()
 {
     // For failed assertions, see the comments in TExtrinsicRefCounted::~TExtrinsicRefCounted.
-    YASSERT(RefCounter_.load() == 0);
+    Y_ASSERT(RefCounter_.load() == 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

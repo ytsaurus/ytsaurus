@@ -316,7 +316,7 @@ private:
 
         int operator()(TSortedDynamicRow lhs, TRowWrapper rhs) const
         {
-            YASSERT(rhs.Row.GetCount() >= KeyColumnCount_);
+            Y_ASSERT(rhs.Row.GetCount() >= KeyColumnCount_);
             return Compare(lhs, rhs.Row.Begin(), KeyColumnCount_);
         }
 

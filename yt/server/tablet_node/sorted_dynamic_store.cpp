@@ -75,7 +75,7 @@ bool AllocateListForPushIfNeeded(
     TChunkedMemoryPool* pool)
 {
     if (*list) {
-        YASSERT(!list->HasUncommitted());
+        Y_ASSERT(!list->HasUncommitted());
         if (list->GetSize() < list->GetCapacity()) {
             return false;
         }
@@ -352,7 +352,7 @@ protected:
                 ui32 revision = list[itemIndex];
                 if (revision <= Revision_) {
                     DeleteTimestamps_.push_back(Store_->TimestampFromRevision(revision));
-                    YASSERT(DeleteTimestamps_.size() == 1 ||
+                    Y_ASSERT(DeleteTimestamps_.size() == 1 ||
                             DeleteTimestamps_[DeleteTimestamps_.size() - 1] < DeleteTimestamps_[DeleteTimestamps_.size() - 2]);
                 }
             }
@@ -443,7 +443,7 @@ protected:
                 return nullptr;
             }
 
-            YASSERT(!list.IsEmpty());
+            Y_ASSERT(!list.IsEmpty());
 
             auto* value = std::lower_bound(
                 list.Begin(),
@@ -453,7 +453,7 @@ protected:
                     return Store_->TimestampFromRevision(ExtractRevision(element)) <= timestamp;
                 }) - 1;
 
-            YASSERT(value >= list.Begin() || Store_->TimestampFromRevision(ExtractRevision(*value)) <= maxTimestamp);
+            Y_ASSERT(value >= list.Begin() || Store_->TimestampFromRevision(ExtractRevision(*value)) <= maxTimestamp);
             return value;
         }
     }
@@ -553,7 +553,7 @@ public:
             return false;
         }
 
-        YASSERT(rows->capacity() > 0);
+        Y_ASSERT(rows->capacity() > 0);
         rows->clear();
         Pool_.Clear();
 
@@ -652,7 +652,7 @@ public:
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
-        YASSERT(rows->capacity() > 0);
+        Y_ASSERT(rows->capacity() > 0);
         rows->clear();
         Pool_.Clear();
 
@@ -805,7 +805,7 @@ int TSortedDynamicStore::GetLockCount() const
 
 int TSortedDynamicStore::Lock()
 {
-    YASSERT(Atomicity_ == EAtomicity::Full);
+    Y_ASSERT(Atomicity_ == EAtomicity::Full);
 
     int result = ++StoreLockCount_;
     LOG_TRACE("Store locked (Count: %v)",
@@ -815,8 +815,8 @@ int TSortedDynamicStore::Lock()
 
 int TSortedDynamicStore::Unlock()
 {
-    YASSERT(Atomicity_ == EAtomicity::Full);
-    YASSERT(StoreLockCount_ > 0);
+    Y_ASSERT(Atomicity_ == EAtomicity::Full);
+    Y_ASSERT(StoreLockCount_ > 0);
 
     int result = --StoreLockCount_;
     LOG_TRACE("Store unlocked (Count: %v)",
@@ -881,9 +881,9 @@ TSortedDynamicRow TSortedDynamicStore::WriteRowAtomic(
     TUnversionedRow row,
     ui32 lockMask)
 {
-    YASSERT(Atomicity_ == EAtomicity::Full);
-    YASSERT(lockMask != 0);
-    YASSERT(FlushRevision_ != MaxRevision);
+    Y_ASSERT(Atomicity_ == EAtomicity::Full);
+    Y_ASSERT(lockMask != 0);
+    Y_ASSERT(FlushRevision_ != MaxRevision);
 
     TSortedDynamicRow result;
 
@@ -898,7 +898,7 @@ TSortedDynamicRow TSortedDynamicStore::WriteRowAtomic(
     };
 
     auto newKeyProvider = [&] () -> TSortedDynamicRow {
-        YASSERT(StoreState_ == EStoreState::ActiveDynamic);
+        Y_ASSERT(StoreState_ == EStoreState::ActiveDynamic);
 
         auto dynamicRow = AllocateRow();
 
@@ -944,8 +944,8 @@ TSortedDynamicRow TSortedDynamicStore::WriteRowNonAtomic(
     TUnversionedRow row,
     TTimestamp commitTimestamp)
 {
-    YASSERT(Atomicity_ == EAtomicity::None);
-    YASSERT(FlushRevision_ != MaxRevision);
+    Y_ASSERT(Atomicity_ == EAtomicity::None);
+    Y_ASSERT(FlushRevision_ != MaxRevision);
 
     TSortedDynamicRow result;
 
@@ -963,7 +963,7 @@ TSortedDynamicRow TSortedDynamicStore::WriteRowNonAtomic(
     };
 
     auto newKeyProvider = [&] () -> TSortedDynamicRow {
-        YASSERT(StoreState_ == EStoreState::ActiveDynamic);
+        Y_ASSERT(StoreState_ == EStoreState::ActiveDynamic);
 
         auto dynamicRow = AllocateRow();
 
@@ -1001,13 +1001,13 @@ TSortedDynamicRow TSortedDynamicStore::DeleteRowAtomic(
     TTransaction* transaction,
     NTableClient::TKey key)
 {
-    YASSERT(Atomicity_ == EAtomicity::Full);
-    YASSERT(FlushRevision_ != MaxRevision);
+    Y_ASSERT(Atomicity_ == EAtomicity::Full);
+    Y_ASSERT(FlushRevision_ != MaxRevision);
 
     TSortedDynamicRow result;
 
     auto newKeyProvider = [&] () -> TSortedDynamicRow {
-        YASSERT(StoreState_ == EStoreState::ActiveDynamic);
+        Y_ASSERT(StoreState_ == EStoreState::ActiveDynamic);
 
         auto dynamicRow = AllocateRow();
 
@@ -1048,15 +1048,15 @@ TSortedDynamicRow TSortedDynamicStore::DeleteRowNonAtomic(
     NTableClient::TKey key,
     TTimestamp commitTimestamp)
 {
-    YASSERT(Atomicity_ == EAtomicity::None);
-    YASSERT(FlushRevision_ != MaxRevision);
+    Y_ASSERT(Atomicity_ == EAtomicity::None);
+    Y_ASSERT(FlushRevision_ != MaxRevision);
 
     ui32 commitRevision = RegisterRevision(commitTimestamp);
 
     TSortedDynamicRow result;
 
     auto newKeyProvider = [&] () -> TSortedDynamicRow {
-        YASSERT(StoreState_ == EStoreState::ActiveDynamic);
+        Y_ASSERT(StoreState_ == EStoreState::ActiveDynamic);
 
         auto dynamicRow = AllocateRow();
 
@@ -1088,8 +1088,8 @@ TSortedDynamicRow TSortedDynamicStore::DeleteRowNonAtomic(
 
 TSortedDynamicRow TSortedDynamicStore::MigrateRow(TTransaction* transaction, TSortedDynamicRow row)
 {
-    YASSERT(Atomicity_ == EAtomicity::Full);
-    YASSERT(FlushRevision_ != MaxRevision);
+    Y_ASSERT(Atomicity_ == EAtomicity::Full);
+    Y_ASSERT(FlushRevision_ != MaxRevision);
 
     auto migrateLocksAndValues = [&] (TSortedDynamicRow migratedRow) {
         auto* locks = row.BeginLocks(KeyColumnCount_);
@@ -1104,18 +1104,18 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(TTransaction* transaction, TSo
                     // Validate the original lock's sanity.
                     // NB: For simple transaction transacton may not go through preparation stage
                     // during recovery.
-                    YASSERT(
+                    Y_ASSERT(
                         transaction->GetPrepareTimestamp() == NullTimestamp ||
                         lock->PrepareTimestamp == transaction->GetPrepareTimestamp());
 
                     // Validate the mirgated lock's sanity.
-                    YASSERT(!migratedLock->Transaction);
-                    YASSERT(migratedLock->PrepareTimestamp == NotPreparedTimestamp);
+                    Y_ASSERT(!migratedLock->Transaction);
+                    Y_ASSERT(migratedLock->PrepareTimestamp == NotPreparedTimestamp);
 
                     migratedLock->Transaction = lock->Transaction;
                     migratedLock->PrepareTimestamp = lock->PrepareTimestamp;
                     if (index == TSortedDynamicRow::PrimaryLockIndex) {
-                        YASSERT(!migratedRow.GetDeleteLockFlag());
+                        Y_ASSERT(!migratedRow.GetDeleteLockFlag());
                         migratedRow.SetDeleteLockFlag(row.GetDeleteLockFlag());
                     }
                 }
@@ -1168,14 +1168,13 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(TTransaction* transaction, TSo
     return result;
 }
 
-
 void TSortedDynamicStore::PrepareRow(TTransaction* transaction, TSortedDynamicRow row)
 {
-    YASSERT(Atomicity_ == EAtomicity::Full);
-    YASSERT(FlushRevision_ != MaxRevision);
+    Y_ASSERT(Atomicity_ == EAtomicity::Full);
+    Y_ASSERT(FlushRevision_ != MaxRevision);
 
     auto prepareTimestamp = transaction->GetPrepareTimestamp();
-    YASSERT(prepareTimestamp != NullTimestamp);
+    Y_ASSERT(prepareTimestamp != NullTimestamp);
 
     {
         auto* lock = row.BeginLocks(KeyColumnCount_);
@@ -1189,8 +1188,8 @@ void TSortedDynamicStore::PrepareRow(TTransaction* transaction, TSortedDynamicRo
 
 void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow row)
 {
-    YASSERT(Atomicity_ == EAtomicity::Full);
-    YASSERT(FlushRevision_ != MaxRevision);
+    Y_ASSERT(Atomicity_ == EAtomicity::Full);
+    Y_ASSERT(FlushRevision_ != MaxRevision);
 
     auto commitTimestamp = transaction->GetCommitTimestamp();
     ui32 commitRevision = RegisterRevision(commitTimestamp);
@@ -1236,8 +1235,8 @@ void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow
 
 void TSortedDynamicStore::AbortRow(TTransaction* transaction, TSortedDynamicRow row)
 {
-    YASSERT(Atomicity_ == EAtomicity::Full);
-    YASSERT(FlushRevision_ != MaxRevision);
+    Y_ASSERT(Atomicity_ == EAtomicity::Full);
+    Y_ASSERT(FlushRevision_ != MaxRevision);
 
     auto* locks = row.BeginLocks(KeyColumnCount_);
 
@@ -1307,7 +1306,7 @@ int TSortedDynamicStore::GetBlockingLockIndex(
     ui32 lockMask,
     TTimestamp timestamp)
 {
-    YASSERT(Atomicity_ == EAtomicity::Full);
+    Y_ASSERT(Atomicity_ == EAtomicity::Full);
 
     const auto* lock = row.BeginLocks(KeyColumnCount_);
     ui32 lockMaskBit = 1;
@@ -1363,7 +1362,7 @@ void TSortedDynamicStore::CheckRowLocks(
     TTransaction* transaction,
     ui32 lockMask)
 {
-    YASSERT(Atomicity_ == EAtomicity::Full);
+    Y_ASSERT(Atomicity_ == EAtomicity::Full);
 
     const auto* lock = row.BeginLocks(KeyColumnCount_);
     ui32 lockMaskBit = 1;
@@ -1412,7 +1411,7 @@ void TSortedDynamicStore::AcquireRowLocks(
     ui32 lockMask,
     bool deleteFlag)
 {
-    YASSERT(Atomicity_ == EAtomicity::Full);
+    Y_ASSERT(Atomicity_ == EAtomicity::Full);
 
     // Acquire locks requested in #lockMask with the following exceptions:
     // * if primary lock is requested then all locks are acquired
@@ -1421,15 +1420,15 @@ void TSortedDynamicStore::AcquireRowLocks(
         ui32 lockMaskBit = 1;
         for (int index = 0; index < ColumnLockCount_; ++index, ++lock, lockMaskBit <<= 1) {
             if ((lockMask & lockMaskBit) || (lockMask & TSortedDynamicRow::PrimaryLockMask)) {
-                YASSERT(!lock->Transaction);
+                Y_ASSERT(!lock->Transaction);
                 lock->Transaction = transaction;
-                YASSERT(lock->PrepareTimestamp == NotPreparedTimestamp);
+                Y_ASSERT(lock->PrepareTimestamp == NotPreparedTimestamp);
             }
         }
     }
 
     if (deleteFlag) {
-        YASSERT(!row.GetDeleteLockFlag());
+        Y_ASSERT(!row.GetDeleteLockFlag());
         row.SetDeleteLockFlag(true);
     }
 
@@ -1438,7 +1437,7 @@ void TSortedDynamicStore::AcquireRowLocks(
 
 TValueList TSortedDynamicStore::PrepareFixedValue(TSortedDynamicRow row, int index)
 {
-    YASSERT(index >= KeyColumnCount_ && index < SchemaColumnCount_);
+    Y_ASSERT(index >= KeyColumnCount_ && index < SchemaColumnCount_);
 
     auto list = row.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
     if (AllocateListForPushIfNeeded(&list, RowBuffer_->GetPool())) {
@@ -1452,7 +1451,7 @@ TValueList TSortedDynamicStore::PrepareFixedValue(TSortedDynamicRow row, int ind
 void TSortedDynamicStore::AddDeleteRevision(TSortedDynamicRow row, ui32 revision)
 {
     auto list = row.GetDeleteRevisionList(KeyColumnCount_, ColumnLockCount_);
-    YASSERT(!list || TimestampFromRevision(list.Back()) < TimestampFromRevision(revision));
+    Y_ASSERT(!list || TimestampFromRevision(list.Back()) < TimestampFromRevision(revision));
     if (AllocateListForPushIfNeeded(&list, RowBuffer_->GetPool())) {
         row.SetDeleteRevisionList(list, KeyColumnCount_, ColumnLockCount_);
     }
@@ -1462,7 +1461,7 @@ void TSortedDynamicStore::AddDeleteRevision(TSortedDynamicRow row, ui32 revision
 void TSortedDynamicStore::AddWriteRevision(TLockDescriptor& lock, ui32 revision)
 {
     auto list = TSortedDynamicRow::GetWriteRevisionList(lock);
-    YASSERT(!list || TimestampFromRevision(list.Back()) < TimestampFromRevision(revision));
+    Y_ASSERT(!list || TimestampFromRevision(list.Back()) < TimestampFromRevision(revision));
     if (AllocateListForPushIfNeeded(&list, RowBuffer_->GetPool())) {
         TSortedDynamicRow::SetWriteRevisionList(lock, list);
     }
@@ -1474,7 +1473,7 @@ void TSortedDynamicStore::AddDeleteRevisionNonAtomic(
     TTimestamp commitTimestamp,
     ui32 commitRevision)
 {
-    YASSERT(Atomicity_ == EAtomicity::None);
+    Y_ASSERT(Atomicity_ == EAtomicity::None);
 
     AddDeleteRevision(row, commitRevision);
     UpdateTimestampRange(commitTimestamp);
@@ -1485,7 +1484,7 @@ void TSortedDynamicStore::AddWriteRevisionNonAtomic(
     TTimestamp commitTimestamp,
     ui32 commitRevision)
 {
-    YASSERT(Atomicity_ == EAtomicity::None);
+    Y_ASSERT(Atomicity_ == EAtomicity::None);
 
     auto& lock = row.BeginLocks(KeyColumnCount_)[TSortedDynamicRow::PrimaryLockIndex];
     AddWriteRevision(lock, commitRevision);
@@ -1503,11 +1502,11 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, const TUnversionedVa
          ++index, nullKeyBit <<= 1, ++dstValue, ++columnIt)
     {
         const auto& srcValue = srcKeys[index];
-        YASSERT(srcValue.Id == index);
+        Y_ASSERT(srcValue.Id == index);
         if (srcValue.Type == EValueType::Null) {
             nullKeyMask |= nullKeyBit;
         } else {
-            YASSERT(srcValue.Type == columnIt->Type);
+            Y_ASSERT(srcValue.Type == columnIt->Type);
             if (IsStringLikeType(columnIt->Type)) {
                 *dstValue = CaptureStringValue(srcValue);
             } else {
@@ -1542,7 +1541,7 @@ void TSortedDynamicStore::LoadRow(
     TVersionedRow row,
     TLoadScratchData* scratchData)
 {
-    YASSERT(row.GetKeyCount() == KeyColumnCount_);
+    Y_ASSERT(row.GetKeyCount() == KeyColumnCount_);
 
     auto dynamicRow = AllocateRow();
 
@@ -1637,7 +1636,7 @@ ui32 TSortedDynamicStore::CaptureVersionedValue(
     const TVersionedValue& src,
     TLoadScratchData* scratchData)
 {
-    YASSERT(src.Type == EValueType::Null || src.Type == Schema_.Columns()[src.Id].Type);
+    Y_ASSERT(src.Type == EValueType::Null || src.Type == Schema_.Columns()[src.Id].Type);
     ui32 revision = CaptureTimestamp(src.Timestamp, scratchData);
     dst->Revision = revision;
     CaptureUnversionedValue(dst, src);
@@ -1646,8 +1645,8 @@ ui32 TSortedDynamicStore::CaptureVersionedValue(
 
 void TSortedDynamicStore::CaptureUncommittedValue(TDynamicValue* dst, const TDynamicValue& src, int index)
 {
-    YASSERT(index >= KeyColumnCount_ && index < SchemaColumnCount_);
-    YASSERT(src.Revision == UncommittedRevision);
+    Y_ASSERT(index >= KeyColumnCount_ && index < SchemaColumnCount_);
+    Y_ASSERT(src.Revision == UncommittedRevision);
 
     *dst = src;
     if (!src.Null && IsStringLikeType(Schema_.Columns()[index].Type)) {
@@ -1659,7 +1658,7 @@ void TSortedDynamicStore::CaptureUnversionedValue(
     TDynamicValue* dst,
     const TUnversionedValue& src)
 {
-    YASSERT(src.Type == EValueType::Null || src.Type == Schema_.Columns()[src.Id].Type);
+    Y_ASSERT(src.Type == EValueType::Null || src.Type == Schema_.Columns()[src.Id].Type);
 
     dst->Aggregate = src.Aggregate;
 
@@ -1690,7 +1689,7 @@ TDynamicValueData TSortedDynamicStore::CaptureStringValue(TDynamicValueData src)
 
 TDynamicValueData TSortedDynamicStore::CaptureStringValue(const TUnversionedValue& src)
 {
-    YASSERT(IsStringLikeType(EValueType(src.Type)));
+    Y_ASSERT(IsStringLikeType(EValueType(src.Type)));
     ui32 length = src.Length;
     TDynamicValueData dst;
     dst.String = reinterpret_cast<TDynamicString*>(RowBuffer_->GetPool()->AllocateAligned(
@@ -1944,7 +1943,7 @@ void TSortedDynamicStore::BuildOrchidYson(IYsonConsumer* consumer)
 
 ui32 TSortedDynamicStore::GetLatestRevision() const
 {
-    YASSERT(!RevisionToTimestamp_.Empty());
+    Y_ASSERT(!RevisionToTimestamp_.Empty());
     return RevisionToTimestamp_.Size() - 1;
 }
 

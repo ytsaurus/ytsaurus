@@ -91,9 +91,9 @@ void GuardedInvoke(
     TClosure onSuccess,
     TClosure onCancel)
 {
-    YASSERT(invoker);
-    YASSERT(onSuccess);
-    YASSERT(onCancel);
+    Y_ASSERT(invoker);
+    Y_ASSERT(onSuccess);
+    Y_ASSERT(onCancel);
 
     class TGuard
     {
