@@ -22,6 +22,8 @@ _seeds = {
     "e894f3638299b75c9251f5d1fcb81b19fdc9e18d": 1,  # rootless commit
     "c5605d44efde66b90366bdbcc4fd511276f57d3b": 1,  # rootless commit
     "7dcfc452fa0ca5f60dd3755ac154945d61b7b385": 1,  # rootless commit
+    "7842db634296e5d70cce4a6cdb7114f921ca1081": 1,  # rootless commit
+    "fa3a02ad37c5a7bac734051615442a0f5f96e61a": 1,  # rootless commit
     "8ca18d293d4df3cd548b6bd874035486094c1506": 1,  # zstd subtree update commit
 }
 
