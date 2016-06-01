@@ -1108,7 +1108,7 @@ class TestResourceLimits(YTEnvSetup):
             out="//tmp/out",
             spec={"job_count": 3, "pool": "test_pool", "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
         time.sleep(3)
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/running".format(op.id)) == 1
+        assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
         op.abort()
 
         op = map(
@@ -1121,6 +1121,6 @@ class TestResourceLimits(YTEnvSetup):
         op_limits = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))
         for resource, limit in resource_limits.iteritems():
             assert op_limits[resource] == limit
-        assert get("//sys/operations/{0}/@progress/jobs/running".format(op.id)) == 1
+        assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
         op.abort()
 

@@ -1275,6 +1275,28 @@ public:
         }
 
         const auto& jobStartRequest = scheduleJobResult->JobStartRequest.Get();
+
+        // Discard the job in case of resource overcommit.
+        auto jobLimits = GetHierarchicalResourceLimits(context);
+        if (!Dominates(jobLimits, jobStartRequest.ResourceLimits)) {
+            const auto& jobId = scheduleJobResult->JobStartRequest->Id;
+            LOG_DEBUG("Aborting job with overcommit (JobId: %v, OperationId: %v)",
+                jobId,
+                OperationId_);
+
+            const auto& controller = Operation_->GetController();
+            controller->GetCancelableInvoker()->Invoke(BIND(
+                &IOperationController::OnJobAborted,
+                controller,
+                Passed(std::make_unique<TAbortedJobSummary>(
+                    jobId,
+                    EAbortReason::SchedulingResourceOvercommit))));
+
+            DynamicAttributes(context.AttributesIndex).Active = false;
+            updateAncestorsAttributes();
+            return false;
+        }
+
         context.SchedulingContext->ResourceUsage() += jobStartRequest.ResourceLimits;
         OnJobStarted(jobStartRequest.Id, jobStartRequest.ResourceLimits);
         auto job = context.SchedulingContext->StartJob(Operation_, jobStartRequest);
