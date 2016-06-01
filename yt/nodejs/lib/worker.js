@@ -238,10 +238,17 @@ if (!__DBG.On) {
 
 // Setup watchdog.
 setInterval(function() {
+    if (gracefullyDieTriggered || violentlyDieTriggered) {
+        return;
+    }
     var statistics = binding.GetHeapStatistics();
     if (statistics.used_heap_size > 128 * 1024 * 1024) {
-        console.error("[" + process.pid + "] Heap is >128MB; gracefully restarting...");
+        console.error("[" + process.pid + "] Heap is >128MB; gracefully restarting");
         gracefullyDie();
+        setTimeout(function() {
+            console.error("[" + process.pid + "] Heap is >128MB; violently restarting");
+            violentlyDie();
+        }, 5000);
     }
 }, 5000);
 
