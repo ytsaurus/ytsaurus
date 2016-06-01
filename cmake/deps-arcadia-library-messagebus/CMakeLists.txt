@@ -63,6 +63,6 @@ target_link_libraries( ytext-arcadia-library-messagebus
   ytext-arcadia-util
   ytext-arcadia-library-blockcodecs
   ytext-arcadia-library-lwtrace
-  ytext-arcadia-library-getopt
+  deps-arcadia-library-getopt
 )
 

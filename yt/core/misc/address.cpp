@@ -586,11 +586,13 @@ bool TAddressResolver::IsLocalHostNameOK()
 
 void TAddressResolver::PurgeCache()
 {
+    Y_ASSERT(Impl_);
     return Impl_->PurgeCache();
 }
 
 void TAddressResolver::Configure(TAddressResolverConfigPtr config)
 {
+    Y_ASSERT(Impl_);
     return Impl_->Configure(std::move(config));
 }
 

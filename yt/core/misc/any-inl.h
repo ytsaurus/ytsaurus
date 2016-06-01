@@ -120,7 +120,7 @@ T& TAny::As()
     return dynamic_cast<TTypedBox<T>*>(Box_.get())->Value;
 #else
     auto* result = TryAs<T>();
-    YASSERT(result);
+    Y_ASSERT(result);
     return *result;
 #endif
 }
@@ -132,7 +132,7 @@ const T& TAny::As() const
     return dynamic_cast<const TTypedBox<T>*>(Box_.get())->Value;
 #else
     auto* result = TryAs<T>();
-    YASSERT(result);
+    Y_ASSERT(result);
     return *result;
 #endif
 }

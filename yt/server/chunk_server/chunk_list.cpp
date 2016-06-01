@@ -82,7 +82,7 @@ void TChunkList::AddParent(TChunkList* parent)
 void TChunkList::RemoveParent(TChunkList* parent)
 {
     auto it = ParentToIndex_.find(parent);
-    YASSERT(it != ParentToIndex_.end());
+    Y_ASSERT(it != ParentToIndex_.end());
     int index = it->second;
     if (index != ParentToIndex_.size() - 1) {
         std::swap(Parents_[index], Parents_.back());
@@ -102,7 +102,7 @@ void TChunkList::AddOwningNode(TChunkOwnerBase* node)
 void TChunkList::RemoveOwningNode(TChunkOwnerBase* node)
 {
     auto it = OwningNodeToIndex_.find(node);
-    YASSERT(it != OwningNodeToIndex_.end());
+    Y_ASSERT(it != OwningNodeToIndex_.end());
     int index = it->second;
     if (index != OwningNodes_.size() - 1) {
         std::swap(OwningNodes_[index], OwningNodes_.back());

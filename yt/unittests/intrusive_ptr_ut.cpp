@@ -68,7 +68,7 @@ MATCHER_P3(HasRefCounts, increments, decrements, zeros,
     "was decremented " + ::testing::PrintToString(decrements) + " times, " +
     "vanished to zero " + ::testing::PrintToString(zeros) + " times")
 {
-    UNUSED(result_listener);
+    Y_UNUSED(result_listener);
     return
         arg.Increments == increments &&
         arg.Decrements == decrements &&

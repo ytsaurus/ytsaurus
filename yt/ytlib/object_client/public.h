@@ -261,4 +261,4 @@ struct TDirectVersionedObjectIdHash;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_PODTYPE(NYT::NObjectClient::TVersionedObjectId);
+Y_DECLARE_PODTYPE(NYT::NObjectClient::TVersionedObjectId);

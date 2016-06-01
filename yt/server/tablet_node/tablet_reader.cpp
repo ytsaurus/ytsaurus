@@ -108,7 +108,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         std::move(boundaries),
         std::move(rowMerger),
         [=, stores = std::move(stores)] (int index) {
-            YASSERT(index < stores.size());
+            Y_ASSERT(index < stores.size());
             return stores[index]->CreateReader(
                 lowerBound,
                 upperBound,
@@ -145,7 +145,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
 
     // Pick stores which intersect [minKey, maxKey] (including maxKey).
     auto takePartition = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-        YASSERT(partitionSnapshot);
+        Y_ASSERT(partitionSnapshot);
         for (const auto& store : partitionSnapshot->Stores) {
             if (store->GetMinKey() <= maxKey && store->GetMaxKey() >= minKey) {
                 stores.push_back(store);
@@ -295,7 +295,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         std::move(boundaries),
         std::move(rowMerger),
         [=, stores = std::move(stores)] (int index) {
-            YASSERT(index < stores.size());
+            Y_ASSERT(index < stores.size());
             return stores[index]->CreateReader(
                 lowerBound,
                 upperBound,

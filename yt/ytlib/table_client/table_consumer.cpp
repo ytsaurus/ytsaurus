@@ -60,13 +60,13 @@ void TTableConsumer::OnControlStringScalar(const TStringBuf& /*value*/)
 void TTableConsumer::OnStringScalar(const TStringBuf& value)
 {
     if (ControlState_ == EControlState::ExpectValue) {
-        YASSERT(Depth_ == 1);
+        Y_ASSERT(Depth_ == 1);
         OnControlStringScalar(value);
         ControlState_ = EControlState::ExpectEndAttributes;
         return;
     }
 
-    YASSERT(ControlState_ == EControlState::None);
+    Y_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -80,13 +80,13 @@ void TTableConsumer::OnStringScalar(const TStringBuf& value)
 void TTableConsumer::OnInt64Scalar(i64 value)
 {
     if (ControlState_ == EControlState::ExpectValue) {
-        YASSERT(Depth_ == 1);
+        Y_ASSERT(Depth_ == 1);
         OnControlInt64Scalar(value);
         ControlState_ = EControlState::ExpectEndAttributes;
         return;
     }
 
-    YASSERT(ControlState_ == EControlState::None);
+    Y_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -103,7 +103,7 @@ void TTableConsumer::OnUint64Scalar(ui64 value)
         ThrowInvalidControlAttribute("be an unsigned integer");
     }
 
-    YASSERT(ControlState_ == EControlState::None);
+    Y_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -117,12 +117,12 @@ void TTableConsumer::OnUint64Scalar(ui64 value)
 void TTableConsumer::OnDoubleScalar(double value)
 {
     if (ControlState_ == EControlState::ExpectValue) {
-        YASSERT(Depth_ == 1);
+        Y_ASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a double value");
         return;
     }
 
-    YASSERT(ControlState_ == EControlState::None);
+    Y_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -143,12 +143,12 @@ void TTableConsumer::OnDoubleScalar(double value)
 void TTableConsumer::OnBooleanScalar(bool value)
 {
     if (ControlState_ == EControlState::ExpectValue) {
-        YASSERT(Depth_ == 1);
+        Y_ASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a boolean value");
         return;
     }
 
-    YASSERT(ControlState_ == EControlState::None);
+    Y_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -166,7 +166,7 @@ void TTableConsumer::OnEntity()
             break;
 
         case EControlState::ExpectEntity:
-            YASSERT(Depth_ == 0);
+            Y_ASSERT(Depth_ == 0);
             // Successfully processed control statement.
             ControlState_ = EControlState::None;
             return;
@@ -191,12 +191,12 @@ void TTableConsumer::OnEntity()
 void TTableConsumer::OnBeginList()
 {
     if (ControlState_ == EControlState::ExpectValue) {
-        YASSERT(Depth_ == 1);
+        Y_ASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a list");
         return;
     }
 
-    YASSERT(ControlState_ == EControlState::None);
+    Y_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -209,11 +209,11 @@ void TTableConsumer::OnBeginList()
 void TTableConsumer::OnBeginAttributes()
 {
     if (ControlState_ == EControlState::ExpectValue) {
-        YASSERT(Depth_ == 1);
+        Y_ASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("have attributes");
     }
 
-    YASSERT(ControlState_ == EControlState::None);
+    Y_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         ControlState_ = EControlState::ExpectName;
@@ -245,7 +245,7 @@ void TTableConsumer::ThrowInvalidControlAttribute(const Stroka& whatsWrong)
 
 void TTableConsumer::OnListItem()
 {
-    YASSERT(ControlState_ == EControlState::None);
+    Y_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         // Row separator, do nothing.
@@ -257,11 +257,11 @@ void TTableConsumer::OnListItem()
 void TTableConsumer::OnBeginMap()
 {
     if (ControlState_ == EControlState::ExpectValue) {
-        YASSERT(Depth_ == 1);
+        Y_ASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a map");
     }
 
-    YASSERT(ControlState_ == EControlState::None);
+    Y_ASSERT(ControlState_ == EControlState::None);
 
     if (Depth_ == 0) {
         CurrentValueConsumer_->OnBeginRow();
@@ -278,7 +278,7 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
             break;
 
         case EControlState::ExpectName:
-            YASSERT(Depth_ == 1);
+            Y_ASSERT(Depth_ == 1);
             try {
                 ControlAttribute_ = ParseEnum<EControlAttribute>(ToString(name));
             } catch (const std::exception&) {
@@ -289,14 +289,14 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
             return;
 
         case EControlState::ExpectEndAttributes:
-            YASSERT(Depth_ == 1);
+            Y_ASSERT(Depth_ == 1);
             THROW_ERROR AttachLocationAttributes(TError("Too many control attributes per record: at most one attribute is allowed"));
 
         default:
             YUNREACHABLE();
     }
 
-    YASSERT(Depth_ > 0);
+    Y_ASSERT(Depth_ > 0);
     if (Depth_ == 1) {
         if (CurrentValueConsumer_->GetAllowUnknownColumns()) {
             ColumnIndex_ = CurrentNameTableWriter_->GetIdOrRegisterName(name);
@@ -316,9 +316,9 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
 
 void TTableConsumer::OnEndMap()
 {
-    YASSERT(Depth_ > 0);
+    Y_ASSERT(Depth_ > 0);
     // No control attribute allows map or composite values.
-    YASSERT(ControlState_ == EControlState::None);
+    Y_ASSERT(ControlState_ == EControlState::None);
 
     --Depth_;
     if (Depth_ > 0) {
@@ -333,10 +333,10 @@ void TTableConsumer::OnEndMap()
 void TTableConsumer::OnEndList()
 {
     // No control attribute allow list or composite values.
-    YASSERT(ControlState_ == EControlState::None);
+    Y_ASSERT(ControlState_ == EControlState::None);
 
     --Depth_;
-    YASSERT(Depth_ > 0);
+    Y_ASSERT(Depth_ > 0);
 
     ValueWriter_.OnEndList();
     FlushCurrentValueIfCompleted();
@@ -352,12 +352,12 @@ void TTableConsumer::OnEndAttributes()
             break;
 
         case EControlState::ExpectEndAttributes:
-            YASSERT(Depth_ == 0);
+            Y_ASSERT(Depth_ == 0);
             ControlState_ = EControlState::ExpectEntity;
             break;
 
         case EControlState::None:
-            YASSERT(Depth_ > 0);
+            Y_ASSERT(Depth_ > 0);
             ValueWriter_.OnEndAttributes();
             break;
 

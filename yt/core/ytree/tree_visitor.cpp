@@ -114,7 +114,7 @@ private:
 
     void VisitEntity(const INodePtr& node)
     {
-        UNUSED(node);
+        Y_UNUSED(node);
         Consumer->OnEntity();
     }
 

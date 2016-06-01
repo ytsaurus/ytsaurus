@@ -33,7 +33,7 @@ std::vector<TSharedRef> TChunkedOutputStream::Flush()
 {
     FinishedChunks_.push_back(TSharedRef::FromBlob(std::move(CurrentChunk_)));
 
-    YASSERT(CurrentChunk_.IsEmpty());
+    Y_ASSERT(CurrentChunk_.IsEmpty());
     FinishedSize_ = 0;
 
     return std::move(FinishedChunks_);
@@ -61,12 +61,12 @@ void TChunkedOutputStream::DoWrite(const void* buffer, size_t length)
     CurrentChunk_.Append(buffer, spaceAvailable);
 
     if (spaceRequired) {
-        YASSERT(CurrentChunk_.Size() == CurrentChunk_.Capacity());
+        Y_ASSERT(CurrentChunk_.Size() == CurrentChunk_.Capacity());
 
         FinishedSize_ += CurrentChunk_.Size();
         FinishedChunks_.push_back(TSharedRef::FromBlob(std::move(CurrentChunk_)));
 
-        YASSERT(CurrentChunk_.IsEmpty());
+        Y_ASSERT(CurrentChunk_.IsEmpty());
 
         CurrentReserveSize_ = std::min(2 * CurrentReserveSize_, MaxReserveSize_);
 
@@ -91,7 +91,7 @@ char* TChunkedOutputStream::Preallocate(size_t size)
 
 void TChunkedOutputStream::Advance(size_t size)
 {
-    YASSERT(CurrentChunk_.Size() + size <= CurrentChunk_.Capacity());
+    Y_ASSERT(CurrentChunk_.Size() + size <= CurrentChunk_.Capacity());
     CurrentChunk_.Resize(CurrentChunk_.Size() + size, false);
 }
 

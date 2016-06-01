@@ -150,7 +150,7 @@ void TChunk::AddParent(TChunkList* parent)
 void TChunk::RemoveParent(TChunkList* parent)
 {
     auto it = std::find(Parents_.begin(), Parents_.end(), parent);
-    YASSERT(it != Parents_.end());
+    Y_ASSERT(it != Parents_.end());
     Parents_.erase(it);
 }
 
@@ -167,7 +167,7 @@ const TChunk::TStoredReplicas& TChunk::StoredReplicas() const
 void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
 {
     if (cached) {
-        YASSERT(!IsJournal());
+        Y_ASSERT(!IsJournal());
         if (!CachedReplicas_) {
             CachedReplicas_ = std::make_unique<TCachedReplicas>();
         }
@@ -191,7 +191,7 @@ void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
 void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
 {
     if (cached) {
-        YASSERT(CachedReplicas_);
+        Y_ASSERT(CachedReplicas_);
         YCHECK(CachedReplicas_->erase(replica) == 1);
         if (CachedReplicas_->empty()) {
             CachedReplicas_.reset();
@@ -251,7 +251,7 @@ void TChunk::Confirm(
     ChunkMeta_.Swap(chunkMeta);
     MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
 
-    YASSERT(IsConfirmed());
+    Y_ASSERT(IsConfirmed());
 }
 
 bool TChunk::IsConfirmed() const

@@ -169,7 +169,7 @@ TVersionedRow TSimpleVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool
 
 ui32 TSimpleVersionedBlockReader::GetColumnValueCount(int schemaColumnId) const
 {
-    YASSERT(schemaColumnId >= ChunkKeyColumnCount_);
+    Y_ASSERT(schemaColumnId >= ChunkKeyColumnCount_);
     return *(reinterpret_cast<const ui32*>(KeyDataPtr_) + schemaColumnId - ChunkKeyColumnCount_);
 }
 
@@ -381,7 +381,7 @@ void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
 
 void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueIndex, int id, int chunkSchemaId)
 {
-    YASSERT(id >= ChunkKeyColumnCount_);
+    Y_ASSERT(id >= ChunkKeyColumnCount_);
     const char* ptr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
     auto timestamp = *reinterpret_cast<const TTimestamp*>(ptr + 8);
 
@@ -429,7 +429,7 @@ void TSimpleVersionedBlockReader::ReadStringLike(TUnversionedValue* value, const
 
 TTimestamp TSimpleVersionedBlockReader::ReadValueTimestamp(int valueIndex, int id)
 {
-    YASSERT(id >= ChunkKeyColumnCount_);
+    Y_ASSERT(id >= ChunkKeyColumnCount_);
     const char* ptr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
     return *reinterpret_cast<const TTimestamp*>(ptr + 8);
 }

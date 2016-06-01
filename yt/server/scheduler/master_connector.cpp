@@ -44,7 +44,6 @@ using namespace NCypressClient;
 using namespace NTableClient;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
-using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NFileClient;
 using namespace NTransactionClient;

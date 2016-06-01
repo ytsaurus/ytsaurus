@@ -1045,7 +1045,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         }
 
         if (Any(statistics.Status & EChunkStatus::Sealed)) {
-            YASSERT(chunk->IsJournal());
+            Y_ASSERT(chunk->IsJournal());
             for (auto replica : chunk->StoredReplicas()) {
                 if (replica.GetIndex() == UnsealedChunkReplicaIndex) {
                     auto* node = replica.GetPtr();
@@ -1571,7 +1571,7 @@ void TChunkReplicator::UnregisterJob(const TJobPtr& job, EJobUnregisterFlags fla
 
 void TChunkReplicator::AddToChunkRepairQueue(TChunk* chunk)
 {
-    YASSERT(!chunk->GetRepairQueueIterator());
+    Y_ASSERT(!chunk->GetRepairQueueIterator());
     auto it = ChunkRepairQueue_.insert(ChunkRepairQueue_.end(), chunk);
     chunk->SetRepairQueueIterator(it);
 }

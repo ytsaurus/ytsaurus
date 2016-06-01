@@ -90,7 +90,7 @@ void WriteRow(TRow row, TExecutionContext* context)
 
     const auto& rowBuffer = context->OutputBuffer;
 
-    YASSERT(batch->size() < batch->capacity());
+    Y_ASSERT(batch->size() < batch->capacity());
     batch->push_back(rowBuffer->Capture(row));
 
     if (batch->size() == batch->capacity()) {

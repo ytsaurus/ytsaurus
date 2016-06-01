@@ -345,7 +345,7 @@ public:
 extern "C" EXPORT_SYMBOL void initdriver_lib()
 {
     static const auto* driver = new NYT::NPython::TDriverModule;
-    UNUSED(driver);
+    Y_UNUSED(driver);
 }
 
 // This symbol is required for debug version.
