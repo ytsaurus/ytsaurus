@@ -10,6 +10,7 @@ namespace NNodeJS {
 
 class TInputStreamStub
     : public node::ObjectWrap
+    , public TRefTracked<TInputStreamStub>
 {
 protected:
     TInputStreamStub();
@@ -40,8 +41,8 @@ private:
     std::shared_ptr<TNodeJSInputStack> Stack;
 
 private:
-    TInputStreamStub(const TInputStreamStub&);
-    TInputStreamStub& operator=(const TInputStreamStub&);
+    TInputStreamStub(const TInputStreamStub&) = delete;
+    TInputStreamStub& operator=(const TInputStreamStub&) = delete;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
