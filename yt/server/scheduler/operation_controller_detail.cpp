@@ -1280,6 +1280,7 @@ ITransactionPtr TOperationControllerBase::StartTransaction(
     LOG_INFO("Starting %v transaction", transactionName);
 
     TTransactionStartOptions options;
+    options.AutoAbort = false;
     options.PingAncestors = false;
     auto attributes = CreateEphemeralAttributes();
     attributes->Set(

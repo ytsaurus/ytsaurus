@@ -17,6 +17,7 @@ namespace NConcurrency {
 
 static const auto TimeQuantum = TDuration::MilliSeconds(1);
 static const auto LateWarningThreshold = TDuration::Seconds(1);
+static const auto PeriodicPrecisionWarningThreshold = TDuration::MilliSeconds(100);
 static const auto& Logger = ConcurrencyLogger;
 
 const TDelayedExecutorCookie NullDelayedExecutorCookie;
@@ -124,6 +125,8 @@ private:
     TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> SubmitQueue_;
     TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> CancelQueue_;
 
+    TInstant PrevOnTimerInstant_;
+
 
     virtual void AfterShutdown() override
     {
@@ -136,6 +139,11 @@ private:
         TDelayedExecutorEntryPtr entry;
 
         auto now = TInstant::Now();
+        if (PrevOnTimerInstant_ != TInstant::Zero() && now - PrevOnTimerInstant_ > PeriodicPrecisionWarningThreshold) {
+            LOG_WARNING("Periodic watcher stall detected (Delta: %v)",
+                now - PrevOnTimerInstant_);
+        }
+        PrevOnTimerInstant_ = now;
 
         while (SubmitQueue_.Dequeue(&entry)) {
             if (entry->Canceled) {
@@ -166,8 +174,6 @@ private:
         while (!ScheduledEntries_.empty()) {
             auto it = ScheduledEntries_.begin();
             const auto& entry = *it;
-            if (entry->Canceled)
-                continue;
             if (entry->Deadline > now)
                 break;
             if (entry->Deadline + LateWarningThreshold < now) {

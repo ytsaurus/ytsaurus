@@ -215,6 +215,11 @@ private:
     //! Returned from node on Finish.
     TChunkInfo ChunkInfo_;
 
+    //! Last time write targets were allocated from the master.
+    TInstant AllocateWriteTargetsTimestamp_;
+
+    int AllocateWriteTargetsRetryIndex_ = 0;
+
     NLogging::TLogger Logger = ChunkClientLogger;
 
 
@@ -481,6 +486,7 @@ TReplicationWriter::TReplicationWriter(
     , WindowSlots_(New<TAsyncSemaphore>(config->SendWindowSize))
     , UploadReplicationFactor_(Config_->UploadReplicationFactor)
     , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
+    , AllocateWriteTargetsTimestamp_(TInstant::Zero())
 {
     Logger.AddTag("ChunkId: %v, ChunkWriter: %v", ChunkId_, this);
 }
@@ -509,6 +515,21 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
             EErrorCode::MasterCommunicationFailed,
             "Allocating new target nodes is disabled");
     }
+
+    ++AllocateWriteTargetsRetryIndex_;
+    if (AllocateWriteTargetsRetryIndex_ > Config_->AllocateWriteTargetsRetryCount) {
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::MasterCommunicationFailed,
+            "Failed to allocate write targets, retry count limit exceeded")
+            << TErrorAttribute("retry_count", Config_->AllocateWriteTargetsRetryCount);
+    }
+
+    auto delayTime = TInstant::Now() - AllocateWriteTargetsTimestamp_;
+    if (delayTime < Config_->AllocateWriteTargetsBackoffTime) {
+        WaitFor(TDelayedExecutor::MakeDelayed(Config_->AllocateWriteTargetsBackoffTime - delayTime))
+            .ThrowOnError();
+    }
+    AllocateWriteTargetsTimestamp_ = TInstant::Now();
 
     int activeTargets = Nodes_.size();
     std::vector<Stroka> forbiddenAddresses;
