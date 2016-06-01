@@ -20,7 +20,7 @@ using namespace NYson;
 class TJsonWriter
 {
 public:
-    TJsonWriter(TOutputStream* output, bool formatOutput);
+    TJsonWriter(TOutputStream* output, bool isPretty);
     ~TJsonWriter();
 
     void Flush();
@@ -134,11 +134,12 @@ static void CheckYajlCode(int yajlCode)
     THROW_ERROR_EXCEPTION(errorMessage);
 }
 
-TJsonWriter::TJsonWriter(TOutputStream* output, bool formatOutput)
+TJsonWriter::TJsonWriter(TOutputStream* output, bool isPretty)
     : Output(output)
 {
     Handle = yajl_gen_alloc(nullptr);
-    yajl_gen_config(Handle, yajl_gen_beautify, formatOutput ? 1 : 0);
+    yajl_gen_config(Handle, yajl_gen_beautify, isPretty ? 1 : 0);
+    yajl_gen_config(Handle, yajl_gen_skip_final_newline, isPretty ? 1 : 0);
     yajl_gen_config(Handle, yajl_gen_validate_utf8, 1);
 }
 
