@@ -1,6 +1,6 @@
 OWNER(
+    ignat
     exprmntr
-    vartyukh
 )
 
 PYTEST()
