@@ -124,13 +124,18 @@ def yson_dumps(data):
 
 YT_ARGUMENTS_FORMAT = os.environ.get("YT_ARGUMENTS_FORMAT", "yson")
 YT_STRUCTURED_DATA_FORMAT = os.environ.get("YT_STRUCTURED_DATA_FORMAT", "yson")
-PARSERS = {"json": lambda string: yson.json_to_yson(json.loads(string)), "yson": yson.loads}
+PARSERS = {"json": lambda string: yson.json_to_yson(json.loads(string)),
+           "yson": yson.loads}
 DUMPERS = {"json": lambda data: json.dumps(yson.yson_to_json(data), indent=2),
            "yson": yson_dumps}
+OUTPUT_FORMATS = {"json": "<format=pretty>json",
+                  "yson": "<format=pretty>yson"}
+
 try:
     parse_arguments = PARSERS[YT_ARGUMENTS_FORMAT]
     parse_data = PARSERS[YT_STRUCTURED_DATA_FORMAT]
     dump_data = DUMPERS[YT_STRUCTURED_DATA_FORMAT]
+    output_format = OUTPUT_FORMATS[YT_STRUCTURED_DATA_FORMAT]
 except KeyError as e:
     raise yt.YtError("Incorrect structured format " + str(e))
 
@@ -371,7 +376,7 @@ def add_get_parser(add_parser):
     parser = add_parser("get", yt.get)
     add_ypath_argument(parser, "path", hybrid=True)
     parser.add_argument("--ignore-opaque", action="store_true")
-    add_structured_format_help(parser)
+    add_structured_format_help(parser, default=output_format)
     parser.add_argument("--attribute", action="append", dest="attributes", help="desired node attributes in the response")
     parser.set_defaults(func=get)
 
@@ -388,7 +393,7 @@ def set(**args):
 def add_set_parser(add_parser):
     parser = add_parser("set", yt.set)
     add_ypath_argument(parser, "path", hybrid=True)
-    add_structured_format_help(parser)
+    add_structured_format_help(parser, default=YT_STRUCTURED_DATA_FORMAT)
     add_hybrid_argument(parser, "value", group_required=False,
                         help="new node attribute value, in {0} format. You can specify in bash pipe: "
                              "\"cat file_with_value | yt set //tmp/my_node\"".format(YT_ARGUMENTS_FORMAT))
@@ -733,7 +738,7 @@ def add_check_permission_parser(add_parser):
     add_hybrid_argument(parser, "user")
     add_hybrid_argument(parser, "permission", help="one of read, write, administer, create, use")
     add_ypath_argument(parser, "path", hybrid=True)
-    add_structured_format_help(parser, default=yt.YsonFormat(format="pretty"))
+    add_structured_format_help(parser, default=output_format)
     parser.set_defaults(func=check_permission)
 
 def member_args(parser):

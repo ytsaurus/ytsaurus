@@ -84,6 +84,12 @@ default_config = {
     # For native driver version "v3" by default.
     "default_api_version_for_http": "v3",
 
+    # If this option disabled we use JSON for formatted requests
+    # if format is not specified and yson_bindings is not installed.
+    # It allows to build python structures much faster than using YSON.
+    # But in this case we loose type of integer nodes.
+    "force_using_yson_for_formatted_requests": False,
+
     # Driver configuration.
     "driver_config": None,
 
