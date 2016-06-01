@@ -6,75 +6,47 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-std::vector<typename T::const_iterator> GetSortedSetIterators(const T& set)
+template <class C, class T>
+std::vector<typename T::const_iterator> GetSortedIterators(const T& set)
 {
-    typedef typename T::const_iterator TIterator;
-    std::vector<TIterator> iterators;
+    std::vector<typename T::const_iterator> iterators;
     iterators.reserve(set.size());
-    for (auto it = set.begin(); it != set.end(); ++it) {
-        iterators.push_back(it);
+    for (auto it = set.cbegin(); it != set.cend(); ++it) {
+        iterators.emplace_back(it);
     }
-    std::sort(
-        iterators.begin(),
-        iterators.end(),
-        [] (TIterator lhs, TIterator rhs) {
-            return *lhs < *rhs;
-        });
+
+    std::sort(iterators.begin(), iterators.end(), C());
     return iterators;
 }
+
+template <bool IsSet>
+struct TKeyLess;
+
+template <>
+struct TKeyLess<true>
+{
+    template<typename T>
+    bool operator()(const T& lhs, const T& rhs) const
+    {
+        return *lhs < *rhs;
+    }
+};
+
+template <>
+struct TKeyLess<false>
+{
+    template<typename T>
+    bool operator()(const T& lhs, const T& rhs) const
+    {
+        return lhs->first < rhs->first;
+    }
+};
 
 template <class T>
-std::vector<typename T::const_iterator> GetSortedMapIterators(const T& map)
+std::vector<typename T::const_iterator> GetSortedIterators(const T& collection)
 {
-    typedef typename T::const_iterator TIterator;
-    std::vector<TIterator> iterators;
-    iterators.reserve(map.size());
-    for (auto it = map.begin(); it != map.end(); ++it) {
-        iterators.push_back(it);
-    }
-    std::sort(
-        iterators.begin(),
-        iterators.end(),
-        [] (TIterator lhs, TIterator rhs) {
-            return lhs->first < rhs->first;
-        });
-    return iterators;
-}
-
-template <class TKey>
-std::vector<typename yhash_set<TKey>::const_iterator> GetSortedIterators(
-    const yhash_set<TKey>& set)
-{
-    return GetSortedSetIterators(set);
-}
-
-template <class TKey, class TValue>
-std::vector<typename yhash_map<TKey, TValue>::const_iterator> GetSortedIterators(
-    const yhash_map<TKey, TValue>& map)
-{
-    return GetSortedMapIterators(map);
-}
-
-template <class TKey, class TValue>
-std::vector<typename yhash_multimap<TKey, TValue>::const_iterator> GetSortedIterators(
-    const yhash_multimap<TKey, TValue>& map)
-{
-    return GetSortedMapIterators(map);
-}
-
-template <class TKey, class TValue>
-std::vector <typename std::map<TKey, TValue>::const_iterator> GetSortedIterators(
-    const std::map<TKey, TValue>& map)
-{
-    return GetSortedMapIterators(map);
-}
-
-template <class TKey, class TValue>
-std::vector<typename std::multimap<TKey, TValue>::const_iterator> GetSortedIterators(
-    const std::multimap<TKey, TValue>& map)
-{
-    return GetSortedMapIterators(map);
+    using TIsSet = std::is_same<typename T::key_type, typename T::value_type>;
+    return GetSortedIterators<TKeyLess<TIsSet::value>>(collection);
 }
 
 template <class T>
