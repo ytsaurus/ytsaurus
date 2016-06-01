@@ -406,6 +406,21 @@ class TestTablets(YTEnvSetup):
         assert get("//sys/tablet_cells/" + cell_id + "/@tablet_cell_bundle") == "b"
         assert len(get("//sys/tablet_cells/" + cell_id + "/@peers")) == 2
 
+    def test_distributed_commit(self):
+        cell_count = 5
+        self.sync_create_cells(cell_count)
+        cell_ids = ls("//sys/tablet_cells")
+        self._create_simple_table("//tmp/t")
+        reshard_table("//tmp/t", [[]] + [[i * 100] for i in xrange(cell_count - 1)])
+        self.sync_mount_table("//tmp/t")
+        for i in xrange(len(cell_ids)):
+            mount_table("//tmp/t", first_tablet_index = i, last_tablet_index=i, cell_id = cell_ids[i])
+        wait(lambda: all(x["state"] == "mounted" for x in get("//tmp/t/@tablets")))
+        rows = [{"key": i * 100 - 50, "value": "payload" + str(i)} for i in xrange(cell_count)]
+        insert_rows("//tmp/t", rows)
+        actual = select_rows("* from [//tmp/t]")
+        assert_items_equal(actual, rows)
+
 ##################################################################
 
 class TestTabletsMulticell(TestTablets):
