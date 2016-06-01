@@ -558,7 +558,7 @@ inline bool operator==(const TNode& lhs, const TNode& rhs)
 
     if (lhs.Attributes_) {
         if (rhs.Attributes_) {
-            return lhs.Attributes_ == rhs.Attributes_;
+            return *lhs.Attributes_ == *rhs.Attributes_;
         } else {
             return false;
         }
