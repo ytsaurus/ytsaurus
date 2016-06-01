@@ -668,8 +668,11 @@ private:
 
 };
 
+template <class C, bool IsSet = std::is_same<typename C::key_type, typename C::value_type>::value>
+struct TContainerSorterComparer;
+
 template <class C>
-struct TSetSorterComparer
+struct TContainerSorterComparer<C, true>
 {
     template <class TIterator>
     static bool Compare(TIterator lhs, TIterator rhs)
@@ -681,7 +684,7 @@ struct TSetSorterComparer
 };
 
 template <class C>
-struct TMapSorterComparer
+struct TContainerSorterComparer<C, false>
 {
     template <class TIterator>
     static bool Compare(TIterator lhs, TIterator rhs)
@@ -780,43 +783,33 @@ struct TSorterSelector<T, C, TUnsortedTag>
 template <class T, class C>
 struct TSorterSelector<std::vector<T>, C, TSortedTag>
 {
-    typedef TCollectionSorter<std::vector<T>, TSetSorterComparer<C>> TSorter;
+    typedef TCollectionSorter<std::vector<T>, TContainerSorterComparer<C, true>> TSorter;
 };
 
 template <class T, class C, unsigned size>
 struct TSorterSelector<SmallVector<T, size>, C, TSortedTag>
 {
-    typedef TCollectionSorter<SmallVector<T, size>, TSetSorterComparer<C>> TSorter;
+    typedef TCollectionSorter<SmallVector<T, size>, TContainerSorterComparer<C, true>> TSorter;
 };
 
-template <class K, class C>
-struct TSorterSelector<std::set<K>, C, TSortedTag>
+template <class C, class... T>
+struct TSorterSelector<std::set<T...>, C, TSortedTag>
 {
-    typedef TNoopSorter<std::set<K>, C> TSorter;
+    typedef TNoopSorter<std::set<T...>, C> TSorter;
 };
 
-template <class K, class V, class C>
-struct TSorterSelector<std::map<K, V>, C, TSortedTag>
+template <class C, class... T>
+struct TSorterSelector<std::map<T...>, C, TSortedTag>
 {
-    typedef TNoopSorter<std::map<K, V>, C> TSorter;
+    typedef TNoopSorter<std::map<T...>, C> TSorter;
 };
 
-template <class K, class H, class E, class A, class C>
-struct TSorterSelector<yhash_set<K, H, E, A>, C, TSortedTag>
+template <class T, class C>
+struct TSorterSelector<T, C, TSortedTag>
 {
-    typedef TCollectionSorter<yhash_set<K, H, E, A>, TSetSorterComparer<C>> TSorter;
-};
-
-template <class K, class V, class C>
-struct TSorterSelector<yhash_map<K, V>, C, TSortedTag>
-{
-    typedef TCollectionSorter<yhash_map<K, V>, TMapSorterComparer<C>> TSorter;
-};
-
-template <class K, class C>
-struct TSorterSelector<yhash_multiset<K>, C, TSortedTag>
-{
-    typedef TCollectionSorter<yhash_multiset<K>, TSetSorterComparer<C>> TSorter;
+    static_assert(std::is_member_function_pointer<decltype(&T::key_eq)>::value,
+        "Only for std::unordered_ and yhash_ map or set.");
+    typedef TCollectionSorter<T, TContainerSorterComparer<T>> TSorter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
