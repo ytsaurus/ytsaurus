@@ -1,4 +1,5 @@
 #include "operation.h"
+#include "mock_client.h"
 
 #include <mapreduce/yt/interface/client.h>
 
@@ -634,6 +635,12 @@ IClientPtr CreateClient(
     const Stroka& serverName,
     const TCreateClientOptions& options)
 {
+    bool mockRun = getenv("YT_CLIENT_MOCK_RUN") ? FromString<bool>(getenv("YT_CLIENT_MOCK_RUN")) : false;
+    if (mockRun) {
+        LOG_INFO("Running client in mock regime");
+        return new TMockClient();
+    }
+
     auto globalTxId = GetGuid(TConfig::Get()->GlobalTxId);
 
     TAuth auth;

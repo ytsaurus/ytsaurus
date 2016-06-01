@@ -5,6 +5,7 @@ OWNER(monster)
 SRCS(
     client.cpp
     init.cpp
+    mock_client.cpp
     operation.cpp
 )
 

@@ -179,21 +179,8 @@ TDerived& TOperationIOSpec<TDerived>::AddOutput(const TRichYPath& path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void LoadJobState(IJob* job, bool hasState)
-{
-    if (hasState) {
-        TFileInput stream("jobstate");
-        job->Load(stream);
-    } else {
-        TBufferStream stream(0);
-        job->Load(stream);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TMapper>
-int RunMapJob(size_t outputTableCount, bool hasState)
+int RunMapJob(size_t outputTableCount, TInputStream& jobStateStream)
 {
     using TInputRow = typename TMapper::TReader::TRowType;
     using TOutputRow = typename TMapper::TWriter::TRowType;
@@ -203,7 +190,7 @@ int RunMapJob(size_t outputTableCount, bool hasState)
         auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
 
         auto mapper = MakeIntrusive<TMapper>();
-        LoadJobState(mapper.Get(), hasState);
+        mapper->Load(jobStateStream);
 
         mapper->Start(writer.Get());
         mapper->Do(reader.Get(), writer.Get());
@@ -224,7 +211,7 @@ int RunMapJob(size_t outputTableCount, bool hasState)
 }
 
 template <class TReducer>
-int RunReduceJob(size_t outputTableCount, bool hasState)
+int RunReduceJob(size_t outputTableCount, TInputStream& jobStateStream)
 {
     using TInputRow = typename TReducer::TReader::TRowType;
     using TOutputRow = typename TReducer::TWriter::TRowType;
@@ -235,7 +222,7 @@ int RunReduceJob(size_t outputTableCount, bool hasState)
         auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
 
         auto reducer = MakeIntrusive<TReducer>();
-        LoadJobState(reducer.Get(), hasState);
+        reducer->Load(jobStateStream);
 
         reducer->Start(writer.Get());
         while (reader->IsValid()) {
@@ -263,7 +250,7 @@ int RunReduceJob(size_t outputTableCount, bool hasState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TJobFunction = int (*)(size_t, bool);
+using TJobFunction = int (*)(size_t, TInputStream&);
 
 class TJobFactory
 {
