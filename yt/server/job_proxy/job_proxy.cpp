@@ -189,12 +189,15 @@ void TJobProxy::Run()
         result = resultOrError.Value();
     }
 
+    // Reliably terminate all async calls before reporting result.
     if (HeartbeatExecutor_) {
-        HeartbeatExecutor_->Stop();
+        WaitFor(HeartbeatExecutor_->Stop())
+            .ThrowOnError();
     }
 
     if (MemoryWatchdogExecutor_) {
-        MemoryWatchdogExecutor_->Stop();
+        WaitFor(MemoryWatchdogExecutor_->Stop())
+            .ThrowOnError();
     }
 
     RpcServer_->Stop()
