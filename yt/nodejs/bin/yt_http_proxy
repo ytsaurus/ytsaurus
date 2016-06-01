@@ -316,11 +316,6 @@ function runProxy(logger, profiler) {
         }
     });
 
-    process.on("SIGUSR1", function() {
-        console.error("Writing a heap snapshot (" + process.pid + ")");
-        v8_heapdump.writeSnapshot();
-    });
-
     process.on("SIGUSR2", master.restartWorkers.bind(master));
 }
 

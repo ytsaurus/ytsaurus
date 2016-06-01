@@ -335,8 +335,8 @@ public:
         , Counter_(counter)
         , Start_(GetCpuInstant())
     {
-        YASSERT(profiler);
-        YASSERT(counter);
+        Y_ASSERT(profiler);
+        Y_ASSERT(counter);
     }
 
     TAggregatedTimingGuard(TAggregatedTimingGuard&& other)

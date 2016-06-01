@@ -259,7 +259,7 @@ TPendingIOGuard TLocation::IncreasePendingIOSize(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    YASSERT(delta >= 0);
+    Y_ASSERT(delta >= 0);
     auto category = ToIOCategory(workloadDescriptor);
     UpdatePendingIOSize(direction, category, delta);
     return TPendingIOGuard(direction, category, delta, this);
@@ -384,7 +384,7 @@ void TLocation::RemoveChunkFilesPermanently(const TChunkId& chunkId)
 
 void TLocation::RemoveChunkFiles(const TChunkId& chunkId, bool force)
 {
-    UNUSED(force);
+    Y_UNUSED(force);
     RemoveChunkFilesPermanently(chunkId);
 }
 

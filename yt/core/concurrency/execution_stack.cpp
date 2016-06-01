@@ -114,7 +114,7 @@ void* TExecutionStack::GetOpaque()
 
 void TExecutionStack::SetTrampoline(void (*trampoline)(void*))
 {
-    YASSERT(!Trampoline_);
+    Y_ASSERT(!Trampoline_);
     Trampoline_ = trampoline;
 }
 

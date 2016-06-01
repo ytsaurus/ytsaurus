@@ -40,7 +40,7 @@ void TInvokerQueue::SetThreadId(TThreadId threadId)
 
 void TInvokerQueue::Invoke(const TClosure& callback)
 {
-    YASSERT(callback);
+    Y_ASSERT(callback);
 
     if (!Running.load(std::memory_order_relaxed)) {
         LOG_TRACE_IF(
@@ -107,7 +107,7 @@ void TInvokerQueue::Drain()
 
 EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 {
-    YASSERT(action && action->Finished);
+    Y_ASSERT(action && action->Finished);
 
     if (!Queue.Dequeue(action)) {
         return EBeginExecuteResult::QueueEmpty;
@@ -136,7 +136,7 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 
 void TInvokerQueue::EndExecute(TEnqueuedAction* action)
 {
-    YASSERT(action);
+    Y_ASSERT(action);
 
     if (action->Finished) {
         return;

@@ -371,7 +371,7 @@ protected:
             }
 
             auto ioWeight = descriptor.IOWeight;
-            YASSERT(ioWeight > 0);
+            Y_ASSERT(ioWeight > 0);
             auto adjustedDelta = static_cast<i64>(delta / ioWeight);
 
             auto nodeId = descriptor.Id;
@@ -1239,16 +1239,16 @@ protected:
 
         // NB: Register groups in the order of _descending_ priority.
         MergeTaskGroup = New<TTaskGroup>();
-        MergeTaskGroup->MinNeededResources.SetCpu(1);
+        MergeTaskGroup->MinNeededResources.SetCpu(GetMergeCpuLimit());
         RegisterTaskGroup(MergeTaskGroup);
 
         SortTaskGroup = New<TTaskGroup>();
-        SortTaskGroup->MinNeededResources.SetCpu(1);
+        SortTaskGroup->MinNeededResources.SetCpu(GetSortCpuLimit());
         SortTaskGroup->MinNeededResources.SetNetwork(Spec->ShuffleNetworkLimit);
         RegisterTaskGroup(SortTaskGroup);
 
         PartitionTaskGroup = New<TTaskGroup>();
-        PartitionTaskGroup->MinNeededResources.SetCpu(1);
+        PartitionTaskGroup->MinNeededResources.SetCpu(GetPartitionCpuLimit());
         RegisterTaskGroup(PartitionTaskGroup);
     }
 
@@ -1497,6 +1497,10 @@ protected:
     }
 
     // Resource management.
+
+    virtual int GetPartitionCpuLimit() const = 0;
+    virtual int GetSortCpuLimit() const = 0;
+    virtual int GetMergeCpuLimit() const = 0;
 
     virtual TJobResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics,
@@ -2166,11 +2170,26 @@ private:
 
     // Resource management.
 
+    virtual int GetPartitionCpuLimit() const override
+    {
+        return 1;
+    }
+
+    virtual int GetSortCpuLimit() const override
+    {
+        return 1;
+    }
+
+    virtual int GetMergeCpuLimit() const override
+    {
+        return 1;
+    }
+
     virtual TJobResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics,
         bool memoryReserveEnabled) const override
     {
-        UNUSED(memoryReserveEnabled);
+        Y_UNUSED(memoryReserveEnabled);
         auto stat = AggregateStatistics(statistics).front();
 
         i64 outputBufferSize = std::min(
@@ -2185,7 +2204,7 @@ private:
 
         TJobResources result;
         result.SetUserSlots(1);
-        result.SetCpu(1);
+        result.SetCpu(GetPartitionCpuLimit());
         result.SetMemory(
             // NB: due to large MaxBufferSize for partition that was accounted in buffer size
             // we eliminate number of output streams to zero.
@@ -2203,7 +2222,7 @@ private:
         // ToDo(psushin): rewrite simple sort estimates.
         TJobResources result;
         result.SetUserSlots(1);
-        result.SetCpu(1);
+        result.SetCpu(GetSortCpuLimit());
         result.SetMemory(
             GetSortInputIOMemorySize(stat) +
             GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
@@ -2220,7 +2239,7 @@ private:
         const TChunkStripeStatistics& stat,
         bool memoryReserveEnabled) const override
     {
-        UNUSED(memoryReserveEnabled);
+        Y_UNUSED(memoryReserveEnabled);
         i64 memory =
             GetSortBuffersMemorySize(stat) +
             GetSortInputIOMemorySize(stat) +
@@ -2232,13 +2251,11 @@ private:
             memory += GetFinalOutputIOMemorySize(FinalSortJobIOConfig);
         }
 
-
         TJobResources result;
         result.SetUserSlots(1);
-        result.SetCpu(1);
+        result.SetCpu(GetSortCpuLimit());
         result.SetMemory(memory);
         result.SetNetwork(Spec->ShuffleNetworkLimit);
-
         return result;
     }
 
@@ -2246,11 +2263,11 @@ private:
         const TChunkStripeStatisticsVector& statistics,
         bool memoryReserveEnabled) const override
     {
-        UNUSED(memoryReserveEnabled);
+        Y_UNUSED(memoryReserveEnabled);
 
         TJobResources result;
         result.SetUserSlots(1);
-        result.SetCpu(1);
+        result.SetCpu(GetMergeCpuLimit());
         result.SetMemory(
             GetFinalIOMemorySize(SortedMergeJobIOConfig, statistics) +
             GetFootprintMemorySize());
@@ -2267,7 +2284,7 @@ private:
     {
         TJobResources result;
         result.SetUserSlots(1);
-        result.SetCpu(1);
+        result.SetCpu(GetMergeCpuLimit());
         result.SetMemory(
             GetFinalIOMemorySize(UnorderedMergeJobIOConfig, AggregateStatistics(statistics)) +
             GetFootprintMemorySize());
@@ -2705,6 +2722,22 @@ private:
     }
 
     // Resource management.
+
+    virtual int GetPartitionCpuLimit() const override
+    {
+        return Spec->Mapper ? Spec->Mapper->CpuLimit : 1;
+    }
+
+    virtual int GetSortCpuLimit() const override
+    {
+        // At least one cpu, may be more in PartitionReduce job.
+        return 1;
+    }
+
+    virtual int GetMergeCpuLimit() const override
+    {
+        return Spec->Reducer->CpuLimit;
+    }
 
     virtual TJobResources GetPartitionResources(
             const TChunkStripeStatisticsVector& statistics,

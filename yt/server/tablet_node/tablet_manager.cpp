@@ -827,7 +827,7 @@ private:
         auto* transaction = transactionManager->GetTransaction(transactionId);
 
         for (int index = 0; index < rowCount; ++index) {
-            YASSERT(!transaction->PrelockedRows().empty());
+            Y_ASSERT(!transaction->PrelockedRows().empty());
             auto rowRef = transaction->PrelockedRows().front();
             transaction->PrelockedRows().pop();
 

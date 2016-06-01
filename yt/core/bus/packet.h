@@ -171,7 +171,7 @@ private:
 } // namespace NBus
 } // namespace NYT
 
-DECLARE_PODTYPE(NYT::NBus::TPacketHeader);
+Y_DECLARE_PODTYPE(NYT::NBus::TPacketHeader);
 
 #define PACKET_INL_H_
 #include "packet-inl.h"

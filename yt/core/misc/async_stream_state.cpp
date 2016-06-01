@@ -39,7 +39,7 @@ void TAsyncStreamState::DoFail()
 void TAsyncStreamState::Close()
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YASSERT(IsActive_);
+    Y_ASSERT(IsActive_);
 
     IsActive_ = false;
     if (CurrentError) {
@@ -85,7 +85,7 @@ const TError& TAsyncStreamState::GetCurrentError()
 void TAsyncStreamState::StartOperation()
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YASSERT(IsOperationFinished);
+    Y_ASSERT(IsOperationFinished);
     IsOperationFinished = false;
 }
 
@@ -95,7 +95,7 @@ TFuture<void> TAsyncStreamState::GetOperationError()
     if (IsOperationFinished || !IsActive_) {
         return StaticError.ToFuture();
     } else {
-        YASSERT(!CurrentError);
+        Y_ASSERT(!CurrentError);
         CurrentError = NewPromise<void>();
         return CurrentError;
     }
@@ -105,13 +105,13 @@ void TAsyncStreamState::FinishOperation(const TError& error)
 {
     TGuard<TSpinLock> guard(SpinLock);
 
-    YASSERT(!IsOperationFinished);
+    Y_ASSERT(!IsOperationFinished);
     IsOperationFinished = true;
     if (error.IsOK()) {
         if (IsActive_ && CurrentError) {
             // Move constructor should eliminate redundant ref/unref.
             auto currentError(std::move(CurrentError));
-            YASSERT(!CurrentError);
+            Y_ASSERT(!CurrentError);
             // Always release guard before setting future with
             // unknown subscribers.
             guard.Release();

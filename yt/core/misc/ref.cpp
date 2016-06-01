@@ -45,14 +45,14 @@ TSharedRef::TStringHolder::~TStringHolder()
 
 void TSharedRef::TStringHolder::InitializeTracking(TRefCountedTypeCookie cookie)
 {
-    YASSERT(Cookie == NullRefCountedTypeCookie);
+    Y_ASSERT(Cookie == NullRefCountedTypeCookie);
     Cookie = cookie;
     TRefCountedTracker::Get()->Allocate(Cookie, Data.length());
 }
 
 void TSharedRef::TStringHolder::FinalizeTracking()
 {
-    YASSERT(Cookie != NullRefCountedTypeCookie);
+    Y_ASSERT(Cookie != NullRefCountedTypeCookie);
     TRefCountedTracker::Get()->Free(Cookie, Data.length());
 }
 
@@ -89,7 +89,7 @@ size_t GetPageSize()
 size_t RoundUpToPage(size_t bytes)
 {
     static const size_t PageSize = NSystemInfo::GetPageSize();
-    YASSERT((PageSize & (PageSize - 1)) == 0);
+    Y_ASSERT((PageSize & (PageSize - 1)) == 0);
     return (bytes + PageSize - 1) & (~(PageSize - 1));
 }
 
@@ -142,7 +142,7 @@ public:
 
     const TSharedRef& operator [] (int index) const
     {
-        YASSERT(index >= 0 && index < Size());
+        Y_ASSERT(index >= 0 && index < Size());
         return Parts[index];
     }
 
@@ -266,7 +266,7 @@ bool TSharedRefArray::Empty() const
 
 const TSharedRef& TSharedRefArray::operator[](int index) const
 {
-    YASSERT(Impl_);
+    Y_ASSERT(Impl_);
     return (*Impl_)[index];
 }
 

@@ -152,7 +152,7 @@ bool TWritingValueConsumer::GetAllowUnknownColumns() const
 
 void TWritingValueConsumer::OnBeginRow()
 {
-    YASSERT(Values_.empty());
+    Y_ASSERT(Values_.empty());
 }
 
 void TWritingValueConsumer::OnValue(const TUnversionedValue& value)

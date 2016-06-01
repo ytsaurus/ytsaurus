@@ -217,7 +217,7 @@ const TCellPeerDescriptor& GetBackupTabletPeerDescriptor(
     const TCellDescriptor& cellDescriptor,
     const TCellPeerDescriptor& primaryPeerDescriptor)
 {
-    YASSERT(cellDescriptor.Peers.size() > 1);
+    Y_ASSERT(cellDescriptor.Peers.size() > 1);
     const auto& peers = cellDescriptor.Peers;
     int primaryIndex = &primaryPeerDescriptor - cellDescriptor.Peers.data();
     int randomIndex = RandomNumber(peers.size() - 1);
@@ -448,6 +448,8 @@ private:
 
         auto tableSchema = path.GetSchema();
 
+        // XXX(sandello): Merge mark (to make non-empty commit).
+
         TDataSplit result;
         SetObjectId(&result, info->TableId);
         SetTableSchema(&result, tableSchema.Get(info->Schema));
@@ -671,7 +673,7 @@ private:
             } else {
                 for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
                     const auto& tabletInfo = *it;
-                    YASSERT(upperBound > tabletInfo->PivotKey);
+                    Y_ASSERT(upperBound > tabletInfo->PivotKey);
 
                     const auto& address = getAddress(tabletInfo);
 
