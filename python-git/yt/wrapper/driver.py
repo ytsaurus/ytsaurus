@@ -2,7 +2,7 @@
 import http_driver
 import native_driver
 from common import bool_to_string, YtError
-from config import get_option, get_backend_type
+from config import get_option, get_config, get_backend_type
 from format import create_format
 
 import yt.yson as yson
@@ -54,10 +54,12 @@ def make_formatted_request(command_name, params, format, **kwargs):
     # None format means that we want parsed output (as YSON structure) instead of string.
     # Yson parser is too slow, so we request result in JsonFormat and then convert it to YSON structure.
 
+    client = kwargs.get("client", None)
+
     has_yson_bindings = (yson.TYPE == "BINARY")
     response_should_be_json = format is None and not has_yson_bindings
     if format is None:
-        if has_yson_bindings:
+        if get_config(client)["force_using_yson_for_formatted_requests"] or has_yson_bindings:
             params["output_format"] = "yson"
         else:
             params["output_format"] = "json"

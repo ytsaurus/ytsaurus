@@ -39,8 +39,8 @@ die() {
 }
 
 check() {
-    local first="`echo -e "$1"`"
-    local second="`echo -e "$2"`"
+    local first="$(echo -e "$1")"
+    local second="$(echo -e "$2")"
     [ "${first}" = "${second}" ] || die "Test fail $1 does not equal $2"
 }
 
@@ -68,25 +68,25 @@ test_cypress_commands()
         echo $(python -c "import sys; sys.stdout.write('$yson_str'.replace(';}', '}').replace(';>', '>'))")
     }
 
-    check "" "`./yt list //home/wrapper_test`"
-    check "" "`./yt find //home/wrapper_test --name "xxx"`"
+    check "" "$(./yt list //home/wrapper_test)"
+    check "" "$(./yt find //home/wrapper_test --name "xxx")"
 
-    ./yt set //home/wrapper_test/folder {}
-    check "" "`./yt list //home/wrapper_test/folder`"
-    check "folder" "`./yt list //home/wrapper_test`"
-    check "{\"folder\"={}}" "$(fix_yson_repr `./yt get //home/wrapper_test --format "<format=text>yson"`)"
-    check "" "`./yt find //home/wrapper_test --name "xxx"`"
-    check "//home/wrapper_test/folder" "`./yt find //home/wrapper_test --name "folder"`"
+    ./yt set //home/wrapper_test/folder "{}"
+    check "" "$(./yt list //home/wrapper_test/folder)"
+    check "folder" "$(./yt list //home/wrapper_test)"
+    check "{\"folder\"={}}" "$(fix_yson_repr $(./yt get //home/wrapper_test --format "<format=text>yson"))"
+    check "" "$(./yt find //home/wrapper_test --name "xxx")"
+    check "//home/wrapper_test/folder" "$(./yt find //home/wrapper_test --name "folder")"
 
     ./yt set //home/wrapper_test/folder/@attr '<a=b>c'
-    check  '<"a"="b">"c"' "$(fix_yson_repr `./yt get //home/wrapper_test/folder/@attr --format '<format=text>yson'`)"
+    check  '<"a"="b">"c"' "$(fix_yson_repr $(./yt get //home/wrapper_test/folder/@attr --format '<format=text>yson'))"
 
     ./yt set //home/wrapper_test/folder/@attr '{"attr": 10}' --format json
-    check '{"attr":10}' `./yt get //home/wrapper_test/folder/@attr --format json`
+    check '{"attr":10}' $(./yt get //home/wrapper_test/folder/@attr --format json)
 
     ./yt create file //home/wrapper_test/file_with_attrs --attributes "{testattr=1;other=2}" --ignore-existing
-    check "//home/wrapper_test/file_with_attrs" "`./yt find //home/wrapper_test --attribute-filter "testattr=1"`"
-    check "" "`./yt find //home/wrapper_test --attribute-filter "attr=1"`"
+    check "//home/wrapper_test/file_with_attrs" "$(./yt find //home/wrapper_test --attribute-filter "testattr=1")"
+    check "" "$(./yt find //home/wrapper_test --attribute-filter "attr=1")"
 }
 
 test_concatenate()
@@ -103,10 +103,10 @@ test_concatenate()
 test_table_commands()
 {
     ./yt create table //home/wrapper_test/test_table
-    check "" "`./yt read //home/wrapper_test/test_table --format dsv`"
+    check "" "$(./yt read //home/wrapper_test/test_table --format dsv)"
 
     echo -e "value=y\nvalue=x\n" | ./yt write //home/wrapper_test/test_table --format dsv
-    check "`echo -e "value=y\nvalue=x\n"`" "`./yt read //home/wrapper_test/test_table --format dsv`"
+    check "$(echo -e "value=y\nvalue=x\n")" "$(./yt read //home/wrapper_test/test_table --format dsv)"
 }
 
 # download and upload file, use it in map operation
@@ -117,17 +117,17 @@ test_file_commands()
 
     cat $SANDBOX_DIR/script | ./yt upload //home/wrapper_test/script --executable
 
-    check "grep x" "`./yt download //home/wrapper_test/script`"
+    check "grep x" "$(./yt download //home/wrapper_test/script)"
 
     echo -e "value=y\nvalue=x\n" | ./yt write //home/wrapper_test/input_table --format dsv
 
     ./yt map "./script" --src //home/wrapper_test/input_table --dst //home/wrapper_test/output_table \
         --file //home/wrapper_test/script --format dsv
-    check "value=x\n" "`./yt read //home/wrapper_test/output_table --format dsv`"
+    check "value=x\n" "$(./yt read //home/wrapper_test/output_table --format dsv)"
 
     ./yt map "./script" --src //home/wrapper_test/input_table --dst //home/wrapper_test/output_table \
         --local-file $SANDBOX_DIR/script --format dsv
-    check "value=x\n" "`./yt read //home/wrapper_test/output_table --format dsv`"
+    check "value=x\n" "$(./yt read //home/wrapper_test/output_table --format dsv)"
 
     rm -f $SANDBOX_DIR/script
 }
@@ -135,19 +135,19 @@ test_file_commands()
 test_copy_move_link()
 {
     ./yt create table //home/wrapper_test/table
-    check "table" "`./yt list //home/wrapper_test`"
+    check "table" "$(./yt list //home/wrapper_test)"
 
     ./yt copy //home/wrapper_test/table //home/wrapper_test/other_table
-    check $'other_table\ntable' "`./yt list //home/wrapper_test | sort`"
+    check $'other_table\ntable' "$(./yt list //home/wrapper_test | sort)"
 
     ./yt remove //home/wrapper_test/table
-    check "other_table" "`./yt list //home/wrapper_test`"
+    check "other_table" "$(./yt list //home/wrapper_test)"
 
     ./yt move //home/wrapper_test/other_table //home/wrapper_test/table
-    check "table" "`./yt list //home/wrapper_test`"
+    check "table" "$(./yt list //home/wrapper_test)"
 
     ./yt link //home/wrapper_test/table //home/wrapper_test/other_table
-    check $'other_table\ntable' "`./yt list //home/wrapper_test | sort`"
+    check $'other_table\ntable' "$(./yt list //home/wrapper_test | sort)"
 
     ./yt remove //home/wrapper_test/table
     check_failed "./yt read //home/wrapper_test/other_table --format dsv"
@@ -165,10 +165,10 @@ test_map_reduce()
 {
     export YT_TABULAR_DATA_FORMAT="dsv"
     echo -e "value=1\nvalue=2" | ./yt write //home/wrapper_test/input_table
-    check "2" `./yt get //home/wrapper_test/input_table/@row_count`
+    check "2" "$(./yt get //home/wrapper_test/input_table/@row_count)"
 
     ./yt map-reduce --mapper cat --reducer "grep 2" --src //home/wrapper_test/input_table --dst //home/wrapper_test/input_table --reduce-by value
-    check "1" `./yt get //home/wrapper_test/input_table/@row_count`
+    check "1" "$(./yt get //home/wrapper_test/input_table/@row_count)"
     unset YT_TABULAR_DATA_FORMAT
 }
 
@@ -183,16 +183,16 @@ test_users()
     ./yt create user --attribute '{name=test_user}'
     ./yt create group --attribute '{name=test_group}'
 
-    check "[]" `./yt get //sys/groups/test_group/@members --format '<format=text>yson'`
+    check "[]" "$(./yt get //sys/groups/test_group/@members --format '<format=text>yson')"
 
     ./yt add-member test_user test_group
-    check  '["test_user"]' "$(fix_yson_repr `./yt get //sys/groups/test_group/@members --format '<format=text>yson'`)"
+    check  '["test_user"]' "$(fix_yson_repr $(./yt get //sys/groups/test_group/@members --format '<format=text>yson'))"
 
     ./yt set "//home/wrapper_test/@acl/end" "{action=allow;subjects=[test_group];permissions=[write]}"
     ./yt check-permission test_user write "//home/wrapper_test" | grep allow
 
     ./yt remove-member test_user test_group
-    check "[]" `./yt get //sys/groups/test_group/@members --format '<format=text>yson'`
+    check "[]" "$(./yt get //sys/groups/test_group/@members --format '<format=text>yson')"
 
     ./yt remove //sys/users/test_user
 }
@@ -304,7 +304,7 @@ test_hybrid_arguments()
 
 test_async_operations() {
     export YT_TABULAR_DATA_FORMAT="dsv"
-    echo -e "x=1\n" | ./yt write //home/wrapper_test/input_table --format dsv
+    echo -e "x=1\n" | ./yt write //home/wrapper_test/input_table
     map_op=$(./yt map "tr 1 2" --src //home/wrapper_test/input_table --dst //home/wrapper_test/map_output --async)
 
     sort_op=$(./yt sort --src //home/wrapper_test/input_table --dst //home/wrapper_test/sort_output --sort-by "x" --async)
@@ -333,6 +333,18 @@ test_async_operations() {
     unset YT_TABULAR_DATA_FORMAT
 }
 
+test_json_structured_format() {
+    export YT_STRUCTURED_DATA_FORMAT="json"
+
+    ./yt set //home/wrapper_test/folder "{}"
+    check "$(echo -e "{\n    \"folder\": {\n\n    }\n}\n\n")" "$(./yt get //home/wrapper_test)"
+
+    ./yt set //home/wrapper_test/folder/@attr '{"test": "value"}'
+    check  "$(echo -e "{\n    \"test\": \"value\"\n}\n\n")" "$(./yt get //home/wrapper_test/folder/@attr)"
+
+    unset YT_STRUCTURED_FORMAT
+}
+
 tear_down
 run_test test_table_commands
 run_test test_cypress_commands
@@ -346,3 +358,4 @@ run_test test_sorted_by
 run_test test_transactions
 run_test test_hybrid_arguments
 run_test test_async_operations
+run_test test_json_structured_format
