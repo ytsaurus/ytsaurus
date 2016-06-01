@@ -88,10 +88,6 @@ public:
 
         TFairShareContext context(schedulingContext, RootElementSnapshot->GetTreeSize());
 
-        for (const auto& job : schedulingContext->RunningJobs()) {
-            context.JobToOperationElement[job] = FindOperationElement(job->GetOperationId());
-        }
-
         DoScheduleJobs(context, RootElementSnapshot);
     }
 
@@ -360,6 +356,8 @@ private:
     void DoScheduleJobs(TFairShareContext& context, TRootElementPtr rootElement)
     {
         const auto& schedulingContext = context.SchedulingContext;
+
+        rootElement->BuildJobToOperationMapping(context);
 
         auto profileTimings = [&] (
             TProfilingCounters& counters,
