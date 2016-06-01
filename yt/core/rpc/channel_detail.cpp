@@ -12,7 +12,7 @@ namespace NRpc {
 TChannelWrapper::TChannelWrapper(IChannelPtr underlyingChannel)
     : UnderlyingChannel_(std::move(underlyingChannel))
 {
-    YASSERT(UnderlyingChannel_);
+    Y_ASSERT(UnderlyingChannel_);
 }
 
 const Stroka& TChannelWrapper::GetEndpointDescription() const

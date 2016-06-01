@@ -1,6 +1,9 @@
 IF(YMAKE)
   SET(CMAKE_CURRENT_LIST_DIR .)
+  SET(YT_ABI 17_5)
 ENDIF()
+
+SET(PROTO_NAMESPACE yt/${YT_ABI})
 
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/buffered_stream.cpp
@@ -32,8 +35,8 @@ SRCS(
 
 PEERDIR(
   contrib/libs/pycxx
-  yt/core
-  yt/ytlib
+  yt/${YT_ABI}/core
+  yt/${YT_ABI}/ytlib
 )
 
 PY_REGISTER(yson_lib)

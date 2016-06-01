@@ -30,7 +30,7 @@ TClientRequest::TClientRequest(
     , Heavy_(false)
     , Channel_(std::move(channel))
 {
-    YASSERT(Channel_);
+    Y_ASSERT(Channel_);
 
     Header_.set_service(service);
     Header_.set_method(method);
@@ -214,18 +214,18 @@ TClientResponse::TClientResponse(TClientContextPtr clientContext)
 
 TSharedRefArray TClientResponse::GetResponseMessage() const
 {
-    YASSERT(ResponseMessage_);
+    Y_ASSERT(ResponseMessage_);
     return ResponseMessage_;
 }
 
 void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 {
-    YASSERT(responseMessage);
-    YASSERT(!ResponseMessage_);
+    Y_ASSERT(responseMessage);
+    Y_ASSERT(!ResponseMessage_);
 
     ResponseMessage_ = std::move(responseMessage);
 
-    YASSERT(ResponseMessage_.Size() >= 2);
+    Y_ASSERT(ResponseMessage_.Size() >= 2);
 
     DeserializeBody(ResponseMessage_[1]);
 
@@ -246,7 +246,7 @@ void TClientResponse::HandleAcknowledgement()
 void TClientResponse::HandleResponse(TSharedRefArray message)
 {
     auto prevState = State_.exchange(EState::Done);
-    YASSERT(prevState == EState::Sent || prevState == EState::Ack);
+    Y_ASSERT(prevState == EState::Sent || prevState == EState::Ack);
 
     TDispatcher::Get()->GetInvoker()->Invoke(
         BIND(&TClientResponse::DoHandleResponse, MakeStrong(this), Passed(std::move(message))));
@@ -302,7 +302,7 @@ TProxyBase::TProxyBase(
     , ServiceName_(serviceName)
     , ProtocolVersion_(protocolVersion)
 {
-    YASSERT(Channel_);
+    Y_ASSERT(Channel_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

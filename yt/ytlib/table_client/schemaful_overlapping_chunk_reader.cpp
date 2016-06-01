@@ -104,7 +104,7 @@ bool TSchemafulOverlappingLookupChunkReader::Read(std::vector<TUnversionedRow>* 
 {
     auto readRow = [&] () {
         for (auto& session : Sessions_) {
-            YASSERT(session.CurrentRow >= session.Rows.begin() && session.CurrentRow < session.Rows.end());
+            Y_ASSERT(session.CurrentRow >= session.Rows.begin() && session.CurrentRow < session.Rows.end());
             RowMerger_->AddPartialRow(*session.CurrentRow);
 
             if (++session.CurrentRow == session.Rows.end()) {
@@ -258,8 +258,8 @@ private:
 
         bool operator()(const TSession* lhs, const TSession* rhs) const
         {
-            YASSERT(lhs->CurrentRow >= lhs->Rows.begin() && lhs->CurrentRow < lhs->Rows.end());
-            YASSERT(rhs->CurrentRow >= rhs->Rows.begin() && rhs->CurrentRow < rhs->Rows.end());
+            Y_ASSERT(lhs->CurrentRow >= lhs->Rows.begin() && lhs->CurrentRow < lhs->Rows.end());
+            Y_ASSERT(rhs->CurrentRow >= rhs->Rows.begin() && rhs->CurrentRow < rhs->Rows.end());
             return KeyComparer_(
                 lhs->CurrentRow->BeginKeys(),
                 lhs->CurrentRow->EndKeys(),
@@ -367,14 +367,14 @@ bool TSchemafulOverlappingRangeChunkReaderBase<TRowMerger>::DoRead(
     std::vector<typename TRowMerger::TResultingRow>* rows)
 {
     auto readRow = [&] () {
-        YASSERT(AwaitingSessions_.empty());
+        Y_ASSERT(AwaitingSessions_.empty());
 
         CurrentKey_.clear();
 
         while (ActiveSessions_.begin() != ActiveSessions_.end()) {
             auto* session = *ActiveSessions_.begin();
             auto partialRow = *session->CurrentRow;
-            YASSERT(session->CurrentRow >= session->Rows.begin() && session->CurrentRow < session->Rows.end());
+            Y_ASSERT(session->CurrentRow >= session->Rows.begin() && session->CurrentRow < session->Rows.end());
 
             if (!CurrentKey_.empty()) {
                 if (KeyComparer_(
@@ -415,7 +415,7 @@ bool TSchemafulOverlappingRangeChunkReaderBase<TRowMerger>::DoRead(
                 ExtractHeap(ActiveSessions_.begin(), ActiveSessions_.end(), SessionComparer_);
                 ActiveSessions_.pop_back();
             } else {
-                YASSERT(KeyComparer_(
+                Y_ASSERT(KeyComparer_(
                     partialRow.BeginKeys(), partialRow.EndKeys(),
                     session->CurrentRow->BeginKeys(), session->CurrentRow->EndKeys()) < 0);
                 AdjustHeapFront(ActiveSessions_.begin(), ActiveSessions_.end(), SessionComparer_);
@@ -442,7 +442,7 @@ bool TSchemafulOverlappingRangeChunkReaderBase<TRowMerger>::DoRead(
 
     if (finished) {
         for (const auto& session : Sessions_) {
-            YASSERT(!session.Reader);
+            Y_ASSERT(!session.Reader);
         }
     }
 

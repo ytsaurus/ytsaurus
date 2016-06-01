@@ -625,8 +625,8 @@ public:
 
     void StageChunkTree(TChunkTree* chunkTree, TTransaction* transaction, TAccount* account)
     {
-        YASSERT(transaction);
-        YASSERT(!chunkTree->IsStaged());
+        Y_ASSERT(transaction);
+        Y_ASSERT(!chunkTree->IsStaged());
 
         chunkTree->SetStagingTransaction(transaction);
 
@@ -1120,7 +1120,7 @@ private:
             }
 
             if (chunk->IsForeign()) {
-                YASSERT(local);
+                Y_ASSERT(local);
                 auto& crossCellRequest = getCrossCellRequest(chunk);
                 *crossCellRequest.add_updates() = update;
             } else {
@@ -1879,7 +1879,7 @@ private:
 
     void OnChunkSealed(TChunk* chunk)
     {
-        YASSERT(chunk->IsSealed());
+        Y_ASSERT(chunk->IsSealed());
 
         if (chunk->Parents().empty())
             return;

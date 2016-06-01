@@ -48,7 +48,7 @@ int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TSortedDynam
 
 int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TRowWrapper rhs) const
 {
-    YASSERT(rhs.Row.GetCount() >= KeyColumnCount_);
+    Y_ASSERT(rhs.Row.GetCount() >= KeyColumnCount_);
     return DUComparer_(
         lhs.GetNullKeyMask(),
         lhs.BeginKeys(),

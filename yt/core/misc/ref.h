@@ -52,7 +52,7 @@ public:
     //! Creates a TRef for a part of existing range.
     TRef Slice(size_t startOffset, size_t endOffset) const
     {
-        YASSERT(endOffset >= startOffset && endOffset <= Size());
+        Y_ASSERT(endOffset >= startOffset && endOffset <= Size());
         return TRef(Begin() + startOffset, endOffset - startOffset);
     }
 
@@ -125,7 +125,7 @@ public:
     //! Creates a TMutableRef for a part of existing range.
     TMutableRef Slice(size_t startOffset, size_t endOffset) const
     {
-        YASSERT(endOffset >= startOffset && endOffset <= Size());
+        Y_ASSERT(endOffset >= startOffset && endOffset <= Size());
         return TMutableRef(Begin() + startOffset, endOffset - startOffset);
     }
 };
@@ -228,15 +228,15 @@ public:
     //! Creates a TSharedRef for a part of existing range.
     TSharedRef Slice(size_t startOffset, size_t endOffset) const
     {
-        YASSERT(endOffset >= startOffset && endOffset <= Size());
+        Y_ASSERT(endOffset >= startOffset && endOffset <= Size());
         return TSharedRef(Begin() + startOffset, endOffset - startOffset, Holder_);
     }
 
     //! Creates a TMutableRef for a part of existing range.
     TSharedRef Slice(const void* begin, const void* end) const
     {
-        YASSERT(begin >= Begin());
-        YASSERT(end <= End());
+        Y_ASSERT(begin >= Begin());
+        Y_ASSERT(end <= End());
         return TSharedRef(begin, end, Holder_);
     }
 
@@ -382,15 +382,15 @@ public:
     //! Creates a reference for a part of existing range.
     TSharedMutableRef Slice(size_t startOffset, size_t endOffset) const
     {
-        YASSERT(endOffset >= startOffset && endOffset <= Size());
+        Y_ASSERT(endOffset >= startOffset && endOffset <= Size());
         return TSharedMutableRef(Begin() + startOffset, endOffset - startOffset, Holder_);
     }
 
     //! Creates a reference for a part of existing range.
     TSharedMutableRef Slice(void* begin, void* end) const
     {
-        YASSERT(begin >= Begin());
-        YASSERT(end <= End());
+        Y_ASSERT(begin >= Begin());
+        Y_ASSERT(end <= End());
         return TSharedMutableRef(begin, end, Holder_);
     }
 

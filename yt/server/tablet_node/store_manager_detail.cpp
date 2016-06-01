@@ -110,7 +110,7 @@ void TStoreManagerBase::AddStore(IStorePtr store, bool onMount)
 
 void TStoreManagerBase::RemoveStore(IStorePtr store)
 {
-    YASSERT(store->GetStoreState() != EStoreState::ActiveDynamic);
+    Y_ASSERT(store->GetStoreState() != EStoreState::ActiveDynamic);
 
     store->SetStoreState(EStoreState::Removed);
     Tablet_->RemoveStore(store);

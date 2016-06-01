@@ -88,7 +88,7 @@ public:
         if (attributes) {
             for (const auto& pair : attributes->Attributes()) {
                 // Attribute cannot be empty (i.e. deleted) in null transaction.
-                YASSERT(pair.second);
+                Y_ASSERT(pair.second);
                 keys.push_back(pair.first);
             }
         }
@@ -109,7 +109,7 @@ public:
         }
 
         // Attribute cannot be empty (i.e. deleted) in null transaction.
-        YASSERT(it->second);
+        Y_ASSERT(it->second);
         return it->second;
     }
 
@@ -140,7 +140,7 @@ public:
         }
 
         // Attribute cannot be empty (i.e. deleted) in null transaction.
-        YASSERT(it->second);
+        Y_ASSERT(it->second);
         attributes->Attributes().erase(it);
         if (attributes->Attributes().empty()) {
             object->ClearAttributes();
@@ -164,9 +164,9 @@ TObjectProxyBase::TObjectProxyBase(
     , Metadata_(metadata)
     , Object_(object)
 {
-    YASSERT(Bootstrap_);
-    YASSERT(Metadata_);
-    YASSERT(Object_);
+    Y_ASSERT(Bootstrap_);
+    Y_ASSERT(Metadata_);
+    Y_ASSERT(Object_);
 }
 
 const TObjectId& TObjectProxyBase::GetId() const
@@ -778,7 +778,6 @@ void TNontemplateNonversionedObjectProxyBase::ValidateRemoval()
 void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* /*request*/, TRspRemove* /*response*/, TCtxRemovePtr context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
-
     ValidateRemoval();
 
     if (Object_->GetObjectRefCounter() != 1) {

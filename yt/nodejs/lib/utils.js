@@ -342,15 +342,23 @@ exports.NullStream.prototype.destroy = function(){};
 
 exports.Pause = function(slave)
 {
-    var on_data, on_end, events = [];
+    var on_data, on_end, on_error, on_close, events = [];
     var dummy = function() {};
 
-    slave.on("data", on_data = function(data, encoding) {
+    slave.on("data", on_data = function pause_on_data(data, encoding) {
         events.push(["data", data, encoding]);
     });
 
-    slave.on("end", on_end = function(data, encoding) {
+    slave.on("end", on_end = function pause_on_end(data, encoding) {
         events.push(["end", data, encoding]);
+    });
+
+    slave.on("error", on_error = function pause_on_error(ex) {
+        events.push(["error", ex]);
+    });
+
+    slave.on("close", on_close = function pause_on_close() {
+        events.push(["close"]);
     });
 
     slave.pause();
@@ -359,6 +367,8 @@ exports.Pause = function(slave)
         dispose: function() {
             slave.removeListener("data", on_data);
             slave.removeListener("end", on_end);
+            slave.removeListener("error", on_error);
+            slave.removeListener("close", on_close);
         },
         unpause: function() {
             this.dispose();
@@ -366,7 +376,6 @@ exports.Pause = function(slave)
                 slave.emit.apply(slave, events[i]);
             }
             slave.resume();
-
             this.dispose = dummy;
             this.unpause = dummy;
         }
@@ -403,7 +412,7 @@ exports.TaggedLogger = function(logger, delta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-exports.MemoryInputStream = function(data)
+exports.MemoryInputStream = function MemoryInputStream(data)
 {
     stream.Stream.call(this);
 
@@ -449,25 +458,25 @@ exports.MemoryInputStream = function(data)
 
 util.inherits(exports.MemoryInputStream, stream.Stream);
 
-exports.MemoryInputStream.prototype.pause = function()
+exports.MemoryInputStream.prototype.pause = function MemoryInputStream$pause()
 {
     this.paused = true;
 };
 
-exports.MemoryInputStream.prototype.resume = function()
+exports.MemoryInputStream.prototype.resume = function MemoryInputStream$resume()
 {
     this.paused = false;
     this._flow();
 };
 
-exports.MemoryInputStream.prototype.destroy = function()
+exports.MemoryInputStream.prototype.destroy = function MemoryInputStream$destroy()
 {
     this.readable = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-exports.MemoryOutputStream = function()
+exports.MemoryOutputStream = function MemoryOutputStream()
 {
     stream.Stream.call(this);
 
@@ -479,23 +488,26 @@ exports.MemoryOutputStream = function()
 
 util.inherits(exports.MemoryOutputStream, stream.Stream);
 
-exports.MemoryOutputStream.prototype.write = function(chunk)
+exports.MemoryOutputStream.prototype.write = function MemoryOutputStream$write(chunk)
 {
-    if (chunk) {
+    if (this.writable && chunk) {
         this.chunks.push(chunk);
     }
     return true;
 };
 
-exports.MemoryOutputStream.prototype.end = function(chunk)
+exports.MemoryOutputStream.prototype.end = function MemoryOutputStream$end(chunk)
 {
-    if (chunk) {
+    if (this.writable && chunk) {
         this.chunks.push(chunk);
     }
     this.writable = false;
 };
 
-exports.MemoryOutputStream.prototype.destroy = function(){};
+exports.MemoryOutputStream.prototype.destroy = function MemoryOutputStream$destroy()
+{
+    this.writable = false;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

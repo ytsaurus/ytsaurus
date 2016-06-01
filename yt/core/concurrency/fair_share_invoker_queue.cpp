@@ -39,7 +39,7 @@ void TFairShareInvokerQueue::SetThreadId(TThreadId threadId)
 
 IInvokerPtr TFairShareInvokerQueue::GetInvoker(int index)
 {
-    YASSERT(0 <= index && index < static_cast<int>(Buckets_.size()));
+    Y_ASSERT(0 <= index && index < static_cast<int>(Buckets_.size()));
     return Buckets_[index].Queue;
 }
 
@@ -107,7 +107,7 @@ TFairShareInvokerQueue::TBucket* TFairShareInvokerQueue::GetStarvingBucket()
     TBucket* minBucket = nullptr;
     for (auto& bucket : Buckets_) {
         const auto& queue = bucket.Queue;
-        YASSERT(queue);
+        Y_ASSERT(queue);
         if (!queue->IsEmpty()) {
             if (bucket.ExcessTime < minExcess) {
                 minExcess = bucket.ExcessTime;

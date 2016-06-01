@@ -61,7 +61,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
 
 void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
-    YASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
+    Y_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
     auto attributeKeys = request->has_attributes()
         ? MakeNullable(NYT::FromProto<std::vector<Stroka>>(request->attributes().keys()))
@@ -331,13 +331,13 @@ public:
 
     virtual std::unique_ptr<ITransactionalNodeFactory> CreateFactory() const override
     {
-        YASSERT(Parent_);
+        Y_ASSERT(Parent_);
         return Parent_->CreateFactory();
     }
 
     virtual INodeResolverPtr GetResolver() const override
     {
-        YASSERT(Parent_);
+        Y_ASSERT(Parent_);
         return Parent_->GetResolver();
     }
 

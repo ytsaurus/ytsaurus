@@ -156,7 +156,7 @@ private:
 
     DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, Seal)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         DeclareMutating();
 

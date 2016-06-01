@@ -13,8 +13,8 @@ TPersistentQueueIterator<T, ChunkSize>::TPersistentQueueIterator()
 template <class T, size_t ChunkSize>
 TPersistentQueueIterator<T, ChunkSize>& TPersistentQueueIterator<T, ChunkSize>::operator++()
 {
-    YASSERT(CurrentChunk_);
-    YASSERT(CurrentIndex_ >= 0 && CurrentIndex_ < ChunkSize);
+    Y_ASSERT(CurrentChunk_);
+    Y_ASSERT(CurrentIndex_ >= 0 && CurrentIndex_ < ChunkSize);
 
     ++CurrentIndex_;
     if (CurrentIndex_ == ChunkSize) {
@@ -129,7 +129,7 @@ T TPersistentQueue<T, ChunkSize>::Dequeue()
     auto& tail = this->Tail_;
     auto& size = this->Size_;
 
-    YASSERT(size != 0);
+    Y_ASSERT(size != 0);
 
     auto result = std::move(tail.CurrentChunk_->Elements[tail.CurrentIndex_++]);
     --size;

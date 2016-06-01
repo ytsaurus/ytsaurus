@@ -18,8 +18,8 @@ Y_FORCE_INLINE TChunkReplica::TChunkReplica(ui32 value)
 Y_FORCE_INLINE TChunkReplica::TChunkReplica(int nodeId, int index)
     : Value(nodeId | (index << 24))
 {
-    YASSERT(nodeId >= 0 && nodeId <= NNodeTrackerClient::MaxNodeId);
-    YASSERT(index >= 0 && index < ChunkReplicaIndexBound);
+    Y_ASSERT(nodeId >= 0 && nodeId <= NNodeTrackerClient::MaxNodeId);
+    Y_ASSERT(index >= 0 && index < ChunkReplicaIndexBound);
 }
 
 Y_FORCE_INLINE int TChunkReplica::GetNodeId() const

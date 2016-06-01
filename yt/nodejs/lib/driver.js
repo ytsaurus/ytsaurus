@@ -22,8 +22,25 @@ var _SIMPLE_EXECUTE_FORMAT = binding.CreateV8Node("json");
 
 function promisinglyPipe(source, destination)
 {
-    return new Q(function(resolve, reject) {
+    return new Q(function promisinglyPipe$impl(resolve, reject) {
         var debug = __DBG.Tagged("Pipe");
+        var clean = false;
+
+        function resolve_and_clear() {
+            if (!clean) {
+                cleanup();
+                clean = true;
+            }
+            resolve();
+        }
+
+        function reject_and_clear(err) {
+            if (!clean) {
+                cleanup();
+                clean = true;
+            }
+            reject(err);
+        }
 
         function on_data(chunk) {
             if (destination.writable && destination.write(chunk) === false) {
@@ -34,7 +51,6 @@ function promisinglyPipe(source, destination)
         source.on("data", on_data);
 
         function on_drain() {
-            debug("on_drain");
             if (source.readable) {
                 source.resume();
             }
@@ -44,20 +60,19 @@ function promisinglyPipe(source, destination)
 
         function on_end() {
             debug("Piping has ended");
-            resolve();
+            resolve_and_clear();
         }
         function on_source_close() {
             debug("Source stream has been closed");
-            reject(new YtError("Source stream in the pipe has been closed"));
+            reject_and_clear(new YtError("Source stream in the pipe has been closed"));
         }
         function on_destination_close() {
             debug("Destination stream has been closed");
-            reject(new YtError("Destination stream in the pipe has been closed"));
+            reject_and_clear(new YtError("Destination stream in the pipe has been closed"));
         }
         function on_error(err) {
             debug("An error occured");
-            cleanup();
-            reject(err);
+            reject_and_clear(err);
         }
 
         source.on("end", on_end);
@@ -86,12 +101,6 @@ function promisinglyPipe(source, destination)
             destination.removeListener("end", cleanup);
             destination.removeListener("close", cleanup);
         }
-
-        source.on("end", cleanup);
-        source.on("close", cleanup);
-
-        destination.on("end", cleanup);
-        destination.on("close", cleanup);
 
         destination.emit("pipe", source);
     });
@@ -124,7 +133,7 @@ function YtDriver(config, echo)
     this.__DBG("New");
 }
 
-YtDriver.prototype.execute = function(
+YtDriver.prototype.execute = function YtDriver$execute(
     name, user,
     input_stream, input_compression,
     output_stream, output_compression,
@@ -134,82 +143,81 @@ YtDriver.prototype.execute = function(
 {
     this.__DBG("execute");
 
+    // Avoid capturing |this| to avoid back references.
     var wrapped_input_stream = new YtWritableStream(this.low_watermark, this.high_watermark);
     var wrapped_output_stream = new YtReadableStream(this.high_watermark);
+    var binding = this._binding;
+    var debug = this.__DBG;
 
-    var deferred = Q.defer();
-    var self = this;
-
-    var wrapped_stream_flags = { destroyed: false };
-    function destroy_wrapped_streams() {
-        if (!wrapped_stream_flags.destroyed) {
-            wrapped_input_stream.destroy();
-            wrapped_output_stream.destroy();
-            wrapped_stream_flags.destroyed = true;
-        }
+    // Setup pipes.
+    function destroyer() {
+        wrapped_input_stream.destroy();
+        wrapped_output_stream.destroy();
+        input_stream.destroy();
+        output_stream.destroy();
     }
 
     var input_pipe_promise = promisinglyPipe(input_stream, wrapped_input_stream)
         .then(
-        function() {
-            self.__DBG("execute -> input_pipe_promise has been resolved");
+        function ip_promise_then() {
+            debug("execute -> input_pipe_promise has been resolved");
+            // Close input stream here to allow driver command to terminate.
             wrapped_input_stream.end();
         },
-        function(err) {
-            self.__DBG("execute -> input_pipe_promise has been rejected");
-            input_stream.destroy();
-            destroy_wrapped_streams();
-            deferred.reject(new YtError("Input pipe has been canceled", err));
+        function ip_promise_catch(err) {
+            debug("execute -> input_pipe_promise has been rejected");
+            destroyer();
+            return Q.reject(new YtError("Input pipe has been canceled", err));
         });
 
     var output_pipe_promise = promisinglyPipe(wrapped_output_stream, output_stream)
         .then(
-        function() {
+        function op_promise_then() {
+            debug("execute -> output_pipe_promise has been resolved");
             // Do not close |output_stream| here since we have to write out trailers.
-            self.__DBG("execute -> output_pipe_promise has been resolved");
         },
-        function(err) {
-            self.__DBG("execute -> output_pipe_promise has been rejected");
-            output_stream.destroy();
-            destroy_wrapped_streams();
-            deferred.reject(new YtError("Output pipe has been canceled", err));
+        function op_promise_catch(err) {
+            debug("execute -> output_pipe_promise has been rejected");
+            destroyer();
+            return Q.reject(new YtError("Output pipe has been canceled", err));
         });
 
-    var canceler = this._binding.Execute(name, user,
-        wrapped_input_stream._binding, input_compression,
-        wrapped_output_stream._binding, output_compression,
-        parameters, request_id,
-        function(result) {
-            self.__DBG("execute -> (on-execute callback)");
-
-            if (typeof(result_interceptor) === "function") {
-                self.__DBG("execute -> (interceptor)");
-                try {
-                    result_interceptor(result);
-                } catch (ex) {
+    var driver_promise = new Q(function YtDriver$execute$impl(resolve, reject) {
+        var future = binding.Execute(name, user,
+            wrapped_input_stream._binding, input_compression,
+            wrapped_output_stream._binding, output_compression,
+            parameters, request_id,
+            function(result) {
+                debug("execute -> (on-execute callback)");
+                if (typeof(result_interceptor) === "function") {
+                    debug("execute -> (interceptor)");
+                    try {
+                        result_interceptor(result);
+                    } catch (ex) {
+                    }
                 }
-            }
+                if (result.code === 0) {
+                    debug("execute -> execute_promise has been resolved");
+                    resolve(Array.prototype.slice.call(arguments));
+                } else {
+                    debug("execute -> execute_promise has been rejected");
+                    reject(result);
+                }
+            },
+            response_parameters_consumer);
 
-            if (result.code === 0) {
-                self.__DBG("execute -> execute_promise has been resolved");
-                deferred.resolve(Array.prototype.slice.call(arguments));
-            } else {
-                self.__DBG("execute -> execute_promise has been rejected");
-                destroy_wrapped_streams();
-                deferred.reject(result);
-            }
-        },
-        response_parameters_consumer);
+        input_pipe_promise.error(function() { future.Cancel(); });
 
-    input_pipe_promise.error(function() { canceler.Cancel(); });
-
-    output_pipe_promise.error(function() { canceler.Cancel(); });
+        output_pipe_promise.error(function() { future.Cancel(); });
+    });
 
     process.nextTick(function() { pause.unpause(); });
 
     return Q
-        .all([ deferred.promise, input_pipe_promise, output_pipe_promise ])
-        .spread(function(result, ir, or) { return result; });
+        .all([driver_promise, input_pipe_promise, output_pipe_promise])
+        .spread(function spread(result, ir, or) {
+            return result;
+        });
 };
 
 YtDriver.prototype.executeSimple = function(name, parameters, data)
