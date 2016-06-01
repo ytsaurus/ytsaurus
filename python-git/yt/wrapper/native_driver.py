@@ -1,9 +1,10 @@
 from config import get_config, get_option, set_option
-from common import require
+from common import require, generate_int64
 from errors import YtResponseError, YtError
 from string_iter_io import StringIterIO
 from response_stream import ResponseStream
 
+import yt.logger as logger
 import yt.yson as yson
 try:
     import yt_driver_bindings
@@ -74,11 +75,16 @@ def make_request(command_name, params,
         else:
             output_stream = BufferedStream(size=get_config(client)["read_buffer_size"])
 
+    request_id = generate_int64(get_option("_random_generator", client))
+
+    logger.debug("Executing command %s with parameters %s and id %s", command_name, repr(params), hex(request_id)[2:])
+
     response = driver.execute(
         Request(command_name=command_name,
                 parameters=params,
                 input_stream=input_stream,
-                output_stream=output_stream))
+                output_stream=output_stream,
+                id=request_id))
 
     if return_content:
         response.wait()

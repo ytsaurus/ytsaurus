@@ -131,6 +131,10 @@ def get_backoff(request_start_time, request_timeout, is_request_heavy, attempt, 
     else:
         raise YtError("Incorrect retry backoff policy '{0}'".format(backoff_config["policy"]))
 
+def generate_int64(generator=None):
+    if generator is None:
+        generator = random
+    return generator.randint(-2**63, 2**63 - 1)
 
 def generate_uuid(generator=None):
     if generator is None:
