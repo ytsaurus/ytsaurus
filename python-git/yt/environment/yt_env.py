@@ -545,9 +545,10 @@ class YTEnv(object):
 
     def start_all_masters(self, master_name, secondary_master_cell_count, start_secondary_master_cells):
         self.start_masters(master_name)
-        if not start_secondary_master_cells:
-            return
+        if start_secondary_master_cells:
+            self.start_secondary_master_cells(master_name, secondary_master_cell_count)
 
+    def start_secondary_master_cells(self, master_name, secondary_master_cell_count):
         for i in xrange(secondary_master_cell_count):
             self.start_masters(self._get_master_name(master_name, i + 1), secondary=True)
 
