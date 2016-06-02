@@ -93,7 +93,7 @@ bool TLinearProbeHashTable::Insert(ui64 index, TStamp stamp, TValue value)
 
 void TLinearProbeHashTable::Find(ui64 index, TStamp stamp, SmallVectorImpl<TValue>* result) const
 {
-    YASSERT(stamp != 0);
+    Y_ASSERT(stamp != 0);
 
     ui64 wrappedIndex = index % HashTable_.size();
     for (int currentIndex = 0; currentIndex < HashTable_.size(); ++currentIndex) {

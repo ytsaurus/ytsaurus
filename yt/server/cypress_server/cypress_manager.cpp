@@ -347,7 +347,7 @@ private:
 
     void RegisterCreatedNode(TCypressNodeBase* trunkNode)
     {
-        YASSERT(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(trunkNode);
         CreatedNodes_.push_back(trunkNode);

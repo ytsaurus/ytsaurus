@@ -475,7 +475,7 @@ private:
             while (!BucketHeap_.empty()) {
                 int bucketIndex = BucketHeap_.front();
                 if (SortedIndexes_.size() > 0) {
-                    YASSERT(!SortComparer_(Buckets_[bucketIndex], SortedIndexes_.back()));
+                    Y_ASSERT(!SortComparer_(Buckets_[bucketIndex], SortedIndexes_.back()));
                 }
                 SortedIndexes_.push_back(Buckets_[bucketIndex]);
                 ++bucketIndex;

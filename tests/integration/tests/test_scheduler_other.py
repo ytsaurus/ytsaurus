@@ -155,21 +155,6 @@ class TestSchedulerOther(YTEnvSetup):
         with pytest.raises(YtError):
             op2.track()
 
-    def test_pool_resource_limits(self):
-        resource_limits = {"cpu": 1, "memory": 100, "network": 10}
-        create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
-
-        while True:
-            pools = get("//sys/scheduler/orchid/scheduler/pools")
-            if "test_pool" in pools:
-                break
-            time.sleep(0.1)
-
-        stats = get("//sys/scheduler/orchid/scheduler")
-        pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
-        for resource, limit in resource_limits.iteritems():
-            assert pool_resource_limits[resource] == limit
-
     def test_fifo_default(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out1")
@@ -1135,3 +1120,56 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
         op.resume_jobs()
         op.track()
+
+class TestResourceLimits(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    def test_resource_limits(self):
+        resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
+        create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
+
+        while True:
+            pools = get("//sys/scheduler/orchid/scheduler/pools")
+            if "test_pool" in pools:
+                break
+            time.sleep(0.1)
+
+        stats = get("//sys/scheduler/orchid/scheduler")
+        pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
+        for resource, limit in resource_limits.iteritems():
+            assert pool_resource_limits[resource] == limit
+
+        data = [{"foo": i} for i in xrange(3)]
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", data)
+
+        memory_limit = 30 * 1024 * 1024
+
+        testing_options = {"scheduling_delay": 500}
+
+        op = map(
+            dont_track=True,
+            command="sleep 5",
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={"job_count": 3, "pool": "test_pool", "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
+        time.sleep(3)
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/running".format(op.id)) == 1
+        op.abort()
+
+        op = map(
+            dont_track=True,
+            command="sleep 5",
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={"job_count": 3, "resource_limits": resource_limits, "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
+        time.sleep(3)
+        op_limits = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))
+        for resource, limit in resource_limits.iteritems():
+            assert op_limits[resource] == limit
+        assert get("//sys/operations/{0}/@progress/jobs/running".format(op.id)) == 1
+        op.abort()
+

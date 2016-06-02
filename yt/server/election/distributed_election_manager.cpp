@@ -861,7 +861,7 @@ void TDistributedElectionManager::OnPeerReconfigured(TPeerId peerId)
 
 DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, PingFollower)
 {
-    UNUSED(response);
+    Y_UNUSED(response);
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto epochId = FromProto<TEpochId>(request->epoch_id());
@@ -902,7 +902,7 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, PingFollower)
 
 DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, GetStatus)
 {
-    UNUSED(request);
+    Y_UNUSED(request);
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     context->SetRequestInfo();

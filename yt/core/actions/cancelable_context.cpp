@@ -22,7 +22,7 @@ public:
 
     virtual void Invoke(const TClosure& callback) override
     {
-        YASSERT(callback);
+        Y_ASSERT(callback);
 
         if (Context_->Canceled_)
             return;

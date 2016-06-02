@@ -266,7 +266,6 @@ private:
     {
         Stroka Name;
         TCallback<void(TLoadContext&)> Callback;
-        TCompositeAutomatonPart* Part = nullptr;
     };
 
     std::vector<TCompositeAutomatonPart*> Parts_;

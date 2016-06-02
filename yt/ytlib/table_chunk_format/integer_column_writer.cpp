@@ -78,10 +78,10 @@ protected:
 
         for (i64 index = 0; index < Values_.size(); ++index) {
             if (nullBitmap[index]) {
-                YASSERT(Values_[index] == 0);
+                Y_ASSERT(Values_[index] == 0);
             } else {
                 auto dictionaryIndex = DistinctValues_[Values_[index]];
-                YASSERT(dictionaryIndex <= dictionary.size() + 1);
+                Y_ASSERT(dictionaryIndex <= dictionary.size() + 1);
 
                 if (dictionaryIndex > dictionary.size()) {
                     dictionary.push_back(Values_[index] - MinValue_);
@@ -386,7 +386,7 @@ private:
                 Values_[runIndex] = 0;
             } else {
                 auto dictionaryIndex = DistinctValues_[Values_[runBegin]];
-                YASSERT(dictionaryIndex <= dictionary.size() + 1);
+                Y_ASSERT(dictionaryIndex <= dictionary.size() + 1);
 
                 if (dictionaryIndex > dictionary.size()) {
                     dictionary.push_back(Values_[runBegin] - MinValue_);

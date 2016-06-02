@@ -144,24 +144,24 @@ void TYPathServiceBase::WriteAttributesFragment(
     \
     void TSupports##method::method##Attribute(const TYPath& path, TReq##method* request, TRsp##method* response, TCtx##method##Ptr context) \
     { \
-        UNUSED(path); \
-        UNUSED(request); \
-        UNUSED(response); \
+        Y_UNUSED(path); \
+        Y_UNUSED(request); \
+        Y_UNUSED(response); \
         ThrowMethodNotSupported(context->GetMethod(), Stroka("attribute")); \
     } \
     \
     void TSupports##method::method##Self(TReq##method* request, TRsp##method* response, TCtx##method##Ptr context) \
     { \
-        UNUSED(request); \
-        UNUSED(response); \
+        Y_UNUSED(request); \
+        Y_UNUSED(response); \
         ThrowMethodNotSupported(context->GetMethod(), Stroka("self")); \
     } \
     \
     void TSupports##method::method##Recursive(const TYPath& path, TReq##method* request, TRsp##method* response, TCtx##method##Ptr context) \
     { \
-        UNUSED(path); \
-        UNUSED(request); \
-        UNUSED(response); \
+        Y_UNUSED(path); \
+        Y_UNUSED(request); \
+        Y_UNUSED(response); \
         ThrowMethodNotSupported(context->GetMethod(), Stroka("recursive")); \
     }
 
@@ -1274,7 +1274,7 @@ IServiceContextPtr CreateYPathContext(
     const Stroka& requestInfo,
     const Stroka& responseInfo)
 {
-    YASSERT(requestMessage);
+    Y_ASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
         std::move(requestMessage),
@@ -1292,7 +1292,7 @@ IServiceContextPtr CreateYPathContext(
     const Stroka& requestInfo,
     const Stroka& responseInfo)
 {
-    YASSERT(requestMessage);
+    Y_ASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
         std::move(requestHeader),

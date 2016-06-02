@@ -144,7 +144,7 @@ inline size_t TCompressedUnsignedVectorReader<T, Scan>::GetByteSize() const
 template <class T, bool Scan>
 T TCompressedUnsignedVectorReader<T, Scan>::GetValue(size_t index) const
 {
-    YASSERT(index < Size_);
+    Y_ASSERT(index < Size_);
 
     if (Width_ == 0) {
         return 0;

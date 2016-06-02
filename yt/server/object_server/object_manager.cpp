@@ -320,7 +320,7 @@ public:
         const auto& id = proxy->GetId();
         if (IsVersionedType(TypeFromId(id))) {
             auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(proxy.Get());
-            YASSERT(nodeProxy);
+            Y_ASSERT(nodeProxy);
             auto resolver = nodeProxy->GetResolver();
             return resolver->GetPath(nodeProxy);
         } else {
@@ -501,7 +501,7 @@ const IObjectTypeHandlerPtr& TObjectManager::GetHandler(EObjectType type) const
     VERIFY_THREAD_AFFINITY_ANY();
 
     const auto& handler = FindHandler(type);
-    YASSERT(handler);
+    Y_ASSERT(handler);
     return handler;
 }
 
@@ -532,7 +532,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
     auto id = hintId
         ? hintId
         : MakeRegularId(type, cellTag, version, hash);
-    YASSERT(TypeFromId(id) == type);
+    Y_ASSERT(TypeFromId(id) == type);
 
     ++CreatedObjects_;
 
@@ -542,7 +542,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
 int TObjectManager::RefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(object->IsTrunk());
+    Y_ASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
     LOG_TRACE_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
@@ -560,7 +560,7 @@ int TObjectManager::RefObject(TObjectBase* object)
 int TObjectManager::UnrefObject(TObjectBase* object, int count)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(object->IsTrunk());
+    Y_ASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject(count);
     LOG_TRACE_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
@@ -592,8 +592,8 @@ int TObjectManager::UnrefObject(TObjectBase* object, int count)
 int TObjectManager::WeakRefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(!IsRecovery());
-    YASSERT(object->IsTrunk());
+    Y_ASSERT(!IsRecovery());
+    Y_ASSERT(object->IsTrunk());
 
     int weakRefCounter = object->WeakRefObject();
     if (weakRefCounter == 1) {
@@ -605,8 +605,8 @@ int TObjectManager::WeakRefObject(TObjectBase* object)
 int TObjectManager::WeakUnrefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(!IsRecovery());
-    YASSERT(object->IsTrunk());
+    Y_ASSERT(!IsRecovery());
+    Y_ASSERT(object->IsTrunk());
 
     int weakRefCounter = object->WeakUnrefObject();
     if (weakRefCounter == 0) {

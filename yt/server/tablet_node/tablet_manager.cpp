@@ -787,7 +787,7 @@ private:
     void HandleRowsOnLeaderExecuteWriteAtomic(TTransaction* transaction, TPrelockedRows& rows, int rowCount)
     {
         for (int index = 0; index < rowCount; ++index) {
-            YASSERT(!rows.empty());
+            Y_ASSERT(!rows.empty());
             auto rowRef = rows.front();
             rows.pop();
             if (ValidateAndDiscardRowRef(rowRef)) {

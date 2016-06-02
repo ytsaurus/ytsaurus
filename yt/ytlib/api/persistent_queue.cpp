@@ -269,13 +269,13 @@ private:
         for (auto row : rowset->GetRows()) {
             TStateTableRow stateRow;
 
-            YASSERT(row[tabletIndexColumnId].Type == EValueType::Int64);
+            Y_ASSERT(row[tabletIndexColumnId].Type == EValueType::Int64);
             stateRow.TabletIndex = static_cast<int>(row[tabletIndexColumnId].Data.Int64);
 
-            YASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
+            Y_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
             stateRow.RowIndex = row[rowIndexColumnId].Data.Int64;
 
-            YASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
+            Y_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
             stateRow.State = ERowState(row[stateColumnId].Data.Int64);
 
             rows.push_back(stateRow);
@@ -457,7 +457,7 @@ private:
         };
 
         for (auto row : rows) {
-            YASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
+            Y_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
             auto queryRowIndex = row[rowIndexColumnId].Data.Int64;
             if (queryRowIndex != currentRowIndex) {
                 OnStateFailed(state);
@@ -600,7 +600,7 @@ private:
                     auto rowIndexColumnId = rowset->GetNameTable()->GetId(TStateTable::RowIndexColumnName);
                     for (auto row : rowset->GetRows()) {
                         const auto& value = row[rowIndexColumnId];
-                        YASSERT(value.Type == EValueType::Int64);
+                        Y_ASSERT(value.Type == EValueType::Int64);
                         rowIndexes.push_back(value.Data.Int64);
                     }
                     OnStateFailed(state);
@@ -629,7 +629,7 @@ private:
 
                     auto rowIndexColumnId = rowset->GetNameTable()->GetId(TStateTable::RowIndexColumnName);
 
-                    YASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
+                    Y_ASSERT(row[rowIndexColumnId].Type == EValueType::Int64);
                     auto rowIndex = row[rowIndexColumnId].Data.Int64;
 
                     if (rowIndex >= batch.BeginRowIndex) {

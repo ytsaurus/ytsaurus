@@ -202,7 +202,7 @@ public:
 
     void pop()
     {
-        YASSERT(Size_ > 0);
+        Y_ASSERT(Size_ > 0);
         Head_->T::~T();
         ++Head_;
         if (Head_ == End_) {

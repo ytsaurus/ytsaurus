@@ -191,7 +191,7 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateSnapshotReader()
 
 TOrderedDynamicRow TOrderedDynamicStore::WriteRow(TTransaction* /*transaction*/, TUnversionedRow row)
 {
-    YASSERT(Atomicity_ == EAtomicity::Full);
+    Y_ASSERT(Atomicity_ == EAtomicity::Full);
 
     auto result = DoWriteSchemalessRow(row);
 
@@ -235,7 +235,7 @@ void TOrderedDynamicStore::AbortRow(TTransaction* /*transaction*/, TOrderedDynam
 TOrderedDynamicRow TOrderedDynamicStore::GetRow(i64 rowIndex)
 {
     rowIndex -= StartingRowIndex_;
-    YASSERT(rowIndex >= 0 && rowIndex < StoreRowCount_);
+    Y_ASSERT(rowIndex >= 0 && rowIndex < StoreRowCount_);
     int segmentIndex;
     i64 segmentRowIndex;
     if (rowIndex < (1ULL << InitialOrderedDynamicSegmentIndex)) {

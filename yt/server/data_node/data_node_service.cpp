@@ -125,7 +125,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
@@ -195,7 +195,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PingSession)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
@@ -211,7 +211,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PutBlocks)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         int firstBlockIndex = request->first_block_index();
@@ -255,7 +255,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SendBlocks)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         int firstBlockIndex = request->first_block_index();
@@ -289,7 +289,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FlushBlocks)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         int blockIndex = request->block_index();

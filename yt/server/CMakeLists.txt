@@ -1,6 +1,9 @@
 IF(YMAKE)
   SET(CMAKE_CURRENT_LIST_DIR .)
+  SET(YT_ABI 17_5)
 ENDIF()
+
+SET(PROTO_NAMESPACE yt/${YT_ABI})
 
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/cell_master/automaton.cpp
@@ -366,8 +369,8 @@ PEERDIR(
   contrib/libs/sparsehash
   library/streams/lz
   library/http/server
-  yt/ytlib
-  yt/contrib/tclap
+  yt/${YT_ABI}/ytlib
+  yt/${YT_ABI}/contrib/tclap
 )
 
 END()
