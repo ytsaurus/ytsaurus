@@ -69,7 +69,11 @@ def make_request(command_name, params,
     output_stream = None
     if description.output_type() != "null":
         if "output_format" not in params:
-            params["output_format"] = "json"
+            has_yson_bindings = (yson.TYPE == "BINARY")
+            if get_config(client)["force_using_yson_for_formatted_requests"] or has_yson_bindings:
+                params["output_format"] = "yson"
+            else:
+                params["output_format"] = "json"
         if return_content:
             output_stream = StringIO()
         else:
