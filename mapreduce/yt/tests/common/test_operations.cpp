@@ -35,7 +35,7 @@ public:
     const char* Input() { return "tmp/input"; }
     const char* Output() { return "tmp/output"; }
 
-    void PrintTable(const char* tableName) {
+    void PrintTable(const Stroka& tableName) {
         TClient client(Server());
         TTable table(client, tableName);
         Cout << "IsSorted: " << table.IsSorted() << Endl;
@@ -48,10 +48,10 @@ public:
         }
     }
 
-    void SimpleFillTable(const char* tableName) {
+    void SimpleFillTable(const Stroka& tableName) {
         TClient client(Server());
         TUpdate update(client, tableName);
-        for (int i = 0; i < 228; ++i) {
+        for (int i = 0; i < 10; ++i) {
             auto key = Sprintf("%d", (i * 3) % 19);
             auto subkey = Sprintf("%d", (i * 7) % 13);
             auto value = "0";
@@ -141,20 +141,17 @@ YT_TEST(TOperation, MultiMerge) {
     Server().Merge(srcs, Output());
     PrintTable(Output());
 }
-/*
+
 YT_TEST(TOperation, CopyN2N) {
     constexpr auto TABLE_SORTED = "tmp/src/sorted";
     constexpr auto TABLE_SIMPLE = "tmp/src/simple";
     { // Prepare source tables.
-        {
-            TClient client(Server());
-            TUpdate update0(client, TABLE_SORTED);
-            TUpdate update1(client, TABLE_SIMPLE);
-        }
+        SimpleFillTable(TABLE_SIMPLE);
+        SimpleFillTable(TABLE_SORTED);
         Server().Sort(TABLE_SORTED);
     }
 
-    const yvector<std::pair<EUpdateMode>> modes = {
+    const yvector<std::pair<EUpdateMode, EUpdateMode>> modes = {
         { UM_REPLACE, UM_REPLACE },
         { UM_REPLACE, UM_APPEND },
         { UM_REPLACE, UM_SORTED },
@@ -168,9 +165,9 @@ YT_TEST(TOperation, CopyN2N) {
         { UM_SORTED, UM_SORTED },
     };
 
-    for (int i = 0; i < modes.size(); ++i) {
-        auto DST1 = Sprintf("tmp/dst/test1/case%dunexist1", i);
-        auto DST2 = Sprintf("tmp/dst/test1/case%dunexist2", i);
+    for (size_t i = 0; i < modes.size(); ++i) {
+        auto DST1 = Sprintf("tmp/dst/test1/case%dunexist1", (int) i);
+        auto DST2 = Sprintf("tmp/dst/test1/case%dunexist2", (int) i);
 
         TCopyParams params;
         params.SrcTables.push_back(TInputTable(TABLE_SORTED));
@@ -190,10 +187,9 @@ YT_TEST(TOperation, CopyN2N) {
         Server().Drop(DST2);
     }
 
-
-    for (int i = 0; i < modes.size(); ++i) {
-        auto DST1 = Sprintf("tmp/dst/test2/case%dsimple1", i);
-        auto DST2 = Sprintf("tmp/dst/test2/case%dsimple2", i);
+    for (size_t i = 0; i < modes.size(); ++i) {
+        auto DST1 = Sprintf("tmp/dst/test2/case%dsimple1", (int) i);
+        auto DST2 = Sprintf("tmp/dst/test2/case%dsimple2", (int) i);
 
         SimpleFillTable(DST1);
         SimpleFillTable(DST2);
@@ -216,10 +212,9 @@ YT_TEST(TOperation, CopyN2N) {
         Server().Drop(DST2);
     }
 
-
-    for (int i = 0; i < modes.size(); ++i) {
-        auto DST1 = Sprintf("tmp/dst/test3/case%dsorted1", i);
-        auto DST2 = Sprintf("tmp/dst/test3/case%dsorted2", i);
+    for (size_t i = 0; i < modes.size(); ++i) {
+        auto DST1 = Sprintf("tmp/dst/test3/case%dsorted1", (int) i);
+        auto DST2 = Sprintf("tmp/dst/test3/case%dsorted2", (int) i);
 
         SimpleFillTable(DST1);
         SimpleFillTable(DST2);
@@ -244,6 +239,6 @@ YT_TEST(TOperation, CopyN2N) {
         Server().Drop(DST2);
     }
 }
-*/
+
 } // namespace NCommonTest
 } // namespace NYT
