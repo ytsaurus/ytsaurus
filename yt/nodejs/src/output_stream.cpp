@@ -138,11 +138,12 @@ Handle<Value> TOutputStreamWrap::DoPull()
     size_t count = 0;
 
     // Short-path for destroyed streams.
-    if (IsDestroyed_) {
-        return parts;
-    }
 
     ProtectedUpdateAndNotifyWriter([&] () {
+        if (IsDestroyed_) {
+            return;
+        }
+
         YCHECK(IsFlowing_);
 
         for (int i = 0; i < MaxPartsPerPull; ++i) {
