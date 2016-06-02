@@ -260,7 +260,7 @@ ui32 TSortedStoreManager::ComputeLockMask(TUnversionedRow row)
         int lockIndex = columnIndexToLockIndex[value.Id];
         lockMask |= (1 << lockIndex);
     }
-    YASSERT(lockMask != 0);
+    Y_ASSERT(lockMask != 0);
     return lockMask;
 }
 

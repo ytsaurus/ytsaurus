@@ -51,6 +51,10 @@ using namespace NTabletClient;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+const NLogging::TLogger Logger("PythonDriver");
+
+///////////////////////////////////////////////////////////////////////////////
+
 Py::Exception CreateYtError(const NYT::TError& error)
 {
     auto ytErrorClass = Py::Callable(
@@ -148,6 +152,13 @@ public:
             request.AuthenticatedUser = ConvertToStroka(Py::String(user));
         }
 
+        if (pyRequest.hasAttr("id")) {
+            auto id = GetAttr(pyRequest, "id");
+            if (!id.isNone()) {
+                request.Id = Py::Int(id).asLongLong();
+            }
+        }
+
         auto inputStreamObj = GetAttr(pyRequest, "input_stream");
         if (!inputStreamObj.isNone()) {
             std::unique_ptr<TInputStreamWrap> inputStream(new TInputStreamWrap(inputStreamObj));
@@ -179,6 +190,11 @@ public:
                 }));
             }
         } CATCH;
+
+        LOG_DEBUG("Request execution started (RequestId: %v, CommandName: %v, User: %v)",
+            request.Id,
+            request.CommandName,
+            request.AuthenticatedUser);
 
         return pythonResponse;
     }
@@ -347,7 +363,7 @@ public:
 extern "C" EXPORT_SYMBOL void initdriver_lib()
 {
     static const auto* driver = new NYT::NPython::TDriverModule;
-    UNUSED(driver);
+    Y_UNUSED(driver);
 }
 
 // This symbol is required for debug version.

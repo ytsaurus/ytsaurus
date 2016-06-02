@@ -49,7 +49,7 @@ void TSimpleVersionedBlockWriter::WriteRow(
     int keyOffset = KeyStream_.GetSize();
     for (const auto* it = row.BeginKeys(); it != row.EndKeys(); ++it) {
         const auto& value = *it;
-        YASSERT(value.Type == EValueType::Null || value.Type == Schema_.Columns()[value.Id].Type);
+        Y_ASSERT(value.Type == EValueType::Null || value.Type == Schema_.Columns()[value.Id].Type);
         WriteValue(KeyStream_, KeyNullFlags_, nullAggregateFlags, value);
     }
 
@@ -80,8 +80,8 @@ void TSimpleVersionedBlockWriter::WriteRow(
     ui32 valueCount = 0;
     while (valueCount < row.GetValueCount()) {
         const auto& value = row.BeginValues()[valueCount];
-        YASSERT(value.Type == EValueType::Null || value.Type == Schema_.Columns()[value.Id].Type);
-        YASSERT(lastId <= value.Id);
+        Y_ASSERT(value.Type == EValueType::Null || value.Type == Schema_.Columns()[value.Id].Type);
+        Y_ASSERT(lastId <= value.Id);
         if (lastId < value.Id) {
             WritePod(KeyStream_, valueCount);
             ++lastId;
@@ -97,7 +97,7 @@ void TSimpleVersionedBlockWriter::WriteRow(
         ++lastId;
     }
 
-    YASSERT(KeyStream_.GetSize() - keyOffset == GetKeySize(KeyColumnCount_, SchemaColumnCount_));
+    Y_ASSERT(KeyStream_.GetSize() - keyOffset == GetKeySize(KeyColumnCount_, SchemaColumnCount_));
     WritePadding(KeyStream_, GetKeySize(KeyColumnCount_, SchemaColumnCount_));
 }
 

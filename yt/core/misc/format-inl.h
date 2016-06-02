@@ -463,7 +463,7 @@ void FormatImpl(
         if (*current == '\0')
             break;
 
-        YASSERT(*current == '%');
+        Y_ASSERT(*current == '%');
         ++current;
 
         if (*current == '%') {
@@ -564,7 +564,7 @@ struct TArgFormatterImpl<IndexBase, THeadArg, TTailArgs...>
 
     void operator() (size_t index, TStringBuilder* builder, const TStringBuf& format) const
     {
-        YASSERT(index >= IndexBase);
+        Y_ASSERT(index >= IndexBase);
         if (index == IndexBase) {
             FormatValue(builder, HeadArg, format);
         } else {

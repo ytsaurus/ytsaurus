@@ -88,7 +88,7 @@ void TTokenizer::ThrowMalformedEscapeSequence(const TStringBuf& context)
 
 const char* TTokenizer::AdvanceEscaped(const char* current)
 {
-    YASSERT(*current == '\\');
+    Y_ASSERT(*current == '\\');
     ++current;
 
     if (current == Input_.end()) {

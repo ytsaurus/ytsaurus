@@ -872,7 +872,7 @@ void TMasterConnector::UpdateRack(const TNullable<Stroka>& rack)
 TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TCellTag cellTag)
 {
     auto it = ChunksDeltaMap_.find(cellTag);
-    YASSERT(it != ChunksDeltaMap_.end());
+    Y_ASSERT(it != ChunksDeltaMap_.end());
     return &it->second;
 }
 

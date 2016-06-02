@@ -88,17 +88,11 @@ TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
 {
     YCHECK(firstBlockIndex >= 0);
 
-    std::vector<TSharedRef> blocks;
-
     try {
-        NFS::ExpectIOErrors([&] () {
-            blocks = DoReadBlocks(firstBlockIndex, blockCount);
-        });
+        return MakeFuture(DoReadBlocks(firstBlockIndex, blockCount));
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TSharedRef>>(ex);
     }
-
-    return MakeFuture(std::move(blocks));
 }
 
 TFuture<TChunkMeta> TFileReader::GetMeta(
@@ -106,17 +100,11 @@ TFuture<TChunkMeta> TFileReader::GetMeta(
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {
-    TChunkMeta meta;
-
     try {
-        NFS::ExpectIOErrors([&] () {
-            meta = DoGetMeta(partitionTag, extensionTags);
-        });
+        return MakeFuture(DoGetMeta(partitionTag, extensionTags));
     } catch (const std::exception& ex) {
         return MakeFuture<TChunkMeta>(ex);
     }
-
-    return MakeFuture(std::move(meta));
 }
 
 TChunkId TFileReader::GetChunkId() const
@@ -199,8 +187,10 @@ TChunkMeta TFileReader::DoGetMeta(
 
     auto metaFileBlob = TSharedMutableRef::Allocate<TFileReaderMetaBufferTag>(metaFile.GetLength());
 
-    TBufferedFileInput metaFileInput(metaFile);
-    metaFileInput.Read(metaFileBlob.Begin(), metaFile.GetLength());
+    NFS::ExpectIOErrors([&] () {
+        TBufferedFileInput metaFileInput(metaFile);
+        metaFileInput.Read(metaFileBlob.Begin(), metaFile.GetLength());
+    });
 
     TChunkMetaHeader_2 metaHeader;
     TRef metaBlob;

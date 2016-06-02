@@ -740,7 +740,7 @@ public:
     void StageNode(TTransaction* transaction, TCypressNodeBase* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YASSERT(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         auto objectManager = Bootstrap_->GetObjectManager();
         transaction->StagedNodes().push_back(trunkNode);

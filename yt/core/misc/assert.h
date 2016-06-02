@@ -28,25 +28,25 @@ void AssertTrapImpl(
     ::NYT::NDetail::AssertTrapImpl(trapType, expr, __FILE__, __LINE__); \
     BUILTIN_UNREACHABLE() \
 
-#undef YASSERT
+#undef Y_ASSERT
 
 #ifdef NDEBUG
-    #define YASSERT(expr) \
+    #define Y_ASSERT(expr) \
         do { \
             if (false) { \
                 (void) (expr); \
             } \
         } while (false)
 #else
-    #define YASSERT(expr) \
+    #define Y_ASSERT(expr) \
         do { \
             if (Y_UNLIKELY(!(expr))) { \
-                ASSERT_TRAP("YASSERT", #expr); \
+                ASSERT_TRAP("Y_ASSERT", #expr); \
             } \
         } while (false)
 #endif
 
-//! Same as |YASSERT| but evaluates and checks the expression in both release and debug mode.
+//! Same as |Y_ASSERT| but evaluates and checks the expression in both release and debug mode.
 #define YCHECK(expr) \
     do { \
         if (Y_UNLIKELY(!(expr))) { \

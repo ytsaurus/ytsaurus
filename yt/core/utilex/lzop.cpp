@@ -237,21 +237,21 @@ void TLzopCompress::TImpl::DoFinish()
 
 void TLzopCompress::TImpl::EnsureCompressedSpace(size_t demand)
 {
-    YASSERT(demand <= CompressedBuffer.Capacity());
+    Y_ASSERT(demand <= CompressedBuffer.Capacity());
     if (CompressedBuffer.Avail() < demand) {
         Slave->Write(CompressedBuffer.Data(), CompressedBuffer.Size());
         CompressedBuffer.Clear();
     }
-    YASSERT(demand <= CompressedBuffer.Avail());
+    Y_ASSERT(demand <= CompressedBuffer.Avail());
 }
 
 void TLzopCompress::TImpl::EnsureUncompressedSpace(size_t demand)
 {
-    YASSERT(demand <= UncompressedBuffer.Capacity());
+    Y_ASSERT(demand <= UncompressedBuffer.Capacity());
     if (UncompressedBuffer.Avail() < demand) {
         ProduceData();
     }
-    YASSERT(demand <= UncompressedBuffer.Avail());
+    Y_ASSERT(demand <= UncompressedBuffer.Avail());
 }
 
 void TLzopCompress::TImpl::ProduceHeader()

@@ -124,7 +124,7 @@ private:
 
             int currentNodeCount = 0;
             while (currentNodeCount < MaxNodesPerStep) {
-                YASSERT(!Stack_.empty());
+                Y_ASSERT(!Stack_.empty());
                 auto& entry = Stack_.back();
                 auto childIndex = entry.ChildIndex++;
                 if (childIndex >= entry.Children.size()) {

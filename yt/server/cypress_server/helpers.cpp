@@ -143,7 +143,7 @@ void DetachChild(
     TCypressNodeBase* child,
     bool unref)
 {
-    UNUSED(trunkParent);
+    Y_UNUSED(trunkParent);
 
     child->SetParent(nullptr);
 

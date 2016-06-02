@@ -772,10 +772,10 @@ void TDecoratedAutomaton::LogLeaderMutation(
     TFuture<TMutationResponse>* commitResult)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(recordData);
-    YASSERT(localFlushResult);
-    YASSERT(commitResult);
-    YASSERT(!RotatingChangelog_);
+    Y_ASSERT(recordData);
+    Y_ASSERT(localFlushResult);
+    Y_ASSERT(commitResult);
+    Y_ASSERT(!RotatingChangelog_);
 
     TPendingMutation pendingMutation;
     pendingMutation.Version = LoggedVersion_;
@@ -808,7 +808,7 @@ void TDecoratedAutomaton::LogFollowerMutation(
     TFuture<void>* logResult)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(!RotatingChangelog_);
+    Y_ASSERT(!RotatingChangelog_);
 
     TSharedRef mutationData;
     DeserializeMutationRecord(recordData, &MutationHeader_, &mutationData);

@@ -91,7 +91,7 @@ public:
         TPartitionSnapshotPtr currentPartitionSnapshot;
         int currentPartitionStartOffset = 0;
         for (int index = 0; index < LookupKeys_.Size(); ++index) {
-            YASSERT(index == 0 || LookupKeys_[index] >= LookupKeys_[index - 1]);
+            Y_ASSERT(index == 0 || LookupKeys_[index] >= LookupKeys_[index - 1]);
             auto key = LookupKeys_[index];
             ValidateServerKey(key, TabletSnapshot_->TableSchema);
             auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);

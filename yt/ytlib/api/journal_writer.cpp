@@ -866,7 +866,7 @@ private:
 
         TFuture<void> AppendToBatch(const TBatchPtr& batch, const TSharedRef& row)
         {
-            YASSERT(row);
+            Y_ASSERT(row);
             batch->Rows.push_back(row);
             batch->DataSize += row.Size();
             ++CurrentRowIndex_;
@@ -1008,7 +1008,7 @@ private:
             req->set_first_block_index(node->FirstPendingBlockIndex);
             req->set_flush_blocks(true);
 
-            YASSERT(node->InFlightBatches.empty());
+            Y_ASSERT(node->InFlightBatches.empty());
             while (flushRowCount <= Config_->MaxFlushRowCount &&
                    flushDataSize <= Config_->MaxFlushDataSize &&
                    !node->PendingBatches.empty())

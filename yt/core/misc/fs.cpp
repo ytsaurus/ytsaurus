@@ -372,8 +372,8 @@ Stroka NormalizePathSeparators(const Stroka& path)
 void SetExecutableMode(const Stroka& path, bool executable)
 {
 #ifdef _win_
-    UNUSED(path);
-    UNUSED(executable);
+    Y_UNUSED(path);
+    Y_UNUSED(executable);
 #else
     int mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
     if (executable) {

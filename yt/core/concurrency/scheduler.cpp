@@ -53,7 +53,7 @@ void Yield()
 
 void SwitchTo(IInvokerPtr invoker)
 {
-    YASSERT(invoker);
+    Y_ASSERT(invoker);
     GetCurrentScheduler()->SwitchTo(std::move(invoker));
 }
 

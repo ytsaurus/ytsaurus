@@ -100,7 +100,6 @@ void TCompositeAutomatonPart::RegisterLoader(
         }
         callback.Run(context);
     });
-    descriptor.Part = this;
     YCHECK(Automaton_->PartNameToLoaderDescriptor_.insert(std::make_pair(name, descriptor)).second);
 }
 

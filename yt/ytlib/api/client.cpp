@@ -236,7 +236,7 @@ const TCellPeerDescriptor& GetBackupTabletPeerDescriptor(
     const TCellDescriptor& cellDescriptor,
     const TCellPeerDescriptor& primaryPeerDescriptor)
 {
-    YASSERT(cellDescriptor.Peers.size() > 1);
+    Y_ASSERT(cellDescriptor.Peers.size() > 1);
     const auto& peers = cellDescriptor.Peers;
     int primaryIndex = &primaryPeerDescriptor - cellDescriptor.Peers.data();
     int randomIndex = RandomNumber(peers.size() - 1);
@@ -284,7 +284,7 @@ TTabletInfoPtr GetSortedTabletForRow(
     const TTableMountInfoPtr& tableInfo,
     NTableClient::TKey key)
 {
-    YASSERT(tableInfo->IsSorted());
+    Y_ASSERT(tableInfo->IsSorted());
 
     auto tabletInfo = tableInfo->GetTabletForRow(key);
     ValidateTabletMounted(tableInfo, tabletInfo);
@@ -297,12 +297,12 @@ TTabletInfoPtr GetOrderedTabletForRow(
     TNullable<int> tabletIndexColumnId,
     NTableClient::TKey key)
 {
-    YASSERT(!tableInfo->IsSorted());
+    Y_ASSERT(!tableInfo->IsSorted());
 
     int tabletIndex = -1;
     for (const auto& value : key) {
         if (tabletIndexColumnId && value.Id == *tabletIndexColumnId) {
-            YASSERT(value.Type == EValueType::Null || value.Type == EValueType::Int64);
+            Y_ASSERT(value.Type == EValueType::Null || value.Type == EValueType::Int64);
             if (value.Type == EValueType::Int64) {
                 tabletIndex = value.Data.Int64;
                 if (tabletIndex < 0 || tabletIndex >= tableInfo->Tablets.size()) {
@@ -752,7 +752,7 @@ private:
             } else {
                 for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
                     const auto& tabletInfo = *it;
-                    YASSERT(upperBound > tabletInfo->PivotKey);
+                    Y_ASSERT(upperBound > tabletInfo->PivotKey);
 
                     const auto& address = getAddress(tabletInfo);
 

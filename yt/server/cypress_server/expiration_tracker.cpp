@@ -64,7 +64,7 @@ void TExpirationTracker::Stop()
 void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(trunkNode->IsTrunk());
+    Y_ASSERT(trunkNode->IsTrunk());
 
     if (trunkNode->GetExpirationIterator()) {
         UnregisterNodeExpiration(trunkNode);
@@ -85,7 +85,7 @@ void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode
 void TExpirationTracker::OnNodeDestroyed(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(trunkNode->IsTrunk());
+    Y_ASSERT(trunkNode->IsTrunk());
 
     if (trunkNode->GetExpirationIterator()) {
         UnregisterNodeExpiration(trunkNode);
@@ -95,7 +95,7 @@ void TExpirationTracker::OnNodeDestroyed(TCypressNodeBase* trunkNode)
 void TExpirationTracker::OnNodeRemovalFailed(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(trunkNode->IsTrunk());
+    Y_ASSERT(trunkNode->IsTrunk());
 
     if (!trunkNode->GetExpirationIterator() && trunkNode->GetExpirationTime()) {
         RegisterNodeExpiration(trunkNode, TInstant::Now() + Config_->ExpirationBackoffTime);
@@ -131,7 +131,7 @@ void TExpirationTracker::OnCheck()
         const auto& pair = *it;
         auto expirationTime = pair.first;
         auto* trunkNode = pair.second;
-        YASSERT(*trunkNode->GetExpirationIterator() == it);
+        Y_ASSERT(*trunkNode->GetExpirationIterator() == it);
 
         if (expirationTime > now) {
             break;
