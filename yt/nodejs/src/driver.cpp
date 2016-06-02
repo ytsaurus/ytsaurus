@@ -113,6 +113,7 @@ private:
 
 class TExecuteRequest
     : public IAsyncRefCounted
+    , public TRefTracked<TExecuteRequest>
 {
 private:
     const bool Echo_;
