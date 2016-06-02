@@ -15,8 +15,7 @@ class TestMasterCellsSync(YTEnvSetup):
 
     def _check_true_for_secondary(self, check):
         if self.delayed_secondary_cells_start:
-            for i in xrange(self.Env.NUM_SECONDARY_MASTER_CELLS):
-                self.Env.start_masters("master_secondary_{0}".format(i))
+            self.Env.start_secondary_master_cells("master", self.Env.NUM_SECONDARY_MASTER_CELLS)
         try:
             multicell_sleep()
             for i in xrange(self.Env.NUM_SECONDARY_MASTER_CELLS):
