@@ -7,6 +7,8 @@ import json
 import struct
 from copy import deepcopy
 
+READ_CHUNK_SIZE = 128 * 1024 * 1024
+
 def merge_limits(table_path, limits):
     ranges = deepcopy(table_path.attributes.get("ranges", []))
 
@@ -56,6 +58,7 @@ def load(input_type):
 def read(proxy, token, config, transaction, format, table, input_type):
     # We should import yt here since it can be unpacked in from local archive.
     from yt.wrapper.client import Yt
+    from yt.wrapper.common import chunk_iter_stream
     import yt.wrapper as yt
 
     client = Yt(proxy, token=token, config=config)
@@ -65,7 +68,7 @@ def read(proxy, token, config, transaction, format, table, input_type):
             merged_table_path = merge_limits(table_path, limits)
             read_stream = client.read_table(merged_table_path, format=format, raw=True)
             # Restore row checks?
-            for chunk in read_stream:
+            for chunk in chunk_iter_stream(read_stream, READ_CHUNK_SIZE):
                 sys.stdout.write(chunk)
 
 def get_token(token_file):
