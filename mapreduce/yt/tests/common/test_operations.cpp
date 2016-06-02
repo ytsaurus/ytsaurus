@@ -38,12 +38,24 @@ public:
     void PrintTable(const char* tableName) {
         TClient client(Server());
         TTable table(client, tableName);
+        Cout << "IsSorted: " << table.IsSorted() << Endl;
         for (TTableIterator i = table.Begin(); i != table.End(); ++i) {
             Cout <<
                 "key = " << i.GetKey().AsStringBuf() <<
                 ", subkey = " << i.GetSubKey().AsStringBuf() <<
                 ", value = " << i.GetValue().AsStringBuf() <<
             Endl;
+        }
+    }
+
+    void SimpleFillTable(const char* tableName) {
+        TClient client(Server());
+        TUpdate update(client, tableName);
+        for (int i = 0; i < 228; ++i) {
+            auto key = Sprintf("%d", (i * 3) % 19);
+            auto subkey = Sprintf("%d", (i * 7) % 13);
+            auto value = "0";
+            update.AddSub(key, subkey, value);
         }
     }
 
@@ -62,98 +74,41 @@ private:
 
 YT_TEST(TOperation, IdMap)
 {
-    {
-        TClient client(Server());
-        TUpdate update(client, Input());
-        for (int i = 0; i < 8; ++i) {
-            auto key = Sprintf("%d", i);
-            auto subkey = Sprintf("%d", i * 2);
-            auto value = Sprintf("%d", i * 4);
-            update.AddSub(key, subkey, value);
-        }
-    }
+    SimpleFillTable(Input());
     Server().Map(Input(), Output(), new TIdMap);
     PrintTable(Output());
 }
 
 YT_TEST(TOperation, IdReduce)
 {
-    {
-        TClient client(Server());
-        TUpdate update(client, Input());
-        for (int i = 0; i < 8; ++i) {
-            auto key = Sprintf("%d", i);
-            auto subkey = Sprintf("%d", i * 2);
-            auto value = Sprintf("%d", i * 4);
-            update.AddSub(key, subkey, value);
-            update.AddSub(key, subkey, value);
-        }
-    }
+    SimpleFillTable(Input());
     Server().Reduce(Input(), Output(), new TIdReduce);
     PrintTable(Output());
 }
 
 YT_TEST(TOperation, SelfSort)
 {
-    {
-        TClient client(Server());
-        TUpdate update(client, Input());
-        for (int i = 0; i < 1024; ++i) {
-            auto key = Sprintf("%d", (i * 13) % 17);
-            auto subkey = Sprintf("%d", (i * 7) % 17);
-            auto value = "0"; // Use always const value because YT sorts by value too.
-            update.AddSub(key, subkey, value);
-            update.AddSub(subkey, key, value);
-        }
-    }
+    SimpleFillTable(Input());
     Server().Sort(Input());
     PrintTable(Input());
 }
 
 YT_TEST(TOperation, Sort)
 {
-    {
-        TClient client(Server());
-        TUpdate update(client, Input());
-        for (int i = 0; i < 1024; ++i) {
-            auto key = Sprintf("%d", (i * 13) % 17);
-            auto subkey = Sprintf("%d", (i * 7) % 17);
-            auto value = "0"; // Use always const value because YT sorts by value too.
-            update.AddSub(key, subkey, value);
-            update.AddSub(subkey, key, value);
-        }
-    }
+    SimpleFillTable(Input());
     Server().Sort(Input(), Output());
     PrintTable(Output());
 }
 
 YT_TEST(TOperation, IdMapIdReduce)
 {
-    {
-        TClient client(Server());
-        TUpdate update(client, Input());
-        for (int i = 0; i < 1024; ++i) {
-            auto key = Sprintf("%d", (i * 13) % 17);
-            auto subkey = Sprintf("%d", (i * 7) % 19);
-            auto value = "0";
-            update.AddSub(key, subkey, value);
-        }
-    }
+    SimpleFillTable(Input());
     Server().MapReduce(Input(), Output(), new TIdMap, new TIdReduce);
     PrintTable(Output());
 }
 
 YT_TEST(TOperation, SingleMerge) {
-    {
-        TClient client(Server());
-        TUpdate update(client, Input());
-        for (int i = 0; i < 1024; ++i) {
-            auto key = Sprintf("%d", (i * 19) % 37);
-            auto subkey = Sprintf("%d", (i * 3) % 11);
-            auto value = "0";
-            update.AddSub(key, subkey, value);
-        }
-    }
+    SimpleFillTable(Input());
     Server().Sort(Input());
     yvector<Stroka> srcTables = { Input() };
     Server().Merge(srcTables, Output());
@@ -186,6 +141,109 @@ YT_TEST(TOperation, MultiMerge) {
     Server().Merge(srcs, Output());
     PrintTable(Output());
 }
+/*
+YT_TEST(TOperation, CopyN2N) {
+    constexpr auto TABLE_SORTED = "tmp/src/sorted";
+    constexpr auto TABLE_SIMPLE = "tmp/src/simple";
+    { // Prepare source tables.
+        {
+            TClient client(Server());
+            TUpdate update0(client, TABLE_SORTED);
+            TUpdate update1(client, TABLE_SIMPLE);
+        }
+        Server().Sort(TABLE_SORTED);
+    }
 
+    const yvector<std::pair<EUpdateMode>> modes = {
+        { UM_REPLACE, UM_REPLACE },
+        { UM_REPLACE, UM_APPEND },
+        { UM_REPLACE, UM_SORTED },
+
+        { UM_APPEND, UM_REPLACE },
+        { UM_APPEND, UM_APPEND },
+        { UM_APPEND, UM_SORTED },
+
+        { UM_SORTED, UM_REPLACE },
+        { UM_SORTED, UM_APPEND },
+        { UM_SORTED, UM_SORTED },
+    };
+
+    for (int i = 0; i < modes.size(); ++i) {
+        auto DST1 = Sprintf("tmp/dst/test1/case%dunexist1", i);
+        auto DST2 = Sprintf("tmp/dst/test1/case%dunexist2", i);
+
+        TCopyParams params;
+        params.SrcTables.push_back(TInputTable(TABLE_SORTED));
+        params.SrcTables.push_back(TInputTable(TABLE_SIMPLE));
+        params.DstTables.push_back(TUpdateTable(DST1, modes[i].first));
+        params.DstTables.push_back(TUpdateTable(DST2, modes[i].second));
+
+        Server().Copy(params);
+
+        Cout << "=======TEST1 CASE" << i << "=======" << Endl;
+        Cout << "~~~TABLE1~~~" << Endl;
+        PrintTable(DST1);
+        Cout << "~~~TABLE2~~~" << Endl;
+        PrintTable(DST2);
+
+        Server().Drop(DST1);
+        Server().Drop(DST2);
+    }
+
+
+    for (int i = 0; i < modes.size(); ++i) {
+        auto DST1 = Sprintf("tmp/dst/test2/case%dsimple1", i);
+        auto DST2 = Sprintf("tmp/dst/test2/case%dsimple2", i);
+
+        SimpleFillTable(DST1);
+        SimpleFillTable(DST2);
+
+        TCopyParams params;
+        params.SrcTables.push_back(TInputTable(TABLE_SORTED));
+        params.SrcTables.push_back(TInputTable(TABLE_SIMPLE));
+        params.DstTables.push_back(TUpdateTable(DST1, modes[i].first));
+        params.DstTables.push_back(TUpdateTable(DST2, modes[i].second));
+
+        Server().Copy(params);
+
+        Cout << "=======TEST2 CASE" << i << "=======" << Endl;
+        Cout << "~~~TABLE1~~~" << Endl;
+        PrintTable(DST1);
+        Cout << "~~~TABLE2~~~" << Endl;
+        PrintTable(DST2);
+
+        Server().Drop(DST1);
+        Server().Drop(DST2);
+    }
+
+
+    for (int i = 0; i < modes.size(); ++i) {
+        auto DST1 = Sprintf("tmp/dst/test3/case%dsorted1", i);
+        auto DST2 = Sprintf("tmp/dst/test3/case%dsorted2", i);
+
+        SimpleFillTable(DST1);
+        SimpleFillTable(DST2);
+        Server().Sort(DST1);
+        Server().Sort(DST2);
+
+        TCopyParams params;
+        params.SrcTables.push_back(TInputTable(TABLE_SORTED));
+        params.SrcTables.push_back(TInputTable(TABLE_SIMPLE));
+        params.DstTables.push_back(TUpdateTable(DST1, modes[i].first));
+        params.DstTables.push_back(TUpdateTable(DST2, modes[i].second));
+
+        Server().Copy(params);
+
+        Cout << "=======TEST3 CASE" << i << "=======" << Endl;
+        Cout << "~~~TABLE1~~~" << Endl;
+        PrintTable(DST1);
+        Cout << "~~~TABLE2~~~" << Endl;
+        PrintTable(DST2);
+
+        Server().Drop(DST1);
+        Server().Drop(DST2);
+    }
+}
+*/
 } // namespace NCommonTest
 } // namespace NYT
