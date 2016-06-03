@@ -1151,7 +1151,7 @@ TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
 bool TOperationElementSharedState::IsBlocked(
     TInstant now,
     int MaxConcurrentScheduleJobCalls,
-    const TDuration& ScheduleJobFailBackoffTime) const
+    TDuration ScheduleJobFailBackoffTime) const
 {
     TReaderGuard guard(ConcurrentScheduleJobCallsLock_);
 
@@ -1192,7 +1192,7 @@ void TOperationElementSharedState::EnableScheduleJobBackoff(TInstant now)
 bool TOperationElementSharedState::IsBlockedImpl(
     TInstant now,
     int MaxConcurrentScheduleJobCalls,
-    const TDuration& ScheduleJobFailBackoffTime) const
+    TDuration ScheduleJobFailBackoffTime) const
 {
     return ConcurrentScheduleJobCalls_ >= MaxConcurrentScheduleJobCalls ||
         (BackingOff_ && LastScheduleJobFailTime_ + ScheduleJobFailBackoffTime > now);
