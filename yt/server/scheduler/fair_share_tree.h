@@ -260,7 +260,7 @@ protected:
 
     ESchedulableStatus GetStatus(double defaultTolerance) const;
 
-    void CheckForStarvation(
+    void CheckForStarvationImpl(
         TDuration minSharePreemptionTimeout,
         TDuration fairSharePreemptionTimeout,
         TInstant now);
