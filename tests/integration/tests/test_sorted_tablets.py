@@ -22,6 +22,10 @@ class TestSortedTablets(YTEnvSetup):
         }
     }
 
+    DELTA_DRIVER_CONFIG = {
+        "max_rows_per_write_request": 2
+    }
+
     def _create_simple_table(self, path, atomicity="full", optimize_for="lookup", tablet_cell_bundle="default"):
         create("table", path,
             attributes={
