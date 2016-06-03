@@ -31,10 +31,11 @@ class TestClient(object):
         deepcopy(client)
 
         with set_config_option("proxy/url", None):
-            if yt.config["api_version"] == "v2":
-                assert client.get_user_name("") == None
-            else:
-                assert client.get_user_name("") == "root"
+            if yt.config["backend"] != "native":
+                if yt.config["api_version"] == "v2":
+                    assert client.get_user_name("") == None
+                if yt.config["api_version"] == "v3":
+                    assert client.get_user_name("") == "root"
 
             client.set(TEST_DIR + "/node", "abc")
             assert client.get(TEST_DIR + "/node") == "abc"
@@ -177,11 +178,12 @@ class TestClient(object):
         assert client._api_version == "v3"
 
     def test_get_user_name(self):
-        if yt.config["api_version"] == "v2":
-            assert http.get_user_name("") == None
-        else:
-            # With disabled authentication in proxy it always return root
-            assert http.get_user_name("") == "root"
+        if yt.config["backend"] != "native":
+            if yt.config["api_version"] == "v2":
+                assert http.get_user_name("") == None
+            if yt.config["api_version"] == "v3":
+                # With disabled authentication in proxy it always return root
+                assert http.get_user_name("") == "root"
 
         #assert http.get_user_name("") == None
         #assert http.get_user_name("12345") == None
