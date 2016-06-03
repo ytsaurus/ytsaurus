@@ -155,6 +155,7 @@ DEFINE_ENUM(EScheduleJobFailReason,
     (NoLocalJobs)
     (TaskDelayed)
     (NoCandidateTasks)
+    (ResourceOvercommit)
 );
 
 struct TScheduleJobResult
