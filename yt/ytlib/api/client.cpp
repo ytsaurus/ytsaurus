@@ -3236,6 +3236,10 @@ private:
             EWireProtocolCommand command,
             TUnversionedRow row)
         {
+            if (SubmittedRows_.size() >= Config_->MaxRowsPerTransaction) {
+                THROW_ERROR_EXCEPTION("Transaction affects too many rows")
+                    << TErrorAttribute("limit", Config_->MaxRowsPerTransaction);
+            }
             SubmittedRows_.push_back(TSubmittedRow{
                 command,
                 row,
