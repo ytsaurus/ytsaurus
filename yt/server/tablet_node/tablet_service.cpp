@@ -144,17 +144,10 @@ private:
                 &commitResult);
         }
 
-        switch (durability) {
-            case EDurability::Sync:
-                context->ReplyFrom(commitResult);
-                break;
-
-            case EDurability::Async:
-                context->Reply();
-                break;
-
-            default:
-                YUNREACHABLE();
+        if (atomicity == EAtomicity::None && durability == EDurability::Sync) {
+            context->ReplyFrom(commitResult);
+        } else {
+            context->Reply();
         }
     }
 
