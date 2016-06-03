@@ -38,6 +38,7 @@
 #include <yt/core/misc/variant.h>
 
 #include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/retrying_channel.h>
 
 #include <yt/core/ytree/helpers.h>
 
@@ -564,7 +565,12 @@ private:
             for (const auto& target : targets) {
                 auto address = target.GetAddressOrThrow(networkName);
                 auto lightChannel = Client_->GetNodeChannelFactory()->CreateChannel(address);
-                auto heavyChannel = Client_->GetHeavyChannelFactory()->CreateChannel(address);
+                auto heavyChannel = CreateRetryingChannel(
+                    Config_->NodeChannel,
+                    Client_->GetHeavyChannelFactory()->CreateChannel(address),
+                    BIND([] (const TError& error) {
+                        return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).HasValue();
+                    }));
                 auto node = New<TNode>(
                     target,
                     std::move(lightChannel),

@@ -82,6 +82,55 @@ TStringBuf GetServiceHostName(const TStringBuf& address)
     return result;
 }
 
+Stroka StripInterconnectFromAddress(const Stroka& localHostName, const Stroka& remoteHostName)
+{
+    // Extract DC name and interconnect from address.
+    auto parse = [] (const Stroka& hostName) -> std::pair<TNullable<Stroka>, bool>  {
+        auto dotPosition = hostName.find(".");
+        if (dotPosition == Stroka::npos) {
+            return std::make_pair(Null, false);
+        }
+
+        auto firstPart = hostName.substr(0, dotPosition);
+        bool hasInterconnect = firstPart.substr(firstPart.length() - 2) == "-i";
+        if (hasInterconnect) {
+            firstPart = firstPart.substr(0, firstPart.length() - 2);
+        }
+
+        auto dashPosition = firstPart.rfind("-");
+        return std::make_pair(
+            dashPosition == Stroka::npos
+            ? Null
+            : MakeNullable(firstPart.substr(dashPosition + 1)),
+            hasInterconnect);
+    };
+
+    auto stripInterconnect = [] (const Stroka& hostName) {
+        auto dotPosition = hostName.find(".");
+        YCHECK(dotPosition != Stroka::npos);
+
+        auto firstPart = hostName.substr(0, dotPosition);
+        auto remaining = hostName.substr(dotPosition);
+        YCHECK(firstPart.substr(firstPart.length() - 2) == "-i");
+
+        return firstPart.substr(0, firstPart.length() - 2) + remaining;
+    };
+
+    TNullable<Stroka> localDCName;
+    bool hasLocalInterconnect;
+    std::tie(localDCName, hasLocalInterconnect) = parse(localHostName);
+
+    TNullable<Stroka> remoteDCName;
+    bool hasRemoteInterconnect;
+    std::tie(remoteDCName, hasRemoteInterconnect) = parse(remoteHostName);
+
+    if (hasRemoteInterconnect && localDCName && remoteDCName && *localDCName != *remoteDCName) {
+        return stripInterconnect(remoteHostName);
+    } else {
+        return remoteHostName;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNetworkAddress::TNetworkAddress()
@@ -339,7 +388,7 @@ TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const Stroka& address)
         .Run();
 }
 
-TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName)
+TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName_)
 {
     try {
         addrinfo hints;
@@ -348,6 +397,13 @@ TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName)
         hints.ai_socktype = SOCK_STREAM;
 
         addrinfo* addrInfo = nullptr;
+
+        Stroka hostName = hostName_;
+        auto strippedHostName = StripInterconnectFromAddress(GetLocalHostName(), hostName_);
+        if (strippedHostName != hostName) {
+            LOG_DEBUG("Interconnect suffix is stripped from address %v", hostName);
+            hostName = strippedHostName;
+        }
 
         LOG_DEBUG("Started resolving host %v", hostName);
 
