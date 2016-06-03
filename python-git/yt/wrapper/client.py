@@ -59,6 +59,8 @@ def create_class_method(func):
         argspec_transformer=lambda args: fix_argspec(args, is_class))
 
 class YtClient(ClientState):
+    """ Implements YT client.  """
+
     def __init__(self, proxy=None, token=None, config=None):
         ClientState.__init__(self)
 
