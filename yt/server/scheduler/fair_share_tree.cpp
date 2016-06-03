@@ -1599,7 +1599,33 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
         return scheduleJobResult;
     }
 
-    return scheduleJobResultWithTimeoutOrError.Value();
+    auto scheduleJobResult = scheduleJobResultWithTimeoutOrError.Value();
+
+    // Discard the job in case of resource overcommit.
+    {
+        const auto& jobStartRequest = scheduleJobResult->JobStartRequest.Get();
+        auto jobLimits = GetHierarchicalResourceLimits(context);
+        if (!Dominates(jobLimits, jobStartRequest.ResourceLimits)) {
+            const auto& jobId = scheduleJobResult->JobStartRequest->Id;
+            LOG_DEBUG("Aborting job with overcommit (JobId: %v, OperationId: %v)",
+                jobId,
+                OperationId_);
+
+            const auto& controller = Operation_->GetController();
+            controller->GetCancelableInvoker()->Invoke(BIND(
+                &IOperationController::OnJobAborted,
+                controller,
+                Passed(std::make_unique<TAbortedJobSummary>(
+                    jobId,
+                    EAbortReason::SchedulingResourceOvercommit))));
+
+            // Reset result.
+            scheduleJobResult = New<TScheduleJobResult>();
+            ++scheduleJobResult->Failed[EScheduleJobFailReason::ResourceOvercommit];
+        }
+    }
+
+    return scheduleJobResult;
 }
 
 TJobResources TOperationElement::ComputeResourceDemand() const
