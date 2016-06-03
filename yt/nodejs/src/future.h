@@ -12,6 +12,7 @@ namespace NNodeJS {
 //! This class wraps TFuture and allows interoperation between V8 and YT.
 class TFutureWrap
     : public node::ObjectWrap
+    , public TRefTracked<TFutureWrap>
 {
 protected:
     TFutureWrap();

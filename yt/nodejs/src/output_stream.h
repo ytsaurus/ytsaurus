@@ -17,6 +17,7 @@ namespace NNodeJS {
 class TOutputStreamWrap
     : public TNodeJSStreamBase
     , public TOutputStream
+    , public TRefTracked<TOutputStreamWrap>
 {
 protected:
     TOutputStreamWrap(ui64 watermark);
