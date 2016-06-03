@@ -347,7 +347,7 @@ ESchedulableStatus TSchedulerElementBase::GetStatus(double defaultTolerance) con
            : ESchedulableStatus::BelowFairShare;
 }
 
-void TSchedulerElementBase::CheckForStarvation(
+void TSchedulerElementBase::CheckForStarvationImpl(
     TDuration minSharePreemptionTimeout,
     TDuration fairSharePreemptionTimeout,
     TInstant now)
@@ -974,7 +974,7 @@ void TPool::SetStarving(bool starving)
 
 void TPool::CheckForStarvation(TInstant now)
 {
-    TSchedulerElementBase::CheckForStarvation(
+    TSchedulerElementBase::CheckForStarvationImpl(
         Attributes_.AdjustedMinSharePreemptionTimeout,
         Attributes_.AdjustedFairSharePreemptionTimeout,
         now);
@@ -1458,7 +1458,7 @@ void TOperationElement::CheckForStarvation(TInstant now)
         fairSharePreemptionTimeout *= jobCountRatio;
     }
 
-    TSchedulerElementBase::CheckForStarvation(
+    TSchedulerElementBase::CheckForStarvationImpl(
         minSharePreemptionTimeout,
         fairSharePreemptionTimeout,
         now);
