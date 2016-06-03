@@ -60,6 +60,7 @@ DEFINE_ENUM(EAbortReason,
     (Other)
     (Preemption)
     (SchedulingTimeout)
+    (SchedulingResourceOvercommit)
     (UserRequest)
 );
 

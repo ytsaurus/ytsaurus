@@ -151,6 +151,8 @@ public:
     i64 MaxChunkDataSize;
     TDuration MaxChunkSessionDuration;
 
+    NRpc::TRetryingChannelConfigPtr NodeChannel;
+
     TJournalWriterConfig()
     {
         RegisterParameter("max_batch_delay", MaxBatchDelay)
@@ -186,6 +188,9 @@ public:
             .Default((i64) 256 * 1024 * 1024);
         RegisterParameter("max_chunk_session_duration", MaxChunkSessionDuration)
             .Default(TDuration::Minutes(15));
+
+        RegisterParameter("node_channel", NodeChannel)
+            .DefaultNew();
     }
 };
 

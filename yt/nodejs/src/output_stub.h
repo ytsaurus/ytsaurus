@@ -10,6 +10,7 @@ namespace NNodeJS {
 
 class TOutputStreamStub
     : public node::ObjectWrap
+    , public TRefTracked<TOutputStreamStub>
 {
 protected:
     TOutputStreamStub();
@@ -43,8 +44,8 @@ private:
     std::shared_ptr<TNodeJSOutputStack> Stack;
 
 private:
-    TOutputStreamStub(const TOutputStreamStub&);
-    TOutputStreamStub& operator=(const TOutputStreamStub&);
+    TOutputStreamStub(const TOutputStreamStub&) = delete;
+    TOutputStreamStub& operator=(const TOutputStreamStub&) = delete;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
