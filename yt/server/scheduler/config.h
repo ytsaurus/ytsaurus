@@ -69,6 +69,11 @@ public:
     //! Backoff time after controller schedule job failure.
     TDuration ControllerScheduleJobFailBackoffTime;
 
+    //! Thresholds to partition jobs of operation
+    //! to preemptable, aggressively preemptable and non-preemptable lists.
+    double PreemptionSatisfactionThreshold;
+    double AggressivePreemptionSatisfactionThreshold;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -149,6 +154,22 @@ public:
 
         RegisterParameter("schedule_job_fail_backoff_time", ControllerScheduleJobFailBackoffTime)
             .Default(TDuration::MilliSeconds(100));
+
+        RegisterParameter("preemption_satisfaction_threshold", PreemptionSatisfactionThreshold)
+            .Default(1.0)
+            .GreaterThan(0);
+
+        RegisterParameter("aggressive_preemption_satisfaction_threshold", AggressivePreemptionSatisfactionThreshold)
+            .Default(0.5)
+            .GreaterThan(0);
+
+        RegisterValidator([&] () {
+            if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
+                THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
+                    << TErrorAttribute("aggressive_threshold", AggressivePreemptionSatisfactionThreshold)
+                    << TErrorAttribute("threshold", PreemptionSatisfactionThreshold);
+            }
+        });
     }
 };
 
