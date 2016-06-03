@@ -1,10 +1,7 @@
 from common import bool_to_string, get_value, YtError
 from table import prepare_path
 from cypress_commands import get
-from transaction_commands import _make_transactional_request
-
-from yt.yson.convert import json_to_yson
-import yt.json as json
+from transaction_commands import _make_formatted_transactional_request
 
 import time
 from datetime import timedelta, datetime
@@ -32,11 +29,9 @@ def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribu
     if attribute_key is not None:
         params["attribute_key"] = attribute_key
 
-    lock_id = _make_transactional_request("lock", params, client=client)
+    lock_id = _make_formatted_transactional_request("lock", params, format=None, client=client)
     if not lock_id:
         return None
-    else:
-        lock_id = json_to_yson(json.loads(lock_id))
 
     if waitable and wait_for is not None and lock_id != "0-0-0-0":
         now = datetime.now()

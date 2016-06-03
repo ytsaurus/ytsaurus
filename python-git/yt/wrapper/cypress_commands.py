@@ -128,7 +128,7 @@ def copy(source_path, destination_path, recursive=None, preserve_account=None, f
         params["preserve_account"] = bool_to_string(preserve_account)
     if force is not None:
         params["force"] = bool_to_string(force)
-    return _make_transactional_request("copy", params, client=client)
+    return _make_formatted_transactional_request("copy", params, format=None, client=client)
 
 def move(source_path, destination_path, recursive=None, preserve_account=None, force=None, client=None):
     """Move (rename) Cypress node.
@@ -150,7 +150,7 @@ def move(source_path, destination_path, recursive=None, preserve_account=None, f
         params["preserve_account"] = bool_to_string(preserve_account)
     if force is not None:
         params["force"] = bool_to_string(force)
-    _make_transactional_request("move", params, client=client)
+    return _make_formatted_transactional_request("move", params, format=None, client=client)
 
 def concatenate(source_paths, destination_path, client=None):
     """Concatenate cypress nodes. This command applicable only to files and tables.
@@ -168,7 +168,7 @@ def concatenate(source_paths, destination_path, client=None):
     create(type, destination_path, ignore_existing=True)
     params = {"source_paths": source_paths,
               "destination_path": destination_path}
-    _make_transactional_request("concatenate", params, client=client)
+    _make_formatted_transactional_request("concatenate", params, format=None, ignore_result=True, client=client)
 
 def link(target_path, link_path, recursive=False, ignore_existing=False, client=None):
     """Make link to Cypress node.
@@ -179,7 +179,7 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, client=
     :param ignore_existing: (bool)
     .. seealso:: `link on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#link>`_
     """
-    return _make_transactional_request(
+    return _make_formatted_transactional_request(
         "link",
         {
             "target_path": prepare_path(target_path, client=client),
@@ -187,6 +187,7 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, client=
             "recursive": bool_to_string(recursive),
             "ignore_existing": bool_to_string(ignore_existing),
         },
+        format=None,
         client=client)
 
 

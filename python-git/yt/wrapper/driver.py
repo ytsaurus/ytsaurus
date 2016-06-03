@@ -9,6 +9,8 @@ import yt.yson as yson
 from yt.yson.convert import json_to_yson
 import yt.json as json
 
+import sys
+
 def make_request(command_name, params,
                  data=None,
                  is_data_compressed=False,
@@ -50,7 +52,7 @@ def make_request(command_name, params,
     else:
         raise YtError("Incorrect backend type: " + backend)
 
-def make_formatted_request(command_name, params, format, **kwargs):
+def make_formatted_request(command_name, params, format, ignore_result=False, **kwargs):
     # None format means that we want parsed output (as YSON structure) instead of string.
     # Yson parser is too slow, so we request result in JsonFormat and then convert it to YSON structure.
 
@@ -60,7 +62,7 @@ def make_formatted_request(command_name, params, format, **kwargs):
     response_should_be_json = format is None and not has_yson_bindings
     if format is None:
         if get_config(client)["force_using_yson_for_formatted_requests"] or has_yson_bindings:
-            params["output_format"] = "yson"
+            params["output_format"] = yson.to_yson_type("yson", attributes={"format": "text"})
         else:
             params["output_format"] = "json"
     else:
@@ -70,6 +72,8 @@ def make_formatted_request(command_name, params, format, **kwargs):
 
     result = make_request(command_name, params, response_should_be_json=response_should_be_json, **kwargs)
 
+    if ignore_result:
+        return
     if format is None:
         if has_yson_bindings:
             return yson.loads(result)
