@@ -140,10 +140,6 @@ Handle<Value> TOutputStreamWrap::DoPull()
     // Short-path for destroyed streams.
 
     ProtectedUpdateAndNotifyWriter([&] () {
-        if (IsDestroyed_) {
-            return;
-        }
-
         YCHECK(IsFlowing_);
 
         for (int i = 0; i < MaxPartsPerPull; ++i) {
@@ -207,11 +203,6 @@ void TOutputStreamWrap::DoDestroy()
         IsDestroyed_ = true;
 
         Queue_.clear();
-
-        if (IsFlowing_) {
-            AsyncUnref();
-            IsFlowing_ = false;
-        }
     });
 }
 
@@ -287,7 +278,11 @@ int TOutputStreamWrap::AsyncOnFlowing(eio_req* request)
     HandleScope scope;
 
     auto* stream = static_cast<TOutputStreamWrap*>(request->data);
-    node::MakeCallback(stream->handle_, OnFlowingSymbol, 0, nullptr);
+    if (stream->IsFlowing_) {
+        node::MakeCallback(stream->handle_, OnFlowingSymbol, 0, nullptr);
+    } else {
+        stream->AsyncUnref();
+    }
 
     return 0;
 }
