@@ -2099,9 +2099,14 @@ private:
             }
         }
 
-        while ((!UpperBoundCheckNeeded_ || BlockReader_->GetKey() < UpperBound_) &&
-               rows->size() < rows->capacity())
-        {
+        bool finished = false;
+
+        while (rows->size() < rows->capacity()) {
+            if (UpperBoundCheckNeeded_ && BlockReader_->GetKey() >= UpperBound_.Get()) {
+                finished = true;
+                break;
+            }
+
             auto row = CaptureRow(BlockReader_.get());
             if (row) {
                 rows->push_back(row);
@@ -2111,7 +2116,8 @@ private:
                 // End-of-block.
                 if (++BlockIndex_ >= ChunkMeta_->BlockMeta().blocks_size()) {
                     // End-of-chunk.
-                    return false;
+                    finished = true;
+                    break;
                 }
                 CreateBlockReader();
             }
@@ -2119,7 +2125,7 @@ private:
 
         PerformanceCounters_->StaticChunkRowReadCount += rows->size();
 
-        return true;
+        return !finished;
     }
 
     void CreateBlockReader()
