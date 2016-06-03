@@ -112,7 +112,7 @@ public:
         REGISTER(TMoveCommand,                 "move",                    Null,       Structured, true,  false);
         REGISTER(TLinkCommand,                 "link",                    Null,       Structured, true,  false);
         REGISTER(TExistsCommand,               "exists",                  Null,       Structured, false, false);
-        REGISTER(TConcatenateCommand,          "concatenate",             Null,       Structured, true,  false);
+        REGISTER(TConcatenateCommand,          "concatenate",             Null,       Null,       true,  false);
 
         REGISTER(TWriteFileCommand,            "write_file",              Binary,     Null,       true,  true );
         REGISTER(TReadFileCommand,             "read_file",               Null,       Binary,     false, true );
