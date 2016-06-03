@@ -67,13 +67,9 @@ def make_request(command_name, params,
     input_stream = convert_to_stream(data)
 
     output_stream = None
-    if description.output_type() != "null":
-        if "output_format" not in params:
-            has_yson_bindings = (yson.TYPE == "BINARY")
-            if get_config(client)["force_using_yson_for_formatted_requests"] or has_yson_bindings:
-                params["output_format"] = "yson"
-            else:
-                params["output_format"] = "json"
+    if description.output_type() != "Null":
+        if "output_format" not in params and description.output_type() != "Binary":
+            raise YtError("Inner error: output format is not specified for native driver command '{0}'".format(command_name))
         if return_content:
             output_stream = StringIO()
         else:
@@ -94,7 +90,8 @@ def make_request(command_name, params,
         response.wait()
         if not response.is_ok():
             raise YtResponseError(response.error())
-        return output_stream.getvalue()
+        if output_stream is not None:
+            return output_stream.getvalue()
     else:
         def process_error(request):
             if not response.is_ok():

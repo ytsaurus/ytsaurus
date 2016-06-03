@@ -131,7 +131,8 @@ class TestMutations(object):
                 },
                 "input_table_paths": [table],
                 "output_table_paths": [other_table]
-            }
+            },
+            "output_format": "json"
         }
 
         operations_count = yt.get("//sys/operations/@count")

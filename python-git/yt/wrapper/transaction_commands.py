@@ -15,8 +15,8 @@ def _add_transaction_params(params, client=None):
 def _make_transactional_request(command_name, params, **kwargs):
     return make_request(command_name, _add_transaction_params(params, kwargs.get("client", None)), **kwargs)
 
-def _make_formatted_transactional_request(command_name, params, format, **kwargs):
-    return make_formatted_request(command_name, _add_transaction_params(params, kwargs.get("client", None)), format, **kwargs)
+def _make_formatted_transactional_request(command_name, params, format, ignore_result=False, **kwargs):
+    return make_formatted_request(command_name, _add_transaction_params(params, kwargs.get("client", None)), format, ignore_result, **kwargs)
 
 def start_transaction(parent_transaction=None, timeout=None, attributes=None, type="master", sticky=False, client=None):
     """Start transaction.
