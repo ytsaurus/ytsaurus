@@ -287,7 +287,11 @@ int TOutputStreamWrap::AsyncOnFlowing(eio_req* request)
     HandleScope scope;
 
     auto* stream = static_cast<TOutputStreamWrap*>(request->data);
-    node::MakeCallback(stream->handle_, OnFlowingSymbol, 0, nullptr);
+    if (stream->IsFlowing_) {
+        node::MakeCallback(stream->handle_, OnFlowingSymbol, 0, nullptr);
+    } else {
+        stream->AsyncUnref();
+    }
 
     return 0;
 }
