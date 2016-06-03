@@ -438,7 +438,7 @@ public:
     bool IsBlocked(
         TInstant now,
         int MaxConcurrentScheduleJobCalls,
-        const TDuration& ScheduleJobFailBackoffTime) const;
+        TDuration ScheduleJobFailBackoffTime) const;
 
     bool TryStartScheduleJob(
         TInstant now,
@@ -489,7 +489,7 @@ private:
     bool IsBlockedImpl(
         TInstant now,
         int MaxConcurrentScheduleJobCalls,
-        const TDuration& ScheduleJobFailBackoffTime) const;
+        TDuration ScheduleJobFailBackoffTime) const;
 
     void IncreaseJobResourceUsage(TJobProperties& properties, const TJobResources& resourcesDelta);
 };
