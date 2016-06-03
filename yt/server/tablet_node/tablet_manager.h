@@ -50,6 +50,7 @@ public:
         const TTransactionId& transactionId,
         NTransactionClient::TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
+        TTransactionSignature signature,
         NTabletClient::TWireProtocolReader* reader,
         TFuture<void>* commitResult);
 

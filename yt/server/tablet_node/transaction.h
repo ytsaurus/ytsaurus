@@ -53,6 +53,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TOrderedDynamicRowRef>, LockedOrderedRows);
     DEFINE_BYREF_RW_PROPERTY(TRingQueue<TOrderedDynamicRowRef>, PrelockedOrderedRows);
     DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, WriteLog);
+    DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, PersistentSignature);
+    DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, TransientSignature);
 
 public:
     explicit TTransaction(const TTransactionId& id);

@@ -46,6 +46,8 @@ TTransaction::TTransaction(const TTransactionId& id)
     , StartTimestamp_(NullTimestamp)
     , PrepareTimestamp_(NullTimestamp)
     , CommitTimestamp_(NullTimestamp)
+    , PersistentSignature_(InitialTransactionSignature)
+    , TransientSignature_(InitialTransactionSignature)
     , Finished_(NewPromise<void>())
 { }
 
@@ -59,6 +61,7 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, StartTimestamp_);
     Save(context, GetPersistentPrepareTimestamp());
     Save(context, CommitTimestamp_);
+    Save(context, PersistentSignature_);
 }
 
 void TTransaction::Load(TLoadContext& context)
@@ -71,6 +74,8 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, StartTimestamp_);
     Load(context, PrepareTimestamp_);
     Load(context, CommitTimestamp_);
+    Load(context, PersistentSignature_);
+    TransientSignature_ = PersistentSignature_;
 }
 
 TCallback<void(TSaveContext&)> TTransaction::AsyncSave()

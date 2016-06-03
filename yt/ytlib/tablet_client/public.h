@@ -40,19 +40,30 @@ static const int MaxPeerCount = 10;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-typedef NHydra::TCellId TTabletCellId;
+//! Signatures enable checking tablet transaction integrity.
+/*!
+ *  When a transaction is created, its signature is #InitialTransactionSignature.
+ *  Each change within a transaction is annotated with a signature; these signatures are
+ *  added to the transaction's signature. For a commit to be successful, the final signature must
+ *  be equal to #FinalTransactionSignature.
+ */
+using TTransactionSignature = ui32;
+const TTransactionSignature InitialTransactionSignature = 0;
+const TTransactionSignature FinalTransactionSignature = 0xffffffffU;
+
+using TTabletCellId = NHydra::TCellId;
 extern const TTabletCellId NullTabletCellId;
 
-typedef NObjectClient::TObjectId TTabletId;
+using TTabletId = NObjectClient::TObjectId;
 extern const TTabletId NullTabletId;
 
-typedef NObjectClient::TObjectId TStoreId;
+using TStoreId = NObjectClient::TObjectId;
 extern const TStoreId NullStoreId;
 
-typedef NObjectClient::TObjectId TPartitionId;
+using TPartitionId = NObjectClient::TObjectId;
 extern const TPartitionId NullPartitionId;
 
-typedef NObjectClient::TObjectId TTabletCellBundleId;
+using TTabletCellBundleId = NObjectClient::TObjectId;
 extern const TTabletCellBundleId NullTabletCellBundleId;
 
 ///////////////////////////////////////////////////////////////////////////////

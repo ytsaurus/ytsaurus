@@ -46,7 +46,7 @@ using NObjectClient::NullTransactionId;
  *  bits 30-61:  Unix time in seconds (from 1 Jan 1970)
  *  bits 62-63:  reserved
  */
-typedef ui64 TTimestamp;
+using TTimestamp = ui64;
 
 //! Number of bits in the counter part.
 const int TimestampCounterWidth = 30;

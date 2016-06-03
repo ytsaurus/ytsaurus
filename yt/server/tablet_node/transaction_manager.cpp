@@ -93,14 +93,27 @@ public:
 
     TTransaction* GetPersistentTransactionOrThrow(const TTransactionId& transactionId)
     {
-        auto* transaction = PersistentTransactionMap_.Find(transactionId);
-        if (!transaction) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::ResolveError,
-                "No such transaction %v",
-                transactionId);
+        if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
+            return transaction;
         }
-        return transaction;
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::ResolveError,
+            "No such transaction %v",
+            transactionId);
+    }
+
+    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
+    {
+        if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
+            return transaction;
+        }
+        if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
+            return transaction;
+        }
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::ResolveError,
+            "No such transaction %v",
+            transactionId);
     }
 
     TTransaction* GetPersistentTransaction(const TTransactionId& transactionId)
@@ -196,14 +209,29 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = GetPersistentTransactionOrThrow(transactionId);
+        TTransaction* transaction;
+        ETransactionState state;
+        TTransactionSignature signature;
+        if (persistent) {
+            transaction = GetPersistentTransactionOrThrow(transactionId);
+            state = transaction->GetPersistentState();
+            signature = transaction->GetPersistentSignature();
+        } else {
+            transaction = GetTransactionOrThrow(transactionId);
+            state = transaction->GetState();
+            signature = transaction->GetTransientSignature();
+        }
 
         // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
-        auto state = persistent ? transaction->GetPersistentState() : transaction->GetState();
         if (state != ETransactionState::Active &&
             (!persistent || state != ETransactionState::TransientCommitPrepared))
         {
             transaction->ThrowInvalidState();
+        }
+
+        if (signature != FinalTransactionSignature) {
+            THROW_ERROR_EXCEPTION("Transaction %v is incomplete",
+                transactionId);
         }
 
         transaction->SetState(persistent
@@ -466,6 +494,7 @@ private:
         for (const auto& pair : PersistentTransactionMap_) {
             auto* transaction = pair.second;
             transaction->SetState(transaction->GetPersistentState());
+            transaction->SetTransientSignature(transaction->GetPersistentSignature());
             transaction->ResetFinished();
             TransactionTransientReset_.Fire(transaction);
         }

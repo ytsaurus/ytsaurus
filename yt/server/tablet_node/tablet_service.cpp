@@ -74,19 +74,22 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
+        auto signature = request->signature();
+
         ValidateTabletTransactionId(transactionId);
 
         auto atomicity = AtomicityFromTransactionId(transactionId);
         auto durability = EDurability(request->durability());
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %v, "
-            "TransactionTimeout: %v, Atomicity: %v, Durability: %v",
+            "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x",
             tabletId,
             transactionId,
             transactionStartTimestamp,
             transactionTimeout,
             atomicity,
-            durability);
+            durability,
+            signature);
 
         // NB: Must serve the whole request within a single epoch.
         TCurrentInvokerGuard invokerGuard(Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
@@ -136,6 +139,7 @@ private:
                 transactionId,
                 transactionStartTimestamp,
                 transactionTimeout,
+                signature,
                 &reader,
                 &commitResult);
         }
