@@ -416,30 +416,29 @@ exports.MemoryInputStream = function MemoryInputStream(data)
 {
     stream.Stream.call(this);
 
+    var self = this;
+
     this.paused = false;
     this.readable = true;
     this.writable = false;
 
-    var self = this;
-
-    var emitted_data = false;
-    var emit_data = function() {
-        if (emitted_data || self.paused || !self.readable) {
+    this._emit_data = function _emit_data() {
+        if (self.paused || !self.readable) {
             return;
         }
+        self._emit_data = function(){};
         if (data) {
             self.emit("data", data);
         }
-        emitted_data = true;
     };
 
-    var emitted_end = false;
-    var emit_end = function() {
-        if (emitted_end || self.paused || !self.readable) {
+    this._emit_end = function _emit_end() {
+        if (self.paused || !self.readable) {
             return;
         }
+        self._emit_end = function(){};
+        // Now, perform work.
         self.emit("end", data);
-        emitted_end = true;
         // Block state.
         self.paused = false;
         self.readable = false;
@@ -448,9 +447,9 @@ exports.MemoryInputStream = function MemoryInputStream(data)
 
     this._flow = function() {
         process.nextTick(function() {
-            emit_data();
+            self._emit_data();
             process.nextTick(function() {
-                emit_end();
+                self._emit_end();
             });
         });
     };
