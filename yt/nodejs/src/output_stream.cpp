@@ -137,7 +137,13 @@ Handle<Value> TOutputStreamWrap::DoPull()
     Local<Array> parts = Array::New(MaxPartsPerPull);
     size_t count = 0;
 
+    // Short-path for destroyed streams.
+
     ProtectedUpdateAndNotifyWriter([&] () {
+        if (IsDestroyed_) {
+            return;
+        }
+
         YCHECK(IsFlowing_);
 
         for (int i = 0; i < MaxPartsPerPull; ++i) {
@@ -201,6 +207,11 @@ void TOutputStreamWrap::DoDestroy()
         IsDestroyed_ = true;
 
         Queue_.clear();
+
+        if (IsFlowing_) {
+            AsyncUnref();
+            IsFlowing_ = false;
+        }
     });
 }
 
