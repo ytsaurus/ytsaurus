@@ -517,6 +517,31 @@ Stroka SafeGetUsernameByUid(int uid)
     return pwdptr->pw_name;
 }
 
+void KillAllByUid(int uid)
+{
+    SafeSetUid(0);
+
+    auto pidsToKill = GetPidsByUid(uid);
+    if (pidsToKill.empty()) {
+        return;
+    }
+
+    while (true) {
+        for (int pid : pidsToKill) {
+            auto result = kill(pid, 9);
+            if (result == -1) {
+                YCHECK(errno == ESRCH);
+            }
+        }
+
+        pidsToKill = GetPidsByUid(uid);
+        if (pidsToKill.empty())
+            break;
+
+        ThreadYield();
+    }
+}
+
 #else
 
 bool TryClose(int /* fd */, bool /* ignoreBadFD */)
@@ -564,12 +589,17 @@ void RemoveDirContentAsRoot(const Stroka& /* path */)
     YUNIMPLEMENTED();
 }
 
+void KillAllByUid(int /* uid */)
+{
+    YUNIMPLEMENTED();
+}
+
 void MountTmpfsAsRoot(TMountTmpfsConfigPtr /* config */)
 {
     YUNIMPLEMENTED();
 }
 
-void UmountAsRoot(TUmountConfigPtr /* config */)
+void UmountAsRoot(const Stroka& /* path */)
 {
     YUNIMPLEMENTED();
 }
@@ -663,6 +693,35 @@ void CreateStderrFile(Stroka fileName)
     YCHECK(freopen(~fileName, "a", stderr) != nullptr);
 #endif
 }
+
+bool HasRootPermissions()
+{
+#ifdef _unix_
+    uid_t ruid, euid, suid;
+#ifdef _linux_
+    YCHECK(getresuid(&ruid, &euid, &suid) == 0);
+#else
+    ruid = getuid();
+    euid = geteuid();
+    setuid(0);
+    suid = getuid();
+    YCHECK(seteuid(euid) == 0);
+    YCHECK(setruid(ruid) == 0);
+#endif
+    return suid == 0;
+#else // not _unix_
+    return false;
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TKillAllByUidTool::operator()(int uid) const
+{
+    KillAllByUid(uid);
+}
+
+REGISTER_TOOL(TKillAllByUidTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 

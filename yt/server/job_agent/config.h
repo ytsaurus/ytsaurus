@@ -65,6 +65,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobControllerConfig
     : public NYTree::TYsonSerializable
 {

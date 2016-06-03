@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/exec_agent/config.h>
+
 #include <yt/ytlib/cgroup/config.h>
 
 #include <yt/ytlib/file_client/config.h>
@@ -23,33 +25,29 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProxyConfig
-    : public NCGroup::TCGroupConfig
+    : public NYTree::TYsonSerializable
 {
 public:
-    // Filled by exec agent.
-    NApi::TConnectionConfigPtr ClusterConnection;
-
+    // Job-specific parameters.
     NBus::TTcpBusServerConfigPtr RpcServer;
-    NBus::TTcpBusClientConfigPtr SupervisorConnection;
-    TDuration SupervisorRpcTimeout;
 
-    TDuration HeartbeatPeriod;
-
-    TDuration MemoryWatchdogPeriod;
-
-    TDuration BlockIOWatchdogPeriod;
-
-    TAddressResolverConfigPtr AddressResolver;
-
-    double MemoryLimitMultiplier;
-
-    TNullable<int> UserId;
+    int SlotIndex;
 
     TNullable<Stroka> TmpfsPath;
 
-    bool EnableIopsThrottling;
-
     NScheduler::TJobIOConfigPtr JobIO;
+
+    // Job-independent parameters.
+    NApi::TConnectionConfigPtr ClusterConnection;
+
+    NBus::TTcpBusClientConfigPtr SupervisorConnection;
+    TDuration SupervisorRpcTimeout;
+
+    TAddressResolverConfigPtr AddressResolver;
+
+    TDuration HeartbeatPeriod;
+
+    NYTree::INodePtr JobEnvironment;
 
     //! Addresses derived from node local descriptor to leverage locality.
     NNodeTrackerClient::TAddressMap Addresses;
@@ -70,24 +68,15 @@ public:
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
 
-        RegisterParameter("memory_watchdog_period", MemoryWatchdogPeriod)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("block_io_watchdog_period", BlockIOWatchdogPeriod)
-            .Default(TDuration::Seconds(60));
+        RegisterParameter("job_environment", JobEnvironment);
 
         RegisterParameter("address_resolver", AddressResolver)
             .DefaultNew();
-        RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
-            .Default(2.0);
 
-        RegisterParameter("user_id", UserId)
-            .Default();
+        RegisterParameter("slot_index", SlotIndex);
 
         RegisterParameter("tmpfs_path", TmpfsPath)
             .Default();
-
-        RegisterParameter("enable_iops_throttling", EnableIopsThrottling)
-            .Default(false);
 
         RegisterParameter("job_io", JobIO)
             .DefaultNew();

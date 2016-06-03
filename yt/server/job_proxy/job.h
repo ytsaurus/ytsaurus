@@ -28,7 +28,9 @@ namespace NJobProxy {
 struct IJobHost
     : public virtual TRefCounted
 {
-    virtual TJobProxyConfigPtr GetConfig() = 0;
+    virtual TJobProxyConfigPtr GetConfig() const = 0;
+    virtual NExecAgent::TCGroupJobEnvironmentConfigPtr GetCGroupsConfig() const = 0;
+
     virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const = 0;
 
     virtual void SetUserJobMemoryUsage(i64 memoryUsage) = 0;
