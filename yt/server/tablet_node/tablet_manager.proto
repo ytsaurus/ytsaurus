@@ -64,6 +64,7 @@ message TReqExecuteWrite
     required int64 mount_revision = 6;
     required int32 codec = 7;
     required bytes compressed_data = 8;
+    optional uint32 signature = 9;
 }
 
 message TReqRotateStore

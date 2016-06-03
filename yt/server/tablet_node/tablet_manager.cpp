@@ -192,6 +192,7 @@ public:
         const TTransactionId& transactionId,
         TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
+        TTransactionSignature signature,
         TWireProtocolReader* reader,
         TFuture<void>* commitResult)
     {
@@ -215,6 +216,7 @@ public:
                     transactionId,
                     transactionStartTimestamp,
                     transactionTimeout,
+                    signature,
                     reader,
                     commitResult);
                 break;
@@ -793,6 +795,7 @@ private:
 
     void HydraLeaderExecuteWriteAtomic(
         const TTransactionId& transactionId,
+        TTransactionSignature signature,
         int sortedRowCount,
         int orderedRowCount,
         const TTransactionWriteRecord& writeRecord,
@@ -805,6 +808,7 @@ private:
         HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedOrderedRows(), orderedRowCount);
 
         transaction->WriteLog().Enqueue(writeRecord);
+        transaction->SetPersistentSignature(transaction->GetPersistentPrepareTimestamp() + signature);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, TransactionId: %v, "
             "SortedRows: %v, OrderedRows: %v, WriteRecordSize: %v)",
@@ -855,6 +859,7 @@ private:
         auto atomicity = AtomicityFromTransactionId(transactionId);
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
+        auto signature = request->signature();
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -887,14 +892,13 @@ private:
                     transactionTimeout,
                     false);
 
-                auto writeRecord = TTransactionWriteRecord{tabletId, recordData};
-
                 while (!reader.IsFinished()) {
                     storeManager->ExecuteAtomicWrite(tablet, transaction, &reader, false);
                     ++rowCount;
                 }
 
-                transaction->WriteLog().Enqueue(writeRecord);
+                transaction->WriteLog().Enqueue(TTransactionWriteRecord{tabletId, recordData});
+                transaction->SetPersistentSignature(transaction->GetPersistentPrepareTimestamp() + signature);
             }
 
             case EAtomicity::None: {
@@ -911,11 +915,13 @@ private:
                 YUNREACHABLE();
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v, RowCount: %v, WriteRecordSize: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v, RowCount: %v, "
+            "WriteRecordSize: %v, Signature: %x)",
             transactionId,
             tabletId,
             rowCount,
-            recordData.Size());
+            recordData.Size(),
+            signature);
     }
 
     void HydraRotateStore(TReqRotateStore* request)
@@ -1466,6 +1472,7 @@ private:
         const TTransactionId& transactionId,
         TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
+        TTransactionSignature signature,
         TWireProtocolReader* reader,
         TFuture<void>* commitResult)
     {
@@ -1512,11 +1519,15 @@ private:
         auto prelockedOrderedDelta = prelockedOrderedAfter - prelockedOrderedBefore;
 
         if (prelockedSortedDelta + prelockedOrderedDelta > 0) {
-            LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, SortedRows: %v, OrderedRows: %v)",
+            LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, SortedRows: %v, OrderedRows: %v, "
+                "Signature: %v)",
                 transactionId,
                 tabletId,
                 prelockedSortedDelta,
-                prelockedOrderedDelta);
+                prelockedOrderedDelta,
+                signature);
+
+            transaction->SetTransientSignature(transaction->GetTransientSignature() + signature);
 
             auto readerEnd = reader->GetCurrent();
             auto recordData = reader->Slice(readerBegin, readerEnd);
@@ -1531,11 +1542,13 @@ private:
             hydraRequest.set_mount_revision(tablet->GetMountRevision());
             hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
             hydraRequest.set_compressed_data(ToString(compressedRecordData));
+            hydraRequest.set_signature(signature);
             *commitResult = CreateMutation(Slot_->GetHydraManager(), hydraRequest)
                 ->SetHandler(BIND(
                     &TImpl::HydraLeaderExecuteWriteAtomic,
                     MakeStrong(this),
                     transactionId,
+                    signature,
                     prelockedSortedDelta,
                     prelockedOrderedDelta,
                     writeRecord))
@@ -2052,6 +2065,7 @@ void TTabletManager::Write(
     const TTransactionId& transactionId,
     TTimestamp transactionStartTimestamp,
     TDuration transactionTimeout,
+    TTransactionSignature signature,
     TWireProtocolReader* reader,
     TFuture<void>* commitResult)
 {
@@ -2060,6 +2074,7 @@ void TTabletManager::Write(
         transactionId,
         transactionStartTimestamp,
         transactionTimeout,
+        signature,
         reader,
         commitResult);
 }

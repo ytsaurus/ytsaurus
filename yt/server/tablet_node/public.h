@@ -42,6 +42,10 @@ using NTabletClient::NullStoreId;
 using NTabletClient::TPartitionId;
 using NTabletClient::NullPartitionId;
 
+using NTabletClient::TTransactionSignature;
+using NTabletClient::InitialTransactionSignature;
+using NTabletClient::FinalTransactionSignature;
+
 using NTabletClient::TTabletCellConfig;
 using NTabletClient::TTabletCellConfigPtr;
 using NTabletClient::TTabletCellOptions;

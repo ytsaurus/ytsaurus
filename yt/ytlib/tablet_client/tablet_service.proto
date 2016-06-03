@@ -12,6 +12,7 @@ message TReqWrite
     required NYT.NProto.TGuid tablet_id = 4;
     required int64 mount_revision = 5;
     required int32 durability = 6; // EDurability
+    optional uint32 signature = 7;
     // Wire-encoded request is passed via attachments.
 }
 

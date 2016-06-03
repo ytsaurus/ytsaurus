@@ -61,6 +61,7 @@
 #include <yt/core/compression/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/profiling/scoped_timer.h>
 
@@ -2762,6 +2763,7 @@ public:
         NTransactionClient::TTransactionPtr transaction)
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
+        , CommitInvoker_(CreateSerializedInvoker(Client_->GetConnection()->GetHeavyInvoker()))
         , Logger(Client_->Logger)
     {
         Logger.AddTag("TransactionId: %v", GetId());
@@ -2813,7 +2815,7 @@ public:
     {
         if (!Outcome_) {
             return BIND(&TTransaction::DoCommit, MakeStrong(this))
-                .AsyncVia(Client_->GetConnection()->GetLightInvoker())
+                .AsyncVia(CommitInvoker_)
                 .Run(options);
         }
         return Outcome_;
@@ -3035,6 +3037,7 @@ public:
 private:
     const TClientPtr Client_;
     const NTransactionClient::TTransactionPtr Transaction_;
+    const IInvokerPtr CommitInvoker_;
 
     struct TTransactionBufferTag
     { };
@@ -3246,18 +3249,19 @@ private:
                 static_cast<int>(SubmittedRows_.size())});
         }
 
-        TFuture<void> Invoke(IChannelPtr channel)
+        int Prepare()
         {
-            try {
-                if (TableInfo_->IsSorted()) {
-                    PrepareSortedBatches();
-                } else {
-                    PrepareOrderedBatches();
-                }
-            } catch (const std::exception& ex) {
-                return MakeFuture(TError(ex));
+            if (TableInfo_->IsSorted()) {
+                PrepareSortedBatches();
+            } else {
+                PrepareOrderedBatches();
             }
 
+            return static_cast<int>(Batches_.size());
+        }
+
+        TFuture<void> Invoke(IChannelPtr channel)
+        {
             // Do all the heavy lifting here.
             YCHECK(!Batches_.empty());
             for (auto& batch : Batches_) {
@@ -3271,9 +3275,9 @@ private:
             return InvokePromise_;
         }
 
-        const TTabletInfoPtr& GetTabletInfo()
+        const TCellId& GetCellId() const
         {
-            return TabletInfo_;
+            return TabletInfo_->CellId;
         }
 
     private:
@@ -3427,11 +3431,6 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Sending batch (BatchIndex: %v/%v, RowCount: %v)",
-                InvokeBatchIndex_,
-                Batches_.size(),
-                batch->RowCount);
-
             TTabletServiceProxy proxy(InvokeChannel_);
             proxy.SetDefaultTimeout(Config_->WriteTimeout);
             proxy.SetDefaultRequestAck(false);
@@ -3445,10 +3444,18 @@ private:
             ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
             req->set_mount_revision(TabletInfo_->MountRevision);
             req->set_durability(static_cast<int>(owner->GetDurability()));
+            req->set_signature(owner->AllocateRequestSignature(GetCellId()));
             req->Attachments() = std::move(batch->RequestData);
 
+            LOG_DEBUG("Sending batch (BatchIndex: %v/%v, RowCount: %v, Signature: %x)",
+                InvokeBatchIndex_,
+                Batches_.size(),
+                batch->RowCount,
+                req->signature());
+
             req->Invoke().Subscribe(
-                BIND(&TTabletCommitSession::OnResponse, MakeStrong(this)));
+                BIND(&TTabletCommitSession::OnResponse, MakeStrong(this))
+                    .Via(owner->CommitInvoker_));
         }
 
         void OnResponse(const TTabletServiceProxy::TErrorOrRspWritePtr& rspOrError)
@@ -3473,7 +3480,17 @@ private:
 
     typedef TIntrusivePtr<TTabletCommitSession> TTabletSessionPtr;
 
-    yhash_map<TTabletId, TTabletSessionPtr> TabletToSession_;
+    //! Maintains per-tablet commit info.
+    yhash_map<TTabletId, TTabletSessionPtr> TabletIdToSession_;
+
+    struct TCellCommitSession
+    {
+        TTransactionSignature CurrentSignature;
+        int RequestsRemaining;
+    };
+
+    //! Maintains per-cell commit info.
+    yhash_map<TCellId, TCellCommitSession> CellIdToSession_;
 
     //! Caches mappings from name table ids to schema ids.
     yhash_map<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
@@ -3497,11 +3514,11 @@ private:
     TTabletCommitSession* GetTabletSession(const TTabletInfoPtr& tabletInfo, const TTableMountInfoPtr& tableInfo)
     {
         const auto& tabletId = tabletInfo->TabletId;
-        auto it = TabletToSession_.find(tabletId);
-        if (it == TabletToSession_.end()) {
+        auto it = TabletIdToSession_.find(tabletId);
+        if (it == TabletIdToSession_.end()) {
             auto evaluatorCache = GetConnection()->GetColumnEvaluatorCache();
             auto evaluator = evaluatorCache->Find(tableInfo->Schemas[ETableSchemaKind::Primary]);
-            it = TabletToSession_.insert(std::make_pair(
+            it = TabletIdToSession_.insert(std::make_pair(
                 tabletId,
                 New<TTabletCommitSession>(
                     this,
@@ -3520,11 +3537,18 @@ private:
                 request->Run();
             }
 
-            std::vector<TFuture<void>> asyncResults;
-            for (const auto& pair : TabletToSession_) {
+            for (const auto& pair : TabletIdToSession_) {
                 const auto& session = pair.second;
-                const auto& tabletInfo = session->GetTabletInfo();
-                auto channel = GetTabletChannelOrThrow(tabletInfo->CellId);
+                const auto& cellId = session->GetCellId();
+                int requestCount = session->Prepare();
+                RegisterCellRequests(cellId, requestCount);
+            }
+
+            std::vector<TFuture<void>> asyncResults;
+            for (const auto& pair : TabletIdToSession_) {
+                const auto& session = pair.second;
+                const auto& cellId = session->GetCellId();
+                auto channel = GetTabletChannelOrThrow(cellId);
                 asyncResults.push_back(session->Invoke(std::move(channel)));
             }
 
@@ -3539,6 +3563,32 @@ private:
         WaitFor(Transaction_->Commit(options))
             .ThrowOnError();
     }
+
+
+    void RegisterCellRequests(const TCellId& cellId, int count)
+    {
+        auto it = CellIdToSession_.find(cellId);
+        if (it == CellIdToSession_.end()) {
+            it = CellIdToSession_.emplace(cellId, TCellCommitSession{InitialTransactionSignature, 0}).first;
+        }
+        auto& session = it->second;
+        session.RequestsRemaining += count;
+    }
+
+    TTransactionSignature AllocateRequestSignature(const TCellId& cellId)
+    {
+        auto it = CellIdToSession_.find(cellId);
+        YCHECK(it != CellIdToSession_.end());
+        auto& session = it->second;
+        YCHECK(--session.RequestsRemaining >= 0);
+        if (session.RequestsRemaining == 0) {
+            return FinalTransactionSignature - session.CurrentSignature;
+        } else {
+            ++session.CurrentSignature;
+            return 1;
+        }
+    }
+
 
     IChannelPtr GetTabletChannelOrThrow(const TTabletCellId& cellId) const
     {
@@ -3566,7 +3616,6 @@ private:
             THROW_ERROR_EXCEPTION("Nested master transactions cannot be used for updating dynamic tables");
         }
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransaction)
