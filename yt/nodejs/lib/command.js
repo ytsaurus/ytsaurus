@@ -162,9 +162,6 @@ function YtCommand(logger, driver, coordinator, watcher, sticky_cache, pause) {
     this.mime_compression = undefined;
     this.mime_type = undefined;
 
-    this.bytes_in = undefined;
-    this.bytes_out = undefined;
-
     this.__DBG("New");
 }
 
@@ -206,16 +203,45 @@ YtCommand.prototype.dispatch = function(req, rsp) {
         })
         .then(self._execute.bind(self))
         .catch(function(err) {
-            return YtError.ensureWrapped(
+            var error = YtError.ensureWrapped(
                 err,
                 "Unhandled error in the command pipeline");
+            return [error, 0, 0];
         })
-        .then(self._epilogue.bind(self))
+        .spread(function(result, bytes_in, bytes_out) {
+            self._epilogue(result, bytes_in, bytes_out);
+        })
         .done();
 };
 
-YtCommand.prototype._epilogue = function(result) {
+YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
     this.__DBG("_epilogue");
+
+    if (result.code === 0) {
+        this.rsp.statusCode = 200;
+    } else if (result.code !== 0 && this.rsp.statusCode === 200) {
+        this.rsp.statusCode = 400;
+    }
+
+    if (result.isUnavailable() || result.isAllTargetNodesFailed()) {
+        this.rsp.statusCode = 503;
+        this.rsp.setHeader("Retry-After", "60");
+    }
+
+    if (result.isUserBanned()) {
+        this.rsp.statusCode = 403;
+    }
+
+    if (result.isRequestRateLimitExceeded()) {
+        this.rsp.statusCode = 429;
+    }
+
+    if (result.isUserBanned() || result.isRequestRateLimitExceeded()) {
+        this.sticky_cache.set(this.user, {
+            code: this.rsp.statusCode,
+            body: result.toJson()
+        });
+    }
 
     var extra_headers = {
         "X-YT-Error": result.toJson(),
@@ -236,34 +262,19 @@ YtCommand.prototype._epilogue = function(result) {
     }
 
     this.logger.debug("Done (" + (result.isOK() ? "success" : "failure") + ")", {
-        bytes_in: this.bytes_in,
-        bytes_out: this.bytes_out,
+        bytes_in: bytes_in,
+        bytes_out: bytes_out,
         result: result,
     });
 
-    if (!result.isOK()) {
-        if (result.isUserBanned() || result.isRequestRateLimitExceeded()) {
-            this.sticky_cache.set(this.user, {
-                code: this.rsp.statusCode,
-                body: result.toJson()
-            });
-        }
-
-        if (!sent_headers) {
-            if (!this.rsp.statusCode ||
-                (this.rsp.statusCode >= 200 && this.rsp.statusCode < 300))
-            {
-                this.rsp.statusCode = 400;
-            }
-
-            utils.dispatchAs(
-                this.rsp,
-                result.toJson(),
-                "application/json");
-        }
+    if (!result.isOK() && !sent_headers) {
+        utils.dispatchAs(
+            this.rsp,
+            result.toJson(),
+            "application/json");
+    } else {
+        this.rsp.end();
     }
-
-    this.rsp.end();
 };
 
 YtCommand.prototype._parseRequest = function() {
@@ -856,7 +867,7 @@ YtCommand.prototype._execute = function(cb) {
         this.output_stream, this.output_compression,
         this.parameters, this.request_id,
         this.pause,
-        function response_parameters_consumer(key, value) {
+        function execute$response_parameters_consumer(key, value) {
             self.logger.debug(
                 "Got a response parameter",
                 { key: key, value: value.Print() });
@@ -874,40 +885,13 @@ YtCommand.prototype._execute = function(cb) {
                         self.header_format));
             }
         },
-        function result_interceptor(result) {
+        function execute$interceptor(result, bytes_in, bytes_out) {
             self.watcher.releaseThread(watcher_tags);
             self.logger.debug(
                 "Command '" + self.command + "' has finished executing",
                 { result: result });
         })
-    .spread(function() { return arguments; }, function() { return arguments; })
-    .spread(function(result, bytes_in, bytes_out) {
-        self.bytes_in = bytes_in;
-        self.bytes_out = bytes_out;
-
-        if (result.code === 0) {
-            self.rsp.statusCode = 200;
-        } else if (result.code < 0) {
-            self.rsp.statusCode = 500;
-        } else if (result.code > 0) {
-            self.rsp.statusCode = 400;
-        }
-
-        if (result.isUnavailable() || result.isAllTargetNodesFailed()) {
-            self.rsp.statusCode = 503;
-            self.rsp.setHeader("Retry-After", "60");
-        }
-
-        if (result.isUserBanned()) {
-            self.rsp.statusCode = 403;
-        }
-
-        if (result.isRequestRateLimitExceeded()) {
-            self.rsp.statusCode = 429;
-        }
-
-        return result;
-    });
+    .spread(function() { return arguments; }, function() { return arguments; });
 };
 
 ////////////////////////////////////////////////////////////////////////////////

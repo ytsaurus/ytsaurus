@@ -259,12 +259,13 @@ private:
     {
         THREAD_AFFINITY_IS_V8();
         HandleScope scope;
-
         try {
             OutputStack_->Finish();
         } catch (const std::exception& ex) {
             LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
         }
+
+        auto wrappedResponse = ConvertErrorToV8(response);
 
         // XXX(sandello): We cannot represent ui64 precisely in V8, because there
         // is no native ui64 integer type. So we convert ui64 to double (v8::Number)
@@ -275,11 +276,7 @@ private:
         double bytesOut = OutputStack_->GetBytes();
         OutputStack_.reset();
 
-        Invoke(
-            ExecuteCallback_,
-            ConvertErrorToV8(response),
-            Number::New(bytesIn),
-            Number::New(bytesOut));
+        Invoke(ExecuteCallback_, wrappedResponse, Number::New(bytesIn), Number::New(bytesOut));
     }
 
     void SyncRef()
