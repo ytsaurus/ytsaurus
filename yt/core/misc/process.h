@@ -34,6 +34,7 @@ public:
     void AddArguments(std::initializer_list<TStringBuf> args);
     void AddArguments(const std::vector<Stroka>& args);
 
+    // File actions are done after fork but before exec.
     void AddCloseFileAction(int fd);
 
     NPipes::TAsyncWriterPtr GetStdInWriter();

@@ -10,16 +10,13 @@ namespace NCGroup {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCGroupConfig
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
-    bool EnableCGroups;
     std::vector<Stroka> SupportedCGroups;
 
     TCGroupConfig()
     {
-        RegisterParameter("enable_cgroups", EnableCGroups)
-            .Default(true);
         RegisterParameter("supported_cgroups", SupportedCGroups)
             .Default();
 

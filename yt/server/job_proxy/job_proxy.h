@@ -5,6 +5,7 @@
 #include "config.h"
 #include "job.h"
 
+#include <yt/server/exec_agent/public.h>
 #include <yt/server/exec_agent/supervisor_service_proxy.h>
 
 #include <yt/server/job_agent/public.h>
@@ -47,8 +48,10 @@ private:
     const NYTree::INodePtr ConfigNode_;
     const NJobAgent::TJobId JobId_;
 
-    // Job proxy memory reserve (= memory limit after multiplication by
-    // job proxy memory reserve factor) by the scheduler.
+    //! Can be null if running in non-cgroups environment.
+    NExecAgent::TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
+
+    // Job proxy memory reserve factor) by the scheduler.
     i64 JobProxyMemoryReserve_ = 0;
     // Job proxy peak memory usage.
     std::atomic<i64> JobProxyMaxMemoryUsage_ = {0};
@@ -109,7 +112,9 @@ private:
     void UpdateResourceUsage();
 
     // IJobHost implementation.
-    virtual TJobProxyConfigPtr GetConfig() override;
+    virtual TJobProxyConfigPtr GetConfig() const override;
+    virtual NExecAgent::TCGroupJobEnvironmentConfigPtr GetCGroupsConfig() const override;
+
     virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const override;
 
     virtual void SetUserJobMemoryUsage(i64 memoryUsage) override;

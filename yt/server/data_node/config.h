@@ -4,6 +4,8 @@
 
 #include <yt/server/hydra/config.h>
 
+#include <yt/server/misc/config.h>
+
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/core/concurrency/config.h>
@@ -34,37 +36,26 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TPeerBlockTableConfig)
 
-class TLocationConfigBase
-    : public NYTree::TYsonSerializable
+class TStoreLocationConfigBase
+    : public TDiskLocationConfig
 {
 public:
-    //! Root directory for the location.
-    Stroka Path;
-
     //! Maximum space chunks are allowed to occupy.
     //! (If not initialized then indicates to occupy all available space on drive).
     TNullable<i64> Quota;
 
-    //! Minimum size the disk partition must have to make this location usable.
-    TNullable<i64> MinDiskSpace;
-
-    TLocationConfigBase()
+    TStoreLocationConfigBase()
     {
-        RegisterParameter("path", Path)
-            .NonEmpty();
         RegisterParameter("quota", Quota)
-            .GreaterThanOrEqual(0)
-            .Default(TNullable<i64>());
-        RegisterParameter("min_disk_space", MinDiskSpace)
             .GreaterThanOrEqual(0)
             .Default(TNullable<i64>());
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TLocationConfigBase);
+DEFINE_REFCOUNTED_TYPE(TStoreLocationConfigBase);
 
 class TStoreLocationConfig
-    : public TLocationConfigBase
+    : public TStoreLocationConfigBase
 {
 public:
     //! The location is considered to be full when available space becomes less than #LowWatermark.
@@ -119,37 +110,10 @@ public:
 DEFINE_REFCOUNTED_TYPE(TStoreLocationConfig);
 
 class TCacheLocationConfig
-    : public TLocationConfigBase
+    : public TStoreLocationConfigBase
 { };
 
 DEFINE_REFCOUNTED_TYPE(TCacheLocationConfig);
-
-class TDiskHealthCheckerConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    //! Period between consequent checks.
-    TDuration CheckPeriod;
-
-    //! Size of the test file.
-    i64 TestSize;
-
-    //! Maximum time allowed for execution of a single check.
-    TDuration Timeout;
-
-    TDiskHealthCheckerConfig()
-    {
-        RegisterParameter("check_period", CheckPeriod)
-            .Default(TDuration::Minutes(1));
-        RegisterParameter("test_size", TestSize)
-            .InRange(0, (i64) 1024 * 1024 * 1024)
-            .Default((i64) 1024 * 1024);
-        RegisterParameter("timeout", Timeout)
-            .Default(TDuration::Seconds(60));
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TDiskHealthCheckerConfig)
 
 class TMultiplexedChangelogConfig
     : public NHydra::TFileChangelogConfig

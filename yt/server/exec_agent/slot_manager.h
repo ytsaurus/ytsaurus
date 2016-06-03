@@ -23,25 +23,31 @@ public:
     //! Initializes slots etc.
     void Initialize(int slotCount);
 
-    //! Acquires and returns a free slot. Fails if there's none.
-    TSlotPtr AcquireSlot();
+    //! Acquires a free slot, thows on error.
+    ISlotPtr AcquireSlot();
 
-    //! Releases the slot.
-    void ReleaseSlot(TSlotPtr slot);
+    void ReleaseSlot(int slotIndex);
 
     int GetSlotCount() const;
 
+    bool IsEnabled() const;
+
 private:
     const TSlotManagerConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    const NCellNode::TBootstrap* Bootstrap_;
+    const Stroka NodeTag_;
 
-    std::vector<TSlotPtr> Slots_;
-    std::vector<int> SlotPathCounters_;
+    NConcurrency::TActionQueuePtr LocationQueue_;
+    std::vector<TSlotLocationPtr> Locations_;
+    std::vector<TSlotLocationPtr> AliveLocations_;
 
-    NConcurrency::TActionQueuePtr ActionQueue_ = New<NConcurrency::TActionQueue>("ExecSlots");
+    IJobEnvironmentPtr JobEnviroment_;
 
-    bool IsEnabled_ = true;
+    TSpinLock SpinLock_;
+    yhash_set<int> FreeSlots_;
+    int SlotCount_ = 0;
 
+    void UpdateAliveLocations();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotManager)

@@ -2,6 +2,9 @@
 #include "private.h"
 #include "config.h"
 #include "slot.h"
+#include "job_environment.h"
+
+#include "slot_location.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
@@ -9,20 +12,17 @@
 #include <yt/server/data_node/chunk_cache.h>
 #include <yt/server/data_node/master_connector.h>
 
-#ifdef _unix_
-    #include <sys/stat.h>
-#endif
+#include <yt/core/concurrency/action_queue.h>
 
 namespace NYT {
 namespace NExecAgent {
 
 using namespace NCellNode;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ExecAgentLogger;
-
-static const char* CGroupPrefix = "slots";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,112 +31,113 @@ TSlotManager::TSlotManager(
     TBootstrap* bootstrap)
     : Config_(config)
     , Bootstrap_(bootstrap)
-{
-    YCHECK(config);
-    YCHECK(bootstrap);
-}
+    , NodeTag_(Format("yt-node-%v", bootstrap->GetConfig()->RpcPort))
+    , LocationQueue_(New<TActionQueue>("SlotLocations"))
+{ }
 
 void TSlotManager::Initialize(int slotCount)
 {
-    bool jobControlEnabled = false;
+    SlotCount_ = slotCount;
 
-#ifdef _unix_
-    if (Config_->EnforceJobControl) {
-        uid_t ruid, euid, suid;
-#ifdef _linux_
-        YCHECK(getresuid(&ruid, &euid, &suid) == 0);
-#else
-        ruid = getuid();
-        euid = geteuid();
-        setuid(0);
-        suid = getuid();
-        YCHECK(seteuid(euid) == 0);
-        YCHECK(setruid(ruid) == 0);
-#endif
-        if (suid != 0) {
-            THROW_ERROR_EXCEPTION("Failed to initialize job control, make sure you run as root");
-        }
-        umask(0000);
-        jobControlEnabled = true;
+    for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
+        FreeSlots_.insert(slotIndex);
     }
-#endif
 
-    SlotPathCounters_.resize(Config_->Paths.size());
+    JobEnviroment_ = CreateJobEnvironment(
+        Config_->JobEnvironment,
+        Bootstrap_);
 
-    try {
-        auto nodeRpcPort = Bootstrap_->GetConfig()->RpcPort;
+    int locationIndex = 0;
+    for (auto locationConfig : Config_->Locations) {
+        Locations_.push_back(New<TSlotLocation>(
+            std::move(locationConfig),
+            Bootstrap_,
+            Format("slots%v", locationIndex),
+            LocationQueue_->GetInvoker()));
 
-        const auto& execAgentConfig = Bootstrap_->GetConfig()->ExecAgent;
-        Config_->EnableCGroups = execAgentConfig->EnableCGroups;
-        Config_->SupportedCGroups = execAgentConfig->SupportedCGroups;
-
-        for (int slotId = 0; slotId < slotCount; ++slotId) {
-            auto slotName = ToString(slotId);
-            std::vector<Stroka> slotPaths;
-            for (const auto& path : Config_->Paths) {
-                slotPaths.push_back(NFS::CombinePaths(path, slotName));
-            }
-            TNullable<int> userId(Null);
-            if (jobControlEnabled) {
-                userId = Config_->StartUid + slotId;
-            }
-            auto slot = New<TSlot>(
-                Config_,
-                std::move(slotPaths),
-                Format("yt-node-%v", nodeRpcPort),
-                ActionQueue_->GetInvoker(),
-                slotId,
-                userId);
-            slot->Initialize();
-            Slots_.push_back(slot);
+        if (Locations_.back()->IsEnabled()) {
+            AliveLocations_.push_back(Locations_.back());
         }
 
-        if (Config_->EnableCGroups && Config_->IsCGroupSupported(NCGroup::TCpu::Name)) {
-            auto cpuCGroup = NCGroup::TCpu(CGroupPrefix);
-            cpuCGroup.EnsureExistance();
-            cpuCGroup.SetShare(Config_->CGroupCpuShare);
+        ++locationIndex;
+    }
+
+    // Fisrt shutdown all possible processes.
+    try {
+        for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
+            JobEnviroment_->CleanProcesses(slotIndex);
         }
     } catch (const std::exception& ex) {
-        if (Config_->SlotInitializationFailureIsFatal) {
-            throw;
-        }
-        auto error = TError("Failed to initialize slots") << ex;
-        LOG_WARNING(error);
-        Bootstrap_->GetMasterConnector()->RegisterAlert(error);
-        IsEnabled_ = false;
+        LOG_WARNING("Failed do clean up processes on slot manager initialization");
     }
 
-    auto chunkCache = Bootstrap_->GetChunkCache();
-    IsEnabled_ &= chunkCache->IsEnabled();
-}
+    if (!JobEnviroment_->IsEnabled()) {
+        return;
+    }
 
-TSlotPtr TSlotManager::AcquireSlot()
-{
-    auto pathIndexIt = std::min_element(
-        SlotPathCounters_.begin(),
-        SlotPathCounters_.end());
-    int pathIndex = std::distance(SlotPathCounters_.begin(), pathIndexIt);
-
-    for (auto slot : Slots_) {
-        if (slot->IsFree()) {
-            ++SlotPathCounters_[pathIndex];
-            slot->Acquire(pathIndex);
-            return slot;
+    // Then clean all the sandboxes.
+    for (auto& location : AliveLocations_) {
+        try {
+            for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
+                location->CleanSandboxes(slotIndex);
+            }
+        } catch (const std::exception& ex) {
+            LOG_WARNING("Failed do clean up processes on slot manager initialization");
         }
     }
-    YUNREACHABLE();
+
+    UpdateAliveLocations();
 }
 
-void TSlotManager::ReleaseSlot(TSlotPtr slot)
+void TSlotManager::UpdateAliveLocations()
 {
-    auto pathIndex = slot->GetPathIndex();
-    --SlotPathCounters_[pathIndex];
-    slot->Release();
+    AliveLocations_.clear();
+    for (const auto& location : Locations_) {
+        if (location->IsEnabled()) {
+            AliveLocations_.push_back(location);
+        }
+    }
+}
+
+ISlotPtr TSlotManager::AcquireSlot()
+{
+    UpdateAliveLocations();
+
+    if (AliveLocations_.empty()) {
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::AllLocationsDisabled, 
+            "Cannot acquire slot: all slot locations are disabled");
+    }
+
+    auto locationIt = std::min_element(
+        AliveLocations_.begin(),
+        AliveLocations_.end(),
+        [] (const TSlotLocationPtr& lhs, const TSlotLocationPtr& rhs) {
+            return lhs->GetSessionCount() < rhs->GetSessionCount();
+        });
+
+    YCHECK(!FreeSlots_.empty());
+    int slotIndex = *FreeSlots_.begin();
+    FreeSlots_.erase(slotIndex);
+
+    return CreateSlot(slotIndex, std::move(*locationIt), JobEnviroment_, NodeTag_);
+}
+
+void TSlotManager::ReleaseSlot(int slotIndex)
+{
+    YCHECK(FreeSlots_.insert(slotIndex).second);
 }
 
 int TSlotManager::GetSlotCount() const
 {
-    return IsEnabled_ ? static_cast<int>(Slots_.size()) : 0;
+    return IsEnabled() ? SlotCount_ : 0;
+}
+
+bool TSlotManager::IsEnabled() const
+{
+    return SlotCount_ > 0 && 
+        !AliveLocations_.empty() && 
+        JobEnviroment_->IsEnabled();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,6 +4,9 @@
 
 #include <yt/server/cell_node/public.h>
 
+#include <yt/server/misc/public.h>
+#include <yt/server/misc/disk_location.h>
+
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
 
 #include <yt/core/actions/signal.h>
@@ -39,13 +42,13 @@ DEFINE_ENUM(EIOCategory,
 );
 
 class TLocation
-    : public TRefCounted
+    : public TDiskLocation
 {
 public:
     TLocation(
         ELocationType type,
         const Stroka& id,
-        TLocationConfigBasePtr config,
+        TStoreLocationConfigBasePtr config,
         NCellNode::TBootstrap* bootstrap);
 
     //! Returns the type.
@@ -85,9 +88,6 @@ public:
      *  On failure, acts similarly to Scan.
      */
     void Start();
-
-    //! Returns |true| iff the location is enabled.
-    bool IsEnabled() const;
 
     //! Marks the location as disabled by attempting to create a lock file and terminates the process.
     void Disable(const TError& reason);
@@ -147,7 +147,6 @@ public:
     virtual void RemoveChunkFiles(const TChunkId& chunkId, bool force);
 
 protected:
-    mutable NLogging::TLogger Logger;
     NCellNode::TBootstrap* const Bootstrap_;
 
 
@@ -164,9 +163,7 @@ private:
 
     const ELocationType Type_;
     const Stroka Id_;
-    const TLocationConfigBasePtr Config_;
-
-    std::atomic<bool> Enabled_ = {false};
+    const TStoreLocationConfigBasePtr Config_;
 
     mutable i64 AvailableSpace_ = 0;
     i64 UsedSpace_ = 0;
@@ -197,14 +194,11 @@ private:
     void DecreasePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
     void UpdatePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
 
-    void ValidateMinimumSpace();
     void ValidateLockFile();
     void ValidateWritable();
 
     void OnHealthCheckFailed(const TError& error);
     void MarkAsDisabled(const TError& error);
-
-    i64 GetTotalSpace() const;
 
     virtual i64 GetAdditionalSpace() const;
 
