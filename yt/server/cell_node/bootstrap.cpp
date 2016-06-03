@@ -23,15 +23,13 @@
 #include <yt/server/data_node/chunk_meta_manager.h>
 
 #include <yt/server/exec_agent/config.h>
-#include <yt/server/exec_agent/environment.h>
-#include <yt/server/exec_agent/environment_manager.h>
+#include <yt/server/exec_agent/job_environment.h>
 #include <yt/server/exec_agent/job.h>
 #include <yt/server/exec_agent/job_prober_service.h>
 #include <yt/server/exec_agent/private.h>
 #include <yt/server/exec_agent/scheduler_connector.h>
 #include <yt/server/exec_agent/slot_manager.h>
 #include <yt/server/exec_agent/supervisor_service.h>
-#include <yt/server/exec_agent/unsafe_environment.h>
 
 #include <yt/server/job_agent/job_controller.h>
 
@@ -323,25 +321,24 @@ void TBootstrap::DoRun()
         patchMasterConnectionConfig(config);
     }
 
-    JobProxyConfig->MemoryWatchdogPeriod = Config->ExecAgent->MemoryWatchdogPeriod;
-    JobProxyConfig->BlockIOWatchdogPeriod = Config->ExecAgent->BlockIOWatchdogPeriod;
+    JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
+    JobProxyConfig->SupervisorConnection->Address = localInterconnectAddress;
+
+    // TODO(babenko): consider making this priority configurable
+    JobProxyConfig->SupervisorConnection->Priority = 6;
+
+    JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
+
+    JobProxyConfig->AddressResolver = Config->AddressResolver;
+    JobProxyConfig->HeartbeatPeriod = Config->ExecAgent->JobProxyHeartbeatPeriod;
+
+    JobProxyConfig->JobEnvironment = Config->ExecAgent->SlotManager->JobEnvironment;
+
+    JobProxyConfig->Rack = GetMasterConnector()->GetLocalDescriptor().GetRack();
+    JobProxyConfig->Addresses = GetMasterConnector()->GetLocalDescriptor().Addresses();
 
     JobProxyConfig->Logging = Config->ExecAgent->JobProxyLogging;
     JobProxyConfig->Tracing = Config->ExecAgent->JobProxyTracing;
-
-    JobProxyConfig->MemoryLimitMultiplier = Config->ExecAgent->MemoryLimitMultiplier;
-
-    JobProxyConfig->EnableCGroups = Config->ExecAgent->EnableCGroups;
-    JobProxyConfig->SupportedCGroups = Config->ExecAgent->SupportedCGroups;
-
-    JobProxyConfig->EnableIopsThrottling = Config->ExecAgent->EnableIopsThrottling;
-
-    JobProxyConfig->AddressResolver = Config->AddressResolver;
-    JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
-    JobProxyConfig->SupervisorConnection->Address = localInterconnectAddress;
-    JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
-    // TODO(babenko): consider making this priority configurable
-    JobProxyConfig->SupervisorConnection->Priority = 6;
 
     ExecSlotManager = New<NExecAgent::TSlotManager>(Config->ExecAgent->SlotManager, this);
 
@@ -398,9 +395,6 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(CreateJobProberService(this));
 
     RpcServer->RegisterService(New<TSupervisorService>(this));
-
-    EnvironmentManager = New<TEnvironmentManager>(Config->ExecAgent->EnvironmentManager);
-    EnvironmentManager->RegisterBuilder("unsafe", CreateUnsafeEnvironmentBuilder());
 
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
@@ -551,11 +545,6 @@ TInMemoryManagerPtr TBootstrap::GetInMemoryManager() const
 NExecAgent::TSlotManagerPtr TBootstrap::GetExecSlotManager() const
 {
     return ExecSlotManager;
-}
-
-TEnvironmentManagerPtr TBootstrap::GetEnvironmentManager() const
-{
-    return EnvironmentManager;
 }
 
 TJobProxyConfigPtr TBootstrap::GetJobProxyConfig() const

@@ -4,9 +4,9 @@
 
 #include <yt/server/chunk_server/public.h>
 
-#include <yt/server/data_node/public.h>
-
 #include <yt/server/exec_agent/public.h>
+
+#include <yt/server/data_node/public.h>
 
 #include <yt/server/job_agent/public.h>
 
@@ -60,7 +60,6 @@ public:
     NTabletNode::TSecurityManagerPtr GetSecurityManager() const;
     NTabletNode::TInMemoryManagerPtr GetInMemoryManager() const;
     NExecAgent::TSlotManagerPtr GetExecSlotManager() const;
-    NExecAgent::TEnvironmentManagerPtr GetEnvironmentManager() const;
     NJobProxy::TJobProxyConfigPtr GetJobProxyConfig() const;
     TNodeMemoryTracker* GetMemoryUsageTracker() const;
     NDataNode::TChunkStorePtr GetChunkStore() const;
@@ -111,7 +110,6 @@ private:
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobControllerPtr JobController;
     NExecAgent::TSlotManagerPtr ExecSlotManager;
-    NExecAgent::TEnvironmentManagerPtr EnvironmentManager;
     NJobProxy::TJobProxyConfigPtr JobProxyConfig;
     std::unique_ptr<TMemoryUsageTracker<NNodeTrackerClient::EMemoryCategory>> MemoryUsageTracker;
     NExecAgent::TSchedulerConnectorPtr SchedulerConnector;

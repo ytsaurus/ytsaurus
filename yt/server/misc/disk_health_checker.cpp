@@ -9,10 +9,10 @@
 #include <util/random/random.h>
 
 namespace NYT {
-namespace NDataNode {
 
 using namespace NConcurrency;
 using namespace NProfiling;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,6 +20,7 @@ TDiskHealthChecker::TDiskHealthChecker(
     TDiskHealthCheckerConfigPtr config,
     const Stroka& path,
     IInvokerPtr invoker,
+    TLogger logger,
     const TProfiler& profiler)
     : Config_(config)
     , Path_(path)
@@ -29,7 +30,7 @@ TDiskHealthChecker::TDiskHealthChecker(
         BIND(&TDiskHealthChecker::OnCheck, Unretained(this)),
         Config_->CheckPeriod,
         EPeriodicExecutorMode::Manual))
-    , Logger(DataNodeLogger)
+    , Logger(logger)
     , Profiler(profiler)
 {
     Logger.AddTag("Path: %v", Path_);
@@ -118,5 +119,4 @@ void TDiskHealthChecker::DoRunCheck()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
 } // namespace NYT

@@ -664,14 +664,6 @@ class TestSchedulingTags(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent" : {
-            "slot_manager" : {
-                "enable_cgroups" : False
-            },
-        }
-    }
-
     def _prepare(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})

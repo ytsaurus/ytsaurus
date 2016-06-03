@@ -120,6 +120,7 @@ public:
         , JobIO_(std::move(userJobIO))
         , UserJobSpec_(userJobSpec)
         , Config_(Host_->GetConfig())
+        , CGroupsConfig_(Host_->GetCGroupsConfig())
         , JobErrorPromise_(NewPromise<void>())
         , MemoryUsage_(UserJobSpec_.memory_reserve())
         , PipeIOPool_(New<TThreadPool>(Config_->JobIO->PipeIOPoolSize, "PipeIO"))
@@ -129,16 +130,28 @@ public:
         , BlockIO_(CGroupPrefix + ToString(jobId))
         , Memory_(CGroupPrefix + ToString(jobId))
         , Freezer_(CGroupPrefix + ToString(jobId))
-        , MemoryWatchdogExecutor_(New<TPeriodicExecutor>(
+        , Logger(Host_->GetLogger())
+    {
+        auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+        MemoryWatchdogPeriod_ = jobEnvironmentConfig->MemoryWatchdogPeriod;
+
+        MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
             AuxQueue_->GetInvoker(),
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
-            Config_->MemoryWatchdogPeriod))
-        , BlockIOWatchdogExecutor_ (New<TPeriodicExecutor>(
-            AuxQueue_->GetInvoker(),
-            BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
-            Config_->BlockIOWatchdogPeriod))
-        , Logger(Host_->GetLogger())
-    { }
+            MemoryWatchdogPeriod_);
+
+        if (HasRootPermissions()) {
+            UserId_ = jobEnvironmentConfig->StartUid + Config_->SlotIndex;
+        }
+
+        if (CGroupsConfig_) {
+            BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
+                AuxQueue_->GetInvoker(),
+                BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
+                CGroupsConfig_->BlockIOWatchdogPeriod);
+        }
+
+     }
 
     virtual void Initialize() override
     { }
@@ -157,7 +170,9 @@ public:
             LOG_INFO("Job process started");
 
             MemoryWatchdogExecutor_->Start();
-            BlockIOWatchdogExecutor_->Start();
+            if (BlockIOWatchdogExecutor_) {
+                BlockIOWatchdogExecutor_->Start();
+            }
 
             DoJobIO();
 
@@ -167,7 +182,9 @@ public:
 
             CleanupUserProcesses();
 
-            WaitFor(BlockIOWatchdogExecutor_->Stop());
+            if (BlockIOWatchdogExecutor_) {
+                WaitFor(BlockIOWatchdogExecutor_->Stop());
+            }
             WaitFor(MemoryWatchdogExecutor_->Stop());
         } else {
             JobErrorPromise_.TrySet(TError("Job aborted"));
@@ -236,6 +253,9 @@ private:
 
     const TJobProxyConfigPtr Config_;
 
+    TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
+    TNullable<int> UserId_;
+
     TPromise<void> JobErrorPromise_;
 
     std::atomic<bool> Prepared_ = {false};
@@ -245,6 +265,8 @@ private:
 
     i64 MemoryUsage_;
     i64 CumulativeMemoryUsageMbSec_ = 0;
+
+    TDuration MemoryWatchdogPeriod_;
 
     const TThreadPoolPtr PipeIOPool_;
     const TActionQueuePtr AuxQueue_;
@@ -278,8 +300,8 @@ private:
     TFreezer Freezer_;
     TSpinLock FreezerLock_;
 
-    const TPeriodicExecutorPtr MemoryWatchdogExecutor_;
-    const TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
+    TPeriodicExecutorPtr MemoryWatchdogExecutor_;
+    TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
 
     const NLogging::TLogger Logger;
 
@@ -298,13 +320,12 @@ private:
         Process_->AddArgument("--executor");
         Process_->AddArguments({"--command", UserJobSpec_.shell_command()});
         Process_->AddArguments({"--working-dir", SandboxDirectoryNames[ESandboxKind::User]});
-
         if (UserJobSpec_.enable_core_dump()) {
             Process_->AddArgument("--enable-core-dump");
         }
 
-        if (Config_->UserId) {
-            Process_->AddArguments({"--uid", ::ToString(*Config_->UserId)});
+        if (UserId_) {
+            Process_->AddArguments({"--uid", ::ToString(*UserId_)});
         }
 
         // Init environment variables.
@@ -322,8 +343,8 @@ private:
 
         ShellManager_ = CreateShellManager(
             NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Home]),
-            Config_->UserId,
-            TNullable<Stroka>(Config_->EnableCGroups, Freezer_.GetFullPath()),
+            UserId_,
+            TNullable<Stroka>(static_cast<bool>(CGroupsConfig_), Freezer_.GetFullPath()),
             Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))));
     }
 
@@ -338,7 +359,7 @@ private:
     {
         ShellManager_->CleanupProcesses();
 
-        if (!Config_->EnableCGroups) {
+        if (!CGroupsConfig_) {
             return;
         }
 
@@ -770,7 +791,7 @@ private:
 
     void PrepareCGroups()
     {
-        if (!Config_->EnableCGroups) {
+        if (!CGroupsConfig_) {
             return;
         }
 
@@ -781,13 +802,13 @@ private:
                 Process_->AddArguments({ "--cgroup", Freezer_.GetFullPath() });
             }
 
-            if (Config_->IsCGroupSupported(TCpuAccounting::Name)) {
+            if (CGroupsConfig_->IsCGroupSupported(TCpuAccounting::Name)) {
                 CpuAccounting_.Create();
                 Process_->AddArguments({ "--cgroup", CpuAccounting_.GetFullPath() });
                 Environment_.emplace_back(Format("YT_CGROUP_CPUACCT=%v", CpuAccounting_.GetFullPath()));
             }
 
-            if (Config_->IsCGroupSupported(TBlockIO::Name)) {
+            if (CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
                 BlockIO_.Create();
                 if (UserJobSpec_.has_blkio_weight()) {
                     BlockIO_.SetWeight(UserJobSpec_.blkio_weight());
@@ -796,7 +817,7 @@ private:
                 Environment_.emplace_back(Format("YT_CGROUP_BLKIO=%v", BlockIO_.GetFullPath()));
             }
 
-            if (Config_->IsCGroupSupported(TMemory::Name)) {
+            if (CGroupsConfig_->IsCGroupSupported(TMemory::Name)) {
                 Memory_.Create();
                 Process_->AddArguments({ "--cgroup", Memory_.GetFullPath() });
                 Environment_.emplace_back(Format("YT_CGROUP_MEMORY=%v", Memory_.GetFullPath()));
@@ -856,16 +877,16 @@ private:
         }
 
         // Cgroups statistics.
-        if (Config_->EnableCGroups && Prepared_) {
-            if (Config_->IsCGroupSupported(TCpuAccounting::Name)) {
+        if (CGroupsConfig_ && Prepared_) {
+            if (CGroupsConfig_->IsCGroupSupported(TCpuAccounting::Name)) {
                 statistics.AddSample("/user_job/cpu", CpuAccounting_.GetStatistics());
             }
 
-            if (Config_->IsCGroupSupported(TBlockIO::Name)) {
+            if (CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
                 statistics.AddSample("/user_job/block_io", BlockIO_.GetStatistics());
             }
 
-            if (Config_->IsCGroupSupported(TMemory::Name)) {
+            if (CGroupsConfig_->IsCGroupSupported(TMemory::Name)) {
                 statistics.AddSample("/user_job/max_memory", Memory_.GetMaxMemoryUsage());
                 statistics.AddSample("/user_job/current_memory", Memory_.GetStatistics());
             }
@@ -997,13 +1018,13 @@ private:
 
     void CheckMemoryUsage()
     {
-        if (!Config_->UserId) {
+        if (!UserId_) {
             LOG_DEBUG("Memory usage control is disabled");
             return;
         }
 
         try {
-            i64 rss = GetMemoryUsageByUid(*Config_->UserId);
+            i64 rss = GetMemoryUsageByUid(*UserId_);
 
             if (Memory_.IsCreated()) {
                 auto statistics = Memory_.GetStatistics();
@@ -1028,7 +1049,7 @@ private:
             i64 memoryLimit = UserJobSpec_.memory_limit();
             i64 currentMemoryUsage = rss + tmpfsSize;
 
-            CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / (1024 * 1024)) * Config_->MemoryWatchdogPeriod.Seconds();
+            CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / (1024 * 1024)) * MemoryWatchdogPeriod_.Seconds();
 
             LOG_DEBUG("Checking memory usage (Tmpfs: %v, Rss: %v, MemoryLimit: %v)",
                 tmpfsSize,
@@ -1060,7 +1081,9 @@ private:
             return;
         }
 
-        auto period = Config_->BlockIOWatchdogPeriod;
+        // NB: currently these checks are only used for diagnostics.
+
+        auto period = CGroupsConfig_->BlockIOWatchdogPeriod;
         auto servicedIOs = BlockIO_.GetIOServiced();
 
         for (const auto& item : servicedIOs) {
@@ -1090,9 +1113,6 @@ private:
             if (deltaOperations > UserJobSpec_.iops_threshold() * period.Seconds()) {
                 LOG_DEBUG("Woodpecker detected (DeviceId: %v)", item.DeviceId);
                 IsWoodpecker_ = true;
-                if (Config_->EnableIopsThrottling) {
-                    BlockIO_.ThrottleOperations(item.DeviceId, UserJobSpec_.iops_threshold());
-                }
             }
         }
 

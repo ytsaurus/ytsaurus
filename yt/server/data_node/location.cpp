@@ -3,7 +3,6 @@
 #include "blob_chunk.h"
 #include "blob_reader_cache.h"
 #include "config.h"
-#include "disk_health_checker.h"
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
 #include "journal_manager.h"
@@ -14,6 +13,9 @@
 
 #include <yt/server/hydra/changelog.h>
 #include <yt/server/hydra/private.h>
+
+#include <yt/server/misc/disk_health_checker.h>
+#include <yt/server/misc/private.h>
 
 #include <yt/ytlib/chunk_client/format.h>
 
@@ -47,9 +49,10 @@ static const auto TrashCheckPeriod = TDuration::Seconds(10);
 TLocation::TLocation(
     ELocationType type,
     const Stroka& id,
-    TLocationConfigBasePtr config,
+    TStoreLocationConfigBasePtr config,
     TBootstrap* bootstrap)
-    : Bootstrap_(bootstrap)
+    : TDiskLocation(config, id, DataNodeLogger)
+    , Bootstrap_(bootstrap)
     , Type_(type)
     , Id_(id)
     , Config_(config)
@@ -60,9 +63,6 @@ TLocation::TLocation(
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
 {
-    Logger = DataNodeLogger;
-    Logger.AddTag("LocationId: %v", Id_);
-
     auto* profileManager = NProfiling::TProfileManager::Get();
     NProfiling::TTagIdList tagIds{
         profileManager->RegisterTag("location_id", Id_),
@@ -72,8 +72,9 @@ TLocation::TLocation(
 
     HealthChecker_ = New<TDiskHealthChecker>(
         Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
-        GetPath(),
+        GetPath(),  
         GetWritePoolInvoker(),
+        DataNodeLogger,
         Profiler_);
 
     PendingIOSizeCounters_.resize(
@@ -165,11 +166,6 @@ void TLocation::Start()
     } catch (const std::exception& ex) {
         Disable(TError("Location start failed") << ex);
     }
-}
-
-bool TLocation::IsEnabled() const
-{
-    return Enabled_.load();
 }
 
 void TLocation::Disable(const TError& reason)
@@ -402,21 +398,6 @@ void TLocation::ForceHashDirectories(const Stroka& rootPath)
     }
 }
 
-void TLocation::ValidateMinimumSpace()
-{
-    LOG_INFO("Checking minimum space");
-
-    if (Config_->MinDiskSpace) {
-        i64 minSpace = *Config_->MinDiskSpace;
-        i64 totalSpace = GetTotalSpace();
-        if (totalSpace < minSpace) {
-            THROW_ERROR_EXCEPTION("Minimum disk space requirement is not met: required %v, actual %v",
-                minSpace,
-                totalSpace);
-        }
-    }
-}
-
 void TLocation::ValidateLockFile()
 {
     LOG_INFO("Checking lock file");
@@ -472,12 +453,6 @@ void TLocation::MarkAsDisabled(const TError& error)
     UsedSpace_ = 0;
     SessionCount_ = 0;
     ChunkCount_ = 0;
-}
-
-i64 TLocation::GetTotalSpace() const
-{
-    auto statistics = NFS::GetDiskSpaceStatistics(GetPath());
-    return statistics.TotalSpace;
 }
 
 i64 TLocation::GetAdditionalSpace() const
