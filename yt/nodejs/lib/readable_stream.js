@@ -36,11 +36,7 @@ YtReadableStream.prototype._flow = function YtReadableStream$_flow()
     "use strict";
     this.__DBG("_flow");
 
-    if (this._paused || this._ended || this._closed) {
-        return;
-    }
-
-    if (!this._binding.IsFlowing()) {
+    if (this._paused || !this._binding.IsFlowing()) {
         return;
     }
 
@@ -54,7 +50,7 @@ YtReadableStream.prototype._flow = function YtReadableStream$_flow()
         if (!chunk) {
             break;
         } else {
-            this.emit("data", chunk);
+            this._emitData(chunk);
         }
     }
 
@@ -67,6 +63,16 @@ YtReadableStream.prototype._flow = function YtReadableStream$_flow()
     }
 };
 
+YtReadableStream.prototype._emitData = function YtReadableStream$_emitData(chunk)
+{
+    "use strict";
+    this.__DBG("_emitData");
+
+    if (!this._ended) {
+        this.emit("data", chunk);
+    }
+};
+
 YtReadableStream.prototype._emitEnd = function YtReadableStream$_emitEnd()
 {
     "use strict";
@@ -74,10 +80,13 @@ YtReadableStream.prototype._emitEnd = function YtReadableStream$_emitEnd()
 
     if (!this._ended) {
         this._ended = true;
+
         this.emit("end");
+
+        this.readable = false;
     }
 
-    this._emitClose();
+    process.nextTick(this._emitClose.bind(this));
 };
 
 YtReadableStream.prototype._emitClose = function YtReadableStream$_emitClose()
@@ -88,12 +97,11 @@ YtReadableStream.prototype._emitClose = function YtReadableStream$_emitClose()
     if (this._closed) {
         this._closed = true;
 
-        this.readable = false;
-        this._binding = null;
-
         this.emit("close");
+
+        this.readable = false;
     }
-}
+};
 
 YtReadableStream.prototype.pause = function YtReadableStream$pause()
 {
@@ -119,11 +127,15 @@ YtReadableStream.prototype.destroy = function YtReadableStream$destroy()
     "use strict";
     this.__DBG("destroy");
 
-    if (this._binding) {
-        this._binding.Destroy();
+    this._binding.Destroy();
+
+    if (this._paused) {
+        while (this._binding.IsFlowing()) {
+            this._binding.Pull();
+        }
+        this._paused = false;
     }
 
-    this._paused = false;
     this._ended = true;
 
     this._emitClose();
