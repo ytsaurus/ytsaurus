@@ -142,6 +142,7 @@ struct TFairShareContext
     TDuration ExecScheduleJobDuration;
     TEnumIndexedVector<int, EScheduleJobFailReason> FailedScheduleJob;
     yhash_map<TJobPtr, TOperationElementPtr> JobToOperationElement;
+    bool HasAggressivelyStarvingNodes = false;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -315,6 +316,7 @@ public:
     virtual void IncreaseResourceUsage(const TJobResources& delta) override;
 
     virtual bool IsRoot() const;
+    virtual bool AggressiveStarvationEnabled() const;
 
     void AddChild(const ISchedulerElementPtr& child, bool enabled = true);
     void EnableChild(const ISchedulerElementPtr& child);
@@ -366,6 +368,8 @@ public:
     TPoolConfigPtr GetConfig();
     void SetConfig(TPoolConfigPtr config);
     void SetDefaultConfig();
+
+    virtual bool AggressiveStarvationEnabled() const override;
 
     virtual Stroka GetId() const override;
 
@@ -424,13 +428,18 @@ public:
 
     void IncreaseJobResourceUsage(const TJobId& jobId, const TJobResources& resourcesDelta);
 
-    void UpdatePreemptableJobsList(double fairShareRatio, const TJobResources& totalResourceLimits);
+    void UpdatePreemptableJobsList(
+        double fairShareRatio,
+        const TJobResources& totalResourceLimits,
+        double preemptionSatisfactionThreshold,
+        double aggressivePreemptionSatisfactionThreshold);
 
     bool IsJobExisting(const TJobId& jobId) const;
 
-    bool IsJobPreemptable(const TJobId& jobId) const;
+    bool IsJobPreemptable(const TJobId& jobId, bool aggressivePreemptionEnabled) const;
 
     int GetPreemptableJobCount() const;
+    int GetAggressivelyPreemptableJobCount() const;
 
     void AddJob(const TJobId& jobId, const TJobResources resourceUsage);
     TJobResources RemoveJob(const TJobId& jobId);
@@ -453,29 +462,50 @@ private:
     typedef std::list<TJobId> TJobIdList;
 
     TJobIdList NonpreemptableJobs_;
+    TJobIdList AggressivelyPreemptableJobs_;
     TJobIdList PreemptableJobs_;
 
     TJobResources NonpreemptableResourceUsage_;
+    TJobResources AggressivelyPreemptableResourceUsage_;
 
     struct TJobProperties
     {
         TJobProperties(
             bool preemptable,
+            bool aggressivelyPreemptable,
             TJobIdList::iterator jobIdListIterator,
             const TJobResources& resourceUsage)
             : Preemptable(preemptable)
+            , AggressivelyPreemptable(aggressivelyPreemptable)
             , JobIdListIterator(jobIdListIterator)
             , ResourceUsage(resourceUsage)
         { }
 
-        //! Determines the per-operation list (either preemptable or non-preemptable) this
-        //! job belongs to.
+        //! Determines whether job belongs to list of preemtable or aggressively preemtable jobs of operation.
         bool Preemptable;
+
+        //! Determines whether job belongs to list of preemtable (but not aggressively preemptable) jobs of operation.
+        bool AggressivelyPreemptable;
 
         //! Iterator in the per-operation list pointing to this particular job.
         TJobIdList::iterator JobIdListIterator;
 
         TJobResources ResourceUsage;
+
+        static void SetPreemptable(TJobProperties* properties) {
+            properties->Preemptable = true;
+            properties->AggressivelyPreemptable = true;
+        }
+
+        static void SetAggressivelyPreemptable(TJobProperties* properties) {
+            properties->Preemptable = false;
+            properties->AggressivelyPreemptable = true;
+        }
+
+        static void SetNonPreemptable(TJobProperties* properties) {
+            properties->Preemptable = false;
+            properties->AggressivelyPreemptable = false;
+        }
     };
 
     yhash_map<TJobId, TJobProperties> JobPropertiesMap_;
@@ -544,9 +574,10 @@ public:
 
     bool IsJobExisting(const TJobId& jobId) const;
 
-    bool IsJobPreemptable(const TJobId& jobId) const;
+    bool IsJobPreemptable(const TJobId& jobId, bool aggressivePreemptionEnabled) const;
 
     int GetPreemptableJobCount() const;
+    int GetAggressivelyPreemptableJobCount() const;
 
     void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage);
     void OnJobFinished(const TJobId& jobId);

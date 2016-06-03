@@ -165,6 +165,7 @@ public:
             .Item("pool").Value(parent->GetId())
             .Item("start_time").Value(dynamicAttributes.MinSubtreeStartTime)
             .Item("preemptable_job_count").Value(element->GetPreemptableJobCount())
+            .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, this, element));
     }
 
@@ -204,7 +205,8 @@ public:
             "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lg, AdjustedMinShare: %.4lf, "
             "MaxPossibleUsage: %.4lf,  BestAllocation: %.4lf, "
             "Starving: %v, Weight: %v, "
-            "PreemptableRunningJobs: %v}",
+            "PreemptableRunningJobs: %v, "
+            "AggressivelyPreemptableRunningJobs: %v}",
             element->GetStatus(),
             attributes.DominantResource,
             attributes.DemandRatio,
@@ -216,7 +218,8 @@ public:
             attributes.BestAllocationRatio,
             element->GetStarving(),
             element->GetWeight(),
-            element->GetPreemptableJobCount());
+            element->GetPreemptableJobCount(),
+            element->GetAggressivelyPreemptableJobCount());
     }
 
     virtual void BuildBriefSpec(const TOperationId& operationId, IYsonConsumer* consumer) override
@@ -390,7 +393,7 @@ private:
         {
             LOG_DEBUG("Scheduling new jobs");
             PROFILE_AGGREGATED_TIMING(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
-                rootElement->PrescheduleJob(context, false);
+                rootElement->PrescheduleJob(context, /*starvingOnly*/ false);
             }
 
             NProfiling::TScopedTimer timer;
@@ -421,7 +424,7 @@ private:
                     continue;
                 }
 
-                if (IsJobPreemptable(job, operationElement) && !operationElement->HasStarvingParent()) {
+                if (IsJobPreemptable(job, operationElement, context.HasAggressivelyStarvingNodes) && !operationElement->HasStarvingParent()) {
                     auto* parent = operationElement->GetParent();
                     while (parent) {
                         discountedPools.insert(parent);
@@ -445,7 +448,7 @@ private:
         {
             LOG_DEBUG("Scheduling new jobs with preemption");
             PROFILE_AGGREGATED_TIMING(PreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
-                rootElement->PrescheduleJob(context, true);
+                rootElement->PrescheduleJob(context, /*starvingOnly*/ true);
             }
 
             // Clean data from previous profiling.
@@ -542,17 +545,18 @@ private:
 
         LOG_DEBUG("Heartbeat info (StartedJobs: %v, PreemptedJobs: %v, "
             "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
-            "NonPreemptiveScheduleJobCount: %v, PreemptiveScheduleJobCount: %v)",
+            "NonPreemptiveScheduleJobCount: %v, PreemptiveScheduleJobCount: %v, HasAggressivelyStarvingNodes: %v)",
             schedulingContext->StartedJobs().size(),
             schedulingContext->PreemptedJobs().size(),
             scheduledDuringPreemption,
             preemptableJobs.size(),
             FormatResources(resourceDiscount),
             nonPreemptiveScheduleJobCount,
-            preemptiveScheduleJobCount);
+            preemptiveScheduleJobCount,
+            context.HasAggressivelyStarvingNodes);
     }
 
-    bool IsJobPreemptable(const TJobPtr& job, const TOperationElementPtr& element)
+    bool IsJobPreemptable(const TJobPtr& job, const TOperationElementPtr& element, bool aggressivePreemptionEnabled)
     {
         double usageRatio = element->GetResourceUsageRatio();
         if (usageRatio < Config->MinPreemptableRatio) {
@@ -560,11 +564,14 @@ private:
         }
 
         const auto& attributes = element->Attributes();
-        if (usageRatio < attributes.FairShareRatio) {
+        auto threshold = aggressivePreemptionEnabled
+            ? Config->AggressivePreemptionSatisfactionThreshold
+            : Config->PreemptionSatisfactionThreshold;
+        if (usageRatio < attributes.FairShareRatio * threshold) {
             return false;
         }
 
-        if (!element->IsJobPreemptable(job->GetId())) {
+        if (!element->IsJobPreemptable(job->GetId(), aggressivePreemptionEnabled)) {
             return false;
         }
 
