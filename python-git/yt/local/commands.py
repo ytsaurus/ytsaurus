@@ -308,7 +308,7 @@ def delete(id, force=False, path=None):
     shutil.rmtree(os.path.join(get_root_path(path), id), ignore_errors=True)
 
 def get_proxy(id, path=None):
-    require(_is_exists(id, path), yt.YtError("Local YT with id {0} not found".format(id)))
+    require(_is_exists(id, path), lambda: yt.YtError("Local YT with id {0} not found".format(id)))
 
     info_file_path = os.path.join(get_root_path(path), id, "info.yson")
     require(os.path.exists(info_file_path),
