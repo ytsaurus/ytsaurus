@@ -16,9 +16,11 @@ using NJobTrackerClient::EJobState;
 using NJobTrackerClient::EJobPhase;
 
 DEFINE_ENUM(EErrorCode,
-    ((ConfigCreationFailed)  (1100))
-    ((AbortByScheduler)      (1101))
-    ((ResourceOverdraft)     (1102))
+    ((ConfigCreationFailed)   (1100))
+    ((AbortByScheduler)       (1101))
+    ((ResourceOverdraft)      (1102))
+    ((AllLocationsDisabled)   (1103))
+    ((JobEnvironmentDisabled) (1104))
 );
 
 DEFINE_ENUM(ESandboxKind,
@@ -27,20 +29,30 @@ DEFINE_ENUM(ESandboxKind,
     (Home)
 );
 
+DEFINE_ENUM(EJobEnvironmentType,
+    (Simple)
+    (Cgroups)
+);
+
 extern const TEnumIndexedVector<Stroka, ESandboxKind> SandboxDirectoryNames;
 
 extern const Stroka ProxyConfigFileName;
 
 DECLARE_REFCOUNTED_CLASS(TSlotManager)
-DECLARE_REFCOUNTED_CLASS(TSlot)
-DECLARE_REFCOUNTED_CLASS(TEnvironmentManager)
+DECLARE_REFCOUNTED_CLASS(TSlotLocation)
+
+DECLARE_REFCOUNTED_STRUCT(ISlot)
+
+DECLARE_REFCOUNTED_CLASS(TSlotLocationConfig)
+
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnector)
 
-DECLARE_REFCOUNTED_STRUCT(IProxyController)
-DECLARE_REFCOUNTED_STRUCT(IEnvironmentBuilder)
+DECLARE_REFCOUNTED_STRUCT(IJobEnvironment)
 
-DECLARE_REFCOUNTED_CLASS(TEnvironmentConfig)
-DECLARE_REFCOUNTED_CLASS(TEnvironmentManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TJobEnvironmentConfig)
+DECLARE_REFCOUNTED_CLASS(TSimpleJobEnvironmentConfig)
+DECLARE_REFCOUNTED_CLASS(TCGroupJobEnvironmentConfig)
+
 DECLARE_REFCOUNTED_CLASS(TSlotManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TExecAgentConfig)

@@ -5,6 +5,7 @@
 #include <yt/server/cell_node/bootstrap.h>
 
 #include <yt/server/data_node/master_connector.h>
+#include <yt/server/data_node/chunk_cache.h>
 
 #include <yt/server/exec_agent/slot_manager.h>
 
@@ -84,7 +85,10 @@ TNodeResources TJobController::GetResourceLimits()
 {
     TNodeResources result;
 
-    result.set_user_slots(Bootstrap_->GetExecSlotManager()->GetSlotCount());
+    // If chunk cache is disabled, we disable all sheduler jobs.
+    result.set_user_slots(Bootstrap_->GetChunkCache()->IsEnabled() 
+        ? Bootstrap_->GetExecSlotManager()->GetSlotCount()
+        : 0);
 
     #define XX(name, Name) \
         result.set_##name(ResourceLimitsOverrides_.has_##name() \

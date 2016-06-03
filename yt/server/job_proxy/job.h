@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/exec_agent/public.h>
+
 #include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
@@ -26,7 +28,9 @@ namespace NJobProxy {
 struct IJobHost
     : public virtual TRefCounted
 {
-    virtual TJobProxyConfigPtr GetConfig() = 0;
+    virtual TJobProxyConfigPtr GetConfig() const = 0;
+    virtual NExecAgent::TCGroupJobEnvironmentConfigPtr GetCGroupsConfig() const = 0;
+
     virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const = 0;
 
     virtual const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const = 0;

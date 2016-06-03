@@ -33,6 +33,7 @@ public:
     void AddArguments(std::initializer_list<TStringBuf> args);
     void AddArguments(const std::vector<Stroka>& args);
 
+    // File actions are done after fork but before exec.
     void AddCloseFileAction(int fd);
     void AddDup2FileAction(int oldFD, int newFD);
 

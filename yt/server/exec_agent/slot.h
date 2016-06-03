@@ -2,7 +2,11 @@
 
 #include "public.h"
 
+#include <yt/server/job_proxy/config.h>
+
 #include <yt/ytlib/cgroup/cgroup.h>
+
+#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/ytlib/formats/format.h>
 
@@ -21,88 +25,51 @@ namespace NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSlot
+struct ISlot
     : public TRefCounted
 {
-public:
-    TSlot(
-        TSlotManagerConfigPtr config,
-        std::vector<Stroka> paths,
-        const Stroka& nodeId,
-        IInvokerPtr invoker,
-        int slotIndex,
-        TNullable<int> userId);
+    //! Kill all possibly running processes and clean sandboxes.
+    virtual void Cleanup() = 0;
 
-    void Initialize();
+    virtual TFuture<void> RunJobProxy(
+        NJobProxy::TJobProxyConfigPtr config,
+        const TJobId& jobId, 
+        const TOperationId& operationId) = 0;
 
-    bool IsFree() const;
-    TNullable<int> GetUserId() const;
-    const NCGroup::TNonOwningCGroup& GetProcessGroup() const;
-    std::vector<Stroka> GetCGroupPaths() const;
-    int GetPathIndex() const;
-
-    NBus::TTcpBusServerConfigPtr GetRpcServerConfig() const;
-    NBus::TTcpBusClientConfigPtr GetRpcClientConfig() const;
-
-    void Acquire(int pathIndex);
-    void InitSandbox();
-    void Clean();
-    void Release();
-
-    IInvokerPtr GetInvoker();
-
-    //! Creates a symbolic link #linkName for #targetPath in the sandbox.
-    void MakeLink(
+    virtual void MakeLink(
         ESandboxKind sandboxKind,
         const Stroka& targetPath,
         const Stroka& linkName,
-        bool isExecutable);
+        bool isExecutable) = 0;
 
-    //! Creates a copy of #sourcePath to #destinationName in the sandbox.
-    void MakeCopy(
+    virtual void MakeCopy(
         ESandboxKind sandboxKind,
         const Stroka& sourcePath,
         const Stroka& destinationName,
-        bool isExecutable);
+        bool isExecutable) = 0;
 
-    void PrepareTmpfs(
+    //! Returns tmpfs path.
+    virtual Stroka PrepareTmpfs(
         ESandboxKind sandboxKind,
         i64 size,
-        Stroka path);
+        Stroka path) = 0;
 
-    Stroka GetTmpfsPath(ESandboxKind sandboxKind, const Stroka& path) const;
+    virtual NJobProberClient::TJobProberServiceProxy GetJobProberProxy() = 0;
 
-    const Stroka& GetWorkingDirectory() const;
+    virtual NBus::TTcpBusServerConfigPtr GetRpcServerConfig() const = 0;
 
-private:
-    std::atomic<bool> IsFree_ = {true};
-    bool IsClean_ = true;
-    int PathIndex_ = 0;
-
-    const std::vector<Stroka> Paths_;
-    const Stroka NodeId_;
-    const int SlotIndex_;
-    const TNullable<int> UserId_;
-    const IInvokerPtr Invoker_;
-
-    std::vector<TEnumIndexedVector<Stroka, ESandboxKind>> SandboxPaths_;
-
-    NCGroup::TNonOwningCGroup ProcessGroup_;
-    NCGroup::TNonOwningCGroup NullCGroup_;
-
-    NLogging::TLogger Logger;
-    TSlotManagerConfigPtr Config_;
-
-
-    void DoCleanSandbox(int pathIndex);
-    void DoCleanProcessGroups();
-    void DoResetProcessGroup();
-
-    void LogErrorAndExit(const TError& error);
-
+    virtual int GetSlotIndex() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TSlot)
+DEFINE_REFCOUNTED_TYPE(ISlot)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISlotPtr CreateSlot(
+    int slotIndex,
+    TSlotLocationPtr location,
+    IJobEnvironmentPtr environment,
+    const Stroka& nodeTag);
 
 ////////////////////////////////////////////////////////////////////////////////
 

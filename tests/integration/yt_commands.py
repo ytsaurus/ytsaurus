@@ -4,7 +4,7 @@ from yt.common import YtError, YtResponseError, flatten, update
 
 import __builtin__
 
-import os
+import os, stat
 import sys
 import tempfile
 import time
@@ -473,9 +473,14 @@ def create_tmpdir(prefix):
     except OSError:
         sys.excepthook(*sys.exc_info())
 
-    return tempfile.mkdtemp(
-        prefix="{0}_{1}_".format(prefix, os.getpid()),
-        dir=basedir)
+    tmpdir = tempfile.mkdtemp(
+         prefix="{0}_{1}_".format(prefix, os.getpid()),
+         dir=basedir)
+    # Give full access to tmpdir, it must be accessible from user jobs
+    # to implement waitable jobs.
+    os.chmod(tmpdir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+    return tmpdir
+
 
 def track_path(path, timeout):
     poll_frequency = 0.1
