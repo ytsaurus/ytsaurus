@@ -158,6 +158,7 @@ function YtCommand(logger, driver, coordinator, watcher, sticky_cache, pause) {
     this.output_compression = undefined;
     this.output_format = undefined;
     this.output_stream = undefined;
+    this.memory_output = undefined;
 
     this.mime_compression = undefined;
     this.mime_type = undefined;
@@ -273,6 +274,19 @@ YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
             result.toJson(),
             "application/json");
     } else {
+        if (this.memory_output) {
+            var chunks = this.output_stream.chunks;
+            var length = 0;
+            var i, n;
+            for (i = 0, n = chunks.length; i < n; ++i) {
+                length += chunks[i].length;
+            }
+            this.rsp.removeHeader("Transfer-Encoding");
+            this.rsp.setHeader("Content-Length", length);
+            for (i = 0, n = chunks.length; i < n; ++i) {
+                this.rsp.write(chunks[i]);
+            }
+        }
         this.rsp.end();
     }
 };
@@ -726,7 +740,14 @@ YtCommand.prototype._captureParameters = function() {
     } else {
         from_body = Q.resolve();
         this.input_stream = this.req;
-        this.output_stream = this.rsp;
+        if (this.descriptor.output_type_as_integer === binding.EDataType_Null ||
+            this.descriptor.output_type_as_integer === binding.EDataType_Structured) {
+            this.output_stream = new utils.MemoryOutputStream();
+            this.memory_output = true;
+        } else {
+            this.output_stream = this.rsp;
+            this.memory_output = false;
+        }
     }
 
     var self = this;
