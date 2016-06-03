@@ -49,10 +49,9 @@ YtWritableStream.prototype._emitClose = function YtWritableStream$_emitClose()
     if (!this._closed) {
         this._closed = true;
 
-        this.writable = false;
-        this._binding = null;
-
         this.emit("close");
+
+        this.writable = false;
     }
 };
 
@@ -98,9 +97,7 @@ YtWritableStream.prototype.destroySoon = function YtWritableStream$destroySoon()
     "use strict";
     this.__DBG("destroySoon");
 
-    if (this._binding) {
-        this._binding.End();
-    }
+    this._binding.End();
 
     this._ended = true;
 };
@@ -110,9 +107,7 @@ YtWritableStream.prototype.destroy = function YtWritableStream$destroy()
     "use strict";
     this.__DBG("destroy");
 
-    if (this._binding) {
-        this._binding.Destroy();
-    }
+    this._binding.Destroy();
 
     this._ended = true;
 

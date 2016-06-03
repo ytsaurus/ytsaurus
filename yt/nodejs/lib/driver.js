@@ -20,13 +20,14 @@ var _SIMPLE_EXECUTE_FORMAT = binding.CreateV8Node("json");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function promisinglyPipe(source, destination)
+function promisinglyPipe(source, destination, debug_)
 {
     return new Q(function promisinglyPipe$impl(resolve, reject) {
-        var debug = __DBG.Tagged("Pipe");
+        var debug = debug_ ? debug_ : __DBG.Tagged("pipe");
         var clean = false;
 
         function resolve_and_clear() {
+            debug("pipe$resolve_and_clear");
             if (!clean) {
                 cleanup();
                 clean = true;
@@ -35,6 +36,7 @@ function promisinglyPipe(source, destination)
         }
 
         function reject_and_clear(err) {
+            debug("pipe$reject_and_clear");
             if (!clean) {
                 cleanup();
                 clean = true;
@@ -43,7 +45,9 @@ function promisinglyPipe(source, destination)
         }
 
         function on_data(chunk) {
-            if (destination.writable && destination.write(chunk) === false) {
+            debug("pipe$on_data");
+            if (destination.write(chunk) === false) {
+                debug("pipe$on_data -> pause");
                 source.pause();
             }
         }
@@ -51,27 +55,29 @@ function promisinglyPipe(source, destination)
         source.on("data", on_data);
 
         function on_drain() {
-            if (source.readable) {
-                source.resume();
-            }
+            debug("pipe$on_drain");
+            source.resume();
         }
 
         destination.on("drain", on_drain);
 
         function on_end() {
-            debug("Piping has ended");
+            debug("pipe$on_end");
             resolve_and_clear();
         }
+
         function on_source_close() {
-            debug("Source stream has been closed");
+            debug("pipe$on_source_close");
             reject_and_clear(new YtError("Source stream in the pipe has been closed"));
         }
+
         function on_destination_close() {
-            debug("Destination stream has been closed");
+            debug("pipe$on_destination_close");
             reject_and_clear(new YtError("Destination stream in the pipe has been closed"));
         }
+
         function on_error(err) {
-            debug("An error occured");
+            debug("pipe$on_error");
             reject_and_clear(err);
         }
 
@@ -83,7 +89,7 @@ function promisinglyPipe(source, destination)
         destination.on("error", on_error);
 
         function cleanup() {
-            debug("Cleaning up");
+            debug("cleanup");
 
             source.removeListener("data", on_data);
             destination.removeListener("drain", on_drain);
@@ -151,13 +157,14 @@ YtDriver.prototype.execute = function YtDriver$execute(
 
     // Setup pipes.
     function destroyer() {
+        debug("destroyer");
         wrapped_input_stream.destroy();
         wrapped_output_stream.destroy();
         input_stream.destroy();
         output_stream.destroy();
     }
 
-    var input_pipe_promise = promisinglyPipe(input_stream, wrapped_input_stream)
+    var input_pipe_promise = promisinglyPipe(input_stream, wrapped_input_stream, debug)
         .then(
         function ip_promise_then() {
             debug("execute -> input_pipe_promise has been resolved");
@@ -170,7 +177,7 @@ YtDriver.prototype.execute = function YtDriver$execute(
             return Q.reject(new YtError("Input pipe has been canceled", err));
         });
 
-    var output_pipe_promise = promisinglyPipe(wrapped_output_stream, output_stream)
+    var output_pipe_promise = promisinglyPipe(wrapped_output_stream, output_stream, debug)
         .then(
         function op_promise_then() {
             debug("execute -> output_pipe_promise has been resolved");
@@ -214,9 +221,14 @@ YtDriver.prototype.execute = function YtDriver$execute(
     process.nextTick(function() { pause.unpause(); });
 
     return Q
-        .all([driver_promise, input_pipe_promise, output_pipe_promise])
+        .settle([driver_promise, input_pipe_promise, output_pipe_promise])
         .spread(function spread(result, ir, or) {
-            return result;
+            debug("execute -> settle barrier");
+            if (result.isRejected()) {
+                return Q.reject(result.error());
+            } else {
+                return Q.resolve(result.value());
+            }
         });
 };
 
