@@ -17,6 +17,7 @@
 #include <yt/core/actions/bind_helpers.h>
 
 #include <yt/core/concurrency/async_stream.h>
+#include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/logging/log.h>
 
@@ -201,12 +202,14 @@ public:
 
         auto compressionInvoker =
             NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker();
+        auto invoker =
+            CreateSerializedInvoker(compressionInvoker);
 
         InputStack_->AddCompression(inputCompression);
-        Request_.InputStream = CreateAsyncAdapter(InputStack_.get(), compressionInvoker);
+        Request_.InputStream = CreateAsyncAdapter(InputStack_.get(), invoker);
 
         OutputStack_->AddCompression(outputCompression);
-        Request_.OutputStream = CreateAsyncAdapter(OutputStack_.get(), compressionInvoker);
+        Request_.OutputStream = CreateAsyncAdapter(OutputStack_.get(), invoker);
 
         Request_.ResponseParametersConsumer = &ResponseParametersConsumer_;
     }
