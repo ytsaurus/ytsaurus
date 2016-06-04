@@ -2119,6 +2119,7 @@ private:
             }
             if (operation->GetJobNodeCount() < Config_->MaxJobNodesPerOperation) {
                 MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId);
+                operation->SetJobNodeCount(operation->GetJobNodeCount() + 1);
             }
             return;
         }
@@ -2135,6 +2136,7 @@ private:
         {
             MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId);
             operation->SetStderrCount(operation->GetStderrCount() + 1);
+            operation->SetJobNodeCount(operation->GetJobNodeCount() + 1);
         } else {
             ReleaseStderrChunk(job, stderrChunkId);
         }

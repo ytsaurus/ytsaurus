@@ -3044,6 +3044,8 @@ private:
     class TRequestBase
     {
     public:
+        virtual ~TRequestBase() = default;
+        
         void Run()
         {
             DoPrepare();
@@ -3051,6 +3053,14 @@ private:
         }
 
     protected:
+        TTransaction* const Transaction_;
+        const TYPath Path_;
+        const TNameTablePtr NameTable_;
+        const TNullable<int> TabletIndexColumnId_;
+
+        TTableMountInfoPtr TableInfo_;
+
+
         explicit TRequestBase(
             TTransaction* transaction,
             const TYPath& path,
@@ -3060,14 +3070,6 @@ private:
             , NameTable_(std::move(nameTable))
             , TabletIndexColumnId_(NameTable_->FindId(TabletIndexColumnName))
         { }
-
-        TTransaction* const Transaction_;
-        const TYPath Path_;
-        const TNameTablePtr NameTable_;
-        const TNullable<int> TabletIndexColumnId_;
-
-        TTableMountInfoPtr TableInfo_;
-
 
         void DoPrepare()
         {
