@@ -1602,7 +1602,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
     auto scheduleJobResult = scheduleJobResultWithTimeoutOrError.Value();
 
     // Discard the job in case of resource overcommit.
-    {
+    if (scheduleJobResult->JobStartRequest) {
         const auto& jobStartRequest = scheduleJobResult->JobStartRequest.Get();
         auto jobLimits = GetHierarchicalResourceLimits(context);
         if (!Dominates(jobLimits, jobStartRequest.ResourceLimits)) {
