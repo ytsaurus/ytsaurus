@@ -2936,6 +2936,13 @@ private:
         }
 
     protected:
+        TTransaction* const Transaction_;
+        const TYPath Path_;
+        const TNameTablePtr NameTable_;
+
+        TTableMountInfoPtr TableInfo_;
+
+
         explicit TRequestBase(
             TTransaction* transaction,
             const TYPath& path,
@@ -2945,12 +2952,7 @@ private:
             , NameTable_(std::move(nameTable))
         { }
 
-        TTransaction* const Transaction_;
-        const TYPath Path_;
-        const TNameTablePtr NameTable_;
-
-        TTableMountInfoPtr TableInfo_;
-
+        virtual ~TRequestBase() = default;
 
         void DoPrepare()
         {
