@@ -888,6 +888,43 @@ public:
     }
 
 
+    void ValidateResourceUsageIncrease(
+        TAccount* account,
+        const TClusterResources& delta)
+    {
+        if (IsHiveMutation()) {
+            return;
+        }
+
+        const auto& usage = account->ClusterStatistics().ResourceUsage;
+        const auto& limits = account->ClusterResourceLimits();
+        if (delta.DiskSpace > 0 && usage.DiskSpace + delta.DiskSpace > limits.DiskSpace) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AccountLimitExceeded,
+                "Account %Qv is over disk space limit",
+                account->GetName())
+                << TErrorAttribute("usage", usage.DiskSpace)
+                << TErrorAttribute("limit", limits.DiskSpace);
+        }
+        if (delta.NodeCount > 0 && usage.NodeCount + delta.NodeCount > limits.NodeCount) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AccountLimitExceeded,
+                "Account %Qv is over Cypress node count limit",
+                account->GetName())
+                << TErrorAttribute("usage", usage.NodeCount)
+                << TErrorAttribute("limit", limits.NodeCount);
+        }
+        if (delta.ChunkCount > 0 && usage.ChunkCount + delta.ChunkCount > limits.ChunkCount) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AccountLimitExceeded,
+                "Account %Qv is over chunk count limit",
+                account->GetName())
+                << TErrorAttribute("usage", usage.ChunkCount)
+                << TErrorAttribute("limit", limits.ChunkCount);
+        }
+    }
+
+
     void SetUserBanned(TUser* user, bool banned)
     {
         if (banned && user == RootUser_) {
@@ -2062,6 +2099,16 @@ void TSecurityManager::ValidatePermission(
     Impl_->ValidatePermission(
         object,
         permission);
+}
+
+
+void TSecurityManager::ValidateResourceUsageIncrease(
+    TAccount* account,
+    const TClusterResources& delta)
+{
+    Impl_->ValidateResourceUsageIncrease(
+        account,
+        delta);
 }
 
 void TSecurityManager::SetUserBanned(TUser* user, bool banned)

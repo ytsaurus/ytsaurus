@@ -150,7 +150,8 @@ public:
         ValidateCreatedNodeType(type);
 
         auto* account = GetNewNodeAccount();
-        account->ValidateResourceUsageIncrease(TClusterResources(0, 1, 0));
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidateResourceUsageIncrease(account, TClusterResources(0, 1, 0));
 
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto handler = cypressManager->FindHandler(type);
@@ -280,7 +281,8 @@ public:
             // NB: Ignore disk space increase since in multicell mode the primary cell
             // might not be aware of the actual resource usage.
             // This should be safe since chunk lists are shared anyway.
-            clonedAccount->ValidateResourceUsageIncrease(TClusterResources(0, 1, 0));
+            auto securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->ValidateResourceUsageIncrease(clonedAccount, TClusterResources(0, 1, 0));
         }
 
         auto cypressManager = Bootstrap_->GetCypressManager();
