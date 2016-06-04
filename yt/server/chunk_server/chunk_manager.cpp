@@ -1294,7 +1294,7 @@ private:
 
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account());
-        account->ValidateResourceUsageIncrease(TClusterResources(1, 0, 1));
+        securityManager->ValidateResourceUsageIncrease(account, TClusterResources(1, 0, 1));
 
         TChunkList* chunkList = nullptr;
         if (subrequest->has_chunk_list_id()) {
