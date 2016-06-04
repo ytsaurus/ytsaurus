@@ -204,6 +204,13 @@ public:
         EPermission permission);
 
 
+    //! Throws if account limit is exceeded for some resource type with positive delta.
+    /*!
+     *  If NHive::IsHiveMutation returns |true| then this check is suppressed.
+     */
+    void ValidateResourceUsageIncrease(TAccount* account, const TClusterResources& delta);
+
+
     //! Sets or resets banned flag for a given user.
     void SetUserBanned(TUser* user, bool banned);
 

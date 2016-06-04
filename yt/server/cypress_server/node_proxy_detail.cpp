@@ -338,7 +338,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
 
         auto* node = LockThisImpl();
         if (node->GetAccount() != account) {
-            account->ValidateResourceUsageIncrease(TClusterResources(0, 1, 0));
+            securityManager->ValidateResourceUsageIncrease(account, TClusterResources(0, 1, 0));
             securityManager->SetAccount(node, account);
         }
 
