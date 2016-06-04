@@ -735,19 +735,19 @@ YtCommand.prototype._captureParameters = function() {
         // are served with POST method (see |_checkHttpMethod|).
         from_body = this._captureBody();
         this.input_stream = new utils.NullStream();
-        this.output_stream = this.rsp;
         this.pause = utils.Pause(this.input_stream);
     } else {
         from_body = Q.resolve();
         this.input_stream = this.req;
-        if (this.descriptor.output_type_as_integer === binding.EDataType_Null ||
-            this.descriptor.output_type_as_integer === binding.EDataType_Structured) {
-            this.output_stream = new utils.MemoryOutputStream();
-            this.memory_output = true;
-        } else {
-            this.output_stream = this.rsp;
-            this.memory_output = false;
-        }
+    }
+
+    if (this.descriptor.output_type_as_integer === binding.EDataType_Null ||
+        this.descriptor.output_type_as_integer === binding.EDataType_Structured) {
+        this.output_stream = new utils.MemoryOutputStream();
+        this.memory_output = true;
+    } else {
+        this.output_stream = this.rsp;
+        this.memory_output = false;
     }
 
     var self = this;
