@@ -2929,6 +2929,8 @@ private:
     class TRequestBase
     {
     public:
+        virtual ~TRequestBase() = default;
+        
         void Run()
         {
             DoPrepare();
@@ -2951,8 +2953,6 @@ private:
             , Path_(path)
             , NameTable_(std::move(nameTable))
         { }
-
-        virtual ~TRequestBase() = default;
 
         void DoPrepare()
         {
