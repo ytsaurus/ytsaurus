@@ -16,6 +16,20 @@ var v8_heapdump = require("heapdump");
 
 var binding = require("./ytnode");
 
+// Bind UE handler early to avoid core dumps.
+process.on("uncaughtException", function(err) {
+    console.error("*** Uncaught Exception ***");
+    console.error(err);
+    if (err.trace) {
+        console.error(err.trace);
+    }
+    if (err.stack) {
+        console.error(err.stack);
+    }
+    // Wipe process.
+    binding._Exit(1);
+});
+
 // Debugging stuff.
 var __DBG = require("./debug").that("C", "Cluster Worker");
 var __PROFILE = false;
@@ -296,19 +310,6 @@ process.on("message", function(message) {
             violentlyDie();
             break;
     }
-});
-
-process.on("uncaughtException", function(err) {
-    console.error("*** Uncaught Exception ***");
-    console.error(err);
-    if (err.trace) {
-        console.error(err.trace);
-    }
-    if (err.stack) {
-        console.error(err.stack);
-    }
-    // Wipe process.
-    binding._Exit(1);
 });
 
 // Fire up the head.
