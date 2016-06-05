@@ -1222,6 +1222,7 @@ class TAllFutureCombiner
 public:
     explicit TAllFutureCombiner(const std::vector<TFuture<T>>& futures)
         : TFutureCombinerBase<T, std::vector<TErrorOr<T>>>(futures)
+        , Results_(futures.size())
         , PendingResponseCount_(futures.size())
     { }
 
