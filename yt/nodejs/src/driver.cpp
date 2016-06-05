@@ -261,13 +261,14 @@ private:
         }
     }
 
-    void OnResponse1(const TErrorOr<void>& response)
+    TFuture<void> OnResponse1(const TErrorOr<void>& response)
     {
         try {
             OutputStack_->Finish();
         } catch (const std::exception& ex) {
             LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
         }
+        return MakeFuture(response);
     }
 
     void OnResponse2(const TErrorOr<void>& response)
