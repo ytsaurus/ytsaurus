@@ -266,7 +266,7 @@ private:
         try {
             OutputStack_->Finish();
         } catch (const std::exception& ex) {
-            LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
+            LOG_DEBUG(ex, "Ignoring exception while closing output stream");
         }
         return MakeFuture(response);
     }
