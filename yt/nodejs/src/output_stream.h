@@ -37,9 +37,6 @@ public:
     static v8::Handle<v8::Value> Destroy(const v8::Arguments& args);
     void DoDestroy();
 
-    static v8::Handle<v8::Value> IsFlowing(const v8::Arguments& args);
-    v8::Handle<v8::Value> DoIsFlowing();
-
     static v8::Handle<v8::Value> IsFinished(const v8::Arguments& args);
     v8::Handle<v8::Value> DoIsFinished();
 
@@ -66,10 +63,11 @@ private:
 private:
     const ui64 Watermark_;
 
+    std::atomic<bool> FlowRequestPending_ = {false};
+
     // Protects everything below.
     TMutex Mutex_;
 
-    bool IsFlowing_ = false;
     bool IsFinishing_ = false;
     bool IsFinished_ = false;
     bool IsDestroyed_ = false;

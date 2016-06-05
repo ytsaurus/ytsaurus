@@ -36,7 +36,7 @@ YtReadableStream.prototype._flow = function YtReadableStream$_flow()
     "use strict";
     this.__DBG("_flow");
 
-    if (this._paused || !this._binding.IsFlowing()) {
+    if (this._paused || this._ended) {
         return;
     }
 
@@ -108,7 +108,9 @@ YtReadableStream.prototype.pause = function YtReadableStream$pause()
     "use strict";
     this.__DBG("pause");
 
-    this._paused = true;
+    if (!this._ended) {
+        this._paused = true;
+    }
 };
 
 YtReadableStream.prototype.resume = function YtReadableStream$resume()
@@ -116,7 +118,7 @@ YtReadableStream.prototype.resume = function YtReadableStream$resume()
     "use strict";
     this.__DBG("resume");
 
-    if (this._paused) {
+    if (!this._ended && this._paused) {
         this._paused = false;
         process.nextTick(this._flow.bind(this));
     }
@@ -129,13 +131,7 @@ YtReadableStream.prototype.destroy = function YtReadableStream$destroy()
 
     this._binding.Destroy();
 
-    if (this._paused) {
-        while (this._binding.IsFlowing()) {
-            this._binding.Pull();
-        }
-        this._paused = false;
-    }
-
+    this._paused = false;
     this._ended = true;
 
     this._emitClose();

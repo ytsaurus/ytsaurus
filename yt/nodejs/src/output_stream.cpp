@@ -63,7 +63,6 @@ void TOutputStreamWrap::Initialize(Handle<Object> target)
 
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Destroy", TOutputStreamWrap::Destroy);
 
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsFlowing", TOutputStreamWrap::IsFlowing);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsFinished", TOutputStreamWrap::IsFinished);
 
     target->Set(
@@ -140,8 +139,6 @@ Handle<Value> TOutputStreamWrap::DoPull()
     // Short-path for destroyed streams.
 
     ProtectedUpdateAndNotifyWriter([&] () {
-        YCHECK(IsFlowing_);
-
         for (int i = 0; i < MaxPartsPerPull; ++i) {
             if (Queue_.empty()) {
                 break;
@@ -165,11 +162,6 @@ Handle<Value> TOutputStreamWrap::DoPull()
 
             BytesDequeued_ += part.Length;
             BytesInFlight_ -= part.Length;
-        }
-
-        if (count == 0) {
-            AsyncUnref();
-            IsFlowing_ = false;
         }
     });
 
@@ -208,30 +200,6 @@ void TOutputStreamWrap::DoDestroy()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TOutputStreamWrap::IsFlowing(const Arguments& args)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    // Unwrap.
-    auto* stream = ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
-
-    // Validate arguments.
-    YCHECK(args.Length() == 0);
-
-    // Do the work.
-    return scope.Close(stream->DoIsFlowing());
-}
-
-Handle<Value> TOutputStreamWrap::DoIsFlowing()
-{
-    THREAD_AFFINITY_IS_V8();
-    auto guard = Guard(Mutex_);
-    return Boolean::New(IsFlowing_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 Handle<Value> TOutputStreamWrap::IsFinished(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
@@ -265,8 +233,8 @@ bool TOutputStreamWrap::CanFlow() const
 
 void TOutputStreamWrap::RunFlow()
 {
-    if (!IsFlowing_) {
-        IsFlowing_ = true;
+    bool expected = false;
+    if (FlowRequestPending_.compare_exchange_strong(expected, true, std::memory_order_acquire)) {
         AsyncRef();
         EIO_PUSH(TOutputStreamWrap::AsyncOnFlowing, this);
     }
@@ -278,11 +246,9 @@ int TOutputStreamWrap::AsyncOnFlowing(eio_req* request)
     HandleScope scope;
 
     auto* stream = static_cast<TOutputStreamWrap*>(request->data);
-    if (stream->IsFlowing_) {
-        node::MakeCallback(stream->handle_, OnFlowingSymbol, 0, nullptr);
-    } else {
-        stream->AsyncUnref();
-    }
+    stream->FlowRequestPending_.store(false, std::memory_order_release);
+    node::MakeCallback(stream->handle_, OnFlowingSymbol, 0, nullptr);
+    stream->AsyncUnref();
 
     return 0;
 }
@@ -303,6 +269,8 @@ const ui64 TOutputStreamWrap::GetBytesDequeued() const
 
 void TOutputStreamWrap::MarkAsFinishing()
 {
+    THREAD_AFFINITY_IS_ANY();
+
     ProtectedUpdateAndNotifyWriter([&] () {
         IsFinishing_ = true;
     });
@@ -355,6 +323,8 @@ void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
 
 void TOutputStreamWrap::DoFinish()
 {
+    THREAD_AFFINITY_IS_ANY();
+
     auto guard = Guard(Mutex_);
     IsFinishing_ = true;
     IsFinished_ = true;
@@ -364,6 +334,8 @@ void TOutputStreamWrap::DoFinish()
 
 void TOutputStreamWrap::ProtectedUpdateAndNotifyWriter(std::function<void()> mutator)
 {
+    THREAD_AFFINITY_IS_ANY();
+
     TPromise<void> writePromise;
     {
         auto guard = Guard(Mutex_);
@@ -391,9 +363,7 @@ void TOutputStreamWrap::PushToQueue(std::unique_ptr<char[]> buffer, size_t lengt
     if (!CanFlow()) {
         YCHECK(!WritePromise_);
         WritePromise_ = NewPromise<void>();
-
         auto writePromise = WritePromise_;
-
         {
             auto unguard = Unguard(Mutex_);
             WaitFor(writePromise.ToFuture())

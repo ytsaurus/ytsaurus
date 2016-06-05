@@ -270,7 +270,7 @@ process.on("SIGUSR1", function() {
 
     console.error("[" + process.pid + "] Dumping Jemalloc statistics...");
     try {
-        binding.JemallocPrintStats();
+        binding.JemallocStats();
     } catch (ex) {
         console.error("Caught exception: " + ex.toString());
     }
