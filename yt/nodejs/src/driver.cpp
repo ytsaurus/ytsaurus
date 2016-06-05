@@ -123,6 +123,8 @@ private:
 
     TDriverRequest Request_;
 
+    IInvokerPtr IOInvoker_;
+
     std::unique_ptr<TNodeJSInputStack> InputStack_;
     std::unique_ptr<TNodeJSOutputStack> OutputStack_;
 
@@ -145,6 +147,8 @@ public:
         Handle<Function> parameterCallback)
         : Echo_(echo)
         , Driver_(std::move(driver))
+        , IOInvoker_(CreateSerializedInvoker(
+            NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker()))
         , InputStack_(std::make_unique<TNodeJSInputStack>(inputStream))
         , OutputStack_(std::make_unique<TNodeJSOutputStack>(outputStream))
         , ExecuteCallback_(Persistent<Function>::New(executeCallback))
@@ -201,16 +205,11 @@ public:
             }
         }
 
-        auto compressionInvoker =
-            NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker();
-        auto invoker =
-            CreateSerializedInvoker(compressionInvoker);
-
         InputStack_->AddCompression(inputCompression);
-        Request_.InputStream = CreateAsyncAdapter(InputStack_.get(), invoker);
+        Request_.InputStream = CreateAsyncAdapter(InputStack_.get(), IOInvoker_);
 
         OutputStack_->AddCompression(outputCompression);
-        Request_.OutputStream = CreateAsyncAdapter(OutputStack_.get(), invoker);
+        Request_.OutputStream = CreateAsyncAdapter(OutputStack_.get(), IOInvoker_);
 
         Request_.ResponseParametersConsumer = &ResponseParametersConsumer_;
     }
@@ -232,13 +231,17 @@ public:
         } else {
             future =
                 BIND(&TExecuteRequest::PipeInputToOutput, this_)
-                .AsyncVia(NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker())
+                .AsyncVia(IOInvoker_)
                 .Run();
         }
 
-        future.Subscribe(
-            BIND(&TExecuteRequest::OnResponse, this_)
-            .Via(GetUVInvoker()));
+        future
+            .Apply(
+                BIND(&TExecuteRequest::OnResponse1, this_)
+                .AsyncVia(IOInvoker_))
+            .Subscribe(
+                BIND(&TExecuteRequest::OnResponse2, this_)
+                .Via(GetUVInvoker()));
 
         TFutureWrap::Unwrap(wrappedFuture)->SetFuture(std::move(future));
 
@@ -259,17 +262,20 @@ private:
         }
     }
 
-    void OnResponse(const TErrorOr<void>& response)
+    TFuture<void> OnResponse1(const TErrorOr<void>& response)
     {
-        THREAD_AFFINITY_IS_V8();
-        HandleScope scope;
         try {
             OutputStack_->Finish();
         } catch (const std::exception& ex) {
             LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
         }
+        return MakeFuture(response);
+    }
 
-        auto wrappedResponse = ConvertErrorToV8(response);
+    void OnResponse2(const TErrorOr<void>& response)
+    {
+        THREAD_AFFINITY_IS_V8();
+        HandleScope scope;
 
         // XXX(sandello): We cannot represent ui64 precisely in V8, because there
         // is no native ui64 integer type. So we convert ui64 to double (v8::Number)
@@ -280,7 +286,10 @@ private:
         double bytesOut = OutputStack_->GetBytes();
         OutputStack_.reset();
 
-        Invoke(ExecuteCallback_, wrappedResponse, Number::New(bytesIn), Number::New(bytesOut));
+        Invoke(ExecuteCallback_,
+            ConvertErrorToV8(response),
+            Number::New(bytesIn),
+            Number::New(bytesOut));
     }
 
     void SyncRef()
