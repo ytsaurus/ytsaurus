@@ -63,7 +63,7 @@ void TOutputStreamWrap::Initialize(Handle<Object> target)
 
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Destroy", TOutputStreamWrap::Destroy);
 
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsFinished", TOutputStreamWrap::IsFinished);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Drain", TOutputStreamWrap::Drain);
 
     target->Set(
         String::NewSymbol("TOutputStreamWrap"),
@@ -200,7 +200,7 @@ void TOutputStreamWrap::DoDestroy()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TOutputStreamWrap::IsFinished(const Arguments& args)
+Handle<Value> TOutputStreamWrap::Drain(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -212,12 +212,16 @@ Handle<Value> TOutputStreamWrap::IsFinished(const Arguments& args)
     YCHECK(args.Length() == 0);
 
     // Do the work.
-    return scope.Close(stream->DoIsFinished());
+    return scope.Close(stream->DoDrain());
 }
 
-Handle<Value> TOutputStreamWrap::DoIsFinished()
+Handle<Value> TOutputStreamWrap::DoDrain()
 {
     THREAD_AFFINITY_IS_V8();
+
+    bool expected = true;
+    YCHECK(FlowEstablished_.compare_exchange_strong(expected, false));
+
     auto guard = Guard(Mutex_);
     return Boolean::New(IsFinished_);
 }
@@ -234,7 +238,7 @@ bool TOutputStreamWrap::CanFlow() const
 void TOutputStreamWrap::RunFlow()
 {
     bool expected = false;
-    if (FlowRequestPending_.compare_exchange_strong(expected, true, std::memory_order_acquire)) {
+    if (FlowEstablished_.compare_exchange_strong(expected, true, std::memory_order_acquire)) {
         AsyncRef();
         EIO_PUSH(TOutputStreamWrap::AsyncOnFlowing, this);
     }
@@ -246,7 +250,6 @@ int TOutputStreamWrap::AsyncOnFlowing(eio_req* request)
     HandleScope scope;
 
     auto* stream = static_cast<TOutputStreamWrap*>(request->data);
-    stream->FlowRequestPending_.store(false, std::memory_order_release);
     node::MakeCallback(stream->handle_, OnFlowingSymbol, 0, nullptr);
     stream->AsyncUnref();
 
@@ -325,9 +328,10 @@ void TOutputStreamWrap::DoFinish()
 {
     THREAD_AFFINITY_IS_ANY();
 
-    auto guard = Guard(Mutex_);
-    IsFinishing_ = true;
-    IsFinished_ = true;
+    ProtectedUpdateAndNotifyWriter([&] () {
+        IsFinishing_ = true;
+        IsFinished_ = true;
+    });
 
     RunFlow();
 }

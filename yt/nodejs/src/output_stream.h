@@ -37,8 +37,8 @@ public:
     static v8::Handle<v8::Value> Destroy(const v8::Arguments& args);
     void DoDestroy();
 
-    static v8::Handle<v8::Value> IsFinished(const v8::Arguments& args);
-    v8::Handle<v8::Value> DoIsFinished();
+    static v8::Handle<v8::Value> Drain(const v8::Arguments& args);
+    v8::Handle<v8::Value> DoDrain();
 
     // Diagnostics.
     const ui64 GetBytesEnqueued() const;
@@ -63,7 +63,7 @@ private:
 private:
     const ui64 Watermark_;
 
-    std::atomic<bool> FlowRequestPending_ = {false};
+    std::atomic<bool> FlowEstablished_ = {false};
 
     // Protects everything below.
     TMutex Mutex_;
