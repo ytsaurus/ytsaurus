@@ -16,6 +16,25 @@ var v8_heapdump = require("heapdump");
 
 var binding = require("./ytnode");
 
+// Bind UE handler early to avoid core dumps.
+process.on("uncaughtException", function(err) {
+    console.error("*** Uncaught Exception ***");
+    console.error(err);
+    if (err.trace) {
+        console.error(err.trace);
+    }
+    if (err.stack) {
+        console.error(err.stack);
+    }
+    // Wipe process.
+    binding.WipeOutCurrentProcess(1);
+});
+
+process.on("exit", function() {
+    // Call _exit to avoid subtle shutdown issues.
+    binding.WipeOutCurrentProcess(0);
+});
+
 // Debugging stuff.
 var __DBG = require("./debug").that("C", "Cluster Worker");
 var __PROFILE = false;
@@ -267,7 +286,7 @@ process.on("SIGUSR1", function() {
 
     console.error("[" + process.pid + "] Dumping Jemalloc statistics...");
     try {
-        binding.JemallocPrintStats();
+        binding.JemallocStats();
     } catch (ex) {
         console.error("Caught exception: " + ex.toString());
     }
@@ -293,24 +312,6 @@ process.on("message", function(message) {
             violentlyDie();
             break;
     }
-});
-
-process.on("exit", function() {
-    // Call _exit to avoid subtle shutdown issues.
-    binding.WipeOutCurrentProcess(0);
-});
-
-process.on("uncaughtException", function(err) {
-    console.error("*** Uncaught Exception ***");
-    console.error(err);
-    if (err.trace) {
-        console.error(err.trace);
-    }
-    if (err.stack) {
-        console.error(err.stack);
-    }
-    // Call _exit to avoid subtle shutdown issues.
-    binding.WipeOutCurrentProcess(1);
 });
 
 // Fire up the head.
