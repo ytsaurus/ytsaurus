@@ -34,9 +34,10 @@ cp -r "${VERSION}/usr/share/pyshared/yt" "$ARCADIA/"
 cp -r "${VERSION}/usr/bin" "$ARCADIA/"
 
 pushd "arcadia_python_yt/" 
+svn rm latest
 rm -rf latest
 cp -r "$VERSION" latest 
-svn add *
+svn add "$VERSION" latest
 svn ci -m "Updated contrib/python/yt_trunk to version $VERSION"
 popd
 
