@@ -1,7 +1,5 @@
 #include "framework.h"
 
-#include <yt/core/misc/common.h>
-
 #include <yt/core/actions/bind.h>
 
 #include <yt/core/concurrency/action_queue.h>
@@ -205,14 +203,8 @@ TEST(TProcessTest, KillZombie)
 
     siginfo_t infop;
     
-    while (true) {
-        auto res = ::waitid(P_PID, p->GetProcessId(), &infop, WEXITED | WNOWAIT);
-        if (res == 0)
-            break;
-        
-        YCHECK(res == -1);
-        YCHECK(errno == EINTR);
-    }
+    auto res = HandleEintr(::waitid, P_PID, p->GetProcessId(), &infop, WEXITED | WNOWAIT);
+    EXPECT_EQ(0, res);
 
     EXPECT_EQ(p->GetProcessId(), infop.si_pid);
 
