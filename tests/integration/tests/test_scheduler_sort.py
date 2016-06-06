@@ -171,14 +171,36 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         create("table", "//tmp/t_out")
 
+        create_user("test_user")
+        create_account("test_account")
+
+        sort(in_="//tmp/t_in",
+             out="//tmp/t_out",
+             sort_by="key",
+             user="test_user")
+
         with pytest.raises(YtError):
             sort(in_="//tmp/t_in",
                  out="//tmp/t_out",
-                 sort_by="missing_key",
+                 sort_by="key",
                  spec={"partition_count": 5,
                        "partition_job_count": 2,
                        "data_size_per_sort_job": 1,
                        "intermediate_data_account": "non_existing"})
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/t_in",
+                 out="//tmp/t_out",
+                 sort_by="missing_key",
+                 spec={"intermediate_data_account": "test_account"},
+                 user="test_user")
+
+        set("//sys/accounts/test_account/@acl", [{"action": "allow", "permissions": ["use"], "subjects": ["test_user"]}])
+
+        sort(in_="//tmp/t_in",
+             out="//tmp/t_out",
+             sort_by="key",
+             user="test_user")
 
     def test_composite_key(self):
         v1 = {"key": -7, "subkey": "bar", "value": "v1"}
