@@ -663,7 +663,8 @@ private:
         const TTransactionSupervisorServiceProxy::TErrorOrRspCommitTransactionPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            auto error = TError("Error committing transaction at cell %v",
+            auto error = TError("Error committing transaction %v at cell %v",
+                Id_,
                 cellId)
                 << rspOrError;
             DoAbort(error);
