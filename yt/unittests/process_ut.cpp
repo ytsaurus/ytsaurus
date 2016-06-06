@@ -1,5 +1,7 @@
 #include "framework.h"
 
+#include <yt/core/misc/common.h>
+
 #include <yt/core/actions/bind.h>
 
 #include <yt/core/concurrency/action_queue.h>
@@ -202,8 +204,16 @@ TEST(TProcessTest, KillZombie)
     auto finished = p->Spawn();
 
     siginfo_t infop;
-    auto res = ::waitid(P_PID, p->GetProcessId(), &infop, WEXITED | WNOWAIT);
-    EXPECT_TRUE(res == 0);
+    
+    while (true) {
+        auto res = ::waitid(P_PID, p->GetProcessId(), &infop, WEXITED | WNOWAIT);
+        if (res == 0)
+            break;
+        
+        YCHECK(res == -1);
+        YCHECK(errno == EINTR);
+    }
+
     EXPECT_EQ(p->GetProcessId(), infop.si_pid);
 
     p->Kill(SIGKILL);
