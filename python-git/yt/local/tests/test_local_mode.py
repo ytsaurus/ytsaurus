@@ -59,7 +59,7 @@ class TestLocalMode(object):
         environment = start(master_count=3, node_count=0, scheduler_count=0, enable_debug_logging=True)
         assert len(_read_pids_file(environment)) == 4  # + proxy
         assert len(environment.configs["master"]) == 3
-        stop(environment.id, remove_working_dir=True)
+        stop(environment.id)
 
         environment = start(node_count=5, scheduler_count=2, start_proxy=False)
         assert len(environment.configs["node"]) == 5
@@ -68,15 +68,15 @@ class TestLocalMode(object):
         assert len(_read_pids_file(environment)) == 8
         with pytest.raises(yt.YtError):
             environment.get_proxy_address()
-        stop(environment.id, remove_working_dir=True)
+        stop(environment.id)
 
         environment = start(node_count=1)
         assert len(_read_pids_file(environment)) == 4  # + proxy
-        stop(environment.id, remove_working_dir=True)
+        stop(environment.id)
 
         environment = start(node_count=0, scheduler_count=0, start_proxy=False)
         assert len(_read_pids_file(environment)) == 1
-        stop(environment.id, remove_working_dir=True)
+        stop(environment.id)
 
     def test_use_local_yt(self):
         environment = start()
@@ -103,7 +103,7 @@ class TestLocalMode(object):
 
             assert set(client.search("//test")) == set(["//test", "//test/folder", table])
         finally:
-            stop(environment.id, remove_working_dir=True)
+            stop(environment.id)
 
     def test_local_cypress_synchronization(self):
         local_cypress_path = os.path.join(TESTS_LOCATION, "local_cypress_tree")
@@ -117,5 +117,5 @@ class TestLocalMode(object):
             assert client.get_attribute("//subdir", "other_attr") == 42
             assert client.get_attribute("/", "root_attr") == "ok"
         finally:
-            stop(environment.id, remove_working_dir=True)
+            stop(environment.id)
 
