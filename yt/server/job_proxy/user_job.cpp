@@ -360,10 +360,10 @@ private:
         return StatisticsOutput_.get();
     }
 
-    TMultiChunkWriterOptionsPtr CreateSystemFileOptions()
+    TMultiChunkWriterOptionsPtr CreateFileOptions()
     {
         auto options = New<TMultiChunkWriterOptions>();
-        options->Account = NSecurityClient::SysAccountName;
+        options->Account = NSecurityClient::TmpAccountName;
         options->ReplicationFactor = 1;
         options->ChunksVital = false;
         return options;
@@ -373,7 +373,7 @@ private:
     {
         ErrorOutput_.reset(new TFileChunkOutput(
             Config_->JobIO->ErrorFileWriter,
-            CreateSystemFileOptions(),
+            CreateFileOptions(),
             Host_->GetClient(),
             FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()),
             UserJobSpec_.max_stderr_size()));
@@ -433,7 +433,7 @@ private:
         for (int index = 0; index < contexts.size(); ++index) {
             TFileChunkOutput contextOutput(
                 Config_->JobIO->ErrorFileWriter,
-                CreateSystemFileOptions(),
+                CreateFileOptions(),
                 Host_->GetClient(),
                 transactionId);
 
