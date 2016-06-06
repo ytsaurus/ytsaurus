@@ -93,13 +93,19 @@ public:
      */
     EDurability GetDurability() const;
 
+    //! Returns the transaction timeout.
+    /*!
+     *  \note Thread affinity: any
+     */
+    TDuration GetTimeout() const;
+
 
     //! Called to mark a given cell as a transaction participant.
-    //! Starts the corresponding transaction and returns the async result.
+    //! The transaction must have already been started at the participant.
     /*!
      *  \note Thread affinity: ClientThread
      */
-    TFuture<void> AddTabletParticipant(const NElection::TCellId& cellId);
+    void AddTabletParticipant(const NElection::TCellId& cellId);
 
 
     //! Raised when the transaction is committed.

@@ -36,6 +36,11 @@ public:
     //! Raised when a transaction is aborted.
     DECLARE_SIGNAL(void(TTransaction*), TransactionAborted);
 
+    //! Raised on epoch finish for each transaction (both persistent and transient)
+    //! to help all dependent subsystems to reset their transient transaction-related
+    //! state.
+    DECLARE_SIGNAL(void(TTransaction*), TransactionTransientReset);
+
 public:
     TTransactionManager(
         TTransactionManagerConfigPtr config,
@@ -44,15 +49,25 @@ public:
 
     ~TTransactionManager();
 
-    NHydra::TMutationPtr CreateStartTransactionMutation(
-        const NTabletClient::NProto::TReqStartTransaction& request);
+    //! Finds transaction by id.
+    //! If it does not exist then creates a new transaction
+    //! (either persistent or transient, depending on #transient).
+    TTransaction* GetOrCreateTransaction(
+        const TTransactionId& transactionId,
+        TTimestamp startTimestamp,
+        TDuration timeout,
+        bool transient);
 
-    //! Finds transaction by id, throws if nothing is found.
-    TTransaction* GetTransactionOrThrow(const TTransactionId& id);
+    //! Finds a transaction by id.
+    //! If a persistent instance is found, just returns it.
+    //! If a transient instance is found, makes is persistent and returns it.
+    //! Fails if no transaction is found.
+    TTransaction* MakeTransactionPersistent(const TTransactionId& transactionId);
+
+    //! Returns the full list of transactions, including transient and persistent.
+    std::vector<TTransaction*> GetTransactions();
 
     NYTree::IYPathServicePtr GetOrchidService();
-
-    DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
 
 private:
     class TImpl;

@@ -455,7 +455,6 @@ void TSortedChunkStore::CheckRowLocks(
         "consider reducing transaction duration or increasing store retention time")
         << TErrorAttribute("transaction_id", transaction->GetId())
         << TErrorAttribute("transaction_start_time", transaction->GetStartTime())
-        << TErrorAttribute("transaction_register_time", transaction->GetRegisterTime())
         << TErrorAttribute("tablet_id", TabletId_)
         << TErrorAttribute("store_id", StoreId_)
         << TErrorAttribute("key", RowToKey(row));
