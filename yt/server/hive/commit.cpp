@@ -5,7 +5,7 @@
 #include <yt/core/misc/serialize.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveServer {
 
 using namespace NRpc;
 using namespace NHydra;
@@ -25,6 +25,9 @@ TCommit::TCommit(
     , MutationId_(mutationId)
     , ParticipantCellIds_(participantCellIds)
     , Persistent_(false)
+    , CommitTimestamp_(NTransactionClient::NullTimestamp)
+    , TransientState_(ECommitState::Start)
+    , PersistentState_(ECommitState::Start)
 { }
 
 TFuture<TSharedRefArray> TCommit::GetAsyncResponseMessage()
@@ -34,7 +37,7 @@ TFuture<TSharedRefArray> TCommit::GetAsyncResponseMessage()
 
 void TCommit::SetResponseMessage(TSharedRefArray message)
 {
-    ResponseMessagePromise_.Set(std::move(message));
+    ResponseMessagePromise_.TrySet(std::move(message));
 }
 
 bool TCommit::IsDistributed() const
@@ -50,7 +53,8 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, TransactionId_);
     Save(context, MutationId_);
     Save(context, ParticipantCellIds_);
-    Save(context, PreparedParticipantCellIds_);
+    Save(context, CommitTimestamp_);
+    Save(context, PersistentState_);
 }
 
 void TCommit::Load(TLoadContext& context)
@@ -61,10 +65,11 @@ void TCommit::Load(TLoadContext& context)
     Load(context, TransactionId_);
     Load(context, MutationId_);
     Load(context, ParticipantCellIds_);
-    Load(context, PreparedParticipantCellIds_);
+    Load(context, CommitTimestamp_);
+    Load(context, PersistentState_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveServer
 } // namespace NYT

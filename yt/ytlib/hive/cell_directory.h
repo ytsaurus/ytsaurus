@@ -18,7 +18,7 @@
 #include <yt/core/rpc/public.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,6 +132,13 @@ public:
     //! Checks versions and updates cell configuration, if needed.
     bool ReconfigureCell(const TCellDescriptor& descriptor);
 
+    //! Registers a cell with empty description.
+    /*!
+     *  This call could be used in conjuction with #IsCellUnregistered to make sure that
+     *  a given #cellId is no longer valid.
+     */
+    void RegisterCell(const TCellId& cellId);
+
     //! Unregisters the cell. Returns |true| if the cell was found.
     /*!
      *  The ids of all unregistered cells are kept forever.
@@ -153,5 +160,5 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveClient
 } // namespace NYT

@@ -28,7 +28,7 @@ using namespace NChunkClient;
 using namespace NQueryClient;
 using namespace NConcurrency;
 using namespace NTransactionClient;
-using namespace NHive;
+using namespace NHiveClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NApi;

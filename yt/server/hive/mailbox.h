@@ -16,7 +16,7 @@
 #include <yt/core/tracing/public.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,9 +32,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TMessageId, LastIncomingMessageId);
     DEFINE_BYVAL_RW_PROPERTY(bool, PostMessagesInFlight)
 
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NProto::TEncapsulatedMessage>, OutcomingMessages);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NHiveClient::NProto::TEncapsulatedMessage>, OutcomingMessages);
     
-    typedef std::map<TMessageId, NProto::TEncapsulatedMessage> TIncomingMessageMap;
+    typedef std::map<TMessageId, NHiveClient::NProto::TEncapsulatedMessage> TIncomingMessageMap;
     DEFINE_BYREF_RW_PROPERTY(TIncomingMessageMap, IncomingMessages);
 
     // Transient state.
@@ -59,5 +59,5 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveServer
 } // namespace NYT

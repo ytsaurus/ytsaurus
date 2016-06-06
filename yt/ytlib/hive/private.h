@@ -4,16 +4,14 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/profiling/profiler.h>
-
 namespace NYT {
-namespace NHive {
+namespace NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger HiveLogger;
+extern const NLogging::TLogger HiveClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveClient
 } // namespace NYT

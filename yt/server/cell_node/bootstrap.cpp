@@ -124,7 +124,7 @@ using namespace NTabletNode;
 using namespace NQueryAgent;
 using namespace NApi;
 using namespace NTransactionServer;
-using namespace NHive;
+using namespace NHiveServer;
 using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////

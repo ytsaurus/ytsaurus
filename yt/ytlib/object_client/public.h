@@ -218,7 +218,7 @@ struct TVersionedObjectId
 
     //! Initializes a null instance.
     /*!
-     *  #NodeId id #NullObjectId, #TransactionId is #NullTransactionId.
+     *  #NodeId is #NullObjectId, #TransactionId is #NullTransactionId.
      */
     TVersionedObjectId();
 

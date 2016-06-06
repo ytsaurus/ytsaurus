@@ -2,21 +2,33 @@
 
 #include <yt/server/hydra/public.h>
 
-#include <yt/ytlib/hive/public.h>
-
 #include <yt/ytlib/election/public.h>
+
+#include <yt/ytlib/transaction_client/public.h>
+
+#include <yt/ytlib/hive/public.h>
 
 #include <yt/core/misc/enum.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NElection::TCellId;
+
+using NTransactionClient::TTransactionId;
+using NTransactionClient::TTimestamp;
+
+using NHiveClient::TMessageId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(THiveManager)
 DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizer)
 
-DECLARE_ENTITY_TYPE(TMailbox, NElection::TCellId, ::THash<NElection::TCellId>)
+DECLARE_ENTITY_TYPE(TMailbox, TCellId, ::THash<TCellId>)
+DECLARE_ENTITY_TYPE(TCommit, TTransactionId, ::THash<TTransactionId>)
 
 DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
 
@@ -40,5 +52,5 @@ DEFINE_ENUM(ETransactionState,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveServer
 } // namespace NYT

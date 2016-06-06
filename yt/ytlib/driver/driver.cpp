@@ -31,7 +31,7 @@ using namespace NFormats;
 using namespace NSecurityClient;
 using namespace NConcurrency;
 using namespace NHydra;
-using namespace NHive;
+using namespace NHiveClient;
 using namespace NTabletClient;
 using namespace NApi;
 

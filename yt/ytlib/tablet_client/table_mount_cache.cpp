@@ -39,7 +39,7 @@ using namespace NElection;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NTableClient;
-using namespace NHive;
+using namespace NHiveClient;
 using namespace NNodeTrackerClient;
 using namespace NQueryClient;
 

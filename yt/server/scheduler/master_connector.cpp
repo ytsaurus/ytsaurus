@@ -309,7 +309,7 @@ private:
     const TSchedulerConfigPtr Config;
     NCellScheduler::TBootstrap* const Bootstrap;
 
-    NHive::TClusterDirectoryPtr ClusterDirectory;
+    NHiveClient::TClusterDirectoryPtr ClusterDirectory;
 
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableControlInvoker;

@@ -2,6 +2,7 @@
 #include "config.h"
 #include "mailbox.h"
 #include "helpers.h"
+#include "private.h"
 
 #include <yt/server/election/election_manager.h>
 
@@ -13,7 +14,6 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/hive_service_proxy.h>
-#include <yt/ytlib/hive/private.h>
 
 #include <yt/ytlib/hydra/config.h>
 #include <yt/ytlib/hydra/peer_channel.h>
@@ -32,20 +32,22 @@
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveServer {
 
 using namespace NRpc;
 using namespace NRpc::NProto;
 using namespace NHydra;
 using namespace NHydra::NProto;
+using namespace NHiveClient;
 using namespace NConcurrency;
-using namespace NHive::NProto;
 using namespace NYson;
 using namespace NYTree;
 using namespace NTracing;
 
 using NYT::ToProto;
 using NYT::FromProto;
+
+using NHiveClient::NProto::TEncapsulatedMessage;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +96,7 @@ public:
         : THydraServiceBase(
             hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
             TServiceId(THiveServiceProxy::GetServiceName(), selfCellId),
-            HiveLogger,
+            HiveServerLogger,
             THiveServiceProxy::GetProtocolVersion())
         , TCompositeAutomatonPart(
             hydraManager,
@@ -249,7 +251,7 @@ private:
 
     // RPC handlers.
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Ping)
+    DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, Ping)
     {
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
 
@@ -272,14 +274,14 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, SyncCells)
+    DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, SyncCells)
     {
         context->SetRequestInfo();
 
         ValidatePeer(EPeerKind::Leader);
 
         auto registeredCellList = CellDirectory_->GetRegisteredCells();
-        yhash_map<TCellId, NHive::TCellInfo> registeredCellMap;
+        yhash_map<TCellId, TCellInfo> registeredCellMap;
         for (const auto& cellInfo : registeredCellList) {
             YCHECK(registeredCellMap.insert(std::make_pair(cellInfo.CellId, cellInfo)).second);
         }
@@ -289,7 +291,7 @@ private:
             YCHECK(missingCellIds.insert(cellInfo.CellId).second);
         }
 
-        auto requestReconfigure = [&] (const NHive::TCellDescriptor& cellDescriptor, int oldVersion) {
+        auto requestReconfigure = [&] (const TCellDescriptor& cellDescriptor, int oldVersion) {
             LOG_DEBUG("Requesting cell reconfiguration (CellId: %v, ConfigVersion: %v -> %v)",
                 cellDescriptor.CellId,
                 oldVersion,
@@ -335,7 +337,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, PostMessages)
+    DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, PostMessages)
     {
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         auto firstMessageId = request->first_message_id();
@@ -352,7 +354,7 @@ private:
             ->CommitAndReply(context);
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, SendMessages)
+    DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, SendMessages)
     {
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
 
@@ -370,7 +372,7 @@ private:
 
     // Hydra handlers.
 
-    void HydraAcknowledgeMessages(TReqAcknowledgeMessages* request)
+    void HydraAcknowledgeMessages(NHiveServer::NProto::TReqAcknowledgeMessages* request)
     {
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto* mailbox = FindMailbox(cellId);
@@ -414,7 +416,10 @@ private:
         }
     }
 
-    void HydraPostMessages(TCtxPostMessagesPtr context, NProto::TReqPostMessages* request, NProto::TRspPostMessages* response)
+    void HydraPostMessages(
+        TCtxPostMessagesPtr context,
+        NHiveClient::NProto::TReqPostMessages* request,
+        NHiveClient::NProto::TRspPostMessages* response)
     {
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         auto firstMessageId = request->first_message_id();
@@ -438,7 +443,10 @@ private:
         }
     }
 
-    void HydraSendMessages(TCtxSendMessagesPtr /*context*/, NProto::TReqSendMessages* request, NProto::TRspSendMessages* /*response*/)
+    void HydraSendMessages(
+        TCtxSendMessagesPtr /*context*/,
+        NHiveClient::NProto::TReqSendMessages* request,
+        NHiveClient::NProto::TRspSendMessages* /*response*/)
     {
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         auto* mailbox = FindMailbox(srcCellId);
@@ -449,7 +457,7 @@ private:
         HandleUnreliableIncomingMessages(mailbox, request);
     }
 
-    void HydraUnregisterMailbox(TReqUnregisterMailbox* request)
+    void HydraUnregisterMailbox(NHiveServer::NProto::TReqUnregisterMailbox* request)
     {
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto* mailbox = FindMailbox(cellId);
@@ -609,7 +617,7 @@ private:
         const auto& cellId = mailbox->GetCellId();
 
         if (IsLeader() && CellDirectory_->IsCellUnregistered(cellId)) {
-            TReqUnregisterMailbox req;
+            NHiveServer::NProto::TReqUnregisterMailbox req;
             ToProto(req.mutable_cell_id(), cellId);
             CreateUnregisterMailboxMutation(req)
                 ->CommitAndLog(Logger);
@@ -624,9 +632,7 @@ private:
         auto proxy = FindHiveProxy(mailbox);
         if (!proxy) {
             // Let's register a dummy descriptor so as to ask about it during the next sync.
-            NHive::TCellDescriptor descriptor;
-            descriptor.CellId = cellId;
-            CellDirectory_->ReconfigureCell(descriptor);
+            CellDirectory_->RegisterCell(cellId);
             SchedulePeriodicPing(mailbox);
             return;
         }
@@ -845,7 +851,7 @@ private:
     }
 
 
-    TMutationPtr CreateAcknowledgeMessagesMutation(const TReqAcknowledgeMessages& req)
+    TMutationPtr CreateAcknowledgeMessagesMutation(const NHiveServer::NProto::TReqAcknowledgeMessages& req)
     {
         return CreateMutation(
             HydraManager_,
@@ -872,7 +878,7 @@ private:
             this);
     }
 
-    TMutationPtr CreateUnregisterMailboxMutation(const TReqUnregisterMailbox& req)
+    TMutationPtr CreateUnregisterMailboxMutation(const NHiveServer::NProto::TReqUnregisterMailbox& req)
     {
         return CreateMutation(
             HydraManager_,
@@ -884,7 +890,7 @@ private:
 
     void HandleAcknowledgedMessages(TMailbox* mailbox, TMessageId lastAcknowledgedMessageId)
     {
-        TReqAcknowledgeMessages req;
+        NHiveServer::NProto::TReqAcknowledgeMessages req;
         ToProto(req.mutable_cell_id(), mailbox->GetCellId());
         req.set_last_acknowledged_message_id(lastAcknowledgedMessageId);
 
@@ -892,7 +898,7 @@ private:
             ->CommitAndLog(Logger);
     }
 
-    void HandleReliableIncomingMessages(TMailbox* mailbox, const NProto::TReqPostMessages* req)
+    void HandleReliableIncomingMessages(TMailbox* mailbox, const NHiveClient::NProto::TReqPostMessages* req)
     {
         for (int index = 0; index < req->messages_size(); ++index) {
             auto messageId = req->first_message_id() + index;
@@ -957,7 +963,7 @@ private:
         }
     }
 
-    void HandleUnreliableIncomingMessages(TMailbox* mailbox, const NProto::TReqSendMessages* req)
+    void HandleUnreliableIncomingMessages(TMailbox* mailbox, const NHiveClient::NProto::TReqSendMessages* req)
     {
         for (const auto& message : req->messages()) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Consuming unreliable incoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
@@ -1064,9 +1070,7 @@ private:
 
     virtual bool ValidateSnapshotVersion(int version) override
     {
-        return
-            version == 1 ||
-            version == 2;
+        return version == 2;
     }
 
     virtual int GetCurrentSnapshotVersion() override
@@ -1110,14 +1114,6 @@ private:
     }
 
 
-    IYPathServicePtr CreateOrchidService(IInvokerPtr automatonInvoker)
-    {
-        auto producer = BIND(&TImpl::BuildOrchidYson, MakeStrong(this));
-        return IYPathService::FromProducer(producer)
-            ->Via(automatonInvoker)
-            ->Cached(TDuration::Seconds(1));
-    }
-
     void BuildOrchidYson(IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
@@ -1140,7 +1136,6 @@ private:
                 })
             .EndMap();
     }
-
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(THiveManager::TImpl, Mailbox, TMailbox, MailboxMap_)
@@ -1163,8 +1158,7 @@ THiveManager::THiveManager(
         automaton))
 { }
 
-THiveManager::~THiveManager()
-{ }
+THiveManager::~THiveManager() = default;
 
 IServicePtr THiveManager::GetRpcService()
 {
@@ -1220,5 +1214,5 @@ DELEGATE_ENTITY_MAP_ACCESSORS(THiveManager, Mailbox, TMailbox, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveServer
 } // namespace NYT

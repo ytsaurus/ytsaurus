@@ -7,7 +7,7 @@
 #include <yt/core/rpc/public.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,6 +58,6 @@ DEFINE_REFCOUNTED_TYPE(TClusterDirectory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveClient
 } // namespace NYT
 

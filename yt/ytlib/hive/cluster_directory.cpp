@@ -12,7 +12,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveClient {
 
 using namespace NRpc;
 using namespace NApi;
@@ -138,6 +138,6 @@ TCellTag TClusterDirectory::GetCellTag(const TClusterDirectory::TCluster& cluste
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveClient
 } // namespace NYT
 

@@ -97,9 +97,9 @@ public:
     NHydra::TLocalSnapshotStoreConfigPtr Snapshots;
     TMasterHydraManagerConfigPtr HydraManager;
 
-    NHive::TCellDirectoryConfigPtr CellDirectory;
-    NHive::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
-    NHive::THiveManagerConfigPtr HiveManager;
+    NHiveClient::TCellDirectoryConfigPtr CellDirectory;
+    NHiveServer::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
+    NHiveServer::THiveManagerConfigPtr HiveManager;
 
     NNodeTrackerServer::TNodeTrackerConfigPtr NodeTracker;
 
@@ -123,7 +123,7 @@ public:
 
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
 
-    NHive::TTransactionSupervisorConfigPtr TransactionSupervisor;
+    NHiveServer::TTransactionSupervisorConfigPtr TransactionSupervisor;
 
     TMulticellManagerConfigPtr MulticellManager;
 

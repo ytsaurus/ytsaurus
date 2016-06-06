@@ -1,4 +1,4 @@
-package NYT.NHive.NProto;
+package NYT.NHiveClient.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/ytlib/hive/cell_directory.proto";
@@ -31,7 +31,7 @@ message TRspPing
 
 message TReqSyncCells
 {
-    repeated NHive.NProto.TCellInfo known_cells = 2;
+    repeated NHiveClient.NProto.TCellInfo known_cells = 2;
 }
 
 message TUnregisterCellInfo
@@ -41,7 +41,7 @@ message TUnregisterCellInfo
 
 message TReconfigureCellInfo
 {
-    required NYT.NHive.NProto.TCellDescriptor cell_descriptor = 1;
+    required NYT.NHiveClient.NProto.TCellDescriptor cell_descriptor = 1;
 }
 
 message TRspSyncCells

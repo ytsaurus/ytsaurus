@@ -22,7 +22,7 @@ using NObjectClient::NullTransactionId;
 using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
 
-using NHive::ETransactionState;
+using NHiveServer::ETransactionState;
 
 ////////////////////////////////////////////////////////////////////////////////
 

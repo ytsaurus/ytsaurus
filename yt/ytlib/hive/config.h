@@ -5,7 +5,7 @@
 #include <yt/core/rpc/config.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,5 +27,5 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectoryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveClient
 } // namespace NYT

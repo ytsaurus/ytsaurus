@@ -104,7 +104,7 @@ private:
     NBus::IBusServerPtr BusServer;
     NApi::IConnectionPtr MasterConnection;
     NApi::IClientPtr MasterClient;
-    NHive::TCellDirectorySynchronizerPtr CellDirectorySynchronizer;
+    NHiveServer::TCellDirectorySynchronizerPtr CellDirectorySynchronizer;
     NRpc::IServerPtr RpcServer;
     std::unique_ptr<NHttp::TServer> HttpServer;
     NRpc::IChannelFactoryPtr TabletChannelFactory;

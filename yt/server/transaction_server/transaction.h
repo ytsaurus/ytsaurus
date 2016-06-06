@@ -28,7 +28,7 @@ namespace NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction
-    : public NHive::TTransactionBase<NObjectServer::TNonversionedObjectBase>
+    : public NHiveServer::TTransactionBase<NObjectServer::TNonversionedObjectBase>
     , public TRefTracked<TTransaction>
 {
 public:

@@ -15,6 +15,10 @@
 #include <yt/server/hydra/mutation.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+
+#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/client.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -30,8 +34,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NTransactionClient;
 using namespace NHydra;
-using namespace NHive;
-using namespace NHive::NProto;
+using namespace NHiveServer;
 using namespace NCellNode;
 using namespace NTabletClient::NProto;
 
@@ -97,7 +100,7 @@ public:
             return transaction;
         }
         THROW_ERROR_EXCEPTION(
-            NYTree::EErrorCode::ResolveError,
+            NTransactionClient::EErrorCode::NoSuchTransaction,
             "No such transaction %v",
             transactionId);
     }
@@ -111,7 +114,7 @@ public:
             return transaction;
         }
         THROW_ERROR_EXCEPTION(
-            NYTree::EErrorCode::ResolveError,
+            NTransactionClient::EErrorCode::NoSuchTransaction,
             "No such transaction %v",
             transactionId);
     }
@@ -170,7 +173,7 @@ public:
             CreateLeases(transaction);
             auto transactionHolder = TransientTransactionMap_.Release(transactionId);
             PersistentTransactionMap_.Insert(transactionId, std::move(transactionHolder));
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is switched to persistent (TransactionId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction became persistent (TransactionId: %v)",
                 transactionId);
             return transaction;
         }
@@ -204,8 +207,7 @@ public:
     // ITransactionManager implementation.
     void PrepareTransactionCommit(
         const TTransactionId& transactionId,
-        bool persistent,
-        TTimestamp prepareTimestamp)
+        bool persistent)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -239,7 +241,10 @@ public:
             : ETransactionState::TransientCommitPrepared);
 
         if (state == ETransactionState::Active) {
+            auto timestampProvider = Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider();
+            auto prepareTimestamp = timestampProvider->GetLatestTimestamp();
             transaction->SetPrepareTimestamp(prepareTimestamp);
+
             TransactionPrepared_.Fire(transaction);
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %v)",
@@ -253,7 +258,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = GetPersistentTransactionOrThrow(transactionId);
+        auto* transaction = GetTransactionOrThrow(transactionId);
 
         auto state = transaction->GetState();
         if (state != ETransactionState::Active && !force) {
@@ -624,13 +629,9 @@ std::vector<TTransaction*> TTransactionManager::GetTransactions()
 
 void TTransactionManager::PrepareTransactionCommit(
     const TTransactionId& transactionId,
-    bool persistent,
-    TTimestamp prepareTimestamp)
+    bool persistent)
 {
-    Impl_->PrepareTransactionCommit(
-        transactionId,
-        persistent,
-        prepareTimestamp);
+    Impl_->PrepareTransactionCommit(transactionId, persistent);
 }
 
 void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transactionId, bool force)

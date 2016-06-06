@@ -154,10 +154,10 @@ public:
      */
     TTransactionManager(
         TTransactionManagerConfigPtr config,
-        const NHive::TCellId& cellId,
+        const NHiveClient::TCellId& cellId,
         NRpc::IChannelPtr masterChannel,
         ITimestampProviderPtr timestampProvider,
-        NHive::TCellDirectoryPtr cellDirectory);
+        NHiveClient::TCellDirectoryPtr cellDirectory);
 
     ~TTransactionManager();
 

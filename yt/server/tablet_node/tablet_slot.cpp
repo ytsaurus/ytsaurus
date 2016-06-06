@@ -76,7 +76,8 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NElection;
 using namespace NHydra;
-using namespace NHive;
+using namespace NHiveClient;
+using namespace NHiveServer;
 using namespace NNodeTrackerClient::NProto;
 using namespace NObjectClient;
 using namespace NQueryClient;
@@ -543,6 +544,7 @@ public:
                 Owner_,
                 Bootstrap_);
 
+            auto connection = Bootstrap_->GetMasterClient()->GetConnection();
             TransactionSupervisor_ = New<TTransactionSupervisor>(
                 Config_->TransactionSupervisor,
                 GetAutomatonInvoker(),
@@ -550,9 +552,10 @@ public:
                 HydraManager_,
                 Automaton_,
                 GetResponseKeeper(),
-                HiveManager_,
                 TransactionManager_,
-                Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider());
+                connection->GetCellDirectory(),
+                GetCellId(),
+                connection->GetTimestampProvider());
 
             TabletService_ = CreateTabletService(
                 Owner_,
@@ -562,7 +565,9 @@ public:
 
             HydraManager_->Initialize();
 
-            rpcServer->RegisterService(TransactionSupervisor_->GetRpcService());
+            for (const auto& service : TransactionSupervisor_->GetRpcServices()) {
+                rpcServer->RegisterService(service);
+            }
             rpcServer->RegisterService(HiveManager_->GetRpcService());
             rpcServer->RegisterService(TabletService_);
 
@@ -761,7 +766,9 @@ private:
         auto rpcServer = Bootstrap_->GetRpcServer();
 
         if (TransactionSupervisor_) {
-            rpcServer->UnregisterService(TransactionSupervisor_->GetRpcService());
+            for (const auto& service : TransactionSupervisor_->GetRpcServices()) {
+                rpcServer->UnregisterService(service);
+            }
         }
         TransactionSupervisor_.Reset();
 

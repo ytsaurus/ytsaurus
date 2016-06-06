@@ -61,7 +61,7 @@ using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NTabletNode;
 using namespace NHydra;
-using namespace NHive;
+using namespace NHiveClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NApi;

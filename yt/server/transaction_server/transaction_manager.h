@@ -22,7 +22,7 @@ namespace NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManager
-    : public NHive::ITransactionManager
+    : public NHiveServer::ITransactionManager
 {
 public:
     //! Raised when a new transaction is started.
@@ -114,8 +114,7 @@ private:
     // ITransactionManager overrides
     virtual void PrepareTransactionCommit(
         const TTransactionId& transactionId,
-        bool persistent,
-        TTimestamp prepareTimestamp) override;
+        bool persistent) override;
     virtual void PrepareTransactionAbort(
         const TTransactionId& transactionId,
         bool force) override;

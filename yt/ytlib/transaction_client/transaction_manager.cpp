@@ -30,7 +30,7 @@ namespace NTransactionClient {
 
 using namespace NYTree;
 using namespace NHydra;
-using namespace NHive;
+using namespace NHiveClient;
 using namespace NRpc;
 using namespace NConcurrency;
 using namespace NObjectClient;
@@ -211,15 +211,15 @@ public:
 
             switch (Atomicity_) {
                 case EAtomicity::Full: {
-                    auto participantGuids = GetParticipantIds();
-                    if (participantGuids.empty()) {
+                    auto participantIds = GetParticipantIds();
+                    if (participantIds.empty()) {
                         SetTransactionCommitted();
                         return VoidFuture;
                     }
 
                     auto coordinatorCellId = Type_ == ETransactionType::Master
                         ? Owner_->CellId_
-                        : participantGuids[RandomNumber(participantGuids.size())];
+                        : participantIds[RandomNumber(participantIds.size())];
 
                     LOG_INFO("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
                         Id_,
@@ -229,7 +229,7 @@ public:
                     auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel));
                     auto req = proxy.CommitTransaction();
                     ToProto(req->mutable_transaction_id(), Id_);
-                    for (const auto& cellId : participantGuids) {
+                    for (const auto& cellId : participantIds) {
                         if (cellId != coordinatorCellId) {
                             ToProto(req->add_participant_cell_ids(), cellId);
                         }
@@ -702,7 +702,7 @@ private:
                         LOG_DEBUG("Transaction pinged (TransactionId: %v, CellId: %v)",
                             Id_,
                             cellId);
-                    } else if (rspOrError.GetCode() == NYTree::EErrorCode::ResolveError && GetState() == ETransactionState::Active) {
+                    } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction && GetState() == ETransactionState::Active) {
                         // Hard error.
                         LOG_WARNING("Transaction has expired or was aborted (TransactionId: %v, CellId: %v)",
                             Id_,
@@ -787,7 +787,7 @@ private:
                         LOG_DEBUG("Transaction aborted (TransactionId: %v, CellId: %v)",
                             transactionId,
                             cellId);
-                    } else if (rspOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
+                    } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
                         LOG_DEBUG("Transaction has expired or was already aborted, ignored (TransactionId: %v, CellId: %v)",
                             transactionId,
                             cellId);

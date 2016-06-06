@@ -10,9 +10,10 @@
 #include <yt/ytlib/hive/cell_directory.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveServer {
 
 using namespace NConcurrency;
+using namespace NHiveClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -77,8 +78,7 @@ TCellDirectorySynchronizer::TCellDirectorySynchronizer(
         primaryCellId))
 { }
 
-TCellDirectorySynchronizer::~TCellDirectorySynchronizer()
-{ }
+TCellDirectorySynchronizer::~TCellDirectorySynchronizer() = default;
 
 void TCellDirectorySynchronizer::Start()
 {
@@ -92,5 +92,5 @@ void TCellDirectorySynchronizer::Stop()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveServer
 } // namespace NYT

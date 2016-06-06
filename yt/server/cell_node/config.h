@@ -78,7 +78,7 @@ public:
     NApi::TConnectionConfigPtr ClusterConnection;
 
     //! Cell directory synchronization.
-    NHive::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
+    NHiveServer::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
 
     //! Data node configuration part.
     NDataNode::TDataNodeConfigPtr DataNode;

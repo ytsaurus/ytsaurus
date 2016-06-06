@@ -1,13 +1,13 @@
 #include "private.h"
 
 namespace NYT {
-namespace NHive {
+namespace NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger HiveLogger("Hive");
+const NLogging::TLogger HiveClientLogger("HiveClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveClient
 } // namespace NYT

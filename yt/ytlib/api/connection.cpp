@@ -36,7 +36,7 @@ namespace NApi {
 
 using namespace NConcurrency;
 using namespace NRpc;
-using namespace NHive;
+using namespace NHiveClient;
 using namespace NChunkClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;

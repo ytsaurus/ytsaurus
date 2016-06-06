@@ -11,7 +11,7 @@
 #include <yt/core/ytree/public.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,8 +20,7 @@ struct ITransactionManager
 {
     virtual void PrepareTransactionCommit(
         const TTransactionId& transactionId,
-        bool persistent,
-        TTimestamp prepareTimestamp) = 0;
+        bool persistent) = 0;
 
     virtual void PrepareTransactionAbort(
         const TTransactionId& transactionId,
@@ -46,5 +45,5 @@ DEFINE_REFCOUNTED_TYPE(ITransactionManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveServer
 } // namespace NYT
