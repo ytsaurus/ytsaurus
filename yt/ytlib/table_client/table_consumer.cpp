@@ -302,7 +302,8 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
             try {
                 ColumnIndex_ = CurrentNameTableWriter_->GetIdOrRegisterName(name);
             } catch (const std::exception& ex) {
-                THROW_ERROR AttachLocationAttributes(TError("Failed to add column to name table for table writer") << ex);
+                THROW_ERROR AttachLocationAttributes(TError("Failed to add column to name table for table writer") 
+                    << ex);
             }
         } else {
             // TODO(savrus): Imporve diagnostics when encountered a computed column.
