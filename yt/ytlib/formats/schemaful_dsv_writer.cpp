@@ -52,8 +52,10 @@ protected:
         , IdToIndexInRow_(idToIndexInRow)
         , Table_(config)
     {  
-        CurrentRowValues_.resize(
-            *std::max_element(IdToIndexInRow_.begin(), IdToIndexInRow_.end()) + 1);
+        if (!IdToIndexInRow_.empty()) {
+            CurrentRowValues_.resize(
+                *std::max_element(IdToIndexInRow_.begin(), IdToIndexInRow_.end()) + 1);
+        }
         YCHECK(Config_->Columns);
     }    
 
