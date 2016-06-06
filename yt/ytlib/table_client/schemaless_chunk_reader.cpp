@@ -245,18 +245,6 @@ TSchemalessChunkReader::TSchemalessChunkReader(
         LOG_DEBUG("Reading multiple ranges (RangeCount: %v)", ReadRanges_.size());
     }
 
-    if (Options_->EnableRowIndex) {
-        RowIndexId_ = NameTable_->GetIdOrRegisterName(RowIndexColumnName);
-    }
-
-    if (Options_->EnableRangeIndex) {
-        RangeIndexId_ = NameTable_->GetIdOrRegisterName(RangeIndexColumnName);
-    }
-
-    if (Options_->EnableTableIndex) {
-        TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
-    }
-
     ReadyEvent_ = BIND(&TSchemalessChunkReader::InitializeBlockSequence, MakeStrong(this))
         .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
         .Run();
@@ -266,6 +254,22 @@ TFuture<void> TSchemalessChunkReader::InitializeBlockSequence()
 {
     YCHECK(ChunkSpec_.chunk_meta().version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
     YCHECK(BlockIndexes_.empty());
+
+    try {
+        if (Options_->EnableRowIndex) {
+            RowIndexId_ = NameTable_->GetIdOrRegisterName(RowIndexColumnName);
+        }
+
+        if (Options_->EnableRangeIndex) {
+            RangeIndexId_ = NameTable_->GetIdOrRegisterName(RangeIndexColumnName);
+        }
+
+        if (Options_->EnableTableIndex) {
+            TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to add system columns to name table for schemaless chunk reader") << ex;
+    }
 
     if (PartitionTag_) {
         InitializeBlockSequencePartition();
@@ -312,15 +316,30 @@ void TSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, T
     BlockMetaExt_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
 
     auto nameTableExt = GetProtoExtension<TNameTableExt>(ChunkMeta_.extensions());
-    FromProto(&ChunkNameTable_, nameTableExt);
+    try {
+        FromProto(&ChunkNameTable_, nameTableExt);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::CorruptedNameTable, 
+            "Failed to deserialize name table for schemaless chunk reader") 
+            << TErrorAttribute("chunk_id", UnderlyingReader_->GetChunkId())
+            << ex;
+    }
 
     IdMapping_.resize(ChunkNameTable_->GetSize(), -1);
 
+    
     if (ColumnFilter_.All) {
-        for (int chunkNameId = 0; chunkNameId < ChunkNameTable_->GetSize(); ++chunkNameId) {
-            auto name = ChunkNameTable_->GetName(chunkNameId);
-            auto id = NameTable_->GetIdOrRegisterName(name);
-            IdMapping_[chunkNameId] = id;
+        try {
+            for (int chunkNameId = 0; chunkNameId < ChunkNameTable_->GetSize(); ++chunkNameId) {
+                auto name = ChunkNameTable_->GetName(chunkNameId);
+                auto id = NameTable_->GetIdOrRegisterName(name);
+                IdMapping_[chunkNameId] = id;
+            }
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to update name table for schemaless chunk reader") 
+                << TErrorAttribute("chunk_id", UnderlyingReader_->GetChunkId())
+                << ex;
         }
     } else {
         for (auto id : ColumnFilter_.Indexes) {
@@ -331,6 +350,7 @@ void TSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, T
             }
         }
     }
+    
 }
 
 void TSchemalessChunkReader::InitializeBlockSequenceSorted()
@@ -978,8 +998,12 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     const TTableSchema& tableSchema,
     IThroughputThrottlerPtr throttler)
 {
-    for (const auto& column : tableSchema.Columns()) {
-        nameTable->RegisterName(column.Name);
+    try {
+        for (const auto& column : tableSchema.Columns()) {
+            nameTable->RegisterName(column.Name);
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to update name table for schemaless merging reader") << ex;
     }
 
     std::vector<TOwningKey> boundaries;

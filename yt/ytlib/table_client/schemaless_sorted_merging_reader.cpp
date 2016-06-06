@@ -132,7 +132,13 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
 void TSchemalessSortedMergingReader::DoOpen()
 {
     auto getTableIndex = [] (TUnversionedRow row, TNameTablePtr nameTable) {
-        auto tableIndexId = nameTable->GetIdOrRegisterName(TableIndexColumnName);
+        int tableIndexId = -1;
+        try {
+            tableIndexId = nameTable->GetIdOrRegisterName(TableIndexColumnName);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to add system column to name table for schemaless merging reader") << ex;
+        }
+
         for (auto valueIt = row.Begin(); valueIt != row.End(); ++valueIt) {
             if (valueIt->Id == tableIndexId) {
                 YCHECK(valueIt->Type == EValueType::Int64);

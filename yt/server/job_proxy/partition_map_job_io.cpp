@@ -47,6 +47,8 @@ public:
         auto keyColumns = FromProto<TKeyColumns>(jobSpecExt.sort_key_columns());
 
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
+        nameTable->SetEnableColumnNameValidation();
+        
         return CreatePartitionMultiChunkWriter(
             JobIOConfig_->TableWriter,
             options,

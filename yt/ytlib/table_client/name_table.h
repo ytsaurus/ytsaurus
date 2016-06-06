@@ -20,6 +20,8 @@ public:
     int GetSize() const;
     i64 GetByteSize() const;
 
+    void SetEnableColumnNameValidation();
+
     TNullable<int> FindId(const TStringBuf& name) const;
 
     int GetId(const TStringBuf& name) const;
@@ -30,6 +32,8 @@ public:
 
 private:
     TSpinLock SpinLock_;
+
+    bool EnableColumnNameValidation_ = false;
 
     std::vector<Stroka> IdToName_;
     yhash_map<TStringBuf, int> NameToId_; // String values are owned by IdToName_.
