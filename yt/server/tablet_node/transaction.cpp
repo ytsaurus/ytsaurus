@@ -42,7 +42,7 @@ void TTransactionWriteRecord::Load(TLoadContext& context)
 
 TTransaction::TTransaction(const TTransactionId& id)
     : TTransactionBase(id)
-    , RegisterTime_(TInstant::Zero())
+    , Transient_(true)
     , StartTimestamp_(NullTimestamp)
     , PrepareTimestamp_(NullTimestamp)
     , CommitTimestamp_(NullTimestamp)
@@ -53,8 +53,8 @@ void TTransaction::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
+    YCHECK(!Transient_);
     Save(context, Timeout_);
-    Save(context, RegisterTime_);
     Save(context, GetPersistentState());
     Save(context, StartTimestamp_);
     Save(context, GetPersistentPrepareTimestamp());
@@ -65,8 +65,8 @@ void TTransaction::Load(TLoadContext& context)
 {
     using NYT::Load;
 
+    Transient_ = false;
     Load(context, Timeout_);
-    Load(context, RegisterTime_);
     Load(context, State_);
     Load(context, StartTimestamp_);
     Load(context, PrepareTimestamp_);

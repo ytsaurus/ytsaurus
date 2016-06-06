@@ -45,6 +45,7 @@ public:
     DEFINE_SIGNAL(void(TTransaction*), TransactionPrepared);
     DEFINE_SIGNAL(void(TTransaction*), TransactionCommitted);
     DEFINE_SIGNAL(void(TTransaction*), TransactionAborted);
+    DEFINE_SIGNAL(void(TTransaction*), TransactionTransientReset);
 
 public:
     TImpl(
@@ -84,37 +85,101 @@ public:
             "TransactionManager.Async",
             BIND(&TImpl::SaveAsync, Unretained(this)));
 
-        RegisterMethod(BIND(&TImpl::HydraStartTransaction, Unretained(this)));
-
         OrchidService_ = IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeStrong(this)))
             ->Via(Slot_->GetAutomatonInvoker())
             ->Cached(TDuration::Seconds(1));
     }
 
 
-    TMutationPtr CreateStartTransactionMutation(const TReqStartTransaction& request)
+    TTransaction* GetPersistentTransactionOrThrow(const TTransactionId& transactionId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        return CreateMutation(
-            Slot_->GetHydraManager(),
-            request,
-            &TImpl::HydraStartTransaction,
-            this);
-    }
-
-    TTransaction* GetTransactionOrThrow(const TTransactionId& id)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto* transaction = FindTransaction(id);
+        auto* transaction = PersistentTransactionMap_.Find(transactionId);
         if (!transaction) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
                 "No such transaction %v",
-                id);
+                transactionId);
         }
         return transaction;
+    }
+
+    TTransaction* GetPersistentTransaction(const TTransactionId& transactionId)
+    {
+        return PersistentTransactionMap_.Get(transactionId);
+    }
+
+    TTransaction* FindPersistentTransaction(const TTransactionId& transactionId)
+    {
+        return PersistentTransactionMap_.Find(transactionId);
+    }
+
+    TTransaction* GetOrCreateTransaction(
+        const TTransactionId& transactionId,
+        TTimestamp startTimestamp,
+        TDuration timeout,
+        bool transient)
+    {
+        if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
+            return transaction;
+        }
+        if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
+            return transaction;
+        }
+
+        auto transactionHolder = std::make_unique<TTransaction>(transactionId);
+        transactionHolder->SetTimeout(timeout);
+        transactionHolder->SetStartTimestamp(startTimestamp);
+        transactionHolder->SetState(ETransactionState::Active);
+        transactionHolder->SetTransient(transient);
+
+        auto& map = transient ? TransientTransactionMap_ : PersistentTransactionMap_;
+        auto* transaction = map.Insert(transactionId, std::move(transactionHolder));
+
+        if (!transient && IsLeader()) {
+            CreateLeases(transaction);
+        }
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %v, StartTime: %v, "
+            "Timeout: %v, Transient: %v)",
+            transactionId,
+            startTimestamp,
+            TimestampToInstant(startTimestamp).first,
+            timeout,
+            transient);
+
+        return transaction;
+    }
+
+    TTransaction* MakeTransactionPersistent(const TTransactionId& transactionId)
+    {
+        if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
+            transaction->SetTransient(false);
+            CreateLeases(transaction);
+            auto transactionHolder = TransientTransactionMap_.Release(transactionId);
+            PersistentTransactionMap_.Insert(transactionId, std::move(transactionHolder));
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is switched to persistent (TransactionId: %v)",
+                transactionId);
+            return transaction;
+        }
+
+        if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
+            YCHECK(!transaction->GetTransient());
+            return transaction;
+        }
+
+        YUNREACHABLE();
+    }
+
+    std::vector<TTransaction*> GetTransactions()
+    {
+        std::vector<TTransaction*> transactions;
+        for (const auto& pair : TransientTransactionMap_) {
+            transactions.push_back(pair.second);
+        }
+        for (const auto& pair : PersistentTransactionMap_) {
+            transactions.push_back(pair.second);
+        }
+        return transactions;
     }
 
     IYPathServicePtr GetOrchidService()
@@ -131,7 +196,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = GetTransactionOrThrow(transactionId);
+        auto* transaction = GetPersistentTransactionOrThrow(transactionId);
 
         // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
         auto state = persistent ? transaction->GetPersistentState() : transaction->GetState();
@@ -160,7 +225,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = GetTransactionOrThrow(transactionId);
+        auto* transaction = GetPersistentTransactionOrThrow(transactionId);
 
         auto state = transaction->GetState();
         if (state != ETransactionState::Active && !force) {
@@ -179,7 +244,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = GetTransactionOrThrow(transactionId);
+        auto* transaction = GetPersistentTransactionOrThrow(transactionId);
 
         auto state = transaction->GetPersistentState();
         if (state != ETransactionState::Active &&
@@ -208,7 +273,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = GetTransactionOrThrow(transactionId);
+        auto* transaction = GetPersistentTransactionOrThrow(transactionId);
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::PersistentCommitPrepared && !force) {
@@ -237,14 +302,12 @@ public:
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
-
-    DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
-
 private:
     const TTransactionManagerConfigPtr Config_;
     const TTransactionLeaseTrackerPtr LeaseTracker_;
 
-    TEntityMap<TTransaction> TransactionMap_;
+    TEntityMap<TTransaction> TransientTransactionMap_;
+    TEntityMap<TTransaction> PersistentTransactionMap_;
 
     IYPathServicePtr OrchidService_;
 
@@ -255,24 +318,30 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto dumpTransaction = [&] (TFluentMap fluent, const std::pair<TTransactionId, TTransaction*>& pair) {
+            auto* transaction = pair.second;
+            fluent
+                .Item(ToString(transaction->GetId())).BeginMap()
+                    .Item("transient").Value(transaction->GetTransient())
+                    .Item("timeout").Value(transaction->GetTimeout())
+                    .Item("state").Value(transaction->GetState())
+                    .Item("start_timestamp").Value(transaction->GetStartTimestamp())
+                    .Item("prepare_timestamp").Value(transaction->GetPrepareTimestamp())
+                    // Omit CommitTimestamp, it's typically null.
+                    .Item("locked_row_count").Value(transaction->LockedSortedRows().size())
+                .EndMap();
+        };
         BuildYsonFluently(consumer)
-            .DoMapFor(TransactionMap_, [&] (TFluentMap fluent, const std::pair<TTransactionId, TTransaction*>& pair) {
-                auto* transaction = pair.second;
-                fluent
-                    .Item(ToString(transaction->GetId())).BeginMap()
-                        .Item("timeout").Value(transaction->GetTimeout())
-                        .Item("register_time").Value(transaction->GetRegisterTime())
-                        .Item("state").Value(transaction->GetState())
-                        .Item("start_timestamp").Value(transaction->GetStartTimestamp())
-                        .Item("prepare_timestamp").Value(transaction->GetPrepareTimestamp())
-                        // Omit CommitTimestamp, it's typically null.
-                        .Item("locked_row_count").Value(transaction->LockedSortedRows().size())
-                    .EndMap();
-            });
+            .BeginMap()
+                .DoFor(TransientTransactionMap_, dumpTransaction)
+                .DoFor(PersistentTransactionMap_, dumpTransaction)
+            .EndMap();
     }
 
     void CreateLeases(TTransaction* transaction)
     {
+        YCHECK(!transaction->GetTransient());
+
         auto invoker = Slot_->GetEpochAutomatonInvoker();
 
         LeaseTracker_->RegisterTransaction(
@@ -304,12 +373,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = FindTransaction(id);
-        if (!transaction)
+        auto* transaction = FindPersistentTransaction(id);
+        if (!transaction) {
             return;
+        }
 
-        if (transaction->GetState() != ETransactionState::Active)
+        if (transaction->GetState() != ETransactionState::Active) {
             return;
+        }
 
         LOG_DEBUG("Transaction lease expired (TransactionId: %v)",
             id);
@@ -325,12 +396,14 @@ private:
 
     void OnTransactionTimedOut(const TTransactionId& id)
     {
-        auto* transaction = FindTransaction(id);
-        if (!transaction)
+        auto* transaction = FindPersistentTransaction(id);
+        if (!transaction) {
             return;
+        }
 
-        if (transaction->GetState() != ETransactionState::Active)
+        if (transaction->GetState() != ETransactionState::Active) {
             return;
+        }
 
         LOG_DEBUG("Transaction timed out (TransactionId: %v)",
             id);
@@ -347,44 +420,7 @@ private:
     void FinishTransaction(TTransaction* transaction)
     {
         transaction->SetFinished();
-        TransactionMap_.Remove(transaction->GetId());
-    }
-
-
-    // Hydra handlers.
-    void HydraStartTransaction(TReqStartTransaction* request)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        if (TransactionMap_.Contains(transactionId)) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already started, request ignored (TransactionId: %v)",
-                transactionId);
-            return;
-        }
-
-        auto startTimestamp = TTimestamp(request->start_timestamp());
-        auto timeout = FromProto<TDuration>(request->timeout());
-
-        auto transactionHolder = std::make_unique<TTransaction>(transactionId);
-        auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));
-
-        const auto* mutationContext = GetCurrentMutationContext();
-
-        transaction->SetTimeout(timeout);
-        transaction->SetStartTimestamp(startTimestamp);
-        transaction->SetRegisterTime(mutationContext->GetTimestamp());
-        transaction->SetState(ETransactionState::Active);
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %v, StartTime: %v, Timeout: %v)",
-            transactionId,
-            startTimestamp,
-            TimestampToInstant(startTimestamp).first,
-            timeout);
-
-        if (IsLeader()) {
-            CreateLeases(transaction);
-        }
+        PersistentTransactionMap_.Remove(transaction->GetId());
     }
 
 
@@ -394,8 +430,10 @@ private:
 
         TTabletAutomatonPart::OnLeaderActive();
 
+        YCHECK(TransientTransactionMap_.GetSize() == 0);
+
         // Recreate leases for all active transactions.
-        for (const auto& pair : TransactionMap_) {
+        for (const auto& pair : PersistentTransactionMap_) {
             auto* transaction = pair.second;
             if (transaction->GetState() == ETransactionState::Active ||
                 transaction->GetState() == ETransactionState::PersistentCommitPrepared)
@@ -415,12 +453,21 @@ private:
 
         LeaseTracker_->Stop();
 
-        // Reset all transiently prepared transactions back into active state.
+        for (const auto& pair : TransientTransactionMap_) {
+            auto* transaction = pair.second;
+            YCHECK(transaction->GetState() == ETransactionState::Active);
+            transaction->ResetFinished();
+            TransactionTransientReset_.Fire(transaction);
+        }
+        TransientTransactionMap_.Clear();
+
+        // Reset all transiently prepared persistent transactions back into active state.
         // Mark all transactions as finished to release pending readers.
-        for (const auto& pair : TransactionMap_) {
+        for (const auto& pair : PersistentTransactionMap_) {
             auto* transaction = pair.second;
             transaction->SetState(transaction->GetPersistentState());
             transaction->ResetFinished();
+            TransactionTransientReset_.Fire(transaction);
         }
     }
 
@@ -429,14 +476,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TransactionMap_.SaveKeys(context);
+        PersistentTransactionMap_.SaveKeys(context);
     }
 
     void SaveValues(TSaveContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TransactionMap_.SaveValues(context);
+        PersistentTransactionMap_.SaveValues(context);
     }
 
     TCallback<void(TSaveContext&)> SaveAsync()
@@ -444,7 +491,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         std::vector<std::pair<TTransactionId, TCallback<void(TSaveContext&)>>> capturedTransactions;
-        for (const auto& pair : TransactionMap_) {
+        for (const auto& pair : PersistentTransactionMap_) {
             auto* transaction = pair.second;
             capturedTransactions.push_back(std::make_pair(transaction->GetId(), transaction->AsyncSave()));
         }
@@ -465,27 +512,27 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TransactionMap_.LoadKeys(context);
+        PersistentTransactionMap_.LoadKeys(context);
     }
 
     void LoadValues(TLoadContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TransactionMap_.LoadValues(context);
+        PersistentTransactionMap_.LoadValues(context);
     }
 
     void LoadAsync(TLoadContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        SERIALIZATION_DUMP_WRITE(context, "transactions[%v]", TransactionMap_.size());
+        SERIALIZATION_DUMP_WRITE(context, "transactions[%v]", PersistentTransactionMap_.size());
         SERIALIZATION_DUMP_INDENT(context) {
-            for (int index = 0; index < TransactionMap_.size(); ++index) {
+            for (int index = 0; index < PersistentTransactionMap_.size(); ++index) {
                 auto transactionId = Load<TTransactionId>(context);
                 SERIALIZATION_DUMP_WRITE(context, "%v =>", transactionId);
                 SERIALIZATION_DUMP_INDENT(context) {
-                    auto* transaction = GetTransaction(transactionId);
+                    auto* transaction = GetPersistentTransaction(transactionId);
                     transaction->AsyncLoad(context);
                 }
             }
@@ -499,12 +546,10 @@ private:
 
         TTabletAutomatonPart::Clear();
 
-        TransactionMap_.Clear();
+        TransientTransactionMap_.Clear();
+        PersistentTransactionMap_.Clear();
     }
-
 };
-
-DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager::TImpl, Transaction, TTransaction, TransactionMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -518,23 +563,34 @@ TTransactionManager::TTransactionManager(
         bootstrap))
 { }
 
-TTransactionManager::~TTransactionManager()
-{ }
-
-TMutationPtr TTransactionManager::CreateStartTransactionMutation(
-    const TReqStartTransaction& request)
-{
-    return Impl_->CreateStartTransactionMutation(request);
-}
-
-TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& id)
-{
-    return Impl_->GetTransactionOrThrow(id);
-}
+TTransactionManager::~TTransactionManager() = default;
 
 IYPathServicePtr TTransactionManager::GetOrchidService()
 {
     return Impl_->GetOrchidService();
+}
+
+TTransaction* TTransactionManager::GetOrCreateTransaction(
+    const TTransactionId& transactionId,
+    TTimestamp startTimestamp,
+    TDuration timeout,
+    bool transient)
+{
+    return Impl_->GetOrCreateTransaction(
+        transactionId,
+        startTimestamp,
+        timeout,
+        transient);
+}
+
+TTransaction* TTransactionManager::MakeTransactionPersistent(const TTransactionId& transactionId)
+{
+    return Impl_->MakeTransactionPersistent(transactionId);
+}
+
+std::vector<TTransaction*> TTransactionManager::GetTransactions()
+{
+    return Impl_->GetTransactions();
 }
 
 void TTransactionManager::PrepareTransactionCommit(
@@ -572,7 +628,7 @@ DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *I
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionPrepared, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);
-DELEGATE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, *Impl_);
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionTransientReset, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

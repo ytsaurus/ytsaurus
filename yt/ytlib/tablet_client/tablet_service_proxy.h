@@ -22,16 +22,14 @@ public:
 
     static int GetProtocolVersion()
     {
-        return 8;
+        return 9;
     }
 
     explicit TTabletServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
     { }
 
-    DEFINE_RPC_PROXY_METHOD(NProto, StartTransaction);
     DEFINE_RPC_PROXY_METHOD(NProto, Write);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

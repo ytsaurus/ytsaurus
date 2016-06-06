@@ -48,6 +48,8 @@ public:
     void Write(
         TTabletSnapshotPtr tabletSnapshot,
         const TTransactionId& transactionId,
+        NTransactionClient::TTimestamp transactionStartTimestamp,
+        TDuration transactionTimeout,
         NTabletClient::TWireProtocolReader* reader,
         TFuture<void>* commitResult);
 

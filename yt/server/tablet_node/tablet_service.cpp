@@ -58,8 +58,6 @@ public:
         YCHECK(Slot_);
         YCHECK(Bootstrap_);
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction)
-            .SetInvoker(Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write)));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Write)
             .SetInvoker(Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write)));
     }
@@ -69,42 +67,24 @@ private:
     NCellNode::TBootstrap* const Bootstrap_;
 
 
-    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, StartTransaction)
-    {
-        ValidatePeer(EPeerKind::Leader);
-
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto startTimestamp = TTimestamp(request->start_timestamp());
-        auto timeout = FromProto<TDuration>(request->timeout());
-
-        auto config = Bootstrap_->GetConfig()->TabletNode->TransactionManager;
-        auto actualTimeout = std::min(timeout, config->MaxTransactionTimeout);
-        request->set_timeout(ToProto(actualTimeout));
-
-        context->SetRequestInfo("TransactionId: %v, StartTimestamp: %v, Timeout: %v",
-            transactionId,
-            startTimestamp,
-            actualTimeout);
-
-        auto transactionManager = Slot_->GetTransactionManager();
-        transactionManager
-            ->CreateStartTransactionMutation(*request)
-            ->CommitAndReply(context);
-    }
-
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto transactionStartTimestamp = request->transaction_start_timestamp();
+        auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         ValidateTabletTransactionId(transactionId);
 
         auto atomicity = AtomicityFromTransactionId(transactionId);
         auto durability = EDurability(request->durability());
 
-        context->SetRequestInfo("TabletId: %v, TransactionId: %v, Atomicity: %v, Durability: %v",
+        context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %v, "
+            "TransactionTimeout: %v, Atomicity: %v, Durability: %v",
             tabletId,
             transactionId,
+            transactionStartTimestamp,
+            transactionTimeout,
             atomicity,
             durability);
 
@@ -154,6 +134,8 @@ private:
             tabletManager->Write(
                 tabletSnapshot,
                 transactionId,
+                transactionStartTimestamp,
+                transactionTimeout,
                 &reader,
                 &commitResult);
         }

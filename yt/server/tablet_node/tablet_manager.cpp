@@ -150,6 +150,7 @@ public:
         transactionManager->SubscribeTransactionPrepared(BIND(&TImpl::OnTransactionPrepared, MakeStrong(this)));
         transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionCommitted, MakeStrong(this)));
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionAborted, MakeStrong(this)));
+        transactionManager->SubscribeTransactionTransientReset(BIND(&TImpl::OnTransactionTransientReset, MakeStrong(this)));
     }
 
 
@@ -189,6 +190,8 @@ public:
     void Write(
         TTabletSnapshotPtr tabletSnapshot,
         const TTransactionId& transactionId,
+        TTimestamp transactionStartTimestamp,
+        TDuration transactionTimeout,
         TWireProtocolReader* reader,
         TFuture<void>* commitResult)
     {
@@ -207,12 +210,22 @@ public:
         auto atomicity = AtomicityFromTransactionId(transactionId);
         switch (atomicity) {
             case EAtomicity::Full:
-                WriteAtomic(tablet, transactionId, reader, commitResult);
+                WriteAtomic(
+                    tablet,
+                    transactionId,
+                    transactionStartTimestamp,
+                    transactionTimeout,
+                    reader,
+                    commitResult);
                 break;
 
             case EAtomicity::None:
                 ValidateClientTimestamp(transactionId);
-                WriteNonAtomic(tablet, transactionId, reader, commitResult);
+                WriteNonAtomic(
+                    tablet,
+                    transactionId,
+                    reader,
+                    commitResult);
                 break;
 
             default:
@@ -456,8 +469,9 @@ private:
         }
 
         auto transactionManager = Slot_->GetTransactionManager();
-        for (const auto& pair : transactionManager->Transactions()) {
-            auto* transaction = pair.second;
+        auto transactions = transactionManager->GetTransactions();
+        for (auto* transaction : transactions) {
+            YCHECK(!transaction->GetTransient());
             int rowCount = 0;
             for (const auto& record : transaction->WriteLog()) {
                 auto* tablet = FindTablet(record.TabletId);
@@ -518,30 +532,11 @@ private:
     }
 
     
-    template <class TPrelockedRows>
-    void HandleRowsOnStopLeading(TTransaction* transaction, TPrelockedRows& rows)
-    {
-        while (!rows.empty()) {
-            auto rowRef = rows.front();
-            rows.pop();
-            if (ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.StoreManager->AbortRow(transaction, rowRef);
-            }
-        }
-    }
-    
     virtual void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::OnStopLeading();
-
-        auto transactionManager = Slot_->GetTransactionManager();
-        for (const auto& pair : transactionManager->Transactions()) {
-            auto* transaction = pair.second;
-            HandleRowsOnStopLeading(transaction, transaction->PrelockedSortedRows());
-            HandleRowsOnStopLeading(transaction, transaction->PrelockedOrderedRows());
-        }
 
         StopEpoch();
     }
@@ -804,7 +799,7 @@ private:
         TMutationContext* /*context*/)
     {
         auto transactionManager = Slot_->GetTransactionManager();
-        auto* transaction = transactionManager->GetTransaction(transactionId);
+        auto* transaction = transactionManager->MakeTransactionPersistent(transactionId);
 
         HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedSortedRows(), sortedRowCount);
         HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedOrderedRows(), orderedRowCount);
@@ -858,6 +853,8 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto atomicity = AtomicityFromTransactionId(transactionId);
+        auto transactionStartTimestamp = request->transaction_start_timestamp();
+        auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -884,7 +881,11 @@ private:
         switch (atomicity) {
             case EAtomicity::Full: {
                 auto transactionManager = Slot_->GetTransactionManager();
-                auto* transaction = transactionManager->GetTransaction(transactionId);
+                auto* transaction = transactionManager->GetOrCreateTransaction(
+                    transactionId,
+                    transactionStartTimestamp,
+                    transactionTimeout,
+                    false);
 
                 auto writeRecord = TTransactionWriteRecord{tabletId, recordData};
 
@@ -1356,6 +1357,24 @@ private:
         OnTransactionFinished(transaction);
     }
 
+    template <class TPrelockedRows>
+    void HandleRowsOnTransactionTransientReset(TTransaction* transaction, TPrelockedRows& rows)
+    {
+        while (!rows.empty()) {
+            auto rowRef = rows.front();
+            rows.pop();
+            if (ValidateAndDiscardRowRef(rowRef)) {
+                rowRef.StoreManager->AbortRow(transaction, rowRef);
+            }
+        }
+    }
+
+    void OnTransactionTransientReset(TTransaction* transaction)
+    {
+        HandleRowsOnTransactionTransientReset(transaction, transaction->PrelockedSortedRows());
+        HandleRowsOnTransactionTransientReset(transaction, transaction->PrelockedOrderedRows());
+    }
+
     void OnTransactionFinished(TTransaction* /*transaction*/)
     {
         if (IsLeader()) {
@@ -1445,6 +1464,8 @@ private:
     void WriteAtomic(
         TTablet* tablet,
         const TTransactionId& transactionId,
+        TTimestamp transactionStartTimestamp,
+        TDuration transactionTimeout,
         TWireProtocolReader* reader,
         TFuture<void>* commitResult)
     {
@@ -1452,7 +1473,11 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         auto transactionManager = Slot_->GetTransactionManager();
-        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
+        auto* transaction = transactionManager->GetOrCreateTransaction(
+            transactionId,
+            transactionStartTimestamp,
+            transactionTimeout,
+            true);
         ValidateTransactionActive(transaction);
 
         auto prelockedSortedBefore = transaction->PrelockedSortedRows().size();
@@ -1500,6 +1525,8 @@ private:
 
             TReqExecuteWrite hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
+            hydraRequest.set_transaction_start_timestamp(transactionStartTimestamp);
+            hydraRequest.set_transaction_timeout(ToProto(transactionTimeout));
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
             hydraRequest.set_mount_revision(tablet->GetMountRevision());
             hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
@@ -2023,12 +2050,16 @@ void TTabletManager::Read(
 void TTabletManager::Write(
     TTabletSnapshotPtr tabletSnapshot,
     const TTransactionId& transactionId,
+    TTimestamp transactionStartTimestamp,
+    TDuration transactionTimeout,
     TWireProtocolReader* reader,
     TFuture<void>* commitResult)
 {
     return Impl_->Write(
         std::move(tabletSnapshot),
         transactionId,
+        transactionStartTimestamp,
+        transactionTimeout,
         reader,
         commitResult);
 }

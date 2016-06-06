@@ -166,9 +166,7 @@ public:
         PingAncestors_ = options.PingAncestors;
         State_ = ETransactionState::Active;
 
-        YCHECK(CellIdToStartTransactionResult_.insert(std::make_pair(
-            Owner_->CellId_,
-            MakePromise<void>(TError()))).second);
+        YCHECK(ParticiapantCellIds_.insert(Owner_->CellId_).second);
 
         Register();
 
@@ -359,60 +357,35 @@ public:
         return Durability_;
     }
 
-
-    TFuture<void> AddTabletParticipant(const TCellId& cellId)
+    TDuration GetTimeout() const
     {
-        VERIFY_THREAD_AFFINITY(ClientThread);
+        return Timeout_.Get(Owner_->Config_->DefaultTransactionTimeout);
+    }
+
+
+    void AddTabletParticipant(const TCellId& cellId)
+    {
         YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
 
-        try {
-            if (Atomicity_ != EAtomicity::Full) {
-                return VoidFuture;
-            }
-
-            if (TypeFromId(Id_) == EObjectType::NestedTransaction) {
-                THROW_ERROR_EXCEPTION("Nested master transactions cannot be used at tablets");
-            }
-
-            TPromise<void> promise;
-            {
-                TGuard<TSpinLock> guard(SpinLock_);
-
-                if (State_ != ETransactionState::Active) {
-                    THROW_ERROR_EXCEPTION("Transaction is not active");
-                }
-
-                if (!Error_.IsOK()) {
-                    THROW_ERROR Error_;
-                }
-
-                auto it = CellIdToStartTransactionResult_.find(cellId);
-                if (it != CellIdToStartTransactionResult_.end()) {
-                    return it->second;
-                }
-
-                promise = NewPromise<void>();
-                YCHECK(CellIdToStartTransactionResult_.insert(std::make_pair(cellId, promise)).second);
-            }
-
-            LOG_DEBUG("Adding transaction tablet participant (TransactionId: %v, CellId: %v)",
-                Id_,
-                cellId);
-
-            auto channel = Owner_->CellDirectory_->GetChannelOrThrow(cellId);
-            auto proxy = Owner_->MakeTabletProxy(std::move(channel));
-            auto req = proxy.StartTransaction();
-            ToProto(req->mutable_transaction_id(), Id_);
-            req->set_start_timestamp(StartTimestamp_);
-            req->set_timeout(ToProto(Timeout_.Get(Owner_->Config_->DefaultTransactionTimeout)));
-
-            req->Invoke().Subscribe(
-                BIND(&TImpl::OnTabletParticipantAdded, MakeStrong(this), cellId, promise));
-
-            return promise;
-        } catch (const std::exception& ex) {
-            return MakeFuture<void>(ex);
+        if (Atomicity_ != EAtomicity::Full) {
+            return;
         }
+
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+
+            if (State_ != ETransactionState::Active) {
+                return;
+            }
+
+            if (!ParticiapantCellIds_.insert(cellId).second) {
+                return;
+            }
+        }
+
+        LOG_DEBUG("Transaction tablet participant added (TransactionId: %v, CellId: %v)",
+            Id_,
+            cellId);
     }
 
 
@@ -462,7 +435,7 @@ private:
     ETransactionState State_ = ETransactionState::Initializing;
     TSingleShotCallbackList<void()> Committed_;
     TSingleShotCallbackList<void()> Aborted_;
-    yhash_map<TCellId, TPromise<void>> CellIdToStartTransactionResult_;
+    yhash_set<TCellId> ParticiapantCellIds_;
     TError Error_;
 
     TTimestamp StartTimestamp_ = NullTimestamp;
@@ -578,7 +551,7 @@ private:
         }
 
         auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
-        reqExt->set_timeout(ToProto(options.Timeout.Get(Owner_->Config_->DefaultTransactionTimeout)));
+        reqExt->set_timeout(ToProto(GetTimeout()));
         if (options.ParentId) {
             ToProto(reqExt->mutable_parent_id(), options.ParentId);
         }
@@ -603,9 +576,7 @@ private:
         const auto& rsp = rspOrError.Value();
         Id_ = FromProto<TTransactionId>(rsp->object_id());
 
-        YCHECK(CellIdToStartTransactionResult_.insert(std::make_pair(
-            Owner_->CellId_,
-            MakePromise<void>(TError()))).second);
+        YCHECK(ParticiapantCellIds_.insert(Owner_->CellId_).second);
 
         LOG_INFO("Master transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
             Id_,
@@ -664,29 +635,6 @@ private:
             Durability_);
 
         return VoidFuture;
-    }
-
-    void OnTabletParticipantAdded(
-        const TCellId& cellId,
-        TPromise<void> promise,
-        const TTabletServiceProxy::TErrorOrRspStartTransactionPtr& rspOrError)
-    {
-        if (rspOrError.IsOK()) {
-            LOG_DEBUG("Transaction tablet participant added (TransactionId: %v, CellId: %v)",
-                Id_,
-                cellId);
-        } else {
-            LOG_DEBUG(rspOrError, "Error adding transaction tablet participant (TransactionId: %v, CellId: %v)",
-                Id_,
-                cellId);
-
-            DoAbort(TError("Error adding participant %v to transaction %v",
-                cellId,
-                Id_)
-                << rspOrError);
-        }
-
-        promise.Set(rspOrError);
     }
 
     void FireCommitted()
@@ -883,13 +831,7 @@ private:
     std::vector<TCellId> GetParticipantIds()
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        std::vector<TCellId> result;
-        for (const auto& pair : CellIdToStartTransactionResult_) {
-            if (pair.second.IsSet()) {
-                result.push_back(pair.first);
-            }
-        }
-        return result;
+        return std::vector<TCellId>(ParticiapantCellIds_.begin(), ParticiapantCellIds_.end());
     }
 };
 
@@ -1015,9 +957,14 @@ EDurability TTransaction::GetDurability() const
     return Impl_->GetDurability();
 }
 
-TFuture<void> TTransaction::AddTabletParticipant(const TCellId& cellId)
+TDuration TTransaction::GetTimeout() const
 {
-    return Impl_->AddTabletParticipant(cellId);
+    return Impl_->GetTimeout();
+}
+
+void TTransaction::AddTabletParticipant(const TCellId& cellId)
+{
+    Impl_->AddTabletParticipant(cellId);
 }
 
 DELEGATE_SIGNAL(TTransaction, void(), Committed, *Impl_);

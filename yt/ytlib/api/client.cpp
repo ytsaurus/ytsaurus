@@ -2870,6 +2870,7 @@ public:
         TSharedRange<TUnversionedRow> rows,
         const TWriteRowsOptions& options) override
     {
+        ValidateTabletTransaction();
         auto rowCount = rows.Size();
         Requests_.push_back(std::make_unique<TWriteRequest>(
             this,
@@ -2886,6 +2887,7 @@ public:
         TSharedRange<TUnversionedRow> keys,
         const TDeleteRowsOptions& options) override
     {
+        ValidateTabletTransaction();
         auto keyCount = keys.Size();
         Requests_.push_back(std::make_unique<TDeleteRequest>(
             this,
@@ -3208,12 +3210,10 @@ private:
             TTabletInfoPtr tabletInfo,
             TTableMountInfoPtr tableInfo,
             TColumnEvaluatorPtr columnEvauator)
-            : TransactionId_(owner->Transaction_->GetId())
+            : Owner_(owner)
             , TableInfo_(std::move(tableInfo))
             , TabletInfo_(std::move(tabletInfo))
-            , TabletId_(TabletInfo_->TabletId)
             , Config_(owner->Client_->Connection_->GetConfig())
-            , Durability_(owner->Transaction_->GetDurability())
             , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].Columns().size())
             , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].GetKeyColumnCount())
             , ColumnEvaluator_(std::move(columnEvauator))
@@ -3273,12 +3273,10 @@ private:
         }
 
     private:
-        const TTransactionId TransactionId_;
+        const TWeakPtr<TTransaction> Owner_;
         const TTableMountInfoPtr TableInfo_;
         const TTabletInfoPtr TabletInfo_;
-        const TTabletId TabletId_;
         const TConnectionConfigPtr Config_;
-        const EDurability Durability_;
         const int ColumnCount_;
         const int KeyColumnCount_;
 
@@ -3420,6 +3418,11 @@ private:
 
             const auto& batch = Batches_[InvokeBatchIndex_];
 
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return;
+            }
+
             LOG_DEBUG("Sending batch (BatchIndex: %v/%v, RowCount: %v)",
                 InvokeBatchIndex_,
                 Batches_.size(),
@@ -3430,10 +3433,14 @@ private:
             proxy.SetDefaultRequestAck(false);
 
             auto req = proxy.Write();
-            ToProto(req->mutable_transaction_id(), TransactionId_);
+            ToProto(req->mutable_transaction_id(), owner->GetId());
+            if (owner->GetAtomicity() == EAtomicity::Full) {
+                req->set_transaction_start_timestamp(owner->GetStartTimestamp());
+                req->set_transaction_timeout(ToProto(owner->Transaction_->GetTimeout()));
+            }
             ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
             req->set_mount_revision(TabletInfo_->MountRevision);
-            req->set_durability(static_cast<int>(Durability_));
+            req->set_durability(static_cast<int>(owner->GetDurability()));
             req->Attachments() = std::move(batch->RequestData);
 
             req->Invoke().Subscribe(
@@ -3442,24 +3449,27 @@ private:
 
         void OnResponse(const TTabletServiceProxy::TErrorOrRspWritePtr& rspOrError)
         {
-            if (rspOrError.IsOK()) {
-                LOG_DEBUG("Batch sent successfully");
-                ++InvokeBatchIndex_;
-                InvokeNextBatch();
-            } else {
+            if (!rspOrError.IsOK()) {
                 LOG_DEBUG(rspOrError, "Error sending batch");
                 InvokePromise_.Set(rspOrError);
+                return;
             }
+
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return;
+            }
+
+            LOG_DEBUG("Batch sent successfully");
+            owner->Transaction_->AddTabletParticipant(TabletInfo_->CellId);
+            ++InvokeBatchIndex_;
+            InvokeNextBatch();
         }
-
-
     };
 
     typedef TIntrusivePtr<TTabletCommitSession> TTabletSessionPtr;
 
     yhash_map<TTabletId, TTabletSessionPtr> TabletToSession_;
-
-    std::vector<TFuture<void>> AsyncTransactionStartResults_;
 
     //! Caches mappings from name table ids to schema ids.
     yhash_map<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
@@ -3485,7 +3495,6 @@ private:
         const auto& tabletId = tabletInfo->TabletId;
         auto it = TabletToSession_.find(tabletId);
         if (it == TabletToSession_.end()) {
-            AsyncTransactionStartResults_.push_back(Transaction_->AddTabletParticipant(tabletInfo->CellId));
             auto evaluatorCache = GetConnection()->GetColumnEvaluatorCache();
             auto evaluator = evaluatorCache->Find(tableInfo->Schemas[ETableSchemaKind::Primary]);
             it = TabletToSession_.insert(std::make_pair(
@@ -3506,9 +3515,6 @@ private:
             for (const auto& request : Requests_) {
                 request->Run();
             }
-
-            WaitFor(Combine(AsyncTransactionStartResults_))
-                .ThrowOnError();
 
             std::vector<TFuture<void>> asyncResults;
             for (const auto& pair : TabletToSession_) {
@@ -3547,6 +3553,13 @@ private:
                 return SyncLastCommittedTimestamp;
             default:
                 YUNREACHABLE();
+        }
+    }
+
+    void ValidateTabletTransaction()
+    {
+        if (TypeFromId(GetId()) == EObjectType::NestedTransaction) {
+            THROW_ERROR_EXCEPTION("Nested master transactions cannot be used for updating dynamic tables");
         }
     }
 
