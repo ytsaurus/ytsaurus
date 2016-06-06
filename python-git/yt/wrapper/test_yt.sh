@@ -156,9 +156,16 @@ test_copy_move_link()
 test_merge_erase()
 {
     for i in {1..3}; do
-        echo -e "value=${i}\n" | ./yt write "//home/wrapper_test/table${i}"
+        echo -e "value=${i}" | ./yt write "//home/wrapper_test/table${i}" --format dsv
     done
-    ./yt merge --src "//home/wrapper_test/table1" --src "//home/wrapper_test/table3" --dst "//home/wrapper_test/merge"
+    ./yt merge --src //home/wrapper_test/table{1..3} --dst "//home/wrapper_test/merge"
+    check "3" "$(./yt get //home/wrapper_test/merge/@row_count)"
+
+    ./yt erase '//home/wrapper_test/merge[#1:#2]'
+    check "2" "$(./yt get //home/wrapper_test/merge/@row_count)"
+
+    ./yt merge --src "//home/wrapper_test/merge" --src "//home/wrapper_test/merge" --dst "//home/wrapper_test/merge"
+    check "4" "$(./yt get //home/wrapper_test/merge/@row_count)"
 }
 
 test_map_reduce()
@@ -351,6 +358,7 @@ run_test test_cypress_commands
 run_test test_concatenate
 run_test test_file_commands
 run_test test_copy_move_link
+run_test test_merge_erase
 run_test test_map_reduce
 run_test test_users
 run_test test_concurrent_upload_in_operation

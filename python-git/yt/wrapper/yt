@@ -525,9 +525,12 @@ def add_delete_rows_parser(add_parser):
         add_format_help(parser, help="input format")
         parser.set_defaults(func=yt.delete_rows, input_stream=sys.stdin, raw=True)
 
+def add_src_arg(parser, **kwargs):
+    parser.add_argument("--src", action="append", nargs="+", required=True, dest="source_table", **kwargs)
+
 def operation_args(parser):
     add_hybrid_argument(parser, "binary", metavar="command")
-    parser.add_argument("--src", action="append", required=True, dest="source_table")
+    add_src_arg(parser)
     parser.add_argument("--dst", action="append", required=True, dest="destination_table")
     parser.add_argument("--file", action="append", dest="file_paths")
     parser.add_argument("--local-file", action="append", dest="files")
@@ -565,8 +568,7 @@ def add_erase_parser(add_parser):
 
 def add_merge_parser(add_parser):
     parser = add_parser("merge", operation_handler(yt.run_merge))
-    add_ypath_argument(parser, "--src", action="append", required=True, dest="source_table",
-                       help="path to source table")
+    add_src_arg(parser)
     add_ypath_argument(parser, "--dst", required=True, dest="destination_table",
         help="path to destination table. For append mode add <append=true> before path.")
     parser.add_argument("--mode", default="unordered", choices=["unordered", "ordered", "sorted"],
@@ -577,7 +579,7 @@ def add_merge_parser(add_parser):
 
 def add_sort_parser(add_parser):
     parser = add_parser("sort", operation_handler(yt.run_sort))
-    parser.add_argument("--src", action="append", required=True, dest="source_table")
+    add_src_arg(parser)
     parser.add_argument("--dst", required=True, dest="destination_table")
     parser.add_argument("--sort-by", action="append", required=True, help="Columns to sort by.")
     parser.add_argument("--print-statistics", action="store_true", default=False)
@@ -606,8 +608,8 @@ def add_join_reduce_parser(add_parser):
 
 def add_remote_copy_parser(add_parser):
     parser = add_parser("remote-copy", operation_handler(yt.run_remote_copy))
-    parser.add_argument("--src", action="append", required=True, dest="source_table", help="path to source Cypress node in remote cluster")
-    parser.add_argument("--dst", required=True, dest="destination_table", help="path to destination node in current cluster")
+    add_src_arg(parser, help="path to source tables in remote cluster")
+    parser.add_argument("--dst", required=True, dest="destination_table", help="path to destination table in current cluster")
     parser.add_argument("--cluster", required=True, dest="cluster_name", help="remote cluster proxy, like smith")
     parser.add_argument("--network", dest="network_name")
     parser.add_argument("--copy-attributes", action="store_true", help="specify this flag to coping node attributes too")
