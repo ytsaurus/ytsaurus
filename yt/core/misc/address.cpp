@@ -410,7 +410,7 @@ TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName_)
         Stroka hostName = hostName_;
         auto strippedHostName = StripInterconnectFromAddress(GetLocalHostName(), hostName_);
         if (strippedHostName != hostName) {
-            LOG_DEBUG("Interconnect suffix is stripped from address %v", hostName);
+            LOG_DEBUG("Interconnect suffix was stripped from address %v", hostName);
             hostName = strippedHostName;
         }
 
