@@ -289,7 +289,7 @@ struct TCallTraitsHelper<T, false>
  */
 template <class T>
 struct TCallTraits
-    : public NDetail::TCallTraitsHelper<T, TTypeTraits<T>::IsPrimitive>
+    : public NDetail::TCallTraitsHelper<T, !std::is_class<T>::value>
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
