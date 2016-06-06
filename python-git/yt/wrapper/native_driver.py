@@ -79,12 +79,19 @@ def make_request(command_name, params,
 
     logger.debug("Executing command %s with parameters %s and id %s", command_name, repr(params), hex(request_id)[2:])
 
-    response = driver.execute(
-        Request(command_name=command_name,
-                parameters=params,
-                input_stream=input_stream,
-                output_stream=output_stream,
-                id=request_id))
+    if get_config(client)["enable_passing_request_id_to_driver"]:
+        response = driver.execute(
+            Request(command_name=command_name,
+                    parameters=params,
+                    input_stream=input_stream,
+                    output_stream=output_stream,
+                    id=request_id))
+    else:
+        response = driver.execute(
+            Request(command_name=command_name,
+                    parameters=params,
+                    input_stream=input_stream,
+                    output_stream=output_stream))
 
     if return_content:
         response.wait()

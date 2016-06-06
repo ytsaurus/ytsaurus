@@ -92,6 +92,7 @@ default_config = {
 
     # Driver configuration.
     "driver_config": None,
+    "enable_passing_request_id_to_driver": False,
 
     # Path to driver config.
     # ATTENTION: It is comptatible with native yt binary written in C++, it means
