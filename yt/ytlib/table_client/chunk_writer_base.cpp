@@ -111,13 +111,13 @@ void TChunkWriterBase::ValidateRowWeight(i64 weight)
 
 void TChunkWriterBase::ValidateColumnCount(int columnCount)
 {
-    if (!Options_->ValidateColumnCount || columnCount < MaxColumnsPerRow) {
+    if (!Options_->ValidateColumnCount || columnCount < MaxColumnId) {
         return;
     }
 
     THROW_ERROR_EXCEPTION("Too many columns in row")
         << TErrorAttribute("column_count", columnCount)
-        << TErrorAttribute("max_column_count", MaxColumnsPerRow);
+        << TErrorAttribute("max_column_count", MaxColumnId);
 }
 
 void TChunkWriterBase::ValidateDuplicateIds(TUnversionedRow row, const TNameTablePtr& nameTable)

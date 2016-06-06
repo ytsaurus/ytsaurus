@@ -38,6 +38,12 @@ i64 TNameTable::GetByteSize() const
     return ByteSize_;
 }
 
+void TNameTable::SetEnableColumnNameValidation()
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    EnableColumnNameValidation_ = true;
+}
+
 TNullable<int> TNameTable::FindId(const TStringBuf& name) const
 {
     TGuard<TSpinLock> guard(SpinLock_);
@@ -83,6 +89,17 @@ int TNameTable::GetIdOrRegisterName(const TStringBuf& name)
 int TNameTable::DoRegisterName(const TStringBuf& name)
 {
     int id = IdToName_.size();
+
+    if (id >= MaxColumnId) {
+        THROW_ERROR_EXCEPTION("Cannot register column %Qv, column count limit exceeded", name)
+            << TErrorAttribute("max_column_id", MaxColumnId);
+    }
+
+    if (EnableColumnNameValidation_ && name.length() > MaxColumnNameLength) {
+        THROW_ERROR_EXCEPTION("Cannot register column %Qv, column name is too long", name)
+            << TErrorAttribute("max_column_name length", MaxColumnNameLength);
+    }
+
     IdToName_.emplace_back(name);
     const auto& savedName = IdToName_.back();
     YCHECK(NameToId_.insert(std::make_pair(savedName, id)).second);

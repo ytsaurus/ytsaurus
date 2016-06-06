@@ -50,9 +50,13 @@ TSchemalessFormatWriterBase::TSchemalessFormatWriterBase(
         ControlAttributesConfig_->EnableRangeIndex || 
         ControlAttributesConfig_->EnableRowIndex;
 
-    RowIndexId_ = NameTable_->GetIdOrRegisterName(RowIndexColumnName);
-    RangeIndexId_ = NameTable_->GetIdOrRegisterName(RangeIndexColumnName);
-    TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
+    try {
+        RowIndexId_ = NameTable_->GetIdOrRegisterName(RowIndexColumnName);
+        RangeIndexId_ = NameTable_->GetIdOrRegisterName(RangeIndexColumnName);
+        TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
+    } catch (const std::exception& ex) {
+        Error_ = TError("Failed to add system columns to name table for a format writer") << ex;
+    }
 }
 
 TFuture<void> TSchemalessFormatWriterBase::Open()
@@ -129,6 +133,10 @@ void TSchemalessFormatWriterBase::DoFlushBuffer()
 
 bool TSchemalessFormatWriterBase::Write(const std::vector<TUnversionedRow> &rows)
 {
+    if (!Error_.IsOK()) {
+        return false;
+    }
+
     try {
         DoWrite(rows);
     } catch (const std::exception& ex) {
@@ -239,6 +247,11 @@ void TSchemalessFormatWriterBase::WriteRangeIndex(i64 rangeIndex)
 
 void TSchemalessFormatWriterBase::WriteRowIndex(i64 rowIndex)
 { }
+
+void TSchemalessFormatWriterBase::RegisterError(const TError& error)
+{
+    Error_ = error;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -41,17 +41,23 @@ public:
             config->EnableEscaping, // Enable value escaping
             config->EscapingSymbol,
             true)
-        , KeyId_(nameTable->GetIdOrRegisterName(config->Key))
-        , SubkeyId_(Config_->HasSubkey ? nameTable->GetIdOrRegisterName(config->Subkey) : -1)
-        , ValueId_(nameTable->GetIdOrRegisterName(config->Value))
-    { }
+    { 
+        try {
+            KeyId_ = nameTable->GetIdOrRegisterName(config->Key);
+            SubkeyId_ = Config_->HasSubkey ? nameTable->GetIdOrRegisterName(config->Subkey) : -1;
+            ValueId_ = nameTable->GetIdOrRegisterName(config->Value);
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to add columns to name table for yamr format") << ex;
+            RegisterError(error);
+        }
+    }
 
 private:
     const TYamrTable Table_;
 
-    const int KeyId_;
-    const int SubkeyId_;
-    const int ValueId_;
+    int KeyId_;
+    int SubkeyId_;
+    int ValueId_;
 
     // ISchemalessFormatWriter override.
     virtual void DoWrite(const std::vector<TUnversionedRow>& rows) override
