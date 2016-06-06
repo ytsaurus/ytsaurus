@@ -268,7 +268,8 @@ TFuture<void> TSchemalessChunkReader::InitializeBlockSequence()
             TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to add system columns to name table for schemaless chunk reader") << ex;
+        THROW_ERROR_EXCEPTION("Failed to add system columns to name table for schemaless chunk reader") 
+            << ex;
     }
 
     if (PartitionTag_) {
@@ -1003,7 +1004,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             nameTable->RegisterName(column.Name);
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to update name table for schemaless merging reader") << ex;
+        THROW_ERROR_EXCEPTION("Failed to update name table for schemaless merging reader") 
+            << ex;
     }
 
     std::vector<TOwningKey> boundaries;

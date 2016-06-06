@@ -136,7 +136,8 @@ void TSchemalessSortedMergingReader::DoOpen()
         try {
             tableIndexId = nameTable->GetIdOrRegisterName(TableIndexColumnName);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to add system column to name table for schemaless merging reader") << ex;
+            THROW_ERROR_EXCEPTION("Failed to add system column to name table for schemaless merging reader") 
+                << ex;
         }
 
         for (auto valueIt = row.Begin(); valueIt != row.End(); ++valueIt) {

@@ -449,7 +449,8 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
             nameTable->GetIdOrRegisterName(columns[columnIndex]);
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to add columns to name table for schemaful dsv format") << ex;
+        THROW_ERROR_EXCEPTION("Failed to add columns to name table for schemaful DSV format") 
+            << ex;
     }
 
     idToIndexInRow.resize(nameTable->GetSize(), -1);

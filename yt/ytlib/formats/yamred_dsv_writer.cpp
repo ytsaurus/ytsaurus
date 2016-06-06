@@ -44,7 +44,8 @@ public:
                 SubkeyColumnIds_.push_back(nameTable->GetIdOrRegisterName(columnName));
             }
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to add columns to name table for yamred dsv format") << ex;
+            auto error = TError("Failed to add columns to name table for YAMRed DSV format")
+                << ex;
             RegisterError(error);
         }
 

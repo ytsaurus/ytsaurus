@@ -47,7 +47,8 @@ public:
             SubkeyId_ = Config_->HasSubkey ? nameTable->GetIdOrRegisterName(config->Subkey) : -1;
             ValueId_ = nameTable->GetIdOrRegisterName(config->Value);
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to add columns to name table for yamr format") << ex;
+            auto error = TError("Failed to add columns to name table for YAMR format") 
+                << ex;
             RegisterError(error);
         }
     }

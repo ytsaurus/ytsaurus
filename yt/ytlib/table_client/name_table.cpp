@@ -91,13 +91,13 @@ int TNameTable::DoRegisterName(const TStringBuf& name)
     int id = IdToName_.size();
 
     if (id >= MaxColumnId) {
-        THROW_ERROR_EXCEPTION("Cannot register column %Qv, column count limit exceeded", name)
+        THROW_ERROR_EXCEPTION("Cannot register column %Qv, column limit exceeded", name)
             << TErrorAttribute("max_column_id", MaxColumnId);
     }
 
     if (EnableColumnNameValidation_ && name.length() > MaxColumnNameLength) {
         THROW_ERROR_EXCEPTION("Cannot register column %Qv, column name is too long", name)
-            << TErrorAttribute("max_column_name length", MaxColumnNameLength);
+            << TErrorAttribute("max_column_name_length", MaxColumnNameLength);
     }
 
     IdToName_.emplace_back(name);
