@@ -219,8 +219,7 @@ Handle<Value> TOutputStreamWrap::DoDrain()
 {
     THREAD_AFFINITY_IS_V8();
 
-    bool expected = true;
-    YCHECK(FlowEstablished_.compare_exchange_strong(expected, false));
+    FlowEstablished_.store(false);
 
     auto guard = Guard(Mutex_);
     return Boolean::New(IsFinished_);

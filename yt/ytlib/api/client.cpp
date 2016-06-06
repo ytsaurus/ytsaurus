@@ -2930,7 +2930,7 @@ private:
     {
     public:
         virtual ~TRequestBase() = default;
-        
+
         void Run()
         {
             DoPrepare();
@@ -2943,7 +2943,6 @@ private:
         const TNameTablePtr NameTable_;
 
         TTableMountInfoPtr TableInfo_;
-
 
         explicit TRequestBase(
             TTransaction* transaction,
