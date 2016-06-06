@@ -172,7 +172,6 @@ NODE_CONFIG_PATCHES = [
         },
         "exec_agent": {
             "scheduler_connector": {
-                "failed_heartbeat_backoff_time": 50,
                 "heartbeat_period": 100,
                 "heartbeat_splay": 50
             }
@@ -218,6 +217,8 @@ class LocalModeConfigsProvider_17(ConfigsProvider_17):
         for config in configs:
             for patch in NODE_CONFIG_PATCHES:
                 update(config, patch)
+
+            config["exec_agent"]["scheduler_connector"]["failed_heartbeat_backoff_time"] = 50
 
             _remove_none_fields(config)
             _tune_memory_limits(config)
@@ -280,7 +281,12 @@ class LocalModeConfigsProvider_18(ConfigsProvider_18):
                 .get_node_configs(node_count, node_dirs, operations_memory_limit)
 
         local_patch = {
-            "cell_directory_synchronizer": None
+            "cell_directory_synchronizer": None,
+            "exec_agent": {
+                "scheduler_connector": {
+                    "unsuccess_heartbeat_backoff_time": 50
+                }
+            }
         }
 
         for config in configs:
