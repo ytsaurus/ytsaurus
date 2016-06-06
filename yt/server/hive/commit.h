@@ -14,11 +14,18 @@
 #include <yt/core/rpc/public.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENTITY_TYPE(TCommit, TTransactionId, ::THash<TTransactionId>)
+DEFINE_ENUM(ECommitState,
+    (Start)
+    (Prepare)
+    (GenerateCommitTimestamp) // transient only
+    (Commit)
+    (Abort)
+    (Finish)                  // transient only
+);
 
 class TCommit
     : public NHydra::TEntityBase
@@ -28,8 +35,12 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, TransactionId);
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, ParticipantCellIds);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TCellId>, PreparedParticipantCellIds);
+
     DEFINE_BYVAL_RW_PROPERTY(bool, Persistent);
+    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(ECommitState, TransientState);
+    DEFINE_BYVAL_RW_PROPERTY(ECommitState, PersistentState);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TCellId>, RespondedCellIds);
 
 public:
     explicit TCommit(const TTransactionId& transactionId);
@@ -53,5 +64,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveServer
 } // namespace NYT

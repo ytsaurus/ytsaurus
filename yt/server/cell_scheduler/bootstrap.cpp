@@ -74,7 +74,7 @@ using namespace NScheduler;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NConcurrency;
-using namespace NHive;
+using namespace NHiveClient;
 using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////

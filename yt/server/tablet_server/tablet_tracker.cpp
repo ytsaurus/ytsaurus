@@ -26,7 +26,7 @@ using namespace NObjectServer;
 using namespace NTabletServer::NProto;
 using namespace NNodeTrackerServer;
 using namespace NHydra;
-using namespace NHive;
+using namespace NHiveServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

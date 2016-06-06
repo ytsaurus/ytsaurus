@@ -50,7 +50,7 @@ using namespace NYPath;
 using namespace NCypressServer;
 using namespace NSecurityClient;
 using namespace NObjectServer;
-using namespace NHive;
+using namespace NHiveServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

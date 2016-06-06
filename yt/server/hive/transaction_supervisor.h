@@ -9,7 +9,7 @@
 #include <yt/core/rpc/public.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,13 +24,14 @@ public:
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton,
         NRpc::TResponseKeeperPtr responseKeeper,
-        THiveManagerPtr hiveManager,
         ITransactionManagerPtr transactionManager,
+        NHiveClient::TCellDirectoryPtr cellDirectory,
+        const TCellId& selfCellId,
         NTransactionClient::ITimestampProviderPtr timestampProvider);
 
     ~TTransactionSupervisor();
 
-    NRpc::IServicePtr GetRpcService();
+    std::vector<NRpc::IServicePtr> GetRpcServices();
 
     TFuture<void> CommitTransaction(
         const TTransactionId& transactionId,
@@ -42,7 +43,8 @@ public:
 
 private:
     class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    using TImplPtr = TIntrusivePtr<TImpl>;
+    const TImplPtr Impl_;
 
 };
 
@@ -50,5 +52,5 @@ DEFINE_REFCOUNTED_TYPE(TTransactionSupervisor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveServer
 } // namespace NYT

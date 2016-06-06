@@ -57,7 +57,7 @@ using namespace NConcurrency;
 using namespace NRpc;
 using namespace NElection;
 using namespace NHydra;
-using namespace NHive;
+using namespace NHiveServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

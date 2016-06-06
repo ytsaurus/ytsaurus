@@ -15,7 +15,7 @@
 #include <yt/core/concurrency/rw_spinlock.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveClient {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -30,7 +30,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const auto& Logger = HiveLogger;
+const auto& Logger = HiveClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -270,6 +270,13 @@ public:
         return result;
     }
 
+    void RegisterCell(const TCellId& cellId)
+    {
+        TCellDescriptor descriptor;
+        descriptor.CellId = cellId;
+        ReconfigureCell(descriptor);
+    }
+
     bool UnregisterCell(const TCellId& cellId)
     {
         bool result;
@@ -340,7 +347,7 @@ private:
         }
 
         for (const auto& info : rsp->cells_to_reconfigure()) {
-            auto descriptor = FromProto<NHive::TCellDescriptor>(info.cell_descriptor());
+            auto descriptor = FromProto<TCellDescriptor>(info.cell_descriptor());
             ReconfigureCell(descriptor);
         }
 
@@ -419,6 +426,11 @@ bool TCellDirectory::ReconfigureCell(const TCellDescriptor& descriptor)
     return Impl_->ReconfigureCell(descriptor);
 }
 
+void TCellDirectory::RegisterCell(const TCellId& cellId)
+{
+    Impl_->RegisterCell(cellId);
+}
+
 bool TCellDirectory::UnregisterCell(const TCellId& cellId)
 {
     return Impl_->UnregisterCell(cellId);
@@ -431,5 +443,5 @@ void TCellDirectory::Clear()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveClient
 } // namespace NYT

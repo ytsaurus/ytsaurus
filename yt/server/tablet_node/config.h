@@ -495,10 +495,10 @@ public:
     TTabletHydraManagerConfigPtr HydraManager;
 
     //! Generic configuration for all Hive instances.
-    NHive::THiveManagerConfigPtr HiveManager;
+    NHiveServer::THiveManagerConfigPtr HiveManager;
 
     TTransactionManagerConfigPtr TransactionManager;
-    NHive::TTransactionSupervisorConfigPtr TransactionSupervisor;
+    NHiveServer::TTransactionSupervisorConfigPtr TransactionSupervisor;
 
     TTabletManagerConfigPtr TabletManager;
     TStoreFlusherConfigPtr StoreFlusher;

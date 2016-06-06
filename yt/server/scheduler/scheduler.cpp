@@ -819,7 +819,7 @@ public:
         return Bootstrap_->GetMasterClient();
     }
 
-    virtual NHive::TClusterDirectoryPtr GetClusterDirectory() override
+    virtual NHiveClient::TClusterDirectoryPtr GetClusterDirectory() override
     {
         return Bootstrap_->GetClusterDirectory();
     }

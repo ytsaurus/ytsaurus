@@ -41,7 +41,7 @@ public:
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
     NScheduler::TSchedulerPtr GetScheduler() const;
-    NHive::TClusterDirectoryPtr GetClusterDirectory() const;
+    NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const;
     NRpc::TResponseKeeperPtr GetResponseKeeper() const;
     NChunkClient::TThrottlerManagerPtr GetChunkLocationThrottlerManager() const;
 
@@ -57,7 +57,7 @@ private:
     std::unique_ptr<NHttp::TServer> HttpServer_;
     NApi::IClientPtr MasterClient_;
     NScheduler::TSchedulerPtr Scheduler_;
-    NHive::TClusterDirectoryPtr ClusterDirectory_;
+    NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
     NRpc::TResponseKeeperPtr ResponseKeeper_;
     NChunkClient::TThrottlerManagerPtr ChunkLocationThrottlerManager_;
 

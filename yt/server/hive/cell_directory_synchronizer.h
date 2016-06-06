@@ -2,8 +2,10 @@
 
 #include "public.h"
 
+#include <yt/ytlib/hive/public.h>
+
 namespace NYT {
-namespace NHive {
+namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,7 +15,7 @@ class TCellDirectorySynchronizer
 public:
     TCellDirectorySynchronizer(
         TCellDirectorySynchronizerConfigPtr config,
-        TCellDirectoryPtr cellDirectory,
+        NHiveClient::TCellDirectoryPtr cellDirectory,
         const TCellId& primaryCellId);
     ~TCellDirectorySynchronizer();
 
@@ -30,5 +32,5 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveServer
 } // namespace NYT

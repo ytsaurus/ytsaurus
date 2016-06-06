@@ -5,7 +5,7 @@
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,13 +73,21 @@ class TTransactionSupervisorConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    TDuration ParticipantProbationPeriod;
+    TDuration RpcTimeout;
+
     TTransactionSupervisorConfig()
-    { }
+    {
+        RegisterParameter("participant_probation_period", ParticipantProbationPeriod)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(5));
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionSupervisorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveServer
 } // namespace NYT

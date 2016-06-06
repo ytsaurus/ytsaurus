@@ -3,13 +3,14 @@
 #include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveServer {
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NProto::TEncapsulatedMessage SerializeMessage(const ::google::protobuf::MessageLite& message)
+NHiveClient::NProto::TEncapsulatedMessage SerializeMessage(const ::google::protobuf::MessageLite& message)
 {
-    NProto::TEncapsulatedMessage encapsulatedMessage;
+    NHiveClient::NProto::TEncapsulatedMessage encapsulatedMessage;
     encapsulatedMessage.set_type(message.GetTypeName());
 
     auto serializedMessage = SerializeToProtoWithEnvelope(message);
@@ -20,5 +21,5 @@ NProto::TEncapsulatedMessage SerializeMessage(const ::google::protobuf::MessageL
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveServer
 } // namespace NYT

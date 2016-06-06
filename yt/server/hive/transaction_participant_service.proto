@@ -1,25 +1,37 @@
-package NYT.NTransactionServer.NProto;
+package NYT.NHiveServer.NProto;
 
 import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqPrepareTransactionCommit
+message TReqPrepareTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
 }
+
+message TRspPrepareTransaction
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqCommitTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required int64 commit_timestamp = 2;
+    required uint64 commit_timestamp = 2;
 }
+
+message TRspCommitTransaction
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqAbortTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required bool force = 2;
 }
+
+message TRspAbortTransaction
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

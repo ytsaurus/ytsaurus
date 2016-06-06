@@ -61,7 +61,7 @@ public:
     bool EnableReadFromFollowers;
     bool ForceReadFromFollowers;
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
-    NHive::TCellDirectoryConfigPtr CellDirectory;
+    NHiveClient::TCellDirectoryConfigPtr CellDirectory;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;

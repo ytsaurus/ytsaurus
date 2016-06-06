@@ -1,57 +1,39 @@
-package NYT.NHive.NProto;
+package NYT.NHiveServer.NProto;
 
 import "yt/core/misc/guid.proto";
-import "yt/core/misc/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqCommitSimpleTransaction
+message TReqCoordinatorCommitSimpleTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid mutation_id = 2;
-    required int64 commit_timestamp = 3;
+    required uint64 commit_timestamp = 3;
 }
 
-message TReqCommitDistributedTransactionPhaseOne
+message TReqCoordinatorCommitDistributedTransactionPhaseOne
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid mutation_id = 2;
     repeated NYT.NProto.TGuid participant_cell_ids = 3;
-    required int64 prepare_timestamp = 4;
 }
 
-message TReqPrepareTransactionCommit
+message TReqCoordinatorCommitDistributedTransactionPhaseTwo
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required int64 prepare_timestamp = 2;
-    required NYT.NProto.TGuid coordinator_cell_id = 3;
+    required uint64 commit_timestamp = 2;
 }
 
-message TReqOnTransactionCommitPrepared
+message TReqCoordinatorFinishDistributedTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required NYT.NProto.TGuid participant_cell_id = 2;
-    required NYT.NProto.TError error = 3;
 }
 
-message TReqCommitDistributedTransactionPhaseTwo
+message TReqCoordinatorAbortTransaction
 {
-    required NYT.NProto.TGuid transaction_id = 1;
-    required int64 commit_timestamp = 2;
-}
-
-message TReqCommitPreparedTransaction
-{
-    required NYT.NProto.TGuid transaction_id = 1;
-    required int64 commit_timestamp = 2;
-}
-
-// Not to be confused with TReqAbortTransaction from RPC.
-message TReqHydraAbortTransaction
-{
-    required NYT.NProto.TGuid transaction_id = 1;
-    required NYT.NProto.TGuid mutation_id = 2;
-    optional bool force = 3 [default = false];
+    required NYT.NProto.TGuid mutation_id = 1;
+    required NYT.NProto.TGuid transaction_id = 2;
+    required bool force = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

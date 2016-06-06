@@ -74,7 +74,7 @@ using NTableClient::TTableSchema;
 using NTableClient::TColumnSchema;
 using NTableClient::TChunkReaderPerformanceCounters;
 
-using NHive::ETransactionState;
+using NHiveServer::ETransactionState;
 
 ////////////////////////////////////////////////////////////////////////////////
 

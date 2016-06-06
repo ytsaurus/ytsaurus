@@ -99,7 +99,7 @@ using namespace NSecurityClient;
 using namespace NQueryClient;
 using namespace NChunkClient;
 using namespace NScheduler;
-using namespace NHive;
+using namespace NHiveClient;
 using namespace NHydra;
 
 using NChunkClient::TReadLimit;

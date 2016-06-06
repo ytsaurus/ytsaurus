@@ -1,4 +1,4 @@
-package NYT.NHive.NProto;
+package NYT.NHiveClient.NProto;
 
 import "yt/core/misc/guid.proto";
 

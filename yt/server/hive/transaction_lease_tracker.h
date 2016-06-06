@@ -13,7 +13,7 @@
 #include <yt/core/logging/log.h>
 
 namespace NYT {
-namespace NHive {
+namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,5 +167,5 @@ DEFINE_REFCOUNTED_TYPE(TTransactionLeaseTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveServer
 } // namespace NYT

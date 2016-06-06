@@ -25,6 +25,10 @@ DEFINE_ENUM(EDurability,
     ((Async)           (1)) // Reply as soon as the request is enqueued to Hydra
 );
 
+DEFINE_ENUM(EErrorCode,
+    ((NoSuchTransaction)  (11000))
+);
+
 DECLARE_REFCOUNTED_CLASS(TTransaction)
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 

@@ -47,7 +47,7 @@ public:
     NHydra::EPeerState GetControlState() const;
     NHydra::EPeerState GetAutomatonState() const;
     NHydra::TPeerId GetPeerId() const;
-    const NHive::TCellDescriptor& GetCellDescriptor() const;
+    const NHiveClient::TCellDescriptor& GetCellDescriptor() const;
     NTransactionClient::TTransactionId GetPrerequisiteTransactionId() const;
 
     NHydra::IHydraManagerPtr GetHydraManager() const;
@@ -61,11 +61,11 @@ public:
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetSnapshotInvoker() const;
 
-    NHive::THiveManagerPtr GetHiveManager() const;
-    NHive::TMailbox* GetMasterMailbox();
+    NHiveServer::THiveManagerPtr GetHiveManager() const;
+    NHiveServer::TMailbox* GetMasterMailbox();
 
     TTransactionManagerPtr GetTransactionManager() const;
-    NHive::TTransactionSupervisorPtr GetTransactionSupervisor() const;
+    NHiveServer::TTransactionSupervisorPtr GetTransactionSupervisor() const;
 
     TTabletManagerPtr GetTabletManager() const;
 

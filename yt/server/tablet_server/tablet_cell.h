@@ -68,7 +68,7 @@ public:
     TPeerId FindPeerId(NNodeTrackerServer::TNode* node) const;
     TPeerId GetPeerId(NNodeTrackerServer::TNode* node) const;
 
-    void AssignPeer(const NHive::TCellPeerDescriptor& descriptor, TPeerId peerId);
+    void AssignPeer(const NHiveClient::TCellPeerDescriptor& descriptor, TPeerId peerId);
     void RevokePeer(TPeerId peerId);
 
     void AttachPeer(NNodeTrackerServer::TNode* node, TPeerId peerId);
@@ -77,7 +77,7 @@ public:
 
     ETabletCellHealth GetHealth() const;
 
-    NHive::TCellDescriptor GetDescriptor() const;
+    NHiveClient::TCellDescriptor GetDescriptor() const;
 
 };
 

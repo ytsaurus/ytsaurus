@@ -25,7 +25,7 @@ using namespace NObjectClient;
 using namespace NTabletClient;
 using namespace NNodeTrackerClient;
 using namespace NHydra;
-using namespace NHive;
+using namespace NHiveClient;
 
 DECLARE_REFCOUNTED_CLASS(TAdmin)
 

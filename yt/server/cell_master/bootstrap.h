@@ -31,6 +31,8 @@
 #include <yt/ytlib/monitoring/http_server.h>
 #include <yt/ytlib/monitoring/public.h>
 
+#include <yt/ytlib/hive/public.h>
+
 #include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/rpc/public.h>
@@ -69,7 +71,7 @@ public:
     NHydra::ISnapshotStorePtr GetSnapshotStore() const;
     NNodeTrackerServer::TNodeTrackerPtr GetNodeTracker() const;
     NTransactionServer::TTransactionManagerPtr GetTransactionManager() const;
-    NHive::TTransactionSupervisorPtr GetTransactionSupervisor() const;
+    NHiveServer::TTransactionSupervisorPtr GetTransactionSupervisor() const;
     NCypressServer::TCypressManagerPtr GetCypressManager() const;
     THydraFacadePtr GetHydraFacade() const;
     TWorldInitializerPtr GetWorldInitializer() const;
@@ -78,8 +80,8 @@ public:
     NJournalServer::TJournalManagerPtr GetJournalManager() const;
     NSecurityServer::TSecurityManagerPtr GetSecurityManager() const;
     NTabletServer::TTabletManagerPtr GetTabletManager() const;
-    NHive::THiveManagerPtr GetHiveManager() const;
-    NHive::TCellDirectoryPtr GetCellDirectory() const;
+    NHiveServer::THiveManagerPtr GetHiveManager() const;
+    NHiveClient::TCellDirectoryPtr GetCellDirectory() const;
     IInvokerPtr GetControlInvoker() const;
 
     NRpc::IChannelFactoryPtr GetLightNodeChannelFactory() const;
@@ -113,7 +115,7 @@ private:
     NHydra::ISnapshotStorePtr SnapshotStore_;
     NNodeTrackerServer::TNodeTrackerPtr NodeTracker_;
     NTransactionServer::TTransactionManagerPtr TransactionManager_;
-    NHive::TTransactionSupervisorPtr TransactionSupervisor_;
+    NHiveServer::TTransactionSupervisorPtr TransactionSupervisor_;
     NCypressServer::TCypressManagerPtr CypressManager_;
     THydraFacadePtr HydraFacade_;
     TWorldInitializerPtr WorldInitializer_;
@@ -122,9 +124,9 @@ private:
     NJournalServer::TJournalManagerPtr JournalManager_;
     NSecurityServer::TSecurityManagerPtr SecurityManager_;
     NTabletServer::TTabletManagerPtr TabletManager_;
-    NHive::THiveManagerPtr HiveManager_;
-    NHive::TCellDirectoryPtr CellDirectory_;
-    NHive::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
+    NHiveServer::THiveManagerPtr HiveManager_;
+    NHiveClient::TCellDirectoryPtr CellDirectory_;
+    NHiveServer::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;
 
     NRpc::IChannelFactoryPtr LightNodeChannelFactory_;

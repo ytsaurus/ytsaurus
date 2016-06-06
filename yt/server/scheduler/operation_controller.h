@@ -56,7 +56,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual NHive::TClusterDirectoryPtr GetClusterDirectory() = 0;
+    virtual NHiveClient::TClusterDirectoryPtr GetClusterDirectory() = 0;
 
     //! Returns the control invoker of the scheduler.
     /*!

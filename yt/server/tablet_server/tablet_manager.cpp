@@ -77,7 +77,7 @@ using namespace NSecurityServer;
 using namespace NTableServer;
 using namespace NTabletClient;
 using namespace NHydra;
-using namespace NHive;
+using namespace NHiveClient;
 using namespace NTransactionServer;
 using namespace NTabletServer::NProto;
 using namespace NNodeTrackerServer;

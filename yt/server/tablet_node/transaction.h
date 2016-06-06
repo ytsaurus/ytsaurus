@@ -38,7 +38,7 @@ using TTransactionWriteLogSnapshot = TPersistentQueueSnapshot<TTransactionWriteR
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction
-    : public NHive::TTransactionBase<TObjectBase>
+    : public NHiveServer::TTransactionBase<TObjectBase>
     , public TRefTracked<TTransaction>
 {
 public:

@@ -97,7 +97,7 @@ public:
     TTableMountCache(
         TTableMountCacheConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NHive::TCellDirectoryPtr cellDirectory);
+        NHiveClient::TCellDirectoryPtr cellDirectory);
     ~TTableMountCache();
 
     TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path);

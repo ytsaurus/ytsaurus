@@ -7,15 +7,14 @@
 #include <yt/server/hydra/entity_map.h>
 #include <yt/server/hydra/public.h>
 
-#include <yt/ytlib/hydra/public.h>
+#include <yt/ytlib/hive/public.h>
 
 #include <yt/core/rpc/public.h>
 
 #include <yt/core/ytree/public.h>
 
-
 namespace NYT {
-namespace NHive {
+namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +34,7 @@ class THiveManager
 public:
     THiveManager(
         THiveManagerConfigPtr config,
-        TCellDirectoryPtr cellDirectory,
+        NHiveClient::TCellDirectoryPtr cellDirectory,
         const TCellId& selfCellId,
         IInvokerPtr automatonInvoker,
         NHydra::IHydraManagerPtr hydraManager,
@@ -55,7 +54,7 @@ public:
     //! Posts a message for delivery (either reliable or not).
     void PostMessage(
         TMailbox* mailbox,
-        const NProto::TEncapsulatedMessage& message,
+        const NHiveClient::NProto::TEncapsulatedMessage& message,
         bool reliable = true);
     void PostMessage(
         TMailbox* mailbox,
@@ -81,5 +80,5 @@ DEFINE_REFCOUNTED_TYPE(THiveManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHive
+} // namespace NHiveServer
 } // namespace NYT

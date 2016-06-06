@@ -51,7 +51,8 @@ using namespace NObjectClient::NProto;
 using namespace NObjectServer;
 using namespace NCypressServer;
 using namespace NHydra;
-using namespace NHive;
+using namespace NHiveClient;
+using namespace NHiveServer;
 using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
@@ -342,7 +343,7 @@ private:
 
         TObjectServiceProxy proxy(channel);
         return proxy.Execute(req).Apply(BIND([=] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
-            if (rspOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
+            if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
                 // Transaction is missing.
                 return std::make_pair(cellTag, TAccountResourcesMap());
             }
@@ -700,7 +701,7 @@ public:
         auto* transaction = FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
             THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::ResolveError,
+                NTransactionClient::EErrorCode::NoSuchTransaction,
                 "No such transaction %v",
                 transactionId);
         }
@@ -774,8 +775,7 @@ public:
     // ITransactionManager implementation.
     void PrepareTransactionCommit(
         const TTransactionId& transactionId,
-        bool persistent,
-        TTimestamp prepareTimestamp)
+        bool persistent)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -812,7 +812,6 @@ public:
         if (persistent && Bootstrap_->IsPrimaryMaster()) {
             NProto::TReqPrepareTransactionCommit request;
             ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_prepare_timestamp(prepareTimestamp);
 
             auto multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
@@ -881,8 +880,7 @@ private:
     void HydraPrepareTransactionCommit(NProto::TReqPrepareTransactionCommit* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto prepareTimestamp = request->prepare_timestamp();
-        PrepareTransactionCommit(transactionId, true, prepareTimestamp);
+        PrepareTransactionCommit(transactionId, true);
     }
 
     void HydraCommitTransaction(NProto::TReqCommitTransaction* request)
@@ -1190,10 +1188,9 @@ void TTransactionManager::ImportObject(
 
 void TTransactionManager::PrepareTransactionCommit(
     const TTransactionId& transactionId,
-    bool persistent,
-    TTimestamp prepareTimestamp)
+    bool persistent)
 {
-    Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp);
+    Impl_->PrepareTransactionCommit(transactionId, persistent);
 }
 
 void TTransactionManager::PrepareTransactionAbort(

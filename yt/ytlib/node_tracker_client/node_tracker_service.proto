@@ -61,7 +61,7 @@ message TTabletSlotInfo
 {
     required int32 peer_state = 1;
     optional int32 peer_id = 2;
-    optional NYT.NHive.NProto.TCellInfo cell_info = 3;
+    optional NYT.NHiveClient.NProto.TCellInfo cell_info = 3;
 }
 
 message TTabletStatistics
@@ -120,7 +120,7 @@ message TCreateTabletSlotInfo
 
 message TConfigureTabletSlotInfo
 {
-    required NYT.NHive.NProto.TCellDescriptor cell_descriptor = 1;
+    required NYT.NHiveClient.NProto.TCellDescriptor cell_descriptor = 1;
     required NYT.NProto.TGuid prerequisite_transaction_id = 2;
 }
 

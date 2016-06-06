@@ -39,8 +39,9 @@ using namespace NYTree;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NObjectServer;
-using namespace NHive;
-using namespace NHive::NProto;
+using namespace NHiveServer;
+using namespace NHiveClient;
+using namespace NHiveClient::NProto;
 using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -595,7 +596,7 @@ private:
     TEncapsulatedMessage BuildHiveMessage(const TCrossCellMessage& crossCellMessage)
     {
         if (const auto* protoPtr = crossCellMessage.Payload.TryAs<TCrossCellMessage::TProtoMessage>()) {
-            return NHive::SerializeMessage(*protoPtr->Message);
+            return NHiveServer::SerializeMessage(*protoPtr->Message);
         }
 
         NObjectServer::NProto::TReqExecute hydraRequest;
@@ -620,7 +621,7 @@ private:
         auto* user = securityManager->GetAuthenticatedUser();
         hydraRequest.set_user_name(user->GetName());
 
-        return NHive::SerializeMessage(hydraRequest);
+        return NHiveServer::SerializeMessage(hydraRequest);
     }
 
     void DoPostMessage(

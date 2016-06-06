@@ -14,7 +14,7 @@ namespace NYT {
 namespace NTabletServer {
 
 using namespace NYTree;
-using namespace NHive;
+using namespace NHiveClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 using namespace NCellMaster;

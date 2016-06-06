@@ -57,7 +57,7 @@ using namespace NYPath;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NHydra;
-using namespace NHive;
+using namespace NHiveServer;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NCypressServer;

@@ -98,7 +98,8 @@ using namespace NRpc;
 using namespace NYTree;
 using namespace NElection;
 using namespace NHydra;
-using namespace NHive;
+using namespace NHiveClient;
+using namespace NHiveServer;
 using namespace NNodeTrackerServer;
 using namespace NTransactionServer;
 using namespace NChunkServer;
@@ -115,8 +116,6 @@ using namespace NTableServer;
 using namespace NJournalServer;
 using namespace NSecurityServer;
 using namespace NTabletServer;
-
-using NElection::TCellId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -503,8 +502,9 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton(),
         HydraFacade_->GetResponseKeeper(),
-        HiveManager_,
         TransactionManager_,
+        CellDirectory_,
+        CellId_,
         timestampProvider);
 
     fileSnapshotStore->Initialize();
@@ -554,7 +554,9 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker())); // null realm
     RpcServer_->RegisterService(timestampManager->GetRpcService()); // null realm
     RpcServer_->RegisterService(HiveManager_->GetRpcService()); // cell realm
-    RpcServer_->RegisterService(TransactionSupervisor_->GetRpcService()); // cell realm
+    for (const auto& service : TransactionSupervisor_->GetRpcServices()) {
+        RpcServer_->RegisterService(service); // cell realm
+    }
     RpcServer_->RegisterService(New<TLocalSnapshotService>(CellId_, fileSnapshotStore)); // cell realm
     RpcServer_->RegisterService(CreateNodeTrackerService(Config_->NodeTracker, this)); // master hydra service
     RpcServer_->RegisterService(CreateObjectService(Config_->ObjectService, this)); // master hydra service

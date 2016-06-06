@@ -83,8 +83,8 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
-using namespace NHive;
-using namespace NHive::NProto;
+using namespace NHiveServer;
+using namespace NHiveServer::NProto;
 using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -992,15 +992,16 @@ private:
             hiveManager->PostMessage(masterMailbox, masterRequest);
         }
 
-        if (commitRequest->has_transaction_id()) {
-            auto transactionId = FromProto<TTransactionId>(commitRequest->transaction_id());
-
-            TReqHydraAbortTransaction masterRequest;
-            ToProto(masterRequest.mutable_transaction_id(), transactionId);
-            ToProto(masterRequest.mutable_mutation_id(), NRpc::NullMutationId);
-
-            hiveManager->PostMessage(masterMailbox, masterRequest);
-        }
+        // XXX(babenko)
+        //if (commitRequest->has_transaction_id()) {
+        //    auto transactionId = FromProto<TTransactionId>(commitRequest->transaction_id());
+        //
+        //    TReqHydraAbortTransaction masterRequest;
+        //    ToProto(masterRequest.mutable_transaction_id(), transactionId);
+        //    ToProto(masterRequest.mutable_mutation_id(), NRpc::NullMutationId);
+        //
+        //    hiveManager->PostMessage(masterMailbox, masterRequest);
+        //}
     }
 
     void HydraOnTabletStoresUpdated(TRspUpdateTabletStores* response)
@@ -1322,7 +1323,7 @@ private:
         HandleRowsOnTransactionCommit(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
         HandleRowsOnTransactionCommit(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %v, "
             "SortedRows: %v, OrderedRows: %v)",
             transaction->GetId(),
             lockedSortedRowCount,
