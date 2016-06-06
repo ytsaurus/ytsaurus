@@ -4,7 +4,9 @@ import yt.wrapper as yt_module
 import yt.yson as yson
 from yt.wrapper.client import Yt
 from yt.wrapper.common import run_with_retries
-from yt.tools.dynamic_tables import DynamicTablesClient
+from yt.tools.dynamic_tables import DynamicTablesClient, \
+    get_schema_and_key_columns, get_dynamic_table_attributes, \
+    split_in_groups, log_exception
 
 import os
 import argparse
@@ -57,15 +59,14 @@ def restore_attributes(src, yt):
     return schema, key_columns, pivot_keys
 
 
-def create_destination(dst, yt, force=False):
+def create_destination(dst, yt, force=False, attributes=None):
     """ Create the destination table (force-overwrite logic) """
     if yt.exists(dst):
         if force:
             yt.remove(dst)
         else:
             raise Exception("Destination table exists. Use --force")
-    yt.create_table(dst)
-
+    yt.create_table(dst, attributes=attributes)
 
 def common_preprocess(options):
     """ options -> dynamic_tables_client.
@@ -92,8 +93,7 @@ def dump_table(src_table, dst_table, force=False, predicate=None, **options):
     _, dynamic_tables_client = common_preprocess(options)
     yt = dynamic_tables_client.yt
 
-    schema = yt.get(src_table + "/@schema")
-    key_columns = yt.get(src_table + "/@key_columns")
+    schema, key_columns = get_schema_and_key_columns(yt, src_table)
     tablets = yt.get(src_table + "/@tablets")
     pivot_keys = sorted([tablet["pivot_key"] for tablet in tablets])
 
@@ -115,9 +115,11 @@ def restore_table(src_table, dst_table, force=False, batch_size=BATCH_SIZE, **op
     yt = dynamic_tables_client.yt
     schema, key_columns, pivot_keys = restore_attributes(src_table, yt=yt)
 
-    create_destination(dst_table, yt=yt, force=force)
-    yt.set(dst_table + "/@schema", schema)
-    yt.set(dst_table + "/@key_columns", key_columns)
+    create_destination(
+        dst_table,
+        yt=yt,
+        force=force,
+        attributes=get_dynamic_table_attributes(yt, schema, key_columns))
     yt.reshard_table(dst_table, pivot_keys)
 
     dynamic_tables_client.mount_table(dst_table)
@@ -132,9 +134,9 @@ def restore_table(src_table, dst_table, force=False, batch_size=BATCH_SIZE, **op
 
             return do_insert
 
-        for rowset in dynamic_tables_client.split_in_groups(rows, batch_size):
+        for rowset in split_in_groups(rows, batch_size):
             inserter = make_inserter(rowset)
-            run_with_retries(inserter, except_action=dynamic_tables_client.log_exception)
+            run_with_retries(inserter, except_action=log_exception)
 
         if False:  # make this function into a generator
             yield
@@ -148,13 +150,13 @@ def restore_table(src_table, dst_table, force=False, batch_size=BATCH_SIZE, **op
             format=dynamic_tables_client.yson_format)
 
 
-def erase_table(table, batch_size=BATCH_SIZE, force=False, **options):
+def erase_table(table, batch_size=BATCH_SIZE, force=False, predicate=None, **options):
     """ Delete all rows from a dynamic table """
     _, dynamic_tables_client = common_preprocess(options)
 
     yt = dynamic_tables_client.yt
 
-    key_columns = yt.get(table + "/@key_columns")
+    _, key_columns = get_schema_and_key_columns(yt, table)
 
     def erase_mapper(rows):
         client = dynamic_tables_client.make_driver_yt_client()
@@ -165,9 +167,9 @@ def erase_table(table, batch_size=BATCH_SIZE, force=False, **options):
 
             return do_delete
 
-        for rowset in dynamic_tables_client.split_in_groups(rows, batch_size):
+        for rowset in split_in_groups(rows, batch_size):
             deleter = make_deleter(rowset)
-            run_with_retries(deleter, except_action=dynamic_tables_client.log_exception)
+            run_with_retries(deleter, except_action=log_exception)
 
         if False:  # make this function into a generator
             yield
@@ -175,7 +177,8 @@ def erase_table(table, batch_size=BATCH_SIZE, force=False, **options):
     with yt.TempTable() as out_table:
         dynamic_tables_client.run_map_over_dynamic(
             erase_mapper, table, out_table,
-            columns=key_columns)
+            columns=key_columns,
+            predicate=predicate)
 
 
 def make_parser():

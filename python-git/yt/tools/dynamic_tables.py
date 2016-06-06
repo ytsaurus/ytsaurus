@@ -16,6 +16,119 @@ from random import shuffle
 # XXXX/TODO: global stuff. Find a way to avoid this.
 yt_module.config["pickling"]["module_filter"] = lambda module: not hasattr(module, "__file__") or "yt_driver_bindings" not in module.__file__
 
+def get_cluster_version(client):
+    sys_keys = client.list("//sys")
+    if "primary_masters" in sys_keys:
+        masters_key = "primary_masters"
+    else:
+        masters_key = "masters"
+
+    master_name = client.list("//sys/" + masters_key)[0]
+    version = client.get("//sys/{0}/{1}/orchid/service/version".format(masters_key, master_name)).split(".")[:2]
+    return version
+
+def convert_to_new_schema(schema, key_columns):
+    result = []
+    for column in schema:
+        result_column = dict(column)  # copies it
+        if column["name"] in key_columns:
+            result_column["sort_order"] = "ascending"
+        result.append(result_column)
+    return result
+
+def get_schema_and_key_columns(client, path):
+    schema = client.get(path + "/@schema")
+
+    if get_cluster_version(client)[0] == "18":
+       key_columns = [column["name"] for column in schema if "sort_order" in column]
+    else:
+       key_columns = client.get(path + "/@key_columns")
+
+    return schema, key_columns
+
+def get_dynamic_table_attributes(client, schema, key_columns): 
+    attributes = {
+        "dynamic": True
+    }
+    if get_cluster_version(client)[0] == "18":
+        attributes["schema"] = convert_to_new_schema(schema, key_columns)
+    else:
+        attributes["schema"] = schema
+        attributes["key_columns"] = key_columns
+    return attributes
+
+def quote_column(name):
+    """ Query-someting column name escaping.
+
+    WARNING: unguaranteed.
+    """
+    name = str(name)
+    # return '"%s"' % (name,)
+    return "[%s]" % (name,)
+
+def quote_value(val):
+    # XXXX: there's some controversy as to what would be a correct
+    # method of doing this.
+    # https://st.yandex-team.ru/STATFACE-3432#1455787390000
+    return yson.dumps(val, yson_format="text")
+
+def log_exception(ex):
+    msg = (
+        "Execution failed with error: \n"
+        "%(ex)s\n"
+        "Retrying..."
+    ) % dict(ex=ex)
+    sys.stderr.write(msg)
+    sys.stderr.flush()
+
+def is_none(val):
+    return (val is None or
+            val == None or
+            quote_value(val) == "#")  # cursed yson stuff
+
+def get_bound_key(columns):
+    return ",".join([
+        quote_column(column)
+        for column in columns])
+
+def get_bound_value(bound):
+    return ",".join([
+        quote_value(val)
+        for val in bound])
+
+def schema_to_select_columns_str(schema, include_list=None):
+    column_names = [
+        col["name"] for col in schema
+        if "expression" not in col]
+    if include_list is not None:
+        column_names = [
+            val for val in column_names
+            if val in include_list]
+    result = ",".join(
+        quote_column(column_name)
+        for column_name in column_names)
+    return result
+
+def _wait_for_predicate(predicate, message, timeout, pause):
+    start = time.time()
+    while not predicate():
+        if time.time() - start > timeout:
+            error = "Timeout while waiting for \"%s\"" % message
+            logging.info(error)
+            raise YtError(error)
+        logging.info("Waiting for \"%s\"" % message)
+        time.sleep(pause)
+
+def split_in_groups(rows, count=10000):
+    # Should be the same as
+    # https://github.com/HoverHell/pyaux/blob/484536f54311b7678e20ee0e8465f328c1b781c1/pyaux/base.py#L847
+    result = []
+    for row in rows:
+        if len(result) >= count:
+            yield result
+            result = []
+        result.append(row)
+    yield result
 
 class DynamicTablesClient(object):
 
@@ -91,15 +204,6 @@ class DynamicTablesClient(object):
         (to go from a job to the same cluster) """
         return Yt(config=self.default_client_config)
 
-    @staticmethod
-    def log_exception(ex):
-        msg = (
-            "Execution failed with error: \n"
-            "%(ex)s\n"
-            "Retrying..."
-        ) % dict(ex=ex)
-        sys.stderr.write(msg)
-        sys.stderr.flush()
 
     def build_spec_from_options(self):
         """ Build map operation spec, e.g. from command line args """
@@ -140,17 +244,6 @@ class DynamicTablesClient(object):
             pivot_keys.append(partition["pivot_key"])
         return pivot_keys
 
-
-    def _wait_for_predicate(self, predicate, message, timeout, pause):
-        start = time.time()
-        while not predicate():
-            if time.time() - start > timeout:
-                error = "Timeout while waiting for \"%s\"" % message
-                logging.info(error)
-                raise YtError(error)
-            logging.info("Waiting for \"%s\"" % message)
-            time.sleep(pause)
-
     def _make_tablets_state_checker(self, table, possible_states):
         def state_checker():
             tablets = {tablet["tablet_id"]: tablet["state"] for tablet in self.yt.get_attribute(table, "tablets", default=[])}
@@ -159,7 +252,7 @@ class DynamicTablesClient(object):
         return state_checker
 
     def _wait_for_table_consistency(self, table, timeout, pause):
-        self._wait_for_predicate(
+        _wait_for_predicate(
             self._make_tablets_state_checker(table, ["mounted", "unmounted"]),
             "All %s tablets are either mounted or unmounted" % table,
             timeout,
@@ -182,14 +275,14 @@ class DynamicTablesClient(object):
 
         mount_unmount(table)
 
-        self._wait_for_predicate(
+        _wait_for_predicate(
             check_state,
             "All %s tablets are %s" % (table, state),
             timeout - (time.time() - start),
             pause)
 
     def wait_for_state(self, table, state, timeout=300, pause=1):
-        self._wait_for_predicate(
+        _wait_for_predicate(
             self._make_tablets_state_checker(table, [state]),
             "All %s tablets are %s" % (table, state),
             timeout,
@@ -242,7 +335,7 @@ class DynamicTablesClient(object):
         partition_keys = [
             # NOTE: using `!= None` because there's some YsonEntity
             # which is `== None` but `is not None`.
-            list(it.takewhile(lambda val: not self.is_none(val), key))
+            list(it.takewhile(lambda val: not is_none(val), key))
             for key in partition_keys]
         partition_keys = [key for key in partition_keys if len(key) > 0]
         partition_keys = sorted(partition_keys)
@@ -262,50 +355,6 @@ class DynamicTablesClient(object):
             format=self.yson_format,
             raw=False)
 
-    @staticmethod
-    def quote_column(name):
-        """ Query-someting column name escaping.
-
-        WARNING: unguaranteed.
-        """
-        name = str(name)
-        # return '"%s"' % (name,)
-        return "[%s]" % (name,)
-
-    @staticmethod
-    def quote_value(val):
-        # XXXX: there's some controversy as to what would be a correct
-        # method of doing this.
-        # https://st.yandex-team.ru/STATFACE-3432#1455787390000
-        return yson.dumps(val, yson_format="text")
-
-    def is_none(self, val):
-        return (val is None or
-                val == None or
-                self.quote_value(val) == "#")  # cursed yson stuff
-
-    def get_bound_key(self, columns):
-        return ",".join([
-            self.quote_column(column)
-            for column in columns])
-
-    def get_bound_value(self, bound):
-        return ",".join([
-            self.quote_value(val)
-            for val in bound])
-
-    def schema_to_select_columns_str(self, schema, include_list=None):
-        column_names = [
-            col["name"] for col in schema
-            if "expression" not in col]
-        if include_list is not None:
-            column_names = [
-                val for val in column_names
-                if val in include_list]
-        result = ",".join(
-            self.quote_column(column_name)
-            for column_name in column_names)
-        return result
 
     def run_map_over_dynamic(
             self, mapper, src_table, dst_table,
@@ -314,10 +363,9 @@ class DynamicTablesClient(object):
         input_row_limit = self.input_row_limit
         output_row_limit = self.output_row_limit
 
-        schema = self.yt.get(src_table + "/@schema")
-        key_columns = self.yt.get(src_table + "/@key_columns")
+        schema, key_columns = get_schema_and_key_columns(self.yt, src_table)
 
-        select_columns_str = self.schema_to_select_columns_str(
+        select_columns_str = schema_to_select_columns_str(
             schema, include_list=columns)
 
         def prepare_bounds_query(left, right):
@@ -325,7 +373,7 @@ class DynamicTablesClient(object):
                 # Get something like ((key1, key2, key3), (bound1, bound2, bound3)) from a bound.
                 keys = key_columns[:len(bound_values)]
                 vals = bound_values
-                return self.get_bound_key(keys), self.get_bound_value(vals)
+                return get_bound_key(keys), get_bound_value(vals)
 
             left = "(%s) >= (%s)" % expand_bound(left) if left else None
             right = "(%s) < (%s)" % expand_bound(right) if right else None
@@ -348,7 +396,7 @@ class DynamicTablesClient(object):
                         output_row_limit=output_row_limit,
                         workload_descriptor=self.workload_descriptor,
                         raw=False)
-                rows = run_with_retries(do_select, except_action=self.log_exception)
+                rows = run_with_retries(do_select, except_action=log_exception)
                 for res in mapper(rows):
                     yield res
 
@@ -363,17 +411,6 @@ class DynamicTablesClient(object):
                 dst_table,
                 spec=map_spec,
                 format=self.yson_format)
-
-    def split_in_groups(self, rows, count=10000):
-        # Should be the same as
-        # https://github.com/HoverHell/pyaux/blob/484536f54311b7678e20ee0e8465f328c1b781c1/pyaux/base.py#L847
-        result = []
-        for row in rows:
-            if len(result) >= count:
-                yield result
-                result = []
-            result.append(row)
-        yield result
 
     def run_map_dynamic(self, mapper, src_table, dst_table, batch_size=50000):
 
@@ -392,7 +429,7 @@ class DynamicTablesClient(object):
                 return do_insert
 
             rows = mapped_iterator()
-            rowsets = self.split_in_groups(rows, batch_size)
+            rowsets = split_in_groups(rows, batch_size)
             for rowset in rowsets:
                 # Avoiding a closure inside the loop just in case
                 do_insert_these = make_do_insert(rowset)
@@ -405,15 +442,6 @@ class DynamicTablesClient(object):
         with self.yt.TempTable() as out_table:
             self.run_map_over_dynamic(insert_mapper, src_table, out_table)
 
-    def convert_to_new_schema(self, schema, key_columns):
-        result = []
-        for column in schema:
-            result_column = dict(column)  # copies it
-            if column["name"] in key_columns:
-                result_column["sort_order"] = "ascending"
-            result.append(result_column)
-        return result
-
 # Make a singleton and make the functions accessible in the module
 # (same as it was previously)
 dynamic_tables_client = DynamicTablesClient()
@@ -423,13 +451,10 @@ worker = dynamic_tables_client
 settings = dynamic_tables_client  # alias for kind-of obviousness
 
 build_spec_from_options = worker.build_spec_from_options
-convert_to_new_schema = worker.convert_to_new_schema
 extract_partition_bounds = worker.extract_partition_bounds
 get_pivot_keys = worker.get_pivot_keys
-log_exception = worker.log_exception
 mount_table = worker.mount_table
 run_map_dynamic = worker.run_map_dynamic
 run_map_over_dynamic = worker.run_map_over_dynamic
-split_in_groups = worker.split_in_groups
 unmount_table = worker.unmount_table
 wait_for_state = worker.wait_for_state
