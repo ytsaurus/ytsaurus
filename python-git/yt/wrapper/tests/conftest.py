@@ -73,15 +73,20 @@ class YtTestEnvironment(object):
             }
         }
 
+        def modify_configs(configs, ytserver_version):
+            for config in configs["scheduler"]:
+                update(config, delta_scheduler_config)
+            for config in configs["node"]:
+                update(config, delta_node_config)
+
         self.env = YTInstance(dir,
                               master_count=1,
                               node_count=5,
                               scheduler_count=1,
                               has_proxy=True,
-                              node_config=delta_node_config,
-                              scheduler_config=delta_scheduler_config,
                               port_locks_path=os.path.join(TESTS_SANDBOX, "ports"),
-                              fqdn="localhost")
+                              fqdn="localhost",
+                              modify_configs_func=modify_configs)
         self.env.start()
 
         self.version = self.env._ytserver_version
