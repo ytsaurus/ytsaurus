@@ -402,7 +402,7 @@ describe("output stream interface", function() {
 
                 self.writer.AddCompression(decompression);
                 self.writer.WriteSynchronously(case_data);
-                self.writer.Finish();
+                self.writer.Close();
                 GC();
             });
         });
@@ -424,7 +424,7 @@ describe("high-level interoperation", function() {
         writer.WriteSynchronously("hello");
         writer.WriteSynchronously(" ");
         writer.WriteSynchronously("dolly");
-        writer.Finish();
+        writer.Close();
 
         // Skip two ticks to allow streams pipe content between them.
         GC();

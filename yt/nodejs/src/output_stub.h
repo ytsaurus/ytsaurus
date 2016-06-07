@@ -32,8 +32,7 @@ public:
 
     static v8::Handle<v8::Value> WriteSynchronously(const v8::Arguments& args);
 
-    static v8::Handle<v8::Value> Flush(const v8::Arguments& args);
-    static v8::Handle<v8::Value> Finish(const v8::Arguments& args);
+    static v8::Handle<v8::Value> Close(const v8::Arguments& args);
 
     // Asynchronous JS API.
     static v8::Handle<v8::Value> Write(const v8::Arguments& args);
@@ -41,11 +40,10 @@ public:
     static void WriteAfter(uv_work_t* workRequest);
 
 private:
-    std::shared_ptr<TNodeJSOutputStack> Stack;
-
-private:
     TOutputStreamStub(const TOutputStreamStub&) = delete;
     TOutputStreamStub& operator=(const TOutputStreamStub&) = delete;
+
+    TNodeJSOutputStackPtr Stack;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
