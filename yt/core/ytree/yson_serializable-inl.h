@@ -30,126 +30,71 @@ namespace NYTree {
 
 namespace NDetail {
 
-template <class T, class = void>
-struct TLoadHelper
+template <class T>
+void Load(T& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
 {
-    static void Load(T& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
-    {
-        try {
-            Deserialize(parameter, node);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error reading parameter %v", path)
-                << ex;
-        }
+    try {
+        Deserialize(parameter, node);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error reading parameter %v", path)
+            << ex;
     }
-};
+}
 
 // TYsonSerializable
-template <class T>
-struct TLoadHelper<
-    TIntrusivePtr<T>,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TYsonSerializable&>>::TType
->
+template <class T, class E = typename std::enable_if<std::is_convertible<T&, TYsonSerializable&>::value>::type>
+void Load(TIntrusivePtr<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
 {
-    static void Load(TIntrusivePtr<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
-    {
-        if (!parameter) {
-            parameter = New<T>();
-        }
-        parameter->Load(node, false, false, path);
+    if (!parameter) {
+        parameter = New<T>();
     }
-};
+    parameter->Load(node, false, false, path);
+}
 
 // TNullable
 template <class T>
-struct TLoadHelper<TNullable<T>, void>
+void Load(TNullable<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
 {
-    static void Load(TNullable<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
-    {
-        if (node->GetType() == NYTree::ENodeType::Entity) {
-            parameter = Null;
-        } else {
-            T value;
-            TLoadHelper<T>::Load(value, node, path);
-            parameter = value;
-        }
+    if (node->GetType() == NYTree::ENodeType::Entity) {
+        parameter = Null;
+    } else {
+        T value;
+        Load(value, node, path);
+        parameter = value;
     }
-};
+}
 
 // std::vector
-template <class T>
-struct TLoadHelper<std::vector<T>, void>
+template <class... T>
+void Load(std::vector<T...>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
 {
-    static void Load(std::vector<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
-    {
-        auto listNode = node->AsList();
-        auto size = listNode->GetChildCount();
-        parameter.resize(size);
-        for (int i = 0; i < size; ++i) {
-            TLoadHelper<T>::Load(
-                parameter[i],
-                listNode->GetChild(i),
-                path + "/" + NYPath::ToYPathLiteral(i));
-        }
+    auto listNode = node->AsList();
+    auto size = listNode->GetChildCount();
+    parameter.resize(size);
+    for (int i = 0; i < size; ++i) {
+        Load(
+            parameter[i],
+            listNode->GetChild(i),
+            path + "/" + NYPath::ToYPathLiteral(i));
     }
-};
+}
 
-// yhash_set
-template <class T>
-struct TLoadHelper<yhash_set<T>, void>
+// For any map.
+template <template <typename...> class Map, class... T, class M = typename Map<T...>::mapped_type>
+void Load(Map<T...>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
 {
-    static void Load(yhash_set<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
-    {
-        auto listNode = node->AsList();
-        int size = listNode->GetChildCount();
-        for (int i = 0; i < size; ++i) {
-            T value;
-            TLoadHelper<T>::Load(
-                value,
-                listNode->GetChild(i),
-                path + "/" +  NYPath::ToYPathLiteral(i));
-            parameter.insert(std::move(value));
-        }
+    auto mapNode = node->AsMap();
+    parameter.clear();
+    for (const auto& pair : mapNode->GetChildren()) {
+        const auto& key = pair.first;
+        M value;
+        Load(
+            value,
+            pair.second,
+            path + "/" + NYPath::ToYPathLiteral(key));
+        parameter.emplace(FromString<typename Map<T...>::key_type>(key), std::move(value));
     }
-};
-
-// yhash_map
-template <class T>
-struct TLoadHelper<yhash_map<Stroka, T>, void>
-{
-    static void Load(yhash_map<Stroka, T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
-    {
-        auto mapNode = node->AsMap();
-        for (const auto& pair : mapNode->GetChildren()) {
-            const auto& key = pair.first;
-            T value;
-            TLoadHelper<T>::Load(
-                value,
-                pair.second,
-                path + "/" + NYPath::ToYPathLiteral(key));
-            parameter.insert(std::make_pair(key, std::move(value)));
-        }
-    }
-};
-
-// map
-template <class T>
-struct TLoadHelper<std::map<Stroka, T>, void>
-{
-    static void Load(std::map<Stroka, T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
-    {
-        auto mapNode = node->AsMap();
-        for (const auto& pair : mapNode->GetChildren()) {
-            const auto& key = pair.first;
-            T value;
-            TLoadHelper<T>::Load(
-                value,
-                pair.second,
-                path + "/" + NYPath::ToYPathLiteral(key));
-            parameter.insert(std::make_pair(key, std::move(value)));
-        }
-    }
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -162,24 +107,23 @@ void InvokeForComposites(
 { }
 
 // TYsonSerializable
-template <class T, class F>
+template <class T, class F, class E = typename std::enable_if<std::is_convertible<T*, TYsonSerializable*>::value>::type>
 inline void InvokeForComposites(
     const TIntrusivePtr<T>* parameter,
     const NYPath::TYPath& path,
-    const F& func,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TYsonSerializable*>, int>::TType = 0)
+    const F& func)
 {
     func(*parameter, path);
 }
 
 // std::vector
-template <class T, class F>
+template <class... T, class F>
 inline void InvokeForComposites(
-    const std::vector<T>* parameter,
+    const std::vector<T...>* parameter,
     const NYPath::TYPath& path,
     const F& func)
 {
-    for (int i = 0; i < static_cast<int>(parameter->size()); ++i) {
+    for (size_t i = 0; i < parameter->size(); ++i) {
         InvokeForComposites(
             &(*parameter)[i],
             path + "/" + NYPath::ToYPathLiteral(i),
@@ -187,10 +131,10 @@ inline void InvokeForComposites(
     }
 }
 
-// yhash_map
-template <class T, class F>
+// For any map.
+template <template<typename...> class Map, class... T, class F, class M = typename Map<T...>::mapped_type>
 inline void InvokeForComposites(
-    const yhash_map<Stroka, T>* parameter,
+    const Map<T...>* parameter,
     const NYPath::TYPath& path,
     const F& func)
 {
@@ -212,38 +156,27 @@ void InvokeForComposites(
 { }
 
 // TYsonSerializable
-template <class T, class F>
-inline void InvokeForComposites(
-    const TIntrusivePtr<T>* parameter,
-    const F& func,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TYsonSerializable*>, int>::TType = 0)
+template <class T, class F, class E = typename std::enable_if<std::is_convertible<T*, TYsonSerializable*>::value>::type>
+inline void InvokeForComposites(const TIntrusivePtr<T>* parameter, const F& func)
 {
     func(*parameter);
 }
 
 // std::vector
-template <class T, class F>
-inline void InvokeForComposites(
-    const std::vector<T>* parameter,
-    const F& func)
+template <class... T, class F>
+inline void InvokeForComposites(const std::vector<T...>* parameter, const F& func)
 {
-    for (int i = 0; i < static_cast<int>(parameter->size()); ++i) {
-        InvokeForComposites(
-            &(*parameter)[i],
-            func);
+    for (const auto& item : *parameter) {
+        InvokeForComposites(&item, func);
     }
 }
 
-// yhash_map
-template <class T, class F>
-inline void InvokeForComposites(
-    const yhash_map<Stroka, T>* parameter,
-    const F& func)
+// For any map.
+template <template<typename...> class Map, class... T, class F, class M = typename Map<T...>::mapped_type>
+inline void InvokeForComposites(const Map<T...>* parameter, const F& func)
 {
     for (const auto& pair : *parameter) {
-        InvokeForComposites(
-            &pair.second,
-            func);
+        InvokeForComposites(&pair.second, func);
     }
 }
 
@@ -283,7 +216,7 @@ template <class T>
 void TYsonSerializableLite::TParameter<T>::Load(NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     if (node) {
-        NYT::NYTree::NDetail::TLoadHelper<T>::Load(Parameter, node, path);
+        NYT::NYTree::NDetail::Load(Parameter, node, path);
     } else if (!DefaultValue) {
         THROW_ERROR_EXCEPTION("Missing required parameter %v",
             path);
