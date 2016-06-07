@@ -32,15 +32,8 @@ const ENodeType   TCypressScalarTypeTraits<double>::NodeType   = ENodeType::Doub
 const EObjectType TCypressScalarTypeTraits<bool>::ObjectType   = EObjectType::BooleanNode;
 const ENodeType   TCypressScalarTypeTraits<bool>::NodeType     = ENodeType::Boolean;
 
+
 } // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NCypressServer
-} // namespace NYT
-
-namespace NYT {
-namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,7 +152,10 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     ICypressNodeFactory* factory)
 {
     // Copy attributes directly to suppress validation.
-    auto keyToAttribute = GetNodeAttributes(Bootstrap_, sourceNode->GetTrunkNode(), factory->GetTransaction());
+    auto keyToAttribute = GetNodeAttributes(
+        Bootstrap_->GetCypressManager(),
+        sourceNode->GetTrunkNode(),
+        factory->GetTransaction());
     if (!keyToAttribute.empty()) {
         auto* clonedAttributes = clonedNode->GetMutableAttributes();
         for (const auto& pair : keyToAttribute) {
@@ -245,8 +241,9 @@ void TMapNodeTypeHandler::DoDestroy(TMapNode* node)
     TBase::DoDestroy(node);
 
     // Drop references to the children.
+    // Make sure we handle them in a stable order.
     auto objectManager = Bootstrap_->GetObjectManager();
-    for (const auto& pair : node->KeyToChild()) {
+    for (const auto& pair : SortKeyToChild(node->KeyToChild())) {
         auto* node = pair.second;
         if (node) {
             objectManager->UnrefObject(node);
@@ -275,7 +272,7 @@ void TMapNodeTypeHandler::DoMerge(
     auto& keyToChild = originatingNode->KeyToChild();
     auto& childToKey = originatingNode->ChildToKey();
 
-    for (const auto& pair : branchedNode->KeyToChild()) {
+    for (const auto& pair : SortKeyToChild(branchedNode->KeyToChild())) {
         const auto& key = pair.first;
         auto* childTrunkNode = pair.second;
 
@@ -342,26 +339,17 @@ void TMapNodeTypeHandler::DoClone(
 
     auto* transaction = factory->GetTransaction();
 
-    auto keyToChildMap = GetMapNodeChildren(
-        Bootstrap_,
-        sourceNode->GetTrunkNode(),
-        transaction);
-    
-    typedef std::pair<Stroka, TCypressNodeBase*> TPair;
-    std::vector<TPair> keyToChildList(keyToChildMap.begin(), keyToChildMap.end());
-
-    // Sort children by key to ensure deterministic ids generation.
-    std::sort(
-        keyToChildList.begin(),
-        keyToChildList.end(),
-        [] (const TPair& lhs, const TPair& rhs) {
-            return lhs.first < rhs.first;
-        });
-
-    auto objectManager = Bootstrap_->GetObjectManager();
     auto cypressManager = Bootstrap_->GetCypressManager();
 
+    auto keyToChildMap = GetMapNodeChildren(
+        cypressManager,
+        sourceNode->GetTrunkNode(),
+        transaction);
+    auto keyToChildList = SortKeyToChild(keyToChildMap);
+
     auto* clonedTrunkNode = clonedNode->GetTrunkNode();
+
+    auto objectManager = Bootstrap_->GetObjectManager();
 
     for (const auto& pair : keyToChildList) {
         const auto& key = pair.first;
@@ -375,7 +363,7 @@ void TMapNodeTypeHandler::DoClone(
         YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, clonedTrunkChildNode)).second);
         YCHECK(clonedNode->ChildToKey().insert(std::make_pair(clonedTrunkChildNode, key)).second);
 
-        AttachChild(Bootstrap_, clonedTrunkNode, clonedChildNode);
+        AttachChild(objectManager, clonedTrunkNode, clonedChildNode);
 
         ++clonedNode->ChildCountDelta();
     }
@@ -502,11 +490,9 @@ void TListNodeTypeHandler::DoClone(
 {
     TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
-    auto objectManager = Bootstrap_->GetObjectManager();
-    auto cypressManager = Bootstrap_->GetCypressManager();
-
     auto* clonedTrunkNode = clonedNode->GetTrunkNode();
 
+    auto objectManager = Bootstrap_->GetObjectManager();
     const auto& indexToChild = sourceNode->IndexToChild();
     for (int index = 0; index < indexToChild.size(); ++index) {
         auto* childNode = indexToChild[index];
@@ -516,7 +502,7 @@ void TListNodeTypeHandler::DoClone(
         clonedNode->IndexToChild().push_back(clonedChildTrunkNode);
         YCHECK(clonedNode->ChildToIndex().insert(std::make_pair(clonedChildTrunkNode, index)).second);
 
-        AttachChild(Bootstrap_, clonedTrunkNode, clonedChildNode);
+        AttachChild(objectManager, clonedTrunkNode, clonedChildNode);
     }
 }
 
