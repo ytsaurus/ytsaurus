@@ -38,11 +38,10 @@ public:
     static void ReadAfter(uv_work_t* workRequest);
 
 private:
-    std::shared_ptr<TNodeJSInputStack> Stack;
-
-private:
     TInputStreamStub(const TInputStreamStub&) = delete;
     TInputStreamStub& operator=(const TInputStreamStub&) = delete;
+
+    TNodeJSInputStackPtr Stack;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
