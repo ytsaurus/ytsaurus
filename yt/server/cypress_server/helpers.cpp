@@ -19,11 +19,10 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
-    NCellMaster::TBootstrap* bootstrap,
+    const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
-    auto cypressManager = bootstrap->GetCypressManager();
     auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
 
     yhash_map<Stroka, TCypressNodeBase*> result;
@@ -42,13 +41,28 @@ yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
     return result;
 }
 
+
+std::vector<std::pair<Stroka, TCypressNodeBase*>> SortKeyToChild(
+    const yhash_map<Stroka, TCypressNodeBase*>& keyToChildMap)
+{
+    std::vector<std::pair<Stroka, TCypressNodeBase*>> keyToChildList;
+    keyToChildList.reserve(keyToChildMap.size());
+    for (const auto& pair : keyToChildMap) {
+        keyToChildList.emplace_back(pair.first, pair.second);
+    }
+    std::sort(keyToChildList.begin(), keyToChildList.end(),
+        [] (const std::pair<Stroka, TCypressNodeBase*>& lhs, std::pair<Stroka, TCypressNodeBase*>& rhs) {
+            return lhs.first < rhs.first;
+        });
+    return keyToChildList;
+}
+
 TCypressNodeBase* FindMapNodeChild(
-    NCellMaster::TBootstrap* bootstrap,
+    const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     TTransaction* transaction,
     const Stroka& key)
 {
-    auto cypressManager = bootstrap->GetCypressManager();
     auto originators = cypressManager->GetNodeOriginators(transaction, trunkNode);
 
     for (const auto* node : originators) {
@@ -63,11 +77,10 @@ TCypressNodeBase* FindMapNodeChild(
 }
 
 yhash_map<Stroka, NYson::TYsonString> GetNodeAttributes(
-    NCellMaster::TBootstrap* bootstrap,
+    const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
-    auto cypressManager = bootstrap->GetCypressManager();
     auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
 
     yhash_map<Stroka, TYsonString> result;
@@ -88,11 +101,10 @@ yhash_map<Stroka, NYson::TYsonString> GetNodeAttributes(
 }
 
 yhash_set<Stroka> ListNodeAttributes(
-    NCellMaster::TBootstrap* bootstrap,
+    const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
-    auto cypressManager = bootstrap->GetCypressManager();
     auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
 
     yhash_set<Stroka> result;
@@ -113,7 +125,7 @@ yhash_set<Stroka> ListNodeAttributes(
 }
 
 void AttachChild(
-    NCellMaster::TBootstrap* bootstrap,
+    const TObjectManagerPtr& objectManager,
     TCypressNodeBase* trunkParent,
     TCypressNodeBase* child)
 {
@@ -133,35 +145,30 @@ void AttachChild(
         }
     }
 
-    auto objectManager = bootstrap->GetObjectManager();
     objectManager->RefObject(trunkChild);
 }
 
 void DetachChild(
-    NCellMaster::TBootstrap* bootstrap,
-    TCypressNodeBase* trunkParent,
+    const TObjectManagerPtr& objectManager,
+    TCypressNodeBase* /*trunkParent*/,
     TCypressNodeBase* child,
     bool unref)
 {
-    Y_UNUSED(trunkParent);
-
     child->SetParent(nullptr);
 
     if (unref) {
-        auto objectManager = bootstrap->GetObjectManager();
         objectManager->UnrefObject(child->GetTrunkNode());
     }
 }
 
 bool NodeHasKey(
-    NCellMaster::TBootstrap* bootstrap,
+    const TCypressManagerPtr& cypressManager,
     const TCypressNodeBase* node)
 {
     auto* parent = node->GetParent();
     if (!parent) {
         return false;
     }
-    auto cypressManager = bootstrap->GetCypressManager();
     auto handler = cypressManager->GetHandler(parent);
     return handler->GetNodeType() == ENodeType::Map;
 }
