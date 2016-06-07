@@ -135,6 +135,8 @@ public:
 
     Py::Object Execute(Py::Tuple& args, Py::Dict& kwargs)
     {
+        LOG_DEBUG("Preparing driver request");
+
         auto pyRequest = ExtractArgument(args, kwargs, "request");
         ValidateArgumentsEmpty(args, kwargs);
 
