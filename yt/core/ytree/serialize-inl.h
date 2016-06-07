@@ -72,9 +72,9 @@ void DeserializeSet(T& value, INodePtr node)
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
     for (int i = 0; i < size; ++i) {
-        typename T::value_type value;
-        Deserialize(value, listNode->GetChild(i));
-        value.insert(std::move(value));
+        typename T::value_type item;
+        Deserialize(item, listNode->GetChild(i));
+        value.insert(std::move(item));
     }
 }
 
@@ -87,8 +87,94 @@ void DeserializeMap(T& value, INodePtr node)
         auto key = FromString<typename T::key_type>(pair.first);
         typename T::mapped_type item;
         Deserialize(item, pair.second);
-        value.insert(std::make_pair(std::move(key), std::move(item)));
+        value.emplace(std::move(key), std::move(item));
     }
+}
+
+template <class T, bool IsSet = std::is_same<typename T::key_type, typename T::value_type>::value>
+struct TAssociativeHelper;
+
+template <class T>
+struct TAssociativeHelper<T, true>
+{
+    static void Serialize(const T& value, NYson::IYsonConsumer* consumer)
+    {
+        SerializeSet(value, consumer);
+    }
+
+    static void Deserialize(T& value, INodePtr consumer)
+    {
+        DeserializeSet(value, consumer);
+    }
+};
+
+template <class T>
+struct TAssociativeHelper<T, false>
+{
+    static void Serialize(const T& value, NYson::IYsonConsumer* consumer)
+    {
+        SerializeMap(value, consumer);
+    }
+
+    static void Deserialize(T& value, INodePtr consumer)
+    {
+        DeserializeMap(value, consumer);
+    }
+};
+
+template <class T>
+void SerializeAssociative(const T& items, NYson::IYsonConsumer* consumer)
+{
+    TAssociativeHelper<T>::Serialize(items, consumer);
+}
+
+template <class T>
+void DeserializeAssociative(T& value, INodePtr node)
+{
+    TAssociativeHelper<T>::Deserialize(value, node);
+}
+
+template <class T, size_t Size = std::tuple_size<T>::value>
+struct TTupleHelper;
+
+template <class T>
+struct TTupleHelper<T, 0U>
+{
+    static void SerializeItem(const T&, NYson::IYsonConsumer*) {}
+    static void DeserializeItem(T&, IListNodePtr list) {}
+};
+
+template <class T, size_t Size>
+struct TTupleHelper
+{
+    static void SerializeItem(const T& value, NYson::IYsonConsumer* consumer)
+    {
+        TTupleHelper<T, Size - 1U>::SerializeItem(value, consumer);
+        consumer->OnListItem();
+        Serialize(std::get<Size - 1U>(value), consumer);
+    }
+
+    static void DeserializeItem(T& value, IListNodePtr list)
+    {
+        TTupleHelper<T, Size - 1U>::DeserializeItem(value, list);
+        if (list->GetChildCount() >= Size) {
+            Deserialize(std::get<Size - 1U>(value), list->GetChild(Size - 1U));
+        }
+    }
+};
+
+template <class T>
+void SerializeTuple(const T& items, NYson::IYsonConsumer* consumer)
+{
+    consumer->OnBeginList();
+    TTupleHelper<T>::SerializeItem(items, consumer);
+    consumer->OnEndList();
+}
+
+template <class T>
+void DeserializeTuple(T& value, INodePtr node)
+{
+    TTupleHelper<T>::DeserializeItem(value, node->AsList());
 }
 
 } // namespace
@@ -167,8 +253,8 @@ void Serialize(const TNullable<T>& value, NYson::IYsonConsumer* consumer)
 }
 
 // std::vector
-template <class T>
-void Serialize(const std::vector<T>& items, NYson::IYsonConsumer* consumer)
+template <class T, class A>
+void Serialize(const std::vector<T, A>& items, NYson::IYsonConsumer* consumer)
 {
     SerializeVector(items, consumer);
 }
@@ -178,34 +264,6 @@ template <class T, unsigned N>
 void Serialize(const SmallVector<T, N>& items, NYson::IYsonConsumer* consumer)
 {
     SerializeVector(items, consumer);
-}
-
-// std::set
-template <class T>
-void Serialize(const std::set<T>& items, NYson::IYsonConsumer* consumer)
-{
-    SerializeSet(items, consumer);
-}
-
-// yhash_set
-template <class T>
-void Serialize(const yhash_set<T>& items, NYson::IYsonConsumer* consumer)
-{
-    SerializeSet(items, consumer);
-}
-
-// std::map
-template <class K, class V>
-void Serialize(const std::map<K, V>& items, NYson::IYsonConsumer* consumer)
-{
-    SerializeMap(items, consumer);
-}
-
-// yhash_map
-template <class K, class V>
-void Serialize(const yhash_map<K, V>& items, NYson::IYsonConsumer* consumer)
-{
-    SerializeMap(items, consumer);
 }
 
 // TErrorOr
@@ -221,6 +279,31 @@ void Serialize(const TErrorOr<T>& error, NYson::IYsonConsumer* consumer)
     } else {
         Serialize(justError, consumer);
     }
+}
+
+template <class F, class S>
+void Serialize(const std::pair<F, S>& value, NYson::IYsonConsumer* consumer)
+{
+    SerializeTuple(value, consumer);
+}
+
+template <class T, size_t N>
+void Serialize(const std::array<T, N>& value, NYson::IYsonConsumer* consumer)
+{
+    SerializeTuple(value, consumer);
+}
+
+template <class... T>
+void Serialize(const std::tuple<T...>& value, NYson::IYsonConsumer* consumer)
+{
+    SerializeTuple(value, consumer);
+}
+
+// For any associative container.
+template <template<typename...> class C, class... T, class K = typename C<T...>::key_type>
+void Serialize(const C<T...>& value, NYson::IYsonConsumer* consumer)
+{
+    SerializeAssociative(value, consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -268,8 +351,8 @@ void Deserialize(TNullable<T>& value, INodePtr node)
 }
 
 // std::vector
-template <class T>
-void Deserialize(std::vector<T>& value, INodePtr node)
+template <class T, class A>
+void Deserialize(std::vector<T, A>& value, INodePtr node)
 {
     DeserializeVector(value, node);
 }
@@ -279,34 +362,6 @@ template <class T, unsigned N>
 void Deserialize(SmallVector<T, N>& value, INodePtr node)
 {
     DeserializeVector(value, node);
-}
-
-// std::set
-template <class T>
-void Deserialize(std::set<T>& value, INodePtr node)
-{
-    DeserializeSet(value, node);
-}
-
-// yhash_set
-template <class T>
-void Deserialize(yhash_set<T>& value, INodePtr node)
-{
-    DeserializeSet(value, node);
-}
-
-// std::map
-template <class K, class V>
-void Deserialize(std::map<K, V>& value, INodePtr node)
-{
-    DeserializeMap(value, node);
-}
-
-// yhash_map
-template <class K, class V>
-void Deserialize(yhash_map<K, V>& value, INodePtr node)
-{
-    DeserializeMap(value, node);
 }
 
 // TErrorOr
@@ -322,6 +377,31 @@ void Deserialize(TErrorOr<T>& error, NYTree::INodePtr node)
             Deserialize(error.Value(), std::move(valueNode));
         }
     }
+}
+
+template <class F, class S>
+void Deserialize(std::pair<F, S>& value, INodePtr node)
+{
+    DeserializeTuple(value, node);
+}
+
+template <class T, size_t N>
+void Deserialize(std::array<T, N>& value, INodePtr node)
+{
+    DeserializeTuple(value, node);
+}
+
+template <class... T>
+void Deserialize(std::tuple<T...>& value, INodePtr node)
+{
+    DeserializeTuple(value, node);
+}
+
+// For any associative container.
+template <template<typename...> class C, class... T, class K = typename C<T...>::key_type>
+void Deserialize(C<T...>& value, INodePtr node)
+{
+    DeserializeAssociative(value, node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

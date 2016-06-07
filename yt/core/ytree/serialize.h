@@ -106,32 +106,29 @@ template <class T>
 void Serialize(const TNullable<T>& value, NYson::IYsonConsumer* consumer);
 
 // std::vector
-template <class T>
-void Serialize(const std::vector<T>& value, NYson::IYsonConsumer* consumer);
+template <class T, class A>
+void Serialize(const std::vector<T, A>& value, NYson::IYsonConsumer* consumer);
 
 // SmallVector
 template <class T, unsigned N>
 void Serialize(const SmallVector<T, N>& value, NYson::IYsonConsumer* consumer);
 
-// std::set
-template <class T>
-void Serialize(const std::set<T>& value, NYson::IYsonConsumer* consumer);
-
-// yhash_set
-template <class T>
-void Serialize(const yhash_set<T>& value, NYson::IYsonConsumer* consumer);
-
-// std::map
-template <class K, class V>
-void Serialize(const std::map<K, V>& value, NYson::IYsonConsumer* consumer);
-
-// yhash_map
-template <class K, class V>
-void Serialize(const yhash_map<K, V>& value, NYson::IYsonConsumer* consumer);
-
 // TErrorOr
 template <class T>
 void Serialize(const TErrorOr<T>& error, NYson::IYsonConsumer* consumer);
+
+template <class F, class S>
+void Serialize(const std::pair<F, S>& value, NYson::IYsonConsumer* consumer);
+
+template <class T, size_t N>
+void Serialize(const std::array<T, N>& value, NYson::IYsonConsumer* consumer);
+
+template <class... T>
+void Serialize(const std::tuple<T...>& value, NYson::IYsonConsumer* consumer);
+
+// For any associative container.
+template <template<typename...> class C, class... T, class K = typename C<T...>::key_type>
+void Serialize(const C<T...>& value, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,32 +182,29 @@ template <class T>
 void Deserialize(TNullable<T>& value, INodePtr node);
 
 // std::vector
-template <class T>
-void Deserialize(std::vector<T>& value, INodePtr node);
+template <class T, class A>
+void Deserialize(std::vector<T, A>& value, INodePtr node);
 
 // SmallVector
 template <class T, unsigned N>
 void Deserialize(SmallVector<T, N>& value, INodePtr node);
 
-// std::set
-template <class T>
-void Deserialize(std::set<T>& value, INodePtr node);
-
-// yhash_set
-template <class T>
-void Deserialize(yhash_set<T>& value, INodePtr node);
-
-// std::map
-template <class K, class V>
-void Deserialize(std::map<K, V>& value, INodePtr node);
-
-// yhash_map
-template <class K, class V>
-void Deserialize(yhash_map<K, V>& value, INodePtr node);
-
 // TErrorOr
 template <class T>
-void Deserialize(TErrorOr<T>& error, NYTree::INodePtr node);
+void Deserialize(TErrorOr<T>& error, INodePtr node);
+
+template <class F, class S>
+void Deserialize(std::pair<F, S>& value, INodePtr node);
+
+template <class T, size_t N>
+void Deserialize(std::array<T, N>& value, INodePtr node);
+
+template <class... T>
+void Deserialize(std::tuple<T...>& value, INodePtr node);
+
+// For any associative container.
+template <template<typename...> class C, class... T, class K = typename C<T...>::key_type>
+void Deserialize(C<T...>& value, INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
