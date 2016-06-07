@@ -15,7 +15,6 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
-static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -1751,7 +1750,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
     auto scheduleJobResultFutureWithTimeout = scheduleJobResultFuture
         .WithTimeout(StrategyConfig_->ControllerScheduleJobTimeLimit);
 
-    auto scheduleJobResultWithTimeoutOrError = std::move(WaitFor(scheduleJobResultFutureWithTimeout));
+    auto scheduleJobResultWithTimeoutOrError = WaitFor(scheduleJobResultFutureWithTimeout);
 
     if (!scheduleJobResultWithTimeoutOrError.IsOK()) {
         auto scheduleJobResult = New<TScheduleJobResult>();
