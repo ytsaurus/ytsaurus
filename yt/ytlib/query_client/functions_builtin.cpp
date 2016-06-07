@@ -137,6 +137,66 @@ TKeyTriePtr IsPrefixRangeExtractor(
     return result;
 }
 
+class TIsNullCodegen
+    : public IFunctionCodegen
+{
+public:
+    virtual TCodegenExpression Profile(
+        TCodegenValue codegenFunctionContext,
+        std::vector<TCodegenExpression> codegenArgs,
+        std::vector<EValueType> argumentTypes,
+        EValueType type,
+        const Stroka& name,
+        llvm::FoldingSetNodeID* id) const override
+    {
+        YCHECK(codegenArgs.size() == 1);
+
+        return [
+            MOVE(codegenArgs),
+            type,
+            name
+        ] (TCGContext& builder, Value* row) {
+            auto argValue = codegenArgs[0](builder, row);
+            return TCGValue::CreateFromValue(
+                builder,
+                builder.getInt1(false),
+                nullptr,
+                builder.CreateZExtOrBitCast(
+                    argValue.IsNull(),
+                    TDataTypeBuilder::TBoolean::get(builder.getContext())),
+                type);
+        };
+    }
+};
+
+class TUserCastCodegen
+    : public IFunctionCodegen
+{
+public:
+
+    TUserCastCodegen()
+    { }
+
+    virtual TCodegenExpression Profile(
+        TCodegenValue codegenFunctionContext,
+        std::vector<TCodegenExpression> codegenArgs,
+        std::vector<EValueType> argumentTypes,
+        EValueType type,
+        const Stroka& name,
+        llvm::FoldingSetNodeID* id) const override
+    {
+        YCHECK(codegenArgs.size() == 1);
+
+        return [
+            MOVE(codegenArgs),
+            type,
+            name
+        ] (TCGContext& builder, Value* row) {
+            return codegenArgs[0](builder, row).Cast(builder, type);
+        };
+    }
+};
+
 } // namespace NBuiltins
 
 void RegisterBuiltinFunctions(
@@ -203,15 +263,17 @@ void RegisterBuiltinFunctions(
             farm_hash_bc_len,
             nullptr));
 
-    builder.RegisterFunction(
-        "is_null",
-        std::vector<TType>{0},
-        EValueType::Boolean,
-        TSharedRef(
-            is_null_bc,
-            is_null_bc_len,
-            nullptr),
-        ECallingConvention::UnversionedValue);
+    if (typeInferrers) {
+        typeInferrers->emplace("is_null", New<TFunctionTypeInferrer>(
+            std::unordered_map<TTypeArgument, TUnionType>(),
+            std::vector<TType>{0},
+            EValueType::Null,
+            EValueType::Boolean));
+    }
+
+    if (functionProfilers) {
+        functionProfilers->emplace("is_null", New<NBuiltins::TIsNullCodegen>());
+    }
 
     auto typeArg = 0;
     auto castConstraints = std::unordered_map<TTypeArgument, TUnionType>();
@@ -220,39 +282,42 @@ void RegisterBuiltinFunctions(
         EValueType::Uint64,
         EValueType::Double};
 
-    builder.RegisterFunction(
-        "int64",
-        castConstraints,
-        std::vector<TType>{typeArg},
-        EValueType::Null,
-        EValueType::Int64,
-        TSharedRef(
-            int64_bc,
-            int64_bc_len,
-            nullptr));
 
-    builder.RegisterFunction(
-        "uint64",
-        castConstraints,
-        std::vector<TType>{typeArg},
-        EValueType::Null,
-        EValueType::Uint64,
-        TSharedRef(
-            uint64_bc,
-            uint64_bc_len,
-            nullptr));
+    if (typeInferrers) {
+        typeInferrers->emplace("int64", New<TFunctionTypeInferrer>(
+            castConstraints,
+            std::vector<TType>{typeArg},
+            EValueType::Null,
+            EValueType::Int64));
+    }
 
-    builder.RegisterFunction(
-        "double",
-        "double_cast",
-        castConstraints,
-        std::vector<TType>{typeArg},
-        EValueType::Null,
-        EValueType::Double,
-        TSharedRef(
-            double_cast_bc,
-            double_cast_bc_len,
-            nullptr));
+    if (functionProfilers) {
+        functionProfilers->emplace("int64", New<NBuiltins::TUserCastCodegen>());
+    }
+
+    if (typeInferrers) {
+        typeInferrers->emplace("uint64", New<TFunctionTypeInferrer>(
+            castConstraints,
+            std::vector<TType>{typeArg},
+            EValueType::Null,
+            EValueType::Uint64));
+    }
+
+    if (functionProfilers) {
+        functionProfilers->emplace("uint64", New<NBuiltins::TUserCastCodegen>());
+    }
+
+    if (typeInferrers) {
+        typeInferrers->emplace("double", New<TFunctionTypeInferrer>(
+            castConstraints,
+            std::vector<TType>{typeArg},
+            EValueType::Null,
+            EValueType::Double));
+    }
+
+    if (functionProfilers) {
+        functionProfilers->emplace("double", New<NBuiltins::TUserCastCodegen>());
+    }
 
     builder.RegisterFunction(
         "regex_full_match",
