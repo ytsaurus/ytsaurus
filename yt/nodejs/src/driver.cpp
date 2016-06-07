@@ -236,9 +236,7 @@ public:
         }
 
         future
-            .Apply(
-                BIND(&TExecuteRequest::OnResponse1, this_)
-                .AsyncVia(IOInvoker_))
+            .Apply(BIND(&TExecuteRequest::OnResponse1, this_))
             .Subscribe(
                 BIND(&TExecuteRequest::OnResponse2, this_)
                 .Via(GetUVInvoker()));
@@ -266,7 +264,7 @@ private:
 
     TFuture<void> OnResponse1(const TErrorOr<void>& response)
     {
-        return OutputStack_->Close().Apply(BIND([] (const TErrorOr<void>& response) {
+        return OutputStack_->Close().Apply(BIND([=] (const TErrorOr<void>&) {
             return MakeFuture(response);
         }));
     }
