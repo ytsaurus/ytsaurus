@@ -60,8 +60,9 @@ const int MaxColumnGroupLength = 256;
 // so one probaly should never want to do it.
 const int MaxSampleSize = 64 * 1024;
 
-// This is a hard limit for static tables.
-const int MaxColumnsPerRow = 64 * 1024;
+// This is a hard limit for static tables,
+// imposed Id field size (16-bit) in TUnversionedValue.
+const int MaxColumnId = 32 * 1024;
 
 const int DefaultPartitionTag = -1;
 
@@ -85,6 +86,8 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidDoubleValue)         (302))
     ((IncomparableType)           (303))
     ((UnhashableType)             (304))
+    // E.g. name table with more than #MaxColumnId columns (may come from legacy chunks).
+    ((CorruptedNameTable)         (305))
 );
 
 DEFINE_ENUM(ETableChunkFormat,

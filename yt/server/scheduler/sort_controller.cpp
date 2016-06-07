@@ -7,12 +7,16 @@
 #include "map_controller.h"
 #include "operation_controller_detail.h"
 
+#include <yt/ytlib/api/client.h>
+
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/schemaless_block_writer.h>
+
+#include <yt/core/ytree/permission.h>
 
 #include <cmath>
 
@@ -27,6 +31,7 @@ using namespace NTableClient;
 using namespace NJobProxy;
 using namespace NObjectClient;
 using namespace NCypressClient;
+using namespace NSecurityClient;
 using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
@@ -1446,7 +1451,7 @@ protected:
     }
 
     int AdjustPartitionCountToWriterBufferSize(
-        int partitionCount, 
+        int partitionCount,
         TChunkWriterConfigPtr config) const
     {
         i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataSize * Spec->MapSelectivityFactor);
@@ -1759,8 +1764,30 @@ protected:
 
         PartitionTableReaderOptions = CreateTableReaderOptions(Spec->PartitionJobIO);
 
-        // Partition bound tasks read only intermediate chunks, 
+        // Partition bound tasks read only intermediate chunks,
         PartitionBoundTableReaderOptions = CreateIntermediateTableReaderOptions();
+    }
+
+    virtual void CustomPrepare() override
+    {
+        TOperationControllerBase::CustomPrepare();
+
+        auto user = Operation->GetAuthenticatedUser();
+        auto account = Spec->IntermediateDataAccount;
+
+        auto client = Host->GetMasterClient();
+        auto asyncResult = client->CheckPermission(
+            user,
+            "//sys/accounts/" + account,
+            EPermission::Use);
+        auto result = WaitFor(asyncResult)
+            .ValueOrThrow();
+
+        if (result.Action == ESecurityAction::Deny) {
+            THROW_ERROR_EXCEPTION("User %Qv has been denied access to intermediate account %Qv",
+                user,
+                account);
+        }
     }
 };
 
@@ -1870,7 +1897,7 @@ private:
             .ThrowOnError();
 
         InitJobIOConfigs();
-        
+
         PROFILE_TIMING ("/samples_processing_time") {
             auto sortedSamples = SortSamples(samplesFetcher->GetSamples());
             BuildPartitions(sortedSamples);
@@ -1916,7 +1943,7 @@ private:
         partitionCount = std::min(partitionCount, static_cast<int>(sortedSamples.size()) + 1);
 
         partitionCount = AdjustPartitionCountToWriterBufferSize(
-            partitionCount, 
+            partitionCount,
             PartitionJobIOConfig->TableWriter);
         LOG_INFO("Adjusted partition count %v", partitionCount);
 
@@ -1928,7 +1955,7 @@ private:
         } else {
             // Finally adjust partition count wrt block size constraints.
             partitionCount = AdjustPartitionCountToWriterBufferSize(
-                partitionCount, 
+                partitionCount,
                 PartitionJobIOConfig->TableWriter);
 
             LOG_INFO("Adjusted partition count %v", partitionCount);
@@ -2508,7 +2535,7 @@ private:
         LOG_INFO("Suggested partition count %v", partitionCount);
 
         partitionCount = AdjustPartitionCountToWriterBufferSize(
-            partitionCount, 
+            partitionCount,
             PartitionJobIOConfig->TableWriter);
         LOG_INFO("Adjusted partition count %v", partitionCount);
 

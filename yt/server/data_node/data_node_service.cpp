@@ -888,12 +888,22 @@ private:
         i32 maxSampleSize,
         const TChunkMeta& chunkMeta)
     {
-        auto nameTableExt = GetProtoExtension<TNameTableExt>(chunkMeta.extensions());
-        auto nameTable = FromProto<TNameTablePtr>(nameTableExt);
-
+        TNameTablePtr nameTable;
         std::vector<int> keyIds;
-        for (const auto& column : keyColumns) {
-            keyIds.push_back(nameTable->GetIdOrRegisterName(column));
+
+        try {
+            auto nameTableExt = GetProtoExtension<TNameTableExt>(chunkMeta.extensions());
+            nameTable = FromProto<TNameTablePtr>(nameTableExt);
+
+            for (const auto& column : keyColumns) {
+                keyIds.push_back(nameTable->GetIdOrRegisterName(column));
+            }
+        } catch (const std::exception& ex) {
+            auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
+            LOG_WARNING(ex, "Failed to gather samples (ChunkId: %v)", chunkId);
+
+            // We failed to deserialize name table, so we don't return any samples. 
+            return;
         }
 
         std::vector<int> idToKeyIndex(nameTable->GetSize(), -1);

@@ -1431,6 +1431,7 @@ private:
             // root
             RootUser_ = DoCreateUser(RootUserId_, RootUserName);
             RootUser_->SetRequestRateLimit(1000000);
+            RootUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         GuestUser_ = FindUser(GuestUserId_);
@@ -1444,6 +1445,7 @@ private:
             // job
             JobUser_ = DoCreateUser(JobUserId_, JobUserName);
             JobUser_->SetRequestRateLimit(1000000);
+            JobUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         SchedulerUser_ = FindUser(SchedulerUserId_);
@@ -1451,6 +1453,7 @@ private:
             // scheduler
             SchedulerUser_ = DoCreateUser(SchedulerUserId_, SchedulerUserName);
             SchedulerUser_->SetRequestRateLimit(1000000);
+            SchedulerUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // COMPAT(babenko)

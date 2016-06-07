@@ -731,6 +731,8 @@ public:
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;
+
+            EventLog->MaxRowWeight = (i64) 128 * 1024 * 1024;
         });
 
         RegisterValidator([&] () {

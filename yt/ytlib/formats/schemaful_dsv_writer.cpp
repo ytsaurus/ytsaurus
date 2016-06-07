@@ -52,8 +52,10 @@ protected:
         , IdToIndexInRow_(idToIndexInRow)
         , Table_(config)
     {  
-        CurrentRowValues_.resize(
-            *std::max_element(IdToIndexInRow_.begin(), IdToIndexInRow_.end()) + 1);
+        if (!IdToIndexInRow_.empty()) {
+            CurrentRowValues_.resize(
+                *std::max_element(IdToIndexInRow_.begin(), IdToIndexInRow_.end()) + 1);
+        }
         YCHECK(Config_->Columns);
     }    
 
@@ -249,7 +251,7 @@ public:
             config,
             IdToIndexInRow)
         , TableIndexColumnId_(Config_->EnableTableIndex && controlAttributesConfig->EnableTableIndex
-            ? nameTable->GetIdOrRegisterName(TableIndexColumnName)
+            ? nameTable->GetId(TableIndexColumnName)
             : -1)
     {
         BlobOutput_ = GetOutputStream();
@@ -442,9 +444,15 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
         columns.insert(columns.begin(), TableIndexColumnName);
     }
 
-    for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
-        nameTable->GetIdOrRegisterName(columns[columnIndex]);
+    try {
+        for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
+            nameTable->GetIdOrRegisterName(columns[columnIndex]);
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to add columns to name table for schemaful DSV format") 
+            << ex;
     }
+
     idToIndexInRow.resize(nameTable->GetSize(), -1);
     for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
         idToIndexInRow[nameTable->GetId(columns[columnIndex])] = columnIndex;

@@ -299,7 +299,12 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
     Y_ASSERT(Depth_ > 0);
     if (Depth_ == 1) {
         if (CurrentValueConsumer_->GetAllowUnknownColumns()) {
-            ColumnIndex_ = CurrentNameTableWriter_->GetIdOrRegisterName(name);
+            try {
+                ColumnIndex_ = CurrentNameTableWriter_->GetIdOrRegisterName(name);
+            } catch (const std::exception& ex) {
+                THROW_ERROR AttachLocationAttributes(TError("Failed to add column to name table for table writer") 
+                    << ex);
+            }
         } else {
             try {
                 ColumnIndex_ = CurrentNameTableWriter_->GetIdOrThrow(name);
