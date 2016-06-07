@@ -56,7 +56,7 @@ private:
 struct TReadRequest
 {
     uv_work_t Request;
-    std::shared_ptr<TNodeJSInputStack> Stack;
+    TNodeJSInputStackPtr Stack;
     TError Error;
 
     Persistent<Function> Callback;
@@ -65,7 +65,7 @@ struct TReadRequest
     size_t Length;
 
     TReadRequest(
-        const std::shared_ptr<TNodeJSInputStack>& stack,
+        TNodeJSInputStackPtr stack,
         Handle<Integer> length,
         Handle<Function> callback)
         : Stack(stack)
@@ -177,7 +177,7 @@ Handle<Value> TInputStreamStub::Reset(const Arguments& args)
         case 1:
             EXPECT_THAT_HAS_INSTANCE(args[0], TInputStreamWrap);
             auto* stream = ObjectWrap::Unwrap<TInputStreamWrap>(args[0].As<Object>());
-            host->Stack = std::make_shared<TNodeJSInputStack>(stream);
+            host->Stack = NYT::New<TNodeJSInputStack>(stream, GetSyncInvoker());
             break;
     }
 
@@ -225,7 +225,10 @@ Handle<Value> TInputStreamStub::ReadSynchronously(const Arguments& args)
 
     length = args[0]->Uint32Value();
     string = new TReadString(length);
-    length = host->Stack->Read(string->mutable_data(), length);
+    length = host->Stack->Read(
+        TSharedMutableRef(string->mutable_data(), length, nullptr))
+        .Get()
+        .ValueOrThrow();
     string->mutable_length() = length;
 
     return scope.Close(String::NewExternal(string));
@@ -261,7 +264,10 @@ void TInputStreamStub::ReadWork(uv_work_t* workRequest)
         container_of(workRequest, TReadRequest, Request);
 
     try {
-        request->Length = request->Stack->Read(request->Buffer, request->Length);
+        request->Length = request->Stack->Read(
+            TSharedMutableRef(request->Buffer, request->Length, nullptr))
+            .Get()
+            .ValueOrThrow();
     } catch (const std::exception& ex) {
         request->Error = ex;
     }

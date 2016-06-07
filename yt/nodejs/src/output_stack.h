@@ -3,33 +3,43 @@
 #include "output_stream.h"
 #include "stream_stack.h"
 
+#include <yt/core/concurrency/async_stream.h>
+
 namespace NYT {
 namespace NNodeJS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeJSOutputStack
-    : public TOutputStream
-    , public TGrowingOutputStreamStack
+    : private TGrowingOutputStreamStack
+    , public NConcurrency::IAsyncOutputStream
 {
 public:
-    explicit TNodeJSOutputStack(TOutputStreamWrap* base);
+    TNodeJSOutputStack(
+        TOutputStreamWrap* base,
+        IInvokerPtr invoker);
     virtual ~TNodeJSOutputStack() throw();
 
     void AddCompression(ECompression compression);
 
     ui64 GetBytes() const;
 
-protected:
-    virtual void DoWrite(const void* buffer, size_t length) override;
-    virtual void DoWriteV(const TPart* parts, size_t count) override;
-    virtual void DoFlush() override;
-    virtual void DoFinish() override;
+    virtual TFuture<void> Write(const TSharedRef& buffer) override;
+
+    TFuture<void> Close();
 
 private:
     TOutputStreamWrap* GetBaseStream();
     const TOutputStreamWrap* GetBaseStream() const;
+
+    void SyncWrite(const TSharedRef& buffer);
+    void SyncClose();
+
+    IInvokerPtr Invoker_;
 };
+
+DECLARE_REFCOUNTED_TYPE(TNodeJSOutputStack);
+DEFINE_REFCOUNTED_TYPE(TNodeJSOutputStack);
 
 ////////////////////////////////////////////////////////////////////////////////
 
