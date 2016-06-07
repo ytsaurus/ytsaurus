@@ -55,7 +55,7 @@ public:
     Stroka MyString;
     TTestSubconfigPtr Subconfig;
     std::vector<TTestSubconfigPtr> SubconfigList;
-    yhash_map<Stroka, TTestSubconfigPtr> SubconfigMap;
+    std::unordered_map<Stroka, TTestSubconfigPtr> SubconfigMap;
     TNullable<i64> NullableInt;
 
     TTestConfig()
@@ -210,7 +210,7 @@ TEST(TYsonSerializableTest, MissingSubconfig)
     EXPECT_EQ(0, config->Subconfig->MyStringList.size());
     EXPECT_EQ(ETestEnum::Value1, config->Subconfig->MyEnum);
     EXPECT_EQ(0, config->SubconfigList.size());
-    EXPECT_EQ(0, config->SubconfigMap.ysize());
+    EXPECT_EQ(0, config->SubconfigMap.size());
 }
 
 TEST(TYsonSerializableTest, Options)
@@ -583,6 +583,70 @@ TEST(TYsonSerializableTest, Aliases5)
     auto config = New<TTestConfigWithAliases>();
 
     EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
+}
+
+TEST(TYsonSerializableTest, ParameterTuplesAndContainers)
+{
+    class TTestClass
+        : public NYTree::TYsonSerializableLite
+    {
+    public:
+        std::vector<Stroka> Vector;
+        std::array<Stroka, 3> Array;
+        std::pair<size_t, Stroka> Pair;
+        std::set<Stroka> Set;
+        std::map<Stroka, int> Map;
+        std::multiset<int> MultiSet;
+        std::unordered_set<Stroka> UnorderedSet;
+        std::unordered_map<Stroka, int> UnorderedMap;
+        std::unordered_multiset<size_t> UnorderedMultiSet;
+
+        TTestClass()
+        {
+            RegisterParameter("vector", Vector)
+                .Default();
+            RegisterParameter("array", Array)
+                .Default();
+            RegisterParameter("pair", Pair)
+                .Default();
+            RegisterParameter("set", Set)
+                .Default();
+            RegisterParameter("map", Map)
+                .Default();
+            RegisterParameter("multiset", MultiSet)
+                .Default();
+            RegisterParameter("unordered_set", UnorderedSet)
+                .Default();
+            RegisterParameter("unordered_map", UnorderedMap)
+                .Default();
+            RegisterParameter("unordered_multiset", UnorderedMultiSet)
+                .Default();
+        }
+    };
+
+    TTestClass original, deserialized;
+
+    original.Vector = { "fceswf", "sadfcesa" };
+    original.Array = {{ "UYTUY", ":LL:a", "78678678" }};
+    original.Pair = { 7U, "UYTUY" };
+    original.Set = { "  q!", "12343e", "svvr", "0001" };
+    original.Map = { {"!", 4398}, {"zzz", 0} };
+    original.MultiSet = { 33, 33, 22, 22, 11 };
+    original.UnorderedSet = { "41", "52", "001", "set" };
+    original.UnorderedMap = { {"12345", 8}, {"XXX", 9}, {"XYZ", 42} };
+    original.UnorderedMultiSet = { 1U, 2U, 1U, 0U, 0U };
+
+    Deserialize(deserialized, ConvertToNode(ConvertToYsonStringStable(original)));
+
+    EXPECT_EQ(original.Vector, deserialized.Vector);
+    EXPECT_EQ(original.Array, deserialized.Array);
+    EXPECT_EQ(original.Pair, deserialized.Pair);
+    EXPECT_EQ(original.Set, deserialized.Set);
+    EXPECT_EQ(original.Map, deserialized.Map);
+    EXPECT_EQ(original.MultiSet, deserialized.MultiSet);
+    EXPECT_EQ(original.UnorderedSet, deserialized.UnorderedSet);
+    EXPECT_EQ(original.UnorderedMap, deserialized.UnorderedMap);
+    EXPECT_EQ(original.UnorderedMultiSet, deserialized.UnorderedMultiSet);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
