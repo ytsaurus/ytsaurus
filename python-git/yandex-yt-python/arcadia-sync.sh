@@ -34,11 +34,20 @@ cp -r "${VERSION}/usr/share/pyshared/yt" "$ARCADIA/"
 cp -r "${VERSION}/usr/bin" "$ARCADIA/"
 
 pushd "arcadia_python_yt/" 
-svn rm latest
-rm -rf latest
+
+pushd latest
+LATEST_FILES="$(find latest -name "*")"
+popd
+
+for file in $LATEST_FILES; do
+    if [ ! -e "$VERSION/$file" ]; then
+        svn rm "$LATEST/$file"
+    fi
+; do
 cp -r "$VERSION" latest 
 svn add "$VERSION" latest
 svn ci -m "Updated contrib/python/yt_trunk to version $VERSION"
+
 popd
 
 popd
