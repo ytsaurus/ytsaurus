@@ -1166,11 +1166,11 @@ int TMapNodeProxy::GetChildCount() const
     return result;
 }
 
-std::vector< std::pair<Stroka, INodePtr> > TMapNodeProxy::GetChildren() const
+std::vector<std::pair<Stroka, INodePtr>> TMapNodeProxy::GetChildren() const
 {
     auto keyToChild = GetMapNodeChildren(Bootstrap_, TrunkNode, Transaction);
 
-    std::vector< std::pair<Stroka, INodePtr> > result;
+    std::vector<std::pair<Stroka, INodePtr>> result;
     result.reserve(keyToChild.size());
     for (const auto& pair : keyToChild) {
         result.push_back(std::make_pair(pair.first, GetProxy(pair.second)));
