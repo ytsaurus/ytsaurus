@@ -14,7 +14,7 @@ namespace {
 struct TWriteRequest
 {
     uv_work_t Request;
-    std::shared_ptr<TNodeJSOutputStack> Stack;
+    TNodeJSOutputStackPtr Stack;
 
     Persistent<Function> Callback;
     String::Utf8Value ValueToBeWritten;
@@ -23,7 +23,7 @@ struct TWriteRequest
     size_t Length;
 
     TWriteRequest(
-        const std::shared_ptr<TNodeJSOutputStack>& stack,
+        TNodeJSOutputStackPtr stack,
         Handle<String> string,
         Handle<Function> callback)
         : Stack(stack)
@@ -79,8 +79,8 @@ void TOutputStreamStub::Initialize(Handle<Object> target)
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "AddCompression", TOutputStreamStub::AddCompression);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Write", TOutputStreamStub::Write);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "WriteSynchronously", TOutputStreamStub::WriteSynchronously);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Flush", TOutputStreamStub::Flush);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Finish", TOutputStreamStub::Finish);
+
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Close", TOutputStreamStub::Close);
 
     target->Set(
         String::NewSymbol("TOutputStreamStub"),
@@ -130,7 +130,7 @@ Handle<Value> TOutputStreamStub::Reset(const Arguments& args)
         case 1:
             EXPECT_THAT_HAS_INSTANCE(args[0], TOutputStreamWrap);
             auto* stream = ObjectWrap::Unwrap<TOutputStreamWrap>(args[0].As<Object>());
-            host->Stack = std::make_shared<TNodeJSOutputStack>(stream);
+            host->Stack = NYT::New<TNodeJSOutputStack>(stream, GetSyncInvoker());
             break;
     }
 
@@ -174,7 +174,7 @@ Handle<Value> TOutputStreamStub::WriteSynchronously(const Arguments& args)
 
     // Do the work.
     String::Utf8Value value(args[0]);
-    host->Stack->Write(*value, value.length());
+    host->Stack->Write(TSharedRef(*value, value.length(), nullptr)).Get();
 
     return Undefined();
 }
@@ -208,7 +208,7 @@ void TOutputStreamStub::WriteWork(uv_work_t* workRequest)
     TWriteRequest* request =
         container_of(workRequest, TWriteRequest, Request);
 
-    request->Stack->Write(request->Buffer, request->Length);
+    request->Stack->Write(TSharedRef(request->Buffer, request->Length, nullptr)).Get();
 }
 
 void TOutputStreamStub::WriteAfter(uv_work_t* workRequest)
@@ -233,7 +233,7 @@ void TOutputStreamStub::WriteAfter(uv_work_t* workRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TOutputStreamStub::Flush(const Arguments& args)
+Handle<Value> TOutputStreamStub::Close(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -245,26 +245,7 @@ Handle<Value> TOutputStreamStub::Flush(const Arguments& args)
     YCHECK(args.Length() == 0);
 
     // Do the work.
-    host->Stack->Flush();
-
-    return Undefined();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-Handle<Value> TOutputStreamStub::Finish(const Arguments& args)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    // Unwrap.
-    auto* host = ObjectWrap::Unwrap<TOutputStreamStub>(args.This());
-
-    // Validate arguments.
-    YCHECK(args.Length() == 0);
-
-    // Do the work.
-    host->Stack->Finish();
+    host->Stack->Close().Get();
 
     return Undefined();
 }

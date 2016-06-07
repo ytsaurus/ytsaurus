@@ -11,8 +11,11 @@ namespace NNodeJS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeJSInputStack::TNodeJSInputStack(TInputStreamWrap* base)
+TNodeJSInputStack::TNodeJSInputStack(
+    TInputStreamWrap* base,
+    IInvokerPtr invoker)
     : TGrowingStreamStack(base)
+    , Invoker_(std::move(invoker))
 {
     THREAD_AFFINITY_IS_V8();
     Y_ASSERT(Bottom() == base);
@@ -44,9 +47,17 @@ ui64 TNodeJSInputStack::GetBytes() const
     return GetBaseStream()->GetBytesEnqueued();
 }
 
-size_t TNodeJSInputStack::DoRead(void* data, size_t length)
+TFuture<size_t> TNodeJSInputStack::Read(const TSharedMutableRef& buffer)
 {
-    return Top()->Read(data, length);
+    return
+        BIND(&TNodeJSInputStack::SyncRead, MakeStrong(this), buffer)
+        .AsyncVia(Invoker_)
+        .Run();
+}
+
+size_t TNodeJSInputStack::SyncRead(const TSharedMutableRef& buffer)
+{
+    return Top()->Read(buffer.Begin(), buffer.Size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
