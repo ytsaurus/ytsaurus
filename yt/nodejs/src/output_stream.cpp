@@ -278,6 +278,12 @@ void TOutputStreamWrap::MarkAsFinishing()
     });
 }
 
+bool TOutputStreamWrap::IsFinished() const
+{
+    auto guard = Guard(Mutex_);
+    return IsFinished_;
+}
+
 void TOutputStreamWrap::DoWrite(const void* data, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
