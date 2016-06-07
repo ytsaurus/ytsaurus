@@ -286,13 +286,8 @@ void TOutputStreamWrap::DoWrite(const void* data, size_t length)
         return;
     }
 
-    TIntrusivePtr<IAsyncRefCounted> ref(this);
-
-    std::unique_ptr<char[]> buffer(new char[length]);
-
-    ::memcpy(&buffer[0], data, length);
-
-    PushToQueue(std::move(buffer), length);
+    TPart part{data, length};
+    DoWriteV(&part, 1);
 }
 
 void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
@@ -302,8 +297,6 @@ void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
     if (parts == nullptr || count == 0) {
         return;
     }
-
-    TIntrusivePtr<IAsyncRefCounted> ref(this);
 
     size_t offset = 0;
     size_t length = 0;
@@ -357,6 +350,8 @@ void TOutputStreamWrap::ProtectedUpdateAndNotifyWriter(std::function<void()> mut
 void TOutputStreamWrap::PushToQueue(std::unique_ptr<char[]> buffer, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
+
+    TIntrusivePtr<IAsyncRefCounted> ref(this);
 
     auto guard = Guard(Mutex_);
 
