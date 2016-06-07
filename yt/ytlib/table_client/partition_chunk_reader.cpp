@@ -64,7 +64,15 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 
     TNameTablePtr chunkNameTable;
     auto nameTableExt = GetProtoExtension<TNameTableExt>(ChunkMeta_.extensions());
-    FromProto(&chunkNameTable, nameTableExt);
+    try {
+        FromProto(&chunkNameTable, nameTableExt);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::CorruptedNameTable, 
+            "Failed to deserialize name table for partition chunk reader") 
+            << TErrorAttribute("chunk_id", UnderlyingReader_->GetChunkId())
+            << ex;
+    }
 
     InitNameTable(chunkNameTable);
 
@@ -114,10 +122,14 @@ void TPartitionChunkReader::InitNameTable(TNameTablePtr chunkNameTable)
 {
     IdMapping_.resize(chunkNameTable->GetSize());
 
-    for (int chunkNameId = 0; chunkNameId < chunkNameTable->GetSize(); ++chunkNameId) {
-        auto name = chunkNameTable->GetName(chunkNameId);
-        auto id = NameTable_->GetIdOrRegisterName(name);
-        IdMapping_[chunkNameId] = id;
+    try {
+        for (int chunkNameId = 0; chunkNameId < chunkNameTable->GetSize(); ++chunkNameId) {
+            auto name = chunkNameTable->GetName(chunkNameId);
+            auto id = NameTable_->GetIdOrRegisterName(name);
+            IdMapping_[chunkNameId] = id;
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to add column to name table for partition chunk reader") << ex;
     }
 }
 

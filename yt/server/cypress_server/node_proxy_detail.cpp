@@ -898,8 +898,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         recursive);
 
     if (path.Empty()) {
-        if (GetThisImpl()->GetType() != type) {
-            ThrowExistsAndTypeMismatch(this);
+        auto* impl = GetThisImpl();
+        if (impl->GetType() != type) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "%v already exists and has type %Qlv while node of %Qlv type is about to be created",
+                GetPath(),
+                impl->GetType(),
+                type);
         }
         if (!ignoreExisting) {
             ThrowAlreadyExists(this);

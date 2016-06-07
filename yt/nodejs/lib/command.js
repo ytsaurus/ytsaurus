@@ -453,7 +453,7 @@ YtCommand.prototype._redirectHeavyRequests = function() {
             is_ssl = !!is_ssl;
             var url =
                 (is_ssl ? "https://" : "http://") +
-                target.name +
+                target.host +
                 this.req.originalUrl;
             utils.redirectTo(this.rsp, url, 307);
             throw new YtError();

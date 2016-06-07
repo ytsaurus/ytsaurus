@@ -79,6 +79,8 @@ protected:
     virtual void WriteRangeIndex(i64 rangeIndex);
     virtual void WriteRowIndex(i64 rowIndex);
 
+    void RegisterError(const TError& error);
+
 private:
     TBlobOutput CurrentBuffer_;
     TBlobOutput PreviousBuffer_;

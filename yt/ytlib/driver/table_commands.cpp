@@ -98,6 +98,7 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
 
     auto keyColumns = Path.GetSortedBy();
     auto nameTable = TNameTable::FromKeyColumns(keyColumns);
+    nameTable->SetEnableColumnNameValidation();
 
     auto options = New<TTableWriterOptions>();
     options->ValidateDuplicateIds = true;

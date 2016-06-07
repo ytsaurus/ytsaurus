@@ -84,6 +84,8 @@ struct TPollJobShellCommand
 {
 private:
     NJobTrackerClient::TJobId JobId;
+
+    // ToDo(psushin): consider making in INodePtr.
     Stroka Parameters;
 
 public:

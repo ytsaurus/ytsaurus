@@ -3045,7 +3045,7 @@ private:
     {
     public:
         virtual ~TRequestBase() = default;
-        
+
         void Run()
         {
             DoPrepare();
@@ -3059,7 +3059,6 @@ private:
         const TNullable<int> TabletIndexColumnId_;
 
         TTableMountInfoPtr TableInfo_;
-
 
         explicit TRequestBase(
             TTransaction* transaction,
