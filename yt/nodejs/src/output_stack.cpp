@@ -65,11 +65,19 @@ TFuture<void> TNodeJSOutputStack::Close()
 
 void TNodeJSOutputStack::SyncWrite(const TSharedRef& buffer)
 {
+    if (GetBaseStream()->IsFinished()) {
+        return;
+    }
+
     Top()->Write(buffer.Begin(), buffer.Size());
 }
 
 void TNodeJSOutputStack::SyncClose()
 {
+    if (GetBaseStream()->IsFinished()) {
+        return;
+    }
+
     GetBaseStream()->MarkAsFinishing();
 
     for (auto* current : *this) {

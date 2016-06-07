@@ -45,6 +45,7 @@ public:
     const ui64 GetBytesDequeued() const;
 
     void MarkAsFinishing();
+    bool IsFinished() const;
 
 protected:
     // C++ API.
