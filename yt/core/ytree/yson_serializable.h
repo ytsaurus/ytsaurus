@@ -111,9 +111,7 @@ private:
     template <class T>
     friend class TParameter;
 
-    typedef yhash_map<Stroka, IParameterPtr> TParameterMap;
-
-    TParameterMap Parameters;
+    std::unordered_map<Stroka, IParameterPtr> Parameters;
     NYTree::IMapNodePtr Options;
 
     std::vector<TInitializer> Initializers;
