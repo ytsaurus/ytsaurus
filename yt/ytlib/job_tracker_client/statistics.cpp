@@ -95,7 +95,7 @@ TSummary& TStatistics::GetSummary(const NYPath::TYPath& path)
             if (HasPrefix(it->first, prev->first)) {
                 Data_.erase(it);
                 THROW_ERROR_EXCEPTION(
-                    "Incompatible statistic paths (OldPath: %v, NewPath: %v)",
+                    "Incompatible statistic paths: old %v, new %v",
                     prev->first,
                     path);
             }
@@ -105,7 +105,7 @@ TSummary& TStatistics::GetSummary(const NYPath::TYPath& path)
             if (HasPrefix(next->first, it->first)) {
                 Data_.erase(it);
                 THROW_ERROR_EXCEPTION(
-                    "Incompatible statistic paths (OldPath: %v, NewPath: %v)",
+                    "Incompatible statistic paths: old %v, new %v",
                     next->first,
                     path);
             }
