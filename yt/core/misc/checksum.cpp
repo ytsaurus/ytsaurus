@@ -1,4 +1,5 @@
 #include "checksum.h"
+#include "checksum_helpers.h"
 
 #ifdef YT_USE_CRC_PCLMUL
     #include <tmmintrin.h>
@@ -17,50 +18,6 @@ namespace NDetail {
 
 namespace NCrcSSE0xE543279765927881 {
 
-__m128i _mm_shift_right_si128(__m128i v, ui8 offset)
-{
-    static const ui8 RotateMask[] = {
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-        0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80
-    };
-
-    return _mm_shuffle_epi8(v, _mm_loadu_si128((__m128i *) (RotateMask + offset)));
-}
-
-__m128i _mm_shift_left_si128(__m128i v, ui8 offset)
-{
-    static const ui8 RotateMask[] = {
-        0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
-    };
-
-    return _mm_shuffle_epi8(v, _mm_loadu_si128((__m128i *) (RotateMask + 16 - offset)));
-}
-
-
-//ui64 ModXPow_64(size_t pow, ui64 p)
-//{
-//    ui64 rem = p;
-//    while (pow-- > 64)
-//    {
-//        rem = (rem << 1) ^ (rem >> 63 & 1) * p;
-//    }
-//    return rem;
-//}
-
-//ui64 DivXPow_64(size_t pow, ui64 p)
-//{
-//    ui64 result = 0;
-//    ui64 rem = p;
-//    while (pow-- > 64)
-//    {
-//        result = result << 1 | rem >> 63 & 1;
-//        rem = (rem << 1) ^ (rem >> 63 & 1) * p;
-//    }
-//    return result;
-//}
-
-
 const ui64 Poly = ULL(0xE543279765927881);
 const ui64 Mu = ULL(0x9d9034581c0766b0); // DivXPow_64(128, poly)
 
@@ -70,54 +27,6 @@ const ui64 XPow192ModPoly = ULL(0xd0665f166605dcc4); // ModXPow_64(128 + 64, pol
 const ui64 XPow512ModPoly = ULL(0x209670022e7af509); // ModXPow_64(512, poly)
 const ui64 XPow576ModPoly = ULL(0xd85c929ddd7a7d69); // ModXPow_64(512 + 64, poly)
 
-inline __m128i ReverseBytes(__m128i value)
-{
-    return _mm_shuffle_epi8(value, 
-        _mm_setr_epi8(0xf, 0xe, 0xd, 0xc, 0xb, 0xa, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x3, 0x2, 0x1, 0x0));
-}
-    
-inline __m128i Fold(__m128i value, __m128i foldFactor)
-{
-    __m128i high = _mm_clmulepi64_si128(value, foldFactor, 0x11);
-    __m128i low = _mm_clmulepi64_si128(value, foldFactor, 0x00);
-    return _mm_xor_si128(high, low);
-}
-
-inline __m128i Fold(__m128i value, __m128i data, __m128i foldFactor)
-{
-    return _mm_xor_si128(data, Fold(value, foldFactor));
-}
-
-ATTRIBUTE_NO_SANITIZE_ADDRESS inline __m128i AlignedPrefixLoad(const void* p, size_t* length)
-{
-    size_t offset = (size_t)p & 15; *length = 16 - offset;
-    return _mm_shift_right_si128(_mm_load_si128((__m128i*)((char*)p - offset)), offset);
-}
-
-inline __m128i UnalignedLoad(const void* buf, size_t expectedLength = 16)
-{
-    size_t length;
-    __m128i result = AlignedPrefixLoad(buf, &length);
-
-    if (length < expectedLength) {
-        result = _mm_loadu_si128((__m128i*) buf);
-    }
-
-    return ReverseBytes(result);
-}
-
-inline __m128i AlignedLoad(const void* buf)
-{
-    return ReverseBytes(_mm_load_si128((__m128i*) buf));
-}
-
-__m128i FoldTail(__m128i result, __m128i tail, __m128i foldFactor, size_t tailLength)
-{
-    tail = _mm_or_si128(_mm_shift_right_si128(tail, 16 - tailLength), _mm_shift_left_si128(result, tailLength));
-    result = _mm_shift_right_si128(result, 16 - tailLength);
-    return Fold(result, tail, foldFactor);
-}
-    
 __m128i FoldTo128(const __m128i* buf128, size_t buflen, __m128i result)
 {
     const __m128i FoldBy128_128 = _mm_set_epi64x(XPow192ModPoly, XPow128ModPoly);
@@ -155,24 +64,6 @@ __m128i FoldTo128(const __m128i* buf128, size_t buflen, __m128i result)
     return result;
 }
 
-ui64 BarretReduction(__m128i chunk)
-{
-    __m128i MuAndPoly = _mm_set_epi64x(Poly, Mu);
-    __m128i high = _mm_set_epi64x(_mm_cvtsi128_si64(_mm_srli_si128(chunk, 8)), 0);
-
-    // T1(x) = (R(x) div x^64) clmul mu
-    // mu is 65 bit polynomial
-    __m128i t1 = _mm_xor_si128(_mm_clmulepi64_si128(high, MuAndPoly, 0x01), high);
-
-    // T2(x) = (T1(x) div x^64) clmul p(x)
-    // p(x) is 65 bit polynomial, so we have to do xor of high 64 bits after carry-less multiplication
-    // but since the next operation is (R(x) xor T2(x)) mod x^64, xor is unnecessary
-    __m128i t2 = _mm_clmulepi64_si128(t1, MuAndPoly, 0x11); 
-    
-    // return (R(x) xor T2(x)) mod x^64
-    return _mm_cvtsi128_si64(_mm_xor_si128(chunk, t2));//.m128i_u64[0];
-}
-
 ui64 Crc(const void* buf, size_t buflen, ui64 seed)
 {
     const ui8* ptr = reinterpret_cast<const ui8*>(buf);
@@ -198,7 +89,7 @@ ui64 Crc(const void* buf, size_t buflen, ui64 seed)
             result = FoldTo128(reinterpret_cast<const __m128i*>(ptr), buflen / 16, result);
             ptr += buflen - rest;
             buflen = rest;
-        } 
+        }
 
         if (buflen) {
             result = FoldTail(result, UnalignedLoad(ptr, buflen), FoldBy128_128, buflen);
@@ -214,8 +105,8 @@ ui64 Crc(const void* buf, size_t buflen, ui64 seed)
     } else {
         result = _mm_shift_right_si128(result, 8);
     }
-        
-    return BarretReduction(result);
+
+    return BarretReduction(result, Poly, Mu);
 }
 
 } // namespace NCrcSSE0xE543279765927881
@@ -756,7 +647,7 @@ ui64 ReverseBytes(ui64 v)
     int s = sizeof(v) - 1;
 
     for (v >>= 8; v; v >>= 8)
-    {   
+    {
         r <<= 8;
         r |= v & 0xff;
         s--;

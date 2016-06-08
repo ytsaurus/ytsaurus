@@ -12,6 +12,20 @@ namespace NYT {
 
 TChecksum GetChecksum(const TRef& data);
 
+namespace NDetail {
+namespace NCrcSSE0xE543279765927881 {
+
+ui64 Crc(const void* buf, size_t buflen, ui64 seed);
+
+} // namespace NCrcSSE0xE543279765927881
+
+namespace NCrcTable0xE543279765927881 {
+
+ui64 Crc(const void* buf, size_t buflen, ui64 crcinit);
+
+} // namespace NCrcTable0xE543279765927881
+} // namespace NDetail
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChecksumInput
