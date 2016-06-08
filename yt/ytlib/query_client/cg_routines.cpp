@@ -470,6 +470,11 @@ void ThrowException(const char* error)
     THROW_ERROR_EXCEPTION("Error while executing UDF: %s", error);
 }
 
+void ThrowQueryException(const char* error)
+{
+    THROW_ERROR_EXCEPTION("Error while executing query: %s", error);
+}
+
 google::re2::RE2* RegexCreate(TUnversionedValue* regexp)
 {
     return new google::re2::RE2(google::re2::StringPiece(regexp->Data.String, regexp->Length));
@@ -606,6 +611,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(AddRow);
     REGISTER_ROUTINE(OrderOpHelper);
     REGISTER_ROUTINE(ThrowException);
+    REGISTER_ROUTINE(ThrowQueryException);
     REGISTER_ROUTINE(RegexCreate);
     REGISTER_ROUTINE(RegexDestroy);
     REGISTER_ROUTINE(RegexFullMatch);
