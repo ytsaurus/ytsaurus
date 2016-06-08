@@ -227,10 +227,6 @@ private:
      */
     NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag);
 
-    //! Returns |true| if a given heartbeat RPC #error
-    //! (either received from the scheduler or from a master) should be retried.
-    static bool IsRetriableHearbeatError(const TError& error);
-
     //! Updates the rack of the local node.
     void UpdateRack(const TNullable<Stroka>& rack);
 

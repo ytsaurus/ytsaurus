@@ -194,7 +194,7 @@ private:
 
         if (!error.IsOK()) {
             SetFailed(TError(
-                NHydra::EErrorCode::MaybeCommitted,
+                NRpc::EErrorCode::Unavailable,
                 "Mutations are uncertain: local commit failed")
                 << error);
             return;
@@ -213,7 +213,7 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         SetFailed(TError(
-            NHydra::EErrorCode::MaybeCommitted,
+            NRpc::EErrorCode::Unavailable,
             "Mutations are uncertain: %v out of %v commits were successful",
             FlushCount_,
             Owner_->CellManager_->GetTotalPeerCount()));
