@@ -33,10 +33,12 @@ def init_logging(node, path, name, enable_debug_logging):
 class ConfigsProviderFactory(object):
     @staticmethod
     def create_for_version(version, ports, enable_debug_logging, fqdn):
-        if versions_cmp(version, "0.17.4") >= 0 and versions_cmp(version, "0.18") < 0:
-            return ConfigsProvider_17(ports, enable_debug_logging, fqdn)
+        if versions_cmp(version, "0.18.5") >= 0:
+            return ConfigsProvider_18_5(ports, enable_debug_logging, fqdn)
         elif versions_cmp(version, "0.18") >= 0:
             return ConfigsProvider_18(ports, enable_debug_logging, fqdn)
+        elif versions_cmp(version, "0.17.4") >= 0:
+            return ConfigsProvider_17(ports, enable_debug_logging, fqdn)
 
         raise YtError("Cannot create configs provider for version: {0}".format(version))
 
@@ -316,9 +318,9 @@ class ConfigsProvider_17(ConfigsProvider):
                 "masters: [ {0} ]".format(
                     ", ".join(["'{0}'".format(address) for address in self._master_addresses["primary"]])))
 
-class ConfigsProvider_18(ConfigsProvider):
+class ConfigsProvider_18_common(ConfigsProvider):
     def __init__(self, ports, enable_debug_logging=True, fqdn=None):
-        super(ConfigsProvider_18, self).__init__(ports, enable_debug_logging, fqdn)
+        super(ConfigsProvider_18_common, self).__init__(ports, enable_debug_logging, fqdn)
         self._primary_master_cell_id = 0
         self._secondary_masters_cell_ids = []
 
@@ -479,10 +481,10 @@ class ConfigsProvider_18(ConfigsProvider):
 
         return proxy_config
 
-    def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
-        addresses = ["{0}:{1}".format(self.fqdn, self.ports["node"][2 * i]) for i in xrange(node_count)]
+    def get_node_config_templates(self, node_count, node_dirs, operations_memory_limit=None):
+        "Returns a template config. Slot manager configuration should be added separately."
 
-        current_user = 10000
+        addresses = ["{0}:{1}".format(self.fqdn, self.ports["node"][2 * i]) for i in xrange(node_count)]
 
         configs = []
 
@@ -519,16 +521,13 @@ class ConfigsProvider_18(ConfigsProvider):
                 "low_watermark": 0,
                 "high_watermark": 0
             })
-            config["exec_agent"]["slot_manager"]["start_uid"] = current_user
-            config["exec_agent"]["slot_manager"]["paths"] = [os.path.join(node_dirs[i], "slots")]
-
-            current_user += config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] + 1
 
             config["logging"] = init_logging(config["logging"], node_dirs[i], "node-{0}".format(i),
                                              self.enable_debug_logging)
             config["exec_agent"]["job_proxy_logging"] = init_logging(config["exec_agent"]["job_proxy_logging"],
-                                                                     node_dirs[i], "job_proxy-{0}".format(i),
-                                                                     self.enable_debug_logging)
+                             node_dirs[i], "job_proxy-{0}".format(i),
+                             self.enable_debug_logging)
+
             config["tablet_node"]["hydra_manager"] = _get_hydra_manager_config()
             config["tablet_node"]["hydra_manager"]["restart_backoff_time"] = 100
             _set_bind_retry_options(config)
@@ -584,3 +583,44 @@ class ConfigsProvider_18(ConfigsProvider):
         return default_configs.get_ui_config()\
             .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
             .replace("%%masters%%", masters)
+
+
+class ConfigsProvider_18(ConfigsProvider_18_common):
+    "For ytserver versions 18.0 - 18.4"
+
+    def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
+        configs = super(ConfigsProvider_18_3, self).get_node_config_templates(node_count, node_dirs, operations_memory_limit)
+        assert len(configs) == node_count
+
+        current_user = 10000
+        for i, config in enumerate(configs):
+            config["exec_agent"]["slot_manager"]["start_uid"] = current_user
+            config["exec_agent"]["slot_manager"]["paths"] = [os.path.join(node_dirs[i], "slots")]
+
+            config["exec_agent"]["enable_cgroups"] = false
+            config["exec_agent"]["environment_manager"] = {"environments" : {"default" : {"type" : "unsafe"}}}
+
+            current_user += config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] + 1
+
+        return configs
+
+class ConfigsProvider_18_5(ConfigsProvider_18_common):
+    "For ytserver versions 18.5+"
+
+    def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
+        configs = super(ConfigsProvider_18_5, self).get_node_config_templates(node_count, node_dirs, operations_memory_limit)
+        assert len(configs) == node_count
+
+        current_user = 10000
+        for i, config in enumerate(configs):
+            # TODO(psushin): this is a very dirty hack to ensure that different parallel
+            # test and yt_node instances do not share same uids range for user jobs.
+            start_uid = current_user + config["rpc_port"]
+
+            config["exec_agent"]["slot_manager"]["job_environment"] = {
+                "type" : "simple",
+                "start_uid" : start_uid,
+            }
+            config["exec_agent"]["slot_manager"]["locations"] = [{"path" : os.path.join(node_dirs[i], "slots")}]
+
+        return configs

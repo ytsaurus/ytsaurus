@@ -223,22 +223,12 @@ def get_node_config(enable_debug_logging=True):
             heartbeat_period = 200;
         };
 
-        environment_manager = {
-            environments = {
-                default = {
-                    type = unsafe;
-                };
-            };
-        };
-
         job_controller = {
             resource_limits = {
                 memory = 4000000000;
                 user_slots = 1;
             };
         };
-
-        enable_cgroups = %false;
 
         job_proxy_logging = {
             rules = [

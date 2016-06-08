@@ -1,14 +1,18 @@
 from yt.common import YtError, update
-from yt.environment.configs_provider import ConfigsProvider_17, ConfigsProvider_18
+from yt.environment.configs_provider import ConfigsProvider_17, ConfigsProvider_18, ConfigsProvider_18_5
 from yt.environment.helpers import versions_cmp
 
 class ConfigsProviderFactory(object):
     @staticmethod
     def create_for_version(version, ports, enable_debug_logging, fqdn):
-        if versions_cmp(version, "0.17.4") >= 0 and versions_cmp(version, "0.18") < 0:
-            return LocalModeConfigsProvider_17(ports, enable_debug_logging, fqdn)
+        if versions_cmp(version, "0.18.4") >= 0:
+            basic_provider = ConfigsProvider_18_5(ports, enable_debug_logging, fqdn)
+            return LocalModeConfigsProvider_18(basic_provider)
         elif versions_cmp(version, "0.18") >= 0:
-            return LocalModeConfigsProvider_18(ports, enable_debug_logging, fqdn)
+            basic_provider = ConfigsProvider_18(ports, enable_debug_logging, fqdn)
+            return LocalModeConfigsProvider_18(basic_provider)
+        elif versions_cmp(version, "0.17.4") >= 0:
+            return LocalModeConfigsProvider_17(ports, enable_debug_logging, fqdn)
 
         raise YtError("Cannot create configs provider for version: {0}".format(version))
 
@@ -243,12 +247,15 @@ class LocalModeConfigsProvider_17(ConfigsProvider_17):
 
         return configs
 
-class LocalModeConfigsProvider_18(ConfigsProvider_18):
+class LocalModeConfigsProvider_18(object):
+    def __init__(self, basic_provider):
+        # We generate configs with basic_provider and then apply local mode patches.
+        self.basic_provider = basic_provider
+
     def get_master_configs(self, master_count, nonvoting_master_count, master_dirs,
                            tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
 
-        configs = super(LocalModeConfigsProvider_18, self)\
-            .get_master_configs(master_count, nonvoting_master_count, master_dirs, tmpfs_master_dirs, secondary_master_cell_count, cell_tag)
+        configs = self.basic_provider.get_master_configs(master_count, nonvoting_master_count, master_dirs, tmpfs_master_dirs, secondary_master_cell_count, cell_tag)
 
         local_patch = {
             "node_tracker": {
@@ -268,7 +275,7 @@ class LocalModeConfigsProvider_18(ConfigsProvider_18):
         return configs
 
     def get_scheduler_configs(self, scheduler_count, scheduler_dirs):
-        configs = super(LocalModeConfigsProvider_18, self).get_scheduler_configs(scheduler_count, scheduler_dirs)
+        configs = self.basic_provider.get_scheduler_configs(scheduler_count, scheduler_dirs)
 
         for config in configs:
             update(config, SCHEDULER_CONFIG_PATCH)
@@ -277,8 +284,7 @@ class LocalModeConfigsProvider_18(ConfigsProvider_18):
         return configs
 
     def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
-        configs = super(LocalModeConfigsProvider_18, self)\
-                .get_node_configs(node_count, node_dirs, operations_memory_limit)
+        configs = self.basic_provider.get_node_configs(node_count, node_dirs, operations_memory_limit)
 
         local_patch = {
             "cell_directory_synchronizer": None,
@@ -300,7 +306,7 @@ class LocalModeConfigsProvider_18(ConfigsProvider_18):
         return configs
 
     def get_driver_configs(self):
-        configs = super(LocalModeConfigsProvider_18, self).get_driver_configs()
+        configs = self.basic_provider.get_driver_configs()
 
         for config in configs:
             update(config, DRIVER_CONFIG_PATCH)
@@ -308,3 +314,5 @@ class LocalModeConfigsProvider_18(ConfigsProvider_18):
 
         return configs
 
+    def get_proxy_config(self, proxy_dir):
+        return self.basic_provider.get_proxy_config(proxy_dir)
