@@ -79,9 +79,9 @@ class JobShell(object):
             parameters["shell_id"] = self.shell_id
         command = {
             "job_id": self.job_id,
-            "parameters": yson.dumps(parameters),
+            "parameters": yson.dumps(parameters, yson_format="text"),
         }
-        req.headers["X-YT-Parameters"] = yson.dumps(command)
+        req.headers["X-YT-Parameters"] = yson.dumps(command, yson_format="text")
         req.headers["X-YT-Correlation-Id"] = generate_uuid()
         return req
 
