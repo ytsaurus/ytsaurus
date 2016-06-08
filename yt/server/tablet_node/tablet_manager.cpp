@@ -1815,7 +1815,7 @@ private:
     {
         if (!IsRecovery()) {
             auto slotManager = Bootstrap_->GetTabletSlotManager();
-            slotManager->UpdateTabletSnapshot(Slot_, tablet);
+            slotManager->RegisterTabletSnapshot(Slot_, tablet);
         }
     }
 
