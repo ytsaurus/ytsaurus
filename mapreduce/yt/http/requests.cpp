@@ -85,7 +85,11 @@ void PingTransaction(
     const TAuth& auth,
     const TTransactionId& transactionId)
 {
-    TransactionRequest(auth, "ping_tx", transactionId);
+    try {
+        TransactionRequest(auth, "ping_tx", transactionId);
+    } catch (yexception&) {
+        // ignore all ping errors
+    }
 }
 
 void AbortTransaction(
