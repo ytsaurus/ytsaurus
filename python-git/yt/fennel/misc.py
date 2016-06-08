@@ -46,13 +46,22 @@ def revert_timestamp(normalized_ts, microseconds):
 
 #==========================================
 
+def read_table(client, table_path):
+    return list(client.read_table(table_path, format="yson", raw=False))
+
+#==========================================
+
 def convert_to_tskved_json(row):
     result = {}
     for key, value in row.iteritems():
         if isinstance(value, basestring):
             pass
         else:
-            value = json.dumps(value)
+            try:
+                value = json.dumps(value)
+            except TypeError:
+                # Ignore data that could be encoded to JSON
+                pass
         result[key] = value
     return result
 

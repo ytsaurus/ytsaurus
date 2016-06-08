@@ -122,19 +122,23 @@ class EventLog(object):
                 self.log.error("Table index is less then 0: %d. Use archive table", begin)
                 archive_row_count = self.get_archive_row_count()
                 archive_begin = archive_row_count + begin
-                result.extend(self.yt.read_table(table.TablePath(
-                    self._archive_table_name,
-                    start_index=archive_begin,
-                    end_index=archive_begin + count), format="json", raw=False))
+                result.extend(misc.read_table(
+                    self.yt,
+                    table.TablePath(
+                        self._archive_table_name,
+                        start_index=archive_begin,
+                        end_index=archive_begin + count)))
 
             self.log.debug("Reading %s event log. Begin: %d, count: %d",
                 self._table_name,
                 begin,
                 count)
-            result.extend(self.yt.read_table(table.TablePath(
-                self._table_name,
-                start_index=begin,
-                end_index=begin + count), format="json", raw=False))
+            result.extend(misc.read_table(
+                self.yt,
+                table.TablePath(
+                    self._table_name,
+                    start_index=begin,
+                    end_index=begin + count)))
             self.log.debug("Reading is finished")
         if len(result) != count:
             raise EventLog.NotEnoughDataError("Not enough data. Got only {0} rows".format(len(result)))
