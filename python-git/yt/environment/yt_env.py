@@ -379,9 +379,15 @@ class YTInstance(object):
             raise YtError("Failed to start environment", inner_errors=[err])
 
     def stop(self):
+        killed_services = set()
         with self._lock:
+            for name in ["proxy", "node", "scheduler", "master"]:
+                if name in self.configs:
+                    self.kill_service(name)
+                    killed_services.add(name)
             for name in self.configs:
-                self.kill_service(name)
+                if name not in killed_services:
+                    self.kill_service(name)
 
             remove_file(self.pids_filename, force=True)
 
