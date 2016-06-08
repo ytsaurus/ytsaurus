@@ -1208,6 +1208,90 @@ TEST_F(TFormatTimestampExpressionTest, InvalidFormat)
         HasSubstr("Format string is too long"));
 }
 
+class TDivisionByZeroTest
+    : public ::testing::Test
+{
+protected:
+    virtual void SetUp() override
+    { }
+};
+
+TEST_F(TDivisionByZeroTest, Int64_1)
+{
+    TTableSchema schema({
+        TColumnSchema("i1", EValueType::Int64),
+        TColumnSchema("i2", EValueType::Int64)
+    });
+
+    TKeyColumns keyColumns;
+
+    auto expr = PrepareExpression("i1 / i2", schema);
+    auto buffer = New<TRowBuffer>();
+
+    TUnversionedValue result;
+
+    EXPECT_THROW_THAT(
+        [&] { EvaluateExpression(expr, "i1=1; i2=0", schema, &result, buffer); },
+        HasSubstr("Division by zero"));
+}
+
+TEST_F(TDivisionByZeroTest, Int64_2)
+{
+    TTableSchema schema({
+        TColumnSchema("i1", EValueType::Int64),
+        TColumnSchema("i2", EValueType::Int64)
+    });
+
+    TKeyColumns keyColumns;
+
+    auto expr = PrepareExpression("i1 % i2", schema);
+    auto buffer = New<TRowBuffer>();
+
+    TUnversionedValue result;
+
+    EXPECT_THROW_THAT(
+        [&] { EvaluateExpression(expr, "i1=1; i2=0", schema, &result, buffer); },
+        HasSubstr("Division by zero"));
+}
+
+TEST_F(TDivisionByZeroTest, UInt64_1)
+{
+    TTableSchema schema({
+        TColumnSchema("u1", EValueType::Uint64),
+        TColumnSchema("u2", EValueType::Uint64)
+    });
+
+    TKeyColumns keyColumns;
+
+    auto expr = PrepareExpression("u1 / u2", schema);
+    auto buffer = New<TRowBuffer>();
+
+    TUnversionedValue result;
+
+    EXPECT_THROW_THAT(
+        [&] { EvaluateExpression(expr, "u1=1u; u2=0u", schema, &result, buffer); },
+        HasSubstr("Division by zero"));
+}
+
+TEST_F(TDivisionByZeroTest, UInt64_2)
+{
+    TTableSchema schema({
+        TColumnSchema("u1", EValueType::Uint64),
+        TColumnSchema("u2", EValueType::Uint64)
+    });
+
+    TKeyColumns keyColumns;
+
+    auto expr = PrepareExpression("u1 % u2", schema);
+    auto buffer = New<TRowBuffer>();
+
+    TUnversionedValue result;
+
+    EXPECT_THROW_THAT(
+        [&] { EvaluateExpression(expr, "u1=1u; u2=0u", schema, &result, buffer); },
+        HasSubstr("Division by zero"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
