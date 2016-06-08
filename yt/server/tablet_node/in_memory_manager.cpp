@@ -265,7 +265,7 @@ private:
         }
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
-        slotManager->UpdateTabletSnapshot(slot, tablet);
+        slotManager->RegisterTabletSnapshot(slot, tablet);
     }
 
     void GuardedPreloadStore(
