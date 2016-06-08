@@ -29,6 +29,8 @@
 #include <yt/core/profiling/scoped_timer.h>
 #include <yt/core/profiling/profiler.h>
 
+#include <yt/core/misc/crash_handler.h>
+
 #include <atomic>
 
 namespace NYT {
@@ -122,10 +124,15 @@ public:
         , ObjectManager_(Owner_->Bootstrap_->GetObjectManager())
         , SecurityManager_(Owner_->Bootstrap_->GetSecurityManager())
         , ResponseKeeper_(HydraFacade_->GetResponseKeeper())
+        , CodicilData_(Format("RequestId: %v, User: %v",
+            RequestId_,
+            UserName_))
     { }
 
     void Run()
     {
+        auto codicilGuard = MakeCodicilGuard();
+
         Context_->SetRequestInfo("Count: %v", SubrequestCount_);
 
         if (SubrequestCount_ == 0) {
@@ -157,6 +164,7 @@ private:
     const TObjectManagerPtr ObjectManager_;
     const TSecurityManagerPtr SecurityManager_;
     const TResponseKeeperPtr ResponseKeeper_;
+    const Stroka CodicilData_;
 
     struct TSubrequest
     {
@@ -263,6 +271,7 @@ private:
 
     void Continue()
     {
+        auto codicilGuard = MakeCodicilGuard();
         try {
             GuardedContinue();
         } catch (const std::exception& ex) {
@@ -513,6 +522,11 @@ private:
         if (user) {
             SecurityManager_->DecreaseRequestQueueSize(user);
         }
+    }
+
+    TCodicilGuard MakeCodicilGuard()
+    {
+        return TCodicilGuard(CodicilData_);
     }
 };
 
