@@ -84,9 +84,17 @@ struct TPollJobShellCommand
 {
 private:
     NJobTrackerClient::TJobId JobId;
+    NYTree::INodePtr Parameters;
 
-    // ToDo(psushin): consider making in INodePtr.
-    Stroka Parameters;
+    virtual void OnLoaded() override
+    {
+        TCommandBase::OnLoaded();
+
+        // Compatibility with initial job shell protocol.
+        if (Parameters->GetType() == NYTree::ENodeType::String) {
+            Parameters = NYTree::ConvertToNode(NYson::TYsonString(Parameters->AsString()->GetValue()));
+        }
+    }
 
 public:
     TPollJobShellCommand()

@@ -163,7 +163,7 @@ def abandon_job(job_id, **kwargs):
     execute_command('abandon_job', kwargs)
 
 def poll_job_shell(job_id, **kwargs):
-    kwargs = {"job_id": job_id, "parameters": yson.dumps(kwargs)};
+    kwargs = {"job_id": job_id, "parameters": kwargs};
     return yson.loads(execute_command('poll_job_shell', kwargs));
 
 def abort_job(job_id, **kwargs):
