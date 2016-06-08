@@ -322,8 +322,9 @@ def run_integration_tests(options):
 
 @build_step
 def run_python_libraries_tests(options):
-    kill_by_name("^ytserver")
-    kill_by_name("^node")
+    kill_by_name("ytserver")
+    kill_by_name("node")
+    kill_by_name("run_proxy")
 
     pytest_args = []
     if options.enable_parallel_testing:
