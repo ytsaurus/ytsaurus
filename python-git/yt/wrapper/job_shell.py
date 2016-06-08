@@ -5,10 +5,13 @@ from config import get_backend_type
 from http import get_proxy_url, get_api_version, get_token
 
 # yt.packages is imported here just to set sys.path for further loading of local tornado module
-import yt.packages
-from tornado.httpclient import HTTPClient, AsyncHTTPClient, HTTPRequest, HTTPError
-from tornado.httputil import HTTPHeaders
-from tornado.ioloop import IOLoop
+from yt.packages import PackagesImporter
+with PackagesImporter():
+    from tornado.httpclient import HTTPClient, AsyncHTTPClient, HTTPRequest, HTTPError
+    from tornado.httputil import HTTPHeaders
+    from tornado.ioloop import IOLoop
+    # It is necessary to prevent local imports during runtime.
+    import tornado.simple_httpclient
 
 from copy import deepcopy
 import sys
