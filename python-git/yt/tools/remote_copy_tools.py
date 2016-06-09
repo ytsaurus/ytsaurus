@@ -336,7 +336,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 input_format=yt.JsonFormat(),
                 output_format=intermediate_format)
 
-            result_row_count = destination_client.records_count(dst)
+            result_row_count = destination_client.row_count(dst)
             if not src.has_delimiters() and row_count != result_row_count:
                 error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
                 logger.error(error)
@@ -430,7 +430,7 @@ done"""
                 memory_limit = 2500 * yt.common.MB,
                 spec=spec)
 
-            result_record_count = yt_client.records_count(dst)
+            result_record_count = yt_client.row_count(dst)
             if result_record_count != record_count:
                 error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
                 logger.error(error)
@@ -501,7 +501,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, copy_spec_t
     if not yamr_client.is_empty(dst):
         yamr_client.drop(dst)
 
-    record_count = yt_client.records_count(src)
+    record_count = yt_client.row_count(src)
 
     spec = deepcopy(get_value(copy_spec_template, {}))
     spec["data_size_per_job"] = 2 * 1024 * yt.common.MB

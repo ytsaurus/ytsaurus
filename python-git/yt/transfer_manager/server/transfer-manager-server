@@ -1196,6 +1196,9 @@ class Application(object):
                         elif message["type"] == "operation_started":
                             self._tasks[id].progress["operations"].append(message["operation"])
                             self._dump_task(id)
+                        elif message["type"] == "transaction_started":
+                            self._tasks[id].progress["transactions"].append(message["transaction"])
+                            self._dump_task(id)
                         elif message["type"] in ["completed", "skipped"]:
                             completed = True
                             complete_type = message["type"]
@@ -1264,7 +1267,7 @@ class Application(object):
                     self._pending_tasks_per_user[self._tasks[id].user] -= 1
 
                     self._tasks[id].start_time = now_str()
-                    self._tasks[id].progress = {"operations": []}
+                    self._tasks[id].progress = {"operations": [], "transactions": []}
                     self._change_task_state(id, "running")
 
                     if temporary_config is None:
@@ -1521,6 +1524,17 @@ class Application(object):
                     logger.info("Aborted outdated operation {} of task {}".format(operation_id, task_id))
                 except yt.YtError:
                     log_yt_exception(logger, "Failed abort operation {} of task {}".format(operation_id, task_id))
+
+            for transaction in task.progress["transactions"]:
+                cluster_name, tx_id = transaction["cluster_name"], transaction["id"]
+                cluster_client = self._clusters_configuration.clusters.get(cluster_name)
+                if cluster_client is None or cluster_client._type != "yt":
+                    continue
+                try:
+                    cluster_client.abort_transaction(tx_id)
+                    logger.info("Aborted outdated transaction {} of task {}".format(tx_id, task_id))
+                except yt.YtError:
+                    log_yt_exception(logger, "Failed to abort transaction {} of task {}".format(tx_id, task_id))
 
     def _create_task(self, params, token, user, dry_run, make_precheck):
         id = generate_uuid()
