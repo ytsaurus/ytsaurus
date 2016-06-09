@@ -9,7 +9,7 @@
 #endif
 
 namespace NYT {
-
+namespace NCrc {
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef YT_USE_CRC_PCLMUL
@@ -32,28 +32,6 @@ static __m128i _mm_shift_left_si128(__m128i v, ui8 offset)
     };
 
     return _mm_shuffle_epi8(v, _mm_loadu_si128((__m128i *) (RotateMask + 16 - offset)));
-}
-
-static ui64 ModXPow_64(size_t pow, ui64 p) // (x ^ pow) mod p(x), where pow >= 64
-{
-    ui64 rem = p;
-    while (pow-- > 64)
-    {
-        rem = (rem << 1) ^ (rem >> 63 & 1) * p;
-    }
-    return rem;
-}
-
-static ui64 DivXPow_64(size_t pow, ui64 p) // (x ^ pow) div p(x), where pow >= 64
-{
-    ui64 result = 0;
-    ui64 rem = p;
-    while (pow-- > 64)
-    {
-        result = result << 1 | rem >> 63 & 1;
-        rem = (rem << 1) ^ (rem >> 63 & 1) * p;
-    }
-    return result;
 }
 
 inline __m128i ReverseBytes(__m128i value)
@@ -124,6 +102,28 @@ static ui64 BarretReduction(__m128i chunk, ui64 poly, ui64 mu)
 
 #endif
 
-////////////////////////////////////////////////////////////////////////////////
+static ui64 ModXPow_64(size_t pow, ui64 p) // (x ^ pow) mod p(x), where pow >= 64
+{
+    ui64 rem = p;
+    while (pow-- > 64)
+    {
+        rem = (rem << 1) ^ (rem >> 63 & 1) * p;
+    }
+    return rem;
+}
 
+static ui64 DivXPow_64(size_t pow, ui64 p) // (x ^ pow) div p(x), where pow >= 64
+{
+    ui64 result = 0;
+    ui64 rem = p;
+    while (pow-- > 64)
+    {
+        result = result << 1 | rem >> 63 & 1;
+        rem = (rem << 1) ^ (rem >> 63 & 1) * p;
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+} // namespace NCrc
 } // namespace NYT
