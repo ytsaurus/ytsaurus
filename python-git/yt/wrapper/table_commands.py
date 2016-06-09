@@ -681,27 +681,29 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
 
         def iterate(self, response):
+            format_name = format.name()
+
             def is_control_row(row):
-                if format.name() == "yson":
+                if format_name == "yson":
                     return row.endswith("#;")
-                elif format.name() == "json":
+                elif format_name == "json":
                     loaded_row = json.loads(row)
                     return "$value" in loaded_row and loaded_row["$value"] is None
                 else:
                     return False
 
             def load_control_row(row):
-                if format.name() == "yson":
+                if format_name == "yson":
                     return yson.loads(row, yson_type="list_fragment").next()
-                elif format.name() == "json":
+                elif format_name == "json":
                     return yson.json_to_yson(json.loads(row))
                 else:
                     assert False, "Incorrect format"
 
             def dump_control_row(row):
-                if format.name() == "yson":
+                if format_name == "yson":
                     return yson.dumps([row], yson_type="list_fragment")
-                elif format.name() == "json":
+                elif format_name == "json":
                     return json.dumps(yson.yson_to_json(row)) + "\n"
                 else:
                     assert False, "Incorrect format"
@@ -714,7 +716,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                 self.started = True
 
             for row in format.load_rows(response, raw=True):
-                # NB: Low level check for optimization purposes. Only YSON format supported!
+                # NB: Low level check for optimization purposes. Only YSON and JSON format supported!
                 if is_control_row(row):
                     row = load_control_row(row)
 
@@ -748,9 +750,10 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
                     row = dump_control_row(row)
                 else:
-                    self.range_started = True
-                    self.range_index_row_yielded = False
-                    self.row_index_row_yielded = False
+                    if not self.range_started:
+                        self.range_started = True
+                        self.range_index_row_yielded = False
+                        self.row_index_row_yielded = False
                     self.next_row_index += 1
 
                 yield row

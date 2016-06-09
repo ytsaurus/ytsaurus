@@ -142,6 +142,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
             tx = FakeTransaction()
 
         def iter_with_retries(iter):
+            chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
             try:
                 for attempt in xrange(retry_count):
                     try:
@@ -150,7 +151,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
                                 raise YtError("Transaction pinger failed, read interrupted")
                             yield elem
                             # NB: We should possible raise error only after row yielded.
-                            if get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
+                            if chaos_monkey_enabled and random.randint(1, 5) == 1:
                                 raise YtRetriableError()
                         break
                     except retriable_errors as err:
