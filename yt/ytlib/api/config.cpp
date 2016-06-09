@@ -63,7 +63,7 @@ TConnectionConfig::TConnectionConfig()
         .Default(NCompression::ECodec::Lz4);
     RegisterParameter("default_input_row_limit", DefaultInputRowLimit)
         .GreaterThan(0)
-        .Default(100000000);
+        .Default(1000000);
     RegisterParameter("default_output_row_limit", DefaultOutputRowLimit)
         .GreaterThan(0)
         .Default(1000000);
