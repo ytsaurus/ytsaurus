@@ -91,15 +91,23 @@ public:
 
     //! Finds a suitable storage location for a new chunk.
     /*!
-     *  Among enabled locations that are not full, support chunks of a given type
-     *  and don't currently throttle writes for a given workload,
-     *  returns a random one with the minimum number of active sessions.
+     *  The initial set of candidates consists of locations that
+     *  are not full, support chunks of a given type
+     *  and don't currently throttle writes for a given workload.
+     *
+     *  Next, the algorithm depends on #TSessionOptions::EnableUniformPlacement flag.
+     *
+     *  If #TSessionOptions::EnableUniformPlacement is |true| then
+     *  a random candidate is returned.
+     *
+     *  If #TSessionOptions::EnableUniformPlacement is |false| then
+     *  a random candidate with the minimum number of active sessions is returned.
      *
      *  Throws exception if no suitable location could be found.
      */
     TStoreLocationPtr GetNewChunkLocation(
         NObjectClient::EObjectType chunkType,
-        const TWorkloadDescriptor& workloadDescriptor);
+        const TSessionOptions& options);
 
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);

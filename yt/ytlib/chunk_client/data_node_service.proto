@@ -17,6 +17,7 @@ message TReqStartChunk
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 2;
     optional bool sync_on_close = 3 [default = true];
     optional bool enable_multiplexing = 4 [default = false];
+    optional bool enable_uniform_placement = 5 [default = false];
 }
 
 message TRspStartChunk

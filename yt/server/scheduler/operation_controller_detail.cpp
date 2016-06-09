@@ -4064,6 +4064,9 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 
     // Don't sync intermediate chunks.
     config->TableWriter->SyncOnClose = false;
+
+    // Distribute intermediate chunks uniformly across storage locations.
+    config->TableWriter->EnableUniformPlacement = true;
 }
 
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr /* config */)
