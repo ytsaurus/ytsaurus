@@ -11,8 +11,11 @@ namespace NNodeJS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeJSOutputStack::TNodeJSOutputStack(TOutputStreamWrap* base)
+TNodeJSOutputStack::TNodeJSOutputStack(
+    TOutputStreamWrap* base,
+    IInvokerPtr invoker)
     : TGrowingStreamStack(base)
+    , Invoker_(std::move(invoker))
 {
     THREAD_AFFINITY_IS_V8();
     Y_ASSERT(Bottom() == base);
@@ -44,23 +47,37 @@ ui64 TNodeJSOutputStack::GetBytes() const
     return GetBaseStream()->GetBytesEnqueued();
 }
 
-void TNodeJSOutputStack::DoWrite(const void* buffer, size_t length)
+TFuture<void> TNodeJSOutputStack::Write(const TSharedRef& buffer)
 {
-    Top()->Write(buffer, length);
+    return
+        BIND(&TNodeJSOutputStack::SyncWrite, MakeStrong(this), buffer)
+        .AsyncVia(Invoker_)
+        .Run();
 }
 
-void TNodeJSOutputStack::DoWriteV(const TPart* parts, size_t count)
+TFuture<void> TNodeJSOutputStack::Close()
 {
-    Top()->Write(parts, count);
+    return
+        BIND(&TNodeJSOutputStack::SyncClose, MakeStrong(this))
+        .AsyncVia(Invoker_)
+        .Run();
 }
 
-void TNodeJSOutputStack::DoFlush()
+void TNodeJSOutputStack::SyncWrite(const TSharedRef& buffer)
 {
-    Top()->Flush();
+    if (GetBaseStream()->IsFinished()) {
+        return;
+    }
+
+    Top()->Write(buffer.Begin(), buffer.Size());
 }
 
-void TNodeJSOutputStack::DoFinish()
+void TNodeJSOutputStack::SyncClose()
 {
+    if (GetBaseStream()->IsFinished()) {
+        return;
+    }
+
     GetBaseStream()->MarkAsFinishing();
 
     for (auto* current : *this) {

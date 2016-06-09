@@ -54,7 +54,7 @@ public:
     virtual std::vector<Stroka> List() const override
     {
         auto keys = ListNodeAttributes(
-            Proxy_->Bootstrap_,
+            Proxy_->Bootstrap_->GetCypressManager(),
             Proxy_->TrunkNode,
             Proxy_->Transaction);
         return std::vector<Stroka>(keys.begin(), keys.end());
@@ -397,7 +397,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
 
     const auto* node = GetThisImpl();
     const auto* trunkNode = node->GetTrunkNode();
-    bool hasKey = NodeHasKey(Bootstrap_, node);
+    bool hasKey = NodeHasKey(Bootstrap_->GetCypressManager(), node);
     bool isExternal = node->IsExternal();
 
     descriptors->push_back(TAttributeDescriptor("parent_id")
@@ -435,7 +435,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 {
     const auto* node = GetThisImpl();
     const auto* trunkNode = node->GetTrunkNode();
-    bool hasKey = NodeHasKey(Bootstrap_, node);
+    bool hasKey = NodeHasKey(Bootstrap_->GetCypressManager(), node);
     bool isExternal = node->IsExternal();
 
     if (key == "parent_id" && node->GetParent()) {
@@ -1131,7 +1131,10 @@ void TMapNodeProxy::Clear()
     auto* impl = LockThisTypedImpl(ELockMode::Shared);
 
     // Construct children list.
-    auto keyToChild = GetMapNodeChildren(Bootstrap_, TrunkNode, Transaction);
+    auto keyToChild = GetMapNodeChildren(
+        Bootstrap_->GetCypressManager(),
+        TrunkNode,
+        Transaction);
 
     // Take shared locks for children.
     typedef std::pair<Stroka, TCypressNodeBase*> TChild;
@@ -1166,11 +1169,14 @@ int TMapNodeProxy::GetChildCount() const
     return result;
 }
 
-std::vector< std::pair<Stroka, INodePtr> > TMapNodeProxy::GetChildren() const
+std::vector<std::pair<Stroka, INodePtr>> TMapNodeProxy::GetChildren() const
 {
-    auto keyToChild = GetMapNodeChildren(Bootstrap_, TrunkNode, Transaction);
+    auto keyToChild = GetMapNodeChildren(
+        Bootstrap_->GetCypressManager(),
+        TrunkNode,
+        Transaction);
 
-    std::vector< std::pair<Stroka, INodePtr> > result;
+    std::vector<std::pair<Stroka, INodePtr>> result;
     result.reserve(keyToChild.size());
     for (const auto& pair : keyToChild) {
         result.push_back(std::make_pair(pair.first, GetProxy(pair.second)));
@@ -1181,7 +1187,10 @@ std::vector< std::pair<Stroka, INodePtr> > TMapNodeProxy::GetChildren() const
 
 std::vector<Stroka> TMapNodeProxy::GetKeys() const
 {
-    auto keyToChild = GetMapNodeChildren(Bootstrap_, TrunkNode, Transaction);
+    auto keyToChild = GetMapNodeChildren(
+        Bootstrap_->GetCypressManager(),
+        TrunkNode,
+        Transaction);
 
     std::vector<Stroka> result;
     for (const auto& pair : keyToChild) {
@@ -1193,7 +1202,11 @@ std::vector<Stroka> TMapNodeProxy::GetKeys() const
 
 INodePtr TMapNodeProxy::FindChild(const Stroka& key) const
 {
-    auto* childTrunkNode = FindMapNodeChild(Bootstrap_, TrunkNode, Transaction, key);
+    auto* childTrunkNode = FindMapNodeChild(
+        Bootstrap_->GetCypressManager(),
+        TrunkNode,
+        Transaction,
+        key);
     return childTrunkNode ? GetProxy(childTrunkNode) : nullptr;
 }
 
@@ -1213,7 +1226,7 @@ bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
     YCHECK(impl->ChildToKey().insert(std::make_pair(trunkChildImpl, key)).second);
     ++impl->ChildCountDelta();
 
-    AttachChild(Bootstrap_, TrunkNode, childImpl);
+    AttachChild(Bootstrap_->GetObjectManager(), TrunkNode, childImpl);
 
     SetModified();
 
@@ -1222,7 +1235,11 @@ bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
 
 bool TMapNodeProxy::RemoveChild(const Stroka& key)
 {
-    auto* trunkChildImpl = FindMapNodeChild(Bootstrap_, TrunkNode, Transaction, key);
+    auto* trunkChildImpl = FindMapNodeChild(
+        Bootstrap_->GetCypressManager(),
+        TrunkNode,
+        Transaction,
+        key);
     if (!trunkChildImpl) {
         return false;
     }
@@ -1250,8 +1267,9 @@ void TMapNodeProxy::RemoveChild(INodePtr child)
 
 void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
 {
-    if (oldChild == newChild)
+    if (oldChild == newChild) {
         return;
+    }
 
     auto key = GetChildKey(oldChild);
 
@@ -1267,12 +1285,13 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     auto& childToKey = impl->ChildToKey();
 
     bool ownsOldChild = keyToChild.find(key) != keyToChild.end();
-    DetachChild(Bootstrap_, TrunkNode, oldChildImpl, ownsOldChild);
+    auto objectManager = Bootstrap_->GetObjectManager();
+    DetachChild(objectManager, TrunkNode, oldChildImpl, ownsOldChild);
 
     keyToChild[key] = newTrunkChildImpl;
     childToKey.erase(oldTrunkChildImpl);
     YCHECK(childToKey.insert(std::make_pair(newTrunkChildImpl, key)).second);
-    AttachChild(Bootstrap_, TrunkNode, newChildImpl);
+    AttachChild(objectManager, TrunkNode, newChildImpl);
 
     SetModified();
 }
@@ -1339,20 +1358,21 @@ void TMapNodeProxy::DoRemoveChild(
     auto* trunkChildImpl = childImpl->GetTrunkNode();
     auto& keyToChild = impl->KeyToChild();
     auto& childToKey = impl->ChildToKey();
+    auto objectManager = Bootstrap_->GetObjectManager();
     if (Transaction) {
         auto it = keyToChild.find(key);
         if (it == keyToChild.end()) {
             YCHECK(keyToChild.insert(std::make_pair(key, nullptr)).second);
-            DetachChild(Bootstrap_, TrunkNode, childImpl, false);
+            DetachChild(objectManager, TrunkNode, childImpl, false);
         } else {
             it->second = nullptr;
             YCHECK(childToKey.erase(trunkChildImpl) == 1);
-            DetachChild(Bootstrap_, TrunkNode, childImpl, true);
+            DetachChild(objectManager, TrunkNode, childImpl, true);
         }
     } else {
         YCHECK(keyToChild.erase(key) == 1);
         YCHECK(childToKey.erase(trunkChildImpl) == 1);
-        DetachChild(Bootstrap_, TrunkNode, childImpl, true);
+        DetachChild(objectManager, TrunkNode, childImpl, true);
     }
     --impl->ChildCountDelta();
 }
@@ -1383,7 +1403,7 @@ void TListNodeProxy::Clear()
 
     // Detach children.
     for (auto* child : children) {
-        DetachChild(Bootstrap_, TrunkNode, child, true);
+        DetachChild(Bootstrap_->GetObjectManager(), TrunkNode, child, true);
     }
 
     impl->IndexToChild().clear();
@@ -1439,7 +1459,7 @@ void TListNodeProxy::AddChild(INodePtr child, int beforeIndex /*= -1*/)
         list.insert(list.begin() + beforeIndex, trunkChildImpl);
     }
 
-    AttachChild(Bootstrap_, TrunkNode, childImpl);
+    AttachChild(Bootstrap_->GetObjectManager(), TrunkNode, childImpl);
 
     SetModified();
 }
@@ -1464,7 +1484,7 @@ bool TListNodeProxy::RemoveChild(int index)
     // Remove the child.
     list.erase(list.begin() + index);
     YCHECK(impl->ChildToIndex().erase(trunkChildImpl));
-    DetachChild(Bootstrap_, TrunkNode, childImpl, true);
+    DetachChild(Bootstrap_->GetObjectManager(), TrunkNode, childImpl, true);
 
     SetModified();
     return true;
@@ -1494,12 +1514,13 @@ void TListNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
 
     int index = it->second;
 
-    DetachChild(Bootstrap_, TrunkNode, oldChildImpl, true);
+    auto objectManager = Bootstrap_->GetObjectManager();
+    DetachChild(objectManager, TrunkNode, oldChildImpl, true);
 
     impl->IndexToChild()[index] = newTrunkChildImpl;
     impl->ChildToIndex().erase(it);
     YCHECK(impl->ChildToIndex().insert(std::make_pair(newTrunkChildImpl, index)).second);
-    AttachChild(Bootstrap_, TrunkNode, newChildImpl);
+    AttachChild(objectManager, TrunkNode, newChildImpl);
 
     SetModified();
 }

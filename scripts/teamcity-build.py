@@ -270,7 +270,11 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
                 + pytest_args,
                 cwd=suite_path,
                 env=env)
-        except ChildHasNonZeroExitCode:
+        except ChildHasNonZeroExitCode as err:
+            if err.return_code == 66:
+                teamcity_interact("buildProblem", description="Too many executors crashed during {0} tests. "
+                                                              "Test session was terminated.".format(suite_name))
+
             teamcity_message("(ignoring child failure since we are reading test results from XML)")
             failed = True
 
@@ -322,8 +326,9 @@ def run_integration_tests(options):
 
 @build_step
 def run_python_libraries_tests(options):
-    kill_by_name("^ytserver")
-    kill_by_name("^node")
+    kill_by_name("ytserver")
+    kill_by_name("node")
+    kill_by_name("run_proxy")
 
     pytest_args = []
     if options.enable_parallel_testing:
