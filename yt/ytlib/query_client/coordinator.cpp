@@ -48,10 +48,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 {
     auto Logger = BuildLogger(query);
 
-    auto subqueryInputRowLimit = refiners.empty()
-        ? 0
-        : 2 * std::min(query->InputRowLimit, std::numeric_limits<i64>::max() / 2) / refiners.size();
-
+    auto subqueryInputRowLimit = query->InputRowLimit;
     auto subqueryOutputRowLimit = query->OutputRowLimit;
 
     auto subqueryPattern = New<TQuery>(
