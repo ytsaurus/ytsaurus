@@ -65,7 +65,7 @@ function(UDF udf output type)
     set(_include_dirs ${_include_dirs} -I${_dir})
   endforeach()
 
-  if(${_extension} STREQUAL ".cpp") 
+  if(${_extension} STREQUAL ".cpp")
     set(_compiler ${CLANGPP_EXECUTABLE})
     set(_options -std=c++1y -Wglobal-constructors)
     set(_depends
@@ -280,3 +280,47 @@ function(RESOLVE_SRCS srcs output)
   set(${output} ${${output}} ${_o_} PARENT_SCOPE)
 endfunction()
 
+function(ADD_GDB_INDEX target)
+  get_target_property(_location ${target} LOCATION_${CMAKE_BUILD_TYPE})
+  get_filename_component(_dirname ${_location} PATH)
+  get_filename_component(_name ${_location} NAME)
+
+  find_program(GDB_BINARY
+    NAMES gdb
+    PATHS /usr/bin
+  )
+
+  find_program(OBJCOPY_BINARY
+    NAMES objcopy
+    PATHS /usr/bin
+  )
+
+  if(GDB_BINARY-NOTFOUND)
+    message(STATUS "Failed to find gdb binary, gdb index will not be built")
+    return()
+  endif()
+
+  if(OBJCOPY_BINARY-NOTFOUND)
+    message(STATUS "Failed to find objcopy binary, gdb index will not be built")
+    return()
+  endif()
+
+  add_custom_command(
+    TARGET ${target}
+    POST_BUILD
+    COMMAND
+      ${GDB_BINARY} ${_location}
+        -batch
+        --ex "save gdb-index ${_dirname}"
+    COMMAND
+      ${OBJCOPY_BINARY}
+        --add-section .gdb_index="${_location}.gdb-index"
+        --set-section-flags .gdb_index=readonly
+        ${_location}
+    COMMAND
+      ${CMAKE_COMMAND} -E remove "${_location}.gdb-index"
+    COMMENT
+        "Building gdb index for ${_name}..."
+  )
+
+endfunction()
