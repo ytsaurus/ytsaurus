@@ -44,7 +44,6 @@ public:
 
 private:
     class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
 
     TDelayedExecutor();
 

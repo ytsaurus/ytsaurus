@@ -57,7 +57,7 @@ void TPollJobShellCommand::Execute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->PollJobShell(
         JobId,
-        TYsonString(Parameters),
+        ConvertToYsonString(Parameters),
         Options);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
