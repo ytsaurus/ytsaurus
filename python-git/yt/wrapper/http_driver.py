@@ -6,6 +6,8 @@ from errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurren
 from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, parse_error_from_headers, get_header_format
 from response_stream import ResponseStream
 
+from yt.packages.requests.auth import AuthBase
+
 import yt.json as json
 
 from copy import deepcopy
@@ -61,6 +63,23 @@ def get_heavy_proxy(client):
 
 def ban_host(host, client):
     get_option("_banned_proxies", client)[host] = datetime.now()
+
+class TokenAuth(AuthBase):
+    def __init__(self, token):
+        self.token = token
+
+    def set_token(self, request):
+        if self.token is not None:
+            request.headers["Authorization"] =  "OAuth " + self.token
+
+    def handle_redirect(self, request, **kwargs):
+        self.set_token(request)
+        return request
+
+    def __call__(self, request):
+        self.set_token(request)
+        request.register_hook('response', self.handle_redirect)
+        return request
 
 @forbidden_inside_job
 def make_request(command_name, params,
@@ -162,9 +181,7 @@ def make_request(command_name, params,
     if write_params_to_header and params:
         headers.update({"X-YT-Parameters": dumps(params)})
 
-    token = get_token(client=client)
-    if token is not None:
-        headers["Authorization"] = "OAuth " + token
+    auth = TokenAuth(get_token(client=client))
 
     if command.input_type in ["binary", "tabular"]:
         content_encoding =  get_config(client)["proxy"]["content_encoding"]
@@ -191,6 +208,7 @@ def make_request(command_name, params,
             stream=stream,
             response_should_be_json=response_should_be_json,
             timeout=timeout,
+            auth=auth,
             client=client)
     except get_proxy_ban_errors():
         ban_host(proxy, client=client)
