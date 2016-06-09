@@ -402,6 +402,10 @@ set_target_properties(ytserver
   LINK_FLAGS "-static-libstdc++"
 )
 
+add_gdb_index(
+  ytserver
+)
+
 install(
   TARGETS ytserver
   RUNTIME DESTINATION bin
