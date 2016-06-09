@@ -352,23 +352,27 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 
 TStoreLocationPtr TChunkStore::GetNewChunkLocation(
     EObjectType chunkType,
-    const TWorkloadDescriptor& workloadDescriptor)
+    const TSessionOptions& options)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     std::vector<TStoreLocationPtr> candidates;
     int minCount = std::numeric_limits<int>::max();
     for (const auto& location : Locations_) {
-        if (!CanStartNewSession(location, chunkType, workloadDescriptor)) {
+        if (!CanStartNewSession(location, chunkType, options.WorkloadDescriptor)) {
             continue;
         }
-        int count = location->GetSessionCount();
-        if (count < minCount) {
-            candidates.clear();
-            minCount = count;
-        }
-        if (count == minCount) {
+        if (options.EnableUniformPlacement) {
             candidates.push_back(location);
+        } else {
+            int count = location->GetSessionCount();
+            if (count < minCount) {
+                candidates.clear();
+                minCount = count;
+            }
+            if (count == minCount) {
+                candidates.push_back(location);
+            }
         }
     }
 

@@ -586,6 +586,7 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     ToProto(req->mutable_chunk_id(), ChunkId_);
     ToProto(req->mutable_workload_descriptor(), Config_->WorkloadDescriptor);
     req->set_sync_on_close(Config_->SyncOnClose);
+    req->set_enable_uniform_placement(Config_->EnableUniformPlacement);
 
     auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {
