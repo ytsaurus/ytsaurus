@@ -121,12 +121,12 @@ private:
     const bool Echo_;
     const IDriverPtr Driver_;
 
-    TDriverRequest Request_;
-
     IInvokerPtr IOInvoker_;
 
-    std::unique_ptr<TNodeJSInputStack> InputStack_;
-    std::unique_ptr<TNodeJSOutputStack> OutputStack_;
+    TDriverRequest Request_;
+
+    TNodeJSInputStackPtr InputStack_;
+    TNodeJSOutputStackPtr OutputStack_;
 
     Persistent<Function> ExecuteCallback_;
     Persistent<Function> ParameterCallback_;
@@ -149,8 +149,8 @@ public:
         , Driver_(std::move(driver))
         , IOInvoker_(CreateSerializedInvoker(
             NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker()))
-        , InputStack_(std::make_unique<TNodeJSInputStack>(inputStream))
-        , OutputStack_(std::make_unique<TNodeJSOutputStack>(outputStream))
+        , InputStack_(New<TNodeJSInputStack>(inputStream, IOInvoker_))
+        , OutputStack_(New<TNodeJSOutputStack>(outputStream, IOInvoker_))
         , ExecuteCallback_(Persistent<Function>::New(executeCallback))
         , ParameterCallback_(Persistent<Function>::New(parameterCallback))
         , ResponseParametersConsumer_(ParameterCallback_)
@@ -206,10 +206,10 @@ public:
         }
 
         InputStack_->AddCompression(inputCompression);
-        Request_.InputStream = CreateAsyncAdapter(InputStack_.get(), IOInvoker_);
+        Request_.InputStream = InputStack_;
 
         OutputStack_->AddCompression(outputCompression);
-        Request_.OutputStream = CreateAsyncAdapter(OutputStack_.get(), IOInvoker_);
+        Request_.OutputStream = OutputStack_;
 
         Request_.ResponseParametersConsumer = &ResponseParametersConsumer_;
     }
@@ -236,9 +236,7 @@ public:
         }
 
         future
-            .Apply(
-                BIND(&TExecuteRequest::OnResponse1, this_)
-                .AsyncVia(IOInvoker_))
+            .Apply(BIND(&TExecuteRequest::OnResponse1, this_))
             .Subscribe(
                 BIND(&TExecuteRequest::OnResponse2, this_)
                 .Via(GetUVInvoker()));
@@ -260,16 +258,15 @@ private:
         while (size_t length = inputStream->Load(buffer.Data(), buffer.Size())) {
             outputStream->Write(buffer.Data(), length);
         }
+
+        outputStream->Finish();
     }
 
     TFuture<void> OnResponse1(const TErrorOr<void>& response)
     {
-        try {
-            OutputStack_->Finish();
-        } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Ignoring exception while closing output stream");
-        }
-        return MakeFuture(response);
+        return OutputStack_->Close().Apply(BIND([=] (const TErrorOr<void>&) {
+            return MakeFuture(response);
+        }));
     }
 
     void OnResponse2(const TErrorOr<void>& response)
@@ -282,9 +279,7 @@ private:
         // to precisely represent all integers up to 2^52
         // (see http://en.wikipedia.org/wiki/Double_precision).
         double bytesIn = InputStack_->GetBytes();
-        InputStack_.reset();
         double bytesOut = OutputStack_->GetBytes();
-        OutputStack_.reset();
 
         Invoke(ExecuteCallback_,
             ConvertErrorToV8(response),

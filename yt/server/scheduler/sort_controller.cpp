@@ -400,7 +400,8 @@ protected:
                 return true;
             }
 
-            if (context->GetNodeDescriptor().IOWeight == 0) {
+            auto ioWeight = context->GetNodeDescriptor().IOWeight;
+            if (ioWeight == 0) {
                 return false;
             }
 
@@ -411,7 +412,7 @@ protected:
             auto nodeId = context->GetNodeDescriptor().Id;
             auto updatedScheduledDataSize = ScheduledDataSize + DataSizePerJob;
             auto updatedAvgDataSize = updatedScheduledDataSize / NodeIdToDataSize.size();
-            auto updatedNodeDataSize = NodeIdToDataSize[nodeId] + DataSizePerJob;
+            auto updatedNodeDataSize = NodeIdToDataSize[nodeId] * ioWeight + DataSizePerJob;
             return
                 updatedNodeDataSize <=
                 updatedAvgDataSize + Controller->Spec->PartitionedDataBalancingTolerance * DataSizePerJob;

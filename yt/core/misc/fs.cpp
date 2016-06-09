@@ -531,7 +531,8 @@ void ExpectIOErrors(std::function<void()> func)
     try {
         func();
     } catch (const TSystemError& ex) {
-        if (ex.Status() == EIO) {
+        auto status = ex.Status();
+        if (status == EIO || status == ENOSPC || status == EROFS) {
             throw;
         }
         TError error(ex);
