@@ -14,6 +14,8 @@ namespace NYT {
 
 namespace NDetail {
 
+using namespace NCrc;
+
 #ifdef YT_USE_CRC_PCLMUL
 
 namespace NCrcSSE0xE543279765927881 {
