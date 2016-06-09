@@ -1,6 +1,7 @@
 #!/bin/bash -eu
 
 TM_PORT=6000
+USER="$(whoami)"
 
 die() {
     echo $@
@@ -496,6 +497,79 @@ test_kiwi_copy() {
     wait_task $id
 }
 
+_ensure_operation_started() {
+    local task_id="$1" && shift
+    local op_id=""
+    while true; do
+        log "Waiting for started task operation..."
+        op_id=$(get_task $task_id | jq ".progress.operations[0].id" | tr -d "[:space:]" | tr -d "\"")
+        if [[ "${op_id}" != "null" ]]; then
+            log "Operation $op_id started"
+            echo "$op_id"
+            break
+        fi
+        sleep 1.0
+    done
+}
+
+_ensure_transfer_manager_is_running() {
+    while true; do
+        log "Waiting for Transfer Manager to become ready..."
+        # XXX(asaitgalin): Not using "request" here, because request can fail with "Connection refused"
+        set +e
+        resp=$(curl "http://localhost:$TM_PORT/ping/" --silent --write-out %{http_code} --output /dev/null)
+        set -e
+
+        if [[ $resp -eq 200 ]]; then
+            break
+        fi
+        sleep 1.0
+    done
+}
+
+test_abort_operations_on_startup() {
+    echo "Test abort operations on startup"
+
+    echo 'a=b\n' | yt2 write //tmp/test_table --proxy quine --format dsv
+
+    task_description=$(cat <<EOF
+{
+    "source_table": "//tmp/test_table",
+    "source_cluster": "quine",
+    "destination_table": "//tmp/test_table1",
+    "destination_cluster": "banach",
+    "copy_method": "proxy",
+    "destination_erasure_codec": "lrc_12_2_2"
+}
+EOF
+)
+    task_id=$(run_task "$task_description")
+    echo "Started task $task_id"
+
+    op=$(_ensure_operation_started $task_id)
+
+    echo "Operations started, killing Transfer Manager..."
+    for pid in $(pgrep -f transfer-manager-server -u $USER); do
+        # XXX(asaitgalin): -9 to ensure tasks are not aborted during process termination
+        kill -9 $pid || true
+    done
+
+    echo "Aborting lock transaction and starting TM..."
+
+    local path=$(cat "$TM_CONFIG" | jq .path | tr -d "\"")
+    local proxy=$(cat "$TM_CONFIG" | jq .yt_backend_options.proxy | tr -d "\"")
+
+    yt2 abort-tx $(yt2 get $path/lock/@locks/0/transaction_id --proxy $proxy | tr -d "\"")
+    transfer-manager-server --config $(realpath $TM_CONFIG) &
+
+    _ensure_transfer_manager_is_running
+
+    check "$(yt2 get //sys/operations/$op/@state --proxy banach | tr -d "\"")" "aborted"
+    wait_task $task_id
+
+    echo "Ok"
+}
+
 # Different transfers
 test_copy_empty_table
 test_various_transfers
@@ -519,3 +593,4 @@ test_delete_tasks
 test_copy_inefficiently_stored_table
 test_copy_with_annotated_json
 test_kiwi_copy
+test_abort_operations_on_startup
