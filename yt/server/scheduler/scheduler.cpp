@@ -732,14 +732,18 @@ public:
                         response,
                         &operationsToLog);
 
-                    auto jobs = node->Jobs();
-                    for (const auto job : jobs) {
-                        if (job->GetHasPendingUnregistration()) {
-                            DoUnregisterJob(job);
-                        }
-                    }
-
                     response->set_scheduling_skipped(false);
+                }
+
+                std::vector<TJobPtr> jobsWithPendingUnregistration;
+                for (const auto& job : node->Jobs()) {
+                    if (job->GetHasPendingUnregistration()) {
+                        jobsWithPendingUnregistration.push_back(job);
+                    }
+                }
+
+                for (const auto& job : jobsWithPendingUnregistration) {
+                    DoUnregisterJob(job);
                 }
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Failed to process heartbeat");
@@ -1947,7 +1951,6 @@ private:
                 job->GetId(),
                 job->GetOperationId());
         }
-
     }
 
     TJobPtr FindJob(const TJobId& jobId)
