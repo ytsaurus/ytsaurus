@@ -133,12 +133,15 @@ private:
         options.WorkloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
         options.SyncOnClose = request->sync_on_close();
         options.EnableMultiplexing = request->enable_multiplexing();
+        options.EnableUniformPlacement = request->enable_uniform_placement();
 
-        context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v",
+        context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, "
+            "EnableUniformPlacement: %v",
             chunkId,
             options.WorkloadDescriptor,
             options.SyncOnClose,
-            options.EnableMultiplexing);
+            options.EnableMultiplexing,
+            options.EnableUniformPlacement);
 
         ValidateConnected();
         ValidateNoSession(chunkId);
