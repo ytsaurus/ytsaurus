@@ -4,6 +4,7 @@ class ResponseStream(object):
     """Iterator over response"""
     def __init__(self, get_response, iter_content, close, process_error, get_response_parameters):
         self._buffer = ""
+        self._buffer_length = 0
         self._pos = 0
 
         self._get_response = get_response
@@ -26,18 +27,35 @@ class ResponseStream(object):
             length = 2 ** 32
 
         result = []
+
+        def process(self, result, length):
+            right = self._pos + length
+            if self._buffer_length < right:
+                right = self._buffer_length
+            result.append(self._buffer[self._pos:right])
+            processed_length = right - self._pos
+            self._pos = right
+            if length == processed_length or not self._fetch():
+                return -1
+            return processed_length
+
         if not self._buffer:
             self._fetch()
 
-        while length > 0:
-            right = self._pos + length
-            if len(self._buffer) < right:
-                right = len(self._buffer)
-            result.append(self._buffer[self._pos:right])
-            length -= right - self._pos
-            self._pos = right
-            if length == 0 or not self._fetch():
-                break
+        processed_length = process(self, result, length)
+        if processed_length != -1:
+            length -= processed_length
+
+            # Fast loop
+            while length >= self._buffer_length:
+                result.append(self._buffer)
+                length -= self._buffer_length
+                if length == 0 or not self._fetch():
+                    break
+
+            if length > 0:
+                process(self, result, length)
+
         return "".join(result)
 
     def readline(self):
@@ -75,8 +93,9 @@ class ResponseStream(object):
     def _fetch(self):
         try:
             self._buffer = self._iter_content.next()
+            self._buffer_length = len(self._buffer)
             self._pos = 0
-            if not self._buffer:
+            if not self._buffer_length:
                 self._process_error(self._get_response())
                 return False
             return True
