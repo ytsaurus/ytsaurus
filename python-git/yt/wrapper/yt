@@ -305,13 +305,14 @@ def read_table(**args):
     write_silently(chunk_iter_stream(yt.read_table(**args), 16 * MB))
 
 def add_read_table_parser(add_parser):
-    parser = add_parser("read", yt.read_table)
-    add_ypath_argument(parser, "table", hybrid=True)
-    add_format_help(parser, help="output format")
-    add_spec_help(parser, "--table-reader")
-    add_spec_help(parser, "--control-attributes")
-    parser.add_argument("--unordered", action="store_true")
-    parser.set_defaults(func=read_table)
+    for name, func in [("read", yt.read_table), ("read-table", yt.read_table)]:
+        parser = add_parser(name, func)
+        add_ypath_argument(parser, "table", hybrid=True)
+        add_format_help(parser, help="output format")
+        add_spec_help(parser, "--table-reader")
+        add_spec_help(parser, "--control-attributes")
+        parser.add_argument("--unordered", action="store_true")
+        parser.set_defaults(func=read_table)
 
 def read_file(**args):
     write_silently(chunk_iter_stream(yt.read_file(**args), 16 * MB))
@@ -347,12 +348,13 @@ def add_write_file_parser(add_parser):
         parser.set_defaults(func=write_file)
 
 def add_write_table_parser(add_parser):
-    parser = add_parser("write", yt.write_table, epilog="Rewrite table by default. For append mode specify <append=true> before path.")
-    add_ypath_argument(parser, "table", hybrid=True)
-    add_format_help(parser, help="input format")
-    add_spec_help(parser, "--table-writer")
-    add_compressed_arg(parser)
-    parser.set_defaults(func=yt.write_table, input_stream=sys.stdin)
+    for name, func in [("write", yt.write_table), ("write-table", yt.write_table)]:
+        parser = add_parser(name, func, epilog="Rewrite table by default. For append mode specify <append=true> before path.")
+        add_ypath_argument(parser, "table", hybrid=True)
+        add_format_help(parser, help="input format")
+        add_spec_help(parser, "--table-writer")
+        add_compressed_arg(parser)
+        parser.set_defaults(func=yt.write_table, input_stream=sys.stdin)
 
 def create(**args):
     print yt.create(**args)
