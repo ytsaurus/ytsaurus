@@ -202,7 +202,8 @@ public:
     void CreateJobNode(
         TJobPtr job,
         const TChunkId& stderrChunkId,
-        const TChunkId& failContextChunkId)
+        const TChunkId& failContextChunkId,
+        TFuture<TYsonString> inputPaths = Null)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
@@ -218,6 +219,7 @@ public:
         request.Job = job;
         request.StderrChunkId = stderrChunkId;
         request.FailContextChunkId = failContextChunkId;
+        request.InputPaths = inputPaths;
         list->JobRequests.push_back(request);
     }
 
@@ -331,6 +333,7 @@ private:
         TJobPtr Job;
         TChunkId StderrChunkId;
         TChunkId FailContextChunkId;
+        TFuture<TYsonString> InputPaths;
     };
 
     struct TLivePreviewRequest
@@ -1224,10 +1227,22 @@ private:
             auto job = request.Job;
             auto jobPath = GetJobPath(operation->GetId(), job->GetId());
             auto req = TYPathProxy::Set(jobPath);
+            TNullable<TYsonString> inputPaths;
+            if (request.InputPaths) {
+                auto inputPathsOrError = WaitFor(request.InputPaths);
+                if (!inputPathsOrError.IsOK()) {
+                    LOG_WARNING(
+                        inputPathsOrError,
+                        "Error obtaining input paths for failed job (JobId: %v)",
+                        job->GetId());
+                } else {
+                    inputPaths = inputPathsOrError.Value();
+                }
+            }
             req->set_value(
                 BuildYsonStringFluently()
                     .BeginAttributes()
-                        .Do(BIND(&BuildJobAttributes, job))
+                        .Do(BIND(&BuildJobAttributes, job, inputPaths))
                     .EndAttributes()
                     .BeginMap()
                     .EndMap()
@@ -1943,9 +1958,10 @@ TFuture<void> TMasterConnector::RemoveSnapshot(const TOperationId& operationId)
 void TMasterConnector::CreateJobNode(
     TJobPtr job,
     const TChunkId& stderrChunkId,
-    const TChunkId& failContextChunkId)
+    const TChunkId& failContextChunkId,
+    TFuture<TYsonString> inputPaths)
 {
-    return Impl->CreateJobNode(job, stderrChunkId, failContextChunkId);
+    return Impl->CreateJobNode(job, stderrChunkId, failContextChunkId, inputPaths);
 }
 
 void TMasterConnector::AttachJobContext(

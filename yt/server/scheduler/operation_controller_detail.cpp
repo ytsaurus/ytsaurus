@@ -3895,7 +3895,7 @@ void TOperationControllerBase::RegisterJoblet(TJobletPtr joblet)
     YCHECK(JobletMap.insert(std::make_pair(joblet->JobId, joblet)).second);
 }
 
-TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJoblet(const TJobId& jobId)
+TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJoblet(const TJobId& jobId) const
 {
     auto it = JobletMap.find(jobId);
     YCHECK(it != JobletMap.end());
@@ -3977,6 +3977,26 @@ void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const
         })
         .Item("input_table_paths").ListLimited(GetInputTablePaths(), 1)
         .Item("output_table_paths").ListLimited(GetOutputTablePaths(), 1);
+}
+
+TFuture<TYsonString> TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) const
+{
+    return
+        BIND(
+            &TOperationControllerBase::DoBuildInputPathYson,
+            MakeStrong(this),
+            jobId)
+        .AsyncVia(CancelableInvoker)
+        .Run();
+}
+
+TYsonString TOperationControllerBase::DoBuildInputPathYson(const TJobId& jobId) const
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    return BuildInputPaths(
+        GetInputTablePaths(),
+        GetJoblet(jobId)->InputStripeList);
 }
 
 std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetFilePaths() const

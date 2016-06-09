@@ -55,7 +55,8 @@ public:
 
     void CreateJobNode(TJobPtr job,
         const NChunkClient::TChunkId& stderrChunkId,
-        const NChunkClient::TChunkId& failContextChunkId);
+        const NChunkClient::TChunkId& failContextChunkId,
+        TFuture<NYson::TYsonString> inputPaths = Null);
 
     void AttachJobContext(
         const NYPath::TYPath& path,
