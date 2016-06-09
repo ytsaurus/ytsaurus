@@ -157,7 +157,7 @@ private:
         if (Finished_) {
             return false;
         }
-        DelayedQueue_ = New<TActionQueue>("DelayedExecutor");
+        DelayedQueue_ = New<TActionQueue>("DelayedExecutor", false, false);
         SleeperThread_.Start();
         Started_ = true;
 
