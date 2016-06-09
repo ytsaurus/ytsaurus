@@ -298,6 +298,12 @@ struct IOperationController
     //! to be used by UI.
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const = 0;
 
+    /*!
+     *  \note Thread affinity: any
+     */
+    //! Start building YSON representaion of all input paths with all ranges processed
+    //! by the job with specified ID.
+    virtual TFuture<NYson::TYsonString> BuildInputPathYson(const TJobId& jobId) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

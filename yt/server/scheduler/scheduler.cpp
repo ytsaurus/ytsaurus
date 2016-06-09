@@ -2084,6 +2084,8 @@ private:
 
             auto operation = GetOperation(job->GetOperationId());
 
+            ProcessFinishedJobResult(job);
+
             if (operation->GetState() == EOperationState::Running) {
                 const auto& controller = operation->GetController();
                 controller->GetCancelableInvoker()->Invoke(BIND(
@@ -2091,8 +2093,6 @@ private:
                     controller,
                     Passed(std::make_unique<TCompletedJobSummary>(job, abandoned))));
             }
-
-            ProcessFinishedJobResult(job);
         }
 
         UnregisterJob(job);
@@ -2111,6 +2111,8 @@ private:
 
             auto operation = GetOperation(job->GetOperationId());
 
+            ProcessFinishedJobResult(job);
+
             if (operation->GetState() == EOperationState::Running) {
                 const auto& controller = operation->GetController();
                 controller->GetCancelableInvoker()->Invoke(BIND(
@@ -2118,8 +2120,6 @@ private:
                     controller,
                     Passed(std::make_unique<TFailedJobSummary>(job))));
             }
-
-            ProcessFinishedJobResult(job);
         }
 
         UnregisterJob(job);
@@ -2143,17 +2143,17 @@ private:
 
             auto operation = GetOperation(job->GetOperationId());
 
+            // Check if job was aborted due to signal.
+            if (GetAbortReason(job->Status()->result()) == EAbortReason::UserRequest) {
+                ProcessFinishedJobResult(job);
+            }
+
             if (operation->GetState() == EOperationState::Running) {
                 const auto& controller = operation->GetController();
                 controller->GetCancelableInvoker()->Invoke(BIND(
                     &IOperationController::OnJobAborted,
                     controller,
                     Passed(std::make_unique<TAbortedJobSummary>(job))));
-            }
-
-            // Check if job was aborted due to signal.
-            if (GetAbortReason(job->Status()->result()) == EAbortReason::UserRequest) {
-                ProcessFinishedJobResult(job);
             }
         }
 
@@ -2195,7 +2195,7 @@ private:
                 operation->SetStderrCount(operation->GetStderrCount() + 1);
             }
             if (operation->GetJobNodeCount() < Config_->MaxJobNodesPerOperation) {
-                MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId);
+                MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId, operation->MakeInputPathsYson(job));
                 operation->SetJobNodeCount(operation->GetJobNodeCount() + 1);
             }
             return;
@@ -2211,7 +2211,7 @@ private:
         if (operation->GetStderrCount() < operation->GetMaxStderrCount() &&
             operation->GetJobNodeCount() < Config_->MaxJobNodesPerOperation)
         {
-            MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId);
+            MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId, operation->MakeInputPathsYson(job));
             operation->SetStderrCount(operation->GetStderrCount() + 1);
             operation->SetJobNodeCount(operation->GetJobNodeCount() + 1);
         } else {
@@ -2722,7 +2722,7 @@ private:
         BuildYsonMapFluently(consumer)
             .Item(ToString(job->GetId())).BeginMap()
                 .Do([=] (TFluentMap fluent) {
-                    BuildJobAttributes(job, fluent);
+                    BuildJobAttributes(job, Null, fluent);
                 })
             .EndMap();
     }
