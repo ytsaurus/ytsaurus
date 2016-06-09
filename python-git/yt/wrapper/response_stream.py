@@ -47,13 +47,15 @@ class ResponseStream(object):
             length -= processed_length
 
             # Fast loop
+            finished = False
             while length >= self._buffer_length:
                 result.append(self._buffer)
                 length -= self._buffer_length
                 if length == 0 or not self._fetch():
+                    finished = True
                     break
 
-            if length > 0:
+            if not finished and length > 0:
                 process(self, result, length)
 
         return "".join(result)
