@@ -321,7 +321,7 @@ public:
         if (static_cast<int>(IdToOperation_.size()) >= Config_->MaxOperationCount) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::TooManyOperations,
-                "Limit for the number of concurrent operations %v has been reached",
+                "Limit for the total number of concurrent operations %v has been reached",
                 Config_->MaxOperationCount);
         }
 

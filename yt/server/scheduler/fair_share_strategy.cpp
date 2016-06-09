@@ -138,7 +138,7 @@ public:
         if (poolWithViolatedLimit) {
             return TError(
                 EErrorCode::TooManyOperations,
-                "Limit for the number of concurrent operations %v for pool %v has been reached",
+                "Limit for the number of concurrent operations %v for pool %Qv has been reached",
                 poolWithViolatedLimit->GetMaxOperationCount(),
                 poolWithViolatedLimit->GetId());
         }
