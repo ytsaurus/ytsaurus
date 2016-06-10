@@ -1039,17 +1039,17 @@ TCodegenSource MakeCodegenJoinOp(
         std::vector<EValueType> lookupKeyTypes(lookupKeySize);
         std::vector<EValueType> joinKeyTypes(joinKeySize);
 
-        auto collectRows = MakeClosure<void(void*, void*, void*)>(builder, "CollectRows", [&] (
+        auto collectRows = MakeClosure<void(TJoinClosure*, TRowBuffer*)>(builder, "CollectRows", [&] (
             TCGContext& builder,
-            Value* joinLookup,
-            Value* keys,
-            Value* chainedRows
+            Value* joinClosure,
+            Value* buffer
         ) {
             Value* keyPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
             builder.CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
                 {
                     builder.GetExecutionContextPtr(),
+                    buffer,
                     builder.getInt32(lookupKeySize),
                     keyPtr
                 });
@@ -1057,10 +1057,7 @@ TCodegenSource MakeCodegenJoinOp(
             codegenSource(
                 builder,
                 [&] (TCGContext& builder, Value* row) {
-                    Value* executionContextPtrRef = builder.GetExecutionContextPtr();
-                    Value* keysRef = builder.ViaClosure(keys);
-                    Value* chainedRowsRef = builder.ViaClosure(chainedRows);
-                    Value* joinLookupRef = builder.ViaClosure(joinLookup);
+                    Value* bufferRef = builder.ViaClosure(buffer);
                     Value* keyPtrRef = builder.ViaClosure(keyPtr);
                     Value* keyRef = builder.CreateLoad(keyPtrRef);
 
@@ -1085,16 +1082,16 @@ TCodegenSource MakeCodegenJoinOp(
                         }
                     }
 
+                    Value* joinClosureRef = builder.ViaClosure(joinClosure);
+
                     builder.CreateCall(
                         builder.Module->GetRoutine("InsertJoinRow"),
                         {
-                            executionContextPtrRef,
-                            joinLookupRef,
-                            keysRef,
-                            chainedRowsRef,
+                            builder.GetExecutionContextPtr(),
+                            bufferRef,
+                            joinClosureRef,
                             keyPtrRef,
-                            row,
-                            builder.getInt32(lookupKeySize)
+                            row
                         });
                 });
 
@@ -1125,6 +1122,7 @@ TCodegenSource MakeCodegenJoinOp(
                 CodegenGroupHasherFunction(lookupKeyTypes, *builder.Module),
                 CodegenGroupComparerFunction(lookupKeyTypes, *builder.Module),
                 CodegenRowComparerFunction(lookupKeyTypes, *builder.Module),
+                builder.getInt32(lookupKeySize),
 
                 collectRows.ClosurePtr,
                 collectRows.Function,
@@ -1382,10 +1380,10 @@ TCodegenSource MakeCodegenGroupOp(
         appendToSource,
         checkNulls
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
-        auto collect = MakeClosure<void(void*, void*)>(builder, "CollectGroups", [&] (
+        auto collect = MakeClosure<void(TGroupByClosure*, TRowBuffer*)>(builder, "CollectGroups", [&] (
             TCGContext& builder,
-            Value* groupedRows,
-            Value* lookup
+            Value* groupByClosure,
+            Value* buffer
         ) {
             Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
@@ -1393,6 +1391,7 @@ TCodegenSource MakeCodegenGroupOp(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
                 {
                     builder.GetExecutionContextPtr(),
+                    buffer,
                     builder.getInt32(groupRowSize),
                     newRowPtr
                 });
@@ -1404,23 +1403,21 @@ TCodegenSource MakeCodegenGroupOp(
                         codegenConsumer(builder, row);
                     }
 
-                    Value* executionContextPtrRef = builder.GetExecutionContextPtr();
-                    Value* groupedRowsRef = builder.ViaClosure(groupedRows);
-                    Value* lookupRef = builder.ViaClosure(lookup);
+                    Value* bufferRef = builder.ViaClosure(buffer);
                     Value* newRowPtrRef = builder.ViaClosure(newRowPtr);
                     Value* newRowRef = builder.CreateLoad(newRowPtrRef);
 
                     codegenEvaluateGroups(builder, row, newRowRef);
 
+                    Value* groupByClosureRef = builder.ViaClosure(groupByClosure);
+
                     auto groupRowPtr = builder.CreateCall(
                         builder.Module->GetRoutine("InsertGroupRow"),
                         {
-                            executionContextPtrRef,
-                            lookupRef,
-                            groupedRowsRef,
-                            newRowRef,
-                            builder.getInt32(keyTypes.size()),
-                            builder.getInt8(checkNulls)
+                            builder.GetExecutionContextPtr(),
+                            bufferRef,
+                            groupByClosureRef,
+                            newRowRef
                         });
 
                     auto groupRow = builder.CreateLoad(groupRowPtr);
@@ -1443,6 +1440,7 @@ TCodegenSource MakeCodegenGroupOp(
                                 builder.Module->GetRoutine("AllocatePermanentRow"),
                                 {
                                     builder.GetExecutionContextPtr(),
+                                    bufferRef,
                                     builder.getInt32(groupRowSize),
                                     newRowPtrRef
                                 });
@@ -1486,6 +1484,8 @@ TCodegenSource MakeCodegenGroupOp(
                 builder.GetExecutionContextPtr(),
                 CodegenGroupHasherFunction(keyTypes, *builder.Module),
                 CodegenGroupComparerFunction(keyTypes, *builder.Module),
+                builder.getInt32(keyTypes.size()),
+                builder.getInt8(checkNulls),
 
                 collect.ClosurePtr,
                 collect.Function,

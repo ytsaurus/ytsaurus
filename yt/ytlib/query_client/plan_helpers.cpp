@@ -1,6 +1,5 @@
 #include "plan_helpers.h"
 #include "private.h"
-#include "column_evaluator.h"
 #include "functions.h"
 #include "helpers.h"
 #include "key_trie.h"

@@ -102,6 +102,50 @@ using TJoinEvaluator = std::function<void(
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRow* rows, i64 size))>;
 
+struct TJoinClosure
+{
+    TJoinLookup Lookup;
+    std::vector<TRow> Keys;
+    std::vector<std::pair<TRow, i64>> ChainedRows;
+    int KeySize;
+
+    TJoinClosure(
+        THasherFunction* lookupHasher,
+        TComparerFunction* lookupEqComparer,
+        int keySize)
+        : Lookup(
+            InitialGroupOpHashtableCapacity,
+            lookupHasher,
+            lookupEqComparer)
+        , KeySize(keySize)
+    {
+        Lookup.set_empty_key(TRow());
+    }
+};
+
+struct TGroupByClosure
+{
+    TLookupRows Lookup;
+    std::vector<TRow> GroupedRows;
+    int KeySize;
+    bool CheckNulls;
+
+    TGroupByClosure(
+        THasherFunction* groupHasher,
+        TComparerFunction* groupComparer,
+        int keySize,
+        bool checkNulls)
+        : Lookup(
+            InitialGroupOpHashtableCapacity,
+            groupHasher,
+            groupComparer)
+        , KeySize(keySize)
+        , CheckNulls(checkNulls)
+    {
+        Lookup.set_empty_key(TRow());
+    }
+};
+
 struct TExpressionContext
 {
 #ifndef NDEBUG
