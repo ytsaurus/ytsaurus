@@ -1,6 +1,7 @@
 #include "versioned_block_reader.h"
 #include "private.h"
 #include "versioned_block_writer.h"
+#include "schemaless_block_reader.h"
 
 #include <yt/ytlib/transaction_client/public.h>
 
@@ -449,6 +450,55 @@ TTimestamp TSimpleVersionedBlockReader::ReadTimestamp(int timestampIndex)
 i64 TSimpleVersionedBlockReader::GetRowIndex() const
 {
     return RowIndex_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+THorizontalSchemalessVersionedBlockReader::THorizontalSchemalessVersionedBlockReader(
+    const TSharedRef& block,
+    const NProto::TBlockMeta& meta,
+    const std::vector<TColumnIdMapping>& idMapping,
+    int chunkKeyColumnCount,
+    int keyColumnCount,
+    TTimestamp timestamp)
+    : UnderlyingReader_(std::make_unique<THorizontalSchemalessBlockReader>(
+        block,
+        meta,
+        idMapping,
+        chunkKeyColumnCount,
+        keyColumnCount))
+    , KeyColumnCount_(keyColumnCount)
+    , Timestamp_(timestamp)
+{ }
+
+bool THorizontalSchemalessVersionedBlockReader::NextRow()
+{
+    return UnderlyingReader_->NextRow();
+}
+
+bool THorizontalSchemalessVersionedBlockReader::SkipToRowIndex(i64 rowIndex)
+{
+    return UnderlyingReader_->JumpToRowIndex(rowIndex);
+}
+
+bool THorizontalSchemalessVersionedBlockReader::SkipToKey(TKey key)
+{
+    return UnderlyingReader_->SkipToKey(key);
+}
+
+TKey THorizontalSchemalessVersionedBlockReader::GetKey() const
+{
+    return UnderlyingReader_->GetKey();
+}
+
+TVersionedRow THorizontalSchemalessVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
+{
+    return UnderlyingReader_->GetVersionedRow(memoryPool, Timestamp_);
+}
+
+i64 THorizontalSchemalessVersionedBlockReader::GetRowIndex() const
+{
+    return UnderlyingReader_->GetRowIndex();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

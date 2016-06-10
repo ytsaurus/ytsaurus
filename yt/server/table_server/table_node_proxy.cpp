@@ -265,7 +265,7 @@ private:
         auto schema = newSchema.Get(table->TableSchema());
 
         // NB: Sorted dynamic tables contain unique keys, set this for user.
-        if (dynamic && newSchema && newSchema->IsSorted()) {
+        if (dynamic && newSchema && newSchema->IsSorted() && !newSchema->GetUniqueKeys()) {
             schema = schema.ToUniqueKeys();
         }
 

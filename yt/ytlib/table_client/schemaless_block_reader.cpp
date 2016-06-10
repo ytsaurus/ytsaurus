@@ -13,21 +13,35 @@ THorizontalSchemalessBlockReader::THorizontalSchemalessBlockReader(
     const TSharedRef& block,
     const NProto::TBlockMeta& meta,
     const std::vector<TColumnIdMapping>& idMapping,
+    int chunkKeyColumnCount,
     int keyColumnCount,
     int extraColumnCount)
     : Block_(block)
     , Meta_(meta)
     , IdMapping_(idMapping)
+    , ChunkKeyColumnCount_(chunkKeyColumnCount)
     , KeyColumnCount_(keyColumnCount)
     , ExtraColumnCount_(extraColumnCount)
 {
     YCHECK(Meta_.row_count() > 0);
 
-    // Allocate space for key.
-    std::vector<TUnversionedValue> key(
-        KeyColumnCount_,
-        MakeUnversionedSentinelValue(EValueType::Null, 0));
-    Key_ = TOwningKey(key.data(), key.data() + KeyColumnCount_);
+    auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);
+    KeyBuffer_.reserve(keyDataSize);
+    auto header = reinterpret_cast<TUnversionedRowHeader*>(KeyBuffer_.data());
+    header->Capacity = KeyColumnCount_;
+    header->Count = KeyColumnCount_;
+    Key_ = TMutableKey(header);
+
+    for (int index = 0; index < KeyColumnCount_; ++index) {
+        auto& value = Key_[index];
+        value.Id = index;
+    }
+
+    for (int index = ChunkKeyColumnCount_; index < KeyColumnCount_; ++index) {
+        auto& value = Key_[index];
+        value.Id = index;
+        value.Type = EValueType::Null;
+    }
 
     i64 offsetsLength = sizeof(ui32) * Meta_.row_count();
 
@@ -48,7 +62,7 @@ bool THorizontalSchemalessBlockReader::SkipToRowIndex(i64 rowIndex)
     return JumpToRowIndex(rowIndex);
 }
 
-bool THorizontalSchemalessBlockReader::SkipToKey(const TOwningKey& key)
+bool THorizontalSchemalessBlockReader::SkipToKey(const TKey key)
 {
     if (GetKey() >= key) {
         // We are already further than pivot key.
@@ -66,7 +80,7 @@ bool THorizontalSchemalessBlockReader::SkipToKey(const TOwningKey& key)
     return JumpToRowIndex(index);
 }
 
-const TOwningKey& THorizontalSchemalessBlockReader::GetKey() const
+TKey THorizontalSchemalessBlockReader::GetKey() const
 {
     return Key_;
 }
@@ -96,6 +110,60 @@ TMutableUnversionedRow THorizontalSchemalessBlockReader::GetRow(TChunkedMemoryPo
     return row;
 }
 
+TMutableVersionedRow THorizontalSchemalessBlockReader::GetVersionedRow(
+    TChunkedMemoryPool* memoryPool,
+    TTimestamp timestamp)
+{
+    int valueCount = 0;
+    auto currentPointer = CurrentPointer_;
+    for (int i = 0; i < ValueCount_; ++i) {
+        TUnversionedValue value;
+        currentPointer += ReadValue(currentPointer, &value);
+
+        if (IdMapping_[value.Id].ReaderSchemaIndex >= KeyColumnCount_) {
+            ++valueCount;
+        }
+    }
+
+    auto versionedRow = TMutableVersionedRow::Allocate(
+        memoryPool,
+        KeyColumnCount_,
+        valueCount,
+        1,
+        0);
+
+    for (int index = 0; index < KeyColumnCount_; ++index) {
+        versionedRow.BeginKeys()[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
+    }
+
+    TVersionedValue* currentValue = versionedRow.BeginValues();
+    for (int i = 0; i < ValueCount_; ++i) {
+        TUnversionedValue value;
+        CurrentPointer_ += ReadValue(CurrentPointer_, &value);
+
+        int id = IdMapping_[value.Id].ReaderSchemaIndex;
+        if (id >= KeyColumnCount_) {
+            value.Id = id;
+            if (value.Type == EValueType::Any) {
+                // Try to unpack any value.
+                value = MakeUnversionedValue(
+                    TStringBuf(value.Data.String, value.Length),
+                    value.Id,
+                    Lexer_);
+            }
+            *currentValue = MakeVersionedValue(value, timestamp);
+            ++currentValue;
+        } else if (id >= 0) {
+            versionedRow.BeginKeys()[id] = value;
+        }
+    }
+
+    versionedRow.BeginWriteTimestamps()[0] = timestamp;
+
+    return versionedRow;
+}
+
+
 i64 THorizontalSchemalessBlockReader::GetRowIndex() const
 {
     return RowIndex_;
@@ -113,11 +181,11 @@ bool THorizontalSchemalessBlockReader::JumpToRowIndex(i64 rowIndex)
     CurrentPointer_ = Data_.Begin() + offset;
 
     CurrentPointer_ += ReadVarUint32(CurrentPointer_, &ValueCount_);
-    YCHECK(ValueCount_ >= KeyColumnCount_);
+    YCHECK(ValueCount_ >= ChunkKeyColumnCount_);
 
     const char* ptr = CurrentPointer_;
-    for (int i = 0; i < KeyColumnCount_; ++i) {
-        ptr += ReadValue(ptr, const_cast<TUnversionedValue*>(Key_.Begin()) + i);
+    for (int i = 0; i < std::min(ChunkKeyColumnCount_, KeyColumnCount_); ++i) {
+        ptr += ReadValue(ptr, Key_.Begin() + i);
     }
 
     return true;

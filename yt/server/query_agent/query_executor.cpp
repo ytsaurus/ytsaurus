@@ -816,41 +816,14 @@ private:
         const TObjectId& chunkId,
         const TRowRange& range)
     {
-        std::vector<TReadRange> readRanges;
-        TReadLimit lowerReadLimit;
-        TReadLimit upperReadLimit;
-        lowerReadLimit.SetKey(TOwningKey(range.first));
-        upperReadLimit.SetKey(TOwningKey(range.second));
-        readRanges.emplace_back(std::move(lowerReadLimit), std::move(upperReadLimit));
-        return GetChunkReader(chunkId, std::move(readRanges));
+        TReadRange readRange;
+        readRange.LowerLimit().SetKey(TOwningKey(range.first));
+        readRange.UpperLimit().SetKey(TOwningKey(range.second));
+        return GetChunkReader(chunkId, readRange);
     }
 
-    ISchemafulReaderPtr GetChunkReader(
-        const TChunkId& chunkId,
-        const TSharedRange<TRow>& keys)
-    {
-        std::vector<TReadRange> readRanges;
-        TUnversionedOwningRowBuilder builder;
-        for (const auto& key : keys) {
-            TReadLimit lowerReadLimit;
-            lowerReadLimit.SetKey(TOwningKey(key));
-
-            TReadLimit upperReadLimit;
-            for (const auto& value : key) {
-                builder.AddValue(value);
-            }
-            builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
-            upperReadLimit.SetKey(builder.FinishRow());
-
-            readRanges.emplace_back(std::move(lowerReadLimit), std::move(upperReadLimit));
-        }
-
-        return GetChunkReader(chunkId, readRanges);
-    }
-
-    ISchemafulReaderPtr GetChunkReader(
-        const TChunkId& chunkId,
-        std::vector<TReadRange> readRanges)
+    std::tuple<NChunkClient::IChunkReaderPtr, NChunkClient::NProto::TChunkMeta, TTabletChunkReaderConfigPtr> GetUnderlyingChunkReader(
+        const TChunkId& chunkId)
     {
         auto blockCache = Bootstrap_->GetBlockCache();
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
@@ -891,13 +864,44 @@ private:
         auto chunkMeta = WaitFor(asyncChunkMeta)
             .ValueOrThrow();
 
+        return std::make_tuple(chunkReader, chunkMeta, config);
+    }
+
+    ISchemafulReaderPtr GetChunkReader(
+        const TChunkId& chunkId,
+        const TSharedRange<TRow>& keys)
+    {
+        NChunkClient::IChunkReaderPtr chunkReader;
+        NChunkClient::NProto::TChunkMeta chunkMeta;
+        TTabletChunkReaderConfigPtr config;
+        std::tie(chunkReader, chunkMeta, config) = GetUnderlyingChunkReader(chunkId);
+
         return CreateSchemafulChunkReader(
             std::move(config),
             std::move(chunkReader),
             Bootstrap_->GetBlockCache(),
             Query_->GetReadSchema(),
             chunkMeta,
-            std::move(readRanges),
+            keys,
+            Options_.Timestamp);
+    }
+
+    ISchemafulReaderPtr GetChunkReader(
+        const TChunkId& chunkId,
+        const TReadRange& readRange)
+    {
+        NChunkClient::IChunkReaderPtr chunkReader;
+        NChunkClient::NProto::TChunkMeta chunkMeta;
+        TTabletChunkReaderConfigPtr config;
+        std::tie(chunkReader, chunkMeta, config) = GetUnderlyingChunkReader(chunkId);
+
+        return CreateSchemafulChunkReader(
+            std::move(config),
+            std::move(chunkReader),
+            Bootstrap_->GetBlockCache(),
+            Query_->GetReadSchema(),
+            chunkMeta,
+            readRange,
             Options_.Timestamp);
     }
 

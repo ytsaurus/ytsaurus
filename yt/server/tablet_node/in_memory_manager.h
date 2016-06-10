@@ -23,7 +23,7 @@ struct TInMemoryChunkData
     std::vector<TSharedRef> Blocks;
     EInMemoryMode InMemoryMode = EInMemoryMode::None;
     NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
-    NTableClient::TVersionedChunkLookupHashTablePtr LookupHashTable;
+    NTableClient::IChunkLookupHashTablePtr LookupHashTable;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInMemoryChunkData)

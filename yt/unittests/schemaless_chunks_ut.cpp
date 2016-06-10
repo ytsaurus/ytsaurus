@@ -82,15 +82,13 @@ protected:
         }
     }
 
-    void SetUpWriter(EOptimizeFor optimizeFor)
+    void SetUpWriter(TChunkWriterOptionsPtr options)
     {
         MemoryWriter = New<TMemoryWriter>();
 
         auto config = New<TChunkWriterConfig>();
         config->BlockSize = 2 * 1024;
 
-        auto options = New<TChunkWriterOptions>();
-        options->OptimizeFor = optimizeFor;
         ChunkWriter = CreateSchemalessChunkWriter(
             config,
             options,
@@ -136,7 +134,14 @@ protected:
 
     void WriteRows(int startIndex, int endIndex, EOptimizeFor optimizeFor)
     {
-        SetUpWriter(optimizeFor);
+        auto options = New<TChunkWriterOptions>();
+        options->OptimizeFor = optimizeFor;
+        WriteRows(startIndex, endIndex, options);
+    }
+
+    void WriteRows(int startIndex, int endIndex, TChunkWriterOptionsPtr options)
+    {
+        SetUpWriter(options);
         ChunkWriter->Write(CreateManyRows(startIndex, endIndex));
         FinishWriter();
     }
@@ -149,6 +154,49 @@ protected:
     void WriteFewRows(EOptimizeFor optimizeFor = EOptimizeFor::Lookup)
     {
         WriteRows(0, SmallRowCount, optimizeFor);
+    }
+
+    std::vector<TUnversionedOwningRow> LookupRows(
+        TSharedRange<TKey> keys,
+        const TKeyColumns& keyColumns)
+    {
+        std::vector<TUnversionedOwningRow> rows;
+
+        TChunkSpec chunkSpec;
+        ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
+        chunkSpec.mutable_chunk_meta()->MergeFrom(MasterMeta);
+
+        auto options = New<TChunkReaderOptions>();
+        options->DynamicTable = true;
+
+        auto chunkReader = CreateSchemalessChunkReader(
+            chunkSpec,
+            New<TChunkReaderConfig>(),
+            options,
+            MemoryReader,
+            NameTable,
+            GetNullBlockCache(),
+            keyColumns,
+            TColumnFilter(),
+            keys);
+
+        std::vector<TUnversionedRow> actual;
+        actual.reserve(997);
+
+        while (chunkReader->Read(&actual)) {
+            if (actual.empty()) {
+                if (!chunkReader->GetReadyEvent().Get().IsOK()) {
+                    std::cout << ToString(chunkReader->GetReadyEvent().Get()) << std::endl;
+                }
+                EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
+                continue;
+            }
+            for (auto row : actual) {
+                rows.push_back(TUnversionedOwningRow(row));
+            }
+        }
+
+        return rows;
     }
 
     std::vector<TUnversionedOwningRow> ReadRows(
@@ -177,7 +225,7 @@ protected:
             GetNullBlockCache(),
             TKeyColumns(),
             columnFilter,
-            std::vector<TReadRange>(1));
+            TReadRange());
 
         std::vector<TUnversionedRow> actual;
         actual.reserve(997);
@@ -216,7 +264,7 @@ protected:
             GetNullBlockCache(),
             TKeyColumns(),
             columnFilter,
-            std::vector<TReadRange>(1));
+            TReadRange());
 
         auto it = expected.begin();
 
@@ -258,7 +306,7 @@ protected:
             GetNullBlockCache(),
             TKeyColumns(),
             columnFilter,
-            std::vector<TReadRange>(1, {lowerLimit, TReadLimit()}));
+            TReadRange{lowerLimit, TReadLimit()});
 
         EXPECT_TRUE(chunkReader->IsFetchingCompleted());
         EXPECT_EQ(TDataStatistics(), chunkReader->GetDataStatistics());
@@ -279,7 +327,7 @@ protected:
         }
     }
 
-    void  TestReadSortedRange(EOptimizeFor optimizeFor)
+    void TestReadSortedRange(EOptimizeFor optimizeFor)
     {
         WriteManyRows(optimizeFor);
         std::vector<TUnversionedRow> expected = CreateManyRows(100000, 800000);
@@ -317,7 +365,7 @@ protected:
             GetNullBlockCache(),
             TKeyColumns(),
             columnFilter,
-            std::vector<TReadRange>(1, TReadRange {lowerLimit, upperLimit} ));
+            TReadRange{lowerLimit, upperLimit});
 
         auto it = expected.begin();
 
@@ -361,7 +409,7 @@ protected:
                 GetNullBlockCache(),
                 TKeyColumns(),
                 columnFilter,
-                std::vector<TReadRange>(1));
+                TReadRange());
 
             std::vector<TUnversionedRow> actual;
             actual.reserve(997);
@@ -399,7 +447,7 @@ protected:
         builder2.AddValue(MakeUnversionedInt64Value(43, rowIndexId));
 
         std::vector<TUnversionedRow> expected = {
-            builder1.GetRow(), 
+            builder1.GetRow(),
             builder2.GetRow()};
 
         TColumnFilter columnFilter;
@@ -426,7 +474,7 @@ protected:
             GetNullBlockCache(),
             TKeyColumns(),
             columnFilter,
-            std::vector<TReadRange>(1));
+            TReadRange());
 
         EXPECT_TRUE(chunkReader->IsFetchingCompleted());
 
@@ -472,6 +520,68 @@ protected:
             }
             YCHECK(expectedIt == expected.end());
         }
+    }
+
+    void TestLookup(EOptimizeFor optimizeFor)
+    {
+        auto options = New<TChunkWriterOptions>();
+        options->OptimizeFor = optimizeFor;
+        options->ValidateSorted = true;
+        options->ValidateUniqueKeys = true;
+        WriteRows(0, 50, options);
+        auto expected = ReadRows();
+
+        TUnversionedRowBuilder builder1;
+        builder1.AddValue(MakeUnversionedStringValue(A, 0));
+        builder1.AddValue(MakeUnversionedInt64Value(10, 1));
+        builder1.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 2));
+
+        TUnversionedRowBuilder builder2;
+        builder2.AddValue(MakeUnversionedStringValue(A, 0));
+        builder2.AddValue(MakeUnversionedInt64Value(20, 1));
+        builder2.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 2));
+
+        std::vector<TUnversionedRow> keys = {
+            builder1.GetRow(),
+            builder2.GetRow()};
+
+        auto actual = LookupRows(MakeSharedRange(keys), TKeyColumns());
+
+        ExpectRowsEqual(expected[10], actual[0]);
+        ExpectRowsEqual(expected[20], actual[1]);
+    }
+
+    void TestLookupWiderKey(EOptimizeFor optimizeFor)
+    {
+        auto options = New<TChunkWriterOptions>();
+        options->OptimizeFor = optimizeFor;
+        options->ValidateSorted = true;
+        options->ValidateUniqueKeys = true;
+        WriteRows(0, 50, options);
+        auto expected = ReadRows();
+
+        auto keyColumns = TKeyColumns{"k1", "k2", "k3", "k4"};
+
+        TUnversionedRowBuilder builder1;
+        builder1.AddValue(MakeUnversionedStringValue(A, 0));
+        builder1.AddValue(MakeUnversionedInt64Value(10, 1));
+        builder1.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 2));
+        builder1.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 3));
+
+        TUnversionedRowBuilder builder2;
+        builder2.AddValue(MakeUnversionedStringValue(A, 0));
+        builder2.AddValue(MakeUnversionedInt64Value(20, 1));
+        builder2.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 2));
+        builder2.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 3));
+
+        std::vector<TUnversionedRow> keys = {
+            builder1.GetRow(),
+            builder2.GetRow()};
+
+        auto actual = LookupRows(MakeSharedRange(keys), keyColumns);
+
+        ExpectRowsEqual(expected[10], actual[0]);
+        ExpectRowsEqual(expected[20], actual[1]);
     }
 };
 
@@ -534,149 +644,14 @@ TEST_F(TSchemalessChunksTest, MultiPartSampleReadLookup)
 {
     TestMultiPartSampledRead(EOptimizeFor::Lookup);
 }
-
-TEST_F(TSchemalessChunksTest, ReadMultipleIndexRanges)
+TEST_F(TSchemalessChunksTest, LookupSimpleKeyLookup)
 {
-    WriteManyRows(EOptimizeFor::Lookup);
-
-    TColumnFilter columnFilter;
-
-    std::vector<TReadRange> readRanges;
-    std::vector<TUnversionedRow> expected;
-
-    for (int index = 0; index < 10; ++index) {
-        int startIndex = 100000 + 1000 * index;
-        int endIndex = 100000 + 1000 * index + 100;
-
-        std::vector<TUnversionedRow> expectedInRange = CreateManyRows(startIndex, endIndex);
-        expected.insert(expected.end(), expectedInRange.begin(), expectedInRange.end());
-
-        TReadLimit lower;
-        TReadLimit upper;
-        lower.SetRowIndex(startIndex);
-        upper.SetRowIndex(endIndex);
-        readRanges.emplace_back(std::move(lower), std::move(upper));
-    }
-
-    {
-        TReadLimit lower;
-        TReadLimit upper;
-        lower.SetRowIndex(HugeRowCount);
-        upper.SetRowIndex(HugeRowCount + 100);
-        readRanges.emplace_back(std::move(lower), std::move(upper));
-    }
-
-    TChunkSpec chunkSpec;
-    ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
-    chunkSpec.mutable_chunk_meta()->MergeFrom(MasterMeta);
-
-    auto chunkReader = CreateSchemalessChunkReader(
-        chunkSpec,
-        New<TChunkReaderConfig>(),
-        New<TChunkReaderOptions>(),
-        MemoryReader,
-        NameTable,
-        GetNullBlockCache(),
-        TKeyColumns(),
-        columnFilter,
-        std::move(readRanges)); 
-
-    auto it = expected.begin();
-
-    std::vector<TUnversionedRow> actual;
-    actual.reserve(997);
-
-    while (chunkReader->Read(&actual)) {
-        if (actual.empty()) {
-            EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
-            continue;
-        }
-        EXPECT_TRUE(actual.size() <= std::distance(it, expected.end()));
-        std::vector<TUnversionedRow> ex(it, it + actual.size());
-        CheckResult(ex, actual);
-        it += actual.size();
-    }
+    TestLookup(EOptimizeFor::Lookup);
 }
 
-
-TEST_F(TSchemalessChunksTest, ReadMultipleKeyRanges)
+TEST_F(TSchemalessChunksTest, LookupWiderKeyLookup)
 {
-    WriteManyRows(EOptimizeFor::Lookup);
-
-    TColumnFilter columnFilter;
-
-    std::vector<TReadRange> readRanges;
-    std::vector<TUnversionedRow> expected;
-
-    for (int index = 0; index < 10; ++index) {
-        int startIndex = 100000 + 1000 * index;
-        int endIndex = 100000 + 1000 * index + 100;
-
-        std::vector<TUnversionedRow> expectedInRange = CreateManyRows(startIndex, endIndex);
-        expected.insert(expected.end(), expectedInRange.begin(), expectedInRange.end());
-
-        TReadLimit lower;
-        TReadLimit upper;
-        TUnversionedOwningRowBuilder builder;
-
-        builder.AddValue(MakeUnversionedStringValue(A, 0));
-        builder.AddValue(MakeUnversionedInt64Value(startIndex, 1));
-        lower.SetKey(builder.FinishRow());
-
-        builder.AddValue(MakeUnversionedStringValue(A, 0));
-        builder.AddValue(MakeUnversionedInt64Value(endIndex, 1));
-        upper.SetKey(builder.FinishRow());
-
-        readRanges.emplace_back(std::move(lower), std::move(upper));
-    }
-
-    {
-        TReadLimit lower;
-        TReadLimit upper;
-        TUnversionedOwningRowBuilder builder;
-
-        builder.AddValue(MakeUnversionedStringValue(A, 0));
-        builder.AddValue(MakeUnversionedInt64Value(HugeRowCount, 1));
-        lower.SetKey(builder.FinishRow());
-
-        builder.AddValue(MakeUnversionedStringValue(A, 0));
-        builder.AddValue(MakeUnversionedInt64Value(HugeRowCount + 100, 1));
-        upper.SetKey(builder.FinishRow());
-
-
-        readRanges.emplace_back(std::move(lower), std::move(upper));
-    }
-
-    TChunkSpec chunkSpec;
-    ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
-    chunkSpec.mutable_chunk_meta()->MergeFrom(MasterMeta);
-
-    auto chunkReader = CreateSchemalessChunkReader(
-        chunkSpec,
-        New<TChunkReaderConfig>(),
-        New<TChunkReaderOptions>(),
-        MemoryReader,
-        NameTable,
-        GetNullBlockCache(),
-        TKeyColumns(),
-        columnFilter,
-        std::move(readRanges));
-
-    auto it = expected.begin();
-
-    std::vector<TUnversionedRow> actual;
-    actual.reserve(997);
-
-    while (chunkReader->Read(&actual)) {
-        if (actual.empty()) {
-            EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
-            continue;
-        }
-        EXPECT_TRUE(actual.size() <= std::distance(it, expected.end()));
-        std::vector<TUnversionedRow> ex(it, it + actual.size());
-        CheckResult(ex, actual);
-        it += actual.size();
-    }
+    TestLookupWiderKey(EOptimizeFor::Lookup);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

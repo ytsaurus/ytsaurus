@@ -29,6 +29,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MinKey);
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MaxKey);
     DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
+    DEFINE_BYREF_RO_PROPERTY(TTableSchema, Schema);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnIdMapping>, SchemaIdMapping);
     DEFINE_BYVAL_RO_PROPERTY(int, ChunkKeyColumnCount);
     DEFINE_BYVAL_RO_PROPERTY(int, KeyColumnCount);
@@ -58,6 +59,7 @@ private:
 
     void ValidateChunkMeta();
     void ValidateSchema(const TTableSchema& readerSchema);
+    void BuildSchemalessIdMapping(const TTableSchema& readerSchema);
 
     DECLARE_NEW_FRIEND();
 };

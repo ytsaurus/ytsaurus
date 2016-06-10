@@ -64,68 +64,6 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-void ValidateReadRanges(const std::vector<TReadRange>& readRanges)
-{
-    YCHECK(!readRanges.empty());
-
-    bool hasRowIndex = false;
-    bool hasKey = false;
-
-    for (const auto& range : readRanges) {
-        if (range.LowerLimit().HasRowIndex() || range.UpperLimit().HasRowIndex()) {
-            hasRowIndex = true;
-        }
-        if (range.LowerLimit().HasKey() || range.UpperLimit().HasKey()) {
-            hasKey = true;
-        }
-        if (hasRowIndex && hasKey && readRanges.size() > 1) {
-            THROW_ERROR_EXCEPTION("Both key ranges and index ranges are not supported when reading multiple ranges");
-        }
-    }
-
-    if (hasRowIndex) {
-        for (int index = 0; index < readRanges.size(); ++index) {
-            if ((index > 0 && !readRanges[index].LowerLimit().HasRowIndex()) ||
-                ((index < readRanges.size() - 1 && !readRanges[index].UpperLimit().HasRowIndex())))
-            {
-                THROW_ERROR_EXCEPTION("Overlapping ranges are not supported");
-            }
-        }
-
-        for (int index = 1; index < readRanges.size(); ++index) {
-            const auto& prev = readRanges[index - 1].UpperLimit();
-            const auto& next = readRanges[index].LowerLimit();
-            if (prev.GetRowIndex() > next.GetRowIndex()) {
-                THROW_ERROR_EXCEPTION("Overlapping ranges are not supported");
-            }
-        }
-    }
-
-    if (hasKey) {
-        for (int index = 0; index < readRanges.size(); ++index) {
-            if ((index > 0 && !readRanges[index].LowerLimit().HasKey()) ||
-                ((index < readRanges.size() - 1 && !readRanges[index].UpperLimit().HasKey())))
-            {
-                THROW_ERROR_EXCEPTION("Overlapping ranges are not supported");
-            }
-        }
-
-        for (int index = 1; index < readRanges.size(); ++index) {
-            const auto& prev = readRanges[index - 1].UpperLimit();
-            const auto& next = readRanges[index].LowerLimit();
-            if (CompareRows(prev.GetKey(), next.GetKey()) > 0) {
-                THROW_ERROR_EXCEPTION("Overlapping ranges are not supported");
-            }
-        }
-    }
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSchemalessChunkReaderBase
     : public virtual ISchemalessChunkReader
 {
@@ -212,12 +150,12 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THorizontalSchemalessChunkReader
+class THorizontalSchemalessChunkReaderBase
     : public TChunkReaderBase
     , public TSchemalessChunkReaderBase
 {
 public:
-    THorizontalSchemalessChunkReader(
+    THorizontalSchemalessChunkReaderBase(
         const TChunkSpec& chunkSpec,
         TChunkReaderConfigPtr config,
         TChunkReaderOptionsPtr options,
@@ -226,59 +164,42 @@ public:
         IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
-        std::vector<TReadRange> readRanges,
         TNullable<int> partitionTag);
-
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
     virtual TDataStatistics GetDataStatistics() const override;
 
-private:
+protected:
     using TSchemalessChunkReaderBase::Config_;
 
     TNameTablePtr ChunkNameTable_ = New<TNameTable>();
 
-    std::vector<TReadRange> ReadRanges_;
+    int ChunkKeyColumnCount_ = 0;
 
     TNullable<int> PartitionTag_;
 
-    // Maps chunk name table ids into client ids.
-    // For filtered out columns ReaderSchemaIndex is -1.
+    int CurrentBlockIndex_ = 0;
+
+    // Maps chunk name table ids into client id.
+    // For filtered out columns maps id to -1.
     std::vector<TColumnIdMapping> IdMapping_;
 
     std::unique_ptr<THorizontalSchemalessBlockReader> BlockReader_;
-
-    int CurrentBlockIndex_ = 0;
-    int CurrentRangeIndex_ = 0;
-
-    bool RangeEnded_ = false;
 
     TChunkMeta ChunkMeta_;
     TBlockMetaExt BlockMetaExt_;
 
     std::vector<int> BlockIndexes_;
 
-    TFuture<void> InitializeBlockSequence();
+    virtual void DoInitializeBlockSequence() = 0;
 
-    virtual void InitFirstBlock() override;
-    virtual void InitNextBlock() override;
-
-    void CreateBlockSequence(int beginIndex, int endIndex);
     void DownloadChunkMeta(std::vector<int> extensionTags, TNullable<int> partitionTag = Null);
 
-    void SkipToCurrrentRange();
-    bool InitNextRange();
-
-    void InitializeBlockSequencePartition();
-    void InitializeBlockSequenceSorted();
-    void InitializeBlockSequenceUnsorted();
+    TFuture<void> InitializeBlockSequence();
 };
-
-DEFINE_REFCOUNTED_TYPE(THorizontalSchemalessChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THorizontalSchemalessChunkReader::THorizontalSchemalessChunkReader(
+THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
     const TChunkSpec& chunkSpec,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
@@ -287,7 +208,6 @@ THorizontalSchemalessChunkReader::THorizontalSchemalessChunkReader(
     IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
-    std::vector<TReadRange> readRanges,
     TNullable<int> partitionTag)
     : TChunkReaderBase(
         config,
@@ -301,48 +221,17 @@ THorizontalSchemalessChunkReader::THorizontalSchemalessChunkReader(
         nameTable,
         columnFilter,
         keyColumns)
-    , ReadRanges_(readRanges)
     , PartitionTag_(std::move(partitionTag))
-{
-    if (ReadRanges_.size() == 1) {
-        LOG_DEBUG("Reading single range (Range: %v)", ReadRanges_[0]);
-    } else {
-        LOG_DEBUG("Reading multiple ranges (RangeCount: %v)", ReadRanges_.size());
-    }
+{ }
 
-    // Ready event must be set only when all initialization is finished and 
-    // RowIndex_ is set into proper value.
-    ReadyEvent_ = BIND(&THorizontalSchemalessChunkReader::InitializeBlockSequence, MakeStrong(this))
-        .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
-        .Run()
-        .Apply(BIND([this, this_ = MakeStrong(this)] () {
-            if (InitFirstBlockNeeded_) {
-                InitFirstBlock();
-                InitFirstBlockNeeded_ = false;
-            }
-        }));
-}
-
-TFuture<void> THorizontalSchemalessChunkReader::InitializeBlockSequence()
+TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
 {
     YCHECK(ChunkSpec_.chunk_meta().version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
     YCHECK(BlockIndexes_.empty());
 
     InitializeSystemColumnIds();
 
-    if (PartitionTag_) {
-        InitializeBlockSequencePartition();
-    } else {
-        if (KeyColumns_.empty() &&
-            ReadRanges_.size() == 1 &&
-            !ReadRanges_[0].LowerLimit().HasKey() &&
-            !ReadRanges_[0].UpperLimit().HasKey())
-        {
-            InitializeBlockSequenceUnsorted();
-        } else {
-            InitializeBlockSequenceSorted();
-        }
-    }
+    DoInitializeBlockSequence();
 
     LOG_DEBUG("Reading %v blocks", BlockIndexes_.size());
 
@@ -360,7 +249,7 @@ TFuture<void> THorizontalSchemalessChunkReader::InitializeBlockSequence()
     return DoOpen(std::move(blocks), GetProtoExtension<TMiscExt>(ChunkMeta_.extensions()));
 }
 
-void THorizontalSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, TNullable<int> partitionTag)
+void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> extensionTags, TNullable<int> partitionTag)
 {
     extensionTags.push_back(TProtoExtensionTag<TMiscExt>::Value);
     extensionTags.push_back(TProtoExtensionTag<TBlockMetaExt>::Value);
@@ -414,7 +303,106 @@ void THorizontalSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extens
     }
 }
 
-void THorizontalSchemalessChunkReader::InitializeBlockSequenceSorted()
+TDataStatistics THorizontalSchemalessChunkReaderBase::GetDataStatistics() const
+{
+    auto dataStatistics = TChunkReaderBase::GetDataStatistics();
+    dataStatistics.set_row_count(RowCount_);
+    return dataStatistics;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THorizontalSchemalessRangeChunkReader
+    : public THorizontalSchemalessChunkReaderBase
+{
+public:
+    THorizontalSchemalessRangeChunkReader(
+        const TChunkSpec& chunkSpec,
+        TChunkReaderConfigPtr config,
+        TChunkReaderOptionsPtr options,
+        IChunkReaderPtr underlyingReader,
+        TNameTablePtr nameTable,
+        IBlockCachePtr blockCache,
+        const TKeyColumns& keyColumns,
+        const TColumnFilter& columnFilter,
+        const TReadRange& readRange,
+        TNullable<int> partitionTag);
+
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override;
+
+private:
+    TReadRange ReadRange_;
+
+    virtual void DoInitializeBlockSequence() override;
+
+    virtual void InitFirstBlock() override;
+    virtual void InitNextBlock() override;
+
+    void CreateBlockSequence(int beginIndex, int endIndex);
+
+    void InitializeBlockSequencePartition();
+    void InitializeBlockSequenceSorted();
+    void InitializeBlockSequenceUnsorted();
+};
+
+DEFINE_REFCOUNTED_TYPE(THorizontalSchemalessRangeChunkReader)
+
+////////////////////////////////////////////////////////////////////////////////
+
+THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
+    const TChunkSpec& chunkSpec,
+    TChunkReaderConfigPtr config,
+    TChunkReaderOptionsPtr options,
+    IChunkReaderPtr underlyingReader,
+    TNameTablePtr nameTable,
+    IBlockCachePtr blockCache,
+    const TKeyColumns& keyColumns,
+    const TColumnFilter& columnFilter,
+    const TReadRange& readRange,
+    TNullable<int> partitionTag)
+    : THorizontalSchemalessChunkReaderBase(
+        chunkSpec,
+        std::move(config),
+        std::move(options),
+        std::move(underlyingReader),
+        std::move(nameTable),
+        std::move(blockCache),
+        keyColumns,
+        columnFilter,
+        std::move(partitionTag))
+    , ReadRange_(readRange)
+{
+    LOG_DEBUG("Reading range %v", ReadRange_);
+
+    // Ready event must be set only when all initialization is finished and 
+    // RowIndex_ is set into proper value.
+    // Must be called after the object is constructed and vtable initialized.
+    ReadyEvent_ = BIND(&THorizontalSchemalessRangeChunkReader::InitializeBlockSequence, MakeStrong(this))
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+        .Run()
+        .Apply(BIND([this, this_ = MakeStrong(this)] () {
+            if (InitFirstBlockNeeded_) {
+                InitFirstBlock();
+                InitFirstBlockNeeded_ = false;
+            }
+        }));
+}
+
+void THorizontalSchemalessRangeChunkReader::DoInitializeBlockSequence()
+{
+    if (PartitionTag_) {
+        InitializeBlockSequencePartition();
+    } else {
+        bool readSorted = ReadRange_.LowerLimit().HasKey() || ReadRange_.UpperLimit().HasKey() || !KeyColumns_.empty();
+        if (readSorted) {
+            InitializeBlockSequenceSorted();
+        } else {
+            InitializeBlockSequenceUnsorted();
+        }
+    }
+}
+
+void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceSorted()
 {
     std::vector<int> extensionTags = {
         TProtoExtensionTag<TKeyColumnsExt>::Value,
@@ -429,103 +417,74 @@ void THorizontalSchemalessChunkReader::InitializeBlockSequenceSorted()
 
     auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
     TKeyColumns chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
+    ChunkKeyColumnCount_ = chunkKeyColumns.size();
 
-    ValidateKeyColumns(KeyColumns_, chunkKeyColumns);
+    ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable);
 
     if (KeyColumns_.empty()) {
         KeyColumns_ = chunkKeyColumns;
     }
 
-    int lastIndex = -1;
-    std::vector<TBlockFetcher::TBlockInfo> blocks;
-    for (const auto& readRange : ReadRanges_) {
-        int beginIndex = std::max(
-            ApplyLowerRowLimit(BlockMetaExt_, readRange.LowerLimit()),
-            ApplyLowerKeyLimit(BlockMetaExt_, readRange.LowerLimit()));
-        int endIndex = std::min(
-            ApplyUpperRowLimit(BlockMetaExt_, readRange.UpperLimit()),
-            ApplyUpperKeyLimit(BlockMetaExt_, readRange.UpperLimit()));
-
-        if (beginIndex == lastIndex) {
-            ++beginIndex;
-        }
-        YCHECK(beginIndex > lastIndex);
-
-        for (int index = beginIndex; index < endIndex; ++index) {
-            BlockIndexes_.push_back(index);
-            lastIndex = index;
-        }
+    TNullable<int> keyColumnCount;
+    if (Options_->DynamicTable) {
+        keyColumnCount = KeyColumns_.size();
     }
+
+    int beginIndex = std::max(
+        ApplyLowerRowLimit(BlockMetaExt_, ReadRange_.LowerLimit()),
+        ApplyLowerKeyLimit(BlockMetaExt_, ReadRange_.LowerLimit(), keyColumnCount));
+    int endIndex = std::min(
+        ApplyUpperRowLimit(BlockMetaExt_, ReadRange_.UpperLimit()),
+        ApplyUpperKeyLimit(BlockMetaExt_, ReadRange_.UpperLimit(), keyColumnCount));
+
+    CreateBlockSequence(beginIndex, endIndex);
 }
 
-void THorizontalSchemalessChunkReader::InitializeBlockSequencePartition()
+void THorizontalSchemalessRangeChunkReader::InitializeBlockSequencePartition()
 {
-    YCHECK(ReadRanges_.size() == 1);
-    YCHECK(ReadRanges_[0].LowerLimit().IsTrivial());
-    YCHECK(ReadRanges_[0].UpperLimit().IsTrivial());
+    YCHECK(ReadRange_.LowerLimit().IsTrivial());
+    YCHECK(ReadRange_.UpperLimit().IsTrivial());
 
     DownloadChunkMeta(std::vector<int>(), PartitionTag_);
     CreateBlockSequence(0, BlockMetaExt_.blocks_size());
 }
 
-void THorizontalSchemalessChunkReader::InitializeBlockSequenceUnsorted()
+void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceUnsorted()
 {
-    YCHECK(ReadRanges_.size() == 1);
-
     DownloadChunkMeta(std::vector<int>());
 
     CreateBlockSequence(
-        ApplyLowerRowLimit(BlockMetaExt_, ReadRanges_[0].LowerLimit()),
-        ApplyUpperRowLimit(BlockMetaExt_, ReadRanges_[0].UpperLimit()));
+        ApplyLowerRowLimit(BlockMetaExt_, ReadRange_.LowerLimit()),
+        ApplyUpperRowLimit(BlockMetaExt_, ReadRange_.UpperLimit()));
 }
 
-void THorizontalSchemalessChunkReader::CreateBlockSequence(int beginIndex, int endIndex)
+void THorizontalSchemalessRangeChunkReader::CreateBlockSequence(int beginIndex, int endIndex)
 {
     for (int index = beginIndex; index < endIndex; ++index) {
         BlockIndexes_.push_back(index);
     }
 }
 
-TDataStatistics THorizontalSchemalessChunkReader::GetDataStatistics() const
+void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
 {
-    auto dataStatistics = TChunkReaderBase::GetDataStatistics();
-    dataStatistics.set_row_count(RowCount_);
-    return dataStatistics;
-}
-
-void THorizontalSchemalessChunkReader::InitFirstBlock()
-{
-
     int blockIndex = BlockIndexes_[CurrentBlockIndex_];
     const auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
-
-    CheckBlockUpperLimits(blockMeta, ReadRanges_[CurrentRangeIndex_].UpperLimit());
 
     YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
     BlockReader_.reset(new THorizontalSchemalessBlockReader(
         CurrentBlock_.Get().ValueOrThrow(),
         blockMeta,
         IdMapping_,
+        ChunkKeyColumnCount_,
         KeyColumns_.size(),
         SystemColumnCount_));
 
     RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
-    SkipToCurrrentRange();
-}
+    int keyColumnCount = std::max(ChunkKeyColumnCount_, static_cast<int>(KeyColumns_.size()));
+    CheckBlockUpperLimits(BlockMetaExt_.blocks(blockIndex), ReadRange_.UpperLimit(), keyColumnCount);
 
-void THorizontalSchemalessChunkReader::InitNextBlock()
-{
-    ++CurrentBlockIndex_;
-    InitFirstBlock();
-}
-
-void THorizontalSchemalessChunkReader::SkipToCurrrentRange()
-{
-    int blockIndex = BlockIndexes_[CurrentBlockIndex_];
-    CheckBlockUpperLimits(BlockMetaExt_.blocks(blockIndex), ReadRanges_[CurrentRangeIndex_].UpperLimit());
-
-    const auto& lowerLimit = ReadRanges_[CurrentRangeIndex_].LowerLimit();
+    const auto& lowerLimit = ReadRange_.LowerLimit();
 
     if (lowerLimit.HasRowIndex() && RowIndex_ < lowerLimit.GetRowIndex()) {
         YCHECK(BlockReader_->SkipToRowIndex(lowerLimit.GetRowIndex() - RowIndex_));
@@ -534,36 +493,18 @@ void THorizontalSchemalessChunkReader::SkipToCurrrentRange()
 
     if (lowerLimit.HasKey()) {
         auto blockRowIndex = BlockReader_->GetRowIndex();
-        YCHECK(BlockReader_->SkipToKey(lowerLimit.GetKey()));
+        YCHECK(BlockReader_->SkipToKey(lowerLimit.GetKey().Get()));
         RowIndex_ += BlockReader_->GetRowIndex() - blockRowIndex;
     }
 }
 
-bool THorizontalSchemalessChunkReader::InitNextRange()
+void THorizontalSchemalessRangeChunkReader::InitNextBlock()
 {
-    RangeEnded_ = false;
-    ++CurrentRangeIndex_;
-
-    if (CurrentRangeIndex_ == ReadRanges_.size()) {
-        LOG_DEBUG("Upper limit %v reached", ToString(ReadRanges_.back()));
-        return false;
-    }
-
-    const auto& lowerLimit = ReadRanges_[CurrentRangeIndex_].LowerLimit();
-    const auto& blockMeta = BlockMetaExt_.blocks(BlockIndexes_[CurrentBlockIndex_]);
-
-    if ((lowerLimit.HasRowIndex() && blockMeta.chunk_row_count() <= lowerLimit.GetRowIndex()) ||
-        (lowerLimit.HasKey() && CompareRows(FromProto<TOwningKey>(blockMeta.last_key()), lowerLimit.GetKey()) < 0))
-    {
-        BlockReader_.reset();
-        return OnBlockEnded();
-    } else {
-        SkipToCurrrentRange();
-        return true;
-    }
+    ++CurrentBlockIndex_;
+    InitFirstBlock();
 }
 
-bool THorizontalSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
+bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* rows)
 {
     YCHECK(rows->capacity() > 0);
 
@@ -580,10 +521,6 @@ bool THorizontalSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
         return false;
     }
 
-    if (RangeEnded_) {
-        return InitNextRange();
-    }
-
     if (BlockEnded_) {
         BlockReader_.reset();
         return OnBlockEnded();
@@ -591,10 +528,10 @@ bool THorizontalSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
 
     i64 dataWeight = 0;
     while (rows->size() < rows->capacity() && dataWeight < Config_->MaxDataSizePerRead) {
-        if ((CheckRowLimit_ && RowIndex_ >= ReadRanges_[CurrentRangeIndex_].UpperLimit().GetRowIndex()) ||
-            (CheckKeyLimit_ && CompareRows(BlockReader_->GetKey(), ReadRanges_[CurrentRangeIndex_].UpperLimit().GetKey()) >= 0))
+        if ((CheckRowLimit_ && RowIndex_ >= ReadRange_.UpperLimit().GetRowIndex()) ||
+            (CheckKeyLimit_ && CompareRows(BlockReader_->GetKey(), ReadRange_.UpperLimit().GetKey()) >= 0))
         {
-            RangeEnded_ = true;
+            BlockEnded_ = true;
             return true;
         }
 
@@ -626,6 +563,215 @@ bool THorizontalSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
     }
 
     return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THorizontalSchemalessLookupChunkReader
+    : public THorizontalSchemalessChunkReaderBase
+{
+public:
+    THorizontalSchemalessLookupChunkReader(
+        const TChunkSpec& chunkSpec,
+        TChunkReaderConfigPtr config,
+        TChunkReaderOptionsPtr options,
+        NChunkClient::IChunkReaderPtr underlyingReader,
+        TNameTablePtr nameTable,
+        NChunkClient::IBlockCachePtr blockCache,
+        const TKeyColumns& keyColumns,
+        const TColumnFilter& columnFilter,
+        const TSharedRange<TKey>& keys,
+        TChunkReaderPerformanceCountersPtr performanceCounters,
+        TNullable<int> partitionTag = Null);
+
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override;
+
+private:
+    const TSharedRange<TKey> Keys_;
+    const TChunkReaderPerformanceCountersPtr PerformanceCounters_;
+    std::vector<bool> KeyFilterTest_;
+
+    virtual void DoInitializeBlockSequence() override;
+
+    virtual void InitFirstBlock() override;
+    virtual void InitNextBlock() override;
+
+    bool DoRead(std::vector<TUnversionedRow>* rows);
+
+};
+
+DEFINE_REFCOUNTED_TYPE(THorizontalSchemalessLookupChunkReader)
+
+////////////////////////////////////////////////////////////////////////////////
+
+THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
+    const TChunkSpec& chunkSpec,
+    TChunkReaderConfigPtr config,
+    TChunkReaderOptionsPtr options,
+    NChunkClient::IChunkReaderPtr underlyingReader,
+    TNameTablePtr nameTable,
+    NChunkClient::IBlockCachePtr blockCache,
+    const TKeyColumns& keyColumns,
+    const TColumnFilter& columnFilter,
+    const TSharedRange<TKey>& keys,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
+    TNullable<int> partitionTag)
+    : THorizontalSchemalessChunkReaderBase(
+        chunkSpec,
+        std::move(config),
+        std::move(options),
+        std::move(underlyingReader),
+        std::move(nameTable),
+        std::move(blockCache),
+        keyColumns,
+        columnFilter,
+        std::move(partitionTag))
+    , Keys_(keys)
+    , PerformanceCounters_(std::move(performanceCounters))
+    , KeyFilterTest_(Keys_.Size(), true)
+{
+    // Ready event must be set only when all initialization is finished and 
+    // RowIndex_ is set into proper value.
+    // Must be called after the object is constructed and vtable initialized.
+    ReadyEvent_ = BIND(&THorizontalSchemalessLookupChunkReader::InitializeBlockSequence, MakeStrong(this))
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+        .Run()
+        .Apply(BIND([this, this_ = MakeStrong(this)] () {
+            if (InitFirstBlockNeeded_) {
+                InitFirstBlock();
+                InitFirstBlockNeeded_ = false;
+            }
+        }));
+}
+
+void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
+{
+    std::vector<int> extensionTags = {
+        TProtoExtensionTag<TKeyColumnsExt>::Value,
+    };
+
+    DownloadChunkMeta(extensionTags, PartitionTag_);
+
+    auto misc = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    if (!misc.sorted()) {
+        THROW_ERROR_EXCEPTION("Requested lookup for an unsorted chunk");
+    }
+    if (!misc.unique_keys()) {
+        THROW_ERROR_EXCEPTION("Requested lookup for a chunk without unique_keys restriction");
+    }
+
+    auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
+    TKeyColumns chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
+    ChunkKeyColumnCount_ = chunkKeyColumns.size();
+
+    if (KeyColumns_.empty()) {
+        KeyColumns_ = chunkKeyColumns;
+    }
+
+    ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable);
+
+    for (const auto& key : Keys_) {
+        TReadLimit readLimit;
+        readLimit.SetKey(TOwningKey(key));
+
+        int index = ApplyLowerRowLimit(BlockMetaExt_,  readLimit);
+
+        if (BlockIndexes_.empty() || BlockIndexes_.back() != index) {
+            BlockIndexes_.push_back(index);
+        }
+    }
+}
+
+bool THorizontalSchemalessLookupChunkReader::Read(std::vector<TUnversionedRow>* rows)
+{
+    bool result = DoRead(rows);
+    if (PerformanceCounters_) {
+        PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
+    }
+    return result;
+}
+
+bool THorizontalSchemalessLookupChunkReader::DoRead(std::vector<TUnversionedRow>* rows)
+{
+    YCHECK(rows->capacity() > 0);
+
+    MemoryPool_.Clear();
+    rows->clear();
+
+    if (!BeginRead()) {
+        // Not ready yet.
+        return true;
+    }
+
+    if (!BlockReader_) {
+        // Nothing to read from chunk.
+        if (RowCount_ == Keys_.Size()) {
+            return false;
+        }
+
+        while (rows->size() < rows->capacity() && RowCount_ < Keys_.Size()) {
+            rows->push_back(TUnversionedRow());
+            ++RowCount_;
+        }
+        return true;
+    }
+
+    if (BlockEnded_) {
+        BlockReader_.reset();
+        OnBlockEnded();
+        return true;
+    }
+
+    while (rows->size() < rows->capacity()) {
+        if (RowCount_ == Keys_.Size()) {
+            BlockEnded_ = true;
+            return true;
+        }
+
+        if (!KeyFilterTest_[RowCount_]) {
+            rows->push_back(TUnversionedRow());
+        } else {
+            const auto& key = Keys_[RowCount_];
+            if (!BlockReader_->SkipToKey(key)) {
+                BlockEnded_ = true;
+                return true;
+            }
+
+            if (key == BlockReader_->GetKey()) {
+                auto row = BlockReader_->GetRow(&MemoryPool_);
+                rows->push_back(row);
+
+                int blockIndex = BlockIndexes_[CurrentBlockIndex_];
+                const auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
+                RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count() + BlockReader_->GetRowIndex();
+            } else {
+                rows->push_back(TUnversionedRow());
+            }
+        }
+        ++RowCount_;
+    }
+
+    return true;
+}
+
+void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
+{
+    int blockIndex = BlockIndexes_[CurrentBlockIndex_];
+    const auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
+
+    BlockReader_.reset(new THorizontalSchemalessBlockReader(
+        CurrentBlock_.Get().ValueOrThrow(),
+        blockMeta,
+        IdMapping_,
+        ChunkKeyColumnCount_,
+        KeyColumns_.size(),
+        SystemColumnCount_));
+}
+
+void THorizontalSchemalessLookupChunkReader::InitNextBlock()
+{
+    ++CurrentBlockIndex_;
+    InitFirstBlock();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -808,7 +954,7 @@ private:
         auto schemaExt = GetProtoExtension<TTableSchemaExt>(ChunkMeta_->ChunkMeta().extensions());
         auto schema = FromProto<TTableSchema>(schemaExt);
 
-        ValidateKeyColumns(KeyColumns_, schema.GetKeyColumns());
+        ValidateKeyColumns(KeyColumns_, schema.GetKeyColumns(), Options_->DynamicTable);
         if (sortedRead && KeyColumns_.empty()) {
             KeyColumns_ = schema.GetKeyColumns();
         }
@@ -878,19 +1024,17 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     NChunkClient::IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
-    std::vector<NChunkClient::TReadRange> readRanges,
+    const TReadRange& readRange,
     TNullable<int> partitionTag)
 {
     auto type = EChunkType(chunkSpec.chunk_meta().type());
     YCHECK(type == EChunkType::Table);
 
-    ValidateReadRanges(readRanges);
-
     auto formatVersion = ETableChunkFormat(chunkSpec.chunk_meta().version());
 
     switch (formatVersion) {
         case ETableChunkFormat::SchemalessHorizontal:
-            return New<THorizontalSchemalessChunkReader>(
+            return New<THorizontalSchemalessRangeChunkReader>(
                 chunkSpec,
                 config,
                 options,
@@ -899,11 +1043,11 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 blockCache,
                 keyColumns,
                 columnFilter,
-                std::move(readRanges),
+                readRange,
                 std::move(partitionTag));
 
         case ETableChunkFormat::Old: {
-            YCHECK(readRanges.size() == 0);
+            YCHECK(readRange.LowerLimit().IsTrivial() && readRange.UpperLimit().IsTrivial());
             YCHECK(!partitionTag);
 
             return New<TLegacyTableChunkReader>(
@@ -918,7 +1062,6 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
         }
 
         case ETableChunkFormat::UnversionedColumnar:
-            YCHECK(readRanges.size() <= 1);
             return New<TColumnarSchemalessChunkReader>(
                 chunkSpec,
                 config,
@@ -928,10 +1071,52 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 blockCache,
                 keyColumns,
                 columnFilter,
-                readRanges.empty() ? TReadRange() : readRanges.front());
+                readRange);
 
         default:
             Y_UNREACHABLE();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
+    const TChunkSpec& chunkSpec,
+    TChunkReaderConfigPtr config,
+    TChunkReaderOptionsPtr options,
+    NChunkClient::IChunkReaderPtr underlyingReader,
+    TNameTablePtr nameTable,
+    NChunkClient::IBlockCachePtr blockCache,
+    const TKeyColumns& keyColumns,
+    const TColumnFilter& columnFilter,
+    const TSharedRange<TKey>& keys,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
+    TNullable<int> partitionTag)
+{
+    auto type = EChunkType(chunkSpec.chunk_meta().type());
+    YCHECK(type == EChunkType::Table);
+
+    auto formatVersion = ETableChunkFormat(chunkSpec.chunk_meta().version());
+
+    switch (formatVersion) {
+        case ETableChunkFormat::SchemalessHorizontal:
+            return New<THorizontalSchemalessLookupChunkReader>(
+                chunkSpec,
+                std::move(config),
+                std::move(options),
+                std::move(underlyingReader),
+                std::move(nameTable),
+                std::move(blockCache),
+                keyColumns,
+                columnFilter,
+                keys,
+                std::move(performanceCounters),
+                std::move(partitionTag));
+
+        default:
+            THROW_ERROR_EXCEPTION(
+                "This operation is not supported for chunks in %Qv format",
+                formatVersion);
     }
 }
 
@@ -996,7 +1181,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 blockCache,
                 keyColumns,
                 columnFilter.All ? CreateColumnFilter(channel, nameTable) : columnFilter,
-                std::vector<TReadRange>(1, std::move(range)),
+                range,
                 partitionTag);
         };
 

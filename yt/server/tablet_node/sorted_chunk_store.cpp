@@ -21,6 +21,7 @@
 
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/ytlib/table_client/versioned_reader.h>
 
@@ -71,7 +72,7 @@ public:
         , UnderlyingCache_(std::move(underlyingCache))
     { }
 
-    DEFINE_BYVAL_RO_PROPERTY(TVersionedChunkLookupHashTablePtr, LookupHashTable);
+    DEFINE_BYVAL_RO_PROPERTY(IChunkLookupHashTablePtr, LookupHashTable);
 
     ~TPreloadedBlockCache()
     {
@@ -299,7 +300,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         lowerKey,
         upperKey,
         timestamp,
-        columnFilter);
+        columnFilter,
+        tabletSnapshot->TableSchema);
     if (reader) {
         return reader;
     }
@@ -345,7 +347,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     TOwningKey lowerKey,
     TOwningKey upperKey,
     TTimestamp timestamp,
-    const TColumnFilter& columnFilter)
+    const TColumnFilter& columnFilter,
+    const TTableSchema& schema)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -380,7 +383,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     auto reader = CreateCacheBasedReader(
         keys,
         timestamp,
-        columnFilter);
+        columnFilter,
+        tabletSnapshot->TableSchema);
     if (reader) {
         return reader;
     }
@@ -417,7 +421,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
-    const TColumnFilter& columnFilter)
+    const TColumnFilter& columnFilter,
+    const TTableSchema& schema)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

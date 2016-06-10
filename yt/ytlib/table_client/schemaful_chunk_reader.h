@@ -22,7 +22,16 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
     NChunkClient::IBlockCachePtr blockCache,
     const TTableSchema& schema,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    std::vector<NChunkClient::TReadRange> readRanges = std::vector<NChunkClient::TReadRange>(1),
+    const NChunkClient::TReadRange& readRange,
+    TTimestamp timestamp = NullTimestamp);
+
+ISchemafulReaderPtr CreateSchemafulChunkReader(
+    TChunkReaderConfigPtr config,
+    NChunkClient::IChunkReaderPtr chunkReader,
+    NChunkClient::IBlockCachePtr blockCache,
+    const TTableSchema& schema,
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    const TSharedRange<TKey>& keys,
     TTimestamp timestamp = NullTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////

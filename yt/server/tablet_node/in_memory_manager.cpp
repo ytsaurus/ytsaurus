@@ -20,6 +20,8 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
+
 #include <yt/core/compression/codec.h>
 
 #include <yt/core/concurrency/async_semaphore.h>

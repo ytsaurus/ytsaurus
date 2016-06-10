@@ -107,6 +107,7 @@ void TPartitionChunkReader::InitFirstBlock()
         CurrentBlock_.Get().ValueOrThrow(),
         BlockMetaExt_.blocks(CurrentBlockIndex_),
         IdMapping_,
+        KeyColumns_.size(),
         KeyColumns_.size());
 
     BlockReaders_.emplace_back(BlockReader_);

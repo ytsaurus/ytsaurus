@@ -305,7 +305,7 @@ protected:
 
         if (maybeSchema) {
             // NB: Sorted dynamic tables contain unique keys, set this for user.
-            if (dynamic && maybeSchema->IsSorted()) {
+            if (dynamic && maybeSchema->IsSorted() && !maybeSchema->GetUniqueKeys()) {
                 maybeSchema = maybeSchema->ToUniqueKeys();
             }
 

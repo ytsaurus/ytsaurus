@@ -1463,6 +1463,96 @@ class TestSortedTablets(YTEnvSetup):
         assert_items_equal(select_rows("key from [//tmp/t1]"), rows + ext_rows1)
         assert_items_equal(select_rows("key from [//tmp/t2]"), rows + ext_rows2)
 
+    def test_mount_static_table_fails(self):
+        self.sync_create_cells(1)
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": False,
+                "external": False,
+                "schema": [
+                     {"name": "key", "type": "int64", "sort_order": "ascending"},
+                     {"name": "value", "type": "string"}]
+            })
+        assert not get("//tmp/t/@schema/@unique_keys")
+        with pytest.raises(YtError): alter_table("//tmp/t", dynamic=True)
+
+    def _test_mount_static_table(self, in_memory_mode, enable_lookup_hash_table):
+        self.sync_create_cells(1)
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": False,
+                "external": False,
+                "schema": make_schema([
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                    {"name": "avalue", "type": "int64", "aggregate": "sum"}],
+                    unique_keys=True)
+            })
+        rows = [{"key": i, "value": str(i), "avalue": 1} for i in xrange(2)]
+        keys = [{"key": row["key"]} for row in rows]
+
+        write_table("//tmp/t", rows)
+        alter_table("//tmp/t", dynamic=True)
+        set("//tmp/t/@in_memory_mode", in_memory_mode)
+        set("//tmp/t/@enable_lookup_hash_table", enable_lookup_hash_table)
+
+        self.sync_mount_table("//tmp/t")
+        sleep(1.0)
+
+        actual = lookup_rows("//tmp/t", keys)
+        assert actual == rows
+        actual = select_rows("* from [//tmp/t]")
+        assert_items_equal(actual, rows)
+
+        rows = [{"key": i, "avalue": 1} for i in xrange(2)]
+        insert_rows("//tmp/t", rows, aggregate=True, update=True)
+
+        expected = [{"key": i, "value": str(i), "avalue": 2} for i in xrange(2)]
+        actual = lookup_rows("//tmp/t", keys)
+        assert actual == expected
+        actual = select_rows("* from [//tmp/t]")
+        assert_items_equal(actual, expected)
+
+        expected = [{"key": i, "avalue": 2} for i in xrange(2)]
+        actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"])
+        assert actual == expected
+        actual = select_rows("key, avalue from [//tmp/t]")
+        assert_items_equal(actual, expected)
+
+        self.sync_unmount_table("//tmp/t")
+
+        alter_table("//tmp/t", schema=[
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "key2", "type": "int64", "sort_order": "ascending"},
+                    {"name": "nvalue", "type": "string"},
+                    {"name": "value", "type": "string"},
+                    {"name": "avalue", "type": "int64", "aggregate": "sum"}])
+
+        self.sync_mount_table("//tmp/t")
+        sleep(1.0)
+
+        insert_rows("//tmp/t", rows, aggregate=True, update=True)
+
+        expected = [{"key": i, "key2": None, "nvalue": None, "value": str(i), "avalue": 3} for i in xrange(2)]
+        actual = lookup_rows("//tmp/t", keys)
+        assert actual == expected
+        actual = select_rows("* from [//tmp/t]")
+        assert_items_equal(actual, expected)
+
+        expected = [{"key": i, "avalue": 3} for i in xrange(2)]
+        actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"])
+        assert actual == expected
+        actual = select_rows("key, avalue from [//tmp/t]")
+        assert_items_equal(actual, expected)
+
+    def test_mount_static_table_none(self):
+        self._test_mount_static_table("none", False)
+    def test_mount_static_table_compressed(self):
+        self._test_mount_static_table("compressed", False)
+    def test_mount_static_table_with_lookup_hash_table(self):
+        self._test_mount_static_table("uncompressed", True)
+
+
 ##################################################################
 
 class TestSortedTabletsMetadataCaching(YTEnvSetup):
