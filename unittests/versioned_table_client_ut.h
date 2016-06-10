@@ -1,0 +1,150 @@
+#include "framework.h"
+
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/ytlib/table_client/versioned_reader.h>
+
+#include <yt/core/yson/public.h>
+
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/node.h>
+
+namespace NYT {
+namespace NTableClient {
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace NYTree;
+using namespace NYson;
+
+inline TUnversionedOwningRow BuildKey(const Stroka& yson)
+{
+    TUnversionedOwningRowBuilder keyBuilder;
+    auto keyParts = ConvertTo<std::vector<INodePtr>>(
+        TYsonString(yson, EYsonType::ListFragment));
+
+    for (int id = 0; id < keyParts.size(); ++id) {
+        const auto& keyPart = keyParts[id];
+        switch (keyPart->GetType()) {
+            case ENodeType::Int64:
+                keyBuilder.AddValue(MakeInt64Value<TUnversionedValue>(
+                    keyPart->GetValue<i64>(),
+                    id));
+                break;
+            case ENodeType::Uint64:
+                keyBuilder.AddValue(MakeUint64Value<TUnversionedValue>(
+                    keyPart->GetValue<ui64>(),
+                    id));
+                break;
+            case ENodeType::Double:
+                keyBuilder.AddValue(MakeDoubleValue<TUnversionedValue>(
+                    keyPart->GetValue<double>(),
+                    id));
+                break;
+            case ENodeType::String:
+                keyBuilder.AddValue(MakeStringValue<TUnversionedValue>(
+                    keyPart->GetValue<Stroka>(),
+                    id));
+                break;
+            case ENodeType::Entity:
+                keyBuilder.AddValue(MakeSentinelValue<TUnversionedValue>(
+                    keyPart->Attributes().Get<EValueType>("type"),
+                    id));
+                break;
+            default:
+                keyBuilder.AddValue(MakeAnyValue<TUnversionedValue>(
+                    ConvertToYsonString(keyPart).Data(),
+                    id));
+                break;
+        }
+    }
+
+    return keyBuilder.FinishRow();
+}
+
+inline Stroka KeyToYson(TKey key)
+{
+    return ConvertToYsonString(key, EYsonFormat::Text).Data();
+}
+
+class TVersionedTableClientTestBase
+    : public ::testing::Test
+{
+protected:
+    void ExpectRowsEqual(TUnversionedRow expected, TUnversionedRow actual)
+    {
+        if (!expected) {
+            EXPECT_FALSE(actual);
+            return;
+        }
+
+        EXPECT_EQ(0, CompareRows(expected.Begin(), expected.End(), actual.Begin(), actual.End()))
+            << "expected: " << ToString(expected) 
+            << ", "
+            << "actual: " << ToString(actual);
+    }
+
+    void CheckResult(const std::vector<TVersionedRow>& expected, IVersionedReaderPtr reader)
+    {
+        auto it = expected.begin();
+        std::vector<TVersionedRow> actual;
+        actual.reserve(1000);
+
+        while (reader->Read(&actual)) {
+            if (actual.empty()) {
+                EXPECT_TRUE(reader->GetReadyEvent().Get().IsOK());
+                continue;
+            }
+
+            std::vector<TVersionedRow> ex(it, it + actual.size());
+
+            CheckResult(ex, actual);
+            it += actual.size();
+        }
+
+        EXPECT_TRUE(it == expected.end());
+    }
+
+    void CheckResult(const std::vector<TVersionedRow>& expected, const std::vector<TVersionedRow>& actual)
+    {
+        EXPECT_EQ(expected.size(), actual.size());
+        for (int i = 0; i < expected.size(); ++i) {
+            ExpectRowsEqual(expected[i], actual[i]);
+        }
+    }
+
+    void ExpectRowsEqual(TVersionedRow expected, TVersionedRow actual)
+    {
+        if (!expected) {
+            EXPECT_FALSE(actual);
+            return;
+        }
+
+        EXPECT_EQ(0, CompareRows(expected.BeginKeys(), expected.EndKeys(), actual.BeginKeys(), actual.EndKeys()));
+
+        EXPECT_EQ(expected.GetWriteTimestampCount(), actual.GetWriteTimestampCount());
+        for (int i = 0; i < expected.GetWriteTimestampCount(); ++i) {
+            EXPECT_EQ(expected.BeginWriteTimestamps()[i], actual.BeginWriteTimestamps()[i]);
+        }
+
+        EXPECT_EQ(expected.GetDeleteTimestampCount(), actual.GetDeleteTimestampCount());
+        for (int i = 0; i < expected.GetDeleteTimestampCount(); ++i) {
+            EXPECT_EQ(expected.BeginDeleteTimestamps()[i], actual.BeginDeleteTimestamps()[i]);
+        }
+
+        EXPECT_EQ(expected.GetValueCount(), actual.GetValueCount());
+        for (int i = 0; i < expected.GetValueCount(); ++i) {
+            EXPECT_EQ(CompareRowValues(expected.BeginValues()[i], actual.BeginValues()[i]), 0);
+            EXPECT_EQ(expected.BeginValues()[i].Timestamp, actual.BeginValues()[i].Timestamp);
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NTableClient
+} // namespace NYT
+

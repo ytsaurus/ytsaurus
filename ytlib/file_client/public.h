@@ -1,0 +1,24 @@
+#pragma once
+
+#include <yt/core/misc/public.h>
+
+namespace NYT {
+namespace NFileClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const int FormatVersion = 1;
+
+class TFileChunkOutput;
+
+DECLARE_REFCOUNTED_STRUCT(IFileReader)
+
+DECLARE_REFCOUNTED_STRUCT(IFileChunkWriter)
+DECLARE_REFCOUNTED_STRUCT(IFileMultiChunkWriter)
+
+DECLARE_REFCOUNTED_CLASS(TFileChunkWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NFileClient
+} // namespace NYT

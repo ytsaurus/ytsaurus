@@ -1,0 +1,18 @@
+#pragma once
+
+#include <yt/core/logging/log.h>
+
+#include <yt/core/misc/public.h>
+
+namespace NYT {
+namespace NFileServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLogging::TLogger FileServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NFileServer
+} // namespace NYT
+

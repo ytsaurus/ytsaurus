@@ -1,0 +1,51 @@
+package NYT.NExecAgent.NProto;
+
+import "yt/core/misc/guid.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/job_tracker_client/job.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetJobSpec
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspGetJobSpec
+{
+    required NJobTrackerClient.NProto.TJobSpec job_spec = 1;
+    required NNodeTrackerClient.NProto.TNodeResources resource_usage = 2;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+message TReqOnJobFinished
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required NJobTrackerClient.NProto.TJobResult result = 2;
+    required string statistics = 3;
+}
+
+message TRspOnJobFinished
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// One-way.
+message TReqOnJobProgress
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required double progress = 2;
+    required string statistics = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// One-way.
+message TReqUpdateResourceUsage
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required NNodeTrackerClient.NProto.TNodeResources resource_usage = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
