@@ -422,6 +422,10 @@ public:
     //! Jobs running on node are logged periodically or when they change their state.
     TDuration JobsLoggingPeriod;
 
+    //! Statistics and resource usages of jobs running on a node are updated
+    //! not more often then this period.
+    TDuration RunningJobsUpdatePeriod;
+
     //! Maximum allowed running time of operation. Null value is interpreted as infinity.
     TNullable<TDuration> OperationTimeLimit;
 
@@ -587,6 +591,9 @@ public:
 
         RegisterParameter("jobs_logging_period", JobsLoggingPeriod)
             .Default(TDuration::Seconds(30));
+
+        RegisterParameter("running_jobs_update_period", RunningJobsUpdatePeriod)
+            .Default(TDuration::Seconds(10));
 
         RegisterParameter("operation_time_limit", OperationTimeLimit)
             .Default();

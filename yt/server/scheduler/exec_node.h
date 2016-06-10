@@ -38,6 +38,9 @@ public:
     //! Last time when logging of jobs on node took place.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, LastJobsLogTime);
 
+    //! Last time when statistics and resource usage from running jobs was updated.
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, LastRunningJobsUpdateTime);
+
     //! Last time when heartbeat from node was processed.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
