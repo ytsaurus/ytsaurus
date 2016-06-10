@@ -322,7 +322,7 @@ TSchedulerElementBase::TSchedulerElementBase(
 
 TSchedulerElementBase::TSchedulerElementBase(const TSchedulerElementBase& other)
     : TSchedulerElementBaseFixedState(other)
-    , StrategyConfig_(CloneYsonSerializable(other.StrategyConfig_))
+    , StrategyConfig_(other.StrategyConfig_)
     , SharedState_(other.SharedState_)
 {
     Cloned_ = true;
@@ -943,7 +943,7 @@ TPool::TPool(
 TPool::TPool(const TPool& other)
     : TCompositeSchedulerElement(other)
     , TPoolFixedState(other)
-    , Config_(CloneYsonSerializable(other.Config_))
+    , Config_(other.Config_)
 { }
 
 bool TPool::IsDefaultConfigured() const
@@ -1371,8 +1371,8 @@ TOperationElement::TOperationElement(
 TOperationElement::TOperationElement(const TOperationElement& other)
     : TSchedulerElementBase(other)
     , TOperationElementFixedState(other)
-    , Spec_(CloneYsonSerializable(other.Spec_))
-    , RuntimeParams_(CloneYsonSerializable(other.RuntimeParams_))
+    , Spec_(other.Spec_)
+    , RuntimeParams_(other.RuntimeParams_)
     , SharedState_(other.SharedState_)
 { }
 

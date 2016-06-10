@@ -781,7 +781,9 @@ private:
         Logger.AddTag("OperationId: %v", operation->GetId());
 
         try {
-            if (ReconfigureYsonSerializable(element->GetRuntimeParams(), update)) {
+            auto newRuntimeParams = CloneYsonSerializable(element->GetRuntimeParams());
+            if (ReconfigureYsonSerializable(newRuntimeParams, update)) {
+                element->GetRuntimeParams() = newRuntimeParams;
                 LOG_INFO("Operation runtime parameters updated");
             }
         } catch (const std::exception& ex) {
