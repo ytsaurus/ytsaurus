@@ -35,8 +35,8 @@ SRCS(
 
 PEERDIR(
   contrib/libs/pycxx
-  yt/${YT_ABI}/core
-  yt/${YT_ABI}/ytlib
+  yt/${YT_ABI}/yt/core
+  yt/${YT_ABI}/yt/ytlib
 )
 
 PY_REGISTER(yson_lib)
