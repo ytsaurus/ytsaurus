@@ -1363,16 +1363,16 @@ TOperationElement::TOperationElement(
     TOperationPtr operation)
     : TSchedulerElementBase(host, strategyConfig)
     , TOperationElementFixedState(operation)
-    , Spec_(spec)
     , RuntimeParams_(runtimeParams)
+    , Spec_(spec)
     , SharedState_(New<TOperationElementSharedState>())
 { }
 
 TOperationElement::TOperationElement(const TOperationElement& other)
     : TSchedulerElementBase(other)
     , TOperationElementFixedState(other)
-    , Spec_(other.Spec_)
     , RuntimeParams_(other.RuntimeParams_)
+    , Spec_(other.Spec_)
     , SharedState_(other.SharedState_)
 { }
 

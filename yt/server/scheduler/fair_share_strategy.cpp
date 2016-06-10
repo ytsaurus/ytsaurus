@@ -783,7 +783,7 @@ private:
         try {
             auto newRuntimeParams = CloneYsonSerializable(element->GetRuntimeParams());
             if (ReconfigureYsonSerializable(newRuntimeParams, update)) {
-                element->GetRuntimeParams() = newRuntimeParams;
+                element->SetRuntimeParams(newRuntimeParams);
                 LOG_INFO("Operation runtime parameters updated");
             }
         } catch (const std::exception& ex) {
