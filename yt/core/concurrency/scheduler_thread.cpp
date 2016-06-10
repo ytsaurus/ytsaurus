@@ -111,6 +111,10 @@ void TSchedulerThread::Shutdown()
     }
 
     if ((epoch & StartedEpochMask) != 0x0) {
+        // There is a tiny chance that thread is not started yet, and call to TThread::Join may fail
+        // in this case. Ensure proper event sequencing by synchronizing with thread startup.
+        ThreadStartedEvent.Wait();
+
         LOG_DEBUG_IF(EnableLogging, "Stopping thread (Name: %v)", ThreadName);
 
         CallbackEventCount->NotifyAll();
