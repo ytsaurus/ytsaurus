@@ -366,7 +366,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
     TScheduleJobResult* scheduleJobResult)
 {
     if (!CanScheduleJob(context, jobLimits)) {
-        scheduleJobResult->RecordFail(EScheduleJobFailReason::Unknown);
+        scheduleJobResult->RecordFail(EScheduleJobFailReason::TaskRefusal);
         return;
     }
 
