@@ -12,5 +12,10 @@ export NODE_PATH=$CMB/node_modules:$NODE_PATH
 
 [[ ! -L $CMB/node_modules/yt ]] && ln -s $CMS $CMB/node_modules/yt
 
+if [[ -f /usr/lib/libjemalloc.so.1 ]]; then
+    export LD_PRELOAD=/usr/lib/libjemalloc.so.1
+    export MALLOC_CONF=prof_prefix:yt_http_proxy_jemalloc
+fi
+
 (cd $CMB && exec $CMB/node_modules/yt/bin/yt_http_proxy "$@")
 

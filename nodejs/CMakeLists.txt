@@ -2,10 +2,9 @@ function(NODE target)
   add_library(${target} MODULE ${ARGN})
   target_link_libraries(${target} ytlib)
 
-  set(_node_compile_definitions
-    "_GNU_SOURCE;_LARGEFILE_SOURCE;_FILE_OFFSET_BITS=64")
-  set(_node_link_flags
-    "-static-libstdc++")
+  set(_node_compile_definitions "_GNU_SOURCE;_LARGEFILE_SOURCE;_FILE_OFFSET_BITS=64")
+  set(_node_compile_flags "-fno-omit-frame-pointer")
+  set(_node_link_flags "-static-libstdc++")
 
   if(APPLE)
     set(_node_link_flags "${_node_link_flags} -undefined dynamic_lookup")
@@ -17,6 +16,7 @@ function(NODE target)
     SUFFIX ".node"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     COMPILE_DEFINITIONS "${_node_compile_definitions}"
+    COMPILE_FLAGS "${_node_compile_flags}"
     LINK_FLAGS "${_node_link_flags}"
   )
 

@@ -2,6 +2,7 @@
 
 #include <yt/core/misc/common.h>
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/ref_tracked.h>
 
 #define BUILDING_NODE_EXTENSION
 

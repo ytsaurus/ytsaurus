@@ -16,6 +16,20 @@ var v8_heapdump = require("heapdump");
 
 var binding = require("./ytnode");
 
+// Bind UE handler early to avoid core dumps.
+process.on("uncaughtException", function(err) {
+    console.error("*** Uncaught Exception ***");
+    console.error(err);
+    if (err.trace) {
+        console.error(err.trace);
+    }
+    if (err.stack) {
+        console.error(err.stack);
+    }
+    // Wipe process.
+    binding._Exit(1);
+});
+
 // Debugging stuff.
 var __DBG = require("./debug").that("C", "Cluster Worker");
 var __PROFILE = false;
@@ -91,7 +105,44 @@ setInterval(function() {
     buffered_profiler.mergeTo(unbuffered_profiler);
 }, 1000);
 
-var profiler = buffered_profiler;
+// Setup periodic V8 info dump.
+var last_gc_scavenge_count = 0;
+var last_gc_scavenge_time = 0;
+var last_gc_mark_sweep_compact_count = 0;
+var last_gc_mark_sweep_compact_time = 0;
+
+setInterval(function() {
+    var statistics = binding.GetGCStatistics();
+
+    unbuffered_profiler.inc(
+        "yt.http_proxy.gc_scavenge_count", {},
+        statistics.total_scavenge_count - last_gc_scavenge_count);
+    last_gc_scavenge_count = statistics.total_scavenge_count;
+
+    unbuffered_profiler.inc(
+        "yt.http_proxy.gc_scavenge_time", {},
+        statistics.total_scavenge_time - last_gc_scavenge_time);
+    last_gc_scavenge_time = statistics.total_scavenge_time;
+
+    unbuffered_profiler.inc(
+        "yt.http_proxy.mark_sweep_compact_count", {},
+        statistics.total_mark_sweep_compact_count - last_gc_mark_sweep_compact_count);
+    last_gc_mark_sweep_compact_count = statistics.total_mark_sweep_compact_count;
+
+    unbuffered_profiler.inc(
+        "yt.http_proxy.mark_sweep_compact_time", {},
+        statistics.total_mark_sweep_compact_time - last_gc_mark_sweep_compact_time);
+    last_gc_mark_sweep_compact_time = statistics.total_mark_sweep_compact_time;
+}, 1000);
+
+setInterval(function() {
+    var statistics = binding.GetHeapStatistics();
+
+    unbuffered_profiler.upd("yt.http_proxy.heap.total", {}, statistics.total_heap_size);
+    unbuffered_profiler.upd("yt.http_proxy.heap.total_exec", {}, statistics.total_heap_size_executable);
+    unbuffered_profiler.upd("yt.http_proxy.heap.used", {}, statistics.used_heap_size);
+    unbuffered_profiler.upd("yt.http_proxy.heap.limit", {}, statistics.heap_size_limit);
+}, 1000);
 
 var version;
 
@@ -117,7 +168,7 @@ yt.YtRegistry.set("fqdn", config.fqdn || require("os").hostname());
 yt.YtRegistry.set("port", config.port);
 yt.YtRegistry.set("config", config);
 yt.YtRegistry.set("logger", logger);
-yt.YtRegistry.set("profiler", profiler);
+yt.YtRegistry.set("profiler", buffered_profiler);
 yt.YtRegistry.set("driver", new yt.YtDriver(config));
 yt.YtRegistry.set("authority", new yt.YtAuthority(
     config.authentication,
@@ -128,7 +179,7 @@ yt.YtRegistry.set("coordinator", new yt.YtCoordinator(
     yt.YtRegistry.get("driver"),
     yt.YtRegistry.get("fqdn"),
     yt.YtRegistry.get("port")));
-yt.YtRegistry.set("eio_watcher", new yt.YtEioWatcher(logger, profiler, config));
+yt.YtRegistry.set("eio_watcher", new yt.YtEioWatcher(logger, buffered_profiler, config));
 
 // Hoist variable declaration.
 var application;
@@ -199,24 +250,45 @@ if (!__DBG.On) {
     supervisor_liveness = setTimeout(gracefullyDie, 30000);
 }
 
+// Setup watchdog.
+setInterval(function() {
+    if (gracefullyDieTriggered || violentlyDieTriggered) {
+        return;
+    }
+    var statistics = binding.GetHeapStatistics();
+    if (statistics.used_heap_size > 128 * 1024 * 1024) {
+        console.error("[" + process.pid + "] Heap is >128MB; gracefully restarting");
+        gracefullyDie();
+        setTimeout(function() {
+            console.error("[" + process.pid + "] Heap is >128MB; violently restarting");
+            violentlyDie();
+        }, 5000);
+    }
+}, 5000);
+
 // Setup signal handlers.
 process.on("SIGUSR1", function() {
-    console.error("Writing a heap snapshot (" + process.pid + ")");
-    v8_heapdump.writeSnapshot();
-});
-
-/*
-process.on("SIGUSR2", function() {
-    if (__PROFILE) {
-        console.error("Pausing V8 profiler.");
-        v8_profiler.pause();
-    } else {
-        console.error("Resuming V8 profiler.");
-        v8_profiler.resume();
+    console.error("[" + process.pid + "] Writing V8 heap dump...");
+    try {
+        v8_heapdump.writeSnapshot();
+    } catch (ex) {
+        console.error("Caught exception: " + ex.toString());
     }
-    __PROFILE = !__PROFILE;
+
+    console.error("[" + process.pid + "] Dumping Jemalloc profile...");
+    try {
+        binding.JemallocCtlWrite("prof.dump", null);
+    } catch (ex) {
+        console.error("Caught exception: " + ex.toString());
+    }
+
+    console.error("[" + process.pid + "] Dumping Jemalloc statistics...");
+    try {
+        binding.JemallocStats();
+    } catch (ex) {
+        console.error("Caught exception: " + ex.toString());
+    }
 });
-*/
 
 // Setup message handlers.
 process.on("message", function(message) {
@@ -240,24 +312,10 @@ process.on("message", function(message) {
     }
 });
 
-process.on("uncaughtException", function(err) {
-    console.error("*** Uncaught Exception");
-    console.error(err);
-    if (err.trace) {
-        console.error(err.trace);
-    }
-    if (err.stack) {
-        console.error(err.stack);
-    }
-    // Wipe process.
-    binding._Exit(1);
-});
-
 // Fire up the head.
 logger.info("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : process.pid });
 
 application = connect()
-    .use(yt.YtIsolateRequest())
     .use(yt.YtLogRequest())
     .use(yt.YtAcao())
     .use(yt.YtCheckPythonWrapperVersion())

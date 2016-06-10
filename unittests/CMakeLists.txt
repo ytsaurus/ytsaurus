@@ -1,6 +1,7 @@
 #:yt-updatable
 set(BASE ${CMAKE_SOURCE_DIR}/yt/unittests)
 set(SRCS
+  ${BASE}/address_ut.cpp
   ${BASE}/any_ut.cpp
   ${BASE}/attributes_ut.cpp
   ${BASE}/bind_ut.cpp

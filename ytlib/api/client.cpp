@@ -357,6 +357,14 @@ private:
         auto info = WaitFor(tableMountCache->GetTableInfo(path))
             .ValueOrThrow();
 
+        const auto& schema = info->Schema;
+        for (const auto& keyColumn : info->KeyColumns) {
+            if (!schema.FindColumn(keyColumn)) {
+                THROW_ERROR_EXCEPTION("Key column %Qv is not present in table schema", keyColumn)
+                    << TErrorAttribute("table_path", path); 
+            }
+        }
+
         TDataSplit result;
         SetObjectId(&result, info->TableId);
         SetTableSchema(&result, info->Schema);
@@ -2626,6 +2634,8 @@ private:
     class TRequestBase
     {
     public:
+        virtual ~TRequestBase() = default;
+
         void Run()
         {
             DoPrepare();
@@ -2633,6 +2643,12 @@ private:
         }
 
     protected:
+        TTransaction* const Transaction_;
+        const TYPath Path_;
+        const TNameTablePtr NameTable_;
+
+        TTableMountInfoPtr TableInfo_;
+
         explicit TRequestBase(
             TTransaction* transaction,
             const TYPath& path,
@@ -2641,13 +2657,6 @@ private:
             , Path_(path)
             , NameTable_(std::move(nameTable))
         { }
-
-        TTransaction* const Transaction_;
-        const TYPath Path_;
-        const TNameTablePtr NameTable_;
-
-        TTableMountInfoPtr TableInfo_;
-
 
         void DoPrepare()
         {

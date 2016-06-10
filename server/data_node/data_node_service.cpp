@@ -98,7 +98,8 @@ public:
             .SetMaxQueueSize(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
             .SetCancelable(true)
-            .SetMaxQueueSize(5000));
+            .SetMaxQueueSize(5000)
+            .SetResponseHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
             .SetOneWay(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
@@ -482,7 +483,7 @@ private:
             const auto& meta = *metaOrError.Value();
             *context->Response().mutable_chunk_meta() = partitionTag
                 ? FilterChunkMetaByPartitionTag(meta, *partitionTag)
-                : TChunkMeta(meta);
+                : static_cast<TChunkMeta>(meta);
 
             context->Reply();
         }).Via(WorkerThread_->GetInvoker()));

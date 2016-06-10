@@ -784,7 +784,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
 
             if (request->fetch_last_key()) {
                 TOwningKey lastKey;
-                if (IsSorted() && !snapshotChunkList->Children().empty()) {
+                if (IsSorted() && !IsEmpty(snapshotChunkList)) {
                     lastKey = GetMaxKey(snapshotChunkList);
                 }
                 ToProto(response->mutable_last_key(), lastKey);
