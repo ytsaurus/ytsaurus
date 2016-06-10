@@ -310,7 +310,7 @@ function(ADD_GDB_INDEX target)
     POST_BUILD
     COMMAND
       ${GDB_BINARY} ${_location}
-        -batch
+        -batch -n
         --ex "save gdb-index ${_dirname}"
     COMMAND
       ${OBJCOPY_BINARY}
