@@ -11,7 +11,7 @@
 #ifdef YT_IN_ARCADIA
 #include <contrib/libs/yajl/api/yajl_gen.h>
 #else
-#include <yajl/yajl_gen.h>
+//include <yajl/yajl_gen.h>
 #endif
 
 namespace NYT {
