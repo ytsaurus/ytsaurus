@@ -177,6 +177,7 @@ private:
             usleep(SleepQuantum.MicroSeconds());
             SleeperThreadStep();
         }
+        ScheduledEntries_.clear();
     }
 
     void SleeperThreadStep()
