@@ -75,15 +75,17 @@ class TVersionedTableClientTestBase
 protected:
     void ExpectRowsEqual(TUnversionedRow expected, TUnversionedRow actual)
     {
-        if (!expected) {
-            EXPECT_FALSE(actual);
-            return;
+        if (!expected || !actual) {
+            EXPECT_EQ(static_cast<bool>(expected), static_cast<bool>(actual))
+                << "expected: " << ToString(expected)
+                << ", "
+                << "actual: " << ToString(actual);
+        } else {
+            EXPECT_EQ(0, CompareRows(expected.Begin(), expected.End(), actual.Begin(), actual.End()))
+                << "expected: " << ToString(expected)
+                << ", "
+                << "actual: " << ToString(actual);
         }
-
-        EXPECT_EQ(0, CompareRows(expected.Begin(), expected.End(), actual.Begin(), actual.End()))
-            << "expected: " << ToString(expected) 
-            << ", "
-            << "actual: " << ToString(actual);
     }
 
     void CheckResult(const std::vector<TVersionedRow>& expected, IVersionedReaderPtr reader)

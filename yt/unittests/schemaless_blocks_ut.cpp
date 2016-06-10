@@ -87,6 +87,7 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
         Data,
         Meta,
         idMapping,
+        0,
         0);
 
     CheckResult(blockReader, rows);
@@ -109,6 +110,7 @@ TEST_F(TSchemalessBlocksTestOneRow, SkipToKey)
         Data,
         Meta,
         idMapping,
+        2,
         2);
 
     {
@@ -175,10 +177,31 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToKey)
         Data,
         Meta,
         idMapping,
+        2,
         2);
 
     TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeUnversionedInt64Value(42));
+    EXPECT_TRUE(blockReader.SkipToKey(builder.FinishRow()));
+
+    CheckResult(blockReader, MakeRows(42, 1000));
+}
+
+TEST_F(TSchemalessBlocksTestManyRows, SkipToWiderKey)
+{
+    // Reorder value columns in reading schema.
+    std::vector<TColumnIdMapping> idMapping = {{0, 0}, {1, 1}};
+
+    THorizontalSchemalessBlockReader blockReader(
+        Data,
+        Meta,
+        idMapping,
+        1,
+        2);
+
+    TUnversionedOwningRowBuilder builder;
+    builder.AddValue(MakeUnversionedInt64Value(42));
+    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null));
     EXPECT_TRUE(blockReader.SkipToKey(builder.FinishRow()));
 
     CheckResult(blockReader, MakeRows(42, 1000));

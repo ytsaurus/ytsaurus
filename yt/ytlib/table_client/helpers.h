@@ -56,7 +56,7 @@ TUnversionedValue MakeUnversionedValue(
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void ValidateKeyColumns(const TKeyColumns& keyColumns, const TKeyColumns& chunkKeyColumns);
+void ValidateKeyColumns(const TKeyColumns& keyColumns, const TKeyColumns& chunkKeyColumns, bool requireUniqueKeys);
 TColumnFilter CreateColumnFilter(const NChunkClient::TChannel& protoChannel, TNameTablePtr nameTable);
 int GetSystemColumnCount(TChunkReaderOptionsPtr options);
 

@@ -88,12 +88,14 @@ private:
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
-        const TColumnFilter& columnFilter);
+        const TColumnFilter& columnFilter,
+        const TTableSchema& schema);
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         TOwningKey lowerKey,
         TOwningKey upperKey,
         TTimestamp timestamp,
-        const TColumnFilter& columnFilter);
+        const TColumnFilter& columnFilter,
+        const TTableSchema& schema);
 
     NTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(
         NChunkClient::IChunkReaderPtr chunkReader);

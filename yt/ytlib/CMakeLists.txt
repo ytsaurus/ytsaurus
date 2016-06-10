@@ -248,6 +248,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/timestamp_reader.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/table_client/cached_versioned_chunk_meta.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/cache_based_versioned_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta.proto
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta_extensions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_reader_base.cpp
@@ -295,6 +296,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_block_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_chunk_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_reader_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_row.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/tablet_client/private.cpp

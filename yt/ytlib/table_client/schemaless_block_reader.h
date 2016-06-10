@@ -3,6 +3,7 @@
 #include "public.h"
 #include "chunk_meta_extensions.h"
 #include "unversioned_row.h"
+#include "versioned_row.h"
 
 #include <yt/core/yson/lexer.h>
 
@@ -25,18 +26,20 @@ public:
         const TSharedRef& block,
         const NProto::TBlockMeta& meta,
         const std::vector<TColumnIdMapping>& idMapping,
+        int chunkKeyColumnCount,
         int keyColumnCount,
         int extraColumnCount = 0);
 
     bool NextRow();
 
     bool SkipToRowIndex(i64 rowIndex);
-    bool SkipToKey(const TOwningKey& key);
+    bool SkipToKey(const TKey key);
 
     bool JumpToRowIndex(i64 rowIndex);
 
-    const TOwningKey& GetKey() const;
+    TKey GetKey() const;
     TMutableUnversionedRow GetRow(TChunkedMemoryPool* memoryPool);
+    TMutableVersionedRow GetVersionedRow(TChunkedMemoryPool* memoryPool, TTimestamp timestamp);
 
     i64 GetRowIndex() const;
 
@@ -47,7 +50,11 @@ private:
     // Maps chunk name table ids to client name table ids.
     std::vector<TColumnIdMapping> IdMapping_;
 
+    // If chunk key column count is smaller than key column count, key is extended with Nulls.
+    // If chunk key column count is larger than key column count, key is trimmed.
+    const int ChunkKeyColumnCount_;
     const int KeyColumnCount_;
+
     // Count of extra row values, that are allocated and reserved
     // to be filled by upper levels (e.g. table_index).
     const int ExtraColumnCount_;
@@ -59,7 +66,9 @@ private:
     const char* CurrentPointer_;
     ui32 ValueCount_;
 
-    TOwningKey Key_;
+    const static size_t DefaultKeyBufferCapacity = 512;
+    SmallVector<char, DefaultKeyBufferCapacity> KeyBuffer_;
+    TMutableKey Key_;
 
     NYson::TStatelessLexer Lexer_;
 };

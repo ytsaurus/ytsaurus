@@ -48,7 +48,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
     IBlockCachePtr blockCache,
     const TTableSchema& schema,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    std::vector<TReadRange> readRanges,
+    const TReadRange& readRange,
     TTimestamp timestamp)
 {
     auto type = EChunkType(chunkMeta.type());
@@ -58,7 +58,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
 
     TChunkSpec chunkSpec;
     chunkSpec.mutable_chunk_meta()->MergeFrom(chunkMeta);
-    
+
     switch (formatVersion) {
         case ETableChunkFormat::Old:
         case ETableChunkFormat::SchemalessHorizontal: {
@@ -72,7 +72,48 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
                     std::move(blockCache),
                     TKeyColumns(),
                     columnFilter,
-                    std::move(readRanges));
+                    readRange);
+            };
+
+            return CreateSchemafulReaderAdapter(createSchemalessReader, schema);
+        }
+
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+ISchemafulReaderPtr CreateSchemafulChunkReader(
+    TChunkReaderConfigPtr config,
+    NChunkClient::IChunkReaderPtr chunkReader,
+    IBlockCachePtr blockCache,
+    const TTableSchema& schema,
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    const TSharedRange<TKey>& keys,
+    TTimestamp timestamp)
+{
+    auto type = EChunkType(chunkMeta.type());
+    YCHECK(type == EChunkType::Table);
+
+    auto formatVersion = ETableChunkFormat(chunkMeta.version());
+
+    TChunkSpec chunkSpec;
+    chunkSpec.mutable_chunk_meta()->MergeFrom(chunkMeta);
+
+    switch (formatVersion) {
+        case ETableChunkFormat::Old:
+        case ETableChunkFormat::SchemalessHorizontal: {
+            auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
+                return CreateSchemalessChunkReader(
+                    chunkSpec,
+                    std::move(config),
+                    New<TChunkReaderOptions>(),
+                    std::move(chunkReader),
+                    std::move(nameTable),
+                    std::move(blockCache),
+                    TKeyColumns(),
+                    columnFilter,
+                    keys);
             };
 
             return CreateSchemafulReaderAdapter(createSchemalessReader, schema);

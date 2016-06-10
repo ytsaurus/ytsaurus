@@ -344,7 +344,7 @@ private:
 
         auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
         auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
-        ValidateKeyColumns(ReaderKeyColumns_, chunkKeyColumns);
+        ValidateKeyColumns(ReaderKeyColumns_, chunkKeyColumns, false);
 
         tableChunkReader->EmptyKey_.resize(chunkKeyColumns.size());
         tableChunkReader->CurrentKey_.resize(chunkKeyColumns.size());

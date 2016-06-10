@@ -1,10 +1,11 @@
 #pragma once
 
-#include "public.h"
 #include "chunk_meta_extensions.h"
+#include "public.h"
 #include "schema.h"
-#include "versioned_row.h"
+#include "schemaless_block_reader.h"
 #include "unversioned_row.h"
+#include "versioned_row.h"
 
 #include <yt/core/misc/bitmap.h>
 #include <yt/core/misc/ref.h>
@@ -15,7 +16,25 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IVersionedBlockReader
+{
+    virtual ~IVersionedBlockReader() = default;
+
+    virtual bool NextRow() = 0;
+
+    virtual bool SkipToRowIndex(i64 rowIndex) = 0;
+    virtual bool SkipToKey(TKey key) = 0;
+
+    virtual TKey GetKey() const = 0;
+    virtual TVersionedRow GetRow(TChunkedMemoryPool* memoryPool) = 0;
+
+    virtual i64 GetRowIndex() const = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSimpleVersionedBlockReader
+    : public IVersionedBlockReader
 {
 public:
     TSimpleVersionedBlockReader(
@@ -29,15 +48,15 @@ public:
         TTimestamp timestamp,
         bool initialize = true);
 
-    bool NextRow();
+    virtual bool NextRow() override;
 
-    bool SkipToRowIndex(i64 rowIndex);
-    bool SkipToKey(TKey key);
+    virtual bool SkipToRowIndex(i64 rowIndex) override;
+    virtual bool SkipToKey(TKey key) override;
 
-    TKey GetKey() const;
-    TVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
+    virtual TKey GetKey() const override;
+    virtual TVersionedRow GetRow(TChunkedMemoryPool* memoryPool) override;
 
-    i64 GetRowIndex() const;
+    virtual i64 GetRowIndex() const override;
 
     static const ETableChunkFormat FormatVersion = ETableChunkFormat::VersionedSimple;
 
@@ -96,6 +115,36 @@ private:
 
     ui32 GetColumnValueCount(int schemaColumnId) const;
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THorizontalSchemalessVersionedBlockReader
+    : public IVersionedBlockReader
+{
+public:
+    THorizontalSchemalessVersionedBlockReader(
+        const TSharedRef& block,
+        const NProto::TBlockMeta& meta,
+        const std::vector<TColumnIdMapping>& idMapping,
+        int chunkKeyColumnCount,
+        int keyColumnCount,
+        TTimestamp timestamp = MinTimestamp);
+
+    virtual bool NextRow() override;
+
+    virtual bool SkipToRowIndex(i64 rowIndex) override;
+    virtual bool SkipToKey(TKey key) override;
+
+    virtual TKey GetKey() const override;
+    virtual TVersionedRow GetRow(TChunkedMemoryPool* memoryPool) override;
+
+    virtual i64 GetRowIndex() const override;
+
+private:
+    std::unique_ptr<THorizontalSchemalessBlockReader> UnderlyingReader_;
+    int KeyColumnCount_;
+    TTimestamp Timestamp_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

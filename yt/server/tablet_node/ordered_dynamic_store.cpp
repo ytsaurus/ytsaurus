@@ -348,7 +348,7 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
                 GetNullBlockCache(),
                 TKeyColumns(),
                 columnFilter,
-                std::vector<TReadRange>{TReadRange()});
+                TReadRange());
         };
 
         // TODO(babenko): replace with native schemaful writer

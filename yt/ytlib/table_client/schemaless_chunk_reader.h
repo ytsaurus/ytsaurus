@@ -41,7 +41,20 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     NChunkClient::IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
-    std::vector<NChunkClient::TReadRange> readRanges,
+    const NChunkClient::TReadRange& readRange,
+    TNullable<int> partitionTag = Null);
+
+ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
+    const NChunkClient::NProto::TChunkSpec& chunkSpec,
+    TChunkReaderConfigPtr config,
+    TChunkReaderOptionsPtr options,
+    NChunkClient::IChunkReaderPtr underlyingReader,
+    TNameTablePtr nameTable,
+    NChunkClient::IBlockCachePtr blockCache,
+    const TKeyColumns& keyColumns,
+    const TColumnFilter& columnFilter,
+    const TSharedRange<TKey>& keys,
+    TChunkReaderPerformanceCountersPtr performanceCounters = nullptr,
     TNullable<int> partitionTag = Null);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -243,7 +243,7 @@ DECLARE_REFCOUNTED_CLASS(TSchemafulRowMerger);
 DECLARE_REFCOUNTED_CLASS(TUnversionedRowMerger);
 DECLARE_REFCOUNTED_CLASS(TVersionedRowMerger);
 
-DECLARE_REFCOUNTED_CLASS(TVersionedChunkLookupHashTable);
+DECLARE_REFCOUNTED_CLASS(IChunkLookupHashTable);
 
 struct TBoundaryKeys;
 

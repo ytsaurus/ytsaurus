@@ -1202,10 +1202,6 @@ public:
 
         auto* oldRootChunkList = table->GetChunkList();
 
-        if (table->IsSorted() && !oldRootChunkList->Children().empty()) {
-            THROW_ERROR_EXCEPTION("Cannot switch a static non-empty sorted table into dynamic mode");
-        }
-
         std::vector<TChunk*> chunks;
         EnumerateChunksInChunkTree(oldRootChunkList, &chunks);
 

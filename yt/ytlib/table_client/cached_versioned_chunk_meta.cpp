@@ -1,5 +1,6 @@
 #include "cached_versioned_chunk_meta.h"
 #include "schema.h"
+#include "name_table.h"
 
 #include <yt/ytlib/misc/workload.h>
 
@@ -86,7 +87,14 @@ void TCachedVersionedChunkMeta::Init(
     KeyColumnCount_ = keyColumns.size();
 
     ValidateChunkMeta();
-    ValidateSchema(schema);
+    //FIXME(savrus) Dirty hack here. In future we will read schema from meta.
+    if (ETableChunkFormat(ChunkMeta_.version()) == ETableChunkFormat::SchemalessHorizontal) {
+        BuildSchemalessIdMapping(schema);
+    } else {
+        ValidateSchema(schema);
+    }
+
+    Schema_ = schema;
 
     auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
     MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), GetKeyColumnCount());
@@ -94,6 +102,27 @@ void TCachedVersionedChunkMeta::Init(
 
     TColumnarChunkMeta::InitExtensions();
     TColumnarChunkMeta::InitBlockLastKeys(GetKeyColumnCount());
+}
+
+void TCachedVersionedChunkMeta::BuildSchemalessIdMapping(const TTableSchema& readerSchema)
+{
+    auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
+    auto keyColumns = FromProto<TKeyColumns>(keyColumnsExt);
+    ChunkKeyColumnCount_ = keyColumns.size();
+
+    auto nameTableExt = GetProtoExtension<TNameTableExt>(ChunkMeta_.extensions());
+    auto nameTable = FromProto<TNameTablePtr>(nameTableExt);
+
+    for (int readerIndex = 0; readerIndex < readerSchema.Columns().size(); ++readerIndex) {
+        auto& column = readerSchema.Columns()[readerIndex];
+        auto id = nameTable->FindId(column.Name);
+        if (id) {
+            TColumnIdMapping mapping;
+            mapping.ChunkSchemaIndex = *id;
+            mapping.ReaderSchemaIndex = readerIndex;
+            SchemaIdMapping_.push_back(mapping);
+        }
+    }
 }
 
 void TCachedVersionedChunkMeta::ValidateChunkMeta()
@@ -107,7 +136,8 @@ void TCachedVersionedChunkMeta::ValidateChunkMeta()
 
     auto formatVersion = ETableChunkFormat(ChunkMeta_.version());
     if (formatVersion != ETableChunkFormat::VersionedSimple &&
-        formatVersion != ETableChunkFormat::VersionedColumnar)
+        formatVersion != ETableChunkFormat::VersionedColumnar &&
+        formatVersion != ETableChunkFormat::SchemalessHorizontal)
     {
         THROW_ERROR_EXCEPTION("Incorrect chunk format version: actual %Qlv, expected %Qlv or %Qlv",
             formatVersion,

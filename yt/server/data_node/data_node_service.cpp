@@ -616,7 +616,7 @@ private:
             // TODO(psushin): mirgate to schemaful chunks.
             auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(meta.extensions());
             auto chunkKeyColumns = FromProto<TKeyColumns>(keyColumnsExt);
-            ValidateKeyColumns(keyColumns, chunkKeyColumns);
+            ValidateKeyColumns(keyColumns, chunkKeyColumns, false);
 
             auto slices = SliceChunk(
                 sliceRequest,
