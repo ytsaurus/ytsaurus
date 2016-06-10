@@ -911,3 +911,41 @@ if __name__ == "__main__":
         op = yt.Operation("map", operation_id)
         op.wait()
         assert list(yt.read_table(TEST_DIR + "/other_table")) == [{"x": "hello"}]
+
+    def test_operations_tracker(self):
+        tracker = yt.OperationsTracker()
+
+        # To enable progress printing
+        old_level = logger.LOGGER.level
+        logger.LOGGER.setLevel(logging.INFO)
+        try:
+            with pytest.raises(yt.YtError):
+                tracker.add_by_id("123")
+
+            table = TEST_DIR + "/table"
+            yt.write_table(table, [{"x": 1, "y": 1}])
+
+            op1 = yt.run_map("sleep 30; cat", table, TEST_DIR + "/out1", sync=False)
+            op2 = yt.run_map("sleep 30; cat", table, TEST_DIR + "/out2", sync=False)
+
+            tracker.add(op1)
+            tracker.add(op2)
+            tracker.abort_all()
+
+            assert op1.get_state() == "aborted"
+            assert op2.get_state() == "aborted"
+
+            op1 = yt.run_map("sleep 2; cat", table, TEST_DIR + "/out1", sync=False)
+            op2 = yt.run_map("sleep 2; cat", table, TEST_DIR + "/out2", sync=False)
+            tracker.add_by_id(op1.id)
+            tracker.add_by_id(op2.id)
+            tracker.wait_all()
+
+            assert op1.get_state().is_finished()
+            assert op2.get_state().is_finished()
+
+            tracker.add(yt.run_map("false", table, TEST_DIR + "/out", sync=False))
+            with pytest.raises(yt.YtError):
+                tracker.wait_all(check_result=True)
+        finally:
+            logger.LOGGER.setLevel(old_level)

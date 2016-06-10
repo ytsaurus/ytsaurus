@@ -69,7 +69,7 @@ default_config = {
         "proxy_ban_timeout": 120 * 1000,
 
         # Link to operation in web interface.
-        "operation_link_pattern": "http://{proxy}/#page=operation&mode=detail&id={id}&tab=details",
+        "operation_link_pattern": "http://{proxy}/#page=operation&mode=detail&id={id}&tab=details"
     },
 
     # This option enables logging on info level of all requests.

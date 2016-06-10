@@ -9,7 +9,7 @@ from table_commands import create_table, create_temp_table, write_table, read_ta
                            freeze_table, unfreeze_table, \
                            select_rows, lookup_rows, insert_rows, delete_rows
 from operation_commands import get_operation_state, abort_operation, suspend_operation, resume_operation, \
-                               complete_operation
+                               complete_operation, get_operation_attributes
 from file_commands import read_file, write_file, upload_file, smart_upload_file
 # Deprecated
 from file_commands import download_file, upload_file

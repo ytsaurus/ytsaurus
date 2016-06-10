@@ -15,7 +15,7 @@ from format import DsvFormat, YamrFormat, YsonFormat, JsonFormat, SchemafulDsvFo
                    YamredDsvFormat, Format, create_format, dumps_row, loads_row, YtFormatError
 from table import TablePath, to_table, to_name
 from cypress_commands import ypath_join, escape_ypath_literal
-from operation_commands import format_operation_stderrs, Operation
+from operation_commands import format_operation_stderrs, Operation, OperationsTracker
 from py_wrapper import aggregator, raw, raw_io, reduce_aggregator, \
                        enable_python_job_processing_for_standalone_binary, initialize_python_job_processing
 from string_iter_io import StringIterIO
