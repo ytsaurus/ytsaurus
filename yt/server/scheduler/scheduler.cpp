@@ -541,6 +541,13 @@ public:
             node->SetLastJobsLogTime(now);
         }
 
+        bool updateRunningJobs = false;
+        auto lastRunningJobsUpdateTime = node->GetLastRunningJobsUpdateTime();
+        if (!lastRunningJobsUpdateTime || now > lastRunningJobsUpdateTime.Get() + Config_->RunningJobsUpdatePeriod) {
+            updateRunningJobs = true;
+            node->SetLastRunningJobsUpdateTime(now);
+        }
+
         auto missingJobs = node->Jobs();
 
         for (auto& jobStatus : *request->mutable_jobs()) {
@@ -555,7 +562,8 @@ public:
                 request,
                 response,
                 New<TRefCountedJobStatus>(std::move(jobStatus)),
-                forceJobsLogging);
+                forceJobsLogging,
+                updateRunningJobs);
             if (job) {
                 YCHECK(missingJobs.erase(job) == 1);
                 switch (job->GetState()) {
@@ -2022,7 +2030,7 @@ private:
             job->GetState() == EJobState::Abandoning)
         {
             job->SetStatus(std::move(status));
-        }    
+        }
     }
 
     void OnJobWaiting(TJobPtr /*job*/)
@@ -2695,7 +2703,8 @@ private:
         NJobTrackerClient::NProto::TReqHeartbeat* request,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         TRefCountedJobStatusPtr jobStatus,
-        bool forceJobsLogging)
+        bool forceJobsLogging,
+        bool updateRunningJobs)
     {
         auto jobId = FromProto<TJobId>(jobStatus->job_id());
         auto state = EJobState(jobStatus->state());
@@ -2807,12 +2816,16 @@ private:
                             LOG_DEBUG_IF(shouldLogJob, "Job is running");
                             job->SetState(state);
                             job->SetProgress(jobStatus->progress());
-                            OnJobRunning(job, std::move(jobStatus));
+                            if (updateRunningJobs) {
+                                OnJobRunning(job, std::move(jobStatus));
+                            }
                             break;
 
                         case EJobState::Waiting:
                             LOG_DEBUG_IF(shouldLogJob, "Job is waiting");
-                            OnJobWaiting(job);
+                            if (updateRunningJobs) {
+                                OnJobWaiting(job);
+                            }
                             break;
 
                         default:
