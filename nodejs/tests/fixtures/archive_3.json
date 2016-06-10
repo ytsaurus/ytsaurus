@@ -1,0 +1,514 @@
+{
+  "result": {
+    "error": {
+      "code": {
+        "$value": "1",
+        "$type": "int64"
+      },
+      "message": {
+        "$value": "Operation aborted by user request",
+        "$type": "string"
+      },
+      "attributes": {
+        "datetime": {
+          "$value": "2016-01-28T16:36:19.032259Z",
+          "$type": "string"
+        },
+        "fid": {
+          "$value": "18446478570449876941",
+          "$type": "uint64"
+        },
+        "pid": {
+          "$value": "32591",
+          "$type": "int64"
+        },
+        "host": {
+          "$value": "m01g-i.barney.yt.yandex.net",
+          "$type": "string"
+        },
+        "tid": {
+          "$value": "3430283830437578991",
+          "$type": "uint64"
+        }
+      }
+    }
+  },
+  "filter_factors": {
+    "$value": "303b02-bc6c8994-778328e8-511a3048 303b02-bc6c8994-778328e8-511a3048 sandello aborted map   //home/savrus/phraseprice.static //home/savrus/phraseprice.static",
+    "$type": "string"
+  },
+  "finish_time": {
+    "$value": "1453988179059799",
+    "$type": "int64"
+  },
+  "start_time": {
+    "$value": "1453987863127478",
+    "$type": "int64"
+  },
+  "brief_spec": {
+    "output_table_paths": {
+      "$value": [
+        {
+          "$value": "//tmp/yt_wrapper/table_storage/c1Vw6QKvgq",
+          "$type": "string",
+          "$attributes": {
+            "append": {
+              "$value": "false",
+              "$type": "string"
+            }
+          }
+        }
+      ],
+      "$attributes": {
+        "count": {
+          "$value": "1",
+          "$type": "int64"
+        }
+      }
+    },
+    "pool": {
+      "$value": "sandello",
+      "$type": "string"
+    },
+    "mapper": {
+      "command": {
+        "$value": "python _py_runner.py RestoreMapper.w8gbUP config_dump4BwKbF .modules.zipohiOO5 _main_moduleVC83pi.py _main_module PY_SOURCE",
+        "$type": "string"
+      }
+    },
+    "input_table_paths": {
+      "$value": [
+        {
+          "$value": "//home/savrus/PhrasePrice.static",
+          "$type": "string",
+          "$attributes": {
+            "append": {
+              "$value": "false",
+              "$type": "string"
+            }
+          }
+        }
+      ],
+      "$attributes": {
+        "count": {
+          "$value": "1",
+          "$type": "int64"
+        }
+      }
+    }
+  },
+  "brief_progress": {
+    "jobs": {
+      "pending": {
+        "$value": "100",
+        "$type": "int64"
+      },
+      "total": {
+        "$value": "100",
+        "$type": "int64"
+      },
+      "aborted": {
+        "total": {
+          "$value": "77",
+          "$type": "int64"
+        },
+        "resource_overdraft": {
+          "$value": "0",
+          "$type": "int64"
+        },
+        "scheduler": {
+          "$value": "77",
+          "$type": "int64"
+        },
+        "failed_chunks": {
+          "$value": "0",
+          "$type": "int64"
+        },
+        "other": {
+          "$value": "0",
+          "$type": "int64"
+        },
+        "preemption": {
+          "$value": "0",
+          "$type": "int64"
+        }
+      },
+      "running": {
+        "$value": "0",
+        "$type": "int64"
+      },
+      "failed": {
+        "$value": "0",
+        "$type": "int64"
+      },
+      "completed": {
+        "$value": "0",
+        "$type": "int64"
+      },
+      "lost": {
+        "$value": "0",
+        "$type": "int64"
+      }
+    }
+  },
+  "id_hash": {
+    "$value": "5171335726549830933",
+    "$type": "uint64"
+  },
+  "id_hi": {
+    "$value": "5844036554267502824",
+    "$type": "uint64"
+  },
+  "id_lo": {
+    "$value": "13577378245366528770",
+    "$type": "uint64"
+  },
+  "authenticated_user": {
+    "$value": "sandello",
+    "$type": "string"
+  },
+  "state": {
+    "$value": "aborted",
+    "$type": "string"
+  },
+  "operation_type": {
+    "$value": "map",
+    "$type": "string"
+  },
+  "progress": {
+    "live_preview": {
+      "output_supported": {
+        "$value": "true",
+        "$type": "boolean"
+      },
+      "intermediate_supported": {
+        "$value": "false",
+        "$type": "boolean"
+      }
+    },
+    "ready_job_count": {
+      "$value": "0",
+      "$type": "int64"
+    },
+    "estimated_input_statistics": {
+      "row_count": {
+        "$value": "3094556040",
+        "$type": "int64"
+      },
+      "chunk_count": {
+        "$value": "1185",
+        "$type": "int64"
+      },
+      "unavailable_chunk_count": {
+        "$value": "0",
+        "$type": "int64"
+      },
+      "compressed_data_size": {
+        "$value": "64357708124",
+        "$type": "int64"
+      },
+      "uncompressed_data_size": {
+        "$value": "397992613408",
+        "$type": "int64"
+      }
+    },
+    "jobs": {
+      "pending": {
+        "$value": "100",
+        "$type": "int64"
+      },
+      "total": {
+        "$value": "100",
+        "$type": "int64"
+      },
+      "aborted": {
+        "total": {
+          "$value": "77",
+          "$type": "int64"
+        },
+        "resource_overdraft": {
+          "$value": "0",
+          "$type": "int64"
+        },
+        "scheduler": {
+          "$value": "77",
+          "$type": "int64"
+        },
+        "failed_chunks": {
+          "$value": "0",
+          "$type": "int64"
+        },
+        "other": {
+          "$value": "0",
+          "$type": "int64"
+        },
+        "preemption": {
+          "$value": "0",
+          "$type": "int64"
+        }
+      },
+      "running": {
+        "$value": "0",
+        "$type": "int64"
+      },
+      "failed": {
+        "$value": "0",
+        "$type": "int64"
+      },
+      "completed": {
+        "$value": "0",
+        "$type": "int64"
+      },
+      "lost": {
+        "$value": "0",
+        "$type": "int64"
+      }
+    },
+    "job_statistics": {
+      "time": {
+        "total": {
+          "$$": {
+            "aborted": {
+              "map": {
+                "min": {
+                  "$value": "311581",
+                  "$type": "int64"
+                },
+                "sum": {
+                  "$value": "24164293",
+                  "$type": "int64"
+                },
+                "max": {
+                  "$value": "315107",
+                  "$type": "int64"
+                },
+                "count": {
+                  "$value": "77",
+                  "$type": "int64"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "spec": {
+    "job_count": {
+      "$value": "100",
+      "$type": "int64"
+    },
+    "mapper": {
+      "check_input_fully_consumed": {
+        "$value": "false",
+        "$type": "string"
+      },
+      "command": {
+        "$value": "python _py_runner.py RestoreMapper.w8gbUP config_dump4BwKbF .modules.zipohiOO5 _main_moduleVC83pi.py _main_module PY_SOURCE",
+        "$type": "string"
+      },
+      "use_yamr_descriptors": {
+        "$value": "false",
+        "$type": "string"
+      },
+      "output_format": {
+        "$value": "yson",
+        "$type": "string",
+        "$attributes": {
+          "format": {
+            "$value": "text",
+            "$type": "string"
+          },
+          "always_create_attributes": {
+            "$value": "false",
+            "$type": "boolean"
+          },
+          "ignore_inner_attributes": {
+            "$value": "false",
+            "$type": "boolean"
+          },
+          "boolean_as_string": {
+            "$value": "false",
+            "$type": "boolean"
+          }
+        }
+      },
+      "input_format": {
+        "$value": "yson",
+        "$type": "string",
+        "$attributes": {
+          "format": {
+            "$value": "text",
+            "$type": "string"
+          },
+          "always_create_attributes": {
+            "$value": "false",
+            "$type": "boolean"
+          },
+          "ignore_inner_attributes": {
+            "$value": "false",
+            "$type": "boolean"
+          },
+          "boolean_as_string": {
+            "$value": "false",
+            "$type": "boolean"
+          }
+        }
+      },
+      "file_paths": [
+        {
+          "$value": "//tmp/yt_wrapper/file_storage/hash/df3c548530c9693ba46231c7a63513ee",
+          "$type": "string",
+          "$attributes": {
+            "executable": {
+              "$value": "false",
+              "$type": "string"
+            },
+            "file_name": {
+              "$value": "_py_runner.py",
+              "$type": "string"
+            }
+          }
+        },
+        {
+          "$value": "//tmp/yt_wrapper/file_storage/hash/3dfed956cd4ec0acbaee13deced8f693",
+          "$type": "string",
+          "$attributes": {
+            "executable": {
+              "$value": "false",
+              "$type": "string"
+            },
+            "file_name": {
+              "$value": "RestoreMapper.w8gbUP",
+              "$type": "string"
+            }
+          }
+        },
+        {
+          "$value": "//tmp/yt_wrapper/file_storage/hash/1a091ecd16ba0134bdb1d524e02c9b32",
+          "$type": "string",
+          "$attributes": {
+            "executable": {
+              "$value": "false",
+              "$type": "string"
+            },
+            "file_name": {
+              "$value": "config_dump4BwKbF",
+              "$type": "string"
+            }
+          }
+        },
+        {
+          "$value": "//tmp/yt_wrapper/file_storage/hash/c6f223cd2c537d9bf43f801e8cda0da3",
+          "$type": "string",
+          "$attributes": {
+            "executable": {
+              "$value": "false",
+              "$type": "string"
+            },
+            "file_name": {
+              "$value": ".modules.zipohiOO5",
+              "$type": "string"
+            }
+          }
+        },
+        {
+          "$value": "//tmp/yt_wrapper/file_storage/hash/c8ce3223d8d507dd4551fc6ef791f33d",
+          "$type": "string",
+          "$attributes": {
+            "executable": {
+              "$value": "true",
+              "$type": "string"
+            },
+            "file_name": {
+              "$value": "_main_moduleVC83pi.py",
+              "$type": "string"
+            }
+          }
+        }
+      ],
+      "memory_limit": {
+        "$value": "4294967296",
+        "$type": "int64"
+      }
+    },
+    "max_failed_job_count": {
+      "$value": "10",
+      "$type": "int64"
+    },
+    "job_proxy_memory_control": {
+      "$value": "false",
+      "$type": "boolean"
+    },
+    "output_table_paths": [
+      {
+        "$value": "//tmp/yt_wrapper/table_storage/c1Vw6QKvgq",
+        "$type": "string",
+        "$attributes": {
+          "append": {
+            "$value": "false",
+            "$type": "string"
+          }
+        }
+      }
+    ],
+    "resource_limits": {
+      "user_slots": {
+        "$value": "100",
+        "$type": "int64"
+      }
+    },
+    "started_by": {
+      "wrapper_version": {
+        "$value": "0.6.70-0",
+        "$type": "string"
+      },
+      "user": {
+        "$value": "sandello",
+        "$type": "string"
+      },
+      "command": [
+        {
+          "$value": "./dump-restore.py",
+          "$type": "string"
+        },
+        {
+          "$value": "--restore",
+          "$type": "string"
+        },
+        {
+          "$value": "//home/savrus/PhrasePrice.static",
+          "$type": "string"
+        },
+        {
+          "$value": "//tmp/test2",
+          "$type": "string"
+        },
+        {
+          "$value": "--force",
+          "$type": "string"
+        }
+      ],
+      "hostname": {
+        "$value": "build01-01g.yt.yandex.net",
+        "$type": "string"
+      },
+      "pid": {
+        "$value": "586686",
+        "$type": "int64"
+      }
+    },
+    "input_table_paths": [
+      {
+        "$value": "//home/savrus/PhrasePrice.static",
+        "$type": "string",
+        "$attributes": {
+          "append": {
+            "$value": "false",
+            "$type": "string"
+          }
+        }
+      }
+    ]
+  }
+}

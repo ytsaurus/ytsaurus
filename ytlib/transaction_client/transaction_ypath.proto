@@ -1,0 +1,22 @@
+package NYT.NTransactionClient.NProto;
+
+import "yt/core/misc/guid.proto";
+import "yt/ytlib/object_client/master_ypath.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TTransactionCreationExt
+{
+    extend NYT.NObjectClient.NProto.TObjectCreationExtensions
+    {
+        optional TTransactionCreationExt transaction_creation_ext = 101;
+    }
+
+    // Transaction timeout.
+    required int64 timeout = 1;
+
+    // Parent transaction.
+    optional NYT.NProto.TGuid parent_id = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
