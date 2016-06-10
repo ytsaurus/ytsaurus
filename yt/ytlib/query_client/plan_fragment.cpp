@@ -145,6 +145,22 @@ Stroka InferName(TConstQueryPtr query, bool omitValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ThrowTypeMismatchError(
+    EValueType lhsType,
+    EValueType rhsType,
+    const TStringBuf& source,
+    const TStringBuf& lhsSource,
+    const TStringBuf& rhsSource)
+{
+    THROW_ERROR_EXCEPTION(
+            "Type mismatch in expression %Qv",
+            source)
+            << TErrorAttribute("lhs_source", lhsSource)
+            << TErrorAttribute("rhs_source", rhsSource)
+            << TErrorAttribute("lhs_type", lhsType)
+            << TErrorAttribute("rhs_type", rhsType);
+}
+
 EValueType InferBinaryExprType(
     EBinaryOp opCode,
     EValueType lhsType,
@@ -154,13 +170,7 @@ EValueType InferBinaryExprType(
     const TStringBuf& rhsSource)
 {
     if (lhsType != rhsType) {
-        THROW_ERROR_EXCEPTION(
-            "Type mismatch in expression %Qv",
-            source)
-            << TErrorAttribute("lhs_source", lhsSource)
-            << TErrorAttribute("rhs_source", rhsSource)
-            << TErrorAttribute("lhs_type", lhsType)
-            << TErrorAttribute("rhs_type", rhsType);
+        ThrowTypeMismatchError(lhsType, rhsType, source, lhsSource, rhsSource);
     }
 
     EValueType operandType = lhsType;

@@ -165,6 +165,13 @@ struct TInOpExpression
     TSharedRange<TRow> Values;
 };
 
+void ThrowTypeMismatchError(
+    EValueType lhsType,
+    EValueType rhsType,
+    const TStringBuf& source,
+    const TStringBuf& lhsSource,
+    const TStringBuf& rhsSource);
+
 EValueType InferBinaryExprType(
     EBinaryOp opCode,
     EValueType lhsType,

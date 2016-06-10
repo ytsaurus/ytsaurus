@@ -328,7 +328,7 @@ TEST_F(TQueryCoordinateTest, SimpleIn)
     singleSplit.emplace_back(MakeSimpleSplit("//t", 1));
 
     EXPECT_NO_THROW({
-        Coordinate("k from [//t] where k in (1, 2, 3)", singleSplit, 3);
+        Coordinate("k from [//t] where k in (1u, 2.0, 3)", singleSplit, 3);
     });
 }
 
@@ -898,7 +898,7 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
         "a=-10;b=11"
     }, split);
 
-    Evaluate("a, b FROM [//t] where a in (4, -10)", split, source, ResultMatcher(result));
+    Evaluate("a, b FROM [//t] where a in (4.0, -10)", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleWithNull)
@@ -1622,7 +1622,7 @@ TEST_F(TQueryEvaluateTest, TestInputRowLimit)
         "a=3;b=30"
     }, split);
 
-    Evaluate("a, b FROM [//t] where uint64(a) > 1u and uint64(a) < 9u", split, source, ResultMatcher(result), 3);
+    Evaluate("a, b FROM [//t] where uint64(a) > 1 and uint64(a) < 9", split, source, ResultMatcher(result), 3);
 
     SUCCEED();
 }
@@ -1711,8 +1711,8 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
         "x=a;t=201."
     }, resultSplit);
 
-    Evaluate("if(int64(q) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1u)) + 1.0 as t FROM [//t] group by if"
-                 "(a % 2 = 0, double(4u), 5.0) as q", split, source, ResultMatcher(result));
+    Evaluate("if(int64(q) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1)) + 1 as t FROM [//t] group by if"
+                 "(a % 2 = 0, double(4), 5.0) as q", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2679,7 +2679,7 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
         "x=2"
     }, resultSplit);
 
-    Evaluate("a as x FROM [//t] where sum_udf(7, 3, a) in (11, 12)", split, source, ResultMatcher(result));
+    Evaluate("a as x FROM [//t] where sum_udf(7, 3, a) in (11u, 12)", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -3043,7 +3043,7 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
         "upper=%true;lower=%true"
     }, resultSplit);
 
-    Evaluate("cardinality(a) < 2020u as upper, cardinality(a) > 1980u as lower from [//t] group by 1", split, source, ResultMatcher(result));
+    Evaluate("cardinality(a) < 2020 as upper, cardinality(a) > 1980 as lower from [//t] group by 1", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, TestObjectUdaf)
