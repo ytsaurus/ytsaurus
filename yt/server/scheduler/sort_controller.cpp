@@ -348,9 +348,9 @@ protected:
             using NYT::Persist;
             Persist(context, Controller);
             Persist(context, ChunkPool);
-            Persist(context, NodeIdToDataSize);
-            Persist(context, ScheduledDataSize);
-            Persist(context, DataSizePerJob);
+            Persist(context, NodeIdToAdjustedDataSize);
+            Persist(context, AdjustedScheduledDataSize);
+            Persist(context, MaxDataSizePerJob);
         }
 
     private:
@@ -362,11 +362,13 @@ protected:
         //! The total data size of jobs assigned to a particular node
         //! All data sizes are IO weight-adjusted.
         //! No zero values are allowed.
-        yhash_map<TNodeId, i64> NodeIdToDataSize;
-        //! The sum of all sizes appearing in #NodeIdToDataSize;
-        i64 ScheduledDataSize = 0;
+        yhash_map<TNodeId, i64> NodeIdToAdjustedDataSize;
+        //! The sum of all sizes appearing in #NodeIdToDataSize.
+        //! This value is IO weight-adjusted.
+        i64 AdjustedScheduledDataSize = 0;
         //! Max-aggregated each time a new job is scheduled.
-        i64 DataSizePerJob = 0;
+        //! This value is not IO weight-adjusted.
+        i64 MaxDataSizePerJob = 0;
 
 
         void UpdateNodeDataSize(const TExecNodeDescriptor& descriptor, i64 delta)
@@ -380,15 +382,14 @@ protected:
             auto adjustedDelta = static_cast<i64>(delta / ioWeight);
 
             auto nodeId = descriptor.Id;
-            auto updatedNodeDataSize = (NodeIdToDataSize[nodeId] += adjustedDelta);
-            YCHECK(updatedNodeDataSize >= 0);
+            auto newAdjustedDataSize = (NodeIdToAdjustedDataSize[nodeId] += adjustedDelta);
+            YCHECK(newAdjustedDataSize >= 0);
 
-            if (updatedNodeDataSize == 0) {
-                YCHECK(NodeIdToDataSize.erase(nodeId) == 1);
+            if (newAdjustedDataSize == 0) {
+                YCHECK(NodeIdToAdjustedDataSize.erase(nodeId) == 1);
             }
 
-            auto updatedScheduledDataSize = (ScheduledDataSize += adjustedDelta);
-            YCHECK(updatedScheduledDataSize >= 0);
+            YCHECK((AdjustedScheduledDataSize += adjustedDelta) >= 0);
         }
 
 
@@ -405,17 +406,19 @@ protected:
                 return false;
             }
 
-            if (NodeIdToDataSize.empty()) {
+            if (NodeIdToAdjustedDataSize.empty()) {
                 return true;
             }
 
+            // We don't have a job at hand here, let's make a (worst-case) guess.
+            auto adjustedJobDataSize = MaxDataSizePerJob / ioWeight;
             auto nodeId = context->GetNodeDescriptor().Id;
-            auto updatedScheduledDataSize = ScheduledDataSize + DataSizePerJob;
-            auto updatedAvgDataSize = updatedScheduledDataSize / NodeIdToDataSize.size();
-            auto updatedNodeDataSize = NodeIdToDataSize[nodeId] * ioWeight + DataSizePerJob;
+            auto newAdjustedScheduledDataSize = AdjustedScheduledDataSize + adjustedJobDataSize;
+            auto newAvgAdjustedScheduledDataSize = newAdjustedScheduledDataSize / NodeIdToAdjustedDataSize.size();
+            auto newAdjustedNodeDataSize = NodeIdToAdjustedDataSize[nodeId] + adjustedJobDataSize;
             return
-                updatedNodeDataSize <=
-                updatedAvgDataSize + Controller->Spec->PartitionedDataBalancingTolerance * DataSizePerJob;
+                newAdjustedNodeDataSize <=
+                newAvgAdjustedScheduledDataSize + Controller->Spec->PartitionedDataBalancingTolerance * adjustedJobDataSize;
         }
 
         virtual bool IsMemoryReserveEnabled() const override
@@ -459,7 +462,7 @@ protected:
             Controller->PartitionJobCounter.Start(1);
 
             auto dataSize = joblet->InputStripeList->TotalDataSize;
-            DataSizePerJob = std::max(DataSizePerJob, dataSize);
+            MaxDataSizePerJob = std::max(MaxDataSizePerJob, dataSize);
             UpdateNodeDataSize(joblet->NodeDescriptor, +dataSize);
 
             TTask::OnJobStarted(joblet);
@@ -564,7 +567,7 @@ protected:
                 }
 
                 LOG_DEBUG("Per-node partitioned sizes collected");
-                for (const auto& pair : NodeIdToDataSize) {
+                for (const auto& pair : NodeIdToAdjustedDataSize) {
                     auto nodeId = pair.first;
                     auto dataSize = pair.second;
                     auto nodeIt = idToNodeDescriptor.find(nodeId);
