@@ -134,6 +134,63 @@ void CheckExpressionDepth(TConstExpressionPtr op, int depth = 0)
     YUNREACHABLE();
 };
 
+TValue CastValueWithCheck(TValue value, EValueType targetType)
+{
+    if (value.Type == targetType) {
+        return value;
+    }
+    if (value.Type == EValueType::Int64) {
+        if (targetType == EValueType::Uint64) {
+            if (value.Data.Int64 < 0) {
+                THROW_ERROR_EXCEPTION("Failed to cast %v to uint64: value is negative", value.Data.Int64);
+            }
+        } else if (targetType == EValueType::Double) {
+            auto int64Value = value.Data.Int64;
+            if (i64(double(int64Value)) != int64Value) {
+                THROW_ERROR_EXCEPTION("Failed to cast %v to double: inaccurate conversion", int64Value);
+            }
+            value.Data.Double = int64Value;
+        } else {
+            YUNREACHABLE();
+        }
+    } else if (value.Type == EValueType::Uint64) {
+        if (targetType == EValueType::Int64) {
+            if (value.Data.Uint64 > std::numeric_limits<i64>::max()) {
+                THROW_ERROR_EXCEPTION(
+                    "Failed to cast %vu to int64: value is greater than maximum", value.Data.Uint64);
+            }
+        } else if (targetType == EValueType::Double) {
+            auto uint64Value = value.Data.Uint64;
+            if (ui64(double(uint64Value)) != uint64Value) {
+                THROW_ERROR_EXCEPTION("Failed to cast %vu to double: inaccurate conversion", uint64Value);
+            }
+            value.Data.Double = uint64Value;
+        } else {
+            YUNREACHABLE();
+        }
+    } else if (value.Type == EValueType::Double) {
+        auto doubleValue = value.Data.Double;
+        if (targetType == EValueType::Uint64) {
+            if (double(ui64(doubleValue)) != doubleValue) {
+                THROW_ERROR_EXCEPTION("Failed to cast %v to uint64: inaccurate conversion", doubleValue);
+            }
+            value.Data.Uint64 = doubleValue;
+        } else if (targetType == EValueType::Int64) {
+            if (double(i64(doubleValue)) != doubleValue) {
+                THROW_ERROR_EXCEPTION("Failed to cast %v to int64: inaccurate conversion", doubleValue);
+            }
+            value.Data.Int64 = doubleValue;
+        } else {
+            YUNREACHABLE();
+        }
+    } else {
+        YUNREACHABLE();
+    }
+
+    value.Type = targetType;
+    return value;
+}
+
 EValueType InferUnaryExprType(EUnaryOp opCode, EValueType operandType, const TStringBuf& source)
 {
     switch (opCode) {
@@ -376,7 +433,7 @@ protected:
                 usedAliases,
                 references);
 
-            if (auto foldedExpr = FoldConstants(unaryExpr, typedOperand)) {
+            if (auto foldedExpr = FoldConstants(unaryExpr->Opcode, typedOperand)) {
                 return foldedExpr;
             } else {
                 return New<TUnaryOpExpression>(
@@ -389,16 +446,47 @@ protected:
             }
         } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
             auto makeBinaryExpr = [&] (EBinaryOp op, TConstExpressionPtr lhs, TConstExpressionPtr rhs) -> TConstExpressionPtr {
-                auto type = InferBinaryExprType(
-                    op,
-                    lhs->Type,
-                    rhs->Type,
-                    binaryExpr->GetSource(source),
-                    InferName(lhs),
-                    InferName(rhs));
-                if (auto foldedExpr = FoldConstants(binaryExpr, lhs, rhs)) {
+                if (auto foldedExpr = FoldConstants(op, lhs, rhs)) {
                     return foldedExpr;
                 } else {
+                    auto cast = [] (
+                        const TLiteralExpression* literalExpr,
+                        EValueType targetType) -> TConstExpressionPtr
+                    {
+                        auto literalType = literalExpr->Type;
+                        if (literalType != targetType) {
+                            if (IsArithmeticType(literalType) && IsArithmeticType(targetType)) {
+                                // Cast literalType to targetType
+                                return New<TLiteralExpression>(targetType, CastValueWithCheck(literalExpr->Value, targetType));
+                            }
+                        }
+
+                        return literalExpr;
+                    };
+
+                    auto lhsLiteral = lhs->As<TLiteralExpression>();
+                    auto rhsLiteral = rhs->As<TLiteralExpression>();
+
+                    YCHECK(!lhsLiteral || !rhsLiteral);
+
+                    auto lhsType = lhs->Type;
+                    auto rhsType = rhs->Type;
+
+                    if (lhsLiteral) {
+                        lhs = cast(lhsLiteral, rhsType);
+                    }
+
+                    if (rhsLiteral) {
+                        rhs = cast(rhsLiteral, lhsType);
+                    }
+
+                    auto type = InferBinaryExprType(
+                        op,
+                        lhs->Type,
+                        rhs->Type,
+                        binaryExpr->GetSource(source),
+                        InferName(lhs),
+                        InferName(rhs));
                     return New<TBinaryOpExpression>(type, op, lhs, rhs);
                 }
             };
@@ -673,13 +761,19 @@ protected:
             }
             for (int i = 0; i < tuple.size(); ++i) {
                 auto valueType = GetType(tuple[i]);
+                auto value = GetValue(tuple[i]);
+
                 if (valueType != argTypes[i]) {
-                    THROW_ERROR_EXCEPTION("IN operator types mismatch")
+                    if (IsArithmeticType(valueType) && IsArithmeticType(argTypes[i])) {
+                        value = CastValueWithCheck(value, argTypes[i]);
+                    } else {
+                        THROW_ERROR_EXCEPTION("IN operator types mismatch")
                         << TErrorAttribute("source", source)
                         << TErrorAttribute("actual_type", valueType)
                         << TErrorAttribute("expected_type", argTypes[i]);
+                    }
                 }
-                rowBuilder.AddValue(GetValue(tuple[i]));
+                rowBuilder.AddValue(value);
             }
             rows.push_back(rowBuffer->Capture(rowBuilder.GetRow()));
             rowBuilder.Reset();
@@ -690,7 +784,7 @@ protected:
     }
 
     TConstExpressionPtr FoldConstants(
-        const NAst::TUnaryOpExpression* unaryExpr,
+        EUnaryOp opcode,
         TConstExpressionPtr operand)
     {
         auto foldConstants = [] (EUnaryOp opcode, TConstExpressionPtr operand) -> TNullable<TUnversionedValue> {
@@ -732,7 +826,7 @@ protected:
             return TNullable<TUnversionedValue>();
         };
 
-        if (auto value = foldConstants(unaryExpr->Opcode, operand)) {
+        if (auto value = foldConstants(opcode, operand)) {
             return New<TLiteralExpression>(value->Type, *value);
         }
 
@@ -740,7 +834,7 @@ protected:
     }
 
     TConstExpressionPtr FoldConstants(
-        const NAst::TBinaryOpExpression* binaryExpr,
+        EBinaryOp opcode,
         TConstExpressionPtr lhsExpr,
         TConstExpressionPtr rhsExpr)
     {
@@ -755,6 +849,17 @@ protected:
             if (lhsLiteral && rhsLiteral) {
                 auto lhs = static_cast<TUnversionedValue>(lhsLiteral->Value);
                 auto rhs = static_cast<TUnversionedValue>(rhsLiteral->Value);
+
+                if (lhs.Type != rhs.Type) {
+                    if (IsArithmeticType(lhs.Type) && IsArithmeticType(rhs.Type)) {
+                        auto targetType = std::max(lhs.Type, rhs.Type);
+                        lhs = CastValueWithCheck(lhs, targetType);
+                        rhs = CastValueWithCheck(rhs, targetType);
+                    } else {
+                        ThrowTypeMismatchError(lhs.Type, rhs.Type, "", InferName(lhsExpr), InferName(rhsExpr));
+                    }
+                }
+
                 YCHECK(lhs.Type == rhs.Type);
 
                 switch (opcode) {
@@ -818,9 +923,6 @@ protected:
                                 lhs.Data.Uint64 /= rhs.Data.Uint64;
                                 return lhs;
                             case EValueType::Double:
-                                if (std::abs(rhs.Data.Double) <= std::numeric_limits<double>::epsilon()) {
-                                    THROW_ERROR_EXCEPTION("Division by zero");
-                                }
                                 lhs.Data.Double /= rhs.Data.Double;
                                 return lhs;
                             default:
@@ -939,18 +1041,36 @@ protected:
             return TNullable<TUnversionedValue>();
         };
 
-        if (auto value = foldConstants(binaryExpr->Opcode, lhsExpr, rhsExpr)) {
+        if (auto value = foldConstants(opcode, lhsExpr, rhsExpr)) {
             return New<TLiteralExpression>(value->Type, *value);
         }
 
-        if (binaryExpr->Opcode == EBinaryOp::Divide) {
+        if (opcode == EBinaryOp::Divide) {
             auto lhsBinaryExpr = lhsExpr->As<TBinaryOpExpression>();
             auto rhsLiteralExpr = rhsExpr->As<TLiteralExpression>();
             if (lhsBinaryExpr && rhsLiteralExpr && lhsBinaryExpr->Opcode == EBinaryOp::Divide) {
+                auto targetType = lhsBinaryExpr->Type;
                 auto lhsLiteralExpr = lhsBinaryExpr->Rhs->As<TLiteralExpression>();
                 if (lhsLiteralExpr) {
                     TUnversionedValue lhs = lhsLiteralExpr->Value;
                     TUnversionedValue rhs = rhsLiteralExpr->Value;
+
+                    YCHECK(targetType == rhs.Type);
+                    YCHECK(IsArithmeticType(targetType));
+
+                    if (lhs.Type != rhs.Type) {
+                        if (IsArithmeticType(lhs.Type)) {
+                            lhs = CastValueWithCheck(lhs, targetType);
+                        } else {
+                            ThrowTypeMismatchError(
+                                lhs.Type,
+                                rhs.Type,
+                                "",
+                                InferName(lhsLiteralExpr),
+                                InferName(rhsLiteralExpr));
+                        }
+                    }
+
                     YCHECK(lhs.Type == rhs.Type);
 
                     auto overflow = [] (ui64 a, ui64 b, bool isSigned) {
