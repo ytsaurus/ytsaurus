@@ -603,8 +603,9 @@ public:
 
     virtual ISchedulerElementPtr Clone() override;
 
+    DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
+
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
-    DEFINE_BYVAL_RO_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
 
 private:
     TOperationElementSharedStatePtr SharedState_;
