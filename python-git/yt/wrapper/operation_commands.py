@@ -1,17 +1,17 @@
 from config import get_config
-from common import require
 from errors import YtError, YtOperationFailedError, YtTimeoutError, YtResponseError
 from driver import make_request
 from http import get_proxy_url, get_retriable_errors
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
-from cypress_commands import get_attribute, exists, get, list, ypath_join
+from cypress_commands import exists, get, list, ypath_join
 from file_commands import read_file
-import yson
 
 import yt.logger as logger
 import yt.packages.dateutil.parser as dateutil_parser
 from yt.packages.decorator import decorator
 from yt.common import format_error
+
+import yson
 
 import logging
 from datetime import datetime
@@ -23,7 +23,7 @@ import __builtin__
 OPERATIONS_PATH = "//sys/operations"
 
 class OperationState(object):
-    """State of operation. (Simple wrapper for string name.)"""
+    """State of operation (simple wrapper for string name)."""
     def __init__(self, name):
         self.name = name
 
@@ -114,6 +114,15 @@ class OperationProgressFormatter(logging.Formatter):
                 time = time.isoformat(" ")
             return "{0} ({1:2} min)".format(time, elapsed)
 
+def get_operation_attributes(operation, client=None):
+    """Returns dict with operation attributes.
+
+    :param operation: (string) operation id.
+    :return: (dict) operation description
+    """
+    operation_path = ypath_join(OPERATIONS_PATH, operation)
+    return get(operation_path + "/@", client=client)
+
 def get_operation_state(operation, client=None):
     """Return current state of operation.
 
@@ -121,22 +130,17 @@ def get_operation_state(operation, client=None):
     Raise `YtError` if operation doesn't exists
     """
     config = get_config(client)
-    # TODO(ignat): check that we use http backend
-    old_retry_count = config["proxy"]["request_retry_count"]
+    retry_count = config["proxy"]["request_retry_count"]
     config["proxy"]["request_retry_count"] = config["proxy"]["operation_state_discovery_retry_count"]
-
-    operation_path = ypath_join(OPERATIONS_PATH, operation)
-    require(exists(operation_path, client=client), lambda: YtError("Operation %s doesn't exist" % operation))
-    state = OperationState(get_attribute(operation_path, "state", client=client))
-
-    config["proxy"]["request_retry_count"] = old_retry_count
-
-    return state
+    try:
+        return OperationState(get_operation_attributes(operation, client=client)["state"])
+    finally:
+        config["proxy"]["request_retry_count"] = retry_count
 
 def get_operation_progress(operation, client=None):
-    operation_path = ypath_join(OPERATIONS_PATH, operation)
     try:
-        progress = get_attribute(operation_path, "progress/jobs", client=client)
+        attributes = get_operation_attributes(operation, client=client)
+        progress = attributes.get("progress", {}).get("jobs", {})
         if isinstance(progress["aborted"], dict):
             progress["aborted"] = progress["aborted"]["total"]
     except YtResponseError as err:
@@ -164,7 +168,7 @@ class PrintOperationInfo(object):
         self.state = None
         self.progress = None
 
-        creation_time_str = get_attribute(ypath_join(OPERATIONS_PATH, self.operation), "creation_time", client=client)
+        creation_time_str = get_operation_attributes(operation, client=client)["creation_time"]
         creation_time = dateutil_parser.parse(creation_time_str).replace(tzinfo=None)
         local_creation_time = creation_time + (datetime.now() - datetime.utcnow())
 
@@ -322,13 +326,22 @@ def add_failed_operation_stderrs_to_error_message(func):
     return decorator(_add_failed_operation_stderrs_to_error_message, func)
 
 def get_operation_error(operation, client=None):
-    operation_path = ypath_join(OPERATIONS_PATH, operation)
     # NB(ignat): conversion to json type necessary for json.dumps in TM.
     # TODO(ignat): we should decide what format should be used in errors (now it is yson both here and in http.py).
-    result = yson.yson_to_json(get_attribute(operation_path, "result", client=client))
+    result = yson.yson_to_json(get_operation_attributes(operation, client=client).get("result", {}))
     if "error" in result and result["error"]["code"] != 0:
         return result["error"]
     return None
+
+def _create_operation_failed_error(operation, state):
+    stderrs = get_stderrs(operation.id, only_failed_jobs=True, client=operation.client)
+    error = get_operation_error(operation.id, client=operation.client)
+    raise YtOperationFailedError(
+        id=operation.id,
+        state=str(state),
+        error=error,
+        stderrs=stderrs,
+        url=operation.url)
 
 class Operation(object):
     """Holds information about started operation."""
@@ -337,6 +350,7 @@ class Operation(object):
         self.id = id
         self.finalize = finalize
         self.client = client
+        self.printer = PrintOperationInfo(id, client=client)
 
         proxy_url = get_proxy_url(check=False, client=self.client)
         if proxy_url:
@@ -368,7 +382,7 @@ class Operation(object):
 
     def get_attributes(self):
         """Returns all operation attributes. """
-        return get("{0}/{1}/@".format(OPERATIONS_PATH, self.id), client=self.client)
+        return get_operation_attributes(self.id, client=self.client)
 
     def get_job_statistics(self):
         """Returns job statistics of operation. """
@@ -385,7 +399,7 @@ class Operation(object):
 
     def get_state(self):
         """Returns object that represents state of operation. """
-        return OperationState(get("{0}/{1}/@state".format(OPERATIONS_PATH, self.id), client=self.client))
+        return get_operation_state(self.id, client=self.client)
 
     def get_stderrs(self, only_failed_jobs=False):
         """Returns list of objects thar represents jobs with stderrs.
@@ -394,6 +408,17 @@ class Operation(object):
         :param only_failed_jobs: (bool) consider only failed jobs.
         """
         return get_stderrs(self.id, only_failed_jobs=only_failed_jobs, client=self.client)
+
+    def exists(self):
+        """Check if operation attributes can be fetched from Cypress."""
+        try:
+            self.get_attributes()
+        except YtResponseError as err:
+            if err.is_resolve_error():
+                return False
+            raise
+
+        return True
 
     def wait(self, check_result=True, print_progress=True, timeout=None):
         """Synchronously track operation, print current progress and finalize at the completion.
@@ -412,7 +437,7 @@ class Operation(object):
         time_watcher = TimeWatcher(min_interval=operation_poll_period / 5.0,
                                    max_interval=operation_poll_period,
                                    slowdown_coef=0.1, timeout=timeout)
-        print_info = PrintOperationInfo(self.id, client=self.client) if print_progress else lambda state: None
+        print_info = self.printer if print_progress else lambda state: None
 
         def abort():
             for state in self.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0, timeout=None), self.abort):
@@ -430,9 +455,7 @@ class Operation(object):
                 raise YtTimeoutError
 
         if check_result and state.is_unsuccessfully_finished():
-            stderrs = get_stderrs(self.id, only_failed_jobs=True, client=self.client)
-            error = get_operation_error(self.id, client=self.client)
-            raise YtOperationFailedError(id=self.id, state=str(state), error=error, stderrs=stderrs, url=self.url)
+            raise _create_operation_failed_error(self, state)
 
         if get_config(self.client)["operation_tracker"]["log_job_statistics"]:
             statistics = self.get_job_statistics()
@@ -445,3 +468,73 @@ class Operation(object):
             if stderrs:
                 logger.log(stderr_level, "\n" + format_operation_stderrs(stderrs))
 
+class OperationsTracker(object):
+    def __init__(self, poll_period=5000, abort_on_sigint=True):
+        self._operations = {}
+        self._poll_period = poll_period
+        self._abort_on_sigint = abort_on_sigint
+
+    def add(self, operation):
+        if not isinstance(operation, Operation):
+            raise YtError("Valid Operation object should be passed "
+                          "to add method, not {0}".format(repr(operation)))
+
+        if not operation.exists():
+            raise YtError("Operation %s does not exist and is not added", operation.id)
+        self._operations[operation.id] = operation
+
+    def add_by_id(self, operation_id, client=None):
+        try:
+            attributes = get_operation_attributes(operation_id, client=client)
+            operation = Operation(attributes["operation_type"], operation_id, client=client)
+            self._operations[operation_id] = operation
+        except YtResponseError as err:
+            if err.is_resolve_error():
+                raise YtError("Operation %s does not exist and is not added", operation_id)
+            raise
+
+    def wait_all(self, check_result=True, print_progress=True):
+        logger.info("Waiting for %d operations to complete...", len(self._operations))
+
+        unsucessfully_finished_count = 0
+        inner_errors = []
+
+        with KeyboardInterruptsCatcher(self.abort_all, enable=self._abort_on_sigint):
+            while self._operations:
+                operations_to_remove = []
+
+                for id_, operation in self._operations.iteritems():
+                    state = operation.get_state()
+
+                    if print_progress:
+                        operation.printer(state)
+
+                    if state.is_finished():
+                        operations_to_remove.append(id_)
+
+                        if state.is_unsuccessfully_finished():
+                            unsucessfully_finished_count += 1
+                            inner_errors.append(_create_operation_failed_error(operation, state))
+
+                for operation_id in operations_to_remove:
+                    del self._operations[operation_id]
+
+                sleep(self._poll_period / 1000.0)
+
+        if check_result and unsucessfully_finished_count > 0:
+            raise YtError("All tracked operations finished but {0} operations finished unsucessfully"
+                          .format(unsucessfully_finished_count), inner_errors=inner_errors)
+
+    def abort_all(self):
+        logger.info("Aborting %d operations", len(self._operations))
+        for id_, operation in self._operations.iteritems():
+            state = operation.get_state()
+
+            if state.is_finished():
+                logger.warning("Operation %s is in %s state and cannot be aborted", id_, state)
+                continue
+
+            operation.abort()
+            logger.info("Operation %s was aborted", id_)
+
+        self._operations.clear()
