@@ -88,6 +88,23 @@ void TConfig::ValidateToken(const Stroka& token)
     }
 }
 
+TNode TConfig::LoadJsonSpec(const Stroka& strSpec)
+{
+    TNode spec;
+    TStringInput input(strSpec);
+    TNodeBuilder builder(&spec);
+    TYson2JsonCallbacksAdapter callbacks(&builder);
+
+    if (!NJson::ReadJson(&input, &callbacks)) {
+        LOG_FATAL("Cannot parse json spec");
+    }
+
+    if (!spec.IsMap()) {
+        LOG_FATAL("Json spec is not a map");
+    }
+    return spec;
+}
+
 void TConfig::LoadToken()
 {
     Stroka envToken = GetEnv("YT_TOKEN");
@@ -110,18 +127,7 @@ void TConfig::LoadToken()
 void TConfig::LoadSpec()
 {
     Stroka strSpec = GetEnv("YT_SPEC", "{}");
-
-    TStringInput input(strSpec);
-    TNodeBuilder builder(&Spec);
-    TYson2JsonCallbacksAdapter callbacks(&builder);
-
-    if (!NJson::ReadJson(&input, &callbacks)) {
-        LOG_FATAL("YT_SPEC: Cannot parse json");
-    }
-
-    if (!Spec.IsMap()) {
-        LOG_FATAL("YT_SPEC: Not a map node");
-    }
+    Spec = LoadJsonSpec(strSpec);
 }
 
 void TConfig::LoadTimings()
@@ -183,7 +189,9 @@ TProcessState::TProcessState()
 
     Pid = static_cast<int>(getpid());
 
-    ClientVersion = Sprintf("YT C++ client v2 r%d", GetProgramSvnRevision());
+    if (!ClientVersion) {
+        ClientVersion = Sprintf("YT C++ native r%d", GetProgramSvnRevision());
+    }
 }
 
 void TProcessState::SetCommandLine(int argc, const char* argv[])

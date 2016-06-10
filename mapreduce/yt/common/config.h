@@ -47,6 +47,7 @@ struct TConfig
     static Stroka GetEncoding(const char* var);
 
     static void ValidateToken(const Stroka& token);
+    static TNode LoadJsonSpec(const Stroka& strSpec);
 
     void LoadToken();
     void LoadSpec();
