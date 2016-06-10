@@ -52,9 +52,9 @@ int TConfig::GetInt(const char* var, int defaultValue)
     return result;
 }
 
-TDuration TConfig::GetDuration(const char* var, int defaultValueSeconds)
+TDuration TConfig::GetDuration(const char* var, TDuration defaultValue)
 {
-    return TDuration::Seconds(GetInt(var, defaultValueSeconds));
+    return TDuration::Seconds(GetInt(var, defaultValue.Seconds()));
 }
 
 Stroka TConfig::GetEncoding(const char* var)
@@ -132,13 +132,36 @@ void TConfig::LoadSpec()
 
 void TConfig::LoadTimings()
 {
-    ConnectTimeout = GetDuration("YT_CONNECT_TIMEOUT", 10);
-    SocketTimeout = GetDuration("YT_SOCKET_TIMEOUT", 60);
-    TxTimeout = GetDuration("YT_TX_TIMEOUT", 120);
-    PingInterval = GetDuration("YT_PING_INTERVAL", 3);
-    RetryInterval = GetDuration("YT_RETRY_INTERVAL", 3);
-    RateLimitExceededRetryInterval = GetDuration("YT_RATE_LIMIT_EXCEEDED_RETRY_INTERVAL", 60);
-    StartOperationRetryInterval = GetDuration("YT_START_OPERATION_RETRY_INTERVAL", 60);
+    ConnectTimeout = GetDuration("YT_CONNECT_TIMEOUT",
+        TDuration::Seconds(10));
+
+    SocketTimeout = GetDuration("YT_SOCKET_TIMEOUT",
+        GetDuration("YT_SEND_RECEIVE_TIMEOUT", // common
+            TDuration::Seconds(60)));
+
+    TxTimeout = GetDuration("YT_TX_TIMEOUT",
+        TDuration::Seconds(120));
+
+    PingTimeout = GetDuration("YT_PING_TIMEOUT",
+        TDuration::Seconds(5));
+
+    PingInterval = GetDuration("YT_PING_INTERVAL",
+        TDuration::Seconds(5));
+
+    RetryInterval = GetDuration("YT_RETRY_INTERVAL",
+        TDuration::Seconds(3));
+
+    RateLimitExceededRetryInterval = GetDuration("YT_RATE_LIMIT_EXCEEDED_RETRY_INTERVAL",
+        TDuration::Seconds(60));
+
+    StartOperationRetryInterval = GetDuration("YT_START_OPERATION_RETRY_INTERVAL",
+        TDuration::Seconds(60));
+
+    TxClientTimeout = GetDuration("YT_CLIENT_TIMEOUT", // common
+        TDuration::Seconds(60));
+
+    TxOperationTimeout = GetDuration("YT_OPERATION_TIMEOUT", // common
+        TDuration::Seconds(180));
 }
 
 TConfig::TConfig()
@@ -164,6 +187,13 @@ TConfig::TConfig()
 
     RetryCount = GetInt("YT_RETRY_COUNT", 10);
     StartOperationRetryCount = GetInt("YT_START_OPERATION_RETRY_COUNT", 30);
+
+    OrderGuarantees = GetBool("YT_STRICTLY_TESTABLE") // common
+        ? OG_STRICTLY_TESTABLE
+        : GetBool("YT_TESTABLE") ? OG_TESTABLE : OG_STANDARD;
+
+    DisableClientSubTransactions = GetBool("YT_DISABLE_CLIENT_SUB_TRANSACTIONS"); // common
+    CreateTablesUnderTransaction = GetBool("YT_CREATE_TABLES_UNDER_TRANSACTION", true); // common
 }
 
 TConfig* TConfig::Get()

@@ -215,7 +215,7 @@ Stroka RetryRequest(
     header.SetToken(auth.Token);
 
     TDuration socketTimeout = (header.GetCommand() == "ping_tx") ?
-        TDuration::Seconds(5) : TDuration::Zero();
+        TConfig::Get()->PingTimeout : TDuration::Zero();
 
     for (int attempt = 0; attempt < retryCount; ++attempt) {
         Stroka requestId;

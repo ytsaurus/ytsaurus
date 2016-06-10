@@ -8,7 +8,6 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
 struct TConfig
 {
     Stroka Hosts;
@@ -32,6 +31,7 @@ struct TConfig
     TDuration ConnectTimeout;
     TDuration SocketTimeout;
     TDuration TxTimeout;
+    TDuration PingTimeout;
     TDuration PingInterval;
     TDuration RetryInterval;
     TDuration RateLimitExceededRetryInterval;
@@ -40,10 +40,27 @@ struct TConfig
     int RetryCount;
     int StartOperationRetryCount;
 
+    // common wrapper
+
+    TDuration TxClientTimeout;
+    TDuration TxOperationTimeout;
+
+    enum EOrderGuarantees {
+        // Each mode implies the ones preceding it
+        OG_STANDARD,          // standard Map-Reduce
+        OG_TESTABLE,          // values are taken into account for resolving ties (sorting by KSV)
+        OG_STRICTLY_TESTABLE, // sorted merge and write operations expect KSV-sorted input, may require preparing external tables
+    };
+    EOrderGuarantees OrderGuarantees;
+
+    bool DisableClientSubTransactions;
+    bool CreateTablesUnderTransaction;
+
+
     static Stroka GetEnv(const char* var, const char* defaultValue = "");
     static bool GetBool(const char* var, bool defaultValue = false);
     static int GetInt(const char* var, int defaultValue);
-    static TDuration GetDuration(const char* var, int defaultValueSeconds);
+    static TDuration GetDuration(const char* var, TDuration defaultValue);
     static Stroka GetEncoding(const char* var);
 
     static void ValidateToken(const Stroka& token);
