@@ -84,10 +84,6 @@ void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buf
     executionContext.PermanentBuffer = buffer;
     executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
-#ifndef NDEBUG
-    int dummy;
-    executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
-#endif
 
     evaluator(
         column.Variables.GetOpaqueData(),

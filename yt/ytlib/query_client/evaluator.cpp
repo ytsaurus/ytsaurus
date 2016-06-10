@@ -250,10 +250,6 @@ private:
         void* const* opaqueValues,
         TExecutionContext* executionContext)
     {
-#ifndef NDEBUG
-        int dummy;
-        executionContext->StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
-#endif
         cgQuery(opaqueValues, executionContext);
     }
 

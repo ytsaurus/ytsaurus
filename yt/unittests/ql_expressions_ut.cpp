@@ -779,10 +779,6 @@ TEST_P(TArithmeticTest, Evaluate)
     executionContext.OutputBuffer = outputBuffer;
     executionContext.IntermediateBuffer = intermediateBuffer;
     executionContext.Statistics = &statistics;
-#ifndef NDEBUG
-    volatile int dummy;
-    executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
-#endif
 
     callback(variables.GetOpaqueData(), &result, row, &executionContext);
 
@@ -866,10 +862,6 @@ TEST_P(TCompareWithNullTest, Simple)
     executionContext.OutputBuffer = outputBuffer;
     executionContext.IntermediateBuffer = intermediateBuffer;
     executionContext.Statistics = &statistics;
-#ifndef NDEBUG
-    volatile int dummy;
-    executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
-#endif
 
     callback(variables.GetOpaqueData(), &result, row, &executionContext);
 
@@ -932,10 +924,6 @@ TEST_P(TEvaluateAggregationTest, Basic)
     executionContext.PermanentBuffer = buffer;
     executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
-#ifndef NDEBUG
-    volatile int dummy;
-    executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
-#endif
 
     TUnversionedValue tmp;
     TUnversionedValue state1;
@@ -1026,10 +1014,6 @@ void EvaluateExpression(
     executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
     executionContext.Statistics = &statistics;
-#ifndef NDEBUG
-    volatile int dummy;
-    executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
-#endif
 
     callback(variables.GetOpaqueData(), result, row, &executionContext);
 }

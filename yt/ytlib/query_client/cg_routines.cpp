@@ -47,19 +47,6 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef NDEBUG
-#define CHECK_STACK() \
-    { \
-        int dummy; \
-        size_t currentStackSize = context->StackSizeGuardHelper - reinterpret_cast<intptr_t>(&dummy); \
-        YCHECK(currentStackSize < 10000); \
-    }
-#else
-#define CHECK_STACK() (void) 0;
-#endif
-
-////////////////////////////////////////////////////////////////////////////////
-
 void WriteRow(TRow row, TExecutionContext* context)
 {
     CHECK_STACK();
@@ -304,8 +291,6 @@ void AllocatePermanentRow(TExecutionContext* context, TRowBuffer* buffer, int va
 
 void AllocateIntermediateRow(TExpressionContext* context, int valueCount, TMutableRow* row)
 {
-    CHECK_STACK();
-
     *row = context->IntermediateBuffer->Allocate(valueCount);
 }
 
@@ -336,10 +321,8 @@ void OrderOpHelper(
     }
 }
 
-char* AllocateBytes(TExecutionContext* context, size_t byteCount)
+char* AllocateBytes(TExpressionContext* context, size_t byteCount)
 {
-    CHECK_STACK();
-
     return context
         ->IntermediateBuffer
         ->GetPool()
@@ -366,7 +349,6 @@ char IsRowInArray(
 {
     CHECK_STACK();
 
-    // TODO(lukyan): check null
     return std::binary_search(rows->Begin(), rows->End(), row, comparer);
 }
 

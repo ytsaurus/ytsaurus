@@ -148,11 +148,19 @@ struct TGroupByClosure
 
 struct TExpressionContext
 {
-#ifndef NDEBUG
-    size_t StackSizeGuardHelper;
-#endif
     TRowBufferPtr IntermediateBuffer;
 };
+
+#ifndef NDEBUG
+#define CHECK_STACK() \
+    { \
+        int dummy; \
+        size_t currentStackSize = reinterpret_cast<intptr_t>(context) - reinterpret_cast<intptr_t>(&dummy); \
+        YCHECK(currentStackSize < 10000); \
+    }
+#else
+#define CHECK_STACK() (void) 0;
+#endif
 
 struct TExecutionContext
     : public TExpressionContext
@@ -178,6 +186,12 @@ struct TExecutionContext
     i64 Limit;
 
     TExecuteQuery ExecuteCallback;
+
+    TExecutionContext()
+    {
+        auto context = this;
+        CHECK_STACK();
+    }
 
 };
 
