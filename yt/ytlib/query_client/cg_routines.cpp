@@ -151,33 +151,31 @@ void ScanOpHelper(
 
 void InsertJoinRow(
     TExecutionContext* context,
-    TJoinLookup* lookup,
-    std::vector<TRow>* keys,
-    std::vector<std::pair<TRow, i64>>* chainedRows,
+    TRowBuffer* buffer,
+    TJoinClosure* closure,
     TMutableRow* keyPtr,
-    TRow row,
-    int keySize)
+    TRow row)
 {
     CHECK_STACK();
 
-    i64 chainIndex = chainedRows->size();
-    chainedRows->emplace_back(context->PermanentBuffer->Capture(row), -1);
+    i64 chainIndex = closure->ChainedRows.size();
+    closure->ChainedRows.emplace_back(buffer->Capture(row), -1);
 
     if (chainIndex >= context->JoinRowLimit) {
         throw TInterruptedIncompleteException();
     }
 
     TMutableRow key = *keyPtr;
-    auto inserted = lookup->insert(std::make_pair(key, std::make_pair(chainIndex, false)));
+    auto inserted = closure->Lookup.insert(std::make_pair(key, std::make_pair(chainIndex, false)));
     if (inserted.second) {
-        keys->push_back(key);
-        for (int index = 0; index < keySize; ++index) {
-            context->PermanentBuffer->Capture(&key[index]);
+        closure->Keys.push_back(key);
+        for (int index = 0; index < closure->KeySize; ++index) {
+            buffer->Capture(&key[index]);
         }
-        *keyPtr = context->PermanentBuffer->Allocate(keySize);
+        *keyPtr = buffer->Allocate(closure->KeySize);
     } else {
         auto& startIndex = inserted.first->second.first;
-        chainedRows->back().second = startIndex;
+        closure->ChainedRows.back().second = startIndex;
         startIndex = chainIndex;
     }
 }
@@ -188,119 +186,70 @@ void JoinOpHelper(
     THasherFunction* lookupHasher,
     TComparerFunction* lookupEqComparer,
     TComparerFunction* lookupLessComparer,
+    int keySize,
     void** collectRowsClosure,
     void (*collectRows)(
         void** closure,
-        TJoinLookup* joinLookup,
-        std::vector<TRow>* keys,
-        std::vector<std::pair<TRow, i64>>* chainedRows),
+        TJoinClosure* joinClosure,
+        TRowBuffer* buffer),
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRow* rows, i64 size))
 {
-    TJoinLookup joinLookup(
-        InitialGroupOpHashtableCapacity,
-        lookupHasher,
-        lookupEqComparer);
+    TJoinClosure closure(lookupHasher, lookupEqComparer, keySize);
 
-    std::vector<TRow> keys;
-    std::vector<std::pair<TRow, i64>> chainedRows;
-
-    joinLookup.set_empty_key(TRow());
+    auto buffer = New<TRowBuffer>();
 
     try {
         // Collect join ids.
-        collectRows(collectRowsClosure, &joinLookup, &keys, &chainedRows);
+        collectRows(collectRowsClosure, &closure, buffer.Get());
     } catch (const TInterruptedIncompleteException&) {
         // Set incomplete and continue
         context->Statistics->IncompleteOutput = true;
     }
 
     LOG_DEBUG("Sorting %v join keys",
-        keys.size());
+        closure.Keys.size());
 
-    std::sort(keys.begin(), keys.end(), lookupLessComparer);
+    std::sort(closure.Keys.begin(), closure.Keys.end(), lookupLessComparer);
 
     LOG_DEBUG("Collected %v join keys from %v rows",
-        keys.size(),
-        chainedRows.size());
+        closure.Keys.size(),
+        closure.ChainedRows.size());
 
     (*joinEvaluator)(
         context,
         lookupHasher,
         lookupEqComparer,
-        joinLookup,
-        std::move(keys),
-        std::move(chainedRows),
-        context->PermanentBuffer,
+        closure.Lookup,
+        std::move(closure.Keys),
+        std::move(closure.ChainedRows),
+        buffer,
         consumeRowsClosure,
         consumeRows);
 }
 
-void GroupOpHelper(
-    TExecutionContext* context,
-    THasherFunction* groupHasher,
-    TComparerFunction* groupComparer,
-    void** collectRowsClosure,
-    void (*collectRows)(void** closure, std::vector<TRow>* groupedRows, TLookupRows* lookupRows),
-    void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRow* rows, i64 size))
-{
-    std::vector<TRow> groupedRows;
-    TLookupRows lookupRows(
-        InitialGroupOpHashtableCapacity,
-        groupHasher,
-        groupComparer);
-
-    lookupRows.set_empty_key(TRow());
-
-    try {
-        collectRows(collectRowsClosure, &groupedRows, &lookupRows);
-    } catch (const TInterruptedIncompleteException&) {
-        // Set incomplete and continue
-        context->Statistics->IncompleteOutput = true;
-    }
-
-    LOG_DEBUG("Collected %v group rows",
-        groupedRows.size());
-
-    for (size_t index = 0; index < groupedRows.size(); index += RowsetProcessingSize) {
-        auto size = std::min(RowsetProcessingSize, groupedRows.size() - index);
-        consumeRows(consumeRowsClosure, groupedRows.data() + index, size);
-        context->IntermediateBuffer->Clear();
-    }
-}
-
-void AllocatePermanentRow(TExecutionContext* context, int valueCount, TMutableRow* row)
-{
-    CHECK_STACK();
-
-    *row = context->PermanentBuffer->Allocate(valueCount);
-}
-
 const TRow* InsertGroupRow(
     TExecutionContext* context,
-    TLookupRows* lookupRows,
-    std::vector<TRow>* groupedRows,
-    TMutableRow row,
-    int keySize,
-    bool checkNulls)
+    TRowBuffer* buffer,
+    TGroupByClosure* closure,
+    TMutableRow row)
 {
     CHECK_STACK();
 
-    auto inserted = lookupRows->insert(row);
+    auto inserted = closure->Lookup.insert(row);
 
     if (inserted.second) {
-        if (groupedRows->size() >= context->GroupRowLimit) {
+        if (closure->GroupedRows.size() >= context->GroupRowLimit) {
             throw TInterruptedIncompleteException();
         }
 
-        groupedRows->push_back(row);
-        for (int index = 0; index < keySize; ++index) {
-            context->PermanentBuffer->Capture(&row[index]);
+        closure->GroupedRows.push_back(row);
+        for (int index = 0; index < closure->KeySize; ++index) {
+            buffer->Capture(&row[index]);
         }
 
-        if (checkNulls) {
-            for (int index = 0; index < keySize; ++index) {
+        if (closure->CheckNulls) {
+            for (int index = 0; index < closure->KeySize; ++index) {
                 if (row[index].Type == EValueType::Null) {
                     THROW_ERROR_EXCEPTION("Null values in group key");
                 }
@@ -309,6 +258,48 @@ const TRow* InsertGroupRow(
     }
 
     return &*inserted.first;
+}
+
+void GroupOpHelper(
+    TExecutionContext* context,
+    THasherFunction* groupHasher,
+    TComparerFunction* groupComparer,
+    int keySize,
+    bool checkNulls,
+    void** collectRowsClosure,
+    void (*collectRows)(
+        void** closure,
+        TGroupByClosure* groupByClosure,
+        TRowBuffer* buffer),
+    void** consumeRowsClosure,
+    void (*consumeRows)(void** closure, TRow* rows, i64 size))
+{
+    TGroupByClosure closure(groupHasher, groupComparer, keySize, checkNulls);
+
+    auto buffer = New<TRowBuffer>();
+
+    try {
+        collectRows(collectRowsClosure, &closure, buffer.Get());
+    } catch (const TInterruptedIncompleteException&) {
+        // Set incomplete and continue
+        context->Statistics->IncompleteOutput = true;
+    }
+
+    LOG_DEBUG("Collected %v group rows",
+        closure.GroupedRows.size());
+
+    for (size_t index = 0; index < closure.GroupedRows.size(); index += RowsetProcessingSize) {
+        auto size = std::min(RowsetProcessingSize, closure.GroupedRows.size() - index);
+        consumeRows(consumeRowsClosure, closure.GroupedRows.data() + index, size);
+        context->IntermediateBuffer->Clear();
+    }
+}
+
+void AllocatePermanentRow(TExecutionContext* context, TRowBuffer* buffer, int valueCount, TMutableRow* row)
+{
+    CHECK_STACK();
+
+    *row = buffer->Allocate(valueCount);
 }
 
 void AllocateIntermediateRow(TExpressionContext* context, int valueCount, TMutableRow* row)
@@ -505,7 +496,7 @@ ui8 RegexPartialMatch(google::re2::RE2* re2, TUnversionedValue* string)
 
 void CopyString(TExecutionContext* context, TUnversionedValue* result, const std::string& str)
 {
-    char* data = AllocatePermanentBytes(context, str.size());
+    char* data = AllocateBytes(context, str.size());
     memcpy(data, str.c_str(), str.size());
     result->Type = EValueType::String;
     result->Length = str.size();
@@ -595,12 +586,12 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
 #define REGISTER_ROUTINE(routine) \
     registry->RegisterRoutine(#routine, NRoutines::routine)
     REGISTER_ROUTINE(WriteRow);
+    REGISTER_ROUTINE(InsertGroupRow);
     REGISTER_ROUTINE(ScanOpHelper);
+    REGISTER_ROUTINE(InsertJoinRow);
     REGISTER_ROUTINE(JoinOpHelper);
     REGISTER_ROUTINE(GroupOpHelper);
     REGISTER_ROUTINE(StringHash);
-    REGISTER_ROUTINE(InsertGroupRow);
-    REGISTER_ROUTINE(InsertJoinRow);
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateIntermediateRow);
     REGISTER_ROUTINE(AllocatePermanentBytes);
