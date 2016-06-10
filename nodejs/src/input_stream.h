@@ -17,6 +17,7 @@ namespace NNodeJS {
 class TInputStreamWrap
     : public TNodeJSStreamBase
     , public TInputStream
+    , public TRefTracked<TInputStreamWrap>
 {
 protected:
     TInputStreamWrap(ui64 lowWatermark, ui64 highWatermark);

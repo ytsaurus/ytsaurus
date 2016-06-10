@@ -14,6 +14,8 @@
 
 #include <util/string/escape.h>
 
+#include <dlfcn.h>
+
 extern "C" {
     // XXX(sandello): This is extern declaration of eio's internal functions.
     // -lrt will dynamically bind these symbols. We do this dirty-dirty stuff
@@ -172,12 +174,152 @@ Handle<Value> _Exit(const Arguments& args)
     return scope.Close(Undefined());
 }
 
+void JemallocWriteCb(void*, const char* string)
+{
+    ::write(2, string, strlen(string));
+}
+
+Handle<Value> JemallocStats(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YCHECK(args.Length() == 0);
+
+    void* ptr = nullptr;
+    void (*malloc_stats_print)(void (*)(void *, const char *), void *, const char*) = nullptr;
+
+    ptr = dlsym(nullptr, "malloc_stats_print");
+    malloc_stats_print = (decltype(malloc_stats_print))(ptr);
+    if (!malloc_stats_print) {
+        return ThrowException(String::New("Jemalloc is not in use"));
+    }
+
+    malloc_stats_print(&JemallocWriteCb, nullptr, "a");
+
+    return scope.Close(Undefined());
+}
+
+Handle<Value> JemallocCtlWrite(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YCHECK(args.Length() == 2);
+
+    EXPECT_THAT_IS(args[0], String);
+
+    String::Utf8Value key(args[0]);
+
+    void* ptr = nullptr;
+    int (*mallctl)(const char*, void*, size_t, void*, size_t) = nullptr;
+
+    ptr = dlsym(nullptr, "mallctl");
+    mallctl = (decltype(mallctl))(ptr);
+    if (!mallctl) {
+        return ThrowException(String::New("Jemalloc is not in use"));
+    }
+
+    if (args[1]->IsString()) {
+        String::Utf8Value value(args[1]);
+        mallctl(*key, nullptr, 0, *value, value.length());
+    } else if (args[1]->IsNumber()) {
+        unsigned int value = args[1]->Uint32Value();
+        mallctl(*key, nullptr, 0, &value, sizeof(value));
+    } else if (args[1]->IsNull()) {
+        mallctl(*key, nullptr, 0, nullptr, 0);
+    }
+
+    return scope.Close(Undefined());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// V8 stuff
+
+Handle<Value> GetHeapStatistics(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Validate arguments.
+    YCHECK(args.Length() == 0);
+
+    v8::HeapStatistics heapStatistics;
+    v8::V8::GetHeapStatistics(&heapStatistics);
+
+    Local<Object> result = Object::New();
+    result->Set(String::New("total_heap_size"), Number::New(heapStatistics.total_heap_size()));
+    result->Set(String::New("total_heap_size_executable"), Number::New(heapStatistics.total_heap_size_executable()));
+    result->Set(String::New("used_heap_size"), Number::New(heapStatistics.used_heap_size()));
+    result->Set(String::New("heap_size_limit"), Number::New(heapStatistics.heap_size_limit()));
+
+    return scope.Close(result);
+}
+
+static ui32 TotalGCScavengeCount = 0;
+static ui32 TotalGCScavengeTime = 0;
+static ui32 TotalGCMarkSweepCompactCount = 0;
+static ui32 TotalGCMarkSweepCompactTime = 0;
+
+static TInstant GCStartInstant;
+
+static void GCPrologue(v8::GCType gcType, v8::GCCallbackFlags)
+{
+    GCStartInstant = TInstant::Now();
+}
+
+static void GCEpilogue(v8::GCType gcType, v8::GCCallbackFlags)
+{
+    ui32* counter = nullptr;
+    ui32* timer = nullptr;
+
+    switch (gcType) {
+        case v8::kGCTypeScavenge:
+            counter = &TotalGCScavengeCount;
+            timer = &TotalGCScavengeTime;
+            break;
+        case v8::kGCTypeMarkSweepCompact:
+            counter = &TotalGCMarkSweepCompactCount;
+            timer = &TotalGCMarkSweepCompactTime;
+            break;
+        default:
+            YUNREACHABLE();
+    }
+
+    auto gcDuration = TInstant::Now() - GCStartInstant;
+
+    *counter += 1;
+    *timer += gcDuration.MilliSeconds();
+
+    GCStartInstant = TInstant::Zero();
+}
+
+Handle<Value> GetGCStatistics(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Validate arguments.
+    YCHECK(args.Length() == 0);
+
+    Local<Object> result = Object::New();
+    result->Set(String::New("total_scavenge_count"), Integer::NewFromUnsigned(TotalGCScavengeCount));
+    result->Set(String::New("total_scavenge_time"), Integer::NewFromUnsigned(TotalGCScavengeTime));
+    result->Set(String::New("total_mark_sweep_compact_count"), Integer::NewFromUnsigned(TotalGCMarkSweepCompactCount));
+    result->Set(String::New("total_mark_sweep_compact_time"), Integer::NewFromUnsigned(TotalGCMarkSweepCompactTime));
+
+    return scope.Close(result);
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void InitializeCommon(Handle<Object> target)
 {
+    v8::V8::AddGCPrologueCallback(&GCPrologue);
+    v8::V8::AddGCEpilogueCallback(&GCEpilogue);
+
     target->Set(
         String::NewSymbol("GetEioInformation"),
         FunctionTemplate::New(GetEioInformation)->GetFunction());
@@ -196,6 +338,18 @@ void InitializeCommon(Handle<Object> target)
     target->Set(
         String::NewSymbol("_Exit"),
         FunctionTemplate::New(_Exit)->GetFunction());
+    target->Set(
+        String::NewSymbol("JemallocStats"),
+        FunctionTemplate::New(JemallocStats)->GetFunction());
+    target->Set(
+        String::NewSymbol("JemallocCtlWrite"),
+        FunctionTemplate::New(JemallocCtlWrite)->GetFunction());
+    target->Set(
+        String::NewSymbol("GetHeapStatistics"),
+        FunctionTemplate::New(GetHeapStatistics)->GetFunction());
+    target->Set(
+        String::NewSymbol("GetGCStatistics"),
+        FunctionTemplate::New(GetGCStatistics)->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -158,12 +158,10 @@ function YtCommand(logger, driver, coordinator, watcher, sticky_cache, pause) {
     this.output_compression = undefined;
     this.output_format = undefined;
     this.output_stream = undefined;
+    this.memory_output = undefined;
 
     this.mime_compression = undefined;
     this.mime_type = undefined;
-
-    this.bytes_in = undefined;
-    this.bytes_out = undefined;
 
     this.__DBG("New");
 }
@@ -206,16 +204,45 @@ YtCommand.prototype.dispatch = function(req, rsp) {
         })
         .then(self._execute.bind(self))
         .catch(function(err) {
-            return YtError.ensureWrapped(
+            var error = YtError.ensureWrapped(
                 err,
                 "Unhandled error in the command pipeline");
+            return [error, 0, 0];
         })
-        .then(self._epilogue.bind(self))
+        .spread(function(result, bytes_in, bytes_out) {
+            self._epilogue(result, bytes_in, bytes_out);
+        })
         .done();
 };
 
-YtCommand.prototype._epilogue = function(result) {
+YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
     this.__DBG("_epilogue");
+
+    if (result.code === 0) {
+        this.rsp.statusCode = 200;
+    } else if (result.code !== 0 && this.rsp.statusCode === 200) {
+        this.rsp.statusCode = 400;
+    }
+
+    if (result.isUnavailable() || result.isAllTargetNodesFailed()) {
+        this.rsp.statusCode = 503;
+        this.rsp.setHeader("Retry-After", "60");
+    }
+
+    if (result.isUserBanned()) {
+        this.rsp.statusCode = 403;
+    }
+
+    if (result.isRequestRateLimitExceeded()) {
+        this.rsp.statusCode = 429;
+    }
+
+    if (result.isUserBanned() || result.isRequestRateLimitExceeded()) {
+        this.sticky_cache.set(this.user, {
+            code: this.rsp.statusCode,
+            body: result.toJson()
+        });
+    }
 
     var extra_headers = {
         "X-YT-Error": result.toJson(),
@@ -236,34 +263,32 @@ YtCommand.prototype._epilogue = function(result) {
     }
 
     this.logger.debug("Done (" + (result.isOK() ? "success" : "failure") + ")", {
-        bytes_in: this.bytes_in,
-        bytes_out: this.bytes_out,
+        bytes_in: bytes_in,
+        bytes_out: bytes_out,
         result: result,
     });
 
-    if (!result.isOK()) {
-        if (result.isUserBanned() || result.isRequestRateLimitExceeded()) {
-            this.sticky_cache.set(this.user, {
-                code: this.rsp.statusCode,
-                body: result.toJson()
-            });
-        }
-
-        if (!sent_headers) {
-            if (!this.rsp.statusCode ||
-                (this.rsp.statusCode >= 200 && this.rsp.statusCode < 300))
-            {
-                this.rsp.statusCode = 400;
+    if (!result.isOK() && !sent_headers) {
+        utils.dispatchAs(
+            this.rsp,
+            result.toJson(),
+            "application/json");
+    } else {
+        if (this.memory_output) {
+            var chunks = this.output_stream.chunks;
+            var length = 0;
+            var i, n;
+            for (i = 0, n = chunks.length; i < n; ++i) {
+                length += chunks[i].length;
             }
-
-            utils.dispatchAs(
-                this.rsp,
-                result.toJson(),
-                "application/json");
+            this.rsp.removeHeader("Transfer-Encoding");
+            this.rsp.setHeader("Content-Length", length);
+            for (i = 0, n = chunks.length; i < n; ++i) {
+                this.rsp.write(chunks[i]);
+            }
         }
+        this.rsp.end();
     }
-
-    this.rsp.end();
 };
 
 YtCommand.prototype._parseRequest = function() {
@@ -422,7 +447,7 @@ YtCommand.prototype._redirectHeavyRequests = function() {
 
     if (this.descriptor.is_heavy && this.coordinator.getSelf().role !== "data") {
         var target = this.coordinator.allocateProxy("data");
-        if (typeof(target) !== "undefined") {
+        if (target) {
             var is_ssl;
             is_ssl = this.req.connection.getCipher && this.req.connection.getCipher();
             is_ssl = !!is_ssl;
@@ -710,12 +735,19 @@ YtCommand.prototype._captureParameters = function() {
         // are served with POST method (see |_checkHttpMethod|).
         from_body = this._captureBody();
         this.input_stream = new utils.NullStream();
-        this.output_stream = this.rsp;
         this.pause = utils.Pause(this.input_stream);
     } else {
         from_body = Q.resolve();
         this.input_stream = this.req;
+    }
+
+    if (this.descriptor.output_type_as_integer === binding.EDataType_Null ||
+        this.descriptor.output_type_as_integer === binding.EDataType_Structured) {
+        this.output_stream = new utils.MemoryOutputStream();
+        this.memory_output = true;
+    } else {
         this.output_stream = this.rsp;
+        this.memory_output = false;
     }
 
     var self = this;
@@ -735,33 +767,71 @@ YtCommand.prototype._captureParameters = function() {
 YtCommand.prototype._captureBody = function() {
     this.__DBG("_captureBody");
 
-    var deferred = Q.defer();
+    // Avoid capturing |this| to avoid back references.
+    var input_compression = this.input_compression;
+    var input_format = this.input_format;
+    var req = this.req;
+    var pause = this.pause;
 
-    var self = this;
-    var chunks = [];
+    return new Q(function(resolve, reject) {
+        var clean = false;
+        var chunks = [];
 
-    this.req.on("data", function(chunk) { chunks.push(chunk); });
-    this.req.on("end", function() {
-        try {
-            var body = buffertools.concat.apply(undefined, chunks);
-            if (body.length) {
-                deferred.resolve(new binding.TNodeWrap(
-                    body,
-                    self.input_compression,
-                    self.input_format));
-            } else {
-                deferred.resolve();
+        function resolve_and_clear(value) {
+            if (!clean) {
+                cleanup();
+                clean = true;
             }
-        } catch (err) {
-            deferred.reject(new YtError(
-                "Unable to parse parameters from the request body",
-                err));
+            resolve(value);
         }
+
+        function reject_and_clear(err) {
+            if (!clean) {
+                cleanup();
+                clean = true;
+            }
+            reject(err);
+        }
+
+        function capture_body_on_data(chunk) {
+            chunks.push(chunk);
+        }
+
+        function capture_body_on_end() {
+            try {
+                var body = buffertools.concat.apply(undefined, chunks);
+                if (body.length) {
+                    resolve_and_clear(new binding.TNodeWrap(body, input_compression, input_format));
+                } else {
+                    resolve_and_clear();
+                }
+            } catch (err) {
+                reject_and_clear(new YtError("Unable to parse parameters from the request body", err));
+            }
+        }
+
+        function capture_body_on_close() {
+            reject_and_clear(new YtError("Stream was closed"));
+        }
+
+        function capture_body_on_error(err) {
+            reject_and_clear(new YtError("An error occured", err));
+        }
+
+        req.on("data", capture_body_on_data);
+        req.on("end", capture_body_on_end);
+        req.on("close", capture_body_on_close);
+        req.on("error", capture_body_on_error);
+
+        function cleanup() {
+            req.removeListener("data", capture_body_on_data);
+            req.removeListener("end", capture_body_on_end);
+            req.removeListener("close", capture_body_on_close);
+            req.removeListener("error", capture_body_on_error);
+        }
+
+        pause.unpause();
     });
-
-    this.pause.unpause();
-
-    return deferred.promise;
 };
 
 YtCommand.prototype._logRequest = function() {
@@ -818,7 +888,7 @@ YtCommand.prototype._execute = function(cb) {
         this.output_stream, this.output_compression,
         this.parameters, this.request_id,
         this.pause,
-        function response_parameters_consumer(key, value) {
+        function execute$response_parameters_consumer(key, value) {
             self.logger.debug(
                 "Got a response parameter",
                 { key: key, value: value.Print() });
@@ -836,40 +906,13 @@ YtCommand.prototype._execute = function(cb) {
                         self.header_format));
             }
         },
-        function result_interceptor(result) {
+        function execute$interceptor(result, bytes_in, bytes_out) {
             self.watcher.releaseThread(watcher_tags);
             self.logger.debug(
                 "Command '" + self.command + "' has finished executing",
                 { result: result });
         })
-    .spread(function() { return arguments; }, function() { return arguments; })
-    .spread(function(result, bytes_in, bytes_out) {
-        self.bytes_in = bytes_in;
-        self.bytes_out = bytes_out;
-
-        if (result.code === 0) {
-            self.rsp.statusCode = 200;
-        } else if (result.code < 0) {
-            self.rsp.statusCode = 500;
-        } else if (result.code > 0) {
-            self.rsp.statusCode = 400;
-        }
-
-        if (result.isUnavailable() || result.isAllTargetNodesFailed()) {
-            self.rsp.statusCode = 503;
-            self.rsp.setHeader("Retry-After", "60");
-        }
-
-        if (result.isUserBanned()) {
-            self.rsp.statusCode = 403;
-        }
-
-        if (result.isRequestRateLimitExceeded()) {
-            self.rsp.statusCode = 429;
-        }
-
-        return result;
-    });
+    .spread(function() { return arguments; }, function() { return arguments; });
 };
 
 ////////////////////////////////////////////////////////////////////////////////

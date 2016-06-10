@@ -13,12 +13,18 @@ var __DBG = require("./debug").that("U", "Upravlyator");
 
 var MAX_SIZE_FOR_LIST = 10000;
 
+function checkBool(value)
+{
+    return value === "true" || value === true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtApplicationUpravlyator(logger, driver)
+function YtApplicationUpravlyator(logger, driver, authority)
 {
     this.logger = logger;
     this.driver = driver;
+    this.authority = authority;
 }
 
 YtApplicationUpravlyator.prototype._getFromYt = function(type, name)
@@ -41,21 +47,27 @@ YtApplicationUpravlyator.prototype._getManagedUser = function(name)
         return Q.reject(new YtError("User name is not specified"));
     }
 
-    return this._getFromYt("users", name).then(function(user) {
-        if (typeof(user) === "undefined") {
-            return Q.reject(new YtError(
-                "No such user: " + JSON.stringify(name))
-                .withAttribute("is_fatal", 1)
-                .withAttribute("missing", 1));
-        }
-        if (user.upravlyator_managed !== "true") {
-            return Q.reject(new YtError(
-                "User " + JSON.stringify(name) +
-                " is not managed by Upravlyator")
-                .withAttribute("is_fatal", 1)
-                .withAttribute("unmanaged", 1));
-        }
-        return user;
+    var self = this;
+
+    return self.authority.ensureUser(self.logger, name, true)
+    .then(function() {
+        return self._getFromYt("users", name)
+        .then(function(user) {
+            if (typeof(user) === "undefined") {
+                return Q.reject(new YtError(
+                    "No such user: " + JSON.stringify(name))
+                    .withAttribute("is_fatal", 1)
+                    .withAttribute("missing", 1));
+            }
+            if (!checkBool(user.upravlyator_managed)) {
+                return Q.reject(new YtError(
+                    "User " + JSON.stringify(name) +
+                    " is not managed by Upravlyator")
+                    .withAttribute("is_fatal", 1)
+                    .withAttribute("unmanaged", 1));
+            }
+            return user;
+        });
     });
 };
 
@@ -72,7 +84,7 @@ YtApplicationUpravlyator.prototype._getManagedGroup = function(name)
                 .withAttribute("is_fatal", 1)
                 .withAttribute("missing", 1));
         }
-        if (group.upravlyator_managed !== "true") {
+        if (!checkBool(group.upravlyator_managed)) {
             return Q.reject(new YtError(
                 "Group " + JSON.stringify(name) +
                 " is not managed by Upravlyator")
@@ -102,7 +114,7 @@ YtApplicationUpravlyator.prototype._getManagedUsers = function(force)
 
         result = utils.getYsonValue(users)
         .filter(function(user) {
-            return utils.getYsonAttribute(user, "upravlyator_managed") === "true";
+            return checkBool(utils.getYsonAttribute(user, "upravlyator_managed"));
         })
         .map(function(user) {
             var value = utils.getYsonValue(user);
@@ -144,7 +156,7 @@ YtApplicationUpravlyator.prototype._getManagedGroups = function()
 
         utils.getYsonValue(groups)
         .filter(function(group) {
-            return utils.getYsonAttribute(group, "upravlyator_managed") === "true";
+            return checkBool(utils.getYsonAttribute(group, "upravlyator_managed"));
         })
         .forEach(function(group) {
             var value = utils.getYsonValue(group);

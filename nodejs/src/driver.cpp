@@ -17,6 +17,7 @@
 #include <yt/core/actions/bind_helpers.h>
 
 #include <yt/core/concurrency/async_stream.h>
+#include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/logging/log.h>
 
@@ -113,15 +114,18 @@ private:
 
 class TExecuteRequest
     : public IAsyncRefCounted
+    , public TRefTracked<TExecuteRequest>
 {
 private:
     const bool Echo_;
     const IDriverPtr Driver_;
 
+    IInvokerPtr IOInvoker_;
+
     TDriverRequest Request_;
 
-    std::unique_ptr<TNodeJSInputStack> InputStack_;
-    std::unique_ptr<TNodeJSOutputStack> OutputStack_;
+    TNodeJSInputStackPtr InputStack_;
+    TNodeJSOutputStackPtr OutputStack_;
 
     Persistent<Function> ExecuteCallback_;
     Persistent<Function> ParameterCallback_;
@@ -142,8 +146,10 @@ public:
         Handle<Function> parameterCallback)
         : Echo_(echo)
         , Driver_(std::move(driver))
-        , InputStack_(std::make_unique<TNodeJSInputStack>(inputStream))
-        , OutputStack_(std::make_unique<TNodeJSOutputStack>(outputStream))
+        , IOInvoker_(CreateSerializedInvoker(
+            NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker()))
+        , InputStack_(New<TNodeJSInputStack>(inputStream, IOInvoker_))
+        , OutputStack_(New<TNodeJSOutputStack>(outputStream, IOInvoker_))
         , ExecuteCallback_(Persistent<Function>::New(executeCallback))
         , ParameterCallback_(Persistent<Function>::New(parameterCallback))
         , ResponseParametersConsumer_(ParameterCallback_)
@@ -198,14 +204,11 @@ public:
             }
         }
 
-        auto compressionInvoker =
-            NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker();
-
         InputStack_->AddCompression(inputCompression);
-        Request_.InputStream = CreateAsyncAdapter(InputStack_.get(), compressionInvoker);
+        Request_.InputStream = InputStack_;
 
         OutputStack_->AddCompression(outputCompression);
-        Request_.OutputStream = CreateAsyncAdapter(OutputStack_.get(), compressionInvoker);
+        Request_.OutputStream = OutputStack_;
 
         Request_.ResponseParametersConsumer = &ResponseParametersConsumer_;
     }
@@ -227,13 +230,15 @@ public:
         } else {
             future =
                 BIND(&TExecuteRequest::PipeInputToOutput, this_)
-                .AsyncVia(NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker())
+                .AsyncVia(IOInvoker_)
                 .Run();
         }
 
-        future.Subscribe(
-            BIND(&TExecuteRequest::OnResponse, this_)
-            .Via(GetUVInvoker()));
+        future
+            .Apply(BIND(&TExecuteRequest::OnResponse1, this_))
+            .Subscribe(
+                BIND(&TExecuteRequest::OnResponse2, this_)
+                .Via(GetUVInvoker()));
 
         TFutureWrap::Unwrap(wrappedFuture)->SetFuture(std::move(future));
 
@@ -252,30 +257,30 @@ private:
         while (size_t length = inputStream->Load(buffer.Data(), buffer.Size())) {
             outputStream->Write(buffer.Data(), length);
         }
+
+        outputStream->Finish();
     }
 
-    void OnResponse(const TErrorOr<void>& response)
+    TFuture<void> OnResponse1(const TErrorOr<void>& response)
+    {
+        return OutputStack_->Close().Apply(BIND([=] (const TErrorOr<void>&) {
+            return MakeFuture(response);
+        }));
+    }
+
+    void OnResponse2(const TErrorOr<void>& response)
     {
         THREAD_AFFINITY_IS_V8();
         HandleScope scope;
-
-        try {
-            OutputStack_->Finish();
-        } catch (const std::exception& ex) {
-            LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
-        }
 
         // XXX(sandello): We cannot represent ui64 precisely in V8, because there
         // is no native ui64 integer type. So we convert ui64 to double (v8::Number)
         // to precisely represent all integers up to 2^52
         // (see http://en.wikipedia.org/wiki/Double_precision).
         double bytesIn = InputStack_->GetBytes();
-        InputStack_.reset();
         double bytesOut = OutputStack_->GetBytes();
-        OutputStack_.reset();
 
-        Invoke(
-            ExecuteCallback_,
+        Invoke(ExecuteCallback_,
             ConvertErrorToV8(response),
             Number::New(bytesIn),
             Number::New(bytesOut));

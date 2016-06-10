@@ -696,15 +696,15 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
         var id = "2ec4d6a3-f53d20bd-9083e069-2e728b62";
 
-        var cypress_result = Q.resolve({"other_field": "abc"});
-        var runtime_result = Q.resolve({"blah_field": "cde", "other_field": "xxx"});
+        var cypress_result = Q.resolve({"progress": {"other_field": "abc"}});
+        var runtime_result = Q.resolve({"progress": {"blah_field": "cde", "other_field": "xxx"}});
         var archive_result = Q.resolve([]);
 
         mockForGet(mock, id, cypress_result, runtime_result, archive_result);
 
         this.application_operations.get({id: id})
         .then(function(result) {
-            result.should.deep.equal({"other_field": "xxx", "blah_field": "cde"});
+            result.should.deep.equal({"progress": {"other_field": "xxx", "blah_field": "cde"}});
             mock.verify();
         })
         .then(done, done);
