@@ -214,6 +214,7 @@ private:
             }
 
             if (key == "resource_usage") {
+                RequireLeader();
                 BuildYsonFluently(consumer)
                     .Value(node->ResourceUsage());
                 return true;
