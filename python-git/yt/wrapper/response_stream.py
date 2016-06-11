@@ -12,7 +12,9 @@ class ResponseStream(object):
         self._close = close
         self._process_error = process_error
 
+        self._stream_finished = False
         self._fetch()
+
         self.response_parameters = get_response_parameters()
 
     def chunk_iter(self):
@@ -23,44 +25,49 @@ class ResponseStream(object):
             yield result
 
     def read(self, length=None):
+        if self._stream_finished:
+            return ""
+
         if length is None:
             length = 2 ** 32
 
-        result = []
+        result_strings = []
 
-        def process(self, result, length):
+        assert self._buffer_length
+
+        buffer_consumed = False
+        if self._pos:
             right = self._pos + length
-            if self._buffer_length < right:
+            if self._buffer_length <= right:
                 right = self._buffer_length
-            result.append(self._buffer[self._pos:right])
-            processed_length = right - self._pos
-            self._pos = right
-            if length == processed_length or not self._fetch():
-                return -1
-            return processed_length
+                buffer_consumed = True
+            result_strings.append(self._buffer[self._pos:right])
+            length -= right - self._pos
 
-        if not self._buffer:
+            if buffer_consumed:
+                self._fetch()
+                if self._stream_finished:
+                    return result_strings[0]
+            else:
+                self._pos = right
+
+        while length > self._buffer_length:
+            result_strings.append(self._buffer)
+            length -= self._buffer_length
             self._fetch()
+            if self._stream_finished:
+                break
 
-        processed_length = process(self, result, length)
-        if processed_length != -1:
-            length -= processed_length
+        if not self._stream_finished:
+            result_strings.append(self._buffer[:length])
+            self._pos = length
 
-            # Fast loop
-            finished = False
-            while length >= self._buffer_length:
-                result.append(self._buffer)
-                length -= self._buffer_length
-                if length == 0 or not self._fetch():
-                    finished = True
-                    break
-
-            if not finished and length > 0:
-                process(self, result, length)
-
-        return "".join(result)
+        return "".join(result_strings)
 
     def readline(self):
+        if self._stream_finished:
+            return ""
+
         result = []
         while True:
             index = self._buffer.find("\n", self._pos)
@@ -70,40 +77,39 @@ class ResponseStream(object):
                 break
 
             result.append(self._buffer[self._pos:])
-            if not self._fetch():
-                self._buffer = ""
-                self._pos = 0
+            self._fetch()
+            if self._stream_finished:
                 break
+
         return "".join(result)
 
     def _read_chunk(self):
-        if not self._buffer and not self._fetch():
-            return ""
-
         if self._pos == 0:
             remaining_buffer = self._buffer
         elif self._pos == len(self._buffer):
             self._fetch()
+            if self._stream_finished:
+                return ""
             remaining_buffer = self._buffer
         else:
             remaining_buffer = self._buffer[self._pos:]
 
-        self._buffer = ""
-        self._pos = 0
+        self._pos = len(self._buffer)
+
         return remaining_buffer
 
     def _fetch(self):
+        assert not self._stream_finished
         try:
             self._buffer = self._iter_content.next()
             self._buffer_length = len(self._buffer)
             self._pos = 0
             if not self._buffer_length:
                 self._process_error(self._get_response())
-                return False
-            return True
+                self._stream_finished = True
         except StopIteration:
             self._process_error(self._get_response())
-            return False
+            self._stream_finished = True
 
     def __iter__(self):
         return self
