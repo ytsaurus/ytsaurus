@@ -26,12 +26,12 @@ Py::Object TCommandDescriptor::OutputType(Py::Tuple& args, Py::Dict& kwargs)
     
 Py::Object TCommandDescriptor::IsVolatile(Py::Tuple& args, Py::Dict& kwargs)
 {
-    return Py::Boolean(Descriptor_.IsVolatile);
+    return Py::Boolean(Descriptor_.Volatile);
 }
 
 Py::Object TCommandDescriptor::IsHeavy(Py::Tuple& args, Py::Dict& kwargs)
 {
-    return Py::Boolean(Descriptor_.IsHeavy);
+    return Py::Boolean(Descriptor_.Heavy);
 }
 
 void TCommandDescriptor::InitType()

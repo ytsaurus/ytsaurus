@@ -338,6 +338,25 @@ def write_journal(path, value, is_raw=False, **kwargs):
     kwargs["path"] = path
     return execute_command("write_journal", kwargs, input_stream=StringIO(value))
 
+def make_batch_request(command_name, input=None, **kwargs):
+    request = dict()
+    request["command"] = command_name
+    request["parameters"] = kwargs
+    if input is not None:
+        request["input"] = input
+    return request
+
+def execute_batch(requests, **kwargs):
+    kwargs["requests"] = requests
+    return yson.loads(execute_command("execute_batch", kwargs))
+
+def get_batch_output(result):
+    if "error" in result:
+        raise YtResponseError(result["error"])
+    if "output" in result:
+        return result["output"]
+    return None
+
 class TimeoutError(Exception):
     pass
 
