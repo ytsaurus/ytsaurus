@@ -10,6 +10,11 @@ import yt.yson.yson_types
 
 from yt.yson import to_yson_type
 
+try:
+    import yt_yson_bindings
+except ImportError:
+    yt_yson_bindings = None
+
 
 class YsonParserTestBase(object):
     @staticmethod
@@ -110,7 +115,17 @@ class YsonParserTestBase(object):
         )
 
 
-class TestParser(unittest.TestCase, YsonParserTestBase):
+class TestParserDefault(unittest.TestCase, YsonParserTestBase):
+    @staticmethod
+    def load(*args, **kws):
+        return yt.yson.load(*args, **kws)
+
+    @staticmethod
+    def loads(*args, **kws):
+        return yt.yson.loads(*args, **kws)
+
+
+class TestParserPython(unittest.TestCase, YsonParserTestBase):
     @staticmethod
     def load(*args, **kws):
         return yt.yson.parser.load(*args, **kws)
@@ -118,3 +133,14 @@ class TestParser(unittest.TestCase, YsonParserTestBase):
     @staticmethod
     def loads(*args, **kws):
         return yt.yson.parser.loads(*args, **kws)
+
+
+if yt_yson_bindings:
+    class TestParserBindings(unittest.TestCase, YsonParserTestBase):
+        @staticmethod
+        def load(*args, **kws):
+            return yt_yson_bindings.load(*args, **kws)
+
+        @staticmethod
+        def loads(*args, **kws):
+            return yt_yson_bindings.loads(*args, **kws)

@@ -8,6 +8,11 @@ import yt.yson.writer
 import yt.yson.parser
 from yt.yson.yson_types import YsonUint64, YsonEntity
 
+try:
+    import yt_yson_bindings
+except ImportError:
+    yt_yson_bindings = None
+
 
 class CommonTestBase(object):
     @staticmethod
@@ -74,7 +79,17 @@ class CommonTestBase(object):
         self.assertRaises(Exception, lambda: self.dumps(obj))
 
 
-class TestCommon(unittest.TestCase, CommonTestBase):
+class TestCommonDefault(unittest.TestCase, CommonTestBase):
+    @staticmethod
+    def loads(*args, **kws):
+        return yt.yson.loads(*args, **kws)
+
+    @staticmethod
+    def dumps(*args, **kws):
+        return yt.yson.dumps(*args, **kws)
+
+
+class TestCommonPython(unittest.TestCase, CommonTestBase):
     @staticmethod
     def loads(*args, **kws):
         return yt.yson.parser.loads(*args, **kws)
@@ -82,3 +97,14 @@ class TestCommon(unittest.TestCase, CommonTestBase):
     @staticmethod
     def dumps(*args, **kws):
         return yt.yson.writer.dumps(*args, **kws)
+
+
+if yt_yson_bindings:
+    class TestCommonBindings(unittest.TestCase, CommonTestBase):
+        @staticmethod
+        def loads(*args, **kws):
+            return yt_yson_bindings.loads(*args, **kws)
+
+        @staticmethod
+        def dumps(*args, **kws):
+            return yt_yson_bindings.dumps(*args, **kws)
