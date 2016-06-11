@@ -71,11 +71,11 @@ struct TCommandDescriptor
     //! Type of data written by the command to #TDriverRequest::OutputStream.
     NFormats::EDataType OutputType;
 
-    //! Whether the command changes the state of the cell.
-    bool IsVolatile;
+    //! Whether the command affects the state of the cluster.
+    bool Volatile;
 
     //! Whether the execution of a command is lengthly and/or causes a heavy load.
-    bool IsHeavy;
+    bool Heavy;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,11 +95,15 @@ struct IDriver
 
     //! Returns a descriptor for the command with a given name or
     //! |Null| if no command with this name is registered.
-    virtual const TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) const = 0;
+    virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) const = 0;
 
     //! Returns a descriptor for then command with a given name.
     //! Fails if no command with this name is registered.
-    const TCommandDescriptor GetCommandDescriptor(const Stroka& commandName) const;
+    TCommandDescriptor GetCommandDescriptor(const Stroka& commandName) const;
+
+    //! Returns a descriptor for then command with a given name.
+    //! Throws if no command with this name is registered.
+    TCommandDescriptor GetCommandDescriptorOrThrow(const Stroka& commandName) const;
 
     //! Returns the list of descriptors for all supported commands.
     virtual const std::vector<TCommandDescriptor> GetCommandDescriptors() const = 0;

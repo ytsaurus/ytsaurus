@@ -26,8 +26,9 @@ struct ICommandContext
 {
     virtual TDriverConfigPtr GetConfig() = 0;
     virtual NApi::IClientPtr GetClient() = 0;
+    virtual IDriverPtr GetDriver() = 0;
 
-    virtual const TDriverRequest& Request() const = 0;
+    virtual const TDriverRequest& Request() = 0;
 
     virtual const NFormats::TFormat& GetInputFormat() = 0;
     virtual const NFormats::TFormat& GetOutputFormat() = 0;
@@ -52,7 +53,6 @@ protected:
     {
         SetKeepOptions(true);
     }
-
 };
 
 template <class TOptions>

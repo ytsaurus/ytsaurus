@@ -88,6 +88,8 @@ struct TMutatingOptions
 {
     NRpc::TMutationId MutationId;
     bool Retry = false;
+
+    NRpc::TMutationId GetOrGenerateMutationId() const;
 };
 
 struct TMasterReadOptions
