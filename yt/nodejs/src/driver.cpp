@@ -329,11 +329,11 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
         static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontEnum));
     result->Set(
         DescriptorIsVolatile,
-        Boolean::New(descriptor.IsVolatile),
+        Boolean::New(descriptor.Volatile),
         v8::ReadOnly);
     result->Set(
         DescriptorIsHeavy,
-        Boolean::New(descriptor.IsHeavy),
+        Boolean::New(descriptor.Heavy),
         v8::ReadOnly);
     return result;
 }

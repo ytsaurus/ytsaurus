@@ -1056,6 +1056,7 @@ class TestCypress(YTEnvSetup):
     def test_no_expiration_time_for_root(self):
         with pytest.raises(YtError): set("//@expiration_time", str(self._now()))
 
+    
     def test_ignore_ampersand1(self):
         set("//tmp/map", {})
         set("//tmp&/map&/a", "b")
@@ -1071,6 +1072,36 @@ class TestCypress(YTEnvSetup):
     def test_ignore_ampersand3(self):
         assert get("//sys/chunks&/@type") == "chunk_map"
 
+
+    def test_batch_empty(self):
+        assert execute_batch([]) == []
+
+    def test_batch_error(self):
+        results = execute_batch([
+            make_batch_request("get", path="//nonexisting1"),
+            make_batch_request("get", path="//nonexisting2")
+        ])
+        assert len(results) == 2
+        with pytest.raises(YtError): get_batch_output(results[0])
+        with pytest.raises(YtError): get_batch_output(results[1])
+
+    def test_batch_success(self):
+        set_results = execute_batch([
+            make_batch_request("set", path="//tmp/a", input="a"),
+            make_batch_request("set", path="//tmp/b", input="b")
+        ])
+        assert len(set_results) == 2
+        assert get_batch_output(set_results[0]) == None
+        assert get_batch_output(set_results[1]) == None
+        
+        get_results = execute_batch([
+            make_batch_request("get", path="//tmp/a"),
+            make_batch_request("get", path="//tmp/b")
+        ])
+        assert len(get_results) == 2
+        assert get_batch_output(get_results[0]) == "a"
+        assert get_batch_output(get_results[1]) == "b"
+        
 ##################################################################
 
 class TestCypressMulticell(TestCypress):
