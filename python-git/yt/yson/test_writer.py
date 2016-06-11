@@ -7,6 +7,11 @@ import unittest
 import yt.yson.writer
 from yt.yson import YsonUint64, YsonInt64
 
+try:
+    import yt_yson_bindings
+except ImportError:
+    yt_yson_bindings = None
+
 
 class YsonWriterTestBase(object):
     @staticmethod
@@ -45,7 +50,20 @@ class YsonWriterTestBase(object):
         self.assertRaises(Exception, lambda: self.dumps(YsonInt64(2 ** 63 + 1)))
 
 
-class TestWriter(unittest.TestCase, YsonWriterTestBase):
+class TestWriterDefault(unittest.TestCase, YsonWriterTestBase):
+    @staticmethod
+    def dumps(*args, **kws):
+        return yt.yson.dumps(*args, **kws)
+
+
+class TestWriterPython(unittest.TestCase, YsonWriterTestBase):
     @staticmethod
     def dumps(*args, **kws):
         return yt.yson.writer.dumps(*args, **kws)
+
+
+if yt_yson_bindings:
+    class TestWriterBindings(unittest.TestCase, YsonWriterTestBase):
+        @staticmethod
+        def dumps(*args, **kws):
+            return yt_yson_bindings.dumps(*args, **kws)
