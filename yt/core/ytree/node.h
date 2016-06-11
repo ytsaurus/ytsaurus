@@ -400,6 +400,14 @@ struct ITransactionalNodeFactory
 
 void Serialize(INode& value, NYson::IYsonConsumer* consumer);
 void Deserialize(INodePtr& value, INodePtr node);
+void Deserialize(IStringNodePtr& value, INodePtr node);
+void Deserialize(IInt64NodePtr& value, INodePtr node);
+void Deserialize(IUint64NodePtr& value, INodePtr node);
+void Deserialize(IDoubleNodePtr& value, INodePtr node);
+void Deserialize(IBooleanNodePtr& value, INodePtr node);
+void Deserialize(IMapNodePtr& value, INodePtr node);
+void Deserialize(IListNodePtr& value, INodePtr node);
+void Deserialize(IEntityNodePtr& value, INodePtr node);
 
 NYson::TYsonString ConvertToYsonStringStable(INodePtr node);
 
