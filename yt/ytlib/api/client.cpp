@@ -141,6 +141,16 @@ void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NRpc::TMutationId TMutatingOptions::GetOrGenerateMutationId() const
+{
+    if (Retry && !MutationId) {
+        THROW_ERROR_EXCEPTION("Cannot execute retry without mutation id");
+    }
+    return MutationId ? MutationId : NRpc::GenerateMutationId();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 TNameTableToSchemaIdMapping BuildColumnIdMapping(
@@ -1153,7 +1163,7 @@ public:
         (path, type, options))
     IMPLEMENT_METHOD(TLockId, LockNode, (
         const TYPath& path,
-        NCypressClient::ELockMode mode,
+        ELockMode mode,
         const TLockNodeOptions& options),
         (path, mode, options))
     IMPLEMENT_METHOD(TNodeId, CopyNode, (
@@ -1392,13 +1402,9 @@ private:
     }
 
 
-    static void GenerateMutationId(IClientRequestPtr request, TMutatingOptions& options)
+    static void SetMutationId(IClientRequestPtr request, const TMutatingOptions& options)
     {
-        if (!options.MutationId) {
-            options.MutationId = NRpc::GenerateMutationId();
-        }
-        SetMutationId(request, options.MutationId, options.Retry);
-        ++options.MutationId.Parts32[1];
+        NRpc::SetMutationId(request, options.GetOrGenerateMutationId(), options.Retry);
     }
 
 
@@ -1971,7 +1977,7 @@ private:
     void DoSetNode(
         const TYPath& path,
         const TYsonString& value,
-        TSetNodeOptions options)
+        const TSetNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
@@ -1979,7 +1985,7 @@ private:
 
         auto req = TYPathProxy::Set(path);
         SetTransactionId(req, options, true);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_value(value.Data());
         batchReq->AddRequest(req);
 
@@ -1991,7 +1997,7 @@ private:
 
     void DoRemoveNode(
         const TYPath& path,
-        TRemoveNodeOptions options)
+        const TRemoveNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
@@ -1999,7 +2005,7 @@ private:
 
         auto req = TYPathProxy::Remove(path);
         SetTransactionId(req, options, true);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_recursive(options.Recursive);
         req->set_force(options.Force);
         batchReq->AddRequest(req);
@@ -2034,7 +2040,7 @@ private:
     TNodeId DoCreateNode(
         const TYPath& path,
         EObjectType type,
-        TCreateNodeOptions options)
+        const TCreateNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
@@ -2042,7 +2048,7 @@ private:
 
         auto req = TCypressYPathProxy::Create(path);
         SetTransactionId(req, options, true);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_type(static_cast<int>(type));
         req->set_recursive(options.Recursive);
         req->set_ignore_existing(options.IgnoreExisting);
@@ -2060,8 +2066,8 @@ private:
 
     TLockId DoLockNode(
         const TYPath& path,
-        NCypressClient::ELockMode mode,
-        TLockNodeOptions options)
+        ELockMode mode,
+        const TLockNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
@@ -2069,7 +2075,7 @@ private:
 
         auto req = TCypressYPathProxy::Lock(path);
         SetTransactionId(req, options, false);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_mode(static_cast<int>(mode));
         req->set_waitable(options.Waitable);
         if (options.ChildKey) {
@@ -2090,7 +2096,7 @@ private:
     TNodeId DoCopyNode(
         const TYPath& srcPath,
         const TYPath& dstPath,
-        TCopyNodeOptions options)
+        const TCopyNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
@@ -2098,7 +2104,7 @@ private:
 
         auto req = TCypressYPathProxy::Copy(dstPath);
         SetTransactionId(req, options, true);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_source_path(srcPath);
         req->set_preserve_account(options.PreserveAccount);
         req->set_recursive(options.Recursive);
@@ -2115,7 +2121,7 @@ private:
     TNodeId DoMoveNode(
         const TYPath& srcPath,
         const TYPath& dstPath,
-        TMoveNodeOptions options)
+        const TMoveNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
@@ -2123,7 +2129,7 @@ private:
 
         auto req = TCypressYPathProxy::Copy(dstPath);
         SetTransactionId(req, options, true);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_source_path(srcPath);
         req->set_preserve_account(options.PreserveAccount);
         req->set_remove_source(true);
@@ -2141,7 +2147,7 @@ private:
     TNodeId DoLinkNode(
         const TYPath& srcPath,
         const TYPath& dstPath,
-        TLinkNodeOptions options)
+        const TLinkNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
@@ -2152,7 +2158,7 @@ private:
         req->set_recursive(options.Recursive);
         req->set_ignore_existing(options.IgnoreExisting);
         SetTransactionId(req, options, true);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         auto attributes = options.Attributes ? ConvertToAttributes(options.Attributes.get()) : CreateEphemeralAttributes();
         attributes->Set("target_path", srcPath);
         ToProto(req->mutable_node_attributes(), *attributes);
@@ -2418,14 +2424,14 @@ private:
 
     TObjectId DoCreateObject(
         EObjectType type,
-        TCreateObjectOptions options)
+        const TCreateObjectOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
         auto req = TMasterYPathProxy::CreateObject();
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_type(static_cast<int>(type));
         if (options.Attributes) {
             ToProto(req->mutable_object_attributes(), *options.Attributes);
@@ -2443,11 +2449,11 @@ private:
     void DoAddMember(
         const Stroka& group,
         const Stroka& member,
-        TAddMemberOptions options)
+        const TAddMemberOptions& options)
     {
         auto req = TGroupYPathProxy::AddMember(GetGroupPath(group));
         req->set_name(member);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
@@ -2457,11 +2463,11 @@ private:
     void DoRemoveMember(
         const Stroka& group,
         const Stroka& member,
-        TRemoveMemberOptions options)
+        const TRemoveMemberOptions& options)
     {
         auto req = TGroupYPathProxy::RemoveMember(GetGroupPath(group));
         req->set_name(member);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
@@ -2496,11 +2502,11 @@ private:
     TOperationId DoStartOperation(
         EOperationType type,
         const TYsonString& spec,
-        TStartOperationOptions options)
+        const TStartOperationOptions& options)
     {
         auto req = SchedulerProxy_->StartOperation();
         SetTransactionId(req, options, true);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_type(static_cast<int>(type));
         req->set_spec(spec.Data());
 
