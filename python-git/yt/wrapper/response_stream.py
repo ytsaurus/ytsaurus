@@ -32,24 +32,19 @@ class ResponseStream(object):
             length = 2 ** 32
 
         result_strings = []
-
-        assert self._buffer_length
-
-        buffer_consumed = False
         if self._pos:
-            right = self._pos + length
-            if self._buffer_length <= right:
-                right = self._buffer_length
-                buffer_consumed = True
-            result_strings.append(self._buffer[self._pos:right])
-            length -= right - self._pos
-
-            if buffer_consumed:
+            if self._buffer_length <= self._pos + length:
+                length -= self._buffer_length - self._pos
+                string = self._buffer[self._pos:]
                 self._fetch()
                 if self._stream_finished:
-                    return result_strings[0]
+                    return string
+                else:
+                    result_strings.append(string)
             else:
-                self._pos = right
+                pos = self._pos
+                self._pos += length
+                return self._buffer[pos:pos + length]
 
         while length > self._buffer_length:
             result_strings.append(self._buffer)
@@ -58,7 +53,7 @@ class ResponseStream(object):
             if self._stream_finished:
                 break
 
-        if not self._stream_finished:
+        if not self._stream_finished and length:
             result_strings.append(self._buffer[:length])
             self._pos = length
 
