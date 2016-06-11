@@ -245,7 +245,7 @@ class ConfigsProvider_17(ConfigsProvider):
     def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
         addresses = ["{0}:{1}".format(self.fqdn, self.ports["node"][2 * i]) for i in xrange(node_count)]
 
-        current_user = 10000
+        current_user = 10001
 
         configs = []
 
