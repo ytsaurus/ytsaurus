@@ -216,8 +216,14 @@ private:
 
     void SetCachedTree(const TErrorOr<INodePtr>& cachedTreeOrError)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-        CachedTreeOrError_ = cachedTreeOrError;
+        // NB: We must not be dropping the previous tree while holding
+        // a spin lock since destroying the tree could take a while. Cf. YT-4948.
+        decltype(CachedTreeOrError_) oldCacheTreeOrError;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            std::swap(CachedTreeOrError_, oldCacheTreeOrError);
+            CachedTreeOrError_ = cachedTreeOrError;
+        }
     }
 
 
