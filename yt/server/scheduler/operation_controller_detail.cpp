@@ -1071,6 +1071,17 @@ void TOperationControllerBase::Prepare()
         Logger,
         EPermission::Read);
 
+    for (const auto& file : Files) {
+        const auto& path = file.Path.GetPath();
+        if (file.Type != EObjectType::Table && file.Type != EObjectType::File) {
+            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
+                path,
+                EObjectType::Table,
+                EObjectType::File,
+                file.Type);
+        }
+    }
+
     LockInputTables();
     LockUserFiles(&Files);
 
