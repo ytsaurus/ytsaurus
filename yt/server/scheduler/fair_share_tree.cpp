@@ -1206,9 +1206,6 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
 
         AggressivelyPreemptableResourceUsage_ = nonPreemptableAndAggressivelyPreemptableResourceUsage_ - NonpreemptableResourceUsage_;
     }
-
-    PreemptableJobCount_ = PreemptableJobs_.size();
-    AggressivelyPreemptableJobCount_ = AggressivelyPreemptableJobs_.size();
 }
 
 bool TOperationElementSharedState::IsJobExisting(const TJobId& jobId) const
@@ -1231,12 +1228,16 @@ bool TOperationElementSharedState::IsJobPreemptable(const TJobId& jobId, bool ag
 
 int TOperationElementSharedState::GetPreemptableJobCount() const
 {
-    return PreemptableJobCount_;
+    TReaderGuard guard(JobPropertiesMapLock_);
+
+    return PreemptableJobs_.size();
 }
 
 int TOperationElementSharedState::GetAggressivelyPreemptableJobCount() const
 {
-    return AggressivelyPreemptableJobCount_;
+    TReaderGuard guard(JobPropertiesMapLock_);
+
+    return AggressivelyPreemptableJobs_.size();
 }
 
 void TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources resourceUsage)
@@ -1244,7 +1245,6 @@ void TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResourc
     TWriterGuard guard(JobPropertiesMapLock_);
 
     PreemptableJobs_.push_back(jobId);
-    ++PreemptableJobCount_;
 
     auto it = JobPropertiesMap_.insert(std::make_pair(
         jobId,
@@ -1268,10 +1268,8 @@ TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
     auto& properties = it->second;
     if (properties.Preemptable) {
         PreemptableJobs_.erase(properties.JobIdListIterator);
-        --PreemptableJobCount_;
     } else if (properties.AggressivelyPreemptable) {
         AggressivelyPreemptableJobs_.erase(properties.JobIdListIterator);
-        --AggressivelyPreemptableJobCount_;
     } else {
         NonpreemptableJobs_.erase(properties.JobIdListIterator);
     }
