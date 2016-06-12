@@ -480,6 +480,9 @@ private:
     TJobIdList AggressivelyPreemptableJobs_;
     TJobIdList PreemptableJobs_;
 
+    std::atomic<int> PreemptableJobCount_ = {0};
+    std::atomic<int> AggressivelyPreemptableJobCount_ = {0};
+
     TJobResources NonpreemptableResourceUsage_;
     TJobResources AggressivelyPreemptableResourceUsage_;
 
