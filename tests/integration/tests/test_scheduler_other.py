@@ -1140,6 +1140,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         create("table", table)
         set(table + "/@replication_factor", 1)
 
+    @pytest.mark.xfail
     def test_scheduler_job_statistics(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
