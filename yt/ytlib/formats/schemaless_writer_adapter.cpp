@@ -23,7 +23,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 ContextBufferSize = (i64) 1024 * 1024;
+static const i64 ContextBufferSize = static_cast<i64>(128 * 7) * 1024;
+static const i64 ContextBufferCapacity = static_cast<i64>(1024) * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +41,7 @@ TSchemalessFormatWriterBase::TSchemalessFormatWriterBase(
     , KeyColumnCount_(keyColumnCount)
     , NameTableReader_(std::make_unique<TNameTableReader>(NameTable_))
 {
-    CurrentBuffer_.Reserve(ContextBufferSize);
+    CurrentBuffer_.Reserve(ContextBufferCapacity);
 
     EnableRowControlAttributes_ = ControlAttributesConfig_->EnableTableIndex || 
         ControlAttributesConfig_->EnableRangeIndex || 
@@ -126,6 +127,7 @@ void TSchemalessFormatWriterBase::DoFlushBuffer()
     }
 
     CurrentBuffer_.Clear();
+    CurrentBuffer_.Reserve(ContextBufferCapacity);
 }
 
 bool TSchemalessFormatWriterBase::Write(const std::vector<TUnversionedRow> &rows)
