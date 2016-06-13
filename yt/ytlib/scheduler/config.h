@@ -1070,7 +1070,7 @@ public:
 
     std::vector<EFifoSortParameter> FifoSortParameters;
 
-    bool AggressiveStarvationEnabled;
+    bool EnableAggressiveStarvation;
 
     TPoolConfig()
     {
@@ -1093,7 +1093,8 @@ public:
             .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime})
             .NonEmpty();
 
-        RegisterParameter("aggressive_starvation_enabled", AggressiveStarvationEnabled)
+        RegisterParameter("enable_aggressive_starvation", EnableAggressiveStarvation)
+            .Alias("aggressive_starvation_enabled")
             .Default(false);
     }
 };
