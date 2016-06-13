@@ -1141,20 +1141,11 @@ public:
         return HeavyChannelFactory_;
     }
 
-    virtual TTransactionManagerPtr GetTransactionManager() override
-    {
-        return TransactionManager_;
-    }
-
     virtual NQueryClient::IExecutorPtr GetQueryExecutor() override
     {
         return QueryHelper_;
     }
 
-    virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() override
-    {
-        return FunctionRegistry_;
-    }
 
     virtual TFuture<void> Terminate() override
     {
