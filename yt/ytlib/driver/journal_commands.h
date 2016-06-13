@@ -18,6 +18,7 @@ class TReadJournalCommand
 {
 private:
     NYPath::TRichYPath Path;
+    NYTree::INodePtr JournalReader;
 
     virtual void OnLoaded() override
     {
@@ -30,6 +31,8 @@ public:
     TReadJournalCommand()
     {
         RegisterParameter("path", Path);
+        RegisterParameter("journal_reader", JournalReader)
+            .Default();
     }
 
     void Execute(ICommandContextPtr context);

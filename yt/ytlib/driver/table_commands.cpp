@@ -42,17 +42,9 @@ static const auto& Logger = DriverLogger;
 void TReadTableCommand::Execute(ICommandContextPtr context)
 {
     Options.Ping = true;
-
-    // COMPAT(babenko): remove Request_->TableReader
-    auto config = UpdateYsonSerializable(
+    Options.Config = UpdateYsonSerializable(
         context->GetConfig()->TableReader,
         TableReader);
-
-    config = UpdateYsonSerializable(
-        config,
-        GetOptions());
-
-    Options.Config = config;
 
     auto reader = WaitFor(context->GetClient()->CreateTableReader(
         Path,
@@ -88,13 +80,9 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
 {
     auto transaction = AttachTransaction(context, false);
 
-    // COMPAT(babenko): remove Request_->TableWriter
     auto config = UpdateYsonSerializable(
         context->GetConfig()->TableWriter,
         TableWriter);
-    config = UpdateYsonSerializable(
-        config,
-        GetOptions());
 
 
     auto nameTable = New<TNameTable>();
@@ -258,13 +246,9 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
     TWriteRowsOptions writeOptions;
     writeOptions.Aggregate = Aggregate;
 
-    // COMPAT(babenko): remove Request_->TableWriter
     auto config = UpdateYsonSerializable(
         context->GetConfig()->TableWriter,
         TableWriter);
-    config = UpdateYsonSerializable(
-        config,
-        GetOptions());
 
     auto tableMountCache = context->GetClient()->GetConnection()->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(Path.GetPath()))
@@ -337,13 +321,9 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
         }
     }
 
-    // COMPAT(babenko): remove Request_->TableWriter
     auto config = UpdateYsonSerializable(
         context->GetConfig()->TableWriter,
         TableWriter);
-    config = UpdateYsonSerializable(
-        config,
-        GetOptions());
 
     struct TLookupRowsBufferTag
     { };
@@ -390,13 +370,9 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
 
 void TDeleteRowsCommand::Execute(ICommandContextPtr context)
 {
-    // COMPAT(babenko): remove Request_->TableWriter
     auto config = UpdateYsonSerializable(
         context->GetConfig()->TableWriter,
         TableWriter);
-    config = UpdateYsonSerializable(
-        config,
-        GetOptions());
 
     auto tableMountCache = context->GetClient()->GetConnection()->GetTableMountCache();
     auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());

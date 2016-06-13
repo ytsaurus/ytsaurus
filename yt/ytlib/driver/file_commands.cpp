@@ -19,15 +19,9 @@ using namespace NConcurrency;
 
 void TReadFileCommand::Execute(ICommandContextPtr context)
 {
-    // COMPAT(babenko): remove Request_->FileReader
-    auto config = UpdateYsonSerializable(
+    Options.Config = UpdateYsonSerializable(
         context->GetConfig()->FileReader,
         FileReader);
-    config = UpdateYsonSerializable(
-        config,
-        GetOptions());
-
-    Options.Config = std::move(config);
 
     auto reader = context->GetClient()->CreateFileReader(
         Path.GetPath(),
@@ -54,15 +48,9 @@ void TReadFileCommand::Execute(ICommandContextPtr context)
 
 void TWriteFileCommand::Execute(ICommandContextPtr context)
 {
-    // COMPAT(sandello): remove Request_->FileReader ??
-    auto config = UpdateYsonSerializable(
+    Options.Config = UpdateYsonSerializable(
         context->GetConfig()->FileWriter,
         FileWriter);
-    config = UpdateYsonSerializable(
-        config,
-        GetOptions());
-
-    Options.Config = std::move(config);
     Options.Append = Path.GetAppend();
 
     auto writer = context->GetClient()->CreateFileWriter(
