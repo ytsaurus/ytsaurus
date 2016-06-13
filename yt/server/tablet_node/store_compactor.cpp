@@ -397,7 +397,10 @@ private:
                 dataSize += store->GetUncompressedDataSize();
             }
 
-            auto timestampProvider = Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider();
+            auto timestampProvider = Bootstrap_
+                ->GetMasterClient()
+                ->GetNativeConnection()
+                ->GetTimestampProvider();
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
 
@@ -669,7 +672,10 @@ private:
                 dataSize += store->GetUncompressedDataSize();
             }
 
-            auto timestampProvider = Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider();
+            auto timestampProvider = Bootstrap_
+                ->GetMasterClient()
+                ->GetNativeConnection()
+                ->GetTimestampProvider();
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
 

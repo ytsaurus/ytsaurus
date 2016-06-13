@@ -1,6 +1,7 @@
 #include "table_reader.h"
 #include "private.h"
 #include "transaction.h"
+#include "native_connection.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
@@ -24,8 +25,6 @@
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 
 #include <yt/ytlib/ypath/rich.h>
-
-#include <yt/ytlib/api/transaction.h>
 
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/throughput_throttler.h>
@@ -243,7 +242,7 @@ void TSchemalessTableReader::DoOpen()
             Client_,
             // HTTP proxy doesn't have a node descriptor.
             TNodeDescriptor(),
-            Client_->GetConnection()->GetBlockCache(),
+            Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
             std::move(chunkSpecs),
             New<TNameTable>(),
@@ -259,7 +258,7 @@ void TSchemalessTableReader::DoOpen()
             Client_,
             // HTTP proxy doesn't have a node descriptor.
             TNodeDescriptor(),
-            Client_->GetConnection()->GetBlockCache(),
+            Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
             std::move(chunkSpecs),
             New<TNameTable>(),

@@ -2,7 +2,8 @@
 #include "functions_cg.h"
 #include "private.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/config.h>
 #include <yt/ytlib/api/file_reader.h>
 
@@ -72,10 +73,10 @@ public:
             .Default();
     }
 
-    std::vector<TType> GetArgumentsTypes()
+    std::vector<TType> GetArgumentsTypes() const
     {
         std::vector<TType> argumentTypes;
-        for (const auto& type: ArgumentTypes) {
+        for (const auto& type : ArgumentTypes) {
             argumentTypes.push_back(type.Type);
         }
         return argumentTypes;
@@ -113,8 +114,8 @@ DEFINE_REFCOUNTED_TYPE(TExternalCGInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka FunctionDescriptorAttribute = "function_descriptor";
-const Stroka AggregateDescriptorAttribute = "aggregate_descriptor";
+static const Stroka FunctionDescriptorAttribute = "function_descriptor";
+static const Stroka AggregateDescriptorAttribute = "aggregate_descriptor";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -507,7 +508,7 @@ public:
             New<NChunkClient::TMultiChunkReaderOptions>(),
             client,
             NNodeTrackerClient::TNodeDescriptor(),
-            client->GetConnection()->GetBlockCache(),
+            client->GetNativeConnection()->GetBlockCache(),
             std::move(nodeDirectory),
             std::move(chunks));
 

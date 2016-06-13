@@ -2880,6 +2880,7 @@ public:
         auto rowCount = rows.Size();
         Requests_.push_back(std::make_unique<TWriteRequest>(
             this,
+            Client_->GetNativeConnection(),
             path,
             std::move(nameTable),
             std::move(rows),
@@ -2897,6 +2898,7 @@ public:
         auto keyCount = keys.Size();
         Requests_.push_back(std::make_unique<TDeleteRequest>(
             this,
+            Client_->GetNativeConnection(),
             path,
             std::move(nameTable),
             std::move(keys),
@@ -3066,7 +3068,8 @@ private:
 
     protected:
         TTransaction* const Transaction_;
-        const TYPath Path_;
+        const INativeConnectionPtr Connection_;
+		const TYPath Path_;
         const TNameTablePtr NameTable_;
         const TNullable<int> TabletIndexColumnId_;
 
@@ -3074,6 +3077,7 @@ private:
 
         explicit TRequestBase(
             TTransaction* transaction,
+            INativeConnectionPtr connection,
             const TYPath& path,
             TNameTablePtr nameTable)
             : Transaction_(transaction)
@@ -3100,9 +3104,14 @@ private:
 
         TModifyRequest(
             TTransaction* transaction,
+            INativeConnectionPtr connection,
             const TYPath& path,
             TNameTablePtr nameTable)
-            : TRequestBase(transaction, path, std::move(nameTable))
+            : TRequestBase(
+                transaction,
+                std::move(connection),
+                path,
+                std::move(nameTable))
         { }
 
         void WriteRequests(
@@ -3116,7 +3125,7 @@ private:
             const auto& writeSchema = TableInfo_->Schemas[ETableSchemaKind::Write];
             const auto& writeIdMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_, ETableSchemaKind::Write);
             const auto& rowBuffer = Transaction_->GetRowBuffer();
-            auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
+            auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
             auto evaluator = TableInfo_->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
             auto randomTabletInfo = TableInfo_->GetRandomMountedTablet();
 
@@ -3154,11 +3163,16 @@ private:
     public:
         TWriteRequest(
             TTransaction* transaction,
+            INativeConnectionPtr connection,
             const TYPath& path,
             TNameTablePtr nameTable,
             TSharedRange<TUnversionedRow> rows,
             const TWriteRowsOptions& options)
-            : TModifyRequest(transaction, path, std::move(nameTable))
+            : TModifyRequest(
+                transaction,
+                std::move(connection),
+                path,
+                std::move(nameTable))
             , Rows_(std::move(rows))
             , Options_(options)
         { }
@@ -3184,11 +3198,16 @@ private:
     public:
         TDeleteRequest(
             TTransaction* transaction,
+            INativeConnectionPtr connection,
             const TYPath& path,
             TNameTablePtr nameTable,
             TSharedRange<TKey> keys,
             const TDeleteRowsOptions& /*options*/)
-            : TModifyRequest(transaction, path, std::move(nameTable))
+            : TModifyRequest(
+                transaction,
+                std::move(connection),
+                path,
+                std::move(nameTable))
             , Keys_(std::move(keys))
         { }
 
@@ -3522,7 +3541,7 @@ private:
         const auto& tabletId = tabletInfo->TabletId;
         auto it = TabletIdToSession_.find(tabletId);
         if (it == TabletIdToSession_.end()) {
-            auto evaluatorCache = GetConnection()->GetColumnEvaluatorCache();
+            auto evaluatorCache = Client_->GetNativeConnection()->GetColumnEvaluatorCache();
             auto evaluator = evaluatorCache->Find(tableInfo->Schemas[ETableSchemaKind::Primary]);
             it = TabletIdToSession_.insert(std::make_pair(
                 tabletId,

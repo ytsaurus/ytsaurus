@@ -53,6 +53,7 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 
+#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/native_client.h>
 
 #include <yt/core/compression/codec.h>
@@ -1817,7 +1818,10 @@ private:
     void ValidateClientTimestamp(const TTransactionId& transactionId)
     {
         auto clientTimestamp = TimestampFromTransactionId(transactionId);
-        auto timestampProvider = Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider();
+        auto timestampProvider = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetTimestampProvider();
         auto serverTimestamp = timestampProvider->GetLatestTimestamp();
         auto clientInstant = TimestampToInstant(clientTimestamp).first;
         auto serverInstant = TimestampToInstant(serverTimestamp).first;

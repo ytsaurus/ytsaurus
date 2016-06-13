@@ -15,8 +15,8 @@
 #include "schemaless_chunk_reader.h"
 #include "versioned_chunk_reader.h"
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native_client.h>
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -1092,7 +1092,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         tableSchema.Columns().size(),
         tableSchema.GetKeyColumnCount(),
         columnFilter,
-        client->GetConnection()->GetColumnEvaluatorCache()->Find(tableSchema));
+        client->GetNativeConnection()->GetColumnEvaluatorCache()->Find(tableSchema));
 
     auto reader = CreateSchemafulOverlappingRangeReader(
         std::move(boundaries),

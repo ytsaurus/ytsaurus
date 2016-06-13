@@ -132,7 +132,10 @@ public:
             bootstrap->GetMasterClient()))
         , Bootstrap_(bootstrap)
         , Evaluator_(New<TEvaluator>(Config_))
-        , ColumnEvaluatorCache_(Bootstrap_->GetMasterClient()->GetConnection()->GetColumnEvaluatorCache())
+        , ColumnEvaluatorCache_(Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetColumnEvaluatorCache())
     { }
 
     // IExecutor implementation.
