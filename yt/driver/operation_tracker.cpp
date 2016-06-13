@@ -303,30 +303,32 @@ void TOperationTracker::DumpResult()
 
 EOperationType TOperationTracker::GetOperationType(const TOperationId& operationId)
 {
-    auto operationPath = GetOperationPath(OperationId);
-    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader));
-    auto req = TYPathProxy::Get(operationPath + "/@operation_type");
-    auto rspOrError = proxy.Execute(req).Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting operation type");
-    const auto& rsp = rspOrError.Value();
-    return ConvertTo<EOperationType>(TYsonString(rsp->value()));
+    return EOperationType::Map;
+    //auto operationPath = GetOperationPath(OperationId);
+    //TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader));
+    //auto req = TYPathProxy::Get(operationPath + "/@operation_type");
+    //auto rspOrError = proxy.Execute(req).Get();
+    //THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting operation type");
+    //const auto& rsp = rspOrError.Value();
+    //return ConvertTo<EOperationType>(TYsonString(rsp->value()));
 }
 
 bool TOperationTracker::CheckFinished()
 {
-    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader));
-    auto operationPath = GetOperationPath(OperationId);
-    auto req = TYPathProxy::Get(operationPath + "/@state");
-    auto rspOrError = proxy.Execute(req).Get();
-    if (!rspOrError.IsOK()) {
-        return false;
-    }
-    const auto& rsp = rspOrError.Value();
-    auto state = ConvertTo<EOperationState>(TYsonString(rsp->value()));
-    if (!IsOperationFinished(state)) {
-        return false;
-    }
-    return true;
+    return false;
+    //TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader));
+    //auto operationPath = GetOperationPath(OperationId);
+    //auto req = TYPathProxy::Get(operationPath + "/@state");
+    //auto rspOrError = proxy.Execute(req).Get();
+    //if (!rspOrError.IsOK()) {
+    //    return false;
+    //}
+    //const auto& rsp = rspOrError.Value();
+    //auto state = ConvertTo<EOperationState>(TYsonString(rsp->value()));
+    //if (!IsOperationFinished(state)) {
+    //    return false;
+    //}
+    //return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
