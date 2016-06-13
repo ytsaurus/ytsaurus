@@ -523,7 +523,7 @@ public:
 
             ElectionManagerThunk_->SetUnderlying(ElectionManager_);
 
-            auto masterConnection = Bootstrap_->GetMasterClient()->GetConnection();
+            auto masterConnection = Bootstrap_->GetMasterClient()->GetNativeConnection();
             HiveManager_ = New<THiveManager>(
                 Config_->HiveManager,
                 masterConnection->GetCellDirectory(),
@@ -544,7 +544,7 @@ public:
                 Owner_,
                 Bootstrap_);
 
-            auto connection = Bootstrap_->GetMasterClient()->GetConnection();
+            auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
             TransactionSupervisor_ = New<TTransactionSupervisor>(
                 Config_->TransactionSupervisor,
                 GetAutomatonInvoker(),

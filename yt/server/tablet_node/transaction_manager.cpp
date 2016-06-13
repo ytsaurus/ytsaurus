@@ -243,7 +243,10 @@ public:
             : ETransactionState::TransientCommitPrepared);
 
         if (state == ETransactionState::Active) {
-            auto timestampProvider = Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider();
+            auto timestampProvider = Bootstrap_
+                ->GetMasterClient()
+                ->GetNativeConnection()
+                ->GetTimestampProvider();
             auto prepareTimestamp = timestampProvider->GetLatestTimestamp();
             transaction->SetPrepareTimestamp(prepareTimestamp);
 

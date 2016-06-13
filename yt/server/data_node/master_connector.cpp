@@ -851,7 +851,7 @@ IChannelPtr TMasterConnector::GetMasterChannel(TCellTag cellTag)
 {
     auto cellId = Bootstrap_->GetCellId(cellTag);
     auto client = Bootstrap_->GetMasterClient();
-    auto connection = client->GetConnection();
+    auto connection = client->GetNativeConnection();
     auto cellDirectory = connection->GetCellDirectory();
     return cellDirectory->GetChannel(cellId, EPeerKind::Leader);
 }

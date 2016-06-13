@@ -1,7 +1,7 @@
 #include "file_reader.h"
 #include "private.h"
 #include "config.h"
-#include "connection.h"
+#include "native_connection.h"
 #include "transaction.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -177,7 +177,7 @@ private:
             New<TMultiChunkReaderOptions>(),
             Client_,
             TNodeDescriptor(),
-            Client_->GetConnection()->GetBlockCache(),
+            Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
             std::move(chunkSpecs));
 

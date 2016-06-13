@@ -4,17 +4,11 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/hive/public.h>
-
-#include <yt/ytlib/query_client/public.h>
-
 #include <yt/ytlib/object_client/public.h>
 
 #include <yt/ytlib/security_client/public.h>
 
 #include <yt/ytlib/tablet_client/public.h>
-
-#include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/core/actions/callback.h>
 
@@ -58,12 +52,8 @@ DEFINE_ENUM(EMasterChannelKind,
 struct IConnection
     : public virtual TRefCounted
 {
-    virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
     virtual NTabletClient::TTableMountCachePtr GetTableMountCache() = 0;
-    virtual NTransactionClient::ITimestampProviderPtr GetTimestampProvider() = 0;
-    virtual NHiveClient::TCellDirectoryPtr GetCellDirectory() = 0;
-    virtual NQueryClient::TEvaluatorPtr GetQueryEvaluator() = 0;
-    virtual NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
+
     virtual IInvokerPtr GetLightInvoker() = 0;
     virtual IInvokerPtr GetHeavyInvoker() = 0;
 

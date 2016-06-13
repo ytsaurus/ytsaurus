@@ -1,7 +1,7 @@
 #include "journal_reader.h"
 #include "private.h"
 #include "config.h"
-#include "connection.h"
+#include "native_connection.h"
 #include "transaction.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -203,7 +203,7 @@ private:
                     TNodeDescriptor(),
                     chunkId,
                     replicas,
-                    Client_->GetConnection()->GetBlockCache());
+                    Client_->GetNativeConnection()->GetBlockCache());
 
                 // NB: Lower/upper limits are mandatory for journal chunks.
                 auto lowerLimit = FromProto<TReadLimit>(chunkSpec.lower_limit());
