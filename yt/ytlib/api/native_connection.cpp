@@ -20,6 +20,7 @@
 #include <yt/ytlib/scheduler/scheduler_channel.h>
 
 #include <yt/ytlib/tablet_client/table_mount_cache.h>
+#include <yt/ytlib/tablet_client/native_table_mount_cache.h>
 
 #include <yt/ytlib/transaction_client/config.h>
 #include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
@@ -132,7 +133,7 @@ public:
             Config_->BlockCache,
             EBlockType::CompressedData|EBlockType::UncompressedData);
 
-        TableMountCache_ = New<TTableMountCache>(
+        TableMountCache_ = CreateNativeTableMountCache(
             Config_->TableMountCache,
             GetMasterChannelOrThrow(EMasterChannelKind::Cache),
             CellDirectory_);
@@ -196,7 +197,7 @@ public:
         return BlockCache_;
     }
 
-    virtual TTableMountCachePtr GetTableMountCache() override
+    virtual ITableMountCachePtr GetTableMountCache() override
     {
         return TableMountCache_;
     }
@@ -264,7 +265,7 @@ private:
     IChannelFactoryPtr LightChannelFactory_;
     IChannelFactoryPtr HeavyChannelFactory_;
     IBlockCachePtr BlockCache_;
-    TTableMountCachePtr TableMountCache_;
+    ITableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;
     TEvaluatorPtr QueryEvaluator_;

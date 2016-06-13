@@ -19,8 +19,6 @@
 
 #include <yt/core/misc/small_vector.h>
 
-#include <yt/core/rpc/public.h>
-
 #include <util/datetime/base.h>
 
 namespace NYT {
@@ -90,29 +88,17 @@ DEFINE_REFCOUNTED_TYPE(TTableMountInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableMountCache
-    : public TRefCounted
+struct ITableMountCache
+    : public virtual TRefCounted
 {
-public:
-    TTableMountCache(
-        TTableMountCacheConfigPtr config,
-        NRpc::IChannelPtr masterChannel,
-        NHiveClient::TCellDirectoryPtr cellDirectory);
-    ~TTableMountCache();
+    virtual TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path) = 0;
+    virtual TTabletInfoPtr FindTablet(const TTabletId& tabletId) = 0;
+    virtual void InvalidateTablet(TTabletInfoPtr tabletInfo) = 0;
 
-    TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path);
-    TTabletInfoPtr FindTablet(const TTabletId& tabletId);
-    void InvalidateTablet(TTabletInfoPtr tabletInfo);
-
-    void Clear();
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
-
+    virtual void Clear() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTableMountCache)
+DEFINE_REFCOUNTED_TYPE(ITableMountCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
