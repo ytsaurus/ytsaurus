@@ -37,8 +37,7 @@ void TStartTransactionCommand::Execute(ICommandContextPtr context)
         .ValueOrThrow();
 
     if (Sticky) {
-        auto timeout = Options.Timeout.Get(context->GetConfig()->TransactionManager->DefaultTransactionTimeout);
-        context->PinTransaction(transaction, timeout);
+        context->PinTransaction(transaction);
     }
 
     transaction->Detach();

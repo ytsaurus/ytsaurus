@@ -311,16 +311,16 @@ private:
     }
 
 
-    void PinTransaction(ITransactionPtr transaction, TDuration timeout)
+    void PinTransaction(ITransactionPtr transaction)
     {
         const auto& transactionId = transaction->GetId();
 
         LOG_DEBUG("Pinning transaction (TransactionId: %v, Timeout: %v)",
             transactionId,
-            timeout);
+            transaction->GetTimeout());
 
         auto lease = TLeaseManager::CreateLease(
-            timeout,
+            transaction->GetTimeout(),
             BIND(IgnoreResult(&TDriver::UnpinTransaction), MakeWeak(this), transactionId));
 
         {
@@ -449,9 +449,9 @@ private:
             consumer->Flush();
         }
 
-        virtual void PinTransaction(ITransactionPtr transaction, TDuration timeout) override
+        virtual void PinTransaction(ITransactionPtr transaction) override
         {
-            Driver_->PinTransaction(std::move(transaction), timeout);
+            Driver_->PinTransaction(std::move(transaction));
         }
 
         virtual bool UnpinTransaction(const TTransactionId& transactionId) override
