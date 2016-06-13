@@ -590,9 +590,7 @@ DEFINE_REFCOUNTED_TYPE(IClientBase)
 struct IClient
     : public IClientBase
 {
-    virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
     virtual NQueryClient::IExecutorPtr GetQueryExecutor() = 0;
-    virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() = 0;
 
     //! Terminates all channels.
     //! Aborts all pending uncommitted transactions.
