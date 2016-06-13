@@ -6,7 +6,7 @@ import unittest
 
 import yt.yson.writer
 import yt.yson.parser
-from yt.yson.yson_types import YsonUint64, YsonEntity
+from yt.yson.yson_types import YsonUint64
 
 try:
     import yt_yson_bindings
@@ -58,25 +58,6 @@ class CommonTestBase(object):
         self.assertFalse(lst == self.loads(self.dumps(f)))
         self.assertFalse(num == self.loads(self.dumps(s)))
         self.assertFalse(self.loads(self.dumps(d)) == s)
-
-    def test_map_fragment(self):
-        self.assertEqual(
-            '"a"="b";"c"="d";',
-            self.dumps(
-                {"a": "b", "c": "d"},
-                yson_format="text",
-                yson_type="map_fragment"
-            )
-        )
-
-    def test_invalid_attributes(self):
-        obj = YsonEntity()
-
-        obj.attributes = None
-        self.assertEqual("#", self.dumps(obj))
-
-        obj.attributes = []
-        self.assertRaises(Exception, lambda: self.dumps(obj))
 
 
 class TestCommonDefault(unittest.TestCase, CommonTestBase):

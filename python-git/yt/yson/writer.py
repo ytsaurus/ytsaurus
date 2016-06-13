@@ -87,7 +87,10 @@ class Dumper(object):
 
         self._encoding = encoding
         self._format = FormatDetails(indent)
-        self._level = -1
+        if yson_type == 'node':
+            self._level = -1
+        else:
+            self._level = -2  # Stream elements are one level deep, but need not be indented
 
     def dumps(self, obj):
         self._level += 1
@@ -114,7 +117,7 @@ class Dumper(object):
             if obj < -2 ** 63 or obj >= 2 ** 64:
                 raise TypeError("Integer {0} cannot be represented in YSON "
                                 "since it is out of range [-2^63, 2^64 - 1])".format(obj))
-            
+
             greater_than_max_int64 = obj >= 2 ** 63
             if isinstance(obj, yt.yson.yson_types.YsonUint64) and obj < 0:
                 raise TypeError("Can not dump negative integer as YSON uint64")
@@ -148,15 +151,13 @@ class Dumper(object):
             assert False
 
     def _dump_map(self, obj):
-        allow_begin_end = self.yson_type != "map_fragment" or self._level > 0
-
+        is_stream = self.yson_type == "map_fragment" and self._level == -1
         result = []
-        if allow_begin_end:
-            result.append('{')
-        result.append(self._format.nextline())
-        items = obj.iteritems()
-        for index, item in enumerate(items):
-            k, v = item
+
+        if not is_stream:
+            result += ['{', self._format.nextline()]
+
+        for k, v in obj.iteritems():
             if not isinstance(k, basestring):
                 raise TypeError("Only string can be Yson map key. Key: %s" % repr(obj))
 
@@ -164,30 +165,34 @@ class Dumper(object):
             def process_item():
                 return [self._format.prefix(self._level + 1),
                     self._dump_string(k), self._format.space(), '=',
-                    self._format.space(), self.dumps(v), ';', self._format.nextline()]
+                    self._format.space(), self.dumps(v), ';', self._format.nextline(is_stream)]
 
             result += process_item()
 
-        result.append(self._format.prefix(self._level))
-        if allow_begin_end:
-            result.append('}')
+        if not is_stream:
+            result += [self._format.prefix(self._level), '}']
+
         return ''.join(result)
 
     def _dump_list(self, obj):
-        result = [self._format.nextline()]
+        is_stream = self.yson_type == "list_fragment" and self._level == -1
+        result = []
+
+        if not is_stream:
+            result += ['[', self._format.nextline()]
+
         for v in obj:
             @self._circular_check(v)
             def process_item():
                 return [self._format.prefix(self._level + 1),
-                    self.dumps(v), ';', self._format.nextline()]
+                    self.dumps(v), ';', self._format.nextline(is_stream)]
 
             result += process_item()
 
-        result += [self._format.prefix(self._level)]
-        if self.yson_type == "list_fragment" and self._level == 0:
-            return ''.join(result)
-        else:
-            return "[%s]" % ''.join(result)
+        if not is_stream:
+            result += [self._format.prefix(self._level), ']']
+
+        return ''.join(result)
 
     def _dump_attributes(self, obj):
         result = ['<', self._format.nextline()]
@@ -248,8 +253,8 @@ class FormatDetails(object):
         else:
             return ''
 
-    def nextline(self):
-        if self._indent:
+    def nextline(self, force=False):
+        if force or self._indent:
             return '\n'
         else:
             return ''
