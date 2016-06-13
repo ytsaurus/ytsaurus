@@ -18,6 +18,7 @@ struct INativeClient
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual NRpc::IChannelFactoryPtr GetNodeChannelFactory() = 0;
     virtual NRpc::IChannelFactoryPtr GetHeavyChannelFactory() = 0;
+    virtual NQueryClient::IExecutorPtr GetQueryExecutor() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INativeClient)

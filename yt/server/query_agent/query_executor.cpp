@@ -21,8 +21,8 @@
 #include <yt/server/tablet_node/tablet_reader.h>
 #include <yt/server/tablet_node/tablet_slot.h>
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native_client.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
@@ -188,8 +188,10 @@ private:
             clientOptions.User = maybeUser.Get();
         }
 
-        auto client = Bootstrap_->GetMasterClient()->GetConnection()
-            ->CreateClient(clientOptions);
+        auto client = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->CreateNativeClient(clientOptions);
 
         auto remoteExecutor = client->GetQueryExecutor();
 
