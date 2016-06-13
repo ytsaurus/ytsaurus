@@ -45,6 +45,7 @@ struct ITransaction
     virtual NTransactionClient::TTimestamp GetStartTimestamp() const = 0;
     virtual NTransactionClient::EAtomicity GetAtomicity() const = 0;
     virtual NTransactionClient::EDurability GetDurability() const = 0;
+    virtual TDuration GetTimeout() const = 0;
 
     virtual TFuture<void> Ping() = 0;
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions()) = 0;

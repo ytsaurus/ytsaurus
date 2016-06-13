@@ -2809,6 +2809,11 @@ public:
         return Transaction_->GetDurability();
     }
 
+    virtual TDuration GetTimeout() const override
+    {
+        return Transaction_->GetTimeout();
+    }
+
 
     virtual TFuture<void> Ping() override
     {
