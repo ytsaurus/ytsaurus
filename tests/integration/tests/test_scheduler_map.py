@@ -10,6 +10,7 @@ import time
 import __builtin__
 import os
 import sys
+from collections import defaultdict
 
 ##################################################################
 
@@ -360,8 +361,32 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
+    def get_job_count_profiling(self):
+        time.sleep(1)
+        profiling_info = {}
+        for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/job_count", verbose=False)):
+            key = tuple(sorted(value["tags"].items()))
+            if key not in profiling_info:
+                profiling_info[key] = value["value"]
+
+        job_count = {"state": defaultdict(int), "reason": defaultdict(int)}
+        for key, value in profiling_info.iteritems():
+            state = dict(key)["state"]
+            job_count["state"][state] += value
+
+        for key, value in profiling_info.iteritems():
+            state = dict(key)["state"]
+            if state != "aborted":
+                continue
+            reason = dict(key)["reason"]
+            job_count["reason"][reason] += value
+
+        return job_count
+
     @unix_only
     def test_abort_job(self):
+        start_profiling = self.get_job_count_profiling()
+
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         for i in xrange(5):
@@ -388,6 +413,24 @@ class TestJobProber(YTEnvSetup):
         assert get("//sys/operations/{0}/@progress/jobs/aborted/user_request".format(op.id)) == 1
         assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op.id)) == 0
         assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
+
+        end_profiling = self.get_job_count_profiling()
+
+        for state in end_profiling["state"]:
+            print state, start_profiling["state"][state], end_profiling["state"][state]
+            value = end_profiling["state"][state] - start_profiling["state"][state]
+            count = 0
+            if state == "aborted":
+                count = 1
+            if state == "completed":
+                count = 5
+            assert value == count
+
+        for reason in end_profiling["reason"]:
+            print reason, start_profiling["reason"][reason], end_profiling["reason"][reason]
+            value = end_profiling["reason"][reason] - start_profiling["reason"][reason]
+            assert value == (1 if reason == "user_request" else 0)
+
 
 ##################################################################
 

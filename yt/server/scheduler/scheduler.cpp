@@ -44,10 +44,12 @@
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/profile_manager.h>
 
 namespace NYT {
 namespace NScheduler {
 
+using namespace NProfiling;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
@@ -113,6 +115,16 @@ public:
         auto localHostName = TAddressResolver::Get()->GetLocalHostName();
         int port = Bootstrap_->GetConfig()->RpcPort;
         ServiceAddress_ = BuildServiceAddress(localHostName, port);
+
+        for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
+            JobStateToTag_[state] = TProfileManager::Get()->RegisterTag("state", Format("%lv", state));
+        }
+        for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+            JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("type", Format("%lv", type));
+        }
+        for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
+            JobAbortReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("reason", Format("%lv", reason));
+        }
     }
 
     void Initialize()
@@ -516,13 +528,29 @@ public:
             .Run();
     }
 
-    TFuture<void> AbortJob(const TJobId& jobId)
+    TFuture<void> AbortJobByUser(const TJobId& jobId, const Stroka& user)
     {
-        return BIND(&TImpl::DoAbortJob, MakeStrong(this), jobId)
+        return BIND(&TImpl::DoAbortJobByUser, MakeStrong(this), jobId, user)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
     }
 
+    void IncreaseProfilingCounter(TJobPtr job, i64 value)
+    {
+        TJobCounter* counter = &JobCounter_;
+        if (job->GetState() == EJobState::Aborted) {
+            counter = &AbortedJobCounter_[GetAbortReason(job->Status()->result())];
+        }
+        (*counter)[job->GetState()][job->GetType()] += value;
+    }
+
+
+    void SetJobState(TJobPtr job, EJobState state)
+    {
+        IncreaseProfilingCounter(job, -1);
+        job->SetState(state);
+        IncreaseProfilingCounter(job, 1);
+    }
 
     void ProcessHeartbeatJobs(
         TExecNodePtr node,
@@ -592,8 +620,7 @@ public:
                 node->GetDefaultAddress(),
                 job->GetId(),
                 job->GetOperationId());
-            AbortJob(job, TError("Job vanished"));
-            UnregisterJob(job);
+            OnJobAborted(job, JobStatusFromError(TError("Job vanished")));
         }
     }
 
@@ -614,6 +641,7 @@ public:
             }
 
             RegisterJob(job);
+            IncreaseProfilingCounter(job, 1);
 
             const auto& controller = operation->GetController();
             controller->GetCancelableInvoker()->Invoke(BIND(
@@ -924,7 +952,14 @@ private:
     NProfiling::TAggregateCounter TotalFailedJobTimeCounter_;
     NProfiling::TAggregateCounter TotalAbortedJobTimeCounter_;
 
-    TEnumIndexedVector<int, EJobType> JobTypeCounters_;
+    typedef TEnumIndexedVector<TEnumIndexedVector<i64, EJobType>, EJobState> TJobCounter;
+    TJobCounter JobCounter_;
+    TEnumIndexedVector<TJobCounter, EAbortReason> AbortedJobCounter_;
+
+    TEnumIndexedVector<TTagId, EJobState> JobStateToTag_;
+    TEnumIndexedVector<TTagId, EJobType> JobTypeToTag_;
+    TEnumIndexedVector<TTagId, EAbortReason> JobAbortReasonToTag_;
+
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TJobResources TotalResourceLimits_ = ZeroJobResources();
@@ -990,13 +1025,23 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
-            if (jobType > EJobType::SchedulerFirst && jobType < EJobType::SchedulerLast) {
-                Profiler.Enqueue("/job_count/" + FormatEnum(jobType), JobTypeCounters_[jobType]);
+        for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
+            for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+                TTagIdList commonTags = {JobStateToTag_[state], JobTypeToTag_[type]};
+                if (state == EJobState::Aborted) {
+                    for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
+                        auto tags = commonTags;
+                        tags.push_back(JobAbortReasonToTag_[reason]);
+                        Profiler.Enqueue("/job_count", AbortedJobCounter_[reason][state][type], tags);
+                    }
+                } else {
+                    Profiler.Enqueue("/job_count", JobCounter_[state][type], commonTags);
+                }
             }
         }
 
-        Profiler.Enqueue("/job_count/total", IdToJob_.size());
+        Profiler.Enqueue("/active_job_count", IdToJob_.size());
+
         Profiler.Enqueue("/operation_count", IdToOperation_.size());
         Profiler.Enqueue("/exec_node_count", GetExecNodeCount());
         Profiler.Enqueue("/total_node_count", GetTotalNodeCount());
@@ -1085,7 +1130,14 @@ private:
 
         IdToJob_.clear();
 
-        std::fill(JobTypeCounters_.begin(), JobTypeCounters_.end(), 0);
+        for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
+            for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+                JobCounter_[state][type] = 0;
+                for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
+                    AbortedJobCounter_[reason][state][type] = 0;
+                }
+            }
+        }
 
         Strategy_->ResetState();
 
@@ -1620,8 +1672,7 @@ private:
                 address,
                 job->GetId(),
                 job->GetOperationId());
-            AbortJob(job, TError("Node offline"));
-            UnregisterJob(job);
+            OnJobAborted(job, JobStatusFromError(TError("Node offline")));
         }
     }
 
@@ -1797,8 +1848,9 @@ private:
     {
         auto jobs = operation->Jobs();
         for (const auto& job : jobs) {
-            AbortJob(job, TError("Operation has state %Qlv", operation->GetState()));
-            UnregisterJob(job);
+            OnJobAborted(
+                job,
+                JobStatusFromError(TError("Operation is in %Qlv state", operation->GetState())));
         }
 
         for (const auto& job : operation->Jobs()) {
@@ -1916,8 +1968,6 @@ private:
 
         auto node = job->GetNode();
 
-        ++JobTypeCounters_[job->GetType()];
-
         YCHECK(IdToJob_.insert(std::make_pair(job->GetId(), job)).second);
         YCHECK(operation->Jobs().insert(job).second);
         YCHECK(node->Jobs().insert(job).second);
@@ -1945,8 +1995,6 @@ private:
         auto node = job->GetNode();
 
         YCHECK(!node->GetHasOngoingJobsScheduling());
-
-        --JobTypeCounters_[job->GetType()];
 
         YCHECK(IdToJob_.erase(job->GetId()) == 1);
         YCHECK(node->Jobs().erase(job) == 1);
@@ -1980,36 +2028,6 @@ private:
         return job;
     }
 
-    void AbortJob(TJobPtr job, const TError& error)
-    {
-        // This method must be safe to call for any job.
-        if (job->GetState() != EJobState::Running &&
-            job->GetState() != EJobState::Waiting)
-        {
-            return;
-        }
-
-        LOG_DEBUG(error, "Aborting job");
-
-        job->SetState(EJobState::Aborted);
-
-        auto status = New<TRefCountedJobStatus>();
-        ToProto(status->mutable_result()->mutable_error(), error);
-
-        job->SetStatus(std::move(status));
-        OnJobFinished(job);
-
-        auto operation = GetOperation(job->GetOperationId());
-
-        if (operation->GetState() == EOperationState::Running) {
-            const auto& controller = operation->GetController();
-            controller->GetCancelableInvoker()->Invoke(BIND(
-                &IOperationController::OnJobAborted,
-                controller,
-                Passed(std::make_unique<TAbortedJobSummary>(job))));
-        }
-    }
-
     void PreemptJob(TJobPtr job)
     {
         YCHECK(FindOperation(job->GetOperationId()));
@@ -2020,7 +2038,7 @@ private:
 
         TError error("Job preempted");
         error.Attributes().Set("abort_reason", EAbortReason::Preemption);
-        AbortJob(job, error);
+        OnJobAborted(job, JobStatusFromError(error));
     }
 
 
@@ -2030,8 +2048,7 @@ private:
         JobUpdated_.Fire(job, delta);
         job->ResourceUsage() = status->resource_usage();
         if (job->GetState() == EJobState::Running ||
-            job->GetState() == EJobState::Waiting ||
-            job->GetState() == EJobState::Abandoning)
+            job->GetState() == EJobState::Waiting)
         {
             job->SetStatus(std::move(status));
         }
@@ -2042,14 +2059,12 @@ private:
         // Do nothing.
     }
 
-    void OnJobCompleted(TJobPtr job, TRefCountedJobStatusPtr status)
+    void OnJobCompleted(TJobPtr job, TRefCountedJobStatusPtr status, bool abandoned = false)
     {
-        bool abandoned = (job->GetState() == EJobState::Abandoning);
         if (job->GetState() == EJobState::Running ||
-            job->GetState() == EJobState::Waiting ||
-            job->GetState() == EJobState::Abandoning)
+            job->GetState() == EJobState::Waiting)
         {
-            job->SetState(EJobState::Completed);
+            SetJobState(job, EJobState::Completed);
             job->SetStatus(std::move(status));
 
             OnJobFinished(job);
@@ -2075,7 +2090,7 @@ private:
         if (job->GetState() == EJobState::Running ||
             job->GetState() == EJobState::Waiting)
         {
-            job->SetState(EJobState::Failed);
+            SetJobState(job, EJobState::Failed);
             job->SetStatus(std::move(status));
 
             OnJobFinished(job);
@@ -2103,10 +2118,12 @@ private:
         // In this case we should ignore the status returned from the node
         // and avoid notifying the controller twice.
         if (job->GetState() == EJobState::Running ||
-            job->GetState() == EJobState::Waiting)
+            job->GetState() == EJobState::Waiting ||
+            job->GetState() == EJobState::None)
         {
-            job->SetState(EJobState::Aborted);
             job->SetStatus(std::move(status));
+            // We should set status before to correctly consider AbortReason.
+            SetJobState(job, EJobState::Aborted);
 
             OnJobFinished(job);
 
@@ -2401,8 +2418,7 @@ private:
         }
 
         auto status = New<TRefCountedJobStatus>();
-        job->SetState(EJobState::Abandoning);
-        OnJobCompleted(job, std::move(status));
+        OnJobCompleted(job, std::move(status), /* abandoned */ true);
     }
 
     TYsonString DoPollJobShell(const TJobId& jobId, const TYsonString& parameters)
@@ -2431,7 +2447,7 @@ private:
         return TYsonString(rsp->result());
     }
 
-    void DoAbortJob(const TJobId& jobId)
+    void DoAbortJobByUser(const TJobId& jobId, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -2444,10 +2460,10 @@ private:
                 jobId);
         }
 
-        auto jobStatus = New<TRefCountedJobStatus>();
-        ToProto(jobStatus->mutable_result()->mutable_error(), TError("Job aborted by user request")
-            << TErrorAttribute("abort_reason", EAbortReason::UserRequest));
-        OnJobAborted(job, std::move(jobStatus));
+        auto status = JobStatusFromError(TError("Job aborted by user request")
+            << TErrorAttribute("abort_reason", EAbortReason::UserRequest)
+            << TErrorAttribute("user", user));
+        OnJobAborted(job, std::move(status));
     }
 
     void DoCompleteOperation(TOperationPtr operation)
@@ -2818,7 +2834,7 @@ private:
                     switch (state) {
                         case EJobState::Running:
                             LOG_DEBUG_IF(shouldLogJob, "Job is running");
-                            job->SetState(state);
+                            SetJobState(job, state);
                             job->SetProgress(jobStatus->progress());
                             if (updateRunningJobs) {
                                 OnJobRunning(job, std::move(jobStatus));
@@ -2970,9 +2986,9 @@ TFuture<TYsonString> TScheduler::PollJobShell(const TJobId& jobId, const TYsonSt
     return Impl_->PollJobShell(jobId, parameters);
 }
 
-TFuture<void> TScheduler::AbortJob(const TJobId& jobId)
+TFuture<void> TScheduler::AbortJobByUser(const TJobId& jobId, const Stroka& user)
 {
-    return Impl_->AbortJob(jobId);
+    return Impl_->AbortJobByUser(jobId, user);
 }
 
 void TScheduler::ProcessHeartbeat(TCtxHeartbeatPtr context)
