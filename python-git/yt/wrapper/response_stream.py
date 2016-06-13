@@ -99,7 +99,12 @@ class ResponseStream(object):
             self._buffer = self._iter_content.next()
             self._buffer_length = len(self._buffer)
             self._pos = 0
-            if not self._buffer_length:
+            if not self._buffer:
+                # It is necessary to finish underlying request in case of chunk stream from requests.
+                try:
+                    self._iter_content.next()
+                except:
+                    pass
                 self._process_error(self._get_response())
                 self._stream_finished = True
         except StopIteration:

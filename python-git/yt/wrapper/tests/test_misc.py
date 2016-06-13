@@ -435,22 +435,37 @@ class TestResponseStream(object):
                 self.pos = 0
                 self.chunk_size = chunk_size
 
+                self.empty_string_before_finish_yielded = False
+                self.stop_iteration_raised = False
+                self.process_error_called = False
+
             def __iter__(self):
                 return self
 
             def next(self):
                 str_part = self.string[self.pos:self.pos + self.chunk_size]
                 if not str_part:
-                    raise StopIteration()
+                    if not self.empty_string_before_finish_yielded:
+                        # Check that ResponseStream will call next one more time after empty response.
+                        self.empty_string_before_finish_yielded = True
+                        return ""
+                    else:
+                        self.stop_iteration_raised = True
+                        raise StopIteration()
                 self.pos += self.chunk_size
                 return str_part
+
+            def process_error(self, response):
+                assert response == s
+                self.process_error_called = True
+                assert self.stop_iteration_raised
 
         close_list = []
         def close():
             close_list.append(True)
 
         string_iterator = StringIterator(s, 10)
-        stream = ResponseStream(lambda: s, string_iterator, close, lambda x: None, lambda: None)
+        stream = ResponseStream(lambda: s, string_iterator, close, string_iterator.process_error, lambda: None)
 
         assert stream.read(20) == s[:20]
         assert stream.read(2) == s[20:22]
@@ -467,6 +482,8 @@ class TestResponseStream(object):
         chunks = []
         for chunk in stream.chunk_iter():
             chunks.append(chunk)
+
+        assert string_iterator.process_error_called
 
         assert len(chunks) == 10
         assert "".join(chunks) == s[210:]
