@@ -55,10 +55,9 @@ public:
 protected:
     NLogging::TLogger Logger;
 
-    bool VerifyActive();
     bool TrySwitchSession();
 
-    std::atomic<bool> SwitchingSession_ = { true };
+    std::atomic<bool> SwitchingSession_ = {true};
 
     virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) = 0;
 
