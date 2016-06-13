@@ -45,8 +45,7 @@ public:
     {
         RegisterParameter("path", Path);
         RegisterParameter("file_writer", FileWriter)
-            .Default(nullptr);
-
+            .Default();
     }
 
     void Execute(ICommandContextPtr context);

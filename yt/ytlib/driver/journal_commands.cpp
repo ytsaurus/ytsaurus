@@ -49,7 +49,7 @@ void TReadJournalCommand::Execute(ICommandContextPtr context)
 
     Options.Config = UpdateYsonSerializable(
         context->GetConfig()->JournalReader,
-        GetOptions());
+        JournalReader);
 
     if (Path.GetRanges().size() == 1) {
         auto range = Path.GetRanges()[0];
