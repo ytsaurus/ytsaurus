@@ -41,8 +41,8 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native_client.h>
 
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 

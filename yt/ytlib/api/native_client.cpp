@@ -2,7 +2,7 @@
 #include "private.h"
 #include "box.h"
 #include "config.h"
-#include "connection.h"
+#include "native_connection.h"
 #include "file_reader.h"
 #include "file_writer.h"
 #include "journal_reader.h"
@@ -109,7 +109,7 @@ using NTableClient::TColumnSchema;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TQueryHelper)
-DECLARE_REFCOUNTED_CLASS(TClient)
+DECLARE_REFCOUNTED_CLASS(TNativeClient)
 DECLARE_REFCOUNTED_CLASS(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -260,7 +260,7 @@ const TCellPeerDescriptor& GetBackupTabletPeerDescriptor(
 IChannelPtr CreateTabletReadChannel(
     const IChannelFactoryPtr& channelFactory,
     const TCellDescriptor& cellDescriptor,
-    const TConnectionConfigPtr& config,
+    const TNativeConnectionConfigPtr& config,
     const TTabletReadOptions& options)
 {
     const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, options.ReadFrom);
@@ -455,7 +455,7 @@ class TQueryHelper
 {
 public:
     TQueryHelper(
-        IConnectionPtr connection,
+        INativeConnectionPtr connection,
         IChannelPtr masterChannel,
         IChannelFactoryPtr nodeChannelFactory,
         const TFunctionImplCachePtr& functionImplCache)
@@ -501,7 +501,7 @@ public:
     }
 
 private:
-    const IConnectionPtr Connection_;
+    const INativeConnectionPtr Connection_;
     const IChannelPtr MasterChannel_;
     const IChannelFactoryPtr NodeChannelFactory_;
     const TFunctionImplCachePtr FunctionImplCache_;
@@ -1037,12 +1037,12 @@ struct TWriteRowsBufferTag
 struct TDeleteRowsBufferTag
 { };
 
-class TClient
-    : public IClient
+class TNativeClient
+    : public INativeClient
 {
 public:
-    TClient(
-        IConnectionPtr connection,
+    TNativeClient(
+        INativeConnectionPtr connection,
         const TClientOptions& options)
         : Connection_(std::move(connection))
         , Options_(options)
@@ -1104,6 +1104,11 @@ public:
 
 
     virtual IConnectionPtr GetConnection() override
+    {
+        return Connection_;
+    }
+
+    virtual INativeConnectionPtr GetNativeConnection() override
     {
         return Connection_;
     }
@@ -1186,7 +1191,7 @@ public:
             #method, \
             options, \
             BIND( \
-                &TClient::doMethod, \
+                &TNativeClient::doMethod, \
                 MakeStrong(this), \
                 DROP_BRACES args)); \
     }
@@ -1400,7 +1405,7 @@ public:
 private:
     friend class TTransaction;
 
-    const IConnectionPtr Connection_;
+    const INativeConnectionPtr Connection_;
     const TClientOptions Options_;
 
     TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
@@ -1585,7 +1590,7 @@ private:
     {
     public:
         TTabletCellLookupSession(
-            TClientPtr client,
+            TNativeClientPtr client,
             const TCellId& cellId,
             const TLookupRowsOptions& options,
             TTableMountInfoPtr tableInfo)
@@ -1691,8 +1696,8 @@ private:
         }
 
     private:
-        const TClientPtr Client_;
-        const TConnectionConfigPtr Config_;
+        const TNativeClientPtr Client_;
+        const TNativeConnectionConfigPtr Config_;
         const TCellId CellId_;
         const TLookupRowsOptions Options_;
         const TTableMountInfoPtr TableInfo_;
@@ -2749,13 +2754,15 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TClient)
+DEFINE_REFCOUNTED_TYPE(TNativeClient)
 
-IClientPtr CreateClient(IConnectionPtr connection, const TClientOptions& options)
+INativeClientPtr CreateNativeClient(
+    INativeConnectionPtr connection,
+    const TClientOptions& options)
 {
     YCHECK(connection);
 
-    return New<TClient>(std::move(connection), options);
+    return New<TNativeClient>(std::move(connection), options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2765,7 +2772,7 @@ class TTransaction
 {
 public:
     TTransaction(
-        TClientPtr client,
+        TNativeClientPtr client,
         NTransactionClient::TTransactionPtr transaction)
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
@@ -3041,7 +3048,7 @@ public:
     }
 
 private:
-    const TClientPtr Client_;
+    const TNativeClientPtr Client_;
     const NTransactionClient::TTransactionPtr Transaction_;
     const IInvokerPtr CommitInvoker_;
 
@@ -3079,6 +3086,7 @@ private:
             const TYPath& path,
             TNameTablePtr nameTable)
             : Transaction_(transaction)
+            , Connection_(std::move(connection))
             , Path_(path)
             , NameTable_(std::move(nameTable))
             , TabletIndexColumnId_(NameTable_->FindId(TabletIndexColumnName))
@@ -3291,7 +3299,7 @@ private:
         const TWeakPtr<TTransaction> Owner_;
         const TTableMountInfoPtr TableInfo_;
         const TTabletInfoPtr TabletInfo_;
-        const TConnectionConfigPtr Config_;
+        const TNativeConnectionConfigPtr Config_;
         const int ColumnCount_;
         const int KeyColumnCount_;
 
@@ -3627,7 +3635,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TTransaction)
 
-TFuture<ITransactionPtr> TClient::StartTransaction(
+TFuture<ITransactionPtr> TNativeClient::StartTransaction(
     ETransactionType type,
     const TTransactionStartOptions& options)
 {
@@ -3637,7 +3645,7 @@ TFuture<ITransactionPtr> TClient::StartTransaction(
         }));
 }
 
-ITransactionPtr TClient::AttachTransaction(
+ITransactionPtr TNativeClient::AttachTransaction(
     const TTransactionId& transactionId,
     const TTransactionAttachOptions& options)
 {

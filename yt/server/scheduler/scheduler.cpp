@@ -29,6 +29,7 @@
 #include <yt/ytlib/table_client/table_consumer.h>
 
 #include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/native_connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -361,7 +362,7 @@ public:
         // Create operation object.
         auto operationId = MakeRandomId(
             EObjectType::Operation,
-            GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag());
+            GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
         auto operation = New<TOperation>(
             operationId,
             type,
@@ -765,7 +766,7 @@ public:
                         Config_,
                         node,
                         runningJobs,
-                        Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag());
+                        Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
 
                     PROFILE_TIMING ("/schedule_time") {
                         node->SetHasOngoingJobsScheduling(true);
@@ -879,7 +880,7 @@ public:
 
 
     // IOperationHost implementation
-    virtual NApi::IClientPtr GetMasterClient() override
+    virtual NApi::INativeClientPtr GetMasterClient() override
     {
         return Bootstrap_->GetMasterClient();
     }

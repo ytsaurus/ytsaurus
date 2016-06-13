@@ -9,7 +9,7 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/native_client.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/throughput_throttler.h>
@@ -164,7 +164,7 @@ TChunkScraper::TChunkScraper(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const yhash_set<TChunkId>& chunkIds,
     TChunkLocatedHandler onChunkLocated,

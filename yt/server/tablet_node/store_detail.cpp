@@ -332,7 +332,7 @@ TChunkStoreBase::TChunkStoreBase(
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,
     TChunkBlockManagerPtr chunkBlockManager,
-    IClientPtr client,
+    INativeClientPtr client,
     const TNodeDescriptor& localDescriptor)
     : TStoreBase(std::move(config), id, tablet)
     , BlockCache_(std::move(blockCache))

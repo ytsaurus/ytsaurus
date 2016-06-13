@@ -21,7 +21,7 @@ class TChunkListPool
 public:
     TChunkListPool(
         TSchedulerConfigPtr config,
-        NApi::IClientPtr clientPtr,
+        NApi::INativeClientPtr clientPtr,
         IInvokerPtr controlInvoker,
         const TOperationId& operationId,
         const NTransactionClient::TTransactionId& transactionId);
@@ -34,7 +34,7 @@ public:
 
 private:
     const TSchedulerConfigPtr Config_;
-    const NApi::IClientPtr Client_;
+    const NApi::INativeClientPtr Client_;
     const IInvokerPtr ControllerInvoker_;
     const TOperationId OperationId_;
     const NTransactionClient::TTransactionId TransactionId_;

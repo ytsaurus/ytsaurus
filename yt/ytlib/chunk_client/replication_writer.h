@@ -22,7 +22,7 @@ IChunkWriterPtr CreateReplicationWriter(
     const TChunkId& chunkId,
     const TChunkReplicaList& targets,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     IBlockCachePtr blockCache = GetNullBlockCache(),
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 

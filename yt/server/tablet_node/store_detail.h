@@ -167,7 +167,7 @@ public:
         NChunkClient::IBlockCachePtr blockCache,
         NDataNode::TChunkRegistryPtr chunkRegistry,
         NDataNode::TChunkBlockManagerPtr chunkBlockManager,
-        NApi::IClientPtr client,
+        NApi::INativeClientPtr client,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor);
 
     virtual void Initialize(const NTabletNode::NProto::TAddStoreDescriptor* descriptor);
@@ -206,7 +206,7 @@ protected:
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NDataNode::TChunkRegistryPtr ChunkRegistry_;
     const NDataNode::TChunkBlockManagerPtr ChunkBlockManager_;
-    const NApi::IClientPtr Client_;
+    const NApi::INativeClientPtr Client_;
     const NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
     EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;

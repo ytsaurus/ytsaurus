@@ -23,7 +23,7 @@
 
 #include <yt/server/tablet_server/tablet_manager.pb.h>
 
-#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/object_client/helpers.h>

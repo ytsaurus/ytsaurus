@@ -30,6 +30,7 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_ypath.pb.h>
 
+#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
@@ -714,7 +715,7 @@ private:
             try {
                 auto clusterDirectory = Bootstrap->GetClusterDirectory();
                 auto connection = clusterDirectory->GetConnectionOrThrow(CellTagFromId(transactionId));
-                auto client = connection->CreateClient(TClientOptions(SchedulerUserName));
+                auto client = connection->CreateNativeClient(TClientOptions(SchedulerUserName));
                 TTransactionAttachOptions options;
                 options.Ping = ping;
                 options.PingAncestors = false;
@@ -1259,7 +1260,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto client = Bootstrap->GetMasterClient();
-        auto connection = client->GetConnection();
+        auto connection = client->GetNativeConnection();
 
         ITransactionPtr transaction;
         {
@@ -1853,7 +1854,7 @@ private:
 
             for (const auto& pair : clustersNode->GetChildren()) {
                 const auto& clusterName = pair.first;
-                auto config = ConvertTo<NApi::TConnectionConfigPtr>(pair.second);
+                auto config = ConvertTo<NApi::TNativeConnectionConfigPtr>(pair.second);
                 ClusterDirectory->UpdateCluster(clusterName, config);
             }
 

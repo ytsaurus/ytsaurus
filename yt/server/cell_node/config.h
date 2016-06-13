@@ -77,7 +77,7 @@ public:
     TDuration OrchidCacheUpdatePeriod;
 
     //! Node-to-master connection.
-    NApi::TConnectionConfigPtr ClusterConnection;
+    NApi::TNativeConnectionConfigPtr ClusterConnection;
 
     //! Cell directory synchronization.
     NHiveServer::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;

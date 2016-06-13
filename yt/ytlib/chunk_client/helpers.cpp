@@ -56,7 +56,7 @@ static const auto& Logger = ChunkClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkId CreateChunk(
-    IClientPtr client,
+    INativeClientPtr client,
     TCellTag cellTag,
     TMultiChunkWriterOptionsPtr options,
     const TTransactionId& transactionId,
@@ -103,7 +103,7 @@ TChunkId CreateChunk(
 }
 
 void ProcessFetchResponse(
-    IClientPtr client,
+    INativeClientPtr client,
     TChunkOwnerYPathProxy::TRspFetchPtr fetchResponse,
     TCellTag fetchCellTag,
     TNodeDirectoryPtr nodeDirectory,
@@ -177,7 +177,7 @@ void ProcessFetchResponse(
 }
 
 TChunkReplicaList AllocateWriteTargets(
-    NApi::IClientPtr client,
+    INativeClientPtr client,
     const TChunkId& chunkId,
     int desiredTargetCount,
     int minTargetCount,
@@ -305,7 +305,7 @@ IChunkReaderPtr CreateRemoteReader(
     const TChunkSpec& chunkSpec,
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::IClientPtr client,
+    INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
@@ -376,12 +376,12 @@ IChunkReaderPtr CreateRemoteReader(
     const TChunkId& chunkId,
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::IClientPtr client,
+    INativeClientPtr client,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     NConcurrency::IThroughputThrottlerPtr throttler)
 {
-    auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::LeaderOrFollower);
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
     TChunkServiceProxy proxy(channel);
 
     auto req = proxy.LocateChunks();

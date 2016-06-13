@@ -2,6 +2,7 @@
 #include "private.h"
 #include "config.h"
 #include "transaction.h"
+#include "native_connection.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
@@ -70,7 +71,7 @@ class TJournalWriter
 {
 public:
     TJournalWriter(
-        IClientPtr client,
+        INativeClientPtr client,
         const TYPath& path,
         const TJournalWriterOptions& options)
         : Impl_(New<TImpl>(client, path, options))
@@ -103,7 +104,7 @@ private:
     {
     public:
         TImpl(
-            IClientPtr client,
+            INativeClientPtr client,
             const TYPath& path,
             const TJournalWriterOptions& options)
             : Client_(client)
@@ -169,7 +170,7 @@ private:
         }
 
     private:
-        const IClientPtr Client_;
+        const INativeClientPtr Client_;
         const TYPath Path_;
         const TJournalWriterOptions Options_;
         const TJournalWriterConfigPtr Config_;
@@ -413,7 +414,7 @@ private:
                     req->set_update_mode(static_cast<int>(EUpdateMode::Append));
                     req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
                     req->set_upload_transaction_title(Format("Upload to %v", Path_));
-                    req->set_upload_transaction_timeout(ToProto(Client_->GetConnection()->GetConfig()->TransactionManager->DefaultTransactionTimeout));
+                    req->set_upload_transaction_timeout(ToProto(Config_->UploadTransactionTimeout));
                     GenerateMutationId(req);
                     SetTransactionId(req, Transaction_);
                     batchReq->AddRequest(req, "begin_upload");
@@ -561,7 +562,7 @@ private:
                 targets.push_back(descriptor);
             }
 
-            const auto& networkName = Client_->GetConnection()->GetConfig()->NetworkName;
+            const auto& networkName = Client_->GetNativeConnection()->GetConfig()->NetworkName;
             for (const auto& target : targets) {
                 auto address = target.GetAddressOrThrow(networkName);
                 auto lightChannel = Client_->GetNodeChannelFactory()->CreateChannel(address);
@@ -1114,7 +1115,7 @@ private:
 };
 
 IJournalWriterPtr CreateJournalWriter(
-    IClientPtr client,
+    INativeClientPtr client,
     const TYPath& path,
     const TJournalWriterOptions& options)
 {

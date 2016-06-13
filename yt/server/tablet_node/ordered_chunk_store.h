@@ -20,7 +20,7 @@ public:
         NChunkClient::IBlockCachePtr blockCache,
         NDataNode::TChunkRegistryPtr chunkRegistry = nullptr,
         NDataNode::TChunkBlockManagerPtr chunkBlockManager = nullptr,
-        NApi::IClientPtr client = nullptr,
+        NApi::INativeClientPtr client = nullptr,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor = NNodeTrackerClient::TNodeDescriptor());
     ~TOrderedChunkStore();
 

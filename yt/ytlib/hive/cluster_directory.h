@@ -15,31 +15,31 @@ class TClusterDirectory
     : public virtual TRefCounted
 {
 public:
-    explicit TClusterDirectory(NApi::IConnectionPtr selfConnection);
+    explicit TClusterDirectory(NApi::INativeConnectionPtr selfConnection);
 
-    NApi::IConnectionPtr GetConnection(NObjectClient::TCellTag cellTag) const;
-    NApi::IConnectionPtr GetConnectionOrThrow(NObjectClient::TCellTag cellTag) const;
+    NApi::INativeConnectionPtr GetConnection(NObjectClient::TCellTag cellTag) const;
+    NApi::INativeConnectionPtr GetConnectionOrThrow(NObjectClient::TCellTag cellTag) const;
 
-    NApi::IConnectionPtr GetConnection(const Stroka& clusterName) const;
-    NApi::IConnectionPtr GetConnectionOrThrow(const Stroka& clusterName) const;
+    NApi::INativeConnectionPtr GetConnection(const Stroka& clusterName) const;
+    NApi::INativeConnectionPtr GetConnectionOrThrow(const Stroka& clusterName) const;
 
     std::vector<Stroka> GetClusterNames() const;
 
     void RemoveCluster(const Stroka& clusterName);
 
-    void UpdateCluster(const Stroka& clusterName, NApi::TConnectionConfigPtr config);
+    void UpdateCluster(const Stroka& clusterName, NApi::TNativeConnectionConfigPtr config);
 
     void UpdateSelf();
 
 private:
-    const NApi::IConnectionPtr SelfConnection_;
-    const NApi::IClientPtr SelfClient_;
+    const NApi::INativeConnectionPtr SelfConnection_;
+    const NApi::INativeClientPtr SelfClient_;
 
     struct TCluster
     {
         Stroka Name;
-        NApi::TConnectionConfigPtr Config;
-        NApi::IConnectionPtr Connection;
+        NApi::TNativeConnectionConfigPtr Config;
+        NApi::INativeConnectionPtr Connection;
     };
 
     TSpinLock Lock_;
@@ -47,7 +47,7 @@ private:
     yhash_map<Stroka, TCluster> NameToCluster_;
 
 
-    TCluster CreateCluster(const Stroka& name, NApi::TConnectionConfigPtr config) const;
+    TCluster CreateCluster(const Stroka& name, NApi::TNativeConnectionConfigPtr config) const;
     TCluster CreateSelfCluster() const;
 
     static NObjectClient::TCellTag GetCellTag(const TCluster& cluster);

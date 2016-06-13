@@ -144,7 +144,7 @@ void TPartitionMultiChunkReader::OnReaderSwitched()
 TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    IClientPtr client,
+    INativeClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,

@@ -22,7 +22,7 @@ namespace NChunkClient {
 IChunkReaderPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     const TChunkId& chunkId,

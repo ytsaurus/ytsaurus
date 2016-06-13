@@ -597,7 +597,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const TTableSchema& schema,
-    IClientPtr client,
+    INativeClientPtr client,
     TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,

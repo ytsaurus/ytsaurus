@@ -13,6 +13,9 @@
 #include <yt/ytlib/table_client/versioned_reader.h>
 #include <yt/ytlib/table_client/versioned_row.h>
 
+#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native_client.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -112,7 +115,7 @@ TChunkWriterPool::TChunkWriterPool(
     int poolSize,
     TTableWriterConfigPtr writerConfig,
     TTabletWriterOptionsPtr writerOptions,
-    IClientPtr client,
+    INativeClientPtr client,
     const TTransactionId& transactionId)
     : InMemoryManager_(std::move(inMemoryManager))
     , TabletSnapshot_(std::move(tabletSnapshot))
@@ -134,7 +137,7 @@ IVersionedMultiChunkWriterPtr TChunkWriterPool::AllocateWriter()
                 WriterOptions_,
                 TabletSnapshot_->TableSchema,
                 Client_,
-                Client_->GetConnection()->GetPrimaryMasterCellTag(),
+                Client_->GetNativeConnection()->GetPrimaryMasterCellTag(),
                 TransactionId_,
                 NullChunkListId,
                 GetUnlimitedThrottler(),

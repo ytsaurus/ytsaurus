@@ -45,7 +45,7 @@ IFileReaderPtr CreateFileChunkReader(
 IFileReaderPtr CreateFileMultiChunkReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
     NChunkClient::TMultiChunkReaderOptionsPtr options,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,

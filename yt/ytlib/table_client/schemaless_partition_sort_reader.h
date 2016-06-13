@@ -11,7 +11,6 @@
 
 #include <yt/core/rpc/public.h>
 
-
 namespace NYT {
 namespace NTableClient {
 
@@ -19,7 +18,7 @@ namespace NTableClient {
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TKeyColumns& keyColumns,

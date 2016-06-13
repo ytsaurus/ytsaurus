@@ -16,8 +16,8 @@
 
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -46,7 +46,7 @@ TOrderedStoreManager::TOrderedStoreManager(
     ITabletContext* tabletContext,
     NHydra::IHydraManagerPtr hydraManager,
     TInMemoryManagerPtr inMemoryManager,
-    IClientPtr client)
+    INativeClientPtr client)
     : TStoreManagerBase(
         std::move(config),
         tablet,
@@ -231,7 +231,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             TKeyColumns(),
             TOwningKey(),
             Client_,
-            Client_->GetConnection()->GetPrimaryMasterCellTag(),
+            Client_->GetNativeConnection()->GetPrimaryMasterCellTag(),
             transaction->GetId());
 
         WaitFor(writer->Open())

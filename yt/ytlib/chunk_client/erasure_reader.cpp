@@ -8,9 +8,9 @@
 #include "dispatcher.h"
 #include "replication_reader.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/connection.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -788,7 +788,7 @@ namespace {
 std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::IClientPtr client,
+    INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& replicas,
@@ -846,7 +846,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
 std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::IClientPtr client,
+    INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
@@ -871,7 +871,7 @@ std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::IClientPtr client,
+    INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,

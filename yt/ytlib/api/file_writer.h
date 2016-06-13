@@ -34,7 +34,7 @@ struct IFileWriter
 DEFINE_REFCOUNTED_TYPE(IFileWriter)
 
 IFileWriterPtr CreateFileWriter(
-    IClientPtr client,
+    INativeClientPtr client,
     const NYPath::TYPath& path,
     const TFileWriterOptions& options = TFileWriterOptions());
 

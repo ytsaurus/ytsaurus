@@ -38,7 +38,7 @@ public:
     NScheduler::TJobIOConfigPtr JobIO;
 
     // Job-independent parameters.
-    NApi::TConnectionConfigPtr ClusterConnection;
+    NApi::TNativeConnectionConfigPtr ClusterConnection;
 
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;

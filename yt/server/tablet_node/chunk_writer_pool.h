@@ -26,7 +26,7 @@ public:
         int poolSize,
         NTableClient::TTableWriterConfigPtr writerConfig,
         TTabletWriterOptionsPtr writerOptions,
-        NApi::IClientPtr client,
+        NApi::INativeClientPtr client,
         const NObjectClient::TTransactionId& transactionId);
 
     NTableClient::IVersionedMultiChunkWriterPtr AllocateWriter();
@@ -43,7 +43,7 @@ private:
     const int PoolSize_;
     const NTableClient::TTableWriterConfigPtr WriterConfig_;
     const TTabletWriterOptionsPtr WriterOptions_;
-    const NApi::IClientPtr Client_;
+    const NApi::INativeClientPtr Client_;
     const NObjectClient::TTransactionId TransactionId_;
 
     std::vector<NTableClient::IVersionedMultiChunkWriterPtr> FreshWriters_;

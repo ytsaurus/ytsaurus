@@ -153,9 +153,9 @@ protected:
 
     const TOperationId OperationId;
 
-    NApi::IClientPtr AuthenticatedMasterClient;
-    NApi::IClientPtr AuthenticatedInputMasterClient;
-    NApi::IClientPtr AuthenticatedOutputMasterClient;
+    NApi::INativeClientPtr AuthenticatedMasterClient;
+    NApi::INativeClientPtr AuthenticatedInputMasterClient;
+    NApi::INativeClientPtr AuthenticatedOutputMasterClient;
 
     mutable NLogging::TLogger Logger;
 
@@ -584,7 +584,7 @@ protected:
 
     NApi::ITransactionPtr StartTransaction(
         const Stroka& transactionName,
-        NApi::IClientPtr client,
+        NApi::INativeClientPtr client,
         const TNullable<NTransactionClient::TTransactionId>& parentTransactionId);
 
     //! All task groups declared by calling #RegisterTaskGroup, in the order of decreasing priority.
@@ -964,7 +964,7 @@ private:
 
     void UpdateJobStatistics(const TJobSummary& jobSummary);
 
-    NApi::IClientPtr CreateClient();
+    NApi::INativeClientPtr CreateClient();
 
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
 

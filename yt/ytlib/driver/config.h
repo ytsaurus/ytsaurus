@@ -24,7 +24,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDriverConfig
-    : public NApi::TConnectionConfig
+    : public NApi::TNativeConnectionConfig
 {
 public:
     NApi::TFileReaderConfigPtr FileReader;

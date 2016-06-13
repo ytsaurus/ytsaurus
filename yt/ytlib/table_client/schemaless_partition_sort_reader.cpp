@@ -50,7 +50,7 @@ class TSchemalessPartitionSortReader
 public:
     TSchemalessPartitionSortReader(
         TMultiChunkReaderConfigPtr config,
-        NApi::IClientPtr client,
+        NApi::INativeClientPtr client,
         IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
         const TKeyColumns& keyColumns,
@@ -528,7 +528,7 @@ private:
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     TMultiChunkReaderConfigPtr config,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const TKeyColumns& keyColumns,

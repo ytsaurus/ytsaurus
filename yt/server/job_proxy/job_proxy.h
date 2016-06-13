@@ -71,7 +71,7 @@ private:
 
     std::unique_ptr<NExecAgent::TSupervisorServiceProxy> SupervisorProxy_;
     
-    NApi::IClientPtr Client_;
+    NApi::INativeClientPtr Client_;
 
 
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
@@ -115,7 +115,7 @@ private:
 
     virtual void ReleaseNetwork() override;
 
-    virtual NApi::IClientPtr GetClient() const override;
+    virtual NApi::INativeClientPtr GetClient() const override;
 
     virtual NChunkClient::IBlockCachePtr GetBlockCache() const override;
 

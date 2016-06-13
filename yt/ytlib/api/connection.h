@@ -58,20 +58,6 @@ DEFINE_ENUM(EMasterChannelKind,
 struct IConnection
     : public virtual TRefCounted
 {
-    virtual TConnectionConfigPtr GetConfig() = 0;
-
-    virtual const NObjectClient::TCellId& GetPrimaryMasterCellId() const = 0;
-    virtual NObjectClient::TCellTag GetPrimaryMasterCellTag() const = 0;
-    virtual const NObjectClient::TCellTagList& GetSecondaryMasterCellTags() const = 0;
-
-    virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
-        EMasterChannelKind kind,
-        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
-    virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
-    // TODO(sandello): Consider joining these two in favor of a partitioned channel.
-    virtual NRpc::IChannelFactoryPtr GetLightChannelFactory() = 0;
-    virtual NRpc::IChannelFactoryPtr GetHeavyChannelFactory() = 0;
-
     virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
     virtual NTabletClient::TTableMountCachePtr GetTableMountCache() = 0;
     virtual NTransactionClient::ITimestampProviderPtr GetTimestampProvider() = 0;
@@ -88,17 +74,6 @@ struct IConnection
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TConnectionOptions
-{
-    bool RetryRequestQueueSizeLimitExceeded = false;
-};
-
-IConnectionPtr CreateConnection(
-    TConnectionConfigPtr config,
-    const TConnectionOptions& options = TConnectionOptions());
 
 ////////////////////////////////////////////////////////////////////////////////
 

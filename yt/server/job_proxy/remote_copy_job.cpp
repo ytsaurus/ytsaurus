@@ -5,7 +5,7 @@
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/native_connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
@@ -83,10 +83,10 @@ public:
             SchedulerJobSpecExt_.output_specs(0).chunk_list_id());
 
         const auto& remoteCopySpec = JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
-        auto remoteConnectionConfig = ConvertTo<TConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
-        RemoteConnection_ = CreateConnection(remoteConnectionConfig);
+        auto remoteConnectionConfig = ConvertTo<TNativeConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
+        RemoteConnection_ = CreateNativeConnection(remoteConnectionConfig);
 
-        RemoteClient_ = RemoteConnection_->CreateClient(TClientOptions(NSecurityClient::JobUserName));
+        RemoteClient_ = RemoteConnection_->CreateNativeClient(TClientOptions(NSecurityClient::JobUserName));
     }
 
     virtual TJobResult Run() override
@@ -140,8 +140,8 @@ private:
 
     TChunkListId OutputChunkListId_;
 
-    IConnectionPtr RemoteConnection_;
-    IClientPtr RemoteClient_;
+    INativeConnectionPtr RemoteConnection_;
+    INativeClientPtr RemoteClient_;
 
     int CopiedChunkCount_ = 0;
     i64 CopiedChunkSize_ = 0;

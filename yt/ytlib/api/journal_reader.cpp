@@ -46,7 +46,7 @@ class TJournalReader
 {
 public:
     TJournalReader(
-        IClientPtr client,
+        INativeClientPtr client,
         const TYPath& path,
         const TJournalReaderOptions& options)
         : Client_(client)
@@ -79,7 +79,7 @@ public:
     }
 
 private:
-    IClientPtr Client_;
+    INativeClientPtr Client_;
     TYPath Path_;
     TJournalReaderOptions Options_;
     TJournalReaderConfigPtr Config_;
@@ -234,7 +234,7 @@ private:
 };
 
 IJournalReaderPtr CreateJournalReader(
-    IClientPtr client,
+    INativeClientPtr client,
     const TYPath& path,
     const TJournalReaderOptions& options)
 {

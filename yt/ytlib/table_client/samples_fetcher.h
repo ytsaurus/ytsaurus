@@ -42,11 +42,11 @@ public:
         NChunkClient::TFetcherConfigPtr config,
         i64 desiredSampleCount,
         const TKeyColumns& keyColumns,
-        i32 maxSampleSize,
+        int maxSampleSize,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
         NChunkClient::TScrapeChunksCallback scraperCallback,
-        NApi::IClientPtr client,
+        NApi::INativeClientPtr client,
         const NLogging::TLogger& logger);
 
     virtual void AddChunk(NChunkClient::TInputChunkPtr chunk) override;
@@ -57,7 +57,7 @@ public:
 private:
     const TKeyColumns KeyColumns_;
     const i64 DesiredSampleCount_;
-    const i32 MaxSampleSize_;
+    const int MaxSampleSize_;
 
     i64 SizeBetweenSamples_ = 0;
     i64 TotalDataSize_ = 0;

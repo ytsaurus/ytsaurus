@@ -37,7 +37,7 @@ public:
     ~TBootstrap();
 
     TCellSchedulerConfigPtr GetConfig() const;
-    NApi::IClientPtr GetMasterClient() const;
+    NApi::INativeClientPtr GetMasterClient() const;
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
     NScheduler::TSchedulerPtr GetScheduler() const;
@@ -55,7 +55,7 @@ private:
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     std::unique_ptr<NHttp::TServer> HttpServer_;
-    NApi::IClientPtr MasterClient_;
+    NApi::INativeClientPtr MasterClient_;
     NScheduler::TSchedulerPtr Scheduler_;
     NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
     NRpc::TResponseKeeperPtr ResponseKeeper_;

@@ -5,6 +5,7 @@
 #include <yt/server/cell_scheduler/bootstrap.h>
 
 #include <yt/ytlib/api/file_reader.h>
+#include <yt/ytlib/api/native_client.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 

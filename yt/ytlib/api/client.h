@@ -590,13 +590,6 @@ DEFINE_REFCOUNTED_TYPE(IClientBase)
 struct IClient
     : public IClientBase
 {
-    // TODO(babenko): consider hiding these guys
-    virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
-        EMasterChannelKind kind,
-        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
-    virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
-    virtual NRpc::IChannelFactoryPtr GetNodeChannelFactory() = 0;
-    virtual NRpc::IChannelFactoryPtr GetHeavyChannelFactory() = 0;
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
     virtual NQueryClient::IExecutorPtr GetQueryExecutor() = 0;
     virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() = 0;

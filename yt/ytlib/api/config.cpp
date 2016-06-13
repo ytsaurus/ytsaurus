@@ -29,7 +29,7 @@ TMasterConnectionConfig::TMasterConnectionConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConnectionConfig::TConnectionConfig()
+TNativeConnectionConfig::TNativeConnectionConfig()
 {
     RegisterParameter("network_name", NetworkName)
         .Default(NNodeTrackerClient::InterconnectNetworkName);

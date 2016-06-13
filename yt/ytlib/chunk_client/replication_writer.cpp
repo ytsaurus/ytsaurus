@@ -10,9 +10,9 @@
 #include "dispatcher.h"
 #include "helpers.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/connection.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -149,7 +149,7 @@ public:
         const TChunkId& chunkId,
         const TChunkReplicaList& initialTargets,
         TNodeDirectoryPtr nodeDirectory,
-        IClientPtr client,
+        INativeClientPtr client,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache);
 
@@ -177,7 +177,7 @@ private:
     const TRemoteWriterOptionsPtr Options_;
     const TChunkId ChunkId_;
     const TChunkReplicaList InitialTargets_;
-    const IClientPtr Client_;
+    const INativeClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
@@ -471,7 +471,7 @@ TReplicationWriter::TReplicationWriter(
     const TChunkId& chunkId,
     const TChunkReplicaList& initialTargets,
     TNodeDirectoryPtr nodeDirectory,
-    IClientPtr client,
+    INativeClientPtr client,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
     : Config_(config)
@@ -482,7 +482,7 @@ TReplicationWriter::TReplicationWriter(
     , NodeDirectory_(nodeDirectory)
     , Throttler_(throttler)
     , BlockCache_(blockCache)
-    , NetworkName_(client->GetConnection()->GetConfig()->NetworkName)
+    , NetworkName_(client->GetNativeConnection()->GetConfig()->NetworkName)
     , WindowSlots_(New<TAsyncSemaphore>(config->SendWindowSize))
     , UploadReplicationFactor_(Config_->UploadReplicationFactor)
     , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
@@ -1102,7 +1102,7 @@ IChunkWriterPtr CreateReplicationWriter(
     const TChunkId& chunkId,
     const TChunkReplicaList& targets,
     TNodeDirectoryPtr nodeDirectory,
-    IClientPtr client,
+    INativeClientPtr client,
     IBlockCachePtr blockCache,
     IThroughputThrottlerPtr throttler)
 {

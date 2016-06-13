@@ -22,8 +22,8 @@
 #include <yt/server/tablet_node/tablet.h>
 #include <yt/server/tablet_node/tablet_slot.h>
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/election/config.h>
@@ -105,7 +105,7 @@ void TMasterConnector::Start()
         MasterCellTags_.push_back(cellTag);
         YCHECK(ChunksDeltaMap_.insert(std::make_pair(cellTag, TChunksDelta())).second);
     };
-    auto connection = Bootstrap_->GetMasterClient()->GetConnection();
+    auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
     initializeCell(connection->GetPrimaryMasterCellTag());
     for (auto cellTag : connection->GetSecondaryMasterCellTags()) {
         initializeCell(cellTag);
@@ -227,7 +227,7 @@ void TMasterConnector::ScheduleJobHeartbeat()
     // adjust the period accordingly.
     auto period =
         Config_->IncrementalHeartbeatPeriod /
-        (1 + Bootstrap_->GetMasterClient()->GetConnection()->GetSecondaryMasterCellTags().size());
+        (1 + Bootstrap_->GetMasterClient()->GetNativeConnection()->GetSecondaryMasterCellTags().size());
     TDelayedExecutor::Submit(
         BIND(&TMasterConnector::SendJobHeartbeat, MakeStrong(this))
             .Via(HeartbeatInvoker_),
@@ -439,7 +439,7 @@ void TMasterConnector::SendNodeHeartbeat(TCellTag cellTag)
 
 bool TMasterConnector::CanSendFullNodeHeartbeat(TCellTag cellTag)
 {
-    auto connection = Bootstrap_->GetMasterClient()->GetConnection();
+    auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
     if (cellTag != connection->GetPrimaryMasterCellTag()) {
         return true;
     }
