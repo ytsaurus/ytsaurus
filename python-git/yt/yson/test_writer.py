@@ -5,7 +5,7 @@ from __future__ import absolute_import
 import unittest
 
 import yt.yson.writer
-from yt.yson import YsonUint64, YsonInt64
+from yt.yson import YsonUint64, YsonInt64, YsonEntity
 
 try:
     import yt_yson_bindings
@@ -19,12 +19,9 @@ class YsonWriterTestBase(object):
         raise NotImplementedError
 
     def test_slash(self):
-        self.assertTrue(
-            self.dumps({"key": "1\\"}, yson_format="text") in
-            [
-                '{"key"="1\\\\";}',
-                '{"key"="1\\\\"}',
-            ]
+        self.assertEqual(
+            self.dumps({"key": "1\\"}, yson_format="text"),
+            '{"key"="1\\\\";}',
         )
 
     def test_boolean(self):
@@ -48,6 +45,55 @@ class YsonWriterTestBase(object):
         self.assertRaises(Exception, lambda: self.dumps(-2 ** 63 - 1))
         self.assertRaises(Exception, lambda: self.dumps(YsonUint64(-2 ** 63)))
         self.assertRaises(Exception, lambda: self.dumps(YsonInt64(2 ** 63 + 1)))
+
+    def test_list_fragment_text(self):
+        self.assertEqual(
+            '"a";\n"b";\n"c";\n42;\n',
+            self.dumps(
+                ["a", "b", "c", 42],
+                yson_format="text",
+                yson_type="list_fragment"
+            )
+        )
+
+    def test_map_fragment_text(self):
+        self.assertEqual(
+            '"a"="b";\n"c"="d";\n',
+            self.dumps(
+                {"a": "b", "c": "d"},
+                yson_format="text",
+                yson_type="map_fragment"
+            )
+        )
+
+    def test_list_fragment_pretty(self):
+        self.assertEqual(
+            '"a";\n"b";\n"c";\n42;\n',
+            self.dumps(
+                ["a", "b", "c", 42],
+                yson_format="pretty",
+                yson_type="list_fragment"
+            )
+        )
+
+    def test_map_fragment_pretty(self):
+        self.assertEqual(
+            '"a" = "b";\n"c" = "d";\n',
+            self.dumps(
+                {"a": "b", "c": "d"},
+                yson_format="pretty",
+                yson_type="map_fragment"
+            )
+        )
+
+    def test_invalid_attributes(self):
+        obj = YsonEntity()
+
+        obj.attributes = None
+        self.assertEqual("#", self.dumps(obj))
+
+        obj.attributes = []
+        self.assertRaises(Exception, lambda: self.dumps(obj))
 
 
 class TestWriterDefault(unittest.TestCase, YsonWriterTestBase):
