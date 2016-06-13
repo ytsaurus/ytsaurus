@@ -1,5 +1,8 @@
 #include "fair_share_tree.h"
 
+#include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/profiling/scoped_timer.h>
@@ -939,6 +942,7 @@ TPool::TPool(
     TFairShareStrategyConfigPtr strategyConfig)
     : TCompositeSchedulerElement(host, strategyConfig)
     , TPoolFixedState(id)
+    , ProfilingTag_(NProfiling::TProfileManager::Get()->RegisterTag("pool", id))
 {
     SetDefaultConfig();
 }
@@ -1103,6 +1107,11 @@ TJobResources TPool::ComputeResourceLimits() const
     auto resourceLimits = GetHost()->GetResourceLimits(GetNodeTag()) * Config_->MaxShareRatio;
     auto perTypeLimits = ToJobResources(Config_->ResourceLimits);
     return Min(resourceLimits, perTypeLimits);
+}
+
+NProfiling::TTagId TPool::GetProfilingTag() const
+{
+    return ProfilingTag_;
 }
 
 ////////////////////////////////////////////////////////////////////

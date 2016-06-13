@@ -58,7 +58,7 @@ TJob::TJob(
     , StartTime_(startTime)
     , Restarted_(restarted)
     , HasPendingUnregistration_(false)
-    , State_(EJobState::Waiting)
+    , State_(EJobState::None)
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
     , SpecBuilder_(std::move(specBuilder))
@@ -136,6 +136,15 @@ TAbortedJobSummary::TAbortedJobSummary(const TJobPtr& job)
     : TJobSummary(job)
     , AbortReason(GetAbortReason(job->Status()->result()))
 { }
+
+////////////////////////////////////////////////////////////////////
+
+TRefCountedJobStatusPtr JobStatusFromError(const TError& error)
+{
+    auto status = New<TRefCountedJobStatus>();
+    ToProto(status->mutable_result()->mutable_error(), error);
+    return status;
+}
 
 ////////////////////////////////////////////////////////////////////
 
