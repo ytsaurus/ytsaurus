@@ -53,7 +53,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const TTableSchema& schema,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     NObjectClient::TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,

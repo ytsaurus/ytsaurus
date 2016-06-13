@@ -1,7 +1,7 @@
 #include "admin.h"
 #include "box.h"
 #include "config.h"
-#include "connection.h"
+#include "native_connection.h"
 #include "private.h"
 
 #include <yt/ytlib/hive/cell_directory.h>
@@ -27,15 +27,17 @@ using namespace NNodeTrackerClient;
 using namespace NHydra;
 using namespace NHiveClient;
 
-DECLARE_REFCOUNTED_CLASS(TAdmin)
+DECLARE_REFCOUNTED_CLASS(TNativeAdmin)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAdmin
+class TNativeAdmin
     : public IAdmin
 {
 public:
-    TAdmin(IConnectionPtr connection, const TAdminOptions& options)
+    TNativeAdmin(
+        INativeConnectionPtr connection,
+        const TAdminOptions& options)
         : Connection_(std::move(connection))
         , Options_(options)
         // NB: Cannot actually throw.
@@ -52,7 +54,7 @@ public:
         return Execute( \
             #method, \
             BIND( \
-                &TAdmin::Do ## method, \
+                &TNativeAdmin::Do ## method, \
                 MakeStrong(this), \
                 DROP_BRACES args)); \
     }
@@ -65,7 +67,7 @@ public:
         (options))
 
 private:
-    const IConnectionPtr Connection_;
+    const INativeConnectionPtr Connection_;
     const TAdminOptions Options_;
 
     const IChannelPtr LeaderChannel_;
@@ -135,11 +137,13 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TAdmin)
+DEFINE_REFCOUNTED_TYPE(TNativeAdmin)
 
-IAdminPtr CreateAdmin(IConnectionPtr connection, const TAdminOptions& options)
+IAdminPtr CreateNativeAdmin(
+    INativeConnectionPtr connection,
+    const TAdminOptions& options)
 {
-    return New<TAdmin>(std::move(connection), options);
+    return New<TNativeAdmin>(std::move(connection), options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

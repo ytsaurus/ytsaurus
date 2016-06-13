@@ -23,7 +23,7 @@ public:
         ITabletContext* tabletContext,
         NHydra::IHydraManagerPtr hydraManager,
         TInMemoryManagerPtr inMemoryManager,
-        NApi::IClientPtr client);
+        NApi::INativeClientPtr client);
 
     virtual TTablet* GetTablet() const override;
 
@@ -84,7 +84,7 @@ protected:
     ITabletContext* const TabletContext_;
     const NHydra::IHydraManagerPtr HydraManager_;
     const TInMemoryManagerPtr InMemoryManager_;
-    const NApi::IClientPtr Client_;
+    const NApi::INativeClientPtr Client_;
 
     bool RotationScheduled_ = false;
     TInstant LastRotated_;

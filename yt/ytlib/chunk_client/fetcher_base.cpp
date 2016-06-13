@@ -4,7 +4,7 @@
 #include "input_chunk.h"
 #include "config.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/native_client.h>
 
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 
@@ -34,7 +34,7 @@ public:
         const TChunkScraperConfigPtr config,
         const IInvokerPtr invoker,
         TThrottlerManagerPtr throttlerManager,
-        IClientPtr client,
+        INativeClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
         const NLogging::TLogger& logger = ChunkClientLogger)
         : Scraper_(
@@ -133,7 +133,7 @@ TScrapeChunksCallback CreateScrapeChunksSessionCallback(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
-    IClientPtr client,
+    INativeClientPtr client,
     TNodeDirectoryPtr nodeDirectory,
     const NLogging::TLogger& logger)
 {
@@ -155,7 +155,7 @@ TFetcherBase::TFetcherBase(
     TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
     TScrapeChunksCallback scraperCallback,
-    NApi::IClientPtr client,
+    INativeClientPtr client,
     const NLogging::TLogger& logger)
     : Config_(config)
     , NodeDirectory_(nodeDirectory)

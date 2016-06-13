@@ -36,7 +36,7 @@ TFuture<void> RepairErasedParts(
 std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
@@ -47,7 +47,7 @@ std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,

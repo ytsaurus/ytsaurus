@@ -6,7 +6,7 @@
 #include "operation_controller_detail.h"
 
 #include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/native_connection.h>
 
 #include <yt/ytlib/chunk_client/input_slice.h>
 
@@ -298,13 +298,13 @@ private:
         options.User = Operation->GetAuthenticatedUser();
 
         if (Spec_->ClusterConnection) {
-            auto connection = NApi::CreateConnection(*Spec_->ClusterConnection);
-            AuthenticatedInputMasterClient = connection->CreateClient(options);
+            auto connection = CreateNativeConnection(*Spec_->ClusterConnection);
+            AuthenticatedInputMasterClient = connection->CreateNativeClient(options);
         } else {
             AuthenticatedInputMasterClient = Host
                 ->GetClusterDirectory()
                 ->GetConnectionOrThrow(*Spec_->ClusterName)
-                ->CreateClient(options);
+                ->CreateNativeClient(options);
         }
     }
 
@@ -502,7 +502,7 @@ private:
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).Data());
 
         auto clusterDirectory = Host->GetClusterDirectory();
-        TConnectionConfigPtr connectionConfig;
+        TNativeConnectionConfigPtr connectionConfig;
         if (Spec_->ClusterConnection) {
             connectionConfig = *Spec_->ClusterConnection;
         } else {

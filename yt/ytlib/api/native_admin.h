@@ -1,0 +1,18 @@
+#pragma once
+
+#include "admin.h"
+
+namespace NYT {
+namespace NApi {
+
+///////////////////////////////////////////////////////////////////////////////
+
+IAdminPtr CreateNativeAdmin(
+    INativeConnectionPtr connection,
+    const TAdminOptions& options);
+
+///////////////////////////////////////////////////////////////////////////////
+
+} // namespace NApi
+} // namespace NYT
+

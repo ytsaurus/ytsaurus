@@ -481,7 +481,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     const TChunkId& chunkId,
     NErasure::ICodec* codec,
     TNodeDirectoryPtr nodeDirectory,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {

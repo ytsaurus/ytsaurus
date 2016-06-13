@@ -10,6 +10,7 @@
 #include "transaction_commands.h"
 
 #include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/native_connection.h>
 
 #include <yt/core/yson/null_consumer.h>
 
@@ -71,18 +72,18 @@ class TCachedClient
 public:
     TCachedClient(
         const Stroka& user,
-        IClientPtr client)
+        INativeClientPtr client)
         : TSyncCacheValueBase(user)
         , Client_(std::move(client))
     { }
 
-    IClientPtr GetClient()
+    INativeClientPtr GetClient()
     {
         return Client_;
     }
 
 private:
-    const IClientPtr Client_;
+    const INativeClientPtr Client_;
 };
 
 class TDriver;
@@ -99,7 +100,7 @@ public:
     {
         YCHECK(Config);
 
-        Connection_ = CreateConnection(Config);
+        Connection_ = CreateNativeConnection(Config);
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
@@ -194,7 +195,7 @@ public:
         if (!cachedClient) {
             TClientOptions options;
             options.User = user;
-            cachedClient = New<TCachedClient>(user, Connection_->CreateClient(options));
+            cachedClient = New<TCachedClient>(user, Connection_->CreateNativeClient(options));
 
             TryInsert(cachedClient, &cachedClient);
         }
@@ -242,7 +243,7 @@ private:
 
     const TDriverConfigPtr Config;
 
-    IConnectionPtr Connection_;
+    INativeConnectionPtr Connection_;
 
     struct TCommandEntry
     {
@@ -375,7 +376,7 @@ private:
             TDriverPtr driver,
             const TCommandDescriptor& descriptor,
             const TDriverRequest& request,
-            IClientPtr client)
+            INativeClientPtr client)
             : Driver_(driver)
             , Descriptor_(descriptor)
             , Request_(request)
@@ -387,7 +388,7 @@ private:
             return Driver_->Config;
         }
 
-        virtual IClientPtr GetClient() override
+        virtual INativeClientPtr GetClient() override
         {
             return Client_;
         }
@@ -472,7 +473,7 @@ private:
         TNullable<TFormat> InputFormat_;
         TNullable<TFormat> OutputFormat_;
 
-        IClientPtr Client_;
+        INativeClientPtr Client_;
 
     };
 };

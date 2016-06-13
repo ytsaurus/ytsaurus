@@ -923,7 +923,7 @@ class TRemoteCopyOperationSpec
 public:
     TNullable<Stroka> ClusterName;
     TNullable<Stroka> NetworkName;
-    TNullable<NApi::TConnectionConfigPtr> ClusterConnection;
+    TNullable<NApi::TNativeConnectionConfigPtr> ClusterConnection;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;
     TNullable<int> JobCount;

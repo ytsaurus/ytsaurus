@@ -52,7 +52,7 @@ struct TExternalCGInfo
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     const std::vector<Stroka>& functionNames,
     const Stroka& udfRegistryPath,
-    NApi::IClientPtr client);
+    NApi::INativeClientPtr client);
 
 void AppendUdfDescriptors(
     const TTypeInferrerMapPtr& typers,
@@ -73,12 +73,12 @@ struct IFunctionRegistry
 IFunctionRegistryPtr CreateFunctionRegistryCache(
     const Stroka& udfRegistryPath,
     TExpiringCacheConfigPtr config,
-    TWeakPtr<NApi::IClient> client,
+    TWeakPtr<NApi::INativeClient> client,
     IInvokerPtr invoker);
 
 TFunctionImplCachePtr CreateFunctionImplCache(
     const TSlruCacheConfigPtr& config,
-    TWeakPtr<NApi::IClient> client);
+    TWeakPtr<NApi::INativeClient> client);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -28,7 +28,7 @@ using namespace NRpc;
 
 TChunkListPool::TChunkListPool(
     TSchedulerConfigPtr config,
-    IClientPtr client,
+    INativeClientPtr client,
     IInvokerPtr controllerInvoker,
     const TOperationId& operationId,
     const TTransactionId& transactionId)

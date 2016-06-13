@@ -53,7 +53,7 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 
-#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/native_client.h>
 
 #include <yt/core/compression/codec.h>
 

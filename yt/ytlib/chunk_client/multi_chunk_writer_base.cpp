@@ -41,7 +41,7 @@ using NYT::FromProto;
 TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
-    IClientPtr client,
+    INativeClientPtr client,
     TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,

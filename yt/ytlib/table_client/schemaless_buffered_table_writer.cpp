@@ -86,7 +86,7 @@ public:
     TSchemalessBufferedTableWriter(
         TBufferedTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
-        IClientPtr client,
+        INativeClientPtr client,
         TNameTablePtr nameTable,
         const TYPath& path)
         : Config_(config)
@@ -164,7 +164,7 @@ public:
 private:
     const TBufferedTableWriterConfigPtr Config_;
     const TTableWriterOptionsPtr Options_;
-    const IClientPtr Client_;
+    const INativeClientPtr Client_;
     const TNameTablePtr NameTable_;
     const TYPath Path_;
 
@@ -281,7 +281,7 @@ private:
 ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
     TBufferedTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
-    IClientPtr client,
+    INativeClientPtr client,
     TNameTablePtr nameTable,
     const TYPath& path)
 {

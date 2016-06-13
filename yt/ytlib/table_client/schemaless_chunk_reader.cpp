@@ -655,7 +655,7 @@ TChunkReaderConfigPtr PatchConfig(TChunkReaderConfigPtr config, i64 memoryEstima
 std::vector<IReaderFactoryPtr> CreateReaderFactories(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    IClientPtr client,
+    INativeClientPtr client,
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
@@ -720,7 +720,7 @@ public:
     TSchemalessMultiChunkReader(
         TTableReaderConfigPtr config,
         TTableReaderOptionsPtr options,
-        IClientPtr client,
+        INativeClientPtr client,
         const TNodeDescriptor& localDescriptor,
         IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
@@ -763,7 +763,7 @@ template <class TBase>
 TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    IClientPtr client,
+    INativeClientPtr client,
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
@@ -863,7 +863,7 @@ TKeyColumns TSchemalessMultiChunkReader<TBase>::GetKeyColumns() const
 ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    IClientPtr client,
+    INativeClientPtr client,
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
@@ -897,7 +897,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
 ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    IClientPtr client,
+    INativeClientPtr client,
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
@@ -935,7 +935,7 @@ public:
     static ISchemalessMultiChunkReaderPtr Create(
         TTableReaderConfigPtr config,
         TTableReaderOptionsPtr options,
-        IClientPtr client,
+        INativeClientPtr client,
         const TNodeDescriptor& localDescriptor,
         IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
@@ -989,7 +989,7 @@ TSchemalessMergingMultiChunkReader::TSchemalessMergingMultiChunkReader(
 ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    IClientPtr client,
+    INativeClientPtr client,
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
@@ -1174,7 +1174,7 @@ TKeyColumns TSchemalessMergingMultiChunkReader::GetKeyColumns() const
 ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    IClientPtr client,
+    INativeClientPtr client,
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,

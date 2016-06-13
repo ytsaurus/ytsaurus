@@ -64,7 +64,7 @@ public:
     TSchemalessTableReader(
         TTableReaderConfigPtr config,
         TRemoteReaderOptionsPtr options,
-        IClientPtr client,
+        INativeClientPtr client,
         ITransactionPtr transaction,
         const TRichYPath& richPath,
         bool unordered);
@@ -87,7 +87,7 @@ public:
 private:
     const TTableReaderConfigPtr Config_;
     const TRemoteReaderOptionsPtr Options_;
-    const IClientPtr Client_;
+    const INativeClientPtr Client_;
     const ITransactionPtr Transaction_;
     const TRichYPath RichPath_;
 
@@ -109,7 +109,7 @@ private:
 TSchemalessTableReader::TSchemalessTableReader(
     TTableReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    IClientPtr client,
+    INativeClientPtr client,
     ITransactionPtr transaction,
     const TRichYPath& richPath,
     bool unordered)
@@ -379,7 +379,7 @@ void TSchemalessTableReader::RemoveUnavailableChunks(std::vector<TChunkSpec>* ch
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<ISchemalessMultiChunkReaderPtr> CreateTableReader(
-    IClientPtr client,
+    INativeClientPtr client,
     const NYPath::TRichYPath& path,
     const TTableReaderOptions& options)
 {

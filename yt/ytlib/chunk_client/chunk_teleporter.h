@@ -25,7 +25,7 @@ class TChunkTeleporter
 public:
     TChunkTeleporter(
         TChunkTeleporterConfigPtr config,
-        NApi::IClientPtr client,
+        NApi::INativeClientPtr client,
         IInvokerPtr invoker,
         const NTransactionClient::TTransactionId& transactionId,
         const NLogging::TLogger& logger);
@@ -38,7 +38,7 @@ public:
 
 private:
     const TChunkTeleporterConfigPtr Config_;
-    const NApi::IClientPtr Client_;
+    const NApi::INativeClientPtr Client_;
     const IInvokerPtr Invoker_;
     const NTransactionClient::TTransactionId TransactionId_;
 

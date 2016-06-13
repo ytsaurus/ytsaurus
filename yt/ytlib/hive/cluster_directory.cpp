@@ -3,7 +3,7 @@
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/native_connection.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -23,19 +23,19 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterDirectory::TClusterDirectory(IConnectionPtr selfConnection)
+TClusterDirectory::TClusterDirectory(INativeConnectionPtr selfConnection)
     : SelfConnection_(selfConnection)
-    , SelfClient_(SelfConnection_->CreateClient(TClientOptions(RootUserName)))
+    , SelfClient_(SelfConnection_->CreateNativeClient(TClientOptions(RootUserName)))
 { }
 
-IConnectionPtr TClusterDirectory::GetConnection(TCellTag cellTag) const
+INativeConnectionPtr TClusterDirectory::GetConnection(TCellTag cellTag) const
 {
     TGuard<TSpinLock> guard(Lock_);
     auto it = CellTagToCluster_.find(cellTag);
     return it == CellTagToCluster_.end() ? nullptr : it->second.Connection;
 }
 
-IConnectionPtr TClusterDirectory::GetConnectionOrThrow(TCellTag cellTag) const
+INativeConnectionPtr TClusterDirectory::GetConnectionOrThrow(TCellTag cellTag) const
 {
     auto connection = GetConnection(cellTag);
     if (!connection) {
@@ -44,14 +44,14 @@ IConnectionPtr TClusterDirectory::GetConnectionOrThrow(TCellTag cellTag) const
     return connection;
 }
 
-IConnectionPtr TClusterDirectory::GetConnection(const Stroka& clusterName) const
+INativeConnectionPtr TClusterDirectory::GetConnection(const Stroka& clusterName) const
 {
     TGuard<TSpinLock> guard(Lock_);
     auto it = NameToCluster_.find(clusterName);
     return it == NameToCluster_.end() ? nullptr : it->second.Connection;
 }
 
-IConnectionPtr TClusterDirectory::GetConnectionOrThrow(const Stroka& clusterName) const
+INativeConnectionPtr TClusterDirectory::GetConnectionOrThrow(const Stroka& clusterName) const
 {
     auto connection = GetConnection(clusterName);
     if (!connection) {
@@ -79,7 +79,7 @@ void TClusterDirectory::RemoveCluster(const Stroka& clusterName)
 
 void TClusterDirectory::UpdateCluster(
     const Stroka& clusterName,
-    TConnectionConfigPtr config)
+    TNativeConnectionConfigPtr config)
 {
     auto addNewCluster = [&] (const TCluster& cluster) {
         auto cellTag = GetCellTag(cluster);
@@ -113,12 +113,12 @@ void TClusterDirectory::UpdateSelf()
 
 TClusterDirectory::TCluster TClusterDirectory::CreateCluster(
     const Stroka& name,
-    TConnectionConfigPtr config) const
+    TNativeConnectionConfigPtr config) const
 {
     TCluster cluster;
     cluster.Name = name;
     cluster.Config = config;
-    cluster.Connection = CreateConnection(config);
+    cluster.Connection = CreateNativeConnection(config);
     return cluster;
 }
 

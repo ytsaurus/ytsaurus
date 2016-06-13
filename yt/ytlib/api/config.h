@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TConnectionConfig
+class TNativeConnectionConfig
     : public NChunkClient::TChunkTeleporterConfig
 {
 public:
@@ -95,11 +95,11 @@ public:
     int LightPoolSize;
     int HeavyPoolSize;
 
-    TConnectionConfig();
+    TNativeConnectionConfig();
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TConnectionConfig)
+DEFINE_REFCOUNTED_TYPE(TNativeConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,7 +114,16 @@ DEFINE_REFCOUNTED_TYPE(TFileReaderConfig)
 class TFileWriterConfig
     : public NChunkClient::TMultiChunkWriterConfig
     , public NFileClient::TFileChunkWriterConfig
-{ };
+{
+public:
+    TDuration UploadTransactionTimeout;
+
+    TFileWriterConfig()
+    {
+        RegisterParameter("upload_transaction_timeout", UploadTransactionTimeout)
+            .Default(TDuration::Seconds(15));
+    }
+};
 
 DEFINE_REFCOUNTED_TYPE(TFileWriterConfig)
 
@@ -152,6 +161,8 @@ public:
     TDuration MaxChunkSessionDuration;
 
     NRpc::TRetryingChannelConfigPtr NodeChannel;
+
+    TDuration UploadTransactionTimeout;
 
     TJournalWriterConfig()
     {
@@ -191,6 +202,9 @@ public:
 
         RegisterParameter("node_channel", NodeChannel)
             .DefaultNew();
+
+        RegisterParameter("upload_transaction_timeout", UploadTransactionTimeout)
+            .Default(TDuration::Seconds(15));
     }
 };
 

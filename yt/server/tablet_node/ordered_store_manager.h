@@ -25,7 +25,7 @@ public:
         ITabletContext* tabletContext,
         NHydra::IHydraManagerPtr hydraManager = nullptr,
         TInMemoryManagerPtr inMemoryManager = nullptr,
-        NApi::IClientPtr client = nullptr);
+        NApi::INativeClientPtr client = nullptr);
 
     // IStoreManager overrides.
     virtual void ExecuteAtomicWrite(

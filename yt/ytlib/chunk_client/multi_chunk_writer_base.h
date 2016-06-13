@@ -27,7 +27,7 @@ public:
     TNontemplateMultiChunkWriterBase(
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
-        NApi::IClientPtr client,
+        NApi::INativeClientPtr client,
         NObjectClient::TCellTag cellTag,
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
@@ -82,7 +82,7 @@ private:
 
     const TMultiChunkWriterConfigPtr Config_;
     const TMultiChunkWriterOptionsPtr Options_;
-    const NApi::IClientPtr Client_;
+    const NApi::INativeClientPtr Client_;
     const NObjectClient::TCellTag CellTag_;
     const NTransactionClient::TTransactionId TransactionId_;
     const TChunkListId ParentChunkListId_;
@@ -124,7 +124,7 @@ public:
     TMultiChunkWriterBase(
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
-        NApi::IClientPtr client,
+        NApi::INativeClientPtr client,
         NObjectClient::TCellTag cellTag,
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,

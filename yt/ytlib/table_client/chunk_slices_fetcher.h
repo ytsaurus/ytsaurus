@@ -26,9 +26,8 @@ public:
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
         NChunkClient::TScrapeChunksCallback scraperCallback,
-        NApi::IClientPtr client,
+        NApi::INativeClientPtr client,
         const NLogging::TLogger& logger);
-
 
     virtual TFuture<void> Fetch() override;
     std::vector<NChunkClient::TInputSlicePtr> GetChunkSlices();

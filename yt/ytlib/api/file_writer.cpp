@@ -56,7 +56,7 @@ class TFileWriter
 {
 public:
     TFileWriter(
-        IClientPtr client,
+        INativeClientPtr client,
         const TYPath& path,
         const TFileWriterOptions& options)
         : Client_(client)
@@ -95,7 +95,7 @@ public:
     }
 
 private:
-    const IClientPtr Client_;
+    const INativeClientPtr Client_;
     const TYPath Path_;
     const TFileWriterOptions Options_;
     const TFileWriterConfigPtr Config_;
@@ -197,7 +197,7 @@ private:
                 req->set_update_mode(static_cast<int>(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
                 req->set_lock_mode(static_cast<int>(Options_.Append ? ELockMode::Shared : ELockMode::Exclusive));
                 req->set_upload_transaction_title(Format("Upload to %v", Path_));
-                req->set_upload_transaction_timeout(ToProto(Client_->GetConnection()->GetConfig()->TransactionManager->DefaultTransactionTimeout));
+                req->set_upload_transaction_timeout(ToProto(Config_->UploadTransactionTimeout));
                 GenerateMutationId(req);
                 SetTransactionId(req, Transaction_);
                 batchReq->AddRequest(req, "begin_upload");
@@ -323,7 +323,7 @@ private:
 };
 
 IFileWriterPtr CreateFileWriter(
-    IClientPtr client,
+    INativeClientPtr client,
     const TYPath& path,
     const TFileWriterOptions& options)
 {

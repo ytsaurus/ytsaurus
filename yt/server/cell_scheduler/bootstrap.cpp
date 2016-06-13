@@ -13,8 +13,8 @@
 #include <yt/server/scheduler/scheduler.h>
 #include <yt/server/scheduler/scheduler_service.h>
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cluster_directory.h>
@@ -117,13 +117,13 @@ void TBootstrap::DoRun()
     LOG_INFO("Starting scheduler (MasterAddresses: %v)",
         Config_->ClusterConnection->PrimaryMaster->Addresses);
 
-    TConnectionOptions connectionOptions;
+    TNativeConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
-    auto connection = CreateConnection(Config_->ClusterConnection, connectionOptions);
+    auto connection = CreateNativeConnection(Config_->ClusterConnection, connectionOptions);
 
     TClientOptions clientOptions;
     clientOptions.User = NSecurityClient::SchedulerUserName;
-    MasterClient_ = connection->CreateClient(clientOptions);
+    MasterClient_ = connection->CreateNativeClient(clientOptions);
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
@@ -134,7 +134,7 @@ void TBootstrap::DoRun()
         Config_->BusServer->BindRetryCount,
         Config_->BusServer->BindRetryBackoff));
 
-    ClusterDirectory_ = New<TClusterDirectory>(MasterClient_->GetConnection());
+    ClusterDirectory_ = New<TClusterDirectory>(MasterClient_->GetNativeConnection());
 
     Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
 
@@ -205,7 +205,7 @@ TCellSchedulerConfigPtr TBootstrap::GetConfig() const
     return Config_;
 }
 
-IClientPtr TBootstrap::GetMasterClient() const
+INativeClientPtr TBootstrap::GetMasterClient() const
 {
     return MasterClient_;
 }

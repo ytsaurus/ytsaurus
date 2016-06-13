@@ -32,6 +32,7 @@
 #include <yt/ytlib/transaction_client/transaction_ypath.pb.h>
 
 #include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/native_connection.h>
 
 #include <yt/core/concurrency/action_queue.h>
 
@@ -1272,7 +1273,7 @@ void TOperationControllerBase::CheckTransactions()
 
 ITransactionPtr TOperationControllerBase::StartTransaction(
     const Stroka& transactionName,
-    IClientPtr client,
+    INativeClientPtr client,
     const TNullable<TTransactionId>& parentTransactionId = Null)
 {
     LOG_INFO("Starting %v transaction", transactionName);
@@ -1361,7 +1362,7 @@ void TOperationControllerBase::StartOutputTransaction(const TTransactionId& pare
 
 void TOperationControllerBase::PickIntermediateDataCell()
 {
-    auto connection = AuthenticatedOutputMasterClient->GetConnection();
+    auto connection = AuthenticatedOutputMasterClient->GetNativeConnection();
     const auto& secondaryCellTags = connection->GetSecondaryMasterCellTags();
     IntermediateOutputCellTag = secondaryCellTags.empty()
         ? connection->GetPrimaryMasterCellTag()
@@ -2671,7 +2672,7 @@ bool TOperationControllerBase::IsFinished() const
 void TOperationControllerBase::CreateLivePreviewTables()
 {
     auto client = Host->GetMasterClient();
-    auto connection = client->GetConnection();
+    auto connection = client->GetNativeConnection();
 
     // NB: use root credentials.
     auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
@@ -4177,14 +4178,14 @@ NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateIntermediat
     return options;
 }
 
-IClientPtr TOperationControllerBase::CreateClient()
+INativeClientPtr TOperationControllerBase::CreateClient()
 {
     TClientOptions options;
     options.User = Operation->GetAuthenticatedUser();
     return Host
         ->GetMasterClient()
-        ->GetConnection()
-        ->CreateClient(options);
+        ->GetNativeConnection()
+        ->CreateNativeClient(options);
 }
 
 void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const Stroka& operation)

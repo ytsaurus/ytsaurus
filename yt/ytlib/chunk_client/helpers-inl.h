@@ -4,7 +4,7 @@
 
 #include "private.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/native_client.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -24,7 +24,7 @@ namespace NChunkClient {
 
 template <class T>
 void GetUserObjectBasicAttributes(
-    NApi::IClientPtr client, 
+    NApi::INativeClientPtr client,
     TMutableRange<T> objects,
     const NObjectClient::TTransactionId& transactionId,
     const NLogging::TLogger& logger,

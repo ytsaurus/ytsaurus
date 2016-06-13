@@ -40,7 +40,7 @@ TChunkSliceFetcher::TChunkSliceFetcher(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
     TScrapeChunksCallback scraperCallback,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     const NLogging::TLogger& logger)
     : TFetcherBase(config, nodeDirectory, invoker, scraperCallback, client, logger)
     , ChunkSliceSize_(chunkSliceSize)

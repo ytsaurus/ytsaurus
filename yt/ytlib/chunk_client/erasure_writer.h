@@ -31,7 +31,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     const TChunkId& chunkId,
     NErasure::ICodec* codec,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     IBlockCachePtr blockCache = GetNullBlockCache());
 

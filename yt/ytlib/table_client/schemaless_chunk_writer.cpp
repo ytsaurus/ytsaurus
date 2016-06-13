@@ -605,7 +605,7 @@ public:
     TSchemalessMultiChunkWriter(
         TMultiChunkWriterConfigPtr config,
         TTableWriterOptionsPtr options,
-        IClientPtr client,
+        INativeClientPtr client,
         TCellTag cellTag,
         const TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
@@ -764,7 +764,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     TOwningKey lastKey,
-    IClientPtr client,
+    INativeClientPtr client,
     TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
@@ -821,7 +821,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TTableWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    IClientPtr client,
+    INativeClientPtr client,
     TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
@@ -883,7 +883,7 @@ public:
         TTableWriterOptionsPtr options,
         const TRichYPath& richPath,
         TNameTablePtr nameTable,
-        IClientPtr client,
+        INativeClientPtr client,
         ITransactionPtr transaction,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache);
@@ -903,7 +903,7 @@ private:
     const TTableWriterOptionsPtr Options_;
     const TRichYPath RichPath_;
     const TNameTablePtr NameTable_;
-    const IClientPtr Client_;
+    const INativeClientPtr Client_;
     const ITransactionPtr Transaction_;
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
@@ -936,7 +936,7 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
-    IClientPtr client,
+    INativeClientPtr client,
     ITransactionPtr transaction,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
@@ -1114,7 +1114,7 @@ void TSchemalessTableWriter::DoOpen()
             req->set_update_mode(static_cast<int>(append ? EUpdateMode::Append : EUpdateMode::Overwrite));
             req->set_lock_mode(static_cast<int>((append && !sorted) ? ELockMode::Shared : ELockMode::Exclusive));
             req->set_upload_transaction_title(Format("Upload to %v", path));
-            req->set_upload_transaction_timeout(ToProto(Client_->GetConnection()->GetConfig()->TransactionManager->DefaultTransactionTimeout));
+            req->set_upload_transaction_timeout(ToProto(Config_->UploadTransactionTimeout));
             SetTransactionId(req, Transaction_);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "begin_upload");
@@ -1260,7 +1260,7 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
     TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
-    IClientPtr client,
+    INativeClientPtr client,
     ITransactionPtr transaction,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)

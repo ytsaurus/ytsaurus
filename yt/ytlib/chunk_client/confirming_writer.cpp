@@ -10,8 +10,8 @@
 #include "chunk_service_proxy.h"
 #include "helpers.h"
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -53,7 +53,7 @@ public:
         const TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
         TNodeDirectoryPtr nodeDirectory,
-        IClientPtr client,
+        INativeClientPtr client,
         IBlockCachePtr blockCache,
         IThroughputThrottlerPtr throttler);
 
@@ -81,7 +81,7 @@ private:
     const TTransactionId TransactionId_;
     const TChunkListId ParentChunkListId_;
     const TNodeDirectoryPtr NodeDirectory_;
-    const IClientPtr Client_;
+    const INativeClientPtr Client_;
     const IBlockCachePtr BlockCache_;
     const IThroughputThrottlerPtr Throttler_;
 
@@ -112,7 +112,7 @@ TConfirmingWriter::TConfirmingWriter(
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     TNodeDirectoryPtr nodeDirectory,
-    IClientPtr client,
+    INativeClientPtr client,
     IBlockCachePtr blockCache,
     IThroughputThrottlerPtr throttler)
     : Config_(config)
@@ -349,7 +349,7 @@ IChunkWriterPtr CreateConfirmingWriter(
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    IClientPtr client,
+    INativeClientPtr client,
     IBlockCachePtr blockCache,
     IThroughputThrottlerPtr throttler)
 {

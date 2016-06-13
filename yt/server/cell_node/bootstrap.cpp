@@ -53,8 +53,8 @@
 
 #include <yt/server/hive/cell_directory_synchronizer.h>
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
@@ -185,9 +185,9 @@ void TBootstrap::DoRun()
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving footprint memory");
     }
 
-    MasterConnection = CreateConnection(Config->ClusterConnection);
+    MasterConnection = CreateNativeConnection(Config->ClusterConnection);
 
-    MasterClient = MasterConnection->CreateClient(TClientOptions(NSecurityClient::RootUserName));
+    MasterClient = MasterConnection->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
 
     CellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
         Config->CellDirectorySynchronizer,
@@ -502,7 +502,7 @@ IInvokerPtr TBootstrap::GetQueryPoolInvoker() const
     return QueryThreadPool->GetInvoker();
 }
 
-IClientPtr TBootstrap::GetMasterClient() const
+INativeClientPtr TBootstrap::GetMasterClient() const
 {
     return MasterClient;
 }

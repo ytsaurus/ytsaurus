@@ -3,9 +3,9 @@
 #include "config.h"
 #include "file_chunk_writer.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_replica.h>
@@ -42,7 +42,7 @@ using namespace NApi;
 TFileChunkOutput::TFileChunkOutput(
     TFileWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
-    NApi::IClientPtr client,
+    INativeClientPtr client,
     const TTransactionId& transactionId,
     i64 sizeLimit)
     : Config_(config)
@@ -55,7 +55,7 @@ TFileChunkOutput::TFileChunkOutput(
     YCHECK(Config_);
     YCHECK(Client_);
 
-    auto connection = Client_->GetConnection();
+    auto connection = Client_->GetNativeConnection();
     const auto& secondaryCellTags = connection->GetSecondaryMasterCellTags();
     auto cellTag = secondaryCellTags.empty()
         ? connection->GetPrimaryMasterCellTag()

@@ -30,7 +30,7 @@ struct IJournalReader
 DEFINE_REFCOUNTED_TYPE(IJournalReader)
 
 IJournalReaderPtr CreateJournalReader(
-    IClientPtr client,
+    INativeClientPtr client,
     const NYPath::TYPath& path,
     const TJournalReaderOptions& options = TJournalReaderOptions());
 

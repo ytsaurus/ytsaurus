@@ -27,7 +27,7 @@ struct IFileReader
 DEFINE_REFCOUNTED_TYPE(IFileReader)
 
 IFileReaderPtr CreateFileReader(
-    IClientPtr client,
+    INativeClientPtr client,
     const NYPath::TYPath& path,
     const TFileReaderOptions& options);
 

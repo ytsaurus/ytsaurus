@@ -11,7 +11,8 @@
 
 #include <yt/server/job_agent/job_controller.h>
 
-#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
@@ -89,7 +90,7 @@ void TSchedulerConnector::SendHeartbeat()
     auto req = proxy.Heartbeat();
 
     auto jobController = Bootstrap_->GetJobController();
-    auto masterConnection = client->GetConnection();
+    auto masterConnection = client->GetNativeConnection();
     jobController->PrepareHeartbeatRequest(
         masterConnection->GetPrimaryMasterCellTag(),
         EObjectType::SchedulerJob,

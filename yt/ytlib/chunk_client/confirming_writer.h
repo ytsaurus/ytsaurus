@@ -25,7 +25,7 @@ IChunkWriterPtr CreateConfirmingWriter(
     const NTransactionClient::TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     IBlockCachePtr blockCache = GetNullBlockCache(),
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 

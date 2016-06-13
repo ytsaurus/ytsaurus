@@ -51,7 +51,7 @@ public:
     TCellNodeConfigPtr GetConfig() const;
     IInvokerPtr GetControlInvoker() const;
     IInvokerPtr GetQueryPoolInvoker() const;
-    NApi::IClientPtr GetMasterClient() const;
+    NApi::INativeClientPtr GetMasterClient() const;
     NRpc::IServerPtr GetRpcServer() const;
     NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
@@ -101,8 +101,8 @@ private:
     NConcurrency::TThreadPoolPtr QueryThreadPool;
 
     NBus::IBusServerPtr BusServer;
-    NApi::IConnectionPtr MasterConnection;
-    NApi::IClientPtr MasterClient;
+    NApi::INativeConnectionPtr MasterConnection;
+    NApi::INativeClientPtr MasterClient;
     NHiveServer::TCellDirectorySynchronizerPtr CellDirectorySynchronizer;
     NRpc::IServerPtr RpcServer;
     std::unique_ptr<NHttp::TServer> HttpServer;

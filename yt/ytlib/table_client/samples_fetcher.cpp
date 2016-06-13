@@ -51,13 +51,19 @@ TSamplesFetcher::TSamplesFetcher(
     TFetcherConfigPtr config,
     i64 desiredSampleCount,
     const TKeyColumns& keyColumns,
-    i32 maxSampleSize,
+    int maxSampleSize,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
     TScrapeChunksCallback scraperCallback,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     const NLogging::TLogger& logger)
-    : TFetcherBase(config, nodeDirectory, invoker, scraperCallback, client, logger)
+    : TFetcherBase(
+        config,
+        nodeDirectory,
+        invoker,
+        scraperCallback,
+        client,
+        logger)
     , KeyColumns_(keyColumns)
     , DesiredSampleCount_(desiredSampleCount)
     , MaxSampleSize_(maxSampleSize)

@@ -59,7 +59,7 @@ DEFINE_REFCOUNTED_TYPE(IFileMultiChunkWriter)
 IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     NApi::TFileWriterConfigPtr config,
     NChunkClient::TMultiChunkWriterOptionsPtr options,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     NObjectClient::TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId,

@@ -33,7 +33,7 @@ struct IJournalWriter
 DEFINE_REFCOUNTED_TYPE(IJournalWriter)
 
 IJournalWriterPtr CreateJournalWriter(
-    IClientPtr client,
+    INativeClientPtr client,
     const NYPath::TYPath& path,
     const TJournalWriterOptions& options = TJournalWriterOptions());
 

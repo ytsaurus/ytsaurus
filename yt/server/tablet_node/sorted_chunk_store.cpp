@@ -154,7 +154,7 @@ TSortedChunkStore::TSortedChunkStore(
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,
     TChunkBlockManagerPtr chunkBlockManager,
-    IClientPtr client,
+    INativeClientPtr client,
     const TNodeDescriptor& localDescriptor)
     : TStoreBase(config, id, tablet)
     , TChunkStoreBase(

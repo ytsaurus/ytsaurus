@@ -321,7 +321,7 @@ private:
 IFileReaderPtr CreateFileMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,

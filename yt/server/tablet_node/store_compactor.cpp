@@ -17,8 +17,8 @@
 #include <yt/server/hydra/hydra_manager.h>
 #include <yt/server/hydra/mutation.h>
 
-#include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>

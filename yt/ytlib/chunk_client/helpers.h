@@ -29,7 +29,7 @@ namespace NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 NChunkClient::TChunkId CreateChunk(
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     NObjectClient::TCellTag cellTag,
     TMultiChunkWriterOptionsPtr options,
     const NObjectClient::TTransactionId& transactionId,
@@ -40,7 +40,7 @@ NChunkClient::TChunkId CreateChunk(
 //! issues additional |LocateChunks| requests for foreign chunks.
 //! The resulting chunk specs are appended to #chunkSpecs.
 void ProcessFetchResponse(
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     TChunkOwnerYPathProxy::TRspFetchPtr fetchResponse,
     NObjectClient::TCellTag fetchCellTag,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -52,7 +52,7 @@ void ProcessFetchResponse(
 //! Populates #nodeDirectory with the returned node descriptors.
 //! Throws if the server returns no replicas.
 TChunkReplicaList AllocateWriteTargets(
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     const TChunkId& chunkId,
     int desiredTargetCount,
     int minTargetCount,
@@ -80,7 +80,7 @@ IChunkReaderPtr CreateRemoteReader(
     const NProto::TChunkSpec& chunkSpec, 
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
@@ -90,7 +90,7 @@ IChunkReaderPtr CreateRemoteReader(
     const TChunkId& chunkId, 
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     NConcurrency::IThroughputThrottlerPtr throttler);
@@ -109,7 +109,7 @@ struct TUserObject
 
 template <class T>
 void GetUserObjectBasicAttributes(
-    NApi::IClientPtr client, 
+    NApi::INativeClientPtr client,
     TMutableRange<T> objects,
     const NObjectClient::TTransactionId& transactionId,
     const NLogging::TLogger& logger,

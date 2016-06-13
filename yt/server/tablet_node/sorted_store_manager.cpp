@@ -58,7 +58,7 @@ TSortedStoreManager::TSortedStoreManager(
     ITabletContext* tabletContext,
     NHydra::IHydraManagerPtr hydraManager,
     TInMemoryManagerPtr inMemoryManager,
-    IClientPtr client)
+    INativeClientPtr client)
     : TStoreManagerBase(
         std::move(config),
         tablet,

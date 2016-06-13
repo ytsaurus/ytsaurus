@@ -32,7 +32,7 @@ public:
     TFileChunkOutput(
         NApi::TFileWriterConfigPtr config,
         NChunkClient::TMultiChunkWriterOptionsPtr options,
-        NApi::IClientPtr client,
+        NApi::INativeClientPtr client,
         const NObjectClient::TTransactionId& transactionId,
         i64 sizeLimit = std::numeric_limits<i64>::max());
 
@@ -53,14 +53,12 @@ private:
 
     const NApi::TFileWriterConfigPtr Config_;
     const NChunkClient::TMultiChunkWriterOptionsPtr Options_;
-
-    NApi::IClientPtr Client_;
-    NObjectClient::TTransactionId TransactionId_;
+    const NApi::INativeClientPtr Client_;
+    const NObjectClient::TTransactionId TransactionId_;
+    const i64 SizeLimit_;
 
     NChunkClient::IChunkWriterPtr ConfirmingChunkWriter_;
     IFileChunkWriterPtr FileChunkWriter_;
-
-    const i64 SizeLimit_;
 
     NLogging::TLogger Logger;
 };

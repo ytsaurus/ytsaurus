@@ -39,14 +39,12 @@ namespace NScheduler {
 
 struct IOperationHost
 {
-    virtual ~IOperationHost()
-    { }
-
+    virtual ~IOperationHost() = default;
 
     /*!
      *  \note Thread affinity: any
      */
-    virtual NApi::IClientPtr GetMasterClient() = 0;
+    virtual NApi::INativeClientPtr GetMasterClient() = 0;
 
     /*!
      *  \note Thread affinity: any

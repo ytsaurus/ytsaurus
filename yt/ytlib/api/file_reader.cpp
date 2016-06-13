@@ -44,7 +44,7 @@ class TFileReader
 {
 public:
     TFileReader(
-        IClientPtr client,
+        INativeClientPtr client,
         const TYPath& path,
         const TFileReaderOptions& options)
         : Client_(client)
@@ -88,7 +88,7 @@ public:
     }
 
 private:
-    const IClientPtr Client_;
+    const INativeClientPtr Client_;
     const TYPath Path_;
     const TFileReaderOptions Options_;
     const TFileReaderConfigPtr Config_;
@@ -191,7 +191,7 @@ private:
 };
 
 IFileReaderPtr CreateFileReader(
-    IClientPtr client,
+    INativeClientPtr client,
     const TYPath& path,
     const TFileReaderOptions& options)
 {

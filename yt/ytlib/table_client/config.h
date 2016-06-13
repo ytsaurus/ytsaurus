@@ -117,7 +117,16 @@ DEFINE_REFCOUNTED_TYPE(TTableWriterOptions)
 class TTableWriterConfig
     : public TChunkWriterConfig
     , public NChunkClient::TMultiChunkWriterConfig
-{ };
+{
+public:
+    TDuration UploadTransactionTimeout;
+
+    TTableWriterConfig()
+    {
+        RegisterParameter("upload_transaction_timeout", UploadTransactionTimeout)
+            .Default(TDuration::Seconds(15));
+    }
+};
 
 DEFINE_REFCOUNTED_TYPE(TTableWriterConfig)
 

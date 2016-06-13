@@ -39,6 +39,7 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NFileClient;
+using namespace NApi;
 
 using NObjectClient::TObjectServiceProxy;
 using NYT::FromProto;
@@ -133,7 +134,7 @@ Stroka GetUdfDescriptorPath(const TYPath& registryPath, const Stroka& functionNa
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     const std::vector<Stroka>& functionNames,
     const Stroka& udfRegistryPath,
-    NApi::IClientPtr client)
+    INativeClientPtr client)
 {
     using NObjectClient::TObjectYPathProxy;
     using NApi::EMasterChannelKind;
@@ -360,7 +361,7 @@ public:
     TCypressFunctionRegistry(
         const Stroka& registryPath,
         TExpiringCacheConfigPtr config,
-        TWeakPtr<NApi::IClient> client,
+        TWeakPtr<INativeClient> client,
         IInvokerPtr invoker)
         : TBase(config)
         , RegistryPath_(registryPath)
@@ -389,9 +390,9 @@ public:
     }
 
 private:
-    Stroka RegistryPath_;
-    TWeakPtr<NApi::IClient> Client_;
-    IInvokerPtr Invoker_;
+    const Stroka RegistryPath_;
+    const TWeakPtr<INativeClient> Client_;
+    const IInvokerPtr Invoker_;
 
 };
 
@@ -402,10 +403,14 @@ private:
 IFunctionRegistryPtr CreateFunctionRegistryCache(
     const Stroka& registryPath,
     TExpiringCacheConfigPtr config,
-    TWeakPtr<NApi::IClient> client,
+    TWeakPtr<INativeClient> client,
     IInvokerPtr invoker)
 {
-    return New<TCypressFunctionRegistry>(registryPath, std::move(config), std::move(client), std::move(invoker));
+    return New<TCypressFunctionRegistry>(
+        registryPath,
+        std::move(config),
+        std::move(client),
+        std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -486,7 +491,7 @@ class TFunctionImplCache
 public:
     TFunctionImplCache(
         const TSlruCacheConfigPtr& config,
-        TWeakPtr<NApi::IClient> client)
+        TWeakPtr<INativeClient> client)
         : TAsyncSlruCacheBase(config)
         , Client_(client)
     { }
@@ -552,7 +557,7 @@ public:
     }
 
 private:
-    TWeakPtr<NApi::IClient> Client_;
+    const TWeakPtr<INativeClient> Client_;
 
 };
 
@@ -560,7 +565,7 @@ DEFINE_REFCOUNTED_TYPE(TFunctionImplCache)
 
 TFunctionImplCachePtr CreateFunctionImplCache(
     const TSlruCacheConfigPtr& config,
-    TWeakPtr<NApi::IClient> client)
+    TWeakPtr<INativeClient> client)
 {
     return New<TFunctionImplCache>(config, client);
 }

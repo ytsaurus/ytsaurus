@@ -7,9 +7,9 @@
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/config.h>
-#include <yt/ytlib/api/connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
@@ -107,7 +107,7 @@ public:
     TReplicationReader(
         TReplicationReaderConfigPtr config,
         TRemoteReaderOptionsPtr options,
-        IClientPtr client,
+        INativeClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
         const TNodeDescriptor& localDescriptor,
         const TChunkId& chunkId,
@@ -122,7 +122,7 @@ public:
         , ChunkId_(chunkId)
         , BlockCache_(blockCache)
         , Throttler_(throttler)
-        , NetworkName_(client->GetConnection()->GetConfig()->NetworkName)
+        , NetworkName_(client->GetNativeConnection()->GetConfig()->NetworkName)
         , InitialSeedReplicas_(seedReplicas)
         , SeedsTimestamp_(TInstant::Zero())
     {
@@ -178,7 +178,7 @@ private:
 
     const TReplicationReaderConfigPtr Config_;
     const TRemoteReaderOptionsPtr Options_;
-    const IClientPtr Client_;
+    const INativeClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const TNodeDescriptor LocalDescriptor_;
     const TChunkId ChunkId_;
@@ -1513,7 +1513,7 @@ TFuture<TChunkMeta> TReplicationReader::GetMeta(
 IChunkReaderPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    IClientPtr client,
+    INativeClientPtr client,
     TNodeDirectoryPtr nodeDirectory,
     const TNodeDescriptor& localDescriptor,
     const TChunkId& chunkId,

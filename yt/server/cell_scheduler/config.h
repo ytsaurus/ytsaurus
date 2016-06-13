@@ -23,7 +23,7 @@ public:
     TDuration OrchidCacheUpdatePeriod;
 
     //! Node-to-master connection.
-    NApi::TConnectionConfigPtr ClusterConnection;
+    NApi::TNativeConnectionConfigPtr ClusterConnection;
 
     NScheduler::TSchedulerConfigPtr Scheduler;
 

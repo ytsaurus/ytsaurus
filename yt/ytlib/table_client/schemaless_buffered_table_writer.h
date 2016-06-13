@@ -16,7 +16,7 @@ namespace NTableClient {
 ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
     TBufferedTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
-    NApi::IClientPtr client,
+    NApi::INativeClientPtr client,
     TNameTablePtr nameTable,
     const NYPath::TYPath& path);
 
