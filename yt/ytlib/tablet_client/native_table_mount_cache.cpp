@@ -160,11 +160,12 @@ void TTableMountInfo::ValidateDynamic() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableMountCache::TImpl
-    : public TExpiringCache<TYPath, TTableMountInfoPtr>
+class TTableMountCache
+    : public ITableMountCache
+    , public TExpiringCache<TYPath, TTableMountInfoPtr>
 {
 public:
-    TImpl(
+    TTableMountCache(
         TTableMountCacheConfigPtr config,
         IChannelPtr masterChannel,
         TCellDirectoryPtr cellDirectory)
@@ -174,17 +175,17 @@ public:
         , ObjectProxy_(masterChannel)
     { }
 
-    TFuture<TTableMountInfoPtr> GetTableInfo(const TYPath& path)
+    virtual TFuture<TTableMountInfoPtr> GetTableInfo(const TYPath& path) override
     {
         return TExpiringCache::Get(path);
     }
 
-    TTabletInfoPtr FindTablet(const TTabletId& tabletId)
+    virtual TTabletInfoPtr FindTablet(const TTabletId& tabletId) override
     {
         return TabletCache_.Find(tabletId);
     }
 
-    void InvalidateTablet(TTabletInfoPtr tabletInfo)
+    virtual void InvalidateTablet(TTabletInfoPtr tabletInfo) override
     {
         for (const auto& weakOwner : tabletInfo->Owners) {
             if (auto owner = weakOwner.Lock()) {
@@ -193,7 +194,7 @@ public:
         }
     }
 
-    void Clear()
+    virtual void Clear()
     {
         TExpiringCache::Clear();
         LOG_DEBUG("Table mount info cache cleared");
@@ -302,38 +303,15 @@ private:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-TTableMountCache::TTableMountCache(
+ITableMountCachePtr CreateNativeTableMountCache(
     TTableMountCacheConfigPtr config,
     IChannelPtr masterChannel,
     TCellDirectoryPtr cellDirectory)
-    : Impl_(New<TImpl>(
-        config,
-        masterChannel,
-        cellDirectory))
-{ }
-
-TTableMountCache::~TTableMountCache() = default;
-
-TFuture<TTableMountInfoPtr> TTableMountCache::GetTableInfo(const TYPath& path)
 {
-    return Impl_->GetTableInfo(path);
-}
-
-TTabletInfoPtr TTableMountCache::FindTablet(const TTabletId& tabletId)
-{
-    return Impl_->FindTablet(tabletId);
-}
-
-void TTableMountCache::InvalidateTablet(TTabletInfoPtr tabletInfo)
-{
-    Impl_->InvalidateTablet(std::move(tabletInfo));
-}
-
-void TTableMountCache::Clear()
-{
-    Impl_->Clear();
+    return New<TTableMountCache>(
+        std::move(config),
+        std::move(masterChannel),
+        std::move(cellDirectory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

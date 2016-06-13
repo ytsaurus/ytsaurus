@@ -52,7 +52,7 @@ DEFINE_ENUM(EMasterChannelKind,
 struct IConnection
     : public virtual TRefCounted
 {
-    virtual NTabletClient::TTableMountCachePtr GetTableMountCache() = 0;
+    virtual NTabletClient::ITableMountCachePtr GetTableMountCache() = 0;
 
     virtual IInvokerPtr GetLightInvoker() = 0;
     virtual IInvokerPtr GetHeavyInvoker() = 0;
