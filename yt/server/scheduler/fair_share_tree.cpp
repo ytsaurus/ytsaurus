@@ -974,7 +974,7 @@ void TPool::SetDefaultConfig()
 
 bool TPool::AggressiveStarvationEnabled() const
 {
-    return Config_->AggressiveStarvationEnabled;
+    return Config_->EnableAggressiveStarvation;
 }
 
 Stroka TPool::GetId() const
