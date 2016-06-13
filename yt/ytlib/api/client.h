@@ -590,8 +590,6 @@ DEFINE_REFCOUNTED_TYPE(IClientBase)
 struct IClient
     : public IClientBase
 {
-    virtual NQueryClient::IExecutorPtr GetQueryExecutor() = 0;
-
     //! Terminates all channels.
     //! Aborts all pending uncommitted transactions.
     //! Returns a async flag indicating completion.
