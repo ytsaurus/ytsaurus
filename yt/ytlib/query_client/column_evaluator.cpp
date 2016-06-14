@@ -82,7 +82,6 @@ void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buf
 
     TExecutionContext executionContext;
     executionContext.PermanentBuffer = buffer;
-    executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
     evaluator(
@@ -130,7 +129,6 @@ void TColumnEvaluator::InitAggregate(
 {
     TExecutionContext executionContext;
     executionContext.PermanentBuffer = buffer;
-    executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
     auto found = Aggregates_.find(index);
@@ -148,7 +146,6 @@ void TColumnEvaluator::UpdateAggregate(
 {
     TExecutionContext executionContext;
     executionContext.PermanentBuffer = buffer;
-    executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
     auto found = Aggregates_.find(index);
@@ -166,7 +163,6 @@ void TColumnEvaluator::MergeAggregate(
 {
     TExecutionContext executionContext;
     executionContext.PermanentBuffer = buffer;
-    executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
     auto found = Aggregates_.find(index);
@@ -183,7 +179,6 @@ void TColumnEvaluator::FinalizeAggregate(
 {
     TExecutionContext executionContext;
     executionContext.PermanentBuffer = buffer;
-    executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
     auto found = Aggregates_.find(index);

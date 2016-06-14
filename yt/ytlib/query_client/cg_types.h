@@ -25,6 +25,7 @@ using NYT::NQueryClient::TTopCollector;
 using NYT::NQueryClient::TJoinEvaluator;
 using NYT::NQueryClient::TJoinClosure;
 using NYT::NQueryClient::TGroupByClosure;
+using NYT::NQueryClient::TWriteOpClosure;
 using NYT::NTableClient::TRowBuffer;
 using NYT::TSharedRange;
 
@@ -34,6 +35,11 @@ class TypeBuilder<bool, Cross>
 { };
 
 // Opaque types
+template <bool Cross>
+class TypeBuilder<TWriteOpClosure*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
 template <bool Cross>
 class TypeBuilder<TJoinClosure*, Cross>
     : public TypeBuilder<void*, Cross>

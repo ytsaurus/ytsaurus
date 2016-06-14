@@ -776,7 +776,6 @@ TEST_P(TArithmeticTest, Evaluate)
     // NB: function contexts need to be destroyed before callback since it hosts destructors.
     TExecutionContext executionContext;
     executionContext.PermanentBuffer = permanentBuffer;
-    executionContext.OutputBuffer = outputBuffer;
     executionContext.IntermediateBuffer = intermediateBuffer;
     executionContext.Statistics = &statistics;
 
@@ -859,7 +858,6 @@ TEST_P(TCompareWithNullTest, Simple)
     // NB: function contexts need to be destroyed before callback since it hosts destructors.
     TExecutionContext executionContext;
     executionContext.PermanentBuffer = permanentBuffer;
-    executionContext.OutputBuffer = outputBuffer;
     executionContext.IntermediateBuffer = intermediateBuffer;
     executionContext.Statistics = &statistics;
 
@@ -922,7 +920,6 @@ TEST_P(TEvaluateAggregationTest, Basic)
     auto buffer = New<TRowBuffer>();
     TExecutionContext executionContext;
     executionContext.PermanentBuffer = buffer;
-    executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
     TUnversionedValue tmp;
@@ -1011,7 +1008,6 @@ void EvaluateExpression(
     // NB: function contexts need to be destroyed before callback since it hosts destructors.
     TExecutionContext executionContext;
     executionContext.PermanentBuffer = buffer;
-    executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
     executionContext.Statistics = &statistics;
 

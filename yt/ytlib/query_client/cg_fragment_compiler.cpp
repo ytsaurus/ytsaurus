@@ -1133,7 +1133,6 @@ TCodegenSource MakeCodegenJoinOp(
     };
 }
 
-
 TCodegenSource MakeCodegenFilterOp(
     TCodegenExpression codegenPredicate,
     TCodegenSource codegenSource)
@@ -1625,12 +1624,28 @@ TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValu
         executionContextPtr,
         BasicBlock::Create(context, "entry", function));
 
-    codegenSource(
-        builder,
-        [&] (TCGContext& builder, Value* row) {
-            builder.CreateCall(
-                module->GetRoutine("WriteRow"),
-                {row, builder.GetExecutionContextPtr()});
+    auto collect = MakeClosure<void(TWriteOpClosure*)>(builder, "WriteOpInner", [&] (
+        TCGContext& builder,
+        Value* writeRowClosure
+    ) {
+        codegenSource(
+            builder,
+            [&] (TCGContext& builder, Value* row) {
+                Value* writeRowClosureRef = builder.ViaClosure(writeRowClosure);
+                builder.CreateCall(
+                    module->GetRoutine("WriteRow"),
+                    {row, builder.GetExecutionContextPtr(), writeRowClosureRef});
+            });
+
+        builder.CreateRetVoid();
+    });
+
+    builder.CreateCall(
+        builder.Module->GetRoutine("WriteOpHelper"),
+        {
+            builder.GetExecutionContextPtr(),
+            collect.ClosurePtr,
+            collect.Function
         });
 
     builder.CreateRetVoid();

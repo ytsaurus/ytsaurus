@@ -146,6 +146,14 @@ struct TGroupByClosure
     }
 };
 
+struct TWriteOpClosure
+{
+    TRowBufferPtr OutputBuffer;
+
+    // Rows stored in OutputBuffer
+    std::vector<TRow> OutputRowsBatch;
+};
+
 struct TExpressionContext
 {
     TRowBufferPtr IntermediateBuffer;
@@ -169,10 +177,6 @@ struct TExecutionContext
     ISchemafulWriterPtr Writer;
 
     TRowBufferPtr PermanentBuffer;
-    TRowBufferPtr OutputBuffer;
-
-    // Rows stored in OutputBuffer
-    std::vector<TRow>* OutputRowsBatch;
 
     TQueryStatistics* Statistics;
 
