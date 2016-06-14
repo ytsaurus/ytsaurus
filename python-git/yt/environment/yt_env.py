@@ -156,6 +156,12 @@ class YTEnv(object):
         kwargs.setdefault("nonvoting_master_count", self.NUM_NONVOTING_MASTERS)
         kwargs.setdefault("secondary_master_cell_count", self.NUM_SECONDARY_MASTER_CELLS)
 
+        if port_locks_path is None:
+            # COMPAT(asaitgalin): Attribute is set below. When instance
+            # is started with _run_all method this attribute will be passed
+            # to YTInstance constuctor to avoid ports conflict.
+            port_locks_path = getattr(self, "port_locks_path", None)
+
         instance = YTInstance(path_to_run,
                               port_locks_path=port_locks_path,
                               master_config=self.DELTA_MASTER_CONFIG,
@@ -170,6 +176,7 @@ class YTEnv(object):
         instance.start(start_secondary_master_cells=self.START_SECONDARY_MASTER_CELLS)
 
         self.path_to_run = instance.path
+        self.port_locks_path = port_locks_path
 
         for key in instance.configs:
             self.configs[self._expand_to_global_name(key, instance_id)] = instance.configs[key]
