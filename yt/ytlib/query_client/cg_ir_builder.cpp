@@ -22,34 +22,26 @@ static const unsigned int MaxClosureSize = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGIRBuilder::TCGIRBuilder(
-    Function* function,
+TCGIRBuilder::TCGIRBuilder(llvm::Function* function,
     TCGIRBuilder* parent,
     Value* closurePtr)
-    : TBase(BasicBlock::Create(parent->getContext(), "entry", function))
+    : TBase(BasicBlock::Create(function->getContext(), "entry", function))
     , Parent_(parent)
     , ClosurePtr_(closurePtr)
 {
     for (auto it = function->arg_begin(); it != function->arg_end(); ++it) {
         ValuesInContext_.insert(it);
     }
-
     EntryBlock_ = GetInsertBlock();
 }
 
-TCGIRBuilder::~TCGIRBuilder()
+TCGIRBuilder::TCGIRBuilder(
+    Function* function)
+    : TCGIRBuilder(function, nullptr, nullptr)
 { }
 
-TCGIRBuilder::TCGIRBuilder(BasicBlock* basicBlock)
-    : TBase(basicBlock)
-    , Parent_(nullptr)
-    , ClosurePtr_(nullptr)
-{
-    auto* function = basicBlock->getParent();
-    for (auto it = function->arg_begin(); it != function->arg_end(); ++it) {
-        ValuesInContext_.insert(it);
-    }
-}
+TCGIRBuilder::~TCGIRBuilder()
+{ }
 
 Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
 {
