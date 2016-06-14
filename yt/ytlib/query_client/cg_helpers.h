@@ -42,8 +42,8 @@ public:
         Value* opaqueValues,
         size_t opaqueValuesCount,
         Value* executionContextPtr,
-        llvm::BasicBlock* basicBlock)
-        : TCGIRBuilder(basicBlock)
+        llvm::Function* function)
+        : TCGIRBuilder(function)
         , ExecutionContextPtr_(executionContextPtr)
         , Module(std::move(module))
     {
@@ -461,6 +461,21 @@ void CodegenIf(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TSequence>
+struct TApplyCallback;
+
+template <unsigned... Indexes>
+struct TApplyCallback<NMpl::TSequence<Indexes...>>
+{
+    template <class TBody, class TBuilder>
+    static void Do(TBody&& body, TBuilder&& builder, Value* argsArray[sizeof...(Indexes)])
+    {
+        body(builder, argsArray[Indexes]...);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TLlvmClosure
 {
     Value* ClosurePtr;
@@ -468,14 +483,15 @@ struct TLlvmClosure
 };
 
 template <class TSignature>
-struct TClosureFunctionDeclarer;
+struct TClosureFunctionDefiner;
 
 template <class TResult, class... TArgs>
-struct TClosureFunctionDeclarer<TResult(TArgs...)>
+struct TClosureFunctionDefiner<TResult(TArgs...)>
 {
     typedef typename NMpl::TGenerateSequence<sizeof...(TArgs)>::TType TIndexesPack;
 
-    static Function* Do(llvm::Module* module, llvm::Twine name)
+    template <class TBody>
+    static TLlvmClosure Do(llvm::Module* module, TCGContext& builder, TBody&& body, llvm::Twine name)
     {
         Function* function = Function::Create(
             TypeBuilder<TResult(void**, TArgs...), false>::get(module->getContext()),
@@ -484,31 +500,19 @@ struct TClosureFunctionDeclarer<TResult(TArgs...)>
             module);
 
         function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
-        return function;
-    }
-};
 
-template <class TSequence>
-struct TClosureFunctionDefiner;
-
-template <unsigned... Indexes>
-struct TClosureFunctionDefiner<NMpl::TSequence<Indexes...>>
-{
-    template <class TBody>
-    static TLlvmClosure Do(TCGContext& builder, Function* function, TBody&& body)
-    {
         auto args = function->arg_begin();
         Value* closurePtr = args++; closurePtr->setName("closure");
 
-        Value* argsArray[sizeof...(Indexes)];
+        Value* argsArray[sizeof...(TArgs)];
         size_t index = 0;
         while (args != function->arg_end()) {
             argsArray[index++] = args++;
         }
-        YCHECK(index == sizeof...(Indexes));
+        YCHECK(index == sizeof...(TArgs));
 
         TCGContext innerBuilder(function, &builder, closurePtr);
-        body(innerBuilder, argsArray[Indexes]...);
+        TApplyCallback<TIndexesPack>::template Do(std::forward<TBody>(body), innerBuilder, argsArray);
 
         return TLlvmClosure{innerBuilder.GetClosure(), function};
     }
@@ -517,22 +521,23 @@ struct TClosureFunctionDefiner<NMpl::TSequence<Indexes...>>
 template <class TSignature, class TBody>
 TLlvmClosure MakeClosure(TCGContext& builder, llvm::Twine name, TBody&& body)
 {
-    typedef TClosureFunctionDeclarer<TSignature> TFunctionBuilder;
-    return TClosureFunctionDefiner<typename TFunctionBuilder::TIndexesPack>::Do(
+    return TClosureFunctionDefiner<TSignature>::Do(
+        builder.Module->GetModule(),
         builder,
-        TFunctionBuilder::Do(builder.Module->GetModule(), name),
-        std::forward<TBody>(body));
+        std::forward<TBody>(body),
+        name);
 }
 
 template <class TSignature>
-struct TFunctionDeclarer;
+struct TFunctionDefiner;
 
 template <class TResult, class... TArgs>
-struct TFunctionDeclarer<TResult(TArgs...)>
+struct TFunctionDefiner<TResult(TArgs...)>
 {
     typedef typename NMpl::TGenerateSequence<sizeof...(TArgs)>::TType TIndexesPack;
 
-    static Function* Do(llvm::Module* module, llvm::Twine name)
+    template <class TBody>
+    static Function* Do(llvm::Module* module, TBody&& body, llvm::Twine name)
     {
         Function* function =  Function::Create(
             TypeBuilder<TResult(TArgs...), false>::get(module->getContext()),
@@ -541,43 +546,29 @@ struct TFunctionDeclarer<TResult(TArgs...)>
             module);
 
         function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
-        return function;
-    }
-};
 
-template <class TSequence>
-struct TFunctionDefiner;
-
-template <unsigned... Indexes>
-struct TFunctionDefiner<NMpl::TSequence<Indexes...>>
-{
-    template <class TBody>
-    static void Do(llvm::Module* module, Function* function, TBody&& body)
-    {
         auto args = function->arg_begin();
-        Value* argsArray[sizeof...(Indexes)];
+        Value* argsArray[sizeof...(TArgs)];
         size_t index = 0;
         while (args != function->arg_end()) {
             argsArray[index++] = args++;
         }
-        YCHECK(index == sizeof...(Indexes));
+        YCHECK(index == sizeof...(TArgs));
 
-        TCGIRBuilder builder(BasicBlock::Create(module->getContext(), "entry", function));
-        body(builder, argsArray[Indexes]...);
+        TCGIRBuilder builder(function, nullptr, nullptr);
+        TApplyCallback<TIndexesPack>::template Do(std::forward<TBody>(body), builder, argsArray);
+
+        return function;
     }
 };
 
 template <class TSignature, class TBody>
 Function* MakeFunction(llvm::Module* module, llvm::Twine name, TBody&& body)
 {
-    typedef TFunctionDeclarer<TSignature> TFunctionBuilder;
-
-    auto function = TFunctionBuilder::Do(module, name);
-
-    TFunctionDefiner<typename TFunctionBuilder::TIndexesPack>::Do(
+    auto function = TFunctionDefiner<TSignature>::Do(
         module,
-        function,
-        std::forward<TBody>(body));
+        std::forward<TBody>(body),
+        name);
 
     return function;
 }

@@ -52,12 +52,12 @@ private:
 
 public:
     TCGIRBuilder(
-        llvm::BasicBlock* basicBlock);
-
-    TCGIRBuilder(
         llvm::Function* function,
         TCGIRBuilder* parent,
         llvm::Value* closurePtr);
+
+    explicit TCGIRBuilder(
+        llvm::Function* function);
 
     ~TCGIRBuilder();
 

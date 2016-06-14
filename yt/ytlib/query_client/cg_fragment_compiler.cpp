@@ -1622,7 +1622,7 @@ TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValu
         opaqueValues,
         opaqueValuesCount,
         executionContextPtr,
-        BasicBlock::Create(context, "entry", function));
+        function);
 
     auto collect = MakeClosure<void(TWriteOpClosure*)>(builder, "WriteOpInner", [&] (
         TCGContext& builder,
@@ -1681,7 +1681,7 @@ TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression, si
         opaqueValues,
         opaqueValuesCount,
         executionContextPtr,
-        BasicBlock::Create(context, "entry", function));
+        function);
 
     auto result = codegenExpression(builder, inputRow);
 
@@ -1714,7 +1714,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         Value* resultPtr = ++args; resultPtr->setName("resultPtr");
         YCHECK(++args == function->arg_end());
 
-        TCGContext builder(module, nullptr, 0, executionContextPtr, BasicBlock::Create(context, "entry", function));
+        TCGContext builder(module, nullptr, 0, executionContextPtr, function);
         auto result = codegenAggregate.Initialize(builder, nullptr);
         result.StoreToValue(builder, resultPtr, 0, "writeResult");
         builder.CreateRetVoid();
@@ -1739,7 +1739,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         Value* newValuePtr = ++args; resultPtr->setName("newValuePtr");
         YCHECK(++args == function->arg_end());
 
-        TCGContext builder(module, nullptr, 0, executionContextPtr, BasicBlock::Create(context, "entry", function));
+        TCGContext builder(module, nullptr, 0, executionContextPtr, function);
         auto result = codegenAggregate.Update(builder, statePtr, newValuePtr);
         result.StoreToValue(builder, resultPtr, 0, "writeResult");
         builder.CreateRetVoid();
@@ -1764,7 +1764,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         Value* statePtr = ++args; resultPtr->setName("statePtr");
         YCHECK(++args == function->arg_end());
 
-        TCGContext builder(module, nullptr, 0, executionContextPtr, BasicBlock::Create(context, "entry", function));
+        TCGContext builder(module, nullptr, 0, executionContextPtr, function);
         auto result = codegenAggregate.Merge(builder, dstStatePtr, statePtr);
         result.StoreToValue(builder, resultPtr, 0, "writeResult");
         builder.CreateRetVoid();
@@ -1788,7 +1788,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         Value* statePtr = ++args; resultPtr->setName("statePtr");
         YCHECK(++args == function->arg_end());
 
-        TCGContext builder(module, nullptr, 0, executionContextPtr, BasicBlock::Create(context, "entry", function));
+        TCGContext builder(module, nullptr, 0, executionContextPtr, function);
         auto result = codegenAggregate.Finalize(builder, statePtr);
         result.StoreToValue(builder, resultPtr, 0, "writeResult");
         builder.CreateRetVoid();
