@@ -572,14 +572,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_stderr_of_failed_jobs(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"foo": "bar"} for i in xrange(110)])
+        write_table("//tmp/t1", [{"row_id": "row_" + str(i)} for i in xrange(110)])
 
         # All jobs with index < 109 will successfuly finish on "exit 0;"
         # The job with index 109 will be waiting because of waiting_jobs=True
         # until it is manualy resumed.
-        command = """cat > /dev/null;
+        command = """grep -v row_109 > /dev/null;
+            IS_FAILING_JOB=$?;
             echo stderr 1>&2;
-            if [ "$YT_START_ROW_INDEX" = "109" ]; then
+            if [ $IS_FAILING_JOB -eq 1 ]; then
                 trap "exit 125" EXIT
             else
                 exit 0;
