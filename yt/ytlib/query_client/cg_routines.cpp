@@ -45,43 +45,48 @@ using namespace NTableClient;
 
 static const auto& Logger = QueryClientLogger;
 
+struct TOutputBufferTag
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void WriteRow(TRow row, TExecutionContext* context)
+void WriteRow(TRow row, TExecutionContext* context, TWriteOpClosure* closure)
 {
     CHECK_STACK();
 
-    if (context->Statistics->RowsWritten >= context->Limit) {
+    auto* statistics = context->Statistics;
+
+    if (statistics->RowsWritten >= context->Limit) {
         throw TInterruptedCompleteException();
     }
 
-    if (context->Statistics->RowsWritten >= context->OutputRowLimit) {
+    if (statistics->RowsWritten >= context->OutputRowLimit) {
         throw TInterruptedIncompleteException();
     }
 
-    ++context->Statistics->RowsWritten;
+    ++statistics->RowsWritten;
 
-    auto* batch = context->OutputRowsBatch;
+    auto& batch = closure->OutputRowsBatch;
 
-    const auto& rowBuffer = context->OutputBuffer;
+    const auto& rowBuffer = closure->OutputBuffer;
 
-    YASSERT(batch->size() < batch->capacity());
-    batch->push_back(rowBuffer->Capture(row));
+    YASSERT(batch.size() < batch.capacity());
+    batch.push_back(rowBuffer->Capture(row));
 
-    if (batch->size() == batch->capacity()) {
+    if (batch.size() == batch.capacity()) {
         auto& writer = context->Writer;
         bool shouldNotWait;
         {
-            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->WriteTime);
-            shouldNotWait = writer->Write(*batch);
+            NProfiling::TAggregatingTimingGuard timingGuard(&statistics->WriteTime);
+            shouldNotWait = writer->Write(batch);
         }
 
         if (!shouldNotWait) {
-            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+            NProfiling::TAggregatingTimingGuard timingGuard(&statistics->AsyncTime);
             WaitFor(writer->GetReadyEvent())
                 .ThrowOnError();
         }
-        batch->clear();
+        batch.clear();
         rowBuffer->Clear();
     }
 }
@@ -96,10 +101,12 @@ void ScanOpHelper(
     std::vector<TRow> rows;
     rows.reserve(RowsetProcessingSize);
 
+    auto* statistics = context->Statistics;
+
     while (true) {
         bool hasMoreData;
         {
-            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->ReadTime);
+            NProfiling::TAggregatingTimingGuard timingGuard(&statistics->ReadTime);
             hasMoreData = reader->Read(&rows);
         }
 
@@ -112,13 +119,13 @@ void ScanOpHelper(
             }),
             rows.end());
 
-        if (context->Statistics->RowsRead + rows.size() >= context->InputRowLimit) {
-            YCHECK(context->Statistics->RowsRead <= context->InputRowLimit);
-            rows.resize(context->InputRowLimit - context->Statistics->RowsRead);
-            context->Statistics->IncompleteInput = true;
+        if (statistics->RowsRead + rows.size() >= context->InputRowLimit) {
+            YCHECK(statistics->RowsRead <= context->InputRowLimit);
+            rows.resize(context->InputRowLimit - statistics->RowsRead);
+            statistics->IncompleteInput = true;
             hasMoreData = false;
         }
-        context->Statistics->RowsRead += rows.size();
+        statistics->RowsRead += rows.size();
 
         consumeRows(consumeRowsClosure, rows.data(), rows.size());
         rows.clear();
@@ -129,7 +136,7 @@ void ScanOpHelper(
         }
 
         if (shouldWait) {
-            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+            NProfiling::TAggregatingTimingGuard timingGuard(&statistics->AsyncTime);
             WaitFor(reader->GetReadyEvent())
                 .ThrowOnError();
         }
@@ -318,6 +325,48 @@ void OrderOpHelper(
         auto size = std::min(RowsetProcessingSize, rows.size() - index);
         consumeRows(consumeRowsClosure, rows.data() + index, size);
         context->IntermediateBuffer->Clear();
+    }
+}
+
+void WriteOpHelper(
+    TExecutionContext* context,
+    void** collectRowsClosure,
+    void (*collectRows)(void** closure, TWriteOpClosure* writeOpClosure))
+{
+    TWriteOpClosure closure;
+
+    closure.OutputBuffer = New<TRowBuffer>(TOutputBufferTag());
+    closure.OutputRowsBatch.reserve(RowsetProcessingSize);
+
+    try {
+        collectRows(collectRowsClosure, &closure);
+    } catch (const TInterruptedIncompleteException&) {
+        // Set incomplete and continue
+        context->Statistics->IncompleteOutput = true;
+    } catch (const TInterruptedCompleteException&) {
+        // Continue
+    }
+
+    LOG_DEBUG("Flushing writer");
+    if (!closure.OutputRowsBatch.empty()) {
+        bool shouldNotWait;
+        {
+            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->WriteTime);
+            shouldNotWait = context->Writer->Write(closure.OutputRowsBatch);
+        }
+
+        if (!shouldNotWait) {
+            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+            WaitFor(context->Writer->GetReadyEvent())
+                .ThrowOnError();
+        }
+    }
+
+    LOG_DEBUG("Closing writer");
+    {
+        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+        WaitFor(context->Writer->Close())
+            .ThrowOnError();
     }
 }
 
@@ -570,6 +619,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(WriteRow);
     REGISTER_ROUTINE(InsertGroupRow);
     REGISTER_ROUTINE(ScanOpHelper);
+    REGISTER_ROUTINE(WriteOpHelper);
     REGISTER_ROUTINE(InsertJoinRow);
     REGISTER_ROUTINE(JoinOpHelper);
     REGISTER_ROUTINE(GroupOpHelper);

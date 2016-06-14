@@ -99,21 +99,15 @@ public:
                 LOG_DEBUG("Evaluating plan fragment");
 
                 auto permanentBuffer = New<TRowBuffer>(TEvaluatorBufferTag());
-                auto outputBuffer = New<TRowBuffer>(TEvaluatorBufferTag());
                 auto intermediateBuffer = New<TRowBuffer>(TEvaluatorBufferTag());
-
-                std::vector<TRow> outputBatchRows;
-                outputBatchRows.reserve(RowsetProcessingSize);
 
                 // NB: function contexts need to be destroyed before cgQuery since it hosts destructors.
                 TExecutionContext executionContext;
                 executionContext.Reader = reader;
 
                 executionContext.PermanentBuffer = permanentBuffer;
-                executionContext.OutputBuffer = outputBuffer;
                 executionContext.IntermediateBuffer = intermediateBuffer;
                 executionContext.Writer = writer;
-                executionContext.OutputRowsBatch = &outputBatchRows;
                 executionContext.Statistics = &statistics;
                 executionContext.InputRowLimit = query->InputRowLimit;
                 executionContext.OutputRowLimit = query->OutputRowLimit;
@@ -130,46 +124,15 @@ public:
 
                 LOG_DEBUG("Evaluating query");
 
-                try {
-                    CallCGQueryPtr(
-                        cgQuery,
-                        fragmentParams.GetOpaqueData(),
-                        &executionContext);
-                } catch (const TInterruptedIncompleteException&) {
-                    // Set incomplete and continue
-                    executionContext.Statistics->IncompleteOutput = true;
-                } catch (const TInterruptedCompleteException&) {
-                    // Continue
-                }
-
-                LOG_DEBUG("Flushing writer");
-                if (!outputBatchRows.empty()) {
-                    bool shouldNotWait;
-                    {
-                        NProfiling::TAggregatingTimingGuard timingGuard(&statistics.WriteTime);
-                        shouldNotWait = writer->Write(outputBatchRows);
-                    }
-
-                    if (!shouldNotWait) {
-                        NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
-                        WaitFor(writer->GetReadyEvent())
-                            .ThrowOnError();
-                    }
-                }
-
-                LOG_DEBUG("Closing writer");
-                {
-                    NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
-                    WaitFor(writer->Close())
-                        .ThrowOnError();
-                }
+                CallCGQueryPtr(
+                    cgQuery,
+                    fragmentParams.GetOpaqueData(),
+                    &executionContext);
 
                 LOG_DEBUG("Finished evaluating plan fragment ("
                     "PermanentBufferCapacity: %v, "
-                    "OutputBufferCapacity: %v, "
                     "IntermediateBufferCapacity: %v)",
                     permanentBuffer->GetCapacity(),
-                    outputBuffer->GetCapacity(),
                     intermediateBuffer->GetCapacity());
 
             } catch (const std::exception& ex) {
