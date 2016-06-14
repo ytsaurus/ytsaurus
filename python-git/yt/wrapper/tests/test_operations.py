@@ -737,17 +737,26 @@ print op.id
         old_value = yt.config["start_operation_retries"]["retry_timeout"]
         yt.config["start_operation_retries"]["retry_timeout"] = 2000
 
+        yt.create("map_node", "//sys/pools/with_operation_count_limit", attributes={"max_operation_count": 1})
+        time.sleep(1)
+
         try:
             table = TEST_DIR + "/table"
             yt.write_table(table, [{"x": 1}, {"x": 2}])
 
-            start_time = time.time()
-            ops = []
-            for i in xrange(5):
-                ops.append(yt.run_map("cat; sleep 5", table, TEST_DIR + "/output_" + str(i), sync=False))
+            def run_operation(index):
+                return yt.run_map(
+                    "cat; sleep 5",
+                    table,
+                    TEST_DIR + "/output_" + str(index),
+                    sync=False,
+                    spec={"pool": "with_operation_count_limit"})
 
+            ops = []
+            start_time = time.time()
+            ops.append(run_operation(1))
             assert time.time() - start_time < 5.0
-            ops.append(yt.run_map("cat; sleep 5", table, TEST_DIR + "/output", sync=False))
+            ops.append(run_operation(2))
             assert time.time() - start_time > 5.0
 
             for op in ops:
