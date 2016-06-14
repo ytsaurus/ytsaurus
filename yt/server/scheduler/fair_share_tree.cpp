@@ -1116,6 +1116,7 @@ TOperationElementFixedState::TOperationElementFixedState(TOperationPtr operation
 
 TOperationElementSharedState::TOperationElementSharedState()
     : NonpreemptableResourceUsage_(ZeroJobResources())
+    , AggressivelyPreemptableResourceUsage_(ZeroJobResources())
 { }
 
 void TOperationElementSharedState::IncreaseJobResourceUsage(const TJobId& jobId, const TJobResources& resourcesDelta)
