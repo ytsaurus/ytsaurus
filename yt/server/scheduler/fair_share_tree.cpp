@@ -712,13 +712,16 @@ void TCompositeSchedulerElement::RemoveChild(const ISchedulerElementPtr& child)
 {
     YCHECK(!Cloned_);
 
-    bool foundInChildren = (Children.find(child) != Children.end());
-    bool foundInDisabledChildren = (DisabledChildren.find(child) != DisabledChildren.end());
+    auto childrenIt = Children.find(child);
+    auto disabledChildrenIt = DisabledChildren.find(child);
+
+    bool foundInChildren = (childrenIt != Children.end());
+    bool foundInDisabledChildren = (disabledChildrenIt != DisabledChildren.end());
     YCHECK((foundInChildren && !foundInDisabledChildren) || (!foundInChildren && foundInDisabledChildren));
     if (foundInChildren) {
-        Children.erase(child);
+        Children.erase(childrenIt);
     } else {
-        DisabledChildren.erase(child);
+        DisabledChildren.erase(disabledChildrenIt);
     }
 }
 
