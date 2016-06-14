@@ -300,7 +300,7 @@ void Serialize(const std::tuple<T...>& value, NYson::IYsonConsumer* consumer)
 }
 
 // For any associative container.
-template <template<typename...> class C, class... T, class K = typename C<T...>::key_type>
+template <template<typename...> class C, class... T, class K>
 void Serialize(const C<T...>& value, NYson::IYsonConsumer* consumer)
 {
     SerializeAssociative(value, consumer);
@@ -398,7 +398,7 @@ void Deserialize(std::tuple<T...>& value, INodePtr node)
 }
 
 // For any associative container.
-template <template<typename...> class C, class... T, class K = typename C<T...>::key_type>
+template <template<typename...> class C, class... T, class K>
 void Deserialize(C<T...>& value, INodePtr node)
 {
     DeserializeAssociative(value, node);
