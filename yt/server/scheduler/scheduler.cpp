@@ -720,7 +720,9 @@ public:
                         Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag());
 
                     PROFILE_TIMING ("/schedule_time") {
+                        node->SetHasOngoingJobsScheduling(true);
                         Strategy_->ScheduleJobs(schedulingContext);
+                        node->SetHasOngoingJobsScheduling(false);
                     }
 
                     TotalResourceUsage_ -= node->GetResourceUsage();
@@ -1922,7 +1924,7 @@ private:
     {
         auto node = job->GetNode();
 
-        if (node->GetHasOngoingHeartbeat()) {
+        if (node->GetHasOngoingJobsScheduling()) {
             job->SetHasPendingUnregistration(true);
         } else {
             DoUnregisterJob(job);
@@ -1933,6 +1935,8 @@ private:
     {
         auto operation = FindOperation(job->GetOperationId());
         auto node = job->GetNode();
+
+        YCHECK(!node->GetHasOngoingJobsScheduling());
 
         --JobTypeCounters_[job->GetType()];
 
