@@ -8,6 +8,7 @@ from response_stream import ResponseStream
 
 from yt.packages.requests.auth import AuthBase
 
+import yt.logger as logger
 import yt.json as json
 
 from copy import deepcopy
@@ -50,18 +51,21 @@ def get_heavy_proxy(client):
     for host in banned_hosts.keys():
         time = banned_hosts[host]
         if total_seconds(now - time) * 1000 > get_config(client)["proxy"]["proxy_ban_timeout"]:
+            logger.info("Host %s unbanned", host)
             del banned_hosts[host]
     if get_config(client)["proxy"]["enable_proxy_discovery"]:
         hosts = get_hosts(client=client)
         for host in hosts:
             if host not in banned_hosts:
                 return host
+        logger.warning("All hosts are banned, use %s as first in the hosts list", hosts[0])
         if hosts:
             return hosts[0]
 
     return get_config(client)["proxy"]["url"]
 
 def ban_host(host, client):
+    logger.info("Host %s banned", host)
     get_option("_banned_proxies", client)[host] = datetime.now()
 
 class TokenAuth(AuthBase):
