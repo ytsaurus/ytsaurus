@@ -35,6 +35,29 @@ namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EConnectionType,
+    (Native)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TConnectionConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    EConnectionType ConnectionType;
+
+    TConnectionConfig()
+    {
+        RegisterParameter("connection_type", ConnectionType)
+            .Default(EConnectionType::Native);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TConnectionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMasterConnectionConfig
     : public NHydra::TPeerConnectionConfig
     , public NRpc::TRetryingChannelConfig
@@ -51,7 +74,8 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNativeConnectionConfig
-    : public NChunkClient::TChunkTeleporterConfig
+    : public TConnectionConfig
+    , public NChunkClient::TChunkTeleporterConfig
 {
 public:
     Stroka NetworkName;

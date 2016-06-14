@@ -35,13 +35,6 @@ struct TClientOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EMasterChannelKind,
-    (Leader)
-    (Follower)
-    (LeaderOrFollower)
-    (Cache)
-);
-
 //! Represents an established connection with a YT cluster.
 /*
  *  IConnection instance caches most of the stuff needed for fast interaction
@@ -64,6 +57,10 @@ struct IConnection
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IConnectionPtr CreateConnection(NYTree::IMapNodePtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
