@@ -1786,7 +1786,9 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
         auto jobLimits = GetHierarchicalResourceLimits(context);
         if (!Dominates(jobLimits, jobStartRequest.ResourceLimits)) {
             const auto& jobId = scheduleJobResult->JobStartRequest->Id;
-            LOG_DEBUG("Aborting job with overcommit (JobId: %v, OperationId: %v)",
+            LOG_DEBUG("Aborting job with resource overcommit: %v > %v (JobId: %v, OperationId: %v)",
+                FormatResources(jobStartRequest.ResourceLimits),
+                FormatResources(jobLimits),
                 jobId,
                 OperationId_);
 

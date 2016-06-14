@@ -50,6 +50,9 @@ public:
     //! Is |true| iff heartbeat from this node is being processed at the moment.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasOngoingHeartbeat);
 
+    //! Is |true| iff jobs are scheduled on the node at the moment by the strategy.
+    DEFINE_BYVAL_RW_PROPERTY(bool, HasOngoingJobsScheduling);
+
     //! Is |true| iff the node must be unregistered but it also has an ongoing
     //! heartbeat so the unregistration has to be postponed until the heartbeat processing
     //! is complete.
