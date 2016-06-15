@@ -53,7 +53,7 @@ TAddressMap ToAddressMap(const TCellPeerConfig& config, const Stroka& networkNam
             {networkName, *config.Address}
         };
     } else {
-        return {};
+        return TAddressMap();
     }
 }
 

@@ -89,6 +89,8 @@ public:
 
     const NObjectClient::TCellId& GetCellId() const;
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
+    NNodeTrackerClient::TAddressMap GetLocalAddresses();
+    NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks();
 
     void Run();
 
@@ -146,7 +148,6 @@ private:
 
 
     void DoRun();
-    NNodeTrackerClient::TAddressMap GetLocalAddresses();
     void PopulateAlerts(std::vector<TError>* alerts);
     NObjectClient::TCellId ToRedirectorCellId(const NObjectClient::TCellId& cellId);
 };
