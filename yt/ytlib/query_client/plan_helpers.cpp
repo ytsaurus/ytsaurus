@@ -218,6 +218,8 @@ TConstExpressionPtr MakeOrExpression(TConstExpressionPtr lhs, TConstExpressionPt
         rhs);
 }
 
+namespace {
+
 void SortRows(
     std::vector<TRow>::iterator begin,
     std::vector<TRow>::iterator end,
@@ -251,6 +253,8 @@ void SortRows(
         return false;
     });
 };
+
+} // namespace
 
 TConstExpressionPtr EliminateInExpression(
     const TRange<TRow>& lookupKeys,

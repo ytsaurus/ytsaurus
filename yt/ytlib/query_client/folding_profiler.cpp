@@ -6,6 +6,7 @@
 
 namespace NYT {
 namespace NQueryClient {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -425,6 +426,8 @@ TCodegenExpression TQueryProfiler::Profile(const TNamedItem& namedExpression, co
 
     return TExpressionProfiler::Profile(namedExpression.Expression, schema);
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

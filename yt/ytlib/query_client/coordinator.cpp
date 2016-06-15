@@ -24,6 +24,8 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 TTableSchema GetIntermediateSchema(TConstGroupClausePtr groupClause)
 {
     std::vector<TColumnSchema> columns;
@@ -147,6 +149,10 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
     return std::make_pair(topQuery, subqueries);
 }
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
 
 TRowRanges GetPrunedRanges(
     TConstExpressionPtr predicate,

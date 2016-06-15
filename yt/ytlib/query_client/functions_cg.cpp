@@ -26,6 +26,8 @@ static const char* ExecutionContextStructName = "struct.TExecutionContext";
 static const char* FunctionContextStructName = "struct.NYT::NQueryClient::TFunctionContext";
 static const char* UnversionedValueStructName = "struct.TUnversionedValue";
 
+namespace {
+
 Stroka ToString(llvm::Type* tp)
 {
     std::string str;
@@ -172,6 +174,8 @@ TCGValue PropagateNullArguments(
             Twine(name.c_str()));
     }
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -447,6 +451,8 @@ ICallingConventionPtr GetCallingConvention(ECallingConvention callingConvention)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 bool ObjectContainsFunction(
     const std::unique_ptr<llvm::object::ObjectFile>& objectFile,
     const Stroka& functionName)
@@ -641,6 +647,8 @@ void LoadLlvmFunctions(
         "Error loading implementation file for function %Qv",
         functionName);
 }
+
+} // namespace
 
 TCodegenExpression TExternalFunctionCodegen::Profile(
     TCodegenValue codegenFunctionContext,

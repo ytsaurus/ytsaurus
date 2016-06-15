@@ -121,10 +121,14 @@ TExternalCGInfo::TExternalCGInfo()
     : NodeDirectory(New<NNodeTrackerClient::TNodeDirectory>())
 { }
 
+namespace {
+
 Stroka GetUdfDescriptorPath(const TYPath& registryPath, const Stroka& functionName)
 {
     return registryPath + "/" + ToYPathLiteral(to_lower(functionName));
 }
+
+} // namespace
 
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     const std::vector<Stroka>& functionNames,
@@ -344,6 +348,8 @@ void AppendUdfDescriptors(
 
 DEFINE_REFCOUNTED_TYPE(IFunctionRegistry)
 
+namespace {
+
 class TCypressFunctionRegistry
     : public TExpiringCache<Stroka, TExternalFunctionSpec>
     , public IFunctionRegistry
@@ -389,6 +395,8 @@ private:
 
 };
 
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IFunctionRegistryPtr CreateFunctionRegistryCache(
@@ -401,6 +409,8 @@ IFunctionRegistryPtr CreateFunctionRegistryCache(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
 
 struct TFunctionImplKey
 {
@@ -467,6 +477,8 @@ public:
 };
 
 typedef TIntrusivePtr<TFunctionImplCacheEntry> TFunctionImplCacheEntryPtr;
+
+} // namespace
 
 class TFunctionImplCache
     : public TAsyncSlruCacheBase<TFunctionImplKey, TFunctionImplCacheEntry>
@@ -555,6 +567,8 @@ TFunctionImplCachePtr CreateFunctionImplCache(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 TSharedRef GetImplFingerprint(const std::vector<NChunkClient::NProto::TChunkSpec>& chunks)
 {
     auto size = chunks.size();
@@ -602,6 +616,8 @@ void DoFetchImplementations(
     }
 }
 
+} // namespace
+
 void FetchImplementations(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
@@ -636,6 +652,8 @@ void FetchJobImplementations(
             return TSharedRef::FromString(file.ReadAll());
         });
 }
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
