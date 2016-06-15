@@ -4,6 +4,8 @@ import yt.wrapper.config
 import time
 
 def test_heavy_proxies():
+    yt.wrapper.config["proxy"]["number_of_top_proxies_for_random_chioce"] = 1
+
     yt.wrapper.http_driver.get_hosts = lambda client: ["host1", "host2"]
     assert yt.wrapper.http_driver.get_heavy_proxy(client=None) == "host1"
 
