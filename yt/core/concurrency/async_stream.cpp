@@ -331,7 +331,7 @@ public:
 
     virtual TFuture<void> Write(const TSharedRef& data) override
     {
-        YASSERT(data);
+        Y_ASSERT(data);
         TPromise<void> promise;
         bool invokeWrite;
         {
@@ -509,7 +509,7 @@ private:
 
     void PushBlock(TGuard<TSpinLock>* guard, const TErrorOr<TSharedRef>& result)
     {
-        YASSERT(OutstandingResult_);
+        Y_ASSERT(OutstandingResult_);
         OutstandingResult_.Reset();
         if (!result.IsOK()) {
             Error_ = TError(result);
@@ -525,7 +525,7 @@ private:
 
     TSharedRef PopBlock(TGuard<TSpinLock>* guard)
     {
-        YASSERT(!PrefetchedBlocks_.empty());
+        Y_ASSERT(!PrefetchedBlocks_.empty());
         auto block = PrefetchedBlocks_.front();
         PrefetchedBlocks_.pop();
         PrefetchedSize_ -= block.Size();
@@ -620,13 +620,13 @@ private:
     TSharedRef OnPrefetched()
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        YASSERT(PrefetchedSize_ != 0);
+        Y_ASSERT(PrefetchedSize_ != 0);
         return CopyPrefetched(&guard);
     }
 
     void AppendPrefetched(TGuard<TSpinLock>* guard, const TErrorOr<size_t>& result)
     {
-        YASSERT(OutstandingResult_);
+        Y_ASSERT(OutstandingResult_);
         OutstandingResult_.Reset();
         if (!result.IsOK()) {
             Error_ = TError(result);
@@ -654,7 +654,7 @@ private:
 
     TSharedRef CopyPrefetched(TGuard<TSpinLock>* guard)
     {
-        YASSERT(PrefetchedSize_ != 0);
+        Y_ASSERT(PrefetchedSize_ != 0);
         auto block = Prefetched_.Slice(0, PrefetchedSize_);
         Prefetched_ = TSharedMutableRef();
         PrefetchedSize_ = 0;
@@ -704,7 +704,7 @@ public:
         Cookie_ = TDelayedExecutor::Submit(
             BIND(&TExpiringInputStreamAdapter::OnTimeout, MakeWeak(this), promise), Timeout_);
 
-        YASSERT(!Promise_);
+        Y_ASSERT(!Promise_);
         Promise_ = promise;
 
         if (!Fetching_) {
@@ -827,10 +827,10 @@ private:
         {
             TGuard<TSpinLock> guard(SpinLock_);
             Fetching_ = false;
-            YASSERT(Promise_);
+            Y_ASSERT(Promise_);
             swap(promise, Promise_);
             if (promise.IsSet()) {
-                YASSERT(!PendingBlock_);
+                Y_ASSERT(!PendingBlock_);
                 PendingBlock_ = value;
                 return;
             }

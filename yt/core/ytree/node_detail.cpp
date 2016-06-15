@@ -331,7 +331,9 @@ void TMapNodeMixin::SetChild(
 
         bool lastStep = (tokenizer.GetType() == NYPath::ETokenType::EndOfStream);
         if (!recursive && !lastStep) {
-            THROW_ERROR_EXCEPTION("Cannot create intermediate nodes");
+            THROW_ERROR_EXCEPTION("%v has no child %Qv; consider using \"recursive\" option to force its creation",
+                GetNodeYPath(currentNode),
+                key);
         }
 
         int maxChildCount = GetMaxChildCount();
@@ -418,7 +420,8 @@ void TListNodeMixin::SetChild(
     bool recursive)
 {
     if (recursive) {
-        THROW_ERROR_EXCEPTION("Cannot create intermediate nodes in a list");
+        THROW_ERROR_EXCEPTION("List node %v does not support \"recursive\" option",
+            GetPath());
     }
 
     int beforeIndex = -1;

@@ -1,6 +1,7 @@
 from yt_env_setup import YTEnvSetup, make_schema, unix_only
 from yt_commands import *
 
+from yt.yson import *
 from yt.wrapper import JsonFormat
 from yt.environment.helpers import assert_items_equal
 
@@ -8,6 +9,7 @@ import pytest
 import time
 import __builtin__
 import os
+import sys
 
 ##################################################################
 
@@ -315,8 +317,13 @@ class TestJobProber(YTEnvSetup):
             output += r["output"]
         return output
 
-    def _send_keys(self, job_id, shell_id, keys):
-        poll_job_shell(job_id, operation="update", shell_id=shell_id, keys=keys.encode("hex"))
+    def _send_keys(self, job_id, shell_id, keys, input_offset):
+        poll_job_shell(
+            job_id,
+            operation="update",
+            shell_id=shell_id,
+            keys=keys.encode("hex"),
+            input_offset=input_offset)
 
     def test_poll_job_shell(self):
         create("table", "//tmp/t1")
@@ -337,7 +344,7 @@ class TestJobProber(YTEnvSetup):
         output = self._poll_until_prompt(job_id, shell_id)
 
         command = "echo $TERM; tput lines; tput cols; id -u; id -g\r"
-        self._send_keys(job_id, shell_id, command)
+        self._send_keys(job_id, shell_id, command, 0)
         output = self._poll_until_prompt(job_id, shell_id)
 
         expected = "{0}\nscreen-256color\r\n50\r\n132\r\n{1}\r\n{1}\r\n".format(command, os.getuid())
@@ -565,14 +572,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_stderr_of_failed_jobs(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"foo": "bar"} for i in xrange(110)])
+        write_table("//tmp/t1", [{"row_id": "row_" + str(i)} for i in xrange(110)])
 
         # All jobs with index < 109 will successfuly finish on "exit 0;"
         # The job with index 109 will be waiting because of waiting_jobs=True
         # until it is manualy resumed.
-        command = """cat > /dev/null;
+        command = """grep -v row_109 > /dev/null;
+            IS_FAILING_JOB=$?;
             echo stderr 1>&2;
-            if [ "$YT_START_ROW_INDEX" = "109" ]; then
+            if [ $IS_FAILING_JOB -eq 1 ]; then
                 trap "exit 125" EXIT
             else
                 exit 0;
@@ -606,10 +614,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
             label="job_progress",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat")
+            command="cat",
+            spec={"test_flag": to_yson_type("value", attributes={"attr": 0})})
 
         progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, op.jobs[0]))
         assert progress >= 0
+
+        test_flag = get("//sys/scheduler/orchid/scheduler/operations/{0}/spec/test_flag".format(op.id))
+        assert str(test_flag) == "value"
+        assert test_flag.attributes == {"attr": 0}
 
         op.resume_jobs()
         op.track()
@@ -1799,7 +1812,8 @@ class TestSandboxTmpfs(YTEnvSetup):
             out="//tmp/t_output",
             spec={
                 "mapper": {
-                    "tmpfs_size": 1024 * 1024
+                    "tmpfs_size": 1024 * 1024,
+                    "tmpfs_path": "tmpfs",
                 }
             })
 
@@ -1938,7 +1952,8 @@ class TestSandboxTmpfs(YTEnvSetup):
                 out="//tmp/t_output",
                 spec={
                     "mapper": {
-                        "tmpfs_size": 1024 * 1024
+                        "tmpfs_size": 1024 * 1024,
+                        "tmpfs_path": "tmpfs",
                     },
                     "max_failed_job_count": 1
                 })

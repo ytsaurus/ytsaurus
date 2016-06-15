@@ -22,7 +22,7 @@ void IAsyncRefCounted::AsyncRef()
 void IAsyncRefCounted::AsyncUnref()
 {
     auto oldRefCounter = AsyncRefCounter_.fetch_sub(1, std::memory_order_release);
-    YASSERT(oldRefCounter > 0);
+    YCHECK(oldRefCounter > 0);
     if (oldRefCounter == 1) {
         SyncUnref();
     }

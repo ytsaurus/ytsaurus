@@ -91,7 +91,7 @@ MATCHER_P2(HasRefCounts, strongRefs, weakRefs,
         + ::testing::PrintToString(strongRefs) + " strong and "
         + ::testing::PrintToString(weakRefs) + " weak references")
 {
-    UNUSED(result_listener);
+    Y_UNUSED(result_listener);
     return
         arg.GetRefCounter()->GetRefCount() == strongRefs &&
         arg.GetRefCounter()->GetWeakRefCount() == weakRefs;

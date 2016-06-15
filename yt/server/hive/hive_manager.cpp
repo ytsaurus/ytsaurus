@@ -69,7 +69,7 @@ class THiveMutationGuard
 public:
     THiveMutationGuard()
     {
-        YASSERT(!*HiveMutation);
+        Y_ASSERT(!*HiveMutation);
         *HiveMutation = true;
     }
 

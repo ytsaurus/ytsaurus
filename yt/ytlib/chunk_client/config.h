@@ -203,6 +203,11 @@ public:
     bool PopulateCache;
 
     bool SyncOnClose;
+    bool EnableUniformPlacement;
+
+    TDuration AllocateWriteTargetsBackoffTime;
+
+    int AllocateWriteTargetsRetryCount;
 
     TReplicationWriterConfig()
     {
@@ -230,6 +235,12 @@ public:
             .Default(false);
         RegisterParameter("sync_on_close", SyncOnClose)
             .Default(true);
+        RegisterParameter("enable_uniform_placement", EnableUniformPlacement)
+            .Default(false);
+        RegisterParameter("allocate_write_targets_backoff_time", AllocateWriteTargetsBackoffTime)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("allocate_write_targets_retry_count", AllocateWriteTargetsRetryCount)
+            .Default(10);
 
         RegisterInitializer([&] () {
             NodeChannel->RetryBackoffTime = TDuration::Seconds(10);

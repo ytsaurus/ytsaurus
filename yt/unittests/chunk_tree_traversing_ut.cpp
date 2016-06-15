@@ -255,6 +255,78 @@ TEST(TraverseChunkTree, Simple)
     }
 }
 
+TEST(TraverseChunkTree, WithEmptyChunkLists)
+{
+    //               list              //
+    //    /     |     |     |     \    //
+    // empty chunk1 empty chunk2 empty //
+
+    auto chunk1 = CreateChunk(1, 1, 1, 1);
+    auto chunk2 = CreateChunk(2, 2, 2, 2);
+
+    auto list = CreateChunkList();
+    auto empty1 = CreateChunkList();
+    auto empty2 = CreateChunkList();
+    auto empty3 = CreateChunkList();
+
+    {
+        std::vector<TChunkTree*> items;
+        items.push_back(empty1.get());
+        items.push_back(chunk1.get());
+        items.push_back(empty2.get());
+        items.push_back(chunk2.get());
+        items.push_back(empty3.get());
+        AttachToChunkList(list.get(), items);
+    }
+
+    auto callbacks = GetNonpreemptableChunkTraverserCallbacks();
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+        TraverseChunkTree(callbacks, visitor, list.get());
+
+        std::set<TChunkInfo> correctResult;
+        correctResult.insert(TChunkInfo(
+            chunk1.get(),
+            0,
+            TReadLimit(),
+            TReadLimit()));
+        correctResult.insert(TChunkInfo(
+            chunk2.get(),
+            1,
+            TReadLimit(),
+            TReadLimit()));
+
+        EXPECT_EQ(correctResult, visitor->GetChunkInfos());
+    }
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+
+        TReadLimit lowerLimit;
+        lowerLimit.SetRowIndex(1);
+
+        TReadLimit upperLimit;
+        upperLimit.SetRowIndex(2);
+
+        TraverseChunkTree(callbacks, visitor, list.get(), lowerLimit, upperLimit);
+
+        TReadLimit correctLowerLimit;
+
+        TReadLimit correctUpperLimit;
+        correctUpperLimit.SetRowIndex(1);
+
+        std::set<TChunkInfo> correctResult;
+        correctResult.insert(TChunkInfo(
+            chunk2.get(),
+            1,
+            correctLowerLimit,
+            correctUpperLimit));
+
+        EXPECT_EQ(correctResult, visitor->GetChunkInfos());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

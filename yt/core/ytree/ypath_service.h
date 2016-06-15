@@ -52,7 +52,7 @@ struct IYPathService
         //! Creates a result indicating that resolution must proceed.
         static TResolveResult There(IYPathServicePtr service, const TYPath& path)
         {
-            YASSERT(service);
+            Y_ASSERT(service);
 
             TResolveResult result;
             result.Service_ = service;

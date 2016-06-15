@@ -784,7 +784,7 @@ private:
     void HandleRowsOnLeaderExecuteWriteAtomic(TTransaction* transaction, TPrelockedRows& rows, int rowCount)
     {
         for (int index = 0; index < rowCount; ++index) {
-            YASSERT(!rows.empty());
+            Y_ASSERT(!rows.empty());
             auto rowRef = rows.front();
             rows.pop();
             if (ValidateAndDiscardRowRef(rowRef)) {
@@ -1687,25 +1687,6 @@ private:
     }
 
 
-    void SplitTabletPartition(TTablet* tablet, int partitionIndex, const std::vector<TOwningKey>& pivotKeys)
-    {
-        tablet->SplitPartition(partitionIndex, pivotKeys);
-        if (!IsRecovery()) {
-            for (int currentIndex = partitionIndex; currentIndex < partitionIndex + pivotKeys.size(); ++currentIndex) {
-                tablet->PartitionList()[currentIndex]->StartEpoch();
-            }
-        }
-    }
-
-    void MergeTabletPartitions(TTablet* tablet, int firstIndex, int lastIndex)
-    {
-        tablet->MergePartitions(firstIndex, lastIndex);
-        if (!IsRecovery()) {
-            tablet->PartitionList()[firstIndex]->StartEpoch();
-        }
-    }
-
-
     void SetBackingStore(TTablet* tablet, IChunkStorePtr store, IDynamicStorePtr backingStore)
     {
         store->SetBackingStore(backingStore);
@@ -1875,7 +1856,7 @@ private:
     {
         if (!IsRecovery()) {
             auto slotManager = Bootstrap_->GetTabletSlotManager();
-            slotManager->UpdateTabletSnapshot(Slot_, tablet);
+            slotManager->RegisterTabletSnapshot(Slot_, tablet);
         }
     }
 

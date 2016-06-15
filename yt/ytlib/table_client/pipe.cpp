@@ -77,7 +77,7 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        YASSERT(rows->capacity() > 0);
+        Y_ASSERT(rows->capacity() > 0);
         rows->clear();
 
         {

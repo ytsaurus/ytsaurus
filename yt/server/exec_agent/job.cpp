@@ -559,7 +559,7 @@ private:
         proxyConfig->Rack = Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetRack();
         proxyConfig->Addresses = Bootstrap_->GetMasterConnector()->GetLocalDescriptor().Addresses();
 
-        if (schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().has_tmpfs_size()) {
+        if (schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().has_tmpfs_path()) {
             proxyConfig->TmpfsPath = Slot_->GetTmpfsPath(ESandboxKind::User, schedulerJobSpecExt.user_job_spec().tmpfs_path());
         }
 
@@ -607,7 +607,7 @@ private:
         const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-            if (userJobSpec.has_tmpfs_size()) {
+            if (userJobSpec.has_tmpfs_path()) {
                 Slot_->PrepareTmpfs(ESandboxKind::User, userJobSpec.tmpfs_size(), userJobSpec.tmpfs_path());
             }
         }
@@ -850,7 +850,8 @@ private:
             error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork) ||
             error.FindMatching(NTableClient::EErrorCode::InvalidDoubleValue) ||
             error.FindMatching(NTableClient::EErrorCode::IncomparableType) ||
-            error.FindMatching(NTableClient::EErrorCode::UnhashableType);
+            error.FindMatching(NTableClient::EErrorCode::UnhashableType) ||
+            error.FindMatching(NTableClient::EErrorCode::CorruptedNameTable);
     }
 
 };

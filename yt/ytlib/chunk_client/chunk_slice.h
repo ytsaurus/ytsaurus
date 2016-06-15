@@ -17,116 +17,61 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const int DefaultPartIndex;
-extern const i64 DefaultMaxBlockSize;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkSlice
-    : public TIntrinsicRefCounted
 {
-    DECLARE_BYVAL_RW_PROPERTY(i64, DataSize);
-    DECLARE_BYVAL_RW_PROPERTY(i64, RowCount);
-
-    DECLARE_BYVAL_RO_PROPERTY(bool, SizeOverridden);
-    DECLARE_BYVAL_RO_PROPERTY(int, PartIndex);
-    DECLARE_BYVAL_RO_PROPERTY(i64, MaxBlockSize);
-
-    DEFINE_BYVAL_RO_PROPERTY(TRefCountedChunkSpecPtr, ChunkSpec);
     DEFINE_BYREF_RO_PROPERTY(TReadLimit, LowerLimit);
     DEFINE_BYREF_RO_PROPERTY(TReadLimit, UpperLimit);
+
+    DEFINE_BYVAL_RO_PROPERTY(i64, DataSize);
+    DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
+
+    DEFINE_BYVAL_RO_PROPERTY(bool, SizeOverridden);
 
 public:
     TChunkSlice() = default;
     TChunkSlice(TChunkSlice&& other) = default;
 
     TChunkSlice(
-        TRefCountedChunkSpecPtr chunkSpec,
+        const NProto::TSliceRequest& sliceReq,
+        const NProto::TChunkMeta& meta,
         const TNullable<NTableClient::TOwningKey>& lowerKey,
-        const TNullable<NTableClient::TOwningKey>& upperKey);
+        const TNullable<NTableClient::TOwningKey>& upperKey,
+        i64 dataSize = -1,
+        i64 rowCount = -1);
 
     TChunkSlice(
-        const TIntrusivePtr<const TChunkSlice>& chunkSlice,
-        const TNullable<NTableClient::TOwningKey>& lowerKey = Null,
-        const TNullable<NTableClient::TOwningKey>& upperKey = Null);
-
-    TChunkSlice(
-        TRefCountedChunkSpecPtr chunkSpec,
-        int partIndex,
+        const TChunkSlice& chunkSlice,
         i64 lowerRowIndex,
         i64 upperRowIndex,
         i64 dataSize);
 
     TChunkSlice(
-        TRefCountedChunkSpecPtr chunkSpec,
-        const NProto::TChunkSlice& protoChunkSlice);
+        const NProto::TSliceRequest& sliceReq,
+        const NProto::TChunkMeta& meta,
+        i64 lowerRowIndex,
+        i64 upperRowIndex,
+        i64 dataSize);
 
     //! Tries to split chunk slice into parts of almost equal size, about #sliceDataSize.
-    std::vector<TChunkSlicePtr> SliceEvenly(i64 sliceDataSize) const;
-
-    i64 GetLocality(int replicaIndex) const;
+    void SliceEvenly(std::vector<TChunkSlice>& result, i64 sliceDataSize) const;
 
     void SetKeys(const NTableClient::TOwningKey& lowerKey, const NTableClient::TOwningKey& upperKey);
-
-    void Persist(NPhoenix::TPersistenceContext& context);
-
-    friend size_t SpaceUsed(const TChunkSlicePtr& chunkSlice);
-
-private:
-    int PartIndex_ = DefaultPartIndex;
-
-    bool SizeOverridden_ = false;
-    i64 RowCount_ = 0;
-    i64 DataSize_ = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunkSlice)
+////////////////////////////////////////////////////////////////////////////////
+
+Stroka ToString(const TChunkSlice& slice);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Returns the size allocated for TChunkSlice.
-//! This function is used for ref counted tracking.
-size_t SpaceUsed(const TChunkSlicePtr& slice);
-
-Stroka ToString(const TChunkSlicePtr& slice);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Constructs a new chunk slice from the chunk spec, restricting
-//! it to a given range. The original chunk may already contain non-trivial limits.
-TChunkSlicePtr CreateChunkSlice(
-    TRefCountedChunkSpecPtr chunkSpec,
-    const TNullable<NTableClient::TOwningKey>& lowerKey = Null,
-    const TNullable<NTableClient::TOwningKey>& upperKey = Null);
-
-//! Constructs a new chunk slice from another slice, restricting
-//! it to a given range. The original chunk may already contain non-trivial limits.
-TChunkSlicePtr CreateChunkSlice(
-    TChunkSlicePtr other,
-    const TNullable<NTableClient::TOwningKey>& lowerKey = Null,
-    const TNullable<NTableClient::TOwningKey>& upperKey = Null);
-
-TChunkSlicePtr CreateChunkSlice(
-    TRefCountedChunkSpecPtr chunkSpec,
-    const NProto::TChunkSlice& protoChunkSlice);
-
-//! Constructs separate chunk slice for each part of erasure chunk.
-std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
-    TRefCountedChunkSpecPtr chunkSpec,
-    NErasure::ECodec codecId);
-
-std::vector<TChunkSlicePtr> SliceChunk(
-    TRefCountedChunkSpecPtr chunkSpec,
+std::vector<TChunkSlice> SliceChunk(
+    const NProto::TSliceRequest& sliceReq,
+    const NProto::TChunkMeta& meta,
     i64 sliceDataSize,
     int keyColumnCount,
     bool sliceByKeys);
 
-std::vector<TChunkSlicePtr> SliceChunkByRowIndexes(
-    TRefCountedChunkSpecPtr chunkSpec,
-    i64 sliceDataSize);
-
-void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlicePtr& chunk_slice);
-void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlicePtr& chunkSlice);
+void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 

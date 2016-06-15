@@ -17,7 +17,6 @@ struct IShellManager
 {
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
     virtual void CleanupProcesses() = 0;
-    virtual void AddEnvironment(const Stroka& var) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IShellManager)
@@ -27,7 +26,8 @@ DEFINE_REFCOUNTED_TYPE(IShellManager)
 IShellManagerPtr CreateShellManager(
     const Stroka& workingDir,
     TNullable<int> userId,
-    TNullable<Stroka> freezerFullPath);
+    TNullable<Stroka> freezerFullPath,
+    TNullable<Stroka> messageOfTheDay);
 
 ////////////////////////////////////////////////////////////////////////////////
 

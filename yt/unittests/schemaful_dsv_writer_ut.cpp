@@ -165,6 +165,25 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, IntegralTypeRepresentations)
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
+TEST_F(TSchemalessWriterForSchemafulDsvTest, EmptyColumnList)
+{
+    Config_->Columns = std::vector<Stroka>();
+    CreateStandardWriter();
+    
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedInt64Value(0LL, KeyAId_));
+    
+
+    std::vector<TUnversionedRow> rows = { row1.GetRow() };
+
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+    Stroka expectedOutput = "\n";
+    EXPECT_EQ(expectedOutput, OutputStream_.Str());
+}
+
 TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
 {
     Config_->Columns = {"column_a", "column_b", "column_c"};

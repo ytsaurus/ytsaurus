@@ -43,7 +43,7 @@ public:
 
 protected:
     const NTableClient::TNameTablePtr NameTable_;
-    const std::unique_ptr<TOutputStream> Output_;
+    const NConcurrency::IAsyncOutputStreamPtr Output_;
     const bool EnableContextSaving_;
     const TControlAttributesConfigPtr ControlAttributesConfig_;
     const int KeyColumnCount_;
@@ -81,9 +81,11 @@ protected:
     virtual void WriteRangeIndex(i64 rangeIndex);
     virtual void WriteRowIndex(i64 rowIndex);
 
+    void RegisterError(const TError& error);
+
 private:
     TBlobOutput CurrentBuffer_;
-    TBlobOutput PreviousBuffer_;
+    TSharedRef PreviousBuffer_;
 
     int RowIndexId_ = -1;
     int RangeIndexId_ = -1;

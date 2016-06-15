@@ -224,7 +224,7 @@ public:
 
             auto row = BlockReader_->GetRow(&MemoryPool_);
             if (row) {
-                YASSERT(
+                Y_ASSERT(
                     rows->empty() ||
                     !rows->back() ||
                     CompareRows(
@@ -1655,8 +1655,8 @@ public:
         const TBlockId& id,
         EBlockType type) override
     {
-        YASSERT(type == EBlockType::UncompressedData);
-        YASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
+        Y_ASSERT(type == EBlockType::UncompressedData);
+        Y_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
         return Blocks_[id.BlockIndex];
     }
 

@@ -184,7 +184,7 @@ TValue* TEntityMap<TValue, TTraits>::Insert(const TKey& key, std::unique_ptr<TVa
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
     auto* value = valueHolder.release();
-    YASSERT(value);
+    Y_ASSERT(value);
 
     YCHECK(this->Map_.insert(std::make_pair(key, value)).second);
     value->SetDynamicData(AllocateDynamicData());
@@ -223,7 +223,7 @@ std::unique_ptr<TValue> TEntityMap<TValue, TTraits>::Release(const TKey& key)
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
     auto it = this->Map_.find(key);
-    YASSERT(it != this->Map_.end());
+    Y_ASSERT(it != this->Map_.end());
     auto* value = it->second;
     FreeDynamicData(value->GetDynamicData());
     value->SetDynamicData(nullptr);

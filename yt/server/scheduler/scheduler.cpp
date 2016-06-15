@@ -166,6 +166,7 @@ public:
         auto options = New<TTableWriterOptions>();
         options->ValidateDuplicateIds = true;
         options->ValidateRowWeight = true;
+        options->ValidateColumnCount = true;
 
         EventLogWriter_ = CreateSchemalessBufferedTableWriter(
             Config_->EventLog,
@@ -320,7 +321,7 @@ public:
         if (static_cast<int>(IdToOperation_.size()) >= Config_->MaxOperationCount) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::TooManyOperations,
-                "Limit for the number of concurrent operations %v has been reached",
+                "Limit for the total number of concurrent operations %v has been reached",
                 Config_->MaxOperationCount);
         }
 
@@ -522,7 +523,7 @@ public:
             .Run();
     }
 
-    
+
     void ProcessHeartbeatJobs(
         TExecNodePtr node,
         NJobTrackerClient::NProto::TReqHeartbeat* request,
@@ -540,6 +541,13 @@ public:
             node->SetLastJobsLogTime(now);
         }
 
+        bool updateRunningJobs = false;
+        auto lastRunningJobsUpdateTime = node->GetLastRunningJobsUpdateTime();
+        if (!lastRunningJobsUpdateTime || now > lastRunningJobsUpdateTime.Get() + Config_->RunningJobsUpdatePeriod) {
+            updateRunningJobs = true;
+            node->SetLastRunningJobsUpdateTime(now);
+        }
+
         auto missingJobs = node->Jobs();
 
         for (auto& jobStatus : *request->mutable_jobs()) {
@@ -554,15 +562,18 @@ public:
                 request,
                 response,
                 New<TRefCountedJobStatus>(std::move(jobStatus)),
-                forceJobsLogging);
+                forceJobsLogging,
+                updateRunningJobs);
             if (job) {
                 YCHECK(missingJobs.erase(job) == 1);
                 switch (job->GetState()) {
                     case EJobState::Completed:
                     case EJobState::Failed:
-                    case EJobState::Aborted:
-                        operationsToLog->insert(job->GetOperation());
+                    case EJobState::Aborted: {
+                        auto operation = GetOperation(job->GetOperationId());
+                        operationsToLog->insert(operation);
                         break;
+                    }
                     case EJobState::Running:
                         runningJobs->push_back(job);
                         break;
@@ -628,7 +639,7 @@ public:
         }
 
         for (const auto& job : schedulingContext->PreemptedJobs()) {
-            if (!FindOperation(job->GetOperationId())) {
+            if (!FindOperation(job->GetOperationId()) || job->GetHasPendingUnregistration()) {
                 LOG_DEBUG("Dangling preempted job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
                     job->GetOperationId());
@@ -717,7 +728,9 @@ public:
                         Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag());
 
                     PROFILE_TIMING ("/schedule_time") {
+                        node->SetHasOngoingJobsScheduling(true);
                         Strategy_->ScheduleJobs(schedulingContext);
+                        node->SetHasOngoingJobsScheduling(false);
                     }
 
                     TotalResourceUsage_ -= node->GetResourceUsage();
@@ -728,7 +741,19 @@ public:
                         schedulingContext,
                         response,
                         &operationsToLog);
+
                     response->set_scheduling_skipped(false);
+                }
+
+                std::vector<TJobPtr> jobsWithPendingUnregistration;
+                for (const auto& job : node->Jobs()) {
+                    if (job->GetHasPendingUnregistration()) {
+                        jobsWithPendingUnregistration.push_back(job);
+                    }
+                }
+
+                for (const auto& job : jobsWithPendingUnregistration) {
+                    DoUnregisterJob(job);
                 }
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Failed to process heartbeat");
@@ -1776,7 +1801,9 @@ private:
             UnregisterJob(job);
         }
 
-        YCHECK(operation->Jobs().empty());
+        for (const auto& job : operation->Jobs()) {
+            YCHECK(job->GetHasPendingUnregistration());
+        }
     }
 
     void UnregisterOperation(TOperationPtr operation)
@@ -1876,6 +1903,8 @@ private:
         if (!operation->GetFinished().IsSet()) {
             operation->SetFinished();
             operation->SetController(nullptr);
+            operation->UpdateControllerTimeStatistics(
+                Strategy_->GetOperationTimeStatistics(operation->GetId()));
             UnregisterOperation(operation);
         }
     }
@@ -1901,21 +1930,39 @@ private:
 
     void UnregisterJob(TJobPtr job)
     {
-        auto operation = GetOperation(job->GetOperationId());
-
         auto node = job->GetNode();
+
+        if (node->GetHasOngoingJobsScheduling()) {
+            job->SetHasPendingUnregistration(true);
+        } else {
+            DoUnregisterJob(job);
+        }
+    }
+
+    void DoUnregisterJob(TJobPtr job)
+    {
+        auto operation = FindOperation(job->GetOperationId());
+        auto node = job->GetNode();
+
+        YCHECK(!node->GetHasOngoingJobsScheduling());
 
         --JobTypeCounters_[job->GetType()];
 
         YCHECK(IdToJob_.erase(job->GetId()) == 1);
-        YCHECK(operation->Jobs().erase(job) == 1);
         YCHECK(node->Jobs().erase(job) == 1);
 
-        JobFinished_.Fire(job);
+        if (operation) {
+            YCHECK(operation->Jobs().erase(job) == 1);
+            JobFinished_.Fire(job);
 
-        LOG_DEBUG("Job unregistered (JobId: %v, OperationId: %v)",
-            job->GetId(),
-            operation->GetId());
+            LOG_DEBUG("Job unregistered (JobId: %v, OperationId: %v)",
+                job->GetId(),
+                job->GetOperationId());
+        } else {
+            LOG_DEBUG("Dangling job unregistered (JobId: %v, OperationId: %v)",
+                job->GetId(),
+                job->GetOperationId());
+        }
     }
 
     TJobPtr FindJob(const TJobId& jobId)
@@ -1987,7 +2034,7 @@ private:
             job->GetState() == EJobState::Abandoning)
         {
             job->SetStatus(std::move(status));
-        }    
+        }
     }
 
     void OnJobWaiting(TJobPtr /*job*/)
@@ -2118,6 +2165,7 @@ private:
             }
             if (operation->GetJobNodeCount() < Config_->MaxJobNodesPerOperation) {
                 MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId);
+                operation->SetJobNodeCount(operation->GetJobNodeCount() + 1);
             }
             return;
         }
@@ -2134,6 +2182,7 @@ private:
         {
             MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId);
             operation->SetStderrCount(operation->GetStderrCount() + 1);
+            operation->SetJobNodeCount(operation->GetJobNodeCount() + 1);
         } else {
             ReleaseStderrChunk(job, stderrChunkId);
         }
@@ -2141,7 +2190,8 @@ private:
 
     void ReleaseStderrChunk(TJobPtr job, const TChunkId& chunkId)
     {
-        auto transaction = job->GetOperation()->GetAsyncSchedulerTransaction();
+        auto operation = GetOperation(job->GetOperationId());
+        auto transaction = operation->GetAsyncSchedulerTransaction();
         if (!transaction)
             return;
 
@@ -2534,9 +2584,9 @@ private:
             controller->Abort();
         }
 
-        LogOperationFinished(operation, logEventType, error);
-
         FinishOperation(operation);
+
+        LogOperationFinished(operation, logEventType, error);
     }
 
     void AbortAbortingOperation(TOperationPtr operation)
@@ -2657,7 +2707,8 @@ private:
         NJobTrackerClient::NProto::TReqHeartbeat* request,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         TRefCountedJobStatusPtr jobStatus,
-        bool forceJobsLogging)
+        bool forceJobsLogging,
+        bool updateRunningJobs)
     {
         auto jobId = FromProto<TJobId>(jobStatus->job_id());
         auto state = EJobState(jobStatus->state());
@@ -2769,12 +2820,16 @@ private:
                             LOG_DEBUG_IF(shouldLogJob, "Job is running");
                             job->SetState(state);
                             job->SetProgress(jobStatus->progress());
-                            OnJobRunning(job, std::move(jobStatus));
+                            if (updateRunningJobs) {
+                                OnJobRunning(job, std::move(jobStatus));
+                            }
                             break;
 
                         case EJobState::Waiting:
                             LOG_DEBUG_IF(shouldLogJob, "Job is waiting");
-                            OnJobWaiting(job);
+                            if (updateRunningJobs) {
+                                OnJobWaiting(job);
+                            }
                             break;
 
                         default:

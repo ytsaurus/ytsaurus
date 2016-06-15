@@ -68,9 +68,11 @@ public:
         NTransactionClient::TTimestamp timestamp);
 
     //! Informs the controller that some slot now serves #tablet.
+    //! It is fine to update an already registered snapshot.
     void RegisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet);
 
     //! Informs the controller that #tablet is no longer served.
+    //! It is fine to attempt to unregister a snapshot that had never been registered.
     void UnregisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet);
 
     //! Informs the controller that #slot no longer serves any tablet.

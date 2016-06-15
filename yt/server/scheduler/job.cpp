@@ -45,7 +45,7 @@ private:
 TJob::TJob(
     const TJobId& id,
     EJobType type,
-    TOperationPtr operation,
+    const TOperationId& operationId,
     TExecNodePtr node,
     TInstant startTime,
     const TJobResources& resourceLimits,
@@ -53,11 +53,11 @@ TJob::TJob(
     TJobSpecBuilder specBuilder)
     : Id_(id)
     , Type_(type)
-    , Operation_(operation.Get())
-    , OperationId_(operation->GetId())
+    , OperationId_(operationId)
     , Node_(node)
     , StartTime_(startTime)
     , Restarted_(restarted)
+    , HasPendingUnregistration_(false)
     , State_(EJobState::Waiting)
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
@@ -91,6 +91,7 @@ TJobSummary::TJobSummary(const TJobPtr& job)
     , Id(job->GetId())
     , StatisticsSuffix(job->GetStatisticsSuffix())
     , FinishTime(*job->GetFinishTime())
+    , ShouldLog(true)
 { 
     const auto& status = job->Status();
     if (status->has_prepare_duration()) {
@@ -107,6 +108,7 @@ TJobSummary::TJobSummary(const TJobId& id)
     : Result()
     , Id(id)
     , StatisticsSuffix()
+    , ShouldLog(false)
 { }
 
 void TJobSummary::ParseStatistics()

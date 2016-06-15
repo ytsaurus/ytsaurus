@@ -17,13 +17,13 @@ namespace NYT {
 
 //! Provides a generic infrastructure for executing fork.
 class TForkExecutor
-    : public virtual TRefCounted
+    : public virtual NLogging::TLoggerOwner
+    , public virtual TRefCounted
 {
 public:
     TFuture<void> Fork();
 
 protected:
-    explicit TForkExecutor(NLogging::TLogger& logger);
     ~TForkExecutor();
 
     //! Returns the timeout for running child process.
@@ -47,7 +47,6 @@ private:
     TInstant StartTime_;
     NConcurrency::TActionQueuePtr WatchdogQueue_ = New<NConcurrency::TActionQueue>("ForkWD");
     NConcurrency::TPeriodicExecutorPtr WatchdogExecutor_;
-    NLogging::TLogger& Logger;
 
     void DoRunParent();
     void DoRunChild();

@@ -203,18 +203,19 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDecoratedAutomaton::TSnapshotBuilderBase
-    : public virtual TRefCounted
+    : public virtual NLogging::TLoggerOwner
+    , public virtual TRefCounted
 {
 public:
     TSnapshotBuilderBase(
         TDecoratedAutomatonPtr owner,
-        TVersion snapshotVersion,
-        NLogging::TLogger& logger)
+        TVersion snapshotVersion)
         : Owner_(owner)
         , SnapshotVersion_(snapshotVersion)
         , SnapshotId_(SnapshotVersion_.SegmentId + 1)
-        , Logger(logger)
-    { }
+    {
+        Logger = Owner_->Logger;
+    }
 
     ~TSnapshotBuilderBase()
     {
@@ -248,7 +249,6 @@ protected:
     const TDecoratedAutomatonPtr Owner_;
     const TVersion SnapshotVersion_;
     const int SnapshotId_;
-    NLogging::TLogger& Logger;
 
     ISnapshotWriterPtr SnapshotWriter_;
 
@@ -307,9 +307,7 @@ public:
     TForkSnapshotBuilder(
         TDecoratedAutomatonPtr owner,
         TVersion snapshotVersion)
-        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion, Logger)
-        , TForkExecutor(Logger)
-        , Logger(owner->Logger)
+        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion)
     { }
 
 private:
@@ -317,8 +315,6 @@ private:
     std::unique_ptr<TFile> OutputFile_;
 
     TFuture<void> AsyncTransferResult_;
-
-    NLogging::TLogger Logger;
 
 
     virtual TFuture<void> DoRun() override
@@ -526,8 +522,7 @@ public:
     TNoForkSnapshotBuilder(
         TDecoratedAutomatonPtr owner,
         TVersion snapshotVersion)
-        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion, Logger)
-        , Logger(owner->Logger)
+        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion)
     { }
 
 private:
@@ -535,8 +530,6 @@ private:
 
     TFuture<void> AsyncOpenWriterResult_;
     TFuture<void> AsyncSaveSnapshotResult_;
-
-    NLogging::TLogger Logger;
 
 
     virtual TFuture<void> DoRun() override
@@ -779,10 +772,10 @@ void TDecoratedAutomaton::LogLeaderMutation(
     TFuture<TMutationResponse>* commitResult)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(recordData);
-    YASSERT(localFlushResult);
-    YASSERT(commitResult);
-    YASSERT(!RotatingChangelog_);
+    Y_ASSERT(recordData);
+    Y_ASSERT(localFlushResult);
+    Y_ASSERT(commitResult);
+    Y_ASSERT(!RotatingChangelog_);
 
     TPendingMutation pendingMutation;
     pendingMutation.Version = LoggedVersion_;
@@ -815,7 +808,7 @@ void TDecoratedAutomaton::LogFollowerMutation(
     TFuture<void>* logResult)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(!RotatingChangelog_);
+    Y_ASSERT(!RotatingChangelog_);
 
     TSharedRef mutationData;
     DeserializeMutationRecord(recordData, &MutationHeader_, &mutationData);
@@ -1177,7 +1170,7 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 
 void TDecoratedAutomaton::StopEpoch()
 {
-    auto error = TError(NHydra::EErrorCode::MaybeCommitted, "Peer stopped");
+    auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
     while (!PendingMutations_.empty()) {
         auto& pendingMutation = PendingMutations_.front();
         if (pendingMutation.CommitPromise) {

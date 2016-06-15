@@ -32,7 +32,7 @@ struct TQueuedSample
 struct TTag
 {
     Stroka Key;
-    NYson::TYsonString Value;
+    Stroka Value;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,13 +90,7 @@ public:
 
     //! Registers a tag and returns its unique id.
     template <class T>
-    TTagId RegisterTag(const Stroka& key, const T& value)
-    {
-        TTag tag;
-        tag.Key = key;
-        tag.Value = NYTree::ConvertToYsonString(value);
-        return RegisterTag(tag);
-    }
+    TTagId RegisterTag(const Stroka& key, const T& value);
 
 private:
     TProfileManager();
@@ -104,7 +98,7 @@ private:
     Y_DECLARE_SINGLETON_FRIEND();
 
     class TImpl;
-    std::unique_ptr<TImpl> Impl_;
+    const std::unique_ptr<TImpl> Impl_;
 
 };
 
@@ -112,3 +106,7 @@ private:
 
 } // namespace NProfiling
 } // namespace NYT
+
+#define PROFILE_MANAGER_INL_H_
+#include "profile_manager-inl.h"
+#undef PROFILE_MANAGER_INL_H_

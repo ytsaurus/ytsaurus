@@ -56,26 +56,24 @@ TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
     blocks.reserve(blockIndexes.size());
 
     try {
-        NFS::ExpectIOErrors([&] () {
-            // Extract maximum contiguous ranges of blocks.
-            int localIndex = 0;
-            while (localIndex < blockIndexes.size()) {
-                int startLocalIndex = localIndex;
-                int startBlockIndex = blockIndexes[startLocalIndex];
-                int endLocalIndex = startLocalIndex;
-                while (endLocalIndex < blockIndexes.size() &&
-                       blockIndexes[endLocalIndex] == startBlockIndex + (endLocalIndex - startLocalIndex))
-                {
-                    ++endLocalIndex;
-                }
-
-                int blockCount = endLocalIndex - startLocalIndex;
-                auto subblocks = DoReadBlocks(startBlockIndex, blockCount);
-                blocks.insert(blocks.end(), subblocks.begin(), subblocks.end());
-
-                localIndex = endLocalIndex;
+        // Extract maximum contiguous ranges of blocks.
+        int localIndex = 0;
+        while (localIndex < blockIndexes.size()) {
+            int startLocalIndex = localIndex;
+            int startBlockIndex = blockIndexes[startLocalIndex];
+            int endLocalIndex = startLocalIndex;
+            while (endLocalIndex < blockIndexes.size() &&
+                   blockIndexes[endLocalIndex] == startBlockIndex + (endLocalIndex - startLocalIndex))
+            {
+                ++endLocalIndex;
             }
-        });
+
+            int blockCount = endLocalIndex - startLocalIndex;
+            auto subblocks = DoReadBlocks(startBlockIndex, blockCount);
+            blocks.insert(blocks.end(), subblocks.begin(), subblocks.end());
+
+            localIndex = endLocalIndex;
+        }
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TSharedRef>>(ex);
     }
@@ -90,17 +88,11 @@ TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
 {
     YCHECK(firstBlockIndex >= 0);
 
-    std::vector<TSharedRef> blocks;
-
     try {
-        NFS::ExpectIOErrors([&] () {
-            blocks = DoReadBlocks(firstBlockIndex, blockCount);
-        });
+        return MakeFuture(DoReadBlocks(firstBlockIndex, blockCount));
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TSharedRef>>(ex);
     }
-
-    return MakeFuture(std::move(blocks));
 }
 
 TFuture<TChunkMeta> TFileReader::GetMeta(
@@ -108,17 +100,11 @@ TFuture<TChunkMeta> TFileReader::GetMeta(
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {
-    TChunkMeta meta;
-
     try {
-        NFS::ExpectIOErrors([&] () {
-            meta = DoGetMeta(partitionTag, extensionTags);
-        });
+        return MakeFuture(DoGetMeta(partitionTag, extensionTags));
     } catch (const std::exception& ex) {
         return MakeFuture<TChunkMeta>(ex);
     }
-
-    return MakeFuture(std::move(meta));
 }
 
 TChunkId TFileReader::GetChunkId() const
@@ -149,7 +135,10 @@ std::vector<TSharedRef> TFileReader::DoReadBlocks(
     auto data = TSharedMutableRef::Allocate<TFileReaderDataBufferTag>(totalSize, false);
 
     auto& file = GetDataFile();
-    file.Pread(data.Begin(), data.Size(), firstBlockInfo.offset());
+
+    NFS::ExpectIOErrors([&] () {
+        file.Pread(data.Begin(), data.Size(), firstBlockInfo.offset());
+    });
 
     // Slice the result; validate checksums.
     std::vector<TSharedRef> blocks;
@@ -198,8 +187,10 @@ TChunkMeta TFileReader::DoGetMeta(
 
     auto metaFileBlob = TSharedMutableRef::Allocate<TFileReaderMetaBufferTag>(metaFile.GetLength());
 
-    TBufferedFileInput metaFileInput(metaFile);
-    metaFileInput.Read(metaFileBlob.Begin(), metaFile.GetLength());
+    NFS::ExpectIOErrors([&] () {
+        TBufferedFileInput metaFileInput(metaFile);
+        metaFileInput.Read(metaFileBlob.Begin(), metaFile.GetLength());
+    });
 
     TChunkMetaHeader_2 metaHeader;
     TRef metaBlob;

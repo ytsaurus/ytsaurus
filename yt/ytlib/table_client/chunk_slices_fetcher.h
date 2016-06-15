@@ -14,11 +14,11 @@ namespace NTableClient {
 
 //! Fetches slices for a bunch of table chunks by requesting
 //! them directly from data nodes.
-class TChunkSlicesFetcher
+class TChunkSliceFetcher
     : public NChunkClient::TFetcherBase
 {
 public:
-    TChunkSlicesFetcher(
+    TChunkSliceFetcher(
         NChunkClient::TFetcherConfigPtr config,
         i64 chunkSliceSize,
         const TKeyColumns& keyColumns,
@@ -31,7 +31,7 @@ public:
 
 
     virtual TFuture<void> Fetch() override;
-    std::vector<NChunkClient::TChunkSlicePtr> GetChunkSlices();
+    std::vector<NChunkClient::TInputSlicePtr> GetChunkSlices();
 
 private:
     i64 ChunkSliceSize_;
@@ -39,7 +39,7 @@ private:
     bool SliceByKeys_;
 
     //! All slices fetched so far.
-    std::vector<std::vector<NChunkClient::TChunkSlicePtr>> SlicesByChunkIndex_;
+    std::vector<std::vector<NChunkClient::TInputSlicePtr>> SlicesByChunkIndex_;
 
     //! Number of slices in SlicesByChunkIndex_.
     i64 SliceCount_ = 0;
@@ -55,7 +55,7 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunkSlicesFetcher)
+DEFINE_REFCOUNTED_TYPE(TChunkSliceFetcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 

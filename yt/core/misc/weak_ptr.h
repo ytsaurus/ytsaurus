@@ -34,7 +34,7 @@ public:
             RefCounter->WeakRef();
         }
 
-        YASSERT(!T_ || RefCounter);
+        Y_ASSERT(!T_ || RefCounter);
     }
 
     //! Constructor from a strong reference.
@@ -49,7 +49,7 @@ public:
             RefCounter->WeakRef();
         }
 
-        YASSERT(!T_ || RefCounter);
+        Y_ASSERT(!T_ || RefCounter);
     }
 
     //! Copy constructor.
@@ -61,7 +61,7 @@ public:
             RefCounter->WeakRef();
         }
 
-        YASSERT(!T_ || RefCounter);
+        Y_ASSERT(!T_ || RefCounter);
     }
 
     //! Copy constructor with an upcast.
@@ -77,7 +77,7 @@ public:
             RefCounter->WeakRef();
         }
 
-        YASSERT(!T_ || RefCounter);
+        Y_ASSERT(!T_ || RefCounter);
     }
 
     //! Move constructor.
@@ -88,7 +88,7 @@ public:
         other.T_ = nullptr;
         other.RefCounter = nullptr;
 
-        YASSERT(!T_ || RefCounter);
+        Y_ASSERT(!T_ || RefCounter);
     }
 
     //! Move constructor with an upcast.
@@ -106,7 +106,7 @@ public:
             other.RefCounter = nullptr;
         }
 
-        YASSERT(!T_ || RefCounter);
+        Y_ASSERT(!T_ || RefCounter);
     }
 
     //! Destructor.

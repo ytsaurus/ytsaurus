@@ -478,7 +478,7 @@ private:
 extern "C" EXPORT_SYMBOL void inityson_lib()
 {
     static NYT::NPython::TYsonModule* yson = new NYT::NPython::TYsonModule;
-    UNUSED(yson);
+    Y_UNUSED(yson);
 }
 
 extern "C" EXPORT_SYMBOL void inityson_lib_d()

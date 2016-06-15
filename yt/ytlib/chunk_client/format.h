@@ -47,5 +47,5 @@ static_assert(sizeof(TChunkMetaHeader_2) == 32, "sizeof(TChunkMetaHeader_2) != 3
 } // namespace NChunkClient
 } // namespace NYT
 
-DECLARE_PODTYPE(NYT::NChunkClient::TChunkMetaHeader_1);
-DECLARE_PODTYPE(NYT::NChunkClient::TChunkMetaHeader_2);
+Y_DECLARE_PODTYPE(NYT::NChunkClient::TChunkMetaHeader_1);
+Y_DECLARE_PODTYPE(NYT::NChunkClient::TChunkMetaHeader_2);

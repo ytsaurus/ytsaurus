@@ -21,6 +21,11 @@ bool IHydraManager::IsRecovery() const
            GetAutomatonState() == EPeerState::FollowerRecovery;
 }
 
+bool IHydraManager::IsActive() const
+{
+    return IsActiveLeader() || IsActiveFollower();
+}
+
 void IHydraManager::ValidatePeer(EPeerKind kind)
 {
     switch (kind) {

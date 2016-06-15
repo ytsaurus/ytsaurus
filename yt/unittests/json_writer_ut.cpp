@@ -564,6 +564,25 @@ TEST(TJsonWriterTest, SeveralOptionsFlushBuffer)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TJsonWriterTest, TestPrettyFormat)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->Format = EJsonFormat::Pretty;
+    auto consumer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
+
+    consumer->OnBeginMap();
+        consumer->OnKeyedItem("hello");
+        consumer->OnInt64Scalar(1);
+    consumer->OnEndMap();
+    consumer->Flush();
+
+    Stroka output = "{\n"
+                    "    \"hello\": 1\n"
+                    "}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

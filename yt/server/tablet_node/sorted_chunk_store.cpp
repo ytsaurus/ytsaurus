@@ -95,10 +95,10 @@ public:
         const TBlockId& id,
         EBlockType type) override
     {
-        YASSERT(id.ChunkId == ChunkId_);
+        Y_ASSERT(id.ChunkId == ChunkId_);
 
         if (type == Type_ && IsPreloaded()) {
-            YASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
+            Y_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
             return Blocks_[id.BlockIndex];
         } else {
             return UnderlyingCache_->Find(id, type);

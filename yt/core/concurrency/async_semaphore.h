@@ -53,7 +53,6 @@ public:
     i64 GetFree() const;
 
     TFuture<void> GetReadyEvent();
-    TFuture<void> GetFreeEvent();
 
 private:
     const i64 TotalSlots_;
@@ -65,7 +64,6 @@ private:
     bool Releasing_ = false;
 
     TPromise<void> ReadyEvent_;
-    TPromise<void> FreeEvent_;
 
     struct TWaiter
     {

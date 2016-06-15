@@ -70,9 +70,6 @@ public:
     //! i.e. no more chunks could be created.
     bool IsChunkCountLimitViolated() const;
 
-    //! Throws if account limit is exceeded for some resource type with positive delta.
-    void ValidateResourceUsageIncrease(const TClusterResources& delta);
-
     //! Returns statistics for a given cell tag.
     TAccountStatistics* GetCellStatistics(NObjectClient::TCellTag cellTag);
 
