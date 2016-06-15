@@ -72,6 +72,7 @@ public:
     bool ValidateDuplicateIds;
     bool ValidateUniqueKeys;
     bool ExplodeOnValidationError;
+    bool ValidateColumnCount;
 
     EOptimizeFor OptimizeFor;
 
@@ -86,6 +87,8 @@ public:
         RegisterParameter("validate_unique_keys", ValidateUniqueKeys)
             .Default(false);
         RegisterParameter("explode_on_validation_error", ExplodeOnValidationError)
+            .Default(false);
+        RegisterParameter("validate_column_count", ValidateColumnCount)
             .Default(false);
 
         RegisterParameter("optimize_for", OptimizeFor)
