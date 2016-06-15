@@ -60,6 +60,7 @@ DEFINE_ENUM(EAbortReason,
     (Other)
     (Preemption)
     (SchedulingTimeout)
+    (SchedulingResourceOvercommit)
     (UserRequest)
 );
 
@@ -67,6 +68,17 @@ DEFINE_ENUM(EJobFinalState,
     (Failed)
     (Aborted)
     (Completed)
+);
+
+DEFINE_ENUM(ESchedulingMode,
+    (Fifo)
+    (FairShare)
+);
+
+DEFINE_ENUM(EFifoSortParameter,
+    (Weight)
+    (StartTime)
+    (PendingJobCount)
 );
 
 class TSchedulerServiceProxy;

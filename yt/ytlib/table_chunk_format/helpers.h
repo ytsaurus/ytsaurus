@@ -28,13 +28,13 @@ GetValue(const NTableClient::TUnversionedValue& value)
 
 inline const NTableClient::TUnversionedValue& GetUnversionedValue(const NTableClient::TUnversionedRow row, int valueIndex)
 {
-    YASSERT(valueIndex < row.GetCount());
+    Y_ASSERT(valueIndex < row.GetCount());
     return row[valueIndex];
 }
 
 inline const NTableClient::TUnversionedValue& GetUnversionedValue(const NTableClient::TVersionedRow row, int valueIndex)
 {
-    YASSERT(valueIndex < row.GetKeyCount());
+    Y_ASSERT(valueIndex < row.GetKeyCount());
     return row.BeginKeys()[valueIndex];
 }
 

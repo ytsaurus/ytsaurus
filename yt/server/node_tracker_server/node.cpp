@@ -202,7 +202,7 @@ bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
 {
     auto* chunk = replica.GetPtr();
     if (cached) {
-        YASSERT(!chunk->IsJournal());
+        Y_ASSERT(!chunk->IsJournal());
         return AddCachedReplica(replica);
     } else  {
         if (chunk->IsJournal()) {
@@ -219,7 +219,7 @@ bool TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
 {
     auto* chunk = replica.GetPtr();
     if (cached) {
-        YASSERT(!chunk->IsJournal());
+        Y_ASSERT(!chunk->IsJournal());
         RemoveCachedReplica(replica);
         return false;
     } else {
@@ -238,7 +238,7 @@ bool TNode::HasReplica(TChunkPtrWithIndex replica, bool cached) const
 {
     auto* chunk = replica.GetPtr();
     if (cached) {
-        YASSERT(!chunk->IsJournal());
+        Y_ASSERT(!chunk->IsJournal());
         return ContainsCachedReplica(replica);
     } else {
         if (chunk->IsJournal()) {
@@ -300,7 +300,7 @@ void TNode::ApproveReplica(TChunkPtrWithIndex replica)
 
 void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndex& replica)
 {
-    YASSERT(GetLocalState() == ENodeState::Online);
+    Y_ASSERT(GetLocalState() == ENodeState::Online);
     ChunkRemovalQueue_.insert(ToGeneric(replica));
 }
 
@@ -311,7 +311,7 @@ void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndex& replica)
 
 void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndex replica, int priority)
 {
-    YASSERT(GetLocalState() == ENodeState::Online);
+    Y_ASSERT(GetLocalState() == ENodeState::Online);
     ChunkReplicationQueues_[priority].insert(ToGeneric(replica));
 }
 
@@ -325,7 +325,7 @@ void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndex replica)
 
 void TNode::AddToChunkSealQueue(TChunk* chunk)
 {
-    YASSERT(GetLocalState() == ENodeState::Online);
+    Y_ASSERT(GetLocalState() == ENodeState::Online);
     ChunkSealQueue_.insert(chunk);
 }
 

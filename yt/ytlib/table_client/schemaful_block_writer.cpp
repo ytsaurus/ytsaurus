@@ -40,18 +40,18 @@ TBlockWriter::TBlockWriter(const std::vector<int> columnSizes)
 
 void TBlockWriter::WriteTimestamp(TTimestamp value, bool deleted, int index)
 {
-    YASSERT(index < FixedColumns.size());
+    Y_ASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
-    YASSERT(column.ValueSize == 8);
+    Y_ASSERT(column.ValueSize == 8);
     column.NullBitmap.Push(!deleted);
     column.Stream.DoWrite(&value, sizeof(TTimestamp));
 }
 
 void TBlockWriter::WriteInt64(const TUnversionedValue& value, int index)
 {
-    YASSERT(index < FixedColumns.size());
+    Y_ASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
-    YASSERT(column.ValueSize == 8);
+    Y_ASSERT(column.ValueSize == 8);
     if (value.Type == EValueType::Null) {
         column.NullBitmap.Push(false);
         column.Stream.DoWrite(&ZeroInteger, sizeof(i64));
@@ -63,9 +63,9 @@ void TBlockWriter::WriteInt64(const TUnversionedValue& value, int index)
 
 void TBlockWriter::WriteUint64(const TUnversionedValue& value, int index)
 {
-    YASSERT(index < FixedColumns.size());
+    Y_ASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
-    YASSERT(column.ValueSize == 8);
+    Y_ASSERT(column.ValueSize == 8);
     if (value.Type == EValueType::Null) {
         column.NullBitmap.Push(false);
         column.Stream.DoWrite(&ZeroInteger, sizeof(ui64));
@@ -77,9 +77,9 @@ void TBlockWriter::WriteUint64(const TUnversionedValue& value, int index)
 
 void TBlockWriter::WriteDouble(const TUnversionedValue& value, int index)
 {
-    YASSERT(index < FixedColumns.size());
+    Y_ASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
-    YASSERT(column.ValueSize == 8);
+    Y_ASSERT(column.ValueSize == 8);
     if (value.Type == EValueType::Null) {
         column.NullBitmap.Push(false);
         column.Stream.DoWrite(&ZeroDouble, sizeof(double));
@@ -91,9 +91,9 @@ void TBlockWriter::WriteDouble(const TUnversionedValue& value, int index)
 
 void TBlockWriter::WriteBoolean(const TUnversionedValue& value, int index)
 {
-    YASSERT(index < FixedColumns.size());
+    Y_ASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
-    YASSERT(column.ValueSize == 8);
+    Y_ASSERT(column.ValueSize == 8);
     if (value.Type == EValueType::Null) {
         column.NullBitmap.Push(false);
         column.Stream.DoWrite("\x00", 1);
@@ -105,9 +105,9 @@ void TBlockWriter::WriteBoolean(const TUnversionedValue& value, int index)
 
 void TBlockWriter::WriteString(const TUnversionedValue& value, int index)
 {
-    YASSERT(index < FixedColumns.size());
+    Y_ASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
-    YASSERT(column.ValueSize == 4);
+    Y_ASSERT(column.ValueSize == 4);
     if (value.Type == EValueType::Null) {
         column.Stream.DoWrite(&ZeroOffset, sizeof(ui32));
         column.NullBitmap.Push(false);
@@ -128,9 +128,9 @@ void TBlockWriter::WriteAny(const TUnversionedValue& value, int index)
 
 TStringBuf TBlockWriter::WriteKeyString(const TUnversionedValue& value, int index)
 {
-    YASSERT(index < FixedColumns.size());
+    Y_ASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
-    YASSERT(column.ValueSize == 4);
+    Y_ASSERT(column.ValueSize == 4);
     if (value.Type == EValueType::Null) {
         column.NullBitmap.Push(false);
         column.Stream.DoWrite(&ZeroOffset, sizeof(ui32));
@@ -247,7 +247,7 @@ auto TBlockWriter::FlushBlock() -> TBlock
 
     i32 variableBufferOffset = 0;
     if (VariableOffset) {
-        YASSERT(VariableColumn.GetSize() == GetRowCount() * 8);
+        Y_ASSERT(VariableColumn.GetSize() == GetRowCount() * 8);
         variableBufferOffset += VariableColumn.GetSize();
         auto buffer = VariableColumn.Flush();
         result.Data.insert(result.Data.end(), buffer.begin(), buffer.end());
@@ -256,7 +256,7 @@ auto TBlockWriter::FlushBlock() -> TBlock
     for (auto& column: FixedColumns) {
         result.Meta.add_fixed_column_sizes(column.ValueSize);
 
-        YASSERT(column.ValueSize * GetRowCount() == column.Stream.GetSize());
+        Y_ASSERT(column.ValueSize * GetRowCount() == column.Stream.GetSize());
         variableBufferOffset += column.Stream.GetSize();
 
         insertBuffer(column.Stream.Flush());

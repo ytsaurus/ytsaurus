@@ -69,6 +69,14 @@ public:
     //! Backoff time after controller schedule job failure.
     TDuration ControllerScheduleJobFailBackoffTime;
 
+    //! Thresholds to partition jobs of operation
+    //! to preemptable, aggressively preemptable and non-preemptable lists.
+    double PreemptionSatisfactionThreshold;
+    double AggressivePreemptionSatisfactionThreshold;
+
+    //! Number of concurrent threads to serve schedule jobs requests.
+    int StrategyScheduleJobsThreadCount;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -149,6 +157,26 @@ public:
 
         RegisterParameter("schedule_job_fail_backoff_time", ControllerScheduleJobFailBackoffTime)
             .Default(TDuration::MilliSeconds(100));
+
+        RegisterParameter("preemption_satisfaction_threshold", PreemptionSatisfactionThreshold)
+            .Default(1.0)
+            .GreaterThan(0);
+
+        RegisterParameter("aggressive_preemption_satisfaction_threshold", AggressivePreemptionSatisfactionThreshold)
+            .Default(0.5)
+            .GreaterThan(0);
+
+        RegisterParameter("strategy_schedule_jobs_thread_count", StrategyScheduleJobsThreadCount)
+            .Default(4)
+            .GreaterThan(0);
+
+        RegisterValidator([&] () {
+            if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
+                THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
+                    << TErrorAttribute("aggressive_threshold", AggressivePreemptionSatisfactionThreshold)
+                    << TErrorAttribute("threshold", PreemptionSatisfactionThreshold);
+            }
+        });
     }
 };
 
@@ -292,7 +320,9 @@ public:
 
         RegisterParameter("max_sample_size", MaxSampleSize)
             .Default(10 * 1024)
-            .GreaterThan(1024);
+            .GreaterThan(1024)
+            // NB(psushin): removing this validator may lead to weird errors in sorting.
+            .LessThanOrEqual(NTableClient::MaxSampleSize);
 
         RegisterParameter("compressed_block_size", CompressedBlockSize)
             .Default(1 * 1024 * 1024)
@@ -391,6 +421,10 @@ public:
 
     //! Jobs running on node are logged periodically or when they change their state.
     TDuration JobsLoggingPeriod;
+
+    //! Statistics and resource usages of jobs running on a node are updated
+    //! not more often then this period.
+    TDuration RunningJobsUpdatePeriod;
 
     //! Maximum allowed running time of operation. Null value is interpreted as infinity.
     TNullable<TDuration> OperationTimeLimit;
@@ -558,6 +592,9 @@ public:
         RegisterParameter("jobs_logging_period", JobsLoggingPeriod)
             .Default(TDuration::Seconds(30));
 
+        RegisterParameter("running_jobs_update_period", RunningJobsUpdatePeriod)
+            .Default(TDuration::Seconds(10));
+
         RegisterParameter("operation_time_limit", OperationTimeLimit)
             .Default();
 
@@ -701,6 +738,8 @@ public:
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;
+
+            EventLog->MaxRowWeight = (i64) 128 * 1024 * 1024;
         });
 
         RegisterValidator([&] () {

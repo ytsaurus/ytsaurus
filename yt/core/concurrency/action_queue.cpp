@@ -142,7 +142,7 @@ private:
 
         void Activate()
         {
-            YASSERT(!Activated_);
+            Y_ASSERT(!Activated_);
             Activated_ = true;
         }
 

@@ -13,7 +13,7 @@
 
 #include <yt/ytlib/api/client.h>
 
-#include <yt/ytlib/scheduler/public.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

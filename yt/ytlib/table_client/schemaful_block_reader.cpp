@@ -14,7 +14,7 @@ TVariableIterator::TVariableIterator(const char* opaque, int count)
     : Opaque(opaque)
     , Count(count)
 {
-    YASSERT(Count >= 0);
+    Y_ASSERT(Count >= 0);
 }
 
 bool TVariableIterator::ParseNext(TUnversionedValue* value)
@@ -25,13 +25,13 @@ bool TVariableIterator::ParseNext(TUnversionedValue* value)
 
     ui64 id;
     Opaque += ReadVarUint64(Opaque, &id);
-    YASSERT(id <= std::numeric_limits<ui16>::max());
+    Y_ASSERT(id <= std::numeric_limits<ui16>::max());
 
     value->Id = static_cast<ui16>(id);
 
     ui64 length;
     Opaque += ReadVarUint64(Opaque, &length);
-    YASSERT(length <= std::numeric_limits<ui32>::max());
+    Y_ASSERT(length <= std::numeric_limits<ui32>::max());
 
     if (length != 0) {
         value->Type = EValueType::Any;
@@ -126,13 +126,13 @@ int TBlockReader::GetRowCount() const
 
 bool TBlockReader::GetEndOfKeyFlag() const
 {
-    YASSERT(!EndOfKeyFlags.Empty());
+    Y_ASSERT(!EndOfKeyFlags.Empty());
     return EndOfKeyFlags.Get(RowIndex);
 }
 
 TUnversionedValue TBlockReader::Read(int index) const
 {
-    YASSERT(index < Columns.size());
+    Y_ASSERT(index < Columns.size());
     const auto& column = Columns[index];
 
     TUnversionedValue value;

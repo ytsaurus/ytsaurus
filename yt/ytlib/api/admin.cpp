@@ -42,7 +42,7 @@ public:
         , LeaderChannel_(Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader))
     {
         Logger.AddTag("Admin: %p", this);
-        UNUSED(Options_);
+        Y_UNUSED(Options_);
     }
 
 #define DROP_BRACES(...) __VA_ARGS__
@@ -97,9 +97,7 @@ private:
         WaitFor(cellDirectory->Synchronize(LeaderChannel_))
             .ThrowOnError();
 
-        auto cellId = options.CellId
-            ? options.CellId
-            : Connection_->GetConfig()->PrimaryMaster->CellId;
+        auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
 
             THydraServiceProxy proxy(channel);

@@ -51,11 +51,20 @@ struct ISchedulerStrategy
     //! Starts periodic updates and logging.
     virtual void StartPeriodicActivity() = 0;
 
+    //! Called periodically to build new tree snapshot.
+    virtual void OnFairShareUpdateAt(TInstant now) = 0;
+
+    //! Called periodically to log scheduling tree state.
+    virtual void OnFairShareLoggingAt(TInstant now) = 0;
+
     //! Resets memoized state.
     virtual void ResetState() = 0;
 
     //! Validate that operation can be added without violating pool limits.
     virtual TError CanAddOperation(TOperationPtr operation) = 0;
+
+    //! Retrieves operation job scheduling timings statistics.
+    virtual NJobTrackerClient::TStatistics GetOperationTimeStatistics(const TOperationId& operationId) = 0;
 
     //! Builds a YSON structure containing a set of attributes to be assigned to operation's node
     //! in Cypress during creation.
@@ -85,7 +94,6 @@ struct ISchedulerStrategy
     virtual void BuildBriefSpec(
         const TOperationId& operationId,
         NYson::IYsonConsumer* consumer) = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

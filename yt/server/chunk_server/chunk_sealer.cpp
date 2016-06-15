@@ -83,8 +83,8 @@ public:
 
     void ScheduleSeal(TChunk* chunk)
     {
-        YASSERT(chunk->IsAlive());
-        YASSERT(chunk->IsJournal());
+        Y_ASSERT(chunk->IsAlive());
+        Y_ASSERT(chunk->IsJournal());
 
         if (IsSealNeeded(chunk)) {
             EnqueueChunk(chunk);

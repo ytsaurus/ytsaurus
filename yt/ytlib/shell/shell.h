@@ -33,6 +33,7 @@ struct TShellOptions
     TNullable<Stroka> CGroupBasePath;
     std::vector<Stroka> Environment;
     TNullable<Stroka> Bashrc;
+    TNullable<Stroka> MessageOfTheDay;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,7 +44,10 @@ struct IShell
 {
     virtual const TShellId& GetId() = 0;
     virtual void ResizeWindow(int height, int width) = 0;
-    virtual void SendKeys(const TSharedRef& keys) = 0;
+    //! Inserts keys into input sequence at specified offset.
+    //! Returns consumed offset of the input sequence.
+    //! This function is NOT thread-safe.
+    virtual ui64 SendKeys(const TSharedRef& keys, ui64 inputOffset) = 0;
     virtual TFuture<TSharedRef> Poll() = 0;
     //! Tries to clean up, best effort guarantees.
     virtual void Terminate(const TError& error) = 0;

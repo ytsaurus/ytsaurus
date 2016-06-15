@@ -15,6 +15,7 @@ v8::Handle<v8::Value> ConvertNodeToV8Value(const NYTree::INodePtr& node);
 //! This class wraps INodePtr and allows interoperation between V8 and YT.
 class TNodeWrap
     : public node::ObjectWrap
+    , public TRefTracked<TNodeWrap>
 {
 protected:
     TNodeWrap(NYTree::INodePtr node);

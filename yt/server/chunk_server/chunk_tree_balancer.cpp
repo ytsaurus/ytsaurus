@@ -148,8 +148,8 @@ void TChunkTreeBalancer::AppendChild(
     if (!children->empty()) {
         auto* lastChild = children->back()->AsChunkList();
         if (lastChild->Children().size() < Settings_.MinChunkListSize) {
-            YASSERT(lastChild->Statistics().Rank <= 1);
-            YASSERT(lastChild->Children().size() <= Settings_.MaxChunkListSize);
+            Y_ASSERT(lastChild->Statistics().Rank <= 1);
+            Y_ASSERT(lastChild->Children().size() <= Settings_.MaxChunkListSize);
             if (lastChild->GetObjectRefCounter() > 0) {
                 // We want to merge to this chunk list but it is shared.
                 // Copy on write.
@@ -167,7 +167,7 @@ void TChunkTreeBalancer::AppendChild(
         if (child->GetType() == EObjectType::ChunkList) {
             auto* chunkList = child->AsChunkList();
             if (chunkList->Children().size() <= Settings_.MaxChunkListSize) {
-                YASSERT(chunkList->GetObjectRefCounter() > 0);
+                Y_ASSERT(chunkList->GetObjectRefCounter() > 0);
                 children->push_back(child);
                 return;
             }
@@ -189,9 +189,9 @@ void TChunkTreeBalancer::MergeChunkTrees(
     // We are trying to add the child to the last chunk list.
     auto* lastChunkList = children->back()->AsChunkList();
 
-    YASSERT(lastChunkList->GetObjectRefCounter() == 0);
-    YASSERT(lastChunkList->Statistics().Rank <= 1);
-    YASSERT(lastChunkList->Children().size() < Settings_.MinChunkListSize);
+    Y_ASSERT(lastChunkList->GetObjectRefCounter() == 0);
+    Y_ASSERT(lastChunkList->Statistics().Rank <= 1);
+    Y_ASSERT(lastChunkList->Children().size() < Settings_.MinChunkListSize);
 
     switch (child->GetType()) {
         case EObjectType::Chunk:
@@ -212,7 +212,7 @@ void TChunkTreeBalancer::MergeChunkTrees(
                 while (mergedCount < chunkList->Children().size()) {
                     if (lastChunkList->Children().size() >= Settings_.MinChunkListSize) {
                         // The last chunk list is too large. Creating a new one.
-                        YASSERT(lastChunkList->Children().size() == Settings_.MinChunkListSize);
+                        Y_ASSERT(lastChunkList->Children().size() == Settings_.MinChunkListSize);
                         lastChunkList = Bootstrap_->CreateChunkList();
                         children->push_back(lastChunkList);
                     }

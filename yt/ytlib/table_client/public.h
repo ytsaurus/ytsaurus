@@ -56,6 +56,14 @@ const int MaxColumnNameLength = 256;
 const int MaxColumnLockLength = 256;
 const int MaxColumnGroupLength = 256;
 
+// NB(psushin): increasing this parameter requires rewriting all chunks,
+// so one probaly should never want to do it.
+const int MaxSampleSize = 64 * 1024;
+
+// This is a hard limit for static tables,
+// imposed Id field size (16-bit) in TUnversionedValue.
+const int MaxColumnId = 32 * 1024;
+
 const int DefaultPartitionTag = -1;
 
 extern const Stroka SystemColumnNamePrefix;
@@ -80,6 +88,8 @@ DEFINE_ENUM(EErrorCode,
     ((UnhashableType)             (304))
     ((UniqueKeyViolation)         (305))
     ((SchemaViolation)            (306))
+    // E.g. name table with more than #MaxColumnId columns (may come from legacy chunks).
+    ((CorruptedNameTable)         (305))
 );
 
 DEFINE_ENUM(ETableChunkFormat,
@@ -178,7 +188,7 @@ class TNameTableWriter;
 DECLARE_REFCOUNTED_CLASS(TRowBuffer)
 
 DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)
-DECLARE_REFCOUNTED_CLASS(TChunkSlicesFetcher)
+DECLARE_REFCOUNTED_CLASS(TChunkSliceFetcher)
 
 DECLARE_REFCOUNTED_STRUCT(ISchemafulReader)
 DECLARE_REFCOUNTED_STRUCT(ISchemafulWriter)
@@ -232,6 +242,8 @@ DECLARE_REFCOUNTED_CLASS(TUnversionedRowMerger);
 DECLARE_REFCOUNTED_CLASS(TVersionedRowMerger);
 
 DECLARE_REFCOUNTED_CLASS(TVersionedChunkLookupHashTable);
+
+struct TBoundaryKeys;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -38,6 +38,9 @@ public:
     //! Last time when logging of jobs on node took place.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, LastJobsLogTime);
 
+    //! Last time when statistics and resource usage from running jobs was updated.
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, LastRunningJobsUpdateTime);
+
     //! Last time when heartbeat from node was processed.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
@@ -49,6 +52,9 @@ public:
 
     //! Is |true| iff heartbeat from this node is being processed at the moment.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasOngoingHeartbeat);
+
+    //! Is |true| iff jobs are scheduled on the node at the moment by the strategy.
+    DEFINE_BYVAL_RW_PROPERTY(bool, HasOngoingJobsScheduling);
 
     //! Is |true| iff the node must be unregistered but it also has an ongoing
     //! heartbeat so the unregistration has to be postponed until the heartbeat processing

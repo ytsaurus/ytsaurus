@@ -44,7 +44,6 @@ using namespace NCypressClient;
 using namespace NTableClient;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
-using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NFileClient;
 using namespace NTransactionClient;
@@ -289,7 +288,7 @@ public:
                 chunkId,
                 "input_context"
             };
-            SaveJobFiles(job->GetOperation(), { file });
+            SaveJobFiles(job->GetOperationId(), { file });
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v",
                 job->GetId(),
@@ -1255,7 +1254,7 @@ private:
         Stroka DescriptionType;
     };
 
-    void SaveJobFiles(TOperationPtr operation, const std::vector<TJobFile>& files)
+    void SaveJobFiles(const TOperationId& operationId, const std::vector<TJobFile>& files)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1267,7 +1266,7 @@ private:
             NApi::TTransactionStartOptions options;
             options.PrerequisiteTransactionIds = {LockTransaction->GetId()};
             auto attributes = CreateEphemeralAttributes();
-            attributes->Set("title", Format("Saving job files of operation %v", operation->GetId()));
+            attributes->Set("title", Format("Saving job files of operation %v", operationId));
             options.Attributes = std::move(attributes);
 
             transaction = WaitFor(client->StartTransaction(ETransactionType::Master, options))
@@ -1611,7 +1610,7 @@ private:
                     });
                 }
             }
-            SaveJobFiles(operation, files);
+            SaveJobFiles(operation->GetId(), files);
         } catch (const std::exception& ex) {
             // NB: Don' treat this as a critical error.
             // Some of these chunks could go missing for a number of reasons.

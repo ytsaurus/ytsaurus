@@ -275,10 +275,8 @@ IProxyControllerPtr TUnsafeEnvironmentBuilder::CreateProxyController(
         slot,
         this);
 #else
-    UNUSED(slot);
-    return New<TUnsafeProxyController>(
-        jobId,
-        operationId);
+    Y_UNUSED(slot);
+    return New<TUnsafeProxyController>(jobId, operationId);
 #endif
 }
 

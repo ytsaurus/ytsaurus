@@ -34,8 +34,7 @@ public:
 
 private:
     class TImpl;
-
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TEvaluator)

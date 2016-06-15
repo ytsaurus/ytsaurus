@@ -40,7 +40,7 @@ public:
 
     bool operator[] (i64 index) const
     {
-        YASSERT(index < BitSize_);
+        Y_ASSERT(index < BitSize_);
         int dataIndex = index / (sizeof(TChunkType) * 8);
         return static_cast<bool>(Data_[dataIndex] & GetChunkMask<TChunkType>(index, true));
     }
@@ -99,7 +99,7 @@ public:
 
     bool operator[] (int index) const
     {
-        YASSERT(index < BitSize_);
+        Y_ASSERT(index < BitSize_);
         int dataIndex = index / (sizeof(TChunkType) * 8);
         return static_cast<bool>(Data_[dataIndex] & GetChunkMask<TChunkType>(index, true));
     }

@@ -20,7 +20,7 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
         TGuard<TSpinLock> guard(SpinLock_);
 
         FreeSlots_ += slots;
-        YASSERT(FreeSlots_ <= TotalSlots_);
+        Y_ASSERT(FreeSlots_ <= TotalSlots_);
 
         if (Releasing_) {
             return;
@@ -32,7 +32,6 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
     while (true) {
         std::vector<TWaiter> waitersToRelease;
         TPromise<void> readyEventToSet;
-        TPromise<void> freeEventToSet;
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -48,11 +47,7 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
                 swap(readyEventToSet, ReadyEvent_);
             }
 
-            if (FreeEvent_ && FreeSlots_ == TotalSlots_) {
-                swap(freeEventToSet, FreeEvent_);
-            }
-
-            if (waitersToRelease.empty() && !readyEventToSet && !freeEventToSet) {
+            if (waitersToRelease.empty() && !readyEventToSet) {
                 Releasing_ = false;
                 break;
             }
@@ -65,10 +60,6 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
 
         if (readyEventToSet) {
             readyEventToSet.Set();
-        }
-
-        if (freeEventToSet) {
-            freeEventToSet.Set();
         }
     }
 }
@@ -147,20 +138,6 @@ TFuture<void> TAsyncSemaphore::GetReadyEvent()
     }
 
     return ReadyEvent_;
-}
-
-TFuture<void> TAsyncSemaphore::GetFreeEvent()
-{
-    TGuard<TSpinLock> guard(SpinLock_);
-
-    if (FreeSlots_ == TotalSlots_) {
-        YCHECK(!FreeEvent_);
-        return VoidFuture;
-    } else if (!FreeEvent_) {
-        FreeEvent_ = NewPromise<void>();
-    }
-
-    return FreeEvent_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

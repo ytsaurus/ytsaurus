@@ -5,6 +5,10 @@ MIRRORS_DIRECTORY="$HOME/mirrors"
 set -x
 set -e
 
+# git-svn may mangle commit messages when running with improper encoding.
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+
 ################################################################################
 
 create_stub_repository()
@@ -79,6 +83,8 @@ configure_github_mirror()
 
 ################################################################################
 
+mkdir -p $MIRRORS_DIRECTORY
+
 configure_arcadia_mirror contrib-libs-libiconv
 configure_arcadia_mirror contrib-libs-lz4
 configure_arcadia_mirror contrib-libs-minilzo
@@ -110,7 +116,8 @@ configure_github_mirror Cyan4973-zstd
 configure_github_mirror kennethreitz-requests
 configure_github_mirror google-brotli
 configure_github_mirror kislyuk-argcomplete
-#configure_github_mirror tornadoweb-tornado
-#configure_github_mirror certifi-python-certifi
 configure_github_mirror pympler-pympler
 configure_github_mirror cherrypy-cherrypy
+configure_github_mirror tornadoweb-tornado
+configure_github_mirror certifi-python-certifi
+configure_github_mirror cython-backports_abc

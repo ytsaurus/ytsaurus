@@ -42,4 +42,4 @@ Stroka ToString(TVersion version);
 } // namespace NHydra
 } // namespace NYT
 
-DECLARE_PODTYPE(NYT::NHydra::TVersion);
+Y_DECLARE_PODTYPE(NYT::NHydra::TVersion);

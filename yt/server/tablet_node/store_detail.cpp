@@ -243,7 +243,7 @@ i64 TDynamicStoreBase::GetLockCount() const
 
 i64 TDynamicStoreBase::Lock()
 {
-    YASSERT(Atomicity_ == EAtomicity::Full);
+    Y_ASSERT(Atomicity_ == EAtomicity::Full);
 
     auto result = ++StoreLockCount_;
     LOG_TRACE("Store locked (Count: %v)",
@@ -253,8 +253,8 @@ i64 TDynamicStoreBase::Lock()
 
 i64 TDynamicStoreBase::Unlock()
 {
-    YASSERT(Atomicity_ == EAtomicity::Full);
-    YASSERT(StoreLockCount_ > 0);
+    Y_ASSERT(Atomicity_ == EAtomicity::Full);
+    Y_ASSERT(StoreLockCount_ > 0);
 
     auto result = --StoreLockCount_;
     LOG_TRACE("Store unlocked (Count: %v)",

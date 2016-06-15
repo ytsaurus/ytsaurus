@@ -51,15 +51,15 @@ TSnapshotBuilder::TSnapshotBuilder(
     TSchedulerConfigPtr config,
     TSchedulerPtr scheduler,
     IClientPtr client)
-    : TForkExecutor(Logger)
-    , Config_(config)
+    : Config_(config)
     , Scheduler_(scheduler)
     , Client_(client)
-    , Logger(SchedulerLogger)
 {
     YCHECK(Config_);
     YCHECK(Scheduler_);
     YCHECK(Client_);
+
+    Logger = SchedulerLogger;
 }
 
 TFuture<void> TSnapshotBuilder::Run()
