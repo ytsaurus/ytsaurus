@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 
+#include <yt/core/ytree/serialize.h>
+
 #include <limits>
 
 namespace NYT {
