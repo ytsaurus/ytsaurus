@@ -217,7 +217,7 @@ protected:
 
     explicit TCompositeAutomaton(IInvokerPtr asyncSnapshotInvoker);
 
-    void RegisterPart(TCompositeAutomatonPart* part);
+    void RegisterPart(TCompositeAutomatonPartPtr part);
 
     virtual std::unique_ptr<TSaveContext> CreateSaveContext(
         ICheckpointableOutputStream* output) = 0;
@@ -245,7 +245,7 @@ private:
     struct TSaverDescriptorBase
     {
         Stroka Name;
-        TCompositeAutomatonPart* Part;
+        int SnapshotVersion;
     };
 
     struct TSyncSaverDescriptor
@@ -266,10 +266,9 @@ private:
     {
         Stroka Name;
         TCallback<void(TLoadContext&)> Callback;
-        TCompositeAutomatonPart* Part = nullptr;
     };
 
-    std::vector<TCompositeAutomatonPart*> Parts_;
+    std::vector<TWeakPtr<TCompositeAutomatonPart>> Parts_;
 
     yhash_map<Stroka, TMethodDescriptor> MethodNameToDescriptor_;
 
@@ -294,6 +293,8 @@ private:
 
     void OnRecoveryStarted();
     void OnRecoveryComplete();
+
+    std::vector<TCompositeAutomatonPartPtr> GetParts();
 
 };
 

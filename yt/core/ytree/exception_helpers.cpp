@@ -104,14 +104,6 @@ void ThrowAlreadyExists(IConstNodePtr node)
         GetNodePathHelper(node));
 }
 
-void ThrowExistsAndTypeMismatch(IConstNodePtr node)
-{
-    THROW_ERROR_EXCEPTION(
-        NYTree::EErrorCode::AlreadyExists,
-        "%v exists and has different type %v",
-        GetNodePathHelper(node));
-}
-
 void ThrowCannotRemoveRoot()
 {
     THROW_ERROR_EXCEPTION("Root node cannot be removed");

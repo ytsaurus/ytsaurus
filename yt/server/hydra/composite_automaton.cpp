@@ -66,7 +66,7 @@ void TCompositeAutomatonPart::RegisterSaver(
     descriptor.Priority = priority;
     descriptor.Name = name;
     descriptor.Callback = callback;
-    descriptor.Part = this;
+    descriptor.SnapshotVersion = GetCurrentSnapshotVersion();
     Automaton_->SyncSavers_.push_back(descriptor);
 }
 
@@ -82,7 +82,7 @@ void TCompositeAutomatonPart::RegisterSaver(
     descriptor.Priority = priority;
     descriptor.Name = name;
     descriptor.Callback = callback;
-    descriptor.Part = this;
+    descriptor.SnapshotVersion = GetCurrentSnapshotVersion();
     Automaton_->AsyncSavers_.push_back(descriptor);
 }
 
@@ -100,7 +100,6 @@ void TCompositeAutomatonPart::RegisterLoader(
         }
         callback.Run(context);
     });
-    descriptor.Part = this;
     YCHECK(Automaton_->PartNameToLoaderDescriptor_.insert(std::make_pair(name, descriptor)).second);
 }
 
@@ -208,7 +207,7 @@ void TCompositeAutomaton::SetSerializationDumpEnabled(bool value)
     SerializationDumpEnabled_ = value;
 }
 
-void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPart* part)
+void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPartPtr part)
 {
     YCHECK(part);
 
@@ -294,10 +293,10 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
         asyncCallbacks.push_back(descriptor.Callback.Run());
     }
 
-    // Hold the parts strongly during the async phase.
-    std::vector<TCompositeAutomatonPartPtr> parts(Parts_.begin(), Parts_.end());
+    // NB: Hold the parts strongly during the async phase.
+    auto paxrts = GetParts();
     return
-        BIND([=, this_ = MakeStrong(this), parts_ = std::move(parts)] () {
+        BIND([=, this_ = MakeStrong(this), parts_ = GetParts()] () {
             DoSaveSnapshot(
                 writer,
                 // NB: Can yield in async part.
@@ -320,7 +319,8 @@ void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
         [&] (TLoadContext& context) {
             using NYT::Load;
 
-            for (auto part : Parts_) {
+            auto parts = GetParts();
+            for (const auto& part : parts) {
                 part->OnBeforeSnapshotLoaded();
             }
 
@@ -353,7 +353,7 @@ void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
                 }
             }
 
-            for (auto part : Parts_) {
+            for (const auto& part : parts) {
                 part->OnAfterSnapshotLoaded();
             }
         });
@@ -375,7 +375,7 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
 
 void TCompositeAutomaton::Clear()
 {
-    for (auto part : Parts_) {
+    for (const auto& part : GetParts()) {
         part->Clear();
     }
 }
@@ -411,7 +411,7 @@ void TCompositeAutomaton::WritePartHeader(TSaveContext& context, const TSaverDes
 {
     context.GetCheckpointableOutput()->MakeCheckpoint();
 
-    int version = descriptor.Part->GetCurrentSnapshotVersion();
+    auto version = descriptor.SnapshotVersion;
     LOG_INFO("Saving automaton part (Name: %v, Version: %v)",
         descriptor.Name,
         version);
@@ -428,6 +428,18 @@ void TCompositeAutomaton::OnRecoveryStarted()
 void TCompositeAutomaton::OnRecoveryComplete()
 {
     Profiler.SetEnabled(true);
+}
+
+std::vector<TCompositeAutomatonPartPtr> TCompositeAutomaton::GetParts()
+{
+    std::vector<TCompositeAutomatonPartPtr> parts;
+    for (const auto& weakPart : Parts_) {
+        auto strongPart = weakPart.Lock();
+        if (strongPart) {
+            parts.push_back(strongPart);
+        }
+    }
+    return parts;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

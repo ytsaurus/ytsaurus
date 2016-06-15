@@ -35,7 +35,7 @@ using namespace NApi;
 static i64 GetMemoryEstimate(const TChunkSpec& chunkSpec, TMultiChunkReaderConfigPtr config)
 {
     i64 currentSize;
-    GetStatistics(chunkSpec, &currentSize);
+    GetStatistics(chunkSpec.chunk_meta(), &currentSize);
     auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
 
     // Block used by upper level chunk reader.

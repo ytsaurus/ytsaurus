@@ -70,8 +70,11 @@ public:
     bool ValidateSorted;
     bool ValidateRowWeight;
     bool ValidateDuplicateIds;
+<<<<<<< HEAD
     bool ValidateUniqueKeys;
     bool ExplodeOnValidationError;
+=======
+>>>>>>> origin/prestable/18.4
     bool ValidateColumnCount;
 
     EOptimizeFor OptimizeFor;
@@ -84,10 +87,13 @@ public:
             .Default(false);
         RegisterParameter("validate_duplicate_ids", ValidateDuplicateIds)
             .Default(false);
+<<<<<<< HEAD
         RegisterParameter("validate_unique_keys", ValidateUniqueKeys)
             .Default(false);
         RegisterParameter("explode_on_validation_error", ExplodeOnValidationError)
             .Default(false);
+=======
+>>>>>>> origin/prestable/18.4
         RegisterParameter("validate_column_count", ValidateColumnCount)
             .Default(false);
 

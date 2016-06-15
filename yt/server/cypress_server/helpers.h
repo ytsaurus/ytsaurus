@@ -6,6 +6,8 @@
 
 #include <yt/server/transaction_server/public.h>
 
+#include <yt/server/object_server/public.h>
+
 #include <yt/core/yson/string.h>
 
 namespace NYT {
@@ -14,39 +16,42 @@ namespace NCypressServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
-    NCellMaster::TBootstrap* bootstrap,
+    const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
+std::vector<std::pair<Stroka, TCypressNodeBase*>> SortKeyToChild(
+    const yhash_map<Stroka, TCypressNodeBase*>& keyToChildMap);
+
 TCypressNodeBase* FindMapNodeChild(
-    NCellMaster::TBootstrap* bootstrap,
+    const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction,
     const Stroka& key);
 
 yhash_map<Stroka, NYson::TYsonString> GetNodeAttributes(
-    NCellMaster::TBootstrap* bootstrap,
+    const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
 yhash_set<Stroka> ListNodeAttributes(
-    NCellMaster::TBootstrap* bootstrap,
+    const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
 void AttachChild(
-    NCellMaster::TBootstrap* bootstrap,
+    const NObjectServer::TObjectManagerPtr& objectManager,
     TCypressNodeBase* trunkParent,
     TCypressNodeBase* child);
 
 void DetachChild(
-    NCellMaster::TBootstrap* bootstrap,
+    const NObjectServer::TObjectManagerPtr& objectManager,
     TCypressNodeBase* trunkParent,
     TCypressNodeBase* child,
     bool unref);
 
 bool NodeHasKey(
-    NCellMaster::TBootstrap* bootstrap,
+    const TCypressManagerPtr& cypressManager,
     const TCypressNodeBase* node);
 
 bool IsParentOf(

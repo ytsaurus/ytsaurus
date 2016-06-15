@@ -138,12 +138,7 @@ public:
             BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
             Config_->BlockIOWatchdogPeriod))
         , Logger(Host_->GetLogger())
-    { 
-        ShellManager_ = CreateShellManager(
-            NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Home]),
-            Config_->UserId,
-            TNullable<Stroka>(Config_->EnableCGroups, Freezer_.GetFullPath()));
-    }
+    { }
 
     virtual void Initialize() override
     { }
@@ -271,6 +266,7 @@ private:
 
     TProcessPtr Process_;
     TFuture<void> ProcessFinished_;
+    std::vector<Stroka> Environment_;
 
     // Destroy shell manager before user job cgrops, since its cgroups are typically
     // nested, and we need to mantain destroy order.
@@ -316,10 +312,19 @@ private:
         formatter.AddProperty("SandboxPath", NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::User]));
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
-            auto var = formatter.Format(UserJobSpec_.environment(i));
-            Process_->AddArguments({"--env", var});
-            ShellManager_->AddEnvironment(var);
+            Environment_.emplace_back(formatter.Format(UserJobSpec_.environment(i)));
         }
+
+        // Copy environment to process arguments
+        for (const auto& var : Environment_) {
+            Process_->AddArguments({"--env", var});
+        }
+
+        ShellManager_ = CreateShellManager(
+            NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Home]),
+            Config_->UserId,
+            TNullable<Stroka>(Config_->EnableCGroups, Freezer_.GetFullPath()),
+            Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))));
     }
 
     void CleanupUserProcesses()
@@ -355,10 +360,10 @@ private:
         return StatisticsOutput_.get();
     }
 
-    TMultiChunkWriterOptionsPtr CreateSystemFileOptions()
+    TMultiChunkWriterOptionsPtr CreateFileOptions()
     {
         auto options = New<TMultiChunkWriterOptions>();
-        options->Account = NSecurityClient::SysAccountName;
+        options->Account = NSecurityClient::TmpAccountName;
         options->ReplicationFactor = 1;
         options->ChunksVital = false;
         return options;
@@ -368,7 +373,7 @@ private:
     {
         ErrorOutput_.reset(new TFileChunkOutput(
             Config_->JobIO->ErrorFileWriter,
-            CreateSystemFileOptions(),
+            CreateFileOptions(),
             Host_->GetClient(),
             FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()),
             UserJobSpec_.max_stderr_size()));
@@ -428,7 +433,7 @@ private:
         for (int index = 0; index < contexts.size(); ++index) {
             TFileChunkOutput contextOutput(
                 Config_->JobIO->ErrorFileWriter,
-                CreateSystemFileOptions(),
+                CreateFileOptions(),
                 Host_->GetClient(),
                 transactionId);
 
@@ -733,7 +738,7 @@ private:
         // all input streams into fd == 0.
 
         int maxReservedDescriptor = GetMaxReservedDescriptor();
-        YASSERT(maxReservedDescriptor > 0);
+        Y_ASSERT(maxReservedDescriptor > 0);
 
         // To avoid descriptor collisions between pipes on this, proxy side,
         // and "standard" descriptor numbers in forked job (see comments above)
@@ -779,7 +784,7 @@ private:
             if (Config_->IsCGroupSupported(TCpuAccounting::Name)) {
                 CpuAccounting_.Create();
                 Process_->AddArguments({ "--cgroup", CpuAccounting_.GetFullPath() });
-                Process_->AddArguments({ "--env", Format("YT_CGROUP_CPUACCT=%v", CpuAccounting_.GetFullPath()) });
+                Environment_.emplace_back(Format("YT_CGROUP_CPUACCT=%v", CpuAccounting_.GetFullPath()));
             }
 
             if (Config_->IsCGroupSupported(TBlockIO::Name)) {
@@ -788,13 +793,13 @@ private:
                     BlockIO_.SetWeight(UserJobSpec_.blkio_weight());
                 }
                 Process_->AddArguments({ "--cgroup", BlockIO_.GetFullPath() });
-                Process_->AddArguments({ "--env", Format("YT_CGROUP_BLKIO=%v", BlockIO_.GetFullPath()) });
+                Environment_.emplace_back(Format("YT_CGROUP_BLKIO=%v", BlockIO_.GetFullPath()));
             }
 
             if (Config_->IsCGroupSupported(TMemory::Name)) {
                 Memory_.Create();
                 Process_->AddArguments({ "--cgroup", Memory_.GetFullPath() });
-                Process_->AddArguments({ "--env", Format("YT_CGROUP_MEMORY=%v", Memory_.GetFullPath()) });
+                Environment_.emplace_back(Format("YT_CGROUP_MEMORY=%v", Memory_.GetFullPath()));
             }
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to create required cgroups");

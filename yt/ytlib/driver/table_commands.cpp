@@ -96,9 +96,17 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
         config,
         GetOptions());
 
+<<<<<<< HEAD
+=======
+    auto keyColumns = Path.GetSortedBy();
+    auto nameTable = TNameTable::FromKeyColumns(keyColumns);
+    nameTable->SetEnableColumnNameValidation();
+
+>>>>>>> origin/prestable/18.4
     auto options = New<TTableWriterOptions>();
     options->ValidateDuplicateIds = true;
     options->ValidateRowWeight = true;
+    options->ValidateColumnCount = true;
 
     auto writer = CreateSchemalessTableWriter(
         config,

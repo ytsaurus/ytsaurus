@@ -29,6 +29,8 @@
 #include <yt/core/profiling/scoped_timer.h>
 #include <yt/core/profiling/profiler.h>
 
+#include <yt/core/misc/crash_handler.h>
+
 #include <atomic>
 
 namespace NYT {
@@ -122,10 +124,15 @@ public:
         , ObjectManager_(Owner_->Bootstrap_->GetObjectManager())
         , SecurityManager_(Owner_->Bootstrap_->GetSecurityManager())
         , ResponseKeeper_(HydraFacade_->GetResponseKeeper())
+        , CodicilData_(Format("RequestId: %v, User: %v",
+            RequestId_,
+            UserName_))
     { }
 
     void Run()
     {
+        auto codicilGuard = MakeCodicilGuard();
+
         Context_->SetRequestInfo("Count: %v", SubrequestCount_);
 
         if (SubrequestCount_ == 0) {
@@ -157,6 +164,7 @@ private:
     const TObjectManagerPtr ObjectManager_;
     const TSecurityManagerPtr SecurityManager_;
     const TResponseKeeperPtr ResponseKeeper_;
+    const Stroka CodicilData_;
 
     struct TSubrequest
     {
@@ -263,6 +271,7 @@ private:
 
     void Continue()
     {
+        auto codicilGuard = MakeCodicilGuard();
         try {
             GuardedContinue();
         } catch (const std::exception& ex) {
@@ -514,22 +523,27 @@ private:
             SecurityManager_->DecreaseRequestQueueSize(user);
         }
     }
+
+    TCodicilGuard MakeCodicilGuard()
+    {
+        return TCodicilGuard(CodicilData_);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
-    UNUSED(request);
-    UNUSED(response);
+    Y_UNUSED(request);
+    Y_UNUSED(response);
 
     New<TExecuteSession>(this, std::move(context))->Run();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
 {
-    UNUSED(request);
-    UNUSED(response);
+    Y_UNUSED(request);
+    Y_UNUSED(response);
 
     context->SetRequestInfo();
 

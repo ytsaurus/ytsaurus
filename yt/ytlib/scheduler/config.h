@@ -2,9 +2,6 @@
 
 #include "public.h"
 
-#include <yt/server/scheduler/job_resources.h>
-#include <yt/server/security_server/acl.h>
-
 #include <yt/ytlib/api/config.h>
 
 #include <yt/ytlib/formats/format.h>
@@ -257,7 +254,7 @@ public:
     i64 CustomStatisticsCountLimit;
 
     TNullable<i64> TmpfsSize;
-    Stroka TmpfsPath;
+    TNullable<Stroka> TmpfsPath;
 
     bool CopyFiles;
 
@@ -306,12 +303,21 @@ public:
             .GreaterThan(0)
             .LessThanOrEqual(1024);
         RegisterParameter("tmpfs_size", TmpfsSize)
-            .Default()
+            .Default(Null)
             .GreaterThan(0);
         RegisterParameter("tmpfs_path", TmpfsPath)
-            .Default("tmpfs");
+            .Default(Null);
         RegisterParameter("copy_files", CopyFiles)
             .Default(false);
+
+        RegisterValidator([&] () {
+            if (TmpfsSize && *TmpfsSize > MemoryLimit) {
+                THROW_ERROR_EXCEPTION("Size of tmpfs must be less than or equal to memory limit")
+                    << TErrorAttribute("tmpfs_size", *TmpfsSize)
+                    << TErrorAttribute("memory_limit", MemoryLimit);
+            }
+        });
+
     }
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig)
@@ -969,17 +975,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ESchedulingMode,
-    (Fifo)
-    (FairShare)
-);
-
-DEFINE_ENUM(EFifoSortParameter,
-    (Weight)
-    (StartTime)
-    (PendingJobCount)
-);
-
 class TResourceLimitsConfig
     : public NYTree::TYsonSerializable
 {
@@ -1003,24 +998,6 @@ public:
         RegisterParameter("memory", Memory)
             .Default()
             .GreaterThanOrEqual(0);
-    }
-
-    TJobResources ToJobResources() const
-    {
-        auto perTypeLimits = InfiniteJobResources();
-        if (UserSlots) {
-            perTypeLimits.SetUserSlots(*UserSlots);
-        }
-        if (Cpu) {
-            perTypeLimits.SetCpu(*Cpu);
-        }
-        if (Network) {
-            perTypeLimits.SetNetwork(*Network);
-        }
-        if (Memory) {
-            perTypeLimits.SetMemory(*Memory);
-        }
-        return perTypeLimits;
     }
 };
 
@@ -1093,6 +1070,8 @@ public:
 
     std::vector<EFifoSortParameter> FifoSortParameters;
 
+    bool EnableAggressiveStarvation;
+
     TPoolConfig()
     {
         RegisterParameter("mode", Mode)
@@ -1113,6 +1092,10 @@ public:
         RegisterParameter("fifo_sort_parameters", FifoSortParameters)
             .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime})
             .NonEmpty();
+
+        RegisterParameter("enable_aggressive_starvation", EnableAggressiveStarvation)
+            .Alias("aggressive_starvation_enabled")
+            .Default(false);
     }
 };
 

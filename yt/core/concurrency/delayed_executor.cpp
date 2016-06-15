@@ -1,5 +1,6 @@
 #include "delayed_executor.h"
-#include "ev_scheduler_thread.h"
+#include "action_queue.h"
+#include "private.h"
 
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/nullable.h>
@@ -7,14 +8,15 @@
 
 #include <util/datetime/base.h>
 
-#include <yt/contrib/libev/ev++.h>
-
 namespace NYT {
 namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto TimeQuantum = TDuration::MilliSeconds(1);
+static const auto SleepQuantum = TDuration::MilliSeconds(1);
+static const auto LateWarningThreshold = TDuration::Seconds(1);
+static const auto PeriodicPrecisionWarningThreshold = TDuration::MilliSeconds(100);
+static const auto& Logger = ConcurrencyLogger;
 
 const TDelayedExecutorCookie NullDelayedExecutorCookie;
 
@@ -44,7 +46,6 @@ struct TDelayedExecutorEntry
     TInstant Deadline;
     TClosure Callback;
     TNullable<std::set<TDelayedExecutorCookie, TComparer>::iterator> Iterator;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TDelayedExecutorEntry)
@@ -52,16 +53,11 @@ DEFINE_REFCOUNTED_TYPE(TDelayedExecutorEntry)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDelayedExecutor::TImpl
-    : public TEVSchedulerThread
 {
 public:
     TImpl()
-        : TEVSchedulerThread("DelayedExecutor", false)
-        , PeriodicWatcher_(EventLoop)
-    {
-        PeriodicWatcher_.set<TImpl, &TImpl::OnTimer>(this);
-        PeriodicWatcher_.start(0, TimeQuantum.SecondsFloat());
-    }
+        : SleeperThread_(&SleeperThreadMain, static_cast<void*>(this))
+    { }
 
     TFuture<void> MakeDelayed(TDuration delay)
     {
@@ -86,63 +82,133 @@ public:
     TDelayedExecutorCookie Submit(TClosure callback, TInstant deadline)
     {
         auto entry = New<TDelayedExecutorEntry>(std::move(callback), deadline);
-        if (!IsShutdown()) {
-            if (!IsStarted()) {
-                Start();
-            }
-            SubmitQueue_.Enqueue(std::move(entry));
+        if (!EnsureStarted()) {
+            return entry;
         }
-        if (IsShutdown()) {
-            PurgeQueues();
-        }
+        SubmitQueue_.Enqueue(std::move(entry));
+        PurgeQueuesIfFinished();
         return entry;
     }
 
     void Cancel(TDelayedExecutorCookie entry)
     {
-        if (entry && !IsShutdown()) {
-            if (!IsStarted()) {
-                Start();
-            }
-            CancelQueue_.Enqueue(std::move(entry));
+        if (!entry) {
+            return;
         }
-        if (IsShutdown()) {
-            PurgeQueues();
+        if (!EnsureStarted()) {
+            return;
         }
+        CancelQueue_.Enqueue(std::move(entry));
+        PurgeQueuesIfFinished();
     }
 
-private:
-    ev::periodic PeriodicWatcher_;
-
-    //! Only touched from the dedicated thread.
-    std::set<TDelayedExecutorCookie, TDelayedExecutorEntry::TComparer> ScheduledEntries_;
-
-    //! Enqueued from any thread, dequeued from the dedicated thread.
-    TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> SubmitQueue_;
-    TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> CancelQueue_;
-
-
-    virtual void AfterShutdown() override
+    void Shutdown()
     {
-        TEVSchedulerThread::AfterShutdown();
+        bool doJoinSleeper;
+
+        {
+            auto guard = Guard(SpinLock_);
+
+            if (Finished_) {
+                return;
+            }
+
+            Finished_ = true;
+            doJoinSleeper = Started_;
+            DelayedQueue_->Shutdown();
+        }
+
+        if (doJoinSleeper) {
+            SleeperThread_.Join();
+        }
+
         PurgeQueues();
     }
 
-    void OnTimer(ev::periodic&, int)
+private:
+    //! Only touched from DelayedSleeper thread.
+    std::set<TDelayedExecutorCookie, TDelayedExecutorEntry::TComparer> ScheduledEntries_;
+
+    //! Enqueued from any thread, dequeued from DelayedSleeper thread.
+    TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> SubmitQueue_;
+    TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> CancelQueue_;
+
+    TInstant PrevOnTimerInstant_;
+
+    TThread SleeperThread_;
+    TActionQueuePtr DelayedQueue_;
+
+    std::atomic<bool> Started_ = {false};
+    std::atomic<bool> Finished_ = {false};
+    TSpinLock SpinLock_;
+
+
+    bool EnsureStarted()
     {
+        if (Started_) {
+            return true;
+        }
+
+        auto guard = Guard(SpinLock_);
+
+        if (Started_) {
+            return true;
+        }
+        if (Finished_) {
+            return false;
+        }
+        DelayedQueue_ = New<TActionQueue>("DelayedExecutor", false, false);
+        SleeperThread_.Start();
+        Started_ = true;
+
+        return true;
+    }
+
+    static void* SleeperThreadMain(void* opaque)
+    {
+        static_cast<TImpl*>(opaque)->SleeperThreadMain();
+        return nullptr;
+    }
+
+    void SleeperThreadMain()
+    {
+        TThread::CurrentThreadSetName("DelayedSleeper");
+        while (!Finished_) {
+            usleep(SleepQuantum.MicroSeconds());
+            SleeperThreadStep();
+        }
+        ScheduledEntries_.clear();
+    }
+
+    void SleeperThreadStep()
+    {
+        auto now = TInstant::Now();
+        if (PrevOnTimerInstant_ != TInstant::Zero() && now - PrevOnTimerInstant_ > PeriodicPrecisionWarningThreshold) {
+            LOG_WARNING("Periodic watcher stall detected (Delta: %v)",
+                now - PrevOnTimerInstant_);
+        }
+        PrevOnTimerInstant_ = now;
+
         TDelayedExecutorEntryPtr entry;
 
         while (SubmitQueue_.Dequeue(&entry)) {
-            if (entry->Canceled)
+            if (entry->Canceled) {
                 continue;
+            }
+            if (entry->Deadline + LateWarningThreshold < now) {
+                LOG_WARNING("Found a late delayed submitted callback (Deadline: %v, Now: %v)",
+                    entry->Deadline,
+                    now);
+            }
             auto pair = ScheduledEntries_.insert(entry);
             YCHECK(pair.second);
             entry->Iterator = pair.first;
         }
 
         while (CancelQueue_.Dequeue(&entry)) {
-            if (entry->Canceled)
+            if (entry->Canceled) {
                 continue;
+            }
             entry->Canceled = true;
             entry->Callback.Reset();
             if (entry->Iterator) {
@@ -151,15 +217,18 @@ private:
             }
         }
 
-        auto now = TInstant::Now();
+        auto invoker = DelayedQueue_->GetInvoker();
         while (!ScheduledEntries_.empty()) {
             auto it = ScheduledEntries_.begin();
             const auto& entry = *it;
-            if (entry->Canceled)
-                continue;
             if (entry->Deadline > now)
                 break;
-            EnqueueCallback(entry->Callback);
+            if (entry->Deadline + LateWarningThreshold < now) {
+                LOG_WARNING("Found a late delayed scheduled callback (Deadline: %v, Now: %v)",
+                    entry->Deadline,
+                    now);
+            }
+            invoker->Invoke(entry->Callback);
             entry->Callback.Reset();
             entry->Iterator.Reset();
             ScheduledEntries_.erase(it);
@@ -171,21 +240,23 @@ private:
         SubmitQueue_.DequeueAll();
         CancelQueue_.DequeueAll();
     }
+
+    void PurgeQueuesIfFinished()
+    {
+        if (Finished_) {
+            PurgeQueues();
+        }
+    }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TDelayedExecutor::TDelayedExecutor()
-    : Impl_(New<TImpl>())
-{ }
-
+TDelayedExecutor::TDelayedExecutor() = default;
 TDelayedExecutor::~TDelayedExecutor() = default;
-
-///////////////////////////////////////////////////////////////////////////////
 
 TDelayedExecutor::TImpl* const TDelayedExecutor::GetImpl()
 {
-    return RefCountedSingleton<TDelayedExecutor::TImpl>().Get();
+    return Singleton<TDelayedExecutor::TImpl>();
 }
 
 TFuture<void> TDelayedExecutor::MakeDelayed(TDuration delay)

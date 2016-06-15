@@ -372,8 +372,8 @@ Stroka NormalizePathSeparators(const Stroka& path)
 void SetExecutableMode(const Stroka& path, bool executable)
 {
 #ifdef _win_
-    UNUSED(path);
-    UNUSED(executable);
+    Y_UNUSED(path);
+    Y_UNUSED(executable);
 #else
     int mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
     if (executable) {
@@ -531,7 +531,8 @@ void ExpectIOErrors(std::function<void()> func)
     try {
         func();
     } catch (const TSystemError& ex) {
-        if (ex.Status() == EIO) {
+        auto status = ex.Status();
+        if (status == EIO || status == ENOSPC || status == EROFS) {
             throw;
         }
         TError error(ex);

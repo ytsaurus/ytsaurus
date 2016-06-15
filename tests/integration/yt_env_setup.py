@@ -15,7 +15,7 @@ import logging
 import uuid
 import shutil
 import subprocess
-from time import sleep
+from time import sleep, time
 from threading import Thread
 
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
@@ -69,7 +69,11 @@ class Checker(Thread):
 
     def run(self):
         while self._active:
+            now = time()
             self._check_function()
+            delta = time() - now
+            if delta > 0.1:
+                print >>sys.stderr, "check takes %lf seconds" % delta
             sleep(1.0)
 
     def stop(self):

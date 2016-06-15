@@ -8,7 +8,7 @@
 #include <yt/ytlib/api/config.h>
 #include <yt/ytlib/api/connection.h>
 
-#include <yt/ytlib/chunk_client/chunk_slice.h>
+#include <yt/ytlib/chunk_client/input_slice.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -232,7 +232,7 @@ private:
                 for (const auto& chunkSlice : stripe->ChunkSlices) {
                     auto* chunkSpec = inputSpec->add_chunks();
                     ToProto(chunkSpec, chunkSlice);
-                    auto replicas = FromProto<TChunkReplicaList>(chunkSlice->GetChunkSpec()->replicas());
+                    auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
                     directoryBuilder.Add(replicas);
                 }
             }
@@ -344,12 +344,12 @@ private:
 
         std::vector<TChunkStripePtr> stripes;
         for (const auto& chunkSpec : CollectPrimaryInputChunks()) {
-            if (chunkSpec->has_lower_limit() && !IsTrivial(chunkSpec->lower_limit()) ||
-                chunkSpec->has_upper_limit() && !IsTrivial(chunkSpec->upper_limit()))
+            if (chunkSpec->LowerLimit() && !IsTrivial(*chunkSpec->LowerLimit()) ||
+                chunkSpec->UpperLimit() && !IsTrivial(*chunkSpec->UpperLimit()))
             {
                 THROW_ERROR_EXCEPTION("Remote copy operation does not support non-trivial table limits");
             }
-            stripes.push_back(New<TChunkStripe>(CreateChunkSlice(chunkSpec)));
+            stripes.push_back(New<TChunkStripe>(CreateInputSlice(chunkSpec)));
         }
 
         auto jobCount = SuggestJobCount(

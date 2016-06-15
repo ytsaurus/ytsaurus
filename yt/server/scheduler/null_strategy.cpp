@@ -9,6 +9,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NYson;
+using namespace NJobTrackerClient;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -22,12 +23,23 @@ public:
     virtual void StartPeriodicActivity() override
     { }
 
+    virtual void OnFairShareUpdateAt(TInstant now) override
+    { }
+
+    virtual void OnFairShareLoggingAt(TInstant now) override
+    { }
+
     virtual void ResetState() override
     { }
 
     virtual TError CanAddOperation(TOperationPtr operation) override
     {
         return TError();
+    }
+
+    virtual TStatistics GetOperationTimeStatistics(const TOperationId& operationId) override
+    {
+        return TStatistics();
     }
 
     virtual void BuildOperationAttributes(const TOperationId& /*operationId*/, IYsonConsumer* /*consumer*/) override
@@ -54,7 +66,7 @@ public:
 
 std::unique_ptr<ISchedulerStrategy> CreateNullStrategy(ISchedulerStrategyHost* host)
 {
-    UNUSED(host);
+    Y_UNUSED(host);
     return std::unique_ptr<ISchedulerStrategy>(new TNullStrategy());
 }
 

@@ -62,12 +62,18 @@ TFuture<NYson::TYsonString> GetMulticellOwningNodes(
     NCellMaster::TBootstrap* bootstrap,
     TChunkTree* chunkTree);
 
+
+bool IsEmpty(const TChunkList* chunkList);
+bool IsEmpty(const TChunkTree* chunkTree);
+
+
+bool IsEmpty(const TChunkList* chunkList);
+bool IsEmpty(const TChunkTree* chunkTree);
+
 NTableClient::TOwningKey GetMaxKey(const TChunk* chunk);
-NTableClient::TOwningKey GetMaxKey(const TChunkList* chunkList);
 NTableClient::TOwningKey GetMaxKey(const TChunkTree* chunkTree);
 
 NTableClient::TOwningKey GetMinKey(const TChunk* chunk);
-NTableClient::TOwningKey GetMinKey(const TChunkList* chunkList);
 NTableClient::TOwningKey GetMinKey(const TChunkTree* chunkTree);
 
 ////////////////////////////////////////////////////////////////////////////////

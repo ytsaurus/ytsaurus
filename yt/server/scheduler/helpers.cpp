@@ -64,10 +64,11 @@ void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
             auto error = FromProto<TError>(job->Status()->result().error());
             fluent.Item("error").Value(error);
-        })
-        .DoIf(job->Status() && job->Status()->has_statistics(), [=] (TFluentMap fluent) {
-            fluent.Item("statistics").Value(NYson::TYsonString(job->Status()->statistics()));
         });
+    // XXX(babenko): YT-4948
+        //.DoIf(job->Status() && job->Status()->has_statistics(), [=] (TFluentMap fluent) {
+        //    fluent.Item("statistics").Value(NYson::TYsonString(job->Status()->statistics()));
+        //});
 }
 
 void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer)

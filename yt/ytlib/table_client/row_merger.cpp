@@ -25,7 +25,7 @@ TSchemafulRowMerger::TSchemafulRowMerger(
     , KeyColumnCount_(keyColumnCount)
     , ColumnEvaluator_(std::move(columnEvaluator))
 {
-    YASSERT(KeyColumnCount_ == ColumnEvaluator_->GetKeyColumnCount());
+    Y_ASSERT(KeyColumnCount_ == ColumnEvaluator_->GetKeyColumnCount());
 
     auto schemaColumnCount = ColumnCount_;
 
@@ -60,9 +60,9 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
     if (!row)
         return;
 
-    YASSERT(row.GetKeyCount() == KeyColumnCount_);
-    YASSERT(row.GetWriteTimestampCount() <= 1);
-    YASSERT(row.GetDeleteTimestampCount() <= 1);
+    Y_ASSERT(row.GetKeyCount() == KeyColumnCount_);
+    Y_ASSERT(row.GetWriteTimestampCount() <= 1);
+    Y_ASSERT(row.GetDeleteTimestampCount() <= 1);
 
     if (!Started_) {
         if (!MergedRow_) {
@@ -196,7 +196,7 @@ TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
 
 void TSchemafulRowMerger::Reset()
 {
-    YASSERT(!Started_);
+    Y_ASSERT(!Started_);
     RowBuffer_->Clear();
     MergedRow_ = TMutableUnversionedRow();
 }
@@ -222,7 +222,7 @@ TUnversionedRowMerger::TUnversionedRowMerger(
     , KeyColumnCount_(keyColumnCount)
     , ColumnEvaluator_(std::move(columnEvauator))
 {
-    YASSERT(KeyColumnCount_ == ColumnEvaluator_->GetKeyColumnCount());
+    Y_ASSERT(KeyColumnCount_ == ColumnEvaluator_->GetKeyColumnCount());
 
     ValidValues_.resize(ColumnCount_);
 
@@ -335,7 +335,7 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
 
 void TUnversionedRowMerger::Reset()
 {
-    YASSERT(!Started_);
+    Y_ASSERT(!Started_);
     RowBuffer_->Clear();
     MergedRow_ = TMutableUnversionedRow();
 }
@@ -363,7 +363,7 @@ TVersionedRowMerger::TVersionedRowMerger(
     , ColumnEvaluator_(std::move(columnEvauator))
     , Keys_(KeyColumnCount_)
 {
-    YASSERT(KeyColumnCount_ == ColumnEvaluator_->GetKeyColumnCount());
+    Y_ASSERT(KeyColumnCount_ == ColumnEvaluator_->GetKeyColumnCount());
 
     Cleanup();
 }
@@ -386,7 +386,7 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
 
     if (!Started_) {
         Started_ = true;
-        YASSERT(row.GetKeyCount() == KeyColumnCount_);
+        Y_ASSERT(row.GetKeyCount() == KeyColumnCount_);
         std::copy(row.BeginKeys(), row.EndKeys(), Keys_.data());
     }
 
@@ -463,7 +463,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 #ifndef NDEBUG
         // Validate merged list.
         for (auto it = ColumnValues_.begin(); it != ColumnValues_.end(); ++it) {
-            YASSERT(it + 1 == ColumnValues_.end() || (it->Timestamp <= (it + 1)->Timestamp));
+            Y_ASSERT(it + 1 == ColumnValues_.end() || (it->Timestamp <= (it + 1)->Timestamp));
         }
 #endif
 
@@ -602,7 +602,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 
 void TVersionedRowMerger::Reset()
 {
-    YASSERT(!Started_);
+    Y_ASSERT(!Started_);
     RowBuffer_->Clear();
 }
 

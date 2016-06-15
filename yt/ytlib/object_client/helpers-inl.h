@@ -110,13 +110,13 @@ inline bool HasSchema(EObjectType type)
 
 inline EObjectType SchemaTypeFromType(EObjectType type)
 {
-    YASSERT(HasSchema(type));
+    Y_ASSERT(HasSchema(type));
     return EObjectType(static_cast<int>(type) | SchemaObjectTypeMask);
 }
 
 inline EObjectType TypeFromSchemaType(EObjectType type)
 {
-    YASSERT(static_cast<int>(type) & SchemaObjectTypeMask);
+    Y_ASSERT(static_cast<int>(type) & SchemaObjectTypeMask);
     return EObjectType(static_cast<int>(type) & ~SchemaObjectTypeMask);
 }
 

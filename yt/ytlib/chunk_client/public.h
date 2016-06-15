@@ -153,9 +153,8 @@ DECLARE_REFCOUNTED_CLASS(TFileWriter)
 
 DECLARE_REFCOUNTED_CLASS(TMemoryWriter)
 
-using TRefCountedChunkSpec = TRefCountedProto<NProto::TChunkSpec>;
-DECLARE_REFCOUNTED_TYPE(TRefCountedChunkSpec)
-DECLARE_REFCOUNTED_CLASS(TChunkSlice)
+DECLARE_REFCOUNTED_CLASS(TInputChunk)
+DECLARE_REFCOUNTED_CLASS(TInputSlice)
 
 DECLARE_REFCOUNTED_CLASS(TChunkScraper)
 DECLARE_REFCOUNTED_CLASS(TScraperTask)
@@ -169,9 +168,6 @@ typedef std::vector<TChannel> TChannels;
 
 using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
-
-using TRefCountedChunkSpec = TRefCountedProto<NChunkClient::NProto::TChunkSpec>;
-DECLARE_REFCOUNTED_TYPE(TRefCountedChunkSpec)
 
 ///////////////////////////////////////////////////////////////////////////////
 

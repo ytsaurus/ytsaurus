@@ -49,7 +49,7 @@ public:
         NApi::IClientPtr client,
         const NLogging::TLogger& logger);
 
-    virtual void AddChunk(NChunkClient::TRefCountedChunkSpecPtr chunk) override;
+    virtual void AddChunk(NChunkClient::TInputChunkPtr chunk) override;
     virtual TFuture<void> Fetch() override;
 
     const std::vector<TSample>& GetSamples() const;

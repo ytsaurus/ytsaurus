@@ -88,7 +88,7 @@ public:
         : State(state)
         , ShadowState(state)
     {
-        YASSERT(State);
+        Y_ASSERT(State);
         ++State->Constructors;
     }
 
@@ -106,7 +106,7 @@ public:
         : State(other.State)
         , ShadowState(other.ShadowState)
     {
-        YASSERT(State);
+        Y_ASSERT(State);
         ++State->CopyConstructors;
     }
 
@@ -114,7 +114,7 @@ public:
         : State(other.State)
         , ShadowState(other.ShadowState)
     {
-        YASSERT(State);
+        Y_ASSERT(State);
         other.State = nullptr;
         ++State->MoveConstructors;
     }
@@ -123,7 +123,7 @@ public:
         : State(other.State)
         , ShadowState(other.ShadowState)
     {
-        YASSERT(State);
+        Y_ASSERT(State);
         ++State->CopyConstructors;
     }
 
@@ -131,7 +131,7 @@ public:
         : State(other.State)
         , ShadowState(other.ShadowState)
     {
-        YASSERT(State);
+        Y_ASSERT(State);
         other.State = nullptr;
         ++State->MoveConstructors;
     }
@@ -140,7 +140,7 @@ public:
     {
         State = other.State;
         ShadowState = other.ShadowState;
-        YASSERT(State);
+        Y_ASSERT(State);
         ++State->CopyAssignments;
         return *this;
     }
@@ -149,7 +149,7 @@ public:
     {
         State = other.State;
         ShadowState = other.ShadowState;
-        YASSERT(State);
+        Y_ASSERT(State);
         other.State = nullptr;
         ++State->MoveAssignments;
         return *this;
@@ -157,7 +157,7 @@ public:
 
     void Tackle() const
     {
-        YASSERT(State);
+        Y_ASSERT(State);
         ++State->Tackles;
     }
 
@@ -203,7 +203,7 @@ struct TProbableTraits
 
 MATCHER(IsAlive, "is alive")
 {
-    UNUSED(result_listener);
+    Y_UNUSED(result_listener);
     const TProbeState& state = TProbableTraits::ExtractState(arg);
     return
         state.Destructors <
@@ -212,7 +212,7 @@ MATCHER(IsAlive, "is alive")
 
 MATCHER(IsDead, "is dead")
 {
-    UNUSED(result_listener);
+    Y_UNUSED(result_listener);
     const TProbeState& state = TProbableTraits::ExtractState(arg);
     return
         state.Destructors ==
@@ -223,7 +223,7 @@ MATCHER_P2(HasCopyMoveCounts, copyCount, moveCount, "" + \
     ::testing::PrintToString(copyCount) + " copy constructors and " + \
     ::testing::PrintToString(moveCount) + " move constructors were called")
 {
-    UNUSED(result_listener);
+    Y_UNUSED(result_listener);
     const TProbeState& state = TProbableTraits::ExtractState(arg);
     return
         state.CopyConstructors == copyCount &&
@@ -232,21 +232,21 @@ MATCHER_P2(HasCopyMoveCounts, copyCount, moveCount, "" + \
 
 MATCHER(NoCopies, "no copies were made")
 {
-    UNUSED(result_listener);
+    Y_UNUSED(result_listener);
     const TProbeState& state = TProbableTraits::ExtractState(arg);
     return state.CopyConstructors == 0 && state.CopyAssignments == 0;
 }
 
 MATCHER(NoMoves, "no moves were made")
 {
-    UNUSED(result_listener);
+    Y_UNUSED(result_listener);
     const TProbeState& state = TProbableTraits::ExtractState(arg);
     return state.MoveConstructors == 0 && state.MoveAssignments == 0;
 }
 
 MATCHER(NoAssignments, "no assignments were made")
 {
-    UNUSED(result_listener);
+    Y_UNUSED(result_listener);
     const TProbeState& state = TProbableTraits::ExtractState(arg);
     return state.CopyAssignments == 0 && state.MoveAssignments == 0;
 }

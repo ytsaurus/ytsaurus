@@ -73,6 +73,7 @@ TError GetCumulativeError(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 GetChunkDataSize(const NProto::TChunkSpec& chunkSpec);
 i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChunkReaderConfigPtr config);
 
 IChunkReaderPtr CreateRemoteReader(

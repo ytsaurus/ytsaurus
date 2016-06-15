@@ -34,15 +34,21 @@ public:
         , Config_(config)
         , Table_(config, true /* addCarriageReturn */) 
     {
-        // We register column names in order to have correct size of NameTable_ in DoWrite method.
-        for (const auto& columnName : config->KeyColumnNames) {
-            KeyColumnIds_.push_back(nameTable->GetIdOrRegisterName(columnName));
+        try {
+            // We register column names in order to have correct size of NameTable_ in DoWrite method.
+            for (const auto& columnName : config->KeyColumnNames) {
+                KeyColumnIds_.push_back(nameTable->GetIdOrRegisterName(columnName));
+            }
+
+            for (const auto& columnName : config->SubkeyColumnNames) {
+                SubkeyColumnIds_.push_back(nameTable->GetIdOrRegisterName(columnName));
+            }
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to add columns to name table for YAMRed DSV format")
+                << ex;
+            RegisterError(error);
         }
 
-        for (const auto& columnName : config->SubkeyColumnNames) {
-            SubkeyColumnIds_.push_back(nameTable->GetIdOrRegisterName(columnName));
-        }
-        
         UpdateEscapedColumnNames();
     }
 

@@ -537,7 +537,7 @@ private:
         const std::vector<TCellId>& participantCellIds,
         const TMutationId& mutationId)
     {
-        YASSERT(!HasMutationContext());
+        Y_ASSERT(!HasMutationContext());
 
         auto* commit = FindCommit(transactionId);
         if (commit) {
@@ -602,7 +602,7 @@ private:
         const TMutationId& mutationId,
         bool force)
     {
-        YASSERT(!HasMutationContext());
+        Y_ASSERT(!HasMutationContext());
 
         try {
             // Any exception thrown here is caught below..

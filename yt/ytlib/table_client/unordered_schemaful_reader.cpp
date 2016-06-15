@@ -77,7 +77,7 @@ public:
                 return true;
             }
 
-            YASSERT(!session.ReadyEvent);
+            Y_ASSERT(!session.ReadyEvent);
             UpdateSession(session);
             pending = true;
         }

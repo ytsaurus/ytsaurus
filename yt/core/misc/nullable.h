@@ -268,13 +268,13 @@ public:
 
     const T& Get() const
     {
-        YASSERT(HasValue_);
+        Y_ASSERT(HasValue_);
         return reinterpret_cast<const T&>(Storage_);
     }
 
     T& Get()
     {
-        YASSERT(HasValue_);
+        Y_ASSERT(HasValue_);
         return reinterpret_cast<T&>(Storage_);
     }
 
@@ -323,14 +323,14 @@ private:
     template <class... As>
     void Construct(As&&... as)
     {
-        YASSERT(!HasValue_);
+        Y_ASSERT(!HasValue_);
         new (&Storage_) TValueType(std::forward<As>(as)...);
         HasValue_ = true;
     }
 
     void Destruct()
     {
-        YASSERT(HasValue_);
+        Y_ASSERT(HasValue_);
         Get().~TValueType();
         HasValue_ = false;
     }

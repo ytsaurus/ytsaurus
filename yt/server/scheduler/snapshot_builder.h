@@ -33,8 +33,6 @@ private:
     const TSchedulerPtr Scheduler_;
     const NApi::IClientPtr Client_;
 
-    NLogging::TLogger Logger;
-
     struct TJob
     {
         TOperationPtr Operation;

@@ -222,7 +222,7 @@ void WriteYson(
 template <class T>
 void Serialize(T* value, NYson::IYsonConsumer* consumer)
 {
-    YASSERT(value);
+    Y_ASSERT(value);
     Serialize(*value, consumer);
 }
 
@@ -321,7 +321,7 @@ template <class T>
 void Deserialize(std::unique_ptr<T>& value, INodePtr node)
 {
     if (!value) {
-        value.Reset(new T());
+        value.reset(new T());
     }
     Deserialize(*value, node);
 }

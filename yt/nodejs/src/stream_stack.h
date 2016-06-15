@@ -39,7 +39,7 @@ public:
         static_assert(
             NMpl::TIsConvertible<U*, T*>::Value,
             "U* have to be convertible to T*");
-        YASSERT(Head > Stack);
+        Y_ASSERT(Head > Stack);
         U* layer = new U(Top());
         *--Head = layer;
         return layer;
@@ -51,7 +51,7 @@ public:
         static_assert(
             NMpl::TIsConvertible<U*, T*>::Value,
             "U* have to be convertible to T*");
-        YASSERT(Head > Stack);
+        Y_ASSERT(Head > Stack);
         U* layer = new U(Top(), std::forward<A1>(a1));
         *--Head = layer;
         return layer;
@@ -63,7 +63,7 @@ public:
         static_assert(
             NMpl::TIsConvertible<U*, T*>::Value,
             "U* have to be convertible to T*");
-        YASSERT(Head > Stack);
+        Y_ASSERT(Head > Stack);
         U* layer = new U(Top(), std::forward<A1>(a1), std::forward<A2>(a2));
         *--Head = layer;
         return layer;
@@ -75,7 +75,7 @@ public:
         static_assert(
             NMpl::TIsConvertible<U*, T*>::Value,
             "U* have to be convertible to T*");
-        YASSERT(Head > Stack);
+        Y_ASSERT(Head > Stack);
         U* layer = new U(Top(), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3));
         *--Head = layer;
         return layer;

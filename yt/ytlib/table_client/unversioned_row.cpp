@@ -663,7 +663,7 @@ void ValidateClientRow(
     for (const auto& value : row) {
         int mappedId = ApplyIdMapping(value, schema, &idMapping);
 
-        YASSERT(mappedId >= 0 && mappedId < schema.Columns().size());
+        Y_ASSERT(mappedId >= 0 && mappedId < schema.Columns().size());
         const auto& column = schema.Columns()[mappedId];
         ValidateValueType(value, schema, mappedId);
 
