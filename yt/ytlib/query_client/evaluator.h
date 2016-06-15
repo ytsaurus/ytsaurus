@@ -19,7 +19,7 @@ public:
         TConstQueryPtr fragment,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
-        TExecuteQuery executeCallback,
+        TExecuteQueryCallback executeCallback,
         TConstFunctionProfilerMapPtr functionProfilers,
         TConstAggregateProfilerMapPtr aggregateProfilers,
         bool enableCodeCache);

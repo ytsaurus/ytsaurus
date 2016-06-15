@@ -63,7 +63,7 @@ public:
         TConstQueryPtr query,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
-        const TExecuteQuery& executeCallback,
+        const TExecuteQueryCallback& executeCallback,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         bool enableCodeCache)
@@ -235,7 +235,7 @@ TQueryStatistics TEvaluator::RunWithExecutor(
     TConstQueryPtr query,
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
-    TExecuteQuery executeCallback,
+    TExecuteQueryCallback executeCallback,
     TConstFunctionProfilerMapPtr functionProfilers,
     TConstAggregateProfilerMapPtr aggregateProfilers,
     bool enableCodeCache)
