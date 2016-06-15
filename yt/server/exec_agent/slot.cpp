@@ -1,8 +1,15 @@
 #include "slot.h"
 #include "private.h"
 #include "config.h"
+#include "job_environment.h"
+#include "slot_location.h"
 
+#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 #include <yt/ytlib/cgroup/cgroup.h>
+
+#include <yt/core/bus/tcp_client.h>
+
+#include <yt/core/rpc/bus_channel.h>
 
 #include <yt/core/concurrency/action_queue.h>
 
@@ -19,371 +26,149 @@
 namespace NYT {
 namespace NExecAgent {
 
+using namespace NJobProberClient;
 using namespace NConcurrency;
 using namespace NBus;
+using namespace NRpc;
 using namespace NTools;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka GetSlotProcessGroup(int slotId)
+class TSlot
+    : public ISlot
 {
-    return "slots/" + ToString(slotId);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSlot::TSlot(
-    TSlotManagerConfigPtr config,
-    std::vector<Stroka> paths,
-    const Stroka& nodeId,
-    IInvokerPtr invoker,
-    int slotIndex,
-    TNullable<int> userId)
-    : Paths_(std::move(paths))
-    , NodeId_(nodeId)
-    , SlotIndex_(slotIndex)
-    , UserId_(userId)
-    , Invoker_(std::move(invoker))
-    , ProcessGroup_("freezer", GetSlotProcessGroup(slotIndex))
-    , NullCGroup_()
-    , Logger(ExecAgentLogger)
-    , Config_(config)
-{
-    Logger.AddTag("Slot: %v", SlotIndex_);
-}
-
-void TSlot::Initialize()
-{
-    if (Config_->EnableCGroups) {
-        try {
-            ProcessGroup_.EnsureExistance();
-        } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Failed to create process group %v",
-                ProcessGroup_.GetFullPath());
-        }
-
-#ifdef _linux_
-        try {
-            NCGroup::RunKiller(ProcessGroup_.GetFullPath());
-        } catch (const std::exception& ex) {
-            // ToDo(psushin): think about more complex logic of handling fs errors.
-            LOG_FATAL(ex, "Failed to clean process group %v",
-                ProcessGroup_.GetFullPath());
-        }
-#endif
-
-        ProcessGroup_.Unlock();
-    }
-
-    Stroka currentPath;
-    try {
-        for (int pathIndex = 0; pathIndex < Paths_.size(); ++pathIndex) {
-            const auto& path = Paths_[pathIndex];
-            currentPath = path;
-            NFS::ForcePath(path, 0755);
-            SandboxPaths_.emplace_back();
-            for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
-                const auto& sandboxName = SandboxDirectoryNames[sandboxKind];
-                Y_ASSERT(sandboxName);
-                SandboxPaths_[pathIndex][sandboxKind] = NFS::CombinePaths(path, sandboxName);
-            }
-            DoCleanSandbox(pathIndex);
-        }
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to create slot directory %v",
-            currentPath) << ex;
-    }
-
-    try {
-        DoCleanProcessGroups();
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to clean slot cgroups")
-            << ex;
-    }
-}
-
-void TSlot::Acquire(int pathIndex)
-{
-    YCHECK(pathIndex >= 0 && pathIndex < Paths_.size());
-
-    PathIndex_ = pathIndex;
-    IsFree_.store(false);
-}
-
-bool TSlot::IsFree() const
-{
-    return IsFree_.load();
-}
-
-TNullable<int> TSlot::GetUserId() const
-{
-    return UserId_;
-}
-
-const NCGroup::TNonOwningCGroup& TSlot::GetProcessGroup() const
-{
-    return Config_->EnableCGroups ? ProcessGroup_ : NullCGroup_;
-}
-
-std::vector<Stroka> TSlot::GetCGroupPaths() const
-{
-    std::vector<Stroka> result;
-    if (Config_->EnableCGroups) {
-        auto subgroupName = GetSlotProcessGroup(SlotIndex_);
-
-        for (const auto& type : Config_->SupportedCGroups) {
-            NCGroup::TNonOwningCGroup group(type, subgroupName);
-            result.push_back(group.GetFullPath());
-        }
-        result.push_back(ProcessGroup_.GetFullPath());
-    }
-    return result;
-}
-
-int TSlot::GetPathIndex() const
-{
-    return PathIndex_;
-}
-
-TTcpBusServerConfigPtr TSlot::GetRpcServerConfig() const
-{
-    auto unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
-    return TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
-}
-
-TTcpBusClientConfigPtr TSlot::GetRpcClientConfig() const
-{
-    auto unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
-    return TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
-}
-
-void TSlot::DoCleanSandbox(int pathIndex)
-{
-    for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
-        const auto& sandboxPath = SandboxPaths_[pathIndex][sandboxKind];
-        auto sandboxFullPath = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), sandboxPath);
-
-        auto removeMountPount = [] (const Stroka& path) {
-            RunTool<TRemoveDirAsRootTool>(path + "/*");
-            RunTool<TUmountAsRootTool>(path);
-        };
-
-        // NB: iterating over /proc/mounts is not reliable,
-        // see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=593516.
-        // To avoid problems with undeleting tmpfs ordered by user in sandbox
-        // we always try to remove it several times.
-        for (int attempt = 0; attempt < TmpfsRemoveAttemptCount; ++attempt) {
-            // Look mount points inside sandbox and unmount it.
-            auto mountPoints = NFS::GetMountPoints();
-            for (const auto& mountPoint : mountPoints) {
-                if (sandboxFullPath.is_prefix(mountPoint.Path)) {
-                    // '/*' added since we need to remove only content.
-                    removeMountPount(mountPoint.Path);
-                }
-            }
-        }
-
-        try {
-            if (NFS::Exists(sandboxPath)) {
-                if (UserId_) {
-                    LOG_DEBUG("Cleaning sandbox directory (Path: %v)", sandboxPath);
-                    RunTool<TRemoveDirAsRootTool>(sandboxPath);
-                } else {
-                    NFS::RemoveRecursive(sandboxPath);
-                }
-            }
-        } catch (const std::exception& ex) {
-            auto wrappedError = TError("Failed to clean sandbox directory %v",
-                sandboxPath)
-                << ex;
-            LOG_ERROR(wrappedError);
-            THROW_ERROR wrappedError;
-        }
-    }
-}
-
-void TSlot::DoCleanProcessGroups()
-{
-    if (!Config_->EnableCGroups) {
-        return;
-    }
-
-    try {
-        for (const auto& path : GetCGroupPaths()) {
-            NCGroup::TNonOwningCGroup group(path);
-            group.RemoveRecursive();
-        }
-        ProcessGroup_.EnsureExistance();
-    } catch (const std::exception& ex) {
-        auto wrappedError = TError("Failed to clean slot subcgroups for slot %v",
-            SlotIndex_)
-            << ex;
-        LOG_ERROR(wrappedError);
-        THROW_ERROR wrappedError;
-    }
-}
-
-void TSlot::Clean()
-{
-    YCHECK(!IsFree());
-    try {
-        LOG_INFO("Cleaning slot");
-        DoCleanProcessGroups();
-        DoCleanSandbox(PathIndex_);
-        IsClean_ = true;
-    } catch (const std::exception& ex) {
-        LOG_FATAL(TError(ex));
-    }
-}
-
-void TSlot::Release()
-{
-    YCHECK(IsClean_);
-
-    if (Config_->EnableCGroups) {
-        ProcessGroup_.Unlock();
-    }
-
-    PathIndex_ = -1;
-    IsFree_.store(true);
-}
-
-void TSlot::InitSandbox()
-{
-    YCHECK(!IsFree());
-
-    for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
-        const auto& sandboxPath = SandboxPaths_[PathIndex_][sandboxKind];
-        try {
-            NFS::ForcePath(sandboxPath, 0777);
-        } catch (const std::exception& ex) {
-            LogErrorAndExit(TError("Failed to create sandbox directory %v",
-                sandboxPath)
-                << ex);
-        }
-        LOG_INFO("Created sandbox directory (Path: %v)", sandboxPath);
-    }
-
-    IsClean_ = false;
-}
-
-void TSlot::PrepareTmpfs(
-    ESandboxKind sandboxKind,
-    i64 size,
-    Stroka path)
-{
-    if (!UserId_) {
-        THROW_ERROR_EXCEPTION("Cannot mount tmpfs since job control is disabled");
-    }
-
-    auto config = New<TMountTmpfsConfig>();
-    config->Path = GetTmpfsPath(sandboxKind, path);
-    config->Size = size;
-
-    auto isSandbox = (config->Path == SandboxPaths_[PathIndex_][sandboxKind]);
-    config->UserId = isSandbox
-        ? ::geteuid()
-        : *UserId_;
-
-    LOG_DEBUG("Preparing tmpfs (Path: %v, Size: %v, UserId: %v)",
-        config->Path,
-        config->Size,
-        config->UserId);
-
-    NFS::ForcePath(config->Path);
-    RunTool<TMountTmpfsAsRootTool>(config);
-    if (isSandbox) {
-        NFS::Chmod(config->Path, 0777);
-    }
-}
-
-Stroka TSlot::GetTmpfsPath(ESandboxKind sandboxKind, const Stroka& path) const
-{
-    auto sandboxPath = SandboxPaths_[PathIndex_][sandboxKind];
-    auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, path));
-    if (!sandboxPath.is_prefix(tmpfsPath)) {
-        THROW_ERROR_EXCEPTION("Path of the tmpfs mount point must be inside the sandbox directory")
-            << TErrorAttribute("snadbox_path", sandboxPath)
-            << TErrorAttribute("tmpfs_path", tmpfsPath);
-    }
-    return tmpfsPath;
-}
-
-void TSlot::MakeLink(
-    ESandboxKind sandboxKind,
-    const Stroka& targetPath,
-    const Stroka& linkName,
-    bool isExecutable)
-{
-    YCHECK(!IsFree());
-
-    const auto& sandboxPath = SandboxPaths_[PathIndex_][sandboxKind];
-    auto linkPath = NFS::CombinePaths(sandboxPath, linkName);
-    if (NFS::Exists(linkPath)) {
-        THROW_ERROR_EXCEPTION("Path %v already exists", linkPath);
-    }
-
-    try {
-        {
-            // Take exclusive lock in blocking fashion to ensure that no
-            // forked process is holding an open descriptor to the target file.
-            TFile file(targetPath, RdOnly | CloseOnExec);
-            file.Flock(LOCK_EX);
-        }
-
-        NFS::SetExecutableMode(targetPath, isExecutable);
-        NFS::MakeSymbolicLink(targetPath, linkPath);
-    } catch (const std::exception& ex) {
-        // Occured IO error in the slot, restart node immediately.
-        LogErrorAndExit(TError(
-            "Failed to create a symlink in sandbox (SandboxPath: %v, LinkPath: %v, TargetPath: %v, IsExecutable: %v)",
-            sandboxPath,
-            linkPath,
-            targetPath,
-            isExecutable)
-            << ex);
-    }
-}
-
-void TSlot::MakeCopy(
-    ESandboxKind sandboxKind,
-    const Stroka& sourcePath,
-    const Stroka& destinationName,
-    bool isExecutable)
-{
-    YCHECK(!IsFree());
-
-    const auto& sandboxPath = SandboxPaths_[PathIndex_][sandboxKind];
-    auto destinationPath = NFS::CombinePaths(sandboxPath, destinationName);
-
+public:
+    TSlot(int slotIndex, TSlotLocationPtr location, IJobEnvironmentPtr environment, const Stroka& nodeTag)
+        : SlotIndex_(slotIndex)
+        , JobEnvironment_(std::move(environment))
+        , Location_(std::move(location))
+        , NodeTag_(nodeTag)
     {
-        // Take exclusive lock in blocking fashion to ensure that no
-        // forked process is holding an open descriptor to the source file.
-        TFile file(sourcePath, RdOnly | CloseOnExec);
-        file.Flock(LOCK_EX);
+        Location_->IncreaseSessionCount();
     }
 
-    NFS::SetExecutableMode(sourcePath, isExecutable);
-    NFs::Copy(sourcePath, destinationPath);
-}
+    virtual void Cleanup() override
+    {
+        // First kill all processes that may hold open handles to slot directories.
+        JobEnvironment_->CleanProcesses(SlotIndex_);
+
+        // After that clean the filesystem.
+        Location_->CleanSandboxes(SlotIndex_);
+        Location_->DecreaseSessionCount();
+    }
+
+    virtual TFuture<void> RunJobProxy(
+        NJobProxy::TJobProxyConfigPtr config,
+        const TJobId& jobId,
+        const TOperationId& operationId) override
+    {
+        try {
+            Location_->MakeConfig(SlotIndex_, ConvertToNode(config));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to create job proxy config") << ex;
+        }
+
+        return JobEnvironment_->RunJobProxy(
+            SlotIndex_,
+            Location_->GetSlotPath(SlotIndex_),
+            jobId,
+            operationId);
+    }
+
+    virtual void MakeLink(
+        ESandboxKind sandboxKind,
+        const Stroka& targetPath,
+        const Stroka& linkName,
+        bool executable) override
+    {
+        Location_->MakeSandboxLink(SlotIndex_, sandboxKind, targetPath, linkName, executable);
+    }
+
+    virtual void MakeCopy(
+        ESandboxKind sandboxKind,
+        const Stroka& sourcePath,
+        const Stroka& destinationName,
+        bool executable) override
+    {
+        Location_->MakeSandboxCopy(SlotIndex_, sandboxKind, sourcePath, destinationName, executable);
+    }
+
+    virtual Stroka PrepareTmpfs(
+        ESandboxKind sandboxKind,
+        i64 size,
+        Stroka path) override
+    {
+        return Location_->MakeSandboxTmpfs(
+            SlotIndex_,
+            sandboxKind,
+            size,
+            JobEnvironment_->GetUserId(SlotIndex_),
+            path);
+    }
+
+    virtual TJobProberServiceProxy GetJobProberProxy() override
+    {
+        if (!JobProberProxy_) {
+            auto client = CreateTcpBusClient(GetRpcClientConfig());
+            auto channel = CreateBusChannel(std::move(client));
+            JobProberProxy_.Emplace(std::move(channel));
+        }
+
+        return *JobProberProxy_;
+    }
+
+    virtual int GetSlotIndex() const override
+    {
+        return SlotIndex_;
+    }
+
+    virtual TTcpBusServerConfigPtr GetRpcServerConfig() const override
+    {
+        auto unixDomainName = Format("%v-job-proxy-%v", NodeTag_, SlotIndex_);
+        return TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
+    }
+
+    void Initialize()
+    {
+        Location_->CreateSandboxDirectories(SlotIndex_);
+    }
+
+private:
+    const int SlotIndex_;
+    IJobEnvironmentPtr JobEnvironment_;
+    TSlotLocationPtr Location_;
+
+    //! Uniquely identifies a node process on the current host.
+    //! Used for unix socket name generation, to communicate between node and job proxies.
+    const Stroka NodeTag_;
+
+    TNullable<TJobProberServiceProxy> JobProberProxy_;
 
 
-void TSlot::LogErrorAndExit(const TError& error)
+    TTcpBusClientConfigPtr GetRpcClientConfig() const
+    {
+        auto unixDomainName = Format("%v-job-proxy-%v", NodeTag_, SlotIndex_);
+        return TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISlotPtr CreateSlot(
+    int slotIndex,
+    TSlotLocationPtr location,
+    IJobEnvironmentPtr environment,
+    const Stroka& nodeTag)
 {
-    LOG_ERROR(error);
-    NLogging::TLogManager::Get()->Shutdown();
-    _exit(1);
-}
+    auto slot = New<TSlot>(
+        slotIndex,
+        std::move(location),
+        std::move(environment),
+        nodeTag);
 
-const Stroka& TSlot::GetWorkingDirectory() const
-{
-    YCHECK(!IsFree());
-    return Paths_[PathIndex_];
-}
-
-IInvokerPtr TSlot::GetInvoker()
-{
-    return Invoker_;
+    slot->Initialize();
+    return slot;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

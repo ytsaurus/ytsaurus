@@ -14,6 +14,8 @@
 #include "user_job.h"
 #include "user_job_io.h"
 
+#include <yt/server/exec_agent/config.h>
+
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/connection.h>
 
@@ -293,6 +295,11 @@ TJobResult TJobProxy::DoRun()
             << ex;
     }
 
+    auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+    if (environmentConfig->Type == EJobEnvironmentType::Cgroups) {
+        CGroupsConfig_ = ConvertTo<TCGroupJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+    }
+
     LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack);
 
     RpcServer_ = CreateBusServer(CreateTcpBusServer(Config_->RpcServer));
@@ -318,7 +325,7 @@ TJobResult TJobProxy::DoRun()
         MakeNullable(schedulerJobSpecExt.job_proxy_memory_overcommit_limit()) : 
         Null;
 
-    if (Config_->IsCGroupSupported(TCpu::Name)) {
+    if (CGroupsConfig_ && CGroupsConfig_->IsCGroupSupported(TCpu::Name)) {
         auto cpuCGroup = GetCurrentCGroup<TCpu>();
         cpuCGroup.SetShare(CpuLimit_);
     }
@@ -336,10 +343,11 @@ TJobResult TJobProxy::DoRun()
         BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
         Config_->HeartbeatPeriod);
 
+    auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
     MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
         GetSyncInvoker(),
         BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
-        Config_->MemoryWatchdogPeriod);
+        jobEnvironmentConfig->MemoryWatchdogPeriod);
 
     if (schedulerJobSpecExt.has_user_job_spec()) {
         auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
@@ -384,13 +392,13 @@ TStatistics TJobProxy::GetStatistics() const
     YCHECK(Job_);
     auto statistics = Job_->GetStatistics();
 
-    if (Config_->IsCGroupSupported(TCpuAccounting::Name)) {
+    if (CGroupsConfig_ && CGroupsConfig_->IsCGroupSupported(TCpuAccounting::Name)) {
         auto cpuAccounting = GetCurrentCGroup<TCpuAccounting>();
         auto cpuStatistics = cpuAccounting.GetStatistics();
         statistics.AddSample("/job_proxy/cpu", cpuStatistics);
     }
 
-    if (Config_->IsCGroupSupported(TBlockIO::Name)) {
+    if (CGroupsConfig_ && CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
         auto blockIO = GetCurrentCGroup<TBlockIO>();
         auto blockIOStatistics = blockIO.GetStatistics();
         statistics.AddSample("/job_proxy/block_io", blockIOStatistics);
@@ -402,7 +410,12 @@ TStatistics TJobProxy::GetStatistics() const
     return statistics;
 }
 
-TJobProxyConfigPtr TJobProxy::GetConfig()
+TCGroupJobEnvironmentConfigPtr TJobProxy::GetCGroupsConfig() const
+{
+    return CGroupsConfig_;
+}
+
+TJobProxyConfigPtr TJobProxy::GetConfig() const
 {
     return Config_;
 }

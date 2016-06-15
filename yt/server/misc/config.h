@@ -66,4 +66,57 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDiskLocationConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    //! Root directory for the location.
+    Stroka Path;
+
+    //! Minimum size the disk partition must have to make this location usable.
+    TNullable<i64> MinDiskSpace;
+
+    TDiskLocationConfig()
+    {
+        RegisterParameter("path", Path)
+            .NonEmpty();
+        RegisterParameter("min_disk_space", MinDiskSpace)
+            .GreaterThanOrEqual(0)
+            .Default(TNullable<i64>());
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiskLocationConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDiskHealthCheckerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Period between consequent checks.
+    TDuration CheckPeriod;
+
+    //! Size of the test file.
+    i64 TestSize;
+
+    //! Maximum time allowed for execution of a single check.
+    TDuration Timeout;
+
+    TDiskHealthCheckerConfig()
+    {
+        RegisterParameter("check_period", CheckPeriod)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("test_size", TestSize)
+            .InRange(0, (i64) 1024 * 1024 * 1024)
+            .Default((i64) 1024 * 1024);
+        RegisterParameter("timeout", Timeout)
+            .Default(TDuration::Seconds(60));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiskHealthCheckerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

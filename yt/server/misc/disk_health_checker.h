@@ -15,7 +15,6 @@
 #include <atomic>
 
 namespace NYT {
-namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +28,8 @@ public:
         TDiskHealthCheckerConfigPtr config,
         const Stroka& path,
         IInvokerPtr invoker,
-        const NProfiling::TProfiler& profiler);
+        NLogging::TLogger logger,
+        const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
 
     //! Runs single health check. 
     //! Don't call after #Start(), otherwise two checks may interfere.
@@ -61,6 +61,5 @@ DEFINE_REFCOUNTED_TYPE(TDiskHealthChecker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDataNode
 } // namespace NYT
 

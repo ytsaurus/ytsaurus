@@ -58,6 +58,7 @@ using namespace NElection;
 using namespace NScheduler;
 using namespace NJobProxy;
 using namespace NTools;
+using namespace NExecAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -305,7 +306,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
             THROW_ERROR_EXCEPTION("Error parsing cell node configuration")
                 << ex;
         }
-        enableCGroups = config->ExecAgent->EnableCGroups;
+        auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(config->ExecAgent->SlotManager->JobEnvironment);
+        enableCGroups = jobEnvironmentConfig->Type == EJobEnvironmentType::Cgroups;
     }
 
     auto cgroups = parser.CGroups.getValue();
@@ -523,6 +525,8 @@ EExitCode Main(int argc, const char* argv[])
         YCHECK(setruid(ruid) == 0);
 #endif
     }
+
+    umask(0000);
 #endif /* _unix_ */
 
     EExitCode exitCode;

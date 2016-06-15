@@ -5,6 +5,7 @@
 #include "config.h"
 #include "job.h"
 
+#include <yt/server/exec_agent/public.h>
 #include <yt/server/exec_agent/supervisor_service_proxy.h>
 
 #include <yt/server/job_agent/public.h>
@@ -46,6 +47,9 @@ public:
 private:
     const NYTree::INodePtr ConfigNode_;
     const NJobAgent::TJobId JobId_;
+
+    //! Can be null if running in non-cgroups environment.
+    NExecAgent::TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
 
     // Job proxy memory limit by the scheduler.
     i64 JobProxyInitialMemoryLimit_;
@@ -100,7 +104,9 @@ private:
     IJobPtr CreateBuiltinJob();
 
     // IJobHost implementation.
-    virtual TJobProxyConfigPtr GetConfig() override;
+    virtual TJobProxyConfigPtr GetConfig() const override;
+    virtual NExecAgent::TCGroupJobEnvironmentConfigPtr GetCGroupsConfig() const override;
+
     virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const override;
 
     virtual const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const override;
