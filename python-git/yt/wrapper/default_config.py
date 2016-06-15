@@ -60,6 +60,9 @@ default_config = {
 
         # Enable using heavy proxies for heavy commands (write_*, read_*).
         "enable_proxy_discovery": True,
+        # Number of top unbanned proxies that would be used to choose random
+        # proxy for heavy request.
+        "number_of_top_proxies_for_random_chioce": 5,
         # Part of url to get list of heavy proxies.
         "proxy_discovery_url": "hosts",
         # Timeout of proxy ban.

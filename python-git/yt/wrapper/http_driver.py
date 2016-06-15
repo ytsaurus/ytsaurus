@@ -11,6 +11,7 @@ from yt.packages.requests.auth import AuthBase
 import yt.logger as logger
 import yt.json as json
 
+import random
 from copy import deepcopy
 from datetime import datetime
 
@@ -53,14 +54,26 @@ def get_heavy_proxy(client):
         if total_seconds(now - time) * 1000 > get_config(client)["proxy"]["proxy_ban_timeout"]:
             logger.info("Host %s unbanned", host)
             del banned_hosts[host]
+
+    url = get_config(client)["proxy"]["url"]
     if get_config(client)["proxy"]["enable_proxy_discovery"]:
+        limit = get_config(client)["proxy"]["number_of_top_proxies_for_random_chioce"]
+        unbanned_hosts = []
         hosts = get_hosts(client=client)
+        if not hosts:
+            return url
+
         for host in hosts:
             if host not in banned_hosts:
-                return host
-        logger.warning("All hosts are banned, use %s as first in the hosts list", hosts[0])
-        if hosts:
-            return hosts[0]
+                unbanned_hosts.append(host)
+
+        if unbanned_hosts:
+            upper_bound = min(limit, len(unbanned_hosts))
+            return unbanned_hosts[random.randint(0, upper_bound - 1)]
+        else:
+            logger.warning("All hosts are banned, use %s as first in the hosts list", hosts[0])
+            upper_bound = min(limit, len(hosts))
+            return hosts[random.randint(0, upper_bound - 1)]
 
     return get_config(client)["proxy"]["url"]
 
