@@ -509,11 +509,7 @@ protected:
     //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
     bool IsTeleportChunkImpl(const TInputChunkPtr& chunkSpec, bool combineChunks) const
     {
-<<<<<<< HEAD
-        if (chunkSpec.has_channel() || !IsInputTableTeleportable[chunkSpec.table_index()]) {
-=======
-        if (chunkSpec->Channel()) {
->>>>>>> origin/prestable/18.4
+        if (chunkSpec->Channel() || !IsInputTableTeleportable[chunkSpec->GetTableIndex()]) {
             return false;
         }
 
@@ -1157,15 +1153,9 @@ protected:
     virtual bool IsTeleportCandidate(TInputChunkPtr chunkSpec) const
     {
         return
-<<<<<<< HEAD
-            !chunkSpec->lower_limit().has_row_index() &&
-            !chunkSpec->upper_limit().has_row_index() &&
-            !chunkSpec->has_channel();
-=======
             !(chunkSpec->LowerLimit() && chunkSpec->LowerLimit()->has_row_index()) &&
             !(chunkSpec->UpperLimit() && chunkSpec->UpperLimit()->has_row_index()) &&
             !chunkSpec->Channel();
->>>>>>> origin/prestable/18.4
     }
 
     virtual bool IsBoundaryKeysFetchEnabled() const override
@@ -1298,23 +1288,16 @@ private:
                 }
             }
 
-            const auto& chunkSpec = endpoint.ChunkSlice->GetChunkSpec();
+            const auto& chunkSpec = endpoint.ChunkSlice->GetInputChunk();
 
             // No current Teleport candidate.
-            if (IsInputTableTeleportable[chunkSpec->table_index()] &&
+            if (IsInputTableTeleportable[chunkSpec->GetTableIndex()] &&
                 endpoint.Type == EEndpointType::Left &&
                 CompareRows(minKey, endpoint.MinBoundaryKey, SortKeyColumns.size()) == 0 &&
-<<<<<<< HEAD
-                IsTeleportCandidate(chunkSpec))
-            {
-                // The first slice of a full chunk.
-                currentChunkSpec = chunkSpec;
-=======
                 IsTeleportCandidate(chunkSlice->GetInputChunk()))
             {
                 // The first slice of a full chunk.
                 currentChunkSpec = chunkSlice->GetInputChunk();
->>>>>>> origin/prestable/18.4
                 startTeleportIndex = i;
             }
         }
@@ -1951,18 +1934,10 @@ private:
                 auto& previousEndpoint = Endpoints[i - 1];
                 const auto& chunkSpec = previousEndpoint.ChunkSlice->GetInputChunk();
 
-<<<<<<< HEAD
-                TOwningKey maxKey, minKey;
-                YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
-
-                if (previousEndpoint.Type == EEndpointType::Right &&
-                    CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0)
-=======
                 YCHECK(chunkSpec->BoundaryKeys());
                 const auto& maxKey = chunkSpec->BoundaryKeys()->MaxKey;
                 if (previousEndpoint.Type == EEndpointType::Right
                     && CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0)
->>>>>>> origin/prestable/18.4
                 {
                     for (int j = startTeleportIndex; j < i; ++j) {
                         Endpoints[j].IsTeleport = true;
@@ -1974,28 +1949,16 @@ private:
             previousKey = key;
 
             // No current teleport candidate.
-<<<<<<< HEAD
-            const auto& chunkSpec = endpoint.ChunkSlice->GetChunkSpec();
-            TOwningKey maxKey, minKey;
-            YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
-
-            if (IsInputTableTeleportable[chunkSpec->table_index()] &&
-                endpoint.Type == EEndpointType::Left &&
-=======
             const auto& chunkSpec = endpoint.ChunkSlice->GetInputChunk();
             YCHECK(chunkSpec->BoundaryKeys());
             const auto& minKey = chunkSpec->BoundaryKeys()->MinKey;
-            if (endpoint.Type == EEndpointType::Left &&
->>>>>>> origin/prestable/18.4
+            if (IsInputTableTeleportable[chunkSpec->GetTableIndex()] &&
+                endpoint.Type == EEndpointType::Left &&
                 CompareRows(minKey, endpoint.GetKey(), prefixLength) == 0 &&
                 IsTeleportCandidate(chunkSpec) &&
                 openedSlicesCount == 1)
             {
-<<<<<<< HEAD
-                currentChunkSpec = chunkSpec;
-=======
                 currentChunkSpec = endpoint.ChunkSlice->GetInputChunk();
->>>>>>> origin/prestable/18.4
                 startTeleportIndex = i;
             }
         }

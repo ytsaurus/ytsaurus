@@ -139,13 +139,9 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
 {
     auto keyColumns = tableSchema.GetKeyColumns();
     auto nameTable = TNameTable::FromKeyColumns(keyColumns);
-<<<<<<< HEAD
-    auto writer = CreateSchemalessMultiChunkWriter(
-=======
     nameTable->SetEnableColumnNameValidation();
 
-    return CreateSchemalessMultiChunkWriter(
->>>>>>> origin/prestable/18.4
+    auto writer = CreateSchemalessMultiChunkWriter(
         JobIOConfig_->TableWriter,
         std::move(options),
         std::move(nameTable),

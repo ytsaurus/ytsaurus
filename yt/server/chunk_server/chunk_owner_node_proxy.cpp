@@ -1052,12 +1052,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         schema,
         chunkPropertiesUpdateNeeded);
 
-<<<<<<< HEAD
-=======
-    auto schema = TTableSchema::FromKeyColumns(keyColumns);
-    Y_ASSERT(!schema.GetStrict());
-
->>>>>>> origin/prestable/18.4
     auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     YCHECK(node->GetTransaction() == Transaction);
 

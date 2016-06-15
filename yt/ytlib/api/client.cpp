@@ -2038,11 +2038,11 @@ private:
 
     void DoAlterTable(
         const TYPath& path,
-        TAlterTableOptions options)
+        const TAlterTableOptions& options)
     {
         auto req = TTableYPathProxy::Alter(path);
         SetTransactionId(req, options, true);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
 
         if (options.Schema) {
             ToProto(req->mutable_schema(), *options.Schema);

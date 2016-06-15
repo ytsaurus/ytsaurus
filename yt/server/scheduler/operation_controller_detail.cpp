@@ -3783,18 +3783,6 @@ void TOperationControllerBase::RegisterBoundaryKeys(
     outputTable->BoundaryKeys.push_back(TJobBoundaryKeys{minKey, maxKey, chunkTreeId});
 }
 
-void TOperationControllerBase::RegisterBoundaryKeys(
-    const TBoundaryKeys& boundaryKeys,
-    int key,
-    TOutputTable* outputTable)
-{
-    TJobBoundaryKeys jobBoundaryKeys;
-    jobBoundaryKeys.MinKey = boundaryKeys.MinKey;
-    jobBoundaryKeys.MaxKey = boundaryKeys.MaxKey;
-    jobBoundaryKeys.ChunkTreeKey = key;
-    outputTable->BoundaryKeys.push_back(jobBoundaryKeys);
-}
-
 void TOperationControllerBase::RegisterOutput(
     TInputChunkPtr chunkSpec,
     int key,
@@ -3802,35 +3790,19 @@ void TOperationControllerBase::RegisterOutput(
 {
     auto& table = OutputTables[tableIndex];
 
-<<<<<<< HEAD
     if (table.Schema.IsSorted() && ShouldVerifySortedOutput()) {
-        auto boundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunkSpec->chunk_meta().extensions());
-        if (chunkSpec->has_lower_limit()) {
-            auto limit = FromProto<TReadLimit>(chunkSpec->lower_limit());
-            if (limit.HasKey()) {
-                ToProto(boundaryKeys.mutable_min(), limit.GetKey());
-            }
-        }
-        if (chunkSpec->has_upper_limit()) {
-            auto limit = FromProto<TReadLimit>(chunkSpec->upper_limit());
-            if (limit.HasKey()) {
-                ToProto(boundaryKeys.mutable_max(), limit.GetKey());
-            }
-        }
-
-        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec->chunk_meta().extensions());
+        YCHECK(chunkSpec->BoundaryKeys());
 
         TOutputResult resultBoundaryKeys;
-        resultBoundaryKeys.set_empty(miscExt.row_count() == 0);
-        resultBoundaryKeys.set_sorted(miscExt.sorted());
-        resultBoundaryKeys.set_unique_keys(miscExt.unique_keys());
-        resultBoundaryKeys.set_min(boundaryKeys.min());
-        resultBoundaryKeys.set_max(boundaryKeys.max());
-        RegisterBoundaryKeys(resultBoundaryKeys, FromProto<TChunkId>(chunkSpec->chunk_id()), &table);
-=======
-    if (!table.KeyColumns.empty() && IsSortedOutputSupported()) {
-        RegisterBoundaryKeys(*chunkSpec->BoundaryKeys(), key, &table);
->>>>>>> origin/prestable/18.4
+        // Chunk must have at least one row.
+        YCHECK(chunkSpec->GetRowCount() > 0);
+        resultBoundaryKeys.set_empty(false);
+        resultBoundaryKeys.set_sorted(true);
+        resultBoundaryKeys.set_unique_keys(chunkSpec->GetUniqueKeys());
+        ToProto(resultBoundaryKeys.mutable_min(), chunkSpec->BoundaryKeys()->MinKey);
+        ToProto(resultBoundaryKeys.mutable_max(), chunkSpec->BoundaryKeys()->MaxKey);
+
+        RegisterBoundaryKeys(resultBoundaryKeys, chunkSpec->ChunkId(), &table);
     }
 
     RegisterOutput(chunkSpec->ChunkId(), key, tableIndex, table);

@@ -521,16 +521,12 @@ private:
     //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
     virtual bool IsTeleportChunk(const TInputChunkPtr& chunkSpec) const override
     {
-<<<<<<< HEAD
         bool isSchemaCompatible = ValidateTableSchemaCompatibility(
-            InputTables[chunkSpec.table_index()].Schema,
+            InputTables[chunkSpec->GetTableIndex()].Schema,
             OutputTables[0].Schema)
             .IsOK();
 
-        if (Spec->ForceTransform || chunkSpec.has_channel() || !isSchemaCompatible) {
-=======
-        if (Spec->ForceTransform || chunkSpec->Channel()) {
->>>>>>> origin/prestable/18.4
+        if (Spec->ForceTransform || chunkSpec->Channel() || !isSchemaCompatible) {
             return false;
         }
 

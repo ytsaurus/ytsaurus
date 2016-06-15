@@ -96,13 +96,10 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
         config,
         GetOptions());
 
-<<<<<<< HEAD
-=======
-    auto keyColumns = Path.GetSortedBy();
-    auto nameTable = TNameTable::FromKeyColumns(keyColumns);
+
+    auto nameTable = New<TNameTable>();
     nameTable->SetEnableColumnNameValidation();
 
->>>>>>> origin/prestable/18.4
     auto options = New<TTableWriterOptions>();
     options->ValidateDuplicateIds = true;
     options->ValidateRowWeight = true;
@@ -112,7 +109,7 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
         config,
         options,
         Path,
-        New<TNameTable>(),
+        nameTable,
         context->GetClient(),
         transaction);
 

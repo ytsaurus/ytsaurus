@@ -70,8 +70,8 @@ void WriteRow(TRow row, TExecutionContext* context, TWriteOpClosure* closure)
 
     const auto& rowBuffer = closure->OutputBuffer;
 
-    Y_ASSERT(batch->size() < batch->capacity());
-    batch->push_back(rowBuffer->Capture(row));
+    Y_ASSERT(batch.size() < batch.capacity());
+    batch.push_back(rowBuffer->Capture(row));
 
     if (batch.size() == batch.capacity()) {
         auto& writer = context->Writer;
