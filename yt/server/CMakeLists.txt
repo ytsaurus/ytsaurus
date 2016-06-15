@@ -77,7 +77,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/data_node/chunk_registry.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/chunk_store.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/data_node_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/data_node/disk_health_checker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/journal_chunk.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_node/journal_dispatcher.cpp
@@ -98,17 +97,17 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/election/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/election/public.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/environment_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job_environment.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/job_prober_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/scheduler_connector.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/slot.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/slot_location.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/slot_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/supervisor_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_agent/supervisor_service.proto
-  ${CMAKE_CURRENT_LIST_DIR}/exec_agent/unsafe_environment.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/file_server/file_node.cpp
   ${CMAKE_CURRENT_LIST_DIR}/file_server/file_node_proxy.cpp
@@ -197,6 +196,9 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/address_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/build_attributes.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/fork_executor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/disk_health_checker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/disk_location.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/node.cpp

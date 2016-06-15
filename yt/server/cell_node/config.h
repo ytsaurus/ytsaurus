@@ -14,6 +14,8 @@
 
 #include <yt/server/hive/config.h>
 
+#include <yt/server/data_node/config.h>
+
 #include <yt/ytlib/api/config.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>

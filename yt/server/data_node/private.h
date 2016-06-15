@@ -22,8 +22,6 @@ extern const Stroka TrashDirectory;
 extern const Stroka CleanExtension;
 extern const Stroka SealedFlagExtension;
 extern const Stroka ArtifactMetaSuffix;
-extern const Stroka DisabledLockFileName;
-extern const Stroka HealthCheckFileName;
 
 ////////////////////////////////////////////////////////////////////////////////
 

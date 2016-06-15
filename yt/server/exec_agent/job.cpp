@@ -1,8 +1,6 @@
 #include "job.h"
 #include "private.h"
 #include "config.h"
-#include "environment.h"
-#include "environment_manager.h"
 #include "slot.h"
 #include "slot_manager.h"
 
@@ -10,42 +8,23 @@
 #include <yt/server/cell_node/config.h>
 
 #include <yt/server/data_node/artifact.h>
-#include <yt/server/data_node/chunk_block_manager.h>
-#include <yt/server/data_node/chunk.h>
 #include <yt/server/data_node/chunk_cache.h>
 #include <yt/server/data_node/master_connector.h>
+#include <yt/server/data_node/chunk.h>
 
 #include <yt/server/job_agent/job.h>
 
 #include <yt/server/scheduler/config.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-
-#include <yt/ytlib/file_client/config.h>
-#include <yt/ytlib/file_client/file_chunk_reader.h>
-#include <yt/ytlib/file_client/file_ypath_proxy.h>
-
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
-#include <yt/ytlib/table_client/schemaless_writer.h>
-
+#include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/actions/cancelable_context.h>
 
-#include <yt/core/bus/tcp_client.h>
-
-#include <yt/core/concurrency/async_stream.h>
-
 #include <yt/core/logging/log_manager.h>
-
 #include <yt/core/misc/proc.h>
-#include <yt/core/misc/finally.h>
-
-#include <yt/core/rpc/bus_channel.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -76,6 +55,15 @@ using NScheduler::NProto::TUserJobSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TArtifactInfo
+{
+    Stroka Name;
+    bool IsExecutable;
+    TArtifactKey Key;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJob
     : public NJobAgent::IJob
 {
@@ -92,15 +80,19 @@ public:
         : Id_(jobId)
         , OperationId_(operationId)
         , Bootstrap_(bootstrap)
-        , ResourceUsage(resourceUsage)
         , Statistics_("{}")
+        , ResourceUsage_(resourceUsage)
     {
-        JobSpec.Swap(&jobSpec);
+        VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        JobSpec_.Swap(&jobSpec);
+
+        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (schedulerJobSpecExt.has_aux_node_directory()) {
             AuxNodeDirectory_->MergeFrom(schedulerJobSpecExt.aux_node_directory());
         }
+
+        Invoker_ = Bootstrap_->GetControlInvoker();
 
         Logger.AddTag("JobId: %v, OperationId: %v, JobType: %v",
             Id_,
@@ -110,80 +102,82 @@ public:
 
     virtual void Start() override
     {
-        // No SpinLock here, because concurrent access is impossible before
-        // calling Start.
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         YCHECK(JobState_ == EJobState::Waiting);
+
+        auto slotManager = Bootstrap_->GetExecSlotManager();
+        try {
+            Slot_ = slotManager->AcquireSlot();
+        } catch (const std::exception& ex) {
+            YCHECK(!slotManager->IsEnabled());
+
+            DoSetResult(TError(ex));
+            FinalizeJob();
+            return;
+        }
+
         JobState_ = EJobState::Running;
 
-        PrepareTime_ = TInstant::Now();
-        auto slotManager = Bootstrap_->GetExecSlotManager();
-        Slot_ = slotManager->AcquireSlot();
-
-        auto invoker = CancelableContext_->CreateInvoker(Slot_->GetInvoker());
-
-        BIND(&TJob::Run, MakeWeak(this))
-            .AsyncVia(invoker)
+        auto invoker = CancelableContext_->CreateInvoker(Invoker_);
+        BIND(&TJob::DoStart, MakeWeak(this))
+            .Via(invoker)
             .Run();
     }
 
     virtual void Abort(const TError& error) override
     {
-        if (GetState() == EJobState::Waiting) {
-            // Abort before the start.
-            YCHECK(!JobResult_.HasValue());
-            DoSetResult(error);
-            SetFinalState();
-            return;
-        }
+        VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (JobState_ != EJobState::Running) {
-                return;
-            }
-            DoSetResult(error);
-            JobState_ = EJobState::Aborting;
-        }
+        LOG_INFO("Aborting job");
 
         CancelableContext_->Cancel();
 
-        YCHECK(Slot_);
+        // Do not start cleanup if preparation is still in progress.
+        WaitFor(PrepareResult_);
 
-        auto this_ = MakeStrong(this);
-        PrepareResult_.Subscribe(BIND([this, this_] (const TError& /*error*/) {
-            Slot_->GetInvoker()->Invoke(BIND(&TJob::DoAbort, MakeStrong(this)));
-        }));
+        if (JobState_ != EJobState::Waiting && JobState_ != EJobState::Running) {
+            return;
+        }
+
+        LOG_INFO("Finalize aborted job");
+        DoSetResult(error);
+
+        Cleanup();
     }
 
     virtual const TJobId& GetId() const override
     {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         return Id_;
     }
 
     virtual const TJobId& GetOperationId() const override
     {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         return OperationId_;
     }
 
     virtual EJobType GetType() const override
     {
-        return EJobType(JobSpec.type());
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        return EJobType(JobSpec_.type());
     }
 
     virtual const TJobSpec& GetSpec() const override
     {
-        return JobSpec;
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        return JobSpec_;
     }
 
     virtual EJobState GetState() const override
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         return JobState_;
     }
 
     virtual TNullable<TDuration> GetPrepareDuration() const override
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         if (!PrepareTime_) {
             return Null;
         } else if (!ExecTime_) {
@@ -195,7 +189,7 @@ public:
 
     virtual TNullable<TDuration> GetExecDuration() const override 
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         if (!ExecTime_) {
             return Null;
         } else if (!FinishTime_) {
@@ -207,77 +201,76 @@ public:
     
     virtual EJobPhase GetPhase() const override
     {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         return JobPhase_;
     }
 
     virtual TNodeResources GetResourceUsage() const override
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        return ResourceUsage;
-    }
-
-    virtual void SetResourceUsage(const TNodeResources& newUsage) override
-    {
-        TNodeResources delta = newUsage;
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (JobState_ != EJobState::Running) {
-                return;
-            }
-            delta -= ResourceUsage;
-            ResourceUsage = newUsage;
-        }
-        ResourcesUpdated_.Fire(delta);
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        return ResourceUsage_;
     }
 
     virtual TJobResult GetResult() const override
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         return JobResult_.Get();
-    }
-
-    virtual void SetResult(const TJobResult& jobResult) override
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (JobState_ != EJobState::Running) {
-            return;
-        }
-        DoSetResult(jobResult);
     }
 
     virtual double GetProgress() const override
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         return Progress_;
     }
 
-    virtual void SetProgress(double value) override
+    virtual void SetResourceUsage(const TNodeResources& newUsage) override
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         if (JobState_ == EJobState::Running) {
-            Progress_ = value;
+            auto delta = newUsage - ResourceUsage_;
+            ResourceUsage_ = newUsage;
+            ResourcesUpdated_.Fire(delta);
+        }
+
+    }
+
+    virtual void SetResult(const TJobResult& jobResult) override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        if (JobState_ == EJobState::Running) {
+            DoSetResult(jobResult);
+        }
+    }
+
+    virtual void SetProgress(double progress) override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        if (JobState_ == EJobState::Running) {
+            Progress_ = progress;
         }
     }
 
     virtual TNullable<TYsonString> GetStatistics() const override
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         return Statistics_;
     }
     
     virtual TInstant GetStatisticsLastSendTime() const override
     {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         return StatisticsLastSendTime_;
     }
 
     virtual void ResetStatisticsLastSendTime() override
     {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         StatisticsLastSendTime_ = TInstant::Now();
     }
 
     virtual void SetStatistics(const TYsonString& statistics) override
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         if (JobState_ == EJobState::Running) {
             Statistics_ = statistics;
         }
@@ -285,15 +278,18 @@ public:
 
     virtual bool ShouldSendStatistics() const override 
     {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         return true;
     }
 
     virtual std::vector<TChunkId> DumpInputContext() override
     {
-        ValidateJobRunning();
-        EnsureJobProberProxy();
+        VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        auto req = JobProberProxy_->DumpInputContext();
+        ValidateJobRunning();
+
+        auto proxy = Slot_->GetJobProberProxy();
+        auto req = proxy.DumpInputContext();
 
         ToProto(req->mutable_job_id(), Id_);
         auto rspOrError = WaitFor(req->Invoke());
@@ -305,10 +301,11 @@ public:
 
     virtual TYsonString Strace() override
     {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         ValidateJobRunning();
-        EnsureJobProberProxy();
 
-        auto req = JobProberProxy_->Strace();
+        auto proxy = Slot_->GetJobProberProxy();
+        auto req = proxy.Strace();
 
         ToProto(req->mutable_job_id(), Id_);
         auto rspOrError = WaitFor(req->Invoke());
@@ -320,11 +317,12 @@ public:
 
     virtual void SignalJob(const Stroka& signalName) override
     {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         ValidateJobRunning();
-        EnsureJobProberProxy();
+        auto proxy = Slot_->GetJobProberProxy();
 
         Signaled_ = true;
-        auto req = JobProberProxy_->SignalJob();
+        auto req = proxy.SignalJob();
 
         ToProto(req->mutable_job_id(), Id_);
         ToProto(req->mutable_signal_name(), signalName);
@@ -334,10 +332,11 @@ public:
 
     virtual TYsonString PollJobShell(const TYsonString& parameters) override
     {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         ValidateJobRunning();
-        EnsureJobProberProxy();
 
-        auto req = JobProberProxy_->PollJobShell();
+        auto proxy = Slot_->GetJobProberProxy();
+        auto req = proxy.PollJobShell();
 
         ToProto(req->mutable_job_id(), Id_);
         ToProto(req->mutable_parameters(), parameters.Data());
@@ -348,21 +347,15 @@ public:
         return TYsonString(rsp->result());
     }
 
-
 private:
     const TJobId Id_;
     const TOperationId OperationId_;
     NCellNode::TBootstrap* const Bootstrap_;
 
-    TJobSpec JobSpec;
+    IInvokerPtr Invoker_;
+    TJobSpec JobSpec_;
 
-    TSpinLock SpinLock;
-    TNodeResources ResourceUsage;
-
-    EJobState JobState_ = EJobState::Waiting;
-    EJobPhase JobPhase_ = EJobPhase::Created;
-
-    const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
+    TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
 
     TFuture<void> PrepareResult_ = VoidFuture;
 
@@ -378,124 +371,42 @@ private:
     TNullable<TInstant> PrepareTime_;
     TNullable<TInstant> ExecTime_;
     TNullable<TInstant> FinishTime_;
-    TSlotPtr Slot_;
 
-    IProxyControllerPtr ProxyController_;
 
-    EJobState FinalJobState_ = EJobState::Completed;
+    ISlotPtr Slot_;
+    TNullable<Stroka> TmpfsPath_;
 
     std::vector<NDataNode::IChunkPtr> CachedChunks_;
-
     TNodeDirectoryPtr AuxNodeDirectory_ = New<TNodeDirectory>();
 
-    TNullable<TJobProberServiceProxy> JobProberProxy_;
+    TNodeResources ResourceUsage_;
+    EJobState JobState_ = EJobState::Waiting;
+    EJobPhase JobPhase_ = EJobPhase::Created;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControllerThread);
     NLogging::TLogger Logger = ExecAgentLogger;
+
+    // Helpers.
 
     void ValidateJobRunning() const
     {
-        if (JobState_ != EJobState::Running) {
+        if (GetState() != EJobState::Running) {
             THROW_ERROR_EXCEPTION("Job %v is not running", Id_)
                 << TErrorAttribute("job_state", FormatEnum(JobState_));
         }
     }
 
-    void EnsureJobProberProxy()
-    {
-        if (!JobProberProxy_) {
-            YCHECK(Slot_);
-
-            auto jobProberClient = CreateTcpBusClient(Slot_->GetRpcClientConfig());
-            auto jobProberChannel = CreateBusChannel(jobProberClient);
-
-            JobProberProxy_.Emplace(jobProberChannel);
-            JobProberProxy_->SetDefaultTimeout(Bootstrap_->GetConfig()->ExecAgent->JobProberRpcTimeout);
-        }
-    }
-
-    void DoPrepare()
-    {
-        YCHECK(JobPhase_ == EJobPhase::Created);
-        JobPhase_ = EJobPhase::PreparingConfig;
-        PrepareConfig();
-
-        YCHECK(JobPhase_ == EJobPhase::PreparingConfig);
-        JobPhase_ = EJobPhase::PreparingProxy;
-        PrepareProxy();
-
-        YCHECK(JobPhase_ == EJobPhase::PreparingProxy);
-        JobPhase_ = EJobPhase::PreparingSandbox;
-        Slot_->InitSandbox();
-
-        YCHECK(JobPhase_ == EJobPhase::PreparingSandbox);
-        JobPhase_ = EJobPhase::PreparingTmpfs;
-        PrepareTmpfs();
-
-        YCHECK(JobPhase_ == EJobPhase::PreparingTmpfs);
-        JobPhase_ = EJobPhase::PreparingFiles;
-        PrepareUserFiles();
-
-        YCHECK(JobPhase_ == EJobPhase::PreparingFiles);
-    }
-
-    void DoRun()
-    {
-        JobPhase_ = EJobPhase::Running;
-
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            ExecTime_ = TInstant::Now();
-        }
-
-        RunJobProxy();
-    }
-
-    void Run()
-    {
-        try {
-            auto prepareResult = BIND(&TJob::DoPrepare, MakeWeak(this))
-                .AsyncVia(GetCurrentInvoker())
-                .Run();
-
-            {
-                TGuard<TSpinLock> guard(SpinLock);
-                PrepareResult_ = prepareResult;
-            }
-
-            WaitFor(prepareResult)
-                .ThrowOnError();
-
-            DoRun();
-        } catch (const std::exception& ex) {
-            {
-                TGuard<TSpinLock> guard(SpinLock);
-                if (JobState_ != EJobState::Running) {
-                    YCHECK(JobState_ == EJobState::Aborting);
-                    return;
-                }
-
-                LOG_ERROR(ex, "Scheduler job failed");
-
-                DoSetResult(ex);
-                JobState_ = EJobState::Aborting;
-            }
-            BIND(&TJob::DoAbort, MakeStrong(this))
-                .Via(Slot_->GetInvoker())
-                .Run();
-        }
-    }
-
-    // Must be called with set SpinLock.
     void DoSetResult(const TError& error)
     {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         TJobResult jobResult;
         ToProto(jobResult.mutable_error(), error);
         DoSetResult(jobResult);
     }
 
-    // Must be called with set SpinLock.
     void DoSetResult(const TJobResult& jobResult)
     {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         if (JobResult_) {
             auto error = FromProto<TError>(JobResult_->error());
             if (!error.IsOK()) {
@@ -505,39 +416,128 @@ private:
 
         JobResult_ = jobResult;
         FinishTime_ = TInstant::Now();
+    }
 
-        auto error = FromProto<TError>(jobResult.error());
+    void DoStart()
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        try {
+            JobState_ = EJobState::Running;
+
+            // Preparation involves tools invocation which is uncancelable,
+            // so we do it outside of the cancellable invoker.
+            PrepareResult_ = BIND(&TJob::Prepare, MakeWeak(this))
+                .AsyncVia(Invoker_)
+                .Run();
+
+            WaitFor(PrepareResult_)
+                .ThrowOnError();
+
+            JobPhase_ = EJobPhase::Running;
+            ExecTime_ = TInstant::Now();
+
+            auto jobProxyError = BuildJobProxyError(WaitFor(Slot_->RunJobProxy(
+                CreateConfig(),
+                Id_,
+                OperationId_)));
+
+            THROW_ERROR_EXCEPTION_IF_FAILED(jobProxyError, "Job proxy failed");
+        } catch (const std::exception& ex) {
+            if (JobState_ != EJobState::Running) {
+                YCHECK(JobState_ == EJobState::Aborting);
+                return;
+            }
+
+            LOG_ERROR(ex, "Scheduler job failed");
+            DoSetResult(ex);
+        }
+
+        // Do cleanup in separate action since Run can be cancelled.
+        BIND(&TJob::Cleanup, MakeStrong(this))
+            .Via(Invoker_)
+            .Run();
+    }
+
+    // Finalization.
+
+    void Cleanup()
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        if (JobPhase_ == EJobPhase::Cleanup || JobPhase_ == EJobPhase::Finished) {
+            return;
+        }
+
+        JobPhase_ = EJobPhase::Cleanup;
+        try {
+            Slot_->Cleanup();
+            Bootstrap_->GetExecSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
+        } catch (const std::exception& ex) {
+            // Errors during cleanup phase do not affert job outcome.
+            LOG_ERROR(ex, "Failed to clean up slot %v", Slot_->GetSlotIndex());
+        }
+
+        FinalizeJob();
+
+        JobPhase_ = EJobPhase::Finished;
+    }
+
+    void FinalizeJob()
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        YCHECK(JobResult_);
+
+        auto resourceDelta = ZeroNodeResources() - ResourceUsage_;
+        ResourceUsage_ = ZeroNodeResources();
+        ResourcesUpdated_.Fire(resourceDelta);
+
+        auto error = FromProto<TError>(JobResult_->error());
 
         if (error.IsOK()) {
+            JobState_ = EJobState::Completed;
             return;
         }
 
         if (IsFatalError(error)) {
             error.Attributes().Set("fatal", IsFatalError(error));
             ToProto(JobResult_->mutable_error(), error);
-            FinalJobState_ = EJobState::Failed;
+            JobState_ = EJobState::Failed;
             return;
         }
 
-        auto abortReason = GetAbortReason(jobResult);
+        auto abortReason = GetAbortReason(*JobResult_);
         if (abortReason) {
             error.Attributes().Set("abort_reason", abortReason);
             ToProto(JobResult_->mutable_error(), error);
-            FinalJobState_ = EJobState::Aborted;
+            JobState_ = EJobState::Aborted;
             return;
         }
 
-        FinalJobState_ = EJobState::Failed;
+        JobState_ = EJobState::Failed;
     }
 
-    void PrepareConfig()
-    {
-        LOG_INFO("Preparing job proxy config");
+    // Preparation.
 
+    void Prepare()
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        YCHECK(JobPhase_ == EJobPhase::Created);
+
+        // We prepare tmpfs before user files, since files may be linked/copied into tmpfs.
+        JobPhase_ = EJobPhase::PreparingTmpfs;
+        PrepareTmpfs();
+        YCHECK(JobPhase_ == EJobPhase::PreparingTmpfs);
+
+        JobPhase_ = EJobPhase::PreparingFiles;
+        PrepareUserFiles();
+        YCHECK(JobPhase_ == EJobPhase::PreparingFiles);
+    }
+
+    TJobProxyConfigPtr CreateConfig()
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         INodePtr ioConfigNode;
-        const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         try {
-            const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             ioConfigNode = ConvertToNode(TYsonString(schedulerJobSpecExt.io_config()));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error deserializing job IO configuration")
@@ -554,57 +554,17 @@ private:
 
         auto proxyConfig = CloneYsonSerializable(Bootstrap_->GetJobProxyConfig());
         proxyConfig->JobIO = ioConfig;
-        proxyConfig->UserId = Slot_->GetUserId();
         proxyConfig->RpcServer = Slot_->GetRpcServerConfig();
-        proxyConfig->Rack = Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetRack();
-        proxyConfig->Addresses = Bootstrap_->GetMasterConnector()->GetLocalDescriptor().Addresses();
+        proxyConfig->TmpfsPath = TmpfsPath_;
+        proxyConfig->SlotIndex = Slot_->GetSlotIndex();
 
-        if (schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().has_tmpfs_path()) {
-            proxyConfig->TmpfsPath = Slot_->GetTmpfsPath(ESandboxKind::User, schedulerJobSpecExt.user_job_spec().tmpfs_path());
-        }
-
-        auto proxyConfigPath = NFS::CombinePaths(
-            Slot_->GetWorkingDirectory(),
-            ProxyConfigFileName);
-
-        try {
-            TFile file(proxyConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-            TFileOutput output(file);
-            TYsonWriter writer(&output, EYsonFormat::Pretty);
-            proxyConfig->Save(&writer);
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error saving job proxy config (Path: %v)",
-                proxyConfigPath);
-            NLogging::TLogManager::Get()->Shutdown();
-            _exit(1);
-        }
-
-        LOG_INFO("Job proxy config prepared");
-    }
-
-    void PrepareProxy()
-    {
-        Stroka environmentType = "default";
-        try {
-            auto environmentManager = Bootstrap_->GetEnvironmentManager();
-            ProxyController_ = environmentManager->CreateProxyController(
-                //XXX(psushin): execution environment type must not be directly
-                // selectable by user -- it is more of the global cluster setting
-                //jobSpec.operation_spec().environment(),
-                environmentType,
-                Id_,
-                OperationId_,
-                Slot_);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to create proxy controller for environment %Qv",
-                environmentType)
-                << ex;
-        }
+        return proxyConfig;
     }
 
     void PrepareTmpfs()
     {
-        const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             if (userJobSpec.has_tmpfs_path()) {
@@ -615,7 +575,8 @@ private:
 
     void PrepareUserFiles()
     {
-        const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
@@ -653,88 +614,13 @@ private:
         }
     }
 
-    void RunJobProxy()
-    {
-        auto runError = WaitFor(ProxyController_->Run());
-
-        // NB: We should explicitly call Kill() to clean up possible child processes.
-        ProxyController_->Kill(Slot_->GetProcessGroup());
-
-        runError.ThrowOnError();
-
-        YCHECK(JobResult_.HasValue());
-        YCHECK(JobPhase_ == EJobPhase::Running);
-
-        JobPhase_ = EJobPhase::Cleanup;
-        Slot_->Clean();
-        YCHECK(JobPhase_ == EJobPhase::Cleanup);
-
-        LOG_INFO("Job completed");
-
-        FinalizeJob();
-    }
-
-    void FinalizeJob()
-    {
-        auto slotManager = Bootstrap_->GetExecSlotManager();
-        slotManager->ReleaseSlot(Slot_);
-
-        auto resourceDelta = ZeroNodeResources() - ResourceUsage;
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            SetFinalState();
-        }
-
-        ResourcesUpdated_.Fire(resourceDelta);
-    }
-
-    // Must be called with set SpinLock.
-    void SetFinalState()
-    {
-        ResourceUsage = ZeroNodeResources();
-
-        JobPhase_ = EJobPhase::Finished;
-        JobState_ = FinalJobState_;
-    }
-
-    void DoAbort()
-    {
-        if (GetState() != EJobState::Aborting) {
-            return;
-        }
-
-        LOG_INFO("Aborting job");
-
-        auto prevJobPhase = JobPhase_;
-        JobPhase_ = EJobPhase::Cleanup;
-
-        if (prevJobPhase >= EJobPhase::Running) {
-            ProxyController_->Kill(Slot_->GetProcessGroup());
-        }
-
-        if (prevJobPhase >= EJobPhase::PreparingSandbox) {
-            Slot_->Clean();
-        }
-
-        LOG_INFO("Job aborted");
-
-        FinalizeJob();
-    }
-
-    struct TArtifactInfo
-    {
-        Stroka Name;
-        bool IsExecutable;
-        TArtifactKey Key;
-    };
-
     void PrepareFiles(ESandboxKind sandboxKind, const std::vector<TArtifactInfo>& infos)
     {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
         auto chunkCache = Bootstrap_->GetChunkCache();
 
         std::vector<TFuture<IChunkPtr>> asyncChunks;
         for (const auto& info : infos) {
-
             LOG_INFO("Preparing user file (FileName: %v, Executable: %v)",
                 info.Name,
                 info.IsExecutable);
@@ -757,7 +643,7 @@ private:
 
         CachedChunks_.insert(CachedChunks_.end(), chunks.begin(), chunks.end());
 
-        const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         bool copyFiles = schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().copy_files();
 
         for (size_t index = 0; index < chunks.size(); ++index) {
@@ -797,10 +683,30 @@ private:
         }
     }
 
+    // Analyse results.
+
+    static TError BuildJobProxyError(const TError& spawnError)
+    {
+        if (spawnError.IsOK()) {
+            return TError();
+        }
+
+        auto jobProxyError = TError("Job proxy failed") << spawnError;
+
+        if (spawnError.GetCode() == EProcessErrorCode::NonZeroExitCode) {
+            // Try to translate the numeric exit code into some human readable reason.
+            auto reason = EJobProxyExitCode(spawnError.Attributes().Get<int>("exit_code"));
+            const auto& validReasons = TEnumTraits<EJobProxyExitCode>::GetDomainValues();
+            if (std::find(validReasons.begin(), validReasons.end(), reason) != validReasons.end()) {
+                jobProxyError.Attributes().Set("reason", reason);
+            }
+        }
+
+        return jobProxyError;
+    }
+
     TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)
     {
-        auto resultError = FromProto<TError>(jobResult.error());
-
         if (jobResult.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
             const auto& schedulerResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             if (schedulerResultExt.failed_chunk_ids_size() > 0) {
@@ -808,6 +714,7 @@ private:
             }
         }
 
+        auto resultError = FromProto<TError>(jobResult.error());
         if (resultError.FindMatching(NExecAgent::EErrorCode::ResourceOverdraft)) {
             return EAbortReason::ResourceOverdraft;
         }
@@ -820,6 +727,8 @@ private:
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterNotConnected) ||
             resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::AllLocationsDisabled) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::JobEnvironmentDisabled) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed))
         {
             return EAbortReason::Other;
@@ -853,8 +762,9 @@ private:
             error.FindMatching(NTableClient::EErrorCode::UnhashableType) ||
             error.FindMatching(NTableClient::EErrorCode::CorruptedNameTable);
     }
-
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 NJobAgent::IJobPtr CreateUserJob(
     const TJobId& jobId,
@@ -875,5 +785,6 @@ NJobAgent::IJobPtr CreateUserJob(
 
 } // namespace NExecAgent
 } // namespace NYT
+
 
 

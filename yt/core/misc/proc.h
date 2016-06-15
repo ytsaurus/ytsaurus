@@ -63,11 +63,21 @@ DEFINE_ENUM(EProcessErrorCode,
     ((Signal)               (10001))
 );
 
+//! Return true iff ytserver was started with root permissions (e.g. via sudo or with suid bit).
+bool HasRootPermissions();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRemoveDirAsRootTool
 {
     void operator()(const Stroka& arg) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TKillAllByUidTool
+{
+    void operator()(int uid) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

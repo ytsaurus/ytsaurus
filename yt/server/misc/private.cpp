@@ -1,16 +1,13 @@
-#pragma once
-
-#include "public.h"
+#include "private.h"
 
 namespace NYT {
-namespace NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IEnvironmentBuilderPtr CreateUnsafeEnvironmentBuilder();
+const Stroka DisabledLockFileName("disabled");
+const Stroka HealthCheckFileName("health_check~");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
 } // namespace NYT
 

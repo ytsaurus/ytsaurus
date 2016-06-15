@@ -21,13 +21,23 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    # This is a mix of options for 18.3 and 18.4
     DELTA_NODE_CONFIG = {
-        "exec_agent" : {
-            "enable_cgroups" : True,
-            "supported_cgroups" : [ "cpuacct", "blkio", "memory", "cpu" ],
-            "slot_manager" : {
-                "enforce_job_control"    : True,
-                "memory_watchdog_period" : 100
+        "exec_agent": {
+            "enable_cgroups": True,                                       # <= 18.3
+            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],   # <= 18.3
+            "slot_manager": {
+                "enforce_job_control": True,                              # <= 18.3
+                "memory_watchdog_period" : 100,                           # <= 18.3
+                "job_environment" : {
+                    "type" : "cgroups",                                   # >= 18.4
+                    "memory_watchdog_period" : 100,                       # >= 18.4
+                    "supported_cgroups": [                                # >= 18.4
+                        "cpuacct", 
+                        "blkio", 
+                        "memory", 
+                        "cpu"],
+                },
             }
         }
     }

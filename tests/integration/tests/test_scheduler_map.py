@@ -36,20 +36,33 @@ def check_all_stderrs(op, expected_content, expected_count, substring=False):
 
 ##################################################################
 
+# This is a mix of options for 18.4 and 18.5
+cgroups_delta_node_config = {
+    "exec_agent": {
+        "enable_cgroups": True,                                       # <= 18.4
+        "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],   # <= 18.4
+        "slot_manager": {
+            "enforce_job_control": True,                              # <= 18.4
+            "job_environment" : {
+                "type" : "cgroups",                                   # >= 18.5
+                "supported_cgroups": [                                # >= 18.5
+                    "cpuacct", 
+                    "blkio", 
+                    "memory", 
+                    "cpu"],
+            },
+        }
+    }
+}
+
+##################################################################
+
 class TestCGroups(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "enable_cgroups": True,
-            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],
-            "slot_manager": {
-                "enforce_job_control": True,
-            }
-        }
-    }
+    DELTA_NODE_CONFIG = cgroups_delta_node_config
 
     def test_failed_jobs_twice(self):
         create("table", "//tmp/t1")
@@ -85,15 +98,7 @@ class TestEventLog(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "enable_cgroups": True,
-            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],
-            "slot_manager": {
-                "enforce_job_control" : True
-            }
-        }
-    }
+    DELTA_NODE_CONFIG = cgroups_delta_node_config
 
     def test_scheduler_event_log(self):
         create("table", "//tmp/t1")
@@ -164,12 +169,7 @@ class TestJobProber(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "enable_cgroups": True,
-            "supported_cgroups": [ "cpuacct", "blkio", "memory", "cpu"]
-        }
-    }
+    DELTA_NODE_CONFIG = cgroups_delta_node_config
 
     @unix_only
     def test_strace_job(self):
@@ -343,11 +343,11 @@ class TestJobProber(YTEnvSetup):
         shell_id = r["shell_id"]
         output = self._poll_until_prompt(job_id, shell_id)
 
-        command = "echo $TERM; tput lines; tput cols; id -u; id -g\r"
+        command = "echo $TERM; tput lines; tput cols\r"
         self._send_keys(job_id, shell_id, command, 0)
         output = self._poll_until_prompt(job_id, shell_id)
 
-        expected = "{0}\nscreen-256color\r\n50\r\n132\r\n{1}\r\n{1}\r\n".format(command, os.getuid())
+        expected = "{0}\nscreen-256color\r\n50\r\n132\r\n".format(command)
         assert output.startswith(expected) == True
 
         r = poll_job_shell(job_id, operation="terminate", shell_id=shell_id)
@@ -1793,10 +1793,13 @@ class TestSandboxTmpfs(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {
+    cgroups_delta_node_config = {
         "exec_agent": {
             "slot_manager": {
-                "enforce_job_control": True,
+                "enforce_job_control": True,           # <= 18.3
+                "job_environment" : {                  # >= 18.4
+                    "enfoce_job_control" : True
+                }
             }
         }
     }
@@ -1878,7 +1881,7 @@ class TestSandboxTmpfs(YTEnvSetup):
             })
 
         with pytest.raises(YtError):
-            map(command="cat; cp test_file local_file",
+            map(command="cat; cp test_file local_file;",
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
                 spec={
