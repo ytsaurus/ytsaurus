@@ -669,7 +669,9 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                         raise YtError("Read table with multiple ranges using retries is disabled, turn on read_retries/allow_multiple_ranges")
 
                     if format.name() not in ["json", "yson"]:
-                        raise YtError("Read table with multiple ranges using retries is supported only in YSON format")
+                        raise YtError("Read table with multiple ranges using retries is supported only in YSON and JSON formats")
+                    if format.name() == "json" and format.attributes.get("format") == "pretty":
+                        raise YtError("Read table with multiple ranges using retries is not supported for pretty JSON format")
 
                 if self.range_started and table.name.attributes["ranges"]:
                     table.name.attributes["ranges"][0]["lower_limit"] = {"row_index": self.next_row_index}
