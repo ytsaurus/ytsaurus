@@ -121,7 +121,7 @@ public:
 
         auto primaryMasterCellTag = Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag();
         for (int i = 0; i < Config_->NodeShardCount; ++i) {
-            NodeShards_.push_back(New<TNodeShard>(i, primaryMasterCellTag, Config_, this));
+            NodeShards_.push_back(New<TNodeShard>(i, primaryMasterCellTag, Config_, this, Bootstrap_));
         }
 
         auto localHostName = TAddressResolver::Get()->GetLocalHostName();

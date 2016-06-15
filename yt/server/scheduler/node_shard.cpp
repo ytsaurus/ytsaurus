@@ -45,12 +45,14 @@ TNodeShard::TNodeShard(
     int id,
     const TCellTag& primaryMasterCellTag,
     TSchedulerConfigPtr config,
-    INodeShardHost* host)
+    INodeShardHost* host,
+    TBootstrap* bootstrap)
     : Id_(id)
     , ActionQueue_(New<TActionQueue>(Format("NodeShard:%v", id)))
     , PrimaryMasterCellTag_(primaryMasterCellTag)
     , Config_(config)
     , Host_(host)
+    , Bootstrap_(bootstrap)
     , Logger(SchedulerLogger)
 {
     Logger.AddTag("NodeShardId: %v", Id_);
@@ -1424,7 +1426,8 @@ TJobPtr TNodeShard::GetJobOrThrow(const TJobId& jobId)
 
 TJobProberServiceProxy TNodeShard::CreateJobProberProxy(const TJobPtr& job)
 {
-    return Host_->CreateJobProberProxy(job->GetNode()->GetInterconnectAddress());
+    auto address = job->GetNode()->NodeDescriptor().SelectAddress(Bootstrap_->GetLocalNetworks());
+    return Host_->CreateJobProberProxy(address);
 }
 
 bool TNodeShard::OperationExists(const TOperationId& operationId) const
