@@ -9,8 +9,6 @@
 
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
-#include <yt/core/misc/common.h>
-
 #include <yt/core/ytree/yson_serializable.h>
 
 #include <unordered_set>
