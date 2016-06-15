@@ -65,7 +65,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, SignalJob)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         const auto& signalName = request->signal_name();

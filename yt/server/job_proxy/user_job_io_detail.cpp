@@ -56,6 +56,7 @@ void TUserJobIOBase::Init()
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->ValidateDuplicateIds = true;
         options->ValidateRowWeight = true;
+        options->ValidateColumnCount = true;
 
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
 
@@ -138,6 +139,8 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
 {
     auto keyColumns = tableSchema.GetKeyColumns();
     auto nameTable = TNameTable::FromKeyColumns(keyColumns);
+    nameTable->SetEnableColumnNameValidation();
+
     auto writer = CreateSchemalessMultiChunkWriter(
         JobIOConfig_->TableWriter,
         std::move(options),

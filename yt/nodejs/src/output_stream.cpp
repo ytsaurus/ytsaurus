@@ -63,8 +63,7 @@ void TOutputStreamWrap::Initialize(Handle<Object> target)
 
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Destroy", TOutputStreamWrap::Destroy);
 
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsFlowing", TOutputStreamWrap::IsFlowing);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsFinished", TOutputStreamWrap::IsFinished);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Drain", TOutputStreamWrap::Drain);
 
     target->Set(
         String::NewSymbol("TOutputStreamWrap"),
@@ -137,9 +136,9 @@ Handle<Value> TOutputStreamWrap::DoPull()
     Local<Array> parts = Array::New(MaxPartsPerPull);
     size_t count = 0;
 
-    ProtectedUpdateAndNotifyWriter([&] () {
-        YCHECK(IsFlowing_);
+    // Short-path for destroyed streams.
 
+    ProtectedUpdateAndNotifyWriter([&] () {
         for (int i = 0; i < MaxPartsPerPull; ++i) {
             if (Queue_.empty()) {
                 break;
@@ -163,11 +162,6 @@ Handle<Value> TOutputStreamWrap::DoPull()
 
             BytesDequeued_ += part.Length;
             BytesInFlight_ -= part.Length;
-        }
-
-        if (count == 0) {
-            AsyncUnref();
-            IsFlowing_ = false;
         }
     });
 
@@ -206,7 +200,7 @@ void TOutputStreamWrap::DoDestroy()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TOutputStreamWrap::IsFlowing(const Arguments& args)
+Handle<Value> TOutputStreamWrap::Drain(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -218,36 +212,15 @@ Handle<Value> TOutputStreamWrap::IsFlowing(const Arguments& args)
     YCHECK(args.Length() == 0);
 
     // Do the work.
-    return scope.Close(stream->DoIsFlowing());
+    return scope.Close(stream->DoDrain());
 }
 
-Handle<Value> TOutputStreamWrap::DoIsFlowing()
+Handle<Value> TOutputStreamWrap::DoDrain()
 {
     THREAD_AFFINITY_IS_V8();
-    auto guard = Guard(Mutex_);
-    return Boolean::New(IsFlowing_);
-}
 
-////////////////////////////////////////////////////////////////////////////////
+    FlowEstablished_.store(false);
 
-Handle<Value> TOutputStreamWrap::IsFinished(const Arguments& args)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    // Unwrap.
-    auto* stream = ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
-
-    // Validate arguments.
-    YCHECK(args.Length() == 0);
-
-    // Do the work.
-    return scope.Close(stream->DoIsFinished());
-}
-
-Handle<Value> TOutputStreamWrap::DoIsFinished()
-{
-    THREAD_AFFINITY_IS_V8();
     auto guard = Guard(Mutex_);
     return Boolean::New(IsFinished_);
 }
@@ -263,8 +236,8 @@ bool TOutputStreamWrap::CanFlow() const
 
 void TOutputStreamWrap::RunFlow()
 {
-    if (!IsFlowing_) {
-        IsFlowing_ = true;
+    bool expected = false;
+    if (FlowEstablished_.compare_exchange_strong(expected, true, std::memory_order_acquire)) {
         AsyncRef();
         EIO_PUSH(TOutputStreamWrap::AsyncOnFlowing, this);
     }
@@ -277,6 +250,7 @@ int TOutputStreamWrap::AsyncOnFlowing(eio_req* request)
 
     auto* stream = static_cast<TOutputStreamWrap*>(request->data);
     node::MakeCallback(stream->handle_, OnFlowingSymbol, 0, nullptr);
+    stream->AsyncUnref();
 
     return 0;
 }
@@ -297,9 +271,17 @@ const ui64 TOutputStreamWrap::GetBytesDequeued() const
 
 void TOutputStreamWrap::MarkAsFinishing()
 {
+    THREAD_AFFINITY_IS_ANY();
+
     ProtectedUpdateAndNotifyWriter([&] () {
         IsFinishing_ = true;
     });
+}
+
+bool TOutputStreamWrap::IsFinished() const
+{
+    auto guard = Guard(Mutex_);
+    return IsFinished_;
 }
 
 void TOutputStreamWrap::DoWrite(const void* data, size_t length)
@@ -310,13 +292,8 @@ void TOutputStreamWrap::DoWrite(const void* data, size_t length)
         return;
     }
 
-    TIntrusivePtr<IAsyncRefCounted> ref(this);
-
-    std::unique_ptr<char[]> buffer(new char[length]);
-
-    ::memcpy(&buffer[0], data, length);
-
-    PushToQueue(std::move(buffer), length);
+    TPart part{data, length};
+    DoWriteV(&part, 1);
 }
 
 void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
@@ -326,8 +303,6 @@ void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
     if (parts == nullptr || count == 0) {
         return;
     }
-
-    TIntrusivePtr<IAsyncRefCounted> ref(this);
 
     size_t offset = 0;
     size_t length = 0;
@@ -349,15 +324,20 @@ void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
 
 void TOutputStreamWrap::DoFinish()
 {
-    auto guard = Guard(Mutex_);
-    IsFinishing_ = true;
-    IsFinished_ = true;
+    THREAD_AFFINITY_IS_ANY();
+
+    ProtectedUpdateAndNotifyWriter([&] () {
+        IsFinishing_ = true;
+        IsFinished_ = true;
+    });
 
     RunFlow();
 }
 
 void TOutputStreamWrap::ProtectedUpdateAndNotifyWriter(std::function<void()> mutator)
 {
+    THREAD_AFFINITY_IS_ANY();
+
     TPromise<void> writePromise;
     {
         auto guard = Guard(Mutex_);
@@ -377,6 +357,8 @@ void TOutputStreamWrap::PushToQueue(std::unique_ptr<char[]> buffer, size_t lengt
 {
     THREAD_AFFINITY_IS_ANY();
 
+    TIntrusivePtr<IAsyncRefCounted> ref(this);
+
     auto guard = Guard(Mutex_);
 
     // This bit should be set once we
@@ -385,9 +367,7 @@ void TOutputStreamWrap::PushToQueue(std::unique_ptr<char[]> buffer, size_t lengt
     if (!CanFlow()) {
         YCHECK(!WritePromise_);
         WritePromise_ = NewPromise<void>();
-
         auto writePromise = WritePromise_;
-
         {
             auto unguard = Unguard(Mutex_);
             WaitFor(writePromise.ToFuture())

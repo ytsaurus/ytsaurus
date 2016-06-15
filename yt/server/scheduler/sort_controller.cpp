@@ -7,12 +7,16 @@
 #include "map_controller.h"
 #include "operation_controller_detail.h"
 
+#include <yt/ytlib/api/client.h>
+
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/schemaless_block_writer.h>
+
+#include <yt/core/ytree/permission.h>
 
 #include <cmath>
 
@@ -27,6 +31,7 @@ using namespace NTableClient;
 using namespace NJobProxy;
 using namespace NObjectClient;
 using namespace NCypressClient;
+using namespace NSecurityClient;
 using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
@@ -343,9 +348,9 @@ protected:
             using NYT::Persist;
             Persist(context, Controller);
             Persist(context, ChunkPool);
-            Persist(context, NodeIdToDataSize);
-            Persist(context, ScheduledDataSize);
-            Persist(context, DataSizePerJob);
+            Persist(context, NodeIdToAdjustedDataSize);
+            Persist(context, AdjustedScheduledDataSize);
+            Persist(context, MaxDataSizePerJob);
         }
 
     private:
@@ -357,11 +362,13 @@ protected:
         //! The total data size of jobs assigned to a particular node
         //! All data sizes are IO weight-adjusted.
         //! No zero values are allowed.
-        yhash_map<TNodeId, i64> NodeIdToDataSize;
-        //! The sum of all sizes appearing in #NodeIdToDataSize;
-        i64 ScheduledDataSize = 0;
+        yhash_map<TNodeId, i64> NodeIdToAdjustedDataSize;
+        //! The sum of all sizes appearing in #NodeIdToDataSize.
+        //! This value is IO weight-adjusted.
+        i64 AdjustedScheduledDataSize = 0;
         //! Max-aggregated each time a new job is scheduled.
-        i64 DataSizePerJob = 0;
+        //! This value is not IO weight-adjusted.
+        i64 MaxDataSizePerJob = 0;
 
 
         void UpdateNodeDataSize(const TExecNodeDescriptor& descriptor, i64 delta)
@@ -371,19 +378,18 @@ protected:
             }
 
             auto ioWeight = descriptor.IOWeight;
-            YASSERT(ioWeight > 0);
+            Y_ASSERT(ioWeight > 0);
             auto adjustedDelta = static_cast<i64>(delta / ioWeight);
 
             auto nodeId = descriptor.Id;
-            auto updatedNodeDataSize = (NodeIdToDataSize[nodeId] += adjustedDelta);
-            YCHECK(updatedNodeDataSize >= 0);
+            auto newAdjustedDataSize = (NodeIdToAdjustedDataSize[nodeId] += adjustedDelta);
+            YCHECK(newAdjustedDataSize >= 0);
 
-            if (updatedNodeDataSize == 0) {
-                YCHECK(NodeIdToDataSize.erase(nodeId) == 1);
+            if (newAdjustedDataSize == 0) {
+                YCHECK(NodeIdToAdjustedDataSize.erase(nodeId) == 1);
             }
 
-            auto updatedScheduledDataSize = (ScheduledDataSize += adjustedDelta);
-            YCHECK(updatedScheduledDataSize >= 0);
+            YCHECK((AdjustedScheduledDataSize += adjustedDelta) >= 0);
         }
 
 
@@ -395,21 +401,24 @@ protected:
                 return true;
             }
 
-            if (context->GetNodeDescriptor().IOWeight == 0) {
+            auto ioWeight = context->GetNodeDescriptor().IOWeight;
+            if (ioWeight == 0) {
                 return false;
             }
 
-            if (NodeIdToDataSize.empty()) {
+            if (NodeIdToAdjustedDataSize.empty()) {
                 return true;
             }
 
+            // We don't have a job at hand here, let's make a (worst-case) guess.
+            auto adjustedJobDataSize = MaxDataSizePerJob / ioWeight;
             auto nodeId = context->GetNodeDescriptor().Id;
-            auto updatedScheduledDataSize = ScheduledDataSize + DataSizePerJob;
-            auto updatedAvgDataSize = updatedScheduledDataSize / NodeIdToDataSize.size();
-            auto updatedNodeDataSize = NodeIdToDataSize[nodeId] + DataSizePerJob;
+            auto newAdjustedScheduledDataSize = AdjustedScheduledDataSize + adjustedJobDataSize;
+            auto newAvgAdjustedScheduledDataSize = newAdjustedScheduledDataSize / NodeIdToAdjustedDataSize.size();
+            auto newAdjustedNodeDataSize = NodeIdToAdjustedDataSize[nodeId] + adjustedJobDataSize;
             return
-                updatedNodeDataSize <=
-                updatedAvgDataSize + Controller->Spec->PartitionedDataBalancingTolerance * DataSizePerJob;
+                newAdjustedNodeDataSize <=
+                newAvgAdjustedScheduledDataSize + Controller->Spec->PartitionedDataBalancingTolerance * adjustedJobDataSize;
         }
 
         virtual bool IsMemoryReserveEnabled() const override
@@ -453,7 +462,7 @@ protected:
             Controller->PartitionJobCounter.Start(1);
 
             auto dataSize = joblet->InputStripeList->TotalDataSize;
-            DataSizePerJob = std::max(DataSizePerJob, dataSize);
+            MaxDataSizePerJob = std::max(MaxDataSizePerJob, dataSize);
             UpdateNodeDataSize(joblet->NodeDescriptor, +dataSize);
 
             TTask::OnJobStarted(joblet);
@@ -558,7 +567,7 @@ protected:
                 }
 
                 LOG_DEBUG("Per-node partitioned sizes collected");
-                for (const auto& pair : NodeIdToDataSize) {
+                for (const auto& pair : NodeIdToAdjustedDataSize) {
                     auto nodeId = pair.first;
                     auto dataSize = pair.second;
                     auto nodeIt = idToNodeDescriptor.find(nodeId);
@@ -686,7 +695,8 @@ protected:
             bool memoryReserveEnabled) const
         {
             if (Controller->SimpleSort) {
-                i64 valueCount = Controller->GetValueCountEstimate(stat.DataSize);
+                // Value count estimate has been remove, using 0 instead.
+                i64 valueCount = 0;
                 return Controller->GetSimpleSortResources(
                     stat,
                     valueCount);
@@ -1239,16 +1249,16 @@ protected:
 
         // NB: Register groups in the order of _descending_ priority.
         MergeTaskGroup = New<TTaskGroup>();
-        MergeTaskGroup->MinNeededResources.SetCpu(1);
+        MergeTaskGroup->MinNeededResources.SetCpu(GetMergeCpuLimit());
         RegisterTaskGroup(MergeTaskGroup);
 
         SortTaskGroup = New<TTaskGroup>();
-        SortTaskGroup->MinNeededResources.SetCpu(1);
+        SortTaskGroup->MinNeededResources.SetCpu(GetSortCpuLimit());
         SortTaskGroup->MinNeededResources.SetNetwork(Spec->ShuffleNetworkLimit);
         RegisterTaskGroup(SortTaskGroup);
 
         PartitionTaskGroup = New<TTaskGroup>();
-        PartitionTaskGroup->MinNeededResources.SetCpu(1);
+        PartitionTaskGroup->MinNeededResources.SetCpu(GetPartitionCpuLimit());
         RegisterTaskGroup(PartitionTaskGroup);
     }
 
@@ -1446,7 +1456,7 @@ protected:
     }
 
     int AdjustPartitionCountToWriterBufferSize(
-        int partitionCount, 
+        int partitionCount,
         TChunkWriterConfigPtr config) const
     {
         i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataSize * Spec->MapSelectivityFactor);
@@ -1498,6 +1508,10 @@ protected:
 
     // Resource management.
 
+    virtual int GetPartitionCpuLimit() const = 0;
+    virtual int GetSortCpuLimit() const = 0;
+    virtual int GetMergeCpuLimit() const = 0;
+
     virtual TJobResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics,
         bool memoryReserveEnabled) const = 0;
@@ -1538,13 +1552,6 @@ protected:
         }
         i64 totalRowCount = partition->ChunkPoolOutput->GetTotalRowCount();
         return static_cast<i64>((double) totalRowCount * dataSize / totalDataSize);
-    }
-
-    // TODO(babenko): this is the input estimate, not the partitioned one!
-    // Should get rid of this "value count" stuff completely.
-    i64 GetValueCountEstimate(i64 dataSize) const
-    {
-        return static_cast<i64>((double) TotalEstimatedInputValueCount * dataSize / TotalEstimatedInputDataSize);
     }
 
     // Returns compression ratio of input data.
@@ -1755,8 +1762,30 @@ protected:
 
         PartitionTableReaderOptions = CreateTableReaderOptions(Spec->PartitionJobIO);
 
-        // Partition bound tasks read only intermediate chunks, 
+        // Partition bound tasks read only intermediate chunks,
         PartitionBoundTableReaderOptions = CreateIntermediateTableReaderOptions();
+    }
+
+    virtual void CustomPrepare() override
+    {
+        TOperationControllerBase::CustomPrepare();
+
+        auto user = Operation->GetAuthenticatedUser();
+        auto account = Spec->IntermediateDataAccount;
+
+        auto client = Host->GetMasterClient();
+        auto asyncResult = client->CheckPermission(
+            user,
+            "//sys/accounts/" + account,
+            EPermission::Use);
+        auto result = WaitFor(asyncResult)
+            .ValueOrThrow();
+
+        if (result.Action == ESecurityAction::Deny) {
+            THROW_ERROR_EXCEPTION("User %Qv has been denied access to intermediate account %Qv",
+                user,
+                account);
+        }
     }
 };
 
@@ -1871,7 +1900,7 @@ private:
             .ThrowOnError();
 
         InitJobIOConfigs();
-        
+
         PROFILE_TIMING ("/samples_processing_time") {
             auto sortedSamples = SortSamples(samplesFetcher->GetSamples());
             BuildPartitions(sortedSamples);
@@ -1917,7 +1946,7 @@ private:
         partitionCount = std::min(partitionCount, static_cast<int>(sortedSamples.size()) + 1);
 
         partitionCount = AdjustPartitionCountToWriterBufferSize(
-            partitionCount, 
+            partitionCount,
             PartitionJobIOConfig->TableWriter);
         LOG_INFO("Adjusted partition count %v", partitionCount);
 
@@ -1929,7 +1958,7 @@ private:
         } else {
             // Finally adjust partition count wrt block size constraints.
             partitionCount = AdjustPartitionCountToWriterBufferSize(
-                partitionCount, 
+                partitionCount,
                 PartitionJobIOConfig->TableWriter);
 
             LOG_INFO("Adjusted partition count %v", partitionCount);
@@ -2171,11 +2200,26 @@ private:
 
     // Resource management.
 
+    virtual int GetPartitionCpuLimit() const override
+    {
+        return 1;
+    }
+
+    virtual int GetSortCpuLimit() const override
+    {
+        return 1;
+    }
+
+    virtual int GetMergeCpuLimit() const override
+    {
+        return 1;
+    }
+
     virtual TJobResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics,
         bool memoryReserveEnabled) const override
     {
-        UNUSED(memoryReserveEnabled);
+        Y_UNUSED(memoryReserveEnabled);
         auto stat = AggregateStatistics(statistics).front();
 
         i64 outputBufferSize = std::min(
@@ -2190,7 +2234,7 @@ private:
 
         TJobResources result;
         result.SetUserSlots(1);
-        result.SetCpu(1);
+        result.SetCpu(GetPartitionCpuLimit());
         result.SetMemory(
             // NB: due to large MaxBufferSize for partition that was accounted in buffer size
             // we eliminate number of output streams to zero.
@@ -2208,7 +2252,7 @@ private:
         // ToDo(psushin): rewrite simple sort estimates.
         TJobResources result;
         result.SetUserSlots(1);
-        result.SetCpu(1);
+        result.SetCpu(GetSortCpuLimit());
         result.SetMemory(
             GetSortInputIOMemorySize(stat) +
             GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
@@ -2225,7 +2269,7 @@ private:
         const TChunkStripeStatistics& stat,
         bool memoryReserveEnabled) const override
     {
-        UNUSED(memoryReserveEnabled);
+        Y_UNUSED(memoryReserveEnabled);
         i64 memory =
             GetSortBuffersMemorySize(stat) +
             GetSortInputIOMemorySize(stat) +
@@ -2237,13 +2281,11 @@ private:
             memory += GetFinalOutputIOMemorySize(FinalSortJobIOConfig);
         }
 
-
         TJobResources result;
         result.SetUserSlots(1);
-        result.SetCpu(1);
+        result.SetCpu(GetSortCpuLimit());
         result.SetMemory(memory);
         result.SetNetwork(Spec->ShuffleNetworkLimit);
-
         return result;
     }
 
@@ -2251,11 +2293,11 @@ private:
         const TChunkStripeStatisticsVector& statistics,
         bool memoryReserveEnabled) const override
     {
-        UNUSED(memoryReserveEnabled);
+        Y_UNUSED(memoryReserveEnabled);
 
         TJobResources result;
         result.SetUserSlots(1);
-        result.SetCpu(1);
+        result.SetCpu(GetMergeCpuLimit());
         result.SetMemory(
             GetFinalIOMemorySize(SortedMergeJobIOConfig, statistics) +
             GetFootprintMemorySize());
@@ -2272,7 +2314,7 @@ private:
     {
         TJobResources result;
         result.SetUserSlots(1);
-        result.SetCpu(1);
+        result.SetCpu(GetMergeCpuLimit());
         result.SetMemory(
             GetFinalIOMemorySize(UnorderedMergeJobIOConfig, AggregateStatistics(statistics)) +
             GetFootprintMemorySize());
@@ -2496,7 +2538,7 @@ private:
         LOG_INFO("Suggested partition count %v", partitionCount);
 
         partitionCount = AdjustPartitionCountToWriterBufferSize(
-            partitionCount, 
+            partitionCount,
             PartitionJobIOConfig->TableWriter);
         LOG_INFO("Adjusted partition count %v", partitionCount);
 
@@ -2710,6 +2752,22 @@ private:
     }
 
     // Resource management.
+
+    virtual int GetPartitionCpuLimit() const override
+    {
+        return Spec->Mapper ? Spec->Mapper->CpuLimit : 1;
+    }
+
+    virtual int GetSortCpuLimit() const override
+    {
+        // At least one cpu, may be more in PartitionReduce job.
+        return 1;
+    }
+
+    virtual int GetMergeCpuLimit() const override
+    {
+        return Spec->Reducer->CpuLimit;
+    }
 
     virtual TJobResources GetPartitionResources(
             const TChunkStripeStatisticsVector& statistics,

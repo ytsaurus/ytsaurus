@@ -96,15 +96,20 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
         config,
         GetOptions());
 
+
+    auto nameTable = New<TNameTable>();
+    nameTable->SetEnableColumnNameValidation();
+
     auto options = New<TTableWriterOptions>();
     options->ValidateDuplicateIds = true;
     options->ValidateRowWeight = true;
+    options->ValidateColumnCount = true;
 
     auto writer = CreateSchemalessTableWriter(
         config,
         options,
         Path,
-        New<TNameTable>(),
+        nameTable,
         context->GetClient(),
         transaction);
 

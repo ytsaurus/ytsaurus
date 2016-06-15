@@ -625,8 +625,8 @@ public:
 
     void StageChunkTree(TChunkTree* chunkTree, TTransaction* transaction, TAccount* account)
     {
-        YASSERT(transaction);
-        YASSERT(!chunkTree->IsStaged());
+        Y_ASSERT(transaction);
+        Y_ASSERT(!chunkTree->IsStaged());
 
         chunkTree->SetStagingTransaction(transaction);
 
@@ -1120,7 +1120,7 @@ private:
             }
 
             if (chunk->IsForeign()) {
-                YASSERT(local);
+                Y_ASSERT(local);
                 auto& crossCellRequest = getCrossCellRequest(chunk);
                 *crossCellRequest.add_updates() = update;
             } else {
@@ -1294,7 +1294,7 @@ private:
 
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account());
-        account->ValidateResourceUsageIncrease(TClusterResources(1, 0, 1));
+        securityManager->ValidateResourceUsageIncrease(account, TClusterResources(1, 0, 1));
 
         TChunkList* chunkList = nullptr;
         if (subrequest->has_chunk_list_id()) {
@@ -1498,7 +1498,7 @@ private:
 
             auto addReplica = [&] (TNodePtrWithIndex nodePtrWithIndex, bool cached) {
                 TChunkPtrWithIndex chunkPtrWithIndex(chunk, nodePtrWithIndex.GetIndex());
-                nodePtrWithIndex.GetPtr()->AddReplica(chunkPtrWithIndex, false);
+                nodePtrWithIndex.GetPtr()->AddReplica(chunkPtrWithIndex, cached);
                 ++TotalReplicaCount_;
             };
 
@@ -1879,7 +1879,7 @@ private:
 
     void OnChunkSealed(TChunk* chunk)
     {
-        YASSERT(chunk->IsSealed());
+        Y_ASSERT(chunk->IsSealed());
 
         if (chunk->Parents().empty())
             return;

@@ -102,7 +102,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
             .SetCancelable(true)
             .SetMaxQueueSize(5000)
-            .SetMaxConcurrency(5000));
+            .SetMaxConcurrency(5000)
+            .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
             .SetOneWay(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
@@ -124,7 +125,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
@@ -132,12 +133,15 @@ private:
         options.WorkloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
         options.SyncOnClose = request->sync_on_close();
         options.EnableMultiplexing = request->enable_multiplexing();
+        options.EnableUniformPlacement = request->enable_uniform_placement();
 
-        context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v",
+        context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, "
+            "EnableUniformPlacement: %v",
             chunkId,
             options.WorkloadDescriptor,
             options.SyncOnClose,
-            options.EnableMultiplexing);
+            options.EnableMultiplexing,
+            options.EnableUniformPlacement);
 
         ValidateConnected();
         ValidateNoSession(chunkId);
@@ -194,7 +198,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PingSession)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
@@ -210,7 +214,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PutBlocks)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         int firstBlockIndex = request->first_block_index();
@@ -254,7 +258,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SendBlocks)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         int firstBlockIndex = request->first_block_index();
@@ -288,7 +292,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FlushBlocks)
     {
-        UNUSED(response);
+        Y_UNUSED(response);
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         int blockIndex = request->block_index();
@@ -534,7 +538,7 @@ private:
             const auto& meta = *metaOrError.Value();
             *context->Response().mutable_chunk_meta() = partitionTag
                 ? FilterChunkMetaByPartitionTag(meta, *partitionTag)
-                : TChunkMeta(meta);
+                : static_cast<TChunkMeta>(meta);
 
             context->Reply();
         }).Via(WorkerThread_->GetInvoker()));
@@ -549,7 +553,7 @@ private:
             "KeyColumns: %v, ChunkCount: %v, "
             "SliceDataSize: %v, SliceByKeys: %v, Workload: %v",
             keyColumns,
-            request->chunk_specs_size(),
+            request->slice_requests_size(),
             request->slice_data_size(),
             request->slice_by_keys(),
             workloadDescriptor);
@@ -557,8 +561,8 @@ private:
         ValidateConnected();
 
         std::vector<TFuture<void>> asyncResults;
-        for (const auto& chunkSpec : request->chunk_specs()) {
-            auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+        for (const auto& sliceRequest : request->slice_requests()) {
+            auto chunkId = FromProto<TChunkId>(sliceRequest.chunk_id());
             auto* slices = response->add_slices();
             auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
 
@@ -577,7 +581,7 @@ private:
                 BIND(
                     &TDataNodeService::MakeChunkSlices,
                     MakeStrong(this),
-                    &chunkSpec,
+                    sliceRequest,
                     slices,
                     request->slice_data_size(),
                     request->slice_by_keys(),
@@ -589,14 +593,14 @@ private:
     }
 
     void MakeChunkSlices(
-        const NChunkClient::NProto::TChunkSpec* chunkSpec,
-        NChunkClient::NProto::TRspGetChunkSlices::TChunkSlices* result,
+        const TSliceRequest& sliceRequest,
+        TRspGetChunkSlices::TChunkSlices* result,
         i64 sliceDataSize,
         bool sliceByKeys,
         const TKeyColumns& keyColumns,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
-        auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
+        auto chunkId = FromProto<TChunkId>(sliceRequest.chunk_id());
         try {
             THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta of chunk %v",
                 chunkId);
@@ -620,10 +624,9 @@ private:
             auto chunkKeyColumns = FromProto<TKeyColumns>(keyColumnsExt);
             ValidateKeyColumns(keyColumns, chunkKeyColumns);
 
-            auto newChunkSpec = *chunkSpec;
-            *newChunkSpec.mutable_chunk_meta() = meta;
             auto slices = SliceChunk(
-                New<TRefCountedChunkSpec>(std::move(newChunkSpec)),
+                sliceRequest,
+                meta,
                 sliceDataSize,
                 keyColumns.size(),
                 sliceByKeys);
@@ -887,12 +890,22 @@ private:
         i32 maxSampleSize,
         const TChunkMeta& chunkMeta)
     {
-        auto nameTableExt = GetProtoExtension<TNameTableExt>(chunkMeta.extensions());
-        auto nameTable = FromProto<TNameTablePtr>(nameTableExt);
-
+        TNameTablePtr nameTable;
         std::vector<int> keyIds;
-        for (const auto& column : keyColumns) {
-            keyIds.push_back(nameTable->GetIdOrRegisterName(column));
+
+        try {
+            auto nameTableExt = GetProtoExtension<TNameTableExt>(chunkMeta.extensions());
+            nameTable = FromProto<TNameTablePtr>(nameTableExt);
+
+            for (const auto& column : keyColumns) {
+                keyIds.push_back(nameTable->GetIdOrRegisterName(column));
+            }
+        } catch (const std::exception& ex) {
+            auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
+            LOG_WARNING(ex, "Failed to gather samples (ChunkId: %v)", chunkId);
+
+            // We failed to deserialize name table, so we don't return any samples. 
+            return;
         }
 
         std::vector<int> idToKeyIndex(nameTable->GetSize(), -1);

@@ -207,11 +207,18 @@ private:
         if (!SeedsPromise_) {
             LOG_DEBUG("Need fresh chunk seeds");
             SeedsPromise_ = NewPromise<TChunkReplicaList>();
-            // Don't ask master for fresh seeds too often.
-            TDelayedExecutor::Submit(
-                BIND(&TReplicationReader::LocateChunk, MakeStrong(this))
-                    .Via(TDispatcher::Get()->GetReaderInvoker()),
-                SeedsTimestamp_ + Config_->SeedsTimeout);
+            auto locateChunk = BIND(&TReplicationReader::LocateChunk, MakeStrong(this))
+                .Via(TDispatcher::Get()->GetReaderInvoker());
+
+            if (SeedsTimestamp_ + Config_->SeedsTimeout > TInstant::Now()) {
+                // Don't ask master for fresh seeds too often.
+                TDelayedExecutor::Submit(
+                    locateChunk,
+                    SeedsTimestamp_ + Config_->SeedsTimeout);
+            } else {
+                locateChunk.Run();
+            }
+            
         }
 
         return SeedsPromise_;

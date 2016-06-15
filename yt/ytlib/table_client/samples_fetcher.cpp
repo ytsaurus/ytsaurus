@@ -1,9 +1,9 @@
 #include "samples_fetcher.h"
 
-#include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -65,11 +65,9 @@ TSamplesFetcher::TSamplesFetcher(
     YCHECK(DesiredSampleCount_ > 0);
 }
 
-void TSamplesFetcher::AddChunk(TRefCountedChunkSpecPtr chunk)
+void TSamplesFetcher::AddChunk(TInputChunkPtr chunk)
 {
-    i64 chunkDataSize;
-    GetStatistics(*chunk, &chunkDataSize);
-    TotalDataSize_ += chunkDataSize;
+    TotalDataSize_ += chunk->GetUncompressedDataSize();
 
     TFetcherBase::AddChunk(chunk);
 }
@@ -120,24 +118,21 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
     for (auto index : chunkIndexes) {
         const auto& chunk = Chunks_[index];
 
-        i64 chunkDataSize;
-        GetStatistics(*chunk, &chunkDataSize);
-
-        currentSize += chunkDataSize;
+        currentSize += chunk->GetUncompressedDataSize();
         i64 sampleCount = currentSize / SizeBetweenSamples_;
 
         if (sampleCount > currentSampleCount) {
             requestedChunkIndexes.push_back(index);
-            auto chunkId = EncodeChunkId(*chunk, nodeId);
+            auto chunkId = EncodeChunkId(chunk, nodeId);
 
             auto* sampleRequest = req->add_sample_requests();
             ToProto(sampleRequest->mutable_chunk_id(), chunkId);
             sampleRequest->set_sample_count(sampleCount - currentSampleCount);
-            if (chunk->has_lower_limit() && chunk->lower_limit().has_key()) {
-                sampleRequest->set_lower_key(chunk->lower_limit().key());
+            if (chunk->LowerLimit() && chunk->LowerLimit()->has_key()) {
+                sampleRequest->set_lower_key(chunk->LowerLimit()->key());
             }
-            if (chunk->has_upper_limit() && chunk->upper_limit().has_key()) {
-                sampleRequest->set_upper_key(chunk->upper_limit().key());
+            if (chunk->UpperLimit() && chunk->UpperLimit()->has_key()) {
+                sampleRequest->set_upper_key(chunk->UpperLimit()->key());
             }
             currentSampleCount = sampleCount;
         }

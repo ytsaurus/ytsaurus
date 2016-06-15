@@ -112,34 +112,6 @@ bool TAccount::IsChunkCountLimitViolated() const
     return ClusterStatistics_.ResourceUsage.ChunkCount > ClusterResourceLimits_.ChunkCount;
 }
 
-void TAccount::ValidateResourceUsageIncrease(const TClusterResources& delta)
-{
-    if (delta.DiskSpace > 0 && ClusterStatistics_.ResourceUsage.DiskSpace + delta.DiskSpace > ClusterResourceLimits_.DiskSpace) {
-        THROW_ERROR_EXCEPTION(
-            NSecurityClient::EErrorCode::AccountLimitExceeded,
-            "Account %Qv is over disk space limit",
-            Name_)
-            << TErrorAttribute("usage", ClusterStatistics_.ResourceUsage.DiskSpace)
-            << TErrorAttribute("limit", ClusterResourceLimits_.DiskSpace);
-    }
-    if (delta.NodeCount > 0 && ClusterStatistics_.ResourceUsage.NodeCount + delta.NodeCount > ClusterResourceLimits_.NodeCount) {
-        THROW_ERROR_EXCEPTION(
-            NSecurityClient::EErrorCode::AccountLimitExceeded,
-            "Account %Qv is over Cypress node count limit",
-            Name_)
-            << TErrorAttribute("usage", ClusterStatistics_.ResourceUsage.NodeCount)
-            << TErrorAttribute("limit", ClusterResourceLimits_.NodeCount);
-    }
-    if (delta.ChunkCount > 0 && ClusterStatistics_.ResourceUsage.ChunkCount + delta.ChunkCount > ClusterResourceLimits_.ChunkCount) {
-        THROW_ERROR_EXCEPTION(
-            NSecurityClient::EErrorCode::AccountLimitExceeded,
-            "Account %Qv is over chunk count limit",
-            Name_)
-            << TErrorAttribute("usage", ClusterStatistics_.ResourceUsage.ChunkCount)
-            << TErrorAttribute("limit", ClusterResourceLimits_.ChunkCount);
-    }
-}
-
 TAccountStatistics* TAccount::GetCellStatistics(NObjectClient::TCellTag cellTag)
 {
     auto it = MulticellStatistics_.find(cellTag);

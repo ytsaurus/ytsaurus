@@ -24,6 +24,7 @@
 #include <yt/ytlib/chunk_client/data_statistics.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/ytlib/scheduler/public.h>
 
@@ -189,12 +190,15 @@ void TJobProxy::Run()
         result = resultOrError.Value();
     }
 
+    // Reliably terminate all async calls before reporting result.
     if (HeartbeatExecutor_) {
-        HeartbeatExecutor_->Stop();
+        WaitFor(HeartbeatExecutor_->Stop())
+            .ThrowOnError();
     }
 
     if (MemoryWatchdogExecutor_) {
-        MemoryWatchdogExecutor_->Stop();
+        WaitFor(MemoryWatchdogExecutor_->Stop())
+            .ThrowOnError();
     }
 
     RpcServer_->Stop()

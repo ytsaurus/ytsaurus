@@ -13,6 +13,7 @@ namespace NNodeJS {
 
 class TDriverWrap
     : public node::ObjectWrap
+    , public TRefTracked<TDriverWrap>
 {
 protected:
     TDriverWrap(bool echo, NDriver::IDriverPtr driver);
@@ -45,8 +46,8 @@ private:
     NDriver::IDriverPtr Driver;
 
 private:
-    TDriverWrap(const TDriverWrap&);
-    TDriverWrap& operator=(const TDriverWrap&);
+    TDriverWrap(const TDriverWrap&) = delete;
+    TDriverWrap& operator=(const TDriverWrap&) = delete;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

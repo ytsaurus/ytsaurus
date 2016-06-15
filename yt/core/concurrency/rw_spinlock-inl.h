@@ -26,7 +26,7 @@ inline void TReaderWriterSpinLock::AcquireReader()
 inline void TReaderWriterSpinLock::ReleaseReader()
 {
     ui32 prevValue = Value_.fetch_sub(ReaderDelta, std::memory_order_release);
-    YASSERT((prevValue & ~WriterMask) != 0);
+    Y_ASSERT((prevValue & ~WriterMask) != 0);
 }
 
 inline void TReaderWriterSpinLock::AcquireWriter()
@@ -41,7 +41,7 @@ inline void TReaderWriterSpinLock::AcquireWriter()
 inline void TReaderWriterSpinLock::ReleaseWriter()
 {
     ui32 prevValue = Value_.fetch_and(~WriterMask, std::memory_order_release);
-    YASSERT(prevValue & WriterMask);
+    Y_ASSERT(prevValue & WriterMask);
 }
 
 inline bool TReaderWriterSpinLock::TryAcquireReader()

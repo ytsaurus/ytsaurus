@@ -149,8 +149,8 @@ public:
 
     void SetSuccessor(TEditList successor)
     {
-        YASSERT(!HasUncommitted());
-        YASSERT(successor && !successor.HasUncommitted());
+        Y_ASSERT(!HasUncommitted());
+        Y_ASSERT(successor && !successor.HasUncommitted());
         Header_->Successor = successor.Header_;
         Header_->SuccessorsSize = successor.GetFullSize();
     }
@@ -211,7 +211,7 @@ public:
 
     const T& Back() const
     {
-        YASSERT(!IsEmpty());
+        Y_ASSERT(!IsEmpty());
         return (*this)[GetSize() - 1];
     }
 
@@ -229,28 +229,28 @@ public:
 
     const T& GetUncommitted() const
     {
-        YASSERT(HasUncommitted());
+        Y_ASSERT(HasUncommitted());
         return (*this)[GetSize()];
     }
 
     T& GetUncommitted()
     {
-        YASSERT(HasUncommitted());
+        Y_ASSERT(HasUncommitted());
         return (*this)[GetSize()];
     }
 
 
     void Push(T value)
     {
-        YASSERT(Header_->Size < Header_->Capacity);
+        Y_ASSERT(Header_->Size < Header_->Capacity);
         *End() = value;
         ++Header_->Size;
     }
 
     void Prepare()
     {
-        YASSERT(Header_->UncommittedSize == 0);
-        YASSERT(Header_->Size < Header_->Capacity);
+        Y_ASSERT(Header_->UncommittedSize == 0);
+        Y_ASSERT(Header_->Size < Header_->Capacity);
         ++Header_->UncommittedSize;
     }
 
@@ -261,14 +261,14 @@ public:
 
     void Commit()
     {
-        YASSERT(Header_->UncommittedSize == 1);
+        Y_ASSERT(Header_->UncommittedSize == 1);
         Header_->UncommittedSize = 0;
         ++Header_->Size;
     }
 
     void Abort()
     {
-        YASSERT(Header_->UncommittedSize == 1);
+        Y_ASSERT(Header_->UncommittedSize == 1);
         Header_->UncommittedSize = 0;
     }
 
@@ -410,13 +410,13 @@ public:
 
     TValueList GetFixedValueList(int columnIndex, int keyColumnCount, int columnLockCount) const
     {
-        YASSERT(columnIndex >= keyColumnCount);
+        Y_ASSERT(columnIndex >= keyColumnCount);
         return TValueList(GetLists(keyColumnCount, columnLockCount)[columnIndex - keyColumnCount + 1]);
     }
 
     void SetFixedValueList(int columnIndex, TValueList list, int keyColumnCount, int columnLockCount)
     {
-        YASSERT(columnIndex >= keyColumnCount);
+        Y_ASSERT(columnIndex >= keyColumnCount);
         GetLists(keyColumnCount, columnLockCount)[columnIndex - keyColumnCount + 1] = list.Header_;
     }
 

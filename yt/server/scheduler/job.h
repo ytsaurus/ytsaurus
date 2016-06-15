@@ -27,9 +27,6 @@ class TJob
 
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
 
-    //! The operation the job belongs to.
-    DEFINE_BYVAL_RO_PROPERTY(TOperation*, Operation);
-
     //! The id of operation the job belongs to.
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, OperationId);
 
@@ -47,9 +44,12 @@ class TJob
 
     //! Job status returned by node.
     DEFINE_BYREF_RO_PROPERTY(TRefCountedJobStatusPtr, Status);
-    
+
     //! Yson containing statistics produced by the job.
     DEFINE_BYREF_RO_PROPERTY(TNullable<NYson::TYsonString>, StatisticsYson);
+
+    //! True if job was unregistered during heartbeat.
+    DEFINE_BYVAL_RW_PROPERTY(bool, HasPendingUnregistration);
 
     //! Some rough approximation that is updated with every heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
@@ -67,13 +67,13 @@ public:
     TJob(
         const TJobId& id,
         EJobType type,
-        TOperationPtr operation,
+        const TOperationId& operationId,
         TExecNodePtr node,
         TInstant startTime,
         const TJobResources& resourceLimits,
         bool restarted,
         TJobSpecBuilder specBuilder);
-    
+
     //! The difference between |FinishTime| and |StartTime|.
     TDuration GetDuration() const;
 
@@ -103,6 +103,8 @@ struct TJobSummary
     // NB: The Statistics field will be set inside the controller in ParseStatistics().
     NJobTrackerClient::TStatistics Statistics;
     TNullable<NYson::TYsonString> StatisticsYson;
+
+    bool ShouldLog;
 };
 
 using TFailedJobSummary = TJobSummary;
@@ -155,6 +157,8 @@ DEFINE_ENUM(EScheduleJobFailReason,
     (NoLocalJobs)
     (TaskDelayed)
     (NoCandidateTasks)
+    (ResourceOvercommit)
+    (TaskRefusal)
 );
 
 struct TScheduleJobResult

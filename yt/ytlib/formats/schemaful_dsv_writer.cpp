@@ -52,8 +52,10 @@ protected:
         , IdToIndexInRow_(idToIndexInRow)
         , Table_(config)
     {  
-        CurrentRowValues_.resize(
-            *std::max_element(IdToIndexInRow_.begin(), IdToIndexInRow_.end()) + 1);
+        if (!IdToIndexInRow_.empty()) {
+            CurrentRowValues_.resize(
+                *std::max_element(IdToIndexInRow_.begin(), IdToIndexInRow_.end()) + 1);
+        }
         YCHECK(Config_->Columns);
     }    
 
@@ -249,7 +251,7 @@ public:
             config,
             IdToIndexInRow)
         , TableIndexColumnId_(Config_->EnableTableIndex && controlAttributesConfig->EnableTableIndex
-            ? nameTable->GetIdOrRegisterName(TableIndexColumnName)
+            ? nameTable->GetId(TableIndexColumnName)
             : -1)
     {
         BlobOutput_ = GetOutputStream();
@@ -339,7 +341,7 @@ public:
 
             CurrentRowValues_.assign(CurrentRowValues_.size(), nullptr);
             for (auto item = row.Begin(); item != row.End(); ++item) {
-                YASSERT(item->Id >= 0 && item->Id < IdToIndexInRow_.size());
+                Y_ASSERT(item->Id >= 0 && item->Id < IdToIndexInRow_.size());
                 if (IdToIndexInRow_[item->Id] != -1) {
                     CurrentRowValues_[IdToIndexInRow_[item->Id]] = item;
                 }
@@ -430,7 +432,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     if (controlAttributesConfig->EnableRowIndex) {
         THROW_ERROR_EXCEPTION("Row indices are not supported in schemaful DSV format");
     }
-        
+
     if (!config->Columns) {
         THROW_ERROR_EXCEPTION("Config must contain columns for schemaful DSV schemaless writer");
     }
@@ -442,9 +444,15 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
         columns.insert(columns.begin(), TableIndexColumnName);
     }
 
-    for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
-        nameTable->GetIdOrRegisterName(columns[columnIndex]);
+    try {
+        for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
+            nameTable->GetIdOrRegisterName(columns[columnIndex]);
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to add columns to name table for schemaful DSV format") 
+            << ex;
     }
+
     idToIndexInRow.resize(nameTable->GetSize(), -1);
     for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
         idToIndexInRow[nameTable->GetId(columns[columnIndex])] = columnIndex;

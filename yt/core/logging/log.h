@@ -64,6 +64,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Typically serves as a virtual base for classes that need a member logger.
+class TLoggerOwner
+{
+protected:
+    TLogger Logger;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 #ifdef YT_ENABLE_TRACE_LOGGING
 #define LOG_TRACE(...)                      LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Trace, __VA_ARGS__)
 #define LOG_TRACE_IF(condition, ...)        if (condition) LOG_TRACE(__VA_ARGS__)

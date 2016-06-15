@@ -3,6 +3,7 @@
 #include <yt/core/misc/assert.h>
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/serialize.h>
+#include <yt/core/misc/finally.h>
 
 #include <contrib/libs/zlib/zlib.h>
 
@@ -29,6 +30,10 @@ void ZlibCompress(StreamSource* source, StreamSink* sink, int level)
     returnCode = deflateInit(&stream, level);
     YCHECK(returnCode == Z_OK);
 
+    auto cleanupGuard = Finally([&] () {
+        deflateEnd(&stream);
+    });
+
     do {
         size_t available;
         stream.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(source->Peek(&available)));
@@ -48,8 +53,6 @@ void ZlibCompress(StreamSource* source, StreamSink* sink, int level)
 
     } while (flush != Z_FINISH);
     YCHECK(returnCode == Z_STREAM_END);
-
-    deflateEnd(&stream);
 }
 
 void ZlibCompress(int level, StreamSource* source, TBlob* output)

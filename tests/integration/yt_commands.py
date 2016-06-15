@@ -104,16 +104,6 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
 
     parameters = prepare_parameters(parameters)
 
-    yson_format = yson.to_yson_type("yson", attributes={"format": "text"})
-    description = driver.get_command_descriptor(command_name)
-    if description.input_type() != "null" and parameters.get("input_format") is None:
-        parameters["input_format"] = yson_format
-    if description.output_type() != "null":
-        if parameters.get("output_format") is None:
-            parameters["output_format"] = yson_format
-        if output_stream is None:
-            output_stream = cStringIO.StringIO()
-
     if verbose:
         print >>sys.stderr, str(datetime.now()), command_name, parameters
     response = driver.execute(
@@ -173,7 +163,7 @@ def abandon_job(job_id, **kwargs):
     execute_command('abandon_job', kwargs)
 
 def poll_job_shell(job_id, **kwargs):
-    kwargs = {"job_id": job_id, "parameters": yson.dumps(kwargs)};
+    kwargs = {"job_id": job_id, "parameters": kwargs};
     return yson.loads(execute_command('poll_job_shell', kwargs));
 
 def abort_job(job_id, **kwargs):
@@ -348,6 +338,25 @@ def write_journal(path, value, is_raw=False, **kwargs):
     value = value[1:-1]
     kwargs["path"] = path
     return execute_command("write_journal", kwargs, input_stream=StringIO(value))
+
+def make_batch_request(command_name, input=None, **kwargs):
+    request = dict()
+    request["command"] = command_name
+    request["parameters"] = kwargs
+    if input is not None:
+        request["input"] = input
+    return request
+
+def execute_batch(requests, **kwargs):
+    kwargs["requests"] = requests
+    return yson.loads(execute_command("execute_batch", kwargs))
+
+def get_batch_output(result):
+    if "error" in result:
+        raise YtResponseError(result["error"])
+    if "output" in result:
+        return result["output"]
+    return None
 
 class TimeoutError(Exception):
     pass

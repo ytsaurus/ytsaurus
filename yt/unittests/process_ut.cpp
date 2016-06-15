@@ -202,8 +202,10 @@ TEST(TProcessTest, KillZombie)
     auto finished = p->Spawn();
 
     siginfo_t infop;
-    auto res = ::waitid(P_PID, p->GetProcessId(), &infop, WEXITED | WNOWAIT);
-    EXPECT_TRUE(res == 0);
+    
+    auto res = HandleEintr(::waitid, P_PID, p->GetProcessId(), &infop, WEXITED | WNOWAIT);
+    EXPECT_EQ(0, res);
+
     EXPECT_EQ(p->GetProcessId(), infop.si_pid);
 
     p->Kill(SIGKILL);

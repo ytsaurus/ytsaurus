@@ -343,6 +343,7 @@ public:
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
                     .Item("active_leader").Value(IsActiveLeader())
                     .Item("active_follower").Value(IsActiveFollower())
+                    .Item("read_only").Value(GetReadOnly())
                 .EndMap();
         });
     }
@@ -660,7 +661,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, BuildSnapshot)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        UNUSED(response);
+        Y_UNUSED(response);
 
         auto epochId = FromProto<TEpochId>(request->epoch_id());
         auto version = TVersion::FromRevision(request->revision());
@@ -730,7 +731,7 @@ private:
     {
         // See AcceptMutations.
         VERIFY_THREAD_AFFINITY(ControlThread);
-        UNUSED(response);
+        Y_UNUSED(response);
 
         auto epochId = FromProto<TEpochId>(request->epoch_id());
         auto version = TVersion::FromRevision(request->revision());

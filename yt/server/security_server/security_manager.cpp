@@ -831,7 +831,7 @@ public:
             result.Action = ESecurityAction::Deny;
             return result;
         } else {
-            YASSERT(result.Action == ESecurityAction::Allow);
+            Y_ASSERT(result.Action == ESecurityAction::Allow);
             LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found "
                 "(CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
                 object->GetId(),
@@ -892,6 +892,43 @@ public:
             object,
             GetAuthenticatedUser(),
             permission);
+    }
+
+
+    void ValidateResourceUsageIncrease(
+        TAccount* account,
+        const TClusterResources& delta)
+    {
+        if (IsHiveMutation()) {
+            return;
+        }
+
+        const auto& usage = account->ClusterStatistics().ResourceUsage;
+        const auto& limits = account->ClusterResourceLimits();
+        if (delta.DiskSpace > 0 && usage.DiskSpace + delta.DiskSpace > limits.DiskSpace) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AccountLimitExceeded,
+                "Account %Qv is over disk space limit",
+                account->GetName())
+                << TErrorAttribute("usage", usage.DiskSpace)
+                << TErrorAttribute("limit", limits.DiskSpace);
+        }
+        if (delta.NodeCount > 0 && usage.NodeCount + delta.NodeCount > limits.NodeCount) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AccountLimitExceeded,
+                "Account %Qv is over Cypress node count limit",
+                account->GetName())
+                << TErrorAttribute("usage", usage.NodeCount)
+                << TErrorAttribute("limit", limits.NodeCount);
+        }
+        if (delta.ChunkCount > 0 && usage.ChunkCount + delta.ChunkCount > limits.ChunkCount) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AccountLimitExceeded,
+                "Account %Qv is over chunk count limit",
+                account->GetName())
+                << TErrorAttribute("usage", usage.ChunkCount)
+                << TErrorAttribute("limit", limits.ChunkCount);
+        }
     }
 
 
@@ -1391,6 +1428,7 @@ private:
             // root
             RootUser_ = DoCreateUser(RootUserId_, RootUserName);
             RootUser_->SetRequestRateLimit(1000000);
+            RootUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         GuestUser_ = FindUser(GuestUserId_);
@@ -1404,6 +1442,7 @@ private:
             // job
             JobUser_ = DoCreateUser(JobUserId_, JobUserName);
             JobUser_->SetRequestRateLimit(1000000);
+            JobUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         SchedulerUser_ = FindUser(SchedulerUserId_);
@@ -1411,6 +1450,7 @@ private:
             // scheduler
             SchedulerUser_ = DoCreateUser(SchedulerUserId_, SchedulerUserName);
             SchedulerUser_->SetRequestRateLimit(1000000);
+            SchedulerUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // COMPAT(babenko)
@@ -2082,6 +2122,16 @@ void TSecurityManager::ValidatePermission(
     Impl_->ValidatePermission(
         object,
         permission);
+}
+
+
+void TSecurityManager::ValidateResourceUsageIncrease(
+    TAccount* account,
+    const TClusterResources& delta)
+{
+    Impl_->ValidateResourceUsageIncrease(
+        account,
+        delta);
 }
 
 void TSecurityManager::SetUserBanned(TUser* user, bool banned)

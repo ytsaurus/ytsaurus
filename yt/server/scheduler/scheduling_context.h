@@ -34,7 +34,7 @@ struct ISchedulingContext
     //! Returns |true| if the node can handle jobs demanding a certain #tag.
     virtual bool CanSchedule(const TNullable<Stroka>& tag) const = 0;
 
-    virtual TJobPtr StartJob(TOperationPtr operation, const TJobStartRequest& jobStartRequest) = 0;
+    virtual TJobPtr StartJob(const TOperationId& operationId, const TJobStartRequest& jobStartRequest) = 0;
 
     virtual void PreemptJob(TJobPtr job) = 0;
 

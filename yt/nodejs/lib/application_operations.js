@@ -751,7 +751,7 @@ function YtApplicationOperations$get(parameters)
         if (cypress_data.isFulfilled()) {
             result = cypress_data.value();
             if (runtime_data.isFulfilled()) {
-                result = _.extend(result, runtime_data.value());
+                result.progress = _.extend(result.progress, runtime_data.value().progress);
             }
             return result;
         } else if (cypress_data.error().checkFor(500)) {

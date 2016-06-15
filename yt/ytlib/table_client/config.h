@@ -90,7 +90,6 @@ public:
             .Default(false);
         RegisterParameter("validate_column_count", ValidateColumnCount)
             .Default(false);
-
         RegisterParameter("optimize_for", OptimizeFor)
             .Default(EOptimizeFor::Lookup);
 

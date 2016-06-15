@@ -1,6 +1,9 @@
 IF(YMAKE)
   SET(CMAKE_CURRENT_LIST_DIR .)
+  SET(YT_ABI 17_5)
 ENDIF()
+
+SET(PROTO_NAMESPACE yt/${YT_ABI})
 
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/cell_master/automaton.cpp
@@ -234,6 +237,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/event_log.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/exec_node.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_strategy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_tree.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_memory.cpp
@@ -369,8 +373,8 @@ PEERDIR(
   contrib/libs/sparsehash
   library/streams/lz
   library/http/server
-  yt/ytlib
-  yt/contrib/tclap
+  yt/${YT_ABI}/ytlib
+  yt/${YT_ABI}/contrib/tclap
 )
 
 END()
@@ -401,6 +405,12 @@ set_target_properties(ytserver
   PROPERTIES
   LINK_FLAGS "-static-libstdc++"
 )
+
+if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    add_gdb_index(
+      ytserver
+    )
+endif()
 
 install(
   TARGETS ytserver

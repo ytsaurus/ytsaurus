@@ -171,8 +171,15 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TReaderGuard guard(TabletSnapshotsSpinLock_);
-        auto it = TabletIdToSnapshot_.find(tabletId);
-        return it == TabletIdToSnapshot_.end() ? nullptr : it->second;
+        auto range = TabletIdToSnapshot_.equal_range(tabletId);
+        // NB: It is uncommon but possible to have multiple cells pretending to serve the same tablet.
+        for (auto it = range.first; it != range.second; ++it) {
+            const auto& snapshot = it->second;
+            if (snapshot->HydraManager->IsActive()) {
+                return snapshot;
+            }
+        }
+        return nullptr;
     }
 
     TTabletSnapshotPtr GetTabletSnapshotOrThrow(const TTabletId& tabletId)
@@ -212,12 +219,21 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto snapshot = tablet->BuildSnapshot(slot);
+        auto newSnapshot = tablet->BuildSnapshot(slot);
 
-        {
-            TWriterGuard guard(TabletSnapshotsSpinLock_);
-            YCHECK(TabletIdToSnapshot_.insert(std::make_pair(tablet->GetId(), snapshot)).second);
+        TWriterGuard guard(TabletSnapshotsSpinLock_);
+        auto range = TabletIdToSnapshot_.equal_range(tablet->GetId());
+        for (auto it = range.first; it != range.second; ++it) {
+            auto& snapshot = it->second;
+            if (snapshot->CellId == slot->GetCellId()) {
+                LOG_INFO("Tablet snapshot updated (TabletId: %v, CellId: %v)",
+                    tablet->GetId(),
+                    slot->GetCellId());
+                snapshot = newSnapshot;
+                return;
+            }
         }
+        TabletIdToSnapshot_.emplace(tablet->GetId(), newSnapshot);
 
         LOG_INFO("Tablet snapshot registered (TabletId: %v, CellId: %v)",
             tablet->GetId(),
@@ -228,36 +244,19 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        {
-            TWriterGuard guard(TabletSnapshotsSpinLock_);
-            // NB: Don't check the result.
-            TabletIdToSnapshot_.erase(tablet->GetId());
-        }
-
-        LOG_INFO("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
-            tablet->GetId(),
-            slot->GetCellId());
-    }
-
-    void UpdateTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto snapshot = tablet->BuildSnapshot(slot);
-
-        {
-            TWriterGuard guard(TabletSnapshotsSpinLock_);
-            auto it = TabletIdToSnapshot_.find(tablet->GetId());
-            if (it == TabletIdToSnapshot_.end()) {
-                // NB: Snapshots could be forcefully dropped by UnregisterTabletSnapshots.
+        TWriterGuard guard(TabletSnapshotsSpinLock_);
+        auto range = TabletIdToSnapshot_.equal_range(tablet->GetId());
+        for (auto it = range.first; it != range.second; ++it) {
+            const auto& snapshot = it->second;
+            if (snapshot->CellId == slot->GetCellId()) {
+                TabletIdToSnapshot_.erase(it);
+                LOG_INFO("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
+                    tablet->GetId(),
+                    slot->GetCellId());
                 return;
             }
-            it->second = snapshot;
         }
-
-        LOG_DEBUG("Tablet snapshot updated (TabletId: %v, CellId: %v)",
-            tablet->GetId(),
-            slot->GetCellId());
+        // NB: It's fine not to find anything.
     }
 
     void UnregisterTabletSnapshots(TTabletSlotPtr slot)
@@ -265,16 +264,17 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TWriterGuard guard(TabletSnapshotsSpinLock_);
-        auto it = TabletIdToSnapshot_.begin();
-        while (it != TabletIdToSnapshot_.end()) {
+        for (auto it = TabletIdToSnapshot_.begin(); it != TabletIdToSnapshot_.end();) {
             auto jt = it++;
-            if (jt->second->CellId == slot->GetCellId()) {
-                LOG_INFO("Tablet snapshot removed (TabletId: %v, CellId: %v)",
+            const auto& snapshot = jt->second;
+            if (snapshot->CellId == slot->GetCellId()) {
+                LOG_INFO("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
                     jt->first,
                     slot->GetCellId());
                 TabletIdToSnapshot_.erase(jt);
             }
         }
+        // NB: It's fine not to find anything.
     }
 
 
@@ -374,7 +374,7 @@ private:
     TPeriodicExecutorPtr SlotScanExecutor_;
 
     TReaderWriterSpinLock TabletSnapshotsSpinLock_;
-    yhash_map<TTabletId, TTabletSnapshotPtr> TabletIdToSnapshot_;
+    yhash_multimap<TTabletId, TTabletSnapshotPtr> TabletIdToSnapshot_;
 
     IYPathServicePtr OrchidService_;
 
@@ -522,11 +522,6 @@ void TSlotManager::RegisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet)
 void TSlotManager::UnregisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet)
 {
     Impl_->UnregisterTabletSnapshot(std::move(slot), tablet);
-}
-
-void TSlotManager::UpdateTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet)
-{
-    Impl_->UpdateTabletSnapshot(std::move(slot), tablet);
 }
 
 void TSlotManager::UnregisterTabletSnapshots(TTabletSlotPtr slot)

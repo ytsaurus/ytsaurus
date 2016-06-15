@@ -38,6 +38,7 @@
 #include <yt/core/misc/variant.h>
 
 #include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/retrying_channel.h>
 
 #include <yt/core/ytree/helpers.h>
 
@@ -564,7 +565,12 @@ private:
             for (const auto& target : targets) {
                 auto address = target.GetAddressOrThrow(networkName);
                 auto lightChannel = Client_->GetNodeChannelFactory()->CreateChannel(address);
-                auto heavyChannel = Client_->GetHeavyChannelFactory()->CreateChannel(address);
+                auto heavyChannel = CreateRetryingChannel(
+                    Config_->NodeChannel,
+                    Client_->GetHeavyChannelFactory()->CreateChannel(address),
+                    BIND([] (const TError& error) {
+                        return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).HasValue();
+                    }));
                 auto node = New<TNode>(
                     target,
                     std::move(lightChannel),
@@ -866,7 +872,7 @@ private:
 
         TFuture<void> AppendToBatch(const TBatchPtr& batch, const TSharedRef& row)
         {
-            YASSERT(row);
+            Y_ASSERT(row);
             batch->Rows.push_back(row);
             batch->DataSize += row.Size();
             ++CurrentRowIndex_;
@@ -1008,7 +1014,7 @@ private:
             req->set_first_block_index(node->FirstPendingBlockIndex);
             req->set_flush_blocks(true);
 
-            YASSERT(node->InFlightBatches.empty());
+            Y_ASSERT(node->InFlightBatches.empty());
             while (flushRowCount <= Config_->MaxFlushRowCount &&
                    flushDataSize <= Config_->MaxFlushDataSize &&
                    !node->PendingBatches.empty())

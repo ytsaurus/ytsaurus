@@ -564,6 +564,7 @@ struct TBindState<TRunnable_, R(TArgs...), void(S...)>
 #endif
         )
         , Runnable(runnable)
+        , State(std::forward<P>(p)...)
     { }
 
     template <class... P>

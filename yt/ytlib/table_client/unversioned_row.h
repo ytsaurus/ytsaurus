@@ -252,7 +252,7 @@ public:
 
     const TUnversionedValue& operator[] (int index) const
     {
-        YASSERT(index >= 0 && index < GetCount());
+        Y_ASSERT(index >= 0 && index < GetCount());
         return Begin()[index];
     }
 
@@ -452,13 +452,13 @@ public:
 
     void SetCount(int count)
     {
-        YASSERT(count >= 0 && count <= static_cast<int>(GetHeader()->Capacity));
+        Y_ASSERT(count >= 0 && count <= static_cast<int>(GetHeader()->Capacity));
         GetHeader()->Count = count;
     }
 
     TUnversionedValue& operator[] (int index)
     {
-        YASSERT(index >= 0 && index < GetCount());
+        Y_ASSERT(index >= 0 && index < GetCount());
         return Begin()[index];
     }
 
@@ -539,7 +539,7 @@ public:
 
     const TUnversionedValue& operator[] (int index) const
     {
-        YASSERT(index >= 0 && index < GetCount());
+        Y_ASSERT(index >= 0 && index < GetCount());
         return Begin()[index];
     }
 

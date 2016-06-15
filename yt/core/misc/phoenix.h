@@ -90,7 +90,10 @@ template <class T>
 struct TFactoryTraits<
     T,
     typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T&, TFactoryTag<TSimpleFactory>&>
+        NMpl::TOr<
+            NMpl::TIsConvertible<T&, TFactoryTag<TSimpleFactory>&>,
+            NMpl::TIsConvertible<T&, ::google::protobuf::Message&>
+        >
     >::TType
 >
 {

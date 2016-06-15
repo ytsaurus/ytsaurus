@@ -247,21 +247,40 @@ private:
             ToProto(chunkSpec->mutable_channel(), Channel_);
         }
 
-        auto erasureCodecId = chunk->GetErasureCodec();
-        int firstInfeasibleReplicaIndex =
-            erasureCodecId == NErasure::ECodec::None || FetchParityReplicas_
-                ? std::numeric_limits<int>::max() // all replicas are feasible
-                : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
-
         SmallVector<TNodePtrWithIndex, TypicalReplicaCount> replicas;
-        auto addReplica = [&] (TNodePtrWithIndex replica) -> bool {
-            if (replica.GetIndex() < firstInfeasibleReplicaIndex) {
-                replicas.push_back(replica);
-                return true;
-            } else {
+
+        auto addJournalReplica = [&] (TNodePtrWithIndex replica) {
+            // For journal chunks, replica indexes are used to track states.
+            // Hence we must replace index with #GenericChunkReplicaIndex.
+            replicas.push_back(TNodePtrWithIndex(replica.GetPtr(), GenericChunkReplicaIndex));
+            return true;
+        };
+
+        auto erasureCodecId = chunk->GetErasureCodec();
+        int firstInfeasibleReplicaIndex = (erasureCodecId == NErasure::ECodec::None || FetchParityReplicas_)
+            ? std::numeric_limits<int>::max() // all replicas are feasible
+            : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
+
+        auto addErasureReplica = [&] (TNodePtrWithIndex replica) {
+            if (replica.GetIndex() >= firstInfeasibleReplicaIndex) {
                 return false;
             }
+            replicas.push_back(replica);
+            return true;
         };
+
+        auto addRegularReplica = [&] (TNodePtrWithIndex replica) {
+            replicas.push_back(replica);
+            return true;
+        };
+
+        std::function<bool(TNodePtrWithIndex)> addReplica;
+        switch (chunk->GetType()) {
+            case EObjectType::Chunk:          addReplica = addRegularReplica; break;
+            case EObjectType::ErasureChunk:   addReplica = addErasureReplica; break;
+            case EObjectType::JournalChunk:   addReplica = addJournalReplica; break;
+            default:                          YUNREACHABLE();
+        }
 
         for (auto replica : chunk->StoredReplicas()) {
             addReplica(replica);
@@ -1004,7 +1023,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
 
     if (fetchLastKey) {
         TOwningKey lastKey;
-        if (!snapshotChunkList->Children().empty()) {
+        if (!IsEmpty(snapshotChunkList)) {
             lastKey = GetMaxKey(snapshotChunkList);
         }
         ToProto(response->mutable_last_key(), lastKey);

@@ -56,8 +56,8 @@ public:
         TNullable<TDuration> timeout,
         bool requestAck) override
     {
-        YASSERT(request);
-        YASSERT(responseHandler);
+        Y_ASSERT(request);
+        Y_ASSERT(responseHandler);
 
         auto asyncChannel = Provider_->GetChannel(request->GetService());
 
