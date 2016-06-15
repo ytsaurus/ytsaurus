@@ -189,7 +189,7 @@ struct TExecutionContext
     // Limit from LIMIT clause.
     i64 Limit;
 
-    TExecuteQuery ExecuteCallback;
+    TExecuteQueryCallback ExecuteCallback;
 
     TExecutionContext()
     {

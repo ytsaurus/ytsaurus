@@ -1511,7 +1511,7 @@ TCodegenSource MakeCodegenOrderOp(
         auto schemaSize = sourceSchema.Columns().size();
         std::vector<EValueType> orderColumnTypes;
 
-        auto collectRows = MakeClosure<void(void*)>(builder, "CollectRows", [&] (
+        auto collectRows = MakeClosure<void(TTopCollector*)>(builder, "CollectRows", [&] (
             TCGContext& builder,
             Value* topCollector
         ) {
@@ -1614,7 +1614,7 @@ TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValu
 
     auto args = function->arg_begin();
     Value* opaqueValues = args; opaqueValues->setName("opaqueValues");
-    Value* executionContextPtr = ++args; executionContextPtr->setName("passedFragmentParamsPtr");
+    Value* executionContextPtr = ++args; executionContextPtr->setName("executionContextPtr");
     YCHECK(++args == function->arg_end());
 
     TCGContext builder(
@@ -1673,7 +1673,7 @@ TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression, si
     Value* opaqueValues = args; opaqueValues->setName("opaqueValues");
     Value* resultPtr = ++args; resultPtr->setName("resultPtr");
     Value* inputRow = ++args; inputRow->setName("inputRow");
-    Value* executionContextPtr = ++args; executionContextPtr->setName("passedFragmentParamsPtr");
+    Value* executionContextPtr = ++args; executionContextPtr->setName("executionContextPtr");
     YCHECK(++args == function->arg_end());
 
     TCGContext builder(
