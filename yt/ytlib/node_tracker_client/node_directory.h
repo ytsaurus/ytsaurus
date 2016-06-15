@@ -37,6 +37,7 @@ public:
     const Stroka& GetAddressOrThrow(const Stroka& name) const;
     const Stroka& GetAddress(const Stroka& name) const;
     TNullable<Stroka> FindAddress(const Stroka& name) const;
+    const Stroka& SelectAddress(const TNetworkPreferenceList& networks) const;
 
     void Persist(TStreamPersistenceContext& context);
 };
@@ -49,6 +50,8 @@ Stroka ToString(const TNodeDescriptor& descriptor);
 // Accessors for some well-known addresses.
 const Stroka& GetDefaultAddress(const TAddressMap& addresses);
 const Stroka& GetInterconnectAddress(const TAddressMap& addresses);
+
+const Stroka& SelectAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 
 //! Please keep the items in this particular order: the further the better.
 DEFINE_ENUM(EAddressLocality,

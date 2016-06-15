@@ -1223,6 +1223,37 @@ struct TMultiMapSerializer
     }
 };
 
+template <class T, size_t Size = std::tuple_size<T>::value>
+struct TTupleSerializer;
+
+template <class T>
+struct TTupleSerializer<T, 0U>
+{
+    template<class C>
+    static void Save(C&, const T&) {}
+
+    template<class C>
+    static void Load(C&, T&) {}
+};
+
+template <class T, size_t Size>
+struct TTupleSerializer
+{
+    template<class C>
+    static void Save(C& context, const T& tuple)
+    {
+        TTupleSerializer<T, Size - 1U>::Save(context, tuple);
+        NYT::Save(context, std::get<Size - 1U>(tuple));
+    }
+
+    template<class C>
+    static void Load(C& context, T& tuple)
+    {
+        TTupleSerializer<T, Size - 1U>::Load(context, tuple);
+        NYT::Load(context, std::get<Size - 1U>(tuple));
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TValueBoundComparer
@@ -1413,6 +1444,12 @@ template <class T, class E, class C, E Min, E Max>
 struct TSerializerTraits<TEnumIndexedVector<T, E, Min, Max>, C, void>
 {
     typedef TEnumIndexedVectorSerializer<> TSerializer;
+};
+
+template <class F, class S, class C>
+struct TSerializerTraits<std::pair<F, S>, C, void>
+{
+    typedef TTupleSerializer<std::pair<F, S>> TSerializer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

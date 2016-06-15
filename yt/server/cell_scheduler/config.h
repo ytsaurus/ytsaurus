@@ -30,7 +30,7 @@ public:
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
     //! Known scheduler addresses.
-    NNodeTrackerClient::TAddressMap Addresses;
+    NNodeTrackerClient::TAddressList Addresses;
 
     TCellSchedulerConfig()
     {

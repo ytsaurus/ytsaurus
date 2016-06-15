@@ -6,6 +6,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 template <class C, class T>
 std::vector<typename T::const_iterator> GetSortedIterators(const T& set)
 {
@@ -42,6 +44,21 @@ struct TKeyLess<false>
     }
 };
 
+template <size_t I, class TItem, class T>
+std::vector<TItem> GetIthsImpl(const T& collection, size_t sizeLimit)
+{
+    std::vector<TItem> result;
+    result.reserve(std::min(collection.size(), sizeLimit));
+    for (const auto& item : collection) {
+        if (result.size() >= sizeLimit)
+            break;
+        result.emplace_back(std::get<I>(item));
+    }
+    return result;
+}
+
+} // namespace
+
 template <class T>
 std::vector<typename T::const_iterator> GetSortedIterators(const T& collection)
 {
@@ -52,27 +69,19 @@ std::vector<typename T::const_iterator> GetSortedIterators(const T& collection)
 template <class T>
 std::vector<typename T::key_type> GetKeys(const T& collection, size_t sizeLimit)
 {
-    std::vector<typename T::key_type> result;
-    result.reserve(std::min(collection.size(), sizeLimit));
-    for (const auto& pair : collection) {
-        if (result.size() >= sizeLimit)
-            break;
-        result.push_back(pair.first);
-    }
-    return result;
+    return GetIthsImpl<0U, typename T::key_type>(collection, sizeLimit);
 }
 
 template <class T>
 std::vector<typename T::mapped_type> GetValues(const T& collection, size_t sizeLimit)
 {
-    std::vector<typename T::mapped_type> result;
-    result.reserve(std::min(collection.size(), sizeLimit));
-    for (const auto& pair : collection) {
-        if (result.size() >= sizeLimit)
-            break;
-        result.push_back(pair.second);
-    }
-    return result;
+    return GetIthsImpl<1U, typename T::mapped_type>(collection, sizeLimit);
+}
+
+template <size_t I, class T>
+std::vector<typename std::tuple_element<I, typename T::value_type>::type> GetIths(const T& collection, size_t sizeLimit)
+{
+    return GetIthsImpl<I, typename std::tuple_element<I, typename T::value_type>::type>(collection, sizeLimit);
 }
 
 template <class T>

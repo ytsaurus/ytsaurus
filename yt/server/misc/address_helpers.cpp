@@ -8,20 +8,20 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAddressMap GetLocalAddresses(const TAddressMap& addresses, int port)
+TAddressMap GetLocalAddresses(const TAddressList& addresses, int port)
 {
     // Аppend port number.
     TAddressMap result;
+    result.reserve(addresses.size());
     for (const auto& pair : addresses) {
-        YCHECK(result.emplace(
-            pair.first,
-            BuildServiceAddress(pair.second, port)).second);
+        YCHECK(result.emplace(pair.first, BuildServiceAddress(pair.second, port)).second);
     }
 
     // Add default address.
-    const auto def = result.emplace(DefaultNetworkName, Stroka());
-    if (def.second)
-        def.first->second = BuildServiceAddress(TAddressResolver::Get()->GetLocalHostName(), port);
+    const auto pair = result.emplace(DefaultNetworkName, Stroka());
+    if (pair.second) {
+        pair.first->second = BuildServiceAddress(TAddressResolver::Get()->GetLocalHostName(), port);
+    }
 
     return result;
 }

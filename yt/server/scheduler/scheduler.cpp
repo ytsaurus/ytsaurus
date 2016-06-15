@@ -1847,7 +1847,7 @@ private:
 
         auto node = it->second;
         // Update the current descriptor, just in case.
-        node->UpdateNodeDescriptor(descriptor);
+        node->NodeDescriptor() = descriptor;
         return node;
     }
 
@@ -2517,7 +2517,7 @@ private:
 
     TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job)
     {
-        const auto& address = job->GetNode()->GetInterconnectAddress();
+        const auto& address = job->GetNode()->NodeDescriptor().SelectAddress(Bootstrap_->GetLocalNetworks());
         auto factory = Bootstrap_->GetMasterClient()->GetNodeChannelFactory();
         auto channel = factory->CreateChannel(address);
 

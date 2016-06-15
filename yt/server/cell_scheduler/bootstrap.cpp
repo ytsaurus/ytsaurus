@@ -76,6 +76,7 @@ using namespace NYTree;
 using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NApi;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -210,9 +211,16 @@ INativeClientPtr TBootstrap::GetMasterClient() const
     return MasterClient_;
 }
 
-NNodeTrackerClient::TAddressMap TBootstrap::GetLocalAddresses() const
+TAddressMap TBootstrap::GetLocalAddresses() const
 {
     return NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
+}
+
+TNetworkPreferenceList TBootstrap::GetLocalNetworks() const
+{
+    return Config_->Addresses.empty() ?
+        TNetworkPreferenceList{InterconnectNetworkName, DefaultNetworkName}:
+        GetIths<0>(Config_->Addresses);
 }
 
 IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const

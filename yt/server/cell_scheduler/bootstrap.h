@@ -39,6 +39,7 @@ public:
     TCellSchedulerConfigPtr GetConfig() const;
     NApi::INativeClientPtr GetMasterClient() const;
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
+    NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
     NScheduler::TSchedulerPtr GetScheduler() const;
     NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const;
