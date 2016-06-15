@@ -375,7 +375,7 @@ TQueryStatistics DoExecuteQuery(
     EFailureLocation failureLocation,
     TConstQueryPtr query,
     ISchemafulWriterPtr writer,
-    TExecuteQuery executeCallback = nullptr)
+    TExecuteQueryCallback executeCallback = nullptr)
 {
     std::vector<TOwningRow> owningSource;
     std::vector<TRow> sourceRows;
@@ -402,7 +402,7 @@ TQueryStatistics DoExecuteQuery(
         EXPECT_CALL(*readerMock, Read(_));
     }
 
-    std::vector<TExecuteQuery> executeCallbacks;
+    std::vector<TExecuteQueryCallback> executeCallbacks;
 
     auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
 
