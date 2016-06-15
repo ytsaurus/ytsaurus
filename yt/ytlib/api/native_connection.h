@@ -11,13 +11,6 @@ namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EMasterChannelKind,
-    (Leader)
-    (Follower)
-    (LeaderOrFollower)
-    (Cache)
-);
-
 struct INativeConnection
     : public IConnection
 {

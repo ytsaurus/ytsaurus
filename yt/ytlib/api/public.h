@@ -11,6 +11,20 @@ namespace NApi {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EMasterChannelKind,
+    (Leader)
+    (Follower)
+    (LeaderOrFollower)
+    (Cache)
+);
+
+DEFINE_ENUM(EUserWorkloadCategory,
+    (Batch)
+    (Realtime)
+);
+
+///////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(IRowset)
 DECLARE_REFCOUNTED_STRUCT(IPersistentQueueRowset)
 

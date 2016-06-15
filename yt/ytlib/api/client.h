@@ -43,11 +43,6 @@ namespace NApi {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EUserWorkloadCategory,
-    (Batch)
-    (Realtime)
-);
-
 struct TUserWorkloadDescriptor
 {
     EUserWorkloadCategory Category = EUserWorkloadCategory::Realtime;
