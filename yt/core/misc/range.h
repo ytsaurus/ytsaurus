@@ -259,7 +259,7 @@ public:
         : TRange<T>(elements)
     { }
 
-    
+
     iterator Begin() const
     {
         return const_cast<T*>(this->Data_);
@@ -519,10 +519,41 @@ public:
         return TSharedMutableRange<T>(begin, end, Holder_);
     }
 
+    THolderPtr GetHolder() const
+    {
+        return Holder_;
+    }
+
 protected:
     THolderPtr Holder_;
 
 };
+
+template <class T, class TContainer, class... THolders>
+TSharedMutableRange<T> DoMakeSharedMutableRange(TContainer&& elements, THolders&&... holders)
+{
+    struct THolder
+        : public TIntrinsicRefCounted
+    {
+        typename std::decay<TContainer>::type Elements;
+        std::tuple<typename std::decay<THolders>::type...> Holders;
+    };
+
+    auto holder = New<THolder>();
+    holder->Holders = std::tuple<THolders...>(std::forward<THolders>(holders)...);
+    holder->Elements = std::forward<TContainer>(elements);
+
+    auto range = TMutableRange<T>(holder->Elements);
+
+    return TSharedMutableRange<T>(range, holder);
+}
+
+//! Constructs a TSharedMutableRange by taking ownership of an std::vector.
+template <class T, class... THolders>
+TSharedMutableRange<T> MakeSharedMutableRange(std::vector<T>&& elements, THolders&&... holders)
+{
+    return DoMakeSharedMutableRange<T>(std::move(elements), std::forward<THolders>(holders)...);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

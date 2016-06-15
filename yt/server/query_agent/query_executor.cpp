@@ -344,9 +344,8 @@ private:
 
         LOG_DEBUG("Splitting sources");
 
-        auto rowBuffer = New<TRowBuffer>(TQueryExecutorBufferTag());
-        auto splits = Split(std::move(rangesByTablePart), rowBuffer, Logger, options.VerboseLogging);
-        int splitCount = splits.size();
+        auto splits = Split(std::move(rangesByTablePart), Logger, options.VerboseLogging);
+        int splitCount = splits.Size();
         int splitOffset = 0;
         std::vector<TSharedRange<TDataRange>> groupedSplits;
 
@@ -358,7 +357,7 @@ private:
             int nextSplitOffset = queryIndex * splitCount / maxSubqueries;
             if (splitOffset != nextSplitOffset) {
                 std::vector<TDataRange> subsplit(splits.begin() + splitOffset, splits.begin() + nextSplitOffset);
-                groupedSplits.emplace_back(MakeSharedRange(std::move(subsplit), rowBuffer));
+                groupedSplits.emplace_back(MakeSharedRange(std::move(subsplit), splits.GetHolder()));
                 splitOffset = nextSplitOffset;
             }
         }
@@ -477,12 +476,11 @@ private:
 
         auto Logger = BuildLogger(query);
 
-        auto rowBuffer = New<TRowBuffer>(TQueryExecutorBufferTag());
-        auto splits = Split(dataSources, rowBuffer, Logger, options.VerboseLogging);
+        auto splits = Split(std::move(dataSources), Logger, options.VerboseLogging);
 
-        LOG_DEBUG("Sorting %v splits", splits.size());
+        LOG_DEBUG("Sorting %v splits", splits.Size());
 
-        std::sort(splits.begin(), splits.end(), [] (const TDataRange& lhs, const TDataRange& rhs) {
+        std::sort(splits.Begin(), splits.End(), [] (const TDataRange& lhs, const TDataRange& rhs) {
             return lhs.Range.first < rhs.Range.first;
         });
 
@@ -491,7 +489,7 @@ private:
                 MakeFormattableRange(splits, TDataSourceFormatter()));
         } else {
             LOG_DEBUG("Got ranges for %v groups",
-                splits.size());
+                splits.Size());
         }
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
@@ -519,12 +517,12 @@ private:
     }
 
     // TODO(lukyan): Use mutable shared range
-    std::vector<TDataRange> Split(
+    TSharedMutableRange<TDataRange> Split(
         std::vector<TDataRanges> rangesByTablePart,
-        TRowBufferPtr rowBuffer,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
     {
+        auto rowBuffer = New<TRowBuffer>(TQueryExecutorBufferTag());
         std::vector<TDataRange> allSplits;
 
         for (auto& tablePartIdRange : rangesByTablePart) {
@@ -620,7 +618,7 @@ private:
             }
         }
 
-        return allSplits;
+        return MakeSharedMutableRange(std::move(allSplits), rowBuffer);
     }
 
     std::pair<int, int> GetBoundSampleKeys(
