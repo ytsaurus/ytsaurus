@@ -285,7 +285,7 @@ class TestSchedulerRemoteCopyNetworks(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     def modify_node_config(self, config):
-        config["addresses"]["custom_network"] = config["addresses"]["default"]
+        config["addresses"].append(["custom_network", dict(config["addresses"])["default"]])
 
     @classmethod
     def setup_class(cls, secondary_master_cell_count=0):

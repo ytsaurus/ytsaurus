@@ -106,6 +106,11 @@ void TNodeDescriptor::Persist(TStreamPersistenceContext& context)
     Persist(context, Rack_);
 }
 
+const Stroka& TNodeDescriptor::SelectAddress(const TNetworkPreferenceList& networks) const
+{
+    return NNodeTrackerClient::SelectAddress(Addresses(), networks);
+}
+
 Stroka ToString(const TNodeDescriptor& descriptor)
 {
     TStringBuilder builder;
@@ -294,6 +299,23 @@ void TNodeDirectory::Persist(TStreamPersistenceContext& context)
     using NYT::Persist;
     Persist(context, IdToDescriptor_);
     Persist(context, AddressToDescriptor_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const Stroka& SelectAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks)
+{
+    for (const auto& network : networks) {
+        const auto it = addresses.find(network);
+        if (it != addresses.cend()) {
+            return it->second;
+        }
+    }
+
+    THROW_ERROR_EXCEPTION("Cannot select address for host %v since there is no compatible network",
+        GetDefaultAddress(addresses))
+        << TErrorAttribute("remote_networks", GetKeys(addresses))
+        << TErrorAttribute("local_networks", networks);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -705,6 +705,13 @@ TAddressMap TBootstrap::GetLocalAddresses()
     return NYT::GetLocalAddresses(Config->Addresses, Config->RpcPort);
 }
 
+TNetworkPreferenceList TBootstrap::GetLocalNetworks()
+{
+    return Config->Addresses.empty() ?
+        TNetworkPreferenceList{InterconnectNetworkName, DefaultNetworkName}:
+        GetIths<0>(Config->Addresses);
+}
+
 void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)
 {
     // NB: Don't expect IsXXXExceeded helpers to be atomic.

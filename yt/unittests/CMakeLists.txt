@@ -54,6 +54,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store_pt.cpp
   ${CMAKE_CURRENT_LIST_DIR}/mpl_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/network_address_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_directory_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/nonblocking_queue_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/nullable_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pattern_formatter_ut.cpp

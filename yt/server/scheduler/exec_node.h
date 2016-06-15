@@ -28,6 +28,7 @@ class TExecNode
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, Id);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::TNodeDescriptor, NodeDescriptor);
 
     //! Jobs that are currently running on this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
@@ -67,7 +68,6 @@ public:
         const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor);
 
     const Stroka& GetDefaultAddress() const;
-    const Stroka& GetInterconnectAddress() const;
 
     //! Checks if the node can handle jobs demanding a certain #tag.
     bool CanSchedule(const TNullable<Stroka>& tag) const;
@@ -102,12 +102,7 @@ public:
     //! Sets the node's resource usage.
     void SetResourceUsage(const TJobResources& value);
 
-    //! Updates the node's descriptor on heartbeat.
-    void UpdateNodeDescriptor(const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor);
-
 private:
-    const Stroka DefaultAddress_;
-    Stroka InterconnectAddress_;
     TJobResources ResourceUsage_;
 
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;

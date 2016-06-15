@@ -744,10 +744,10 @@ class TestSchedulerConfig(YTEnvSetup):
                 }
             }
         },
-        "addresses": {
-            "ipv4": "127.0.0.1",
-            "ipv6": "::1"
-        }
+        "addresses": [
+            ("ipv4", "127.0.0.1"),
+            ("ipv6", "::1")
+        ]
     }
 
     def test_basic(self):

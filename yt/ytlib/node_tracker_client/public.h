@@ -38,7 +38,11 @@ const TNodeId MaxNodeId = (1 << 24) - 1; // TNodeId must fit into 24 bits (see T
 using TRackId = NObjectClient::TObjectId;
 extern const TRackId NullRackId;
 
-using TAddressMap = yhash_map<Stroka, Stroka>;
+// Address type and value list.
+using TAddressList = std::vector<std::pair<Stroka, Stroka>>;
+using TNetworkPreferenceList = std::vector<Stroka>;
+using TAddressMap = std::unordered_map<Stroka, Stroka>;
+
 class TNodeDescriptor;
 
 class TNodeDirectoryBuilder;
