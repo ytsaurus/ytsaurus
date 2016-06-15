@@ -62,6 +62,8 @@ TInputChunkBase::TInputChunkBase(
         MaxBlockSize_ = DefaultMaxBlockSize;
     }
 
+    UniqueKeys_ = miscExt.unique_keys();
+
     YCHECK(EChunkType(chunkMeta.type()) == EChunkType::Table);
     TableChunkFormat_ = ETableChunkFormat(chunkMeta.version());
 }
@@ -110,7 +112,8 @@ void TInputChunkBase::Save(NPhoenix::TSaveContext& context) const
     static_assert(offsetof(TInputChunkBase, RowCount_) == 112, "invalid offset");
     static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 120, "invalid offset");
     static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 128, "invalid offset");
-    static_assert(sizeof(TInputChunkBase) == 136, "invalid sizeof");
+    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 136, "invalid offset");
+    static_assert(sizeof(TInputChunkBase) == 144, "invalid sizeof");
     NYT::TRangeSerializer::Save(context, TRef(reinterpret_cast<const void*>(this), sizeof(*this)));
 }
 

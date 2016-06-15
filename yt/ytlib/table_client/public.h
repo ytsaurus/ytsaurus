@@ -86,13 +86,10 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidDoubleValue)         (302))
     ((IncomparableType)           (303))
     ((UnhashableType)             (304))
-<<<<<<< HEAD
     ((UniqueKeyViolation)         (305))
     ((SchemaViolation)            (306))
-=======
     // E.g. name table with more than #MaxColumnId columns (may come from legacy chunks).
     ((CorruptedNameTable)         (305))
->>>>>>> origin/prestable/18.4
 );
 
 DEFINE_ENUM(ETableChunkFormat,
