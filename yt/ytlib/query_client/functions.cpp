@@ -5,6 +5,8 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 Stroka TypeToString(TType tp, std::unordered_map<TTypeArgument, EValueType> genericAssignments)
 {
     if (auto genericId = tp.TryAs<TTypeArgument>()) {
@@ -142,6 +144,8 @@ EValueType TypingFunction(
 
     return EValueType::Null;
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

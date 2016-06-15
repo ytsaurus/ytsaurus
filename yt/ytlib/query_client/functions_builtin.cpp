@@ -195,6 +195,8 @@ public:
 
 } // namespace NBuiltins
 
+namespace {
+
 void RegisterBuiltinFunctions(
     const TTypeInferrerMapPtr& typeInferrers,
     const TFunctionProfilerMapPtr& functionProfilers,
@@ -495,6 +497,8 @@ void RegisterBuiltinFunctions(
             ECallingConvention::Simple);
     }
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

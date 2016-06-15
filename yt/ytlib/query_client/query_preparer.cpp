@@ -31,6 +31,8 @@ struct TQueryPreparerBufferTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 typedef std::pair<NAst::TQuery, NAst::TAliasMap> TParsedQueryInfo;
 
 void ExtractFunctionNames(
@@ -164,89 +166,6 @@ EValueType InferUnaryExprType(EUnaryOp opCode, EValueType operandType, const TSt
                     << TErrorAttribute("operand_type", ToString(operandType));
             }
             return operandType;
-
-        default:
-            YUNREACHABLE();
-    }
-}
-
-EValueType InferBinaryExprType(
-    EBinaryOp opCode,
-    EValueType lhsType,
-    EValueType rhsType,
-    const TStringBuf& source,
-    const TStringBuf& lhsSource,
-    const TStringBuf& rhsSource)
-{
-    if (lhsType != rhsType) {
-        THROW_ERROR_EXCEPTION(
-            "Type mismatch in expression %Qv",
-            source)
-            << TErrorAttribute("lhs_source", lhsSource)
-            << TErrorAttribute("rhs_source", rhsSource)
-            << TErrorAttribute("lhs_type", lhsType)
-            << TErrorAttribute("rhs_type", rhsType);
-    }
-
-    EValueType operandType = lhsType;
-
-    switch (opCode) {
-        case EBinaryOp::Plus:
-        case EBinaryOp::Minus:
-        case EBinaryOp::Multiply:
-        case EBinaryOp::Divide:
-            if (!IsArithmeticType(operandType)) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires either integral or floating-point operands",
-                    source)
-                    << TErrorAttribute("lhs_source", lhsSource)
-                    << TErrorAttribute("rhs_source", rhsSource)
-                    << TErrorAttribute("operand_type", operandType);
-            }
-            return operandType;
-
-        case EBinaryOp::Modulo:
-        case EBinaryOp::LeftShift:
-        case EBinaryOp::RightShift:
-        case EBinaryOp::BitOr:
-        case EBinaryOp::BitAnd:
-            if (!IsIntegralType(operandType)) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires integral operands",
-                    source)
-                    << TErrorAttribute("lhs_source", lhsSource)
-                    << TErrorAttribute("rhs_source", rhsSource)
-                    << TErrorAttribute("operand_type", operandType);
-            }
-            return operandType;
-
-        case EBinaryOp::And:
-        case EBinaryOp::Or:
-            if (operandType != EValueType::Boolean) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires boolean operands",
-                    source)
-                    << TErrorAttribute("lhs_source", lhsSource)
-                    << TErrorAttribute("rhs_source", rhsSource)
-                    << TErrorAttribute("operand_type", operandType);
-            }
-            return EValueType::Boolean;
-
-        case EBinaryOp::Equal:
-        case EBinaryOp::NotEqual:
-        case EBinaryOp::Less:
-        case EBinaryOp::Greater:
-        case EBinaryOp::LessOrEqual:
-        case EBinaryOp::GreaterOrEqual:
-            if (!IsComparableType(operandType)) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires either integral, floating-point or string operands",
-                    source)
-                    << TErrorAttribute("lhs_source", lhsSource)
-                    << TErrorAttribute("rhs_source", rhsSource)
-                    << TErrorAttribute("lhs_type", operandType);
-            }
-            return EValueType::Boolean;
 
         default:
             YUNREACHABLE();
@@ -1464,6 +1383,8 @@ void ParseYqlString(
             << TErrorAttribute("source", source);
     }
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
