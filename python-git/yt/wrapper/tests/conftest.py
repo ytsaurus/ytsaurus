@@ -48,7 +48,7 @@ class YtTestEnvironment(object):
             config = {}
 
         logging.getLogger("Yt.local").setLevel(logging.INFO)
-        logger.LOGGER.setLevel(logging.WARNING)
+        logger.LOGGER.setLevel(logging.INFO)
 
         dir = os.path.join(TESTS_SANDBOX, self.test_name, "run_" + uuid.uuid4().hex[:8])
 
@@ -93,6 +93,7 @@ class YtTestEnvironment(object):
         yt._cleanup_http_session()
 
         self.config = update(get_default_config(), config)
+        self.config["enable_request_logging"] = True
         self.config["operation_tracker"]["poll_period"] = 100
         self.config["proxy"]["url"] = "localhost:" + self.env.get_proxy_address().split(":", 1)[1]
         # NB: to decrease probability of retries test failure.

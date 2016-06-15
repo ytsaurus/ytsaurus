@@ -72,6 +72,9 @@ default_config = {
         "operation_link_pattern": "http://{proxy}/#page=operation&mode=detail&id={id}&tab=details",
     },
 
+    # This option enables logging on info level of all requests.
+    "enable_request_logging": False,
+
     # This option allows to disable token.
     "enable_token": True,
     # If token specified than token_path ignored,

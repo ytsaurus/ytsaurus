@@ -5,11 +5,10 @@ from common import bool_to_string, YtError
 from config import get_option, get_config, get_backend_type
 from format import create_format
 
+import yt.logger as logger
 import yt.yson as yson
 from yt.yson.convert import json_to_yson
 import yt.json as json
-
-import sys
 
 def make_request(command_name, params,
                  data=None,
@@ -31,12 +30,17 @@ def make_request(command_name, params,
     if get_option("RETRY", client) is not None:
         params["retry"] = bool_to_string(get_option("RETRY", client))
 
+    enable_request_logging = get_config(client)["enable_request_logging"]
+
+    if enable_request_logging:
+        logger.info("Executing %s (params: %r)", command_name, params)
+
     if backend == "native":
         if is_data_compressed:
             raise YtError("Native driver does not support compressed input for file and tabular data")
-        return native_driver.make_request(command_name, params, data, return_content=return_content, client=client)
+        result = native_driver.make_request(command_name, params, data, return_content=return_content, client=client)
     elif backend == "http":
-        return http_driver.make_request(
+        result = http_driver.make_request(
             command_name,
             params,
             data=data,
@@ -51,6 +55,15 @@ def make_request(command_name, params,
             client=client)
     else:
         raise YtError("Incorrect backend type: " + backend)
+
+    if enable_request_logging:
+        result_string = ""
+        if result:
+            result_string = " (result: %r)" % result
+        logger.info("Command executed" + result_string)
+
+    return result
+
 
 def make_formatted_request(command_name, params, format, ignore_result=False, **kwargs):
     # None format means that we want parsed output (as YSON structure) instead of string.
