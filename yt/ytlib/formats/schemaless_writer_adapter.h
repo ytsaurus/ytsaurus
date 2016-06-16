@@ -66,8 +66,9 @@ private:
     bool EnableKeySwitch_;
 
     TBlobOutput CurrentBuffer_;
-    TBlobOutput PreviousBuffer_;
-    std::unique_ptr<TOutputStream> Output_;
+    TSharedRef PreviousBuffer_;
+
+    const NConcurrency::IAsyncOutputStreamPtr Output_;
 
     TError Error_;
 
