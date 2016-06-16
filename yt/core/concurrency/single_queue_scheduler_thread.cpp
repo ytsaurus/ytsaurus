@@ -11,13 +11,15 @@ TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
     const Stroka& threadName,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
-    bool enableProfiling)
+    bool enableProfiling,
+    bool detached)
     : TSchedulerThread(
         std::move(callbackEventCount),
         threadName,
         tagIds,
         enableLogging,
-        enableProfiling)
+        enableProfiling,
+        detached)
     , Queue(std::move(queue))
 { }
 
