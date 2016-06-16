@@ -432,4 +432,6 @@ class TestTablets(YTEnvSetup):
 class TestTabletsMulticell(TestTablets):
     NUM_SECONDARY_MASTER_CELLS = 2
 
-
+    def test_cannot_make_external_table_dynamic(self):
+        create("table", "//tmp/t")
+        with pytest.raises(YtError): alter_table("//tmp/t", dynamic=True)
