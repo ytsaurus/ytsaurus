@@ -42,7 +42,7 @@ void SetChunkTreeParent(TChunkList* parent, TChunkTree* child);
 void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child);
 
 TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree);
-void AccumulateChildStatistics(
+void AppendChunkTreeChild(
     TChunkList* chunkList,
     TChunkTree* child,
     TChunkTreeStatistics* statistics);

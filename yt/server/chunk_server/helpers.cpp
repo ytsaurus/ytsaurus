@@ -86,24 +86,30 @@ TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
     }
 }
 
-void AccumulateChildStatistics(
+void AppendChunkTreeChild(
     TChunkList* chunkList,
     TChunkTree* child,
     TChunkTreeStatistics* statistics)
 {
-    if (!chunkList->Children().empty()) {
-        chunkList->RowCountSums().push_back(
-            chunkList->Statistics().RowCount +
-            statistics->RowCount);
-        chunkList->ChunkCountSums().push_back(
-            chunkList->Statistics().ChunkCount +
-            statistics->ChunkCount);
-        chunkList->DataSizeSums().push_back(
-            chunkList->Statistics().UncompressedDataSize +
-            statistics->UncompressedDataSize);
+    if (chunkList->GetOrdered()) {
+        if (!chunkList->Children().empty()) {
+            chunkList->RowCountSums().push_back(
+                chunkList->Statistics().RowCount +
+                statistics->RowCount);
+            chunkList->ChunkCountSums().push_back(
+                chunkList->Statistics().ChunkCount +
+                statistics->ChunkCount);
+            chunkList->DataSizeSums().push_back(
+                chunkList->Statistics().UncompressedDataSize +
+                statistics->UncompressedDataSize);
 
+        }
+    } else {
+        int index = static_cast<int>(chunkList->Children().size());
+        YCHECK(chunkList->ChildToIndex().emplace(child, index).second);
     }
     statistics->Accumulate(GetChunkTreeStatistics(child));
+    chunkList->Children().push_back(child);
 }
 
 void AccumulateUniqueAncestorsStatistics(
@@ -124,6 +130,7 @@ void ResetChunkListStatistics(TChunkList* chunkList)
     chunkList->RowCountSums().clear();
     chunkList->ChunkCountSums().clear();
     chunkList->DataSizeSums().clear();
+    chunkList->ChildToIndex().clear();
     chunkList->Statistics() = TChunkTreeStatistics();
     chunkList->Statistics().ChunkListCount = 1;
     chunkList->Statistics().Rank = 1;
@@ -138,8 +145,7 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
 
     TChunkTreeStatistics statistics;
     for (auto* child : children) {
-        AccumulateChildStatistics(chunkList, child, &statistics);
-        chunkList->Children().push_back(child);
+        AppendChunkTreeChild(chunkList, child, &statistics);
     }
 
     ++statistics.Rank;

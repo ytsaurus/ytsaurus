@@ -521,13 +521,14 @@ public:
         ScheduleChunkRefresh(chunk);
     }
 
-    TChunkList* CreateChunkList()
+    TChunkList* CreateChunkList(bool ordered = true)
     {
         ++ChunkListsCreated_;
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::ChunkList, NullObjectId);
         auto chunkListHolder = std::make_unique<TChunkList>(id);
         auto* chunk = ChunkListMap_.Insert(id, std::move(chunkListHolder));
+        chunk->SetOrdered(ordered);
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list created (Id: %v)",
             id);
         return chunk;
@@ -2088,9 +2089,9 @@ TMutationPtr TChunkManager::CreateExecuteBatchMutation(TCtxExecuteBatchPtr conte
     return Impl_->CreateExecuteBatchMutation(std::move(context));
 }
 
-TChunkList* TChunkManager::CreateChunkList()
+TChunkList* TChunkManager::CreateChunkList(bool ordered)
 {
-    return Impl_->CreateChunkList();
+    return Impl_->CreateChunkList(ordered);
 }
 
 void TChunkManager::UnstageChunk(TChunk* chunk)

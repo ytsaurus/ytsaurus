@@ -149,65 +149,67 @@ protected:
                     : sums[entry.ChildIndex];
             };
 
-            // Row index
-            i64 rowIndex;
-            {
-                i64 childLimit = fetchPrevSum(chunkList->RowCountSums());
-                rowIndex =  entry.RowIndex + childLimit;
-                if (entry.UpperBound.HasRowIndex()) {
-                    if (entry.UpperBound.GetRowIndex() <= childLimit) {
-                        PopStack();
-                        continue;
+            i64 rowIndex = 0;
+            if (chunkList->GetOrdered()) {
+                // Row index
+                {
+                    i64 childLimit = fetchPrevSum(chunkList->RowCountSums());
+                    rowIndex =  entry.RowIndex + childLimit;
+                    if (entry.UpperBound.HasRowIndex()) {
+                        if (entry.UpperBound.GetRowIndex() <= childLimit) {
+                            PopStack();
+                            continue;
+                        }
+                        childLowerBound.SetRowIndex(childLimit);
+                        i64 totalRowCount = statistics.Sealed ? statistics.RowCount : std::numeric_limits<i64>::max();
+                        childUpperBound.SetRowIndex(fetchCurrentSum(chunkList->RowCountSums(), totalRowCount));
+                    } else if (entry.LowerBound.HasRowIndex()) {
+                        childLowerBound.SetRowIndex(childLimit);
                     }
-                    childLowerBound.SetRowIndex(childLimit);
-                    i64 totalRowCount = statistics.Sealed ? statistics.RowCount : std::numeric_limits<i64>::max();
-                    childUpperBound.SetRowIndex(fetchCurrentSum(chunkList->RowCountSums(), totalRowCount));
-                } else if (entry.LowerBound.HasRowIndex()) {
-                    childLowerBound.SetRowIndex(childLimit);
                 }
-            }
 
-            // Chunk index
-            {
-                i64 childLimit = fetchPrevSum(chunkList->ChunkCountSums());
-                if (entry.UpperBound.HasChunkIndex()) {
-                    if (entry.UpperBound.GetChunkIndex() <= childLimit) {
-                        PopStack();
-                        continue;
+                // Chunk index
+                {
+                    i64 childLimit = fetchPrevSum(chunkList->ChunkCountSums());
+                    if (entry.UpperBound.HasChunkIndex()) {
+                        if (entry.UpperBound.GetChunkIndex() <= childLimit) {
+                            PopStack();
+                            continue;
+                        }
+                        childLowerBound.SetChunkIndex(childLimit);
+                        childUpperBound.SetChunkIndex(fetchCurrentSum(chunkList->ChunkCountSums(), statistics.ChunkCount));
+                    } else if (entry.LowerBound.HasChunkIndex()) {
+                        childLowerBound.SetChunkIndex(childLimit);
                     }
-                    childLowerBound.SetChunkIndex(childLimit);
-                    childUpperBound.SetChunkIndex(fetchCurrentSum(chunkList->ChunkCountSums(), statistics.ChunkCount));
-                } else if (entry.LowerBound.HasChunkIndex()) {
-                    childLowerBound.SetChunkIndex(childLimit);
                 }
-            }
 
-            // Offset
-            {
-                i64 childLimit = fetchPrevSum(chunkList->DataSizeSums());
-                if (entry.UpperBound.HasOffset()) {
-                    if (entry.UpperBound.GetOffset() <= childLimit) {
-                        PopStack();
-                        continue;
+                // Offset
+                {
+                    i64 childLimit = fetchPrevSum(chunkList->DataSizeSums());
+                    if (entry.UpperBound.HasOffset()) {
+                        if (entry.UpperBound.GetOffset() <= childLimit) {
+                            PopStack();
+                            continue;
+                        }
+                        childLowerBound.SetOffset(childLimit);
+                        childUpperBound.SetOffset(fetchCurrentSum(chunkList->DataSizeSums(), statistics.UncompressedDataSize));
+                    } else if (entry.LowerBound.HasOffset()) {
+                        childLowerBound.SetOffset(childLimit);
                     }
-                    childLowerBound.SetOffset(childLimit);
-                    childUpperBound.SetOffset(fetchCurrentSum(chunkList->DataSizeSums(), statistics.UncompressedDataSize));
-                } else if (entry.LowerBound.HasOffset()) {
-                    childLowerBound.SetOffset(childLimit);
                 }
-            }
 
-            // Key
-            {
-                if (entry.UpperBound.HasKey()) {
-                    childLowerBound.SetKey(GetMinKey(child));
-                    if (entry.UpperBound.GetKey() <= childLowerBound.GetKey()) {
-                        PopStack();
-                        continue;
+                // Key
+                {
+                    if (entry.UpperBound.HasKey()) {
+                        childLowerBound.SetKey(GetMinKey(child));
+                        if (entry.UpperBound.GetKey() <= childLowerBound.GetKey()) {
+                            PopStack();
+                            continue;
+                        }
+                        childUpperBound.SetKey(GetMaxKey(child));
+                    } else if (entry.LowerBound.HasKey()) {
+                        childLowerBound.SetKey(GetMinKey(child));
                     }
-                    childUpperBound.SetKey(GetMaxKey(child));
-                } else if (entry.LowerBound.HasKey()) {
-                    childLowerBound.SetKey(GetMinKey(child));
                 }
             }
 

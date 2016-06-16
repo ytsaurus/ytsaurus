@@ -28,6 +28,20 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     Sealed = other.Sealed;
 }
 
+void TChunkTreeStatistics::Deaccumulate(const TChunkTreeStatistics& other)
+{
+    RowCount -= other.RowCount;
+    UncompressedDataSize -= other.UncompressedDataSize;
+    CompressedDataSize -= other.CompressedDataSize;
+    DataWeight -= other.DataWeight;
+    RegularDiskSpace -= other.RegularDiskSpace;
+    ErasureDiskSpace -= other.ErasureDiskSpace;
+    ChunkCount -= other.ChunkCount;
+    ChunkListCount -= other.ChunkListCount;
+    // NB: Rank and Sealed are ignored intentionally since there's no way to
+    // deaccumulate these values.
+}
+
 TDataStatistics TChunkTreeStatistics::ToDataStatistics() const
 {
     TDataStatistics result;

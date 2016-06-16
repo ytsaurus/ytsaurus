@@ -71,8 +71,7 @@ void AttachToChunkList(
     for (auto it = childrenBegin; it != childrenEnd; ++it) {
         chunkList->ValidateSealed();
         auto* child = *it;
-        AccumulateChildStatistics(chunkList, child, &statisticsDelta);
-        chunkList->Children().push_back(child);
+        AppendChunkTreeChild(chunkList, child, &statisticsDelta);
         SetChunkTreeParent(chunkList, child);
         childAction(child);
     }
@@ -90,39 +89,36 @@ void DetachFromChunkList(
     TChunkTree** childrenEnd,
     F childAction)
 {
+    YCHECK(!chunkList->GetOrdered());
+
     // A shortcut.
-    if (childrenBegin == childrenEnd)
+    if (childrenBegin == childrenEnd) {
         return;
+    }
 
     chunkList->IncrementVersion();
 
-    yhash_set<TChunkTree*> detachSet;
-    for (auto it = childrenBegin; it != childrenEnd; ++it) {
-        // Children may possibly be duplicate.
-        detachSet.insert(*it);
-    }
-
-    ResetChunkListStatistics(chunkList);
-
-    std::vector<TChunkTree*> existingChildren;
-    chunkList->Children().swap(existingChildren);
-
+    auto& childToIndex = chunkList->ChildToIndex();
+    auto& children = chunkList->Children();
     TChunkTreeStatistics statisticsDelta;
-    for (auto child : existingChildren) {
-        if (detachSet.find(child) == detachSet.end()) {
-            AccumulateChildStatistics(chunkList, child, &statisticsDelta);
-            chunkList->Children().push_back(child);
-        } else {
-            ResetChunkTreeParent(chunkList, child);
-            childAction(child);
+    for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt) {
+        auto* child = *childIt;
+        auto indexIt = childToIndex.find(child);
+        YCHECK(indexIt != childToIndex.end());
+        int index = indexIt->second;
+        if (index != children.size() - 1) {
+            children[index] = children.back();
+            childToIndex[children[index]] = index;
         }
+        children.pop_back();
+        statisticsDelta.Accumulate(GetChunkTreeStatistics(child));
     }
 
     // Go upwards and recompute statistics.
     VisitUniqueAncestors(
         chunkList,
         [&] (TChunkList* current) {
-            RecomputeChunkListStatistics(current);
+            current->Statistics().Deaccumulate(statisticsDelta);
         });
 }
 
