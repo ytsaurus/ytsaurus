@@ -429,7 +429,7 @@ protected:
         return ColumnMeta_.segments(CurrentSegmentIndex_);
     }
 
-    const i64 GetSegmentStartRowIndex(int segmentIndex) const
+    i64 GetSegmentStartRowIndex(int segmentIndex) const
     {
         auto meta = ColumnMeta_.segments(segmentIndex);
         return meta.chunk_row_count() - meta.row_count();

@@ -6,7 +6,7 @@
 #ifdef YT_IN_ARCADIA
 #include <contrib/libs/yajl/api/yajl_gen.h>
 #else
-#include <yajl/yajl_gen.h>
+//include <yajl/yajl_gen.h>
 #endif
 
 namespace NYT {
@@ -139,7 +139,7 @@ TJsonWriter::TJsonWriter(TOutputStream* output, bool isPretty)
 {
     Handle = yajl_gen_alloc(nullptr);
     yajl_gen_config(Handle, yajl_gen_beautify, isPretty ? 1 : 0);
-    yajl_gen_config(Handle, yajl_gen_skip_final_newline, isPretty ? 1 : 0);
+    //yajl_gen_config(Handle, yajl_gen_skip_final_newline, isPretty ? 1 : 0);
     yajl_gen_config(Handle, yajl_gen_validate_utf8, 1);
 }
 

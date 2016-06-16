@@ -1,6 +1,6 @@
 IF(YMAKE)
   SET(CMAKE_CURRENT_LIST_DIR .)
-  SET(YT_ABI 17_5)
+  SET(YT_ABI 18_4)
 ENDIF()
 
 SET(PROTO_NAMESPACE yt/${YT_ABI})
@@ -187,6 +187,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_client/folding_profiler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/functions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_cache.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_cache.proto
   ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_cg.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_builder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_builtin.cpp
@@ -324,6 +325,8 @@ CXXFLAGS(
   -Wno-sign-compare
   -Wno-unused-parameter
   -Wno-unused-value
+  -Wno-unused-const-variable
+  -Wno-unused-function
   -Wno-switch
   -Wno-type-limits
   -Wno-c++14-extensions
