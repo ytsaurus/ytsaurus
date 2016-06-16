@@ -121,9 +121,8 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
     TTableConsumer consumer(writingConsumer);
 
     TTableOutput output(context->GetInputFormat(), &consumer);
-    auto input = CreateSyncAdapter(context->Request().InputStream);
 
-    PipeInputToOutput(input.get(), &output, config->BlockSize);
+    PipeInputToOutput(context->Request().InputStream, &output, config->BlockSize);
 
     writingConsumer->Flush();
 
