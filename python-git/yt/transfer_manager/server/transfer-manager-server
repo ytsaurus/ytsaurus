@@ -939,9 +939,7 @@ class Application(object):
             if task.copy_method is None:
                 task.copy_method = "proxy" if self._get_version(source_client) != self._get_version(destination_client) else "native"
             if task.intermediate_format is None and task.copy_method == "proxy":
-                # TODO(asaitgalin): Remove this check when st/YTADMIN-4414 is done.
-                disable_annotate_with_types = task.source_cluster == "marx" or task.destination_cluster == "marx"
-                task.intermediate_format = "json" if disable_annotate_with_types else "<annotate_with_types=%true>json"
+                task.intermediate_format = "<annotate_with_types=%true>json"
 
     def _precheck(self, task, clusters_configuration, ignore_timeout=False, yamr_timeout=None, custom_logger=None):
         if custom_logger is None:
