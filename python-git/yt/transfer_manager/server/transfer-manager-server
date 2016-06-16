@@ -750,13 +750,11 @@ class Application(object):
         self._running_tasks_per_direction = defaultdict(list)
         self._last_scheduled_time = defaultdict(lambda: datetime(year=1970, month=1, day=1))
 
-        self._running_tasks_per_user_and_direction = defaultdict(list)
-
         # List of tasks sorted by creation time
         self._pending_tasks = []
 
-        # Number of pending tasks per user
-        self._pending_tasks_per_user = defaultdict(int)
+        # User task count (pending + running)
+        self._user_task_count = defaultdict(int)
 
         running_tasks = []
 
@@ -802,7 +800,7 @@ class Application(object):
     def _append_pending_task(self, task):
         self._pending_tasks.append(task.id)
         with self._user_mutexes[task.user]:
-            self._pending_tasks_per_user[task.user] += 1
+            self._user_task_count[task.user] += 1
         with self._profiling_mutex:
             self._profiling["pending_task_count"][task.get_direction_id_with_user()] += 1
 
@@ -1053,11 +1051,6 @@ class Application(object):
         if direction_running_task_count >= self._config["running_tasks_limit_per_direction"]:
             return False
 
-        direction_and_user_running_task_count = \
-            len(self._running_tasks_per_user_and_direction[task.get_direction_id_with_user()])
-        if direction_and_user_running_task_count >= self._config["running_tasks_limit_per_user_and_direction"]:
-            return False
-
         client, _ = self._get_active_and_passive_clients(task, self._get_clusters_configuration())
         if client._type == "yt":
             if task.pool is None:
@@ -1142,7 +1135,7 @@ class Application(object):
                     task_is_aborted = True
 
             if id in self._pending_tasks:
-                self._pending_tasks_per_user[self._tasks[id].user] -= 1
+                self._user_task_count[self._tasks[id].user] -= 1
                 self._pending_tasks.remove(id)
 
             if self._tasks[id].state not in ["aborted", "completed", "failed"]:
@@ -1243,7 +1236,7 @@ class Application(object):
 
                         self._dump_task(id)
                         self._running_tasks_per_direction[self._tasks[id].get_direction_id()].remove(id)
-                        self._running_tasks_per_user_and_direction[self._tasks[id].get_direction_id_with_user()].remove(id)
+                        self._user_task_count[self._tasks[id].user] -= 1
 
                         with self._profiling_mutex:
                             self._profiling["running_task_count"][self._tasks[id].get_direction_id_with_user()] -= 1
@@ -1274,10 +1267,6 @@ class Application(object):
                     direction_id = self._tasks[id].get_direction_id()
                     self._last_scheduled_time[direction_id] = datetime.now()
                     self._running_tasks_per_direction[direction_id].append(id)
-
-                    user_and_direction = self._tasks[id].get_direction_id_with_user()
-                    self._running_tasks_per_user_and_direction[user_and_direction].append(id)
-                    self._pending_tasks_per_user[self._tasks[id].user] -= 1
 
                     with self._profiling_mutex:
                         self._profiling["pending_task_count"][user_and_direction] -= 1
@@ -1510,8 +1499,11 @@ class Application(object):
                     task_description["direction_index"] = direction_index
                     # XXX(asaitgalin): Frontend can use this attribute
                     task_description["queue_index"] = direction_index
+                    break
+
                 if self._tasks[id].get_direction_id() == task.get_direction_id():
                     direction_index += 1
+
         return task_description
 
     def _abort_running_operations(self, running_tasks):
@@ -1574,8 +1566,8 @@ class Application(object):
         if len(self._pending_tasks) > self._config["pending_tasks_limit"]:
             raise RequestFailed("Too many pending tasks (>{0})".format(len(self._pending_tasks)), http_code=500)
 
-        if self._pending_tasks_per_user[task.user] > self._config["pending_tasks_limit_per_user"]:
-            raise RequestFailed("Too many pending tasks per user (>{0})".format(self._pending_tasks_per_user[task.user]),
+        if self._user_task_count[task.user] > self._config["tasks_limit_per_user"]:
+            raise RequestFailed("Too many tasks per user (total and pending) (>{0})".format(self._user_task_count[task.user]),
                                 http_code=500)
 
         if task.queue_name is not None:
@@ -1737,7 +1729,7 @@ class Application(object):
         if task is None:
             raise RequestFailed("Unknown task " + id)
 
-        task_description = task.dict(hide_token=True)
+        task_description = self._get_task_description(task)
 
         self._renew_lease(id)
 
