@@ -89,12 +89,12 @@ void DetachFromChunkList(
     TChunkTree** childrenEnd,
     F childAction)
 {
-    YCHECK(!chunkList->GetOrdered());
-
     // A shortcut.
     if (childrenBegin == childrenEnd) {
         return;
     }
+
+    YCHECK(!chunkList->GetOrdered());
 
     chunkList->IncrementVersion();
 
