@@ -94,7 +94,8 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size):
     is_filelike = hasattr(stream, "read")
 
     if not is_iterable and not is_filelike:
-        raise YtError("Cannot split stream into chunks")
+        raise YtError("Cannot split stream into chunks. "
+                      "Expected iterable or file-like object, got {0}".format(repr(stream)))
 
     if raw:
         if is_filelike:
