@@ -1,4 +1,4 @@
-from cluster_configuration import modify_cluster_configuration
+from configs_provider import ConfigsProviderFactory
 
 from yt.environment import YTInstance
 from yt.environment.init_cluster import initialize_world
@@ -15,7 +15,6 @@ import errno
 import logging
 import shutil
 import socket
-from functools import partial
 
 logger = logging.getLogger("Yt.local")
 
@@ -183,28 +182,25 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
     sandbox_path = os.path.join(path, sandbox_id)
     sandbox_tmpfs_path = os.path.join(tmpfs_path, sandbox_id) if tmpfs_path else None
 
-    modify_configs_func = partial(
-        modify_cluster_configuration,
-        master_config_patch=master_config,
-        scheduler_config_patch=scheduler_config,
-        node_config_patch=node_config,
-        proxy_config_patch=proxy_config)
-
     environment = YTInstance(sandbox_path,
                              master_count=master_count,
                              node_count=node_count,
                              scheduler_count=scheduler_count,
                              has_proxy=start_proxy,
+                             master_config=_load_config(master_config),
+                             scheduler_config=_load_config(scheduler_config),
+                             node_config=_load_config(node_config),
+                             proxy_config=_load_config(proxy_config, True),
                              proxy_port=proxy_port,
                              enable_debug_logging=enable_debug_logging,
                              port_range_start=port_range_start,
                              fqdn=fqdn,
+                             configs_provider_factory=ConfigsProviderFactory,
                              # XXX(asaitgalin): For parallel testing purposes.
                              port_locks_path=os.environ.get("YT_LOCAL_PORT_LOCKS_PATH"),
                              preserve_working_dir=True,
                              operations_memory_limit=operations_memory_limit,
-                             tmpfs_path=sandbox_tmpfs_path,
-                             modify_configs_func=modify_configs_func)
+                             tmpfs_path=sandbox_tmpfs_path)
 
     environment.id = sandbox_id
 
