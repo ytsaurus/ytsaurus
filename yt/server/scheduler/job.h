@@ -63,6 +63,9 @@ class TJob
     //! Asynchronous spec builder callback.
     DEFINE_BYVAL_RW_PROPERTY(TJobSpecBuilder, SpecBuilder);
 
+    //! Temporary flag used during heartbeat jobs processing to mark found jobs.
+    DEFINE_BYVAL_RW_PROPERTY(bool, FoundOnNode);
+
 public:
     TJob(
         const TJobId& id,
