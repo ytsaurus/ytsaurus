@@ -576,7 +576,10 @@ public:
             node->SetLastRunningJobsUpdateTime(now);
         }
 
-        auto missingJobs = node->Jobs();
+        // Verify that all flags are in initial state.
+        for (const auto& job : node->Jobs()) {
+            YCHECK(!job->GetFoundOnNode());
+        }
 
         for (auto& jobStatus : *request->mutable_jobs()) {
             auto jobType = EJobType(jobStatus.job_type());
@@ -593,7 +596,7 @@ public:
                 forceJobsLogging,
                 updateRunningJobs);
             if (job) {
-                YCHECK(missingJobs.erase(job) == 1);
+                job->SetFoundOnNode(true);
                 switch (job->GetState()) {
                     case EJobState::Completed:
                     case EJobState::Failed:
@@ -615,6 +618,15 @@ public:
         }
 
         // Check for missing jobs.
+        std::vector<TJobPtr> missingJobs;
+        for (const auto& job : node->Jobs()) {
+            if (!job->GetFoundOnNode()) {
+                missingJobs.push_back(job);
+            } else {
+                job->SetFoundOnNode(false);
+            }
+        }
+
         for (const auto& job : missingJobs) {
             LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
                 node->GetDefaultAddress(),
