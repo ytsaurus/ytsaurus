@@ -871,7 +871,7 @@ class TestCypress(YTEnvSetup):
         time.sleep(1.0)
         create("table", "//tmp/t")
         c1 = get("//tmp/t/@access_counter")
-        read_table("//tmp/t", suppress_access_tracking=True)
+        read_table("//tmp/t", table_reader={"suppress_access_tracking": True})
         time.sleep(1.0)
         c2 = get("//tmp/t/@access_counter")
         assert c1 == c2
