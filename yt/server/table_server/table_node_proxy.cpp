@@ -225,12 +225,17 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    void AlterTable(const TNullable<TTableSchema>& newSchema, const TNullable<bool>& newDynamic)
+    void AlterTable(
+        const TNullable<TTableSchema>& newSchema,
+        const TNullable<bool>& newDynamic)
     {
         auto* table = LockThisTypedImpl();
 
         if (newDynamic) {
             ValidateNoTransaction();
+            if (*newDynamic && table->IsExternal()) {
+                THROW_ERROR_EXCEPTION("External node cannot be a dynamic table");
+            }
         }
 
         if (newSchema && table->HasMountedTablets()) {
