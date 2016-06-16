@@ -402,7 +402,7 @@ set_target_properties(ytserver
   LINK_FLAGS "-static-libstdc++"
 )
 
-if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+if(YT_BUILD_ENABLE_GDB_INDEX AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     add_gdb_index(
       ytserver
     )
