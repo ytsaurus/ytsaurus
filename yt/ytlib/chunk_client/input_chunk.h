@@ -15,6 +15,8 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <array>
+
 namespace NYT {
 namespace NChunkClient {
 
