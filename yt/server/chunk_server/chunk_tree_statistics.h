@@ -47,6 +47,7 @@ struct TChunkTreeStatistics
     bool Sealed = true;
 
     void Accumulate(const TChunkTreeStatistics& other);
+    void Deaccumulate(const TChunkTreeStatistics& other);
 
     NChunkClient::NProto::TDataStatistics ToDataStatistics() const;
 

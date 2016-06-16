@@ -14,6 +14,7 @@ using namespace NCellMaster;
 
 TChunkList::TChunkList(const TChunkListId& id)
     : TChunkTree(id)
+    , Ordered_(true)
     , Version_(0)
 {
     ResetChunkListStatistics(this);
@@ -49,6 +50,7 @@ void TChunkList::Save(NCellMaster::TSaveContext& context) const
     Save(context, RowCountSums_);
     Save(context, ChunkCountSums_);
     Save(context, DataSizeSums_);
+    Save(context, Ordered_);
 }
 
 void TChunkList::Load(NCellMaster::TLoadContext& context)
@@ -63,12 +65,19 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, RowCountSums_);
     Load(context, ChunkCountSums_);
     Load(context, DataSizeSums_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 401) {
+        Load(context, Ordered_);
+    }
 
     for (int index = 0; index < Parents_.size(); ++index) {
         YCHECK(ParentToIndex_.insert(std::make_pair(Parents_[index], index)).second);
     }
-    for (int index = 0; index < OwningNodes_.size(); ++index) {
-        YCHECK(OwningNodeToIndex_.insert(std::make_pair(OwningNodes_[index], index)).second);
+
+    if (!Ordered_) {
+        for (int index = 0; index < OwningNodes_.size(); ++index) {
+            YCHECK(OwningNodeToIndex_.insert(std::make_pair(OwningNodes_[index], index)).second);
+        }
     }
 }
 
@@ -121,6 +130,16 @@ ui64 TChunkList::GenerateVisitMark()
 int TChunkList::GetGCWeight() const
 {
     return TObjectBase::GetGCWeight() + Children_.size();
+}
+
+void TChunkList::SetOrdered(bool value)
+{
+    if (Ordered_ == value) {
+        return;
+    }
+
+    Ordered_ = value;
+    RecomputeChunkListStatistics(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

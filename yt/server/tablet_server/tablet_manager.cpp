@@ -846,7 +846,7 @@ public:
         CopyChunkListIfShared(table, firstTabletIndex, lastTabletIndex);
 
         // Update chunk lists.
-        auto* newRootChunkList = chunkManager->CreateChunkList();
+        auto* newRootChunkList = chunkManager->CreateChunkList(false);
         auto* oldRootChunkList = table->GetChunkList();
         auto& chunkLists = oldRootChunkList->Children();
         chunkManager->AttachToChunkList(
@@ -854,7 +854,7 @@ public:
             chunkLists.data(),
             chunkLists.data() + firstTabletIndex);
         for (int index = 0; index < newTabletCount; ++index) {
-            auto* tabletChunkList = chunkManager->CreateChunkList();
+            auto* tabletChunkList = chunkManager->CreateChunkList(!table->IsSorted());
             chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
         }
         chunkManager->AttachToChunkList(
@@ -922,7 +922,7 @@ public:
         }
 
         auto chunkManager = Bootstrap_->GetChunkManager();
-        auto newRootChunkList = chunkManager->CreateChunkList();
+        auto newRootChunkList = chunkManager->CreateChunkList(false);
 
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(newRootChunkList);
@@ -937,7 +937,7 @@ public:
         }
         table->Tablets().push_back(tablet);
 
-        auto* tabletChunkList = chunkManager->CreateChunkList();
+        auto* tabletChunkList = chunkManager->CreateChunkList(!table->IsSorted());
         chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
 
         // NB: This only makes sense for ordered tables.
@@ -1113,6 +1113,8 @@ private:
     TTabletCellBundleId DefaultTabletCellBundleId_;
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
 
+    bool UpdateChunkListsOrderedMode_ = false;
+
     TPeriodicExecutorPtr CleanupExecutor_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -1156,6 +1158,8 @@ private:
         TabletMap_.LoadValues(context);
         // COMPAT(babenko)
         InitializeCellBundles_ = (context.GetVersion() < 400);
+        // COMPAT(babenko)
+        UpdateChunkListsOrderedMode_ = (context.GetVersion() < 401);
     }
 
 
@@ -1204,6 +1208,27 @@ private:
                 auto* cell = pair.second;
                 cell->SetCellBundle(DefaultTabletCellBundle_);
                 DefaultTabletCellBundle_->RefObject();
+            }
+        }
+
+        // COMPAT(babenko)
+        if (UpdateChunkListsOrderedMode_) {
+            auto cypressManager = Bootstrap_->GetCypressManager();
+            for (const auto& pair : cypressManager->Nodes()) {
+                auto* node = pair.second;
+                if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
+                    auto* table = static_cast<TTableNode*>(node);
+                    if (table->IsDynamic()) {
+                        auto* rootChunkList = table->GetChunkList();
+                        YCHECK(rootChunkList->GetOrdered());
+                        rootChunkList->SetOrdered(false);
+                        for (auto* child : rootChunkList->Children()) {
+                            auto* tabletChunkList = child->AsChunkList();
+                            YCHECK(tabletChunkList->GetOrdered());
+                            tabletChunkList->SetOrdered(false);
+                        }
+                    }
+                }
             }
         }
     }
@@ -1656,7 +1681,7 @@ private:
 
         if (oldRootChunkList->GetObjectRefCounter() > 1) {
             auto statistics = oldRootChunkList->Statistics();
-            auto* newRootChunkList = chunkManager->CreateChunkList();
+            auto* newRootChunkList = chunkManager->CreateChunkList(false);
 
             chunkManager->AttachToChunkList(
                 newRootChunkList,
@@ -1665,7 +1690,7 @@ private:
 
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* tabletChunkList = chunkLists[index]->AsChunkList();
-                auto* newTabletChunkList = chunkManager->CreateChunkList();
+                auto* newTabletChunkList = chunkManager->CreateChunkList(!table->IsSorted());
                 chunkManager->AttachToChunkList(newTabletChunkList, tabletChunkList->Children());
                 chunkManager->AttachToChunkList(newRootChunkList, newTabletChunkList);
             }
@@ -1688,7 +1713,7 @@ private:
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* tabletChunkList = chunkLists[index]->AsChunkList();
                 if (tabletChunkList->GetObjectRefCounter() > 1) {
-                    auto* newTabletChunkList = chunkManager->CreateChunkList();
+                    auto* newTabletChunkList = chunkManager->CreateChunkList(!table->IsSorted());
                     chunkManager->AttachToChunkList(newTabletChunkList, tabletChunkList->Children());
                     chunkLists[index] = newTabletChunkList;
 

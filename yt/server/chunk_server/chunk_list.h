@@ -30,6 +30,13 @@ class TChunkList
 public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTree*>, Children);
 
+    //! If |true|, then child-to-index map is maintained but no sums are accumulated.
+    //! If |false|, then vice verse, sums are accumulated but no child-to-index map exists.
+    DEFINE_BYVAL_RO_PROPERTY(bool, Ordered);
+
+    using TChildToIndexMap = yhash_map<TChunkTree*, int>;
+    DEFINE_BYREF_RW_PROPERTY(TChildToIndexMap, ChildToIndex);
+
     // Accumulated sums of children row counts.
     // The i-th value is equal to the sum of row counts of children 0..i
     // for all i in [0..Children.size() - 2]
@@ -76,6 +83,8 @@ public:
     static ui64 GenerateVisitMark();
 
     virtual int GetGCWeight() const override;
+
+    void SetOrdered(bool value);
 
 private:
     yhash_map<TChunkList*, int> ParentToIndex_;

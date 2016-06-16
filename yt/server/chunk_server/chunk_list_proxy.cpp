@@ -42,6 +42,7 @@ private:
         descriptors->push_back("child_ids");
         descriptors->push_back("parent_ids");
         descriptors->push_back("statistics");
+        descriptors->push_back("ordered");
         descriptors->push_back(TAttributeDescriptor("tree")
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor("owning_nodes")
@@ -103,11 +104,15 @@ private:
             return true;
         }
 
-        const auto& statistics = chunkList->Statistics();
-
         if (key == "statistics") {
             BuildYsonFluently(consumer)
-                .Value(statistics);
+                .Value(chunkList->Statistics());
+            return true;
+        }
+
+        if (key == "ordered") {
+            BuildYsonFluently(consumer)
+                .Value(chunkList->GetOrdered());
             return true;
         }
 
