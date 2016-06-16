@@ -285,22 +285,17 @@ function(ADD_GDB_INDEX target)
   get_filename_component(_dirname ${_location} PATH)
   get_filename_component(_name ${_location} NAME)
 
-  find_program(GDB_BINARY
+  find_program(GDB_EXECUTABLE
     NAMES gdb
     PATHS /usr/bin
   )
 
-  find_program(OBJCOPY_BINARY
-    NAMES objcopy
-    PATHS /usr/bin
-  )
-
-  if(GDB_BINARY-NOTFOUND)
-    message(STATUS "Failed to find gdb binary, gdb index will not be built")
+  if(GDB_EXECUTABLE-NOTFOUND)
+    message(STATUS "Failed to find gdb executable, gdb index will not be built")
     return()
   endif()
 
-  if(OBJCOPY_BINARY-NOTFOUND)
+  if(CMAKE_OBJCOPY-NOTFOUND)
     message(STATUS "Failed to find objcopy binary, gdb index will not be built")
     return()
   endif()
@@ -309,11 +304,11 @@ function(ADD_GDB_INDEX target)
     TARGET ${target}
     POST_BUILD
     COMMAND
-      ${GDB_BINARY} ${_location}
+      ${GDB_EXECUTABLE} ${_location}
         -batch -n
         --ex "save gdb-index ${_dirname}"
     COMMAND
-      ${OBJCOPY_BINARY}
+      ${CMAKE_OBJCOPY}
         --add-section .gdb_index="${_location}.gdb-index"
         --set-section-flags .gdb_index=readonly
         ${_location}

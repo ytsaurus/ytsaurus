@@ -23,6 +23,7 @@ option(YT_BUILD_ENABLE_PERL               "Build Perl bindings" FALSE)
 option(YT_BUILD_HAVE_RAGEL                "Do you have Ragel 6.8?" FALSE)
 option(YT_BUILD_HAVE_BISON                "Do you have Bison 3.0?" FALSE)
 option(YT_BUILD_ENABLE_ASAN               "Build with Address Sanitizer enabled" FALSE)
+option(YT_BUILD_ENABLE_GDB_INDEX          "Build with .gdb_index section (speeds up gdb startup)" FALSE)
 option(YT_USE_LTO                         "Enable link time optimizations" FALSE)
 
 ################################################################################
