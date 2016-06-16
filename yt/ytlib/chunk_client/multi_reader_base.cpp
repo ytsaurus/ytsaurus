@@ -101,7 +101,7 @@ void TMultiReaderBase::OpenNextChunks()
 
         LOG_DEBUG("Reserve buffer for the next reader (Index: %v, ActiveReaderCount: %v, ReaderMemoryFootprint: %v, FreeBufferSize: %v)",
             PrefetchIndex_,
-            ActiveReaderCount_,
+            static_cast<int>(ActiveReaderCount_),
             ReaderFactories_[PrefetchIndex_]->GetMemoryFootprint(),
             FreeBufferSize_);
 
@@ -155,7 +155,7 @@ void TMultiReaderBase::OnReaderFinished()
 
     LOG_DEBUG("Release buffer reserved by finished reader (Index: %v, ActiveReaderCount: %v, ReaderMemoryFootprint: %v, FreeBufferSize: %v)",
         CurrentSession_.Index,
-        ActiveReaderCount_,
+        static_cast<int>(ActiveReaderCount_),
         ReaderFactories_[CurrentSession_.Index]->GetMemoryFootprint(),
         FreeBufferSize_);
 
