@@ -145,7 +145,7 @@ public:
             "AllowFetchingSeedsFromMaster: %v, Network: %v)",
             MakeFormattableRange(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             Config_->FetchFromPeers,
-            LocalDescriptor_.GetAddressOrThrow(NetworkName_),
+            LocalDescriptor_.GetDefaultAddress(),
             Config_->PopulateCache,
             Options_->AllowFetchingSeedsFromMaster,
             NetworkName_);
@@ -244,14 +244,24 @@ private:
 
         LOG_DEBUG("Requesting chunk seeds from master");
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, CellTagFromId(ChunkId_));
-        TChunkServiceProxy proxy(channel);
+        try {
+            auto channel = Client_->GetMasterChannelOrThrow(
+                EMasterChannelKind::LeaderOrFollower, 
+                CellTagFromId(ChunkId_));
 
-        auto req = proxy.LocateChunks();
-        ToProto(req->add_subrequests(), ChunkId_);
-        req->Invoke().Subscribe(
-            BIND(&TReplicationReader::OnLocateChunkResponse, MakeStrong(this))
-                .Via(TDispatcher::Get()->GetReaderInvoker()));
+            TChunkServiceProxy proxy(channel);
+
+            auto req = proxy.LocateChunks();
+            ToProto(req->add_subrequests(), ChunkId_);
+            req->Invoke().Subscribe(
+                BIND(&TReplicationReader::OnLocateChunkResponse, MakeStrong(this))
+                    .Via(TDispatcher::Get()->GetReaderInvoker()));
+        } catch (const std::exception& ex) {
+            SeedsPromise_.Set(TError(
+                "Failed to request seeds for chunk %v from master",
+                ChunkId_) 
+                << ex);
+        }
     }
 
     void OnLocateChunkResponse(const TChunkServiceProxy::TErrorOrRspLocateChunksPtr& rspOrError)
@@ -290,8 +300,10 @@ private:
             TGuard<TSpinLock> guard(PeersSpinLock_);
             for (auto replica : seedReplicas) {
                 const auto& nodeDescriptor = NodeDirectory_->GetDescriptor(replica);
-                const auto& address = nodeDescriptor.GetAddress(NetworkName_);
-                BannedForeverPeers_.erase(address);
+                auto address = nodeDescriptor.FindAddress(NetworkName_);
+                if (address) {
+                    BannedForeverPeers_.erase(*address);
+                }
             }
         }
 
