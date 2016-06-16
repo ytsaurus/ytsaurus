@@ -140,7 +140,7 @@ Stroka GetRealPath(const Stroka& path)
     }
     parts.push_back(RealPath(curPath));
 
-    reverse(parts.begin(), parts.end());
+    Reverse(parts.begin(), parts.end());
     return CombinePaths(parts);
 }
 

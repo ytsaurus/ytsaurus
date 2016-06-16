@@ -47,7 +47,7 @@ private:
 
     TDelayedExecutor();
 
-    static TImpl* const GetImpl();
+    static TImpl* GetImpl();
 
     Y_DECLARE_SINGLETON_FRIEND();
 };
