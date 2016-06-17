@@ -5,7 +5,6 @@
 #include "helpers.h"
 #include "functions_builder.h"
 
-#if 0
 #include "udf/is_prefix.h"
 #include "udf/avg.h"
 #include "udf/double_cast.h"
@@ -23,7 +22,6 @@
 #include "udf/sum.h"
 #include "udf/uint64.h"
 #include "udf/dates.h"
-#endif
 
 namespace NYT {
 namespace NQueryClient {
@@ -208,7 +206,6 @@ void RegisterBuiltinFunctions(
 {
     TFunctionRegistryBuilder builder(typeInferrers, functionProfilers, aggregateProfilers);
 
-#if 0
     builder.RegisterFunction(
         "is_substr",
         std::vector<TType>{EValueType::String, EValueType::String},
@@ -501,7 +498,6 @@ void RegisterBuiltinFunctions(
                 nullptr),
             ECallingConvention::Simple);
     }
-#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -543,7 +539,6 @@ TConstFunctionProfilerMapPtr CreateBuiltinFunctionCG()
 
     result->emplace("if", New<NBuiltins::TIfFunctionCodegen>());
 
-#if 0
     result->emplace("is_prefix", New<TExternalFunctionCodegen>(
         "is_prefix",
         "is_prefix",
@@ -553,7 +548,6 @@ TConstFunctionProfilerMapPtr CreateBuiltinFunctionCG()
             nullptr),
         GetCallingConvention(ECallingConvention::Simple),
         TSharedRef()));
-#endif
 
     RegisterBuiltinFunctions(nullptr, result.Get(), nullptr);
 
