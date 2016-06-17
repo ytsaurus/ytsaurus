@@ -33,14 +33,24 @@ def init_logging(node, path, name, enable_debug_logging):
 class ConfigsProviderFactory(object):
     @staticmethod
     def create_for_version(version, ports, enable_debug_logging, fqdn):
-        if versions_cmp(version, "0.18.5") >= 0:
-            return ConfigsProvider_18_5(ports, enable_debug_logging, fqdn)
-        elif versions_cmp(version, "0.18") >= 0:
-            return ConfigsProvider_18(ports, enable_debug_logging, fqdn)
-        elif versions_cmp(version, "0.17.4") >= 0:
-            return ConfigsProvider_17(ports, enable_debug_logging, fqdn)
+        if version.startswith("18."):
+            # XXX(asaitgalin): Drop git depth. Only major and minor components
+            # are important.
+            version = ".".join(version.split(".")[:2])
 
-        raise YtError("Cannot create configs provider for version: {0}".format(version))
+        version_to_configs_provider_class = {
+            "0.17.4": "ConfigsProvider_17",
+            "0.17.5": "ConfigsProvider_17",
+            "18.3": "ConfigsProvider_18",
+            "18.4": "ConfigsProvider_18",
+            "18.5": "ConfigsProvider_18_5"
+        }
+
+        configs_provider = version_to_configs_provider_class.get(version)
+        if configs_provider is None:
+            raise YtError("Cannot create configs provider for version: {0}".format(version))
+
+        return globals()[configs_provider](ports, enable_debug_logging, fqdn)
 
 class ConfigsProvider(object):
     __metaclass__ = abc.ABCMeta
@@ -589,7 +599,7 @@ class ConfigsProvider_18(ConfigsProvider_18_common):
     "For ytserver versions 18.0 - 18.4"
 
     def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
-        configs = super(ConfigsProvider_18_3, self).get_node_config_templates(node_count, node_dirs, operations_memory_limit)
+        configs = super(ConfigsProvider_18, self).get_node_config_templates(node_count, node_dirs, operations_memory_limit)
         assert len(configs) == node_count
 
         current_user = 10000
@@ -597,7 +607,7 @@ class ConfigsProvider_18(ConfigsProvider_18_common):
             config["exec_agent"]["slot_manager"]["start_uid"] = current_user
             config["exec_agent"]["slot_manager"]["paths"] = [os.path.join(node_dirs[i], "slots")]
 
-            config["exec_agent"]["enable_cgroups"] = false
+            config["exec_agent"]["enable_cgroups"] = False
             config["exec_agent"]["environment_manager"] = {"environments" : {"default" : {"type" : "unsafe"}}}
 
             current_user += config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] + 1
