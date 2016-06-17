@@ -28,40 +28,43 @@ using NCodegen::TCGModulePtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCGContext
-    : public TCGIRBuilder
+class TCGFunctionContext
 {
-    Value* ExecutionContextPtr_;
+protected:
     std::vector<Value*> OpaqueValues_;
+    Value* ExecutionContextPtr_;
 
 public:
     const TCGModulePtr Module;
 
-    TCGContext(
-        const TCGModulePtr module,
-        Value* opaqueValues,
-        size_t opaqueValuesCount,
+    TCGFunctionContext(
+        std::vector<Value*> opaqueValues,
         Value* executionContextPtr,
-        llvm::Function* function)
-        : TCGIRBuilder(function)
+        const TCGModulePtr module)
+        : OpaqueValues_(std::move(opaqueValues))
         , ExecutionContextPtr_(executionContextPtr)
         , Module(std::move(module))
-    {
-        for (size_t index = 0; index < opaqueValuesCount; ++index) {
-            OpaqueValues_.push_back(CreateLoad(
-                CreateConstGEP1_32(opaqueValues, index),
-                "opaqueValues." + Twine(index)));
-        }
-    }
+    { }
 
+};
+
+TCGFunctionContext MakeCGFunctionContext(
+    TCGIRBuilder& builder,
+    Value* opaqueValues,
+    size_t opaqueValuesCount,
+    Value* executionContextPtr,
+    const TCGModulePtr module);
+
+class TCGContext
+    : public TCGIRBuilder
+    , public TCGFunctionContext
+{
+public:
     TCGContext(
-        llvm::Function* function,
-        TCGContext* parent,
-        llvm::Value* closurePtr)
-        : TCGIRBuilder(function, parent, closurePtr)
-        , ExecutionContextPtr_(parent->ExecutionContextPtr_)
-        , OpaqueValues_(parent->OpaqueValues_)
-        , Module(parent->Module)
+        const TCGIRBuilder& builder,
+        const TCGFunctionContext& parent)
+        : TCGIRBuilder(builder)
+        , TCGFunctionContext(parent)
     { }
 
     Value* GetOpaqueValue(size_t index)
@@ -73,7 +76,6 @@ public:
     {
         return ViaClosure(ExecutionContextPtr_, "executionContextPtr");
     }
-
 };
 
 Value* CodegenValuesPtrFromRow(TCGIRBuilder&, Value*);
@@ -491,7 +493,7 @@ struct TClosureFunctionDefiner<TResult(TArgs...)>
     typedef typename NMpl::TGenerateSequence<sizeof...(TArgs)>::TType TIndexesPack;
 
     template <class TBody>
-    static TLlvmClosure Do(llvm::Module* module, TCGContext& builder, TBody&& body, llvm::Twine name)
+    static TLlvmClosure Do(llvm::Module* module, TCGContext& parentBuilder, TBody&& body, llvm::Twine name)
     {
         Function* function = Function::Create(
             TypeBuilder<TResult(void**, TArgs...), false>::get(module->getContext()),
@@ -511,10 +513,13 @@ struct TClosureFunctionDefiner<TResult(TArgs...)>
         }
         YCHECK(index == sizeof...(TArgs));
 
-        TCGContext innerBuilder(function, &builder, closurePtr);
-        TApplyCallback<TIndexesPack>::template Do(std::forward<TBody>(body), innerBuilder, argsArray);
+        std::unordered_set<llvm::Value*> valuesInContext;
+        TCGIRBuilder baseBuilder(function, &valuesInContext, &parentBuilder, closurePtr);
+        TCGContext builder(baseBuilder, parentBuilder);
 
-        return TLlvmClosure{innerBuilder.GetClosure(), function};
+        TApplyCallback<TIndexesPack>::template Do(std::forward<TBody>(body), builder, argsArray);
+
+        return TLlvmClosure{builder.GetClosure(), function};
     }
 };
 
@@ -555,7 +560,8 @@ struct TFunctionDefiner<TResult(TArgs...)>
         }
         YCHECK(index == sizeof...(TArgs));
 
-        TCGIRBuilder builder(function, nullptr, nullptr);
+        std::unordered_set<llvm::Value*> valuesInContext;
+        TCGIRBuilder builder(function, &valuesInContext);
         TApplyCallback<TIndexesPack>::template Do(std::forward<TBody>(body), builder, argsArray);
 
         return function;

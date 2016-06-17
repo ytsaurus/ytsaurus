@@ -1599,95 +1599,80 @@ TCodegenSource MakeCodegenOrderOp(
 TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValuesCount)
 {
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
-    auto& context = module->GetContext();
-
     const auto entryFunctionName = Stroka("EvaluateQuery");
-    Function* function = Function::Create(
-        TypeBuilder<TCGQuerySignature, false>::get(context),
-        Function::ExternalLinkage,
-        entryFunctionName.c_str(),
-        module->GetModule());
 
-    function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
-
-    module->ExportSymbol(entryFunctionName);
-
-    auto args = function->arg_begin();
-    Value* opaqueValues = args; opaqueValues->setName("opaqueValues");
-    Value* executionContextPtr = ++args; executionContextPtr->setName("executionContextPtr");
-    YCHECK(++args == function->arg_end());
-
-    TCGContext builder(
-        module,
-        opaqueValues,
-        opaqueValuesCount,
-        executionContextPtr,
-        function);
-
-    auto collect = MakeClosure<void(TWriteOpClosure*)>(builder, "WriteOpInner", [&] (
-        TCGContext& builder,
-        Value* writeRowClosure
+    MakeFunction<TCGQuerySignature>(module->GetModule(), entryFunctionName.c_str(), [&] (
+        TCGIRBuilder& baseBuilder,
+        Value* opaqueValues,
+        Value* executionContextPtr
     ) {
-        codegenSource(
-            builder,
-            [&] (TCGContext& builder, Value* row) {
-                Value* writeRowClosureRef = builder.ViaClosure(writeRowClosure);
-                builder.CreateCall(
-                    module->GetRoutine("WriteRow"),
-                    {row, builder.GetExecutionContextPtr(), writeRowClosureRef});
+        TCGContext builder(
+            baseBuilder,
+            MakeCGFunctionContext(
+                baseBuilder,
+                opaqueValues,
+                opaqueValuesCount,
+                executionContextPtr,
+                module));
+
+        auto collect = MakeClosure<void(TWriteOpClosure*)>(builder, "WriteOpInner", [&] (
+            TCGContext& builder,
+            Value* writeRowClosure
+        ) {
+            codegenSource(
+                builder,
+                [&] (TCGContext& builder, Value* row) {
+                    Value* writeRowClosureRef = builder.ViaClosure(writeRowClosure);
+                    builder.CreateCall(
+                        module->GetRoutine("WriteRow"),
+                        {row, builder.GetExecutionContextPtr(), writeRowClosureRef});
+                });
+
+            builder.CreateRetVoid();
+        });
+
+        builder.CreateCall(
+            builder.Module->GetRoutine("WriteOpHelper"),
+            {
+                builder.GetExecutionContextPtr(),
+                collect.ClosurePtr,
+                collect.Function
             });
 
         builder.CreateRetVoid();
     });
 
-    builder.CreateCall(
-        builder.Module->GetRoutine("WriteOpHelper"),
-        {
-            builder.GetExecutionContextPtr(),
-            collect.ClosurePtr,
-            collect.Function
-        });
-
-    builder.CreateRetVoid();
-
+    module->ExportSymbol(entryFunctionName);
     return module->GetCompiledFunction<TCGQuerySignature>(entryFunctionName);
 }
 
 TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression, size_t opaqueValuesCount)
 {
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
-    auto& context = module->GetContext();
-
     const auto entryFunctionName = Stroka("EvaluateExpression");
-    Function* function = Function::Create(
-        TypeBuilder<TCGExpressionSignature, false>::get(context),
-        Function::ExternalLinkage,
-        entryFunctionName.c_str(),
-        module->GetModule());
 
-    function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+    MakeFunction<TCGExpressionSignature>(module->GetModule(), entryFunctionName.c_str(), [&] (
+        TCGIRBuilder& baseBuilder,
+        Value* opaqueValues,
+        Value* resultPtr,
+        Value* inputRow,
+        Value* executionContextPtr
+    ) {
+        TCGContext builder(
+            baseBuilder,
+            MakeCGFunctionContext(
+                baseBuilder,
+                opaqueValues,
+                opaqueValuesCount,
+                executionContextPtr,
+                module));
+
+        auto result = codegenExpression(builder, inputRow);
+        result.StoreToValue(builder, resultPtr, 0, "writeResult");
+        builder.CreateRetVoid();
+    });
 
     module->ExportSymbol(entryFunctionName);
-
-    auto args = function->arg_begin();
-    Value* opaqueValues = args; opaqueValues->setName("opaqueValues");
-    Value* resultPtr = ++args; resultPtr->setName("resultPtr");
-    Value* inputRow = ++args; inputRow->setName("inputRow");
-    Value* executionContextPtr = ++args; executionContextPtr->setName("executionContextPtr");
-    YCHECK(++args == function->arg_end());
-
-    TCGContext builder(
-        module,
-        opaqueValues,
-        opaqueValuesCount,
-        executionContextPtr,
-        function);
-
-    auto result = codegenExpression(builder, inputRow);
-
-    result.StoreToValue(builder, resultPtr, 0, "writeResult");
-
-    builder.CreateRetVoid();
 
     return module->GetCompiledFunction<TCGExpressionSignature>(entryFunctionName);
 }
@@ -1695,103 +1680,106 @@ TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression, si
 TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
 {
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
-    auto& context = module->GetContext();
 
     const auto initName = Stroka("init");
     {
-        Function* function = Function::Create(
-            TypeBuilder<TCGAggregateInitSignature, false>::get(context),
-            Function::ExternalLinkage,
-            initName.c_str(),
-            module->GetModule());
+        MakeFunction<TCGAggregateInitSignature>(module->GetModule(), initName.c_str(), [&] (
+            TCGIRBuilder& baseBuilder,
+            Value* executionContextPtr,
+            Value* resultPtr
+        ) {
+            TCGContext builder(
+                baseBuilder,
+                MakeCGFunctionContext(
+                    baseBuilder,
+                    nullptr,
+                    0,
+                    executionContextPtr,
+                    module));
 
-        function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+            auto result = codegenAggregate.Initialize(builder, nullptr);
+            result.StoreToValue(builder, resultPtr, 0, "writeResult");
+            builder.CreateRetVoid();
+        });
 
         module->ExportSymbol(initName);
-
-        auto args = function->arg_begin();
-        Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");
-        Value* resultPtr = ++args; resultPtr->setName("resultPtr");
-        YCHECK(++args == function->arg_end());
-
-        TCGContext builder(module, nullptr, 0, executionContextPtr, function);
-        auto result = codegenAggregate.Initialize(builder, nullptr);
-        result.StoreToValue(builder, resultPtr, 0, "writeResult");
-        builder.CreateRetVoid();
     }
 
     const auto updateName = Stroka("update");
     {
-        Function* function = Function::Create(
-            TypeBuilder<TCGAggregateUpdateSignature, false>::get(context),
-            Function::ExternalLinkage,
-            updateName.c_str(),
-            module->GetModule());
+        MakeFunction<TCGAggregateUpdateSignature>(module->GetModule(), updateName.c_str(), [&] (
+            TCGIRBuilder& baseBuilder,
+            Value* executionContextPtr,
+            Value* resultPtr,
+            Value* statePtr,
+            Value* newValuePtr
+        ) {
+            TCGContext builder(
+                baseBuilder,
+                MakeCGFunctionContext(
+                    baseBuilder,
+                    nullptr,
+                    0,
+                    executionContextPtr,
+                    module));
 
-        function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+            auto result = codegenAggregate.Update(builder, statePtr, newValuePtr);
+            result.StoreToValue(builder, resultPtr, 0, "writeResult");
+            builder.CreateRetVoid();
+        });
 
         module->ExportSymbol(updateName);
-
-        auto args = function->arg_begin();
-        Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");
-        Value* resultPtr = ++args; resultPtr->setName("resultPtr");
-        Value* statePtr = ++args; resultPtr->setName("statePtr");
-        Value* newValuePtr = ++args; resultPtr->setName("newValuePtr");
-        YCHECK(++args == function->arg_end());
-
-        TCGContext builder(module, nullptr, 0, executionContextPtr, function);
-        auto result = codegenAggregate.Update(builder, statePtr, newValuePtr);
-        result.StoreToValue(builder, resultPtr, 0, "writeResult");
-        builder.CreateRetVoid();
     }
 
     const auto mergeName = Stroka("merge");
     {
-        Function* function = Function::Create(
-            TypeBuilder<TCGAggregateMergeSignature, false>::get(context),
-            Function::ExternalLinkage,
-            mergeName.c_str(),
-            module->GetModule());
+        MakeFunction<TCGAggregateMergeSignature>(module->GetModule(), mergeName.c_str(), [&] (
+            TCGIRBuilder& baseBuilder,
+            Value* executionContextPtr,
+            Value* resultPtr,
+            Value* dstStatePtr,
+            Value* statePtr
+        ) {
+            TCGContext builder(
+                baseBuilder,
+                MakeCGFunctionContext(
+                    baseBuilder,
+                    nullptr,
+                    0,
+                    executionContextPtr,
+                    module));
 
-        function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+            auto result = codegenAggregate.Merge(builder, dstStatePtr, statePtr);
+            result.StoreToValue(builder, resultPtr, 0, "writeResult");
+            builder.CreateRetVoid();
+        });
 
         module->ExportSymbol(mergeName);
-
-        auto args = function->arg_begin();
-        Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");
-        Value* resultPtr = ++args; resultPtr->setName("resultPtr");
-        Value* dstStatePtr = ++args; resultPtr->setName("dstStatePtr");
-        Value* statePtr = ++args; resultPtr->setName("statePtr");
-        YCHECK(++args == function->arg_end());
-
-        TCGContext builder(module, nullptr, 0, executionContextPtr, function);
-        auto result = codegenAggregate.Merge(builder, dstStatePtr, statePtr);
-        result.StoreToValue(builder, resultPtr, 0, "writeResult");
-        builder.CreateRetVoid();
     }
 
     const auto finalizeName = Stroka("finalize");
     {
-        Function* function = Function::Create(
-            TypeBuilder<TCGAggregateFinalizeSignature, false>::get(context),
-            Function::ExternalLinkage,
-            finalizeName.c_str(),
-            module->GetModule());
+        MakeFunction<TCGAggregateFinalizeSignature>(module->GetModule(), finalizeName.c_str(), [&] (
+            TCGIRBuilder& baseBuilder,
+            Value* executionContextPtr,
+            Value* resultPtr,
+            Value* statePtr
+        ) {
+            TCGContext builder(
+                baseBuilder,
+                MakeCGFunctionContext(
+                    baseBuilder,
+                    nullptr,
+                    0,
+                    executionContextPtr,
+                    module));
 
-        function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+            auto result = codegenAggregate.Finalize(builder, statePtr);
+            result.StoreToValue(builder, resultPtr, 0, "writeResult");
+            builder.CreateRetVoid();
+        });
 
         module->ExportSymbol(finalizeName);
-
-        auto args = function->arg_begin();
-        Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");
-        Value* resultPtr = ++args; resultPtr->setName("resultPtr");
-        Value* statePtr = ++args; resultPtr->setName("statePtr");
-        YCHECK(++args == function->arg_end());
-
-        TCGContext builder(module, nullptr, 0, executionContextPtr, function);
-        auto result = codegenAggregate.Finalize(builder, statePtr);
-        result.StoreToValue(builder, resultPtr, 0, "writeResult");
-        builder.CreateRetVoid();
     }
 
 

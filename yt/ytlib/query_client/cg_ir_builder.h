@@ -13,7 +13,12 @@ namespace NQueryClient {
 class TContextTrackingInserter
 {
 protected:
-    mutable std::unordered_set<llvm::Value*> ValuesInContext_;
+    std::unordered_set<llvm::Value*>* ValuesInContext_;
+
+public:
+    TContextTrackingInserter(std::unordered_set<llvm::Value*>* valuesInContext)
+        : ValuesInContext_(valuesInContext)
+    { }
 
     void InsertHelper(
         llvm::Instruction* instruction,
@@ -21,7 +26,7 @@ protected:
         llvm::BasicBlock* basicBlock,
         llvm::BasicBlock::iterator insertPoint) const
     {
-        ValuesInContext_.insert(static_cast<llvm::Value*>(instruction));
+        ValuesInContext_->insert(static_cast<llvm::Value*>(instruction));
 
         if (basicBlock) {
             basicBlock->getInstList().insert(insertPoint, instruction);
@@ -53,11 +58,13 @@ private:
 public:
     TCGIRBuilder(
         llvm::Function* function,
+        std::unordered_set<llvm::Value*>* valuesInContext,
         TCGIRBuilder* parent,
         llvm::Value* closurePtr);
 
     explicit TCGIRBuilder(
-        llvm::Function* function);
+        llvm::Function* function,
+        std::unordered_set<llvm::Value*>* valuesInContext);
 
     ~TCGIRBuilder();
 
