@@ -22,22 +22,27 @@ static const unsigned int MaxClosureSize = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGIRBuilder::TCGIRBuilder(llvm::Function* function,
+TCGIRBuilder::TCGIRBuilder(
+    llvm::Function* function,
+    std::unordered_set<llvm::Value*>* valuesInContext,
     TCGIRBuilder* parent,
     Value* closurePtr)
-    : TBase(BasicBlock::Create(function->getContext(), "entry", function))
+    : TBase(function->getContext(), llvm::ConstantFolder(), TContextTrackingInserter(valuesInContext))
     , Parent_(parent)
     , ClosurePtr_(closurePtr)
 {
+    SetInsertPoint(BasicBlock::Create(function->getContext(), "entry", function));
+
     for (auto it = function->arg_begin(); it != function->arg_end(); ++it) {
-        ValuesInContext_.insert(it);
+        ValuesInContext_->insert(it);
     }
     EntryBlock_ = GetInsertBlock();
 }
 
 TCGIRBuilder::TCGIRBuilder(
-    Function* function)
-    : TCGIRBuilder(function, nullptr, nullptr)
+    Function* function,
+    std::unordered_set<llvm::Value*>* valuesInContext)
+    : TCGIRBuilder(function, valuesInContext, nullptr, nullptr)
 { }
 
 TCGIRBuilder::~TCGIRBuilder()
@@ -46,7 +51,7 @@ TCGIRBuilder::~TCGIRBuilder()
 Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
 {
     // If |value| belongs to the current context, then we can use it directly.
-    if (ValuesInContext_.count(value) > 0) {
+    if (ValuesInContext_->count(value) > 0) {
         return value;
     }
 
