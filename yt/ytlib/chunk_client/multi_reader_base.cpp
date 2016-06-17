@@ -98,6 +98,13 @@ void TMultiReaderBase::OpenNextChunks()
 
         ++ActiveReaderCount_;
         FreeBufferSize_ -= ReaderFactories_[PrefetchIndex_]->GetMemoryFootprint();
+
+        LOG_DEBUG("Reserve buffer for the next reader (Index: %v, ActiveReaderCount: %v, ReaderMemoryFootprint: %v, FreeBufferSize: %v)",
+            PrefetchIndex_,
+            static_cast<int>(ActiveReaderCount_),
+            ReaderFactories_[PrefetchIndex_]->GetMemoryFootprint(),
+            FreeBufferSize_);
+
         BIND(
             &TMultiReaderBase::DoOpenReader,
             MakeWeak(this),
@@ -145,6 +152,12 @@ void TMultiReaderBase::OnReaderFinished()
 
     --ActiveReaderCount_;
     FreeBufferSize_ += ReaderFactories_[CurrentSession_.Index]->GetMemoryFootprint();
+
+    LOG_DEBUG("Release buffer reserved by finished reader (Index: %v, ActiveReaderCount: %v, ReaderMemoryFootprint: %v, FreeBufferSize: %v)",
+        CurrentSession_.Index,
+        static_cast<int>(ActiveReaderCount_),
+        ReaderFactories_[CurrentSession_.Index]->GetMemoryFootprint(),
+        FreeBufferSize_);
 
     CurrentSession_.Reset();
     OpenNextChunks();

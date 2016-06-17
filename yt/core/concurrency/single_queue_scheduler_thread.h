@@ -23,7 +23,8 @@ public:
         const Stroka& threadName,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
-        bool enableProfiling);
+        bool enableProfiling,
+        bool detached);
 
     ~TSingleQueueSchedulerThread();
 

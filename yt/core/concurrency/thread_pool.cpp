@@ -135,7 +135,8 @@ private:
             Format("%v:%v", ThreadNamePrefix_, index),
             GetThreadTagIds(EnableProfiling_, ThreadNamePrefix_),
             EnableLogging_,
-            EnableProfiling_);
+            EnableProfiling_,
+            false);
     }
 };
 

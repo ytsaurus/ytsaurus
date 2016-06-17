@@ -10,6 +10,7 @@
 #include <yt/ytlib/formats/parser.h>
 
 #include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/async_stream.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -103,6 +104,29 @@ void PipeInputToOutput(
 
     output->Finish();
 }
+
+void PipeInputToOutput(
+    NConcurrency::IAsyncInputStreamPtr input,
+    TOutputStream* output,
+    i64 bufferBlockSize)
+{
+    struct TWriteBufferTag { };
+    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(bufferBlockSize);
+
+    while (true) {
+        auto length = WaitFor(input->Read(buffer))
+            .ValueOrThrow();
+
+        if (length == 0) {
+            break;
+        }
+
+        output->Write(buffer.Begin(), length);
+    }
+
+    output->Finish();
+}
+
 
 //////////////////////////////////////////////////////////////////////////////////
 

@@ -116,7 +116,7 @@ struct TCurrentTranslationUnitTag
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-size_t SpaceUsed(const T&)
+size_t SpaceUsed(const TIntrusivePtr<T>&)
 {
     return sizeof(T);
 }

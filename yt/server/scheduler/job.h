@@ -51,7 +51,7 @@ class TJob
     //! True if job was unregistered during heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasPendingUnregistration);
 
-    //! Some rough approximation that is updated with every heartbeat.
+    //! Current state of the job.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
 
     //! Some rough approximation that is updated with every heartbeat.
@@ -62,6 +62,9 @@ class TJob
 
     //! Asynchronous spec builder callback.
     DEFINE_BYVAL_RW_PROPERTY(TJobSpecBuilder, SpecBuilder);
+
+    //! Temporary flag used during heartbeat jobs processing to mark found jobs.
+    DEFINE_BYVAL_RW_PROPERTY(bool, FoundOnNode);
 
 public:
     TJob(
@@ -125,6 +128,10 @@ struct TAbortedJobSummary
 
     const EAbortReason AbortReason;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRefCountedJobStatusPtr JobStatusFromError(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 
