@@ -5,13 +5,18 @@ from yt.environment.helpers import versions_cmp
 class ConfigsProviderFactory(object):
     @staticmethod
     def create_for_version(version, ports, enable_debug_logging, fqdn):
-        if versions_cmp(version, "0.18.4") >= 0:
+        if version.startswith("18."):
+            version = ".".join(version.split(".")[:2])
+        else:  # 17
+            version = version.lstrip("0.")
+
+        if versions_cmp(version, "18.5") >= 0:
             basic_provider = ConfigsProvider_18_5(ports, enable_debug_logging, fqdn)
             return LocalModeConfigsProvider_18(basic_provider)
-        elif versions_cmp(version, "0.18") >= 0:
+        elif versions_cmp(version, "18.3") >= 0 and versions_cmp(version, "18.5") < 0:
             basic_provider = ConfigsProvider_18(ports, enable_debug_logging, fqdn)
             return LocalModeConfigsProvider_18(basic_provider)
-        elif versions_cmp(version, "0.17.4") >= 0:
+        elif versions_cmp(version, "17.4") >= 0 and not version.startswith("18."):
             return LocalModeConfigsProvider_17(ports, enable_debug_logging, fqdn)
 
         raise YtError("Cannot create configs provider for version: {0}".format(version))
@@ -316,3 +321,6 @@ class LocalModeConfigsProvider_18(object):
 
     def get_proxy_config(self, proxy_dir):
         return self.basic_provider.get_proxy_config(proxy_dir)
+
+    def get_ui_config(self, proxy_address):
+        return self.basic_provider.get_ui_config(proxy_address)
