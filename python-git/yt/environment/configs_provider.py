@@ -57,12 +57,17 @@ Configs for YT are generated the following way:
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
     "0.17.4": "ConfigsProvider_17_4",
     "0.17.5": "ConfigsProvider_17_5",
-    "18.3.0": "ConfigsProvider_18_3",
-    "18.4.0": "ConfigsProvider_18_4",
-    "18.5.0": "ConfigsProvider_18_5"
+    "18.3": "ConfigsProvider_18_3",
+    "18.4": "ConfigsProvider_18_4",
+    "18.5": "ConfigsProvider_18_5"
 }
 
 def create_configs_provider(version):
+    if version.startswith("18."):
+        # XXX(asaitgalin): Drops git depth from version.
+        # Only major and minor version components are important.
+        version = ".".join(version.split(".")[:2])
+
     configs_provider_class = VERSION_TO_CONFIGS_PROVIDER_CLASS.get(version)
     if configs_provider_class is None:
         raise YtError("Cannot create configs provider for version: {0}".format(version))
@@ -108,12 +113,12 @@ class ConfigsProvider(object):
             master_tmpfs_dirs,
             ports_generator)
 
-        driver_configs = self._build_driver_configs(provision, connection_configs)
-        scheduler_configs = self._build_scheduler_configs(provision, scheduler_dirs, connection_configs,
+        driver_configs = self._build_driver_configs(provision, deepcopy(connection_configs))
+        scheduler_configs = self._build_scheduler_configs(provision, scheduler_dirs, deepcopy(connection_configs),
                                                           ports_generator)
-        node_configs = self._build_node_configs(provision, node_dirs, connection_configs, ports_generator)
-        proxy_config = self._build_proxy_config(provision, proxy_dir, connection_configs, ports_generator)
-        ui_config = self._build_ui_config(provision, connection_configs,
+        node_configs = self._build_node_configs(provision, node_dirs, deepcopy(connection_configs), ports_generator)
+        proxy_config = self._build_proxy_config(provision, proxy_dir, deepcopy(connection_configs), ports_generator)
+        ui_config = self._build_ui_config(provision, deepcopy(connection_configs),
                                           "{0}:{1}".format(provision["fqdn"], proxy_config["port"]))
 
         cluster_configuration = {
@@ -702,7 +707,7 @@ class ConfigsProvider_18_5(ConfigsProvider_18):
             start_uid = current_user + config["rpc_port"]
 
             config["exec_agent"]["slot_manager"]["job_environment"] = {
-                "type" : "simple",
+                "type": "simple",
                 "start_uid" : start_uid,
             }
             config["exec_agent"]["slot_manager"]["locations"] = [{"path" : os.path.join(node_dirs[i], "slots")}]

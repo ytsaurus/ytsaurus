@@ -329,6 +329,7 @@ class YTInstance(object):
         self._enable_debug_logging = enable_debug_logging
         self._cell_tag = cell_tag
         self._kill_child_processes = kill_child_processes
+        self._started = False
 
         self._prepare_environment(operations_memory_limit, port_range_start, proxy_port, modify_configs_func)
 
@@ -434,7 +435,6 @@ class YTInstance(object):
             logger.warning("Cannot start YT instance without masters")
             return
 
-        self._started = False
         self.pids_file = open(self.pids_filename, "wt")
         try:
             if self.has_proxy:
@@ -452,6 +452,9 @@ class YTInstance(object):
             raise YtError("Failed to start environment", inner_errors=[err])
 
     def stop(self):
+        if not self._started:
+            return
+
         killed_services = set()
         with self._lock:
             for name in ["proxy", "node", "scheduler", "master"]:
@@ -470,6 +473,7 @@ class YTInstance(object):
                 except OSError as err:
                     logger.warning("Failed to close file descriptor %d: %s",
                                    lock_fd, os.strerror(err.errno))
+        self._started = False
 
     def get_proxy_address(self):
         if not self.has_proxy:
