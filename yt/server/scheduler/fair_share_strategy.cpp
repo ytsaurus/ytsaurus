@@ -266,6 +266,19 @@ public:
             }
 
             RootElementSnapshot = RootElement->CloneRoot();
+
+            // Profiling.
+            for (const auto& pair : Pools) {
+                const auto& tag = pair.second->GetProfilingTag();
+                Profiler.Enqueue(
+                    "/pools/fair_share_ratio_x100000",
+                    static_cast<i64>(pair.second->Attributes().FairShareRatio * 1e5),
+                    {tag});
+                Profiler.Enqueue(
+                    "/pools/usage_ratio_x100000",
+                    static_cast<i64>(pair.second->GetResourceUsageRatio() * 1e5),
+                    {tag});
+            }
         }
     }
 

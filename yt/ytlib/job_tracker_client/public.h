@@ -66,9 +66,10 @@ DEFINE_ENUM(EJobState,
     ((Completed)  (3))
     ((Failed)     (4))
     ((Aborted)    (5))
-    ((Abandoning) (6))
     // This sentinel is only used in TJob::GetStatisticsSuffix.
     ((Lost)       (7))
+    // Initial state of newly created job.
+    ((None)       (8))
 );
 
 DEFINE_ENUM(EJobPhase,

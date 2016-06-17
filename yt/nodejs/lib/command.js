@@ -445,7 +445,7 @@ YtCommand.prototype._checkAvailability = function() {
 YtCommand.prototype._redirectHeavyRequests = function() {
     this.__DBG("_redirectHeavyRequests");
 
-    if (this.descriptor.is_heavy && this.coordinator.getSelf().role !== "data") {
+    if (this.descriptor.is_heavy && this.coordinator.getSelf().role === "control") {
         var target = this.coordinator.allocateProxy("data");
         if (target) {
             var is_ssl;
