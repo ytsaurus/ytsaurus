@@ -241,10 +241,11 @@ def unmount_table(path):
 def create_dynamic_table(table, schema, attributes, tablet_count):
     print "Create dynamic table %s" % table
     attributes["dynamic"] = True
+    attributes["schema"] = schema.yson()
     yt.create_table(table, attributes=attributes)
     owner = yt.get(table + "/@owner")
     yt.set(table + "/@acl", [{"permissions": ["mount"], "action": "allow", "subjects": [owner]}])
-    yt.alter_table(table, schema=schema.yson())
+    #yt.alter_table(table, schema=schema.yson())
     yt.reshard_table(table, create_pivot_keys(schema, tablet_count))
     mount_table(table)
 
@@ -413,7 +414,7 @@ def single_execution(table, schema, attributes, tablet_count, key_count, iterati
 
 def variate_modes(table, args):
     schema = Schema()
-    print yson.dumps(schema.yson())
+    #print yson.dumps(schema.yson())
 
     single_execution(table + ".none", schema, {}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
     single_execution(table + ".compressed", schema, {"in_memory_mode": "compressed"}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
