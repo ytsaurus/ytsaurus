@@ -1521,7 +1521,7 @@ private:
 
         if (prelockedSortedDelta + prelockedOrderedDelta > 0) {
             LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, SortedRows: %v, OrderedRows: %v, "
-                "Signature: %v)",
+                "Signature: %x)",
                 transactionId,
                 tabletId,
                 prelockedSortedDelta,
