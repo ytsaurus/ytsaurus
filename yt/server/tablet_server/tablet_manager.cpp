@@ -281,6 +281,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraOnTabletMounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletStores, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateTabletTrimmedRowCount, Unretained(this)));
 
         if (Bootstrap_->IsPrimaryMaster()) {
             auto nodeTracker = Bootstrap_->GetNodeTracker();
@@ -616,6 +617,8 @@ public:
                 ToProto(req.mutable_next_pivot_key(), tablet->GetIndex() + 1 == allTablets.size()
                     ? MaxKey()
                     : allTablets[tabletIndex + 1]->GetPivotKey());
+            } else {
+                req.set_trimmed_row_count(tablet->GetTrimmedRowCount());
             }
             req.set_mount_config(serializedMountConfig.Data());
             req.set_writer_options(serializedWriterOptions.Data());
@@ -624,7 +627,7 @@ public:
             auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
             auto chunks = EnumerateChunksInChunkTree(chunkList);
             auto storeType = table->IsSorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
-            i64 startingRowIndex = 0;
+            i64 startingRowIndex = tablet->GetTrimmedStoresRowCount();
             for (const auto* chunk : chunks) {
                 auto* descriptor = req.add_stores();
                 descriptor->set_store_type(static_cast<int>(storeType));
@@ -748,7 +751,7 @@ public:
         table->Tablets().clear();
     }
 
-    void ReshardTable(
+    void    ReshardTable(
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
@@ -813,23 +816,41 @@ public:
 
         // Validate that all tablets are unmounted.
         if (table->HasMountedTablets()) {
-            THROW_ERROR_EXCEPTION("Cannot reshard the table since it has mounted tablets");
+            THROW_ERROR_EXCEPTION("Cannot reshard the table sinceit has mounted tablets");
         }
 
-        // Drop old tablets.
-        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = table->Tablets()[index];
-            objectManager->UnrefObject(tablet);
+        // For ordered tablets, if the number of tablets decreases then validate that the trailing ones
+        // (which are about to drop) are properly trimmed.
+        if (newTabletCount < oldTabletCount) {
+            for (int index = firstTabletIndex + newTabletCount; index < firstTabletIndex + oldTabletCount; ++index) {
+                auto* tablet = table->Tablets()[index];
+                if (tablet->GetTrimmedRowCount() != tablet->GetTrimmedStoresRowCount()) {
+                    THROW_ERROR_EXCEPTION("Some chunks of tablet %v are not fully trimmed; such a tablet cannot "
+                        "participate in resharding",
+                        tablet->GetId());
+                }
+            }
         }
+
 
         // Create new tablets.
         std::vector<TTablet*> newTablets;
         for (int index = 0; index < newTabletCount; ++index) {
-            auto* tablet = CreateTablet(table);
+            auto* newTablet = CreateTablet(table);
+            auto* oldTablet = index < oldTabletCount ? tablets[index + firstTabletIndex] : nullptr;
             if (table->IsSorted()) {
-                tablet->SetPivotKey(pivotKeys[index]);
+                newTablet->SetPivotKey(pivotKeys[index]);
+            } else if (oldTablet) {
+                newTablet->SetTrimmedRowCount(oldTablet->GetTrimmedRowCount());
+                newTablet->SetTrimmedStoresRowCount(oldTablet->GetTrimmedStoresRowCount());
             }
-            newTablets.push_back(tablet);
+            newTablets.push_back(newTablet);
+        }
+
+        // Drop old tablets.
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            auto* tablet = tablets[index];
+            objectManager->UnrefObject(tablet);
         }
 
         // NB: Evaluation order is important here, consider the case lastTabletIndex == -1.
@@ -845,30 +866,37 @@ public:
         // Copy chunk tree if somebody holds a reference.
         CopyChunkListIfShared(table, firstTabletIndex, lastTabletIndex);
 
-        // Update chunk lists.
-        auto* newRootChunkList = chunkManager->CreateChunkList(false);
         auto* oldRootChunkList = table->GetChunkList();
-        auto& chunkLists = oldRootChunkList->Children();
+        const auto& oldTabletChunkTrees = oldRootChunkList->Children();
+
+        auto* newRootChunkList = chunkManager->CreateChunkList(false);
+        const auto& newTabletChunkTrees = newRootChunkList->Children();
+
+        // Update tablet chunk lists.
         chunkManager->AttachToChunkList(
             newRootChunkList,
-            chunkLists.data(),
-            chunkLists.data() + firstTabletIndex);
+            oldTabletChunkTrees.data(),
+            oldTabletChunkTrees.data() + firstTabletIndex);
         for (int index = 0; index < newTabletCount; ++index) {
             auto* tabletChunkList = chunkManager->CreateChunkList(!table->IsSorted());
             chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
         }
         chunkManager->AttachToChunkList(
             newRootChunkList,
-            chunkLists.data() + lastTabletIndex + 1,
-            chunkLists.data() + chunkLists.size());
+            oldTabletChunkTrees.data() + lastTabletIndex + 1,
+            oldTabletChunkTrees.data() + oldTabletChunkTrees.size());
 
-        std::vector<TChunk*> chunks;
-        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            EnumerateChunksInChunkTree(chunkLists[index]->AsChunkList(), &chunks);
-        }
+        auto enumerateChunks = [&] (int firstTabletIndex, int lastTabletIndex) {
+            std::vector<TChunk*> chunks;
+            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                EnumerateChunksInChunkTree(oldTabletChunkTrees[index]->AsChunkList(), &chunks);
+            }
+            return chunks;
+        };
 
         if (table->IsSorted()) {
             // Move chunks from the resharded tablets to appropriate chunk lists.
+            auto chunks = enumerateChunks(firstTabletIndex, lastTabletIndex);
             std::sort(chunks.begin(), chunks.end(), TObjectRefComparer::Compare);
             chunks.erase(
                 std::unique(chunks.begin(), chunks.end()),
@@ -883,17 +911,21 @@ public:
                 for (auto it = range.first; it != range.second; ++it) {
                     auto* tablet = *it;
                     chunkManager->AttachToChunkList(
-                        newRootChunkList->Children()[tablet->GetIndex()]->AsChunkList(),
+                        newTabletChunkTrees[tablet->GetIndex()]->AsChunkList(),
                         chunk);
                 }
             }
         } else {
-            // Move chunks from the resharded tablets to the first tablet.
-            auto* destinationTablet = newTablets[0];
-            for (auto* chunk : chunks) {
-                chunkManager->AttachToChunkList(
-                    newRootChunkList->Children()[destinationTablet->GetIndex()]->AsChunkList(),
-                    chunk);
+            // If the number of tablets increases, just leave the new trailing ones empty.
+            // If the number of tablets decreases, merge the original trailing ones.
+            for (int index = firstTabletIndex; index < firstTabletIndex + std::min(oldTabletCount, newTabletCount); ++index) {
+                auto chunks = enumerateChunks(
+                    index,
+                    index == firstTabletIndex + newTabletCount - 1 ? lastTabletIndex : index);
+                auto* chunkList = newTabletChunkTrees[index]->AsChunkList();
+                for (auto* chunk : chunks) {
+                    chunkManager->AttachToChunkList(chunkList, chunk);
+                }
             }
         }
 
@@ -1772,19 +1804,40 @@ private:
                 auto* rootChunkList = table->GetChunkList();
                 auto* tabletChunkList = rootChunkList->Children()[tablet->GetIndex()]->AsChunkList();
 
-                if (request->stores_to_add_size() > 1) {
-                    THROW_ERROR_EXCEPTION("Cannot attach more than one store to an ordered table at once");
-                }
-
                 if (request->stores_to_add_size() > 0) {
-                    const auto& descriptor = request->stores_to_add(0);
-                    YCHECK(descriptor.has_starting_row_index());
+                    if (request->stores_to_add_size() > 1) {
+                        THROW_ERROR_EXCEPTION("Cannot attach more than one store to an ordered table at once");
+                    }
 
+                    const auto& descriptor = request->stores_to_add(0);
+                    auto storeId = FromProto<TStoreId>(descriptor.store_id());
+                    YCHECK(descriptor.has_starting_row_index());
                     if (tabletChunkList->Statistics().RowCount != descriptor.starting_row_index()) {
                         THROW_ERROR_EXCEPTION("Attempted to attach store %v with invalid starting row index: expected %v, got %v",
-                            FromProto<TStoreId>(descriptor.store_id()),
+                            storeId,
                             tabletChunkList->Statistics().RowCount,
                             descriptor.starting_row_index());
+                    }
+                }
+
+                if (request->stores_to_remove_size() > 0) {
+                    int childIndex = tabletChunkList->GetTrimmedChildCount();
+                    const auto& children = tabletChunkList->Children();
+                    for (const auto& descriptor : request->stores_to_remove()) {
+                        auto storeId = FromProto<TStoreId>(descriptor.store_id());
+                        if (TypeFromId(storeId) == EObjectType::OrderedDynamicTabletStore) {
+                            continue;
+                        }
+
+                        if (childIndex >= children.size()) {
+                            THROW_ERROR_EXCEPTION("Attempted to trim store %v which is not part of the tablet",
+                                storeId);
+                        }
+                        if (children[childIndex]->GetId() != storeId) {
+                            THROW_ERROR_EXCEPTION("Attempted to trim store %v while store %v is expected",
+                                storeId,
+                                children[childIndex]->GetId());
+                        }
                     }
                 }
             }
@@ -1837,6 +1890,11 @@ private:
                 chunkManager->UnstageChunk(chunk->AsChunk());
             }
 
+            if (!table->IsSorted()) {
+                tablet->SetFlushedRowCount(tablet->GetFlushedRowCount() + attachedRowCount);
+                tablet->SetTrimmedStoresRowCount(tablet->GetTrimmedStoresRowCount() + detachedRowCount);
+            }
+
             auto securityManager = Bootstrap_->GetSecurityManager();
             securityManager->UpdateAccountNodeUsage(table);
 
@@ -1861,6 +1919,27 @@ private:
         hiveManager->PostMessage(mailbox, response);
     }
 
+    void HydraUpdateTabletTrimmedRowCount(TReqUpdateTabletTrimmedRowCount* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        auto mountRevision = request->mount_revision();
+        if (tablet->GetMountRevision() != mountRevision) {
+            return;
+        }
+
+        auto trimmedRowCount = request->trimmed_row_count();
+
+        tablet->SetTrimmedRowCount(trimmedRowCount);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet trimmed row count updated (TabletId: %v, TrimmedRowCount: %v)",
+            tabletId,
+            trimmedRowCount);
+    }
 
     virtual void OnLeaderActive() override
     {

@@ -5,6 +5,8 @@ from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
 
+from time import sleep
+
 ##################################################################
 
 class TestOrderedTablets(YTEnvSetup):
@@ -23,10 +25,11 @@ class TestOrderedTablets(YTEnvSetup):
         "max_rows_per_write_request": 2
     }
     
-    def _create_simple_table(self, path):
+    def _create_simple_table(self, path, dynamic=True):
         create("table", path,
             attributes={
-                "dynamic": True,
+                "dynamic": dynamic,
+                "external": False,
                 "schema": [
                     {"name": "a", "type": "int64"},
                     {"name": "b", "type": "double"},
@@ -171,6 +174,203 @@ class TestOrderedTablets(YTEnvSetup):
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] <= 10") == query_rows[:11]
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] >= 10 and [$row_index] < 20") == query_rows[10:20]
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] >= 10 and [$row_index] <= 20") == query_rows[10:21]
+
+    def test_dynamic_to_static(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(100)]
+        insert_rows("//tmp/t", rows)
+
+        self.sync_unmount_table("//tmp/t")
+        alter_table("//tmp/t", dynamic=False)
+
+        assert not get("//tmp/t/@dynamic")
+        assert get("//tmp/t/@row_count") == 100
+        assert read_table("//tmp/t") == rows
+
+    def test_static_to_dynamic(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", dynamic=False)
+
+        for i in xrange(10):
+            write_table("<append=true>//tmp/t", [{"a": j} for j in xrange(100)])
+
+        read_table("//tmp/t")
+        assert get("//tmp/t/@row_count") == 1000
+
+        alter_table("//tmp/t", dynamic=True)
+        assert get("//tmp/t/@dynamic")
+        
+        self.sync_mount_table("//tmp/t")
+        assert select_rows("a from [//tmp/t]") == [{"a": i % 100} for i in xrange(1000)]
+
+    def test_trim_failure(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        
+        with pytest.raises(YtError): trim_rows("//tmp/t", -1, 0)
+        with pytest.raises(YtError): trim_rows("//tmp/t", +1, 0)
+        with pytest.raises(YtError): trim_rows("//tmp/t", 0, 100)
+
+    def test_trim_noop(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        
+        trim_rows("//tmp/t", 0, -10)
+        sleep(0.1)
+        assert get("//tmp/t/@tablets/0/trimmed_row_count") == 0
+
+    def test_trim_drops_chunks(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", dynamic=False)
+
+        for i in xrange(10):
+            write_table("<append=true>//tmp/t", [{"a": j} for j in xrange(100)])
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+
+        assert get("//tmp/t/@row_count") == 1000
+
+        alter_table("//tmp/t", dynamic=True)
+        self.sync_mount_table("//tmp/t")
+        
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        tablet_chunk_list_id = get("#{0}/@child_ids/0".format(root_chunk_list_id))
+
+        for i in xrange(10):
+            trim_rows("//tmp/t", 0, i * 100 + 10)
+            sleep(0.2)
+            assert get("//tmp/t/@tablets/0/trimmed_row_count") == i * 100 + 10
+            assert get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 100 * (10 - i)
+            assert get("#{0}/@child_ids".format(tablet_chunk_list_id)) == chunk_ids[i:]
+
+        trim_rows("//tmp/t", 0, 1000)
+        sleep(0.2)
+        assert get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 0
+
+    def test_read_obeys_trim(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"a": i} for i in xrange(100)])
+        trim_rows("//tmp/t", 0, 30)
+        assert select_rows("a from [//tmp/t]") == [{"a": i} for i in xrange(30, 100)]
+          
+    def test_make_static_after_trim(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", dynamic=False)
+
+        write_table("<append=true>//tmp/t", [{"a": j} for j in xrange(0, 100)])
+        write_table("<append=true>//tmp/t", [{"a": j * 10} for j in xrange(0, 100)])
+
+        alter_table("//tmp/t", dynamic=True)
+        self.sync_mount_table("//tmp/t")
+
+        trim_rows("//tmp/t", 0, 110)
+        sleep(0.2)
+
+        self.sync_unmount_table("//tmp/t")
+        alter_table("//tmp/t", dynamic=False)
+
+        assert read_table("//tmp/t") == [{"a": j * 10} for j in xrange(0, 100)]
+
+    def test_trimmed_rows_perserved_on_unmount(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", dynamic=False)
+
+        write_table("<append=true>//tmp/t", [{"a": j} for j in xrange(0, 100)])
+        write_table("<append=true>//tmp/t", [{"a": j} for j in xrange(100, 300)])
+
+        alter_table("//tmp/t", dynamic=True)
+        self.sync_mount_table("//tmp/t")
+        assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] between 110 and 120") == [{"a": j} for j in xrange(110, 121)]
+        
+        trim_rows("//tmp/t", 0, 100)
+
+        sleep(0.2)
+
+        self.sync_unmount_table("//tmp/t")
+
+        assert get("//tmp/t/@resource_usage/chunk_count") == 1
+        assert get("//tmp/t/@tablets/0/flushed_row_count") == 200
+        assert get("//tmp/t/@tablets/0/trimmed_row_count") == 100
+
+        self.sync_mount_table("//tmp/t")
+        assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] between 110 and 120") == [{"a": j} for j in xrange(110, 121)]
+
+    def test_reshard_adds_tablets(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        reshard_table("//tmp/t", 5)
+        self.sync_mount_table("//tmp/t")
+        for i in xrange(5):
+            insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}, {"$tablet_index": i, "a": i + 100}])
+            trim_rows("//tmp/t", i, 1)
+        self.sync_unmount_table("//tmp/t")
+        reshard_table("//tmp/t", 5, first_tablet_index=1, last_tablet_index=3)
+        self.sync_mount_table("//tmp/t")
+        tablets = get("//tmp/t/@tablets")
+        assert len(tablets) == 7
+        for i in xrange(7):
+            tablet = tablets[i]
+            if i >= 4 and i <= 5:
+                assert tablet["flushed_row_count"] == 0
+                assert tablet["trimmed_row_count"] == 0
+                assert select_rows("a from [//tmp/t] where [$tablet_index] = {0}".format(i)) == []
+            else:
+                assert tablet["flushed_row_count"] == 2
+                assert tablet["trimmed_row_count"] == 1
+                if i < 4:
+                    j = i
+                else:
+                    j = i - 2
+                assert select_rows("a from [//tmp/t] where [$tablet_index] = {0}".format(i)) == [{"a": j + 100}]
+
+    def test_reshard_joins_tablets(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        reshard_table("//tmp/t", 5)
+        self.sync_mount_table("//tmp/t")
+        for i in xrange(5):
+            insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}, {"$tablet_index": i, "a": i + 100}])
+            if i < 2 or i > 3:
+                trim_rows("//tmp/t", i, 1)
+        self.sync_unmount_table("//tmp/t")
+        reshard_table("//tmp/t", 2, first_tablet_index=1, last_tablet_index=3)
+        self.sync_mount_table("//tmp/t")
+        tablets = get("//tmp/t/@tablets")
+        assert len(tablets) == 4
+        for i in xrange(4):
+            tablet = tablets[i]
+            print i, '->', tablet
+            if i == 2:
+                assert tablet["flushed_row_count"] == 4
+                assert tablet["trimmed_row_count"] == 0
+                assert select_rows("a from [//tmp/t] where [$tablet_index] = {0}".format(i)) == [{"a": 2}, {"a": 102}, {"a": 3}, {"a": 103}]
+            else:
+                assert tablet["flushed_row_count"] == 2
+                assert tablet["trimmed_row_count"] == 1
+                if i < 3:
+                    j = i
+                else:
+                    j = i + 1
+                assert select_rows("a from [//tmp/t] where [$tablet_index] = {0}".format(i)) == [{"a": j + 100}]
+
+    def test_reshard_join_fails_on_trimmed_rows(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        reshard_table("//tmp/t", 2)
+        self.sync_mount_table("//tmp/t")
+        for i in xrange(2):
+            insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
+            trim_rows("//tmp/t", i, 1)
+        self.sync_unmount_table("//tmp/t")
+        with pytest.raises(YtError): reshard_table("//tmp/t", 1)
 
 ##################################################################
 

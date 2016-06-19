@@ -48,6 +48,7 @@
 #include <yt/server/tablet_node/slot_manager.h>
 #include <yt/server/tablet_node/store_compactor.h>
 #include <yt/server/tablet_node/store_flusher.h>
+#include <yt/server/tablet_node/store_trimmer.h>
 
 #include <yt/server/transaction_server/timestamp_proxy_service.h>
 
@@ -481,6 +482,7 @@ void TBootstrap::DoRun()
     SchedulerConnector->Start();
     StartStoreFlusher(Config->TabletNode, this);
     StartStoreCompactor(Config->TabletNode, this);
+    StartStoreTrimmer(Config->TabletNode, this);
     StartPartitionBalancer(Config->TabletNode, this);
 
     RpcServer->Start();

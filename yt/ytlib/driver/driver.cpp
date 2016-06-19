@@ -131,6 +131,7 @@ public:
         REGISTER(TReadTableCommand,            "read_table",              Null,       Tabular,    false, true );
         REGISTER(TInsertRowsCommand,           "insert_rows",             Tabular,    Null,       true,  true );
         REGISTER(TDeleteRowsCommand,           "delete_rows",             Tabular,    Null,       true,  true);
+        REGISTER(TTrimRowsCommand,             "trim_rows",               Null,       Null,       true,  true);
         REGISTER(TSelectRowsCommand,           "select_rows",             Null,       Tabular,    false, true );
         REGISTER(TLookupRowsCommand,           "lookup_rows",             Tabular,    Tabular,    false, true );
 

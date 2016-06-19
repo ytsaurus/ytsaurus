@@ -309,6 +309,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/store_compactor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/store_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/store_flusher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/store_trimmer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/store_manager_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/tablet.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/tablet_manager.cpp

@@ -417,5 +417,18 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTrimRowsCommand::Execute(ICommandContextPtr context)
+{
+    auto client = context->GetClient();
+    auto asyncResult = client->TrimTable(
+        Path.GetPath(),
+        TabletIndex,
+        TrimmedRowCount);
+    WaitFor(asyncResult)
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

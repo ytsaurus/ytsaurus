@@ -40,6 +40,87 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void AttachToChunkList(
+    TChunkList* chunkList,
+    TChunkTree* const* childrenBegin,
+    TChunkTree* const* childrenEnd)
+{
+    // A shortcut.
+    if (childrenBegin == childrenEnd) {
+        return;
+    }
+
+    // NB: Accumulate statistics from left to right to get Sealed flag correct.
+    TChunkTreeStatistics statisticsDelta;
+    for (auto it = childrenBegin; it != childrenEnd; ++it) {
+        chunkList->ValidateSealed();
+        auto* child = *it;
+        AppendChunkTreeChild(chunkList, child, &statisticsDelta);
+        SetChunkTreeParent(chunkList, child);
+    }
+
+    chunkList->IncrementVersion();
+
+    // Go upwards and apply delta.
+    AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
+}
+
+void DetachFromChunkList(
+    TChunkList* chunkList,
+    TChunkTree* const* childrenBegin,
+    TChunkTree* const* childrenEnd)
+{
+    // A shortcut.
+    if (childrenBegin == childrenEnd) {
+        return;
+    }
+
+    chunkList->IncrementVersion();
+
+    TChunkTreeStatistics statisticsDelta;
+    for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt) {
+        auto* child = *childIt;
+        statisticsDelta.Accumulate(GetChunkTreeStatistics(child));
+        ResetChunkTreeParent(chunkList, child);
+    }
+
+    auto& children = chunkList->Children();
+    if (chunkList->GetOrdered()) {
+        // Can only handle a prefix of non-trimmed children.
+        // Used in ordered tablet trim.
+        int childIndex = chunkList->GetTrimmedChildCount();
+        for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt, ++childIndex) {
+            auto* child = *childIt;
+            YCHECK(child == children[childIndex]);
+            children[childIndex] = nullptr;
+        }
+        chunkList->SetTrimmedChildCount(chunkList->GetTrimmedChildCount() + (childrenEnd - childrenBegin));
+        // XXX(babenko): optimize chunk list
+    } else {
+        // Can handle arbitrary children.
+        // Used in sorted tablet compaction..
+        auto& childToIndex = chunkList->ChildToIndex();
+        for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt) {
+            auto* child = *childIt;
+            auto indexIt = childToIndex.find(child);
+            YCHECK(indexIt != childToIndex.end());
+            int index = indexIt->second;
+            if (index != children.size() - 1) {
+                children[index] = children.back();
+                childToIndex[children[index]] = index;
+            }
+            children.pop_back();
+        }
+    }
+
+    // Go upwards and recompute statistics.
+    VisitUniqueAncestors(
+        chunkList,
+        [&] (TChunkList* current) {
+            current->Statistics().Deaccumulate(statisticsDelta);
+        });
+}
+
 void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)
 {
     switch (child->GetType()) {
@@ -74,6 +155,9 @@ void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)
 
 TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
 {
+    if (!chunkTree) {
+        return TChunkTreeStatistics();
+    }
     switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
@@ -104,7 +188,7 @@ void AppendChunkTreeChild(
                 statistics->UncompressedDataSize);
 
         }
-    } else {
+    } else if (child) {
         int index = static_cast<int>(chunkList->Children().size());
         YCHECK(chunkList->ChildToIndex().emplace(child, index).second);
     }
@@ -328,11 +412,14 @@ TFuture<TYsonString> GetMulticellOwningNodes(
 
 bool IsEmpty(const TChunkList* chunkList)
 {
-    return chunkList->Statistics().ChunkCount == 0;
+    return !chunkList || chunkList->Statistics().ChunkCount == 0;
 }
 
 bool IsEmpty(const TChunkTree* chunkTree)
 {
+    if (!chunkTree) {
+        return true;
+    }
     switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:

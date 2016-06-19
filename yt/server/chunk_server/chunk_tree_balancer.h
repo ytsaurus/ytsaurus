@@ -38,8 +38,8 @@ struct IChunkTreeBalancerCallbacks
         TChunkTree* child) = 0;
     virtual void AttachToChunkList(
         TChunkList* chunkList,
-        TChunkTree** childrenBegin,
-        TChunkTree** childrenEnd) = 0;
+        TChunkTree* const* childrenBegin,
+        TChunkTree* const* childrenEnd) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkTreeBalancerCallbacks);

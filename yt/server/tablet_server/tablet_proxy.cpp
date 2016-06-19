@@ -48,6 +48,10 @@ private:
 
         descriptors->push_back("state");
         descriptors->push_back("statistics");
+        descriptors->push_back(TAttributeDescriptor("trimmed_row_count")
+            .SetPresent(!table->IsSorted()));
+        descriptors->push_back(TAttributeDescriptor("flushed_row_count")
+            .SetPresent(!table->IsSorted()));
         descriptors->push_back(TAttributeDescriptor("performance_counters")
             .SetPresent(tablet->GetState() == ETabletState::Mounted));
         descriptors->push_back(TAttributeDescriptor("mount_revision")
@@ -66,6 +70,7 @@ private:
     {
         const auto* tablet = GetThisTypedImpl();
         const auto* table = tablet->GetTable();
+
         auto tabletManager = Bootstrap_->GetTabletManager();
 
         if (key == "state") {
@@ -77,6 +82,18 @@ private:
         if (key == "statistics") {
             BuildYsonFluently(consumer)
                 .Value(tabletManager->GetTabletStatistics(tablet));
+            return true;
+        }
+
+        if (key == "trimmed_row_count") {
+            BuildYsonFluently(consumer)
+                .Value(tablet->GetTrimmedRowCount());
+            return true;
+        }
+
+        if (key == "flushed_row_count") {
+            BuildYsonFluently(consumer)
+                .Value(tablet->GetFlushedRowCount());
             return true;
         }
 

@@ -86,7 +86,7 @@ function YtDriverFacadeV2(logger, driver)
     delete descriptors.insert_rows;
     delete descriptors.lookup_rows;
     delete descriptors.select_rows;
-    delete descriptors.select;
+    delete descriptors.trim_rows;
 
     delete descriptors.dump_job_context;
     delete descriptors.strace_job;

@@ -91,8 +91,11 @@ private:
         if (key == "child_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(chunkList->Children(), [=] (TFluentList fluent, const TChunkTree* child) {
-                    fluent.Item().Value(child->GetId());
-            });
+                    if (child) {
+                        fluent
+                            .Item().Value(child->GetId());
+                    }
+                });
             return true;
         }
 
@@ -100,7 +103,7 @@ private:
             BuildYsonFluently(consumer)
                 .DoListFor(chunkList->Parents(), [=] (TFluentList fluent, const TChunkList* chunkList) {
                     fluent.Item().Value(chunkList->GetId());
-            });
+                });
             return true;
         }
 

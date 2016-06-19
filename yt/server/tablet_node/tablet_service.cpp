@@ -37,6 +37,7 @@ using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NHydra;
 using namespace NCellNode;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +49,7 @@ public:
         TTabletSlotPtr slot,
         NCellNode::TBootstrap* bootstrap)
         : THydraServiceBase(
-            slot->GetGuardedAutomatonInvoker(),
+            slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write),
             TServiceId(TTabletServiceProxy::GetServiceName(), slot->GetCellId()),
             TabletNodeLogger,
             TTabletServiceProxy::GetProtocolVersion())
@@ -58,8 +59,8 @@ public:
         YCHECK(Slot_);
         YCHECK(Bootstrap_);
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Write)
-            .SetInvoker(Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write)));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Write));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Trim));
     }
 
 private:
@@ -98,18 +99,7 @@ private:
         auto securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-        slotManager->ValidateTabletAccess(
-            tabletSnapshot,
-            EPermission::Write,
-            SyncLastCommittedTimestamp);
-
-        if (tabletSnapshot->CellId != Slot_->GetCellId()) {
-            THROW_ERROR_EXCEPTION("Wrong cell id: expected %v, got %v",
-                Slot_->GetCellId(),
-                tabletSnapshot->CellId);
-        }
+        auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
 
         if (tabletSnapshot->Atomicity != atomicity) {
             THROW_ERROR_EXCEPTION("Invalid atomicity mode: %Qlv instead of %Qlv",
@@ -120,8 +110,6 @@ private:
         if (tabletSnapshot->Config->ReadOnly) {
             THROW_ERROR_EXCEPTION("Table is read-only");
         }
-
-        tabletSnapshot->ValiateMountRevision(mountRevision);
 
         auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
         TWireProtocolReader reader(requestData);
@@ -151,6 +139,48 @@ private:
         }
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Trim)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto mountRevision = request->mount_revision();
+        auto trimmedRowCount = request->trimmed_row_count();
+
+        context->SetRequestInfo("TabletId: %v, TrimmedRowCount: %v",
+            tabletId,
+            trimmedRowCount);
+
+        const auto& user = context->GetUser();
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager, user);
+
+        auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
+
+        auto tabletManager = Slot_->GetTabletManager();
+        WaitFor(tabletManager->Trim(tabletSnapshot, trimmedRowCount))
+            .ThrowOnError();
+
+        context->Reply();
+    }
+
+
+    TTabletSnapshotPtr GetTabletSnapshotOrThrow(
+        const TTabletId& tabletId,
+        i64 mountRevision)
+    {
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+
+        slotManager->ValidateTabletAccess(
+            tabletSnapshot,
+            EPermission::Write,
+            SyncLastCommittedTimestamp);
+
+        tabletSnapshot->ValiateCellId(Slot_->GetCellId());
+
+        tabletSnapshot->ValiateMountRevision(mountRevision);
+
+        return tabletSnapshot;
+    }
 
     // THydraServiceBase overrides.
     virtual IHydraManagerPtr GetHydraManager() override

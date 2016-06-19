@@ -29,9 +29,11 @@ void AttachToChunkList(
 {
     NChunkServer::AttachToChunkList(
         chunkList,
-        const_cast<TChunkTree**>(children.data()),
-        const_cast<TChunkTree**>(children.data() + children.size()),
-        [] (TChunkTree* tree) { tree->RefObject(); });
+        children.data(),
+        children.data() + children.size());
+    for (auto* child : children) {
+        child->RefObject();
+    }
 }
 
 TGuid GenerateId(EObjectType type)
@@ -110,9 +112,8 @@ public:
     {
         NChunkServer::AttachToChunkList(
             chunkList,
-            const_cast<TChunkTree**>(children.data()),
-            const_cast<TChunkTree**>(children.data() + children.size()),
-            [] (TChunkTree* /*chunk*/) { });
+            children.data(),
+            children.data() + children.size());
     }
 
     virtual void AttachToChunkList(
@@ -122,20 +123,18 @@ public:
         NChunkServer::AttachToChunkList(
             chunkList,
             &child,
-            &child + 1,
-            [] (TChunkTree* /*chunk*/) { });
+            &child + 1);
     }
 
     virtual void AttachToChunkList(
         TChunkList* chunkList,
-        TChunkTree** childrenBegin,
-        TChunkTree** childrenEnd) override
+        TChunkTree* const* childrenBegin,
+        TChunkTree* const* childrenEnd) override
     {
         NChunkServer::AttachToChunkList(
             chunkList,
             childrenBegin,
-            childrenEnd,
-            [] (TChunkTree* /*chunk*/) { });
+            childrenEnd);
     }
 
 private:

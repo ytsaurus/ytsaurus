@@ -298,6 +298,26 @@ public:
 
 };
 
+class TTrimRowsCommand
+    : public TTypedCommand<NApi::TTrimTableOptions>
+{
+private:
+    NYPath::TRichYPath Path;
+    int TabletIndex;
+    i64 TrimmedRowCount;
+
+public:
+    TTrimRowsCommand()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("tablet_index", TabletIndex);
+        RegisterParameter("trimmed_row_count", TrimmedRowCount);
+    }
+
+    void Execute(ICommandContextPtr context);
+
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDriver

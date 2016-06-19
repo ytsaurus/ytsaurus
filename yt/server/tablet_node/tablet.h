@@ -27,6 +27,12 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Trimmed row counter is shared between a tablet and its snapshots.
+//! It's being concurrently updated from the automaton thread
+//! and read from query-serving thread pool.
+using TTrimmedRowCounter = std::atomic<i64>;
+using TTrimmedRowCounterPtr = std::shared_ptr<TTrimmedRowCounter>;
+
 struct TTabletSnapshot
     : public TIntrinsicRefCounted
 {
@@ -40,7 +46,7 @@ struct TTabletSnapshot
     TTabletWriterOptionsPtr WriterOptions;
     TOwningKey PivotKey;
     TOwningKey NextPivotKey;
-    //! This is just a copy of table's schema.
+    //! This is just a copy of the table's schema.
     //! Can be both sorted and not sorted (ordered).
     NTableClient::TTableSchema TableSchema;
     //! This schema is always sorted.
@@ -58,6 +64,7 @@ struct TTabletSnapshot
     TPartitionList PartitionList;
 
     std::vector<IOrderedStorePtr> StoreList;
+    TTrimmedRowCounterPtr TrimmedRowCounter;
 
     int StoreCount = 0;
     int PreloadPendingStoreCount = 0;
@@ -79,6 +86,7 @@ struct TTabletSnapshot
     //! |nullptr| is there's none.
     TPartitionSnapshotPtr FindContainingPartition(TKey key);
 
+    void ValiateCellId(const NElection::TCellId& cellId);
     void ValiateMountRevision(i64 mountRevision);
 };
 
@@ -209,6 +217,13 @@ public:
     int GetKeyColumnCount() const;
     int GetColumnLockCount() const;
 
+    // Only applicable to ordered tablets.
+    i64 GetTotalRowCount() const;
+
+    // Only applicable to ordered tablets.
+    i64 GetTrimmedRowCount() const;
+    void SetTrimmedRowCount(i64 value);
+
     void StartEpoch(TTabletSlotPtr slot);
     void StopEpoch();
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default);
@@ -220,6 +235,8 @@ public:
     void ValidateMountRevision(i64 mountRevision);
 
 private:
+    const TTrimmedRowCounterPtr TrimmedRowCounter_ = std::make_shared<TTrimmedRowCounter>(0);
+
     TTableMountConfigPtr Config_;
     TTabletWriterOptionsPtr WriterOptions_;
 

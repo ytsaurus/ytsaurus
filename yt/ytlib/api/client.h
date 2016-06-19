@@ -130,6 +130,10 @@ struct TAlterTableOptions
     TNullable<bool> Dynamic;
 };
 
+struct TTrimTableOptions
+    : public TTimeoutOptions
+{ };
+
 struct TAddMemberOptions
     : public TTimeoutOptions
     , public TMutatingOptions
@@ -623,6 +627,12 @@ struct IClient
     virtual TFuture<void> AlterTable(
         const NYPath::TYPath& path,
         const TAlterTableOptions& options = TAlterTableOptions()) = 0;
+
+    virtual TFuture<void> TrimTable(
+        const NYPath::TYPath& path,
+        int tabletIndex,
+        i64 trimmedRowCount,
+        const TTrimTableOptions& options = TTrimTableOptions()) = 0;
 
     // Security
     virtual TFuture<void> AddMember(

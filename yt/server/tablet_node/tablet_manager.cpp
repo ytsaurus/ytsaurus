@@ -136,7 +136,8 @@ public:
         RegisterMethod(BIND(&TImpl::HydraUnmountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTabletState, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraFollowerExecuteWrite, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraFollowerWriteRows, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraTrimRows, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRotateStore, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraCommitTabletStoresUpdate, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletStoresUpdated, Unretained(this)));
@@ -236,6 +237,36 @@ public:
         }
     }
 
+    TFuture<void> Trim(
+        TTabletSnapshotPtr tabletSnapshot,
+        i64 trimmedRowCount)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        try {
+            auto* tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
+
+            tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
+
+            i64 totalRowCount = tablet->GetTotalRowCount();
+            if (trimmedRowCount > totalRowCount) {
+                THROW_ERROR_EXCEPTION("Cannot trim tablet %v at row %v since it only has %v row(s)",
+                    tablet->GetId(),
+                    trimmedRowCount,
+                    totalRowCount);
+            }
+
+            NProto::TReqTrimRows hydraRequest;
+            ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
+            hydraRequest.set_mount_revision(tablet->GetMountRevision());
+            hydraRequest.set_trimmed_row_count(trimmedRowCount);
+            return CreateMutation(Slot_->GetHydraManager(), hydraRequest)
+                ->Commit()
+                .As<void>();
+        } catch (const std::exception& ex) {
+            return MakeFuture(TError(ex));
+        }
+    }
 
     void ScheduleStoreRotation(TTablet* tablet)
     {
@@ -534,7 +565,7 @@ private:
         }
     }
 
-    
+
     virtual void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -607,6 +638,10 @@ private:
             atomicity);
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
+        if (!tablet->IsSorted()) {
+            tablet->SetTrimmedRowCount(request->trimmed_row_count());
+        }
+
         auto storeManager = CreateStoreManager(tablet);
         tablet->SetStoreManager(storeManager);
 
@@ -632,7 +667,7 @@ private:
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %x, TableId: %v, Keys: %v .. %v, "
-            "StoreCount: %v, PartitionCount: %v, Atomicity: %v)",
+            "StoreCount: %v, PartitionCount: %v, TrimmedRowCount: %v, Atomicity: %v)",
             tabletId,
             mountRevision,
             tableId,
@@ -640,6 +675,7 @@ private:
             nextPivotKey,
             request->stores_size(),
             tablet->IsSorted() ? MakeNullable(tablet->PartitionList().size()) : Null,
+            tablet->IsSorted() ? Null : MakeNullable(tablet->GetTrimmedRowCount()),
             tablet->GetAtomicity());
     }
 
@@ -780,7 +816,7 @@ private:
                 YUNREACHABLE();
         }
     }
-    
+
     template <class TPrelockedRows>
     void HandleRowsOnLeaderExecuteWriteAtomic(TTransaction* transaction, TPrelockedRows& rows, int rowCount)
     {
@@ -854,7 +890,7 @@ private:
             recordData.Size());
     }
 
-    void HydraFollowerExecuteWrite(TReqExecuteWrite* request) noexcept
+    void HydraFollowerWriteRows(TReqWriteRows* request) noexcept
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto atomicity = AtomicityFromTransactionId(transactionId);
@@ -925,6 +961,42 @@ private:
             signature);
     }
 
+    void HydraTrimRows(TReqTrimRows* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto mountRevision = request->mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
+            return;
+        }
+
+        auto trimmedRowCount = request->trimmed_row_count();
+        if (trimmedRowCount <= tablet->GetTrimmedRowCount()) {
+            return;
+        }
+
+        tablet->SetTrimmedRowCount(trimmedRowCount);
+
+        auto hiveManager = Slot_->GetHiveManager();
+        auto* masterMailbox = Slot_->GetMasterMailbox();
+
+        {
+            TReqUpdateTabletTrimmedRowCount masterRequest;
+            ToProto(masterRequest.mutable_tablet_id(), tabletId);
+            masterRequest.set_mount_revision(mountRevision);
+            masterRequest.set_trimmed_row_count(trimmedRowCount);
+            hiveManager->PostMessage(masterMailbox, masterRequest);
+        }
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows trimmed (TabletId: %v, TrimmedRowCount: %v)",
+            tablet->GetId(),
+            trimmedRowCount);
+    }
+
     void HydraRotateStore(TReqRotateStore* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -944,7 +1016,6 @@ private:
         RotateStores(tablet, true);
         UpdateTabletSnapshot(tablet);
     }
-
 
     void HydraCommitTabletStoresUpdate(TReqCommitTabletStoresUpdate* commitRequest)
     {
@@ -989,7 +1060,6 @@ private:
             masterRequest.set_mount_revision(mountRevision);
             masterRequest.mutable_stores_to_add()->MergeFrom(commitRequest->stores_to_add());
             masterRequest.mutable_stores_to_remove()->MergeFrom(commitRequest->stores_to_remove());
-
             hiveManager->PostMessage(masterMailbox, masterRequest);
         }
 
@@ -1282,7 +1352,7 @@ private:
             HandleRowOnTransactionPrepare(transaction, *it);
         }
     }
-    
+
     void OnTransactionPrepared(TTransaction* transaction)
     {
         auto lockedSortedRowCount = transaction->LockedSortedRows().size();
@@ -1347,7 +1417,7 @@ private:
         }
         lockedRows.clear();
     }
-    
+
     void OnTransactionAborted(TTransaction* transaction)
     {
         auto lockedSortedRowCount = transaction->LockedSortedRows().size();
@@ -1404,7 +1474,7 @@ private:
         if (store->GetType() != EStoreType::SortedDynamic) {
             return;
         }
-        
+
         auto dynamicStore = store->AsSortedDynamic();
         auto lockCount = dynamicStore->GetLockCount();
         if (lockCount > 0) {
@@ -1536,7 +1606,7 @@ private:
             auto compressedRecordData = ChangelogCodec_->Compress(recordData);
             auto writeRecord = TTransactionWriteRecord{tabletId, recordData};
 
-            TReqExecuteWrite hydraRequest;
+            TReqWriteRows hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_transaction_start_timestamp(transactionStartTimestamp);
             hydraRequest.set_transaction_timeout(ToProto(transactionTimeout));
@@ -1585,7 +1655,7 @@ private:
 
         auto compressedRecordData = ChangelogCodec_->Compress(recordData);
 
-        TReqExecuteWrite hydraRequest;
+        TReqWriteRows hydraRequest;
         ToProto(hydraRequest.mutable_transaction_id(), transactionId);
         ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
         hydraRequest.set_mount_revision(tablet->GetMountRevision());
@@ -1732,12 +1802,14 @@ private:
                 .DoIf(!tablet->IsSorted(), [&] (TFluentMap fluent) {
                     fluent
                         .Item("stores").DoMapFor(
-                        tablet->StoreIdMap(), [&] (TFluentMap fluent, const std::pair<const TStoreId, IStorePtr>& pair) {
-                            const auto& store = pair.second;
-                            fluent
-                                .Item(ToString(store->GetId()))
-                                .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
-                        });
+                            tablet->StoreIdMap(),
+                            [&] (TFluentMap fluent, const std::pair<const TStoreId, IStorePtr>& pair) {
+                                const auto& store = pair.second;
+                                fluent
+                                    .Item(ToString(store->GetId()))
+                                    .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
+                            })
+                        .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount());
                 })
             .EndMap();
     }
@@ -2063,6 +2135,15 @@ void TTabletManager::Write(
         signature,
         reader,
         commitResult);
+}
+
+TFuture<void> TTabletManager::Trim(
+    TTabletSnapshotPtr tabletSnapshot,
+    i64 trimmedRowCount)
+{
+    return Impl_->Trim(
+        std::move(tabletSnapshot),
+        trimmedRowCount);
 }
 
 void TTabletManager::ScheduleStoreRotation(TTablet* tablet)

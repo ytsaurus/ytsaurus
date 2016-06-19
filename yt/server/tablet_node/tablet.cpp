@@ -72,6 +72,15 @@ TPartitionSnapshotPtr TTabletSnapshot::FindContainingPartition(TKey key)
     return it == PartitionList.begin() ? nullptr : *(--it);
 }
 
+void TTabletSnapshot::ValiateCellId(const TCellId& cellId)
+{
+    if (CellId != cellId) {
+        THROW_ERROR_EXCEPTION("Wrong cell id: expected %v, got %v",
+            CellId,
+            cellId);
+    }
+}
+
 void TTabletSnapshot::ValiateMountRevision(i64 mountRevision)
 {
     if (MountRevision != mountRevision) {
@@ -90,9 +99,6 @@ TTablet::TTablet(
     const TTabletId& tabletId,
     ITabletContext* context)
     : TObjectBase(tabletId)
-    , MountRevision_(0)
-    , HashTableSize_(0)
-    , OverlappingStoreCount_(0)
     , Config_(New<TTableMountConfig>())
     , WriterOptions_(New<TTabletWriterOptions>())
     , Context_(context)
@@ -118,7 +124,6 @@ TTablet::TTablet(
     , State_(ETabletState::Mounted)
     , Atomicity_(atomicity)
     , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
-    , OverlappingStoreCount_(0)
     , Config_(config)
     , WriterOptions_(writerOptions)
     , Eden_(std::make_unique<TPartition>(
@@ -189,6 +194,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Schema_);
     Save(context, Atomicity_);
     Save(context, HashTableSize_);
+    Save(context, *TrimmedRowCounter_);
 
     TSizeSerializer::Save(context, StoreIdMap_.size());
     // NB: This is not stable.
@@ -228,6 +234,10 @@ void TTablet::Load(TLoadContext& context)
     }
     Load(context, Atomicity_);
     Load(context, HashTableSize_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 17) {
+        Load(context, *TrimmedRowCounter_);
+    }
 
     // NB: Stores that we're about to create may request some tablet properties (e.g. column lock count)
     // during construction. Initialize() will take care of this.
@@ -620,6 +630,25 @@ int TTablet::GetColumnLockCount() const
     return ColumnLockCount_;
 }
 
+i64 TTablet::GetTotalRowCount() const
+{
+    if (StoreRowIndexMap_.empty()) {
+        return 0;
+    }
+    auto lastStore = (--StoreRowIndexMap_.end())->second;
+    return lastStore->GetStartingRowIndex() + lastStore->GetRowCount();
+}
+
+i64 TTablet::GetTrimmedRowCount() const
+{
+    return *TrimmedRowCounter_;
+}
+
+void TTablet::SetTrimmedRowCount(i64 value)
+{
+    *TrimmedRowCounter_ = value;
+}
+
 void TTablet::StartEpoch(TTabletSlotPtr slot)
 {
     CancelableContext_ = New<TCancelableContext>();
@@ -713,6 +742,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
         for (const auto& pair : StoreRowIndexMap_) {
             snapshot->StoreList.push_back(pair.second);
         }
+        snapshot->TrimmedRowCounter = TrimmedRowCounter_;
     }
     snapshot->RowKeyComparer = RowKeyComparer_;
     snapshot->PerformanceCounters = PerformanceCounters_;

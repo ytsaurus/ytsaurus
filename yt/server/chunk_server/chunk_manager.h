@@ -86,8 +86,8 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        TChunkTree** childrenBegin,
-        TChunkTree** childrenEnd);
+        TChunkTree* const* childrenBegin,
+        TChunkTree* const* childrenEnd);
     void AttachToChunkList(
         TChunkList* chunkList,
         const std::vector<TChunkTree*>& children);
@@ -97,8 +97,8 @@ public:
 
     void DetachFromChunkList(
         TChunkList* chunkList,
-        TChunkTree** childrenBegin,
-        TChunkTree** childrenEnd);
+        TChunkTree* const* childrenBegin,
+        TChunkTree* const* childrenEnd);
     void DetachFromChunkList(
         TChunkList* chunkList,
         const std::vector<TChunkTree*>& children);

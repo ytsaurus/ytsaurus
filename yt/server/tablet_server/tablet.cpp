@@ -120,9 +120,6 @@ TTablet::TTablet(const TTabletId& id)
     : TNonversionedObjectBase(id)
     , Index_(-1)
     , State_(ETabletState::Unmounted)
-    , MountRevision_(0)
-    , Table_(nullptr)
-    , Cell_(nullptr)
     , InMemoryMode_(NTabletNode::EInMemoryMode::None)
 { }
 
@@ -139,6 +136,9 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, PivotKey_);
     Save(context, NodeStatistics_);
     Save(context, InMemoryMode_);
+    Save(context, FlushedRowCount_);
+    Save(context, TrimmedStoresRowCount_);
+    Save(context, TrimmedRowCount_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -154,6 +154,12 @@ void TTablet::Load(TLoadContext& context)
     Load(context, PivotKey_);
     Load(context, NodeStatistics_);
     Load(context, InMemoryMode_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 401) {
+        Load(context, FlushedRowCount_);
+        Load(context, TrimmedStoresRowCount_);
+        Load(context, TrimmedRowCount_);
+    }
 }
 
 void TTablet::ValidateMountRevision(i64 mountRevision)
