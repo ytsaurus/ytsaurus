@@ -1,20 +1,17 @@
-#include "serialize.h"
+#pragma once
+
+#include "public.h"
+
+#include <yt/server/cell_node/public.h>
 
 namespace NYT {
 namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetCurrentSnapshotVersion()
-{
-    return 17;
-}
-
-bool ValidateSnapshotVersion(int version)
-{
-    return version == 16 ||
-           version == 17;
-}
+void StartStoreTrimmer(
+    TTabletNodeConfigPtr config,
+    NCellNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

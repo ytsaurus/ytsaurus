@@ -28,6 +28,8 @@ class TChunkList
     , public TRefTracked<TChunkList>
 {
 public:
+    //! This many starting children are null.
+    DEFINE_BYVAL_RW_PROPERTY(int, TrimmedChildCount);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTree*>, Children);
 
     //! If |true|, then child-to-index map is maintained but no sums are accumulated.

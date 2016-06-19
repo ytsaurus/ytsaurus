@@ -137,6 +137,7 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
     TTimestamp /*timestamp*/,
     const TWorkloadDescriptor& workloadDescriptor)
 {
+    // Deduce tablet index and row range from lower and upper bound.
     YCHECK(lowerBound.GetCount() >= 1);
     YCHECK(upperBound.GetCount() >= 1);
 
@@ -183,8 +184,10 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
         }
     }
 
-    if (lowerRowIndex < 0) {
-        lowerRowIndex = 0;
+    // Take row trimming into account.
+    i64 trimmedRowCount = *tabletSnapshot->TrimmedRowCounter;
+    if (lowerRowIndex < trimmedRowCount) {
+        lowerRowIndex = trimmedRowCount;
     }
 
     std::vector<ISchemafulReaderPtr> readers;

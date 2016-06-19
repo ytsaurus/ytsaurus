@@ -56,7 +56,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(yhash_set<ISortedStorePtr>, Stores);
 
-    DEFINE_BYVAL_RW_PROPERTY(EPartitionState, State);
+    DEFINE_BYVAL_RW_PROPERTY(EPartitionState, State, EPartitionState::Normal);
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, SamplingTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, SamplingRequestTime);

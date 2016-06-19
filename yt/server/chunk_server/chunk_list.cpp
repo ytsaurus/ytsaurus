@@ -15,7 +15,6 @@ using namespace NCellMaster;
 TChunkList::TChunkList(const TChunkListId& id)
     : TChunkTree(id)
     , Ordered_(true)
-    , Version_(0)
 {
     ResetChunkListStatistics(this);
 }
@@ -51,6 +50,7 @@ void TChunkList::Save(NCellMaster::TSaveContext& context) const
     Save(context, ChunkCountSums_);
     Save(context, DataSizeSums_);
     Save(context, Ordered_);
+    Save(context, TrimmedChildCount_);
 }
 
 void TChunkList::Load(NCellMaster::TLoadContext& context)
@@ -68,6 +68,7 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 401) {
         Load(context, Ordered_);
+        Load(context, TrimmedChildCount_);
     }
 
     for (int index = 0; index < Parents_.size(); ++index) {

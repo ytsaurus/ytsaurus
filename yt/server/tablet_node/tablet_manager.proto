@@ -33,6 +33,7 @@ message TReqMountTablet
     required string writer_options = 8;
     required int32 atomicity = 10; // EAtomicity
     required int64 mount_revision = 11;
+    optional int64 trimmed_row_count = 12;
 }
 
 message TReqUnmountTablet
@@ -55,7 +56,7 @@ message TReqSetTabletState
     required int32 state = 2;
 }
 
-message TReqExecuteWrite
+message TReqWriteRows
 {
     required NYT.NProto.TGuid transaction_id = 1;
     optional uint64 transaction_start_timestamp = 2;
@@ -65,6 +66,13 @@ message TReqExecuteWrite
     required int32 codec = 7;
     required bytes compressed_data = 8;
     optional uint32 signature = 9;
+}
+
+message TReqTrimRows
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 2;
+    required int64 trimmed_row_count = 3;
 }
 
 message TReqRotateStore

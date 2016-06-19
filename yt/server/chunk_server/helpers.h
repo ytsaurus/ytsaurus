@@ -24,19 +24,14 @@ void VisitUniqueAncestors(TChunkList* chunkList, F functor);
 template <class F>
 void VisitAncestors(TChunkList* chunkList, F functor);
 
-template <class F>
 void AttachToChunkList(
     TChunkList* chunkList,
-    TChunkTree** childrenBegin,
-    TChunkTree** childrenEnd,
-    F childAction);
-
-template <class F>
+    TChunkTree* const* childrenBegin,
+    TChunkTree* const* childrenEnd);
 void DetachFromChunkList(
     TChunkList* chunkList,
-    TChunkTree** childrenBegin,
-    TChunkTree** childrenEnd,
-    F childAction);
+    TChunkTree* const* childrenBegin,
+    TChunkTree* const* childrenEnd);
 
 void SetChunkTreeParent(TChunkList* parent, TChunkTree* child);
 void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child);

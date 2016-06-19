@@ -76,11 +76,12 @@ private:
 
         const auto* table = GetThisTypedImpl();
         bool isDynamic = table->IsDynamic();
+        bool isSorted = table->IsSorted();
 
         descriptors->push_back(TAttributeDescriptor("row_count")
             .SetPresent(!isDynamic));
         descriptors->push_back(TAttributeDescriptor("unmerged_row_count")
-            .SetPresent(isDynamic));
+            .SetPresent(isDynamic && isSorted));
         descriptors->push_back("sorted");
         descriptors->push_back(TAttributeDescriptor("key_columns")
             .SetReplicated(true));
@@ -108,18 +109,21 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* table = GetThisTypedImpl();
+        bool isDynamic = table->IsDynamic();
+        bool isSorted = table->IsSorted();
+
         const auto* trunkTable = table->GetTrunkNode();
         auto statistics = table->ComputeTotalStatistics();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
 
-        if (key == "row_count" && !table->IsDynamic()) {
+        if (key == "row_count" && !isDynamic) {
             BuildYsonFluently(consumer)
                 .Value(statistics.row_count());
             return true;
         }
 
-        if (key == "unmerged_row_count" && table->IsDynamic()) {
+        if (key == "unmerged_row_count" && isDynamic && isSorted) {
             BuildYsonFluently(consumer)
                 .Value(statistics.row_count());
             return true;
@@ -157,17 +161,17 @@ private:
 
         if (key == "dynamic") {
             BuildYsonFluently(consumer)
-                .Value(trunkTable->IsDynamic());
+                .Value(table->IsDynamic());
             return true;
         }
 
-        if (key == "tablet_count" && trunkTable->IsDynamic()) {
+        if (key == "tablet_count" && isDynamic) {
             BuildYsonFluently(consumer)
                 .Value(trunkTable->Tablets().size());
             return true;
         }
 
-        if (key == "tablets" && trunkTable->IsDynamic()) {
+        if (key == "tablets" && isDynamic) {
             BuildYsonFluently(consumer)
                 .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
                     auto* cell = tablet->GetCell();
@@ -176,7 +180,14 @@ private:
                             .Item("index").Value(tablet->GetIndex())
                             .Item("performance_counters").Value(tablet->PerformanceCounters())
                             .DoIf(table->IsSorted(), [&] (TFluentMap fluent) {
-                                fluent.Item("pivot_key").Value(tablet->GetPivotKey());
+                                fluent
+                                    .Item("pivot_key").Value(tablet->GetPivotKey());
+                            })
+                            .DoIf(!table->IsSorted(), [&] (TFluentMap fluent) {
+                                auto* chunkList = table->GetChunkList()->Children()[tablet->GetIndex()]->AsChunkList();
+                                fluent
+                                    .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount())
+                                    .Item("flushed_row_count").Value(chunkList->Statistics().RowCount);
                             })
                             .Item("state").Value(tablet->GetState())
                             .Item("statistics").Value(tabletManager->GetTabletStatistics(tablet))
@@ -189,7 +200,7 @@ private:
             return true;
         }
 
-        if (key == "tablet_statistics" && trunkTable->IsDynamic()) {
+        if (key == "tablet_statistics" && isDynamic) {
             TTabletStatistics tabletStatistics;
             for (const auto& tablet : trunkTable->Tablets()) {
                 tabletStatistics += tabletManager->GetTabletStatistics(tablet);

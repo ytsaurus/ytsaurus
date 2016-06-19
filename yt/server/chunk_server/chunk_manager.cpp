@@ -137,8 +137,8 @@ public:
 
     virtual void AttachToChunkList(
         TChunkList* chunkList,
-        TChunkTree** childrenBegin,
-        TChunkTree** childrenEnd) override
+        TChunkTree* const* childrenBegin,
+        TChunkTree* const* childrenEnd) override
     {
         Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, childrenBegin, childrenEnd);
     }
@@ -537,20 +537,16 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        TChunkTree** childrenBegin,
-        TChunkTree** childrenEnd)
+        TChunkTree* const* childrenBegin,
+        TChunkTree* const* childrenEnd)
     {
-        if (childrenBegin == childrenEnd)
-            return;
+        NChunkServer::AttachToChunkList(chunkList, childrenBegin, childrenEnd);
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        NChunkServer::AttachToChunkList(
-            chunkList,
-            childrenBegin,
-            childrenEnd,
-            [&] (TChunkTree* chunkTree) {
-                objectManager->RefObject(chunkTree);
-            });
+        for (auto it = childrenBegin; it != childrenEnd; ++it) {
+            auto* child = *it;
+            objectManager->RefObject(child);
+        }
     }
 
     void AttachToChunkList(
@@ -559,8 +555,8 @@ public:
     {
         AttachToChunkList(
             chunkList,
-            const_cast<TChunkTree**>(children.data()),
-            const_cast<TChunkTree**>(children.data() + children.size()));
+            children.data(),
+            children.data() + children.size());
     }
 
     void AttachToChunkList(
@@ -576,17 +572,16 @@ public:
 
     void DetachFromChunkList(
         TChunkList* chunkList,
-        TChunkTree** childrenBegin,
-        TChunkTree** childrenEnd)
+        TChunkTree* const* childrenBegin,
+        TChunkTree* const* childrenEnd)
     {
+        NChunkServer::DetachFromChunkList(chunkList, childrenBegin, childrenEnd);
+
         auto objectManager = Bootstrap_->GetObjectManager();
-        NChunkServer::DetachFromChunkList(
-            chunkList,
-            childrenBegin,
-            childrenEnd,
-            [&] (TChunkTree* chunkTree) {
-                objectManager->UnrefObject(chunkTree);
-            });
+        for (auto it = childrenBegin; it != childrenBegin; ++it) {
+            auto* child = *it;
+            objectManager->UnrefObject(child);
+        }
     }
 
     void DetachFromChunkList(
@@ -595,8 +590,8 @@ public:
     {
         DetachFromChunkList(
             chunkList,
-            const_cast<TChunkTree**>(children.data()),
-            const_cast<TChunkTree**>(children.data() + children.size()));
+            children.data(),
+            children.data() + children.size());
     }
 
     void DetachFromChunkList(
@@ -672,7 +667,9 @@ public:
         if (recursive) {
             auto transactionManager = Bootstrap_->GetTransactionManager();
             for (auto* child : chunkList->Children()) {
-                transactionManager->UnstageObject(child->GetStagingTransaction(), child, recursive);
+                if (child) {
+                    transactionManager->UnstageObject(child->GetStagingTransaction(), child, recursive);
+                }
             }
         }
     }
@@ -707,8 +704,10 @@ public:
 
         auto objectManager = Bootstrap_->GetObjectManager();
         for (auto* child : chunkList->Children()) {
-            ResetChunkTreeParent(chunkList, child);
-            objectManager->UnrefObject(child);
+            if (child) {
+                ResetChunkTreeParent(chunkList, child);
+                objectManager->UnrefObject(child);
+            }
         }
 
         chunkList->Children().clear();
@@ -963,8 +962,10 @@ private:
         // Drop references to children.
         auto objectManager = Bootstrap_->GetObjectManager();
         for (auto* child : chunkList->Children()) {
-            ResetChunkTreeParent(chunkList, child);
-            objectManager->UnrefObject(child);
+            if (child) {
+                ResetChunkTreeParent(chunkList, child);
+                objectManager->UnrefObject(child);
+            }
         }
 
         ++ChunkListsDestroyed_;
@@ -1563,19 +1564,21 @@ private:
             for (int childIndex = 0; childIndex < childrenCount; ++childIndex) {
                 auto* child = chunkList->Children()[childIndex];
                 TChunkTreeStatistics childStatistics;
-                switch (child->GetType()) {
-                    case EObjectType::Chunk:
-                    case EObjectType::ErasureChunk:
-                    case EObjectType::JournalChunk:
-                        childStatistics.Accumulate(child->AsChunk()->GetStatistics());
-                        break;
+                if (child) {
+                    switch (child->GetType()) {
+                        case EObjectType::Chunk:
+                        case EObjectType::ErasureChunk:
+                        case EObjectType::JournalChunk:
+                            childStatistics.Accumulate(child->AsChunk()->GetStatistics());
+                            break;
 
-                    case EObjectType::ChunkList:
-                        childStatistics = ComputeStatisticsFor(child->AsChunkList(), visitMark);
-                        break;
+                        case EObjectType::ChunkList:
+                            childStatistics = ComputeStatisticsFor(child->AsChunkList(), visitMark);
+                            break;
 
-                    default:
-                        YUNREACHABLE();
+                        default:
+                            YUNREACHABLE();
+                    }
                 }
 
                 if (childIndex + 1 < childrenCount) {
@@ -2111,8 +2114,8 @@ TNodePtrWithIndexList TChunkManager::LocateChunk(TChunkPtrWithIndex chunkWithInd
 
 void TChunkManager::AttachToChunkList(
     TChunkList* chunkList,
-    TChunkTree** childrenBegin,
-    TChunkTree** childrenEnd)
+    TChunkTree* const* childrenBegin,
+    TChunkTree* const* childrenEnd)
 {
     Impl_->AttachToChunkList(chunkList, childrenBegin, childrenEnd);
 }
@@ -2133,8 +2136,8 @@ void TChunkManager::AttachToChunkList(
 
 void TChunkManager::DetachFromChunkList(
     TChunkList* chunkList,
-    TChunkTree** childrenBegin,
-    TChunkTree** childrenEnd)
+    TChunkTree* const* childrenBegin,
+    TChunkTree* const* childrenEnd)
 {
     Impl_->DetachFromChunkList(chunkList, childrenBegin, childrenEnd);
 }

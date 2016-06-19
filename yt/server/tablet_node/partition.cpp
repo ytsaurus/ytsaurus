@@ -42,7 +42,6 @@ TPartition::TPartition(
     , Index_(index)
     , PivotKey_(std::move(pivotKey))
     , NextPivotKey_(std::move(nextPivotKey))
-    , State_(EPartitionState::Normal)
     , SampleKeys_(New<TKeyList>())
 { }
 

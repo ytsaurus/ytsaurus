@@ -1226,6 +1226,12 @@ public:
         const TYPath& path,
         const TAlterTableOptions& options),
         (path, options))
+    IMPLEMENT_METHOD(void, TrimTable, (
+        const TYPath& path,
+        int tabletIndex,
+        i64 trimmedRowCount,
+        const TTrimTableOptions& options),
+        (path, tabletIndex, trimmedRowCount, options))
 
 
     IMPLEMENT_METHOD(TYsonString, GetNode, (
@@ -1573,6 +1579,13 @@ private:
     {
         auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
         return std::make_unique<TProxy>(channel);
+    }
+
+    IChannelPtr GetTabletChannelOrThrow(const TTabletCellId& cellId) const
+    {
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        auto channel = cellDirectory->GetChannelOrThrow(cellId);
+        return CreateAuthenticatedChannel(std::move(channel), Options_.User);
     }
 
 
@@ -2050,6 +2063,38 @@ private:
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
+    }
+
+    void DoTrimTable(
+        const TYPath& path,
+        int tabletIndex,
+        i64 trimmedRowCount,
+        const TTrimTableOptions& options)
+    {
+        auto tableMountCache = Connection_->GetTableMountCache();
+        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
+            .ValueOrThrow();
+
+        if (tabletIndex < 0 || tabletIndex >= tableInfo->Tablets.size()) {
+            THROW_ERROR_EXCEPTION("Invalid tablet index: expected in range [0,%v], got %v",
+                tableInfo->Tablets.size(),
+                tabletIndex);
+        }
+
+        const auto& tabletInfo = tableInfo->Tablets[tabletIndex];
+
+        auto channel = GetTabletChannelOrThrow(tabletInfo->CellId);
+
+        TTabletServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Connection_->GetConfig()->WriteTimeout);
+
+        auto req = proxy.Trim();
+        ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
+        req->set_mount_revision(tabletInfo->MountRevision);
+        req->set_trimmed_row_count(trimmedRowCount);
+
+        WaitFor(req->Invoke())
+            .ValueOrThrow();
     }
 
     TYsonString DoGetNode(
@@ -3578,7 +3623,7 @@ private:
             for (const auto& pair : TabletIdToSession_) {
                 const auto& session = pair.second;
                 const auto& cellId = session->GetCellId();
-                auto channel = GetTabletChannelOrThrow(cellId);
+                auto channel = Client_->GetTabletChannelOrThrow(cellId);
                 asyncResults.push_back(session->Invoke(std::move(channel)));
             }
 
@@ -3619,13 +3664,6 @@ private:
         }
     }
 
-
-    IChannelPtr GetTabletChannelOrThrow(const TTabletCellId& cellId) const
-    {
-        const auto& cellDirectory = Client_->Connection_->GetCellDirectory();
-        auto channel = cellDirectory->GetChannelOrThrow(cellId);
-        return CreateAuthenticatedChannel(std::move(channel), Client_->Options_.User);
-    }
 
     TTimestamp GetReadTimestamp() const
     {

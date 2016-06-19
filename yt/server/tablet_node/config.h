@@ -519,13 +519,16 @@ public:
     //! Interval between slots examination.
     TDuration SlotScanPeriod;
 
-    //! Toggles background tablet compaction and partitioning (useful for debugging purposes).
+    //! Toggles background tablet compaction and partitioning (turning off is useful for debugging purposes).
     bool EnableStoreCompactor;
 
-    //! Toggles background eden flushing (useful for debugging purposes).
+    //! Toggles background Eden flushing (disabling is useful for debugging purposes).
     bool EnableStoreFlusher;
 
-    //! Toggles background partition balancing (useful for debugging purposes).
+    //! Toggles background store trimming (disabling is useful for debugging purposes).
+    bool EnableStoreTrimmer;
+
+    //! Toggles background partition balancing (disabling is useful for debugging purposes).
     bool EnablePartitionBalancer;
 
     TTabletNodeConfig()
@@ -576,6 +579,8 @@ public:
         RegisterParameter("enable_store_compactor", EnableStoreCompactor)
             .Default(true);
         RegisterParameter("enable_store_flusher", EnableStoreFlusher)
+            .Default(true);
+        RegisterParameter("enable_store_trimmer", EnableStoreTrimmer)
             .Default(true);
         RegisterParameter("enable_partition_balancer", EnablePartitionBalancer)
             .Default(true);

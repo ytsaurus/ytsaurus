@@ -48,5 +48,12 @@ message TReqUpdateTabletStores
     repeated NTabletNode.NProto.TRemoveStoreDescriptor stores_to_remove = 3;
 }
 
+message TReqUpdateTabletTrimmedRowCount
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 2;
+    required int64 trimmed_row_count = 3;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 

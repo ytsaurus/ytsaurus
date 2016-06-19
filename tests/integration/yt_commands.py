@@ -262,6 +262,12 @@ def delete_rows(path, data, **kwargs):
     kwargs["path"] = path
     return execute_command("delete_rows", kwargs, input_stream=_prepare_rows_stream(data))
 
+def trim_rows(path, tablet_index, trimmed_row_count, **kwargs):
+    kwargs["path"] = path
+    kwargs["tablet_index"] = tablet_index
+    kwargs["trimmed_row_count"] = trimmed_row_count
+    return execute_command_with_output_format("trim_rows", kwargs)
+
 def lookup_rows(path, data, **kwargs):
     kwargs["path"] = path
     return execute_command_with_output_format("lookup_rows", kwargs, input_stream=_prepare_rows_stream(data))

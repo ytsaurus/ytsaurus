@@ -123,9 +123,8 @@ void AttachToChunkList(
 {
     NChunkServer::AttachToChunkList(
         chunkList,
-        const_cast<TChunkTree**>(children.data()),
-        const_cast<TChunkTree**>(children.data() + children.size()),
-        [] (TChunkTree* /*chunk*/) { });
+        children.data(),
+        children.data() + children.size());
 }
 
 TGuid GenerateId(EObjectType type)

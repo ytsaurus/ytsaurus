@@ -54,6 +54,10 @@ public:
         NTabletClient::TWireProtocolReader* reader,
         TFuture<void>* commitResult);
 
+    TFuture<void> Trim(
+        TTabletSnapshotPtr tabletSnapshot,
+        i64 trimmedRowCount);
+
 
     void ScheduleStoreRotation(TTablet* tablet);
 
