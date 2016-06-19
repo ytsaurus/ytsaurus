@@ -22,6 +22,10 @@ class TestTablets(YTEnvSetup):
         }
     }
 
+    DELTA_DRIVER_CONFIG = {
+        "max_rows_per_write_request": 2
+    }
+
     def _create_simple_table(self, path, atomicity="full", optimize_for="lookup", tablet_cell_bundle="default"):
         create("table", path,
             attributes={
@@ -416,7 +420,9 @@ class TestTablets(YTEnvSetup):
         for i in xrange(len(cell_ids)):
             mount_table("//tmp/t", first_tablet_index = i, last_tablet_index=i, cell_id = cell_ids[i])
         wait(lambda: all(x["state"] == "mounted" for x in get("//tmp/t/@tablets")))
-        rows = [{"key": i * 100 - 50, "value": "payload" + str(i)} for i in xrange(cell_count)]
+        rows = [{"key": i * 100 - j, "value": "payload" + str(i)} 
+                for i in xrange(cell_count)
+                for j in xrange(10)]
         insert_rows("//tmp/t", rows)
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, rows)
