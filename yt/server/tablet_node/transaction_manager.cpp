@@ -232,8 +232,10 @@ public:
         }
 
         if (signature != FinalTransactionSignature) {
-            THROW_ERROR_EXCEPTION("Transaction %v is incomplete",
-                transactionId);
+            THROW_ERROR_EXCEPTION("Transaction %v is incomplete: expected signature %x, actual signature %x",
+                transactionId,
+                FinalTransactionSignature,
+                signature);
         }
 
         transaction->SetState(persistent
