@@ -808,7 +808,7 @@ private:
         HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedOrderedRows(), orderedRowCount);
 
         transaction->WriteLog().Enqueue(writeRecord);
-        transaction->SetPersistentSignature(transaction->GetPersistentPrepareTimestamp() + signature);
+        transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, TransactionId: %v, "
             "SortedRows: %v, OrderedRows: %v, WriteRecordSize: %v)",
@@ -898,7 +898,7 @@ private:
                 }
 
                 transaction->WriteLog().Enqueue(TTransactionWriteRecord{tabletId, recordData});
-                transaction->SetPersistentSignature(transaction->GetPersistentPrepareTimestamp() + signature);
+                transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
             }
 
             case EAtomicity::None: {
