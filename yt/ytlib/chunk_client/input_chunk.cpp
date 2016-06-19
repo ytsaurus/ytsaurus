@@ -286,7 +286,7 @@ Stroka ToString(const TInputChunkPtr& inputChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsUnavailable(TInputChunkPtr inputChunk, bool checkParityParts)
+bool IsUnavailable(const TInputChunkPtr& inputChunk, bool checkParityParts)
 {
     return IsUnavailable(inputChunk->GetReplicaList(), inputChunk->GetErasureCodec(), checkParityParts);
 }
