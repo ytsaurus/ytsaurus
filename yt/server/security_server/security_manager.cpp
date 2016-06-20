@@ -790,6 +790,16 @@ public:
             // Check the current ACL, if any.
             if (acd) {
                 for (const auto& ace : acd->Acl().Entries) {
+                    // Handle inheritance mode.
+                    if (object == currentObject) {
+                        if (ace.InheritanceMode == EAceInheritanceMode::DescendantsOnly) {
+                            continue;
+                        }
+                    } else {
+                        if (ace.InheritanceMode == EAceInheritanceMode::ObjectOnly) {
+                            continue;
+                        }
+                    }
                     if (CheckPermissionMatch(ace.Permissions, permission)) {
                         for (auto* subject : ace.Subjects) {
                             if (CheckSubjectMatch(subject, user)) {

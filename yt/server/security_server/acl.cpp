@@ -21,17 +21,19 @@ using namespace NObjectServer;
 
 TAccessControlEntry::TAccessControlEntry()
     : Action(ESecurityAction::Undefined)
+    , InheritanceMode(EAceInheritanceMode::ObjectAndDescendants)
 { }
 
 TAccessControlEntry::TAccessControlEntry(
     ESecurityAction action,
     TSubject* subject,
-    EPermissionSet permissions)
-{
-    Action = action;
-    Subjects.push_back(subject);
-    Permissions = permissions;
-}
+    EPermissionSet permissions,
+    EAceInheritanceMode inheritanceMode)
+    : Action(action)
+    , Subjects{subject}
+    , Permissions(permissions)
+    , InheritanceMode(inheritanceMode)
+{ }
 
 void TAccessControlEntry::Save(NCellMaster::TSaveContext& context) const
 {
@@ -39,6 +41,7 @@ void TAccessControlEntry::Save(NCellMaster::TSaveContext& context) const
     Save(context, Subjects);
     Save(context, Permissions);
     Save(context, Action);
+    Save(context, InheritanceMode);
 }
 
 void TAccessControlEntry::Load(NCellMaster::TLoadContext& context)
@@ -47,17 +50,23 @@ void TAccessControlEntry::Load(NCellMaster::TLoadContext& context)
     Load(context, Subjects);
     Load(context, Permissions);
     Load(context, Action);
+    if (context.GetVersion() >= 402) {
+        Load(context, InheritanceMode);
+    } else {
+        InheritanceMode = EAceInheritanceMode::ObjectAndDescendants;
+    }
 }
 
 void Serialize(const TAccessControlEntry& ace, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("action").Value(ace.Action)
-            .Item("subjects").DoListFor(ace.Subjects, [] (TFluentList fluent, TSubject* subject) {
-                fluent.Item().Value(subject->GetName());
-            })
-            .Item("permissions").Value(FormatPermissions(ace.Permissions))
+        .Item("action").Value(ace.Action)
+        .Item("subjects").DoListFor(ace.Subjects, [] (TFluentList fluent, TSubject* subject) {
+            fluent.Item().Value(subject->GetName());
+        })
+        .Item("permissions").Value(FormatPermissions(ace.Permissions))
+        .Item("inheritance_mode").Value(ace.InheritanceMode)
         .EndMap();
 }
 
@@ -73,28 +82,31 @@ void Save(NCellMaster::TSaveContext& context, const TAccessControlList& acl)
     Save(context, acl.Entries);
 }
 
-void Serialize(const TAccessControlList& acl, IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .Value(acl.Entries);
-}
-
 struct TSerializableAccessControlEntry
     : public TYsonSerializable
 {
     ESecurityAction Action;
     std::vector<Stroka> Subjects;
     std::vector<Stroka> Permissions;
+    EAceInheritanceMode InheritanceMode;
 
     TSerializableAccessControlEntry()
     {
         RegisterParameter("action", Action);
         RegisterParameter("subjects", Subjects);
         RegisterParameter("permissions", Permissions);
+        RegisterParameter("inheritance_mode", InheritanceMode)
+            .Default(EAceInheritanceMode::ObjectAndDescendants);
     }
 };
 
 typedef TIntrusivePtr<TSerializableAccessControlEntry> TSerializableAccessControlEntryPtr;
+
+void Serialize(const TAccessControlList& acl, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .Value(acl.Entries);
+}
 
 void Deserilize(
     TAccessControlList& acl,
@@ -121,6 +133,9 @@ void Deserilize(
          
         // Permissions
         ace.Permissions = ParsePermissions(serializableAce->Permissions, supportedPermissions);
+
+        // Inheritance mode
+        ace.InheritanceMode = serializableAce->InheritanceMode;
 
         acl.Entries.push_back(ace);
     }
