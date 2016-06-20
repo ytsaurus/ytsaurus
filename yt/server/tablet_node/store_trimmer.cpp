@@ -48,10 +48,6 @@ private:
 
     void OnScanSlot(TTabletSlotPtr slot)
     {
-        if (slot->GetAutomatonState() != EPeerState::Leading) {
-            return;
-        }
-
         auto tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
             auto* tablet = pair.second;
