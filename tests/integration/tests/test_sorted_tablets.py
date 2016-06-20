@@ -810,7 +810,6 @@ class TestSortedTablets(YTEnvSetup):
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
         assert lookup_rows("//tmp/t", _keys(0, 50)) == _rows(10, 30)
-        self.sync_unmount_table("//tmp/t")
 
         # check that we can extend key
         self.sync_unmount_table("//tmp/t")
