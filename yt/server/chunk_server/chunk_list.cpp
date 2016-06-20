@@ -72,12 +72,16 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     }
 
     for (int index = 0; index < Parents_.size(); ++index) {
-        YCHECK(ParentToIndex_.insert(std::make_pair(Parents_[index], index)).second);
+        YCHECK(ParentToIndex_.emplace(Parents_[index], index).second);
+    }
+
+    for (int index = 0; index < OwningNodes_.size(); ++index) {
+        YCHECK(OwningNodeToIndex_.emplace(OwningNodes_[index], index).second);
     }
 
     if (!Ordered_) {
-        for (int index = 0; index < OwningNodes_.size(); ++index) {
-            YCHECK(OwningNodeToIndex_.insert(std::make_pair(OwningNodes_[index], index)).second);
+        for (int index = 0; index < Children_.size(); ++index) {
+            YCHECK(ChildToIndex_.emplace(Children_[index], index).second);
         }
     }
 }
