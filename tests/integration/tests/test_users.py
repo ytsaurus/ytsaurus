@@ -17,16 +17,16 @@ class TestUsers(YTEnvSetup):
         create_user("u")
 
         assert not get("//sys/users/u/@banned")
-        get("//tmp", user="u")
+        get("//tmp", authenticated_user="u")
 
         set("//sys/users/u/@banned", True)
         assert get("//sys/users/u/@banned")
-        with pytest.raises(YtError): get("//tmp", user="u")
+        with pytest.raises(YtError): get("//tmp", authenticated_user="u")
 
         set("//sys/users/u/@banned", False)
         assert not get("//sys/users/u/@banned")
 
-        get("//tmp", user="u")
+        get("//tmp", authenticated_user="u")
 
     def test_user_ban2(self):
         with pytest.raises(YtError): set("//sys/users/root/@banned", True)
@@ -50,15 +50,15 @@ class TestUsers(YTEnvSetup):
     def test_request_queue_size_limit3(self):
         create_user("u")
         set("//sys/users/u/@request_queue_size_limit", 0)
-        with pytest.raises(YtError): ls("/", user="u")
+        with pytest.raises(YtError): ls("/", authenticated_user="u")
         set("//sys/users/u/@request_queue_size_limit", 1)
-        ls("/", user="u")
+        ls("/", authenticated_user="u")
 
     def test_access_counter1(self):
         create_user("u")
         assert get("//sys/users/u/@request_count") == 0
 
-        ls("//tmp", user="u")
+        ls("//tmp", authenticated_user="u")
         sleep(1.0)
         assert get("//sys/users/u/@request_count") == 1
 
@@ -73,7 +73,7 @@ class TestUsers(YTEnvSetup):
 
         # Transaction ping is not accounted in request counter
         tx = start_transaction()
-        ping_transaction(tx, user='u')
+        ping_transaction(tx, authenticated_user='u')
 
         assert get("//sys/users/u/@request_count") == 0
 

@@ -970,7 +970,7 @@ class TestCypress(YTEnvSetup):
             {"action": "allow", "subjects": ["u"], "permissions": ["write"]},
             {"action": "deny", "subjects": ["u"], "permissions": ["remove"]}])
         with pytest.raises(YtError):
-            set("//tmp/t/@expiration_time", str(self._now()), user="u")
+            set("//tmp/t/@expiration_time", str(self._now()), authenticated_user="u")
 
     def test_expiration_time_change_requires_recursive_remove_permission_failure(self):
         create_user("u")
@@ -980,7 +980,7 @@ class TestCypress(YTEnvSetup):
             {"action": "allow", "subjects": ["u"], "permissions": ["write"]},
             {"action": "deny", "subjects": ["u"], "permissions": ["remove"]}])
         with pytest.raises(YtError):
-            set("//tmp/m/@expiration_time", str(self._now()), user="u")
+            set("//tmp/m/@expiration_time", str(self._now()), authenticated_user="u")
 
     def test_expiration_time_reset_requires_write_permission_success(self):
         create_user("u")
@@ -988,7 +988,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t/@acl", [
             {"action": "allow", "subjects": ["u"], "permissions": ["write"]},
             {"action": "deny", "subjects": ["u"], "permissions": ["remove"]}])
-        remove("//tmp/t/@expiration_time", user="u")
+        remove("//tmp/t/@expiration_time", authenticated_user="u")
 
     def test_expiration_time_reset_requires_write_permission_failure(self):
         create_user("u")
@@ -996,7 +996,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t/@acl", [
             {"action": "deny", "subjects": ["u"], "permissions": ["write"]}])
         with pytest.raises(YtError):
-            remove("//tmp/t/@expiration_time", user="u")
+            remove("//tmp/t/@expiration_time", authenticated_user="u")
 
     def test_expiration_time_change(self):
         create("table", "//tmp/t", attributes={"expiration_time": "2030-04-03T21:25:29.000000Z"})
@@ -1006,7 +1006,7 @@ class TestCypress(YTEnvSetup):
 
     def test_expiration_time_can_be_set_upon_construction1(self):
         create_user("u")
-        create("table", "//tmp/t", attributes={"expiration_time": str(self._now())}, user="u")
+        create("table", "//tmp/t", attributes={"expiration_time": str(self._now())}, authenticated_user="u")
         time.sleep(0.1)
         assert not exists("//tmp/t")
 

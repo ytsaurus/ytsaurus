@@ -42,7 +42,7 @@ class TestRff(YTEnvSetup):
         create_user("u")
         assert get("//sys/users/u/@request_count") == 0
         for i in xrange(100):
-            ls("//tmp", user="u", read_from="follower")
+            ls("//tmp", authenticated_user="u", read_from="follower")
         time.sleep(1.0)
         assert get("//sys/users/u/@request_count") == 100
 

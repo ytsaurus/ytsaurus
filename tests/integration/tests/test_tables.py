@@ -686,7 +686,7 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/t/@vital")
         check_vital_chunks(True)
 
-        set("//tmp/t/@vital", False, user="u")
+        set("//tmp/t/@vital", False, authenticated_user="u")
         assert not get("//tmp/t/@vital")
         sleep(2)
 
@@ -697,7 +697,7 @@ class TestTables(YTEnvSetup):
         create_user("u")
         for i in xrange(0, 5):
             write_table("<append=true>//tmp/t", {"a" : "b"})
-        set("//tmp/t/@replication_factor", 4, user="u")
+        set("//tmp/t/@replication_factor", 4, authenticated_user="u")
         sleep(2)
         self._check_replication_factor("//tmp/t", 4)
 
@@ -707,7 +707,7 @@ class TestTables(YTEnvSetup):
         tx = start_transaction()
         for i in xrange(0, 5):
             write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
-        set("//tmp/t/@replication_factor", 4, user="u")
+        set("//tmp/t/@replication_factor", 4, authenticated_user="u")
         commit_transaction(tx)
         sleep(2)
         self._check_replication_factor("//tmp/t", 4)
@@ -718,7 +718,7 @@ class TestTables(YTEnvSetup):
         tx = start_transaction()
         for i in xrange(0, 5):
             write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
-        set("//tmp/t/@replication_factor", 2, user="u")
+        set("//tmp/t/@replication_factor", 2, authenticated_user="u")
         commit_transaction(tx)
         sleep(2)
         self._check_replication_factor("//tmp/t", 2)

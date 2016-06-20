@@ -309,17 +309,17 @@ class TestTablets(YTEnvSetup):
 
     def test_tablet_cell_create_permission(self):
         create_user("u")
-        with pytest.raises(YtError): create_tablet_cell(user="u")
+        with pytest.raises(YtError): create_tablet_cell(authenticated_user="u")
         set("//sys/schemas/tablet_cell/@acl/end", {"subjects": ["u"], "permissions": ["create"], "action": "allow"})
-        id = create_tablet_cell(user="u")
+        id = create_tablet_cell(authenticated_user="u")
         assert exists("//sys/tablet_cells/{0}/changelogs".format(id))
         assert exists("//sys/tablet_cells/{0}/snapshots".format(id))
 
     def test_tablet_cell_bundle_create_permission(self):
         create_user("u")
-        with pytest.raises(YtError): create_tablet_cell_bundle("b", user="u")
+        with pytest.raises(YtError): create_tablet_cell_bundle("b", authenticated_user="u")
         set("//sys/schemas/tablet_cell_bundle/@acl/end", {"subjects": ["u"], "permissions": ["create"], "action": "allow"})
-        create_tablet_cell_bundle("b", user="u")
+        create_tablet_cell_bundle("b", authenticated_user="u")
 
     def test_validate_dynamic_attr(self):
         create("table", "//tmp/t")
@@ -340,20 +340,20 @@ class TestTablets(YTEnvSetup):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         create_user("u")
-        with pytest.raises(YtError): mount_table("//tmp/t", user="u")
-        with pytest.raises(YtError): unmount_table("//tmp/t", user="u")
-        with pytest.raises(YtError): remount_table("//tmp/t", user="u")
-        with pytest.raises(YtError): reshard_table("//tmp/t", [[]], user="u")
+        with pytest.raises(YtError): mount_table("//tmp/t", authenticated_user="u")
+        with pytest.raises(YtError): unmount_table("//tmp/t", authenticated_user="u")
+        with pytest.raises(YtError): remount_table("//tmp/t", authenticated_user="u")
+        with pytest.raises(YtError): reshard_table("//tmp/t", [[]], authenticated_user="u")
 
     def test_mount_permission_allowed(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         create_user("u")
         set("//tmp/t/@acl/end", {"subjects": ["u"], "permissions": ["mount"], "action": "allow"})
-        self.sync_mount_table("//tmp/t", user="u")
-        self.sync_unmount_table("//tmp/t", user="u")
-        remount_table("//tmp/t", user="u")
-        reshard_table("//tmp/t", [[]], user="u")
+        self.sync_mount_table("//tmp/t", authenticated_user="u")
+        self.sync_unmount_table("//tmp/t", authenticated_user="u")
+        remount_table("//tmp/t", authenticated_user="u")
+        reshard_table("//tmp/t", [[]], authenticated_user="u")
 
     def test_default_cell_bundle(self):
         assert ls("//sys/tablet_cell_bundles") == ["default"]
@@ -397,9 +397,9 @@ class TestTablets(YTEnvSetup):
     def test_cell_bundle_use_permission(self):
         create_tablet_cell_bundle("b")
         create_user("u")
-        with pytest.raises(YtError): create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"}, user="u")
+        with pytest.raises(YtError): create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"}, authenticated_user="u")
         set("//sys/tablet_cell_bundles/b/@acl/end", {"subjects": ["u"], "permissions": ["use"], "action": "allow"})
-        create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"}, user="u")
+        create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"}, authenticated_user="u")
 
     def test_cell_bundle_with_custom_peer_count(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 2}})

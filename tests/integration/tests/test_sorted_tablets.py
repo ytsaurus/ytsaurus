@@ -598,47 +598,47 @@ class TestSortedTablets(YTEnvSetup):
         self._prepare_allowed("read")
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
         expected = [{"key": 1, "value": "test"}]
-        actual = select_rows("* from [//tmp/t]", user="u")
+        actual = select_rows("* from [//tmp/t]", authenticated_user="u")
         assert_items_equal(actual, expected)
 
     def test_select_denied(self):
         self._prepare_denied("read")
-        with pytest.raises(YtError): select_rows("* from [//tmp/t]", user="u")
+        with pytest.raises(YtError): select_rows("* from [//tmp/t]", authenticated_user="u")
 
     def test_lookup_allowed(self):
         self._prepare_allowed("read")
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
         expected = [{"key": 1, "value": "test"}]
-        actual = lookup_rows("//tmp/t", [{"key" : 1}], user="u")
+        actual = lookup_rows("//tmp/t", [{"key" : 1}], authenticated_user="u")
         assert_items_equal(actual, expected)
 
     def test_lookup_denied(self):
         self._prepare_denied("read")
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
-        with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key" : 1}], user="u")
+        with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key" : 1}], authenticated_user="u")
 
     def test_insert_allowed(self):
         self._prepare_allowed("write")
-        insert_rows("//tmp/t", [{"key": 1, "value": "test"}], user="u")
+        insert_rows("//tmp/t", [{"key": 1, "value": "test"}], authenticated_user="u")
         expected = [{"key": 1, "value": "test"}]
         actual = lookup_rows("//tmp/t", [{"key" : 1}])
         assert_items_equal(actual, expected)
 
     def test_insert_denied(self):
         self._prepare_denied("write")
-        with pytest.raises(YtError): insert_rows("//tmp/t", [{"key": 1, "value": "test"}], user="u")
+        with pytest.raises(YtError): insert_rows("//tmp/t", [{"key": 1, "value": "test"}], authenticated_user="u")
 
     def test_delete_allowed(self):
         self._prepare_allowed("write")
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
-        delete_rows("//tmp/t", [{"key": 1}], user="u")
+        delete_rows("//tmp/t", [{"key": 1}], authenticated_user="u")
         expected = []
         actual = lookup_rows("//tmp/t", [{"key" : 1}])
         assert_items_equal(actual, expected)
 
     def test_delete_denied(self):
         self._prepare_denied("write")
-        with pytest.raises(YtError): delete_rows("//tmp/t", [{"key": 1}], user="u")
+        with pytest.raises(YtError): delete_rows("//tmp/t", [{"key": 1}], authenticated_user="u")
 
     def _test_read_from_chunks(self, optimize_for):
         self.sync_create_cells(1)
