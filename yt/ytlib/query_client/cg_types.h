@@ -56,11 +56,6 @@ class TypeBuilder<TRowBuffer*, Cross>
 { };
 
 template <bool Cross>
-class TypeBuilder<TExpressionContext*, Cross>
-    : public TypeBuilder<void*, Cross>
-{ };
-
-template <bool Cross>
 class TypeBuilder<TFunctionContext*, Cross>
     : public TypeBuilder<void*, Cross>
 { };

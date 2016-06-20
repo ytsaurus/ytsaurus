@@ -3,7 +3,7 @@
 #include <yt_udf_cpp.h>
 
 extern "C" void farm_hash(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* args,
     int args_len)

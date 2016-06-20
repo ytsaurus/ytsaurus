@@ -33,6 +33,7 @@ class TCGFunctionContext
 protected:
     std::vector<Value*> OpaqueValues_;
     Value* ExecutionContextPtr_;
+    Value* Buffer_;
 
 public:
     const TCGModulePtr Module;
@@ -76,6 +77,22 @@ public:
     {
         return ViaClosure(ExecutionContextPtr_, "executionContextPtr");
     }
+
+    Value* GetBuffer()
+    {
+        return ViaClosure(Buffer_, "bufferPtr");
+    }
+
+    Value* GetBufferValue()
+    {
+        return Buffer_;
+    }
+
+    void SetBuffer(Value* buffer)
+    {
+        Buffer_ = buffer;
+    }
+
 };
 
 Value* CodegenValuesPtrFromRow(TCGIRBuilder&, Value*);

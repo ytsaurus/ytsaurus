@@ -22,7 +22,7 @@ using NCodegen::DemangleSymbol;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const char* ExecutionContextStructName = "struct.TExecutionContext";
+static const char* ExecutionContextStructName = "struct.TExpressionContext";
 static const char* FunctionContextStructName = "struct.NYT::NQueryClient::TFunctionContext";
 static const char* UnversionedValueStructName = "struct.TUnversionedValue";
 
@@ -57,7 +57,7 @@ void PushExecutionContext(
     TCGContext& builder,
     std::vector<Value*>& argumentValues)
 {
-    auto fullContext = builder.GetExecutionContextPtr();
+    auto fullContext = builder.GetBuffer();
     auto contextType = GetOpaqueType(builder, ExecutionContextStructName);
     auto contextStruct = builder.CreateBitCast(
         fullContext,

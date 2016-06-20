@@ -100,7 +100,7 @@ using TJoinEvaluator = std::function<void(
     std::vector<std::pair<TRow, i64>> chainedRows,
     TRowBufferPtr permanentBuffer,
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRow* rows, i64 size))>;
+    void (*consumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size))>;
 
 struct TJoinClosure
 {
@@ -154,10 +154,7 @@ struct TWriteOpClosure
     std::vector<TRow> OutputRowsBatch;
 };
 
-struct TExpressionContext
-{
-    TRowBufferPtr IntermediateBuffer;
-};
+typedef TRowBuffer TExpressionContext;
 
 #ifndef NDEBUG
 #define CHECK_STACK() \
@@ -171,12 +168,9 @@ struct TExpressionContext
 #endif
 
 struct TExecutionContext
-    : public TExpressionContext
 {
     ISchemafulReaderPtr Reader;
     ISchemafulWriterPtr Writer;
-
-    TRowBufferPtr PermanentBuffer;
 
     TQueryStatistics* Statistics;
 
@@ -295,10 +289,10 @@ private:
 
 typedef void (TCGQuerySignature)(void* const*, TExecutionContext*);
 typedef void (TCGExpressionSignature)(void* const*, TValue*, TRow, TExpressionContext*);
-typedef void (TCGAggregateInitSignature)(TExecutionContext*, TValue*);
-typedef void (TCGAggregateUpdateSignature)(TExecutionContext*, TValue*, const TValue*, const TValue*);
-typedef void (TCGAggregateMergeSignature)(TExecutionContext*, TValue*, const TValue*, const TValue*);
-typedef void (TCGAggregateFinalizeSignature)(TExecutionContext*, TValue*, const TValue*);
+typedef void (TCGAggregateInitSignature)(TExpressionContext*, TValue*);
+typedef void (TCGAggregateUpdateSignature)(TExpressionContext*, TValue*, const TValue*, const TValue*);
+typedef void (TCGAggregateMergeSignature)(TExpressionContext*, TValue*, const TValue*, const TValue*);
+typedef void (TCGAggregateFinalizeSignature)(TExpressionContext*, TValue*, const TValue*);
 
 using TCGQueryCallback = NCodegen::TCGFunction<TCGQuerySignature>;
 using TCGExpressionCallback = NCodegen::TCGFunction<TCGExpressionSignature>;

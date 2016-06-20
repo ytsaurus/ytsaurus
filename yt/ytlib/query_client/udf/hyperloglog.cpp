@@ -13,10 +13,10 @@ static uint64_t Hash(TUnversionedValue* v)
 typedef NYT::THyperLogLog<14> THLL;
 
 extern "C" void cardinality_init(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result)
 {
-    auto hll = AllocatePermanentBytes(context, sizeof(THLL));
+    auto hll = AllocateBytes(context, sizeof(THLL));
     new (hll) THLL();
 
     result->Type = EValueType::String;
@@ -25,7 +25,7 @@ extern "C" void cardinality_init(
 }
 
 extern "C" void cardinality_update(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state,
     TUnversionedValue* newValue)
@@ -39,7 +39,7 @@ extern "C" void cardinality_update(
 }
 
 extern "C" void cardinality_merge(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state1,
     TUnversionedValue* state2)
@@ -54,7 +54,7 @@ extern "C" void cardinality_merge(
 }
 
 extern "C" void cardinality_finalize(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state)
 {

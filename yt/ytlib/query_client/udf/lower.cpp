@@ -5,7 +5,7 @@
 #include <ctype.h>
 
 extern "C" void lower(
-    TExecutionContext* context,
+    TExpressionContext* context,
     char** result,
     int* result_len,
     char* s,
