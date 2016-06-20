@@ -1220,6 +1220,8 @@ private:
             if (transaction) {
                 YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
             }
+            // TODO(babenko): consider serializing TabletCells
+            YCHECK(cell->GetCellBundle()->TabletCells().insert(cell).second);
         }
 
         // COMPAT(babenko)
