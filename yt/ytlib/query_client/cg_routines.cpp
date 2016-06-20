@@ -296,11 +296,6 @@ void AllocatePermanentRow(TExecutionContext* context, TRowBuffer* buffer, int va
     *row = buffer->Allocate(valueCount);
 }
 
-void AllocateIntermediateRow(TExpressionContext* context, int valueCount, TMutableRow* row)
-{
-    *row = context->IntermediateBuffer->Allocate(valueCount);
-}
-
 void AddRow(TTopCollector* topCollector, TRow row)
 {
     topCollector->AddRow(row);
@@ -625,7 +620,6 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(GroupOpHelper);
     REGISTER_ROUTINE(StringHash);
     REGISTER_ROUTINE(AllocatePermanentRow);
-    REGISTER_ROUTINE(AllocateIntermediateRow);
     REGISTER_ROUTINE(AllocatePermanentBytes);
     REGISTER_ROUTINE(AllocateBytes);
     REGISTER_ROUTINE(IsRowInArray);

@@ -951,33 +951,22 @@ TCodegenExpression MakeCodegenInOpExpr(
     ] (TCGContext& builder, Value* row) {
         size_t keySize = codegenArgs.size();
 
-        Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-        Value* executionContextPtrRef = builder.GetExecutionContextPtr();
-
-        builder.CreateCall(
-            builder.Module->GetRoutine("AllocateIntermediateRow"),
-            {
-                executionContextPtrRef,
-                builder.getInt32(keySize),
-                newRowPtr
-            });
-
-        Value* newRowRef = builder.CreateLoad(newRowPtr);
+        Value* newRow = CodegenAllocateRow(builder, keySize);
 
         std::vector<EValueType> keyTypes;
         for (int index = 0; index < keySize; ++index) {
             auto id = index;
             auto value = codegenArgs[index](builder, row);
             keyTypes.push_back(value.GetStaticType());
-            value.StoreToRow(builder, newRowRef, index, id);
+            value.StoreToRow(builder, newRow, index, id);
         }
 
         Value* result = builder.CreateCall(
             builder.Module->GetRoutine("IsRowInArray"),
             {
-                executionContextPtrRef,
+                 builder.GetExecutionContextPtr(),
                 CodegenRowComparerFunction(keyTypes, *builder.Module),
-                newRowRef,
+                newRow,
                 builder.GetOpaqueValue(arrayIndex)
             });
 
