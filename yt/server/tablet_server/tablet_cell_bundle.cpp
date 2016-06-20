@@ -1,4 +1,5 @@
 #include "tablet_cell_bundle.h"
+#include "tablet_cell.h"
 
 #include <yt/ytlib/tablet_client/config.h>
 
@@ -26,6 +27,7 @@ void TTabletCellBundle::Save(TSaveContext& context) const
     Save(context, Acd_);
     Save(context, *Options_);
     Save(context, NodeTag_);
+    Save(context, TabletCells_);
 }
 
 void TTabletCellBundle::Load(TLoadContext& context)
@@ -42,6 +44,10 @@ void TTabletCellBundle::Load(TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 400) {
         Load(context, NodeTag_);
+    }
+    // COMAPT(babenko)
+    if (context.GetVersion() >= 402) {
+        Load(context, TabletCells_);
     }
 }
 
