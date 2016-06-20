@@ -12,7 +12,7 @@ message TReqPrepareTransactionCommit
 message TReqCommitTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required int64 commit_timestamp = 2;
+    required uint64 commit_timestamp = 2;
 }
 
 message TReqAbortTransaction
