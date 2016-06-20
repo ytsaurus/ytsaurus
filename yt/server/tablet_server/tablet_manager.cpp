@@ -1903,8 +1903,8 @@ private:
                 "AttachedRowCount: %v, DetachedRowCount: %v)",
                 table->GetId(),
                 tabletId,
-                ToObjectIds(chunksToAttach),
-                ToObjectIds(chunksToDetach),
+                MakeFormattableRange(chunksToAttach, TObjectIdFormatter()),
+                MakeFormattableRange(chunksToDetach, TObjectIdFormatter()),
                 attachedRowCount,
                 detachedRowCount);
         } catch (const std::exception& ex) {
