@@ -3,7 +3,7 @@ import time
 import datetime
 import pytz
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, make_ace
 from yt_commands import *
 from yt.yson import to_yson_type, YsonEntity
 from datetime import timedelta
@@ -495,7 +495,7 @@ class TestCypress(YTEnvSetup):
     def test_copy_acd(self):
         create("table", "//tmp/t1")
         set("//tmp/t1/@inherit_acl", False)
-        set("//tmp/t1/@acl", [{"action": "deny", "permissions": ["write"], "subjects": ["guest"]}])
+        set("//tmp/t1/@acl", [make_ace("deny", "guest", "write")])
         copy("//tmp/t1", "//tmp/t2")
         assert not get("//tmp/t2/@inherit_acl")
         assert len(get("//tmp/t2/@acl")) == 1
@@ -967,8 +967,8 @@ class TestCypress(YTEnvSetup):
         create_user("u")
         create("table", "//tmp/t")
         set("//tmp/t/@acl", [
-            {"action": "allow", "subjects": ["u"], "permissions": ["write"]},
-            {"action": "deny", "subjects": ["u"], "permissions": ["remove"]}])
+            make_ace("allow", "u", "write"),
+            make_ace("deny", "u", "remove")])
         with pytest.raises(YtError):
             set("//tmp/t/@expiration_time", str(self._now()), authenticated_user="u")
 
@@ -977,8 +977,8 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/m")
         create("table", "//tmp/m/t")
         set("//tmp/m/t/@acl", [
-            {"action": "allow", "subjects": ["u"], "permissions": ["write"]},
-            {"action": "deny", "subjects": ["u"], "permissions": ["remove"]}])
+            make_ace("allow", "u", "write"),
+            make_ace("deny", "u", "remove")])
         with pytest.raises(YtError):
             set("//tmp/m/@expiration_time", str(self._now()), authenticated_user="u")
 
@@ -986,15 +986,14 @@ class TestCypress(YTEnvSetup):
         create_user("u")
         create("table", "//tmp/t", attributes={"expiration_time": "2030-04-03T21:25:29.000000Z"})
         set("//tmp/t/@acl", [
-            {"action": "allow", "subjects": ["u"], "permissions": ["write"]},
-            {"action": "deny", "subjects": ["u"], "permissions": ["remove"]}])
+            make_ace("allow", "u", "write"),
+            make_ace("deny", "u", "remove")])
         remove("//tmp/t/@expiration_time", authenticated_user="u")
 
     def test_expiration_time_reset_requires_write_permission_failure(self):
         create_user("u")
         create("table", "//tmp/t", attributes={"expiration_time": "2030-04-03T21:25:29.000000Z"})
-        set("//tmp/t/@acl", [
-            {"action": "deny", "subjects": ["u"], "permissions": ["write"]}])
+        set("//tmp/t/@acl", [make_ace("deny", "u", "write")])
         with pytest.raises(YtError):
             remove("//tmp/t/@expiration_time", authenticated_user="u")
 

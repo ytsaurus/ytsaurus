@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, make_schema
+from yt_env_setup import YTEnvSetup, make_schema, make_ace
 from yt_commands import *
 
 import time
@@ -221,12 +221,12 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"}, authenticated_user="u")
 
-        set("//tmp/t1/@acl/end", {"action": "deny", "subjects": ["u"], "permissions": ["read"]}, driver=self.remote_driver)
+        set("//tmp/t1/@acl/end", make_ace("deny", "u", "read"), driver=self.remote_driver)
         with pytest.raises(YtError):
             remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"}, authenticated_user="u")
         set("//tmp/t1/@acl", [], driver=self.remote_driver)
 
-        set("//sys/schemas/transaction/@acl/end", {"action": "deny", "subjects": ["u"], "permissions": ["create"]}, driver=self.remote_driver)
+        set("//sys/schemas/transaction/@acl/end", make_ace("deny", "u", "create"), driver=self.remote_driver)
         with pytest.raises(YtError):
             remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"}, authenticated_user="u")
 

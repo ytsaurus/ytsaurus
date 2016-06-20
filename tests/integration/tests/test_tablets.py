@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import YTEnvSetup, wait, make_ace
 from yt_commands import *
 from yt.yson import YsonEntity, YsonList
 
@@ -310,7 +310,7 @@ class TestTablets(YTEnvSetup):
     def test_tablet_cell_create_permission(self):
         create_user("u")
         with pytest.raises(YtError): create_tablet_cell(authenticated_user="u")
-        set("//sys/schemas/tablet_cell/@acl/end", {"subjects": ["u"], "permissions": ["create"], "action": "allow"})
+        set("//sys/schemas/tablet_cell/@acl/end", make_ace("allow", "u", "create"))
         id = create_tablet_cell(authenticated_user="u")
         assert exists("//sys/tablet_cells/{0}/changelogs".format(id))
         assert exists("//sys/tablet_cells/{0}/snapshots".format(id))
@@ -318,7 +318,7 @@ class TestTablets(YTEnvSetup):
     def test_tablet_cell_bundle_create_permission(self):
         create_user("u")
         with pytest.raises(YtError): create_tablet_cell_bundle("b", authenticated_user="u")
-        set("//sys/schemas/tablet_cell_bundle/@acl/end", {"subjects": ["u"], "permissions": ["create"], "action": "allow"})
+        set("//sys/schemas/tablet_cell_bundle/@acl/end", make_ace("allow", "u", "create"))
         create_tablet_cell_bundle("b", authenticated_user="u")
 
     def test_validate_dynamic_attr(self):
@@ -349,7 +349,7 @@ class TestTablets(YTEnvSetup):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         create_user("u")
-        set("//tmp/t/@acl/end", {"subjects": ["u"], "permissions": ["mount"], "action": "allow"})
+        set("//tmp/t/@acl/end", make_ace("allow", "u", "mount"))
         self.sync_mount_table("//tmp/t", authenticated_user="u")
         self.sync_unmount_table("//tmp/t", authenticated_user="u")
         remount_table("//tmp/t", authenticated_user="u")
@@ -398,7 +398,7 @@ class TestTablets(YTEnvSetup):
         create_tablet_cell_bundle("b")
         create_user("u")
         with pytest.raises(YtError): create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"}, authenticated_user="u")
-        set("//sys/tablet_cell_bundles/b/@acl/end", {"subjects": ["u"], "permissions": ["use"], "action": "allow"})
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "use"))
         create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"}, authenticated_user="u")
 
     def test_cell_bundle_with_custom_peer_count(self):

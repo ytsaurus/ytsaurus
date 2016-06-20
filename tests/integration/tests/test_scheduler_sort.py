@@ -1,7 +1,7 @@
 import pytest
 
 from random import shuffle
-from yt_env_setup import YTEnvSetup, make_schema
+from yt_env_setup import YTEnvSetup, make_schema, make_ace
 from yt_commands import *
 
 
@@ -195,7 +195,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                  spec={"intermediate_data_account": "test_account"},
                  authenticated_user="test_user")
 
-        set("//sys/accounts/test_account/@acl", [{"action": "allow", "permissions": ["use"], "subjects": ["test_user"]}])
+        set("//sys/accounts/test_account/@acl", [make_ace("allow", "test_user", "use")])
 
         sort(in_="//tmp/t_in",
              out="//tmp/t_out",

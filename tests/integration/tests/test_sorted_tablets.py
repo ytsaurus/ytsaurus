@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, make_schema, wait
+from yt_env_setup import YTEnvSetup, make_schema, make_ace, wait
 from yt_commands import *
 from yt.yson import YsonEntity, YsonList
 
@@ -585,14 +585,14 @@ class TestSortedTablets(YTEnvSetup):
         self.sync_mount_table("//tmp/t")
         create_user("u")
         set("//tmp/t/@inherit_acl", False)
-        set("//tmp/t/@acl", [{"permissions": [permission], "action": "allow", "subjects": ["u"]}])
+        set("//tmp/t/@acl", [make_ace("allow", "u", permission)])
 
     def _prepare_denied(self, permission):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
         create_user("u")
-        set("//tmp/t/@acl", [{"permissions": [permission], "action": "deny", "subjects": ["u"]}])
+        set("//tmp/t/@acl", [make_ace("deny", "u", permission)])
 
     def test_select_allowed(self):
         self._prepare_allowed("read")
