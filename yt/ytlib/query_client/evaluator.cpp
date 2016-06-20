@@ -98,15 +98,9 @@ public:
 
                 LOG_DEBUG("Evaluating plan fragment");
 
-                auto permanentBuffer = New<TRowBuffer>(TEvaluatorBufferTag());
-                auto intermediateBuffer = New<TRowBuffer>(TEvaluatorBufferTag());
-
                 // NB: function contexts need to be destroyed before cgQuery since it hosts destructors.
                 TExecutionContext executionContext;
                 executionContext.Reader = reader;
-
-                executionContext.PermanentBuffer = permanentBuffer;
-                executionContext.IntermediateBuffer = intermediateBuffer;
                 executionContext.Writer = writer;
                 executionContext.Statistics = &statistics;
                 executionContext.InputRowLimit = query->InputRowLimit;
@@ -128,12 +122,6 @@ public:
                     cgQuery,
                     fragmentParams.GetOpaqueData(),
                     &executionContext);
-
-                LOG_DEBUG("Finished evaluating plan fragment ("
-                    "PermanentBufferCapacity: %v, "
-                    "IntermediateBufferCapacity: %v)",
-                    permanentBuffer->GetCapacity(),
-                    intermediateBuffer->GetCapacity());
 
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;

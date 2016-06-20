@@ -964,7 +964,6 @@ TCodegenExpression MakeCodegenInOpExpr(
         Value* result = builder.CreateCall(
             builder.Module->GetRoutine("IsRowInArray"),
             {
-                 builder.GetExecutionContextPtr(),
                 CodegenRowComparerFunction(keyTypes, *builder.Module),
                 newRow,
                 builder.GetOpaqueValue(arrayIndex)
@@ -987,11 +986,13 @@ void CodegenScanOp(
     TCGContext& builder,
     const TCodegenConsumer& codegenConsumer)
 {
-    auto consume = MakeClosure<void(TRow*, i64)>(builder, "ScanOpInner", [&] (
+    auto consume = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "ScanOpInner", [&] (
         TCGContext& builder,
+        Value* buffer,
         Value* rows,
         Value* size
     ) {
+        builder.SetBuffer(buffer);
         CodegenForEachRow(builder, rows, size, codegenConsumer);
         builder.CreateRetVoid();
     });
@@ -1088,11 +1089,13 @@ TCodegenSource MakeCodegenJoinOp(
         });
 
 
-        auto consumeJoinedRows = MakeClosure<void(TRow*, i64)>(builder, "ConsumeJoinedRows", [&] (
+        auto consumeJoinedRows = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "ConsumeJoinedRows", [&] (
             TCGContext& builder,
+            Value* buffer,
             Value* joinedRows,
             Value* size
         ) {
+            builder.SetBuffer(buffer);
             CodegenForEachRow(
                 builder,
                 joinedRows,
@@ -1418,6 +1421,10 @@ TCodegenSource MakeCodegenGroupOp(
                             newRowRef,
                             TypeBuilder<TRow, false>::Fields::Header));
 
+                    Value* intermediateBuffer = builder.GetBufferValue();
+
+                    builder.SetBuffer(bufferRef);
+
                     CodegenIf<TCGContext>(
                         builder,
                         inserted,
@@ -1437,18 +1444,23 @@ TCodegenSource MakeCodegenGroupOp(
                     // Here *newRowPtrRef != groupRow.
                     auto newRow = builder.CreateLoad(newRowPtrRef);
 
+                    builder.SetBuffer(intermediateBuffer);
                     codegenEvaluateAggregateArgs(builder, row, newRow);
+                    builder.SetBuffer(bufferRef);
                     codegenUpdate(builder, newRow, groupRow);
+                    builder.SetBuffer(intermediateBuffer);
                 });
 
             builder.CreateRetVoid();
         });
 
-        auto consume = MakeClosure<void(TRow*, i64)>(builder, "Consume", [&] (
+        auto consume = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "Consume", [&] (
             TCGContext& builder,
+            Value* buffer,
             Value* finalGroupedRows,
             Value* size
         ) {
+            builder.SetBuffer(buffer);
             auto codegenFinalizingConsumer = [
                 MOVE(codegenConsumer),
                 MOVE(codegenFinalize)
@@ -1539,11 +1551,13 @@ TCodegenSource MakeCodegenOrderOp(
             builder.CreateRetVoid();
         });
 
-        auto consumeOrderedRows = MakeClosure<void(TRow*, i64)>(builder, "ConsumeOrderedRows", [&] (
+        auto consumeOrderedRows = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "ConsumeOrderedRows", [&] (
             TCGContext& builder,
+            Value* buffer,
             Value* orderedRows,
             Value* size
         ) {
+            builder.SetBuffer(buffer);
             CodegenForEachRow(
                 builder,
                 orderedRows,
@@ -1645,7 +1659,7 @@ TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression, si
         Value* opaqueValues,
         Value* resultPtr,
         Value* inputRow,
-        Value* executionContextPtr
+        Value* expressionContextPtr
     ) {
         TCGContext builder(
             baseBuilder,
@@ -1653,8 +1667,9 @@ TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression, si
                 baseBuilder,
                 opaqueValues,
                 opaqueValuesCount,
-                executionContextPtr,
+                nullptr,
                 module));
+        builder.SetBuffer(expressionContextPtr);
 
         auto result = codegenExpression(builder, inputRow);
         result.StoreToValue(builder, resultPtr, 0, "writeResult");
@@ -1674,7 +1689,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
     {
         MakeFunction<TCGAggregateInitSignature>(module->GetModule(), initName.c_str(), [&] (
             TCGIRBuilder& baseBuilder,
-            Value* executionContextPtr,
+            Value* expressionContextPtr,
             Value* resultPtr
         ) {
             TCGContext builder(
@@ -1683,8 +1698,9 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
                     baseBuilder,
                     nullptr,
                     0,
-                    executionContextPtr,
+                    nullptr,
                     module));
+            builder.SetBuffer(expressionContextPtr);
 
             auto result = codegenAggregate.Initialize(builder, nullptr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");
@@ -1698,7 +1714,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
     {
         MakeFunction<TCGAggregateUpdateSignature>(module->GetModule(), updateName.c_str(), [&] (
             TCGIRBuilder& baseBuilder,
-            Value* executionContextPtr,
+            Value* expressionContextPtr,
             Value* resultPtr,
             Value* statePtr,
             Value* newValuePtr
@@ -1709,8 +1725,9 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
                     baseBuilder,
                     nullptr,
                     0,
-                    executionContextPtr,
+                    nullptr,
                     module));
+            builder.SetBuffer(expressionContextPtr);
 
             auto result = codegenAggregate.Update(builder, statePtr, newValuePtr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");
@@ -1724,7 +1741,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
     {
         MakeFunction<TCGAggregateMergeSignature>(module->GetModule(), mergeName.c_str(), [&] (
             TCGIRBuilder& baseBuilder,
-            Value* executionContextPtr,
+            Value* expressionContextPtr,
             Value* resultPtr,
             Value* dstStatePtr,
             Value* statePtr
@@ -1735,8 +1752,9 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
                     baseBuilder,
                     nullptr,
                     0,
-                    executionContextPtr,
+                    nullptr,
                     module));
+            builder.SetBuffer(expressionContextPtr);
 
             auto result = codegenAggregate.Merge(builder, dstStatePtr, statePtr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");
@@ -1750,7 +1768,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
     {
         MakeFunction<TCGAggregateFinalizeSignature>(module->GetModule(), finalizeName.c_str(), [&] (
             TCGIRBuilder& baseBuilder,
-            Value* executionContextPtr,
+            Value* expressionContextPtr,
             Value* resultPtr,
             Value* statePtr
         ) {
@@ -1760,8 +1778,9 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
                     baseBuilder,
                     nullptr,
                     0,
-                    executionContextPtr,
+                    nullptr,
                     module));
+            builder.SetBuffer(expressionContextPtr);
 
             auto result = codegenAggregate.Finalize(builder, statePtr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");

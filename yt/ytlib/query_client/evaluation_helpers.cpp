@@ -226,7 +226,7 @@ TJoinEvaluator GetJoinEvaluator(
         std::vector<std::pair<TRow, i64>> chainedRows,
         TRowBufferPtr permanentBuffer,
         void** consumeRowsClosure,
-        void (*consumeRows)(void** closure, TRow* rows, i64 size))
+        void (*consumeRows)(void** closure, TRowBuffer* ,TRow* rows, i64 size))
     {
         // TODO: keys should be joined with allRows: [(key, sourceRow)]
         TRowRanges ranges;
@@ -278,11 +278,11 @@ TJoinEvaluator GetJoinEvaluator(
         auto reader = pipe->GetReader();
 
         std::vector<TRow> joinedRows;
-        TRowBufferPtr intermediateBuffer = context->IntermediateBuffer;
+        auto intermediateBuffer = New<TRowBuffer>();
 
         auto consumeJoinedRows = [&] () {
             // Consume joined rows.
-            consumeRows(consumeRowsClosure, joinedRows.data(), joinedRows.size());
+            consumeRows(consumeRowsClosure, intermediateBuffer.Get(), joinedRows.data(), joinedRows.size());
             joinedRows.clear();
             intermediateBuffer->Clear();
         };

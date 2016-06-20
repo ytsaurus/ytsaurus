@@ -89,6 +89,7 @@ function(UDF udf output type)
       for f in ${_realpath} ${_extrafiles}\; do
         ${_compiler} -c
           -emit-llvm
+          -g
           -DYT_COMPILING_UDF
           -DNDEBUG
           ${_options}

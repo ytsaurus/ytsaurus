@@ -80,15 +80,11 @@ void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buf
     const auto& evaluator = column.Evaluator;
     YCHECK(evaluator);
 
-    TExecutionContext executionContext;
-    executionContext.PermanentBuffer = buffer;
-    executionContext.IntermediateBuffer = buffer;
-
     evaluator(
         column.Variables.GetOpaqueData(),
         &fullRow[index],
         fullRow,
-        &executionContext);
+        buffer.Get());
 
     fullRow[index].Id = index;
 }
@@ -127,13 +123,9 @@ void TColumnEvaluator::InitAggregate(
     TUnversionedValue* state,
     const TRowBufferPtr& buffer) const
 {
-    TExecutionContext executionContext;
-    executionContext.PermanentBuffer = buffer;
-    executionContext.IntermediateBuffer = buffer;
-
     auto found = Aggregates_.find(index);
     YCHECK(found != Aggregates_.end());
-    found->second.Init(&executionContext, state);
+    found->second.Init(buffer.Get(), state);
     state->Id = index;
 }
 
@@ -144,13 +136,9 @@ void TColumnEvaluator::UpdateAggregate(
     const TUnversionedValue& update,
     const TRowBufferPtr& buffer) const
 {
-    TExecutionContext executionContext;
-    executionContext.PermanentBuffer = buffer;
-    executionContext.IntermediateBuffer = buffer;
-
     auto found = Aggregates_.find(index);
     YCHECK(found != Aggregates_.end());
-    found->second.Update(&executionContext, result, &state, &update);
+    found->second.Update(buffer.Get(), result, &state, &update);
     result->Id = index;
 }
 
@@ -161,13 +149,9 @@ void TColumnEvaluator::MergeAggregate(
     const TUnversionedValue& mergeeState,
     const TRowBufferPtr& buffer) const
 {
-    TExecutionContext executionContext;
-    executionContext.PermanentBuffer = buffer;
-    executionContext.IntermediateBuffer = buffer;
-
     auto found = Aggregates_.find(index);
     YCHECK(found != Aggregates_.end());
-    found->second.Merge(&executionContext, result, &state, &mergeeState);
+    found->second.Merge(buffer.Get(), result, &state, &mergeeState);
     result->Id = index;
 }
 
@@ -177,13 +161,9 @@ void TColumnEvaluator::FinalizeAggregate(
     const TUnversionedValue& state,
     const TRowBufferPtr& buffer) const
 {
-    TExecutionContext executionContext;
-    executionContext.PermanentBuffer = buffer;
-    executionContext.IntermediateBuffer = buffer;
-
     auto found = Aggregates_.find(index);
     YCHECK(found != Aggregates_.end());
-    found->second.Finalize(&executionContext, result, &state);
+    found->second.Finalize(buffer.Get(), result, &state);
     result->Id = index;
 }
 

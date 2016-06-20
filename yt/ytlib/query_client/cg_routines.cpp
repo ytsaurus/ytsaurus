@@ -94,7 +94,7 @@ void WriteRow(TRow row, TExecutionContext* context, TWriteOpClosure* closure)
 void ScanOpHelper(
     TExecutionContext* context,
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRow* rows, i64 size))
+    void (*consumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size))
 {
     auto& reader = context->Reader;
 
@@ -102,6 +102,8 @@ void ScanOpHelper(
     rows.reserve(RowsetProcessingSize);
 
     auto* statistics = context->Statistics;
+
+    auto rowBuffer = New<TRowBuffer>();
 
     while (true) {
         bool hasMoreData;
@@ -127,9 +129,9 @@ void ScanOpHelper(
         }
         statistics->RowsRead += rows.size();
 
-        consumeRows(consumeRowsClosure, rows.data(), rows.size());
+        consumeRows(consumeRowsClosure, rowBuffer.Get(), rows.data(), rows.size());
         rows.clear();
-        context->IntermediateBuffer->Clear();
+        rowBuffer->Clear();
 
         if (!hasMoreData) {
             break;
@@ -187,7 +189,7 @@ void JoinOpHelper(
         TJoinClosure* joinClosure,
         TRowBuffer* buffer),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRow* rows, i64 size))
+    void (*consumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size))
 {
     TJoinClosure closure(lookupHasher, lookupEqComparer, keySize);
 
@@ -266,7 +268,7 @@ void GroupOpHelper(
         TGroupByClosure* groupByClosure,
         TRowBuffer* buffer),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRow* rows, i64 size))
+    void (*consumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size))
 {
     TGroupByClosure closure(groupHasher, groupComparer, keySize, checkNulls);
 
@@ -282,10 +284,12 @@ void GroupOpHelper(
     LOG_DEBUG("Collected %v group rows",
         closure.GroupedRows.size());
 
+    auto intermediateBuffer = New<TRowBuffer>();
+
     for (size_t index = 0; index < closure.GroupedRows.size(); index += RowsetProcessingSize) {
         auto size = std::min(RowsetProcessingSize, closure.GroupedRows.size() - index);
-        consumeRows(consumeRowsClosure, closure.GroupedRows.data() + index, size);
-        context->IntermediateBuffer->Clear();
+        consumeRows(consumeRowsClosure, intermediateBuffer.Get(), closure.GroupedRows.data() + index, size);
+        intermediateBuffer->Clear();
     }
 }
 
@@ -307,7 +311,7 @@ void OrderOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TTopCollector* topCollector),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRow* rows, i64 size),
+    void (*consumeRows)(void** closure, TRowBuffer* ,TRow* rows, i64 size),
     int rowSize)
 {
     auto limit = context->Limit;
@@ -316,10 +320,12 @@ void OrderOpHelper(
     collectRows(collectRowsClosure, &topCollector);
     auto rows = topCollector.GetRows(rowSize);
 
+    auto rowBuffer = New<TRowBuffer>();
+
     for (size_t index = 0; index < rows.size(); index += RowsetProcessingSize) {
         auto size = std::min(RowsetProcessingSize, rows.size() - index);
-        consumeRows(consumeRowsClosure, rows.data() + index, size);
-        context->IntermediateBuffer->Clear();
+        consumeRows(consumeRowsClosure, rowBuffer.Get(), rows.data() + index, size);
+        rowBuffer->Clear();
     }
 }
 
@@ -368,17 +374,6 @@ void WriteOpHelper(
 char* AllocateBytes(TExpressionContext* context, size_t byteCount)
 {
     return context
-        ->IntermediateBuffer
-        ->GetPool()
-        ->AllocateUnaligned(byteCount);
-}
-
-char* AllocatePermanentBytes(TExecutionContext* context, size_t byteCount)
-{
-    CHECK_STACK();
-
-    return context
-        ->PermanentBuffer
         ->GetPool()
         ->AllocateUnaligned(byteCount);
 }
@@ -386,13 +381,10 @@ char* AllocatePermanentBytes(TExecutionContext* context, size_t byteCount)
 ////////////////////////////////////////////////////////////////////////////////
 
 char IsRowInArray(
-    TExpressionContext* context,
     TComparerFunction* comparer,
     TRow row,
     TSharedRange<TRow>* rows)
 {
-    CHECK_STACK();
-
     return std::binary_search(rows->Begin(), rows->End(), row, comparer);
 }
 
@@ -520,7 +512,7 @@ ui8 RegexPartialMatch(google::re2::RE2* re2, TUnversionedValue* string)
         *re2);
 }
 
-void CopyString(TExecutionContext* context, TUnversionedValue* result, const std::string& str)
+void CopyString(TExpressionContext* context, TUnversionedValue* result, const std::string& str)
 {
     char* data = AllocateBytes(context, str.size());
     memcpy(data, str.c_str(), str.size());
@@ -530,7 +522,7 @@ void CopyString(TExecutionContext* context, TUnversionedValue* result, const std
 }
 
 void RegexReplaceFirst(
-    TExecutionContext* context,
+    TExpressionContext* context,
     google::re2::RE2* re2,
     TUnversionedValue* string,
     TUnversionedValue* rewrite,
@@ -550,7 +542,7 @@ void RegexReplaceFirst(
 
 
 void RegexReplaceAll(
-    TExecutionContext* context,
+    TExpressionContext* context,
     google::re2::RE2* re2,
     TUnversionedValue* string,
     TUnversionedValue* rewrite,
@@ -569,7 +561,7 @@ void RegexReplaceAll(
 }
 
 void RegexExtract(
-    TExecutionContext* context,
+    TExpressionContext* context,
     google::re2::RE2* re2,
     TUnversionedValue* string,
     TUnversionedValue* rewrite,
@@ -589,7 +581,7 @@ void RegexExtract(
 }
 
 void RegexEscape(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* string,
     TUnversionedValue* result)
 {
@@ -620,7 +612,6 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(GroupOpHelper);
     REGISTER_ROUTINE(StringHash);
     REGISTER_ROUTINE(AllocatePermanentRow);
-    REGISTER_ROUTINE(AllocatePermanentBytes);
     REGISTER_ROUTINE(AllocateBytes);
     REGISTER_ROUTINE(IsRowInArray);
     REGISTER_ROUTINE(SimpleHash);

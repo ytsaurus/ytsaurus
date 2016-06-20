@@ -768,18 +768,9 @@ TEST_P(TArithmeticTest, Evaluate)
     auto callback = Profile(expr, schema, nullptr, &variables)();
     auto row = NTableClient::BuildRow(Stroka("k=") + lhs + ";l=" + rhs, schema, true);
 
-    TQueryStatistics statistics;
-    auto permanentBuffer = New<TRowBuffer>();
-    auto outputBuffer = New<TRowBuffer>();
-    auto intermediateBuffer = New<TRowBuffer>();
+    auto buffer = New<TRowBuffer>();
 
-    // NB: function contexts need to be destroyed before callback since it hosts destructors.
-    TExecutionContext executionContext;
-    executionContext.PermanentBuffer = permanentBuffer;
-    executionContext.IntermediateBuffer = intermediateBuffer;
-    executionContext.Statistics = &statistics;
-
-    callback(variables.GetOpaqueData(), &result, row, &executionContext);
+    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -850,18 +841,9 @@ TEST_P(TCompareWithNullTest, Simple)
     auto expr = PrepareExpression(exprString, schema);
     auto callback = Profile(expr, schema, nullptr, &variables)();
 
-    TQueryStatistics statistics;
-    auto permanentBuffer = New<TRowBuffer>();
-    auto outputBuffer = New<TRowBuffer>();
-    auto intermediateBuffer = New<TRowBuffer>();
+    auto buffer = New<TRowBuffer>();
 
-    // NB: function contexts need to be destroyed before callback since it hosts destructors.
-    TExecutionContext executionContext;
-    executionContext.PermanentBuffer = permanentBuffer;
-    executionContext.IntermediateBuffer = intermediateBuffer;
-    executionContext.Statistics = &statistics;
-
-    callback(variables.GetOpaqueData(), &result, row, &executionContext);
+    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(rowString) << std::endl
@@ -918,32 +900,29 @@ TEST_P(TEvaluateAggregationTest, Basic)
     auto intermediateBuffer = New<TRowBuffer>();
 
     auto buffer = New<TRowBuffer>();
-    TExecutionContext executionContext;
-    executionContext.PermanentBuffer = buffer;
-    executionContext.IntermediateBuffer = buffer;
 
     TUnversionedValue tmp;
     TUnversionedValue state1;
-    callbacks.Init(&executionContext, &state1);
+    callbacks.Init(buffer.Get(), &state1);
     EXPECT_EQ(EValueType::Null, state1.Type);
 
-    callbacks.Update(&executionContext, &tmp, &state1, &value1);
+    callbacks.Update(buffer.Get(), &tmp, &state1, &value1);
     state1 = tmp;
     EXPECT_EQ(value1, state1);
 
     TUnversionedValue state2;
-    callbacks.Init(&executionContext, &state2);
+    callbacks.Init(buffer.Get(), &state2);
     EXPECT_EQ(EValueType::Null, state2.Type);
 
-    callbacks.Update(&executionContext, &tmp, &state2, &value2);
+    callbacks.Update(buffer.Get(), &tmp, &state2, &value2);
     state2 = tmp;
     EXPECT_EQ(value2, state2);
 
-    callbacks.Merge(&executionContext, &tmp, &state1, &state2);
+    callbacks.Merge(buffer.Get(), &tmp, &state1, &state2);
     EXPECT_EQ(expected, tmp);
 
     TUnversionedValue result;
-    callbacks.Finalize(&executionContext, &result, &tmp);
+    callbacks.Finalize(buffer.Get(), &result, &tmp);
     EXPECT_EQ(expected, result);
 }
 
@@ -1004,14 +983,7 @@ void EvaluateExpression(
 
     auto row = NTableClient::BuildRow(rowString, schema, true);
 
-    TQueryStatistics statistics;
-    // NB: function contexts need to be destroyed before callback since it hosts destructors.
-    TExecutionContext executionContext;
-    executionContext.PermanentBuffer = buffer;
-    executionContext.IntermediateBuffer = buffer;
-    executionContext.Statistics = &statistics;
-
-    callback(variables.GetOpaqueData(), result, row, &executionContext);
+    callback(variables.GetOpaqueData(), result, row, buffer.Get());
 }
 
 class TEvaluateExpressionTest
