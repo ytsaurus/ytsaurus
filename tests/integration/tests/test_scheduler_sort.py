@@ -177,7 +177,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         sort(in_="//tmp/t_in",
              out="//tmp/t_out",
              sort_by="key",
-             user="test_user")
+             authenticated_user="test_user")
 
         with pytest.raises(YtError):
             sort(in_="//tmp/t_in",
@@ -193,14 +193,14 @@ class TestSchedulerSortCommands(YTEnvSetup):
                  out="//tmp/t_out",
                  sort_by="missing_key",
                  spec={"intermediate_data_account": "test_account"},
-                 user="test_user")
+                 authenticated_user="test_user")
 
         set("//sys/accounts/test_account/@acl", [{"action": "allow", "permissions": ["use"], "subjects": ["test_user"]}])
 
         sort(in_="//tmp/t_in",
              out="//tmp/t_out",
              sort_by="key",
-             user="test_user")
+             authenticated_user="test_user")
 
     def test_composite_key(self):
         v1 = {"key": -7, "subkey": "bar", "value": "v1"}

@@ -84,10 +84,10 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
     else:
         driver = get_driver()
 
-    user = None
-    if "user" in parameters and command_name != "check_permission":
-        user = parameters["user"]
-        del parameters["user"]
+    authenticated_user = None
+    if "authenticated_user" in parameters:
+        authenticated_user = parameters["authenticated_user"]
+        del parameters["authenticated_user"]
 
     if "path" in parameters and command_name != "parse_ypath":
         parameters["path"] = prepare_path(parameters["path"])
@@ -111,7 +111,7 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
                 parameters=parameters,
                 input_stream=input_stream,
                 output_stream=output_stream,
-                user=user))
+                user=authenticated_user))
     response.wait()
     if not response.is_ok():
         error = YtResponseError(response.error())
