@@ -968,6 +968,34 @@ def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=
 
     make_request("remount_table", params, client=client)
 
+def freeze_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
+    """Freeze table.
+
+    TODO
+    """
+    # TODO(ignat): Add path preparetion
+    params = {"path": path}
+    if first_tablet_index is not None:
+        params["first_tablet_index"] = first_tablet_index
+    if last_tablet_index is not None:
+        params["last_tablet_index"] = last_tablet_index
+
+    make_request("freeze_table", params, client=client)
+
+def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
+    """Unfreeze table.
+
+    TODO
+    """
+    # TODO(ignat): Add path preparetion
+    params = {"path": path}
+    if first_tablet_index is not None:
+        params["first_tablet_index"] = first_tablet_index
+    if last_tablet_index is not None:
+        params["last_tablet_index"] = last_tablet_index
+
+    make_request("unfreeze_table", params, client=client)
+
 def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None, client=None):
     """Change pivot keys separating tablets of a given table.
 

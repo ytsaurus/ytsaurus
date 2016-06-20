@@ -467,6 +467,14 @@ def add_remount_table_parser(add_parser):
     parser = add_parser("remount-table", yt.remount_table)
     tablet_args(parser)
 
+def add_freeze_table_parser(add_parser):
+    parser = add_parser("freeze-table", yt.freeze_table)
+    tablet_args(parser)
+
+def add_unfreeze_table_parser(add_parser):
+    parser = add_parser("unfreeze-table", yt.unfreeze_table)
+    tablet_args(parser)
+
 def reshard_table(**args):
     if args.get("pivot_keys") == []:
         del args["pivot_keys"]
