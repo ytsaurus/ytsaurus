@@ -27,15 +27,16 @@ struct TAccessControlEntry
     TAccessControlEntry(
         ESecurityAction action,
         TSubject* subject,
-        EPermissionSet permissions);
+        EPermissionSet permissions,
+        EAceInheritanceMode inheritanceMode = EAceInheritanceMode::ObjectAndDescendants);
 
     ESecurityAction Action;
     TSubjectList Subjects;
     EPermissionSet Permissions;
+    EAceInheritanceMode InheritanceMode;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
 };
 
 void Serialize(const TAccessControlEntry& ace, NYson::IYsonConsumer* consumer);

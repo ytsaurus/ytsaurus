@@ -37,8 +37,13 @@ class TestAcls(YTEnvSetup):
         else:
             return x
 
-    def _make_ace(self, action, subjects, permissions):
-        return {"action" : action, "subjects" : self._to_list(subjects), "permissions" : self._to_list(permissions)}
+    def _make_ace(self, action, subjects, permissions, inheritance_mode="object_and_descendants"):
+        return {
+          "action": action,
+          "subjects": self._to_list(subjects),
+          "permissions": self._to_list(permissions),
+          "inheritance_mode": inheritance_mode
+        }
 
     def _test_denying_acl(self, rw_path, rw_user, acl_path, acl_subject):
         set(rw_path, "b", user=rw_user)
@@ -591,6 +596,7 @@ class TestAcls(YTEnvSetup):
             "inherit_acl": False})
         assert len(get("//tmp/t/@acl")) == 1
 
+    
     def test_group_write_acl(self):
         create_user("u")
         create_group("g")
@@ -609,6 +615,23 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YtError): remove("//sys/groups/g", user="guest")
         set("//sys/groups/g/@acl/end", self._make_ace("allow", "guest", "remove"))
         remove("//sys/groups/g", user="guest")
+
+
+    def test_default_inheritance(self):
+        create("map_node", "//tmp/m", attributes={"acl": [self._make_ace("allow", "guest", "remove")]})
+        assert get("//tmp/m/@acl/0/inheritance_mode") == "object_and_descendants"
+
+    def test_descendants_only_inheritance(self):
+        create("map_node", "//tmp/m", attributes={"acl": [self._make_ace("allow", "guest", "remove", "descendants_only")]})
+        create("map_node", "//tmp/m/s")
+        assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
+        assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
+
+    def test_object_only_inheritance(self):
+        create("map_node", "//tmp/m", attributes={"acl": [self._make_ace("allow", "guest", "remove", "object_only")]})
+        create("map_node", "//tmp/m/s")
+        assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "deny"
+        assert check_permission("guest", "remove", "//tmp/m")["action"] == "allow"
 
 ##################################################################
 

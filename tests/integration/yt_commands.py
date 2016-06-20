@@ -85,7 +85,7 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
         driver = get_driver()
 
     user = None
-    if "user" in parameters:
+    if "user" in parameters and command_name != "check_permission":
         user = parameters["user"]
         del parameters["user"]
 
@@ -363,6 +363,12 @@ def get_batch_output(result):
     if "output" in result:
         return result["output"]
     return None
+
+def check_permission(user, permission, path, **kwargs):
+    kwargs["user"] = user
+    kwargs["permission"] = permission
+    kwargs["path"] = path
+    return yson.loads(execute_command("check_permission", kwargs))
 
 class TimeoutError(Exception):
     pass
