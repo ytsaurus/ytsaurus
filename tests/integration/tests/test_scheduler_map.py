@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, make_schema, unix_only
+from yt_env_setup import YTEnvSetup, make_schema, make_ace, unix_only
 from yt_commands import *
 
 from yt.yson import *
@@ -1290,7 +1290,7 @@ print row + table_index
         write_table("//tmp/t1", data)
 
         create("table", "//tmp/t2")
-        set("//tmp/t2/@acl", [{"action": "allow", "subjects": ["u"], "permissions": ["write"]}])
+        set("//tmp/t2/@acl", [make_ace("allow", "u", "write")])
         effective_acl = get("//tmp/t2/@effective_acl")
 
         op = map(

@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, make_schema, unix_only
+from yt_env_setup import YTEnvSetup, make_schema, make_ace, unix_only
 from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
@@ -255,7 +255,7 @@ print "x={0}\ty={1}".format(x, y)
 
     def test_intermediate_live_preview(self):
         create_user("u")
-        acl = [{"action": "allow", "subjects": ["u"], "permissions": ["write"]}]
+        acl = [make_ace("allow", "u", "write")]
 
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"foo": "bar"})
@@ -274,7 +274,7 @@ print "x={0}\ty={1}".format(x, y)
 
     def test_incorrect_intermediate_data_acl(self):
         create_user("u")
-        acl = [{"action": "allow", "subjects": ["u"], "permissions": ["blabla"]}]
+        acl = [make_ace("u", "blabla", "allow")]
 
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"foo": "bar"})

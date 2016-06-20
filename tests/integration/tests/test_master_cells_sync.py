@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, make_ace
 from yt_commands import *
 
 ##################################################################
@@ -94,10 +94,8 @@ class TestMasterCellsSync(YTEnvSetup):
     def test_schemas_sync(self):
         create_group("testers")
 
-        rule = {"action": "allow", "subjects": ["testers"], "permissions": ["create"]}
-
         for subj in ["user", "account", "table"]:
-            set("//sys/schemas/{0}/@acl/end".format(subj), rule)
+            set("//sys/schemas/{0}/@acl/end".format(subj), make_ace("allow", "testers", "create"))
 
         def check(driver):
             ok = True
@@ -114,7 +112,7 @@ class TestMasterCellsSync(YTEnvSetup):
     def test_acl_sync(self):
         create_group("jupiter")
         create_account("jupiter")
-        set("//sys/accounts/jupiter/@acl", [{"action": "allow", "subjects": ["jupiter"], "permissions": ["use"]}])
+        set("//sys/accounts/jupiter/@acl", [make_ace("allow", "jupiter", "use")])
 
         def check(driver):
             return len(get("//sys/accounts/jupiter/@acl")) == 1
