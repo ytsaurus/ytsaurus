@@ -358,7 +358,10 @@ CXXFLAGS(
   -DYT_IN_ARCADIA
 )
 
-ADDINCL(yt)
+ADDINCL(
+  yt/${YT_ABI}/yt
+  yt/${YT_ABI}/yt/contrib/tclap
+)
 
 SRCS(
   ${YT_SRCS}
@@ -369,8 +372,7 @@ PEERDIR(
   contrib/libs/sparsehash
   library/streams/lz
   library/http/server
-  yt/${YT_ABI}/ytlib
-  yt/${YT_ABI}/contrib/tclap
+  yt/${YT_ABI}/yt/ytlib
 )
 
 END()

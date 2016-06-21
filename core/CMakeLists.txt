@@ -250,6 +250,8 @@ SRCS(${YT_SRCS})
 PEERDIR(
   contrib/libs/llvm37/lib
   contrib/libs/snappy
+  contrib/libs/brotli/dec
+  contrib/libs/brotli/enc
   yt/${YT_ABI}/yt/build
   yt/${YT_ABI}/yt/contrib
 )
