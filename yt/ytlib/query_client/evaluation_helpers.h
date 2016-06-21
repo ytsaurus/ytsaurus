@@ -32,6 +32,15 @@ class TInterruptedCompleteException
 class TInterruptedIncompleteException
 { };
 
+struct TOutputBufferTag
+{ };
+
+struct TIntermadiateBufferTag
+{ };
+
+struct TPermanentBufferTag
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const size_t InitialGroupOpHashtableCapacity = 1024;

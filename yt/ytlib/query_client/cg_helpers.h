@@ -596,7 +596,6 @@ struct TClosureFunctionDefiner<TResult(TArgs...)>
 
         TCGIRBuilder baseBuilder(function, parentBuilder.GetBuilder(), closurePtr);
         TCGOperatorContext builder(TCGBaseContext(TCGIRBuilderPtr(&baseBuilder), parentBuilder), parentBuilder);
-
         TApplyCallback<TIndexesPack>::template Do(std::forward<TBody>(body), builder, argsArray);
 
         return TLlvmClosure{builder->GetClosure(), function};
