@@ -44,7 +44,8 @@ public:
         NTableServer::TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        TTabletCell* hintCell);
+        TTabletCell* hintCell,
+        bool freeze);
 
     void UnmountTable(
         NTableServer::TTableNode* table,
@@ -53,6 +54,16 @@ public:
         int lastTabletIndex = -1);
 
     void RemountTable(
+        NTableServer::TTableNode* table,
+        int firstTabletIndex = -1,
+        int lastTabletIndex = -1);
+
+    void FreezeTable(
+        NTableServer::TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex);
+
+    void UnfreezeTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);

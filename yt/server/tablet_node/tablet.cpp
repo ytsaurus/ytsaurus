@@ -140,10 +140,14 @@ TTablet::TTablet(
 ETabletState TTablet::GetPersistentState() const
 {
     switch (State_) {
-        case ETabletState::FlushPending:
-            return ETabletState::WaitingForLocks;
+        case ETabletState::UnmountFlushPending:
+            return ETabletState::UnmountWaitingForLocks;
         case ETabletState::UnmountPending:
-            return ETabletState::Flushing;
+            return ETabletState::UnmountFlushing;
+        case ETabletState::FreezeFlushPending:
+            return ETabletState::FreezeWaitingForLocks;
+        case ETabletState::FreezePending:
+            return ETabletState::FreezeFlushing;
         default:
             return State_;
     }

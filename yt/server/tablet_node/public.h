@@ -89,14 +89,24 @@ DEFINE_ENUM(EPartitionState,
 
 DEFINE_ENUM(ETabletState,
     // The only good state admitting read and write requests.
-    ((Mounted)           (0))
+    ((Mounted)                  (0))
 
-    // NB: All states below are for unmounting workflow only!
-    ((WaitingForLocks)   (1))
-    ((FlushPending)      (2)) // transient, transition to Flushing is pending
-    ((Flushing)          (3))
-    ((UnmountPending)    (4)) // transient, transition to Unmounted is pending
-    ((Unmounted)         (5))
+    // Unmount workflow.
+    ((UnmountWaitingForLocks)   (1))
+    ((UnmountFlushPending)      (2)) // transient, transition to UnmountFlushing is pending
+    ((UnmountFlushing)          (3))
+    ((UnmountPending)           (4)) // transient, transition to Unmounted is pending
+    ((Unmounted)                (5))
+    ((UnmountFirst)             (1))
+    ((UnmountLast)              (5))
+
+    ((FreezeWaitingForLocks)    (6))
+    ((FreezeFlushPending)       (7)) // transient, transition to UnmountFlushing is pending
+    ((FreezeFlushing)           (8))
+    ((FreezePending)            (9)) // transient, transition to Unmounted is pending
+    ((Frozen)                  (10))
+    ((FreezeFirst)              (6))
+    ((FreezeLast)              (10))
 );
 
 DEFINE_ENUM(EStoreType,

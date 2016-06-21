@@ -33,9 +33,20 @@ message TReqSetLeadingPeer
 message TRspMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required bool frozen = 2;
 }
 
 message TRspUnmountTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TRspFreezeTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TRspUnfreezeTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
 }

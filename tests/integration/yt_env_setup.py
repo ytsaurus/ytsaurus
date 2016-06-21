@@ -232,17 +232,29 @@ class YTEnvSetup(YTEnv):
         last_tablet_index = kwargs.get("last_tablet_index", tablet_count - 1)
         wait(lambda: all(x["state"] == state for x in yt_commands.get(path + "/@tablets")[first_tablet_index:last_tablet_index + 1]))
 
-    def sync_mount_table(self, path, **kwargs):
-        yt_commands.mount_table(path, **kwargs)
+    def sync_mount_table(self, path, freeze=False, **kwargs):
+        yt_commands.mount_table(path, freeze=freeze, **kwargs)
 
         print "Waiting for tablets to become mounted..."
-        self._wait_for_tablets(path, "mounted", **kwargs)
+        self._wait_for_tablets(path, "frozen" if freeze else "mounted", **kwargs)
 
     def sync_unmount_table(self, path, **kwargs):
         yt_commands.unmount_table(path, **kwargs)
 
         print "Waiting for tablets to become unmounted..."
         self._wait_for_tablets(path, "unmounted", **kwargs)
+
+    def sync_freeze_table(self, path, **kwargs):
+        yt_commands.freeze_table(path, **kwargs)
+
+        print "Waiting for tablets to become frozen..."
+        self._wait_for_tablets(path, "frozen", **kwargs)
+
+    def sync_unfreeze_table(self, path, **kwargs):
+        yt_commands.unfreeze_table(path, **kwargs)
+
+        print "Waiting for tablets to become mounted..."
+        self._wait_for_tablets(path, "mounted", **kwargs)
 
     def sync_compact_table(self, path):
         self.sync_unmount_table(path)

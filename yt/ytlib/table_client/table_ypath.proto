@@ -14,6 +14,8 @@ message TReqMount
 
     // If omitted then cell is chosen automatically.
     optional NYT.NProto.TGuid cell_id = 3;
+
+    required bool freeze = 4;
 }
 
 message TRspMount
@@ -42,6 +44,30 @@ message TReqRemount
 }
 
 message TRspRemount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFreeze
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+}
+
+message TRspFreeze
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUnfreeze
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+}
+
+message TRspUnfreeze
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -65,7 +65,12 @@ bool TStoreManagerBase::HasUnflushedStores() const
     for (const auto& pair : Tablet_->StoreIdMap()) {
         const auto& store = pair.second;
         auto state = store->GetStoreState();
-        if (state != EStoreState::Persistent) {
+        // NB: When the table is being frozen we don't flush empty dynamic stores.
+        if (state != EStoreState::Persistent &&
+            !(state == EStoreState::ActiveDynamic &&
+              Tablet_->GetState() == ETabletState::FreezeFlushing &&
+              store->AsDynamic()->GetRowCount() == 0))
+        {
             return true;
         }
     }

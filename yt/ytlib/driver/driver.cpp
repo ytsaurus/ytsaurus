@@ -138,6 +138,8 @@ public:
         REGISTER(TMountTableCommand,           "mount_table",             Null,       Null,       true,  false);
         REGISTER(TUnmountTableCommand,         "unmount_table",           Null,       Null,       true,  false);
         REGISTER(TRemountTableCommand,         "remount_table",           Null,       Null,       true,  false);
+        REGISTER(TFreezeTableCommand,          "freeze_table",            Null,       Null,       true,  false);
+        REGISTER(TUnfreezeTableCommand,        "unfreeze_table",          Null,       Null,       true,  false);
         REGISTER(TReshardTableCommand,         "reshard_table",           Null,       Null,       true,  false);
         REGISTER(TAlterTableCommand,           "alter_table",             Null,       Null,       true,  false);
 

@@ -152,6 +152,28 @@ void TRemountTableCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TFreezeTableCommand::Execute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->FreezeTable(
+        Path.GetPath(),
+        Options);
+    WaitFor(asyncResult)
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUnfreezeTableCommand::Execute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->UnfreezeTable(
+        Path.GetPath(),
+        Options);
+    WaitFor(asyncResult)
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TReshardTableCommand::Execute(ICommandContextPtr context)
 {
     TFuture<void> asyncResult;

@@ -333,6 +333,8 @@ private:
         DISPATCH_YPATH_SERVICE_METHOD(Mount);
         DISPATCH_YPATH_SERVICE_METHOD(Unmount);
         DISPATCH_YPATH_SERVICE_METHOD(Remount);
+        DISPATCH_YPATH_SERVICE_METHOD(Freeze);
+        DISPATCH_YPATH_SERVICE_METHOD(Unfreeze);
         DISPATCH_YPATH_SERVICE_METHOD(Reshard);
         DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
         DISPATCH_YPATH_SERVICE_METHOD(Alter);
@@ -356,12 +358,14 @@ private:
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
         auto cellId = FromProto<TTabletCellId>(request->cell_id());
+        bool freeze = request->freeze();
 
         context->SetRequestInfo(
-            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v",
+            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, Freeze: %v",
             firstTabletIndex,
             lastTabletIndex,
-            cellId);
+            cellId,
+            freeze);
 
         ValidateNotExternal();
         ValidateNoTransaction();
@@ -380,7 +384,8 @@ private:
             table,
             firstTabletIndex,
             lastTabletIndex,
-            cell);
+            cell,
+            freeze);
 
         context->Reply();
     }
@@ -407,6 +412,58 @@ private:
         tabletManager->UnmountTable(
             table,
             force,
+            firstTabletIndex,
+            lastTabletIndex);
+
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Freeze)
+    {
+        DeclareMutating();
+
+        int firstTabletIndex = request->first_tablet_index();
+        int lastTabletIndex = request->last_tablet_index();
+
+        context->SetRequestInfo(
+            "FirstTabletIndex: %v, LastTabletIndex: %v",
+            firstTabletIndex,
+            lastTabletIndex);
+
+        ValidateNotExternal();
+        ValidateNoTransaction();
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+
+        auto tabletManager = Bootstrap_->GetTabletManager();
+        auto* table = LockThisTypedImpl();
+
+        tabletManager->FreezeTable(
+            table,
+            firstTabletIndex,
+            lastTabletIndex);
+
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Unfreeze)
+    {
+        DeclareMutating();
+
+        int firstTabletIndex = request->first_tablet_index();
+        int lastTabletIndex = request->last_tablet_index();
+        context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v",
+            firstTabletIndex,
+            lastTabletIndex);
+
+        ValidateNotExternal();
+        ValidateNoTransaction();
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
+
+        auto* table = LockThisTypedImpl();
+
+        auto tabletManager = Bootstrap_->GetTabletManager();
+        tabletManager->UnfreezeTable(
+            table,
             firstTabletIndex,
             lastTabletIndex);
 

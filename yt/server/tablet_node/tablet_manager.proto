@@ -33,7 +33,8 @@ message TReqMountTablet
     required string writer_options = 8;
     required int32 atomicity = 10; // EAtomicity
     required int64 mount_revision = 11;
-    optional int64 trimmed_row_count = 12;
+    required int64 trimmed_row_count = 12;
+    required bool freeze = 13;
 }
 
 message TReqUnmountTablet
@@ -47,6 +48,16 @@ message TReqRemountTablet
     required NYT.NProto.TGuid tablet_id = 1;
     required string mount_config = 7;
     required string writer_options = 8;
+}
+
+message TReqFreezeTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TReqUnfreezeTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
 }
 
 message TReqSetTabletState

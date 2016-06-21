@@ -102,6 +102,7 @@ struct TMountTableOptions
     , public TTabletRangeOptions
 {
     NTabletClient::TTabletCellId CellId = NTabletClient::NullTabletCellId;
+    bool Freeze = false;
 };
 
 struct TUnmountTableOptions
@@ -112,6 +113,16 @@ struct TUnmountTableOptions
 };
 
 struct TRemountTableOptions
+    : public TTimeoutOptions
+    , public TTabletRangeOptions
+{ };
+
+struct TFreezeTableOptions
+    : public TTimeoutOptions
+    , public TTabletRangeOptions
+{ };
+
+struct TUnfreezeTableOptions
     : public TTimeoutOptions
     , public TTabletRangeOptions
 { };
@@ -613,6 +624,14 @@ struct IClient
     virtual TFuture<void> RemountTable(
         const NYPath::TYPath& path,
         const TRemountTableOptions& options = TRemountTableOptions()) = 0;
+
+    virtual TFuture<void> FreezeTable(
+        const NYPath::TYPath& path,
+        const TFreezeTableOptions& options = TFreezeTableOptions()) = 0;
+
+    virtual TFuture<void> UnfreezeTable(
+        const NYPath::TYPath& path,
+        const TUnfreezeTableOptions& options = TUnfreezeTableOptions()) = 0;
 
     virtual TFuture<void> ReshardTable(
         const NYPath::TYPath& path,
