@@ -32,7 +32,7 @@ class TIfFunctionCodegen
 {
 public:
     static TCGValue CodegenValue(
-        TCGContext& builder,
+        TCGExprContext& builder,
         const std::vector<TCodegenExpression>& codegenArgs,
         EValueType type,
         const Stroka& name,
@@ -44,22 +44,22 @@ public:
         auto condition = codegenArgs[0](builder, row);
         YCHECK(condition.GetStaticType() == EValueType::Boolean);
 
-        return CodegenIf<TCGContext, TCGValue>(
+        return CodegenIf<TCGExprContext, TCGValue>(
             builder,
             condition.IsNull(),
-            [&] (TCGContext& builder) {
+            [&] (TCGExprContext& builder) {
                 return TCGValue::CreateNull(builder, type);
             },
-            [&] (TCGContext& builder) {
-                return CodegenIf<TCGContext, TCGValue>(
+            [&] (TCGExprContext& builder) {
+                return CodegenIf<TCGExprContext, TCGValue>(
                     builder,
                     builder->CreateICmpNE(
                         builder->CreateZExtOrBitCast(condition.GetData(), builder->getInt64Ty()),
                         builder->getInt64(0)),
-                    [&] (TCGContext& builder) {
+                    [&] (TCGExprContext& builder) {
                         return codegenArgs[1](builder, row);
                     },
-                    [&] (TCGContext& builder) {
+                    [&] (TCGExprContext& builder) {
                         return codegenArgs[2](builder, row);
                     });
             },
@@ -78,7 +78,7 @@ public:
             MOVE(codegenArgs),
             type,
             name
-        ] (TCGContext& builder, Value* row) {
+        ] (TCGExprContext& builder, Value* row) {
             return CodegenValue(
                 builder,
                 codegenArgs,
@@ -151,7 +151,7 @@ public:
             MOVE(codegenArgs),
             type,
             name
-        ] (TCGContext& builder, Value* row) {
+        ] (TCGExprContext& builder, Value* row) {
             auto argValue = codegenArgs[0](builder, row);
             return TCGValue::CreateFromValue(
                 builder,
@@ -187,7 +187,7 @@ public:
             MOVE(codegenArgs),
             type,
             name
-        ] (TCGContext& builder, Value* row) {
+        ] (TCGExprContext& builder, Value* row) {
             return codegenArgs[0](builder, row).Cast(builder, type);
         };
     }

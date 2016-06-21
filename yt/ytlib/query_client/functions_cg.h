@@ -47,12 +47,12 @@ struct ICallingConvention
     virtual TCodegenExpression MakeCodegenFunctionCall(
         TCodegenValue codegenFunctionContext,
         std::vector<TCodegenExpression> codegenArgs,
-        std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
+        std::function<Value*(std::vector<Value*>, TCGExprContext&)> codegenBody,
         EValueType type,
         const Stroka& name) const = 0;
 
     virtual llvm::FunctionType* GetCalleeType(
-        TCGContext& builder,
+        TCGExprContext& builder,
         std::vector<EValueType> argumentTypes,
         EValueType resultType) const = 0;
 
@@ -69,12 +69,12 @@ public:
     virtual TCodegenExpression MakeCodegenFunctionCall(
         TCodegenValue codegenFunctionContext,
         std::vector<TCodegenExpression> codegenArgs,
-        std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
+        std::function<Value*(std::vector<Value*>, TCGExprContext&)> codegenBody,
         EValueType type,
         const Stroka& name) const override;
 
     virtual llvm::FunctionType* GetCalleeType(
-        TCGContext& builder,
+        TCGExprContext& builder,
         std::vector<EValueType> argumentTypes,
         EValueType resultType) const override;
 
@@ -90,12 +90,12 @@ public:
     virtual TCodegenExpression MakeCodegenFunctionCall(
         TCodegenValue codegenFunctionContext,
         std::vector<TCodegenExpression> codegenArgs,
-        std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
+        std::function<Value*(std::vector<Value*>, TCGExprContext&)> codegenBody,
         EValueType type,
         const Stroka& name) const override;
 
     virtual llvm::FunctionType* GetCalleeType(
-        TCGContext& builder,
+        TCGExprContext& builder,
         std::vector<EValueType> argumentTypes,
         EValueType resultType) const override;
 };

@@ -21,7 +21,7 @@ std::vector<Value*> MakeOpaqueValues(
     return opaqueValuesArray;
 }
 
-//TCGFunctionContext MakeCGFunctionContext(
+//TCGOperatorContext MakeCGFunctionContext(
 //    TCGIRBuilder& builder,
 //    Value* opaqueValues,
 //    size_t opaqueValuesCount,
@@ -36,7 +36,7 @@ std::vector<Value*> MakeOpaqueValues(
 //            "opaqueValues." + Twine(index)));
 //    }
 //
-//    return TCGFunctionContext(std::move(opaqueValuesArray), executionContextPtr, module);
+//    return TCGOperatorContext(std::move(opaqueValuesArray), executionContextPtr, module);
 //}
 
 ////////////////////////////////////////////////////////////////////////////////

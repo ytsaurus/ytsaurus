@@ -31,7 +31,7 @@ using NCodegen::TCGModulePtr;
 class TCGIRBuilderPtr
 {
 protected:
-    TCGIRBuilder* Builder_;
+    TCGIRBuilder* const Builder_;
 
 public:
     explicit TCGIRBuilderPtr(TCGIRBuilder* builder)
@@ -76,7 +76,7 @@ public:
         , Module(other.Module)
     { }
 
-    Value* GetOpaqueValue(size_t index)
+    Value* GetOpaqueValue(size_t index) const
     {
         return Builder_->ViaClosure((*OpaqueValues_)[index], "opaqueValues." + Twine(index));
     }
@@ -88,47 +88,74 @@ std::vector<Value*> MakeOpaqueValues(
     Value* opaqueValues,
     size_t opaqueValuesCount);
 
-class TCGContext
+class TCGOperatorContext
     : public virtual TCGBaseContext
 {
 protected:
     Value* const ExecutionContextPtr_;
-    Value* Buffer_ = nullptr;
 
 public:
-    TCGContext(
+    TCGOperatorContext(
         const TCGBaseContext& base,
         Value* executionContextPtr)
         : TCGBaseContext(base)
         , ExecutionContextPtr_(executionContextPtr)
     { }
 
-    TCGContext(
+    TCGOperatorContext(
         const TCGBaseContext& base,
-        const TCGContext& other)
+        const TCGOperatorContext& other)
         : TCGBaseContext(base)
         , ExecutionContextPtr_(other.ExecutionContextPtr_)
     { }
 
-    Value* GetExecutionContextPtr()
+    Value* GetExecutionContextPtr() const
     {
         return Builder_->ViaClosure(ExecutionContextPtr_, "executionContextPtr");
     }
 
-    Value* GetBuffer()
+};
+
+class TCGExprContext
+    : public virtual TCGBaseContext
+{
+protected:
+    Value* const Buffer_;
+
+public:
+    TCGExprContext(
+        const TCGBaseContext& base,
+        Value* buffer)
+        : TCGBaseContext(base)
+        , Buffer_(buffer)
+    { }
+
+    TCGExprContext(
+        const TCGBaseContext& base,
+        const TCGExprContext& other)
+        : TCGBaseContext(base)
+        , Buffer_(other.Buffer_)
+    { }
+
+    Value* GetBuffer() const
     {
         return Builder_->ViaClosure(Buffer_, "bufferPtr");
     }
 
-    Value* GetBufferValue()
-    {
-        return Buffer_;
-    }
+};
 
-    void SetBuffer(Value* buffer)
-    {
-        Buffer_ = buffer;
-    }
+class TCGContext
+    : public TCGOperatorContext
+    , public TCGExprContext
+{
+public:
+    TCGContext(
+        const TCGOperatorContext& base,
+        Value* buffer)
+        : TCGBaseContext(base)
+        , TCGOperatorContext(base)
+        , TCGExprContext(base, buffer)
+    { }
 
 };
 
@@ -547,7 +574,7 @@ struct TClosureFunctionDefiner<TResult(TArgs...)>
     typedef typename NMpl::TGenerateSequence<sizeof...(TArgs)>::TType TIndexesPack;
 
     template <class TBody>
-    static TLlvmClosure Do(llvm::Module* module, TCGContext& parentBuilder, TBody&& body, llvm::Twine name)
+    static TLlvmClosure Do(llvm::Module* module, TCGOperatorContext& parentBuilder, TBody&& body, llvm::Twine name)
     {
         Function* function = Function::Create(
             TypeBuilder<TResult(void**, TArgs...), false>::get(module->getContext()),
@@ -568,7 +595,7 @@ struct TClosureFunctionDefiner<TResult(TArgs...)>
         YCHECK(index == sizeof...(TArgs));
 
         TCGIRBuilder baseBuilder(function, parentBuilder.GetBuilder(), closurePtr);
-        TCGContext builder(TCGBaseContext(TCGIRBuilderPtr(&baseBuilder), parentBuilder), parentBuilder);
+        TCGOperatorContext builder(TCGBaseContext(TCGIRBuilderPtr(&baseBuilder), parentBuilder), parentBuilder);
 
         TApplyCallback<TIndexesPack>::template Do(std::forward<TBody>(body), builder, argsArray);
 
@@ -577,7 +604,7 @@ struct TClosureFunctionDefiner<TResult(TArgs...)>
 };
 
 template <class TSignature, class TBody>
-TLlvmClosure MakeClosure(TCGContext& builder, llvm::Twine name, TBody&& body)
+TLlvmClosure MakeClosure(TCGOperatorContext& builder, llvm::Twine name, TBody&& body)
 {
     return TClosureFunctionDefiner<TSignature>::Do(
         builder.Module->GetModule(),
