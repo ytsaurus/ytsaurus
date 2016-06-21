@@ -2730,7 +2730,27 @@ void TOperationControllerBase::CreateLivePreviewTables()
             IntermediateOutputCellTag,
             1,
             "create_intermediate",
-            ConvertToYsonString(Spec->IntermediateDataAcl));
+            BuildYsonStringFluently()
+                .BeginList()
+                    .Item().BeginMap()
+                        .Item("action").Value("allow")
+                        .Item("subjects").BeginList()
+                            .Item().Value(Operation->GetAuthenticatedUser())
+                            .DoFor(Operation->GetOwners(), [] (TFluentList fluent, const Stroka& owner) {
+                                fluent.Item().Value(owner);
+                            })
+                        .EndList()
+                        .Item("permissions").BeginList()
+                            .Item().Value("read")
+                        .EndList()
+                    .EndMap()
+                    .DoFor(Spec->IntermediateDataAcl->AsList()->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
+                        fluent.Item().Value(node);
+                    })
+                    .DoFor(Config->AdditionalIntermediateDataAcl->AsList()->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
+                        fluent.Item().Value(node);
+                    })
+                .EndList());
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());

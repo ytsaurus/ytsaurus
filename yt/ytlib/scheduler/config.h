@@ -101,7 +101,7 @@ public:
     NCompression::ECodec IntermediateCompressionCodec;
 
     //! Acl used for intermediate tables and stderrs.
-    NYTree::INodePtr IntermediateDataAcl;
+    NYTree::IListNodePtr IntermediateDataAcl;
 
     //! What to do during initialization if some chunks are unavailable.
     EUnavailableChunkAction UnavailableChunkStrategy;
@@ -156,7 +156,7 @@ public:
                             .Item().Value("read")
                         .EndList()
                     .EndMap()
-                .EndList());
+                .EndList()->AsList());
 
         RegisterParameter("unavailable_chunk_strategy", UnavailableChunkStrategy)
             .Default(EUnavailableChunkAction::Wait);
