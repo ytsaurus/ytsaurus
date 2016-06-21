@@ -322,6 +322,7 @@ int SafeDup(int fd)
 
 void SafeOpenPty(int* masterFD, int* slaveFD, int height, int width)
 {
+#if 0
     {
         struct termios tt = { };
         tt.c_iflag = TTYDEF_IFLAG & ~ISTRIP;
@@ -347,15 +348,22 @@ void SafeOpenPty(int* masterFD, int* slaveFD, int height, int width)
         }
     }
     SafeSetCloexec(*masterFD);
+#else
+    THROW_ERROR_EXCEPTION("Unsupported");
+#endif
 }
 
 void SafeLoginTty(int slaveFD)
 {
+#if 0
     int result = ::login_tty(slaveFD);
     if (result == -1) {
         THROW_ERROR_EXCEPTION("Error attaching pty to standard streams")
             << TError::FromSystem();
     }
+#else
+    THROW_ERROR_EXCEPTION("Unsupported");
+#endif
 }
 
 void SafeSetTtyWindowSize(int fd, int height, int width)
