@@ -29,6 +29,7 @@ private:
     const TExpiringCacheConfigPtr Config_;
 
     struct TEntry
+        : public TRefCounted
     {
         //! When this entry must be evicted.
         TInstant Deadline;
@@ -36,15 +37,13 @@ private:
         TPromise<TValue> Promise;
         //! Corresponds to a future probation request.
         NConcurrency::TDelayedExecutorCookie ProbationCookie;
-        //! Corresponds to a future probation request.
-        TFuture<TValue> ProbationFuture;
     };
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
-    yhash<TKey, TEntry> Map_;
+    yhash<TKey, TIntrusivePtr<TEntry>> Map_;
 
 
-    void InvokeGet(const TKey& key);
+    void InvokeGet(const TWeakPtr<TEntry>& entry, const TKey& key);
 
 };
 
