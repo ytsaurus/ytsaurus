@@ -2074,7 +2074,8 @@ private:
     void OnJobCompleted(TJobPtr job, TRefCountedJobStatusPtr status, bool abandoned = false)
     {
         if (job->GetState() == EJobState::Running ||
-            job->GetState() == EJobState::Waiting)
+            job->GetState() == EJobState::Waiting ||
+            job->GetState() == EJobState::None)
         {
             SetJobState(job, EJobState::Completed);
             job->SetStatus(std::move(status));
@@ -2100,7 +2101,8 @@ private:
     void OnJobFailed(TJobPtr job, TRefCountedJobStatusPtr status)
     {
         if (job->GetState() == EJobState::Running ||
-            job->GetState() == EJobState::Waiting)
+            job->GetState() == EJobState::Waiting ||
+            job->GetState() == EJobState::None)
         {
             SetJobState(job, EJobState::Failed);
             job->SetStatus(std::move(status));
