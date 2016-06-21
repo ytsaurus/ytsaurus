@@ -36,42 +36,42 @@ using NCodegen::TCGModule;
 // Operator helpers
 //
 
-Value* CodegenAllocateRow(TCGIRBuilder& builder, size_t valueCount)
+Value* CodegenAllocateRow(TCGIRBuilderPtr& builder, size_t valueCount)
 {
-    Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
+    Value* newRowPtr = builder->CreateAlloca(TypeBuilder<TRow, false>::get(builder->getContext()));
 
     size_t size = sizeof(TUnversionedRowHeader) + sizeof(TUnversionedValue) * valueCount;
 
-    Value* newRowData = builder.CreateAlignedAlloca(
-        TypeBuilder<char, false>::get(builder.getContext()),
+    Value* newRowData = builder->CreateAlignedAlloca(
+        TypeBuilder<char, false>::get(builder->getContext()),
         8,
-        builder.getInt32(size));
+        builder->getInt32(size));
 
-    builder.CreateStore(
-        builder.CreatePointerCast(newRowData, TypeBuilder<TRowHeader*, false>::get(builder.getContext())),
-        builder.CreateConstInBoundsGEP2_32(
+    builder->CreateStore(
+        builder->CreatePointerCast(newRowData, TypeBuilder<TRowHeader*, false>::get(builder->getContext())),
+        builder->CreateConstInBoundsGEP2_32(
             nullptr,
             newRowPtr,
             0,
             TypeBuilder<TRow, false>::Fields::Header));
 
-    Value* newRow = builder.CreateLoad(newRowPtr);
+    Value* newRow = builder->CreateLoad(newRowPtr);
 
-    auto headerPtr = builder.CreateExtractValue(
+    auto headerPtr = builder->CreateExtractValue(
         newRow,
         TypeBuilder<TRow, false>::Fields::Header);
 
-    builder.CreateStore(
-        builder.getInt32(valueCount),
-        builder.CreateConstInBoundsGEP2_32(
+    builder->CreateStore(
+        builder->getInt32(valueCount),
+        builder->CreateConstInBoundsGEP2_32(
             nullptr,
             headerPtr,
             0,
             TypeBuilder<TRowHeader, false>::Fields::Count));
 
-    builder.CreateStore(
-        builder.getInt32(valueCount),
-        builder.CreateConstInBoundsGEP2_32(
+    builder->CreateStore(
+        builder->getInt32(valueCount),
+        builder->CreateConstInBoundsGEP2_32(
             nullptr,
             headerPtr,
             0,
@@ -86,35 +86,35 @@ void CodegenForEachRow(
     Value* size,
     const TCodegenConsumer& codegenConsumer)
 {
-    auto* loopBB = builder.CreateBBHere("loop");
-    auto* condBB = builder.CreateBBHere("cond");
-    auto* endloopBB = builder.CreateBBHere("endloop");
+    auto* loopBB = builder->CreateBBHere("loop");
+    auto* condBB = builder->CreateBBHere("cond");
+    auto* endloopBB = builder->CreateBBHere("endloop");
 
     // index = 0
-    Value* indexPtr = builder.CreateAlloca(builder.getInt64Ty(), nullptr, "indexPtr");
-    builder.CreateStore(builder.getInt64(0), indexPtr);
+    Value* indexPtr = builder->CreateAlloca(builder->getInt64Ty(), nullptr, "indexPtr");
+    builder->CreateStore(builder->getInt64(0), indexPtr);
 
-    builder.CreateBr(condBB);
+    builder->CreateBr(condBB);
 
-    builder.SetInsertPoint(condBB);
+    builder->SetInsertPoint(condBB);
 
     // if (index != size) ...
-    Value* index = builder.CreateLoad(indexPtr, "index");
-    Value* condition = builder.CreateICmpNE(index, size);
-    builder.CreateCondBr(condition, loopBB, endloopBB);
+    Value* index = builder->CreateLoad(indexPtr, "index");
+    Value* condition = builder->CreateICmpNE(index, size);
+    builder->CreateCondBr(condition, loopBB, endloopBB);
 
-    builder.SetInsertPoint(loopBB);
+    builder->SetInsertPoint(loopBB);
 
     // row = rows[index]; consume(row);
-    Value* stackState = builder.CreateStackSave("stackState");
-    Value* row = builder.CreateLoad(builder.CreateGEP(rows, index, "rowPtr"), "row");
+    Value* stackState = builder->CreateStackSave("stackState");
+    Value* row = builder->CreateLoad(builder->CreateGEP(rows, index, "rowPtr"), "row");
     codegenConsumer(builder, row);
-    builder.CreateStackRestore(stackState);
+    builder->CreateStackRestore(stackState);
     // index = index + 1
-    builder.CreateStore(builder.CreateAdd(index, builder.getInt64(1)), indexPtr);
-    builder.CreateBr(condBB);
+    builder->CreateStore(builder->CreateAdd(index, builder->getInt64(1)), indexPtr);
+    builder->CreateBr(condBB);
 
-    builder.SetInsertPoint(endloopBB);
+    builder->SetInsertPoint(endloopBB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,17 +126,17 @@ Function* CodegenGroupComparerFunction(
     const TCGModule& module)
 {
     return MakeFunction<TComparerFunction>(module.GetModule(), "GroupComparer", [&] (
-        TCGIRBuilder& builder,
+        TCGIRBuilderPtr& builder,
         Value* lhsRow,
         Value* rhsRow
     ) {
         auto returnIf = [&] (Value* condition) {
-            auto* thenBB = builder.CreateBBHere("then");
-            auto* elseBB = builder.CreateBBHere("else");
-            builder.CreateCondBr(condition, thenBB, elseBB);
-            builder.SetInsertPoint(thenBB);
-            builder.CreateRet(builder.getInt8(0));
-            builder.SetInsertPoint(elseBB);
+            auto* thenBB = builder->CreateBBHere("then");
+            auto* elseBB = builder->CreateBBHere("else");
+            builder->CreateCondBr(condition, thenBB, elseBB);
+            builder->SetInsertPoint(thenBB);
+            builder->CreateRet(builder->getInt8(0));
+            builder->SetInsertPoint(elseBB);
         };
 
         auto codegenEqualOp = [&] (size_t index) {
@@ -152,13 +152,13 @@ Function* CodegenGroupComparerFunction(
                 index,
                 types[index]);
 
-            CodegenIf<TCGIRBuilder>(
+            CodegenIf<TCGIRBuilderPtr>(
                 builder,
-                builder.CreateOr(lhsValue.IsNull(), rhsValue.IsNull()),
-                [&] (TCGIRBuilder& builder) {
-                    returnIf(builder.CreateICmpNE(lhsValue.IsNull(), rhsValue.IsNull()));
+                builder->CreateOr(lhsValue.IsNull(), rhsValue.IsNull()),
+                [&] (TCGIRBuilderPtr& builder) {
+                    returnIf(builder->CreateICmpNE(lhsValue.IsNull(), rhsValue.IsNull()));
                 },
-                [&] (TCGIRBuilder& builder) {
+                [&] (TCGIRBuilderPtr& builder) {
                     auto* lhsData = lhsValue.GetData();
                     auto* rhsData = rhsValue.GetData();
 
@@ -166,33 +166,33 @@ Function* CodegenGroupComparerFunction(
                         case EValueType::Boolean:
                         case EValueType::Int64:
                         case EValueType::Uint64:
-                            returnIf(builder.CreateICmpNE(lhsData, rhsData));
+                            returnIf(builder->CreateICmpNE(lhsData, rhsData));
                             break;
 
                         case EValueType::Double:
-                            returnIf(builder.CreateFCmpUNE(lhsData, rhsData));
+                            returnIf(builder->CreateFCmpUNE(lhsData, rhsData));
                             break;
 
                         case EValueType::String: {
                             Value* lhsLength = lhsValue.GetLength();
                             Value* rhsLength = rhsValue.GetLength();
 
-                            Value* minLength = builder.CreateSelect(
-                                builder.CreateICmpULT(lhsLength, rhsLength),
+                            Value* minLength = builder->CreateSelect(
+                                builder->CreateICmpULT(lhsLength, rhsLength),
                                 lhsLength,
                                 rhsLength);
 
-                            Value* cmpResult = builder.CreateCall(
+                            Value* cmpResult = builder->CreateCall(
                                 module.GetRoutine("memcmp"),
                                 {
                                     lhsData,
                                     rhsData,
-                                    builder.CreateZExt(minLength, builder.getSizeType())
+                                    builder->CreateZExt(minLength, builder->getSizeType())
                                 });
 
-                            returnIf(builder.CreateOr(
-                                builder.CreateICmpNE(cmpResult, builder.getInt32(0)),
-                                builder.CreateICmpNE(lhsLength, rhsLength)));
+                            returnIf(builder->CreateOr(
+                                builder->CreateICmpNE(cmpResult, builder->getInt32(0)),
+                                builder->CreateICmpNE(lhsLength, rhsLength)));
                             break;
                         }
 
@@ -208,7 +208,7 @@ Function* CodegenGroupComparerFunction(
             codegenEqualOp(index);
         }
 
-        builder.CreateRet(builder.getInt8(1));
+        builder->CreateRet(builder->getInt8(1));
     });
 }
 
@@ -217,28 +217,28 @@ Function* CodegenGroupHasherFunction(
     const TCGModule& module)
 {
     return MakeFunction<THasherFunction>(module.GetModule(), "GroupHasher", [&] (
-        TCGIRBuilder& builder,
+        TCGIRBuilderPtr& builder,
         Value* row
     ) {
-        auto codegenHashOp = [&] (size_t index, TCGIRBuilder& builder) -> Value* {
+        auto codegenHashOp = [&] (size_t index, TCGIRBuilderPtr& builder) -> Value* {
             auto value = TCGValue::CreateFromRow(
                 builder,
                 row,
                 index,
                 types[index]);
 
-            auto* conditionBB = builder.CreateBBHere("condition");
-            auto* thenBB = builder.CreateBBHere("then");
-            auto* elseBB = builder.CreateBBHere("else");
-            auto* endBB = builder.CreateBBHere("end");
+            auto* conditionBB = builder->CreateBBHere("condition");
+            auto* thenBB = builder->CreateBBHere("then");
+            auto* elseBB = builder->CreateBBHere("else");
+            auto* endBB = builder->CreateBBHere("end");
 
-            builder.CreateBr(conditionBB);
+            builder->CreateBr(conditionBB);
 
-            builder.SetInsertPoint(conditionBB);
-            builder.CreateCondBr(value.IsNull(), elseBB, thenBB);
-            conditionBB = builder.GetInsertBlock();
+            builder->SetInsertPoint(conditionBB);
+            builder->CreateCondBr(value.IsNull(), elseBB, thenBB);
+            conditionBB = builder->GetInsertBlock();
 
-            builder.SetInsertPoint(thenBB);
+            builder->SetInsertPoint(thenBB);
 
             Value* thenResult;
 
@@ -246,19 +246,19 @@ Function* CodegenGroupHasherFunction(
                 case EValueType::Boolean:
                 case EValueType::Int64:
                 case EValueType::Uint64:
-                    thenResult = builder.CreateCall(
+                    thenResult = builder->CreateCall(
                         module.GetRoutine("FarmHashUint64"),
                         {value.Cast(builder, EValueType::Uint64).GetData()});
                     break;
 
                 case EValueType::Double:
-                    thenResult = builder.CreateCall(
+                    thenResult = builder->CreateCall(
                         module.GetRoutine("FarmHashUint64"),
                         {value.Cast(builder, EValueType::Uint64, true).GetData()});
                     break;
 
                 case EValueType::String:
-                    thenResult = builder.CreateCall(
+                    thenResult = builder->CreateCall(
                         module.GetRoutine("StringHash"),
                         {
                             value.GetData(),
@@ -270,60 +270,60 @@ Function* CodegenGroupHasherFunction(
                     YUNIMPLEMENTED();
             }
 
-            builder.CreateBr(endBB);
-            thenBB = builder.GetInsertBlock();
+            builder->CreateBr(endBB);
+            thenBB = builder->GetInsertBlock();
 
-            builder.SetInsertPoint(elseBB);
-            auto* elseResult = builder.getInt64(0);
-            builder.CreateBr(endBB);
-            elseBB = builder.GetInsertBlock();
+            builder->SetInsertPoint(elseBB);
+            auto* elseResult = builder->getInt64(0);
+            builder->CreateBr(endBB);
+            elseBB = builder->GetInsertBlock();
 
-            builder.SetInsertPoint(endBB);
+            builder->SetInsertPoint(endBB);
 
-            PHINode* result = builder.CreatePHI(thenResult->getType(), 2);
+            PHINode* result = builder->CreatePHI(thenResult->getType(), 2);
             result->addIncoming(thenResult, thenBB);
             result->addIncoming(elseResult, elseBB);
 
             return result;
         };
 
-        auto codegenHashCombine = [&] (TCGIRBuilder& builder, Value* first, Value* second) -> Value* {
+        auto codegenHashCombine = [&] (TCGIRBuilderPtr& builder, Value* first, Value* second) -> Value* {
             //first ^ (second + 0x9e3779b9 + (second << 6) + (second >> 2));
-            return builder.CreateXor(
+            return builder->CreateXor(
                 first,
-                builder.CreateAdd(
-                    builder.CreateAdd(
-                        builder.CreateAdd(second, builder.getInt64(0x9e3779b9)),
-                        builder.CreateLShr(second, builder.getInt64(2))),
-                    builder.CreateShl(second, builder.getInt64(6))));
+                builder->CreateAdd(
+                    builder->CreateAdd(
+                        builder->CreateAdd(second, builder->getInt64(0x9e3779b9)),
+                        builder->CreateLShr(second, builder->getInt64(2))),
+                    builder->CreateShl(second, builder->getInt64(6))));
         };
 
         YCHECK(!types.empty());
-        Value* result = builder.getInt64(0);
+        Value* result = builder->getInt64(0);
         for (size_t index = 0; index < types.size(); ++index) {
             result = codegenHashCombine(builder, result, codegenHashOp(index, builder));
         }
-        builder.CreateRet(result);
+        builder->CreateRet(result);
     });
 }
 
 Function* CodegenTupleComparerFunction(
-    const std::vector<std::function<TCGValue(TCGIRBuilder& builder, Value* row)>>& codegenArgs,
+    const std::vector<std::function<TCGValue(TCGIRBuilderPtr& builder, Value* row)>>& codegenArgs,
     const TCGModule& module,
     const std::vector<bool>& isDesc = std::vector<bool>())
 {
     return MakeFunction<TComparerFunction>(module.GetModule(), "RowComparer", [&] (
-        TCGIRBuilder& builder,
+        TCGIRBuilderPtr& builder,
         Value* lhsRow,
         Value* rhsRow
     ) {
         auto returnIf = [&] (Value* condition, const TCodegenBlock& codegenInner) {
-            auto* thenBB = builder.CreateBBHere("then");
-            auto* elseBB = builder.CreateBBHere("else");
-            builder.CreateCondBr(condition, thenBB, elseBB);
-            builder.SetInsertPoint(thenBB);
-            builder.CreateRet(builder.CreateSelect(codegenInner(builder), builder.getInt8(1), builder.getInt8(0)));
-            builder.SetInsertPoint(elseBB);
+            auto* thenBB = builder->CreateBBHere("then");
+            auto* elseBB = builder->CreateBBHere("else");
+            builder->CreateCondBr(condition, thenBB, elseBB);
+            builder->SetInsertPoint(thenBB);
+            builder->CreateRet(builder->CreateSelect(codegenInner(builder), builder->getInt8(1), builder->getInt8(0)));
+            builder->SetInsertPoint(elseBB);
         };
 
         auto codegenEqualOrLessOp = [&] (int index) {
@@ -339,17 +339,17 @@ Function* CodegenTupleComparerFunction(
 
             YCHECK(type == rhsValue.GetStaticType());
 
-            CodegenIf<TCGIRBuilder>(
+            CodegenIf<TCGIRBuilderPtr>(
                 builder,
-                builder.CreateOr(lhsValue.IsNull(), rhsValue.IsNull()),
-                [&] (TCGIRBuilder& builder) {
+                builder->CreateOr(lhsValue.IsNull(), rhsValue.IsNull()),
+                [&] (TCGIRBuilderPtr& builder) {
                     returnIf(
-                        builder.CreateICmpNE(lhsValue.IsNull(), rhsValue.IsNull()),
-                        [&] (TCGIRBuilder&) {
-                            return builder.CreateICmpULT(lhsValue.IsNull(), rhsValue.IsNull());
+                        builder->CreateICmpNE(lhsValue.IsNull(), rhsValue.IsNull()),
+                        [&] (TCGIRBuilderPtr& builder) {
+                            return builder->CreateICmpULT(lhsValue.IsNull(), rhsValue.IsNull());
                         });
                 },
-                [&] (TCGIRBuilder& builder) {
+                [&] (TCGIRBuilderPtr& builder) {
                     auto* lhsData = lhsValue.GetData();
                     auto* rhsData = rhsValue.GetData();
 
@@ -357,25 +357,25 @@ Function* CodegenTupleComparerFunction(
                         case EValueType::Boolean:
                         case EValueType::Int64:
                             returnIf(
-                                builder.CreateICmpNE(lhsData, rhsData),
-                                [&] (TCGIRBuilder&) {
-                                    return builder.CreateICmpSLT(lhsData, rhsData);
+                                builder->CreateICmpNE(lhsData, rhsData),
+                                [&] (TCGIRBuilderPtr& builder) {
+                                    return builder->CreateICmpSLT(lhsData, rhsData);
                                 });
                             break;
 
                         case EValueType::Uint64:
                             returnIf(
-                                builder.CreateICmpNE(lhsData, rhsData),
-                                [&] (TCGIRBuilder&) {
-                                    return builder.CreateICmpULT(lhsData, rhsData);
+                                builder->CreateICmpNE(lhsData, rhsData),
+                                [&] (TCGIRBuilderPtr& builder) {
+                                    return builder->CreateICmpULT(lhsData, rhsData);
                                 });
                             break;
 
                         case EValueType::Double:
                             returnIf(
-                                builder.CreateFCmpUNE(lhsData, rhsData),
-                                [&] (TCGIRBuilder&) {
-                                    return builder.CreateFCmpULT(lhsData, rhsData);
+                                builder->CreateFCmpUNE(lhsData, rhsData),
+                                [&] (TCGIRBuilderPtr& builder) {
+                                    return builder->CreateFCmpULT(lhsData, rhsData);
                                 });
                             break;
 
@@ -383,29 +383,29 @@ Function* CodegenTupleComparerFunction(
                             Value* lhsLength = lhsValue.GetLength();
                             Value* rhsLength = rhsValue.GetLength();
 
-                            Value* minLength = builder.CreateSelect(
-                                builder.CreateICmpULT(lhsLength, rhsLength),
+                            Value* minLength = builder->CreateSelect(
+                                builder->CreateICmpULT(lhsLength, rhsLength),
                                 lhsLength,
                                 rhsLength);
 
-                            Value* cmpResult = builder.CreateCall(
+                            Value* cmpResult = builder->CreateCall(
                                 module.GetRoutine("memcmp"),
                                 {
                                     lhsData,
                                     rhsData,
-                                    builder.CreateZExt(minLength, builder.getSizeType())
+                                    builder->CreateZExt(minLength, builder->getSizeType())
                                 });
 
                             returnIf(
-                                builder.CreateICmpNE(cmpResult, builder.getInt32(0)),
-                                [&] (TCGIRBuilder&) {
-                                    return builder.CreateICmpSLT(cmpResult, builder.getInt32(0));
+                                builder->CreateICmpNE(cmpResult, builder->getInt32(0)),
+                                [&] (TCGIRBuilderPtr& builder) {
+                                    return builder->CreateICmpSLT(cmpResult, builder->getInt32(0));
                                 });
 
                             returnIf(
-                                builder.CreateICmpNE(lhsLength, rhsLength),
-                                [&] (TCGIRBuilder&) {
-                                    return builder.CreateICmpULT(lhsLength, rhsLength);
+                                builder->CreateICmpNE(lhsLength, rhsLength),
+                                [&] (TCGIRBuilderPtr& builder) {
+                                    return builder->CreateICmpULT(lhsLength, rhsLength);
                                 });
 
                             break;
@@ -423,7 +423,7 @@ Function* CodegenTupleComparerFunction(
             codegenEqualOrLessOp(index);
         }
 
-        builder.CreateRet(builder.getInt8(0));
+        builder->CreateRet(builder->getInt8(0));
     });
 }
 
@@ -431,9 +431,9 @@ Function* CodegenRowComparerFunction(
     const std::vector<EValueType>& types,
     const TCGModule& module)
 {
-    std::vector<std::function<TCGValue(TCGIRBuilder& builder, Value* row)>> compareArgs;
+    std::vector<std::function<TCGValue(TCGIRBuilderPtr& builder, Value* row)>> compareArgs;
     for (int index = 0; index < types.size(); ++index) {
-        compareArgs.push_back([index, type = types[index]] (TCGIRBuilder& builder, Value* row) {
+        compareArgs.push_back([index, type = types[index]] (TCGIRBuilderPtr& builder, Value* row) {
             return TCGValue::CreateFromRow(
                 builder,
                 row,
@@ -452,24 +452,24 @@ Value* CodegenLexicographicalCompare(
     Value* rhsData,
     Value* rhsLength)
 {
-    Value* lhsLengthIsLess = builder.CreateICmpULT(lhsLength, rhsLength);
-    Value* minLength = builder.CreateSelect(
+    Value* lhsLengthIsLess = builder->CreateICmpULT(lhsLength, rhsLength);
+    Value* minLength = builder->CreateSelect(
         lhsLengthIsLess,
         lhsLength,
         rhsLength);
 
-    Value* cmpResult = builder.CreateCall(
+    Value* cmpResult = builder->CreateCall(
         builder.Module->GetRoutine("memcmp"),
         {
             lhsData,
             rhsData,
-            builder.CreateZExt(minLength, builder.getSizeType())
+            builder->CreateZExt(minLength, builder->getSizeType())
         });
 
-    return builder.CreateOr(
-        builder.CreateICmpSLT(cmpResult, builder.getInt32(0)),
-        builder.CreateAnd(
-            builder.CreateICmpEQ(cmpResult, builder.getInt32(0)),
+    return builder->CreateOr(
+        builder->CreateICmpSLT(cmpResult, builder->getInt32(0)),
+        builder->CreateAnd(
+            builder->CreateICmpEQ(cmpResult, builder->getInt32(0)),
             lhsLengthIsLess));
 };
 
@@ -481,9 +481,9 @@ TCodegenExpression MakeCodegenLiteralExpr(
             index,
             type
         ] (TCGContext& builder, Value* row) {
-            auto valuePtr = builder.CreatePointerCast(
+            auto valuePtr = builder->CreatePointerCast(
                 builder.GetOpaqueValue(index),
-                TypeBuilder<TValue*, false>::get(builder.getContext()));
+                TypeBuilder<TValue*, false>::get(builder->getContext()));
 
             return TCGValue::CreateFromLlvmValue(
                 builder,
@@ -541,10 +541,10 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
         return CodegenIf<TCGContext, TCGValue>(
             builder,
             operandValue.IsNull(),
-            [&] (TCGIRBuilder& builder) {
+            [&] (TCGIRBuilderPtr& builder) {
                 return TCGValue::CreateNull(builder, type);
             },
-            [&] (TCGIRBuilder& builder) {
+            [&] (TCGIRBuilderPtr& builder) {
                 auto operandType = operandValue.GetStaticType();
                 Value* operandData = operandValue.GetData();
                 Value* evalData = nullptr;
@@ -558,10 +558,10 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
                         switch (operandType) {
                             case EValueType::Int64:
                             case EValueType::Uint64:
-                                evalData = builder.CreateSub(builder.getInt64(0), operandData);
+                                evalData = builder->CreateSub(builder->getInt64(0), operandData);
                                 break;
                             case EValueType::Double:
-                                evalData = builder.CreateFSub(ConstantFP::get(builder.getDoubleTy(), 0.0), operandData);
+                                evalData = builder->CreateFSub(ConstantFP::get(builder->getDoubleTy(), 0.0), operandData);
                                 break;
                             default:
                                 YUNREACHABLE();
@@ -570,14 +570,14 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
 
 
                     case EUnaryOp::BitNot:
-                        evalData = builder.CreateNot(operandData);
+                        evalData = builder->CreateNot(operandData);
                         break;
 
                     case EUnaryOp::Not:
-                        evalData = builder.CreateXor(
-                            builder.CreateZExtOrBitCast(
-                                builder.getTrue(),
-                                TDataTypeBuilder::TBoolean::get(builder.getContext())),
+                        evalData = builder->CreateXor(
+                            builder->CreateZExtOrBitCast(
+                                builder->getTrue(),
+                                TDataTypeBuilder::TBoolean::get(builder->getContext())),
                             operandData);
                         break;
 
@@ -587,7 +587,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
 
                 return TCGValue::CreateFromValue(
                     builder,
-                    builder.getFalse(),
+                    builder->getFalse(),
                     nullptr,
                     evalData,
                     type);
@@ -616,9 +616,9 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
 
         #define CMP_OP(opcode, optype) \
             case EBinaryOp::opcode: \
-                evalData = builder.CreateZExtOrBitCast( \
-                    builder.Create##optype(lhsData, rhsData), \
-                    TDataTypeBuilder::TBoolean::get(builder.getContext())); \
+                evalData = builder->CreateZExtOrBitCast( \
+                    builder->Create##optype(lhsData, rhsData), \
+                    TDataTypeBuilder::TBoolean::get(builder->getContext())); \
                 break;
 
         auto compareNulls = [&] () {
@@ -639,7 +639,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
 
             return TCGValue::CreateFromValue(
                 builder,
-                builder.getFalse(),
+                builder->getFalse(),
                 nullptr,
                 evalData,
                 type);
@@ -716,25 +716,25 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                 auto codegenEqual = [&] () {
                                     return CodegenIf<TCGContext, Value*>(
                                         builder,
-                                        builder.CreateICmpEQ(lhsLength, rhsLength),
+                                        builder->CreateICmpEQ(lhsLength, rhsLength),
                                         [&] (TCGContext& builder) {
-                                            Value* minLength = builder.CreateSelect(
-                                                builder.CreateICmpULT(lhsLength, rhsLength),
+                                            Value* minLength = builder->CreateSelect(
+                                                builder->CreateICmpULT(lhsLength, rhsLength),
                                                 lhsLength,
                                                 rhsLength);
 
-                                            Value* cmpResult = builder.CreateCall(
+                                            Value* cmpResult = builder->CreateCall(
                                                 builder.Module->GetRoutine("memcmp"),
                                                 {
                                                     lhsData,
                                                     rhsData,
-                                                    builder.CreateZExt(minLength, builder.getSizeType())
+                                                    builder->CreateZExt(minLength, builder->getSizeType())
                                                 });
 
-                                            return builder.CreateICmpEQ(cmpResult, builder.getInt32(0));
+                                            return builder->CreateICmpEQ(cmpResult, builder->getInt32(0));
                                         },
                                         [&] (TCGContext& builder) {
-                                            return builder.getFalse();
+                                            return builder->getFalse();
                                         });
                                 };
 
@@ -743,7 +743,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                         evalData = codegenEqual();
                                         break;
                                     case EBinaryOp::NotEqual:
-                                        evalData = builder.CreateNot(codegenEqual());
+                                        evalData = builder->CreateNot(codegenEqual());
                                         break;
                                     case EBinaryOp::Less:
                                         evalData = CodegenLexicographicalCompare(builder, lhsData, lhsLength, rhsData, rhsLength);
@@ -752,20 +752,20 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                         evalData = CodegenLexicographicalCompare(builder, rhsData, rhsLength, lhsData, lhsLength);
                                         break;
                                     case EBinaryOp::LessOrEqual:
-                                        evalData =  builder.CreateNot(
+                                        evalData =  builder->CreateNot(
                                             CodegenLexicographicalCompare(builder, rhsData, rhsLength, lhsData, lhsLength));
                                         break;
                                     case EBinaryOp::GreaterOrEqual:
-                                        evalData = builder.CreateNot(
+                                        evalData = builder->CreateNot(
                                             CodegenLexicographicalCompare(builder, lhsData, lhsLength, rhsData, rhsLength));
                                         break;
                                     default:
                                         YUNREACHABLE();
                                 }
 
-                                evalData = builder.CreateZExtOrBitCast(
+                                evalData = builder->CreateZExtOrBitCast(
                                     evalData,
-                                    TDataTypeBuilder::TBoolean::get(builder.getContext()));
+                                    TDataTypeBuilder::TBoolean::get(builder->getContext()));
                                 break;
                             }
                             default:
@@ -774,7 +774,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
 
                         return TCGValue::CreateFromValue(
                             builder,
-                            builder.getFalse(),
+                            builder->getFalse(),
                             nullptr,
                             evalData,
                             type);
@@ -829,19 +829,19 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
 
                         #define OP(opcode, optype) \
                             case EBinaryOp::opcode: \
-                                evalData = builder.Create##optype(lhsData, rhsData); \
+                                evalData = builder->Create##optype(lhsData, rhsData); \
                                 break;
 
 
                         auto checkZero = [&] (Value* value) {
                             CodegenIf<TCGContext>(
                                 builder,
-                                builder.CreateIsNull(value),
+                                builder->CreateIsNull(value),
                                 [] (TCGContext& builder) {
-                                    builder.CreateCall(
+                                    builder->CreateCall(
                                         builder.Module->GetRoutine("ThrowQueryException"),
                                         {
-                                            builder.CreateGlobalStringPtr("Division by zero")
+                                            builder->CreateGlobalStringPtr("Division by zero")
                                         });
                                 });
                         };
@@ -849,7 +849,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                         #define OP_ZERO_CHECKED(opcode, optype) \
                             case EBinaryOp::opcode: \
                                 checkZero(rhsData); \
-                                evalData = builder.Create##optype(lhsData, rhsData); \
+                                evalData = builder->Create##optype(lhsData, rhsData); \
                                 break;
 
                         switch (operandType) {
@@ -907,7 +907,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
 
                         return TCGValue::CreateFromValue(
                             builder,
-                            builder.getFalse(),
+                            builder->getFalse(),
                             nullptr,
                             evalData,
                             type);
@@ -961,7 +961,7 @@ TCodegenExpression MakeCodegenInOpExpr(
             value.StoreToRow(builder, newRow, index, id);
         }
 
-        Value* result = builder.CreateCall(
+        Value* result = builder->CreateCall(
             builder.Module->GetRoutine("IsRowInArray"),
             {
                 CodegenRowComparerFunction(keyTypes, *builder.Module),
@@ -971,7 +971,7 @@ TCodegenExpression MakeCodegenInOpExpr(
 
         return TCGValue::CreateFromValue(
             builder,
-            builder.getFalse(),
+            builder->getFalse(),
             nullptr,
             result,
             EValueType::Boolean);
@@ -994,10 +994,10 @@ void CodegenScanOp(
     ) {
         builder.SetBuffer(buffer);
         CodegenForEachRow(builder, rows, size, codegenConsumer);
-        builder.CreateRetVoid();
+        builder->CreateRetVoid();
     });
 
-    builder.CreateCall(
+    builder->CreateCall(
         builder.Module->GetRoutine("ScanOpHelper"),
         {
             builder.GetExecutionContextPtr(),
@@ -1034,22 +1034,22 @@ TCodegenSource MakeCodegenJoinOp(
             Value* joinClosure,
             Value* buffer
         ) {
-            Value* keyPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-            builder.CreateCall(
+            Value* keyPtr = builder->CreateAlloca(TypeBuilder<TRow, false>::get(builder->getContext()));
+            builder->CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
                 {
                     builder.GetExecutionContextPtr(),
                     buffer,
-                    builder.getInt32(lookupKeySize),
+                    builder->getInt32(lookupKeySize),
                     keyPtr
                 });
 
             codegenSource(
                 builder,
                 [&] (TCGContext& builder, Value* row) {
-                    Value* bufferRef = builder.ViaClosure(buffer);
-                    Value* keyPtrRef = builder.ViaClosure(keyPtr);
-                    Value* keyRef = builder.CreateLoad(keyPtrRef);
+                    Value* bufferRef = builder->ViaClosure(buffer);
+                    Value* keyPtrRef = builder->ViaClosure(keyPtr);
+                    Value* keyRef = builder->CreateLoad(keyPtrRef);
 
                     for (int column = 0; column < lookupKeySize; ++column) {
                         int index = equationByIndex[column];
@@ -1072,9 +1072,9 @@ TCodegenSource MakeCodegenJoinOp(
                         }
                     }
 
-                    Value* joinClosureRef = builder.ViaClosure(joinClosure);
+                    Value* joinClosureRef = builder->ViaClosure(joinClosure);
 
-                    builder.CreateCall(
+                    builder->CreateCall(
                         builder.Module->GetRoutine("InsertJoinRow"),
                         {
                             builder.GetExecutionContextPtr(),
@@ -1085,7 +1085,7 @@ TCodegenSource MakeCodegenJoinOp(
                         });
                 });
 
-            builder.CreateRetVoid();
+            builder->CreateRetVoid();
         });
 
 
@@ -1102,10 +1102,10 @@ TCodegenSource MakeCodegenJoinOp(
                 size,
                 codegenConsumer);
 
-            builder.CreateRetVoid();
+            builder->CreateRetVoid();
         });
 
-        builder.CreateCall(
+        builder->CreateCall(
             builder.Module->GetRoutine("JoinOpHelper"),
             {
                 builder.GetExecutionContextPtr(),
@@ -1114,7 +1114,7 @@ TCodegenSource MakeCodegenJoinOp(
                 CodegenGroupHasherFunction(lookupKeyTypes, *builder.Module),
                 CodegenGroupComparerFunction(lookupKeyTypes, *builder.Module),
                 CodegenRowComparerFunction(lookupKeyTypes, *builder.Module),
-                builder.getInt32(lookupKeySize),
+                builder->getInt32(lookupKeySize),
 
                 collectRows.ClosurePtr,
                 collectRows.Function,
@@ -1138,23 +1138,23 @@ TCodegenSource MakeCodegenFilterOp(
             [&] (TCGContext& builder, Value* row) {
                 auto predicateResult = codegenPredicate(builder, row);
 
-                Value* result = builder.CreateZExtOrBitCast(
+                Value* result = builder->CreateZExtOrBitCast(
                     predicateResult.GetData(),
-                    builder.getInt64Ty());
+                    builder->getInt64Ty());
 
-                auto* ifBB = builder.CreateBBHere("if");
-                auto* endifBB = builder.CreateBBHere("endif");
+                auto* ifBB = builder->CreateBBHere("if");
+                auto* endifBB = builder->CreateBBHere("endif");
 
-                builder.CreateCondBr(
-                    builder.CreateICmpNE(result, builder.getInt64(0)),
+                builder->CreateCondBr(
+                    builder->CreateICmpNE(result, builder->getInt64(0)),
                     ifBB,
                     endifBB);
 
-                builder.SetInsertPoint(ifBB);
+                builder->SetInsertPoint(ifBB);
                 codegenConsumer(builder, row);
-                builder.CreateBr(endifBB);
+                builder->CreateBr(endifBB);
 
-                builder.SetInsertPoint(endifBB);
+                builder->SetInsertPoint(endifBB);
             });
     };
 }
@@ -1174,7 +1174,7 @@ TCodegenSource MakeCodegenProjectOp(
         codegenSource(
             builder,
             [&] (TCGContext& builder, Value* row) {
-                Value* newRowRef = builder.ViaClosure(newRow);
+                Value* newRowRef = builder->ViaClosure(newRow);
 
                 for (int index = 0; index < projectionCount; ++index) {
                     auto id = index;
@@ -1282,11 +1282,11 @@ std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenAggregateUpd
         isMerge
     ] (TCGContext& builder, Value* newRow, Value* groupRow) {
         for (int index = 0; index < codegenAggregates.size(); index++) {
-            auto aggState = builder.CreateConstInBoundsGEP1_32(
+            auto aggState = builder->CreateConstInBoundsGEP1_32(
                 nullptr,
                 CodegenValuesPtrFromRow(builder, groupRow),
                 keySize + index);
-            auto newValue = builder.CreateConstInBoundsGEP1_32(
+            auto newValue = builder->CreateConstInBoundsGEP1_32(
                 nullptr,
                 CodegenValuesPtrFromRow(builder, newRow),
                 keySize + index);
@@ -1329,7 +1329,7 @@ std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateFinaliz
             auto valuesPtr = CodegenValuesPtrFromRow(builder, row);
             auto resultValue = codegenAggregates[index].Finalize(
                 builder,
-                builder.CreateConstInBoundsGEP1_32(
+                builder->CreateConstInBoundsGEP1_32(
                     nullptr,
                     valuesPtr,
                     keySize + index));
@@ -1376,14 +1376,14 @@ TCodegenSource MakeCodegenGroupOp(
             Value* groupByClosure,
             Value* buffer
         ) {
-            Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
+            Value* newRowPtr = builder->CreateAlloca(TypeBuilder<TRow, false>::get(builder->getContext()));
 
-            builder.CreateCall(
+            builder->CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
                 {
                     builder.GetExecutionContextPtr(),
                     buffer,
-                    builder.getInt32(groupRowSize),
+                    builder->getInt32(groupRowSize),
                     newRowPtr
                 });
 
@@ -1394,15 +1394,15 @@ TCodegenSource MakeCodegenGroupOp(
                         codegenConsumer(builder, row);
                     }
 
-                    Value* bufferRef = builder.ViaClosure(buffer);
-                    Value* newRowPtrRef = builder.ViaClosure(newRowPtr);
-                    Value* newRowRef = builder.CreateLoad(newRowPtrRef);
+                    Value* bufferRef = builder->ViaClosure(buffer);
+                    Value* newRowPtrRef = builder->ViaClosure(newRowPtr);
+                    Value* newRowRef = builder->CreateLoad(newRowPtrRef);
 
                     codegenEvaluateGroups(builder, row, newRowRef);
 
-                    Value* groupByClosureRef = builder.ViaClosure(groupByClosure);
+                    Value* groupByClosureRef = builder->ViaClosure(groupByClosure);
 
-                    auto groupRowPtr = builder.CreateCall(
+                    auto groupRowPtr = builder->CreateCall(
                         builder.Module->GetRoutine("InsertGroupRow"),
                         {
                             builder.GetExecutionContextPtr(),
@@ -1411,13 +1411,13 @@ TCodegenSource MakeCodegenGroupOp(
                             newRowRef
                         });
 
-                    auto groupRow = builder.CreateLoad(groupRowPtr);
+                    auto groupRow = builder->CreateLoad(groupRowPtr);
 
-                    auto inserted = builder.CreateICmpEQ(
-                        builder.CreateExtractValue(
+                    auto inserted = builder->CreateICmpEQ(
+                        builder->CreateExtractValue(
                             groupRow,
                             TypeBuilder<TRow, false>::Fields::Header),
-                        builder.CreateExtractValue(
+                        builder->CreateExtractValue(
                             newRowRef,
                             TypeBuilder<TRow, false>::Fields::Header));
 
@@ -1431,18 +1431,18 @@ TCodegenSource MakeCodegenGroupOp(
                         [&] (TCGContext& builder) {
                             codegenInitialize(builder, groupRow);
 
-                            builder.CreateCall(
+                            builder->CreateCall(
                                 builder.Module->GetRoutine("AllocatePermanentRow"),
                                 {
                                     builder.GetExecutionContextPtr(),
                                     bufferRef,
-                                    builder.getInt32(groupRowSize),
+                                    builder->getInt32(groupRowSize),
                                     newRowPtrRef
                                 });
                         });
 
                     // Here *newRowPtrRef != groupRow.
-                    auto newRow = builder.CreateLoad(newRowPtrRef);
+                    auto newRow = builder->CreateLoad(newRowPtrRef);
 
                     builder.SetBuffer(intermediateBuffer);
                     codegenEvaluateAggregateArgs(builder, row, newRow);
@@ -1451,7 +1451,7 @@ TCodegenSource MakeCodegenGroupOp(
                     builder.SetBuffer(intermediateBuffer);
                 });
 
-            builder.CreateRetVoid();
+            builder->CreateRetVoid();
         });
 
         auto consume = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "Consume", [&] (
@@ -1475,17 +1475,17 @@ TCodegenSource MakeCodegenGroupOp(
                 size,
                 codegenFinalizingConsumer);
 
-            builder.CreateRetVoid();
+            builder->CreateRetVoid();
         });
 
-        builder.CreateCall(
+        builder->CreateCall(
             builder.Module->GetRoutine("GroupOpHelper"),
             {
                 builder.GetExecutionContextPtr(),
                 CodegenGroupHasherFunction(keyTypes, *builder.Module),
                 CodegenGroupComparerFunction(keyTypes, *builder.Module),
-                builder.getInt32(keyTypes.size()),
-                builder.getInt8(checkNulls),
+                builder->getInt32(keyTypes.size()),
+                builder->getInt8(checkNulls),
 
                 collect.ClosurePtr,
                 collect.Function,
@@ -1521,8 +1521,8 @@ TCodegenSource MakeCodegenOrderOp(
             codegenSource(
                 builder,
                 [&] (TCGContext& builder, Value* row) {
-                    Value* topCollectorRef = builder.ViaClosure(topCollector);
-                    Value* newRowRef = builder.ViaClosure(newRow);
+                    Value* topCollectorRef = builder->ViaClosure(topCollector);
+                    Value* newRowRef = builder->ViaClosure(newRow);
 
                     for (size_t index = 0; index < schemaSize; ++index) {
                         auto type = sourceSchema.Columns()[index].Type;
@@ -1543,12 +1543,12 @@ TCodegenSource MakeCodegenOrderOp(
                         orderValue.StoreToRow(builder, newRowRef, columnIndex, columnIndex);
                     }
 
-                    builder.CreateCall(
+                    builder->CreateCall(
                         builder.Module->GetRoutine("AddRow"),
                         {topCollectorRef, newRowRef});
                 });
 
-            builder.CreateRetVoid();
+            builder->CreateRetVoid();
         });
 
         auto consumeOrderedRows = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "ConsumeOrderedRows", [&] (
@@ -1564,15 +1564,15 @@ TCodegenSource MakeCodegenOrderOp(
                 size,
                 codegenConsumer);
 
-            builder.CreateRetVoid();
+            builder->CreateRetVoid();
         });
 
-        std::vector<std::function<TCGValue(TCGIRBuilder& builder, Value* row)>> compareArgs;
+        std::vector<std::function<TCGValue(TCGIRBuilderPtr& builder, Value* row)>> compareArgs;
         for (int index = 0; index < codegenExprs.size(); ++index) {
             auto columnIndex = schemaSize + index;
             auto type = orderColumnTypes[index];
 
-            compareArgs.push_back([columnIndex, type] (TCGIRBuilder& builder, Value* row) {
+            compareArgs.push_back([columnIndex, type] (TCGIRBuilderPtr& builder, Value* row) {
                 return TCGValue::CreateFromRow(
                     builder,
                     row,
@@ -1581,7 +1581,7 @@ TCodegenSource MakeCodegenOrderOp(
             });
         }
 
-        builder.CreateCall(
+        builder->CreateCall(
             builder.Module->GetRoutine("OrderOpHelper"),
             {
                 builder.GetExecutionContextPtr(),
@@ -1592,7 +1592,7 @@ TCodegenSource MakeCodegenOrderOp(
 
                 consumeOrderedRows.ClosurePtr,
                 consumeOrderedRows.Function,
-                builder.getInt32(schemaSize)
+                builder->getInt32(schemaSize)
             });
     };
 }
@@ -1605,18 +1605,12 @@ TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValu
     const auto entryFunctionName = Stroka("EvaluateQuery");
 
     MakeFunction<TCGQuerySignature>(module->GetModule(), entryFunctionName.c_str(), [&] (
-        TCGIRBuilder& baseBuilder,
-        Value* opaqueValues,
+        TCGIRBuilderPtr& baseBuilder,
+        Value* opaqueValuesPtr,
         Value* executionContextPtr
     ) {
-        TCGContext builder(
-            baseBuilder,
-            MakeCGFunctionContext(
-                baseBuilder,
-                opaqueValues,
-                opaqueValuesCount,
-                executionContextPtr,
-                module));
+        auto opaqueValues = MakeOpaqueValues(baseBuilder, opaqueValuesPtr, opaqueValuesCount);
+        TCGContext builder(TCGBaseContext(baseBuilder, &opaqueValues, module), executionContextPtr);
 
         auto collect = MakeClosure<void(TWriteOpClosure*)>(builder, "WriteOpInner", [&] (
             TCGContext& builder,
@@ -1625,16 +1619,16 @@ TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValu
             codegenSource(
                 builder,
                 [&] (TCGContext& builder, Value* row) {
-                    Value* writeRowClosureRef = builder.ViaClosure(writeRowClosure);
-                    builder.CreateCall(
+                    Value* writeRowClosureRef = builder->ViaClosure(writeRowClosure);
+                    builder->CreateCall(
                         module->GetRoutine("WriteRow"),
                         {row, builder.GetExecutionContextPtr(), writeRowClosureRef});
                 });
 
-            builder.CreateRetVoid();
+            builder->CreateRetVoid();
         });
 
-        builder.CreateCall(
+        builder->CreateCall(
             builder.Module->GetRoutine("WriteOpHelper"),
             {
                 builder.GetExecutionContextPtr(),
@@ -1642,7 +1636,7 @@ TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValu
                 collect.Function
             });
 
-        builder.CreateRetVoid();
+        builder->CreateRetVoid();
     });
 
     module->ExportSymbol(entryFunctionName);
@@ -1655,25 +1649,19 @@ TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression, si
     const auto entryFunctionName = Stroka("EvaluateExpression");
 
     MakeFunction<TCGExpressionSignature>(module->GetModule(), entryFunctionName.c_str(), [&] (
-        TCGIRBuilder& baseBuilder,
-        Value* opaqueValues,
+        TCGIRBuilderPtr& baseBuilder,
+        Value* opaqueValuesPtr,
         Value* resultPtr,
         Value* inputRow,
         Value* expressionContextPtr
     ) {
-        TCGContext builder(
-            baseBuilder,
-            MakeCGFunctionContext(
-                baseBuilder,
-                opaqueValues,
-                opaqueValuesCount,
-                nullptr,
-                module));
+        auto opaqueValues = MakeOpaqueValues(baseBuilder, opaqueValuesPtr, opaqueValuesCount);
+        TCGContext builder(TCGBaseContext(baseBuilder, &opaqueValues, module), nullptr);
         builder.SetBuffer(expressionContextPtr);
 
         auto result = codegenExpression(builder, inputRow);
         result.StoreToValue(builder, resultPtr, 0, "writeResult");
-        builder.CreateRetVoid();
+        builder->CreateRetVoid();
     });
 
     module->ExportSymbol(entryFunctionName);
@@ -1688,23 +1676,16 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
     const auto initName = Stroka("init");
     {
         MakeFunction<TCGAggregateInitSignature>(module->GetModule(), initName.c_str(), [&] (
-            TCGIRBuilder& baseBuilder,
+            TCGIRBuilderPtr& baseBuilder,
             Value* expressionContextPtr,
             Value* resultPtr
         ) {
-            TCGContext builder(
-                baseBuilder,
-                MakeCGFunctionContext(
-                    baseBuilder,
-                    nullptr,
-                    0,
-                    nullptr,
-                    module));
+            TCGContext builder(TCGBaseContext(baseBuilder, nullptr, module), nullptr);
             builder.SetBuffer(expressionContextPtr);
 
             auto result = codegenAggregate.Initialize(builder, nullptr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");
-            builder.CreateRetVoid();
+            builder->CreateRetVoid();
         });
 
         module->ExportSymbol(initName);
@@ -1713,25 +1694,18 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
     const auto updateName = Stroka("update");
     {
         MakeFunction<TCGAggregateUpdateSignature>(module->GetModule(), updateName.c_str(), [&] (
-            TCGIRBuilder& baseBuilder,
+            TCGIRBuilderPtr& baseBuilder,
             Value* expressionContextPtr,
             Value* resultPtr,
             Value* statePtr,
             Value* newValuePtr
         ) {
-            TCGContext builder(
-                baseBuilder,
-                MakeCGFunctionContext(
-                    baseBuilder,
-                    nullptr,
-                    0,
-                    nullptr,
-                    module));
+            TCGContext builder(TCGBaseContext(baseBuilder, nullptr, module), nullptr);
             builder.SetBuffer(expressionContextPtr);
 
             auto result = codegenAggregate.Update(builder, statePtr, newValuePtr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");
-            builder.CreateRetVoid();
+            builder->CreateRetVoid();
         });
 
         module->ExportSymbol(updateName);
@@ -1740,25 +1714,18 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
     const auto mergeName = Stroka("merge");
     {
         MakeFunction<TCGAggregateMergeSignature>(module->GetModule(), mergeName.c_str(), [&] (
-            TCGIRBuilder& baseBuilder,
+            TCGIRBuilderPtr& baseBuilder,
             Value* expressionContextPtr,
             Value* resultPtr,
             Value* dstStatePtr,
             Value* statePtr
         ) {
-            TCGContext builder(
-                baseBuilder,
-                MakeCGFunctionContext(
-                    baseBuilder,
-                    nullptr,
-                    0,
-                    nullptr,
-                    module));
+            TCGContext builder(TCGBaseContext(baseBuilder, nullptr, module), nullptr);
             builder.SetBuffer(expressionContextPtr);
 
             auto result = codegenAggregate.Merge(builder, dstStatePtr, statePtr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");
-            builder.CreateRetVoid();
+            builder->CreateRetVoid();
         });
 
         module->ExportSymbol(mergeName);
@@ -1767,29 +1734,21 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
     const auto finalizeName = Stroka("finalize");
     {
         MakeFunction<TCGAggregateFinalizeSignature>(module->GetModule(), finalizeName.c_str(), [&] (
-            TCGIRBuilder& baseBuilder,
+            TCGIRBuilderPtr& baseBuilder,
             Value* expressionContextPtr,
             Value* resultPtr,
             Value* statePtr
         ) {
-            TCGContext builder(
-                baseBuilder,
-                MakeCGFunctionContext(
-                    baseBuilder,
-                    nullptr,
-                    0,
-                    nullptr,
-                    module));
+            TCGContext builder(TCGBaseContext(baseBuilder, nullptr, module), nullptr);
             builder.SetBuffer(expressionContextPtr);
 
             auto result = codegenAggregate.Finalize(builder, statePtr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");
-            builder.CreateRetVoid();
+            builder->CreateRetVoid();
         });
 
         module->ExportSymbol(finalizeName);
     }
-
 
     return TCGAggregateCallbacks{
         module->GetCompiledFunction<TCGAggregateInitSignature>(initName),

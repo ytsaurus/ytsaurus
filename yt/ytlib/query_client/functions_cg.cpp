@@ -49,7 +49,7 @@ Type* GetOpaqueType(
     }
 
     return StructType::create(
-        builder.getContext(),
+        builder->getContext(),
         name);
 }
 
@@ -59,7 +59,7 @@ void PushExecutionContext(
 {
     auto fullContext = builder.GetBuffer();
     auto contextType = GetOpaqueType(builder, ExecutionContextStructName);
-    auto contextStruct = builder.CreateBitCast(
+    auto contextStruct = builder->CreateBitCast(
         fullContext,
         PointerType::getUnqual(contextType));
     argumentValues.push_back(contextStruct);
@@ -71,7 +71,7 @@ void PushFunctionContext(
     std::vector<Value*>& argumentValues)
 {
     auto contextType = GetOpaqueType(builder, FunctionContextStructName);
-    auto contextStruct = builder.CreateBitCast(
+    auto contextStruct = builder->CreateBitCast(
         functionContext,
         PointerType::getUnqual(contextType));
     argumentValues.push_back(contextStruct);
@@ -206,14 +206,14 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
 
         std::function<TCGValue(Value*)> codegenReturn;
         if (IsStringLikeType(type)) {
-            auto resultPointer = builder.CreateAlloca(
+            auto resultPointer = builder->CreateAlloca(
                 TDataTypeBuilder::get(
-                    builder.getContext(),
+                    builder->getContext(),
                     EValueType::String));
             llvmArgs.push_back(resultPointer);
 
-            auto resultLength = builder.CreateAlloca(
-                TTypeBuilder::TLength::get(builder.getContext()));
+            auto resultLength = builder->CreateAlloca(
+                TTypeBuilder::TLength::get(builder->getContext()));
             llvmArgs.push_back(resultLength);
 
             codegenReturn = [
@@ -223,9 +223,9 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
             ] (Value* llvmResult) {
                 return TCGValue::CreateFromValue(
                     builder,
-                    builder.getFalse(),
-                    builder.CreateLoad(resultLength),
-                    builder.CreateLoad(resultPointer),
+                    builder->getFalse(),
+                    builder->CreateLoad(resultLength),
+                    builder->CreateLoad(resultPointer),
                     type,
                     Twine(name.c_str()));
             };
@@ -233,7 +233,7 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
             codegenReturn = [&] (Value* llvmResult) {
                     return TCGValue::CreateFromValue(
                         builder,
-                        builder.getFalse(),
+                        builder->getFalse(),
                         nullptr,
                         llvmResult,
                         type);
@@ -263,23 +263,23 @@ llvm::FunctionType* TSimpleCallingConvention::GetCalleeType(
         GetOpaqueType(builder, ExecutionContextStructName)));
 
     if (IsStringLikeType(resultType)) {
-        calleeResultType = builder.getVoidTy();
-        calleeArgumentTypes.push_back(PointerType::getUnqual(builder.getInt8PtrTy()));
-        calleeArgumentTypes.push_back(PointerType::getUnqual(builder.getInt32Ty()));
+        calleeResultType = builder->getVoidTy();
+        calleeArgumentTypes.push_back(PointerType::getUnqual(builder->getInt8PtrTy()));
+        calleeArgumentTypes.push_back(PointerType::getUnqual(builder->getInt32Ty()));
 
     } else {
         calleeResultType = TDataTypeBuilder::get(
-            builder.getContext(),
+            builder->getContext(),
             resultType);
     }
 
     for (auto type : argumentTypes) {
         if (IsStringLikeType(type)) {
-            calleeArgumentTypes.push_back(builder.getInt8PtrTy());
-            calleeArgumentTypes.push_back(builder.getInt32Ty());
+            calleeArgumentTypes.push_back(builder->getInt8PtrTy());
+            calleeArgumentTypes.push_back(builder->getInt32Ty());
         } else {
             calleeArgumentTypes.push_back(TDataTypeBuilder::get(
-                builder.getContext(),
+                builder->getContext(),
                 type));
         }
     }
@@ -308,7 +308,7 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 {
     return [=] (TCGContext& builder, Value* row) {
         auto unversionedValueType =
-            llvm::TypeBuilder<TValue, false>::get(builder.getContext());
+            llvm::TypeBuilder<TValue, false>::get(builder->getContext());
         auto unversionedValueOpaqueType = GetOpaqueType(
             builder,
             UnversionedValueStructName);
@@ -322,8 +322,8 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
             PushFunctionContext(builder, functionContext, argumentValues);
         }
 
-        auto resultPtr = builder.CreateAlloca(unversionedValueType);
-        auto castedResultPtr = builder.CreateBitCast(
+        auto resultPtr = builder->CreateAlloca(unversionedValueType);
+        auto castedResultPtr = builder->CreateBitCast(
             resultPtr,
             PointerType::getUnqual(unversionedValueOpaqueType));
         argumentValues.push_back(castedResultPtr);
@@ -334,24 +334,24 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
             arg != codegenArgs.end() && argIndex != RepeatedArgIndex_;
             arg++, argIndex++)
         {
-            auto valuePtr = builder.CreateAlloca(unversionedValueType);
+            auto valuePtr = builder->CreateAlloca(unversionedValueType);
             auto cgValue = (*arg)(builder, row);
             cgValue.StoreToValue(builder, valuePtr, 0);
 
-            auto castedValuePtr = builder.CreateBitCast(
+            auto castedValuePtr = builder->CreateBitCast(
                 valuePtr,
                 PointerType::getUnqual(unversionedValueOpaqueType));
             argumentValues.push_back(castedValuePtr);
         }
 
         if (argIndex == RepeatedArgIndex_) {
-            auto varargSize = builder.getInt32(
+            auto varargSize = builder->getInt32(
                 codegenArgs.size() - RepeatedArgIndex_);
 
-            auto varargPtr = builder.CreateAlloca(
+            auto varargPtr = builder->CreateAlloca(
                 unversionedValueType,
                 varargSize);
-            auto castedVarargPtr = builder.CreateBitCast(
+            auto castedVarargPtr = builder->CreateBitCast(
                 varargPtr,
                 PointerType::getUnqual(unversionedValueOpaqueType));
 
@@ -359,7 +359,7 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
             argumentValues.push_back(varargSize);
 
             for (int varargIndex = 0; arg != codegenArgs.end(); arg++, varargIndex++) {
-                auto valuePtr = builder.CreateConstGEP1_32(
+                auto valuePtr = builder->CreateConstGEP1_32(
                     varargPtr,
                     varargIndex);
 
@@ -382,7 +382,7 @@ llvm::FunctionType* TUnversionedValueCallingConvention::GetCalleeType(
     std::vector<EValueType> argumentTypes,
     EValueType resultType) const
 {
-    llvm::Type* calleeResultType = builder.getVoidTy();
+    llvm::Type* calleeResultType = builder->getVoidTy();
 
     auto calleeArgumentTypes = std::vector<llvm::Type*>();
 
@@ -405,7 +405,7 @@ llvm::FunctionType* TUnversionedValueCallingConvention::GetCalleeType(
     if (RepeatedArgIndex_ != -1) {
         calleeArgumentTypes.push_back(PointerType::getUnqual(
             GetOpaqueType(builder, UnversionedValueStructName)));
-        calleeArgumentTypes.push_back(builder.getInt32Ty());
+        calleeArgumentTypes.push_back(builder->getInt32Ty());
     }
 
     return FunctionType::get(
@@ -544,7 +544,7 @@ bool LoadLlvmBitcode(
     auto buffer = MemoryBufferRef(
         StringRef(implementationFile.Begin(), implementationFile.Size()),
         StringRef("impl"));
-    auto implModule = parseIR(buffer, diag, builder.getContext());
+    auto implModule = parseIR(buffer, diag, builder->getContext());
 
     if (!implModule) {
         return false;
@@ -684,7 +684,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
             StringRef(this_->SymbolName_));
         YCHECK(callee);
 
-        auto result = builder.CreateCall(callee, argumentValues);
+        auto result = builder->CreateCall(callee, argumentValues);
         return result;
     };
 
@@ -783,7 +783,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
                 StringRef(functionName));
             YCHECK(callee);
 
-            return builder.CreateCall(callee, argumentValues);
+            return builder->CreateCall(callee, argumentValues);
         };
     };
 
