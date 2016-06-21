@@ -575,7 +575,8 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and is_empty(table, client=client):
         _remove_tables([table], client=client)
 
-def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None, raw=None, response_parameters=None, read_transaction=None, client=None):
+def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None,
+               raw=None, response_parameters=None, read_transaction=None, client=None):
     """Read rows from table and parse (optionally).
 
     :param table: string or :py:class:`yt.wrapper.table.TablePath`

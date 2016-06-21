@@ -83,6 +83,6 @@ def transform(src, dst=None, erasure_codec=None, compression_codec=None, desired
         },
         spec)
    
-    logger.info("Merge from '%s' to '%s' (mode: '%s', spec: '%s'", src, dst, mode, spec) 
+    logger.info("Merge from '%s' to '%s' (mode: '%s', spec: '%s')", src, dst, mode, spec)
     yt_client.run_merge(src, dst, mode, spec=spec)
 

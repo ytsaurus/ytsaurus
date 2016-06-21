@@ -1,10 +1,12 @@
 import yt.logger as logger
-from yt.common import YtError, set_pdeathsig, flatten
-from yt.wrapper.common import generate_uuid
+from yt.common import YtError, set_pdeathsig, flatten, make_non_blocking
+from yt.wrapper.common import generate_uuid, MB
 import yt.json as json
 
 import os
+import errno
 import sh
+import time
 import subprocess32 as subprocess
 from datetime import datetime, timedelta
 from urllib import quote_plus
@@ -39,6 +41,67 @@ def _check_call(command, silent=False, **kwargs):
         raise YamrError("Command '{0}' failed".format(command), code=proc.returncode, attributes={"stderrs": stderrdata})
 
     logger.info("Command '{}' successfully executed".format(command))
+
+class _ReadTableIterator(object):
+    def __init__(self, command, chunk_size, timeout):
+        self._command = command
+        self._chunk_size = chunk_size
+        self._timeout = timeout
+
+        logger.info("Starting reading table from Yamr with command '{0}'".format(self._command))
+
+        self._proc = subprocess.Popen(command,
+                                      stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE,
+                                      preexec_fn=set_pdeathsig,
+                                      shell=True)
+        self._proc_start_time = time.time()
+        self._process_finished = False
+
+        for stream in [self._proc.stdout, self._proc.stderr]:
+            make_non_blocking(stream.fileno())
+
+    def __iter__(self):
+        return self
+
+    def _read_stderr_and_raise(self):
+        returncode = self._proc.poll()
+        try:
+            stderr = self._proc.stderr.read()
+        except IOError:
+            pass
+
+        error = YamrError("Command '{0}' failed".format(self._command))
+        error.inner_errors = [YamrError(stderr, returncode)]
+        raise error
+
+    def next(self):
+        while True:
+            if self._timeout is not None and time.time() - self._proc_start_time > self._timeout:
+                self._proc.kill()
+                raise YamrError("Command '{0}' timed out (timeout: {1})"
+                                .format(self._command, self._timeout))
+
+            try:
+                data = self._proc.stdout.read(self._chunk_size)
+                break
+            except IOError as err:
+                if err.errno == errno.EPIPE:
+                    self._read_stderr_and_raise()
+                elif err.errno == errno.EAGAIN:
+                    time.sleep(0.5)
+                    continue
+                else:
+                    raise
+
+        if len(data) > 0:
+            return data
+        else:  # EOF
+            raise StopIteration()
+
+    def close(self):
+        if self._proc.poll() is None:
+            self._proc.terminate()
 
 class Yamr(object):
     def __init__(self, binary, server, server_port, http_port, name=None, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", opts="", timeout=None, max_failed_jobs=None, scheduler_info_update_period=15.0):
@@ -184,6 +247,58 @@ class Yamr(object):
             error = YamrError("Command '{0}' failed".format(command))
             error.inner_errors = [YamrError(stderr, proc.returncode)]
             raise error
+
+    def write_from_chunked_stream(self, table, stream):
+        command = '{0} MR_USER={1} {2} -server {3} -write "{4}" -subkey -lenval'\
+                .format(self.opts, self.mr_user, self.binary, self.server, table)
+        proc = subprocess.Popen(command,
+                                stdin=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                preexec_fn=set_pdeathsig,
+                                shell=True)
+        broken_pipe = False
+        for chunk in stream:
+            try:
+                proc.stdin.write(chunk)
+            except IOError as err:
+                if err.errno == errno.EPIPE:
+                    broken_pipe = True
+                else:
+                    raise
+        proc.stdin.close()
+        proc.wait()
+
+        if proc.returncode != 0 or broken_pipe:
+            try:
+                stderr = proc.stderr.read()
+            except IOError:
+                pass
+
+            error = YamrError("Command '{0}' failed".format(command))
+            error.inner_errors = [YamrError(stderr, proc.returncode)]
+            raise error
+
+    def get_read_iterator(self, table, fastbone, chunk_size=128 * MB, transaction_id=None, timeout=None):
+        command_pattern = '{opts} MR_USER={mr_user} USER=yt {binary} '\
+                          '-server {server} ' \
+                          '{fastbone_option} '\
+                          '-read "{table}" -lenval -subkey {shared_tx}'
+
+        if transaction_id is None:
+            transaction_id = "yt_" + generate_uuid()
+
+        shared_tx_str = ("-sharedtransactionid " + transaction_id) if self.supports_shared_transactions else ""
+
+        command = command_pattern.format(
+            opts=self.opts,
+            mr_user=self.mr_user,
+            binary=self.binary,
+            server=self.server,
+            fastbone_option=self._make_fastbone(fastbone),
+            table=table,
+            shared_tx=shared_tx_str)
+
+        return _ReadTableIterator(command, chunk_size, timeout)
 
     def create_read_range_commands(self, ranges, table, fastbone, transaction_id=None, timeout=None, enable_logging=False):
         commands = []
