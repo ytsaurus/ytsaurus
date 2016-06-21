@@ -65,6 +65,8 @@ from multiprocessing import Process
 from itertools import chain
 import Queue
 
+OS_PAGE_SIZE = os.sysconf("SC_PAGE_SIZE")
+
 yt.config["read_retries"]["enable"] = True
 
 class RequestFailed(yt.YtError):
@@ -273,6 +275,7 @@ class Application(object):
 
     def __init__(self, config_path):
         self._start_time = time.time()
+        self._pid = os.getpid()
         self._daemon = Flask(__name__)
 
         self._config_path = config_path
@@ -387,6 +390,7 @@ class Application(object):
         self._add_rule("/profiling/call_tracker/", 'profiling_call_tracker', methods=["GET"])
         self._add_rule("/profiling/memory_tracker/", 'profiling_memory_tracker', methods=["GET"])
         self._add_rule("/profiling/stats/", 'profiling_stats', methods=["GET"])
+        self._add_rule("/solomon_sensors/", 'solomon_sensors', methods=["GET"])
 
     def terminate(self):
         self._terminating = True
@@ -1627,7 +1631,7 @@ class Application(object):
 
     # Public interface
     def run(self, *args, **kwargs):
-        logger.info("Starting transfer manager (pid %s)", os.getpid())
+        logger.info("Starting transfer manager (pid %s)", self._pid)
 
         dispatcher = wsgiserver.WSGIPathInfoDispatcher({'/': self._daemon})
         server = wsgiserver.CherryPyWSGIServer((self._config.get("host", "::"), self._config["port"]), dispatcher,
@@ -1888,6 +1892,31 @@ class Application(object):
             return "yappi module is currently unavailable", 500
         finally:
             remove_file(filename, force=True)
+
+    def solomon_sensors(self):
+        sensors = []
+
+        sensors.append({"labels": {"sensor": "pending_count"}, "value": len(self._pending_tasks)})
+        sensors.append({"labels": {"sensor": "running_count"}, "value": len(self._task_processes)})
+
+        objects_size = pympler_muppy.get_size(pympler_muppy.get_objects()) / 1024
+        sensors.append({"labels": {"sensor": "objects_memory_mb"}, "value": objects_size})
+
+        with open("/proc/{0}/statm".format(self._pid)) as f:
+            memory_info = f.readline().strip()
+            rss_mem = int(memory_info.split()[1]) * OS_PAGE_SIZE / 1024
+            sensors.append({"labels": {"sensor": "rss_memory_mb"}, "value": rss_mem})
+
+        with self._profiling_mutex:
+            instant_call_count = deepcopy(self._profiling["instant_call_count"])
+
+        for key in instant_call_count:
+            if key == "solomon_sensors":
+                continue
+            sensors.append({"labels": {"method": key, "sensor": "call_count"},
+                            "value": instant_call_count[key]})
+
+        return Response(json.dumps({"sensors": sensors}), mimetype="application/json")
 
 def main():
     parser = argparse.ArgumentParser(description="Transfer manager.")
