@@ -7,6 +7,8 @@
 
 #include <yt/core/yson/forwarding_consumer.h>
 
+#include <memory>
+
 namespace NYT {
 namespace NYTree {
 
@@ -70,7 +72,7 @@ private:
 template <class T>
 void CreateBuildingYsonConsumer(std::unique_ptr<NYson::IBuildingYsonConsumer<T>>* buildingConsumer, NYson::EYsonType ysonType)
 {
-    *buildingConsumer = std::make_unique<TBuildingYsonConsumerViaTreeBuilder<T>>(ysonType);
+    *buildingConsumer = std::unique_ptr<TBuildingYsonConsumerViaTreeBuilder<T>>(new TBuildingYsonConsumerViaTreeBuilder<T>(ysonType));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
