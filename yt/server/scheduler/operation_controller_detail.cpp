@@ -1746,12 +1746,10 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
 
     if (RowCountLimitTableIndex) {
         switch (joblet->JobType) {
-            default:
-                break;
             case EJobType::Map:
             case EJobType::OrderedMap:
             case EJobType::SortedReduce:
-            case EJobType::PartitionReduce:
+            case EJobType::PartitionReduce: {
                 auto getValue = [] (const TSummary& summary) {
                     return summary.GetSum();
                 };
@@ -1760,9 +1758,12 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
                 if (count >= RowCountLimit) {
                     OnOperationCompleted();
                 }
+                break;
+            }
+            default:
+                break;
         }
     }
-
 }
 
 void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary)
