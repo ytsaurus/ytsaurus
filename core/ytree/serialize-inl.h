@@ -67,7 +67,7 @@ void DeserializeVector(T& value, INodePtr node)
 }
 
 template <class T>
-void DeserializeSet(T& value, INodePtr node)
+void DeserializeSet(T& /*value*/, INodePtr node)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
