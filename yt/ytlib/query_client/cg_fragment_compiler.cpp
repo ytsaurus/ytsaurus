@@ -1617,7 +1617,7 @@ TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValu
                     Value* writeRowClosureRef = builder->ViaClosure(writeRowClosure);
                     builder->CreateCall(
                         module->GetRoutine("WriteRow"),
-                        {row, builder.GetExecutionContextPtr(), writeRowClosureRef});
+                        {builder.GetExecutionContextPtr(), writeRowClosureRef, row});
                 });
 
             builder->CreateRetVoid();

@@ -47,7 +47,7 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WriteRow(TRow row, TExecutionContext* context, TWriteOpClosure* closure)
+void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TRow row)
 {
     CHECK_STACK();
 
