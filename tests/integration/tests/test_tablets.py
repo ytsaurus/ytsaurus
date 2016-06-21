@@ -193,26 +193,6 @@ class TestTablets(YTEnvSetup):
         assert_items_equal(get_tablet_ids("//tmp/x/a"), tablet_ids_a)
         assert_items_equal(get_tablet_ids("//tmp/x/b"), tablet_ids_b)
 
-    def test_read_only_mode(self):
-        self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        set("//tmp/t/@read_only", True)
-        self.sync_mount_table("//tmp/t")
-
-        rows = [{"key": i, "value": str(i)} for i in xrange(1)]
-
-        with pytest.raises(YtError): insert_rows("//tmp/t", rows)
-
-        remove("//tmp/t/@read_only")
-        remount_table("//tmp/t")
-
-        insert_rows("//tmp/t", rows)
-
-        set("//tmp/t/@read_only", True)
-        remount_table("//tmp/t")
-
-        with pytest.raises(YtError): insert_rows("//tmp/t", rows)
-
     def test_tablet_assignment(self):
         self.sync_create_cells(3)
         self._create_simple_table("//tmp/t")
