@@ -9,6 +9,7 @@ import types
 import signal
 import errno
 import socket
+import fcntl
 from datetime import datetime
 
 class YtError(Exception):
@@ -277,4 +278,8 @@ def datetime_to_string(date, is_local=False):
         date = datetime.utcfromtimestamp(time.mktime(date.timetuple()))
     # It is standard time representation in YT.
     return date.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+def make_non_blocking(fd):
+    flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+    fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 

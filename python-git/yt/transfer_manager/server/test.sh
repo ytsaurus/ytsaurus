@@ -19,6 +19,7 @@ fi
 set -u
 
 TM_CONFIG=$1
+FORCE_COPY_WITH_OPERATION=false
 
 log() {
     echo "$@" >&2
@@ -56,7 +57,12 @@ get_task_state() {
 run_task() {
     local body="$1"
     log "Running task $body"
-    request "POST" "tasks/" -d "$1" -f
+    if $FORCE_COPY_WITH_OPERATION; then
+        log "Running task with set force_copy_with_operation flag"
+        request "POST" "tasks/" -d "$(echo $body | jq '.force_copy_with_operation=true')" -f
+    else
+        request "POST" "tasks/" -d "$1" -f
+    fi
 }
 
 run_task_that_should_fail() {
@@ -315,7 +321,21 @@ test_passing_custom_spec() {
     yt2 remove //tmp/test_table --force --proxy quine
     yt2 set //tmp/test_table/@erasure_codec lrc_12_2_2 --proxy banach
 
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "banach", "destination_table": "//tmp/test_table", "destination_cluster": "quine", "copy_spec": {"type": "copy", "pool": "copy"}, "postprocess_spec": {"type": "postprocess"}, "copy_method": "proxy", "queue_name": "ignat"}')
+    task_description=$(cat <<EOF
+{
+    "source_table": "//tmp/test_table",
+    "source_cluster": "banach",
+    "destination_table": "//tmp/test_table",
+    "destination_cluster": "quine",
+    "copy_method": "proxy",
+    "copy_spec": {"type": "copy", "pool": "copy"},
+    "postprocess_spec": {"type": "postprocess"},
+    "queue_name": "ignat",
+    "force_copy_with_operation": true
+}
+EOF
+)
+    id=$(run_task "$task_description")
     wait_task $id
 
     local task_descr=$(get_task $id)
@@ -572,25 +592,31 @@ EOF
 
 # Different transfers
 test_copy_empty_table
-test_various_transfers
-test_incorrect_copy_to_yamr
+
+for flag in true false; do
+    FORCE_COPY_WITH_OPERATION=$flag
+    test_various_transfers
+    test_incorrect_copy_to_yamr
+    test_copy_table_range
+    test_copy_table_range_with_codec
+    test_copy_table_attributes
+    test_types_preserving_during_copy
+    test_destination_codecs
+    test_source_codecs
+    test_copy_inefficiently_stored_table
+    test_intermediate_format
+done
+FORCE_COPY_WITH_OPERATION=false
+
 test_lease
 test_abort_restart_task
-test_copy_table_range
-test_copy_table_range_with_codec
-test_copy_table_attributes
 test_copy_to_yamr_table_with_spaces_in_name
 test_recursive_path_creation
 test_passing_custom_spec
 test_clusters_configuration_reloading
-test_types_preserving_during_copy
 test_skip_if_destination_exists
 test_mutating_requests_retries
-test_destination_codecs
-test_source_codecs
-test_intermediate_format
 test_delete_tasks
-test_copy_inefficiently_stored_table
 test_copy_with_annotated_json
 test_kiwi_copy
 test_abort_operations_on_startup

@@ -83,6 +83,9 @@ def execute_task(task, message_queue, config):
         fastbone = source_client._parameters.get("fastbone", False) and destination_client._parameters.get("fastbone", False)
         fastbone = parameters.get("fastbone", fastbone)
 
+        force_copy_with_operation = task.force_copy_with_operation or \
+                not config.get("enable_copy_without_operation", True)
+
         if source_client._type == "yt" and destination_client._type == "yt":
             logger.info("Running YT -> YT remote copy operation")
             if task.copy_method == "proxy":
@@ -99,7 +102,9 @@ def execute_task(task, message_queue, config):
                     erasure_codec=task.destination_erasure_codec,
                     intermediate_format=task.intermediate_format,
                     default_tmp_dir=config.get("default_tmp_dir"),
-                    enable_row_count_check=config.get("enable_row_count_check"))
+                    enable_row_count_check=config.get("enable_row_count_check"),
+                    small_table_size_threshold=config.get("small_table_size_threshold"),
+                    force_copy_with_operation=force_copy_with_operation)
             else:  # native
                 network_name = "fastbone" if fastbone else "default"
                 network_name = parameters.get("network_name", network_name)
@@ -132,7 +137,9 @@ def execute_task(task, message_queue, config):
                     fastbone=fastbone,
                     force_sort=task.destination_force_sort,
                     default_tmp_dir=config.get("default_tmp_dir"),
-                    enable_row_count_check=config.get("enable_row_count_check"))
+                    enable_row_count_check=config.get("enable_row_count_check"),
+                    small_table_size_threshold=config.get("small_table_size_threshold"),
+                    force_copy_with_operation=force_copy_with_operation)
         elif source_client._type == "yamr" and destination_client._type == "yt":
             logger.info("Running YAMR -> YT remote copy")
             copy_yamr_to_yt_pull(
@@ -146,7 +153,9 @@ def execute_task(task, message_queue, config):
                 force_sort=task.destination_force_sort,
                 copy_spec_template=copy_spec,
                 postprocess_spec_template=postprocess_spec,
-                job_timeout=task.job_timeout)
+                job_timeout=task.job_timeout,
+                small_table_size_threshold=config.get("small_table_size_threshold"),
+                force_copy_with_operation=force_copy_with_operation)
         elif source_client._type == "yamr" and destination_client._type == "yamr":
             destination_client.remote_copy(
                 source_client.server,
