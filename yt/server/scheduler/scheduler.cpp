@@ -2851,10 +2851,10 @@ private:
                     LOG_DEBUG("Aborting job");
                     ToProto(response->add_jobs_to_abort(), jobId);
                 } else {
+                    LOG_DEBUG_IF(shouldLogJob, "Job is %lv", state);
+                    SetJobState(job, state);
                     switch (state) {
                         case EJobState::Running:
-                            LOG_DEBUG_IF(shouldLogJob, "Job is running");
-                            SetJobState(job, state);
                             job->SetProgress(jobStatus->progress());
                             if (updateRunningJobs) {
                                 OnJobRunning(job, std::move(jobStatus));
@@ -2862,7 +2862,6 @@ private:
                             break;
 
                         case EJobState::Waiting:
-                            LOG_DEBUG_IF(shouldLogJob, "Job is waiting");
                             if (updateRunningJobs) {
                                 OnJobWaiting(job);
                             }
