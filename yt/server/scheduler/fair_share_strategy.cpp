@@ -1033,6 +1033,7 @@ private:
                         .Item("operation_count").Value(pool->OperationCount())
                         .Item("max_running_operation_count").Value(pool->GetMaxRunningOperationCount())
                         .Item("max_operation_count").Value(pool->GetMaxOperationCount())
+                        .Item("aggressive_starvation_enabled").Value(pool->AggressiveStarvationEnabled())
                         .DoIf(config->Mode == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
                             fluent
                                 .Item("fifo_sort_parameters").Value(config->FifoSortParameters);
