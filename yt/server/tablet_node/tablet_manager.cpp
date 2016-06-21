@@ -1139,16 +1139,14 @@ private:
             hiveManager->PostMessage(masterMailbox, masterRequest);
         }
 
-        // XXX(babenko)
-        //if (commitRequest->has_transaction_id()) {
-        //    auto transactionId = FromProto<TTransactionId>(commitRequest->transaction_id());
-        //
-        //    TReqHydraAbortTransaction masterRequest;
-        //    ToProto(masterRequest.mutable_transaction_id(), transactionId);
-        //    ToProto(masterRequest.mutable_mutation_id(), NRpc::NullMutationId);
-        //
-        //    hiveManager->PostMessage(masterMailbox, masterRequest);
-        //}
+        if (commitRequest->has_transaction_id()) {
+            auto transactionId = FromProto<TTransactionId>(commitRequest->transaction_id());
+
+            TReqCoordinatorAbortTransaction masterRequest;
+            ToProto(masterRequest.mutable_transaction_id(), transactionId);
+
+            hiveManager->PostMessage(masterMailbox, masterRequest);
+        }
     }
 
     void HydraOnTabletStoresUpdated(TRspUpdateTabletStores* response)
