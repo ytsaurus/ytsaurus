@@ -907,7 +907,8 @@ def is_sorted(table, client=None):
                           default="false",
                           client=client))
 
-def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=None, client=None):
+def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=None,
+                freeze=False, client=None):
     """Mount table.
 
     TODO
@@ -920,6 +921,7 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
         params["last_tablet_index"] = last_tablet_index
     if cell_id is not None:
         params["cell_id"] = cell_id
+    params["freeze"] = freeze
 
     make_request("mount_table", params, client=client)
 
