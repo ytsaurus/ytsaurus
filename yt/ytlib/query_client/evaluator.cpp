@@ -24,9 +24,6 @@ namespace NQueryClient {
 
 using namespace NConcurrency;
 
-struct TEvaluatorBufferTag
-{ };
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachedCGQuery

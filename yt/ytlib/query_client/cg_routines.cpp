@@ -45,9 +45,6 @@ using namespace NTableClient;
 
 static const auto& Logger = QueryClientLogger;
 
-struct TOutputBufferTag
-{ };
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void WriteRow(TRow row, TExecutionContext* context, TWriteOpClosure* closure)
@@ -103,7 +100,7 @@ void ScanOpHelper(
 
     auto* statistics = context->Statistics;
 
-    auto rowBuffer = New<TRowBuffer>();
+    auto rowBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
 
     while (true) {
         bool hasMoreData;
@@ -193,7 +190,7 @@ void JoinOpHelper(
 {
     TJoinClosure closure(lookupHasher, lookupEqComparer, keySize);
 
-    auto buffer = New<TRowBuffer>();
+    auto buffer = New<TRowBuffer>(TPermanentBufferTag());
 
     try {
         // Collect join ids.
@@ -272,7 +269,7 @@ void GroupOpHelper(
 {
     TGroupByClosure closure(groupHasher, groupComparer, keySize, checkNulls);
 
-    auto buffer = New<TRowBuffer>();
+    auto buffer = New<TRowBuffer>(TPermanentBufferTag());
 
     try {
         collectRows(collectRowsClosure, &closure, buffer.Get());
@@ -284,7 +281,7 @@ void GroupOpHelper(
     LOG_DEBUG("Collected %v group rows",
         closure.GroupedRows.size());
 
-    auto intermediateBuffer = New<TRowBuffer>();
+    auto intermediateBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
 
     for (size_t index = 0; index < closure.GroupedRows.size(); index += RowsetProcessingSize) {
         auto size = std::min(RowsetProcessingSize, closure.GroupedRows.size() - index);
@@ -320,7 +317,7 @@ void OrderOpHelper(
     collectRows(collectRowsClosure, &topCollector);
     auto rows = topCollector.GetRows(rowSize);
 
-    auto rowBuffer = New<TRowBuffer>();
+    auto rowBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
 
     for (size_t index = 0; index < rows.size(); index += RowsetProcessingSize) {
         auto size = std::min(RowsetProcessingSize, rows.size() - index);

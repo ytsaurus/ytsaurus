@@ -278,7 +278,7 @@ TJoinEvaluator GetJoinEvaluator(
         auto reader = pipe->GetReader();
 
         std::vector<TRow> joinedRows;
-        auto intermediateBuffer = New<TRowBuffer>();
+        auto intermediateBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
 
         auto consumeJoinedRows = [&] () {
             // Consume joined rows.
