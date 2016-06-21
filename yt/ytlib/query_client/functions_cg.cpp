@@ -37,7 +37,7 @@ Stroka ToString(llvm::Type* tp)
 }
 
 Type* GetOpaqueType(
-    TCGContext& builder,
+    TCGExprContext& builder,
     const char* name)
 {
     auto existingType = builder.Module
@@ -54,7 +54,7 @@ Type* GetOpaqueType(
 }
 
 void PushExecutionContext(
-    TCGContext& builder,
+    TCGExprContext& builder,
     std::vector<Value*>& argumentValues)
 {
     auto fullContext = builder.GetBuffer();
@@ -66,7 +66,7 @@ void PushExecutionContext(
 }
 
 void PushFunctionContext(
-    TCGContext& builder,
+    TCGExprContext& builder,
     Value* functionContext,
     std::vector<Value*>& argumentValues)
 {
@@ -80,7 +80,7 @@ void PushFunctionContext(
 ////////////////////////////////////////////////////////////////////////////////
 
 void CheckCallee(
-    TCGContext& builder,
+    TCGBaseContext& builder,
     const Stroka& functionName,
     llvm::Function* callee,
     llvm::FunctionType* functionType)
@@ -125,7 +125,6 @@ void CheckCallee(
 ////////////////////////////////////////////////////////////////////////////////
 
 void PushArgument(
-    TCGContext& builder,
     std::vector<Value*>& argumentValues,
     TCGValue argumentValue)
 {
@@ -142,7 +141,7 @@ TCGValue PropagateNullArguments(
     std::function<TCGValue(Value*)> codegenReturn,
     EValueType type,
     const Stroka& name,
-    TCGContext& builder,
+    TCGExprContext& builder,
     Value* row)
 {
     if (codegenArgs.empty()) {
@@ -152,15 +151,15 @@ TCGValue PropagateNullArguments(
         auto currentArgValue = codegenArgs.back()(builder, row);
         codegenArgs.pop_back();
 
-        PushArgument(builder, argumentValues, currentArgValue);
+        PushArgument(argumentValues, currentArgValue);
 
-        return CodegenIf<TCGContext, TCGValue>(
+        return CodegenIf<TCGExprContext, TCGValue>(
             builder,
             currentArgValue.IsNull(),
-            [&] (TCGContext& builder) {
+            [&] (TCGExprContext& builder) {
                 return TCGValue::CreateNull(builder, type);
             },
-            [&] (TCGContext& builder) {
+            [&] (TCGExprContext& builder) {
                 return PropagateNullArguments(
                     codegenArgs,
                     argumentValues,
@@ -182,7 +181,7 @@ TCGValue PropagateNullArguments(
 TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
     TCodegenValue codegenFunctionContext,
     std::vector<TCodegenExpression> codegenArgs,
-    std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
+    std::function<Value*(std::vector<Value*>, TCGExprContext&)> codegenBody,
     EValueType type,
     const Stroka& name) const
 {
@@ -192,7 +191,7 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
         name,
         MOVE(codegenArgs),
         MOVE(codegenBody)
-    ] (TCGContext& builder, Value* row) mutable {
+    ] (TCGExprContext& builder, Value* row) mutable {
         std::reverse(
             codegenArgs.begin(),
             codegenArgs.end());
@@ -253,7 +252,7 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
 }
 
 llvm::FunctionType* TSimpleCallingConvention::GetCalleeType(
-    TCGContext& builder,
+    TCGExprContext& builder,
     std::vector<EValueType> argumentTypes,
     EValueType resultType) const
 {
@@ -302,11 +301,11 @@ TUnversionedValueCallingConvention::TUnversionedValueCallingConvention(
 TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
     TCodegenValue codegenFunctionContext,
     std::vector<TCodegenExpression> codegenArgs,
-    std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
+    std::function<Value*(std::vector<Value*>, TCGExprContext&)> codegenBody,
     EValueType type,
     const Stroka& name) const
 {
-    return [=] (TCGContext& builder, Value* row) {
+    return [=] (TCGExprContext& builder, Value* row) {
         auto unversionedValueType =
             llvm::TypeBuilder<TValue, false>::get(builder->getContext());
         auto unversionedValueOpaqueType = GetOpaqueType(
@@ -378,7 +377,7 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 }
 
 llvm::FunctionType* TUnversionedValueCallingConvention::GetCalleeType(
-    TCGContext& builder,
+    TCGExprContext& builder,
     std::vector<EValueType> argumentTypes,
     EValueType resultType) const
 {
@@ -475,7 +474,7 @@ bool ObjectContainsFunction(
 }
 
 bool LoadSharedObject(
-    TCGContext& builder,
+    TCGBaseContext& builder,
     const Stroka& functionName,
     std::vector<Stroka> requiredSymbols,
     TSharedRef implementationFile)
@@ -535,7 +534,7 @@ bool LoadSharedObject(
 }
 
 bool LoadLlvmBitcode(
-    TCGContext& builder,
+    TCGBaseContext& builder,
     const Stroka& functionName,
     std::vector<Stroka> requiredSymbols,
     TSharedRef implementationFile)
@@ -586,7 +585,7 @@ bool LoadLlvmBitcode(
 }
 
 void LoadLlvmFunctions(
-    TCGContext& builder,
+    TCGBaseContext& builder,
     const Stroka& functionName,
     std::vector<std::pair<Stroka, llvm::FunctionType*>> functions,
     TSharedRef implementationFile)
@@ -668,7 +667,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
         this_ = MakeStrong(this),
         MOVE(argumentTypes),
         type
-    ] (std::vector<Value*> argumentValues, TCGContext& builder) {
+    ] (std::vector<Value*> argumentValues, TCGExprContext& builder) {
         auto functionType = this_->CallingConvention_->GetCalleeType(
             builder,
             argumentTypes,
@@ -736,7 +735,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             updateName,
             mergeName,
             finalizeName
-        ] (std::vector<Value*> argumentValues, TCGContext& builder) {
+        ] (std::vector<Value*> argumentValues, TCGExprContext& builder) {
             auto aggregateFunctions = std::vector<std::pair<Stroka, llvm::FunctionType*>>();
 
             auto initType = this_->CallingConvention_->GetCalleeType(
@@ -795,7 +794,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         stateType,
         name,
         makeCodegenBody
-    ] (TCGContext& builder, Value* row) {
+    ] (TCGExprContext& builder, Value* row) {
         return this_->CallingConvention_->MakeCodegenFunctionCall(
             nullptr,
             std::vector<TCodegenExpression>(),
@@ -811,15 +810,15 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         stateType,
         name,
         makeCodegenBody
-    ] (TCGContext& builder, Value* aggState, Value* newValue) {
+    ] (TCGExprContext& builder, Value* aggState, Value* newValue) {
         auto codegenArgs = std::vector<TCodegenExpression>();
-        codegenArgs.push_back([=] (TCGContext& builder, Value* row) {
+        codegenArgs.push_back([=] (TCGExprContext& builder, Value* row) {
             return TCGValue::CreateFromLlvmValue(
                 builder,
                 aggState,
                 stateType);
         });
-        codegenArgs.push_back([=] (TCGContext& builder, Value* row) {
+        codegenArgs.push_back([=] (TCGExprContext& builder, Value* row) {
             return TCGValue::CreateFromLlvmValue(
                 builder,
                 newValue,
@@ -841,15 +840,15 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         stateType,
         name,
         makeCodegenBody
-    ] (TCGContext& builder, Value* dstAggState, Value* aggState) {
+    ] (TCGExprContext& builder, Value* dstAggState, Value* aggState) {
         auto codegenArgs = std::vector<TCodegenExpression>();
-        codegenArgs.push_back([=] (TCGContext& builder, Value* row) {
+        codegenArgs.push_back([=] (TCGExprContext& builder, Value* row) {
             return TCGValue::CreateFromLlvmValue(
                 builder,
                 dstAggState,
                 stateType);
             });
-        codegenArgs.push_back([=] (TCGContext& builder, Value* row) {
+        codegenArgs.push_back([=] (TCGExprContext& builder, Value* row) {
             return TCGValue::CreateFromLlvmValue(
                 builder,
                 aggState,
@@ -871,9 +870,9 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         stateType,
         name,
         makeCodegenBody
-    ] (TCGContext& builder, Value* aggState) {
+    ] (TCGExprContext& builder, Value* aggState) {
         auto codegenArgs = std::vector<TCodegenExpression>();
-        codegenArgs.push_back([=] (TCGContext& builder, Value* row) {
+        codegenArgs.push_back([=] (TCGExprContext& builder, Value* row) {
             return TCGValue::CreateFromLlvmValue(
                 builder,
                 aggState,

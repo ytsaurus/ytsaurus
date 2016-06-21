@@ -11,16 +11,16 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef std::function<void(TCGContext& builder, Value* row)> TCodegenConsumer;
-typedef std::function<void(TCGContext& builder, const TCodegenConsumer& codegenConsumer)> TCodegenSource;
+typedef std::function<void(TCGOperatorContext& builder, const TCodegenConsumer& codegenConsumer)> TCodegenSource;
 
 typedef std::function<Value*(TCGIRBuilderPtr& builder)> TCodegenBlock;
-typedef std::function<Value*(TCGContext& builder)> TCodegenValue;
-typedef std::function<TCGValue(TCGContext& builder, Value* row)> TCodegenExpression;
+typedef std::function<Value*(TCGBaseContext& builder)> TCodegenValue;
+typedef std::function<TCGValue(TCGExprContext& builder, Value* row)> TCodegenExpression;
 
-typedef std::function<TCGValue(TCGContext& builder, Value* aggState)> TCodegenAggregateInit;
-typedef std::function<TCGValue(TCGContext& builder, Value* aggState, Value* newValue)> TCodegenAggregateUpdate;
-typedef std::function<TCGValue(TCGContext& builder, Value* dstAggState, Value* aggState)> TCodegenAggregateMerge;
-typedef std::function<TCGValue(TCGContext& builder, Value* aggState)> TCodegenAggregateFinalize;
+typedef std::function<TCGValue(TCGExprContext& builder, Value* aggState)> TCodegenAggregateInit;
+typedef std::function<TCGValue(TCGExprContext& builder, Value* aggState, Value* newValue)> TCodegenAggregateUpdate;
+typedef std::function<TCGValue(TCGExprContext& builder, Value* dstAggState, Value* aggState)> TCodegenAggregateMerge;
+typedef std::function<TCGValue(TCGExprContext& builder, Value* aggState)> TCodegenAggregateFinalize;
 
 struct TCodegenAggregate {
     TCodegenAggregateInit Initialize;
@@ -77,7 +77,7 @@ TCodegenExpression MakeCodegenInOpExpr(
 ////////////////////////////////////////////////////////////////////////////////
 
 void CodegenScanOp(
-    TCGContext& builder,
+    TCGOperatorContext& builder,
     const TCodegenConsumer& codegenConsumer);
 
 TCodegenSource MakeCodegenFilterOp(

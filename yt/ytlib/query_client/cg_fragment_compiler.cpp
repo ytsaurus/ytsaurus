@@ -446,7 +446,7 @@ Function* CodegenRowComparerFunction(
 }
 
 Value* CodegenLexicographicalCompare(
-    TCGContext& builder,
+    TCGBaseContext& builder,
     Value* lhsData,
     Value* lhsLength,
     Value* rhsData,
@@ -480,7 +480,7 @@ TCodegenExpression MakeCodegenLiteralExpr(
     return [
             index,
             type
-        ] (TCGContext& builder, Value* row) {
+        ] (TCGExprContext& builder, Value* row) {
             auto valuePtr = builder->CreatePointerCast(
                 builder.GetOpaqueValue(index),
                 TypeBuilder<TValue*, false>::get(builder->getContext()));
@@ -504,7 +504,7 @@ TCodegenExpression MakeCodegenReferenceExpr(
             index,
             type,
             MOVE(name)
-        ] (TCGContext& builder, Value* row) {
+        ] (TCGExprContext& builder, Value* row) {
             return TCGValue::CreateFromRow(
                 builder,
                 row,
@@ -519,7 +519,7 @@ TCodegenValue MakeCodegenFunctionContext(
 {
     return [
             index
-        ] (TCGContext& builder) {
+        ] (TCGBaseContext& builder) {
             return builder.GetOpaqueValue(index);
         };
 }
@@ -535,10 +535,10 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
         MOVE(codegenOperand),
         MOVE(type),
         MOVE(name)
-    ] (TCGContext& builder, Value* row) {
+    ] (TCGExprContext& builder, Value* row) {
         auto operandValue = codegenOperand(builder, row);
 
-        return CodegenIf<TCGContext, TCGValue>(
+        return CodegenIf<TCGIRBuilderPtr, TCGValue>(
             builder,
             operandValue.IsNull(),
             [&] (TCGIRBuilderPtr& builder) {
@@ -609,7 +609,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
         MOVE(codegenRhs),
         MOVE(type),
         MOVE(name)
-    ] (TCGContext& builder, Value* row) {
+    ] (TCGExprContext& builder, Value* row) {
         auto nameTwine = Twine(name.c_str());
         auto lhsValue = codegenLhs(builder, row);
         auto rhsValue = codegenRhs(builder, row);
@@ -645,23 +645,23 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                 type);
         };
 
-        return CodegenIf<TCGContext, TCGValue>(
+        return CodegenIf<TCGBaseContext, TCGValue>(
             builder,
             lhsValue.IsNull(),
-            [&] (TCGContext& builder) {
+            [&] (TCGBaseContext& builder) {
 
                 return compareNulls();
             },
-            [&] (TCGContext& builder) {
+            [&] (TCGBaseContext& builder) {
 
-                return CodegenIf<TCGContext, TCGValue>(
+                return CodegenIf<TCGBaseContext, TCGValue>(
                     builder,
                     rhsValue.IsNull(),
-                    [&] (TCGContext& builder) {
+                    [&] (TCGBaseContext& builder) {
 
                         return compareNulls();
                     },
-                    [&] (TCGContext& builder) {
+                    [&] (TCGBaseContext& builder) {
 
                         YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
                         auto operandType = lhsValue.GetStaticType();
@@ -714,10 +714,10 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                 Value* rhsLength = rhsValue.GetLength();
 
                                 auto codegenEqual = [&] () {
-                                    return CodegenIf<TCGContext, Value*>(
+                                    return CodegenIf<TCGBaseContext, Value*>(
                                         builder,
                                         builder->CreateICmpEQ(lhsLength, rhsLength),
-                                        [&] (TCGContext& builder) {
+                                        [&] (TCGBaseContext& builder) {
                                             Value* minLength = builder->CreateSelect(
                                                 builder->CreateICmpULT(lhsLength, rhsLength),
                                                 lhsLength,
@@ -733,7 +733,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
 
                                             return builder->CreateICmpEQ(cmpResult, builder->getInt32(0));
                                         },
-                                        [&] (TCGContext& builder) {
+                                        [&] (TCGBaseContext& builder) {
                                             return builder->getFalse();
                                         });
                                 };
@@ -799,27 +799,27 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
         MOVE(codegenRhs),
         MOVE(type),
         MOVE(name)
-    ] (TCGContext& builder, Value* row) {
+    ] (TCGExprContext& builder, Value* row) {
         auto nameTwine = Twine(name.c_str());
 
         auto lhsValue = codegenLhs(builder, row);
 
-        return CodegenIf<TCGContext, TCGValue>(
+        return CodegenIf<TCGExprContext, TCGValue>(
             builder,
             lhsValue.IsNull(),
-            [&] (TCGContext& builder) {
+            [&] (TCGExprContext& builder) {
                 return TCGValue::CreateNull(builder, type);
             },
-            [&] (TCGContext& builder) {
+            [&] (TCGExprContext& builder) {
                 auto rhsValue = codegenRhs(builder, row);
 
-                return CodegenIf<TCGContext, TCGValue>(
+                return CodegenIf<TCGBaseContext, TCGValue>(
                     builder,
                     rhsValue.IsNull(),
-                    [&] (TCGContext& builder) {
+                    [&] (TCGBaseContext& builder) {
                         return TCGValue::CreateNull(builder, type);
                     },
-                    [&] (TCGContext& builder) {
+                    [&] (TCGBaseContext& builder) {
                         YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
                         auto operandType = lhsValue.GetStaticType();
 
@@ -834,10 +834,10 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
 
 
                         auto checkZero = [&] (Value* value) {
-                            CodegenIf<TCGContext>(
+                            CodegenIf<TCGBaseContext>(
                                 builder,
                                 builder->CreateIsNull(value),
-                                [] (TCGContext& builder) {
+                                [] (TCGBaseContext& builder) {
                                     builder->CreateCall(
                                         builder.Module->GetRoutine("ThrowQueryException"),
                                         {
@@ -948,7 +948,7 @@ TCodegenExpression MakeCodegenInOpExpr(
     return [
         MOVE(codegenArgs),
         MOVE(arrayIndex)
-    ] (TCGContext& builder, Value* row) {
+    ] (TCGExprContext& builder, Value* row) {
         size_t keySize = codegenArgs.size();
 
         Value* newRow = CodegenAllocateRow(builder, keySize);
@@ -983,18 +983,18 @@ TCodegenExpression MakeCodegenInOpExpr(
 //
 
 void CodegenScanOp(
-    TCGContext& builder,
+    TCGOperatorContext& builder,
     const TCodegenConsumer& codegenConsumer)
 {
     auto consume = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "ScanOpInner", [&] (
-        TCGContext& builder,
+        TCGOperatorContext& builder,
         Value* buffer,
         Value* rows,
         Value* size
     ) {
-        builder.SetBuffer(buffer);
-        CodegenForEachRow(builder, rows, size, codegenConsumer);
-        builder->CreateRetVoid();
+        TCGContext innerBulder(builder, buffer);
+        CodegenForEachRow(innerBulder, rows, size, codegenConsumer);
+        innerBulder->CreateRetVoid();
     });
 
     builder->CreateCall(
@@ -1023,14 +1023,14 @@ TCodegenSource MakeCodegenJoinOp(
         MOVE(keyPrefix),
         MOVE(equationByIndex),
         MOVE(evaluatedColumns)
-    ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
+    ] (TCGOperatorContext& builder, const TCodegenConsumer& codegenConsumer) {
         int lookupKeySize = keyPrefix;
         int joinKeySize = keyPrefix; //equations.size();
         std::vector<EValueType> lookupKeyTypes(lookupKeySize);
         std::vector<EValueType> joinKeyTypes(joinKeySize);
 
         auto collectRows = MakeClosure<void(TJoinClosure*, TRowBuffer*)>(builder, "CollectRows", [&] (
-            TCGContext& builder,
+            TCGOperatorContext& builder,
             Value* joinClosure,
             Value* buffer
         ) {
@@ -1090,19 +1090,19 @@ TCodegenSource MakeCodegenJoinOp(
 
 
         auto consumeJoinedRows = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "ConsumeJoinedRows", [&] (
-            TCGContext& builder,
+            TCGOperatorContext& builder,
             Value* buffer,
             Value* joinedRows,
             Value* size
         ) {
-            builder.SetBuffer(buffer);
+            TCGContext innerBuilder(builder, buffer);
             CodegenForEachRow(
-                builder,
+                innerBuilder,
                 joinedRows,
                 size,
                 codegenConsumer);
 
-            builder->CreateRetVoid();
+            innerBuilder->CreateRetVoid();
         });
 
         builder->CreateCall(
@@ -1132,7 +1132,7 @@ TCodegenSource MakeCodegenFilterOp(
     return [
         MOVE(codegenPredicate),
         codegenSource = std::move(codegenSource)
-    ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
+    ] (TCGOperatorContext& builder, const TCodegenConsumer& codegenConsumer) {
         codegenSource(
             builder,
             [&] (TCGContext& builder, Value* row) {
@@ -1166,7 +1166,7 @@ TCodegenSource MakeCodegenProjectOp(
     return [
         MOVE(codegenArgs),
         codegenSource = std::move(codegenSource)
-    ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
+    ] (TCGOperatorContext& builder, const TCodegenConsumer& codegenConsumer) {
         int projectionCount = codegenArgs.size();
 
         Value* newRow = CodegenAllocateRow(builder, projectionCount);
@@ -1370,9 +1370,9 @@ TCodegenSource MakeCodegenGroupOp(
         groupRowSize,
         appendToSource,
         checkNulls
-    ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
+    ] (TCGOperatorContext& builder, const TCodegenConsumer& codegenConsumer) {
         auto collect = MakeClosure<void(TGroupByClosure*, TRowBuffer*)>(builder, "CollectGroups", [&] (
-            TCGContext& builder,
+            TCGOperatorContext& builder,
             Value* groupByClosure,
             Value* buffer
         ) {
@@ -1421,12 +1421,10 @@ TCodegenSource MakeCodegenGroupOp(
                             newRowRef,
                             TypeBuilder<TRow, false>::Fields::Header));
 
-                    Value* intermediateBuffer = builder.GetBufferValue();
-
-                    builder.SetBuffer(bufferRef);
+                    TCGContext innerBuilder(builder, bufferRef);
 
                     CodegenIf<TCGContext>(
-                        builder,
+                        innerBuilder,
                         inserted,
                         [&] (TCGContext& builder) {
                             codegenInitialize(builder, groupRow);
@@ -1444,23 +1442,19 @@ TCodegenSource MakeCodegenGroupOp(
                     // Here *newRowPtrRef != groupRow.
                     auto newRow = builder->CreateLoad(newRowPtrRef);
 
-                    builder.SetBuffer(intermediateBuffer);
                     codegenEvaluateAggregateArgs(builder, row, newRow);
-                    builder.SetBuffer(bufferRef);
-                    codegenUpdate(builder, newRow, groupRow);
-                    builder.SetBuffer(intermediateBuffer);
+                    codegenUpdate(innerBuilder, newRow, groupRow);
                 });
 
             builder->CreateRetVoid();
         });
 
         auto consume = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "Consume", [&] (
-            TCGContext& builder,
+            TCGOperatorContext& builder,
             Value* buffer,
             Value* finalGroupedRows,
             Value* size
         ) {
-            builder.SetBuffer(buffer);
             auto codegenFinalizingConsumer = [
                 MOVE(codegenConsumer),
                 MOVE(codegenFinalize)
@@ -1469,13 +1463,14 @@ TCodegenSource MakeCodegenGroupOp(
                 codegenConsumer(builder, row);
             };
 
+            TCGContext innerBuilder(builder, buffer);
             CodegenForEachRow(
-                builder,
+                innerBuilder,
                 finalGroupedRows,
                 size,
                 codegenFinalizingConsumer);
 
-            builder->CreateRetVoid();
+            innerBuilder->CreateRetVoid();
         });
 
         builder->CreateCall(
@@ -1508,12 +1503,12 @@ TCodegenSource MakeCodegenOrderOp(
         MOVE(codegenExprs),
         MOVE(sourceSchema),
         codegenSource = std::move(codegenSource)
-    ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
+    ] (TCGOperatorContext& builder, const TCodegenConsumer& codegenConsumer) {
         auto schemaSize = sourceSchema.Columns().size();
         std::vector<EValueType> orderColumnTypes;
 
         auto collectRows = MakeClosure<void(TTopCollector*)>(builder, "CollectRows", [&] (
-            TCGContext& builder,
+            TCGOperatorContext& builder,
             Value* topCollector
         ) {
             Value* newRow = CodegenAllocateRow(builder, sourceSchema.Columns().size() + codegenExprs.size());
@@ -1552,14 +1547,14 @@ TCodegenSource MakeCodegenOrderOp(
         });
 
         auto consumeOrderedRows = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "ConsumeOrderedRows", [&] (
-            TCGContext& builder,
+            TCGOperatorContext& builder,
             Value* buffer,
             Value* orderedRows,
             Value* size
         ) {
-            builder.SetBuffer(buffer);
+            TCGContext innerBuilder(builder, buffer);
             CodegenForEachRow(
-                builder,
+                innerBuilder,
                 orderedRows,
                 size,
                 codegenConsumer);
@@ -1610,10 +1605,10 @@ TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValu
         Value* executionContextPtr
     ) {
         auto opaqueValues = MakeOpaqueValues(baseBuilder, opaqueValuesPtr, opaqueValuesCount);
-        TCGContext builder(TCGBaseContext(baseBuilder, &opaqueValues, module), executionContextPtr);
+        TCGOperatorContext builder(TCGBaseContext(baseBuilder, &opaqueValues, module), executionContextPtr);
 
         auto collect = MakeClosure<void(TWriteOpClosure*)>(builder, "WriteOpInner", [&] (
-            TCGContext& builder,
+            TCGOperatorContext& builder,
             Value* writeRowClosure
         ) {
             codegenSource(
@@ -1653,11 +1648,10 @@ TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression, si
         Value* opaqueValuesPtr,
         Value* resultPtr,
         Value* inputRow,
-        Value* expressionContextPtr
+        Value* buffer
     ) {
         auto opaqueValues = MakeOpaqueValues(baseBuilder, opaqueValuesPtr, opaqueValuesCount);
-        TCGContext builder(TCGBaseContext(baseBuilder, &opaqueValues, module), nullptr);
-        builder.SetBuffer(expressionContextPtr);
+        TCGExprContext builder(TCGBaseContext(baseBuilder, &opaqueValues, module), buffer);
 
         auto result = codegenExpression(builder, inputRow);
         result.StoreToValue(builder, resultPtr, 0, "writeResult");
@@ -1677,11 +1671,10 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
     {
         MakeFunction<TCGAggregateInitSignature>(module->GetModule(), initName.c_str(), [&] (
             TCGIRBuilderPtr& baseBuilder,
-            Value* expressionContextPtr,
+            Value* buffer,
             Value* resultPtr
         ) {
-            TCGContext builder(TCGBaseContext(baseBuilder, nullptr, module), nullptr);
-            builder.SetBuffer(expressionContextPtr);
+            TCGExprContext builder(TCGBaseContext(baseBuilder, nullptr, module), buffer);
 
             auto result = codegenAggregate.Initialize(builder, nullptr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");
@@ -1695,13 +1688,12 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
     {
         MakeFunction<TCGAggregateUpdateSignature>(module->GetModule(), updateName.c_str(), [&] (
             TCGIRBuilderPtr& baseBuilder,
-            Value* expressionContextPtr,
+            Value* buffer,
             Value* resultPtr,
             Value* statePtr,
             Value* newValuePtr
         ) {
-            TCGContext builder(TCGBaseContext(baseBuilder, nullptr, module), nullptr);
-            builder.SetBuffer(expressionContextPtr);
+            TCGExprContext builder(TCGBaseContext(baseBuilder, nullptr, module), buffer);
 
             auto result = codegenAggregate.Update(builder, statePtr, newValuePtr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");
@@ -1715,13 +1707,12 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
     {
         MakeFunction<TCGAggregateMergeSignature>(module->GetModule(), mergeName.c_str(), [&] (
             TCGIRBuilderPtr& baseBuilder,
-            Value* expressionContextPtr,
+            Value* buffer,
             Value* resultPtr,
             Value* dstStatePtr,
             Value* statePtr
         ) {
-            TCGContext builder(TCGBaseContext(baseBuilder, nullptr, module), nullptr);
-            builder.SetBuffer(expressionContextPtr);
+            TCGExprContext builder(TCGBaseContext(baseBuilder, nullptr, module), buffer);
 
             auto result = codegenAggregate.Merge(builder, dstStatePtr, statePtr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");
@@ -1735,12 +1726,11 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
     {
         MakeFunction<TCGAggregateFinalizeSignature>(module->GetModule(), finalizeName.c_str(), [&] (
             TCGIRBuilderPtr& baseBuilder,
-            Value* expressionContextPtr,
+            Value* buffer,
             Value* resultPtr,
             Value* statePtr
         ) {
-            TCGContext builder(TCGBaseContext(baseBuilder, nullptr, module), nullptr);
-            builder.SetBuffer(expressionContextPtr);
+            TCGExprContext builder(TCGBaseContext(baseBuilder, nullptr, module), buffer);
 
             auto result = codegenAggregate.Finalize(builder, statePtr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");
