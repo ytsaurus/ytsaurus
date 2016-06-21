@@ -80,8 +80,6 @@ public:
 
     EInMemoryMode InMemoryMode;
 
-    bool ReadOnly;
-
     int MaxStoresPerTablet;
 
     TNullable<ui64> ForcedCompactionRevision;
@@ -164,9 +162,6 @@ public:
 
         RegisterParameter("in_memory_mode", InMemoryMode)
             .Default(EInMemoryMode::None);
-
-        RegisterParameter("read_only", ReadOnly)
-            .Default(false);
 
         RegisterParameter("max_stores_per_tablet", MaxStoresPerTablet)
             .Default(10000)

@@ -34,11 +34,6 @@ def do_action(action, tables, args, **kwargs):
 
     for fn, state in ops:
         for table in tables:
-            if args.read_only:
-                yt.set(table + "/@read_only", True)
-            if args.read_write:
-                yt.remove(table + "/@read_only", force=True)
-
             fn(table, **kwargs)
         for table in tables:
             while not all(tablet["state"] == state for tablet in yt.get(table + "/@tablets")):
