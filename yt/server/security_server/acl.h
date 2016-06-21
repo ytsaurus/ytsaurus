@@ -66,7 +66,7 @@ class TAccessControlDescriptor
     DEFINE_BYVAL_RO_PROPERTY(NObjectServer::TObjectBase*, Object);
 
 public:
-    explicit TAccessControlDescriptor(NObjectServer::TObjectBase* object);
+    explicit TAccessControlDescriptor(NObjectServer::TObjectBase* object = nullptr);
     
     void Clear();
 

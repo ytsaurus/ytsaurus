@@ -1,5 +1,8 @@
 #include "fair_share_tree.h"
 
+#include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/profiling/scoped_timer.h>
@@ -712,13 +715,16 @@ void TCompositeSchedulerElement::RemoveChild(const ISchedulerElementPtr& child)
 {
     YCHECK(!Cloned_);
 
-    bool foundInChildren = (Children.find(child) != Children.end());
-    bool foundInDisabledChildren = (DisabledChildren.find(child) != DisabledChildren.end());
+    auto childrenIt = Children.find(child);
+    auto disabledChildrenIt = DisabledChildren.find(child);
+
+    bool foundInChildren = (childrenIt != Children.end());
+    bool foundInDisabledChildren = (disabledChildrenIt != DisabledChildren.end());
     YCHECK((foundInChildren && !foundInDisabledChildren) || (!foundInChildren && foundInDisabledChildren));
     if (foundInChildren) {
-        Children.erase(child);
+        Children.erase(childrenIt);
     } else {
-        DisabledChildren.erase(child);
+        DisabledChildren.erase(disabledChildrenIt);
     }
 }
 
@@ -936,6 +942,7 @@ TPool::TPool(
     TFairShareStrategyConfigPtr strategyConfig)
     : TCompositeSchedulerElement(host, strategyConfig)
     , TPoolFixedState(id)
+    , ProfilingTag_(NProfiling::TProfileManager::Get()->RegisterTag("pool", id))
 {
     SetDefaultConfig();
 }
@@ -1100,6 +1107,11 @@ TJobResources TPool::ComputeResourceLimits() const
     auto resourceLimits = GetHost()->GetResourceLimits(GetNodeTag()) * Config_->MaxShareRatio;
     auto perTypeLimits = ToJobResources(Config_->ResourceLimits);
     return Min(resourceLimits, perTypeLimits);
+}
+
+NProfiling::TTagId TPool::GetProfilingTag() const
+{
+    return ProfilingTag_;
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -1787,7 +1799,9 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
         auto jobLimits = GetHierarchicalResourceLimits(context);
         if (!Dominates(jobLimits, jobStartRequest.ResourceLimits)) {
             const auto& jobId = scheduleJobResult->JobStartRequest->Id;
-            LOG_DEBUG("Aborting job with overcommit (JobId: %v, OperationId: %v)",
+            LOG_DEBUG("Aborting job with resource overcommit: %v > %v (JobId: %v, OperationId: %v)",
+                FormatResources(jobStartRequest.ResourceLimits),
+                FormatResources(jobLimits),
                 jobId,
                 OperationId_);
 

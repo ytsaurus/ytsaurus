@@ -252,21 +252,34 @@ public:
         PROFILE_TIMING ("/fair_share_update_time") {
             // The root element gets the whole cluster.
             RootElement->Update(GlobalDynamicAttributes_);
-        }
 
-        // Update starvation flags for all operations.
-        for (const auto& pair : OperationToElement) {
-            pair.second->CheckForStarvation(now);
-        }
-
-        // Update starvation flags for all pools.
-        if (Config->EnablePoolStarvation) {
-            for (const auto& pair : Pools) {
+            // Update starvation flags for all operations.
+            for (const auto& pair : OperationToElement) {
                 pair.second->CheckForStarvation(now);
             }
-        }
 
-        RootElementSnapshot = RootElement->CloneRoot();
+            // Update starvation flags for all pools.
+            if (Config->EnablePoolStarvation) {
+                for (const auto& pair : Pools) {
+                    pair.second->CheckForStarvation(now);
+                }
+            }
+
+            RootElementSnapshot = RootElement->CloneRoot();
+
+            // Profiling.
+            for (const auto& pair : Pools) {
+                const auto& tag = pair.second->GetProfilingTag();
+                Profiler.Enqueue(
+                    "/pools/fair_share_ratio_x100000",
+                    static_cast<i64>(pair.second->Attributes().FairShareRatio * 1e5),
+                    {tag});
+                Profiler.Enqueue(
+                    "/pools/usage_ratio_x100000",
+                    static_cast<i64>(pair.second->GetResourceUsageRatio() * 1e5),
+                    {tag});
+            }
+        }
     }
 
     // NB: This function is public for testing purposes.
@@ -274,23 +287,25 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // Log pools information.
-        Host->LogEventFluently(ELogEventType::FairShareInfo, now)
-            .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
-            .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
-                const auto& operationId = pair.first;
-                BuildYsonMapFluently(fluent)
-                    .Item(ToString(operationId))
-                    .BeginMap()
-                        .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operationId))
-                    .EndMap();
-            });
+        PROFILE_TIMING ("/fair_share_log_time") {
+            // Log pools information.
+            Host->LogEventFluently(ELogEventType::FairShareInfo, now)
+                .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
+                .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
+                    const auto& operationId = pair.first;
+                    BuildYsonMapFluently(fluent)
+                        .Item(ToString(operationId))
+                        .BeginMap()
+                            .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operationId))
+                        .EndMap();
+                });
 
-        for (auto& pair : OperationToElement) {
-            const auto& operationId = pair.first;
-            LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
-                GetOperationLoggingProgress(operationId),
-                operationId);
+            for (const auto& pair : OperationToElement) {
+                const auto& operationId = pair.first;
+                LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
+                    GetOperationLoggingProgress(operationId),
+                    operationId);
+            }
         }
     }
 
@@ -1018,6 +1033,7 @@ private:
                         .Item("operation_count").Value(pool->OperationCount())
                         .Item("max_running_operation_count").Value(pool->GetMaxRunningOperationCount())
                         .Item("max_operation_count").Value(pool->GetMaxOperationCount())
+                        .Item("aggressive_starvation_enabled").Value(pool->AggressiveStarvationEnabled())
                         .DoIf(config->Mode == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
                             fluent
                                 .Item("fifo_sort_parameters").Value(config->FifoSortParameters);

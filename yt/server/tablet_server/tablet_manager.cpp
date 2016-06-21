@@ -1688,7 +1688,9 @@ private:
 
         TMasterAutomatonPart::OnLeaderActive();
 
-        TabletTracker_->Start();
+        if (Bootstrap_->IsPrimaryMaster()) {
+            TabletTracker_->Start();
+        }
 
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;

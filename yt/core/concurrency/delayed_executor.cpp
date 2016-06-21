@@ -184,16 +184,16 @@ private:
     {
         auto now = TInstant::Now();
         if (PrevOnTimerInstant_ != TInstant::Zero() && now - PrevOnTimerInstant_ > PeriodicPrecisionWarningThreshold) {
-            LOG_WARNING("Periodic watcher stall detected (Delta: %v)",
+            LOG_WARNING("Delayed executor stall detected (Delta: %v)",
                 now - PrevOnTimerInstant_);
         }
         PrevOnTimerInstant_ = now;
 
         TDelayedExecutorEntryPtr entry;
 
-        while (SubmitQueue_.Dequeue(&entry)) {
+        SubmitQueue_.DequeueAll(false, [&] (const TDelayedExecutorEntryPtr& entry) {
             if (entry->Canceled) {
-                continue;
+                return;
             }
             if (entry->Deadline + LateWarningThreshold < now) {
                 LOG_WARNING("Found a late delayed submitted callback (Deadline: %v, Now: %v)",
@@ -203,11 +203,11 @@ private:
             auto pair = ScheduledEntries_.insert(entry);
             YCHECK(pair.second);
             entry->Iterator = pair.first;
-        }
+        });
 
-        while (CancelQueue_.Dequeue(&entry)) {
+        CancelQueue_.DequeueAll(false, [&] (const TDelayedExecutorEntryPtr& entry) {
             if (entry->Canceled) {
-                continue;
+                return;
             }
             entry->Canceled = true;
             entry->Callback.Reset();
@@ -215,7 +215,7 @@ private:
                 ScheduledEntries_.erase(*entry->Iterator);
                 entry->Iterator.Reset();
             }
-        }
+        });
 
         auto invoker = DelayedQueue_->GetInvoker();
         while (!ScheduledEntries_.empty()) {

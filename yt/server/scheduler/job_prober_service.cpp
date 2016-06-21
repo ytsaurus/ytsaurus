@@ -139,7 +139,7 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        WaitFor(scheduler->AbortJob(jobId))
+        WaitFor(scheduler->AbortJobByUser(jobId, context->GetUser()))
             .ThrowOnError();
 
         context->Reply();

@@ -407,8 +407,12 @@ public:
 
     virtual ISchedulerElementPtr Clone() override;
 
+    NProfiling::TTagId GetProfilingTag() const;
+
 private:
     TPoolConfigPtr Config_;
+
+    NProfiling::TTagId ProfilingTag_;
 
     void DoSetConfig(TPoolConfigPtr newConfig);
 
