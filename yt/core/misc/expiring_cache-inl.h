@@ -38,6 +38,7 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
             auto entry = New<TEntry>();
             entry->Deadline = TInstant::Max();
             auto promise = entry->Promise = NewPromise<TValue>();
+            // NB: we don't want to hold a strong reference to entry after releasing the guard, so we make a weak reference here.
             auto weakEntry = MakeWeak(entry);
             YCHECK(Map_.insert(std::make_pair(key, std::move(entry))).second);
             guard.Release();
