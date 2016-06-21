@@ -261,13 +261,15 @@ print "x={0}\ty={1}".format(x, y)
         write_table("//tmp/t1", {"foo": "bar"})
         create("table", "//tmp/t2")
 
-        op = map_reduce(dont_track=True, mapper_command="cat", reducer_command="cat; sleep 2",
+        op = map_reduce(dont_track=True, mapper_command="cat", reducer_command="cat; sleep 3",
                            in_="//tmp/t1", out="//tmp/t2",
                            sort_by=["foo"], spec={"intermediate_data_acl": acl})
 
-        time.sleep(1)
+        time.sleep(2)
         assert exists("//sys/operations/{0}/intermediate".format(op.id))
-        assert acl == get("//sys/operations/{0}/intermediate/@acl".format(op.id))
+
+        intermediate_acl = get("//sys/operations/{0}/intermediate/@acl".format(op.id))
+        assert [{"action": "allow", "subjects": ["root"], "permissions": ["read"]}] + acl == intermediate_acl
 
         op.track()
         assert read_table("//tmp/t2") == [{"foo": "bar"}]

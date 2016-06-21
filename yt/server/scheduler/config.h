@@ -546,7 +546,11 @@ public:
     // Maximum number of simultaneously processed heartbeats.
     int HardConcurrentHeartbeatLimit;
 
+    // Enables using tmpfs if tmpfs_path is specified in user spec.
     bool EnableTmpfs;
+
+    //! Acl used for intermediate tables and stderrs additional to acls specified by user.
+    NYTree::IListNodePtr AdditionalIntermediateDataAcl;
 
     TSchedulerConfig()
     {
@@ -735,6 +739,11 @@ public:
 
         RegisterParameter("enable_tmpfs", EnableTmpfs)
             .Default(true);
+
+        RegisterParameter("additional_intermediate_data_acl", AdditionalIntermediateDataAcl)
+            .Default(NYTree::BuildYsonNodeFluently()
+                .BeginList()
+                .EndList()->AsList());
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;
