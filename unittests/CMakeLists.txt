@@ -20,6 +20,7 @@ set(SRCS
   ${BASE}/election_ut.cpp
   ${BASE}/enum_ut.cpp
   ${BASE}/erasure_ut.cpp
+  ${BASE}/expiring_cache_ut.cpp
   ${BASE}/file_changelog_ut.cpp
   ${BASE}/fls_ut.cpp
   ${BASE}/format_ut.cpp

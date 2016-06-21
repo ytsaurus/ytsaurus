@@ -24,8 +24,8 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
         auto it = Map_.find(key);
         if (it != Map_.end()) {
             const auto& entry = it->second;
-            if (now < entry.Deadline) {
-                return entry.Promise;
+            if (now < entry->Deadline) {
+                return entry->Promise;
             }
         }
     }
@@ -35,26 +35,26 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
         NConcurrency::TWriterGuard guard(SpinLock_);
         auto it = Map_.find(key);
         if (it == Map_.end()) {
-            TEntry entry;
-            entry.Deadline = TInstant::Max();
-            auto promise = entry.Promise = NewPromise<TValue>();
-            YCHECK(Map_.insert(std::make_pair(key, entry)).second);
+            auto entry = New<TEntry>();
+            entry->Deadline = TInstant::Max();
+            auto promise = entry->Promise = NewPromise<TValue>();
+            // NB: we don't want to hold a strong reference to entry after releasing the guard, so we make a weak reference here.
+            auto weakEntry = MakeWeak(entry);
+            YCHECK(Map_.insert(std::make_pair(key, std::move(entry))).second);
             guard.Release();
-            InvokeGet(key);
+            InvokeGet(weakEntry, key);
             return promise;
         }
 
         auto& entry = it->second;
-        const auto& promise = entry.Promise;
+        const auto& promise = entry->Promise;
         if (!promise.IsSet()) {
             return promise;
         }
 
-        if (now > entry.Deadline) {
+        if (now > entry->Deadline) {
             // Evict and retry.
-            NConcurrency::TDelayedExecutor::CancelAndClear(entry.ProbationCookie);
-            entry.ProbationFuture.Cancel();
-            entry.ProbationFuture.Reset();
+            NConcurrency::TDelayedExecutor::CancelAndClear(entry->ProbationCookie);
             Map_.erase(it);
             guard.Release();
             return Get(key);
@@ -79,39 +79,44 @@ void TExpiringCache<TKey, TValue>::Clear()
 }
 
 template <class TKey, class TValue>
-void TExpiringCache<TKey, TValue>::InvokeGet(const TKey& key)
+void TExpiringCache<TKey, TValue>::InvokeGet(const TWeakPtr<TEntry>& weakEntry, const TKey& key)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
 
-    auto it = Map_.find(key);
-    if (it == Map_.end()) {
+    if (weakEntry.IsExpired()) {
         return;
     }
 
-    auto future = it->second.ProbationFuture = DoGet(key);
+    auto it = Map_.find(key);
+    Y_ASSERT(it != Map_.end() && it->second == weakEntry.Lock());
+
+    auto future = DoGet(key);
 
     guard.Release();
 
     future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
         NConcurrency::TWriterGuard guard(SpinLock_);
-        auto it = Map_.find(key);
-        if (it == Map_.end())
-            return;
 
-        auto& entry = it->second;
+        auto entry = weakEntry.Lock();
+        if (!entry) {
+            return;
+        }
+
+        auto it = Map_.find(key);
+        Y_ASSERT(it != Map_.end() && it->second == entry);
 
         auto expirationTime = valueOrError.IsOK() ? Config_->SuccessExpirationTime : Config_->FailureExpirationTime;
-        entry.Deadline = TInstant::Now() + expirationTime;
-        if (entry.Promise.IsSet()) {
-            entry.Promise = MakePromise(valueOrError);
+        entry->Deadline = TInstant::Now() + expirationTime;
+        if (entry->Promise.IsSet()) {
+            entry->Promise = MakePromise(valueOrError);
         } else {
-            entry.Promise.Set(valueOrError);
+            entry->Promise.Set(valueOrError);
         }
 
         if (valueOrError.IsOK()) {
             NTracing::TNullTraceContextGuard guard;
-            entry.ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
-                BIND(&TExpiringCache::InvokeGet, MakeWeak(this), key),
+            entry->ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
+                BIND(&TExpiringCache::InvokeGet, MakeWeak(this), MakeWeak(entry), key),
                 Config_->SuccessProbationTime);
         }
     }));
