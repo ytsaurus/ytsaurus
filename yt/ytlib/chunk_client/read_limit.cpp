@@ -28,6 +28,13 @@ TReadLimit::TReadLimit(NProto::TReadLimit&& protoLimit)
     InitMove(std::move(protoLimit));
 }
 
+TReadLimit::TReadLimit(const std::unique_ptr<NProto::TReadLimit>& protoLimit)
+{
+    if (protoLimit) {
+        InitCopy(*protoLimit);
+    }
+}
+
 TReadLimit::TReadLimit(const TOwningKey& key)
 {
     SetKey(key);

@@ -19,7 +19,7 @@
 #include <yt/ytlib/api/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
-#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -394,14 +394,14 @@ private:
                 auto storeIt = storeMap.find(chunkId);
                 YCHECK(storeIt != storeMap.end());
                 auto store = storeIt->second;
-                auto chunkSpec = New<TRefCountedChunkSpec>();
-                ToProto(chunkSpec->mutable_chunk_id(), chunkId);
-                chunkSpec->mutable_replicas()->MergeFrom(subresponse.replicas());
-                chunkSpec->mutable_chunk_meta()->CopyFrom(store->GetChunkMeta());
-                ToProto(chunkSpec->mutable_lower_limit(), TReadLimit(partition->GetPivotKey()));
-                ToProto(chunkSpec->mutable_upper_limit(), TReadLimit(partition->GetNextPivotKey()));
-                chunkSpec->set_erasure_codec(subresponse.erasure_codec());
-                fetcher->AddChunk(chunkSpec);
+                fetcher->AddChunk(
+                    New<TInputChunk>(
+                        chunkId,
+                        NYT::FromProto<TChunkReplicaList>(subresponse.replicas()),
+                        store->GetChunkMeta(),
+                        partition->GetPivotKey(),
+                        partition->GetNextPivotKey(),
+                        NErasure::ECodec(subresponse.erasure_codec())));
             }
         }
 

@@ -139,6 +139,7 @@ private:
                 "Tracing",
                 NProfiling::EmptyTagIds,
                 true,
+                false,
                 false)
             , Owner_(owner)
         { }

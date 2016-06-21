@@ -1,7 +1,7 @@
 #include "fetcher_base.h"
 #include "private.h"
 #include "chunk_replica.h"
-#include "chunk_spec.h"
+#include "input_chunk.h"
 #include "config.h"
 
 #include <yt/ytlib/api/client.h>
@@ -51,12 +51,12 @@ public:
         , Logger(logger)
     { }
 
-    TFuture<void> ScrapeChunks(yhash_set<TRefCountedChunkSpecPtr> chunkSpecs)
+    TFuture<void> ScrapeChunks(yhash_set<TInputChunkPtr> chunkSpecs)
     {
         yhash_set<TChunkId> chunkIds;
         ChunkMap_.clear();
         for (const auto& chunkSpec : chunkSpecs) {
-            auto chunkId = NYT::FromProto<TChunkId>(chunkSpec->chunk_id());
+            const auto& chunkId = chunkSpec->ChunkId();
             chunkIds.insert(chunkId);
             ChunkMap_[chunkId].ChunkSpecs.push_back(chunkSpec);
         }
@@ -96,8 +96,7 @@ private:
 
         // Update replicas in place for all input chunks with current chunkId.
         for (auto& chunkSpec : description.ChunkSpecs) {
-            chunkSpec->mutable_replicas()->Clear();
-            ToProto(chunkSpec->mutable_replicas(), replicas);
+            chunkSpec->SetReplicaList(replicas);
         }
 
         --UnavailableFetcherChunkCount_;
@@ -111,7 +110,7 @@ private:
 
     struct TFetcherChunkDescriptor
     {
-        SmallVector<NChunkClient::TRefCountedChunkSpecPtr, 1> ChunkSpecs;
+        SmallVector<NChunkClient::TInputChunkPtr, 1> ChunkSpecs;
         bool IsWaiting = true;
     };
 
@@ -166,7 +165,7 @@ TFetcherBase::TFetcherBase(
     , Client_(std::move(client))
 { }
 
-void TFetcherBase::AddChunk(TRefCountedChunkSpecPtr chunk)
+void TFetcherBase::AddChunk(TInputChunkPtr chunk)
 {
     YCHECK(UnfetchedChunkIndexes_.insert(static_cast<int>(Chunks_.size())).second);
     Chunks_.push_back(chunk);
@@ -190,13 +189,13 @@ void TFetcherBase::StartFetchingRound()
     // Construct address -> chunk* map.
     typedef yhash_map<TNodeId, std::vector<int> > TNodeIdToChunkIndexes;
     TNodeIdToChunkIndexes nodeIdToChunkIndexes;
-    yhash_set<TRefCountedChunkSpecPtr> unavailableChunks;
+    yhash_set<TInputChunkPtr> unavailableChunks;
 
     for (auto chunkIndex : UnfetchedChunkIndexes_) {
         const auto& chunk = Chunks_[chunkIndex];
-        auto chunkId = NYT::FromProto<TChunkId>(chunk->chunk_id());
+        const auto& chunkId = chunk->ChunkId();
         bool chunkAvailable = false;
-        auto replicas = NYT::FromProto<TChunkReplicaList>(chunk->replicas());
+        const auto replicas = chunk->GetReplicaList();
         for (auto replica : replicas) {
             auto nodeId = replica.GetNodeId();
             if (DeadNodes_.find(nodeId) == DeadNodes_.end() &&
@@ -279,7 +278,7 @@ IChannelPtr TFetcherBase::GetNodeChannel(TNodeId nodeId)
 void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex, const TError& error)
 {
     const auto& chunk = Chunks_[chunkIndex];
-    auto chunkId = NYT::FromProto<TChunkId>(chunk->chunk_id());
+    const auto& chunkId = chunk->ChunkId();
 
     LOG_DEBUG(error, "Error fetching chunk info (ChunkId: %v, Address: %v)",
         chunkId,

@@ -709,3 +709,13 @@ def get_racks():
 def get_nodes():
     return ls("//sys/nodes")
 
+#########################################
+
+def get_last_profiling_values(orchid_path, metrics):
+    # To ensure that profiling updated.
+    time.sleep(1)
+
+    values = {}
+    for metric in metrics:
+        values[metric] = get(orchid_path + "/" + metric, verbose=False)[-1]["value"]
+    return values
