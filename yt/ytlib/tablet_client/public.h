@@ -27,6 +27,9 @@ DEFINE_ENUM(ETabletState,
     ((Mounted)         (1))
     ((Unmounting)      (2))
     ((Unmounted)       (3))
+    ((Freezing)        (4))
+    ((Frozen)          (5))
+    ((Unfreezing)      (6))
 );
 
 DEFINE_ENUM(EErrorCode,

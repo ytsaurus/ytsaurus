@@ -53,9 +53,9 @@ private:
         descriptors->push_back(TAttributeDescriptor("flushed_row_count")
             .SetPresent(!table->IsSorted()));
         descriptors->push_back(TAttributeDescriptor("performance_counters")
-            .SetPresent(tablet->GetState() == ETabletState::Mounted));
+            .SetPresent(tablet->GetCell()));
         descriptors->push_back(TAttributeDescriptor("mount_revision")
-            .SetPresent(tablet->GetState() == ETabletState::Mounted));
+            .SetPresent(tablet->GetCell()));
         descriptors->push_back("index");
         descriptors->push_back("table_id");
         descriptors->push_back(TAttributeDescriptor("pivot_key")
@@ -97,7 +97,7 @@ private:
             return true;
         }
 
-        if (tablet->GetState() == ETabletState::Mounted) {
+        if (tablet->GetCell()) {
             if (key == "performance_counters") {
                 BuildYsonFluently(consumer)
                     .Value(tablet->PerformanceCounters());

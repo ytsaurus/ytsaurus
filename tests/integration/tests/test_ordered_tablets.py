@@ -372,6 +372,15 @@ class TestOrderedTablets(YTEnvSetup):
         self.sync_unmount_table("//tmp/t")
         with pytest.raises(YtError): reshard_table("//tmp/t", 1)
 
+    def test_freeze_empty(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        self.sync_freeze_table("//tmp/t")
+        with pytest.raises(YtError): insert_rows("//tmp/t", [{"a": 0}])
+        self.sync_unfreeze_table("//tmp/t")
+        self.sync_unmount_table("//tmp/t")
+
 ##################################################################
 
 class TestOrderedTabletsMulticell(TestOrderedTablets):

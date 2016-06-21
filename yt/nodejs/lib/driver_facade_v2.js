@@ -87,6 +87,8 @@ function YtDriverFacadeV2(logger, driver)
     delete descriptors.lookup_rows;
     delete descriptors.select_rows;
     delete descriptors.trim_rows;
+    delete descriptors.freeze_table;
+    delete descriptors.unfreeze_table;
 
     delete descriptors.dump_job_context;
     delete descriptors.strace_job;

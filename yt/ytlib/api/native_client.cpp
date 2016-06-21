@@ -690,10 +690,14 @@ private:
         yhash_map<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
 
         auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) mutable {
-            if (tabletInfo->State != ETabletState::Mounted) {
-                // TODO(babenko): learn to work with unmounted tablets
-                THROW_ERROR_EXCEPTION("Tablet %v is not mounted",
-                    tabletInfo->TabletId);
+            auto state = tabletInfo->State;
+            if (state != ETabletState::Mounted &&
+                state != ETabletState::Freezing &&
+                state != ETabletState::Frozen)
+            {
+                THROW_ERROR_EXCEPTION("Cannot read from tablet %v while it is in %Qlv state",
+                    tabletInfo->TabletId,
+                    state);
             }
 
             auto insertResult = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, TCellDescriptor()));
@@ -1211,6 +1215,14 @@ public:
     IMPLEMENT_METHOD(void, RemountTable, (
         const TYPath& path,
         const TRemountTableOptions& options),
+        (path, options))
+    IMPLEMENT_METHOD(void, FreezeTable, (
+        const TYPath& path,
+        const TFreezeTableOptions& options),
+        (path, options))
+    IMPLEMENT_METHOD(void, UnfreezeTable, (
+        const TYPath& path,
+        const TUnfreezeTableOptions& options),
         (path, options))
     IMPLEMENT_OVERLOADED_METHOD(void, ReshardTable, DoReshardTableWithPivotKeys, (
         const TYPath& path,
@@ -1963,6 +1975,7 @@ private:
         if (options.CellId) {
             ToProto(req->mutable_cell_id(), options.CellId);
         }
+        req->set_freeze(options.Freeze);
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
@@ -1997,6 +2010,40 @@ private:
         }
         if (options.LastTabletIndex) {
             req->set_first_tablet_index(*options.LastTabletIndex);
+        }
+
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+        WaitFor(proxy->Execute(req))
+            .ThrowOnError();
+    }
+
+    void DoFreezeTable(
+        const TYPath& path,
+        const TFreezeTableOptions& options)
+    {
+        auto req = TTableYPathProxy::Freeze(path);
+        if (options.FirstTabletIndex) {
+            req->set_first_tablet_index(*options.FirstTabletIndex);
+        }
+        if (options.LastTabletIndex) {
+            req->set_last_tablet_index(*options.LastTabletIndex);
+        }
+
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+        WaitFor(proxy->Execute(req))
+            .ThrowOnError();
+    }
+
+    void DoUnfreezeTable(
+        const TYPath& path,
+        const TUnfreezeTableOptions& options)
+    {
+        auto req = TTableYPathProxy::Unfreeze(path);
+        if (options.FirstTabletIndex) {
+            req->set_first_tablet_index(*options.FirstTabletIndex);
+        }
+        if (options.LastTabletIndex) {
+            req->set_last_tablet_index(*options.LastTabletIndex);
         }
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();

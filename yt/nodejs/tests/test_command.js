@@ -322,6 +322,8 @@ describe("YtCommand - command descriptors", function() {
             'erase',
             'exists',
             'execute_batch',
+            'freeze_table',
+            'unfreeze_table',
             'get',
             'get_version',
             'insert_rows',

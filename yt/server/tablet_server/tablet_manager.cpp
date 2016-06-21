@@ -280,6 +280,8 @@ public:
         RegisterMethod(BIND(&TImpl::HydraSetLeadingPeer, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletMounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnTabletFrozen, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnTabletUnfrozen, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletStores, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletTrimmedRowCount, Unretained(this)));
 
@@ -529,7 +531,8 @@ public:
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        TTabletCell* hintCell)
+        TTabletCell* hintCell,
+        bool freeze)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
@@ -560,10 +563,11 @@ public:
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             const auto* tablet = allTablets[index];
-            if (tablet->GetState() == ETabletState::Unmounting) {
+            auto state = tablet->GetState();
+            if (state == ETabletState::Unmounting) {
                 THROW_ERROR_EXCEPTION("Tablet %v is in %Qlv state",
                     tablet->GetId(),
-                    tablet->GetState());
+                    state);
             }
         }
 
@@ -623,6 +627,7 @@ public:
             req.set_mount_config(serializedMountConfig.Data());
             req.set_writer_options(serializedWriterOptions.Data());
             req.set_atomicity(static_cast<int>(table->GetAtomicity()));
+            req.set_freeze(freeze);
 
             auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
             auto chunks = EnumerateChunksInChunkTree(chunkList);
@@ -642,12 +647,13 @@ public:
             hiveManager->PostMessage(mailbox, req);
 
             LOG_INFO_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
-                "Atomicity: %v)",
+                "Atomicity: %v, Freeze: %v)",
                 table->GetId(),
                 tablet->GetId(),
                 cell->GetId(),
                 chunks.size(),
-                table->GetAtomicity());
+                table->GetAtomicity(),
+                freeze);
         }
     }
 
@@ -669,10 +675,16 @@ public:
         if (!force) {
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* tablet = table->Tablets()[index];
-                if (tablet->GetState() == ETabletState::Mounting) {
+                auto state = tablet->GetState();
+                if (state != ETabletState::Mounted &&
+                    state != ETabletState::Frozen &&
+                    state != ETabletState::Freezing &&
+                    state != ETabletState::Unmounted &&
+                    state != ETabletState::Unmounting)
+                {
                     THROW_ERROR_EXCEPTION("Tablet %v is in %Qlv state",
                         tablet->GetId(),
-                        tablet->GetState());
+                        state);
                 }
             }
         }
@@ -704,9 +716,12 @@ public:
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
             auto* cell = tablet->GetCell();
+            auto state = tablet->GetState();
 
-            if (tablet->GetState() == ETabletState::Mounted ||
-                tablet->GetState() == ETabletState::Mounting)
+            if (state == ETabletState::Mounted ||
+                state == ETabletState::Mounting ||
+                state == ETabletState::Frozen ||
+                state == ETabletState::Freezing)
             {
                 LOG_INFO_UNLESS(IsRecovery(), "Remounting tablet (TableId: %v, TabletId: %v, CellId: %v)",
                     table->GetId(),
@@ -719,22 +734,122 @@ public:
 
                 auto hiveManager = Bootstrap_->GetHiveManager();
 
-                {
-                    TReqRemountTablet request;
-                    request.set_mount_config(serializedMountConfig.Data());
-                    request.set_writer_options(serializedWriterOptions.Data());
-                    ToProto(request.mutable_tablet_id(), tablet->GetId());
-                    auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-                    hiveManager->PostMessage(mailbox, request);
-                }
+                TReqRemountTablet request;
+                request.set_mount_config(serializedMountConfig.Data());
+                request.set_writer_options(serializedWriterOptions.Data());
+                ToProto(request.mutable_tablet_id(), tablet->GetId());
+
+                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                hiveManager->PostMessage(mailbox, request);
+            }
+        }
+    }
+
+    void FreezeTable(
+        TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(table->IsTrunk());
+
+        if (!table->IsDynamic()) {
+            THROW_ERROR_EXCEPTION("Cannot freeze a static table");
+        }
+
+        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            auto* tablet = table->Tablets()[index];
+            auto state = tablet->GetState();
+            if (state != ETabletState::Mounted &&
+                state != ETabletState::Freezing &&
+                state != ETabletState::Frozen)
+            {
+                THROW_ERROR_EXCEPTION("Tablet %v is in %Qlv state",
+                    tablet->GetId(),
+                    state);
+            }
+        }
+
+        auto hiveManager = Bootstrap_->GetHiveManager();
+
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            auto* tablet = table->Tablets()[index];
+            auto* cell = tablet->GetCell();
+
+            if (tablet->GetState() == ETabletState::Mounted) {
+                LOG_INFO_UNLESS(IsRecovery(), "Freezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
+                    table->GetId(),
+                    tablet->GetId(),
+                    cell->GetId());
+
+                tablet->SetState(ETabletState::Freezing);
+
+                TReqFreezeTablet request;
+                ToProto(request.mutable_tablet_id(), tablet->GetId());
+
+                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                hiveManager->PostMessage(mailbox, request);
+            }
+        }
+    }
+
+    void UnfreezeTable(
+        TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(table->IsTrunk());
+
+        if (!table->IsDynamic()) {
+            THROW_ERROR_EXCEPTION("Cannot unfreeze a static table");
+        }
+
+        ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            auto* tablet = table->Tablets()[index];
+            auto state = tablet->GetState();
+            if (state != ETabletState::Mounted &&
+                state != ETabletState::Frozen &&
+                state != ETabletState::Unfreezing)
+            {
+                THROW_ERROR_EXCEPTION("Tablet %v is in %Qlv state",
+                    tablet->GetId(),
+                    state);
+            }
+        }
+
+        auto hiveManager = Bootstrap_->GetHiveManager();
+
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            auto* tablet = table->Tablets()[index];
+            auto* cell = tablet->GetCell();
+
+            if (tablet->GetState() == ETabletState::Frozen) {
+                LOG_INFO_UNLESS(IsRecovery(), "Unfreezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
+                    table->GetId(),
+                    tablet->GetId(),
+                    cell->GetId());
+
+                tablet->SetState(ETabletState::Unfreezing);
+
+                TReqUnfreezeTablet request;
+                ToProto(request.mutable_tablet_id(), tablet->GetId());
+
+                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                hiveManager->PostMessage(mailbox, request);
             }
         }
     }
 
     void ClearTablets(TTableNode* table)
     {
-        if (table->Tablets().empty())
+        if (table->Tablets().empty()) {
             return;
+        }
 
         DoUnmountTable(
             table,
@@ -1617,8 +1732,9 @@ private:
 
         auto cellId = FromProto<TTabletCellId>(request->cell_id());
         auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell))
+        if (!IsObjectAlive(cell)) {
             return;
+        }
 
         auto peerId = request->peer_id();
         cell->SetLeadingPeerId(peerId);
@@ -1637,45 +1753,105 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!IsObjectAlive(tablet))
+        if (!IsObjectAlive(tablet)) {
             return;
+        }
 
-        if (tablet->GetState() != ETabletState::Mounting) {
+        auto state = tablet->GetState();
+        if (state != ETabletState::Mounting) {
             LOG_INFO_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
-                tablet->GetState(),
+                state,
                 tabletId);
             return;
         }
 
+        bool frozen = response->frozen();
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %v, CellId: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %v, CellId: %v, Frozen: %v)",
             table->GetId(),
             tablet->GetId(),
             tablet->GetMountRevision(),
-            cell->GetId());
+            cell->GetId(),
+            frozen);
 
         cell->TotalStatistics() += GetTabletStatistics(tablet);
 
-        tablet->SetState(ETabletState::Mounted);
+        tablet->SetState(frozen ? ETabletState::Frozen : ETabletState::Mounted);
     }
 
     void HydraOnTabletUnmounted(TRspUnmountTablet* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!IsObjectAlive(tablet))
+        if (!IsObjectAlive(tablet)) {
             return;
+        }
 
-        if (tablet->GetState() != ETabletState::Unmounting) {
+        auto state = tablet->GetState();
+        if (state != ETabletState::Unmounting) {
             LOG_INFO_UNLESS(IsRecovery(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
-                tablet->GetState(),
+                state,
                 tabletId);
             return;
         }
 
         DoTabletUnmounted(tablet);
+    }
+
+    void HydraOnTabletFrozen(TRspFreezeTablet* response)
+    {
+        auto tabletId = FromProto<TTabletId>(response->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        const auto* table = tablet->GetTable();
+        const auto* cell = tablet->GetCell();
+
+        auto state = tablet->GetState();
+        if (state != ETabletState::Freezing) {
+            LOG_INFO_UNLESS(IsRecovery(), "Frozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+                state,
+                tabletId);
+            return;
+        }
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet frozen (TableId: %v, TabletId: %v, CellId: %v)",
+            table->GetId(),
+            tablet->GetId(),
+            cell->GetId());
+
+        tablet->SetState(ETabletState::Frozen);
+    }
+
+    void HydraOnTabletUnfrozen(TRspUnfreezeTablet* response)
+    {
+        auto tabletId = FromProto<TTabletId>(response->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        const auto* table = tablet->GetTable();
+        const auto* cell = tablet->GetCell();
+
+        auto state = tablet->GetState();
+        if (state != ETabletState::Unfreezing) {
+            LOG_INFO_UNLESS(IsRecovery(), "Unfrozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+                state,
+                tabletId);
+            return;
+        }
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet unfrozen (TableId: %v, TabletId: %v, CellId: %v)",
+            table->GetId(),
+            tablet->GetId(),
+            cell->GetId());
+
+        tablet->SetState(ETabletState::Mounted);
     }
 
     void DoTabletUnmounted(TTablet* tablet)
@@ -1771,16 +1947,6 @@ private:
 
         auto mountRevision = request->mount_revision();
 
-        // NB: Stores may be updated while unmounting to facilitate flush.
-        if (tablet->GetState() != ETabletState::Mounted &&
-            tablet->GetState() != ETabletState::Unmounting)
-        {
-            LOG_INFO_UNLESS(IsRecovery(), "Requested to update stores for a tablet in %Qlv state, ignored (TabletId: %v)",
-                tablet->GetState(),
-                tabletId);
-            return;
-        }
-
         auto* cell = tablet->GetCell();
         auto* table = tablet->GetTable();
         if (!IsObjectAlive(table)) {
@@ -1799,6 +1965,15 @@ private:
 
         try {
             tablet->ValidateMountRevision(mountRevision);
+
+            auto state = tablet->GetState();
+            if (state != ETabletState::Mounted &&
+                state != ETabletState::Unmounting &&
+                state != ETabletState::Freezing)
+            {
+                THROW_ERROR_EXCEPTION("Cannot update stores while tablet is in %Qlv state",
+                    state);
+            }
 
             if (!table->IsSorted()) {
                 auto* rootChunkList = table->GetChunkList();
@@ -2170,8 +2345,9 @@ private:
     void AbortPrerequisiteTransaction(TTabletCell* cell)
     {
         auto* transaction = cell->GetPrerequisiteTransaction();
-        if (!transaction)
+        if (!transaction) {
             return;
+        }
 
         // Suppress calling OnTransactionFinished.
         YCHECK(TransactionToCellMap_.erase(transaction) == 1);
@@ -2191,8 +2367,9 @@ private:
     void OnTransactionFinished(TTransaction* transaction)
     {
         auto it = TransactionToCellMap_.find(transaction);
-        if (it == TransactionToCellMap_.end())
+        if (it == TransactionToCellMap_.end()) {
             return;
+        }
 
         auto* cell = it->second;
         cell->SetPrerequisiteTransaction(nullptr);
@@ -2212,8 +2389,9 @@ private:
     {
         const auto& peer = cell->Peers()[peerId];
         const auto& descriptor = peer.Descriptor;
-        if (descriptor.IsNull())
+        if (descriptor.IsNull()) {
             return;
+        }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
             cell->GetId(),
@@ -2239,7 +2417,10 @@ private:
             auto* tablet = table->Tablets()[index];
             auto* cell = tablet->GetCell();
 
-            if (tablet->GetState() == ETabletState::Mounted) {
+            auto state = tablet->GetState();
+            if (state == ETabletState::Mounted ||
+                state == ETabletState::Frozen)
+            {
                 LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v, Force: %v)",
                     table->GetId(),
                     tablet->GetId(),
@@ -2576,13 +2757,15 @@ void TTabletManager::MountTable(
     TTableNode* table,
     int firstTabletIndex,
     int lastTabletIndex,
-    TTabletCell* hintCell)
+    TTabletCell* hintCell,
+    bool freeze)
 {
     Impl_->MountTable(
         table,
         firstTabletIndex,
         lastTabletIndex,
-        hintCell);
+        hintCell,
+        freeze);
 }
 
 void TTabletManager::UnmountTable(
@@ -2604,6 +2787,28 @@ void TTabletManager::RemountTable(
     int lastTabletIndex)
 {
     Impl_->RemountTable(
+        table,
+        firstTabletIndex,
+        lastTabletIndex);
+}
+
+void TTabletManager::FreezeTable(
+    TTableNode* table,
+    int firstTabletIndex,
+    int lastTabletIndex)
+{
+    Impl_->FreezeTable(
+        table,
+        firstTabletIndex,
+        lastTabletIndex);
+}
+
+void TTabletManager::UnfreezeTable(
+    TTableNode* table,
+    int firstTabletIndex,
+    int lastTabletIndex)
+{
+    Impl_->UnfreezeTable(
         table,
         firstTabletIndex,
         lastTabletIndex);

@@ -97,6 +97,8 @@ public:
     {
         RegisterParameter("cell_id", Options.CellId)
             .Optional();
+        RegisterParameter("freeze", Options.Freeze)
+            .Default(false);
     }
 
     void Execute(ICommandContextPtr context);
@@ -124,6 +126,24 @@ public:
     void Execute(ICommandContextPtr context);
 
 };
+
+class TFreezeTableCommand
+    : public TTabletCommandBase<NApi::TFreezeTableOptions>
+{
+public:
+    void Execute(ICommandContextPtr context);
+
+};
+
+
+class TUnfreezeTableCommand
+    : public TTabletCommandBase<NApi::TUnfreezeTableOptions>
+{
+public:
+    void Execute(ICommandContextPtr context);
+
+};
+
 
 class TReshardTableCommand
     : public TTabletCommandBase<NApi::TReshardTableOptions>

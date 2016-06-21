@@ -135,6 +135,8 @@ public:
         RegisterMethod(BIND(&TImpl::HydraMountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnmountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemountTablet, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraFreezeTablet, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUnfreezeTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTabletState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFollowerWriteRows, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraTrimRows, Unretained(this)));
@@ -247,6 +249,7 @@ public:
             auto* tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
 
             tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
+            ValidateTabletMounted(tablet);
 
             i64 totalRowCount = tablet->GetTotalRowCount();
             if (trimmedRowCount > totalRowCount) {
@@ -497,7 +500,8 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            if (tablet->GetState() >= ETabletState::WaitingForLocks) {
+            auto state = tablet->GetState();
+            if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
                 YCHECK(UnmountingTablets_.insert(tablet).second);
             }
         }
@@ -624,6 +628,7 @@ private:
         auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request->writer_options()), tabletId);
         auto atomicity = EAtomicity(request->atomicity());
         auto storeDescriptors = FromProto<std::vector<TAddStoreDescriptor>>(request->stores());
+        bool freeze = request->freeze();
 
         auto tabletHolder = std::make_unique<TTablet>(
             mountConfig,
@@ -647,6 +652,8 @@ private:
 
         storeManager->Mount(storeDescriptors);
 
+        tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
+
         // TODO(babenko): move somewhere?
         for (const auto& descriptor : storeDescriptors) {
             const auto& extensions = descriptor.chunk_meta().extensions();
@@ -659,6 +666,7 @@ private:
         {
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
+            response.set_frozen(freeze);
             PostMasterMutation(response);
         }
 
@@ -667,7 +675,7 @@ private:
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %x, TableId: %v, Keys: %v .. %v, "
-            "StoreCount: %v, PartitionCount: %v, TrimmedRowCount: %v, Atomicity: %v)",
+            "StoreCount: %v, PartitionCount: %v, TrimmedRowCount: %v, Atomicity: %v, Frozen: %v)",
             tabletId,
             mountRevision,
             tableId,
@@ -676,7 +684,8 @@ private:
             request->stores_size(),
             tablet->IsSorted() ? MakeNullable(tablet->PartitionList().size()) : Null,
             tablet->IsSorted() ? Null : MakeNullable(tablet->GetTrimmedRowCount()),
-            tablet->GetAtomicity());
+            tablet->GetAtomicity(),
+            freeze);
     }
 
     void HydraUnmountTablet(TReqUnmountTablet* request)
@@ -712,9 +721,10 @@ private:
             return;
         }
 
-        if (tablet->GetState() != ETabletState::Mounted) {
+        auto state = tablet->GetState();
+        if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
             LOG_INFO_UNLESS(IsRecovery(), "Requested to unmount a tablet in %Qlv state, ignored (TabletId: %v)",
-                tablet->GetState(),
+                state,
                 tabletId);
             return;
         }
@@ -722,10 +732,7 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TabletId: %v)",
             tabletId);
 
-        // Just a formality.
-        YCHECK(tablet->GetState() == ETabletState::Mounted);
-        tablet->SetState(ETabletState::WaitingForLocks);
-
+        tablet->SetState(ETabletState::UnmountWaitingForLocks);
         YCHECK(UnmountingTablets_.insert(tablet).second);
 
         LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (TabletId: %v)",
@@ -747,10 +754,6 @@ private:
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
         auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request->writer_options()), tabletId);
 
-        if (mountConfig->ReadOnly && !tablet->GetConfig()->ReadOnly) {
-            RotateStores(tablet, true);
-        }
-
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Remount(mountConfig, writerOptions);
 
@@ -758,6 +761,63 @@ private:
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
             tabletId);
+    }
+
+    void HydraFreezeTablet(TReqFreezeTablet* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto state = tablet->GetState();
+        if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast ||
+            state >= ETabletState::FreezeFirst && state <= ETabletState::FreezeLast)
+        {
+            LOG_INFO_UNLESS(IsRecovery(), "Requested to freeze a tablet in %Qlv state, ignored (TabletId: %v)",
+                state,
+                tabletId);
+            return;
+        }
+
+        LOG_INFO_UNLESS(IsRecovery(), "Freezing tablet (TabletId: %v)",
+            tabletId);
+
+        tablet->SetState(ETabletState::FreezeWaitingForLocks);
+
+        LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (TabletId: %v)",
+            tabletId);
+
+        if (IsLeader()) {
+            CheckIfFullyUnlocked(tablet);
+        }
+    }
+
+    void HydraUnfreezeTablet(TReqUnfreezeTablet* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto state = tablet->GetState();
+        if (state != ETabletState::Frozen)  {
+            LOG_INFO_UNLESS(IsRecovery(), "Requested to unfreeze a tablet in %Qlv state, ignored (TabletId: %v)",
+                state,
+                tabletId);
+            return;
+        }
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet unfrozen (TabletId: %v)",
+            tabletId);
+
+        tablet->SetState(ETabletState::Mounted);
+
+        TRspUnfreezeTablet response;
+        ToProto(response.mutable_tablet_id(), tabletId);
+        PostMasterMutation(response);
     }
 
     void HydraSetTabletState(TReqSetTabletState* request)
@@ -776,11 +836,16 @@ private:
         auto requestedState = ETabletState(request->state());
 
         switch (requestedState) {
-            case ETabletState::Flushing: {
-                tablet->SetState(ETabletState::Flushing);
+            case ETabletState::UnmountFlushing:
+            case ETabletState::FreezeFlushing: {
+                tablet->SetState(requestedState);
 
-                // NB: Flush requests for all other stores must already be on their way.
-                RotateStores(tablet, false);
+                const auto& storeManager = tablet->GetStoreManager();
+                if (requestedState == ETabletState::UnmountFlushing ||
+                    tablet->GetActiveStore()->GetRowCount() > 0)
+                {
+                    storeManager->Rotate(requestedState == ETabletState::FreezeFlushing);
+                }
 
                 LOG_INFO_IF(IsLeader(), "Waiting for all tablet stores to be flushed (TabletId: %v)",
                     tabletId);
@@ -804,11 +869,21 @@ private:
                 TabletMap_.Remove(tabletId);
                 YCHECK(UnmountingTablets_.erase(tablet) == 1);
 
-                {
-                    TRspUnmountTablet response;
-                    ToProto(response.mutable_tablet_id(), tabletId);
-                    PostMasterMutation(response);
-                }
+                TRspUnmountTablet response;
+                ToProto(response.mutable_tablet_id(), tabletId);
+                PostMasterMutation(response);
+                break;
+            }
+
+            case ETabletState::Frozen: {
+                tablet->SetState(ETabletState::Frozen);
+
+                LOG_INFO_UNLESS(IsRecovery(), "Tablet frozen (TabletId: %v)",
+                    tabletId);
+
+                TRspFreezeTablet response;
+                ToProto(response.mutable_tablet_id(), tabletId);
+                PostMasterMutation(response);
                 break;
             }
 
@@ -1013,7 +1088,8 @@ private:
             return;
         }
 
-        RotateStores(tablet, true);
+        const auto& storeManager = tablet->GetStoreManager();
+        storeManager->Rotate(true);
         UpdateTabletSnapshot(tablet);
     }
 
@@ -1676,7 +1752,8 @@ private:
 
     void CheckIfFullyUnlocked(TTablet* tablet)
     {
-        if (tablet->GetState() != ETabletState::WaitingForLocks) {
+        auto state = tablet->GetState();
+        if (state != ETabletState::UnmountWaitingForLocks && state != ETabletState::FreezeWaitingForLocks) {
             return;
         }
 
@@ -1687,18 +1764,33 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "All tablet locks released (TabletId: %v)",
             tablet->GetId());
 
-        tablet->SetState(ETabletState::FlushPending);
+        ETabletState newTransientState;
+        ETabletState newPersistentState;
+        switch (state) {
+            case ETabletState::UnmountWaitingForLocks:
+                newTransientState = ETabletState::UnmountFlushPending;
+                newPersistentState = ETabletState::UnmountFlushing;
+                break;
+            case ETabletState::FreezeWaitingForLocks:
+                newTransientState = ETabletState::FreezeFlushPending;
+                newPersistentState = ETabletState::FreezeFlushing;
+                break;
+            default:
+                YUNREACHABLE();
+        }
+        tablet->SetState(newTransientState);
 
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(tablet->GetMountRevision());
-        request.set_state(static_cast<int>(ETabletState::Flushing));
+        request.set_state(static_cast<int>(newPersistentState));
         CommitTabletMutation(request);
     }
 
     void CheckIfFullyFlushed(TTablet* tablet)
     {
-        if (tablet->GetState() != ETabletState::Flushing) {
+        auto state = tablet->GetState();
+        if (state != ETabletState::UnmountFlushing && state != ETabletState::FreezeFlushing) {
             return;
         }
 
@@ -1709,19 +1801,27 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "All tablet stores flushed (TabletId: %v)",
             tablet->GetId());
 
-        tablet->SetState(ETabletState::UnmountPending);
+        ETabletState newTransientState;
+        ETabletState newPersistentState;
+        switch (state) {
+            case ETabletState::UnmountFlushing:
+                newTransientState = ETabletState::UnmountPending;
+                newPersistentState = ETabletState::Unmounted;
+                break;
+            case ETabletState::FreezeFlushing:
+                newTransientState = ETabletState::FreezePending;
+                newPersistentState = ETabletState::Frozen;
+                break;
+            default:
+                YUNREACHABLE();
+        }
+        tablet->SetState(newTransientState);
 
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(tablet->GetMountRevision());
-        request.set_state(static_cast<int>(ETabletState::Unmounted));
+        request.set_state(static_cast<int>(newPersistentState));
         CommitTabletMutation(request);
-    }
-
-
-    void RotateStores(TTablet* tablet, bool createNew)
-    {
-        tablet->GetStoreManager()->Rotate(createNew);
     }
 
 

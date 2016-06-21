@@ -302,6 +302,16 @@ def remount_table(path, **kwargs):
     kwargs["path"] = path
     return execute_command("remount_table", kwargs)
 
+def freeze_table(path, **kwargs):
+    clear_metadata_caches()
+    kwargs["path"] = path
+    return execute_command("freeze_table", kwargs)
+
+def unfreeze_table(path, **kwargs):
+    clear_metadata_caches()
+    kwargs["path"] = path
+    return execute_command("unfreeze_table", kwargs)
+
 def reshard_table(path, arg, **kwargs):
     clear_metadata_caches()
     kwargs["path"] = path

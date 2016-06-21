@@ -195,7 +195,8 @@ private:
 
     void ScanTablet(TTabletSlotPtr slot, TTablet* tablet)
     {
-        if (tablet->GetState() != ETabletState::Mounted) {
+        auto state = tablet->GetState();
+        if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
             return;
         }
 
