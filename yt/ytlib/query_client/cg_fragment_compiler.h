@@ -13,7 +13,7 @@ namespace NQueryClient {
 typedef std::function<void(TCGContext& builder, Value* row)> TCodegenConsumer;
 typedef std::function<void(TCGContext& builder, const TCodegenConsumer& codegenConsumer)> TCodegenSource;
 
-typedef std::function<Value*(TCGIRBuilder& builder)> TCodegenBlock;
+typedef std::function<Value*(TCGIRBuilderPtr& builder)> TCodegenBlock;
 typedef std::function<Value*(TCGContext& builder)> TCodegenValue;
 typedef std::function<TCGValue(TCGContext& builder, Value* row)> TCodegenExpression;
 

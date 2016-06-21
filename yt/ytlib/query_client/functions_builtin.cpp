@@ -53,9 +53,9 @@ public:
             [&] (TCGContext& builder) {
                 return CodegenIf<TCGContext, TCGValue>(
                     builder,
-                    builder.CreateICmpNE(
-                        builder.CreateZExtOrBitCast(condition.GetData(), builder.getInt64Ty()),
-                        builder.getInt64(0)),
+                    builder->CreateICmpNE(
+                        builder->CreateZExtOrBitCast(condition.GetData(), builder->getInt64Ty()),
+                        builder->getInt64(0)),
                     [&] (TCGContext& builder) {
                         return codegenArgs[1](builder, row);
                     },
@@ -155,11 +155,11 @@ public:
             auto argValue = codegenArgs[0](builder, row);
             return TCGValue::CreateFromValue(
                 builder,
-                builder.getInt1(false),
+                builder->getInt1(false),
                 nullptr,
-                builder.CreateZExtOrBitCast(
+                builder->CreateZExtOrBitCast(
                     argValue.IsNull(),
-                    TDataTypeBuilder::TBoolean::get(builder.getContext())),
+                    TDataTypeBuilder::TBoolean::get(builder->getContext())),
                 type);
         };
     }
