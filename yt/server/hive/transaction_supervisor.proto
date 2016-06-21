@@ -7,14 +7,14 @@ import "yt/core/misc/guid.proto";
 message TReqCoordinatorCommitSimpleTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required NYT.NProto.TGuid mutation_id = 2;
+    optional NYT.NProto.TGuid mutation_id = 2;
     required uint64 commit_timestamp = 3;
 }
 
 message TReqCoordinatorCommitDistributedTransactionPhaseOne
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required NYT.NProto.TGuid mutation_id = 2;
+    optional NYT.NProto.TGuid mutation_id = 2;
     repeated NYT.NProto.TGuid participant_cell_ids = 3;
 }
 
@@ -31,9 +31,9 @@ message TReqCoordinatorFinishDistributedTransaction
 
 message TReqCoordinatorAbortTransaction
 {
-    required NYT.NProto.TGuid mutation_id = 1;
+    optional NYT.NProto.TGuid mutation_id = 1;
     required NYT.NProto.TGuid transaction_id = 2;
-    required bool force = 3;
+    optional bool force = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
