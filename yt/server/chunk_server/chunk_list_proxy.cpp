@@ -40,6 +40,8 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back("child_ids");
+        descriptors->push_back("child_count");
+        descriptors->push_back("trimmed_child_count");
         descriptors->push_back("parent_ids");
         descriptors->push_back("statistics");
         descriptors->push_back("ordered");
@@ -96,6 +98,18 @@ private:
                             .Item().Value(child->GetId());
                     }
                 });
+            return true;
+        }
+
+        if (key == "child_count") {
+            BuildYsonFluently(consumer)
+                .Value(chunkList->Children().size());
+            return true;
+        }
+
+        if (key == "trimmed_child_count") {
+            BuildYsonFluently(consumer)
+                .Value(chunkList->GetTrimmedChildCount());
             return true;
         }
 
