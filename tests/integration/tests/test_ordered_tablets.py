@@ -303,6 +303,36 @@ class TestOrderedTablets(YTEnvSetup):
         self.sync_mount_table("//tmp/t")
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] between 110 and 120") == [{"a": j} for j in xrange(110, 121)]
 
+    def test_trim_optimizes_chunk_list(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", dynamic=False)
+
+        for i in xrange(20):
+            write_table("<append=true>//tmp/t", [{"a": i}])
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+
+        alter_table("//tmp/t", dynamic=True)
+
+        def _check(expected_child_count, expected_trimmed_child_count, expected_chunk_ids):
+            root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+            tablet_chunk_list_id = get("#{0}/@child_ids/0".format(root_chunk_list_id))
+            assert get("#{0}/@child_count".format(tablet_chunk_list_id)) == expected_child_count
+            assert get("#{0}/@trimmed_child_count".format(tablet_chunk_list_id)) == expected_trimmed_child_count
+            assert get("//tmp/t/@chunk_ids") == expected_chunk_ids
+
+        def _trim(trimmed_row_count):
+            self.sync_mount_table("//tmp/t")
+            trim_rows("//tmp/t", 0, trimmed_row_count)
+            sleep(0.2)
+            self.sync_unmount_table("//tmp/t")
+
+        _check(20, 0, chunk_ids)
+        _trim(3)
+        _check(20, 3, chunk_ids[3:])
+        _trim(18)
+        _check(2, 0, chunk_ids[18:])
+
     def test_reshard_adds_tablets(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")

@@ -2013,6 +2013,7 @@ private:
                                 storeId,
                                 children[childIndex]->GetId());
                         }
+                        ++childIndex;
                     }
                 }
             }

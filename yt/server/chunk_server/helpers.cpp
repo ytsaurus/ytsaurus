@@ -40,6 +40,11 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const double ChunkListThombstoneRelativeThreshold = 0.5;
+static const double ChunkListThombstoneAbsoluteThreshold = 16;
+
+////////////////////////////////////////////////////////////////////////////////
+
 void AttachToChunkList(
     TChunkList* chunkList,
     TChunkTree* const* childrenBegin,
@@ -94,8 +99,23 @@ void DetachFromChunkList(
             YCHECK(child == children[childIndex]);
             children[childIndex] = nullptr;
         }
-        chunkList->SetTrimmedChildCount(chunkList->GetTrimmedChildCount() + (childrenEnd - childrenBegin));
-        // XXX(babenko): optimize chunk list
+        int newTrimmedChildCount = chunkList->GetTrimmedChildCount() + static_cast<int>(childrenEnd - childrenBegin);
+        if (newTrimmedChildCount > ChunkListThombstoneAbsoluteThreshold &&
+            newTrimmedChildCount > children.size() * ChunkListThombstoneRelativeThreshold)
+        {
+            children.erase(
+                children.begin(),
+                children.begin() + newTrimmedChildCount);
+
+            auto& cumulativeStatistics = chunkList->CumulativeStatistics();
+            cumulativeStatistics.erase(
+                cumulativeStatistics.begin(),
+                std::min(cumulativeStatistics.begin() + newTrimmedChildCount, cumulativeStatistics.end()));
+
+            chunkList->SetTrimmedChildCount(0);
+        } else {
+            chunkList->SetTrimmedChildCount(newTrimmedChildCount);
+        }
     } else {
         // Can handle arbitrary children.
         // Used in sorted tablet compaction..
@@ -177,16 +197,11 @@ void AppendChunkTreeChild(
 {
     if (chunkList->GetOrdered()) {
         if (!chunkList->Children().empty()) {
-            chunkList->RowCountSums().push_back(
-                chunkList->Statistics().RowCount +
-                statistics->RowCount);
-            chunkList->ChunkCountSums().push_back(
-                chunkList->Statistics().ChunkCount +
-                statistics->ChunkCount);
-            chunkList->DataSizeSums().push_back(
-                chunkList->Statistics().UncompressedDataSize +
-                statistics->UncompressedDataSize);
-
+            chunkList->CumulativeStatistics().push_back({
+                chunkList->Statistics().RowCount + statistics->RowCount,
+                chunkList->Statistics().ChunkCount + statistics->ChunkCount,
+                chunkList->Statistics().UncompressedDataSize + statistics->UncompressedDataSize
+            });
         }
     } else if (child) {
         int index = static_cast<int>(chunkList->Children().size());
@@ -211,10 +226,7 @@ void AccumulateUniqueAncestorsStatistics(
 
 void ResetChunkListStatistics(TChunkList* chunkList)
 {
-    chunkList->RowCountSums().clear();
-    chunkList->ChunkCountSums().clear();
-    chunkList->DataSizeSums().clear();
-    chunkList->ChildToIndex().clear();
+    chunkList->CumulativeStatistics().clear();
     chunkList->Statistics() = TChunkTreeStatistics();
     chunkList->Statistics().ChunkListCount = 1;
     chunkList->Statistics().Rank = 1;
