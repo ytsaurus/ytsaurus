@@ -1073,7 +1073,7 @@ void TOperationControllerBase::Materialize()
             // - Merge decided to passthrough all input chunks
             // - Anything else?
             LOG_INFO("No jobs needed");
-            OnOperationCompleted();
+            OnOperationCompleted(false /* interrupted */);
             return;
         }
 
@@ -1703,7 +1703,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
     UpdateTask(joblet->Task);
 
     if (IsCompleted()) {
-        OnOperationCompleted();
+        OnOperationCompleted(false /* interrupted */);
         return;
     }
 
@@ -1721,7 +1721,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
                 auto path = Format("/data/output/%d/row_count%s", *RowCountLimitTableIndex, jobSummary->StatisticsSuffix);
                 i64 count = GetValues<i64>(JobStatistics, path, getValue);
                 if (count >= RowCountLimit) {
-                    OnOperationCompleted();
+                    OnOperationCompleted(true /* interrupted */);
                 }
         }
     }
@@ -2038,15 +2038,9 @@ void TOperationControllerBase::Complete()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto codicilGuard = MakeCodicilGuard();
-
-    LOG_INFO("Completing operation");
-
-    State = EControllerState::Finished;
-
-    Host->OnOperationCompleted(Operation);
-
-    LOG_INFO("Operation completed");
+    BIND(&TOperationControllerBase::OnOperationCompleted, MakeStrong(this), true /* interrupted */)
+        .Via(GetCancelableInvoker())
+        .Run();
 }
 
 void TOperationControllerBase::CheckTimeLimit()
@@ -2592,9 +2586,10 @@ TJobResources TOperationControllerBase::GetNeededResources() const
     return CachedNeededResources;
 }
 
-void TOperationControllerBase::OnOperationCompleted()
+void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+    UNUSED(interrupted);
 
     // This can happen if operation failed during completion in derived class (e.x. SortController).
     if (IsFinished()) {
