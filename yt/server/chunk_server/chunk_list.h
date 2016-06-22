@@ -39,16 +39,20 @@ public:
     using TChildToIndexMap = yhash_map<TChunkTree*, int>;
     DEFINE_BYREF_RW_PROPERTY(TChildToIndexMap, ChildToIndex);
 
-    // Accumulated sums of children row counts.
-    // The i-th value is equal to the sum of row counts of children 0..i
+    struct TCumulativeStatisticsEntry
+    {
+        i64 RowCount;
+        i64 ChunkCount;
+        i64 DataSize;
+
+        void Persist(NCellMaster::TPersistenceContext& context);
+    };
+
+    // The i-th value is equal to the sum of statistics for children 0..i
     // for all i in [0..Children.size() - 2]
-    // Accumulated statistics for the last child (which is equal to the total chunk list statistics)
+    // NB: Cumulative statistics for the last child (which is equal to the total chunk list statistics)
     // is stored in #Statistics field.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, RowCountSums);
-    // Same as above but for chunk count sums.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, ChunkCountSums);
-    // Same as above but for data size sums.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, DataSizeSums);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TCumulativeStatisticsEntry>, CumulativeStatistics);
 
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
 

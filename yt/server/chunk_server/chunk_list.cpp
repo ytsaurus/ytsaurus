@@ -12,6 +12,16 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChunkList::TCumulativeStatisticsEntry::Persist(NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, RowCount);
+    Persist(context, ChunkCount);
+    Persist(context, DataSize);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkList::TChunkList(const TChunkListId& id)
     : TChunkTree(id)
     , Ordered_(true)
@@ -46,9 +56,7 @@ void TChunkList::Save(NCellMaster::TSaveContext& context) const
     Save(context, Parents_);
     Save(context, OwningNodes_);
     Save(context, Statistics_);
-    Save(context, RowCountSums_);
-    Save(context, ChunkCountSums_);
-    Save(context, DataSizeSums_);
+    Save(context, CumulativeStatistics_);
     Save(context, Ordered_);
     Save(context, TrimmedChildCount_);
 }
@@ -62,9 +70,23 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, Parents_);
     Load(context, OwningNodes_);
     Load(context, Statistics_);
-    Load(context, RowCountSums_);
-    Load(context, ChunkCountSums_);
-    Load(context, DataSizeSums_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 402) {
+        Load(context, CumulativeStatistics_);
+    } else {
+        std::vector<i64> rowCountSums, chunkCountSums, dataSizeSums;
+        Load(context, rowCountSums);
+        Load(context, chunkCountSums);
+        Load(context, dataSizeSums);
+        YCHECK(rowCountSums.size() == chunkCountSums.size() && rowCountSums.size() == dataSizeSums.size());
+        for (int index = 0; index < rowCountSums.size(); ++index) {
+            CumulativeStatistics_.push_back({
+                rowCountSums[index],
+                chunkCountSums[index],
+                dataSizeSums[index]
+            });
+        }
+    }
     // COMPAT(babenko)
     if (context.GetVersion() >= 401) {
         Load(context, Ordered_);

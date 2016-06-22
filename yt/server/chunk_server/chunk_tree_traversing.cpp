@@ -25,6 +25,10 @@ using namespace NTableClient;
 
 static const int MaxChunksPerStep = 1000;
 
+static const auto RowCountMember = &TChunkList::TCumulativeStatisticsEntry::RowCount;
+static const auto ChunkCountMember = &TChunkList::TCumulativeStatisticsEntry::ChunkCount;
+static const auto DataSizeMember = &TChunkList::TCumulativeStatisticsEntry::DataSize;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TIterator, class TKey, class TIsLess, class TIsMissing>
@@ -137,23 +141,23 @@ protected:
             TReadLimit childLowerBound;
             TReadLimit childUpperBound;
 
-            auto fetchPrevSum = [&] (const std::vector<i64>& sums) -> i64 {
+            auto fetchPrevSum = [&] (i64 TChunkList::TCumulativeStatisticsEntry::* member) -> i64 {
                 return entry.ChildIndex == 0
                     ? 0
-                    : sums[entry.ChildIndex - 1];
+                    : chunkList->CumulativeStatistics()[entry.ChildIndex - 1].*member;
             };
 
-            auto fetchCurrentSum = [&] (const std::vector<i64>& sums, i64 fallback) {
+            auto fetchCurrentSum = [&] (i64 TChunkList::TCumulativeStatisticsEntry::* member, i64 fallback) {
                 return entry.ChildIndex == chunkList->Children().size() - 1
                     ? fallback
-                    : sums[entry.ChildIndex];
+                    : chunkList->CumulativeStatistics()[entry.ChildIndex].*member;
             };
 
             i64 rowIndex = 0;
             if (chunkList->GetOrdered()) {
                 // Row index
                 {
-                    i64 childLimit = fetchPrevSum(chunkList->RowCountSums());
+                    i64 childLimit = fetchPrevSum(RowCountMember);
                     rowIndex =  entry.RowIndex + childLimit;
                     if (entry.UpperBound.HasRowIndex()) {
                         if (entry.UpperBound.GetRowIndex() <= childLimit) {
@@ -162,7 +166,7 @@ protected:
                         }
                         childLowerBound.SetRowIndex(childLimit);
                         i64 totalRowCount = statistics.Sealed ? statistics.RowCount : std::numeric_limits<i64>::max();
-                        childUpperBound.SetRowIndex(fetchCurrentSum(chunkList->RowCountSums(), totalRowCount));
+                        childUpperBound.SetRowIndex(fetchCurrentSum(RowCountMember, totalRowCount));
                     } else if (entry.LowerBound.HasRowIndex()) {
                         childLowerBound.SetRowIndex(childLimit);
                     }
@@ -170,14 +174,14 @@ protected:
 
                 // Chunk index
                 {
-                    i64 childLimit = fetchPrevSum(chunkList->ChunkCountSums());
+                    i64 childLimit = fetchPrevSum(ChunkCountMember);
                     if (entry.UpperBound.HasChunkIndex()) {
                         if (entry.UpperBound.GetChunkIndex() <= childLimit) {
                             PopStack();
                             continue;
                         }
                         childLowerBound.SetChunkIndex(childLimit);
-                        childUpperBound.SetChunkIndex(fetchCurrentSum(chunkList->ChunkCountSums(), statistics.ChunkCount));
+                        childUpperBound.SetChunkIndex(fetchCurrentSum(ChunkCountMember, statistics.ChunkCount));
                     } else if (entry.LowerBound.HasChunkIndex()) {
                         childLowerBound.SetChunkIndex(childLimit);
                     }
@@ -185,14 +189,14 @@ protected:
 
                 // Offset
                 {
-                    i64 childLimit = fetchPrevSum(chunkList->DataSizeSums());
+                    i64 childLimit = fetchPrevSum(DataSizeMember);
                     if (entry.UpperBound.HasOffset()) {
                         if (entry.UpperBound.GetOffset() <= childLimit) {
                             PopStack();
                             continue;
                         }
                         childLowerBound.SetOffset(childLimit);
-                        childUpperBound.SetOffset(fetchCurrentSum(chunkList->DataSizeSums(), statistics.UncompressedDataSize));
+                        childUpperBound.SetOffset(fetchCurrentSum(DataSizeMember, statistics.UncompressedDataSize));
                     } else if (entry.LowerBound.HasOffset()) {
                         childLowerBound.SetOffset(childLimit);
                     }
@@ -271,13 +275,17 @@ protected:
         int result = 0;
         const auto& statistics = chunkList->Statistics();
 
-        auto adjustResult = [&] (i64 limit, i64 total, const std::vector<i64>& sums) {
+        auto adjustResult = [&] (i64 TChunkList::TCumulativeStatisticsEntry::* member, i64 limit, i64 total) {
+            const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
             if (limit < total) {
                 auto it = std::upper_bound(
-                    sums.begin(),
-                    sums.end(),
-                    limit);
-                result = std::max(result, static_cast<int>(it - sums.begin()));
+                    cumulativeStatistics.begin(),
+                    cumulativeStatistics.end(),
+                    limit,
+                    [&] (i64 lhs, const TChunkList::TCumulativeStatisticsEntry& rhs) {
+                        return lhs < rhs.*member;
+                    });
+                result = std::max(result, static_cast<int>(it - cumulativeStatistics.begin()));
             } else {
                 result = chunkList->Children().size();
             }
@@ -286,17 +294,17 @@ protected:
         // Row Index
         if (lowerBound.HasRowIndex()) {
             i64 totalRowCount = statistics.Sealed ? statistics.RowCount : std::numeric_limits<i64>::max();
-            adjustResult(lowerBound.GetRowIndex(), totalRowCount, chunkList->RowCountSums());
+            adjustResult(RowCountMember, lowerBound.GetRowIndex(), totalRowCount);
         }
 
         // Chunk index
         if (lowerBound.HasChunkIndex()) {
-            adjustResult(lowerBound.GetChunkIndex(), statistics.ChunkCount, chunkList->ChunkCountSums());
+            adjustResult(ChunkCountMember, lowerBound.GetChunkIndex(), statistics.ChunkCount);
         }
 
         // Offset
         if (lowerBound.HasOffset()) {
-            adjustResult(lowerBound.GetOffset(), statistics.UncompressedDataSize, chunkList->DataSizeSums());
+            adjustResult(DataSizeMember, lowerBound.GetOffset(), statistics.UncompressedDataSize);
         }
 
         // Key

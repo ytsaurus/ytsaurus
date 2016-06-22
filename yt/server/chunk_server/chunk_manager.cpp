@@ -1552,14 +1552,8 @@ private:
             statistics.Rank = 1;
             int childrenCount = chunkList->Children().size();
 
-            auto& rowCountSums = chunkList->RowCountSums();
-            rowCountSums.clear();
-
-            auto& chunkCountSums = chunkList->ChunkCountSums();
-            chunkCountSums.clear();
-
-            auto& dataSizeSums = chunkList->DataSizeSums();
-            dataSizeSums.clear();
+            auto& cumulativeStatistics = chunkList->CumulativeStatistics();
+            cumulativeStatistics.clear();
 
             for (int childIndex = 0; childIndex < childrenCount; ++childIndex) {
                 auto* child = chunkList->Children()[childIndex];
@@ -1582,9 +1576,11 @@ private:
                 }
 
                 if (childIndex + 1 < childrenCount) {
-                    rowCountSums.push_back(statistics.RowCount + childStatistics.RowCount);
-                    chunkCountSums.push_back(statistics.ChunkCount + childStatistics.ChunkCount);
-                    dataSizeSums.push_back(statistics.UncompressedDataSize + childStatistics.UncompressedDataSize);
+                    cumulativeStatistics.push_back({
+                        statistics.RowCount + childStatistics.RowCount,
+                        statistics.ChunkCount + childStatistics.ChunkCount,
+                        statistics.UncompressedDataSize + childStatistics.UncompressedDataSize
+                    });
                 }
 
                 statistics.Accumulate(childStatistics);

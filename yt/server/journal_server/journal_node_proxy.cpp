@@ -105,7 +105,8 @@ private:
             }
 
             auto* chunk = chunkList->Children().back()->AsChunk();
-            i64 penultimateRowCount = chunkList->RowCountSums().empty() ? 0 : chunkList->RowCountSums().back();
+            const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
+            i64 penultimateRowCount = cumulativeStatistics.empty() ? 0 : cumulativeStatistics.back().RowCount;
 
             auto chunkManager = Bootstrap_->GetChunkManager();
             return chunkManager
