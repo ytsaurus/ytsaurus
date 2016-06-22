@@ -1381,22 +1381,25 @@ protected:
         return CompletedPartitionCount == Partitions.size();
     }
 
-    virtual void OnOperationCompleted() override
+    virtual void OnOperationCompleted(bool interrupted) override
     {
-        if (IsRowCountPreserved()) {
-            i64 totalInputRowCount = 0;
-            for (auto partition : Partitions) {
-                totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
+        if (!interrupted) {
+            if (IsRowCountPreserved()) {
+                i64 totalInputRowCount = 0;
+                for (auto partition : Partitions) {
+                    totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
+                }
+                if (totalInputRowCount != TotalOutputRowCount) {
+                    OnOperationFailed(TError(
+                        "Input/output row count mismatch in sort operation: %v != %v",
+                        totalInputRowCount,
+                        TotalOutputRowCount));
+                }
             }
-            if (totalInputRowCount != TotalOutputRowCount) {
-                OnOperationFailed(TError(
-                    "Input/output row count mismatch in sort operation: %v != %v",
-                    totalInputRowCount,
-                    TotalOutputRowCount));
-            }
+
+            YCHECK(CompletedPartitionCount == Partitions.size());
         }
 
-        YCHECK(CompletedPartitionCount == Partitions.size());
         TOperationControllerBase::OnOperationCompleted();
     }
 
