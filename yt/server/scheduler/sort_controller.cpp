@@ -1400,7 +1400,7 @@ protected:
             YCHECK(CompletedPartitionCount == Partitions.size());
         }
 
-        TOperationControllerBase::OnOperationCompleted();
+        TOperationControllerBase::OnOperationCompleted(interrupted);
     }
 
     void OnPartitionCompleted(TPartitionPtr partition)
