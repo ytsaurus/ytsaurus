@@ -79,10 +79,6 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
         YCHECK(OwningNodeToIndex_.emplace(OwningNodes_[index], index).second);
     }
 
-    for (int index = 0; index < OwningNodes_.size(); ++index) {
-        YCHECK(OwningNodeToIndex_.emplace(std::make_pair(OwningNodes_[index], index)).second);
-    }
-
     if (!Ordered_) {
         for (int index = 0; index < Children_.size(); ++index) {
             YCHECK(ChildToIndex_.emplace(Children_[index], index).second);
