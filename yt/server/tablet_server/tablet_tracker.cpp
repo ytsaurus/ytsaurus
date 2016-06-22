@@ -46,7 +46,7 @@ public:
             int total = node->GetTotalTabletSlots();
             int used = tabletManager->GetAssignedTabletCellCount(node->GetDefaultAddress());
             int spare = total - used;
-            if (used < total) {
+            if (!node->GetDecommissioned() && used < total) {
                 MinusSpareSlotsToNode_.insert(std::make_pair(-spare, node));
             }
         }
