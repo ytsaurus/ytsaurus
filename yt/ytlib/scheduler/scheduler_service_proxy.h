@@ -22,7 +22,7 @@ public:
 
     static int GetProtocolVersion()
     {
-        return 4;
+        return 3;
     }
 
     explicit TSchedulerServiceProxy(NRpc::IChannelPtr channel)
