@@ -5,7 +5,7 @@
 
 #include <yt/core/yson/consumer.h>
 
-#include <util/string/base64.h>
+#include <library/string_utils/base64/base64.h>
 
 namespace NYT {
 namespace NFormats {
