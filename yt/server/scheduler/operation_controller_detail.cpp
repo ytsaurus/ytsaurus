@@ -2716,7 +2716,7 @@ i64 TOperationControllerBase::ComputeUserJobMemoryReserve(EJobType jobType, TUse
 void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-    UNUSED(interrupted);
+    Y_UNUSED(interrupted);
 
     // This can happen if operation failed during completion in derived class (e.x. SortController).
     if (IsFinished()) {
