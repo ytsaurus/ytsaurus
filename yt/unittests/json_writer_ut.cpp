@@ -564,7 +564,7 @@ TEST(TJsonWriterTest, SeveralOptionsFlushBuffer)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, TestPrettyFormat)
+TEST(TJsonWriterTest, DISABLED_TestPrettyFormat)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();

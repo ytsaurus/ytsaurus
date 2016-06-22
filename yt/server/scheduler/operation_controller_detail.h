@@ -764,7 +764,12 @@ protected:
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
 
-    virtual void OnOperationCompleted();
+    //! Successfully terminate and finalize operation.
+    /*!
+     *  #interrupted flag indicates premature completion and disables standard validatoin
+     */
+    virtual void OnOperationCompleted(bool interrupted);
+
     virtual void OnOperationFailed(const TError& error);
 
     virtual bool IsCompleted() const = 0;
