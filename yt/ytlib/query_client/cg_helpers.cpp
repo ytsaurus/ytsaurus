@@ -21,24 +21,6 @@ std::vector<Value*> MakeOpaqueValues(
     return opaqueValuesArray;
 }
 
-//TCGOperatorContext MakeCGFunctionContext(
-//    TCGIRBuilder& builder,
-//    Value* opaqueValues,
-//    size_t opaqueValuesCount,
-//    Value* executionContextPtr,
-//    const TCGModulePtr module)
-//{
-//    std::vector<Value*> opaqueValuesArray;
-//
-//    for (size_t index = 0; index < opaqueValuesCount; ++index) {
-//        opaqueValuesArray.push_back(builder.CreateLoad(
-//            builder.CreateConstGEP1_32(opaqueValues, index),
-//            "opaqueValues." + Twine(index)));
-//    }
-//
-//    return TCGOperatorContext(std::move(opaqueValuesArray), executionContextPtr, module);
-//}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Row manipulation helpers
 //
