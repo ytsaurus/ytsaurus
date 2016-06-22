@@ -9,6 +9,12 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue>
+bool TExpiringCache<TKey, TValue>::TEntry::Expired(const TInstant& now) const
+{
+    return now > AccessDeadline || now > UpdateDeadline;
+}
+
+template <class TKey, class TValue>
 TExpiringCache<TKey, TValue>::TExpiringCache(TExpiringCacheConfigPtr config)
     : Config_(std::move(config))
 { }
@@ -24,7 +30,8 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
         auto it = Map_.find(key);
         if (it != Map_.end()) {
             const auto& entry = it->second;
-            if (now < entry->Deadline) {
+            if (!entry->Expired(now)) {
+                entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
                 return entry->Promise;
             }
         }
@@ -36,7 +43,8 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
         auto it = Map_.find(key);
         if (it == Map_.end()) {
             auto entry = New<TEntry>();
-            entry->Deadline = TInstant::Max();
+            entry->UpdateDeadline = TInstant::Max();
+            entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
             auto promise = entry->Promise = NewPromise<TValue>();
             // NB: we don't want to hold a strong reference to entry after releasing the guard, so we make a weak reference here.
             auto weakEntry = MakeWeak(entry);
@@ -49,10 +57,11 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
         auto& entry = it->second;
         const auto& promise = entry->Promise;
         if (!promise.IsSet()) {
+            entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
             return promise;
         }
 
-        if (now > entry->Deadline) {
+        if (entry->Expired(now)) {
             // Evict and retry.
             NConcurrency::TDelayedExecutor::CancelAndClear(entry->ProbationCookie);
             Map_.erase(it);
@@ -60,7 +69,8 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
             return Get(key);
         }
 
-        return promise;
+        entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
+        return entry->Promise;
     }
 }
 
@@ -105,8 +115,13 @@ void TExpiringCache<TKey, TValue>::InvokeGet(const TWeakPtr<TEntry>& weakEntry, 
         auto it = Map_.find(key);
         Y_ASSERT(it != Map_.end() && it->second == entry);
 
-        auto expirationTime = valueOrError.IsOK() ? Config_->SuccessExpirationTime : Config_->FailureExpirationTime;
-        entry->Deadline = TInstant::Now() + expirationTime;
+        if (TInstant::Now() > entry->AccessDeadline) {
+            Map_.erase(key);
+            return;
+        }
+
+        auto expirationTime = valueOrError.IsOK() ? Config_->ExpireAfterSuccessfulUpdateTime : Config_->ExpireAfterFailedUpdateTime;
+        entry->UpdateDeadline = TInstant::Now() + expirationTime;
         if (entry->Promise.IsSet()) {
             entry->Promise = MakePromise(valueOrError);
         } else {
@@ -117,7 +132,7 @@ void TExpiringCache<TKey, TValue>::InvokeGet(const TWeakPtr<TEntry>& weakEntry, 
             NTracing::TNullTraceContextGuard guard;
             entry->ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
                 BIND(&TExpiringCache::InvokeGet, MakeWeak(this), MakeWeak(entry), key),
-                Config_->SuccessProbationTime);
+                Config_->RefreshTime);
         }
     }));
 }

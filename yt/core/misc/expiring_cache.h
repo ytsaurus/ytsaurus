@@ -31,12 +31,17 @@ private:
     struct TEntry
         : public TRefCounted
     {
-        //! When this entry must be evicted.
-        TInstant Deadline;
+        //! When this entry must be evicted with respect to access timeout.
+        TInstant AccessDeadline;
+        //! When this entry must be evicted with respect to update timeout.
+        TInstant UpdateDeadline;
         //! Some latest known value (possibly not yet set).
         TPromise<TValue> Promise;
         //! Corresponds to a future probation request.
         NConcurrency::TDelayedExecutorCookie ProbationCookie;
+
+        //! Check that entry is expired with respect to either access or update.
+        bool Expired(const TInstant& now) const;
     };
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
