@@ -251,6 +251,25 @@ print "x={0}\ty={1}".format(x, y)
                                        {"x": "2", "y" : "4"},
                                        {"x": "2", "y" : "9"}]
 
+    @unix_only
+    def test_row_count_limit(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [ {"x": 1, "y" : 2}])
+        write_table("<append=true>//tmp/t_in",  [ {"x": 2, "y" : 3} ])
+
+        map_reduce(in_="//tmp/t_in",
+                   out="<row_count_limit=1>//tmp/t_out",
+                   reduce_by="x",
+                   sort_by="x",
+                   reducer_command="cat",
+                   spec={
+                     "partition_count": 2,
+                     "reducer": {"format": "dsv"}})
+
+        assert len(read_table("//tmp/t_out")) == 1 
+
     def test_intermediate_live_preview(self):
         create_user("u")
         acl = [{"action": "allow", "subjects": ["u"], "permissions": ["write"]}]
