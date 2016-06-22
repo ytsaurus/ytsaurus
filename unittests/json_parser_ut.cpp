@@ -6,7 +6,7 @@
 
 #include <yt/core/ytree/yson_consumer-mock.h>
 
-#include <util/string/base64.h>
+#include <library/string_utils/base64/base64.h>
 
 namespace NYT {
 namespace NFormats {

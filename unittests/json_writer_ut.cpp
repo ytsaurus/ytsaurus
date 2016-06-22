@@ -4,7 +4,7 @@
 
 #include <yt/core/misc/common.h>
 
-#include <util/string/base64.h>
+#include <library/string_utils/base64/base64.h>
 
 namespace NYT {
 namespace NFormats {
