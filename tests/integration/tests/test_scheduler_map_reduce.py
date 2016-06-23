@@ -266,7 +266,8 @@ print "x={0}\ty={1}".format(x, y)
                    reducer_command="cat",
                    spec={
                      "partition_count": 2,
-                     "reducer": {"format": "dsv"}})
+                     "reducer": {"format": "dsv"},
+                     "resource_limits" : { "user_slots" : 1}})
 
         assert len(read_table("//tmp/t_out")) == 1 
 
