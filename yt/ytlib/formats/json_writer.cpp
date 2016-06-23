@@ -139,7 +139,7 @@ TJsonWriter::TJsonWriter(TOutputStream* output, bool isPretty)
 {
     Handle = yajl_gen_alloc(nullptr);
     yajl_gen_config(Handle, yajl_gen_beautify, isPretty ? 1 : 0);
-    yajl_gen_config(Handle, yajl_gen_skip_final_newline, isPretty ? 1 : 0);
+    yajl_gen_config(Handle, yajl_gen_skip_final_newline, 0);
     yajl_gen_config(Handle, yajl_gen_validate_utf8, 1);
 }
 

@@ -60,10 +60,12 @@ public:
         TRemoteCopyOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, host, operation)
+        : TOperationControllerBase(config, spec, config->RemoteCopyOperationOptions, host, operation)
         , Spec_(spec)
         , Options_(config->RemoteCopyOperationOptions)
-    { }
+    {
+        RegisterJobProxyMemoryDigest(EJobType::RemoteCopy, spec->JobProxyMemoryDigest);
+    }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
@@ -127,11 +129,10 @@ private:
             return false;
         }
 
-        virtual TJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
         {
             return GetRemoteCopyResources(
-                joblet->InputStripeList->GetStatistics(),
-                joblet->MemoryReserveEnabled);
+                joblet->InputStripeList->GetStatistics());
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -163,30 +164,25 @@ private:
 
         int Index_;
 
-        virtual bool IsMemoryReserveEnabled() const override
-        {
-            return Controller_->IsMemoryReserveEnabled(Controller_->JobCounter);
-        }
-
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
             static const auto options = New<TTableReaderOptions>();
             return options;
         }
 
-        virtual TJobResources GetMinNeededResourcesHeavy() const override
+        virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
             return GetRemoteCopyResources(
-                ChunkPool_->GetApproximateStripeStatistics(),
-                IsMemoryReserveEnabled());
+                ChunkPool_->GetApproximateStripeStatistics());
         }
 
-        TJobResources GetRemoteCopyResources(const TChunkStripeStatisticsVector& statistics, bool isReserveEnabled) const
+        TExtendedJobResources GetRemoteCopyResources(const TChunkStripeStatisticsVector& statistics) const
         {
-            TJobResources result;
+            TExtendedJobResources result;
             result.SetUserSlots(1);
             result.SetCpu(0);
-            result.SetMemory(GetMemoryResources(statistics));
+            result.SetJobProxyMemory(GetMemoryResources(statistics));
+            AddFootprintAndUserJobResources(result);
             return result;
         }
 
@@ -205,15 +201,12 @@ private:
             }
             result += maxBlockSize;
 
-            // Memory footprint
-            result += GetFootprintMemorySize();
-
             return result;
         }
 
         virtual EJobType GetJobType() const override
         {
-            return EJobType(Controller_->JobSpecTemplate_.type());
+            return EJobType::RemoteCopy;
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -250,9 +243,7 @@ private:
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
             TTask::OnJobAborted(joblet, jobSummary);
-            Controller_->UpdateAllTasksIfNeeded(Controller_->JobCounter);
         }
-
     };
 
     TTaskGroupPtr RemoteCopyTaskGroup_;

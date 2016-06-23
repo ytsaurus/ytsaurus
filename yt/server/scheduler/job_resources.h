@@ -14,6 +14,22 @@ namespace NScheduler {
 class TEmptyJobResourcesBase
 { };
 
+class TExtendedJobResources
+{
+public:
+    DEFINE_BYVAL_RW_PROPERTY(int, UserSlots);
+    DEFINE_BYVAL_RW_PROPERTY(int, Cpu);
+    DEFINE_BYVAL_RW_PROPERTY(i64, JobProxyMemory);
+    DEFINE_BYVAL_RW_PROPERTY(i64, UserJobMemory);
+    DEFINE_BYVAL_RW_PROPERTY(i64, FootprintMemory);
+    DEFINE_BYVAL_RW_PROPERTY(int, Network);
+
+public:
+    TExtendedJobResources();
+
+    i64 GetMemory() const;
+};
+
 class TJobResources
     : public TEmptyJobResourcesBase
 {
@@ -25,7 +41,7 @@ public:
 
 public:
     TJobResources();
-    TJobResources(const NNodeTrackerClient::NProto::TNodeResources& resources);
+    TJobResources(const NNodeTrackerClient::NProto::TNodeResources& nodeResources);
 
     NNodeTrackerClient::NProto::TNodeResources ToNodeResources() const;
 
@@ -40,6 +56,7 @@ public:
 
 Stroka FormatResourceUsage(const TJobResources& usage, const TJobResources& limits);
 Stroka FormatResources(const TJobResources& resources);
+Stroka FormatResources(const TExtendedJobResources& resources);
 
 void ProfileResources(NProfiling::TProfiler& profiler, const TJobResources& resources);
 
@@ -89,6 +106,7 @@ bool Dominates(const TJobResources& lhs, const TJobResources& rhs);
 TJobResources Max(const TJobResources& a, const TJobResources& b);
 TJobResources Min(const TJobResources& a, const TJobResources& b);
 
+void Serialize(const TExtendedJobResources& resources, NYson::IYsonConsumer* consumer);
 void Serialize(const TJobResources& resources, NYson::IYsonConsumer* consumer);
 
 const TJobResources& MinSpareNodeResources();

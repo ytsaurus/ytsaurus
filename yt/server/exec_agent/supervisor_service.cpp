@@ -48,7 +48,12 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
     auto job = jobController->GetJobOrThrow(jobId);
 
     *response->mutable_job_spec() = job->GetSpec();
-    *response->mutable_resource_usage() = job->GetResourceUsage();
+    const auto& resources = job->GetResourceUsage();
+
+    auto* jobProxyResources = response->mutable_resource_usage();
+    jobProxyResources->set_cpu(resources.cpu());
+    jobProxyResources->set_memory(resources.memory());
+    jobProxyResources->set_network(resources.network());
 
     context->Reply();
 }
@@ -66,7 +71,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
     auto job = jobController->GetJobOrThrow(jobId);
 
     job->SetResult(result);
-    
+
     if (request->has_statistics()) {
         job->SetStatistics(TYsonString(request->statistics()));
     }
@@ -95,14 +100,21 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
 {
     auto jobId = FromProto<TJobId>(request->job_id());
-    const auto& resourceUsage = request->resource_usage();
+    const auto& jobProxyResourceUsage = request->resource_usage();
 
-    context->SetRequestInfo("JobId: %v, ResourceUsage: %v",
+    context->SetRequestInfo("JobId: %v, JobProxyResourceUsage: {Cpu: %v, Memory %v, Network: %v}",
         jobId,
-        FormatResources(resourceUsage));
+        jobProxyResourceUsage.cpu(),
+        jobProxyResourceUsage.memory(),
+        jobProxyResourceUsage.network());
 
     auto jobController = Bootstrap->GetJobController();
     auto job = jobController->GetJobOrThrow(jobId);
+
+    auto resourceUsage = job->GetResourceUsage();
+    resourceUsage.set_memory(jobProxyResourceUsage.memory());
+    resourceUsage.set_cpu(jobProxyResourceUsage.cpu());
+    resourceUsage.set_network(jobProxyResourceUsage.network());
 
     job->SetResourceUsage(resourceUsage);
 }

@@ -271,13 +271,18 @@ protected:
             attributes);
         auto* node = nodeHolder.get();
 
-        if (maybeSchema) {
-            node->TableSchema() = *maybeSchema;
-        }
+        try {
+            if (maybeSchema) {
+                node->TableSchema() = *maybeSchema;
+            }
 
-        if (dynamic) {
-            auto tabletManager = Bootstrap_->GetTabletManager();
-            tabletManager->MakeTableDynamic(nodeHolder.get());
+            if (dynamic) {
+                auto tabletManager = Bootstrap_->GetTabletManager();
+                tabletManager->MakeTableDynamic(node);
+            }
+        } catch (...) {
+            DoDestroy(node);
+            throw;
         }
 
         return nodeHolder;

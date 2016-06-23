@@ -20,6 +20,33 @@ static const i64 LowWatermarkMemorySize = (i64) 256 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////
 
+TExtendedJobResources::TExtendedJobResources()
+    : UserSlots_(0)
+    , Cpu_(0)
+    , JobProxyMemory_(0)
+    , UserJobMemory_(0)
+    , FootprintMemory_(0)
+    , Network_(0)
+{ }
+
+i64 TExtendedJobResources::GetMemory() const
+{
+    return JobProxyMemory_ + UserJobMemory_ + FootprintMemory_;
+}
+
+void Serialize(const TExtendedJobResources& resources, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("cpu").Value(resources.GetCpu())
+            .Item("user_slots").Value(resources.GetUserSlots())
+            .Item("job_proxy_memory").Value(resources.GetJobProxyMemory())
+            .Item("user_job_memory").Value(resources.GetUserJobMemory())
+            .Item("footprint_memory").Value(resources.GetFootprintMemory())
+            .Item("network").Value(resources.GetNetwork())
+        .EndMap();
+}
+
 TJobResources::TJobResources()
     : TEmptyJobResourcesBase()
 #define XX(name, Name) , Name##_(0)
@@ -79,6 +106,18 @@ Stroka FormatResources(const TJobResources& resources)
         resources.GetUserSlots(),
         resources.GetCpu(),
         resources.GetMemory() / (1024 * 1024),
+        resources.GetNetwork());
+}
+
+Stroka FormatResources(const TExtendedJobResources& resources)
+{
+    return Format(
+        "{UserSlots: %v, Cpu: %v, JobProxyMemory: %v, UserJobMemory: %v, FootprintMemory: %v, Network: %v}",
+        resources.GetUserSlots(),
+        resources.GetCpu(),
+        resources.GetJobProxyMemory() / (1024 * 1024),
+        resources.GetUserJobMemory() / (1024 * 1024),
+        resources.GetFootprintMemory() / (1024 * 1024),
         resources.GetNetwork());
 }
 

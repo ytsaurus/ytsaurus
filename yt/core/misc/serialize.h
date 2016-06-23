@@ -1182,7 +1182,7 @@ struct TMapSerializer
                     TValueSerializer::Load(context, value);
                 }
 
-                YCHECK(map.insert(std::make_pair(key, value)).second);
+                YCHECK(map.emplace(key, std::move(value)).second);
             }
         }
     }
