@@ -1000,7 +1000,7 @@ void CodegenScanOp(
     builder->CreateCall(
         builder.Module->GetRoutine("ScanOpHelper"),
         {
-            builder.GetExecutionContextPtr(),
+            builder.GetExecutionContext(),
             consume.ClosurePtr,
             consume.Function
         });
@@ -1038,7 +1038,7 @@ TCodegenSource MakeCodegenJoinOp(
             builder->CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
                 {
-                    builder.GetExecutionContextPtr(),
+                    builder.GetExecutionContext(),
                     buffer,
                     builder->getInt32(lookupKeySize),
                     keyPtr
@@ -1077,7 +1077,7 @@ TCodegenSource MakeCodegenJoinOp(
                     builder->CreateCall(
                         builder.Module->GetRoutine("InsertJoinRow"),
                         {
-                            builder.GetExecutionContextPtr(),
+                            builder.GetExecutionContext(),
                             bufferRef,
                             joinClosureRef,
                             keyPtrRef,
@@ -1108,7 +1108,7 @@ TCodegenSource MakeCodegenJoinOp(
         builder->CreateCall(
             builder.Module->GetRoutine("JoinOpHelper"),
             {
-                builder.GetExecutionContextPtr(),
+                builder.GetExecutionContext(),
                 builder.GetOpaqueValue(index),
 
                 CodegenGroupHasherFunction(lookupKeyTypes, *builder.Module),
@@ -1381,7 +1381,7 @@ TCodegenSource MakeCodegenGroupOp(
             builder->CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
                 {
-                    builder.GetExecutionContextPtr(),
+                    builder.GetExecutionContext(),
                     buffer,
                     builder->getInt32(groupRowSize),
                     newRowPtr
@@ -1405,7 +1405,7 @@ TCodegenSource MakeCodegenGroupOp(
                     auto groupRowPtr = builder->CreateCall(
                         builder.Module->GetRoutine("InsertGroupRow"),
                         {
-                            builder.GetExecutionContextPtr(),
+                            builder.GetExecutionContext(),
                             bufferRef,
                             groupByClosureRef,
                             newRowRef
@@ -1432,7 +1432,7 @@ TCodegenSource MakeCodegenGroupOp(
                             builder->CreateCall(
                                 builder.Module->GetRoutine("AllocatePermanentRow"),
                                 {
-                                    builder.GetExecutionContextPtr(),
+                                    builder.GetExecutionContext(),
                                     bufferRef,
                                     builder->getInt32(groupRowSize),
                                     newRowPtrRef
@@ -1476,7 +1476,7 @@ TCodegenSource MakeCodegenGroupOp(
         builder->CreateCall(
             builder.Module->GetRoutine("GroupOpHelper"),
             {
-                builder.GetExecutionContextPtr(),
+                builder.GetExecutionContext(),
                 CodegenGroupHasherFunction(keyTypes, *builder.Module),
                 CodegenGroupComparerFunction(keyTypes, *builder.Module),
                 builder->getInt32(keyTypes.size()),
@@ -1579,7 +1579,7 @@ TCodegenSource MakeCodegenOrderOp(
         builder->CreateCall(
             builder.Module->GetRoutine("OrderOpHelper"),
             {
-                builder.GetExecutionContextPtr(),
+                builder.GetExecutionContext(),
                 CodegenTupleComparerFunction(compareArgs, *builder.Module, isDesc),
 
                 collectRows.ClosurePtr,
@@ -1617,7 +1617,7 @@ TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValu
                     Value* writeRowClosureRef = builder->ViaClosure(writeRowClosure);
                     builder->CreateCall(
                         module->GetRoutine("WriteRow"),
-                        {builder.GetExecutionContextPtr(), writeRowClosureRef, row});
+                        {builder.GetExecutionContext(), writeRowClosureRef, row});
                 });
 
             builder->CreateRetVoid();
@@ -1626,7 +1626,7 @@ TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValu
         builder->CreateCall(
             builder.Module->GetRoutine("WriteOpHelper"),
             {
-                builder.GetExecutionContextPtr(),
+                builder.GetExecutionContext(),
                 collect.ClosurePtr,
                 collect.Function
             });
