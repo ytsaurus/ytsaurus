@@ -16,6 +16,20 @@ from argparse import ArgumentParser
 DEFAULT_COMPRESSION_CODEC = "gzip_best_compression"
 DEFAULT_ERASURE_CODEC = "lrc_12_2_2"
 
+def has_proper_codecs(table, erasure_codec, compression_codec):
+    compression_stats = yt.get_attribute(table, "compression_statistics")
+    erasure_stats = yt.get_attribute(table, "erasure_statistics")
+
+    chunk_count = yt.get_attribute(table, "chunk_count")
+    if chunk_count == 0:
+        return True
+
+    chunk_count_in_erasure = erasure_stats.get(erasure_codec, {}).get("chunk_count", 0)
+    compressed_chunk_count = compression_stats.get(compression_codec, {}).get("chunk_count", 0)
+
+    # TODO(asaitgalin): Make it less strict?
+    return compressed_chunk_count == chunk_count and chunk_count_in_erasure == chunk_count
+
 def compress(task):
     table = task["table"]
     try:
@@ -24,20 +38,6 @@ def compress(task):
 
         if yt.check_permission("cron", "write", table)["action"] != "allow":
             logger.warning("Have no permission to write table %s", table)
-            return
-
-        chunk_count = yt.get_attribute(table, "chunk_count")
-        if chunk_count == 0:
-            return
-
-        compression_stats = yt.get_attribute(table, "compression_statistics")
-        erasure_stats = yt.get_attribute(table, "erasure_statistics")
-
-        compressed_chunk_count = compression_stats.get(task["compression_codec"], {}).get("chunk_count", 0)
-        chunk_count_in_erasure = erasure_stats.get(task["erasure_codec"], {}).get("chunk_count", 0)
-        # XXX(asaitgalin): Make it less strict?
-        if compressed_chunk_count == chunk_count and chunk_count_in_erasure == chunk_count:
-            logger.info("Table %s is already has proper compression and erasure codecs", table)
             return
 
         logger.info("Compressing table %s", table)
@@ -100,7 +100,13 @@ def find(root):
             enabled = parse_bool(params.pop("enabled", "false"))
 
             if enabled and object.attributes["uncompressed_data_size"] > min_table_size:
-                tables.append(make_compression_task(path, **params))
+                task = make_compression_task(path, **params)
+
+                if has_proper_codecs(path, task["erasure_codec"], task["compression_codec"]):
+                    logger.info("Table %s is already has proper compression and erasure codecs", path)
+                    return
+
+                tables.append(task)
         elif object.attributes["type"] == "map_node":
             if parse_bool(object.attributes.get("opaque", "false")):
                 object = safe_get(path, attributes=requested_attributes)
