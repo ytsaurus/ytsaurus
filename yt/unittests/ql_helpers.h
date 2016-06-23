@@ -65,6 +65,11 @@ static TValue MakeUint64(i64 value)
     return MakeUnversionedUint64Value(value);
 }
 
+static TValue MakeDouble(i64 value)
+{
+    return MakeUnversionedDoubleValue(value);
+}
+
 static TValue MakeBoolean(bool value)
 {
     return MakeUnversionedBooleanValue(value);
