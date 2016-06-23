@@ -50,7 +50,7 @@ void TAccessControlEntry::Load(NCellMaster::TLoadContext& context)
     Load(context, Subjects);
     Load(context, Permissions);
     Load(context, Action);
-    if (context.GetVersion() >= 402) {
+    if (context.GetVersion() >= 403) {
         Load(context, InheritanceMode);
     } else {
         InheritanceMode = EAceInheritanceMode::ObjectAndDescendants;
