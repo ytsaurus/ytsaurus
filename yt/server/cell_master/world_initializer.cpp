@@ -23,8 +23,6 @@
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/transaction_client/transaction_ypath.pb.h>
-
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/logging/log.h>
@@ -48,7 +46,6 @@ using namespace NYPath;
 using namespace NCypressServer;
 using namespace NCypressClient;
 using namespace NTransactionClient;
-using namespace NTransactionClient::NProto;
 using namespace NHiveClient;
 using namespace NHiveClient::NProto;
 using namespace NObjectClient;
@@ -517,11 +514,9 @@ private:
         auto req = TMasterYPathProxy::CreateObject();
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
-        auto* requestExt = req->mutable_extensions()->MutableExtension(TTransactionCreationExt::transaction_creation_ext);
-        requestExt->set_timeout(ToProto(InitTransactionTimeout));
-
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", "World initialization");
+        attributes->Set("timeout", InitTransactionTimeout);
         ToProto(req->mutable_object_attributes(), *attributes);
 
         auto rsp = WaitFor(ExecuteVerb(service, req))

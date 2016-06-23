@@ -401,8 +401,7 @@ public:
 
     virtual TObjectBase* CreateObject(
         const TObjectId& /*hintId*/,
-        IAttributeDictionary* /*attributes*/,
-        const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/) override
+        IAttributeDictionary* /*attributes*/) override
     {
         THROW_ERROR_EXCEPTION("Cypress nodes cannot be created via this call");
     }

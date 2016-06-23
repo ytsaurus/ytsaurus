@@ -102,8 +102,7 @@ public:
 
     virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
-        IAttributeDictionary* attributes,
-        const NObjectClient::NProto::TObjectCreationExtensions& extensions) override;
+        IAttributeDictionary* attributes) override;
 
     virtual EPermissionSet GetSupportedPermissions() const override
     {
@@ -163,8 +162,7 @@ public:
 
     virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
-        IAttributeDictionary* attributes,
-        const NObjectClient::NProto::TObjectCreationExtensions& extensions) override;
+        IAttributeDictionary* attributes) override;
 
 private:
     TImpl* const Owner_;
@@ -209,8 +207,7 @@ public:
 
     virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
-        IAttributeDictionary* attributes,
-        const NObjectClient::NProto::TObjectCreationExtensions& extensions) override;
+        IAttributeDictionary* attributes) override;
 
 private:
     TImpl* const Owner_;
@@ -1841,8 +1838,7 @@ TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
 
 TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     const TObjectId& hintId,
-    IAttributeDictionary* attributes,
-    const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/)
+    IAttributeDictionary* attributes)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
@@ -1872,8 +1868,7 @@ TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
 
 TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
     const TObjectId& hintId,
-    IAttributeDictionary* attributes,
-    const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/)
+    IAttributeDictionary* attributes)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
@@ -1903,8 +1898,7 @@ TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
 
 TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
     const TObjectId& hintId,
-    IAttributeDictionary* attributes,
-    const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/)
+    IAttributeDictionary* attributes)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");

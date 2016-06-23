@@ -26,7 +26,6 @@ message TReqCreateForeignObject
     required NYT.NProto.TGuid object_id = 1;
     required int32 type = 3;
     optional NYT.NYTree.NProto.TAttributes object_attributes = 4;
-    optional NYT.NObjectClient.NProto.TObjectCreationExtensions extensions = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

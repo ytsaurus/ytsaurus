@@ -178,8 +178,7 @@ public:
     TObjectBase* CreateObject(
         const TObjectId& hintId,
         EObjectType type,
-        NYTree::IAttributeDictionary* attributes,
-        const NObjectClient::NProto::TObjectCreationExtensions& extensions);
+        NYTree::IAttributeDictionary* attributes);
 
     IObjectResolver* GetObjectResolver();
 
@@ -196,6 +195,11 @@ public:
     void ReplicateObjectCreationToSecondaryMaster(
         TObjectBase* object,
         TCellTag cellTag);
+
+    //! Posts a creation request to secondary masters.
+    void ReplicateObjectCreationToSecondaryMasters(
+        TObjectBase* object,
+        const TCellTagList& cellTags);
 
     //! Posts an attribute update request to the secondary master.
     void ReplicateObjectAttributesToSecondaryMaster(

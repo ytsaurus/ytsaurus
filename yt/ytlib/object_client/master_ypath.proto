@@ -5,16 +5,10 @@ import "yt/core/ytree/attributes.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TObjectCreationExtensions
-{
-    extensions 100 to max;
-}
-
 message TReqCreateObject
 {
     required int32 type = 1;
     optional NYT.NYTree.NProto.TAttributes object_attributes = 2;
-    optional TObjectCreationExtensions extensions = 3;
 }
 
 message TRspCreateObject

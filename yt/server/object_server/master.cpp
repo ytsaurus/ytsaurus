@@ -72,8 +72,7 @@ private:
         auto* object = objectManager->CreateObject(
             NullObjectId,
             type,
-            attributes.get(),
-            request->extensions());
+            attributes.get());
 
         const auto& objectId = object->GetId();
 

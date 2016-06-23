@@ -142,8 +142,7 @@ public:
 
     virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
-        IAttributeDictionary* attributes,
-        const NObjectClient::NProto::TObjectCreationExtensions& extensions) override;
+        IAttributeDictionary* attributes) override;
 
 private:
     TImpl* const Owner_;
@@ -1538,8 +1537,7 @@ TNodeTracker::TRackTypeHandler::TRackTypeHandler(TImpl* owner)
 
 TObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
     const TObjectId& hintId,
-    IAttributeDictionary* attributes,
-    const NObjectClient::NProto::TObjectCreationExtensions& extensions)
+    IAttributeDictionary* attributes)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");

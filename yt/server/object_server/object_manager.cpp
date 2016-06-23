@@ -886,8 +886,7 @@ TFuture<void> TObjectManager::GCCollect()
 TObjectBase* TObjectManager::CreateObject(
     const TObjectId& hintId,
     EObjectType type,
-    IAttributeDictionary* attributes,
-    const NObjectClient::NProto::TObjectCreationExtensions& extensions)
+    IAttributeDictionary* attributes)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -922,10 +921,7 @@ TObjectBase* TObjectManager::CreateObject(
         replicatedAttributes = attributes->Clone();
     }
 
-    auto* object = handler->CreateObject(
-        hintId,
-        attributes,
-        extensions);
+    auto* object = handler->CreateObject(hintId, attributes);
 
     YCHECK(object->GetObjectRefCounter() > 0);
 
@@ -945,7 +941,6 @@ TObjectBase* TObjectManager::CreateObject(
         ToProto(replicationRequest.mutable_object_id(), object->GetId());
         replicationRequest.set_type(static_cast<int>(type));
         ToProto(replicationRequest.mutable_object_attributes(), *replicatedAttributes);
-        *replicationRequest.mutable_extensions() = extensions;
 
         auto multicellManager = Bootstrap_->GetMulticellManager();
         auto replicationCellTags = handler->GetReplicationCellTags(object);
@@ -1069,6 +1064,17 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
     TObjectBase* object,
     TCellTag cellTag)
 {
+    ReplicateObjectCreationToSecondaryMasters(object, {cellTag});
+}
+
+void TObjectManager::ReplicateObjectCreationToSecondaryMasters(
+    TObjectBase* object,
+    const TCellTagList& cellTags)
+{
+    if (cellTags.empty()) {
+        return;
+    }
+
     if (object->IsBuiltin()) {
         return;
     }
@@ -1082,7 +1088,7 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
     handler->PopulateObjectReplicationRequest(object, &request);
 
     auto multicellManager = Bootstrap_->GetMulticellManager();
-    multicellManager->PostToMaster(request, cellTag);
+    multicellManager->PostToMasters(request, cellTags);
 }
 
 void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
@@ -1207,8 +1213,7 @@ void TObjectManager::HydraCreateForeignObject(NProto::TReqCreateForeignObject* r
     CreateObject(
         objectId,
         type,
-        attributes.get(),
-        request->extensions());
+        attributes.get());
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Foreign object created (Id: %v, Type: %v)",
         objectId,
