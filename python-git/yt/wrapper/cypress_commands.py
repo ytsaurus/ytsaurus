@@ -362,13 +362,13 @@ def search(root="", node_type=None,
 
     exclude = deepcopy(flatten(get_value(exclude, ["//sys/operations"])))
 
-    def safe_get(path):
+    def safe_get(path, ignore_resolve_error=True):
         try:
             return get(path, attributes=request_attributes, client=client)
         except YtResponseError as rsp:
             if rsp.is_access_denied():
                 logger.warning("Cannot traverse %s, access denied" % path)
-            elif rsp.is_resolve_error():
+            elif rsp.is_resolve_error() and ignore_resolve_error:
                 logger.warning("Path %s is missing" % path)
             else:
                 raise
@@ -419,7 +419,7 @@ def search(root="", node_type=None,
                 for obj in walk("{0}/{1}".format(path, index), value, depth + 1):
                     yield obj
 
-    return walk(root, safe_get(root), 0, True)
+    return walk(root, safe_get(root, ignore_resolve_error=False), 0, True)
 
 def remove_with_empty_dirs(path, force=True, client=None):
     """Remove path and all empty dirs that appear after deletion.
