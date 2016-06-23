@@ -280,11 +280,11 @@ def find(**args):
         all([obj.attributes.get(attr) == attributes[attr] for attr in attributes])
 
     result = yt.search(args["path"],
-                    node_type=args["type"],
-                    path_filter=path_filter,
-                    attributes=attributes.keys(),
-                    object_filter=object_filter,
-                    depth_bound=args["depth"])
+                       node_type=args["type"],
+                       path_filter=path_filter,
+                       attributes=attributes.keys(),
+                       object_filter=object_filter,
+                       depth_bound=args["depth"])
 
     for elem in result:
         formatted_print(elem, elem, args["long_format"])
