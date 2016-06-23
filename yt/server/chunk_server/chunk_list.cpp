@@ -71,7 +71,7 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, OwningNodes_);
     Load(context, Statistics_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 402) {
+    if (context.GetVersion() >= 403) {
         Load(context, CumulativeStatistics_);
     } else {
         std::vector<i64> rowCountSums, chunkCountSums, dataSizeSums;
