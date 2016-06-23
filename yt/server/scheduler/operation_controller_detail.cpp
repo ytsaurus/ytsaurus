@@ -1763,7 +1763,10 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistic
         i64 userJobMaxMemoryUsage = GetValues<i64>(statistics, "/user_job/max_memory", getValue);
         auto* digest = GetUserJobMemoryDigest(jobType);
         double actualFactor = static_cast<double>(userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
-        LOG_DEBUG("Adding sample to the job proxy memory digest (JobType = %v, Sample = %v, JobId = %v)", jobType, actualFactor, joblet->JobId);
+        LOG_DEBUG("Adding sample to the job proxy memory digest (JobType: %v, Sample: %v, JobId: %v)",
+            jobType,
+            actualFactor,
+            joblet->JobId);
         digest->AddSample(actualFactor);
         UpdateAllTasksIfNeeded();
     }
@@ -1772,7 +1775,10 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistic
         auto* digest = GetJobProxyMemoryDigest(jobType);
         double actualFactor = static_cast<double>(jobProxyMaxMemoryUsage) /
             (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
-        LOG_DEBUG("Adding sample to the user job memory digest (JobType = %v, Sample = %v, JobId = %v)", jobType, actualFactor, joblet->JobId);
+        LOG_DEBUG("Adding sample to the user job memory digest (JobType: %v, Sample: %v, JobId: %v)",
+            jobType,
+            actualFactor,
+            joblet->JobId);
         digest->AddSample(actualFactor);
         UpdateAllTasksIfNeeded();
     }
