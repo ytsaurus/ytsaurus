@@ -1066,6 +1066,19 @@ public:
             THROW_ERROR_EXCEPTION("Cannot switch a static non-empty sorted table into dynamic mode");
         }
 
+        std::vector<TChunk*> chunks;
+        EnumerateChunksInChunkTree(oldRootChunkList, &chunks);
+
+        // Check for duplicates.
+        yhash_set<TChunk*> chunkSet;
+        chunkSet.resize(chunks.size());
+        for (auto* chunk : chunks) {
+            if (!chunkSet.insert(chunk).second) {
+                THROW_ERROR_EXCEPTION("Cannot switch table into dynamic mode since it contains duplicate chunk %v",
+                    chunk->GetId());
+            }
+        }
+
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto newRootChunkList = chunkManager->CreateChunkList(false);
 
@@ -1085,9 +1098,6 @@ public:
         auto* tabletChunkList = chunkManager->CreateChunkList(!table->IsSorted());
         chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
 
-        // NB: This only makes sense for ordered tables.
-        std::vector<TChunk*> chunks;
-        EnumerateChunksInChunkTree(oldRootChunkList, &chunks);
         std::vector<TChunkTree*> chunkTrees(chunks.begin(), chunks.end());
         chunkManager->AttachToChunkList(tabletChunkList, chunkTrees);
 
