@@ -12,7 +12,7 @@ using NChunkClient::ChunkReaderMemorySize;
 
 //! Additive term for each job memory usage.
 //! Accounts for job proxy process and other lightweight stuff.
-static const i64 FootprintMemorySize = (i64) 256 * 1024 * 1024;
+static const i64 FootprintMemorySize = (i64) 64 * 1024 * 1024;
 
 //! Memory overhead caused by LFAlloc.
 static const i64 LFAllocBufferSize = (i64) 64 * 1024 * 1024;
@@ -75,7 +75,7 @@ i64 GetSortInputIOMemorySize(const TChunkStripeStatistics& stat)
         return 0;
 
     return static_cast<i64>(
-        stat.DataSize * (1 + dataOverheadFactor) + 
+        stat.DataSize * (1 + dataOverheadFactor) +
         stat.ChunkCount * (ChunkReaderMemorySize + ChunkSpecOverhead));
 }
 
