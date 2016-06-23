@@ -20,7 +20,7 @@ public:
         , LowerBound_(config->LowerBound)
         , UpperBound_(config->UpperBound)
         , DefaultValue_(config->DefaultValue ? *config->DefaultValue : config->LowerBound)
-        , BucketCount_(static_cast<int>(ceil(log(UpperBound_ / LowerBound_) / LogStep_)))
+        , BucketCount_(std::max(1, static_cast<int>(ceil(log(UpperBound_ / LowerBound_) / LogStep_))))
         , Buckets_(BucketCount_)
     { }
 

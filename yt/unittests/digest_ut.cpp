@@ -101,3 +101,25 @@ TEST_F(TLogDigestTest, TestUniformRandomFixture)
     EXPECT_TRUE(LogNear(LogDigest_->GetQuantile(0.25), 0.5));
     EXPECT_TRUE(LogNear(LogDigest_->GetQuantile(0.0), 0.5));
 }
+
+TEST_F(TLogDigestTest, TestCoincidingBounds)
+{
+    auto config = New<TLogDigestConfig>();
+    config->LowerBound = 1.0;
+    config->UpperBound = 1.0;
+    config->RelativePrecision = Epsilon_;
+    LogDigest_ = CreateLogDigest(config);
+
+    std::mt19937 generator(42 /* seed */);
+    std::uniform_real_distribution<double> distribution(0.5, 1.5);
+
+    for (int i = 0; i < NumberOfSamples_; ++i) {
+        LogDigest_->AddSample(distribution(generator));
+    }
+
+    EXPECT_TRUE(LogNear(LogDigest_->GetQuantile(1.0), 1.0));
+    EXPECT_TRUE(LogNear(LogDigest_->GetQuantile(0.75), 1.0));
+    EXPECT_TRUE(LogNear(LogDigest_->GetQuantile(0.5), 1.0));
+    EXPECT_TRUE(LogNear(LogDigest_->GetQuantile(0.25), 1.0));
+    EXPECT_TRUE(LogNear(LogDigest_->GetQuantile(0.0), 1.0));
+}
