@@ -127,8 +127,7 @@ public:
 
     virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
-        IAttributeDictionary* attributes,
-        const TObjectCreationExtensions& /*extensions*/) override;
+        IAttributeDictionary* attributes) override;
 
     virtual EPermissionSet GetSupportedPermissions() const override
     {
@@ -186,8 +185,7 @@ public:
 
     virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
-        IAttributeDictionary* attributes,
-        const TObjectCreationExtensions& extensions) override;
+        IAttributeDictionary* attributes) override;
 
 private:
     TImpl* const Owner_;
@@ -2674,8 +2672,7 @@ TTabletManager::TTabletCellBundleTypeHandler::TTabletCellBundleTypeHandler(TImpl
 
 TObjectBase* TTabletManager::TTabletCellBundleTypeHandler::CreateObject(
     const TObjectId& hintId,
-    IAttributeDictionary* attributes,
-    const TObjectCreationExtensions& /*extensions*/)
+    IAttributeDictionary* attributes)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
@@ -2698,8 +2695,7 @@ TTabletManager::TTabletCellTypeHandler::TTabletCellTypeHandler(TImpl* owner)
 
 TObjectBase* TTabletManager::TTabletCellTypeHandler::CreateObject(
     const TObjectId& hintId,
-    IAttributeDictionary* attributes,
-    const TObjectCreationExtensions& /*extensions*/)
+    IAttributeDictionary* attributes)
 {
     auto cellBundleName = attributes->Get("tablet_cell_bundle", DefaultTabletCellBundleName);
     attributes->Remove("tablet_cell_bundle");

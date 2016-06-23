@@ -21,8 +21,6 @@
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/transaction_client/transaction_ypath.pb.h>
-
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/erasure/codec.h>
@@ -987,17 +985,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         multicellManager->PostToMaster(replicationRequest, externalCellTag);
     }
 
-    if (!uploadTransactionReplicationCellTags.empty()) {
-        NObjectServer::NProto::TReqCreateForeignObject replicationRequest;
-        ToProto(replicationRequest.mutable_object_id(), uploadTransactionId);
-        replicationRequest.set_type(static_cast<int>(EObjectType::Transaction));
-        auto* reqExt = replicationRequest.mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
-        if (Transaction) {
-            ToProto(reqExt->mutable_parent_id(), Transaction->GetId());
-        }
-
-        multicellManager->PostToMasters(replicationRequest, uploadTransactionReplicationCellTags);
-    }
+    objectManager->ReplicateObjectCreationToSecondaryMasters(
+        uploadTransaction,
+        uploadTransactionReplicationCellTags);
 
     context->SetResponseInfo("UploadTransactionId: %v", uploadTransactionId);
     context->Reply();

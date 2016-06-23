@@ -29,7 +29,6 @@
 #include <yt/ytlib/table_client/table_consumer.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
-#include <yt/ytlib/transaction_client/transaction_ypath.pb.h>
 
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/native_connection.h>

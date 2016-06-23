@@ -13,8 +13,6 @@
 
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
 
-#include <yt/ytlib/transaction_client/transaction_ypath.pb.h>
-
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -546,19 +544,15 @@ private:
         TObjectServiceProxy proxy(Owner_->MasterChannel_);
         auto req = TMasterYPathProxy::CreateObject();
         req->set_type(static_cast<int>(EObjectType::Transaction));
-        if (options.Attributes) {
-            ToProto(req->mutable_object_attributes(), *options.Attributes);
-        }
 
-        auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
-        reqExt->set_timeout(ToProto(GetTimeout()));
+        auto attributes = options.Attributes ? options.Attributes->Clone() : CreateEphemeralAttributes();
+        attributes->Set("timeout", GetTimeout());
         if (options.ParentId) {
-            ToProto(reqExt->mutable_parent_id(), options.ParentId);
+            attributes->Set("parent_id", options.ParentId);
         }
+        ToProto(req->mutable_object_attributes(), *attributes);
 
-        if (options.ParentId) {
-            SetOrGenerateMutationId(req, options.MutationId, options.Retry);
-        }
+        SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
         return proxy.Execute(req).Apply(
             BIND(&TImpl::OnMasterTransactionStarted, MakeStrong(this)));

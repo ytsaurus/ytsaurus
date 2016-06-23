@@ -82,8 +82,7 @@ struct IObjectTypeHandler
      */
     virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
-        NYTree::IAttributeDictionary* attributes,
-        const NObjectClient::NProto::TObjectCreationExtensions& extensions) = 0;
+        NYTree::IAttributeDictionary* attributes) = 0;
 
     //! Raised when the strong ref-counter of the object decreases to zero.
     virtual void ZombifyObject(TObjectBase* object) throw() = 0;

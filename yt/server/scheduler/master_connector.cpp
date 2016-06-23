@@ -28,7 +28,6 @@
 #include <yt/ytlib/scheduler/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
-#include <yt/ytlib/transaction_client/transaction_ypath.pb.h>
 
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/transaction.h>
@@ -51,7 +50,6 @@ using namespace NTransactionClient;
 using namespace NRpc;
 using namespace NApi;
 using namespace NSecurityClient;
-using namespace NTransactionClient::NProto;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////

@@ -60,8 +60,7 @@ public:
 
     virtual TObjectBase* CreateObject(
         const TObjectId& /*hintId*/,
-        NYTree::IAttributeDictionary* /*attributes*/,
-        const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/) override
+        NYTree::IAttributeDictionary* /*attributes*/) override
     {
         YUNREACHABLE();
     }

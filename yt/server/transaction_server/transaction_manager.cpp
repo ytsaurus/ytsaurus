@@ -31,8 +31,6 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/transaction_client/transaction_ypath.pb.h>
-
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/misc/id_generator.h>
@@ -59,7 +57,6 @@ using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NTransactionClient;
 using namespace NSecurityServer;
-using namespace NTransactionClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,13 +87,15 @@ private:
         descriptors->push_back("state");
         descriptors->push_back("secondary_cell_tags");
         descriptors->push_back(TAttributeDescriptor("timeout")
-            .SetPresent(transaction->GetTimeout().HasValue()));
+            .SetPresent(transaction->GetTimeout().HasValue())
+            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("last_ping_time")
             .SetPresent(transaction->GetTimeout().HasValue()));
         descriptors->push_back(TAttributeDescriptor("title")
             .SetPresent(transaction->GetTitle().HasValue()));
         descriptors->push_back("accounting_enabled");
-        descriptors->push_back("parent_id");
+        descriptors->push_back(TAttributeDescriptor("parent_id")
+            .SetReplicated(true));
         descriptors->push_back("start_time");
         descriptors->push_back("nested_transaction_ids");
         descriptors->push_back("staged_object_ids");
@@ -383,8 +382,7 @@ public:
 
     virtual TNonversionedObjectBase* CreateObject(
         const TObjectId& hintId,
-        IAttributeDictionary* attributes,
-        const TObjectCreationExtensions& extensions) override;
+        IAttributeDictionary* attributes) override;
 
 private:
     TImpl* const Owner_;
@@ -409,16 +407,6 @@ private:
     virtual TAccessControlDescriptor* DoFindAcd(TTransaction* transaction) override
     {
         return &transaction->Acd();
-    }
-
-    virtual void DoPopulateObjectReplicationRequest(
-        const TTransaction* transaction,
-        NObjectServer::NProto::TReqCreateForeignObject* request) override
-    {
-        if (transaction->GetParent()) {
-            auto* reqExt = request->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
-            ToProto(reqExt->mutable_parent_id(), transaction->GetParent()->GetId());
-        }
     }
 };
 
@@ -1073,8 +1061,7 @@ TTransactionManager::TTransactionTypeHandler::TTransactionTypeHandler(
 
 TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObject(
     const TObjectId& hintId,
-    IAttributeDictionary* attributes,
-    const TObjectCreationExtensions& extensions)
+    IAttributeDictionary* attributes)
 {
     TCellTagList secondaryCellTags;
     if (Bootstrap_->IsPrimaryMaster()) {
@@ -1082,17 +1069,15 @@ TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObj
         secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
     }
 
-    const auto& requestExt = extensions.GetExtension(TTransactionCreationExt::transaction_creation_ext);
-    auto timeout = FromProto<TDuration>(requestExt.timeout());
-
-    TTransaction* parent = nullptr;
-    if (requestExt.has_parent_id()) {
-        auto parentId = FromProto<TTransactionId>(requestExt.parent_id());
-        parent = Owner_->GetTransactionOrThrow(parentId);
-    }
+    auto parentId = attributes->Get<TTransactionId>("parent_id", NullTransactionId);
+    attributes->Remove("parent_id");
+    auto* parent = parentId ? Owner_->GetTransactionOrThrow(parentId) : nullptr;
 
     auto title = attributes->Find<Stroka>("title");
     attributes->Remove("title");
+
+    auto timeout = attributes->Find<TDuration>("timeout");
+    attributes->Remove("timeout");
 
     return Owner_->StartTransaction(
         parent,
