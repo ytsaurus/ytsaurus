@@ -62,7 +62,10 @@ TTableSchema GetSampleTableSchema()
         TColumnSchema("b", EValueType::Int64),
         TColumnSchema("c", EValueType::Int64),
         TColumnSchema("s", EValueType::String),
-        TColumnSchema("u", EValueType::String)
+        TColumnSchema("u", EValueType::String),
+        TColumnSchema("ki", EValueType::Int64),
+        TColumnSchema("ku", EValueType::Uint64),
+        TColumnSchema("kd", EValueType::Double),
     });
     return tableSchema;
 }

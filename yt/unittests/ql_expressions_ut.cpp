@@ -634,6 +634,187 @@ INSTANTIATE_TEST_CASE_P(
             "not ((a < 3) and (a >= 2))")
 ));
 
+TSharedRange<TRow> MakeRows(const Stroka& yson)
+{
+    TUnversionedRowBuilder keyBuilder;
+    auto keyParts = ConvertTo<std::vector<INodePtr>>(
+        TYsonString(yson, EYsonType::ListFragment));
+
+    auto buffer = New<TRowBuffer>();
+    std::vector<TRow> rows;
+
+    for (int id = 0; id < keyParts.size(); ++id) {
+        keyBuilder.Reset();
+
+        const auto& keyPart = keyParts[id];
+        switch (keyPart->GetType()) {
+            case ENodeType::Int64:
+                keyBuilder.AddValue(MakeInt64Value<TUnversionedValue>(
+                    keyPart->GetValue<i64>(),
+                    id));
+                break;
+            case ENodeType::Uint64:
+                keyBuilder.AddValue(MakeUint64Value<TUnversionedValue>(
+                    keyPart->GetValue<ui64>(),
+                    id));
+                break;
+            case ENodeType::Double:
+                keyBuilder.AddValue(MakeDoubleValue<TUnversionedValue>(
+                    keyPart->GetValue<double>(),
+                    id));
+                break;
+            case ENodeType::String:
+                keyBuilder.AddValue(MakeStringValue<TUnversionedValue>(
+                    keyPart->GetValue<Stroka>(),
+                    id));
+                break;
+            case ENodeType::Entity:
+                keyBuilder.AddValue(MakeSentinelValue<TUnversionedValue>(
+                    keyPart->Attributes().Get<EValueType>("type"),
+                    id));
+                break;
+            default:
+                keyBuilder.AddValue(MakeAnyValue<TUnversionedValue>(
+                    ConvertToYsonString(keyPart).Data(),
+                    id));
+                break;
+        }
+
+        rows.push_back(buffer->Capture(keyBuilder.GetRow()));
+    }
+
+    return MakeSharedRange(std::move(rows), buffer);
+}
+
+TEST_F(TPrepareExpressionTest, Negative1)
+{
+    auto schema = GetSampleTableSchema();
+
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression(Stroka("ki in (1, 2u, \"abc\")"), schema); },
+        HasSubstr("IN operator types mismatch"));
+
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression(Stroka("ku = \"abc\""), schema); },
+        HasSubstr("Type mismatch in expression"));
+
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression(Stroka("ku = -1"), schema); },
+        HasSubstr("to uint64: value is negative"));
+
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression(Stroka("kd = 4611686018427387903"), schema); },
+        HasSubstr("to double: inaccurate conversion"));
+
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression(Stroka("kd = 9223372036854775807u"), schema); },
+        HasSubstr("to double: inaccurate conversion"));
+
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression(Stroka("ki = 18446744073709551606u"), schema); },
+        HasSubstr("to int64: value is greater than maximum"));
+
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression(Stroka("ku = 1.5"), schema); },
+        HasSubstr("to uint64: inaccurate conversion"));
+
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression(Stroka("ku = -1.0"), schema); },
+        HasSubstr("to uint64: inaccurate conversion"));
+
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression(Stroka("ki = 1.5"), schema); },
+        HasSubstr("to int64: inaccurate conversion"));
+
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression(Stroka("(1u - 2) / 3.0"), schema); },
+        HasSubstr("to double: inaccurate conversion"));
+}
+
+INSTANTIATE_TEST_CASE_P(
+    CheckExpressions2,
+    TPrepareExpressionTest,
+    ::testing::Values(
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Equal,
+                Make<TReferenceExpression>("ki"),
+                Make<TLiteralExpression>(MakeInt64(1))),
+            "ki = 1u"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Equal,
+                Make<TReferenceExpression>("ki"),
+                Make<TLiteralExpression>(MakeInt64(1))),
+            "ki = 1.0"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Equal,
+                Make<TReferenceExpression>("ku"),
+                Make<TLiteralExpression>(MakeUint64(1))),
+            "ku = 1"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Equal,
+                Make<TReferenceExpression>("ku"),
+                Make<TLiteralExpression>(MakeUint64(1))),
+            "ku = 1.0"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Equal,
+                Make<TReferenceExpression>("kd"),
+                Make<TLiteralExpression>(MakeDouble(1))),
+            "kd = 1"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Equal,
+                Make<TReferenceExpression>("kd"),
+                Make<TLiteralExpression>(MakeDouble(1))),
+            "kd = 1u"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TInOpExpression>(
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TReferenceExpression>("ki")}),
+                MakeRows("1; 2; 3")),
+            "ki in (1, 2u, 3.0)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TInOpExpression>(
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TReferenceExpression>("ku")}),
+                MakeRows("1u; 2u; 3u")),
+            "ku in (1, 2u, 3.0)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TInOpExpression>(
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TReferenceExpression>("kd")}),
+                MakeRows("1.0; 2.0; 3.0")),
+            "kd in (1, 2u, 3.0)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Equal,
+                Make<TReferenceExpression>("kd"),
+                Make<TLiteralExpression>(MakeDouble(3))),
+            "kd = 1u + 2"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Equal,
+                Make<TReferenceExpression>("ku"),
+                Make<TLiteralExpression>(MakeUint64(18446744073709551615llu))),
+            "ku = 1u - 2"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Equal,
+                Make<TReferenceExpression>("ku"),
+                Make<TLiteralExpression>(MakeUint64(6148914691236517205llu))),
+            "ku = (1u - 2) / 3"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Equal,
+                Make<TReferenceExpression>("ku"),
+                Make<TLiteralExpression>(MakeUint64(61489146912365176llu))),
+            "ku = 184467440737095520u / 3.0"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Equal,
+                Make<TReferenceExpression>("ku"),
+                Make<TLiteralExpression>(MakeUint64(61489146912365173llu))),
+            "ku = 184467440737095520u / 3"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Divide,
+                Make<TReferenceExpression>("ki"),
+                Make<TLiteralExpression>(MakeInt64(6))),
+            "ki / 2u / 3")
+));
+
 INSTANTIATE_TEST_CASE_P(
     CheckPriorities,
     TPrepareExpressionTest,
