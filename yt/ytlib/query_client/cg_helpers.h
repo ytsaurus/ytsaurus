@@ -92,26 +92,26 @@ class TCGOperatorContext
     : public virtual TCGBaseContext
 {
 protected:
-    Value* const ExecutionContextPtr_;
+    Value* const ExecutionContext_;
 
 public:
     TCGOperatorContext(
         const TCGBaseContext& base,
-        Value* executionContextPtr)
+        Value* executionContext)
         : TCGBaseContext(base)
-        , ExecutionContextPtr_(executionContextPtr)
+        , ExecutionContext_(executionContext)
     { }
 
     TCGOperatorContext(
         const TCGBaseContext& base,
         const TCGOperatorContext& other)
         : TCGBaseContext(base)
-        , ExecutionContextPtr_(other.ExecutionContextPtr_)
+        , ExecutionContext_(other.ExecutionContext_)
     { }
 
-    Value* GetExecutionContextPtr() const
+    Value* GetExecutionContext() const
     {
-        return Builder_->ViaClosure(ExecutionContextPtr_, "executionContextPtr");
+        return Builder_->ViaClosure(ExecutionContext_, "executionContext");
     }
 
 };
@@ -139,7 +139,7 @@ public:
 
     Value* GetBuffer() const
     {
-        return Builder_->ViaClosure(Buffer_, "bufferPtr");
+        return Builder_->ViaClosure(Buffer_, "buffer");
     }
 
 };
