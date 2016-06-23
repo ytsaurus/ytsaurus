@@ -206,6 +206,14 @@ class TestOrderedTablets(YTEnvSetup):
         self.sync_mount_table("//tmp/t")
         assert select_rows("a from [//tmp/t]") == [{"a": i % 100} for i in xrange(1000)]
 
+    def test_no_duplicate_chunks_in_dynamic(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", dynamic=False)
+
+        write_table("//tmp/t", [{"a": 0}])
+        concatenate(["//tmp/t", "//tmp/t"], "//tmp/t")
+        with pytest.raises(YtError): alter_table("//tmp/t", dynamic=True)
+
     def test_trim_failure(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
