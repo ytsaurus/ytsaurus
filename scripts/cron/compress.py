@@ -122,6 +122,8 @@ def find(root):
     root_obj = safe_get(root, attributes=requested_attributes)
     walk(root, root_obj)
 
+    logger.info("Collected %d tables for compression", len(tables))
+
     return tables
 
 def main():
