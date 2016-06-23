@@ -956,7 +956,7 @@ private:
             UpdatePeerBlockMap(rsp, reader);
 
             // Exclude throttling peers from current pass.
-            if (rsp->throttling()) {
+            if (rsp->disk_throttling() || rsp->net_throttling()) {
                 LOG_DEBUG("Peer is throttling (Address: %v)", peer.Address);
                 continue;
             }
@@ -1100,7 +1100,7 @@ private:
         const auto& rsp = rspOrError.Value();
         UpdatePeerBlockMap(rsp, reader);
 
-        if (rsp->throttling()) {
+        if (rsp->disk_throttling() || rsp->net_throttling()) {
             LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
         }
 
@@ -1313,7 +1313,7 @@ private:
 
         BanSeedIfUncomplete(rsp, peerAddress);
 
-        if (rsp->throttling()) {
+        if (rsp->disk_throttling() || rsp->net_throttling()) {
             LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
         } else if (blocksReceived == 0) {
             LOG_DEBUG("Peer has no relevant blocks (Address: %v)", peerAddress);

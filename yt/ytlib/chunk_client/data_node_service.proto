@@ -107,8 +107,6 @@ message TRspGetBlockSet
 
     repeated TPeerDescriptor peer_descriptors = 1;
     required bool has_complete_chunk = 3;
-    // COMPAT(babenko): superseded by net_throttling and disk_throtting
-    required bool throttling = 4;
     optional bool net_throttling = 5;
     optional int64 net_queue_size = 6;
     optional bool disk_throttling = 7;
@@ -134,8 +132,6 @@ message TReqGetBlockRange
 message TRspGetBlockRange
 {
     required bool has_complete_chunk = 1;
-    // COMPAT(babenko): superseded by net_throttling and disk_throtting
-    required bool throttling = 2;
     optional bool net_throttling = 3;
     optional int64 net_queue_size = 4;
     optional bool disk_throttling = 5;
