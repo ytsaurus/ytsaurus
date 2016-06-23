@@ -33,6 +33,7 @@ DEFINE_ENUM(ESandboxKind,
     (User)
     (Udf)
     (Home)
+    (Pipes)
 );
 
 extern const TEnumIndexedVector<Stroka, ESandboxKind> SandboxDirectoryNames;

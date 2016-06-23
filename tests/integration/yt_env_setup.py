@@ -186,6 +186,9 @@ class YTEnvSetup(object):
             subprocess.check_call(["sudo", "chown", "-R", "{0}:{1}".format(os.getuid(), os.getgid()),
                                    cls.path_to_run])
 
+            # XXX(dcherednik): Detete named pipes
+            subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
+
             destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name, cls.run_id)
             if os.path.exists(destination_path):
                 shutil.rmtree(destination_path)

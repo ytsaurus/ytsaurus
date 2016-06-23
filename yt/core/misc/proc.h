@@ -33,6 +33,7 @@ bool TryDup2(int oldFD, int newFD);
 void SafeDup2(int oldFD, int newFD);
 
 void SafeSetCloexec(int fd);
+void SafeUnsetCloexec(int fd);
 
 bool TryExecve(const char* path, const char* const* argv, const char* const* env);
 
@@ -55,6 +56,7 @@ void SafeSetUid(int uid);
 
 Stroka SafeGetUsernameByUid(int uid);
 
+void SetPermissions(const Stroka& path, int permissions);
 void SetPermissions(int fd, int permissions);
 
 void CloseAllDescriptors(const std::vector<int>& exceptFor = std::vector<int>());

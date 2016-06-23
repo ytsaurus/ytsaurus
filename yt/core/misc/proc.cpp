@@ -331,19 +331,42 @@ void SafeSetCloexec(int fd)
     }
 }
 
-void SetPermissions(int fd, int permissions)
+void SafeUnsetCloexec(int fd)
+{
+    int getResult = ::fcntl(fd, F_GETFD);
+    if (getResult == -1) {
+        THROW_ERROR_EXCEPTION("Error unsetting pipe: fcntl failed to get descriptor flags")
+            << TError::FromSystem()
+            << TErrorAttribute("fd", fd);
+    }
+
+    getResult &= ~FD_CLOEXEC;
+    int setResult = ::fcntl(fd, F_SETFD, getResult);
+    if (setResult == -1) {
+        THROW_ERROR_EXCEPTION("Error unsetting pipe: fcntl failed to set descriptor flags")
+            << TError::FromSystem()
+            << TErrorAttribute("fd", fd);
+    }
+}
+
+void SetPermissions(const Stroka& path, int permissions)
 {
 #ifdef _linux_
-    auto procPath = Format("/proc/self/fd/%v", fd);
-    auto res = chmod(~procPath, permissions);
+    auto res = HandleEintr(::chmod, ~path, permissions);
 
     if (res == -1) {
         THROW_ERROR_EXCEPTION("Failed to set permissions for descriptor")
-            << TErrorAttribute("fd", fd)
+            << TErrorAttribute("path", path)
             << TErrorAttribute("permissions", permissions)
             << TError::FromSystem();
     }
 #endif
+}
+
+void SetPermissions(int fd, int permissions)
+{
+    const auto& procPath = Format("/proc/self/fd/%v", fd);
+    SetPermissions(procPath, permissions);
 }
 
 void SafePipe(int fd[2])
