@@ -60,6 +60,9 @@ const i64 ChunkReaderMemorySize = (i64) 16 * 1024;
  */
 const int TypicalReplicaCount = 24;
 
+const i64 DefaultMaxBlockSize = (i64) 16 * 1024 * 1024;;
+const int MaxInputChunkReplicaCount = 16;
+
 class TChunkReplica;
 typedef SmallVector<TChunkReplica, TypicalReplicaCount> TChunkReplicaList;
 

@@ -19,10 +19,6 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const i64 DefaultMaxBlockSize = (i64)16 * 1024 * 1024;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TInputChunkBase::TInputChunkBase(
     const NProto::TChunkSpec& chunkSpec)
     : TInputChunkBase(
@@ -72,7 +68,7 @@ TChunkReplicaList TInputChunkBase::GetReplicaList() const
 {
     TChunkReplicaList replicas;
 
-    replicas.reserve(InputChunkReplicaCount);
+    replicas.reserve(MaxInputChunkReplicaCount);
     for (auto replica : Replicas_) {
         if (replica.GetNodeId() != InvalidNodeId) {
             replicas.push_back(replica);
@@ -87,12 +83,12 @@ void TInputChunkBase::SetReplicaList(const TChunkReplicaList& replicas)
     for (int index = 0; index < replicas.size(); ++index) {
         auto replica = replicas[index];
         if (ErasureCodec_ == NErasure::ECodec::None) {
-            if (index < InputChunkReplicaCount) {
+            if (index < MaxInputChunkReplicaCount) {
                 Replicas_[index] = replica;
             }
         } else {
             int erasureIndex = replica.GetIndex();
-            YCHECK(erasureIndex < InputChunkReplicaCount);
+            YCHECK(erasureIndex < MaxInputChunkReplicaCount);
             Replicas_[erasureIndex] = replica;
         }
     }
