@@ -22,11 +22,6 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const i64 DefaultMaxBlockSize;
-const int InputChunkReplicaCount = 16;
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Compact representation of some fields from proto TChunkSpec.
 //! Used inside scheduler to reduce memory footprint.
 //! The content of TInputChunkBase is stored in a scheduler snapshot as a POD.
@@ -34,7 +29,7 @@ class TInputChunkBase
 {
     DEFINE_BYREF_RO_PROPERTY(TChunkId, ChunkId);
 
-    typedef std::array<TChunkReplica, InputChunkReplicaCount> TInputChunkReplicas;
+    typedef std::array<TChunkReplica, MaxInputChunkReplicaCount> TInputChunkReplicas;
     DEFINE_BYREF_RO_PROPERTY(TInputChunkReplicas, Replicas);
 
     DEFINE_BYVAL_RW_PROPERTY(int, TableIndex, -1);
