@@ -37,10 +37,19 @@ public:
         : FD_(fd)
     {
         BIND([=, this_ = MakeStrong(this)] () {
-            FDWatcher_.set(FD_, ev::WRITE);
-            FDWatcher_.set(TIODispatcher::Get()->GetEventLoop());
-            FDWatcher_.set<TAsyncWriterImpl, &TAsyncWriterImpl::OnWrite>(this);
-            FDWatcher_.start();
+            InitWatcher();
+        })
+        .Via(TIODispatcher::Get()->GetInvoker())
+        .Run();
+    }
+
+    explicit TAsyncWriterImpl(const Stroka& str)
+    {
+        BIND([=, this_ = MakeStrong(this)] () {
+            if (!InitFD(str)) {
+                return;
+            }
+            InitWatcher();
         })
         .Via(TIODispatcher::Get()->GetInvoker())
         .Run();
@@ -108,8 +117,9 @@ public:
         YCHECK(WriteResultPromise_.IsSet());
 
         return BIND([=, this_ = MakeStrong(this)] () {
-            if (State_ != EWriterState::Active)
+            if (State_ != EWriterState::Active) {
                 return;
+            }
 
             State_ = EWriterState::Closed;
             FDWatcher_.stop();
@@ -142,7 +152,7 @@ public:
     }
 
 private:
-    int FD_;
+    int FD_ = -1;
 
     //! \note Thread-unsafe. Must be accessed from ev-thread only.
     ev::io FDWatcher_;
@@ -157,6 +167,31 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 
+    bool InitFD(const Stroka& str)
+    {
+        FD_ = open(str.c_str(), O_WRONLY |  O_CLOEXEC);
+        if (FD_ == -1) {
+            LOG_ERROR(TError::FromSystem(), "Failed to open async writer"
+                "for named pipe %v", str);
+            State_ = EWriterState::Failed;
+            return false;
+        }
+        try {
+            SafeMakeNonblocking(FD_);
+        } catch (const std::exception& ex) {
+            LOG_ERROR("Failed to set nonblocking mode %v", ex.what());
+            return false;
+        }
+        return true;
+    }
+
+    void InitWatcher()
+    {
+        FDWatcher_.set(FD_, ev::WRITE);
+        FDWatcher_.set(TIODispatcher::Get()->GetEventLoop());
+        FDWatcher_.set<TAsyncWriterImpl, &TAsyncWriterImpl::OnWrite>(this);
+        FDWatcher_.start();
+    }
 
     void OnWrite(ev::io&, int eventType)
     {
@@ -221,6 +256,11 @@ DEFINE_REFCOUNTED_TYPE(TAsyncWriterImpl);
 
 TAsyncWriter::TAsyncWriter(int fd)
     : Impl_(New<NDetail::TAsyncWriterImpl>(fd))
+{ }
+
+TAsyncWriter::TAsyncWriter(TNamedPipePtr ptr)
+    : Impl_(New<NDetail::TAsyncWriterImpl>(ptr->GetPath()))
+    , NamedPipeHolder_(ptr)
 { }
 
 TAsyncWriter::~TAsyncWriter()

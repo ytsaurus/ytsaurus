@@ -7,6 +7,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/pipes/pipe.h>
+#include <yt/core/pipes/public.h>
 
 #include <atomic>
 #include <vector>
@@ -34,7 +35,10 @@ public:
     void AddArguments(const std::vector<Stroka>& args);
 
     void AddCloseFileAction(int fd);
-    void AddDup2FileAction(int oldFD, int newFD);
+
+    NPipes::TAsyncWriterPtr GetStdInWriter();
+    NPipes::TAsyncReaderPtr GetStdOutReader();
+    NPipes::TAsyncReaderPtr GetStdErrReader();
 
     TFuture<void> Spawn();
     void Kill(int signal);
@@ -69,6 +73,9 @@ private:
 
     std::vector<TSpawnAction> SpawnActions_;
 
+    NPipes::TPipeFactory PipeFactory_;
+    std::array<NPipes::TPipe, 3> StdPipes_;
+
     NConcurrency::TPeriodicExecutorPtr AsyncWaitExecutor_;
     TPromise<void> FinishedPromise_ = NewPromise<void>();
 
@@ -79,6 +86,7 @@ private:
     void ValidateSpawnResult();
     void Child();
     void AsyncPeriodicTryWait();
+    void AddDup2FileAction(int oldFD, int newFD);
 };
 
 DEFINE_REFCOUNTED_TYPE(TProcess)

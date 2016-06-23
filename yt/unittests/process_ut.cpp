@@ -9,6 +9,8 @@
 #include <yt/core/misc/process.h>
 #include <yt/core/misc/proc.h>
 
+#include <yt/core/pipes/async_reader.h>
+
 namespace NYT {
 namespace {
 
@@ -42,30 +44,23 @@ TEST(TProcessTest, InvalidPath)
     EXPECT_FALSE(error.IsOK());
 }
 
-TEST(TProcessTest, BadDup)
+TEST(TProcessTest, StdOut)
 {
     auto p = New<TProcess>("/bin/date");
-    p->AddDup2FileAction(1000, 1);
 
-    TFuture<void> finished;
-    ASSERT_NO_THROW(finished = p->Spawn());
-    ASSERT_TRUE(p->IsStarted());
-    auto error = WaitFor(finished);
-    EXPECT_TRUE(p->IsFinished());
-    EXPECT_FALSE(error.IsOK());
-}
-
-TEST(TProcessTest, GoodDup)
-{
-    auto p = New<TProcess>("/bin/date");
-    p->AddDup2FileAction(2, 3);
-
+    auto outStream = p->GetStdOutReader();
     TFuture<void> finished;
     ASSERT_NO_THROW(finished = p->Spawn());
     ASSERT_TRUE(p->IsStarted());
     auto error = WaitFor(finished);
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
+
+    auto buffer = TSharedMutableRef::Allocate(4096, false);
+    auto future = outStream->Read(buffer);
+    auto result = WaitFor(future);
+    size_t sz = result.ValueOrThrow();
+    EXPECT_TRUE(sz > 0);
 }
 
 TEST(TProcess, GetCommandLine)
