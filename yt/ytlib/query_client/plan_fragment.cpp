@@ -24,6 +24,19 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Computes key index for a given column name.
+int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& columnName)
+{
+    for (int index = 0; index < keyColumns.size(); ++index) {
+        if (keyColumns[index] == columnName) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Stroka InferName(TConstExpressionPtr expr, bool omitValues)
 {
     bool newTuple = true;
@@ -469,14 +482,30 @@ void FromProto(std::pair<TConstExpressionPtr, bool>* original, const NProto::TSe
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(NProto::TColumnDescriptor* proto, const TColumnDescriptor& original)
+{
+    proto->set_name(original.Name);
+    proto->set_index(original.Index);
+}
+
+void FromProto(TColumnDescriptor* original, const NProto::TColumnDescriptor& serialized)
+{
+    FromProto(&original->Name, serialized.name());
+    FromProto(&original->Index, serialized.index());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
 {
+    ToProto(proto->mutable_original_schema(), original->OriginalSchema);
+    ToProto(proto->mutable_schema_mapping(), original->SchemaMapping);
+    ToProto(proto->mutable_self_joined_columns(), original->SelfJoinedColumns);
+    ToProto(proto->mutable_foreign_joined_columns(), original->ForeignJoinedColumns);
+
     ToProto(proto->mutable_foreign_equations(), original->ForeignEquations);
     ToProto(proto->mutable_self_equations(), original->SelfEquations);
-    ToProto(proto->mutable_joined_table_schema(), original->JoinedTableSchema);
-    ToProto(proto->mutable_foreign_table_schema(), original->ForeignTableSchema);
-    ToProto(proto->mutable_renamed_table_schema(), original->RenamedTableSchema);
-    proto->set_foreign_key_columns_count(original->ForeignKeyColumnsCount);
+
     ToProto(proto->mutable_foreign_data_id(), original->ForeignDataId);
     proto->set_is_left(original->IsLeft);
     proto->set_can_use_source_ranges(original->CanUseSourceRanges);
@@ -485,12 +514,12 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
 void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& serialized)
 {
     auto result = New<TJoinClause>();
+    FromProto(&result->OriginalSchema, serialized.original_schema());
+    FromProto(&result->SchemaMapping, serialized.schema_mapping());
+    FromProto(&result->SelfJoinedColumns, serialized.self_joined_columns());
+    FromProto(&result->ForeignJoinedColumns, serialized.foreign_joined_columns());
     FromProto(&result->ForeignEquations, serialized.foreign_equations());
     FromProto(&result->SelfEquations, serialized.self_equations());
-    FromProto(&result->JoinedTableSchema, serialized.joined_table_schema());
-    FromProto(&result->ForeignTableSchema, serialized.foreign_table_schema());
-    FromProto(&result->RenamedTableSchema, serialized.renamed_table_schema());
-    FromProto(&result->ForeignKeyColumnsCount, serialized.foreign_key_columns_count());
     FromProto(&result->ForeignDataId, serialized.foreign_data_id());
     FromProto(&result->IsLeft, serialized.is_left());
     FromProto(&result->CanUseSourceRanges, serialized.can_use_source_ranges());
@@ -503,7 +532,6 @@ void ToProto(NProto::TGroupClause* proto, const TConstGroupClausePtr& original)
 {
     ToProto(proto->mutable_group_items(), original->GroupItems);
     ToProto(proto->mutable_aggregate_items(), original->AggregateItems);
-    ToProto(proto->mutable_grouped_table_schema(), original->GroupedTableSchema);
     proto->set_is_merge(original->IsMerge);
     proto->set_is_final(original->IsFinal);
     proto->set_totals_mode(static_cast<int>(original->TotalsMode));
@@ -512,7 +540,6 @@ void ToProto(NProto::TGroupClause* proto, const TConstGroupClausePtr& original)
 void FromProto(TConstGroupClausePtr* original, const NProto::TGroupClause& serialized)
 {
     auto result = New<TGroupClause>();
-    FromProto(&result->GroupedTableSchema, serialized.grouped_table_schema());
     result->IsMerge = serialized.is_merge();
     result->IsFinal = serialized.is_final();
     result->TotalsMode = ETotalsMode(serialized.totals_mode());
@@ -576,9 +603,9 @@ void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
     ToProto(serialized->mutable_id(), original->Id);
 
     serialized->set_limit(original->Limit);
-    ToProto(serialized->mutable_table_schema(), original->TableSchema);
-    ToProto(serialized->mutable_renamed_table_schema(), original->RenamedTableSchema);
-    serialized->set_key_columns_count(original->KeyColumnsCount);
+
+    ToProto(serialized->mutable_original_schema(), original->OriginalSchema);
+    ToProto(serialized->mutable_schema_mapping(), original->SchemaMapping);
 
     ToProto(serialized->mutable_join_clauses(), original->JoinClauses);
 
@@ -612,9 +639,8 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
 
     result->Limit = serialized.limit();
 
-    FromProto(&result->TableSchema, serialized.table_schema());
-    FromProto(&result->RenamedTableSchema, serialized.renamed_table_schema());
-    FromProto(&result->KeyColumnsCount, serialized.key_columns_count());
+    FromProto(&result->OriginalSchema, serialized.original_schema());
+    FromProto(&result->SchemaMapping, serialized.schema_mapping());
 
     FromProto(&result->JoinClauses, serialized.join_clauses());
 

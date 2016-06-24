@@ -330,16 +330,12 @@ TEST_P(TEliminatePredicateTest, Simple)
     auto expected = PrepareExpression(refinedString, tableSchema);
     auto range = TKeyRange{BuildKey(lowerString), BuildKey(upperString)};
 
-
-
     std::vector<TKeyRange> owningRanges;
     for (size_t i = 0; i < keyStrings.size() / 2; ++i) {
         owningRanges.emplace_back(BuildKey(keyStrings[2 * i]), BuildKey(keyStrings[2 * i + 1]));
     }
 
     auto refined = Eliminate(owningRanges, predicate, tableSchema, keyColumns);
-
-
 
     EXPECT_TRUE(Equal(refined, expected))
         << "schema: " << schemaString << std::endl

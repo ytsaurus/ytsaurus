@@ -38,11 +38,6 @@ void SetTimestamp(TDataSplit* dataSplit, TTimestamp timestamp);
 // XXX(sandello): For testing purposes only.
 void SetSorted(TDataSplit* dataSplit, bool isSorted);
 
-TKeyColumns TableSchemaToKeyColumns(const TTableSchema& schema, size_t keySize);
-
-//! Computes key index for a given column name.
-int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& columnName);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

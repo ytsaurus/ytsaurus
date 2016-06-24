@@ -117,6 +117,17 @@ struct TQueryOptions
     TWorkloadDescriptor WorkloadDescriptor;
 };
 
+struct TBaseColumn
+{
+    TBaseColumn(const Stroka& name, EValueType type)
+        : Name(name)
+        , Type(type)
+    { }
+
+    Stroka Name;
+    EValueType Type;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

@@ -727,10 +727,11 @@ class ISchemaProxy
     : public TIntrinsicRefCounted
 {
 public:
-    // NOTE: result must be used before next call
-    virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name, const TStringBuf& tableName) = 0;
+    virtual TNullable<TBaseColumn> GetColumnPtr(
+        const Stroka& name,
+        const Stroka& tableName) = 0;
 
-    virtual const TColumnSchema* GetAggregateColumnPtr(
+    virtual TBaseColumn GetAggregateColumnPtr(
         const Stroka& name,
         const TAggregateTypeInferrer* aggregateFunction,
         const NAst::TExpression* arguments,
@@ -749,8 +750,7 @@ struct TTypedExpressionBuilder
     TConstExpressionPtr DoBuildTypedExpression(
         const NAst::TExpression* expr,
         ISchemaProxyPtr schema,
-        std::set<Stroka>& usedAliases,
-        yhash_set<Stroka>* references) const
+        std::set<Stroka>& usedAliases) const
     {
         if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
             const auto& literalValue = literalExpr->Value;
@@ -759,7 +759,7 @@ struct TTypedExpressionBuilder
                 GetType(literalValue),
                 GetValue(literalValue));
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
-            const auto* column = schema->GetColumnPtr(referenceExpr->ColumnName, referenceExpr->TableName);
+            auto column = schema->GetColumnPtr(referenceExpr->ColumnName, referenceExpr->TableName);
             if (!column) {
                 if (referenceExpr->TableName.empty()) {
                     auto columnName = referenceExpr->ColumnName;
@@ -774,8 +774,7 @@ struct TTypedExpressionBuilder
                         auto aliasExpr = DoBuildTypedExpression(
                             found->second.Get(),
                             schema,
-                            usedAliases,
-                            references);
+                            usedAliases);
 
                         usedAliases.erase(columnName);
                         return aliasExpr;
@@ -784,10 +783,6 @@ struct TTypedExpressionBuilder
 
                 THROW_ERROR_EXCEPTION("Undefined reference %Qv",
                     NAst::FormatColumn(referenceExpr->ColumnName, referenceExpr->TableName));
-            }
-
-            if (references) {
-                references->insert(column->Name);
             }
 
             return New<TReferenceExpression>(column->Type, column->Name);
@@ -807,16 +802,14 @@ struct TTypedExpressionBuilder
                             functionName);
                     }
 
-                    const auto* aggregateColumn = schema->GetAggregateColumnPtr(
+                    auto aggregateColumn = schema->GetAggregateColumnPtr(
                         functionName,
                         aggregateFunction,
                         functionExpr->Arguments.front().Get(),
                         subexprName,
                         *this);
 
-                    return New<TReferenceExpression>(
-                        aggregateColumn->Type,
-                        aggregateColumn->Name);
+                    return New<TReferenceExpression>(aggregateColumn.Type, aggregateColumn.Name);
 
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error creating aggregate")
@@ -830,8 +823,7 @@ struct TTypedExpressionBuilder
                     auto typedArgument = DoBuildTypedExpression(
                         argument.Get(),
                         schema,
-                        usedAliases,
-                        references);
+                        usedAliases);
                     types.push_back(typedArgument->Type);
                     typedOperands.push_back(typedArgument);
                 }
@@ -851,8 +843,7 @@ struct TTypedExpressionBuilder
             auto typedOperand = DoBuildTypedExpression(
                 unaryExpr->Operand.front().Get(),
                 schema,
-                usedAliases,
-                references);
+                usedAliases);
 
             if (auto foldedExpr = FoldConstants(unaryExpr->Opcode, typedOperand)) {
                 return foldedExpr;
@@ -916,13 +907,11 @@ struct TTypedExpressionBuilder
                 auto typedLhs = DoBuildTypedExpression(
                     binaryExpr->Lhs[offset].Get(),
                     schema,
-                    usedAliases,
-                    references);
+                    usedAliases);
                 auto typedRhs = DoBuildTypedExpression(
                     binaryExpr->Rhs[offset].Get(),
                     schema,
-                    usedAliases,
-                    references);
+                    usedAliases);
 
                 if (offset + 1 < keySize) {
                     auto next = gen(offset + 1, keySize, op);
@@ -974,13 +963,11 @@ struct TTypedExpressionBuilder
                 auto typedLhs = DoBuildTypedExpression(
                     binaryExpr->Lhs.front().Get(),
                     schema,
-                    usedAliases,
-                    references);
+                    usedAliases);
                 auto typedRhs = DoBuildTypedExpression(
                     binaryExpr->Rhs.front().Get(),
                     schema,
-                    usedAliases,
-                    references);
+                    usedAliases);
 
                 return makeBinaryExpr(binaryExpr->Opcode, typedLhs, typedRhs);
             }
@@ -993,17 +980,14 @@ struct TTypedExpressionBuilder
                 auto typedArgument = DoBuildTypedExpression(
                     argument.Get(),
                     schema,
-                    usedAliases,
-                    references);
+                    usedAliases);
 
                 typedArguments.push_back(typedArgument);
                 argTypes.push_back(typedArgument->Type);
                 if (auto reference = typedArgument->As<TReferenceExpression>()) {
-                    if (columnNames.find(reference->ColumnName) != columnNames.end()) {
+                    if (!columnNames.insert(reference->ColumnName).second) {
                         THROW_ERROR_EXCEPTION("IN operator has multiple references to column %Qv", reference->ColumnName)
                             << TErrorAttribute("source", Source);
-                    } else {
-                        columnNames.insert(reference->ColumnName);
                     }
                 }
             }
@@ -1017,11 +1001,10 @@ struct TTypedExpressionBuilder
 
     TConstExpressionPtr BuildTypedExpression(
         const NAst::TExpression* expr,
-        ISchemaProxyPtr schema,
-        yhash_set<Stroka>* references = nullptr) const
+        ISchemaProxyPtr schema) const
     {
         std::set<Stroka> usedAliases;
-        return PropagateNotExpression(DoBuildTypedExpression(expr, schema, usedAliases, references));
+        return PropagateNotExpression(DoBuildTypedExpression(expr, schema, usedAliases));
     }
 
 };
@@ -1032,82 +1015,71 @@ class TSchemaProxy
     : public ISchemaProxy
 {
 public:
-    explicit TSchemaProxy(
-        TTableSchema* tableSchema,
-        const TStringBuf& tableName = TStringBuf())
-        : TableSchema_(tableSchema)
+    TSchemaProxy()
+    { }
+
+    TSchemaProxy(const yhash_map<std::pair<Stroka, Stroka>, TBaseColumn>& lookup)
+        : Lookup_(lookup)
+    { }
+
+    virtual TNullable<TBaseColumn> GetColumnPtr(
+        const Stroka& name,
+        const Stroka& tableName) override
     {
-        YCHECK(tableSchema);
-        const auto& columns = TableSchema_->Columns();
-        for (size_t index = 0; index < columns.size(); ++index) {
-            Lookup_.insert(std::make_pair(std::make_pair(Stroka(columns[index].Name), Stroka(tableName)), index));
+        auto key = std::make_pair(name, tableName);
+        auto found = Lookup_.find(key);
+        if (found != Lookup_.end()) {
+            return found->second;
+        } else if (auto column = ProvideColumn(name, tableName)) {
+            YCHECK(Lookup_.emplace(key, *column).second);
+            return column;
+        } else {
+            return Null;
         }
     }
 
-    // NOTE: result must be used before next call
-    const TColumnSchema* GetColumnPtr(const TStringBuf& name, const TStringBuf& tableName)
-    {
-        const auto& resultColumns = TableSchema_->Columns();
-        auto it = Lookup_.find(std::make_pair(Stroka(name), Stroka(tableName)));
-        if (it != Lookup_.end()) {
-            return &resultColumns[it->second];
-        } else if (auto original = AddColumnPtr(name, tableName)) {
-            auto index = resultColumns.size();
-            Lookup_.insert(std::make_pair(std::make_pair(Stroka(name), Stroka(tableName)), index));
-            TColumnSchema newColumn(NAst::FormatColumn(name, tableName), original->Type);
-            TableSchema_->AppendColumn(newColumn);
-            return &TableSchema_->Columns().back();
-        }
-        return nullptr;
-    }
-
-    const yhash_map<std::pair<Stroka, Stroka>, size_t>& GetLookup() const
-    {
-        return Lookup_;
-    }
-
-    const TColumnSchema* GetAggregateColumnPtr(
+    virtual TBaseColumn GetAggregateColumnPtr(
         const Stroka& name,
         const TAggregateTypeInferrer* aggregateFunction,
         const NAst::TExpression* arguments,
         Stroka subexprName,
-        const TTypedExpressionBuilder& builder)
+        const TTypedExpressionBuilder& builder) override
     {
-        auto& resultColumns = TableSchema_->Columns();
-        auto it = Lookup_.find(std::make_pair(Stroka(subexprName), Stroka()));
-        if (it != Lookup_.end()) {
-            return &resultColumns[it->second];
+        auto key = std::make_pair(subexprName, Stroka());
+        auto found = Lookup_.find(key);
+        if (found != Lookup_.end()) {
+            return found->second;
         }
 
-        auto original = AddAggregateColumnPtr(
+        auto column = ProvideAggregateColumn(
             name,
             aggregateFunction,
             arguments,
             subexprName,
             builder);
 
-        auto index = resultColumns.size();
-        Lookup_.insert(std::make_pair(std::make_pair(Stroka(subexprName), Stroka()), index));
-        TableSchema_->AppendColumn(original);
-        return &TableSchema_->Columns().back();
+        YCHECK(Lookup_.emplace(key, column).second);
+        return column;
     }
 
     virtual void Finish()
     { }
 
-    DEFINE_BYVAL_RO_PROPERTY(TTableSchema*, TableSchema);
-
-private:
-    yhash_map<std::pair<Stroka, Stroka>, size_t> Lookup_;
-
-protected:
-    virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name, const TStringBuf& tableName)
+    const yhash_map<std::pair<Stroka, Stroka>, TBaseColumn>& GetLookup() const
     {
-        return nullptr;
+        return Lookup_;
     }
 
-    // NOTE: result must be used before next call
-    virtual TColumnSchema AddAggregateColumnPtr(
+private:
+    yhash_map<std::pair<Stroka, Stroka>, TBaseColumn> Lookup_;
+
+protected:
+    virtual TNullable<TBaseColumn> ProvideColumn(const Stroka& name, const Stroka& tableName)
+    {
+        return Null;
+    }
+
+    virtual TBaseColumn ProvideAggregateColumn(
         const Stroka& name,
         const TAggregateTypeInferrer* aggregateFunction,
         const NAst::TExpression* arguments,
@@ -1123,42 +1095,31 @@ protected:
 
 DEFINE_REFCOUNTED_TYPE(TSchemaProxy)
 
-class TScanSchemaProxy
+class TFixedSchemaProxy
     : public TSchemaProxy
 {
 public:
-    static TSchemaProxyPtr Create(
-        TTableSchema* tableSchema,
-        TTableSchema* refinedTableSchema,
+    TFixedSchemaProxy(
         const TTableSchema& sourceTableSchema,
-        int keyColumnCount = 0,
-        const TStringBuf& tableName = TStringBuf())
-    {
-        auto schemaProxy = New<TScanSchemaProxy>(
-            tableSchema,
-            refinedTableSchema,
-            sourceTableSchema,
-            tableName);
-        schemaProxy->Init(keyColumnCount);
-        return schemaProxy;
-    }
+        const Stroka& tableName = Stroka())
+        : SourceTableSchema_(sourceTableSchema)
+        , TableName_(tableName)
+    { }
 
-    virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name, const TStringBuf& tableName) override
+    virtual TNullable<TBaseColumn> ProvideColumn(const Stroka& name, const Stroka& tableName) override
     {
         if (tableName != TableName_) {
-            return nullptr;
+            return Null;
         }
 
-        auto column = RefinedTableSchema_->FindColumn(name);
-        if (column) {
-            return column;
-        }
+        auto column = SourceTableSchema_.FindColumn(name);
 
-        column = SourceTableSchema_.FindColumn(name);
         if (column) {
-            RefinedTableSchema_->AppendColumn(*column);
+            auto columnName = NAst::FormatColumn(name, tableName);
+            return TBaseColumn(columnName, column->Type);
+        } else {
+            return Null;
         }
-        return column;
     }
 
     virtual void Finish() override
@@ -1170,28 +1131,62 @@ public:
 
 private:
     const TTableSchema SourceTableSchema_;
-    TTableSchema* RefinedTableSchema_;
-    TStringBuf TableName_;
+    Stroka TableName_;
 
+    DECLARE_NEW_FRIEND();
+};
+
+class TScanSchemaProxy
+    : public TSchemaProxy
+{
+public:
     TScanSchemaProxy(
-        TTableSchema* tableSchema,
-        TTableSchema* refinedTableSchema,
         const TTableSchema& sourceTableSchema,
-        const TStringBuf& tableName)
-        : TSchemaProxy(tableSchema, tableName)
+        const Stroka& tableName,
+        std::vector<TColumnDescriptor>* mapping = nullptr)
+        : Mapping_(mapping)
         , SourceTableSchema_(sourceTableSchema)
-        , RefinedTableSchema_(refinedTableSchema)
         , TableName_(tableName)
     { }
 
-    void Init(int keyColumnCount)
+    virtual TNullable<TBaseColumn> ProvideColumn(const Stroka& name, const Stroka& tableName) override
     {
-        const auto& columns = SourceTableSchema_.Columns();
-        int count = std::min(keyColumnCount, static_cast<int>(columns.size()));
-        for (int i = 0; i < count; ++i) {
-            GetColumnPtr(columns[i].Name, TableName_);
+        if (tableName != TableName_) {
+            return Null;
+        }
+
+        auto column = SourceTableSchema_.FindColumn(name);
+
+        if (column) {
+            auto columnName = NAst::FormatColumn(name, tableName);
+            if (size_t collisionIndex = ColumnsCollisions_.emplace(columnName, 0).first->second++) {
+                columnName = Format("%v#%v", columnName, collisionIndex);
+            }
+
+            if (Mapping_) {
+                Mapping_->push_back(TColumnDescriptor{
+                    columnName,
+                    size_t(SourceTableSchema_.GetColumnIndex(*column))});
+            }
+
+            return TBaseColumn(columnName, column->Type);
+        } else {
+            return Null;
         }
     }
+
+    virtual void Finish() override
+    {
+        for (const auto& column : SourceTableSchema_.Columns()) {
+            GetColumnPtr(column.Name, TableName_);
+        }
+    }
+
+private:
+    std::vector<TColumnDescriptor>* Mapping_;
+    yhash_map<Stroka, size_t> ColumnsCollisions_;
+    const TTableSchema SourceTableSchema_;
+    Stroka TableName_;
 
     DECLARE_NEW_FRIEND();
 };
@@ -1201,28 +1196,35 @@ class TJoinSchemaProxy
 {
 public:
     TJoinSchemaProxy(
-        TTableSchema* tableSchema,
+        std::vector<Stroka>* selfJoinedColumns,
+        std::vector<Stroka>* foreignJoinedColumns,
+        const std::set<std::pair<Stroka, Stroka>>& sharedColumns,
         TSchemaProxyPtr self,
         TSchemaProxyPtr foreign)
-        : TSchemaProxy(tableSchema)
+        : SelfJoinedColumns_(selfJoinedColumns)
+        , ForeignJoinedColumns_(foreignJoinedColumns)
+        , SharedColumns_(sharedColumns)
         , Self_(self)
         , Foreign_(foreign)
     { }
 
-    virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name, const TStringBuf& tableName) override
+    virtual TNullable<TBaseColumn> ProvideColumn(const Stroka& name, const Stroka& tableName) override
     {
-        const TColumnSchema* column = nullptr;
-
-        if ((column = Self_->GetColumnPtr(name, tableName))) {
-            if (Foreign_->GetColumnPtr(name, tableName)) {
+        if (auto column = Self_->GetColumnPtr(name, tableName)) {
+            if (!SharedColumns_.count(std::make_pair(name, tableName)) &&
+                Foreign_->GetColumnPtr(name, tableName))
+            {
                 THROW_ERROR_EXCEPTION("Column %Qv occurs both in main and joined tables",
                     NAst::FormatColumn(name, tableName));
             }
+            SelfJoinedColumns_->push_back(column->Name);
+            return column;
+        } else if (auto column = Foreign_->GetColumnPtr(name, tableName)) {
+            ForeignJoinedColumns_->push_back(column->Name);
+            return column;
         } else {
-            column = Foreign_->GetColumnPtr(name, tableName);
+            return Null;
         }
-
-        return column;
     }
 
     virtual void Finish() override
@@ -1240,30 +1242,48 @@ public:
     }
 
 private:
+    std::vector<Stroka>* SelfJoinedColumns_;
+    std::vector<Stroka>* ForeignJoinedColumns_;
+
+    std::set<std::pair<Stroka, Stroka>> SharedColumns_;
     TSchemaProxyPtr Self_;
     TSchemaProxyPtr Foreign_;
 
 };
+
+const TNullable<TBaseColumn> FindColumn(const TNamedItemList& schema, const Stroka& name)
+{
+    for (size_t index = 0; index < schema.size(); ++index) {
+        if (schema[index].Name == name) {
+            return TBaseColumn(name, schema[index].Expression->Type);
+        }
+    }
+    return Null;
+}
 
 class TGroupSchemaProxy
     : public TSchemaProxy
 {
 public:
     TGroupSchemaProxy(
-        TTableSchema* tableSchema,
+        const TNamedItemList* groupItems,
         TSchemaProxyPtr base,
         TAggregateItemList* aggregateItems)
-        : TSchemaProxy(tableSchema)
+        : GroupItems_(groupItems)
         , Base_(base)
         , AggregateItems_(aggregateItems)
     { }
 
-    virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name, const TStringBuf& tableName) override
+    virtual TNullable<TBaseColumn> ProvideColumn(const Stroka& name, const Stroka& tableName) override
     {
-        return nullptr;
+        if (!tableName.empty()) {
+            return Null;
+        }
+
+        return FindColumn(*GroupItems_, name);
     }
 
-    virtual TColumnSchema AddAggregateColumnPtr(
+    virtual TBaseColumn ProvideAggregateColumn(
         const Stroka& name,
         const TAggregateTypeInferrer* aggregateFunction,
         const NAst::TExpression* argument,
@@ -1286,10 +1306,11 @@ public:
             stateType,
             resultType);
 
-        return TColumnSchema(subexprName, resultType);
+        return TBaseColumn(subexprName, resultType);
     }
 
 private:
+    const TNamedItemList* GroupItems_;
     TSchemaProxyPtr Base_;
     TAggregateItemList* AggregateItems_;
 
@@ -1339,8 +1360,7 @@ TConstGroupClausePtr BuildGroupClause(
         groupClause->AddGroupItem(typedExpr, InferName(expressionAst.Get()));
     }
 
-    TTableSchema& tableSchema = groupClause->GroupedTableSchema;
-    schemaProxy = New<TGroupSchemaProxy>(&tableSchema, std::move(schemaProxy), &groupClause->AggregateItems);
+    schemaProxy = New<TGroupSchemaProxy>(&groupClause->GroupItems, std::move(schemaProxy), &groupClause->AggregateItems);
 
     return groupClause;
 }
@@ -1376,7 +1396,6 @@ TConstProjectClausePtr BuildProjectClause(
     const TTypedExpressionBuilder& builder)
 {
     auto projectClause = New<TProjectClause>();
-
     for (const auto& expressionAst : expressionsAst) {
         auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
 
@@ -1384,7 +1403,7 @@ TConstProjectClausePtr BuildProjectClause(
         projectClause->AddProjection(typedExpr, InferName(expressionAst.Get()));
     }
 
-    schemaProxy = New<TSchemaProxy>(&projectClause->ProjectTableSchema);
+    schemaProxy = New<TScanSchemaProxy>(projectClause->GetTableSchema(), "");
 
     return projectClause;
 }
@@ -1513,17 +1532,12 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp))
         .ValueOrThrow();
     auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
-    auto keySchema = tableSchema.ToKeys();
+    query->OriginalSchema = tableSchema;
 
-    query->KeyColumnsCount = tableSchema.GetKeyColumnCount();
-    query->TableSchema = keySchema;
-
-    schemaProxy = TScanSchemaProxy::Create(
-        &query->RenamedTableSchema,
-        &query->TableSchema,
+    schemaProxy = New<TScanSchemaProxy>(
         tableSchema,
-        tableSchema.GetKeyColumnCount(),
-        table.Alias);
+        table.Alias,
+        &query->SchemaMapping);
 
     TTypedExpressionBuilder builder{
         source,
@@ -1539,33 +1553,22 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
 
         auto joinClause = New<TJoinClause>();
 
-        joinClause->ForeignKeyColumnsCount = foreignKeyColumnsCount;
+        joinClause->OriginalSchema = foreignTableSchema;
         joinClause->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
         joinClause->IsLeft = join.IsLeft;
 
-        const auto& columns = foreignTableSchema.Columns();
-        joinClause->ForeignTableSchema = TTableSchema(std::vector<TColumnSchema>(
-            columns.begin(),
-            columns.begin() + std::min(foreignKeyColumnsCount, columns.size())));
-
-        auto foreignSourceProxy = TScanSchemaProxy::Create(
-            &joinClause->RenamedTableSchema,
-            &joinClause->ForeignTableSchema,
+        auto foreignSourceProxy = New<TScanSchemaProxy>(
             foreignTableSchema,
-            foreignKeyColumnsCount,
-            join.Table.Alias);
+            join.Table.Alias,
+            &joinClause->SchemaMapping);
 
         std::vector<std::pair<TConstExpressionPtr, bool>> selfEquations;
         std::vector<TConstExpressionPtr> foreignEquations;
-
+        std::set<std::pair<Stroka, Stroka>> sharedColumns;
         // Merge columns.
         for (const auto& reference : join.Fields) {
-            const auto* selfColumn = schemaProxy->GetColumnPtr(
-                reference->ColumnName,
-                reference->TableName);
-            const auto* foreignColumn = foreignSourceProxy->GetColumnPtr(
-                reference->ColumnName,
-                reference->TableName);
+            auto selfColumn = schemaProxy->GetColumnPtr(reference->ColumnName, reference->TableName);
+            auto foreignColumn = foreignSourceProxy->GetColumnPtr(reference->ColumnName, reference->TableName);
 
             if (!selfColumn || !foreignColumn) {
                 THROW_ERROR_EXCEPTION("Column %Qv not found",
@@ -1582,7 +1585,8 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
             selfEquations.emplace_back(New<TReferenceExpression>(selfColumn->Type, selfColumn->Name), false);
             foreignEquations.push_back(New<TReferenceExpression>(foreignColumn->Type, foreignColumn->Name));
 
-            joinClause->JoinedTableSchema.AppendColumn(*selfColumn);
+            // Add to mapping
+            sharedColumns.emplace(reference->ColumnName, reference->TableName);
         }
 
         for (const auto& argument : join.Left) {
@@ -1612,7 +1616,6 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         }
 
         // If can use ranges, rearrange equations according to key columns and enrich with evaluated columns
-        const auto& renamedTableSchema = joinClause->RenamedTableSchema;
 
         std::vector<std::pair<TConstExpressionPtr, bool>> keySelfEquations(foreignKeyColumnsCount);
         std::vector<TConstExpressionPtr> keyForeignEquations(foreignKeyColumnsCount);
@@ -1622,8 +1625,9 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
             const auto& expr = foreignEquations[equationIndex];
 
             if (const auto* refExpr = expr->As<TReferenceExpression>()) {
-                auto index = renamedTableSchema.GetColumnIndexOrThrow(refExpr->ColumnName);
-                if (index < foreignKeyColumnsCount) {
+                auto index = ColumnNameToKeyPartIndex(joinClause->GetKeyColumns(), refExpr->ColumnName);
+
+                if (index >= 0) {
                     keySelfEquations[index] = selfEquations[equationIndex];
                     keyForeignEquations[index] = foreignEquations[equationIndex];
                     continue;
@@ -1666,9 +1670,13 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
 
             keySelfEquations[keyPrefix] = std::make_pair(evaluatedColumnExpression, true);
 
+            auto foreignColumn = foreignSourceProxy->GetColumnPtr(
+                foreignTableSchema.Columns()[keyPrefix].Name,
+                join.Table.Alias);
+
             keyForeignEquations[keyPrefix] = New<TReferenceExpression>(
-                renamedTableSchema.Columns()[keyPrefix].Type,
-                renamedTableSchema.Columns()[keyPrefix].Name);
+                foreignColumn->Type,
+                foreignColumn->Name);
         }
 
         for (size_t index = keyPrefix; index < keyForeignEquations.size() && canUseSourceRanges; ++index) {
@@ -1690,7 +1698,9 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         }
 
         schemaProxy = New<TJoinSchemaProxy>(
-            &joinClause->JoinedTableSchema,
+            &joinClause->SelfJoinedColumns,
+            &joinClause->ForeignJoinedColumns,
+            sharedColumns,
             schemaProxy,
             foreignSourceProxy);
 
@@ -1706,10 +1716,9 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     }
 
     auto queryFingerprint = InferName(query, true);
-    LOG_DEBUG("Prepared query (Fingerprint: %v, InputSchema: %v, RenamedSchema: %v, ResultSchema: %v)",
+    LOG_DEBUG("Prepared query (Fingerprint: %v, InputSchema: %v, ResultSchema: %v)",
         queryFingerprint,
-        NYTree::ConvertToYsonString(query->TableSchema, NYson::EYsonFormat::Text).Data(),
-        NYTree::ConvertToYsonString(query->RenamedTableSchema, NYson::EYsonFormat::Text).Data(),
+        NYTree::ConvertToYsonString(query->OriginalSchema, NYson::EYsonFormat::Text).Data(),
         NYTree::ConvertToYsonString(query->GetTableSchema(), NYson::EYsonFormat::Text).Data());
 
     auto range = GetBothBoundsFromDataSplit(selfDataSplit);
@@ -1753,10 +1762,10 @@ TQueryPtr PrepareJobQuery(
     auto unlimited = std::numeric_limits<i64>::max();
 
     auto query = New<TQuery>(unlimited, unlimited, TGuid::Create());
-    TSchemaProxyPtr schemaProxy = TScanSchemaProxy::Create(
-        &query->RenamedTableSchema,
-        &query->TableSchema,
-        tableSchema);
+    TSchemaProxyPtr schemaProxy = New<TScanSchemaProxy>(
+        tableSchema,
+        "",
+        &query->SchemaMapping);
 
     auto functionNames = ExtractFunctionNames(parsedQueryInfo);
 
@@ -1791,14 +1800,23 @@ TConstExpressionPtr PrepareExpression(
 
     auto& expr = astHead.first.As<NAst::TExpressionPtr>();
 
-    auto schemaProxy = New<TSchemaProxy>(&tableSchema);
+    std::vector<TColumnDescriptor> mapping;
+    auto schemaProxy = New<TScanSchemaProxy>(tableSchema, "", &mapping);
 
     TTypedExpressionBuilder builder{
         source,
         functions,
         astHead.second};
 
-    return builder.BuildTypedExpression(expr.Get(), schemaProxy, references);
+    auto result = builder.BuildTypedExpression(expr.Get(), schemaProxy);
+
+    if (references) {
+        for (const auto& item : mapping) {
+            references->insert(item.Name);
+        }
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

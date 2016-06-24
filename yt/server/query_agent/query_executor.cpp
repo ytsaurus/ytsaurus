@@ -351,7 +351,7 @@ private:
         std::vector<TDataRanges> rangesByTablePart;
         std::vector<TDataKeys> keysByTablePart;
 
-        auto keySize = Query_->KeyColumnsCount;
+        auto keySize = Query_->OriginalSchema.GetKeyColumnCount();
 
         for (const auto& source : dataSources) {
             TRowRanges rowRanges;
@@ -895,7 +895,7 @@ private:
             std::move(config),
             std::move(chunkReader),
             Bootstrap_->GetBlockCache(),
-            Query_->TableSchema,
+            Query_->GetReadSchema(),
             chunkMeta,
             std::move(readRanges),
             Options_.Timestamp);
@@ -909,7 +909,7 @@ private:
         TOwningKey upperBound(range.second);
 
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
-        auto columnFilter = GetColumnFilter(Query_->TableSchema, tabletSnapshot->QuerySchema);
+        auto columnFilter = GetColumnFilter(Query_->GetReadSchema(), tabletSnapshot->QuerySchema);
 
         return CreateSchemafulTabletReader(
             std::move(tabletSnapshot),
@@ -925,7 +925,7 @@ private:
         const TSharedRange<TRow>& keys)
     {
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
-        auto columnFilter = GetColumnFilter(Query_->TableSchema, tabletSnapshot->QuerySchema);
+        auto columnFilter = GetColumnFilter(Query_->GetReadSchema(), tabletSnapshot->QuerySchema);
 
         return CreateSchemafulTabletReader(
             std::move(tabletSnapshot),

@@ -6,6 +6,12 @@ import "yt/ytlib/table_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TColumnDescriptor
+{
+    required string name = 1;
+    required uint32 index = 2;
+}
+
 message TExpression
 {
     required int32 kind = 1;
@@ -109,19 +115,19 @@ message TJoinClause
     repeated TSelfEquation self_equations = 2;
     required bool can_use_source_ranges = 3;
 
-    required NYT.NTableClient.NProto.TTableSchemaExt joined_table_schema = 4;
-    required NYT.NTableClient.NProto.TTableSchemaExt foreign_table_schema = 5;
-    required NYT.NTableClient.NProto.TTableSchemaExt renamed_table_schema = 6;
-    required int64 foreign_key_columns_count = 7;
-    required NYT.NProto.TGuid foreign_data_id = 8;
-    required bool is_left = 9;
+    required NYT.NTableClient.NProto.TTableSchemaExt original_schema = 5;
+    repeated TColumnDescriptor schema_mapping = 6;
+    repeated string self_joined_columns = 7;
+    repeated string foreign_joined_columns = 8;
+
+    required NYT.NProto.TGuid foreign_data_id = 9;
+    required bool is_left = 10;
 }
 
 message TGroupClause
 {
     repeated TNamedItem group_items = 1;
     repeated TAggregateItem aggregate_items = 2;
-    required NYT.NTableClient.NProto.TTableSchemaExt grouped_table_schema = 3;
     required bool is_merge = 4;
     required bool is_final = 5;
     required uint32 totals_mode = 6;
@@ -151,9 +157,8 @@ message TQuery
 
     required int64 limit = 4;
 
-    required NYT.NTableClient.NProto.TTableSchemaExt table_schema = 5;
-    required NYT.NTableClient.NProto.TTableSchemaExt renamed_table_schema = 13;
-    required int64 key_columns_count = 6;
+    required NYT.NTableClient.NProto.TTableSchemaExt original_schema = 5;
+    repeated TColumnDescriptor schema_mapping = 6;
 
     repeated TJoinClause join_clauses = 7;
     optional TExpression predicate = 8;

@@ -71,10 +71,8 @@ protected:
         auto rowBuffer = New<TRowBuffer>();
         auto prunedSplits = GetPrunedRanges(
             query->WhereClause,
-            query->JoinClauses[0]->ForeignTableSchema,
-            TableSchemaToKeyColumns(
-                query->JoinClauses[0]->RenamedTableSchema,
-                query->JoinClauses[0]->ForeignKeyColumnsCount),
+            query->JoinClauses[0]->OriginalSchema,
+            query->JoinClauses[0]->GetKeyColumns(),
             query->JoinClauses[0]->ForeignDataId,
             MakeSharedRange(foreignSplits),
             rowBuffer,

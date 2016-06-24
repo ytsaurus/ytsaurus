@@ -83,10 +83,11 @@ void TSchemaProfiler::Fold(const char* str)
 
 void TSchemaProfiler::Profile(const TTableSchema& tableSchema, int keySize)
 {
+    const auto& columns = tableSchema.Columns();
     Fold(static_cast<int>(EFoldingObjectType::TableSchema));
     Fold(keySize);
-    for (int index = 0; index < tableSchema.Columns().size() && index < keySize; ++index) {
-        const auto& column = tableSchema.Columns()[index];
+    for (int index = 0; index < columns.size() && index < keySize; ++index) {
+        const auto& column = columns[index];
         Fold(static_cast<ui16>(column.Type));
         Fold(column.Name.c_str());
         if (column.Expression) {
@@ -95,14 +96,14 @@ void TSchemaProfiler::Profile(const TTableSchema& tableSchema, int keySize)
     }
 
     int aggregateColumnCount = 0;
-    for (int index = keySize; index < tableSchema.Columns().size(); ++index) {
-        if(tableSchema.Columns()[index].Aggregate) {
+    for (int index = keySize; index < columns.size(); ++index) {
+        if(columns[index].Aggregate) {
             ++aggregateColumnCount;
         }
     }
     Fold(aggregateColumnCount);
-    for (int index = keySize; index < tableSchema.Columns().size(); ++index) {
-        const auto& column = tableSchema.Columns()[index];
+    for (int index = keySize; index < columns.size(); ++index) {
+        const auto& column = columns[index];
         Fold(index);
         if (column.Aggregate) {
             Fold(column.Aggregate.Get().c_str());
@@ -127,7 +128,7 @@ public:
         YCHECK(variables);
     }
 
-    TCodegenExpression Profile(TConstExpressionPtr expr, const TTableSchema& tableSchema);
+    TCodegenExpression Profile(TConstExpressionPtr expr, const TTableSchema& schema);
 
 protected:
     TCGVariables* Variables_;
@@ -238,16 +239,14 @@ protected:
 TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
 {
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
-    TSchemaProfiler::Profile(query->RenamedTableSchema);
     TCodegenSource codegenSource = &CodegenScanOp;
 
-    TTableSchema schema = query->RenamedTableSchema;
+    auto schema = query->GetRenamedSchema();
 
     for (const auto& joinClause : query->JoinClauses) {
         Fold(static_cast<int>(EFoldingObjectType::JoinOp));
 
         TSchemaProfiler::Profile(schema);
-        TSchemaProfiler::Profile(joinClause->RenamedTableSchema);
 
         std::vector<std::pair<TCodegenExpression, bool>> selfKeys;
 
@@ -256,18 +255,18 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
             bool isKey;
             std::tie(expression, isKey) = column;
 
-            selfKeys.emplace_back(TExpressionProfiler::Profile(
-                expression,
-                isKey ? joinClause->ForeignTableSchema : schema), isKey);
+            selfKeys.emplace_back(TExpressionProfiler::Profile(expression, schema), isKey);
         }
 
         if (auto selfFilter = ExtractPredicateForColumnSubset(query->WhereClause, schema)) {
-            codegenSource = MakeCodegenFilterOp(TExpressionProfiler::Profile(selfFilter, schema), std::move(codegenSource));
+            codegenSource = MakeCodegenFilterOp(
+                TExpressionProfiler::Profile(selfFilter, schema),
+                std::move(codegenSource));
         }
 
         int index = Variables_->AddObject<TJoinEvaluator>(GetJoinEvaluator(
             *joinClause,
-            ExtractPredicateForColumnSubset(query->WhereClause, joinClause->RenamedTableSchema),
+            ExtractPredicateForColumnSubset(query->WhereClause, joinClause->GetRenamedSchema()),
             schema));
 
         codegenSource = MakeCodegenJoinOp(
@@ -275,7 +274,7 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
             selfKeys,
             std::move(codegenSource));
 
-        schema = joinClause->JoinedTableSchema;
+        schema = joinClause->GetTableSchema(schema);
     }
 
     if (query->WhereClause) {
@@ -421,7 +420,7 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
         }
 
         codegenSource = MakeCodegenProjectOp(std::move(codegenProjectExprs), std::move(codegenSource));
-        schema = query->ProjectClause->GetTableSchema();
+        schema = projectClause->GetTableSchema();
     }
 
     return codegenSource;

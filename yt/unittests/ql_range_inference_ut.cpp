@@ -734,10 +734,9 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
         GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-    auto keyColumns = GetSampleKeyColumns();
     auto keyTrie = ExtractMultipleConstraints(
         expr,
-        keyColumns,
+        GetSampleKeyColumns(),
         rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
@@ -761,10 +760,9 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
         GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-    auto keyColumns = GetSampleKeyColumns();
     auto keyTrie = ExtractMultipleConstraints(
         expr,
-        keyColumns,
+        GetSampleKeyColumns(),
         rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
@@ -788,10 +786,9 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
         GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-    auto keyColumns = GetSampleKeyColumns();
     auto keyTrie = ExtractMultipleConstraints(
         expr,
-        keyColumns,
+        GetSampleKeyColumns(),
         rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
@@ -836,10 +833,9 @@ TEST_F(TRefineKeyRangeTest, RangesProductWithOverlappingKeyPositions)
         GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-    auto keyColumns = GetSampleKeyColumns();
     auto keyTrie = ExtractMultipleConstraints(
         expr,
-        keyColumns,
+        GetSampleKeyColumns(),
         rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
@@ -879,9 +875,17 @@ TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
 
 TEST_F(TRefineKeyRangeTest, PrefixQuery)
 {
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("m", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("s", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("b", EValueType::Int64),
+    });
+
     auto expr = PrepareExpression(
         "k = 50 and l = 50 and m = 50 and is_prefix(\"abc\", s)",
-        GetSampleTableSchema());
+        tableSchema);
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns2(),
