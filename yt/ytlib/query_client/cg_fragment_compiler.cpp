@@ -1009,7 +1009,6 @@ void CodegenScanOp(
 TCodegenSource MakeCodegenJoinOp(
     int index,
     std::vector<TCodegenExpression> equations,
-    TTableSchema sourceSchema,
     TCodegenSource codegenSource,
     size_t keyPrefix,
     std::vector<int> equationByIndex,
@@ -1018,7 +1017,6 @@ TCodegenSource MakeCodegenJoinOp(
     return [
         index,
         MOVE(equations),
-        MOVE(sourceSchema),
         codegenSource = std::move(codegenSource),
         MOVE(keyPrefix),
         MOVE(equationByIndex),
@@ -1214,7 +1212,7 @@ std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArg
     std::vector<TCodegenExpression> codegenAggregateExprs,
     std::vector<TCodegenAggregate> codegenAggregates,
     bool isMerge,
-    TTableSchema inputSchema)
+    std::vector<EValueType> inputSchema)
 {
     return [
         keySize,
@@ -1238,7 +1236,7 @@ std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArg
                     builder,
                     srcRow,
                     keySize + index,
-                    inputSchema.Columns()[id].Type)
+                    inputSchema[id])
                     .StoreToRow(
                         builder,
                         dstRow,
@@ -1494,7 +1492,7 @@ TCodegenSource MakeCodegenGroupOp(
 
 TCodegenSource MakeCodegenOrderOp(
     std::vector<TCodegenExpression> codegenExprs,
-    TTableSchema sourceSchema,
+    std::vector<EValueType> sourceSchema,
     TCodegenSource codegenSource,
     const std::vector<bool>& isDesc)
 {
@@ -1504,14 +1502,14 @@ TCodegenSource MakeCodegenOrderOp(
         MOVE(sourceSchema),
         codegenSource = std::move(codegenSource)
     ] (TCGOperatorContext& builder, const TCodegenConsumer& codegenConsumer) {
-        auto schemaSize = sourceSchema.Columns().size();
+        auto schemaSize = sourceSchema.size();
         std::vector<EValueType> orderColumnTypes;
 
         auto collectRows = MakeClosure<void(TTopCollector*)>(builder, "CollectRows", [&] (
             TCGOperatorContext& builder,
             Value* topCollector
         ) {
-            Value* newRow = CodegenAllocateRow(builder, sourceSchema.Columns().size() + codegenExprs.size());
+            Value* newRow = CodegenAllocateRow(builder, schemaSize + codegenExprs.size());
 
             codegenSource(
                 builder,
@@ -1520,7 +1518,7 @@ TCodegenSource MakeCodegenOrderOp(
                     Value* newRowRef = builder->ViaClosure(newRow);
 
                     for (size_t index = 0; index < schemaSize; ++index) {
-                        auto type = sourceSchema.Columns()[index].Type;
+                        auto type = sourceSchema[index];
                         TCGValue::CreateFromRow(
                             builder,
                             row,
