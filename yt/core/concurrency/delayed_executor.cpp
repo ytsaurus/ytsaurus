@@ -137,7 +137,6 @@ private:
 
     TThread SleeperThread_;
     TActionQueuePtr DelayedQueue_;
-    IInvokerPtr DelayedInvoker_;
 
     std::atomic<bool> Started_ = {false};
     std::atomic<bool> Finished_ = {false};
@@ -159,7 +158,6 @@ private:
             return false;
         }
         DelayedQueue_ = New<TActionQueue>("DelayedExecutor", false, false);
-        DelayedInvoker_ = DelayedQueue_->GetInvoker();
         SleeperThread_.Start();
         Started_ = true;
 
@@ -219,6 +217,7 @@ private:
             }
         });
 
+        auto invoker = DelayedQueue_->GetInvoker();
         while (!ScheduledEntries_.empty()) {
             auto it = ScheduledEntries_.begin();
             const auto& entry = *it;
@@ -229,7 +228,7 @@ private:
                     entry->Deadline,
                     now);
             }
-            DelayedInvoker_->Invoke(entry->Callback);
+            invoker->Invoke(entry->Callback);
             entry->Callback.Reset();
             entry->Iterator.Reset();
             ScheduledEntries_.erase(it);
