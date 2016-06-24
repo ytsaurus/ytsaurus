@@ -44,14 +44,14 @@ protected:
 
         ChangelogStoreFactory = CreateLocalChangelogStoreFactory(
             ChangelogStoreConfig,
-            "UTCLFlash",
+            "ChangelogFlush",
             NProfiling::TProfiler());
         ChangelogStore = ChangelogStoreFactory->Lock()
             .Get()
             .ValueOrThrow();
 
         auto changelogOrError = ChangelogStore->CreateChangelog(0, TChangelogMeta()).Get();
-        ASSERT_TRUE(changelogOrError.IsOK()) << ToString(changelogOrError);
+        ASSERT_TRUE(changelogOrError.IsOK());
         Changelog = changelogOrError.Value();
 
         ActionQueue = New<TActionQueue>();

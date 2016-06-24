@@ -701,6 +701,11 @@ TFileChangelogDispatcher::TFileChangelogDispatcher(
 TFileChangelogDispatcher::~TFileChangelogDispatcher()
 { }
 
+void TFileChangelogDispatcher::Shutdown()
+{
+    Impl_->Shutdown();
+}
+
 IInvokerPtr TFileChangelogDispatcher::GetInvoker()
 {
     return Impl_->GetInvoker();
