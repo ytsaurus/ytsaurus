@@ -94,13 +94,6 @@ public:
             NYTree::EPermissionSet::Administer;
     }
 
-    virtual void PopulateObjectReplicationRequest(
-        const TObjectBase* object,
-        NObjectServer::NProto::TReqCreateForeignObject* request) override
-    {
-        DoPopulateObjectReplicationRequest(static_cast<const TObject*>(object), request);
-    }
-
     virtual void ExportObject(
         TObjectBase* object,
         NObjectClient::TCellTag destinationCellTag) override
@@ -149,11 +142,6 @@ protected:
         auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->FindSchema(GetType());
     }
-
-    virtual void DoPopulateObjectReplicationRequest(
-        const TObject* /*object*/,
-        NObjectServer::NProto::TReqCreateForeignObject* /*request*/)
-    { }
 
     virtual void DoExportObject(
         TObject* /*object*/,
