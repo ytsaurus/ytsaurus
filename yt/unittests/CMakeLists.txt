@@ -17,7 +17,6 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_traversing_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/column_format_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/count_down_latch_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compressed_integer_vector_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/coroutines_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/digest_ut.cpp
