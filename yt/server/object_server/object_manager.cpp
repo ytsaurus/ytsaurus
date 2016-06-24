@@ -1084,9 +1084,6 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMasters(
     request.set_type(static_cast<int>(object->GetType()));
     ToProto(request.mutable_object_attributes(), *GetReplicatedAttributes(object, true));
 
-    auto handler = GetHandler(object);
-    handler->PopulateObjectReplicationRequest(object, &request);
-
     auto multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMasters(request, cellTags);
 }

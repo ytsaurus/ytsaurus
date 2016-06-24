@@ -112,12 +112,6 @@ struct IObjectTypeHandler
      */
     virtual void ResetAllObjects() = 0;
 
-    //! Populates object replication request to be send to a secondary master
-    //! with additional data.
-    virtual void PopulateObjectReplicationRequest(
-        const TObjectBase* object,
-        NObjectServer::NProto::TReqCreateForeignObject* request) = 0;
-
     //! Informs #object that it has been exported (once) to cell #cellTag.
     virtual void ExportObject(
         TObjectBase* object,
