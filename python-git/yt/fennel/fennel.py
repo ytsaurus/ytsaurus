@@ -750,6 +750,7 @@ class Application(object):
                     self._last_acked_seqno = yield self._log_broker.connect(hostname)
 
                     while True:
+                        last_success_time = datetime.datetime.utcnow()
                         chunk_size = self._chunk_size
                         saved = False
                         while not saved:
@@ -764,6 +765,9 @@ class Application(object):
                                 self._event_log.update_processed_row_count(row_count)
                             except EventLog.NotEnoughDataError:
                                 self.log.info("Not enough data in the event log", exc_info=True)
+                                if (datetime.datetime.utcnow() - last_success_time).total_seconds() > 120:
+                                    chunk_size = max(1, chunk_size / 2)
+                                    self.log.info("Use smaller chunk size: %d", chunk_size)
                                 yield sleep_future(30.0, self._io_loop)
                             except ChunkTooBigError:
                                 new_chunk_size = max(100, chunk_size / 2)
