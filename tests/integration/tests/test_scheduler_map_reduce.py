@@ -269,7 +269,7 @@ print "x={0}\ty={1}".format(x, y)
         assert exists("//sys/operations/{0}/intermediate".format(op.id))
 
         intermediate_acl = get("//sys/operations/{0}/intermediate/@acl".format(op.id))
-        assert [{"action": "allow", "subjects": ["root"], "permissions": ["read"]}] + acl == intermediate_acl
+        assert [make_ace("allow", "root", "read")] + acl == intermediate_acl
 
         op.track()
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
