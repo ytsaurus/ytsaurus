@@ -17,7 +17,8 @@ TFairShareQueueSchedulerThread::TFairShareQueueSchedulerThread(
         threadName,
         tagIds,
         enableLogging,
-        enableProfiling)
+        enableProfiling,
+        false)
     , Queue_(std::move(queue))
 { }
 

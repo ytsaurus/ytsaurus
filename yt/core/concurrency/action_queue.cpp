@@ -39,7 +39,8 @@ public:
             threadName,
             GetThreadTagIds(enableProfiling, threadName),
             enableLogging,
-            enableProfiling))
+            enableProfiling,
+            false))
     { }
 
     ~TImpl()
