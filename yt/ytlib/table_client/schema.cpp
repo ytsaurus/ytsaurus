@@ -811,6 +811,10 @@ void ValidateTableSchemaUpdate(
 {
     ValidateTableSchema(newSchema);
 
+    if (isTableDynamic && !newSchema.GetStrict()) {
+        THROW_ERROR_EXCEPTION("\"strict\" cannot be \"false\" for a dynamic table");
+    }
+
     if (isTableEmpty) {
         // Any valid schema is allowed to be set for an empty table.
         return;
@@ -821,10 +825,6 @@ void ValidateTableSchemaUpdate(
     }
     if (oldSchema.GetKeyColumnCount() == 0 && newSchema.GetKeyColumnCount() > 0) {
         THROW_ERROR_EXCEPTION("Cannot change schema from unsorted to sorted");
-    }
-
-    if (isTableDynamic && !newSchema.GetStrict()) {
-        THROW_ERROR_EXCEPTION("\"strict\" cannot be \"false\" for a dynamic table");
     }
 
     if (!oldSchema.GetStrict() && newSchema.GetStrict()) {
