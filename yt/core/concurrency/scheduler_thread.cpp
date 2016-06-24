@@ -50,12 +50,10 @@ TSchedulerThread::TSchedulerThread(
     const Stroka& threadName,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
-    bool enableProfiling,
-    bool detached)
+    bool enableProfiling)
     : CallbackEventCount(std::move(callbackEventCount))
     , ThreadName(threadName)
     , EnableLogging(enableLogging)
-    , Detached(detached)
     , Profiler("/action_queue", tagIds)
     , Thread(ThreadMain, (void*) this)
     , CreatedFibersCounter("/created_fibers")
@@ -89,12 +87,6 @@ void TSchedulerThread::Start()
         Thread.Start();
         ThreadId = TThreadId(Thread.Id());
 
-        if (Detached) {
-            Thread.Detach();
-            // Add extra reference to prevent object from being destructed.
-            this->Ref();
-        }
-
         OnStart();
     } else {
         // Pretend that thread was started and (immediately) stopped.
@@ -107,11 +99,6 @@ await:
 
 void TSchedulerThread::Shutdown()
 {
-    // No need to shutdown detached threads, they intentionally leak.
-    if (Detached) {
-        return;
-    }
-
     ui64 epoch = Epoch.load(std::memory_order_acquire);
     while (true) {
         if ((epoch & ShutdownEpochMask) != 0x0) {
