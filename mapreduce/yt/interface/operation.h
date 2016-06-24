@@ -209,6 +209,8 @@ public:
     {
         Y_UNUSED(writer);
     }
+
+    void Break(); // do not process other keys
 };
 
 ////////////////////////////////////////////////////////////////////////////////

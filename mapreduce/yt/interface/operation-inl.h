@@ -210,6 +210,18 @@ int RunMapJob(size_t outputTableCount, TInputStream& jobStateStream)
     return 0;
 }
 
+struct TReducerContext
+{
+    bool Break = false;
+    static TReducerContext* Get() { return Singleton<TReducerContext>(); }
+};
+
+template <class TR, class TW>
+inline void IReducer<TR, TW>::Break()
+{
+    TReducerContext::Get()->Break = true;
+}
+
 template <class TReducer>
 int RunReduceJob(size_t outputTableCount, TInputStream& jobStateStream)
 {
@@ -227,6 +239,9 @@ int RunReduceJob(size_t outputTableCount, TInputStream& jobStateStream)
         reducer->Start(writer.Get());
         while (reader->IsValid()) {
             reducer->Do(reader.Get(), writer.Get());
+            if (TReducerContext::Get()->Break) {
+                break;
+            }
             readerImpl->NextKey();
             if (reader->IsValid()) {
                 reader->Next();
