@@ -38,7 +38,6 @@ public:
             GetThreadTagIds(enableProfiling, threadName),
             enableLogging,
             enableProfiling))
-        , FinalizerInvoker_(GetFinalizerInvoker())
     { }
 
     ~TImpl()
@@ -61,7 +60,7 @@ public:
 
         Queue_->Shutdown();
 
-        FinalizerInvoker_->Invoke(BIND([thread = Thread_, queue = Queue_] {
+        GetFinalizerInvoker()->Invoke(BIND([thread = Thread_, queue = Queue_] {
             thread->Shutdown();
             queue->Drain();
         }));
@@ -84,7 +83,6 @@ private:
     const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TFairShareInvokerQueuePtr Queue_;
     const TFairShareQueueSchedulerThreadPtr Thread_;
-    const IInvokerPtr FinalizerInvoker_;
 };
 
 TFairShareActionQueue::TFairShareActionQueue(

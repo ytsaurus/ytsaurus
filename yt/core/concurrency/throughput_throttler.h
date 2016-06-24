@@ -16,7 +16,7 @@ namespace NYT {
 namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
-
+   
 //! Enables throttling sync and async operations.
 /*!
  *  This interface and its implementations are vastly inspired by the "token bucket" algorithm and
