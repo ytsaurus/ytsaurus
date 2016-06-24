@@ -62,6 +62,7 @@ public:
             ThreadName,
             GetThreadTagIds(false, ThreadName),
             false,
+            false,
             false))
     { }
 
@@ -113,7 +114,6 @@ public:
 
     void Invoke(const TClosure& callback)
     {
-        YCHECK(!ShutdownFinished);
         if (!Y_UNLIKELY(IsStarted())) {
             Start();
         }
