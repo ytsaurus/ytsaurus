@@ -1763,7 +1763,10 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistic
         i64 userJobMaxMemoryUsage = GetValues<i64>(statistics, "/user_job/max_memory", getValue);
         auto* digest = GetUserJobMemoryDigest(jobType);
         double actualFactor = static_cast<double>(userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
-        LOG_DEBUG("Adding sample to the job proxy memory digest (JobType = %v, Sample = %v, JobId = %v)", jobType, actualFactor, joblet->JobId);
+        LOG_DEBUG("Adding sample to the job proxy memory digest (JobType: %v, Sample: %v, JobId: %v)",
+            jobType,
+            actualFactor,
+            joblet->JobId);
         digest->AddSample(actualFactor);
         UpdateAllTasksIfNeeded();
     }
@@ -1772,7 +1775,10 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistic
         auto* digest = GetJobProxyMemoryDigest(jobType);
         double actualFactor = static_cast<double>(jobProxyMaxMemoryUsage) /
             (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
-        LOG_DEBUG("Adding sample to the user job memory digest (JobType = %v, Sample = %v, JobId = %v)", jobType, actualFactor, joblet->JobId);
+        LOG_DEBUG("Adding sample to the user job memory digest (JobType: %v, Sample: %v, JobId: %v)",
+            jobType,
+            actualFactor,
+            joblet->JobId);
         digest->AddSample(actualFactor);
         UpdateAllTasksIfNeeded();
     }
@@ -3889,7 +3895,7 @@ void TOperationControllerBase::RegisterJoblet(TJobletPtr joblet)
     YCHECK(JobletMap.insert(std::make_pair(joblet->JobId, joblet)).second);
 }
 
-TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJoblet(const TJobId& jobId)
+TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJoblet(const TJobId& jobId) const
 {
     auto it = JobletMap.find(jobId);
     YCHECK(it != JobletMap.end());
@@ -3971,6 +3977,26 @@ void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const
         })
         .Item("input_table_paths").ListLimited(GetInputTablePaths(), 1)
         .Item("output_table_paths").ListLimited(GetOutputTablePaths(), 1);
+}
+
+TFuture<TYsonString> TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) const
+{
+    return
+        BIND(
+            &TOperationControllerBase::DoBuildInputPathYson,
+            MakeStrong(this),
+            jobId)
+        .AsyncVia(CancelableInvoker)
+        .Run();
+}
+
+TYsonString TOperationControllerBase::DoBuildInputPathYson(const TJobId& jobId) const
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    return BuildInputPaths(
+        GetInputTablePaths(),
+        GetJoblet(jobId)->InputStripeList);
 }
 
 std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetFilePaths() const

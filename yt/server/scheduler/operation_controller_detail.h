@@ -133,6 +133,8 @@ public:
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
 
+    TFuture<NYson::TYsonString> BuildInputPathYson(const TJobId& jobId) const override;
+
     virtual void Persist(TPersistenceContext& context) override;
 
 protected:
@@ -640,7 +642,7 @@ protected:
 
     // Jobs in progress management.
     void RegisterJoblet(TJobletPtr joblet);
-    TJobletPtr GetJoblet(const TJobId& jobId);
+    TJobletPtr GetJoblet(const TJobId& jobId) const;
     void RemoveJoblet(const TJobId& jobId);
 
 
@@ -1008,6 +1010,7 @@ private:
 
     TCodicilGuard MakeCodicilGuard() const;
 
+    NYson::TYsonString DoBuildInputPathYson(const TJobId& jobId) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

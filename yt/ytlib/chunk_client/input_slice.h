@@ -93,6 +93,9 @@ size_t SpaceUsed(const TInputSlicePtr& slice);
 
 Stroka ToString(const TInputSlicePtr& slice);
 
+bool CompareSlicesByLowerLimit(const TInputSlicePtr& slice1, const TInputSlicePtr& slice2);
+bool CanMergeSlices(const TInputSlicePtr& slice1, const TInputSlicePtr& slice2);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Constructs a new chunk slice from the chunk spec, restricting
