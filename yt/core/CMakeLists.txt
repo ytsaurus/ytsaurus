@@ -63,6 +63,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/thread_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/throughput_throttler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/lease_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/count_down_latch.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/erasure/codec.cpp
   ${CMAKE_CURRENT_LIST_DIR}/erasure/helpers.cpp
