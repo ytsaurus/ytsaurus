@@ -57,6 +57,10 @@ def compress(task):
             logger.warning("Have no permission to write table %s", table)
             return
 
+        if has_proper_codecs(table, task["erasure_codec"], task["compression_codec"]):
+            logger.info("Table %s is already has proper compression and erasure codecs", table)
+            return
+
         logger.info("Compressing table %s", table)
         convert_to_erasure(table,
                            erasure_codec=task["erasure_codec"],
@@ -117,13 +121,7 @@ def find(root):
             enabled = parse_bool(params.pop("enabled", "false"))
 
             if enabled and object.attributes["uncompressed_data_size"] > min_table_size:
-                task = make_compression_task(path, **params)
-
-                if has_proper_codecs(path, task["erasure_codec"], task["compression_codec"]):
-                    logger.info("Table %s is already has proper compression and erasure codecs", path)
-                    return
-
-                tables.append(task)
+                tables.append(make_compression_task(path, **params))
         elif object.attributes["type"] == "map_node":
             if parse_bool(object.attributes.get("opaque", "false")):
                 object = safe_get(path, attributes=requested_attributes)
