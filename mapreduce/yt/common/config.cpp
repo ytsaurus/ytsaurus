@@ -188,6 +188,11 @@ TConfig::TConfig()
     RetryCount = GetInt("YT_RETRY_COUNT", 10);
     StartOperationRetryCount = GetInt("YT_START_OPERATION_RETRY_COUNT", 30);
 
+    RemoteTempFilesDirectory = GetEnv("YT_FILE_STORAGE",
+        "//tmp/yt_wrapper/file_storage");
+    RemoteTempTablesDirectory = GetEnv("YT_TEMP_TABLES_STORAGE",
+        "//tmp/yt_wrapper/table_storage");
+
     OrderGuarantees = GetBool("YT_STRICTLY_TESTABLE") // common
         ? OG_STRICTLY_TESTABLE
         : GetBool("YT_TESTABLE") ? OG_TESTABLE : OG_STANDARD;

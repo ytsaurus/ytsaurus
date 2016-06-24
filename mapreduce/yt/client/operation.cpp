@@ -205,13 +205,11 @@ private:
     template <class TSource>
     Stroka UploadToCache(const TSource& source)
     {
-        static const Stroka YT_WRAPPER_FILE_CACHE = "//tmp/yt_wrapper/file_storage/";
-
         char buf[33];
         CalculateMD5(source, buf);
 
         Stroka cypressPath = TStringBuilder() <<
-            YT_WRAPPER_FILE_CACHE << "hash/" << buf;
+            TConfig::Get()->RemoteTempFilesDirectory << "/hash/" << buf;
 
         if (Exists(Auth_, TTransactionId(), cypressPath)) {
             Set(Auth_, TTransactionId(), cypressPath + "/@touched", "\"true\"");
@@ -226,7 +224,7 @@ private:
         }
 
         Stroka uniquePath = TStringBuilder() <<
-            YT_WRAPPER_FILE_CACHE << "cpp_" << CreateGuidAsString();
+            TConfig::Get()->RemoteTempFilesDirectory << "/cpp_" << CreateGuidAsString();
 
         Create(Auth_, TTransactionId(), uniquePath, "file", true, true);
         {
