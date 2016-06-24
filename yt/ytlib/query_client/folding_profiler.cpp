@@ -36,6 +36,19 @@ DEFINE_ENUM(EFoldingObjectType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<EValueType> GetTypesFromSchema(const TTableSchema& tableSchema)
+{
+    std::vector<EValueType> result;
+
+    for (const auto& column : tableSchema.Columns()) {
+        result.push_back(column.Type);
+    }
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchemaProfiler
     : private TNonCopyable
 {
@@ -263,7 +276,6 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
         codegenSource = MakeCodegenJoinOp(
             index,
             selfKeys,
-            schema,
             std::move(codegenSource),
             joinClause->KeyPrefix,
             joinClause->EquationByIndex,
@@ -320,7 +332,7 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
             codegenAggregateExprs,
             codegenAggregates,
             groupClause->IsMerge,
-            schema);
+            GetTypesFromSchema(schema));
 
         auto update = MakeCodegenAggregateUpdate(
             codegenAggregates,
@@ -398,7 +410,7 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
 
         codegenSource = MakeCodegenOrderOp(
             codegenOrderExprs,
-            schema,
+            GetTypesFromSchema(schema),
             std::move(codegenSource),
             isDesc);
     }

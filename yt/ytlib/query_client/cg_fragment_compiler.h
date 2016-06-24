@@ -87,7 +87,6 @@ TCodegenSource MakeCodegenFilterOp(
 TCodegenSource MakeCodegenJoinOp(
     int index,
     std::vector<TCodegenExpression> equations,
-    TTableSchema sourceSchema,
     TCodegenSource codegenSource,
     size_t keyPrefix,
     std::vector<int> equationByIndex,
@@ -102,7 +101,7 @@ std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArg
     std::vector<TCodegenExpression> codegenAggregateExprs,
     std::vector<TCodegenAggregate> codegenAggregates,
     bool isMerge,
-    TTableSchema inputSchema);
+    std::vector<EValueType> inputSchema);
 
 std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateInitialize(
     std::vector<TCodegenAggregate> codegenAggregates,
@@ -132,7 +131,7 @@ TCodegenSource MakeCodegenGroupOp(
 
 TCodegenSource MakeCodegenOrderOp(
     std::vector<TCodegenExpression> codegenExprs,
-    TTableSchema sourceSchema,
+    std::vector<EValueType> sourceSchema,
     TCodegenSource codegenSource,
     const std::vector<bool>& isDesc);
 
