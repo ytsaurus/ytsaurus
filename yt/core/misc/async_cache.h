@@ -34,8 +34,9 @@ private:
     typedef TAsyncSlruCacheBase<TKey, TValue, THash> TCache;
     friend class TAsyncSlruCacheBase<TKey, TValue, THash>;
 
-    TWeakPtr<TCache> Cache_;
+    TIntrusivePtr<TCache> Cache_;
     TKey Key_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
