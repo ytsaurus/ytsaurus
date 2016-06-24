@@ -16,6 +16,17 @@ from argparse import ArgumentParser
 DEFAULT_COMPRESSION_CODEC = "gzip_best_compression"
 DEFAULT_ERASURE_CODEC = "lrc_12_2_2"
 
+# XXX(asaitgalin): See https://st.yandex-team.ru/YT-5015
+CODECS_SYNONYMS = {
+    "gzip_best_compression": ["zlib_9"],
+    "gzip_normal": ["zlib_6"],
+    "zlib6": ["zlib_6"],
+    "zlib9": ["zlib_9"],
+    "brotli3": ["brotli_3"],
+    "brotli5": ["brotli_5"],
+    "brotli8": ["brotli_8"]
+}
+
 def has_proper_codecs(table, erasure_codec, compression_codec):
     compression_stats = yt.get_attribute(table, "compression_statistics")
     erasure_stats = yt.get_attribute(table, "erasure_statistics")
@@ -25,10 +36,16 @@ def has_proper_codecs(table, erasure_codec, compression_codec):
         return True
 
     chunk_count_in_erasure = erasure_stats.get(erasure_codec, {}).get("chunk_count", 0)
-    compressed_chunk_count = compression_stats.get(compression_codec, {}).get("chunk_count", 0)
+    if chunk_count_in_erasure != chunk_count:
+        return False
 
-    # TODO(asaitgalin): Make it less strict?
-    return compressed_chunk_count == chunk_count and chunk_count_in_erasure == chunk_count
+    codecs = CODECS_SYNONYMS.get(compression_codec, []) + [compression_codec]
+    for codec in codecs:
+        compressed_chunk_count = compression_stats.get(compression_codec, {}).get("chunk_count", 0)
+        if compressed_chunk_count == chunk_count:
+            return True
+
+    return False
 
 def compress(task):
     table = task["table"]
