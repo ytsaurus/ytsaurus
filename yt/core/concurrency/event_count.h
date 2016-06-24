@@ -2,7 +2,11 @@
 
 #include "public.h"
 
-#ifndef _linux_
+#ifdef _linux_
+    #include <linux/futex.h>
+    #include <sys/time.h>
+    #include <sys/syscall.h>
+#else
     #include <util/system/mutex.h>
     #include <util/system/condvar.h>
 #endif
