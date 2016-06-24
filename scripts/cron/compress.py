@@ -41,7 +41,7 @@ def has_proper_codecs(table, erasure_codec, compression_codec):
 
     codecs = CODECS_SYNONYMS.get(compression_codec, []) + [compression_codec]
     for codec in codecs:
-        compressed_chunk_count = compression_stats.get(compression_codec, {}).get("chunk_count", 0)
+        compressed_chunk_count = compression_stats.get(codec, {}).get("chunk_count", 0)
         if compressed_chunk_count == chunk_count:
             return True
 
