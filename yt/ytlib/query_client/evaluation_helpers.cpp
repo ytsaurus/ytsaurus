@@ -151,18 +151,13 @@ TJoinEvaluator GetJoinEvaluator(
     auto isLeft = joinClause.IsLeft;
     auto canUseSourceRanges = joinClause.CanUseSourceRanges;
     auto keyPrefix = joinClause.SelfEquations.size();
-    auto& foreignTableSchema = joinClause.ForeignTableSchema;
-    auto& foreignKeyColumnsCount = joinClause.ForeignKeyColumnsCount;
-    auto& renamedTableSchema = joinClause.RenamedTableSchema;
-    auto& joinedTableSchema = joinClause.JoinedTableSchema;
     auto& foreignDataId = joinClause.ForeignDataId;
 
     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
     auto subquery = New<TQuery>(std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 
-    subquery->TableSchema = foreignTableSchema;
-    subquery->KeyColumnsCount = foreignKeyColumnsCount;
-    subquery->RenamedTableSchema = renamedTableSchema;
+    subquery->OriginalSchema = joinClause.OriginalSchema;
+    subquery->SchemaMapping = joinClause.SchemaMapping;
     subquery->WhereClause = foreignPredicate;
 
     // (join key... , other columns...)
@@ -174,28 +169,43 @@ TJoinEvaluator GetJoinEvaluator(
         joinKeyExprs.push_back(column);
     }
 
-    for (const auto& column : renamedTableSchema.Columns()) {
-        if (projectClause->ProjectTableSchema.FindColumn(column.Name)) {
-            continue;
-        }
-        projectClause->AddProjection(New<TReferenceExpression>(
-            column.Type,
-            column.Name),
-            column.Name);
-    }
-
     subquery->ProjectClause = projectClause;
 
-    auto subqueryTableSchema = subquery->GetTableSchema();
+    auto selfColumnNames = joinClause.SelfJoinedColumns;
+    std::sort(selfColumnNames.begin(), selfColumnNames.end());
 
-    std::vector<std::pair<bool, int>> columnMapping;
-    for (const auto& column : joinedTableSchema.Columns()) {
-        if (auto self = selfTableSchema.FindColumn(column.Name)) {
-            columnMapping.emplace_back(true, selfTableSchema.GetColumnIndex(*self));
-        } else if (auto foreign = subqueryTableSchema.FindColumn(column.Name)) {
-            columnMapping.emplace_back(false, subqueryTableSchema.GetColumnIndex(*foreign));
-        } else {
-            Y_UNREACHABLE();
+    const auto& selfTableColumns = selfTableSchema.Columns();
+
+    std::vector<size_t> selfColumns;
+    for (size_t index = 0; index < selfTableColumns.size(); ++index) {
+        if (std::binary_search(
+            selfColumnNames.begin(),
+            selfColumnNames.end(),
+            selfTableColumns[index].Name))
+        {
+            selfColumns.push_back(index);
+        }
+    }
+
+    auto joinRenamedTableColumns = joinClause.GetRenamedSchema().Columns();
+
+    auto foreignColumnNames = joinClause.ForeignJoinedColumns;
+    std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
+
+    std::vector<size_t> foreignColumns;
+    for (size_t index = 0; index < joinRenamedTableColumns.size(); ++index) {
+        if (std::binary_search(
+            foreignColumnNames.begin(),
+            foreignColumnNames.end(),
+            joinRenamedTableColumns[index].Name))
+        {
+            foreignColumns.push_back(projectClause->Projections.size());
+
+            projectClause->AddProjection(
+                New<TReferenceExpression>(
+                    joinRenamedTableColumns[index].Type,
+                    joinRenamedTableColumns[index].Name),
+                joinRenamedTableColumns[index].Name);
         }
     }
 
@@ -289,14 +299,14 @@ TJoinEvaluator GetJoinEvaluator(
                     chainedRowIndex = chainedRows[chainedRowIndex].second)
                 {
                     auto row = chainedRows[chainedRowIndex].first;
-                    auto joinedRow = intermediateBuffer->Allocate(columnMapping.size());
+                    auto joinedRow = intermediateBuffer->Allocate(selfColumns.size() + foreignColumns.size());
 
-                    for (size_t column = 0; column < columnMapping.size(); ++column) {
-                        const auto& joinedColumn = columnMapping[column];
+                    for (size_t column = 0; column < selfColumns.size(); ++column) {
+                        joinedRow[column] = row[selfColumns[column]];
+                    }
 
-                        joinedRow[column] = joinedColumn.first
-                            ? row[joinedColumn.second]
-                            : foreignRow[joinedColumn.second];
+                    for (size_t column = 0; column < foreignColumns.size(); ++column) {
+                        joinedRow[column + selfColumns.size()] = foreignRow[foreignColumns[column]];
                     }
 
                     joinedRows.push_back(joinedRow);
@@ -338,14 +348,14 @@ TJoinEvaluator GetJoinEvaluator(
                     chainedRowIndex = chainedRows[chainedRowIndex].second)
                 {
                     auto row = chainedRows[chainedRowIndex].first;
-                    auto joinedRow = intermediateBuffer->Allocate(columnMapping.size());
+                    auto joinedRow = intermediateBuffer->Allocate(selfColumns.size() + foreignColumns.size());
 
-                    for (size_t column = 0; column < columnMapping.size(); ++column) {
-                        const auto& joinedColumn = columnMapping[column];
+                    for (size_t column = 0; column < selfColumns.size(); ++column) {
+                        joinedRow[column] = row[selfColumns[column]];
+                    }
 
-                        joinedRow[column] = joinedColumn.first
-                            ? row[joinedColumn.second]
-                            : MakeUnversionedSentinelValue(EValueType::Null);
+                    for (size_t column = 0; column < foreignColumns.size(); ++column) {
+                        joinedRow[column + selfColumns.size()] = MakeUnversionedSentinelValue(EValueType::Null);
                     }
 
                     joinedRows.push_back(joinedRow);

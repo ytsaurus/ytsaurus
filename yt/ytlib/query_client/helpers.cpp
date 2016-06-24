@@ -7,7 +7,6 @@
 #include <yt/ytlib/chunk_client/schema.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
@@ -136,27 +135,6 @@ void SetSorted(TDataSplit* dataSplit, bool isSorted)
     SetProtoExtension<TMiscExt>(
         dataSplit->mutable_chunk_meta()->mutable_extensions(),
         *miscProto);
-}
-
-TKeyColumns TableSchemaToKeyColumns(const TTableSchema& schema, size_t keySize)
-{
-    TKeyColumns keyColumns;
-    keySize = std::min(keySize, schema.Columns().size());
-    for (size_t i = 0; i < keySize; ++ i) {
-        keyColumns.push_back(schema.Columns()[i].Name);
-    }
-    return keyColumns;
-}
-
-//! Computes key index for a given column name.
-int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& columnName)
-{
-    for (int index = 0; index < keyColumns.size(); ++index) {
-        if (keyColumns[index] == columnName) {
-            return index;
-        }
-    }
-    return -1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

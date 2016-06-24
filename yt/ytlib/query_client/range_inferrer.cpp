@@ -333,7 +333,7 @@ TMutableRow CaptureRowWithSentinel(TRowBuffer* buffer, TRow src, int size, TNull
     return row;
 }
 
-TDivisors GetDivisors(const std::vector<TColumnSchema>& columns, int keyIndex, TConstExpressionPtr expr)
+TDivisors GetDivisors(const TSchemaColumns& columns, int keyIndex, TConstExpressionPtr expr)
 {
     auto name = columns[keyIndex].Name;
 
@@ -343,7 +343,9 @@ TDivisors GetDivisors(const std::vector<TColumnSchema>& columns, int keyIndex, T
     one.Data.Int64 = 1;
 
     if (auto referenceExpr = expr->As<TReferenceExpression>()) {
-        return (referenceExpr->ColumnName == name) ? TDivisors{one} : TDivisors();
+        return referenceExpr->ColumnName == name
+            ? TDivisors{one}
+            : TDivisors();
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
         TDivisors result;
         for (const auto& argument : functionExpr->Arguments) {
@@ -394,7 +396,7 @@ TDivisors GetDivisors(const std::vector<TColumnSchema>& columns, int keyIndex, T
 
 TNullable<TModuloRangeGenerator> GetModuloGeneratorForColumn(
     const TColumnEvaluator& evaluator,
-    const std::vector<TColumnSchema>& columns,
+    const TSchemaColumns& columns,
     int index)
 {
     if (!columns[index].Expression) {
@@ -415,7 +417,7 @@ TNullable<TModuloRangeGenerator> GetModuloGeneratorForColumn(
 
 void EnrichKeyRange(
     const TColumnEvaluator& evaluator,
-    const std::vector<TColumnSchema>& columns,
+    const TSchemaColumns& columns,
     TRowBuffer* buffer,
     TMutableRowRange& range,
     std::vector<TMutableRowRange>& ranges,
@@ -690,7 +692,7 @@ void EnrichKeyRange(
 
 ui64 GetRangeCountLimit(
     const TColumnEvaluator& evaluator,
-    const std::vector<TColumnSchema>& columns,
+    const TSchemaColumns& columns,
     size_t keySize,
     ui64 rangeExpansionLimit)
 {
@@ -728,19 +730,19 @@ ui64 GetRangeCountLimit(
 TRangeInferrer CreateHeavyRangeInferrer(
     TConstExpressionPtr predicate,
     const TTableSchema& schema,
-    const TKeyColumns& renamedKeyColumns,
+    const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
     ui64 rangeExpansionLimit,
     bool verboseLogging)
 {
     auto buffer = New<TRowBuffer>(TRangeInferrerBufferTag());
-    auto keySize = renamedKeyColumns.size();
+    auto keySize = schema.GetKeyColumnCount();
 
     auto evaluator = evaluatorCache->Find(schema);
     auto keyTrie = ExtractMultipleConstraints(
         predicate,
-        renamedKeyColumns,
+        keyColumns,
         buffer,
         rangeExtractors);
 

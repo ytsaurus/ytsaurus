@@ -384,7 +384,7 @@ TQueryStatistics DoExecuteQuery(
 
     TKeyColumns emptyKeyColumns;
     for (const auto& row : source) {
-        owningSource.push_back(NTableClient::BuildRow(row, query->TableSchema));
+        owningSource.push_back(NTableClient::BuildRow(row, query->GetReadSchema()));
     }
 
     sourceRows.resize(owningSource.size());
@@ -732,7 +732,7 @@ protected:
 
             auto resultRowset = WaitFor(asyncResultRowset).ValueOrThrow();
 
-            resultMatcher(resultRowset->Rows(), primaryQuery->GetTableSchema());
+            resultMatcher(resultRowset->Rows(), TTableSchema(primaryQuery->GetTableSchema()));
         };
 
         if (failureLocation != EFailureLocation::Nowhere) {

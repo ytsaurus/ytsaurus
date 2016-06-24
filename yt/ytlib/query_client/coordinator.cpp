@@ -26,24 +26,6 @@ using namespace NTableClient;
 
 namespace {
 
-TTableSchema GetIntermediateSchema(TConstGroupClausePtr groupClause)
-{
-    std::vector<TColumnSchema> columns;
-    for (auto item : groupClause->GroupItems) {
-        columns.push_back(TColumnSchema(
-            item.Name,
-            item.Expression->Type));
-    }
-
-    for (auto item : groupClause->AggregateItems) {
-        columns.push_back(TColumnSchema(
-            item.Name,
-            item.StateType));
-    }
-
-    return TTableSchema(std::move(columns));
-}
-
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     TConstQueryPtr query,
     const std::vector<TRefiner>& refiners)
@@ -57,9 +39,8 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         subqueryInputRowLimit,
         subqueryOutputRowLimit);
 
-    subqueryPattern->TableSchema = query->TableSchema;
-    subqueryPattern->KeyColumnsCount = query->KeyColumnsCount;
-    subqueryPattern->RenamedTableSchema = query->RenamedTableSchema;
+    subqueryPattern->OriginalSchema = query->OriginalSchema;
+    subqueryPattern->SchemaMapping = query->SchemaMapping;
     subqueryPattern->JoinClauses = query->JoinClauses;
 
     auto topQuery = New<TQuery>(
@@ -73,7 +54,6 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     if (query->GroupClause) {
         if (refiners.size() > 1) {
             auto subqueryGroupClause = New<TGroupClause>();
-            subqueryGroupClause->GroupedTableSchema = GetIntermediateSchema(query->GroupClause);
             subqueryGroupClause->GroupItems = query->GroupClause->GroupItems;
             subqueryGroupClause->AggregateItems = query->GroupClause->AggregateItems;
             subqueryGroupClause->IsMerge = query->GroupClause->IsMerge;
@@ -82,8 +62,6 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
             subqueryPattern->GroupClause = subqueryGroupClause;
 
             auto topGroupClause = New<TGroupClause>();
-
-            topGroupClause->GroupedTableSchema = query->GroupClause->GroupedTableSchema;
 
             auto& finalGroupItems = topGroupClause->GroupItems;
             for (const auto& groupItem : query->GroupClause->GroupItems) {
@@ -126,8 +104,12 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         }
     }
 
-    topQuery->TableSchema = subqueryPattern->GetTableSchema();
-    topQuery->RenamedTableSchema = topQuery->TableSchema;
+    topQuery->OriginalSchema = subqueryPattern->GetTableSchema();
+    const auto& originalSchemaColumns = topQuery->OriginalSchema.Columns();
+    for (size_t index = 0; index < originalSchemaColumns.size(); ++index) {
+        const auto& column = originalSchemaColumns[index];
+        topQuery->SchemaMapping.push_back(TColumnDescriptor{column.Name, index});
+    }
 
     std::vector<TConstQueryPtr> subqueries;
 
@@ -139,9 +121,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         if (query->WhereClause) {
             subquery->WhereClause = refiner(
                 query->WhereClause,
-                TableSchemaToKeyColumns(
-                    subquery->RenamedTableSchema,
-                    subquery->KeyColumnsCount));
+                subquery->GetKeyColumns());
         }
 
         subqueries.push_back(subquery);
@@ -215,8 +195,8 @@ TRowRanges GetPrunedRanges(
     auto Logger = BuildLogger(query);
     return GetPrunedRanges(
         query->WhereClause,
-        query->TableSchema,
-        TableSchemaToKeyColumns(query->RenamedTableSchema, query->KeyColumnsCount),
+        query->OriginalSchema,
+        query->GetKeyColumns(),
         tableId,
         std::move(ranges),
         rowBuffer,

@@ -19,6 +19,7 @@ namespace NQueryClient {
 
 namespace NProto {
 
+class TColumnDescriptor;
 class TExpression;
 class TGroupClause;
 class TProjectClause;
@@ -117,6 +118,7 @@ using NTableClient::EValueType;
 using NTableClient::TTableSchema;
 using NTableClient::TColumnSchema;
 using NTableClient::TKeyColumns;
+using NTableClient::TColumnFilter;
 
 using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
@@ -125,6 +127,9 @@ using NTableClient::TRowBuffer;
 using NTableClient::TRowBufferPtr;
 
 using NNodeTrackerClient::TNodeDirectoryPtr;
+
+struct TBaseColumn;
+typedef std::vector<NTableClient::TColumnSchema> TSchemaColumns;
 
 typedef NTableClient::TUnversionedRow TRow;
 typedef NTableClient::TMutableUnversionedRow TMutableRow;

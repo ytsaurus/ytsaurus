@@ -1016,7 +1016,12 @@ private:
                 req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
             }
 
-            LOG_DEBUG("Sending subquery (SerializationTime: %v, RequestSize: %v)",
+            auto queryFingerprint = InferName(query, true);
+            LOG_DEBUG("Sending subquery (Fingerprint: %v, InputSchema: %v, ResultSchema: %v, SerializationTime: "
+                          "%v, RequestSize: %v)",
+                queryFingerprint,
+                NYTree::ConvertToYsonString(query->OriginalSchema, NYson::EYsonFormat::Text).Data(),
+                NYTree::ConvertToYsonString(query->GetTableSchema(), NYson::EYsonFormat::Text).Data(),
                 serializationTime,
                 req->ByteSize());
 

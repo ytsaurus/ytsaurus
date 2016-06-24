@@ -102,7 +102,7 @@ void RunQuery(
         SandboxDirectoryNames[ESandboxKind::Udf]);
 
     auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
-    auto reader = CreateSchemafulReaderAdapter(readerFactory, query->TableSchema);
+    auto reader = CreateSchemafulReaderAdapter(readerFactory, query->GetReadSchema());
 
     LOG_INFO("Reading, evaluating query and writing");
     {
