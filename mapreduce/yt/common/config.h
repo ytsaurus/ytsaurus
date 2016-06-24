@@ -40,6 +40,9 @@ struct TConfig
     int RetryCount;
     int StartOperationRetryCount;
 
+    Stroka RemoteTempFilesDirectory;
+    Stroka RemoteTempTablesDirectory;
+
     // common wrapper
 
     TDuration TxClientTimeout;
