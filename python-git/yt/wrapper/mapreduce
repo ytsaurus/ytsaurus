@@ -263,7 +263,7 @@ Examples:
 """
     )
 
-    action_maybe_stores = ["write"]
+    action_maybe_stores = ["write", "defrag"]
     action_stores = ["read", "writesorted", "map", "orderedmap", "reduce", "hash-reduce", "reducews", "reducewsonly", "drop",
                      "erase", "aborttx", "committx", "renewtx", "set", "get", "upload", "download",
                      "createtable", "exists", "track", "ytlock"]
@@ -305,6 +305,8 @@ Examples:
              "copy given tables to one destination table"),
             ("createtable",
              "NEW! creates empty table"),
+            ("defrag",
+             "OLD! defragmentate table"),
             ("detached",
              "NEW! run operation in detached mode. Operation continues even"
              "if connection from client would be broken"),
@@ -741,6 +743,17 @@ Examples:
                      job_count=args.jobcount,
                      job_io=job_io,
                      spec=spec)
+
+    if args.defrag:
+        defrag_spec = deepcopy(get_value(spec, {}))
+        defrag_spec["combine_chunks"] = True
+        defrag_job_io = deepcopy(get_value(job_io, {}))
+        if "table_writer" not in defrag_job_io:
+            defrag_job_io["table_writer"] = {}
+        defrag_job_io["table_writer"]["desired_chunk_size"] = 1024 * MB
+        yt.run_merge(args.src, unlist_destination_tables(dst),
+                     job_io=defrag_job_io,
+                     spec=defrag_spec)
 
     if args.erase is not None:
         yt.run_erase(args.erase)
