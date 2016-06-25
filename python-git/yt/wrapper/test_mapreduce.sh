@@ -675,6 +675,19 @@ test_opts()
     check "2" "$(./mapreduce -get tmp/output/@chunk_count)"
 }
 
+test_defrag()
+{
+    echo -e "a\t1" | ./mapreduce -append -writesorted ignat/input
+    echo -e "b\t2" | ./mapreduce -append -writesorted ignat/input
+
+    for defrag in "" "full"; do
+        ./mapreduce -defrag $defrag -src ignat/input -dst ignat/output
+        check "`echo -e "a\t1\nb\t2"`" "`./mapreduce -read ignat/output`"
+        check "$TRUE" "`./mapreduce -get ignat/output/@sorted`"
+        check "1" "`./mapreduce -get ignat/output/@chunk_count`"
+    done
+}
+
 prepare_table_files
 test_base_functionality
 test_list
@@ -710,5 +723,6 @@ test_many_to_many_copy_move
 test_missing_prefix
 test_table_record_index
 test_opts
+test_defrag
 
 cleanup
