@@ -35,6 +35,7 @@ public:
     typedef std::vector<NTabletServer::TTablet*> TTabletList;
     typedef TTabletList::iterator TTabletListIterator; 
     DEFINE_BYREF_RW_PROPERTY(TTabletList, Tablets);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, LastCommitTimestamp);
 
     DEFINE_BYVAL_RW_PROPERTY(NTabletServer::TTabletCellBundle*, TabletCellBundle);
 
@@ -65,6 +66,7 @@ public:
     bool IsEmpty() const;
     bool HasMountedTablets() const;
     bool IsUniqueKeys() const;
+    NTabletClient::ETabletState GetTabletState() const;
 
     void SetCustomSchema(NTableClient::TTableSchema, bool dynamic);
 };

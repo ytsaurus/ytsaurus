@@ -191,6 +191,7 @@ DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 
 class TPartition;
 
+DECLARE_REFCOUNTED_STRUCT(TRuntimeTabletData)
 DECLARE_ENTITY_TYPE(TTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
 
 DECLARE_REFCOUNTED_STRUCT(TKeyList)

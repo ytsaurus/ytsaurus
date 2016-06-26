@@ -124,6 +124,7 @@ TTablet::TTablet(
     , State_(ETabletState::Mounted)
     , Atomicity_(atomicity)
     , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
+    , LastCommitTimestamp_(MinTimestamp)
     , Config_(config)
     , WriterOptions_(writerOptions)
     , Eden_(std::make_unique<TPartition>(
@@ -198,7 +199,8 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Schema_);
     Save(context, Atomicity_);
     Save(context, HashTableSize_);
-    Save(context, *TrimmedRowCounter_);
+    Save(context, RuntimeData_->TrimmedRowCount);
+    Save(context, LastCommitTimestamp_);
 
     TSizeSerializer::Save(context, StoreIdMap_.size());
     // NB: This is not stable.
@@ -240,7 +242,11 @@ void TTablet::Load(TLoadContext& context)
     Load(context, HashTableSize_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 17) {
-        Load(context, *TrimmedRowCounter_);
+        Load(context, RuntimeData_->TrimmedRowCount);
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >=  18) {
+        Load(context, LastCommitTimestamp_);
     }
 
     // NB: Stores that we're about to create may request some tablet properties (e.g. column lock count)
@@ -645,12 +651,12 @@ i64 TTablet::GetTotalRowCount() const
 
 i64 TTablet::GetTrimmedRowCount() const
 {
-    return *TrimmedRowCounter_;
+    return RuntimeData_->TrimmedRowCount;
 }
 
 void TTablet::SetTrimmedRowCount(i64 value)
 {
-    *TrimmedRowCounter_ = value;
+    RuntimeData_->TrimmedRowCount = value;
 }
 
 void TTablet::StartEpoch(TTabletSlotPtr slot)
@@ -746,11 +752,11 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
         for (const auto& pair : StoreRowIndexMap_) {
             snapshot->StoreList.push_back(pair.second);
         }
-        snapshot->TrimmedRowCounter = TrimmedRowCounter_;
     }
     snapshot->RowKeyComparer = RowKeyComparer_;
     snapshot->PerformanceCounters = PerformanceCounters_;
     snapshot->ColumnEvaluator = ColumnEvaluator_;
+    snapshot->RuntimeData = RuntimeData_;
     return snapshot;
 }
 

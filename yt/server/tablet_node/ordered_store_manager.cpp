@@ -87,7 +87,7 @@ void TOrderedStoreManager::ExecuteAtomicWrite(
 
 void TOrderedStoreManager::ExecuteNonAtomicWrite(
     TTablet* /*tablet*/,
-    TTimestamp /*commitTimestamp*/,
+    const TTransactionId& /*transactionId*/,
     TWireProtocolReader* /*reader*/)
 {
     THROW_ERROR_EXCEPTION("Non-atomic writes to ordered tablets are not supported");
@@ -142,6 +142,7 @@ void TOrderedStoreManager::CommitRow(TTransaction* transaction, const TOrderedDy
         CheckForUnlockedStore(rowRef.Store);
         ActiveStore_->CommitRow(transaction, migratedRow);
     }
+    UpdateLastCommitTimestamp(transaction->GetCommitTimestamp());
 }
 
 void TOrderedStoreManager::AbortRow(TTransaction* transaction, const TOrderedDynamicRowRef& rowRef)

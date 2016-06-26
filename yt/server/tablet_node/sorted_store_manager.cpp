@@ -118,9 +118,10 @@ void TSortedStoreManager::ExecuteAtomicWrite(
 
 void TSortedStoreManager::ExecuteNonAtomicWrite(
     TTablet* tablet,
-    TTimestamp commitTimestamp,
+    const TTransactionId& transactionId,
     TWireProtocolReader* reader)
 {
+    auto commitTimestamp = EnsureMonotonicCommitTimestamp(transactionId);
     auto command = reader->ReadCommand();
     switch (command) {
         case EWireProtocolCommand::WriteRow: {
@@ -238,6 +239,7 @@ void TSortedStoreManager::CommitRow(TTransaction* transaction, const TSortedDyna
         CheckForUnlockedStore(rowRef.Store);
         ActiveStore_->CommitRow(transaction, migratedRow);
     }
+    UpdateLastCommitTimestamp(transaction->GetCommitTimestamp());
 }
 
 void TSortedStoreManager::AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)

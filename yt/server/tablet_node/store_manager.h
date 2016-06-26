@@ -50,7 +50,7 @@ struct IStoreManager
         bool prelock) = 0;
     virtual void ExecuteNonAtomicWrite(
         TTablet* tablet,
-        NTransactionClient::TTimestamp commitTimestamp,
+        const TTransactionId& transactionId,
         NTabletClient::TWireProtocolReader* reader) = 0;
 
     virtual bool IsOverflowRotationNeeded() const = 0;

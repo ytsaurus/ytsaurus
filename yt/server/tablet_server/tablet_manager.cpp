@@ -1070,14 +1070,22 @@ public:
         EnumerateChunksInChunkTree(oldRootChunkList, &chunks);
 
         // Check for duplicates.
+        // Compute last commit timestamp.
         yhash_set<TChunk*> chunkSet;
         chunkSet.resize(chunks.size());
+        auto lastCommitTimestamp = NTransactionClient::MinTimestamp;
         for (auto* chunk : chunks) {
             if (!chunkSet.insert(chunk).second) {
                 THROW_ERROR_EXCEPTION("Cannot switch table into dynamic mode since it contains duplicate chunk %v",
                     chunk->GetId());
             }
+
+            const auto& miscExt = chunk->MiscExt();
+            if (miscExt.has_max_timestamp()) {
+                lastCommitTimestamp = std::max(lastCommitTimestamp, static_cast<TTimestamp>(miscExt.max_timestamp()));
+            }
         }
+        table->SetLastCommitTimestamp(lastCommitTimestamp);
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto newRootChunkList = chunkManager->CreateChunkList(false);
@@ -1147,6 +1155,8 @@ public:
             objectManager->UnrefObject(tablet);
         }
         table->Tablets().clear();
+
+        table->SetLastCommitTimestamp(NullTimestamp);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to static mode (TableId: %v)",
             table->GetId());
@@ -2030,6 +2040,7 @@ private:
             auto chunkManager = Bootstrap_->GetChunkManager();
             std::vector<TChunkTree*> chunksToAttach;
             i64 attachedRowCount = 0;
+            auto lastCommitTimestamp = table->GetLastCommitTimestamp();
             for (const auto& descriptor : request->stores_to_add()) {
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
                 if (TypeFromId(storeId) == EObjectType::Chunk ||
@@ -2037,6 +2048,9 @@ private:
                 {
                     auto* chunk = chunkManager->GetChunkOrThrow(storeId);
                     const auto& miscExt = chunk->MiscExt();
+                    if (miscExt.has_max_timestamp()) {
+                        lastCommitTimestamp = std::max(lastCommitTimestamp, static_cast<TTimestamp>(miscExt.max_timestamp()));
+                    }
                     attachedRowCount += miscExt.row_count();
                     chunksToAttach.push_back(chunk);
                 }
@@ -2055,6 +2069,9 @@ private:
                     chunksToDetach.push_back(chunk);
                 }
             }
+
+            // Update last commit timestamp.
+            table->SetLastCommitTimestamp(lastCommitTimestamp);
 
             // Copy chunk tree if somebody holds a reference.
             CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex());

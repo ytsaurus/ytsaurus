@@ -92,6 +92,11 @@ private:
         descriptors->push_back("dynamic");
         descriptors->push_back(TAttributeDescriptor("tablet_count")
             .SetPresent(isDynamic));
+        descriptors->push_back(TAttributeDescriptor("tablet_state")
+            .SetPresent(isDynamic)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("last_commit_timestamp")
+            .SetPresent(isDynamic && isSorted));
         descriptors->push_back(TAttributeDescriptor("tablets")
             .SetPresent(isDynamic)
             .SetOpaque(true));
@@ -168,6 +173,18 @@ private:
         if (key == "tablet_count" && isDynamic) {
             BuildYsonFluently(consumer)
                 .Value(trunkTable->Tablets().size());
+            return true;
+        }
+
+        if (key == "tablet_state" && isDynamic) {
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetTabletState());
+            return true;
+        }
+
+        if (key == "last_commit_timestamp" && isDynamic && isSorted) {
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetLastCommitTimestamp());
             return true;
         }
 

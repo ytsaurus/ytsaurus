@@ -35,7 +35,7 @@ public:
         bool prelock) override;
     virtual void ExecuteNonAtomicWrite(
         TTablet* tablet,
-        NTransactionClient::TTimestamp commitTimestamp,
+        const TTransactionId& transactionId,
         NTabletClient::TWireProtocolReader* reader) override;
 
     TOrderedDynamicRowRef WriteRow(

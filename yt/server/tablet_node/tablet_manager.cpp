@@ -408,7 +408,6 @@ private:
 
     };
 
-    TTimestamp LastCommittedTimestamp_ = MinTimestamp;
     TTabletContext TabletContext_;
     TEntityMap<TTablet, TTabletMapTraits> TabletMap_;
     yhash_set<TTablet*> UnmountingTablets_;
@@ -429,7 +428,6 @@ private:
     {
         using NYT::Save;
 
-        Save(context, LastCommittedTimestamp_);
         TabletMap_.SaveValues(context);
     }
 
@@ -464,7 +462,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        Load(context, LastCommittedTimestamp_);
+        // COMPAT(babenko)
+        if (context.GetVersion() < 18) {
+            Load<TTimestamp>(context);
+        }
         TabletMap_.LoadValues(context);
 
         for (const auto& pair : TabletMap_) {
@@ -653,15 +654,6 @@ private:
         storeManager->Mount(storeDescriptors);
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
-
-        // TODO(babenko): move somewhere?
-        for (const auto& descriptor : storeDescriptors) {
-            const auto& extensions = descriptor.chunk_meta().extensions();
-            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
-            if (miscExt.has_max_timestamp()) {
-                UpdateLastCommittedTimestamp(miscExt.max_timestamp());
-            }
-        }
 
         {
             TRspMountTablet response;
@@ -946,14 +938,11 @@ private:
 
         tablet->ValidateMountRevision(mountRevision);
 
-        auto commitTimestamp = TimestampFromTransactionId(transactionId);
-        auto adjustedCommitTimestamp = AdjustCommitTimestamp(commitTimestamp);
-
         TWireProtocolReader reader(recordData);
         int rowCount = 0;
         const auto& storeManager = tablet->GetStoreManager();
         while (!reader.IsFinished()) {
-            storeManager->ExecuteNonAtomicWrite(tablet, adjustedCommitTimestamp, &reader);
+            storeManager->ExecuteNonAtomicWrite(tablet, transactionId, &reader);
             ++rowCount;
         }
 
@@ -1014,10 +1003,11 @@ private:
             }
 
             case EAtomicity::None: {
-                auto commitTimestamp = TimestampFromTransactionId(transactionId);
-                auto adjustedCommitTimestamp = AdjustCommitTimestamp(commitTimestamp);
                 while (!reader.IsFinished()) {
-                    storeManager->ExecuteNonAtomicWrite(tablet, adjustedCommitTimestamp, &reader);
+                    storeManager->ExecuteNonAtomicWrite(
+                        tablet,
+                        transactionId,
+                        &reader);
                     ++rowCount;
                 }
                 break;
@@ -1473,8 +1463,6 @@ private:
             transaction->GetId(),
             lockedSortedRowCount,
             lockedOrderedRowCount);
-
-        UpdateLastCommittedTimestamp(transaction->GetCommitTimestamp());
 
         OnTransactionFinished(transaction);
     }
@@ -2073,19 +2061,6 @@ private:
                  tabletId);
             return New<TTabletWriterOptions>();
         }
-    }
-
-
-    void UpdateLastCommittedTimestamp(TTimestamp timestamp)
-    {
-        LastCommittedTimestamp_ = std::max(LastCommittedTimestamp_, timestamp);
-    }
-
-    TTimestamp AdjustCommitTimestamp(TTimestamp timestamp)
-    {
-        auto adjustedTimestamp = std::max(timestamp, LastCommittedTimestamp_ + 1);
-        UpdateLastCommittedTimestamp(adjustedTimestamp);
-        return adjustedTimestamp;
     }
 
 
