@@ -27,6 +27,7 @@ public:
     TGarbageCollector(
         TObjectManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
+    ~TGarbageCollector();
 
     void Start();
     void Stop();
