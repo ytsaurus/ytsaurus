@@ -677,7 +677,7 @@ test_opts()
 
 test_defrag()
 {
-    echo -e "a\t1" | ./mapreduce -append -writesorted ignat/input
+    echo -e "a\t1" | ./mapreduce -writesorted ignat/input
     echo -e "b\t2" | ./mapreduce -append -writesorted ignat/input
 
     for defrag in "" "full"; do
