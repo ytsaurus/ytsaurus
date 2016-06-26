@@ -65,8 +65,7 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         const auto* chunk = GetThisTypedImpl();
-        auto miscExt = FindProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
-        YCHECK(!chunk->IsConfirmed() || miscExt);
+        const auto& miscExt = chunk->MiscExt();
 
         bool hasBoundaryKeysExt = HasProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
         auto isForeign = chunk->IsForeign();
@@ -100,30 +99,30 @@ private:
         descriptors->push_back(TAttributeDescriptor("chunk_type")
             .SetPresent(chunk->IsConfirmed()));
         descriptors->push_back(TAttributeDescriptor("meta_size")
-            .SetPresent(chunk->IsConfirmed() && miscExt->has_meta_size()));
+            .SetPresent(chunk->IsConfirmed() && miscExt.has_meta_size()));
         descriptors->push_back(TAttributeDescriptor("compressed_data_size")
-            .SetPresent(chunk->IsConfirmed() && miscExt->has_compressed_data_size()));
+            .SetPresent(chunk->IsConfirmed() && miscExt.has_compressed_data_size()));
         descriptors->push_back(TAttributeDescriptor("uncompressed_data_size")
-            .SetPresent(chunk->IsConfirmed() && miscExt->has_uncompressed_data_size()));
+            .SetPresent(chunk->IsConfirmed() && miscExt.has_uncompressed_data_size()));
         descriptors->push_back(TAttributeDescriptor("data_weight")
-            .SetPresent(chunk->IsConfirmed() && miscExt->has_data_weight()));
+            .SetPresent(chunk->IsConfirmed() && miscExt.has_data_weight()));
         descriptors->push_back(TAttributeDescriptor("compression_codec")
-            .SetPresent(chunk->IsConfirmed() && miscExt->has_compression_codec()));
+            .SetPresent(chunk->IsConfirmed() && miscExt.has_compression_codec()));
         descriptors->push_back(TAttributeDescriptor("row_count")
-            .SetPresent(chunk->IsConfirmed() && miscExt->has_row_count()));
+            .SetPresent(chunk->IsConfirmed() && miscExt.has_row_count()));
         descriptors->push_back(TAttributeDescriptor("quorum_row_count")
             .SetPresent(chunk->IsJournal())
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor("sealed")
             .SetPresent(chunk->IsJournal()));
         descriptors->push_back(TAttributeDescriptor("value_count")
-            .SetPresent(chunk->IsConfirmed() && miscExt->has_value_count()));
+            .SetPresent(chunk->IsConfirmed() && miscExt.has_value_count()));
         descriptors->push_back(TAttributeDescriptor("sorted")
-            .SetPresent(chunk->IsConfirmed() && miscExt->has_sorted()));
+            .SetPresent(chunk->IsConfirmed() && miscExt.has_sorted()));
         descriptors->push_back(TAttributeDescriptor("min_timestamp")
-            .SetPresent(chunk->IsConfirmed() && miscExt->has_min_timestamp()));
+            .SetPresent(chunk->IsConfirmed() && miscExt.has_min_timestamp()));
         descriptors->push_back(TAttributeDescriptor("max_timestamp")
-            .SetPresent(chunk->IsConfirmed() && miscExt->has_max_timestamp()));
+            .SetPresent(chunk->IsConfirmed() && miscExt.has_max_timestamp()));
         descriptors->push_back(TAttributeDescriptor("staging_transaction_id")
             .SetPresent(chunk->IsStaged()));
         descriptors->push_back(TAttributeDescriptor("staging_account")
