@@ -34,6 +34,11 @@ TGarbageCollector::TGarbageCollector(
     YCHECK(Bootstrap_);
 }
 
+TGarbageCollector::~TGarbageCollector()
+{
+    Reset();
+}
+
 void TGarbageCollector::Start()
 {
     YCHECK(!SweepExecutor_);
@@ -42,6 +47,11 @@ void TGarbageCollector::Start()
         BIND(&TGarbageCollector::OnSweep, MakeWeak(this)),
         Config_->GCSweepPeriod);
     SweepExecutor_->Start();
+
+    CollectPromise_ = NewPromise<void>();
+    if (Zombies_.empty()) {
+        CollectPromise_.Set();
+    }
 }
 
 void TGarbageCollector::Stop()
@@ -50,6 +60,8 @@ void TGarbageCollector::Stop()
         SweepExecutor_->Stop();
         SweepExecutor_.Reset();
     }
+
+    CollectPromise_.Reset();
 }
 
 void TGarbageCollector::Save(NCellMaster::TSaveContext& context) const
@@ -63,11 +75,6 @@ void TGarbageCollector::Load(NCellMaster::TLoadContext& context)
 
     NYT::Load(context, Zombies_);
     YCHECK(Ghosts_.empty());
-
-    CollectPromise_ = NewPromise<void>();
-    if (Zombies_.empty()) {
-        CollectPromise_.Set();
-    }
 }
 
 void TGarbageCollector::Clear()
@@ -77,15 +84,13 @@ void TGarbageCollector::Clear()
     Zombies_.clear();
 
     Reset();
-
-    CollectPromise_ = NewPromise<void>();
-    CollectPromise_.Set();
 }
 
 TFuture<void> TGarbageCollector::Collect()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    YCHECK(CollectPromise_);
     return CollectPromise_;
 }
 
@@ -94,7 +99,7 @@ void TGarbageCollector::RegisterZombie(TObjectBase* object)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     Y_ASSERT(!object->IsAlive());
 
-    if (Zombies_.empty() && CollectPromise_.IsSet()) {
+    if (Zombies_.empty() && CollectPromise_ && CollectPromise_.IsSet()) {
         CollectPromise_ = NewPromise<void>();
     }
 
@@ -167,7 +172,7 @@ void TGarbageCollector::CheckEmpty()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (Zombies_.empty()) {
+    if (CollectPromise_ && Zombies_.empty()) {
         LOG_DEBUG_UNLESS(IsRecovery(), "Zombie queue is empty");
         CollectPromise_.Set();
     }
