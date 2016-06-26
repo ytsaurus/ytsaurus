@@ -19,7 +19,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const i64 DefaultMaxBlockSize = (i64)16 * 1024 * 1024;
+const i64 DefaultMaxBlockSize = (i64) 16 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,15 +216,14 @@ bool TInputChunk::IsLargeCompleteChunk(i64 desiredChunkSize) const
 //! Release memory occupied by BoundaryKeys
 void TInputChunk::ReleaseBoundaryKeys()
 {
-    BoundaryKeys_.release();
+    BoundaryKeys_.reset();
 }
 
 //! Release memory occupied by PartitionsExt
 void TInputChunk::ReleasePartitionsExt()
 {
-    PartitionsExt_.release();
+    PartitionsExt_.reset();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
