@@ -453,7 +453,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "max_running_operations_per_pool" : 1
+            "max_running_operation_count_per_pool" : 1
         }
     }
 
@@ -513,7 +513,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
     def test_operations_recursive_pool_limit(self):
         create("map_node", "//sys/pools/research")
-        set("//sys/pools/research/@max_running_operations", 2)
+        set("//sys/pools/research/@max_running_operation_count", 2)
         create("map_node", "//sys/pools/research/test_pool_1")
         create("map_node", "//sys/pools/research/test_pool_2")
         self._run_operations()
@@ -604,7 +604,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create("map_node", "//sys/pools/research")
         create("map_node", "//sys/pools/research/research_subpool")
         create("map_node", "//sys/pools/production")
-        set("//sys/pools/research/@max_operations", 3)
+        set("//sys/pools/research/@max_operation_count", 3)
 
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": "bar"}])
