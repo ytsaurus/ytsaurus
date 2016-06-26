@@ -8,11 +8,14 @@
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
+#include <yt/ytlib/transaction_client/helpers.h>
+
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NApi;
 using namespace NChunkClient;
+using namespace NTransactionClient;
 
 using NTabletNode::NProto::TAddStoreDescriptor;
 
@@ -350,6 +353,12 @@ void TStoreManagerBase::Mount(const std::vector<TAddStoreDescriptor>& storeDescr
             storeId,
             &descriptor);
         AddStore(store->AsChunk(), true);
+
+        const auto& extensions = descriptor.chunk_meta().extensions();
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
+        if (miscExt.has_max_timestamp()) {
+            UpdateLastCommitTimestamp(miscExt.max_timestamp());
+        }
     }
 
     // NB: Active store must be created _after_ chunk stores to make sure it receives
@@ -523,6 +532,23 @@ bool TStoreManagerBase::IsRecovery() const
 {
     // NB: HydraManager is null in tests.
     return HydraManager_ ? HydraManager_->IsRecovery() : false;
+}
+
+void TStoreManagerBase::UpdateLastCommitTimestamp(TTimestamp timestamp)
+{
+    Tablet_->SetLastCommitTimestamp(std::max(
+        Tablet_->GetLastCommitTimestamp(),
+        timestamp));
+}
+
+TTimestamp TStoreManagerBase::EnsureMonotonicCommitTimestamp(const TTransactionId& transactionId)
+{
+    auto lastCommitTimestamp = Tablet_->GetLastCommitTimestamp();
+    auto monotonicTimestamp = std::max(
+        lastCommitTimestamp + 1,
+        TimestampFromTransactionId(transactionId));
+    UpdateLastCommitTimestamp(monotonicTimestamp);
+    return monotonicTimestamp;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

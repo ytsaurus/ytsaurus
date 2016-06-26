@@ -185,7 +185,7 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
     }
 
     // Take row trimming into account.
-    i64 trimmedRowCount = *tabletSnapshot->TrimmedRowCounter;
+    i64 trimmedRowCount = tabletSnapshot->RuntimeData->TrimmedRowCount;
     if (lowerRowIndex < trimmedRowCount) {
         lowerRowIndex = trimmedRowCount;
     }

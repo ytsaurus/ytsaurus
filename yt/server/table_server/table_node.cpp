@@ -35,6 +35,7 @@ using namespace NTabletServer;
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
     , PreserveSchemaOnWrite_(false)
+    , LastCommitTimestamp_(NullTimestamp)
     , TabletCellBundle_(nullptr)
     , Atomicity_(NTransactionClient::EAtomicity::Full)
 { }
@@ -74,6 +75,22 @@ bool TTableNode::IsUniqueKeys() const
     return TableSchema_.IsUniqueKeys();
 }
 
+ETabletState TTableNode::GetTabletState() const
+{
+    YCHECK(IsTrunk());
+
+    auto result = ETabletState::None;
+    for (const auto* tablet : Tablets_) {
+        auto state = tablet->GetState();
+        if (result == ETabletState::None) {
+            result = state;
+        } else if (result != state) {
+            result = ETabletState::Mixed;
+        }
+    }
+    return result;
+}
+
 void TTableNode::Save(TSaveContext& context) const
 {
     TChunkOwnerBase::Save(context);
@@ -84,6 +101,7 @@ void TTableNode::Save(TSaveContext& context) const
     Save(context, Tablets_);
     Save(context, Atomicity_);
     Save(context, TabletCellBundle_);
+    Save(context, LastCommitTimestamp_);
 }
 
 void TTableNode::Load(TLoadContext& context)
@@ -129,6 +147,11 @@ void TTableNode::Load(TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 400) {
         Load(context, TabletCellBundle_);
+    }
+
+    // COMAPT(babenko)
+    if (context.GetVersion() >= 404) {
+        Load(context, LastCommitTimestamp_);
     }
 
     // COMPAT(max42)

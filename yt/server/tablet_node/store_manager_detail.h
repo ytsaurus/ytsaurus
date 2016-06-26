@@ -114,6 +114,9 @@ protected:
 
     bool IsRecovery() const;
 
+    void UpdateLastCommitTimestamp(TTimestamp timestamp);
+    TTimestamp EnsureMonotonicCommitTimestamp(const TTransactionId& transactionId);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

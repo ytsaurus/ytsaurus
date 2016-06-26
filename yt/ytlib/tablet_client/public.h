@@ -23,6 +23,7 @@ class TReqDeleteRow;
 ///////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETabletState,
+    // Individual states
     ((Mounting)        (0))
     ((Mounted)         (1))
     ((Unmounting)      (2))
@@ -30,6 +31,10 @@ DEFINE_ENUM(ETabletState,
     ((Freezing)        (4))
     ((Frozen)          (5))
     ((Unfreezing)      (6))
+
+    // Aggregated states
+    ((None)          (100))
+    ((Mixed)         (101))
 );
 
 DEFINE_ENUM(EErrorCode,

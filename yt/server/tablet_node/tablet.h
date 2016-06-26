@@ -27,11 +27,17 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Trimmed row counter is shared between a tablet and its snapshots.
-//! It's being concurrently updated from the automaton thread
-//! and read from query-serving thread pool.
-using TTrimmedRowCounter = std::atomic<i64>;
-using TTrimmedRowCounterPtr = std::shared_ptr<TTrimmedRowCounter>;
+//! All fields must be atomic since they're being accessed both
+//! from the writer and from readers concurrently.
+struct TRuntimeTabletData
+    : public TIntrinsicRefCounted
+{
+    std::atomic<i64> TrimmedRowCount = {0};
+};
+
+DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TTabletSnapshot
     : public TIntrinsicRefCounted
@@ -64,7 +70,6 @@ struct TTabletSnapshot
     TPartitionList PartitionList;
 
     std::vector<IOrderedStorePtr> StoreList;
-    TTrimmedRowCounterPtr TrimmedRowCounter;
 
     int StoreCount = 0;
     int PreloadPendingStoreCount = 0;
@@ -76,6 +81,8 @@ struct TTabletSnapshot
     TTabletPerformanceCountersPtr PerformanceCounters;
 
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator;
+
+    TRuntimeTabletDataPtr RuntimeData;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
@@ -156,6 +163,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(IDynamicStorePtr, ActiveStore);
 
+    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, LastCommitTimestamp);
+
 public:
     TTablet(
         const TTabletId& tabletId,
@@ -235,7 +244,7 @@ public:
     void ValidateMountRevision(i64 mountRevision);
 
 private:
-    const TTrimmedRowCounterPtr TrimmedRowCounter_ = std::make_shared<TTrimmedRowCounter>(0);
+    const TRuntimeTabletDataPtr RuntimeData_ = New<TRuntimeTabletData>();
 
     TTableMountConfigPtr Config_;
     TTabletWriterOptionsPtr WriterOptions_;
