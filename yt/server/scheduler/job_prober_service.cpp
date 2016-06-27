@@ -4,11 +4,16 @@
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
+#include <yt/ytlib/api/client.h>
+
 #include <yt/ytlib/job_prober_client/job_signal.h>
 
+#include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job_prober_service_proxy.h>
 
 #include <yt/core/rpc/service_detail.h>
+
+#include <yt/core/ytree/permission.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -18,6 +23,8 @@ using namespace NCellScheduler;
 using namespace NConcurrency;
 using namespace NJobProberClient;
 using namespace NYson;
+using namespace NYTree;
+using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -55,7 +62,7 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        WaitFor(scheduler->DumpInputContext(jobId, path))
+        WaitFor(scheduler->DumpInputContext(jobId, path, context->GetUser()))
             .ThrowOnError();
 
         context->Reply();
@@ -69,7 +76,7 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        auto trace = WaitFor(scheduler->Strace(jobId))
+        auto trace = WaitFor(scheduler->Strace(jobId, context->GetUser()))
             .ValueOrThrow();
 
         context->SetResponseInfo("Trace: %v", trace.Data());
@@ -92,7 +99,7 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        WaitFor(scheduler->SignalJob(jobId, signalName))
+        WaitFor(scheduler->SignalJob(jobId, signalName, context->GetUser()))
             .ThrowOnError();
 
         context->Reply();
@@ -106,7 +113,7 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        WaitFor(scheduler->AbandonJob(jobId))
+        WaitFor(scheduler->AbandonJob(jobId, context->GetUser()))
             .ThrowOnError();
 
         context->Reply();
@@ -115,7 +122,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, PollJobShell)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
-        const auto& parameters = request->parameters();
+        const auto& parameters = TYsonString(request->parameters());
 
         context->SetRequestInfo("JobId: %v, Parameters: %v",
             jobId,
@@ -124,7 +131,7 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        auto result = WaitFor(scheduler->PollJobShell(jobId, TYsonString(parameters)))
+        auto result = WaitFor(scheduler->PollJobShell(jobId, parameters, context->GetUser()))
             .ValueOrThrow();
 
         ToProto(response->mutable_result(), result.Data());
@@ -139,7 +146,7 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        WaitFor(scheduler->AbortJobByUser(jobId, context->GetUser()))
+        WaitFor(scheduler->AbortJob(jobId, context->GetUser()))
             .ThrowOnError();
 
         context->Reply();

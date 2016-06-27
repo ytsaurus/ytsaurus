@@ -54,22 +54,20 @@ public:
         NYTree::IMapNodePtr spec,
         const Stroka& user);
 
-    TFuture<void> AbortOperation(
-        TOperationPtr operation,
-        const TError& error);
-
-    TFuture<void> SuspendOperation(TOperationPtr operation);
-    TFuture<void> ResumeOperation(TOperationPtr operation);
+    TFuture<void> AbortOperation(TOperationPtr operation, const TError& error, const Stroka& user);
+    TFuture<void> SuspendOperation(TOperationPtr operation, const Stroka& user);
+    TFuture<void> ResumeOperation(TOperationPtr operation, const Stroka& user);
     TFuture<void> CompleteOperation(
         TOperationPtr operation,
-        const TError& error);
+        const TError& error,
+        const Stroka& user);
 
-    TFuture<NYson::TYsonString> Strace(const TJobId& jobId);
-    TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path);
-    TFuture<void> SignalJob(const TJobId& jobId, const Stroka& signalName);
-    TFuture<void> AbandonJob(const TJobId& jobId);
-    TFuture<NYson::TYsonString> PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters);
-    TFuture<void> AbortJobByUser(const TJobId& jobId, const Stroka& user);
+    TFuture<NYson::TYsonString> Strace(const TJobId& jobId, const Stroka& user);
+    TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const Stroka& user);
+    TFuture<void> SignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user);
+    TFuture<void> AbandonJob(const TJobId& jobId, const Stroka& user);
+    TFuture<NYson::TYsonString> PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const Stroka& user);
+    TFuture<void> AbortJob(const TJobId& jobId, const Stroka& user);
 
     using TCtxHeartbeat = NRpc::TTypedServiceContext<
         NJobTrackerClient::NProto::TReqHeartbeat,

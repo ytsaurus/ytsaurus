@@ -23,6 +23,8 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 
+#include <yt/ytlib/shell/config.h>
+
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_buffered_table_writer.h>
 #include <yt/ytlib/table_client/schemaless_writer.h>
@@ -68,6 +70,8 @@ using namespace NTableClient;
 using namespace NNodeTrackerServer;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
+using namespace NSecurityClient;
+using namespace NShell;
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
@@ -518,6 +522,30 @@ public:
     }
 
 
+    void ValidatePermission(
+        const Stroka& user,
+        const TOperationId& operationId,
+        EPermission permission)
+    {
+        auto path = GetOperationPath(operationId);
+
+        auto client = Bootstrap_->GetMasterClient();
+        auto asyncResult = client->CheckPermission(user, path, permission);
+        auto resultOrError = WaitFor(asyncResult);
+        if (!resultOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error checking permission for operation %v",
+                operationId)
+                << resultOrError;
+        }
+
+        const auto& result = resultOrError.Value();
+        if (result.Action == ESecurityAction::Deny) {
+            THROW_ERROR_EXCEPTION("User %Qv has been denied access to operation %v",
+                user,
+                operationId);
+        }
+    }
+
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,
         const TTransactionId& transactionId,
@@ -591,11 +619,13 @@ public:
         return operation->GetStarted();
     }
 
-    TFuture<void> AbortOperation(TOperationPtr operation, const TError& error)
+    TFuture<void> AbortOperation(TOperationPtr operation, const TError& error, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto codicilGuard = operation->MakeCodicilGuard();
+
+        ValidatePermission(user, operation->GetId(), EPermission::Write);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
@@ -618,11 +648,13 @@ public:
         return operation->GetFinished();
     }
 
-    TFuture<void> SuspendOperation(TOperationPtr operation)
+    TFuture<void> SuspendOperation(TOperationPtr operation, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto codicilGuard = operation->MakeCodicilGuard();
+
+        ValidatePermission(user, operation->GetId(), EPermission::Write);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             return MakeFuture(TError(
@@ -639,11 +671,13 @@ public:
         return MasterConnector_->FlushOperationNode(operation);
     }
 
-    TFuture<void> ResumeOperation(TOperationPtr operation)
+    TFuture<void> ResumeOperation(TOperationPtr operation, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto codicilGuard = operation->MakeCodicilGuard();
+
+        ValidatePermission(user, operation->GetId(), EPermission::Write);
 
         if (!operation->GetSuspended()) {
             return MakeFuture(TError(
@@ -660,11 +694,13 @@ public:
         return MasterConnector_->FlushOperationNode(operation);
     }
 
-    TFuture<void> CompleteOperation(TOperationPtr operation, const TError& error)
+    TFuture<void> CompleteOperation(TOperationPtr operation, const TError& error, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto codicilGuard = operation->MakeCodicilGuard();
+
+        ValidatePermission(user, operation->GetId(), EPermission::Write);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
@@ -690,44 +726,44 @@ public:
         return operation->GetFinished();
     }
 
-    TFuture<TYsonString> Strace(const TJobId& jobId)
+    TFuture<TYsonString> Strace(const TJobId& jobId, const Stroka& user)
     {
-        return BIND(&TImpl::DoStrace, MakeStrong(this), jobId)
+        return BIND(&TImpl::DoStrace, MakeStrong(this), jobId, user)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
     }
 
-    TFuture<void> DumpInputContext(const TJobId& jobId, const TYPath& path)
+    TFuture<void> DumpInputContext(const TJobId& jobId, const TYPath& path, const Stroka& user)
     {
-        return BIND(&TImpl::DoDumpInputContext, MakeStrong(this), jobId, path)
+        return BIND(&TImpl::DoDumpInputContext, MakeStrong(this), jobId, path, user)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
     }
 
-    TFuture<void> SignalJob(const TJobId& jobId, const Stroka& signalName)
+    TFuture<void> SignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user)
     {
-        return BIND(&TImpl::DoSignalJob, MakeStrong(this), jobId, signalName)
+        return BIND(&TImpl::DoSignalJob, MakeStrong(this), jobId, signalName, user)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
     }
 
-    TFuture<void> AbandonJob(const TJobId& jobId)
+    TFuture<void> AbandonJob(const TJobId& jobId, const Stroka& user)
     {
-        return BIND(&TImpl::DoAbandonJob, MakeStrong(this), jobId)
+        return BIND(&TImpl::DoAbandonJob, MakeStrong(this), jobId, user)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
     }
 
-    TFuture<TYsonString> PollJobShell(const TJobId& jobId, const TYsonString& parameters)
+    TFuture<TYsonString> PollJobShell(const TJobId& jobId, const TYsonString& parameters, const Stroka& user)
     {
-        return BIND(&TImpl::DoPollJobShell, MakeStrong(this), jobId, parameters)
+        return BIND(&TImpl::DoPollJobShell, MakeStrong(this), jobId, parameters, user)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
     }
 
-    TFuture<void> AbortJobByUser(const TJobId& jobId, const Stroka& user)
+    TFuture<void> AbortJob(const TJobId& jobId, const Stroka& user)
     {
-        return BIND(&TImpl::DoAbortJobByUser, MakeStrong(this), jobId, user)
+        return BIND(&TImpl::DoAbortJob, MakeStrong(this), jobId, user)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
     }
@@ -2525,11 +2561,13 @@ private:
         return proxy;
     }
 
-    TYsonString DoStrace(const TJobId& jobId)
+    TYsonString DoStrace(const TJobId& jobId, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
+
+        ValidatePermission(user, job->GetOperationId(), EPermission::Write);
 
         LOG_INFO("Getting strace dump (JobId: %v)",
             jobId);
@@ -2550,11 +2588,13 @@ private:
         return TYsonString(rsp->trace());
     }
 
-    void DoDumpInputContext(const TJobId& jobId, const TYPath& path)
+    void DoDumpInputContext(const TJobId& jobId, const TYPath& path, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
+
+        ValidatePermission(user, job->GetOperationId(), EPermission::Write);
 
         LOG_INFO("Saving input contexts (JobId: %v, Path: %v)",
             jobId,
@@ -2581,11 +2621,13 @@ private:
             jobId);
     }
 
-    void DoSignalJob(const TJobId& jobId, const Stroka& signalName)
+    void DoSignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
+
+        ValidatePermission(user, job->GetOperationId(), EPermission::Write);
 
         LOG_INFO("Sending job signal (JobId: %v, Signal: %v)",
             jobId,
@@ -2605,11 +2647,14 @@ private:
             jobId);
     }
 
-    void DoAbandonJob(const TJobId& jobId)
+    void DoAbandonJob(const TJobId& jobId, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
+
+        ValidatePermission(user, job->GetOperationId(), EPermission::Write);
+
         switch (job->GetType()) {
             case EJobType::Map:
             case EJobType::OrderedMap:
@@ -2635,11 +2680,17 @@ private:
         OnJobCompleted(job, std::move(status), /* abandoned */ true);
     }
 
-    TYsonString DoPollJobShell(const TJobId& jobId, const TYsonString& parameters)
+    TYsonString DoPollJobShell(const TJobId& jobId, const TYsonString& parameters, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
+
+        TShellParameters shellParameters;
+        Deserialize(shellParameters, ConvertToNode(parameters));
+        if (shellParameters.Operation == EShellOperation::Spawn) {
+            ValidatePermission(user, job->GetOperationId(), EPermission::Write);
+        }
 
         LOG_INFO("Polling job shell (JobId: %v, Parameters: %v)",
             jobId,
@@ -2661,11 +2712,13 @@ private:
         return TYsonString(rsp->result());
     }
 
-    void DoAbortJobByUser(const TJobId& jobId, const Stroka& user)
+    void DoAbortJob(const TJobId& jobId, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
+
+        ValidatePermission(user, job->GetOperationId(), EPermission::Write);
 
         if (job->GetState() != EJobState::Running &&
             job->GetState() != EJobState::Waiting)
@@ -3158,56 +3211,62 @@ TFuture<TOperationPtr> TScheduler::StartOperation(
 
 TFuture<void> TScheduler::AbortOperation(
     TOperationPtr operation,
-    const TError& error)
+    const TError& error,
+    const Stroka& user)
 {
-    return Impl_->AbortOperation(operation, error);
+    return Impl_->AbortOperation(operation, error, user);
 }
 
-TFuture<void> TScheduler::SuspendOperation(TOperationPtr operation)
+TFuture<void> TScheduler::SuspendOperation(
+    TOperationPtr operation,
+    const Stroka& user)
 {
-    return Impl_->SuspendOperation(operation);
+    return Impl_->SuspendOperation(operation, user);
 }
 
-TFuture<void> TScheduler::ResumeOperation(TOperationPtr operation)
+TFuture<void> TScheduler::ResumeOperation(
+    TOperationPtr operation,
+    const Stroka& user)
 {
-    return Impl_->ResumeOperation(operation);
+    return Impl_->ResumeOperation(operation, user);
 }
 
 TFuture<void> TScheduler::CompleteOperation(
     TOperationPtr operation,
-    const TError& error)
+    const TError& error,
+    const Stroka& user)
 {
-    return Impl_->CompleteOperation(operation, error);
+    return Impl_->CompleteOperation(operation, error, user);
 }
 
-TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const Stroka& user)
 {
-    return Impl_->DumpInputContext(jobId, path);
+    return Impl_->DumpInputContext(jobId, path, user);
 }
 
-TFuture<TYsonString> TScheduler::Strace(const TJobId& jobId)
+TFuture<TYsonString> TScheduler::Strace(const TJobId& jobId, const Stroka& user)
 {
-    return Impl_->Strace(jobId);
+    return Impl_->Strace(jobId, user);
 }
 
-TFuture<void> TScheduler::SignalJob(const TJobId& jobId, const Stroka& signalName)
+TFuture<void> TScheduler::SignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user)
 {
-    return Impl_->SignalJob(jobId, signalName);
+    return Impl_->SignalJob(jobId, signalName, user);
 }
 
-TFuture<void> TScheduler::AbandonJob(const TJobId& jobId)
+TFuture<void> TScheduler::AbandonJob(const TJobId& jobId, const Stroka& user)
 {
-    return Impl_->AbandonJob(jobId);
+    return Impl_->AbandonJob(jobId, user);
 }
 
-TFuture<TYsonString> TScheduler::PollJobShell(const TJobId& jobId, const TYsonString& parameters)
+TFuture<TYsonString> TScheduler::PollJobShell(const TJobId& jobId, const TYsonString& parameters, const Stroka& user)
 {
-    return Impl_->PollJobShell(jobId, parameters);
+    return Impl_->PollJobShell(jobId, parameters, user);
 }
 
-TFuture<void> TScheduler::AbortJobByUser(const TJobId& jobId, const Stroka& user)
+TFuture<void> TScheduler::AbortJob(const TJobId& jobId, const Stroka& user)
 {
-    return Impl_->AbortJobByUser(jobId, user);
+    return Impl_->AbortJob(jobId, user);
 }
 
 void TScheduler::ProcessHeartbeat(TCtxHeartbeatPtr context)
