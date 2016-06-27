@@ -13,6 +13,8 @@ using namespace NTableClient;
 
 const int MaxValueCount = 128 * 1024;
 
+char* EmptyStringBase = (char*)1;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStringColumnWriterBase
@@ -61,8 +63,6 @@ protected:
         return offsets;
     }
 
-
-
     bool EqualValues(const TStringBuf& lhs, const TStringBuf& rhs) const
     {
         if (lhs.Data() == nullptr && rhs.Data() == nullptr) {
@@ -98,6 +98,12 @@ protected:
         bool isNull = unversionedValue.Type == EValueType::Null;
 
         TStringBuf value = TStringBuf(nullptr, nullptr);
+
+        if (CurrentPreallocated_ == nullptr) {
+            // This means, that we reserved nothing, because all strings are either null or empty.
+            // To distinguish between null and empty, we set preallocated pointer to special value.
+            CurrentPreallocated_ = EmptyStringBase;
+        }
 
         if (!isNull) {
             value = TStringBuf(CurrentPreallocated_, unversionedValue.Length);

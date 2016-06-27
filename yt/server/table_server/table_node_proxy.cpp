@@ -198,29 +198,35 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    void SetSchema(const TTableSchema& newSchema) 
+    void AlterTable(const TNullable<TTableSchema>& newSchema, const TNullable<bool>& newDynamic)
     {
         auto* table = LockThisTypedImpl();
 
-        if (table->HasMountedTablets()) {
-            THROW_ERROR_EXCEPTION("Cannot change schema of a dynamic table with mounted tablets");
+        if (newDynamic) {
+            ValidateNoTransaction();
         }
 
-        ValidateTableSchemaUpdate(table->TableSchema(), newSchema, table->IsDynamic(), table->IsEmpty());
-        
-        table->TableSchema() = newSchema;
-    }
+        if (newSchema && table->HasMountedTablets()) {
+            THROW_ERROR_EXCEPTION("Cannot change schema of a table with mounted tablets");
+        }
 
-    void SetDynamic(bool value)
-    {
-        ValidateNoTransaction();
+        if (newSchema) {
+            ValidateTableSchemaUpdate(
+                table->TableSchema(),
+                *newSchema,
+                newDynamic.Get(table->IsDynamic()),
+                table->IsEmpty());
 
-        auto* table = LockThisTypedImpl();
-        auto tabletManager = Bootstrap_->GetTabletManager();
-        if (value) {
-            tabletManager->MakeTableDynamic(table);
-        } else {
-            tabletManager->MakeTableStatic(table);
+            table->TableSchema() = *newSchema;
+        }
+
+        if (newDynamic) {
+            auto tabletManager = Bootstrap_->GetTabletManager();
+            if (*newDynamic) {
+                tabletManager->MakeTableDynamic(table);
+            } else {
+                tabletManager->MakeTableStatic(table);
+            }
         }
     }
 
@@ -230,7 +236,7 @@ private:
         // becomes obsolete.
         if (key == "schema") {
             auto newSchema = ConvertTo<TTableSchema>(value);
-            SetSchema(newSchema);
+            AlterTable(newSchema, Null);
             return true;
         }
 
@@ -477,13 +483,7 @@ private:
             newSchema,
             newDynamic);
 
-        if (newSchema) {
-            SetSchema(*newSchema);
-        }
-
-        if (newDynamic) {
-            SetDynamic(*newDynamic);
-        }
+        AlterTable(newSchema, newDynamic);
 
         context->Reply();
     }
