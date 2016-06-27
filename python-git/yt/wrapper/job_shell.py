@@ -108,27 +108,22 @@ class JobShell(object):
 
     def _on_http_error(self, err):
         self._restore_termios()
-        print "Error:", err
         if type(err) is HTTPError and hasattr(err, "response") and err.response:
-            if "X-YT-Parameters" in err.response.request.headers:
-                print "Request:", err.response.request.headers["X-YT-Parameters"]
-            else:
-                print "Request:", err.response.request
-            if "X-Yt-Response-Message" in err.response.headers:
-                print "Response:", err.response.headers["X-Yt-Response-Message"]
-            else:
-                print "Response:", err.response
             if "X-Yt-Error" in err.response.headers:
-                print "Errors:"
                 error = json.loads(err.response.headers["X-Yt-Error"])
                 indent = '  '
-                while error:
-                    print "{0}{1}: {2}".format(indent,
-                        error["code"] if "code" in error else ">",
-                        error["message"] if "message" in error else "???")
-                    error = error["inner_errors"] if "inner_errors" in error else None
-                    error = error[0] if len(error) else None
-                    indent += '  '
+                while "inner_errors" in error and len(error["inner_errors"]):
+                    error = error["inner_errors"][0]
+                code = error["code"] if "code" in error else 0
+                if code == 1:
+                    print "Shell exited"
+                elif code == 100:
+                    print "\nJob finished"
+                else:
+                    message = error["message"] if "message" in error else "unknown"
+                    print "\nDisconnected with code {} ({})".format(code, message)
+        else:
+            print "Error:", err
 
         if self.interactive:
             IOLoop.current().stop()
@@ -137,6 +132,7 @@ class JobShell(object):
         if rsp.error:
             if not self.terminating:
                 self._on_http_error(rsp.error)
+            return
         rsp = yson.loads(rsp.body)
         if "consumed_offset" in rsp:
             consumed_offset = rsp["consumed_offset"]
@@ -211,8 +207,6 @@ class JobShell(object):
         elif len(keys) > 0:
             self.key_buffer += keys
             self._update_shell(self.key_buffer, self.input_offset)
-            #import random
-            #IOLoop.current().add_timeout(timedelta(seconds=random.uniform(0,1)), self._update_shell, self.key_buffer, self.input_offset)
 
     def run(self):
         if not self.interactive:
