@@ -29,6 +29,8 @@ using NTabletNode::NProto::TAddStoreDescriptor;
 struct TOrderedChunkStoreReaderTag
 { };
 
+using TIdMapping = SmallVector<int, TypicalColumnCount>;
+
 class TOrderedChunkStore::TReader
     : public ISchemafulReader
 {
@@ -37,12 +39,14 @@ public:
         ISchemafulReaderPtr underlyingReader,
         bool enableTabletIndex,
         bool enableRowIndex,
+        const TIdMapping& idMapping,
         int tabletIndex,
         i64 lowerRowIndex)
         : UnderlyingReader_(std::move(underlyingReader))
         , TabletIndex_(tabletIndex)
         , EnableTabletIndex_(enableTabletIndex)
         , EnableRowIndex_(enableRowIndex)
+        , IdMapping_(idMapping)
         , CurrentRowIndex_(lowerRowIndex)
         , Pool_(TOrderedChunkStoreReaderTag())
     { }
@@ -73,8 +77,7 @@ public:
 
             for (const auto& value : row) {
                 *updatedValue = value;
-                // +2 is for (tablet_index, row_index).
-                updatedValue->Id += 2;
+                updatedValue->Id = IdMapping_[updatedValue->Id];
                 ++updatedValue;
             }
 
@@ -95,6 +98,7 @@ private:
     const int TabletIndex_;
     const bool EnableTabletIndex_;
     const bool EnableRowIndex_;
+    const TIdMapping IdMapping_;
 
     i64 CurrentRowIndex_;
 
@@ -193,6 +197,11 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
     bool enableTabletIndex = columnFilter.Contains(0);
     bool enableRowIndex = columnFilter.Contains(1);
 
+    TIdMapping idMapping;
+    for (const auto& readColumn : readSchema.Columns()) {
+        idMapping.push_back(querySchema.GetColumnIndex(readColumn.Name));
+    }
+
     auto underlyingReader = CreateSchemafulChunkReader(
         Config_->ChunkReader,
         std::move(chunkReader),
@@ -205,6 +214,7 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
         std::move(underlyingReader),
         enableTabletIndex,
         enableRowIndex,
+        idMapping,
         tabletIndex,
         lowerRowIndex);
 }
