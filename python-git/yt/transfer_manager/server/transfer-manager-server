@@ -1946,9 +1946,9 @@ class Application(object):
                     src_cluster=src_cluster,
                     dst_cluster=dst_cluster,
                     **queue_kwarg(queue)))
-                total_count[key] += 1
+                total_count[key] += profiling[type_ + "_task_count"][key]
 
-        for queue, user, src_cluster, dst_cluster, count in total_count.iteritems():
+        for (queue, user, src_cluster, dst_cluster), count in total_count.iteritems():
             sensors.append(make_solomon_sensor(
                 "total_count",
                 count,
