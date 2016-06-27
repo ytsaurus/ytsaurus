@@ -295,7 +295,9 @@ class Application(object):
             "execution_time": defaultdict(deque),
             "execution_cumtime": defaultdict(float),
             "instant_call_count": defaultdict(int),
-            "total_call_count": defaultdict(int)
+            "total_call_count": defaultdict(int),
+            "pending_task_count": defaultdict(int),
+            "running_task_count": defaultdict(int)
         }
 
         self._configure_logging(self._config.get("logging", {}))
@@ -801,6 +803,8 @@ class Application(object):
         self._pending_tasks.append(task.id)
         with self._user_mutexes[task.user]:
             self._pending_tasks_per_user[task.user] += 1
+        with self._profiling_mutex:
+            self._profiling["pending_task_count"][task.get_direction_id_with_user()] += 1
 
     def _change_task_state(self, id, new_state):
         with self._mutex:
@@ -1241,6 +1245,9 @@ class Application(object):
                         self._running_tasks_per_direction[self._tasks[id].get_direction_id()].remove(id)
                         self._running_tasks_per_user_and_direction[self._tasks[id].get_direction_id_with_user()].remove(id)
 
+                        with self._profiling_mutex:
+                            self._profiling["running_task_count"][self._tasks[id].get_direction_id_with_user()] -= 1
+
                         self._tmp_config_counter[process.temporary_config] -= 1
                         if self._tmp_config_counter[process.temporary_config] == 0:
                             remove_file(process.temporary_config, force=True)
@@ -1271,6 +1278,10 @@ class Application(object):
                     user_and_direction = self._tasks[id].get_direction_id_with_user()
                     self._running_tasks_per_user_and_direction[user_and_direction].append(id)
                     self._pending_tasks_per_user[self._tasks[id].user] -= 1
+
+                    with self._profiling_mutex:
+                        self._profiling["pending_task_count"][user_and_direction] -= 1
+                        self._profiling["running_task_count"][user_and_direction] += 1
 
                     self._tasks[id].start_time = now_str()
                     self._tasks[id].progress = {"operations": [], "transactions": []}
@@ -1912,12 +1923,39 @@ class Application(object):
             sensors.append(make_solomon_sensor("rss_memory_kb", rss_mem))
 
         with self._profiling_mutex:
-            instant_call_count = deepcopy(self._profiling["instant_call_count"])
+            profiling = deepcopy(self._profiling)
 
-        for key in instant_call_count:
+        for key in profiling["instant_call_count"]:
             if key == "solomon_sensors":
                 continue
-            sensors.append(make_solomon_sensor("call_count", instant_call_count[key], method=key))
+            sensors.append(make_solomon_sensor("call_count", profiling["instant_call_count"][key], method=key))
+
+        def queue_kwarg(queue):
+            if queue is not None:
+                return {"queue": queue}
+            return {}
+
+        total_count = defaultdict(int)
+        for type_ in ["pending", "running"]:
+            for key in profiling[type_ + "_task_count"]:
+                queue, user, src_cluster, dst_cluster = key
+                sensors.append(make_solomon_sensor(
+                    type_ + "_count",
+                    profiling[type_ + "_task_count"][key],
+                    user=user,
+                    src_cluster=src_cluster,
+                    dst_cluster=dst_cluster,
+                    **queue_kwarg(queue)))
+                total_count[key] += 1
+
+        for queue, user, src_cluster, dst_cluster, count in total_count.iteritems():
+            sensors.append(make_solomon_sensor(
+                "total_count",
+                count,
+                user=user,
+                src_cluster=src_cluster,
+                dst_cluster=dst_cluster,
+                **queue_kwarg(queue)))
 
         return Response(json.dumps({"sensors": sensors}), mimetype="application/json")
 
