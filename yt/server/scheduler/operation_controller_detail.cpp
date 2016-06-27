@@ -1759,6 +1759,7 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistic
     auto getValue = [] (const TSummary& summary) {
         return summary.GetSum();
     };
+    bool taskUpdateNeeded = false;
     if (statistics.Data().find("/user_job/max_memory") != statistics.Data().end()) {
         i64 userJobMaxMemoryUsage = GetValues<i64>(statistics, "/user_job/max_memory", getValue);
         auto* digest = GetUserJobMemoryDigest(jobType);
@@ -1768,7 +1769,7 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistic
             actualFactor,
             joblet->JobId);
         digest->AddSample(actualFactor);
-        UpdateAllTasksIfNeeded();
+        taskUpdateNeeded = true;
     }
     if (statistics.Data().find("/job_proxy/max_memory") != statistics.Data().end()) {
         i64 jobProxyMaxMemoryUsage = GetValues<i64>(statistics, "/job_proxy/max_memory", getValue);
@@ -1780,6 +1781,9 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistic
             actualFactor,
             joblet->JobId);
         digest->AddSample(actualFactor);
+        taskUpdateNeeded = true;
+    }
+    if (taskUpdateNeeded) {
         UpdateAllTasksIfNeeded();
     }
 }
@@ -2269,8 +2273,8 @@ void TOperationControllerBase::UpdateAllTasks()
 void TOperationControllerBase::UpdateAllTasksIfNeeded()
 {
     if (TInstant::Now() - LastTaskUpdateTime_ >= Config->TaskUpdatePeriod) {
-        LastTaskUpdateTime_ = TInstant::Now();
         UpdateAllTasks();
+        LastTaskUpdateTime_ = TInstant::Now();
     }
 }
 
