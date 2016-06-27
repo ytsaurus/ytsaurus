@@ -852,9 +852,9 @@ const TJobResources& TOperationControllerBase::TTask::GetMinNeededResources() co
 {
     if (!CachedMinNeededResources) {
         YCHECK(GetPendingJobCount() > 0);
-        CachedMinNeededResources = ApplyMemoryReserve(GetMinNeededResourcesHeavy());
+        CachedMinNeededResources = GetMinNeededResourcesHeavy();
     }
-    return *CachedMinNeededResources;
+    return ApplyMemoryReserve(*CachedMinNeededResources);
 }
 
 void TOperationControllerBase::TTask::RegisterIntermediate(
@@ -2265,7 +2265,6 @@ void TOperationControllerBase::UpdateTask(TTaskPtr task)
 void TOperationControllerBase::UpdateAllTasks()
 {
     for (const auto& task: Tasks) {
-        task->ResetCachedMinNeededResources();
         UpdateTask(task);
     }
 }
