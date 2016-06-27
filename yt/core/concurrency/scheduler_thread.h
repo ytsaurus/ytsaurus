@@ -55,8 +55,7 @@ protected:
         const Stroka& threadName,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
-        bool enableProfiling,
-        bool detached);
+        bool enableProfiling);
 
     virtual EBeginExecuteResult BeginExecute() = 0;
     virtual void EndExecute() = 0;
@@ -83,7 +82,6 @@ protected:
     const std::shared_ptr<TEventCount> CallbackEventCount;
     const Stroka ThreadName;
     const bool EnableLogging;
-    const bool Detached;
 
     NProfiling::TProfiler Profiler;
 

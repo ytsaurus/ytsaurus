@@ -271,7 +271,6 @@ private:
                 "Profiling",
                 EmptyTagIds,
                 true,
-                false,
                 false)
             , Owner(owner)
         { }
