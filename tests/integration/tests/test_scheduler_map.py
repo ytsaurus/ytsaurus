@@ -311,6 +311,35 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
+    @unix_only
+    def test_abandon_job_permissions(self):
+        create_user("u1")
+        create_user("u2")
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        for i in xrange(5):
+            write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="abandon_job",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat",
+            spec={
+                "data_size_per_job": 1
+            },
+            user="u1")
+
+        with pytest.raises(YtError):
+            abandon_job(op.jobs[3], user="u2")
+
+        op.resume_jobs()
+        op.track()
+        assert len(read_table("//tmp/t2")) == 5
+
     def _poll_until_prompt(self, job_id, shell_id):
         output = ""
         while len(output) < 4 or output[-4:] != ":~$ ":
@@ -360,6 +389,36 @@ class TestJobProber(YTEnvSetup):
         op.resume_jobs()
         op.track()
         assert len(read_table("//tmp/t2")) == 0
+
+    def test_poll_job_shell_permissions(self):
+        create_user("u1")
+        create_user("u2")
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"key": "foo"})
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="poll_job_shell",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat",
+            user="u1")
+
+        job_id = op.jobs[0]
+        with pytest.raises(YtError):
+            poll_job_shell(
+                job_id,
+                operation="spawn",
+                term="screen-256color",
+                height=50,
+                width=132,
+                user="u2")
+
+        op.resume_jobs()
+        op.track()
 
     def get_job_count_profiling(self):
         time.sleep(1)

@@ -24,7 +24,6 @@ using namespace NApi;
 using namespace NYTree;
 using namespace NYson;
 using namespace NCypressClient;
-using namespace NSecurityClient;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////
@@ -99,7 +98,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, AbortOperation)
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        const auto& user = context->GetUser();
 
         context->SetRequestInfo("OperationId: %v", operationId);
 
@@ -108,8 +106,6 @@ private:
 
         if (ResponseKeeper_->TryReplyFrom(context))
             return;
-
-        ValidatePermission(user, operationId, EPermission::Write);
 
         auto error = TError("Operation aborted by user request");
         if (request->has_abort_message()) {
@@ -119,7 +115,8 @@ private:
         auto operation = scheduler->GetOperationOrThrow(operationId);
         auto asyncResult = scheduler->AbortOperation(
             operation,
-            error);
+            error,
+            context->GetUser());
 
         context->ReplyFrom(asyncResult);
     }
@@ -127,7 +124,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, SuspendOperation)
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        const auto& user = context->GetUser();
 
         context->SetRequestInfo("OperationId: %v", operationId);
 
@@ -137,10 +133,10 @@ private:
         if (ResponseKeeper_->TryReplyFrom(context))
             return;
 
-        ValidatePermission(user, operationId, EPermission::Write);
-
         auto operation = scheduler->GetOperationOrThrow(operationId);
-        auto asyncResult = scheduler->SuspendOperation(operation);
+        auto asyncResult = scheduler->SuspendOperation(
+            operation,
+            context->GetUser());
 
         context->ReplyFrom(asyncResult);
     }
@@ -148,7 +144,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, ResumeOperation)
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        const auto& user = context->GetUser();
 
         context->SetRequestInfo("OperationId: %v", operationId);
 
@@ -158,10 +153,10 @@ private:
         if (ResponseKeeper_->TryReplyFrom(context))
             return;
 
-        ValidatePermission(user, operationId, EPermission::Write);
-
         auto operation = scheduler->GetOperationOrThrow(operationId);
-        auto asyncResult = scheduler->ResumeOperation(operation);
+        auto asyncResult = scheduler->ResumeOperation(
+            operation,
+            context->GetUser());
 
         context->ReplyFrom(asyncResult);
     }
@@ -169,7 +164,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, CompleteOperation)
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        const auto& user = context->GetUser();
 
         context->SetRequestInfo("OperationId: %v", operationId);
 
@@ -179,39 +173,13 @@ private:
         if (ResponseKeeper_->TryReplyFrom(context))
             return;
 
-        ValidatePermission(user, operationId, EPermission::Write);
-
         auto operation = scheduler->GetOperationOrThrow(operationId);
         auto asyncResult = scheduler->CompleteOperation(
             operation,
-            TError("Operation completed by user request"));
+            TError("Operation completed by user request"),
+            context->GetUser());
 
         context->ReplyFrom(asyncResult);
-    }
-
-
-    void ValidatePermission(
-        const Stroka& user,
-        const TOperationId& operationId,
-        EPermission permission)
-    {
-        auto path = GetOperationPath(operationId);
-
-        auto client = Bootstrap_->GetMasterClient();
-        auto asyncResult = client->CheckPermission(user, path, permission);
-        auto resultOrError = WaitFor(asyncResult);
-        if (!resultOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Error checking permission for operation %v",
-                operationId)
-                << resultOrError;
-        }
-
-        const auto& result = resultOrError.Value();
-        if (result.Action == ESecurityAction::Deny) {
-            THROW_ERROR_EXCEPTION("User %Qv has been denied access to operation %v",
-                user,
-                operationId);
-        }
     }
 };
 
