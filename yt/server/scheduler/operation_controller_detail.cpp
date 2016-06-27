@@ -848,7 +848,7 @@ void TOperationControllerBase::TTask::AddFootprintAndUserJobResources(TExtendedJ
     }
 }
 
-const TJobResources& TOperationControllerBase::TTask::GetMinNeededResources() const
+TJobResources TOperationControllerBase::TTask::GetMinNeededResources() const
 {
     if (!CachedMinNeededResources) {
         YCHECK(GetPendingJobCount() > 0);
