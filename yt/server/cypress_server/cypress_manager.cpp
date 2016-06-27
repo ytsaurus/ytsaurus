@@ -172,24 +172,16 @@ public:
             attributes->Set("external", false);
         }
 
-        bool isExternal = false;
         auto multicellManager = Bootstrap_->GetMulticellManager();
-        if (attributes->Contains("external")) {
-            isExternal = attributes->Get<bool>("external");
-            attributes->Remove("external");
-        } else {
-            isExternal = Bootstrap_->IsPrimaryMaster() &&
-                !multicellManager->GetRegisteredMasterCellTags().empty() &&
-                handler->IsExternalizable();
-        }
+        bool isExternalDefault =
+            Bootstrap_->IsPrimaryMaster() &&
+            !multicellManager->GetRegisteredMasterCellTags().empty() &&
+            handler->IsExternalizable();
+        bool isExternal = attributes->GetAndRemove<bool>("external", isExternalDefault);
 
-        double externalCellBias = 1.0;
-        if (attributes->Contains("external_cell_bias")) {
-            externalCellBias = attributes->Get<double>("external_cell_bias");
-            if (externalCellBias < 0.0 || externalCellBias > 1.0) {
-                THROW_ERROR_EXCEPTION("\"external_cell_bias\" must be in range [0, 1]");
-            }
-            attributes->Remove("external_cell_bias");
+        double externalCellBias = attributes->GetAndRemove<double>("external_cell_bias", 1.0);
+        if (externalCellBias < 0.0 || externalCellBias > 1.0) {
+            THROW_ERROR_EXCEPTION("\"external_cell_bias\" must be in range [0, 1]");
         }
 
         auto cellTag = NotReplicatedCellTag;
@@ -203,13 +195,12 @@ public:
                     handler->GetObjectType());
             }
 
-            auto maybeExternalCellTag = attributes->Find<TCellTag>("external_cell_tag");
+            auto maybeExternalCellTag = attributes->FindAndRemove<TCellTag>("external_cell_tag");
             if (maybeExternalCellTag) {
                 cellTag = *maybeExternalCellTag;
                 if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
                     THROW_ERROR_EXCEPTION("Unknown cell tag %v", cellTag);
                 }
-                attributes->Remove("external_cell_tag");
             } else {
                 cellTag = multicellManager->PickSecondaryMasterCell(externalCellBias);
                 if (cellTag == InvalidCellTag) {

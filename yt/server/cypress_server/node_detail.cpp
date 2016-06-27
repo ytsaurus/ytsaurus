@@ -567,10 +567,8 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
     IAttributeDictionary* attributes)
 {
     // Resolve target_path using the appropriate transaction.
-    auto targetPath = attributes->Find<Stroka>("target_path");
+    auto targetPath = attributes->FindAndRemove<Stroka>("target_path");
     if (targetPath) {
-        attributes->Remove("target_path");
-
         auto objectManager = Bootstrap_->GetObjectManager();
         auto* resolver = objectManager->GetObjectResolver();
 

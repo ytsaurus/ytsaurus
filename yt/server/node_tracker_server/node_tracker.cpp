@@ -1539,8 +1539,7 @@ TObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->Get<Stroka>("name");
-    attributes->Remove("name");
+    auto name = attributes->GetAndRemove<Stroka>("name");
 
     return Owner_->CreateRack(name, hintId);
 }

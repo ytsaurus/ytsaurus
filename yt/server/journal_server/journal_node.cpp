@@ -161,14 +161,9 @@ protected:
 
         // NB: Don't call TBase::InitializeAttributes; take care of all attributes here.
 
-        int replicationFactor = attributes->Get<int>("replication_factor", config->DefaultJournalReplicationFactor);
-        attributes->Remove("replication_factor");
-
-        int readQuorum = attributes->Get<int>("read_quorum", config->DefaultJournalReadQuorum);
-        attributes->Remove("read_quorum");
-
-        int writeQuorum = attributes->Get<int>("write_quorum", config->DefaultJournalWriteQuorum);
-        attributes->Remove("write_quorum");
+        int replicationFactor = attributes->GetAndRemove<int>("replication_factor", config->DefaultJournalReplicationFactor);
+        int readQuorum = attributes->GetAndRemove<int>("read_quorum", config->DefaultJournalReadQuorum);
+        int writeQuorum = attributes->GetAndRemove<int>("write_quorum", config->DefaultJournalWriteQuorum);
 
         if (readQuorum > replicationFactor) {
             THROW_ERROR_EXCEPTION("\"read_quorum\" cannot be greater than \"replication_factor\"");

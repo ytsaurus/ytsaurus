@@ -317,11 +317,9 @@ protected:
             attributes->Set("tablet_cell_bundle", DefaultTabletCellBundleName);
         }
 
-        bool dynamic = attributes->Get<bool>("dynamic", false);
-        attributes->Remove("dynamic");
+        bool dynamic = attributes->GetAndRemove<bool>("dynamic", false);
 
-        auto maybeSchema = attributes->Find<TTableSchema>("schema");
-        attributes->Remove("schema");
+        auto maybeSchema = attributes->FindAndRemove<TTableSchema>("schema");
 
         if (maybeSchema) {
             ValidateTableSchema(*maybeSchema);

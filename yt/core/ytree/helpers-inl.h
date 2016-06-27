@@ -19,9 +19,29 @@ T IAttributeDictionary::Get(const Stroka& key) const
 }
 
 template <class T>
+T IAttributeDictionary::GetAndRemove(const Stroka& key)
+{
+    auto result = Get<T>(key);
+    Remove(key);
+    return result;
+}
+
+template <class T>
 T IAttributeDictionary::Get(const Stroka& key, const T& defaultValue) const
 {
     return Find<T>(key).Get(defaultValue);
+}
+
+template <class T>
+T IAttributeDictionary::GetAndRemove(const Stroka& key, const T& defaultValue)
+{
+    auto result = Find<T>(key);
+    if (result) {
+        Remove(key);
+        return *result;
+    } else {
+        return defaultValue;
+    }
 }
 
 template <class T>
@@ -32,6 +52,16 @@ typename TNullableTraits<T>::TNullableType IAttributeDictionary::Find(const Stro
         return typename TNullableTraits<T>::TNullableType();
     }
     return ConvertTo<T>(*yson);
+}
+
+template <class T>
+typename TNullableTraits<T>::TNullableType IAttributeDictionary::FindAndRemove(const Stroka& key)
+{
+    auto result = Find<T>(key);
+    if (result) {
+        Remove(key);
+    }
+    return result;
 }
 
 template <class T>
