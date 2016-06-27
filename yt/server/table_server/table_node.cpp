@@ -130,6 +130,11 @@ void TTableNode::Load(TLoadContext& context)
             TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
         }
     }
+
+    // COMPAT(babenko): Cf. YT-5045
+    if (Attributes_ && Attributes_->Attributes().empty()) {
+        Attributes_.reset();
+    }
     
     // COMPAT(max42): In case there are channels associated with a table, we extend the
     // table schema with all columns mentioned in channels and erase the corresponding attribute.
