@@ -393,7 +393,6 @@ private:
                 "Logging",
                 NProfiling::EmptyTagIds,
                 false,
-                false,
                 false)
             , Owner_(owner)
         { }
