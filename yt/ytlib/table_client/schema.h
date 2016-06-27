@@ -79,6 +79,7 @@ public:
     const TColumnSchema& GetColumnOrThrow(const TStringBuf& name) const;
 
     int GetColumnIndex(const TColumnSchema& column) const;
+    int GetColumnIndex(const TStringBuf& name) const;
     int GetColumnIndexOrThrow(const TStringBuf& name) const;
 
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
