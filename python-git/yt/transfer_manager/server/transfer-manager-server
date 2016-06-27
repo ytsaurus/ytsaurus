@@ -159,6 +159,10 @@ def remove_unsigned(obj):
     else:
         return obj
 
+def make_solomon_sensor(name, value, **kwargs):
+    labels = update({"sensor": name}, deepcopy(kwargs))
+    return {"labels": labels, "value": value}
+
 def truncate_stderrs_attributes(error, limit):
     if hasattr(error, "attributes") and "stderrs" in error.attributes:
         if isinstance(error, yt.YtOperationFailedError):
@@ -1896,16 +1900,16 @@ class Application(object):
     def solomon_sensors(self):
         sensors = []
 
-        sensors.append({"labels": {"sensor": "pending_count"}, "value": len(self._pending_tasks)})
-        sensors.append({"labels": {"sensor": "running_count"}, "value": len(self._task_processes)})
+        sensors.append(make_solomon_sensor("pending_count", len(self._pending_tasks)))
+        sensors.append(make_solomon_sensor("running_count", len(self._task_processes)))
 
         objects_size = pympler_muppy.get_size(pympler_muppy.get_objects()) / 1024
-        sensors.append({"labels": {"sensor": "objects_memory_mb"}, "value": objects_size})
+        sensors.append(make_solomon_sensor("objects_memory_kb", objects_size))
 
         with open("/proc/{0}/statm".format(self._pid)) as f:
             memory_info = f.readline().strip()
             rss_mem = int(memory_info.split()[1]) * OS_PAGE_SIZE / 1024
-            sensors.append({"labels": {"sensor": "rss_memory_mb"}, "value": rss_mem})
+            sensors.append(make_solomon_sensor("rss_memory_kb", rss_mem))
 
         with self._profiling_mutex:
             instant_call_count = deepcopy(self._profiling["instant_call_count"])
@@ -1913,8 +1917,7 @@ class Application(object):
         for key in instant_call_count:
             if key == "solomon_sensors":
                 continue
-            sensors.append({"labels": {"method": key, "sensor": "call_count"},
-                            "value": instant_call_count[key]})
+            sensors.append(make_solomon_sensor("call_count", instant_call_count[key], method=key))
 
         return Response(json.dumps({"sensors": sensors}), mimetype="application/json")
 
