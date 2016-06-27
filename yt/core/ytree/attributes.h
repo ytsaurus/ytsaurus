@@ -37,19 +37,31 @@ struct IAttributeDictionary
     NYson::TYsonString GetYson(const Stroka& key) const;
 
     //! Finds the attribute and deserializes its value.
-    //! Fails if no such value is found.
+    //! Throws if no such value is found.
     template <class T>
     T Get(const Stroka& key) const;
+
+    //! Same as #Get but removes the value.
+    template <class T>
+    T GetAndRemove(const Stroka& key);
 
     //! Finds the attribute and deserializes its value.
     //! Uses default value if no such attribute is found.
     template <class T>
     T Get(const Stroka& key, const T& defaultValue) const;
 
+    //! Same as #Get but removes the value if it exists.
+    template <class T>
+    T GetAndRemove(const Stroka& key, const T& defaultValue);
+
     //! Finds the attribute and deserializes its value.
     //! Returns |Null| if no such attribute is found.
     template <class T>
     typename TNullableTraits<T>::TNullableType Find(const Stroka& key) const;
+
+    //! Same as #Find but removes the value if it exists.
+    template <class T>
+    typename TNullableTraits<T>::TNullableType FindAndRemove(const Stroka& key);
 
     //! Returns True iff the given key is present.
     bool Contains(const Stroka& key) const;

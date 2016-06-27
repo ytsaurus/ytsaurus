@@ -1069,15 +1069,12 @@ TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObj
         secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
     }
 
-    auto parentId = attributes->Get<TTransactionId>("parent_id", NullTransactionId);
-    attributes->Remove("parent_id");
+    auto parentId = attributes->GetAndRemove<TTransactionId>("parent_id", NullTransactionId);
     auto* parent = parentId ? Owner_->GetTransactionOrThrow(parentId) : nullptr;
 
-    auto title = attributes->Find<Stroka>("title");
-    attributes->Remove("title");
+    auto title = attributes->FindAndRemove<Stroka>("title");
 
-    auto timeout = attributes->Find<TDuration>("timeout");
-    attributes->Remove("timeout");
+    auto timeout = attributes->FindAndRemove<TDuration>("timeout");
 
     return Owner_->StartTransaction(
         parent,

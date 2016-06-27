@@ -2701,8 +2701,7 @@ TObjectBase* TTabletManager::TTabletCellBundleTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->Get<Stroka>("name");
-    attributes->Remove("name");
+    auto name = attributes->GetAndRemove<Stroka>("name");
 
     return Owner_->CreateTabletCellBundle(name, hintId);
 }
@@ -2724,8 +2723,7 @@ TObjectBase* TTabletManager::TTabletCellTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
-    auto cellBundleName = attributes->Get("tablet_cell_bundle", DefaultTabletCellBundleName);
-    attributes->Remove("tablet_cell_bundle");
+    auto cellBundleName = attributes->GetAndRemove("tablet_cell_bundle", DefaultTabletCellBundleName);
     auto* cellBundle = Owner_->GetTabletCellBundleByNameOrThrow(cellBundleName);
 
     return Owner_->CreateTabletCell(cellBundle, hintId);

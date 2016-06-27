@@ -1840,8 +1840,7 @@ TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->Get<Stroka>("name");
-    attributes->Remove("name");
+    auto name = attributes->GetAndRemove<Stroka>("name");
 
     return Owner_->CreateAccount(name, hintId);
 }
@@ -1870,8 +1869,7 @@ TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->Get<Stroka>("name");
-    attributes->Remove("name");
+    auto name = attributes->GetAndRemove<Stroka>("name");
 
     return Owner_->CreateUser(name, hintId);
 }
@@ -1900,8 +1898,7 @@ TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->Get<Stroka>("name");
-    attributes->Remove("name");
+    auto name = attributes->GetAndRemove<Stroka>("name");
 
     return Owner_->CreateGroup(name, hintId);
 }
