@@ -1297,20 +1297,13 @@ private:
 
 TConstExpressionPtr BuildWhereClause(
     const NAst::TExpressionList& expressionAst,
-    const Stroka& source,
     const TSchemaProxyPtr& schemaProxy,
-    const TTypeInferrerMapPtr& functions,
-    const NAst::TAliasMap& aliasMap)
+    const TTypedExpressionBuilder& builder)
 {
     if (expressionAst.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")
             << TErrorAttribute("source", InferName(expressionAst));
     }
-
-    TTypedExpressionBuilder builder{
-        source,
-        functions,
-        aliasMap};
 
     auto typedPredicate = builder.BuildTypedExpression(expressionAst.front().Get(), schemaProxy);
 
@@ -1331,20 +1324,13 @@ TConstExpressionPtr BuildWhereClause(
 TConstGroupClausePtr BuildGroupClause(
     const NAst::TExpressionList& expressionsAst,
     ETotalsMode totalsMode,
-    const Stroka& source,
     TSchemaProxyPtr& schemaProxy,
-    const TTypeInferrerMapPtr& functions,
-    const NAst::TAliasMap& aliasMap)
+    const TTypedExpressionBuilder& builder)
 {
     auto groupClause = New<TGroupClause>();
     groupClause->IsMerge = false;
     groupClause->IsFinal = true;
     groupClause->TotalsMode = totalsMode;
-
-    TTypedExpressionBuilder builder{
-        source,
-        functions,
-        aliasMap};
 
     for (const auto& expressionAst : expressionsAst) {
         auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
@@ -1361,20 +1347,13 @@ TConstGroupClausePtr BuildGroupClause(
 
 TConstExpressionPtr BuildHavingClause(
     const NAst::TExpressionList& expressionsAst,
-    const Stroka& source,
     const TSchemaProxyPtr& schemaProxy,
-    const TTypeInferrerMapPtr& functions,
-    const NAst::TAliasMap& aliasMap)
+    const TTypedExpressionBuilder& builder)
 {
     if (expressionsAst.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")
             << TErrorAttribute("source", InferName(expressionsAst));
     }
-
-    TTypedExpressionBuilder builder{
-        source,
-        functions,
-        aliasMap};
 
     auto typedPredicate = builder.BuildTypedExpression(expressionsAst.front().Get(), schemaProxy);
 
@@ -1393,17 +1372,10 @@ TConstExpressionPtr BuildHavingClause(
 
 TConstProjectClausePtr BuildProjectClause(
     const NAst::TExpressionList& expressionsAst,
-    const Stroka& source,
     TSchemaProxyPtr& schemaProxy,
-    const TTypeInferrerMapPtr& functions,
-    const NAst::TAliasMap& aliasMap)
+    const TTypedExpressionBuilder& builder)
 {
     auto projectClause = New<TProjectClause>();
-
-    TTypedExpressionBuilder builder{
-        source,
-        functions,
-        aliasMap};
 
     for (const auto& expressionAst : expressionsAst) {
         auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
@@ -1420,28 +1392,22 @@ TConstProjectClausePtr BuildProjectClause(
 void PrepareQuery(
     const TQueryPtr& query,
     const NAst::TQuery& ast,
-    const Stroka& source,
     TSchemaProxyPtr& schemaProxy,
-    const TTypeInferrerMapPtr& functions,
-    const NAst::TAliasMap& aliasMap)
+    const TTypedExpressionBuilder& builder)
 {
     if (const auto* wherePredicate = ast.WherePredicate.GetPtr()) {
         query->WhereClause = BuildWhereClause(
             *wherePredicate,
-            source,
             schemaProxy,
-            functions,
-            aliasMap);
+            builder);
     }
 
     if (const auto* groupExprs = ast.GroupExprs.GetPtr()) {
         query->GroupClause = BuildGroupClause(
             groupExprs->first,
             groupExprs->second,
-            source,
             schemaProxy,
-            functions,
-            aliasMap);
+            builder);
     }
 
     if (ast.HavingPredicate) {
@@ -1450,19 +1416,12 @@ void PrepareQuery(
         }
         query->HavingClause = BuildHavingClause(
             ast.HavingPredicate.Get(),
-            source,
             schemaProxy,
-            functions,
-            aliasMap);
+            builder);
     }
 
     if (!ast.OrderExpressions.empty()) {
         auto orderClause = New<TOrderClause>();
-
-        TTypedExpressionBuilder builder{
-            source,
-            functions,
-            aliasMap};
 
         for (const auto& orderExpr : ast.OrderExpressions) {
             for (const auto& expressionAst : orderExpr.first) {
@@ -1478,10 +1437,8 @@ void PrepareQuery(
     if (ast.SelectExprs) {
         query->ProjectClause = BuildProjectClause(
             ast.SelectExprs.Get(),
-            source,
             schemaProxy,
-            functions,
-            aliasMap);
+            builder);
     }
 
     schemaProxy->Finish();
@@ -1568,6 +1525,11 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         tableSchema.GetKeyColumnCount(),
         table.Alias);
 
+    TTypedExpressionBuilder builder{
+        source,
+        functions,
+        astHead.second};
+
     for (const auto& join : ast.Joins) {
         auto foreignDataSplit = WaitFor(callbacks->GetInitialSplit(join.Table.Path, timestamp))
             .ValueOrThrow();
@@ -1625,11 +1587,6 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
 
         std::vector<TConstExpressionPtr> leftEquations;
         std::vector<TConstExpressionPtr> rightEquations;
-
-        TTypedExpressionBuilder builder{
-            source,
-            functions,
-            astHead.second};
 
         for (const auto& argument : join.Left) {
             leftEquations.push_back(builder.BuildTypedExpression(argument.Get(), schemaProxy));
@@ -1759,7 +1716,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         query->JoinClauses.push_back(std::move(joinClause));
     }
 
-    PrepareQuery(query, ast, source, schemaProxy, functions, astHead.second);
+    PrepareQuery(query, ast, schemaProxy, builder);
 
     if (ast.Limit) {
         query->Limit = ast.Limit;
@@ -1825,13 +1782,16 @@ TQueryPtr PrepareJobQuery(
     auto functions = New<TTypeInferrerMap>();
     fetchFunctions(functionNames, functions);
 
+    TTypedExpressionBuilder builder{
+        source,
+        functions,
+        parsedQueryInfo.second};
+
     PrepareQuery(
         query,
         parsedQueryInfo.first,
-        source,
         schemaProxy,
-        functions,
-        parsedQueryInfo.second);
+        builder);
 
     return query;
 }
