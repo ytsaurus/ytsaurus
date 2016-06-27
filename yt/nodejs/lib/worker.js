@@ -102,6 +102,9 @@ var unbuffered_profiler = {
     upd: function(metric, tags, value) {
         return profiler_mediate("upd", metric, tags, value);
     },
+    set: function(metric, tags, value) {
+        return profiler_mediate("set", metric, tags, value);
+    },
 };
 
 var buffered_profiler = new yt.YtStatistics();
