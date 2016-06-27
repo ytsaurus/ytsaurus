@@ -7,4 +7,5 @@ RECURSE(
     examples
     python
     tests
+    util
 )
