@@ -9,6 +9,12 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue>
+bool TExpiringCache<TKey, TValue>::TEntry::Expired(const TInstant& now) const
+{
+    return now > AccessDeadline || now > UpdateDeadline;
+}
+
+template <class TKey, class TValue>
 TExpiringCache<TKey, TValue>::TExpiringCache(TExpiringCacheConfigPtr config)
     : Config_(std::move(config))
 { }
@@ -24,8 +30,9 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
         auto it = Map_.find(key);
         if (it != Map_.end()) {
             const auto& entry = it->second;
-            if (now < entry.Deadline) {
-                return entry.Promise;
+            if (!entry->Expired(now)) {
+                entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
+                return entry->Promise;
             }
         }
     }
@@ -34,29 +41,27 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
     {
         NConcurrency::TWriterGuard guard(SpinLock_);
         auto it = Map_.find(key);
-        if (it == Map_.end()) {
-            TEntry entry;
-            entry.Deadline = TInstant::Max();
-            auto promise = entry.Promise = NewPromise<TValue>();
-            YCHECK(Map_.insert(std::make_pair(key, entry)).second);
-            guard.Release();
-            InvokeGet(key);
-            return promise;
+
+        if (it != Map_.end()) {
+            auto& entry = it->second;
+            if (entry->Promise.IsSet() && entry->Expired(now)) {
+                NConcurrency::TDelayedExecutor::CancelAndClear(entry->ProbationCookie);
+                Map_.erase(it);
+            } else {
+                entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
+                return entry->Promise;
+            }
         }
 
-        auto& entry = it->second;
-        const auto& promise = entry.Promise;
-
-        if (promise.IsSet() && now > entry.Deadline) {
-            // Evict and retry.
-            NConcurrency::TDelayedExecutor::CancelAndClear(entry.ProbationCookie);
-            entry.ProbationFuture.Cancel();
-            entry.ProbationFuture.Reset();
-            Map_.erase(it);
-            guard.Release();
-            return Get(key);
-        }
-
+        auto entry = New<TEntry>();
+        entry->UpdateDeadline = TInstant::Max();
+        entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
+        auto promise = entry->Promise = NewPromise<TValue>();
+        // NB: we don't want to hold a strong reference to entry after releasing the guard, so we make a weak reference here.
+        auto weakEntry = MakeWeak(entry);
+        YCHECK(Map_.insert(std::make_pair(key, std::move(entry))).second);
+        guard.Release();
+        InvokeGet(weakEntry, key);
         return promise;
     }
 }
@@ -77,8 +82,9 @@ TFuture<typename TExpiringCache<TKey, TValue>::TCombinedValue> TExpiringCache<TK
             auto it = Map_.find(keys[index]);
             if (it != Map_.end()) {
                 const auto& entry = it->second;
-                if (now < entry.Deadline) {
-                    results[index] = entry.Promise;
+                if (!entry->Expired(now)) {
+                    results[index] = entry->Promise;
+                    entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
                     continue;
                 }
             }
@@ -89,28 +95,35 @@ TFuture<typename TExpiringCache<TKey, TValue>::TCombinedValue> TExpiringCache<TK
     // Slow path.
     if (!fetchIndexes.empty()) {
         std::vector<size_t> invokeIndexes;
+        std::vector<TWeakPtr<TEntry>> invokeEntries;
 
         NConcurrency::TWriterGuard guard(SpinLock_);
         for (auto index : fetchIndexes) {
             const auto& key = keys[index];
 
-            auto inserted = Map_.insert(std::make_pair(key, TEntry()));
-            auto& entry = inserted.first->second;
-
-            if (!inserted.second) {
-                if (entry.Promise.IsSet() && now > entry.Deadline) {
-                    NConcurrency::TDelayedExecutor::CancelAndClear(entry.ProbationCookie);
+            auto it = Map_.find(keys[index]);
+            if (it != Map_.end()) {
+                auto& entry = it->second;
+                if (entry->Promise.IsSet() && entry->Expired(now)) {
+                    NConcurrency::TDelayedExecutor::CancelAndClear(entry->ProbationCookie);
+                    Map_.erase(it);
                 } else {
-                    results[index] = entry.Promise;
+                    results[index] = entry->Promise;
+                    entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
                     continue;
                 }
             }
 
-            entry.Deadline = TInstant::Max();
-            entry.Promise = NewPromise<TValue>();
-            invokeIndexes.push_back(index);
+            auto entry = New<TEntry>();
+            entry->UpdateDeadline = TInstant::Max();
+            entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
+            entry->Promise = NewPromise<TValue>();
 
-            results[index] = entry.Promise;
+            invokeIndexes.push_back(index);
+            invokeEntries.push_back(entry);
+            results[index] = entry->Promise;
+
+            YCHECK(Map_.insert(std::make_pair(key, std::move(entry))).second);
         }
 
         std::vector<TKey> invokeKeys;
@@ -118,7 +131,8 @@ TFuture<typename TExpiringCache<TKey, TValue>::TCombinedValue> TExpiringCache<TK
             invokeKeys.push_back(keys[index]);
         }
 
-        InvokeGetMany(invokeKeys);
+        guard.Release();
+        InvokeGetMany(invokeEntries, invokeKeys);
     }
 
     return Combine(results);
@@ -139,52 +153,50 @@ void TExpiringCache<TKey, TValue>::Clear()
 }
 
 template <class TKey, class TValue>
-void TExpiringCache<TKey, TValue>::SetResult(const TKey& key, const TErrorOr<TValue>& valueOrError)
+void TExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEntry, const TKey& key, const TErrorOr<TValue>& valueOrError)
 {
-    auto it = Map_.find(key);
-    if (it == Map_.end())
+    auto entry = weakEntry.Lock();
+    if (!entry) {
         return;
+    }
 
-    auto& entry = it->second;
+    auto it = Map_.find(key);
+    Y_ASSERT(it != Map_.end() && it->second == entry);
 
-    auto expirationTime = valueOrError.IsOK() ? Config_->SuccessExpirationTime : Config_->FailureExpirationTime;
-    entry.Deadline = TInstant::Now() + expirationTime;
-    if (entry.Promise.IsSet()) {
-        entry.Promise = MakePromise(valueOrError);
+    if (TInstant::Now() > entry->AccessDeadline) {
+        Map_.erase(key);
+        return;
+    }
+
+    auto expirationTime = valueOrError.IsOK() ? Config_->ExpireAfterSuccessfulUpdateTime : Config_->ExpireAfterFailedUpdateTime;
+    entry->UpdateDeadline = TInstant::Now() + expirationTime;
+    if (entry->Promise.IsSet()) {
+        entry->Promise = MakePromise(valueOrError);
     } else {
-        entry.Promise.Set(valueOrError);
+        entry->Promise.Set(valueOrError);
     }
 
     if (valueOrError.IsOK()) {
         NTracing::TNullTraceContextGuard guard;
-        entry.ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
-            BIND(&TExpiringCache::InvokeGet, MakeWeak(this), key),
-            Config_->SuccessProbationTime);
+        entry->ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
+            BIND(&TExpiringCache::InvokeGet, MakeWeak(this), MakeWeak(entry), key),
+            Config_->RefreshTime);
     }
 }
 
 template <class TKey, class TValue>
-void TExpiringCache<TKey, TValue>::InvokeGet(const TKey& key)
+void TExpiringCache<TKey, TValue>::InvokeGet(const TWeakPtr<TEntry>& weakEntry, const TKey& key)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
-
-    auto it = Map_.find(key);
-    if (it == Map_.end()) {
-        return;
-    }
-
-    auto future = it->second.ProbationFuture = DoGet(key);
-
-    guard.Release();
-
-    future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
+    DoGet(key)
+    .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
         NConcurrency::TWriterGuard guard(SpinLock_);
-        SetResult(key, valueOrError);
+
+        SetResult(weakEntry, key, valueOrError);
     }));
 }
 
 template <class TKey, class TValue>
-void TExpiringCache<TKey, TValue>::InvokeGetMany(const std::vector<TKey>& keys)
+void TExpiringCache<TKey, TValue>::InvokeGetMany(const std::vector<TWeakPtr<TEntry>>& entries, const std::vector<TKey>& keys)
 {
     DoGetMany(keys)
     .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TValue>>& valueOrError) {
@@ -192,11 +204,11 @@ void TExpiringCache<TKey, TValue>::InvokeGetMany(const std::vector<TKey>& keys)
 
         if (valueOrError.IsOK()) {
             for (size_t index = 0; index < keys.size(); ++index) {
-                SetResult(keys[index], valueOrError.Value()[index]);
+                SetResult(entries[index], keys[index], valueOrError.Value()[index]);
             }
         } else {
-            for (const auto& key : keys) {
-                SetResult(key, TError(valueOrError));
+            for (size_t index = 0; index < keys.size(); ++index) {
+                SetResult(entries[index], keys[index], TError(valueOrError));
             }
         }
     }));
