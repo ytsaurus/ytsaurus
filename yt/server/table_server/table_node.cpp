@@ -113,9 +113,9 @@ void TTableNode::Load(TLoadContext& context)
     Load(context, Atomicity_);
 
     // COMPAT(max42)
-    if (context.GetVersion() < 205) {
+    if (context.GetVersion() < 205 && Attributes_) {
         // We erase schema from attributes map since it is now a built-in attribute.
-        auto& attributesMap = GetMutableAttributes()->Attributes();
+        auto& attributesMap = Attributes_->Attributes();
         auto tableSchemaAttribute = attributesMap["schema"];
         attributesMap.erase("schema");
         if (IsDynamic()) {
