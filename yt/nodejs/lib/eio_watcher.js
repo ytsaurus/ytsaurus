@@ -12,32 +12,23 @@ function YtEioWatcher(logger, profiler, config) {
     this.thread_limit = config.thread_limit;
     this.spare_threads = config.spare_threads;
 
-    this.semaphore = 1 + config.spare_threads; // Preallocate a thread for internal needs.
+    this.reserve = 1 + config.spare_threads;
+    this.semaphore = 0;
     this.semaphore_limit = config.concurrency_limit || config.thread_limit;
-    this.semaphore_limit = 2 * this.semaphore_limit + this.semaphore;
+    this.semaphore_limit = 2 * this.semaphore_limit + this.semaphore - this.reserve;
 
     binding.SetEioConcurrency(this.semaphore_limit);
 }
 
 YtEioWatcher.prototype.isChoking = function() {
     var info = binding.GetEioInformation();
-
     return false;
-
-    /*
-    if (this.thread_limit - this.spare_threads <= info.nreqs - info.npending) {
-        __DBG("We are choking!");
-        return true;
-    } else {
-        return false;
-    }
-    */
 };
 
 YtEioWatcher.prototype.acquireThread = function(tags) {
     if (this.semaphore < this.semaphore_limit) {
-        this.profiler.inc("yt.http_proxy.concurrency_semaphore", tags, 1);
         ++this.semaphore;
+        this.profiler.set("yt.http_proxy.concurrency_semaphore", tags, this.semaphore);
         return true;
     } else {
         return false;
@@ -46,7 +37,7 @@ YtEioWatcher.prototype.acquireThread = function(tags) {
 
 YtEioWatcher.prototype.releaseThread = function(tags) {
     --this.semaphore;
-    this.profiler.inc("yt.http_proxy.concurrency_semaphore", tags, -1);
+    this.profiler.set("yt.http_proxy.concurrency_semaphore", tags, this.semaphore);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
