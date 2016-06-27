@@ -475,7 +475,7 @@ protected:
         int CachedTotalJobCount;
 
         TJobResources CachedTotalNeededResources;
-        mutable TNullable<TExtendedJobResources> CachedMinNeededResources;
+        mutable TNullable<TJobResources> CachedMinNeededResources;
 
         TInstant LastDemandSanityCheckTime;
         bool CompletedFired;
