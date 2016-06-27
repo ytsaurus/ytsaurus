@@ -239,7 +239,7 @@ def _set_memory_limit_options(config, operations_memory_limit):
 
 class ConfigsProvider_17(ConfigsProvider):
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator):
-        if self["master"]["secondary_cell_count"] > 0:
+        if provision["master"]["secondary_cell_count"] > 0:
             raise YtError("Secondary master cells are not supported in YT version <= 0.18")
 
         master_dirs = unlist(master_dirs)
@@ -291,7 +291,7 @@ class ConfigsProvider_17(ConfigsProvider):
         cell_configs = {
             cell_tag: configs,
             "primary_cell_tag": cell_tag,
-            "secondary_master_cell_tags": []
+            "secondary_cell_tags": []
         }
 
         return cell_configs, connection_configs
@@ -379,6 +379,9 @@ class ConfigsProvider_17(ConfigsProvider):
             config["logging"] = init_logging(config["logging"], node_dirs[i], "node-{0}".format(i),
                                              provision["enable_debug_logging"])
 
+            config["exec_agent"]["enable_cgroups"] = False
+            config["exec_agent"]["environment_manager"] = {"environments": {"default": {"type": "unsafe"}}}
+
             config["exec_agent"]["job_proxy_logging"] = init_logging(config["exec_agent"]["job_proxy_logging"],
                                                                      node_dirs[i], "job_proxy-{0}".format(i),
                                                                      provision["enable_debug_logging"])
@@ -403,7 +406,7 @@ class ConfigsProvider_17(ConfigsProvider):
     def _build_driver_configs(self, provision, master_connection_configs):
         connection_config = self._build_cluster_connection_config(master_connection_configs)
         driver_config = update(default_configs.get_driver_config(), connection_config)
-        return {str(provision["primary_cell_tag"]): driver_config}
+        return {str(provision["master"]["primary_cell_tag"]): driver_config}
 
     def _build_ui_config(self, provision, master_connection_configs, proxy_address):
         cell_tag = master_connection_configs["primary_cell_tag"]
