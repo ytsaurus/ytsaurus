@@ -63,16 +63,25 @@ public:
             }
         }
 
-        if (Started_.load(std::memory_order_relaxed)) {
-            Start();
+        if (StartFlag_.load(std::memory_order_relaxed)) {
+            DoStart();
         }
     }
 
     void Start()
     {
+        bool expected = false;
+        if (StartFlag_.compare_exchange_strong(expected, true)) {
+            DoStart();
+        }
+    }
+
+    void DoStart()
+    {
         decltype(Threads_) threads;
         {
             TGuard<TSpinLock> guard(SpinLock_);
+            FinalizerInvoker_ = GetFinalizerInvoker();
             threads = Threads_;
         }
 
@@ -83,7 +92,16 @@ public:
 
     void Shutdown()
     {
-        if (!Queue_->IsRunning()) {
+        bool expected = false;
+        if (ShutdownFlag_.compare_exchange_strong(expected, true)) {
+            DoShutdown();
+        }
+    }
+
+    void DoShutdown()
+    {
+        bool expected = false;
+        if (StartFlag_.compare_exchange_strong(expected, true)) {
             return;
         }
 
@@ -95,21 +113,21 @@ public:
             std::swap(threads, Threads_);
         }
 
-        GetFinalizerInvoker()->Invoke(BIND([threads = std::move(threads), queue = Queue_] () {
+        FinalizerInvoker_->Invoke(BIND([threads = std::move(threads), queue = Queue_] () {
             for (auto& thread : threads) {
                 thread->Shutdown();
             }
             queue->Drain();
         }));
+        FinalizerInvoker_.Reset();
     }
 
     const IInvokerPtr& GetInvoker()
     {
-        if (Y_UNLIKELY(!Started_.load(std::memory_order_relaxed))) {
-            // Concurrent calls to Start() are okay.
-            Started_.store(true, std::memory_order_relaxed);
+        if (Y_UNLIKELY(!StartFlag_.load(std::memory_order_relaxed))) {
             Start();
         }
+        YCHECK(!ShutdownFlag_.load(std::memory_order_relaxed));
         return Invoker_;
     }
 
@@ -118,12 +136,16 @@ private:
     const bool EnableLogging_;
     const bool EnableProfiling_;
 
-    std::atomic<bool> Started_ = {false};
+    std::atomic<bool> StartFlag_ = {false};
+    std::atomic<bool> ShutdownFlag_ = {false};
+
     TSpinLock SpinLock_;
 
     const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr Queue_;
     const IInvokerPtr Invoker_;
+
+    IInvokerPtr FinalizerInvoker_;
 
     std::vector<TSchedulerThreadPtr> Threads_;
 
@@ -135,8 +157,7 @@ private:
             Format("%v:%v", ThreadNamePrefix_, index),
             GetThreadTagIds(EnableProfiling_, ThreadNamePrefix_),
             EnableLogging_,
-            EnableProfiling_,
-            false);
+            EnableProfiling_);
     }
 };
 
