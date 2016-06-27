@@ -2,13 +2,18 @@
 
 #include "public.h"
 
+#ifndef _linux_
+    #include <util/system/condvar.h>
+    #include <util/system/mutex.h>
+#endif
+
 namespace NYT {
 namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A synchronization aid that allows one or more threads to wait until
-// a set of operations being performed in other threads completes.
+//! a set of operations being performed in other threads completes.
 /*!
  *  See https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/CountDownLatch.html
  */
@@ -16,7 +21,6 @@ class TCountDownLatch
 {
 public:
     explicit TCountDownLatch(size_t count);
-    ~TCountDownLatch();
 
     void CountDown();
 
@@ -30,8 +34,8 @@ private:
     std::atomic<size_t> Count_;
 
 #ifndef _linux_
-    TCondVar ConditionVariable_;
-    TMutex Mutex_;
+    mutable TCondVar ConditionVariable_;
+    mutable TMutex Mutex_;
 #endif
 };
 

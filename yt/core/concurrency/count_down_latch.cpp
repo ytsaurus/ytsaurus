@@ -12,8 +12,6 @@ TCountDownLatch::TCountDownLatch(size_t count)
     : Count_(count)
 { }
 
-TCountDownLatch::~TCountDownLatch() = default;
-
 void TCountDownLatch::CountDown()
 {
 #ifndef _linux_
