@@ -47,18 +47,6 @@ void Serialize(const TExtendedJobResources& resources, IYsonConsumer* consumer)
         .EndMap();
 }
 
-void TExtendedJobResources::Persist(TStreamPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, Cpu_);
-    Persist(context, UserSlots_);
-    Persist(context, JobProxyMemory_);
-    Persist(context, UserJobMemory_);
-    Persist(context, FootprintMemory_);
-    Persist(context, Network_);
-}
-
 TJobResources::TJobResources()
     : TEmptyJobResourcesBase()
 #define XX(name, Name) , Name##_(0)

@@ -28,8 +28,6 @@ public:
     TExtendedJobResources();
 
     i64 GetMemory() const;
-
-    void Persist(TStreamPersistenceContext& context);
 };
 
 class TJobResources
