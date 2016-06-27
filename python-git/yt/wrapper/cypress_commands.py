@@ -15,6 +15,11 @@ from copy import deepcopy
 
 import __builtin__
 
+# XXX(asaitgalin): Used in get_attribute function for `default` argument
+# instead of None value to distinguish case when default argument
+# is passed and is None from case when default is not passed.
+KWARG_SENTINEL = object()
+
 def ypath_join(*paths):
     """ Join parts of cypress paths.
     """
@@ -281,13 +286,13 @@ def mkdir(path, recursive=None, client=None):
     return create("map_node", path, recursive=recursive, ignore_existing=recursive, client=client)
 
 # TODO: maybe remove this methods
-def get_attribute(path, attribute, default=None, client=None):
+def get_attribute(path, attribute, default=KWARG_SENTINEL, client=None):
     """Get attribute of Cypress node.
 
     :param path: (string)
     :param attribute: (string)
     :param default: (any) return it if node hasn't attribute `attribute`."""
-    if default is not None and attribute not in list_attributes(path, client=client):
+    if default is not KWARG_SENTINEL and attribute not in list_attributes(path, client=client):
         return default
     return get("%s/@%s" % (path, attribute), client=client)
 
