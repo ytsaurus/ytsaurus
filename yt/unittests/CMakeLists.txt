@@ -29,6 +29,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/election_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/enum_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/erasure_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/expiring_cache_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/file_changelog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/fls_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/format_ut.cpp
