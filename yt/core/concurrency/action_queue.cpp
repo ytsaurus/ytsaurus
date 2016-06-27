@@ -49,6 +49,16 @@ public:
 
     void Start()
     {
+        bool expected = false;
+        if (StartFlag_.compare_exchange_strong(expected, true)) {
+            DoStart();
+        }
+    }
+
+    void DoStart()
+    {
+        FinalizerInvoker_ = GetFinalizerInvoker();
+
         Thread_->Start();
         // XXX(sandello): Racy! Fix me by moving this into OnThreadStart().
         Queue_->SetThreadId(Thread_->GetId());
@@ -56,28 +66,34 @@ public:
 
     void Shutdown()
     {
-        if (!Queue_->IsRunning()) {
+        bool expected = false;
+        if (ShutdownFlag_.compare_exchange_strong(expected, true)) {
+            DoShutdown();
+        }
+    }
+
+    void DoShutdown()
+    {
+        bool expected = false;
+        if (StartFlag_.compare_exchange_strong(expected, true)) {
             return;
         }
 
         Queue_->Shutdown();
 
-        GetFinalizerInvoker()->Invoke(BIND([thread = Thread_, queue = Queue_] {
+        FinalizerInvoker_->Invoke(BIND([thread = Thread_, queue = Queue_] {
             thread->Shutdown();
             queue->Drain();
         }));
-    }
-
-    bool IsStarted() const
-    {
-        return Thread_->IsStarted();
+        FinalizerInvoker_.Reset();
     }
 
     const IInvokerPtr& GetInvoker()
     {
-        if (Y_UNLIKELY(!IsStarted())) {
+        if (Y_UNLIKELY(!StartFlag_.load(std::memory_order_relaxed))) {
             Start();
         }
+        YCHECK(!ShutdownFlag_.load(std::memory_order_relaxed));
         return Invoker_;
     }
 
@@ -86,6 +102,11 @@ private:
     const TInvokerQueuePtr Queue_;
     const IInvokerPtr Invoker_;
     const TSingleQueueSchedulerThreadPtr Thread_;
+
+    std::atomic<bool> StartFlag_ = {false};
+    std::atomic<bool> ShutdownFlag_ = {false};
+
+    IInvokerPtr FinalizerInvoker_;
 };
 
 TActionQueue::TActionQueue(
