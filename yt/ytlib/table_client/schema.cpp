@@ -201,6 +201,11 @@ int TTableSchema::GetColumnIndex(const TColumnSchema& column) const
     return &column - Columns().data();
 }
 
+int TTableSchema::GetColumnIndex(const TStringBuf& name) const
+{
+    return GetColumnIndex(GetColumn(name));
+}
+
 int TTableSchema::GetColumnIndexOrThrow(const TStringBuf& name) const
 {
     return GetColumnIndex(GetColumnOrThrow(name));
