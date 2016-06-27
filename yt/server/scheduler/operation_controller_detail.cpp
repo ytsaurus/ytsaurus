@@ -2260,7 +2260,7 @@ void TOperationControllerBase::UpdateTask(TTaskPtr task)
 
 void TOperationControllerBase::UpdateAllTasks()
 {
-    for (auto& task: Tasks) {
+    for (const auto& task: Tasks) {
         task->ResetCachedMinNeededResources();
         UpdateTask(task);
     }
