@@ -114,7 +114,6 @@ message TJoinClause
     required bool is_left = 7;
 
     required bool can_use_source_ranges = 8;
-    required uint64 key_prefix = 9;
     repeated int64 equation_by_index = 10;
     repeated TExpression evaluated_columns = 11;
 }

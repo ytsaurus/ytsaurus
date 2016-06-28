@@ -1705,7 +1705,6 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         }
 
         joinClause->EquationByIndex = equationByIndex;
-        joinClause->KeyPrefix = keyPrefix;
         joinClause->Equations = std::move(equations);
 
         schemaProxy = New<TJoinSchemaProxy>(

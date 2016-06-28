@@ -241,7 +241,6 @@ struct TJoinClause
     TTableSchema RenamedTableSchema;
 
     bool CanUseSourceRanges;
-    size_t KeyPrefix;
     std::vector<int> EquationByIndex;
 
     // TODO(lukyan): Keep reverse to EquationByIndex mapping (std::vector<int> equationToPosMapping)?
