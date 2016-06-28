@@ -69,10 +69,15 @@ TErrorOr<TRecordInfo> TryReadRecord(TInput& input)
 
     int totalSize = 0;
     TChangelogRecordHeader header;
-    totalSize += ReadPodPadded(input, header);
+
+    NFS::ExpectIOErrors([&] () {
+        totalSize += ReadPodPadded(input, header);
+    });
+
     if (!input.Success()) {
         return TError("Error reading record header");
     }
+
     if (header.DataSize <= 0) {
         return TError("Broken record header: DataSize <= 0");
     }
@@ -84,7 +89,11 @@ TErrorOr<TRecordInfo> TryReadRecord(TInput& input)
             header.DataSize,
             input.Avail());
     }
-    totalSize += ReadPadded(input, data);
+
+    NFS::ExpectIOErrors([&] () {
+        totalSize += ReadPadded(input, data);
+    });
+
     if (!input.Success()) {
         return TError("Error reading record data");
     }
@@ -240,28 +249,33 @@ public:
         YCHECK(!Open_);
 
         try {
+            // Read and check changelog header.
+            TChangelogHeader header;
+
             NFS::ExpectIOErrors([&] () {
                 DataFile_.reset(new TFileWrapper(FileName_, RdWr | Seq | CloseOnExec));
                 LockDataFile();
-
-                // Read and check changelog header.
-                TChangelogHeader header;
                 ReadPod(*DataFile_, header);
-                ValidateSignature(header);
-
-                // Read meta.
-                auto serializedMeta = TSharedMutableRef::Allocate(header.MetaSize);
-                ReadPadded(*DataFile_, serializedMeta);
-                DeserializeFromProto(&Meta_, serializedMeta);
-                SerializedMeta_ = serializedMeta;
-
-                TruncatedRecordCount_ = header.TruncatedRecordCount == TChangelogHeader::NotTruncatedRecordCount
-                    ? Null
-                    : MakeNullable(header.TruncatedRecordCount);
-
-                ReadIndex(header);
-                ReadChangelogUntilEnd(header);
             });
+
+            ValidateSignature(header);
+
+            // Read meta.
+            auto serializedMeta = TSharedMutableRef::Allocate(header.MetaSize);
+
+            NFS::ExpectIOErrors([&] () {
+                ReadPadded(*DataFile_, serializedMeta);
+            });
+
+            DeserializeFromProto(&Meta_, serializedMeta);
+            SerializedMeta_ = serializedMeta;
+
+            TruncatedRecordCount_ = header.TruncatedRecordCount == TChangelogHeader::NotTruncatedRecordCount
+                ? Null
+                : MakeNullable(header.TruncatedRecordCount);
+
+            ReadIndex(header);
+            ReadChangelogUntilEnd(header);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error opening changelog");
             Error_ = ex;
@@ -316,17 +330,15 @@ public:
         YCHECK(!Open_);
 
         try {
-            NFS::ExpectIOErrors([&] () {
-                Meta_ = meta;
-                SerializedMeta_ = SerializeToProto(Meta_);
-                RecordCount_ = 0;
+            Meta_ = meta;
+            SerializedMeta_ = SerializeToProto(Meta_);
+            RecordCount_ = 0;
 
-                CreateDataFile();
-                CreateIndexFile();
+            CreateDataFile();
+            CreateIndexFile();
 
-                CurrentFilePosition_ = DataFile_->GetPosition();
-                CurrentBlockSize_ = 0;
-            });
+            CurrentFilePosition_ = DataFile_->GetPosition();
+            CurrentBlockSize_ = 0;
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error creating changelog");
             Error_ = ex;
@@ -391,35 +403,34 @@ public:
             firstRecordId + records.size() - 1);
 
         try {
+            AppendSizes_.clear();
+            AppendSizes_.reserve(records.size());
+
+            AppendOutput_.Clear();
+
+            // Combine records into a single memory blob.
+            for (int index = 0; index < records.size(); ++index) {
+                const auto& record = records[index];
+                YCHECK(!record.Empty());
+
+                int totalSize = 0;
+                TChangelogRecordHeader header(firstRecordId + index, record.Size(), GetChecksum(record));
+                totalSize += WritePodPadded(AppendOutput_, header);
+                totalSize += WritePadded(AppendOutput_, record);
+
+                AppendSizes_.push_back(totalSize);
+            }
+
             NFS::ExpectIOErrors([&] () {
-                AppendSizes_.clear();
-                AppendSizes_.reserve(records.size());
-
-                AppendOutput_.Clear();
-
-                // Combine records into a single memory blob.
-                for (int index = 0; index < records.size(); ++index) {
-                    const auto& record = records[index];
-                    YCHECK(!record.Empty());
-
-                    int totalSize = 0;
-                    TChangelogRecordHeader header(firstRecordId + index, record.Size(), GetChecksum(record));
-                    totalSize += WritePodPadded(AppendOutput_, header);
-                    totalSize += WritePadded(AppendOutput_, record);
-
-                    AppendSizes_.push_back(totalSize);
-                }
-
                 // Write blob to file.
                 DataFile_->Seek(0, sEnd);
                 DataFile_->Write(AppendOutput_.Begin(), AppendOutput_.Size());
-
-
-                // Process written records (update index etc).
-                for (int index = 0; index < records.size(); ++index) {
-                    ProcessRecord(firstRecordId + index, AppendSizes_[index]);
-                }
             });
+
+            // Process written records (update index etc).
+            for (int index = 0; index < records.size(); ++index) {
+                ProcessRecord(firstRecordId + index, AppendSizes_[index]);
+            }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error appending to changelog");
             Error_ = ex;
@@ -442,14 +453,14 @@ public:
         LOG_DEBUG("Started flushing changelog");
 
         try {
-            NFS::ExpectIOErrors([&] () {
-                if (Config_->EnableSync) {
+            if (Config_->EnableSync) {
+                NFS::ExpectIOErrors([&] () {
                     DataFile_->FlushData();
                     IndexFile_->FlushData();
-                }
+                });
+            }
 
-                LastFlushed_ = TInstant::Now();
-            });
+            LastFlushed_ = TInstant::Now();
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error flushing changelog");
             Error_ = ex;
@@ -485,38 +496,36 @@ public:
                 return records;
             }
 
-            NFS::ExpectIOErrors([&] () {
-                maxRecords = std::min(maxRecords, RecordCount_ - firstRecordId);
-                int lastRecordId = firstRecordId + maxRecords; // non-inclusive
+            maxRecords = std::min(maxRecords, RecordCount_ - firstRecordId);
+            int lastRecordId = firstRecordId + maxRecords; // non-inclusive
 
-                // Read envelope piece of changelog.
-                auto envelope = ReadEnvelope(firstRecordId, lastRecordId, std::min(Index_.back().FilePosition, maxBytes));
+            // Read envelope piece of changelog.
+            auto envelope = ReadEnvelope(firstRecordId, lastRecordId, std::min(Index_.back().FilePosition, maxBytes));
 
-                // Read records from envelope data and save them to the records.
-                i64 readBytes = 0;
-                TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
-                for (int recordId = envelope.GetStartRecordId();
-                     recordId < envelope.GetEndRecordId() && recordId < lastRecordId && readBytes < maxBytes;
-                     ++recordId)
-                {
-                    // Read and check header.
-                    TChangelogRecordHeader header;
-                    ReadPodPadded(inputStream, header);
-                    YCHECK(header.RecordId == recordId);
+            // Read records from envelope data and save them to the records.
+            i64 readBytes = 0;
+            TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
+            for (i64 recordId = envelope.GetStartRecordId();
+                 recordId < envelope.GetEndRecordId() && recordId < lastRecordId && readBytes < maxBytes;
+                 ++recordId)
+            {
+                // Read and check header.
+                TChangelogRecordHeader header;
+                ReadPodPadded(inputStream, header);
+                YCHECK(header.RecordId == recordId);
 
-                    // Save and pad data.
-                    i64 startOffset = inputStream.Buf() - envelope.Blob.Begin();
-                    i64 endOffset = startOffset + header.DataSize;
-                    auto data = envelope.Blob.Slice(startOffset, endOffset);
-                    inputStream.Skip(AlignUp(header.DataSize));
+                // Save and pad data.
+                i64 startOffset = inputStream.Buf() - envelope.Blob.Begin();
+                i64 endOffset = startOffset + header.DataSize;
+                auto data = envelope.Blob.Slice(startOffset, endOffset);
+                inputStream.Skip(AlignUp(header.DataSize));
 
-                    // Add data to the records.
-                    if (recordId >= firstRecordId) {
-                        records.push_back(data);
-                        readBytes += data.Size();
-                    }
+                // Add data to the records.
+                if (recordId >= firstRecordId) {
+                    records.push_back(data);
+                    readBytes += data.Size();
                 }
-            });
+            }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error reading changelog");
             Error_ = ex;
@@ -543,11 +552,9 @@ public:
             recordCount);
 
         try {
-            NFS::ExpectIOErrors([&] () {
-                RecordCount_ = recordCount;
-                TruncatedRecordCount_ = recordCount;
-                UpdateLogHeader();
-            });
+            RecordCount_ = recordCount;
+            TruncatedRecordCount_ = recordCount;
+            UpdateLogHeader();
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error truncating changelog");
             Error_ = ex;
@@ -610,43 +617,47 @@ private:
     //! Creates an empty data file.
     void CreateDataFile()
     {
-        auto tempFileName = FileName_ + NFS::TempFileSuffix;
-        TFileWrapper tempFile(tempFileName, WrOnly | CloseOnExec | CreateAlways);
+        NFS::ExpectIOErrors([&] () {
+            auto tempFileName = FileName_ + NFS::TempFileSuffix;
+            TFileWrapper tempFile(tempFileName, WrOnly | CloseOnExec | CreateAlways);
 
-        TChangelogHeader header(
-            SerializedMeta_.Size(),
-            TChangelogHeader::NotTruncatedRecordCount);
-        WritePod(tempFile, header);
+            TChangelogHeader header(
+                SerializedMeta_.Size(),
+                TChangelogHeader::NotTruncatedRecordCount);
+            WritePod(tempFile, header);
 
-        WritePadded(tempFile, SerializedMeta_);
+            WritePadded(tempFile, SerializedMeta_);
 
-        YCHECK(tempFile.GetPosition() == header.HeaderSize);
+            YCHECK(tempFile.GetPosition() == header.HeaderSize);
 
-        tempFile.FlushData();
-        tempFile.Close();
+            tempFile.FlushData();
+            tempFile.Close();
 
-        NFS::Replace(tempFileName, FileName_);
+            NFS::Replace(tempFileName, FileName_);
 
-        DataFile_ = std::make_unique<TFileWrapper>(FileName_, RdWr | Seq | CloseOnExec);
-        DataFile_->Seek(0, sEnd);
+            DataFile_ = std::make_unique<TFileWrapper>(FileName_, RdWr | Seq | CloseOnExec);
+            DataFile_->Seek(0, sEnd);
+        });
     }
 
     //! Creates an empty index file.
     void CreateIndexFile()
     {
-        auto tempFileName = IndexFileName_ + NFS::TempFileSuffix;
-        TFile tempFile(tempFileName, WrOnly|CreateAlways);
+        NFS::ExpectIOErrors([&] () {
+            auto tempFileName = IndexFileName_ + NFS::TempFileSuffix;
+            TFile tempFile(tempFileName, WrOnly|CreateAlways);
 
-        TChangelogIndexHeader header(0);
-        WritePod(tempFile, header);
+            TChangelogIndexHeader header(0);
+            WritePod(tempFile, header);
 
-        tempFile.FlushData();
-        tempFile.Close();
+            tempFile.FlushData();
+            tempFile.Close();
 
-        NFS::Replace(tempFileName, IndexFileName_);
+            NFS::Replace(tempFileName, IndexFileName_);
 
-        IndexFile_ = std::make_unique<TFile>(IndexFileName_, RdWr);
-        IndexFile_->Seek(0, sEnd);
+            IndexFile_ = std::make_unique<TFile>(IndexFileName_, RdWr);
+            IndexFile_->Seek(0, sEnd);
+        });
     }
 
     //! Processes records that are being or written.
@@ -666,7 +677,11 @@ private:
 
             CurrentBlockSize_ = 0;
             Index_.push_back(TChangelogIndexRecord(recordId, CurrentFilePosition_));
-            WritePod(*IndexFile_, Index_.back());
+
+            NFS::ExpectIOErrors([&] () {
+                WritePod(*IndexFile_, Index_.back());
+            });
+
             UpdateIndexHeader();
 
             LOG_DEBUG("Changelog index record added (RecordId: %v, Offset: %v)",
@@ -682,72 +697,78 @@ private:
     //! Rewrites changelog header.
     void UpdateLogHeader()
     {
-        DataFile_->FlushData();
-        i64 oldPosition = DataFile_->GetPosition();
-        DataFile_->Seek(0, sSet);
-        TChangelogHeader header(
-            SerializedMeta_.Size(),
-            TruncatedRecordCount_ ? *TruncatedRecordCount_ : TChangelogHeader::NotTruncatedRecordCount);
-        WritePod(*DataFile_, header);
-        DataFile_->FlushData();
-        DataFile_->Seek(oldPosition, sSet);
+        NFS::ExpectIOErrors([&] () {
+            DataFile_->FlushData();
+            i64 oldPosition = DataFile_->GetPosition();
+            DataFile_->Seek(0, sSet);
+            TChangelogHeader header(
+                SerializedMeta_.Size(),
+                TruncatedRecordCount_ ? *TruncatedRecordCount_ : TChangelogHeader::NotTruncatedRecordCount);
+            WritePod(*DataFile_, header);
+            DataFile_->FlushData();
+            DataFile_->Seek(oldPosition, sSet);
+        });
     }
 
     //! Rewrites index header.
     void UpdateIndexHeader()
     {
-        IndexFile_->FlushData();
-        i64 oldPosition = IndexFile_->GetPosition();
-        IndexFile_->Seek(0, sSet);
-        TChangelogIndexHeader header(Index_.size());
-        WritePod(*IndexFile_, header);
-        IndexFile_->Seek(oldPosition, sSet);
+        NFS::ExpectIOErrors([&] () {
+            IndexFile_->FlushData();
+            i64 oldPosition = IndexFile_->GetPosition();
+            IndexFile_->Seek(0, sSet);
+            TChangelogIndexHeader header(Index_.size());
+            WritePod(*IndexFile_, header);
+            IndexFile_->Seek(oldPosition, sSet);
+        });
     }
 
     //! Reads the maximal valid prefix of index, truncates bad index records.
     void ReadIndex(const TChangelogHeader& header)
     {
-        // Create index if it is missing.
-        if (!NFS::Exists(IndexFileName_) ||
-            TFile(IndexFileName_, RdOnly).GetLength() < sizeof(TChangelogIndexHeader))
-        {
-            CreateIndexFile();
-        }
-
-        // Read the existing index.
-        {
-            TMappedFileInput indexStream(IndexFileName_);
-
-            // Read and check index header.
-            TChangelogIndexHeader indexHeader;
-            ReadPod(indexStream, indexHeader);
-            ValidateSignature(indexHeader);
-            YCHECK(indexHeader.IndexRecordCount >= 0);
-
-            // Read index records.
-            for (int i = 0; i < indexHeader.IndexRecordCount; ++i) {
-                if (indexStream.Avail() < sizeof(TChangelogIndexHeader)) {
-                    break;
-                }
-
-                TChangelogIndexRecord indexRecord;
-                ReadPod(indexStream, indexRecord);
-                if (TruncatedRecordCount_ && indexRecord.RecordId >= *TruncatedRecordCount_) {
-                    break;
-                }
-                Index_.push_back(indexRecord);
+        NFS::ExpectIOErrors([&] () {
+            // Create index if it is missing.
+            if (!NFS::Exists(IndexFileName_) ||
+                TFile(IndexFileName_, RdOnly).GetLength() < sizeof(TChangelogIndexHeader))
+            {
+                CreateIndexFile();
             }
-        }
-        // Compute the maximum correct prefix and truncate the index.
-        {
-            auto correctPrefixSize = ComputeValidIndexPrefix(Index_, header, &*DataFile_);
-            LOG_WARNING_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
-            Index_.resize(correctPrefixSize);
 
-            IndexFile_.reset(new TFile(IndexFileName_, RdWr | Seq | OpenAlways | CloseOnExec));
-            IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
-            IndexFile_->Seek(0, sEnd);
-        }
+            // Read the existing index.
+            {
+                TMappedFileInput indexStream(IndexFileName_);
+
+                // Read and check index header.
+                TChangelogIndexHeader indexHeader;
+                ReadPod(indexStream, indexHeader);
+                ValidateSignature(indexHeader);
+                YCHECK(indexHeader.IndexRecordCount >= 0);
+
+                // Read index records.
+                for (int i = 0; i < indexHeader.IndexRecordCount; ++i) {
+                    if (indexStream.Avail() < sizeof(TChangelogIndexHeader)) {
+                        break;
+                    }
+
+                    TChangelogIndexRecord indexRecord;
+                    ReadPod(indexStream, indexRecord);
+                    if (TruncatedRecordCount_ && indexRecord.RecordId >= *TruncatedRecordCount_) {
+                        break;
+                    }
+                    Index_.push_back(indexRecord);
+                }
+            }
+            // Compute the maximum correct prefix and truncate the index.
+            {
+                auto correctPrefixSize = ComputeValidIndexPrefix(Index_, header, &*DataFile_);
+                LOG_WARNING_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
+                Index_.resize(correctPrefixSize);
+
+                IndexFile_.reset(new TFile(IndexFileName_, RdWr | Seq | OpenAlways | CloseOnExec));
+                IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
+                IndexFile_->Seek(0, sEnd);
+            }
+        });
     }
 
     //! Reads a piece of changelog containing both #firstRecordId and #lastRecordId.
@@ -770,11 +791,13 @@ private:
         struct TSyncChangelogEnvelopeTag { };
         result.Blob = TSharedMutableRef::Allocate<TSyncChangelogEnvelopeTag>(result.GetLength(), false);
 
-        size_t bytesRead = DataFile_->Pread(
-            result.Blob.Begin(),
-            result.GetLength(),
-            result.GetStartPosition());
-        YCHECK(bytesRead == result.GetLength());
+        NFS::ExpectIOErrors([&] () {
+            size_t bytesRead = DataFile_->Pread(
+                result.Blob.Begin(),
+                result.GetLength(),
+                result.GetStartPosition());
+            YCHECK(bytesRead == result.GetLength());
+        });
 
         return result;
     }
@@ -794,7 +817,10 @@ private:
         }
 
         // Seek to proper position in file, initialize checkable reader.
-        DataFile_->Seek(CurrentFilePosition_, sSet);
+        NFS::ExpectIOErrors([&] () {
+            DataFile_->Seek(CurrentFilePosition_, sSet);
+        });
+
         TCheckedReader<TFileWrapper> dataReader(*DataFile_);
 
         if (!Index_.empty()) {
@@ -817,9 +843,11 @@ private:
                         << TErrorAttribute("offset", CurrentFilePosition_);
                 }
 
-                DataFile_->Resize(CurrentFilePosition_);
-                DataFile_->FlushData();
-                DataFile_->Seek(0, sEnd);
+                NFS::ExpectIOErrors([&] () {
+                    DataFile_->Resize(CurrentFilePosition_);
+                    DataFile_->FlushData();
+                    DataFile_->Seek(0, sEnd);
+                });
 
                 LOG_WARNING(recordInfoOrError, "Broken record found in changelog, trimmed (RecordId: %v, Offset: %v)",
                     RecordCount_,
