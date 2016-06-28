@@ -50,7 +50,7 @@ public:
         TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, host, operation)
+        : TOperationControllerBase(config, spec, options, host, operation)
         , Spec(spec)
         , Options(options)
         , TotalChunkCount(0)
@@ -170,16 +170,9 @@ protected:
             return Controller->Spec->LocalityTimeout;
         }
 
-        virtual TJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
         {
-            auto result = GetMinNeededResources();
-            result.SetMemory(
-                Controller->GetFinalIOMemorySize(
-                    Controller->Spec->JobIO,
-                    UpdateChunkStripeStatistics(joblet->InputStripeList->GetStatistics())) +
-                GetFootprintMemorySize() +
-                Controller->GetAdditionalMemorySize(joblet->MemoryReserveEnabled));
-            return result;
+            return GetMergeResources(joblet->InputStripeList->GetStatistics());
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -223,24 +216,22 @@ protected:
         //! Key for #TOutputTable::OutputChunkTreeIds.
         int PartitionIndex;
 
-        virtual bool IsMemoryReserveEnabled() const override
+        virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
-            return Controller->IsMemoryReserveEnabled(Controller->JobCounter);
+            return GetMergeResources(ChunkPool->GetApproximateStripeStatistics());
         }
 
-        virtual TJobResources GetMinNeededResourcesHeavy() const override
+        TExtendedJobResources GetMergeResources(
+            const TChunkStripeStatisticsVector& statistics) const
         {
-            TJobResources result;
-
+            TExtendedJobResources result;
             result.SetUserSlots(1);
             result.SetCpu(Controller->GetCpuLimit());
-            result.SetMemory(
-                Controller->GetFinalIOMemorySize(
+            result.SetJobProxyMemory(Controller->GetFinalIOMemorySize(
                     Controller->Spec->JobIO,
-                    UpdateChunkStripeStatistics(ChunkPool->GetApproximateStripeStatistics())) +
-                GetFootprintMemorySize() +
-                Controller->GetAdditionalMemorySize(IsMemoryReserveEnabled()));
-            return result;
+                    UpdateChunkStripeStatistics(statistics)));
+            AddFootprintAndUserJobResources(result);
+           return result;
         }
 
         TChunkStripeStatisticsVector UpdateChunkStripeStatistics(
@@ -260,7 +251,12 @@ protected:
 
         virtual EJobType GetJobType() const override
         {
-            return EJobType(Controller->JobSpecTemplate.type());
+            return Controller->GetJobType();
+        }
+
+        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        {
+            return Controller->GetUserJobSpec();
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -279,7 +275,6 @@ protected:
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
             TTask::OnJobAborted(joblet, jobSummary);
-            Controller->UpdateAllTasksIfNeeded(Controller->JobCounter);
         }
 
     };
@@ -500,9 +495,8 @@ protected:
     //! Returns True if the chunk can be included into the output as-is.
     virtual bool IsTeleportChunk(const TInputChunkPtr& chunkSpec) const = 0;
 
-    virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const
+    virtual i64 GetUserJobMemoryReserve() const
     {
-        Y_UNUSED(memoryReserveEnabled);
         return 0;
     }
 
@@ -526,6 +520,13 @@ protected:
 
         TableReaderOptions = CreateTableReaderOptions(Spec->JobIO);
     }
+
+    virtual TUserJobSpecPtr GetUserJobSpec() const
+    {
+        return nullptr;
+    }
+
+    virtual EJobType GetJobType() const = 0;
 
     //! Initializes #JobSpecTemplate.
     virtual void InitJobSpecTemplate() = 0;
@@ -595,7 +596,10 @@ public:
         TOperation* operation)
         : TOrderedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
-    { }
+    {
+        RegisterJobProxyMemoryDigest(EJobType::OrderedMap, spec->JobProxyMemoryDigest);
+        RegisterUserJobMemoryDigest(EJobType::OrderedMap, spec->Mapper->MemoryReserveFactor);
+    }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
@@ -622,6 +626,10 @@ private:
 
     i64 StartRowIndex = 0;
 
+    virtual TUserJobSpecPtr GetUserJobSpec() const override
+    {
+        return Spec->Mapper;
+    }
 
     virtual bool IsRowCountPreserved() const override
     {
@@ -679,9 +687,9 @@ private:
         return Spec->Mapper->CpuLimit;
     }
 
-    virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const override
+    virtual i64 GetUserJobMemoryReserve() const override
     {
-        return GetMemoryReserve(memoryReserveEnabled, Spec->Mapper);
+        return ComputeUserJobMemoryReserve(EJobType::OrderedMap, Spec->Mapper);
     }
 
     virtual void InitJobSpecTemplate() override
@@ -716,9 +724,13 @@ private:
         InitUserJobSpec(
             schedulerJobSpecExt->mutable_user_job_spec(),
             joblet,
-            GetAdditionalMemorySize(joblet->MemoryReserveEnabled));
+            GetUserJobMemoryReserve());
     }
 
+    virtual EJobType GetJobType() const override
+    {
+        return EJobType::OrderedMap;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController);
@@ -748,7 +760,9 @@ public:
         TOperation* operation)
         : TOrderedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
-    { }
+    {
+        RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
+    }
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController, 0x1f748c56);
@@ -796,6 +810,10 @@ private:
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
+    virtual EJobType GetJobType() const override
+    {
+        return EJobType::OrderedMerge;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController);
@@ -813,7 +831,9 @@ public:
         TOperation* operation)
         : TOrderedMergeControllerBase(config, spec, config->EraseOperationOptions, host, operation)
         , Spec(spec)
-    { }
+    {
+        RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
+    }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
@@ -914,6 +934,10 @@ private:
         }
     }
 
+    virtual EJobType GetJobType() const override
+    {
+        return EJobType::OrderedMerge;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseController);
@@ -1183,7 +1207,9 @@ public:
         TOperation* operation)
         : TSortedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
-    { }
+    {
+        RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->JobProxyMemoryDigest);
+    }
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController, 0xbc6daa18);
@@ -1493,6 +1519,11 @@ private:
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
         ManiacJobSpecTemplate.set_type(static_cast<int>(EJobType::UnorderedMerge));
     }
+
+    virtual EJobType GetJobType() const override
+    {
+        return EJobType::SortedMerge;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController);
@@ -1545,7 +1576,10 @@ public:
         TOperation* operation)
         : TSortedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
-    { }
+    {
+        RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->JobProxyMemoryDigest);
+        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->MemoryReserveFactor);
+    }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
@@ -1720,9 +1754,14 @@ protected:
         return Spec->Reducer->CpuLimit;
     }
 
-    virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const override
+    virtual TUserJobSpecPtr GetUserJobSpec() const override
     {
-        return GetMemoryReserve(memoryReserveEnabled, Spec->Reducer);
+        return Spec->Reducer;
+    }
+
+    virtual i64 GetUserJobMemoryReserve() const override
+    {
+        return ComputeUserJobMemoryReserve(EJobType::SortedReduce, Spec->Reducer);
     }
 
     virtual void InitJobSpecTemplate() override
@@ -1762,7 +1801,7 @@ protected:
         InitUserJobSpec(
             schedulerJobSpecExt->mutable_user_job_spec(),
             joblet,
-            GetAdditionalMemorySize(joblet->MemoryReserveEnabled));
+            GetUserJobMemoryReserve());
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
@@ -1773,6 +1812,11 @@ protected:
             }
         }
         return true;
+    }
+
+    virtual EJobType GetJobType() const override
+    {
+        return EJobType::SortedReduce;
     }
 };
 

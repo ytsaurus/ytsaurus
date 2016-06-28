@@ -270,11 +270,6 @@ bool TTableSchema::IsUniqueKeys() const
     return UniqueKeys_;
 }
 
-void TTableSchema::MakeUniqueKeys()
-{
-    UniqueKeys_ = true;
-}
-
 TKeyColumns TTableSchema::GetKeyColumns() const
 {
     TKeyColumns keyColumns;
@@ -366,6 +361,11 @@ TTableSchema TTableSchema::ToValues() const
 {
     std::vector<TColumnSchema> columns(Columns_.begin() + KeyColumnCount_, Columns_.end());
     return TTableSchema(std::move(columns));
+}
+
+TTableSchema TTableSchema::ToUniqueKeys() const
+{
+    return TTableSchema(Columns_, Strict_, true);
 }
 
 void TTableSchema::Save(TStreamSaveContext& context) const

@@ -857,6 +857,7 @@ public:
 
         auto objectManager = Bootstrap_->GetObjectManager();
         for (auto* tablet : table->Tablets()) {
+            tablet->SetTable(nullptr);
             YCHECK(tablet->GetState() == ETabletState::Unmounted);
             objectManager->UnrefObject(tablet);
         }

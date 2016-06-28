@@ -114,13 +114,12 @@ public:
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;
 
-    //! Once this limit is reached the memory reserve is disabled.
-    int MaxMemoryReserveAbortJobCount;
-
     //! Maximum number of saved stderr per job type.
     int MaxStderrCount;
 
     TNullable<i64> JobProxyMemoryOvercommitLimit;
+
+    TDuration JobProxyRefCountedTrackerLogPeriod;
 
     bool EnableSortVerification;
 
@@ -171,10 +170,6 @@ public:
             .Default(100)
             .GreaterThanOrEqual(0)
             .LessThanOrEqual(10000);
-        RegisterParameter("max_memory_reserve_abort_job_count", MaxMemoryReserveAbortJobCount)
-            .Default(100)
-            .GreaterThanOrEqual(0)
-            .LessThanOrEqual(1000);
         RegisterParameter("max_stderr_count", MaxStderrCount)
             .Default(100)
             .GreaterThanOrEqual(0)
@@ -183,6 +178,9 @@ public:
         RegisterParameter("job_proxy_memory_overcommit_limit", JobProxyMemoryOvercommitLimit)
             .Default()
             .GreaterThanOrEqual(0);
+
+        RegisterParameter("job_proxy_ref_counted_tracker_log_period", JobProxyRefCountedTrackerLogPeriod)
+            .Default(TDuration::Seconds(5));
 
         RegisterParameter("enable_sort_verification", EnableSortVerification)
             .Default(true);
@@ -317,7 +315,6 @@ public:
                     << TErrorAttribute("memory_limit", MemoryLimit);
             }
         });
-
     }
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig)
@@ -371,6 +368,10 @@ public:
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
 
+    // Operations inherited from this class produce the only kind
+    // of jobs. This option corresponds to jobs of this kind.
+    TLogDigestConfigPtr JobProxyMemoryDigest;
+
     TSimpleOperationSpecBase()
     {
         RegisterParameter("data_size_per_job", DataSizePerJob)
@@ -383,6 +384,9 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("job_io", JobIO)
             .DefaultNew();
+
+        RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
+            .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
     }
 };
 
@@ -705,6 +709,11 @@ public:
     //! |max_i DataSize(i) <= avg_i DataSize(i) + DataSizePerJob * PartitionedDataBalancingTolerance|
     double PartitionedDataBalancingTolerance;
 
+    // For all kinds of sort jobs: simple_sort, intermediate_sort, final_sort.
+    TLogDigestConfigPtr SortJobProxyMemoryDigest;
+    // For partition and partition_map jobs.
+    TLogDigestConfigPtr PartitionJobProxyMemoryDigest;
+
     TSortOperationSpecBase()
     {
         RegisterParameter("input_table_paths", InputTablePaths)
@@ -737,6 +746,11 @@ public:
         RegisterParameter("partitioned_data_balancing_tolerance", PartitionedDataBalancingTolerance)
             .Default(3.0);
 
+        RegisterParameter("sort_job_proxy_memory_digest", SortJobProxyMemoryDigest)
+            .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));
+        RegisterParameter("partition_job_proxy_memory_digest", PartitionJobProxyMemoryDigest)
+            .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
+
         RegisterValidator([&] () {
             NTableClient::ValidateKeyColumns(SortBy);
         });
@@ -760,6 +774,9 @@ public:
 
     // Desired number of samples per partition.
     int SamplesPerPartition;
+
+    // For sorted_merge and unordered_merge jobs.
+    TLogDigestConfigPtr MergeJobProxyMemoryDigest;
 
     TSortOperationSpec()
     {
@@ -789,6 +806,9 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("merge_locality_timeout", MergeLocalityTimeout)
             .Default(TDuration::Minutes(1));
+
+        RegisterParameter("merge_job_proxy_memory_digest", MergeJobProxyMemoryDigest)
+            .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
 
         RegisterInitializer([&] () {
             PartitionJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
@@ -822,6 +842,13 @@ public:
     TUserJobSpecPtr Mapper;
     TUserJobSpecPtr ReduceCombiner;
     TUserJobSpecPtr Reducer;
+
+    // For sorted_reduce jobs.
+    TLogDigestConfigPtr SortedReduceJobProxyMemoryDigest;
+    // For partition_reduce jobs.
+    TLogDigestConfigPtr PartitionReduceJobProxyMemoryDigest;
+    // For reduce_combiner jobs.
+    TLogDigestConfigPtr ReduceCombinerJobProxyMemoryDigest;
 
     TMapReduceOperationSpec()
     {
@@ -858,6 +885,13 @@ public:
         RegisterParameter("map_selectivity_factor", MapSelectivityFactor)
             .Default(1.0)
             .GreaterThan(0);
+
+        RegisterParameter("sorted_reduce_job_proxy_memory_digest", SortedReduceJobProxyMemoryDigest)
+            .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
+        RegisterParameter("partition_reduce_job_proxy_memory_digest", PartitionReduceJobProxyMemoryDigest)
+            .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));
+        RegisterParameter("reduce_combiner_job_proxy_memory_digest", ReduceCombinerJobProxyMemoryDigest)
+            .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));
 
         // The following settings are inherited from base but make no sense for map-reduce:
         //   SimpleSortLocalityTimeout
@@ -933,6 +967,9 @@ public:
     bool CopyAttributes;
     TNullable<std::vector<Stroka>> AttributeKeys;
 
+    // For remote_copy jobs.
+    TLogDigestConfigPtr JobProxyMemoryDigest;
+
     TRemoteCopyOperationSpec()
     {
         RegisterParameter("cluster_name", ClusterName)
@@ -958,6 +995,8 @@ public:
             .Default(false);
         RegisterParameter("attribute_keys", AttributeKeys)
             .Default();
+        RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
+            .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
     }
 
     virtual void OnLoaded() override

@@ -235,6 +235,44 @@ Stroka ToString(const TInputSlicePtr& slice)
         slice->GetPartIndex());
 }
 
+bool CompareSlicesByLowerLimit(const TInputSlicePtr& slice1, const TInputSlicePtr& slice2)
+{
+    const auto& limit1 = slice1->LowerLimit();
+    const auto& limit2 = slice2->LowerLimit();
+
+    if (limit1.HasRowIndex() && limit2.HasRowIndex()) {
+        return limit1.GetRowIndex() + slice1->GetInputChunk()->GetTableRowIndex() <
+            limit2.GetRowIndex() + slice2->GetInputChunk()->GetTableRowIndex();
+    }
+    if (limit1.HasKey() && limit2.HasKey()) {
+        return limit1.GetKey() < limit2.GetKey();
+    }
+    return false;
+}
+
+bool CanMergeSlices(const TInputSlicePtr& slice1, const TInputSlicePtr& slice2)
+{
+    const auto& limit1 = slice1->UpperLimit();
+    const auto& limit2 = slice2->LowerLimit();
+
+    if ((limit1.HasRowIndex() || limit1.HasKey()) &&
+        limit1.HasRowIndex() == limit2.HasRowIndex() &&
+        limit1.HasKey() == limit2.HasKey())
+    {
+        if (limit1.HasRowIndex() &&
+            limit1.GetRowIndex() + slice1->GetInputChunk()->GetTableRowIndex() !=
+            limit2.GetRowIndex() + slice2->GetInputChunk()->GetTableRowIndex())
+        {
+            return false;
+        }
+        if (limit1.HasKey() && limit1.GetKey() != limit2.GetKey()) {
+            return false;
+        }
+        return true;
+    }
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TInputSlicePtr CreateInputSlice(

@@ -1106,7 +1106,7 @@ void Serialize(const TUnversionedValue& value, IYsonConsumer* consumer)
             break;
 
         case EValueType::Any:
-            THROW_ERROR_EXCEPTION("Key cannot contain \"any\" components");
+            ParseYsonStringBuffer(TStringBuf(value.Data.String, value.Length), EYsonType::Node, consumer);
             break;
 
         case EValueType::Null:

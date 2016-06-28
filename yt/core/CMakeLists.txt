@@ -63,6 +63,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/thread_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/throughput_throttler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/lease_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/count_down_latch.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/erasure/codec.cpp
   ${CMAKE_CURRENT_LIST_DIR}/erasure/helpers.cpp
@@ -94,6 +95,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/cpuid.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/crash_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/demangle.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/digest.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/error.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/error.proto
   ${CMAKE_CURRENT_LIST_DIR}/misc/format.cpp

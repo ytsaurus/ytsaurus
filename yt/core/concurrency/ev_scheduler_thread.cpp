@@ -37,7 +37,6 @@ TEVSchedulerThread::TEVSchedulerThread(
         threadName,
         NProfiling::EmptyTagIds,
         enableLogging,
-        false,
         false)
     , CallbackWatcher(EventLoop)
     , Invoker(New<TInvoker>(this))

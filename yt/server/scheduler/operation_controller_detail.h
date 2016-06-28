@@ -40,6 +40,7 @@
 #include <yt/core/misc/id_generator.h>
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/ref_tracked.h>
+#include <yt/core/misc/digest.h>
 
 #include <yt/core/ytree/ypath_client.h>
 
@@ -86,6 +87,7 @@ public:
     TOperationControllerBase(
         TSchedulerConfigPtr config,
         TOperationSpecBasePtr spec,
+        TOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation);
 
@@ -129,6 +131,9 @@ public:
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildResult(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
+    virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
+
+    TFuture<NYson::TYsonString> BuildInputPathYson(const TJobId& jobId) const override;
 
     virtual void Persist(TPersistenceContext& context) override;
 
@@ -291,7 +296,7 @@ protected:
         std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
         bool Executable = false;
         NYson::TYsonString Format;
-        
+
         void Persist(TPersistenceContext& context);
     };
 
@@ -305,7 +310,6 @@ protected:
             : JobIndex(-1)
             , StartRowIndex(-1)
             , OutputCookie(-1)
-            , MemoryReserveEnabled(true)
         { }
 
         TJoblet(TTaskPtr task, int jobIndex)
@@ -324,12 +328,13 @@ protected:
 
         TExecNodeDescriptor NodeDescriptor;
 
+        TExtendedJobResources EstimatedResourceUsage;
+        double JobProxyMemoryReserveFactor = -1;
+        double UserJobMemoryReserveFactor = -1;
         TJobResources ResourceLimits;
 
         TChunkStripeListPtr InputStripeList;
         IChunkPoolOutput::TCookie OutputCookie;
-
-        bool MemoryReserveEnabled;
 
         //! All chunk lists allocated for this job.
         /*!
@@ -417,8 +422,9 @@ protected:
         virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const;
         virtual bool HasInputLocality() const;
 
-        const TJobResources& GetMinNeededResources() const;
-        virtual TJobResources GetNeededResources(TJobletPtr joblet) const;
+        TJobResources GetMinNeededResources() const;
+
+        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const = 0;
 
         void ResetCachedMinNeededResources();
 
@@ -472,13 +478,15 @@ protected:
         int CachedTotalJobCount;
 
         TJobResources CachedTotalNeededResources;
-        mutable TNullable<TJobResources> CachedMinNeededResources;
+        mutable TNullable<TExtendedJobResources> CachedMinNeededResources;
 
         TInstant LastDemandSanityCheckTime;
         bool CompletedFired;
 
         //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
         yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
+
+        TJobResources ApplyMemoryReserve(const TExtendedJobResources& jobResources) const;
 
     protected:
         NLogging::TLogger Logger;
@@ -487,17 +495,17 @@ protected:
             ISchedulingContext* context,
             const TJobResources& jobLimits);
 
-        virtual TJobResources GetMinNeededResourcesHeavy() const = 0;
+        virtual TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
 
         virtual void OnTaskCompleted();
 
         virtual EJobType GetJobType() const = 0;
+        virtual TUserJobSpecPtr GetUserJobSpec() const;
         virtual void PrepareJoblet(TJobletPtr joblet);
         virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
 
         virtual void OnJobStarted(TJobletPtr joblet);
 
-        virtual bool IsMemoryReserveEnabled() const = 0;
         virtual NTableClient::TTableReaderOptionsPtr GetTableReaderOptions() const = 0;
 
         void AddPendingHint();
@@ -545,6 +553,7 @@ protected:
             int key,
             const TCompletedJobSummary& jobSummary);
 
+        void AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const;
     };
 
     //! All tasks declared by calling #RegisterTask, mostly for debugging purposes.
@@ -636,7 +645,7 @@ protected:
 
     // Jobs in progress management.
     void RegisterJoblet(TJobletPtr joblet);
-    TJobletPtr GetJoblet(const TJobId& jobId);
+    TJobletPtr GetJoblet(const TJobId& jobId) const;
     void RemoveJoblet(const TJobId& jobId);
 
 
@@ -762,7 +771,12 @@ protected:
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
 
-    virtual void OnOperationCompleted();
+    //! Successfully terminate and finalize operation.
+    /*!
+     *  #interrupted flag indicates premature completion and disables standard validatoin
+     */
+    virtual void OnOperationCompleted(bool interrupted);
+
     virtual void OnOperationFailed(const TError& error);
 
     virtual bool IsCompleted() const = 0;
@@ -806,10 +820,6 @@ protected:
     static bool CheckKeyColumnsCompatible(
         const NTableClient::TKeyColumns& fullColumns,
         const NTableClient::TKeyColumns& prefixColumns);
-
-    void UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter);
-    bool IsMemoryReserveEnabled(const TProgressCounter& jobCounter) const;
-    i64 GetMemoryReserve(bool memoryReserveEnabled, TUserJobSpecPtr userJobSpec) const;
 
     void RegisterInputStripe(TChunkStripePtr stripe, TTaskPtr task);
 
@@ -905,6 +915,16 @@ protected:
 
     const std::vector<TExecNodeDescriptor>& GetExecNodeDescriptors();
 
+    virtual void RegisterUserJobMemoryDigest(EJobType jobType, double memoryReserveFactor);
+    IDigest* GetUserJobMemoryDigest(EJobType jobType);
+    const IDigest* GetUserJobMemoryDigest(EJobType jobType) const;
+
+    virtual void RegisterJobProxyMemoryDigest(EJobType jobType, const TLogDigestConfigPtr& config);
+    IDigest* GetJobProxyMemoryDigest(EJobType jobType);
+    const IDigest* GetJobProxyMemoryDigest(EJobType jobType) const;
+
+    i64 ComputeUserJobMemoryReserve(EJobType jobType, TUserJobSpecPtr jobSpec) const;
+
 private:
     typedef TOperationControllerBase TThis;
 
@@ -914,6 +934,7 @@ private:
     TInputChunkMap InputChunkMap;
 
     TOperationSpecBasePtr Spec;
+    TOperationOptionsPtr Options;
 
     NObjectClient::TCellTag IntermediateOutputCellTag = NObjectClient::InvalidCellTag;
     TChunkListPoolPtr ChunkListPool;
@@ -937,6 +958,8 @@ private:
 
     NChunkClient::TChunkScraperPtr InputChunkScraper;
 
+    TInstant LastTaskUpdateTime_;
+
     //! Increments each time a new job is scheduled.
     TIdGenerator JobIndexGenerator;
 
@@ -959,12 +982,19 @@ private:
     const std::unique_ptr<NTableClient::IValueConsumer> EventLogValueConsumer_;
     const std::unique_ptr<NYson::IYsonConsumer> EventLogTableConsumer_;
 
+    typedef yhash_map<EJobType, std::unique_ptr<IDigest>> TMemoryDigestMap;
+    TMemoryDigestMap JobProxyMemoryDigests_;
+    TMemoryDigestMap UserJobMemoryDigests_;
+
+    void UpdateMemoryDigests(TJobletPtr joblet, NJobTrackerClient::TStatistics statistics);
+
     void GetExecNodesInformation();
     int GetExecNodeCount();
 
     void UpdateJobStatistics(const TJobSummary& jobSummary);
 
     NApi::INativeClientPtr CreateClient();
+    void UpdateAllTasksIfNeeded();
 
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
 
@@ -982,6 +1012,7 @@ private:
 
     TCodicilGuard MakeCodicilGuard() const;
 
+    NYson::TYsonString DoBuildInputPathYson(const TJobId& jobId) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

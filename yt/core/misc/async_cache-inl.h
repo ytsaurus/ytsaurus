@@ -24,8 +24,9 @@ TAsyncCacheValueBase<TKey, TValue, THash>::TAsyncCacheValueBase(const TKey& key)
 template <class TKey, class TValue, class THash>
 NYT::TAsyncCacheValueBase<TKey, TValue, THash>::~TAsyncCacheValueBase()
 {
-    if (Cache_) {
-        Cache_->Unregister(Key_);
+    auto cache = Cache_.Lock();
+    if (cache) {
+        cache->Unregister(Key_);
     }
 }
 
@@ -274,8 +275,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInser
 
     DrainTouchBuffer();
 
-    YCHECK(!value->Cache_);
-    value->Cache_ = this;
+    value->Cache_ = MakeWeak(this);
 
     auto it = ItemMap_.find(key);
     YCHECK(it != ItemMap_.end());
@@ -391,7 +391,6 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(TValuePtr value)
         delete item;
     }
 
-    Y_ASSERT(value->Cache_);
     value->Cache_.Reset();
 
     guard.Release();

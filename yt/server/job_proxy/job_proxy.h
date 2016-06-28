@@ -51,12 +51,24 @@ private:
     //! Can be null if running in non-cgroups environment.
     NExecAgent::TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
 
-    // Job proxy memory limit by the scheduler.
-    i64 JobProxyInitialMemoryLimit_;
-    // Job proxy memory limit possibly after increases because of memory overcommit.
-    i64 JobProxyCurrentMemoryLimit_;
+    // Job proxy memory reserve (= memory limit after multiplication by
+    // job proxy memory reserve factor) by the scheduler.
+    i64 JobProxyMemoryReserve_ = 0;
+    // Job proxy peak memory usage.
+    std::atomic<i64> JobProxyMaxMemoryUsage_ = {0};
     // If this limit for job proxy memory overcommit is exceeded, the job proxy is terminated.
     TNullable<i64> JobProxyMemoryOvercommitLimit_;
+
+    std::atomic<i64> UserJobCurrentMemoryUsage_ = {0};
+
+    // Job proxy and possibly user job combined memory limit.
+    i64 TotalMemoryLimit_ = 0;
+    // Job proxy and possibly user job peak memory usage.
+    i64 TotalMaxMemoryUsage_ = 0;
+
+    std::atomic<i32> NetworkUsage_ = {0};
+
+    int CpuLimit_;
 
     const NConcurrency::TActionQueuePtr JobThread_;
     const NConcurrency::TActionQueuePtr ControlThread_;
@@ -70,24 +82,21 @@ private:
     NRpc::IServerPtr RpcServer_;
 
     std::unique_ptr<NExecAgent::TSupervisorServiceProxy> SupervisorProxy_;
-    
-    NApi::INativeClientPtr Client_;
 
+    NApi::INativeClientPtr Client_;
 
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
     NNodeTrackerClient::TNodeDirectoryPtr AuxNodeDirectory_;
 
-    std::atomic<i64> MaxMemoryUsage_ = {0};
-
-    int CpuLimit_;
-
     NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
     NConcurrency::TPeriodicExecutorPtr MemoryWatchdogExecutor_;
+
+    TDuration RefCountedTrackerLogPeriod_;
+    TInstant LastRefCountedTrackerLogTime_;
 
     IJobPtr Job_;
 
     NJobTrackerClient::NProto::TJobSpec JobSpec_;
-    NNodeTrackerClient::NProto::TNodeResources ResourceUsage_;
 
     void ValidateJobId(const NJobTrackerClient::TJobId& jobId);
 
@@ -103,14 +112,15 @@ private:
     std::unique_ptr<IUserJobIO> CreateUserJobIO();
     IJobPtr CreateBuiltinJob();
 
+    void UpdateResourceUsage();
+
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() const override;
     virtual NExecAgent::TCGroupJobEnvironmentConfigPtr GetCGroupsConfig() const override;
 
     virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const override;
 
-    virtual const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const override;
-    virtual void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& usage) override;
+    virtual void SetUserJobMemoryUsage(i64 memoryUsage) override;
     void OnResourcesUpdated(const TError& error);
 
     virtual void ReleaseNetwork() override;

@@ -219,6 +219,7 @@ TConstExpressionPtr MakeOrExpression(TConstExpressionPtr lhs, TConstExpressionPt
 }
 
 namespace {
+
 int CompareRow(TRow lhs, TRow rhs, const std::vector<size_t>& mapping)
 {
     for (auto index : mapping) {
