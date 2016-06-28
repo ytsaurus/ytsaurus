@@ -419,7 +419,7 @@ protected:
         virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const;
         virtual bool HasInputLocality() const;
 
-        const TJobResources& GetMinNeededResources() const;
+        TJobResources GetMinNeededResources() const;
 
         virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const = 0;
 
@@ -475,7 +475,7 @@ protected:
         int CachedTotalJobCount;
 
         TJobResources CachedTotalNeededResources;
-        mutable TNullable<TJobResources> CachedMinNeededResources;
+        mutable TNullable<TExtendedJobResources> CachedMinNeededResources;
 
         TInstant LastDemandSanityCheckTime;
         bool CompletedFired;

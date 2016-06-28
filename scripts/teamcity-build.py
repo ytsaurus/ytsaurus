@@ -22,6 +22,7 @@ import pprint
 import re
 import socket
 import tempfile
+import shutil
 import xml.etree.ElementTree as etree
 
 @build_step
@@ -215,6 +216,9 @@ def run_unit_tests(options):
         teamcity_message('Copying unit tests sandbox from "{0}" to "{1}"'.format(
             sandbox_current, sandbox_archive), status="WARNING")
         copytree(sandbox_current, sandbox_archive)
+        shutil.copy2(
+            os.path.join(options.working_directory, "bin", "unittester"),
+            os.path.join(sandbox_archive, "unittester"))
 
         raise StepFailedWithNonCriticalError(str(err))
     finally:

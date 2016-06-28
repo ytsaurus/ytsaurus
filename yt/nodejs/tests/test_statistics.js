@@ -21,6 +21,7 @@ describe("YtStatistics", function() {
         profiler.inc("foo", {}, 1);
         expect(profiler.dump()).to.eql("foo 0");
         profiler.inc("foo", {}, 1);
+        expect(profiler.dump()).to.eql("foo 1");
         profiler.inc("foo", {}, -1);
         expect(profiler.dump()).to.eql("foo 0");
     });
@@ -35,6 +36,14 @@ describe("YtStatistics", function() {
             profiler.upd("zzz", {}, 1.01);
         }
         expect(profiler.dump()).to.eql("zzz.q50 1.005\nzzz.q90 1.01\nzzz.q95 1.01\nzzz.q99 1.01\nzzz.max 1.01");
+    });
+
+    it("should properly save last gauge value", function() {
+        var profiler = new YtStatistics();
+        profiler.set("foo", {}, 1);
+        profiler.set("foo", {}, 2);
+        profiler.set("foo", {}, 3);
+        expect(profiler.dump()).to.eql("foo 3");
     });
 
     it("should properly merge counters", function() {
@@ -81,6 +90,27 @@ describe("YtStatistics", function() {
         expect(rhs.dump()).to.eql("");
 
         expect(profiler.dump()).to.eql("zzz.q50 a=1 1.5\nzzz.q90 a=1 2\nzzz.q95 a=1 2\nzzz.q99 a=1 2\nzzz.max a=1 2");
+    });
+
+    it("should properly merge gauges", function() {
+        var profiler = new YtStatistics();
+        var lhs = new YtStatistics();
+        var rhs = new YtStatistics();
+
+        lhs.set("foo", {a: 1}, 1);
+        lhs.set("foo", {a: 2}, 2);
+        rhs.set("foo", {a: 2}, 3);
+        rhs.set("foo", {a: 3}, 4);
+
+        expect(profiler.dump()).to.eql("");
+
+        lhs.mergeTo(profiler);
+        rhs.mergeTo(profiler);
+
+        expect(lhs.dump()).to.eql("");
+        expect(rhs.dump()).to.eql("");
+
+        expect(profiler.dump()).to.eql("foo a=1 1\nfoo a=2 3\nfoo a=3 4");
     });
 });
 
