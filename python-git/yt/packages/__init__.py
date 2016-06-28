@@ -3,7 +3,7 @@ import sys
 
 class PackagesImporter(object):
     def __enter__(self):
-        self.dir_name = os.path.dirname(os.path.dirname(__file__))
+        self.dir_name = os.path.dirname(__file__)
         sys.path.insert(1, self.dir_name)
 
     def __exit__(self, type, value, traceback):
