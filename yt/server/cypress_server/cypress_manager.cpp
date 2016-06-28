@@ -1340,6 +1340,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(trunkNode->IsTrunk());
 
+        // Remove the object from the map but keep it alive.
         NodeMap_.Release(trunkNode->GetVersionedId()).release();
 
         TCypressNodeBase::TLockList acquiredLocks;

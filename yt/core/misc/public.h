@@ -76,6 +76,9 @@ struct ICheckpointableOutputStream;
 DECLARE_REFCOUNTED_CLASS(TSlruCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TExpiringCacheConfig)
 
+DECLARE_REFCOUNTED_CLASS(TLogDigestConfig)
+DECLARE_REFCOUNTED_STRUCT(IDigest)
+
 class TBloomFilterBuilder;
 class TBloomFilter;
 

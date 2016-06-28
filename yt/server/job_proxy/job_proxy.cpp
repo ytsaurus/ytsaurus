@@ -15,6 +15,7 @@
 #include "user_job_io.h"
 
 #include <yt/server/exec_agent/config.h>
+#include <yt/server/exec_agent/supervisor_service.pb.h>
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -54,6 +55,7 @@ namespace NJobProxy {
 
 using namespace NScheduler;
 using namespace NExecAgent;
+using namespace NExecAgent::NProto;
 using namespace NBus;
 using namespace NRpc;
 using namespace NApi;
@@ -166,15 +168,18 @@ void TJobProxy::RetrieveJobSpec()
 
     const auto& rsp = rspOrError.Value();
     JobSpec_ = rsp->job_spec();
-    ResourceUsage_ = rsp->resource_usage();
+    const auto& resourceUsage = rsp->resource_usage();
 
-    LOG_INFO("Job spec received (JobType: %v, ResourceLimits: %v)\n%v",
+    LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {Cpu: %v, Memory: %v, Network: %v)\n%v",
         NScheduler::EJobType(rsp->job_spec().type()),
-        FormatResources(ResourceUsage_),
+        resourceUsage.cpu(),
+        resourceUsage.memory(),
+        resourceUsage.network(),
         rsp->job_spec().DebugString());
 
-    JobProxyInitialMemoryLimit_ = ResourceUsage_.memory();
-    CpuLimit_ = ResourceUsage_.cpu();
+    JobProxyMemoryReserve_ = TotalMemoryLimit_ = resourceUsage.memory();
+    CpuLimit_ = resourceUsage.cpu();
+    NetworkUsage_ = resourceUsage.network();
 }
 
 void TJobProxy::Run()
@@ -320,10 +325,12 @@ TJobResult TJobProxy::DoRun()
 
     const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     NLFAlloc::SetBufferSize(schedulerJobSpecExt.lfalloc_buffer_size());
-    JobProxyMemoryOvercommitLimit_ = 
-        schedulerJobSpecExt.has_job_proxy_memory_overcommit_limit() ? 
-        MakeNullable(schedulerJobSpecExt.job_proxy_memory_overcommit_limit()) : 
+    JobProxyMemoryOvercommitLimit_ =
+        schedulerJobSpecExt.has_job_proxy_memory_overcommit_limit() ?
+        MakeNullable(schedulerJobSpecExt.job_proxy_memory_overcommit_limit()) :
         Null;
+
+    RefCountedTrackerLogPeriod_ = FromProto<TDuration>(schedulerJobSpecExt.job_proxy_ref_counted_tracker_log_period());
 
     if (CGroupsConfig_ && CGroupsConfig_->IsCGroupSupported(TCpu::Name)) {
         auto cpuCGroup = GetCurrentCGroup<TCpu>();
@@ -351,7 +358,10 @@ TJobResult TJobProxy::DoRun()
 
     if (schedulerJobSpecExt.has_user_job_spec()) {
         auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-        JobProxyInitialMemoryLimit_ -= userJobSpec.memory_reserve();
+        JobProxyMemoryReserve_ -= userJobSpec.memory_reserve();
+        LOG_DEBUG("Adjusting job proxy memory limit (JobProxyMemoryReserve: %v, UserJobMemoryReserve: %v)",
+            JobProxyMemoryReserve_,
+            userJobSpec.memory_reserve());
         Job_ = CreateUserJob(
             this,
             userJobSpec,
@@ -360,8 +370,6 @@ TJobResult TJobProxy::DoRun()
     } else {
         Job_ = CreateBuiltinJob();
     }
-
-    JobProxyCurrentMemoryLimit_ = JobProxyInitialMemoryLimit_;
 
     Job_->Initialize();
 
@@ -379,7 +387,7 @@ void TJobProxy::ReportResult(const TJobResult& result, const TNullable<TYsonStri
     if (statistics) {
         req->set_statistics(statistics->Data());
     }
-    
+
     auto rspOrError = req->Invoke().Get();
     if (!rspOrError.IsOK()) {
         LOG_ERROR(rspOrError, "Failed to report job result");
@@ -404,8 +412,8 @@ TStatistics TJobProxy::GetStatistics() const
         statistics.AddSample("/job_proxy/block_io", blockIOStatistics);
     }
 
-    statistics.AddSample("/job_proxy/max_memory", MaxMemoryUsage_);
-    statistics.AddSample("/job_proxy/memory_limit", JobProxyInitialMemoryLimit_);
+    statistics.AddSample("/job_proxy/max_memory", JobProxyMaxMemoryUsage_);
+    statistics.AddSample("/job_proxy/memory_reserve", JobProxyMemoryReserve_);
 
     return statistics;
 }
@@ -425,20 +433,21 @@ const TJobSpec& TJobProxy::GetJobSpec() const
     return JobSpec_;
 }
 
-const TNodeResources& TJobProxy::GetResourceUsage() const
+void TJobProxy::UpdateResourceUsage()
 {
-    return ResourceUsage_;
-}
-
-void TJobProxy::SetResourceUsage(const TNodeResources& usage)
-{
-    ResourceUsage_ = usage;
-
     // Fire-and-forget.
     auto req = SupervisorProxy_->UpdateResourceUsage();
     ToProto(req->mutable_job_id(), JobId_);
-    *req->mutable_resource_usage() = ResourceUsage_;
+    auto* resourceUsage = req->mutable_resource_usage();
+    resourceUsage->set_cpu(CpuLimit_);
+    resourceUsage->set_network(NetworkUsage_);
+    resourceUsage->set_memory(TotalMaxMemoryUsage_);
     req->Invoke().Subscribe(BIND(&TJobProxy::OnResourcesUpdated, MakeWeak(this)));
+}
+
+void TJobProxy::SetUserJobMemoryUsage(i64 memoryUsage)
+{
+    UserJobCurrentMemoryUsage_ = memoryUsage;
 }
 
 void TJobProxy::OnResourcesUpdated(const TError& error)
@@ -453,9 +462,9 @@ void TJobProxy::OnResourcesUpdated(const TError& error)
 
 void TJobProxy::ReleaseNetwork()
 {
-    auto usage = GetResourceUsage();
-    usage.set_network(0);
-    SetResourceUsage(usage);
+    LOG_DEBUG("Releasing network");
+    NetworkUsage_ = 0;
+    UpdateResourceUsage();
 }
 
 NApi::INativeClientPtr TJobProxy::GetClient() const
@@ -485,12 +494,14 @@ const NNodeTrackerClient::TNodeDescriptor& TJobProxy::LocalDescriptor() const
 
 void TJobProxy::CheckMemoryUsage()
 {
-    auto memoryUsage = GetProcessRss();
-    MaxMemoryUsage_ = std::max(MaxMemoryUsage_.load(), memoryUsage);
+    i64 jobProxyMemoryUsage = GetProcessRss();
+    JobProxyMaxMemoryUsage_ = std::max(JobProxyMaxMemoryUsage_.load(), jobProxyMemoryUsage);
 
-    LOG_DEBUG("Job proxy memory check (MemoryUsage: %v, MemoryLimit: %v)",
-        memoryUsage,
-        JobProxyInitialMemoryLimit_);
+    LOG_DEBUG("Job proxy memory check (JobProxyMemoryUsage: %v, JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, UserJobCurrentMemoryUsage: %v)",
+        jobProxyMemoryUsage,
+        JobProxyMaxMemoryUsage_.load(),
+        JobProxyMemoryReserve_,
+        UserJobCurrentMemoryUsage_.load());
 
     LOG_DEBUG("LFAlloc counters (LargeBlocks: %v, SmallBlocks: %v, System: %v, Used: %v, Mmapped: %v)",
         NLFAlloc::GetCurrentLargeBlocks(),
@@ -499,28 +510,34 @@ void TJobProxy::CheckMemoryUsage()
         NLFAlloc::GetCurrentUsed(),
         NLFAlloc::GetCurrentMmapped());
 
-    if (JobProxyMemoryOvercommitLimit_ && memoryUsage > JobProxyInitialMemoryLimit_ + *JobProxyMemoryOvercommitLimit_) {
+    if (JobProxyMaxMemoryUsage_.load() > JobProxyMemoryReserve_) {
+        if (TInstant::Now() - LastRefCountedTrackerLogTime_ > RefCountedTrackerLogPeriod_) {
+            LOG_WARNING("Job proxy used more memory than estimated "
+                "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, RefCountedTracker: %v)",
+                JobProxyMaxMemoryUsage_.load(),
+                JobProxyMemoryReserve_,
+                TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */));
+            LastRefCountedTrackerLogTime_ = TInstant::Now();
+        }
+    }
+
+    if (JobProxyMemoryOvercommitLimit_ && jobProxyMemoryUsage > JobProxyMemoryReserve_ + *JobProxyMemoryOvercommitLimit_) {
         LOG_FATAL("Job proxy exceeded the memory overcommit limit "
-            "(MemoryUsage: %v, MemoryLimit: %v, CurrentMemoryLimit: %v, MemoryOvercommitLimit: %v, RefCountedTrakcer: %v)",
-            memoryUsage,
-            JobProxyInitialMemoryLimit_,
-            JobProxyCurrentMemoryLimit_,
+            "(JobProxyMemoryUsage: %v, JobProxyMemoryReserve: %v, MemoryOvercommitLimit: %v, RefCountedTracker: %v)",
+            jobProxyMemoryUsage,
+            JobProxyMemoryReserve_,
             JobProxyMemoryOvercommitLimit_,
             TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */));
     }
 
-    if (memoryUsage > JobProxyCurrentMemoryLimit_) {
-        LOG_WARNING("Job proxy current memory limit exceeded, increasing current memory limit "
-            "(MemoryUsage: %v, MemoryLimit: %v, CurrentMemoryLimit: %v, RefCountedTracker: %v)",
-            memoryUsage,
-            JobProxyInitialMemoryLimit_,
-            JobProxyCurrentMemoryLimit_,
-            TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */));
-        auto newResourceUsage = ResourceUsage_;
-        auto delta = memoryUsage - JobProxyCurrentMemoryLimit_;
-        newResourceUsage.set_memory(newResourceUsage.memory() + delta);
-        JobProxyCurrentMemoryLimit_ += delta;
-        SetResourceUsage(newResourceUsage);
+    i64 totalMemoryUsage = UserJobCurrentMemoryUsage_ + jobProxyMemoryUsage;
+
+    if (TotalMaxMemoryUsage_ < totalMemoryUsage) {
+        LOG_DEBUG("Total memory usage increased from %v to %v, asking node for resource usage update",
+            TotalMaxMemoryUsage_,
+            totalMemoryUsage);
+        TotalMaxMemoryUsage_ = totalMemoryUsage;
+        UpdateResourceUsage();
     }
 }
 

@@ -35,23 +35,27 @@ private:
     const TExpiringCacheConfigPtr Config_;
 
     struct TEntry
+        : public TRefCounted
     {
-        //! When this entry must be evicted.
-        TInstant Deadline;
+        //! When this entry must be evicted with respect to access timeout.
+        TInstant AccessDeadline;
+        //! When this entry must be evicted with respect to update timeout.
+        TInstant UpdateDeadline;
         //! Some latest known value (possibly not yet set).
         TPromise<TValue> Promise;
         //! Corresponds to a future probation request.
         NConcurrency::TDelayedExecutorCookie ProbationCookie;
-        //! Corresponds to a future probation request.
-        TFuture<TValue> ProbationFuture;
+
+        //! Check that entry is expired with respect to either access or update.
+        bool Expired(const TInstant& now) const;
     };
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
-    yhash<TKey, TEntry> Map_;
+    yhash<TKey, TIntrusivePtr<TEntry>> Map_;
 
-    void SetResult(const TKey& key, const TErrorOr<TValue>& valueOrError);
-    void InvokeGet(const TKey& key);
-    void InvokeGetMany(const std::vector<TKey>& keys);
+    void SetResult(const TWeakPtr<TEntry>& entry, const TKey& key, const TErrorOr<TValue>& valueOrError);
+    void InvokeGetMany(const std::vector<TWeakPtr<TEntry>>& entries, const std::vector<TKey>& keys);
+    void InvokeGet(const TWeakPtr<TEntry>& entry, const TKey& key);
 
 };
 
@@ -62,3 +66,4 @@ private:
 #define EXPIRING_CACHE_INL_H_
 #include "expiring_cache-inl.h"
 #undef EXPIRING_CACHE_INL_H_
+

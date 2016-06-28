@@ -33,8 +33,7 @@ struct IJobHost
 
     virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const = 0;
 
-    virtual const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const = 0;
-    virtual void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& usage) = 0;
+    virtual void SetUserJobMemoryUsage(i64 memoryUsage) = 0;
 
     virtual void ReleaseNetwork() = 0;
 

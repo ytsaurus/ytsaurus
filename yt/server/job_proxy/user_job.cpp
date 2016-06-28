@@ -7,6 +7,7 @@
 #include "user_job_io.h"
 
 #include <yt/server/exec_agent/public.h>
+#include <yt/server/exec_agent/supervisor_service_proxy.h>
 
 #include <yt/server/job_proxy/job_signaler.h>
 
@@ -122,7 +123,6 @@ public:
         , Config_(Host_->GetConfig())
         , CGroupsConfig_(Host_->GetCGroupsConfig())
         , JobErrorPromise_(NewPromise<void>())
-        , MemoryUsage_(UserJobSpec_.memory_reserve())
         , PipeIOPool_(New<TThreadPool>(Config_->JobIO->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , Process_(New<TProcess>(GetExecPath(), false))
@@ -263,7 +263,6 @@ private:
 
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
 
-    i64 MemoryUsage_;
     i64 CumulativeMemoryUsageMbSec_ = 0;
 
     TDuration MemoryWatchdogPeriod_;
@@ -896,6 +895,13 @@ private:
         }
 
         statistics.AddSample("/user_job/memory_limit", UserJobSpec_.memory_limit());
+        statistics.AddSample("/user_job/memory_reserve", UserJobSpec_.memory_reserve());
+
+        YCHECK(UserJobSpec_.memory_limit() > 0);
+        statistics.AddSample(
+            "/user_job/memory_reserve_factor_x10000",
+            static_cast<int>((1e4 * UserJobSpec_.memory_reserve()) / UserJobSpec_.memory_limit()));
+
 
         return statistics;
     }
@@ -1004,18 +1010,6 @@ private:
         return rss;
     }
 
-    void UpdateMemoryUsage(i64 rss)
-    {
-        i64 delta = rss - MemoryUsage_;
-        LOG_DEBUG("Memory usage increased by %v", delta);
-
-        MemoryUsage_ = rss;
-
-        auto resourceUsage = Host_->GetResourceUsage();
-        resourceUsage.set_memory(resourceUsage.memory() + delta);
-        Host_->SetResourceUsage(resourceUsage);
-    }
-
     void CheckMemoryUsage()
     {
         if (!UserId_) {
@@ -1055,7 +1049,6 @@ private:
                 tmpfsSize,
                 rss,
                 memoryLimit);
-
             if (currentMemoryUsage > memoryLimit) {
                 JobErrorPromise_.TrySet(TError(
                     NJobProxy::EErrorCode::MemoryLimitExceeded,
@@ -1064,14 +1057,14 @@ private:
                     << TErrorAttribute("tmpfs", tmpfsSize)
                     << TErrorAttribute("limit", memoryLimit));
                 CleanupUserProcesses();
-            } else if (currentMemoryUsage > MemoryUsage_) {
-                UpdateMemoryUsage(currentMemoryUsage);
             }
+
+            Host_->SetUserJobMemoryUsage(rss);
         } catch (const std::exception& ex) {
-                JobErrorPromise_.TrySet(TError(
-                    NJobProxy::EErrorCode::MemoryCheckFailed,
-                    "Failed to check user job memory usage") << ex);
-                CleanupUserProcesses();
+            JobErrorPromise_.TrySet(TError(
+                NJobProxy::EErrorCode::MemoryCheckFailed,
+                "Failed to check user job memory usage") << ex);
+            CleanupUserProcesses();
         }
     }
 

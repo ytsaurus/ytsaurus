@@ -882,6 +882,44 @@ echo {v = 2} >&7
     def test_schema_validation_sorted(self):
         self._test_schema_validation("ascending")
 
+    @unix_only
+    def test_reduce_input_paths_attr(self):
+        create("table", "//tmp/input")
+        for i in xrange(3):
+            write_table(
+                "<append=true>//tmp/input",
+                [
+                    {"key": "%05d"%i, "value": "foo"},
+                ],
+                sorted_by = ["key"])
+        create("table", "//tmp/output")
+
+        op = reduce(
+            dont_track=True,
+            in_="//tmp/input",
+            out="//tmp/output",
+            command="cat; [ $YT_JOB_INDEX == 1 ] && exit 1 || true",
+            reduce_by=["key"],
+            spec={
+                "reducer": {
+                    "format": "dsv"
+                },
+                "data_size_per_job": 1,
+                "max_failed_job_count": 1
+            })
+        with pytest.raises(YtError):
+            op.track();
+
+        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+        job_ids = ls(jobs_path)
+        assert len(job_ids) == 1
+        input_paths = get("{0}/{1}/@input_paths".format(jobs_path, job_ids[0]))
+        assert str(input_paths[0]) == "//tmp/input"
+        assert len(input_paths[0].attributes["ranges"][0]["lower_limit"]["key"]) == 1
+        assert len(input_paths[0].attributes["ranges"][0]["lower_limit"]["key"][0]) == 5
+        assert len(input_paths[0].attributes["ranges"][0]["upper_limit"]["key"]) == 2
+        assert len(input_paths[0].attributes["ranges"][0]["upper_limit"]["key"][0]) == 5
+
 ##################################################################
 
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):

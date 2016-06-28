@@ -215,15 +215,14 @@ bool TInputChunk::IsLargeCompleteChunk(i64 desiredChunkSize) const
 //! Release memory occupied by BoundaryKeys
 void TInputChunk::ReleaseBoundaryKeys()
 {
-    BoundaryKeys_.release();
+    BoundaryKeys_.reset();
 }
 
 //! Release memory occupied by PartitionsExt
 void TInputChunk::ReleasePartitionsExt()
 {
-    PartitionsExt_.release();
+    PartitionsExt_.reset();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -285,7 +284,7 @@ Stroka ToString(const TInputChunkPtr& inputChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsUnavailable(TInputChunkPtr inputChunk, bool checkParityParts)
+bool IsUnavailable(const TInputChunkPtr& inputChunk, bool checkParityParts)
 {
     return IsUnavailable(inputChunk->GetReplicaList(), inputChunk->GetErasureCodec(), checkParityParts);
 }

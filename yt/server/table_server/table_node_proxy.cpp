@@ -250,6 +250,7 @@ private:
 
         if (newDynamic) {
             ValidateNoTransaction();
+
             if (*newDynamic && table->IsExternal()) {
                 THROW_ERROR_EXCEPTION("External node cannot be a dynamic table");
             }
@@ -260,7 +261,21 @@ private:
         }
 
         if (newSchema) {
-            table->SetCustomSchema(*newSchema, newDynamic.Get(table->IsDynamic()));
+            bool dynamic = newDynamic.Get(table->IsDynamic());
+
+            // NB: Sorted dynamic tables contain unique keys, set this for user.
+            TTableSchema schema = dynamic && newSchema->IsSorted()
+                ? newSchema->ToUniqueKeys()
+                : *newSchema;
+
+            ValidateTableSchemaUpdate(
+                table->TableSchema(),
+                schema,
+                dynamic,
+                table->IsEmpty());
+
+            table->TableSchema() = std::move(schema);
+            table->SetPreserveSchemaOnWrite(true);
         }
 
         if (newDynamic) {

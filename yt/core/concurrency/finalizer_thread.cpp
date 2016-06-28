@@ -27,8 +27,7 @@ public:
             ThreadName,
             GetThreadTagIds(false, ThreadName),
             false,
-            false,
-            true))
+            false))
     { }
 
     ~TFinalizerThread()
@@ -71,6 +70,7 @@ public:
 
     IInvokerPtr GetInvoker()
     {
+        YCHECK(!ShutdownFinished);
         if (!Y_UNLIKELY(IsStarted())) {
             Start();
         }

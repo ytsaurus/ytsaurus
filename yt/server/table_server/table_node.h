@@ -67,8 +67,6 @@ public:
     bool HasMountedTablets() const;
     bool IsUniqueKeys() const;
     NTabletClient::ETabletState GetTabletState() const;
-
-    void SetCustomSchema(NTableClient::TTableSchema, bool dynamic);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
