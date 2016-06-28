@@ -479,7 +479,6 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     ToProto(proto->mutable_foreign_data_id(), original->ForeignDataId);
     proto->set_is_left(original->IsLeft);
     proto->set_can_use_source_ranges(original->CanUseSourceRanges);
-    proto->set_key_prefix(original->KeyPrefix);
     ToProto(proto->mutable_equation_by_index(), original->EquationByIndex);
     ToProto(proto->mutable_evaluated_columns(), original->EvaluatedColumns);
 }
@@ -495,7 +494,6 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
     FromProto(&result->ForeignDataId, serialized.foreign_data_id());
     FromProto(&result->IsLeft, serialized.is_left());
     FromProto(&result->CanUseSourceRanges, serialized.can_use_source_ranges());
-    FromProto(&result->KeyPrefix, serialized.key_prefix());
     FromProto(&result->EquationByIndex, serialized.equation_by_index());
     FromProto(&result->EvaluatedColumns, serialized.evaluated_columns());
     *original = result;

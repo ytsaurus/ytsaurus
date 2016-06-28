@@ -1010,7 +1010,6 @@ TCodegenSource MakeCodegenJoinOp(
     int index,
     std::vector<TCodegenExpression> equations,
     TCodegenSource codegenSource,
-    size_t keyPrefix,
     std::vector<int> equationByIndex,
     std::vector<TCodegenExpression> evaluatedColumns)
 {
@@ -1018,12 +1017,11 @@ TCodegenSource MakeCodegenJoinOp(
         index,
         MOVE(equations),
         codegenSource = std::move(codegenSource),
-        MOVE(keyPrefix),
         MOVE(equationByIndex),
         MOVE(evaluatedColumns)
     ] (TCGOperatorContext& builder, const TCodegenConsumer& codegenConsumer) {
-        int lookupKeySize = keyPrefix;
-        int joinKeySize = keyPrefix; //equations.size();
+        int lookupKeySize = equationByIndex.size();
+        int joinKeySize = equationByIndex.size();
         std::vector<EValueType> lookupKeyTypes(lookupKeySize);
         std::vector<EValueType> joinKeyTypes(joinKeySize);
 

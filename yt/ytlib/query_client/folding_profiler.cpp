@@ -270,14 +270,13 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
 
         int index = Variables_->AddObject<TJoinEvaluator>(GetJoinEvaluator(
             *joinClause,
-            query->WhereClause,
+            ExtractPredicateForColumnSubset(query->WhereClause, joinClause->RenamedTableSchema),
             schema));
 
         codegenSource = MakeCodegenJoinOp(
             index,
             selfKeys,
             std::move(codegenSource),
-            joinClause->KeyPrefix,
             joinClause->EquationByIndex,
             evaluatedColumns);
 

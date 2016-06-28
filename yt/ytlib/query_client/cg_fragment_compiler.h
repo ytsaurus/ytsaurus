@@ -88,7 +88,6 @@ TCodegenSource MakeCodegenJoinOp(
     int index,
     std::vector<TCodegenExpression> equations,
     TCodegenSource codegenSource,
-    size_t keyPrefix,
     std::vector<int> equationByIndex,
     std::vector<TCodegenExpression> evaluatedColumns);
 
