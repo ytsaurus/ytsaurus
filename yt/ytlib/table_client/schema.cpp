@@ -198,6 +198,11 @@ int TTableSchema::GetColumnIndex(const TColumnSchema& column) const
     return &column - Columns().data();
 }
 
+int TTableSchema::GetColumnIndex(const TStringBuf& name) const
+{
+    return GetColumnIndex(GetColumn(name));
+}
+
 int TTableSchema::GetColumnIndexOrThrow(const TStringBuf& name) const
 {
     return GetColumnIndex(GetColumnOrThrow(name));
@@ -209,14 +214,8 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
         return *this;
     }
 
-    // Sort filter indexes to ensure that key columns go first.
-    // Also remove duplicates.
-    auto sortedIndexes = columnFilter.Indexes;
-    std::sort(sortedIndexes.begin(), sortedIndexes.end());
-    sortedIndexes.erase(std::unique(sortedIndexes.begin(), sortedIndexes.end()), sortedIndexes.end());
-
     std::vector<TColumnSchema> columns;
-    for (int id : sortedIndexes) {
+    for (int id : columnFilter.Indexes) {
         if (id < 0 || id >= Columns_.size()) {
             THROW_ERROR_EXCEPTION("Invalid column id in filter: excepted in range [0, %v], got %v",
                 Columns_.size() - 1,
@@ -224,6 +223,16 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
         }
         columns.push_back(Columns_[id]);
     }
+
+    // Validate that key columns go first.
+    for (int index = 1; index < static_cast<int>(columns.size()); ++index) {
+        if (columns[index].SortOrder && !columns[index - 1].SortOrder) {
+            THROW_ERROR_EXCEPTION("Column filter contains key column %Qv after non-key column %Qv",
+                columns[index].Name,
+                columns[index - 1].Name);
+        }
+    }
+
     return TTableSchema(std::move(columns));
 }
 
