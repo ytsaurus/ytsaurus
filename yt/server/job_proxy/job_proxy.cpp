@@ -162,7 +162,7 @@ void TJobProxy::RetrieveJobSpec()
     auto rspOrError = req->Invoke().Get();
     if (!rspOrError.IsOK()) {
         LOG_ERROR(rspOrError, "Failed to get job spec");
-        Exit(EJobProxyExitCode::HeartbeatFailed);
+        Exit(EJobProxyExitCode::RetreiveJobSpecFailed);
     }
 
     const auto& rsp = rspOrError.Value();
