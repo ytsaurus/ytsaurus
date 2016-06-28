@@ -261,9 +261,14 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
                 link_exists = False
             else:
                 # Touch file and link to update modification time
-                set(destination + "/@touched", "true", client=client)
-                if not destination_is_file:
-                    set(destination + "&/@touched", "true", client=client)
+                try:
+                    set(destination + "/@touched", "true", client=client)
+                    if not destination_is_file:
+                        set(destination + "&/@touched", "true", client=client)
+                except YtResponseError as err:
+                    # FIXME(asaitgalin): Remove when st/YT-5055 is done.
+                    if not err.is_concurrent_transaction_lock_conflict():
+                        raise
         if not link_exists:
             real_destination = find_free_subpath(prefix, client=client)
             upload_with_check(real_destination)
