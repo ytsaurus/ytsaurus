@@ -95,7 +95,8 @@ def set(path, value, format=None, client=None):
     :param path: (string or `yt.wrapper.table.TablePath`)
     :param value: json-able object.
     .. seealso:: `set on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#set>`_
-    :param format: format of the value. If format is None than value should be json-able object. Otherwise it should be string.
+    :param format: format of the value. If format is None than value should be object that can be dumped to JSON of YSON.
+    Otherwise it should be string.
     """
     if format is None:
         value = yson.dumps(value)
@@ -196,18 +197,21 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, client=
         client=client)
 
 
-def list(path, max_size=1000, format=None, absolute=False, attributes=None, client=None):
+def list(path, max_size=1000, format=None, absolute=None, attributes=None, client=None):
     """List directory (map_node) content.
 
     Node type must be 'map_node'.
     :param path: (string or `TablePath`)
     :param max_size: (int)
     :param attributes: (list) desired node attributes in the response.
-    :param format: (descendant of `Format`) command response format, by default - YSON
+    :param format: (descendant of `Format`) command response format, by default - None.
     :param absolute: (bool) convert relative paths to absolute. Works only if format isn't specified.
-    :return: raw YSON (string) by default, parsed YSON or JSON if format is specified.
+    :return: raw YSON (string) by default, parsed YSON or JSON if format is not specified (=None).
     .. seealso:: `list on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#list>`_
     """
+    if format is not None and absolute is not None:
+        raise YtError("Option 'absolute' is supported only for non-specified format")
+
     def join(elem):
         return yson.to_yson_type(
             yson.YsonString("{0}/{1}".format(path, elem)),
