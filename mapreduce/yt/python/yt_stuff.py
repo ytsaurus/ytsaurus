@@ -238,8 +238,9 @@ class YtStuff(object):
                 break
             else:
                 dirname = os.path.join(self.yt_work_dir, self.yt_id)
-                failed_dirname = "%s_FAILED_try_%d" % (dirname, i)
-                os.rename(dirname, failed_dirname)
+                if os.path.exists(dirname):
+                    failed_dirname = "%s_FAILED_try_%d" % (dirname, i)
+                    os.rename(dirname, failed_dirname)
                 MAX_WAIT_TIME = 60
                 FAIL_PENALTY = 5
                 time_to_sleep = min(i * FAIL_PENALTY, MAX_WAIT_TIME)
