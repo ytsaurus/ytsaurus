@@ -1044,6 +1044,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         "scheduler": {
             "fair_share_preemption_timeout": 100,
             "min_share_preemption_timeout": 100,
+            "fair_share_update_period": 100,
             "aggressive_preemption_satisfaction_threshold": 0.2
         }
     }
