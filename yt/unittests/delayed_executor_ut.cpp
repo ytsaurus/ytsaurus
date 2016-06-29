@@ -35,7 +35,7 @@ TEST(TDelayedExecutorTest, SubmitAndCancel)
         BIND([&fired, probe = TProbe(&state)] () { ++fired; }),
         TDuration::MilliSeconds(10));
 
-    TDelayedExecutor::Cancel(cookie);
+    TDelayedExecutor::CancelAndClear(cookie);
 
     Sleep(TDuration::MilliSeconds(50));
 
@@ -83,8 +83,8 @@ TEST(TDelayedExecutorTest, DISABLED_SubmitAndCancelAfterShutdown)
         BIND([&fired, probe = TProbe(&state)] () { ++fired; }),
         TDuration::MilliSeconds(10));
 
-    TDelayedExecutor::Cancel(cookie1);
-    TDelayedExecutor::Cancel(cookie2);
+    TDelayedExecutor::CancelAndClear(cookie1);
+    TDelayedExecutor::CancelAndClear(cookie2);
 
     Sleep(TDuration::MilliSeconds(50));
 
