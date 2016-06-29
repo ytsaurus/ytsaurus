@@ -85,7 +85,7 @@ public:
         if (!EnsureStarted()) {
             return entry;
         }
-        SubmitQueue_.Enqueue(std::move(entry));
+        SubmitQueue_.Enqueue(entry);
         PurgeQueuesIfFinished();
         return entry;
     }
