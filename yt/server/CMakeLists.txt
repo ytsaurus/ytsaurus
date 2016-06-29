@@ -51,7 +51,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_manager.proto
-  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_traversing.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_traverser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/expiration_tracker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/lock.cpp

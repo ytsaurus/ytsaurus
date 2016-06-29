@@ -23,6 +23,8 @@ yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
+    Y_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
+
     auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
 
     yhash_map<Stroka, TCypressNodeBase*> result;
@@ -41,6 +43,17 @@ yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
     return result;
 }
 
+const std::vector<TCypressNodeBase*>& GetListNodeChildren(
+    const TCypressManagerPtr& cypressManager,
+    TCypressNodeBase* trunkNode,
+    NTransactionServer::TTransaction* transaction)
+{
+    Y_ASSERT(trunkNode->GetNodeType() == ENodeType::List);
+
+    auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
+    auto* listNode = static_cast<TListNode*>(node);
+    return listNode->IndexToChild();
+}
 
 std::vector<std::pair<Stroka, TCypressNodeBase*>> SortKeyToChild(
     const yhash_map<Stroka, TCypressNodeBase*>& keyToChildMap)
