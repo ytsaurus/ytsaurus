@@ -280,11 +280,6 @@ TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TInstant dead
     return GetImpl()->Submit(std::move(callback), deadline);
 }
 
-void TDelayedExecutor::Cancel(TDelayedExecutorCookie entry)
-{
-    GetImpl()->Cancel(std::move(entry));
-}
-
 void TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& entry)
 {
     GetImpl()->Cancel(entry);
