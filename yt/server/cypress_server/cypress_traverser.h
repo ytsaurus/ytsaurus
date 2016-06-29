@@ -2,9 +2,15 @@
 
 #include "public.h"
 
+#include <yt/server/transaction_server/public.h>
+
+#include <yt/server/object_server/public.h>
+
 #include <yt/server/cell_master/public.h>
 
 #include <yt/core/misc/error.h>
+
+#include <yt/core/actions/public.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -14,7 +20,7 @@ namespace NCypressServer {
 struct ICypressNodeVisitor
     : public virtual TRefCounted
 {
-    virtual void OnNode(ICypressNodeProxyPtr node) = 0;
+    virtual void OnNode(TCypressNodeBase* trunkNode, NTransactionServer::TTransaction* transaction) = 0;
     virtual void OnError(const TError& error) = 0;
     virtual void OnCompleted() = 0;
 };
@@ -22,8 +28,12 @@ struct ICypressNodeVisitor
 DEFINE_REFCOUNTED_TYPE(ICypressNodeVisitor)
 
 void TraverseCypress(
-    NCellMaster::TBootstrap* bootstrap,
-    ICypressNodeProxyPtr rootNode,
+    TCypressManagerPtr cypressManager,
+    NTransactionServer::TTransactionManagerPtr transactionManager,
+    NObjectServer::TObjectManagerPtr objectManager,
+    IInvokerPtr invoker,
+    TCypressNodeBase* trunkRootNode,
+    NTransactionServer::TTransaction* transaction,
     ICypressNodeVisitorPtr visitor);
 
 ////////////////////////////////////////////////////////////////////////////////
