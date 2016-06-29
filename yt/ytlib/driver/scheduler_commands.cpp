@@ -159,7 +159,7 @@ void TAbortOperationCommand::Execute(ICommandContextPtr context)
 
 void TSuspendOperationCommand::Execute(ICommandContextPtr context)
 {
-    WaitFor(context->GetClient()->SuspendOperation(OperationId))
+    WaitFor(context->GetClient()->SuspendOperation(OperationId, Options))
         .ThrowOnError();
 }
 
