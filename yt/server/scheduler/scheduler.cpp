@@ -488,7 +488,7 @@ public:
         return operation->GetFinished();
     }
 
-    TFuture<void> SuspendOperation(TOperationPtr operation, const Stroka& user)
+    TFuture<void> SuspendOperation(TOperationPtr operation, const Stroka& user, bool abortRunningJobs)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -504,6 +504,10 @@ public:
         }
 
         operation->SetSuspended(true);
+
+        if (abortRunningJobs) {
+            AbortOperationJobs(operation, TError("Suspend operation by user request"));
+        }
 
         LOG_INFO("Operation suspended (OperationId: %v)",
             operation->GetId());
@@ -1999,11 +2003,11 @@ private:
             operation->GetId());
     }
 
-    void AbortOperationJobs(TOperationPtr operation)
+    void AbortOperationJobs(TOperationPtr operation, const TError& error)
     {
         auto jobs = operation->Jobs();
         for (const auto& job : jobs) {
-            auto status = JobStatusFromError(TError("Operation is in %Qlv state", operation->GetState()));
+            auto status = JobStatusFromError(error);
             OnJobAborted(job, &status);
         }
 
@@ -2708,7 +2712,7 @@ private:
         operation->SetState(EOperationState::Completing);
 
         // The operation may still have running jobs (e.g. those started speculatively).
-        AbortOperationJobs(operation);
+        AbortOperationJobs(operation, TError("Operation completed"));
 
         try {
             // First flush: ensure that all stderrs are attached and the
@@ -2795,7 +2799,11 @@ private:
 
         operation->SetState(intermediateState);
 
-        AbortOperationJobs(operation);
+        AbortOperationJobs(
+            operation,
+            TError("Operation terminated")
+                << TErrorAttribute("state", state)
+                << error);
 
         // First flush: ensure that all stderrs are attached and the
         // state is changed to its intermediate value.
@@ -3190,9 +3198,10 @@ TFuture<void> TScheduler::AbortOperation(
 
 TFuture<void> TScheduler::SuspendOperation(
     TOperationPtr operation,
-    const Stroka& user)
+    const Stroka& user,
+    bool abortRunningJobs)
 {
-    return Impl_->SuspendOperation(operation, user);
+    return Impl_->SuspendOperation(operation, user, abortRunningJobs);
 }
 
 TFuture<void> TScheduler::ResumeOperation(

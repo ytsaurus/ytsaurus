@@ -2678,10 +2678,11 @@ private:
 
     void DoSuspendOperation(
         const TOperationId& operationId,
-        const TSuspendOperationOptions& /*options*/)
+        const TSuspendOperationOptions& options)
     {
         auto req = SchedulerProxy_->SuspendOperation();
         ToProto(req->mutable_operation_id(), operationId);
+        req->set_abort_running_jobs(options.AbortRunningJobs);
 
         WaitFor(req->Invoke())
             .ThrowOnError();
