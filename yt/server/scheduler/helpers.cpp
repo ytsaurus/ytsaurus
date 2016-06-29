@@ -66,6 +66,16 @@ void BuildJobAttributes(TJobPtr job, const TNullable<NYson::TYsonString>& inputP
         .Item("start_time").Value(job->GetStartTime())
         .Item("account").Value(TmpAccountName)
         .Item("progress").Value(job->GetProgress())
+        .DoIf(static_cast<bool>(job->GetBriefStatistics()), [=] (TFluentMap fluent) {
+            fluent
+                .Item("processed_input_row_count").Value(job->GetBriefStatistics()->ProcessedInputRowCount)
+                .Item("processed_input_data_size").Value(job->GetBriefStatistics()->ProcessedInputDataSize)
+                .Item("processed_output_data_size").Value(job->GetBriefStatistics()->ProcessedOutputDataSize)
+                .DoIf(static_cast<bool>(job->GetBriefStatistics()->UserJobCpuUsage), [=] (TFluentMap fluent) {
+                    fluent.Item("user_job_cpu_usage").Value(*job->GetBriefStatistics()->UserJobCpuUsage);
+                });
+        })
+        .Item("suspicious").Value(job->GetSuspicious())
         .DoIf(job->GetFinishTime().HasValue(), [=] (TFluentMap fluent) {
             fluent.Item("finish_time").Value(job->GetFinishTime().Get());
         })

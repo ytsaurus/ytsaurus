@@ -1,3 +1,4 @@
+#include "private.h"
 #include "job.h"
 #include "exec_node.h"
 #include "helpers.h"
@@ -16,8 +17,13 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NYTree;
 using namespace NYson;
 using namespace NObjectClient;
+using namespace NYPath;
 using namespace NJobTrackerClient;
 using namespace NChunkClient::NProto;
+
+////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -69,6 +75,71 @@ TJob::TJob(
 TDuration TJob::GetDuration() const
 {
     return *FinishTime_ - StartTime_;
+}
+
+TFuture<TBriefJobStatisticsPtr> TJob::BuildBriefStatistics(IInvokerPtr invoker) const
+{
+    return BIND(&TJob::DoBuildBriefStatistics, MakeStrong(this)).AsyncVia(invoker).Run();
+}
+
+TBriefJobStatisticsPtr TJob::DoBuildBriefStatistics() const
+{
+    auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(*StatisticsYson_);
+
+    auto getValue = [] (const TSummary& summary) {
+        return summary.GetSum();
+    };
+
+    auto briefStatistics = New<TBriefJobStatistics>();
+
+    briefStatistics->ProcessedInputRowCount = GetValues<i64>(statistics, "/data/input/row_count", getValue);
+    briefStatistics->ProcessedInputDataSize = GetValues<i64>(statistics, "/data/input/uncompressed_data_size", getValue);
+
+    if (std::any_of(
+        statistics.Data().begin(),
+        statistics.Data().end(),
+        [] (auto pair) { return HasPrefix(pair.first, "/user_job"); }))
+    {
+        briefStatistics->UserJobCpuUsage = GetValues<i64>(statistics, "/user_job/cpu/user", getValue);
+    }
+
+    auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
+
+    briefStatistics->ProcessedOutputDataSize = outputDataStatistics.uncompressed_data_size();
+    briefStatistics->ProcessedOutputRowCount = outputDataStatistics.row_count();
+    return briefStatistics;
+}
+
+void TJob::AnalyzeBriefStatistics(
+    TDuration suspiciousInactivityTimeout,
+    i64 suspiciousUserJobCpuUsageThreshold,
+    TBriefJobStatisticsPtr briefStatistics)
+{
+    bool wasActive = false;
+
+    if (!BriefStatistics_) {
+        wasActive = true;
+    } else if (briefStatistics->ProcessedInputRowCount != BriefStatistics_->ProcessedInputRowCount ||
+        briefStatistics->ProcessedInputDataSize != BriefStatistics_->ProcessedInputDataSize ||
+        briefStatistics->ProcessedOutputRowCount != BriefStatistics_->ProcessedOutputRowCount ||
+        briefStatistics->ProcessedOutputDataSize != BriefStatistics_->ProcessedOutputDataSize ||
+        (briefStatistics->UserJobCpuUsage && BriefStatistics_->UserJobCpuUsage &&
+        *briefStatistics->UserJobCpuUsage > *BriefStatistics_->UserJobCpuUsage + suspiciousUserJobCpuUsageThreshold))
+    {
+        wasActive = true;
+    }
+    BriefStatistics_ = briefStatistics;
+
+    if (Suspicious_ = (!wasActive && TInstant::Now() - LastActivityTime_ > suspiciousInactivityTimeout)) {
+        LOG_WARNING("Found a suspicious job (JobId: %v, LastActivityTime: %v, suspiciousInactivityTimeout: %v)",
+            Id_,
+            LastActivityTime_,
+            suspiciousInactivityTimeout);
+    }
+
+    if (wasActive) {
+        LastActivityTime_ = TInstant::Now();
+    }
 }
 
 void TJob::SetStatus(TRefCountedJobStatusPtr status)
