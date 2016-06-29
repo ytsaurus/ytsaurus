@@ -302,6 +302,7 @@ public:
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
         , JobSpecBuilderThreadPool_(New<TThreadPool>(Config_->JobSpecBuilderThreadCount, "SpecBuilder"))
+        , StatisticAnalyzerThreadPool_(New<TThreadPool>(Config_->StatisticAnalyzerThreadCount, "StatisticAnalyzer"))
         , MasterConnector_(new TMasterConnector(Config_, Bootstrap_))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
@@ -1195,6 +1196,7 @@ private:
     TActionQueuePtr SnapshotIOQueue_;
     TThreadPoolPtr ControllerThreadPool_;
     TThreadPoolPtr JobSpecBuilderThreadPool_;
+    TThreadPoolPtr StatisticAnalyzerThreadPool_;
 
     std::unique_ptr<TMasterConnector> MasterConnector_;
 
@@ -2348,6 +2350,14 @@ private:
             job->GetState() == EJobState::Waiting)
         {
             job->SetStatus(std::move(status));
+
+            auto asyncResult = job->BuildBriefStatistics(StatisticAnalyzerThreadPool_->GetInvoker());
+            // Resulting future is dropped intentionally.
+            asyncResult.Apply(BIND(&TJob::AnalyzeBriefStatistics,
+                job,
+                Config_->SuspiciousInactivityTimeout,
+                Config_->SuspiciousUserJobCpuUsageThreshold)
+                .AsyncVia(GetControlInvoker()));
         }
     }
 

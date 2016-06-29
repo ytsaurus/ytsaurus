@@ -20,6 +20,18 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBriefJobStatistics
+    : public TIntrinsicRefCounted
+{
+    i64 ProcessedInputRowCount = 0;
+    i64 ProcessedInputDataSize = 0;
+    i64 ProcessedOutputRowCount = 0;
+    i64 ProcessedOutputDataSize = 0;
+    TNullable<i64> UserJobCpuUsage = Null;
+};
+
+DEFINE_REFCOUNTED_TYPE(TBriefJobStatistics)
+
 class TJob
     : public TRefCounted
 {
@@ -68,6 +80,11 @@ class TJob
 
     //! Flag that marks job as preempted by scheduler.
     DEFINE_BYVAL_RW_PROPERTY(bool, Preempted);
+    //! Contains several important values extracted from job statistics.
+    DEFINE_BYVAL_RO_PROPERTY(TBriefJobStatisticsPtr, BriefStatistics);
+
+    //! Means that job probably hung up.
+    DEFINE_BYVAL_RO_PROPERTY(bool, Suspicious);
 
 public:
     TJob(
@@ -83,9 +100,27 @@ public:
     //! The difference between |FinishTime| and |StartTime|.
     TDuration GetDuration() const;
 
+    void AnalyzeBriefStatistics(
+        TDuration suspiciousInactivityTimeout,
+        i64 suspiciousCpuUsageThreshold,
+        TBriefJobStatisticsPtr briefStatistics);
+
+    TFuture<TBriefJobStatisticsPtr> BuildBriefStatistics(IInvokerPtr invoker) const;
+
     void SetStatus(TRefCountedJobStatusPtr status);
 
     const Stroka& GetStatisticsSuffix() const;
+
+    i64 GetProcessedInputRowCount() const;
+    i64 GetProcessedInputDataSize() const;
+    i64 GetProcessedOutputDataSize() const;
+    i64 GetCpuUsage() const;
+private:
+
+    TBriefJobStatisticsPtr DoBuildBriefStatistics() const;
+
+    TInstant LastActivityTime_ = TInstant::Max();
+    bool IsSuspicious_ = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)
