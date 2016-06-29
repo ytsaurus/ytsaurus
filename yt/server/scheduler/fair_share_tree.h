@@ -640,6 +640,7 @@ public:
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
+    virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
