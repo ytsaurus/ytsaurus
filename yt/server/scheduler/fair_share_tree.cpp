@@ -104,7 +104,7 @@ double TSchedulerElementBaseSharedState::GetResourceUsageRatio(
     TReaderGuard guard(ResourceUsageLock_);
 
     if (dominantResourceLimit == 0) {
-        return 1.0;
+        return 0.0;
     }
     return GetResource(ResourceUsage_, dominantResource) / dominantResourceLimit;
 }
@@ -203,7 +203,7 @@ void TSchedulerElementBase::UpdateAttributes()
         dominantLimit == 0 ? 1.0 : (double) dominantDemand / dominantLimit;
 
     double usageRatio =
-        dominantLimit == 0 ? 1.0 : (double) dominantUsage / dominantLimit;
+        dominantLimit == 0 ? 0.0 : (double) dominantUsage / dominantLimit;
 
     Attributes_.DominantLimit = dominantLimit;
 
@@ -1150,7 +1150,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
         auto dominantResource = GetDominantResource(resourcesUsage, totalResourceLimits);
         i64 dominantLimit = GetResource(totalResourceLimits, dominantResource);
         i64 usage = GetResource(resourcesUsage, dominantResource);
-        return dominantLimit == 0 ? 1.0 : (double) usage / dominantLimit;
+        return dominantLimit == 0 ? 0.0 : (double) usage / dominantLimit;
     };
 
     auto balanceLists = [&] (
@@ -1162,12 +1162,12 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
         std::function<void(TJobProperties*)> onMovedRightToLeft)
     {
         while (!left->empty()) {
-            if (getUsageRatio(resourceUsage) <= fairShareRatioBound) {
-                break;
-            }
-
             auto jobId = left->back();
             auto& jobProperties = JobPropertiesMap_.at(jobId);
+
+            if (getUsageRatio(resourceUsage - jobProperties.ResourceUsage) < fairShareRatioBound) {
+                break;
+            }
 
             left->pop_back();
             right->push_front(jobId);
@@ -1178,12 +1178,12 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
         }
 
         while (!right->empty()) {
-            auto jobId = right->front();
-            auto& jobProperties = JobPropertiesMap_.at(jobId);
-
-            if (getUsageRatio(resourceUsage + jobProperties.ResourceUsage) > fairShareRatioBound) {
+            if (getUsageRatio(resourceUsage) >= fairShareRatioBound) {
                 break;
             }
+
+            auto jobId = right->front();
+            auto& jobProperties = JobPropertiesMap_.at(jobId);
 
             right->pop_front();
             left->push_back(jobId);
@@ -1427,6 +1427,19 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
 
     Attributes_.BestAllocationRatio =
         dominantLimit == 0 ? 1.0 : (double) dominantAllocationLimit / dominantLimit;
+}
+
+void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesList)
+{
+    YCHECK(!Cloned_);
+
+    TSchedulerElementBase::UpdateTopDown(dynamicAttributesList);
+
+    SharedState_->UpdatePreemptableJobsList(
+        Attributes_.FairShareRatio,
+        TotalResourceLimits_,
+        StrategyConfig_->PreemptionSatisfactionThreshold,
+        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
 }
 
 void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList)
