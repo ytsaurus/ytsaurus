@@ -96,6 +96,10 @@ struct TKeyBase
         Add(std::forward<TArgs>(args)...);
     }
 
+    bool operator==(const TKeyBase& rhs) const {
+        return Parts_ == rhs.Parts_;
+    }
+
     template <class U, class... TArgs>
     void Add(U&& part, TArgs&&... args)
     {
