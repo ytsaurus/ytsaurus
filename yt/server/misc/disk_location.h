@@ -24,7 +24,7 @@ public:
 
 protected:
     mutable NLogging::TLogger Logger;
-    std::atomic<bool> Enabled_ = { false };
+    std::atomic<bool> Enabled_ = {false};
 
     void ValidateMinimumSpace() const;
 
@@ -33,7 +33,8 @@ protected:
     void ValidateEnabled() const;
 
 private:
-    TDiskLocationConfigPtr Config_;
+    const TDiskLocationConfigPtr Config_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
