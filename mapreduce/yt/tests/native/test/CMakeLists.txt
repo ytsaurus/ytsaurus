@@ -11,4 +11,6 @@ DEPENDS(
     mapreduce/yt/tests/native
 )
 
+NO_LINT()
+
 END()

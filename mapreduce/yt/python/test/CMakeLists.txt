@@ -16,4 +16,6 @@ DEPENDS(mapreduce/yt/python)
 
 TAG(ya:external)
 
+NO_LINT()
+
 END()

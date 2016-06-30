@@ -20,4 +20,6 @@ DEPENDS(
 
 TIMEOUT(300)
 
+NO_LINT()
+
 END()
