@@ -43,7 +43,7 @@ def escape_utf8(obj):
 def get_hosts(client=None):
     proxy = get_proxy_url(None, client=client)
     hosts = get_config(client)["proxy"]["proxy_discovery_url"]
-    return make_get_request_with_retries("http://{0}/{1}".format(proxy, hosts))
+    return make_get_request_with_retries("http://{0}/{1}".format(proxy, hosts), client=client)
 
 def get_heavy_proxy(client):
     banned_hosts = get_option("_banned_proxies", client)
@@ -150,7 +150,7 @@ def make_request(command_name, params,
             if command.is_volatile:
                 if isinstance(error, YtConcurrentOperationsLimitExceeded):
                     # NB: initially specified mutation id is ignored.
-                    # Wihtput new mutation id, scheduler always reply with this error.
+                    # Without new mutation id, scheduler always reply with this error.
                     params["retry"] = bool_to_string(False)
                     params["mutation_id"] = generate_uuid(get_option("_random_generator", client))
                 else:
