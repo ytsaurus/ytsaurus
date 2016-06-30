@@ -119,3 +119,12 @@ class TestLocalMode(object):
         finally:
             stop(environment.id)
 
+    def test_preserve_state(self):
+        environment = start()
+        client = environment.create_client()
+        client.write_table("//home/my_table", [{"x": 1, "y": 2, "z": 3}])
+        stop(environment.id)
+
+        environment = start(id=environment.id)
+        client = environment.create_client()
+        assert list(client.read_table("//home/my_table")) == [{"x": 1, "y": 2, "z": 3}]
