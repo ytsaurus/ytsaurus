@@ -125,7 +125,7 @@ def raise_for_status(response, request_info):
         raise YtHttpResponseError(error=response.error(), **request_info)
 
 def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False,
-                              params=None, timeout=None, retry_action=None, client=None,log_body=True, **kwargs):
+                              params=None, timeout=None, retry_action=None, client=None, log_body=True, **kwargs):
     configure_ip(get_session(client),
                  get_config(client)["proxy"]["force_ipv4"],
                  get_config(client)["proxy"]["force_ipv6"])
@@ -220,7 +220,7 @@ def get_proxy_url(proxy=None, check=True, client=None):
 def _request_api(proxy, version=None, client=None):
     proxy = get_proxy_url(proxy, client=client)
     location = "api" if version is None else "api/" + version
-    return make_get_request_with_retries("http://{0}/{1}".format(proxy, location))
+    return make_get_request_with_retries("http://{0}/{1}".format(proxy, location), client=client)
 
 def get_api_version(client=None):
     api_version_option = get_option("_api_version", client)
@@ -238,7 +238,7 @@ def get_api_version(client=None):
         if default_api_version_for_http is not None:
             api_version = default_api_version_for_http
         else:
-            api_versions = _request_api(get_config(client)["proxy"]["url"])
+            api_versions = _request_api(get_config(client)["proxy"]["url"], client=client)
             if "v3" in api_versions:
                 api_version = "v3"
             else:
@@ -313,7 +313,8 @@ def get_user_name(token=None, headers=None, client=None):
         "post",
         "http://{0}/auth/{1}".format(proxy, verb),
         headers=headers,
-        data=data)
+        data=data,
+        client=client)
     login = response.json()["login"]
     if not login:
         return None
