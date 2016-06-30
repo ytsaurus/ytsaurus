@@ -15,6 +15,8 @@ import random
 from copy import deepcopy
 from datetime import datetime
 
+import os
+
 def get_proxy_ban_errors():
     from yt.packages.requests import ConnectionError
     from httplib import BadStatusLine
@@ -168,7 +170,11 @@ def make_request(command_name, params,
     url = "http://{0}/{1}/{2}".format(proxy, api_path, command_name)
 
     # prepare params, format and headers
-    headers = {"User-Agent": "Python wrapper " + get_version(),
+    user_agent = "Python wrapper " + get_version()
+    if "_ARGCOMPLETE" in os.environ:
+        user_agent += " [argcomplete mode]"
+
+    headers = {"User-Agent": user_agent,
                "Accept-Encoding": get_config(client)["proxy"]["accept_encoding"]}
 
     header_format = get_header_format(client)
