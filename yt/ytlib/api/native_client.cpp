@@ -1650,33 +1650,6 @@ private:
                 batch->RequestData = NCompression::CompressWithEnvelope(
                     chunkedData,
                     Config_->LookupRequestCodec);
-
-                //TODO(savrus) remove later if no problems are detected.
-                {
-                    size_t size = 0;
-                    for (const auto& ref : chunkedData) {
-                        size += ref.Size();
-                    }
-                    auto blob = TBlob(TDefaultBlobTag());
-                    blob.Reserve(size);
-                    for (const auto& ref : chunkedData) {
-                        blob.Append(ref);
-                    }
-                    auto ref = TSharedRef::FromBlob(std::move(blob));
-                    TWireProtocolReader reader{ref};
-
-                    auto command = reader.ReadCommand();
-                    YCHECK(command == EWireProtocolCommand::LookupRows);
-
-                    TReqLookupRows writtenReq;
-                    reader.ReadMessage(&writtenReq);
-
-                    auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schemas[ETableSchemaKind::Primary]);
-                    auto rowset = reader.ReadSchemafulRowset(schemaData);
-
-                    YCHECK(rowset.Size() == batch->Keys.size());
-                    YCHECK(reader.IsFinished());
-                }
             }
 
             const auto& cellDirectory = Client_->Connection_->GetCellDirectory();
