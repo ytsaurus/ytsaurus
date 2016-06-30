@@ -233,10 +233,7 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
 
         # FIXME(asaitgalin): Remove this when st/YT-3054 is done.
         if not environment._load_existing_environment:
-            if start_proxy:
-                client = Yt(proxy=environment.get_proxy_address())
-            else:
-                client = environment.create_native_client("driver")
+            client = environment.create_client()
 
             _initialize_world(client)
             if local_cypress_dir is not None:
