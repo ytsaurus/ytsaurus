@@ -2,10 +2,10 @@
 
 from yt.local import start, stop, delete, get_proxy, list_instances
 from yt.local.helpers import YTCheckingThread
-from yt.local.commands import GB
 
 from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.keyboard_interrupts_catcher import KeyboardInterruptsCatcher
+from yt.wrapper.common import GB
 
 import argparse
 import logging
