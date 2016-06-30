@@ -60,7 +60,6 @@ def _add_new_task_parameters(parser):
     parser.add_argument("--src-cluster", required=True, help="source cluster name, e.g. plato")
     parser.add_argument("--dst-cluster", required=True, help="destination cluster name, e.g. redwood")
     parser.add_argument("--params", help="task parameters (in JSON format)")
-    parser.add_argument("--token", help="YT token")
 
     parser.add_argument("--sync", action="store_true", default=False,
                         help="wait added tasks to be completed (default: False)")
@@ -85,12 +84,10 @@ def add_new_tasks_subparser(subparsers):
 def add_abort_task_subparser(subparsers):
     parser = subparsers.add_parser("abort-task", help="abort started task")
     parser.add_argument("task_id", help="task id")
-    parser.add_argument("--token", help="YT token")
 
 def add_restart_task_subparser(subparsers):
     parser = subparsers.add_parser("restart-task", help="restart task")
     parser.add_argument("task_id", help="task id")
-    parser.add_argument("--token", help="YT token")
 
 def get_task_info_func(**kwargs):
     print json.dumps(tm.get_task_info(**kwargs), indent=4)
@@ -143,6 +140,7 @@ def main():
                                 help="http request timeout in ms (default: 10000)")
     options_parser.add_argument("--force-ipv4", action="store_true", default=False, help="force ipv4 usage")
     options_parser.add_argument("--force-ipv6", action="store_true", default=False, help="force ipv6 usage")
+    options_parser.add_argument("--token", help="YT token")
 
     parser = argparse.ArgumentParser(parents=[options_parser],
                                      formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -165,7 +163,7 @@ def main():
     enable_retries = not options.disable_http_retries
     init_client(
         url=options.url,
-        token=args.pop("token", None),
+        token=options.token,
         http_request_timeout=options.http_request_timeout,
         enable_retries=enable_retries,
         retry_count=options.http_retry_count,
