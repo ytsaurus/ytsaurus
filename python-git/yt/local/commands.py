@@ -2,7 +2,7 @@ from cluster_configuration import modify_cluster_configuration
 
 from yt.environment import YTInstance
 from yt.environment.init_cluster import initialize_world
-from yt.wrapper.common import generate_uuid, MB
+from yt.wrapper.common import generate_uuid, GB
 from yt.wrapper.client import Yt
 from yt.common import YtError, require
 import yt.yson as yson
@@ -18,9 +18,6 @@ import socket
 from functools import partial
 
 logger = logging.getLogger("Yt.local")
-
-# TODO(asaitgalin): Use it from yt.wrapper.common later.
-GB = 1024 * MB
 
 def _load_config(path, is_proxy_config=False):
     if path is None:
