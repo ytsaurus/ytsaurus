@@ -45,7 +45,6 @@ public:
         , Visitor_(std::move(visitor))
         , Transaction_(transaction)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
         VERIFY_THREAD_AFFINITY(Automaton);
 
         if (Transaction_) {
