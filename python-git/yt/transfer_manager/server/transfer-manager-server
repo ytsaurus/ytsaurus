@@ -1268,6 +1268,7 @@ class Application(object):
                     self._last_scheduled_time[direction_id] = datetime.now()
                     self._running_tasks_per_direction[direction_id].append(id)
 
+                    user_and_direction = self._tasks[id].get_direction_id_with_user()
                     with self._profiling_mutex:
                         self._profiling["pending_task_count"][user_and_direction] -= 1
                         self._profiling["running_task_count"][user_and_direction] += 1
