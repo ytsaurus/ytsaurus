@@ -241,13 +241,8 @@ struct TJoinClause
     TTableSchema RenamedTableSchema;
 
     bool CanUseSourceRanges;
-    std::vector<int> EquationByIndex;
-
-    // TODO(lukyan): Keep reverse to EquationByIndex mapping (std::vector<int> equationToPosMapping)?
-
-    std::vector<TConstExpressionPtr> EvaluatedColumns;
-
-    std::vector<std::pair<TConstExpressionPtr, TConstExpressionPtr>> Equations;
+    std::vector<TConstExpressionPtr> ForeignEquations;
+    std::vector<std::pair<TConstExpressionPtr, bool>> SelfEquations;
 
     bool IsLeft = false;
 

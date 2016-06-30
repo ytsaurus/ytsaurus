@@ -97,25 +97,24 @@ message TAggregateItem
     optional uint32 result_type = 5;
 }
 
-message TEquation
+message TSelfEquation
 {
-    required TExpression left = 1;
-    required TExpression right = 2;
+    required TExpression expression = 1;
+    required bool is_key = 2;
 }
 
 message TJoinClause
 {
-    repeated TEquation equations = 1;
-    required NYT.NTableClient.NProto.TTableSchemaExt joined_table_schema = 2;
-    required NYT.NTableClient.NProto.TTableSchemaExt foreign_table_schema = 3;
-    required NYT.NTableClient.NProto.TTableSchemaExt renamed_table_schema = 6;
-    required int64 foreign_key_columns_count = 4;
-    required NYT.NProto.TGuid foreign_data_id = 5;
-    required bool is_left = 7;
+    repeated TExpression foreign_equations = 1;
+    repeated TSelfEquation self_equations = 2;
+    required bool can_use_source_ranges = 3;
 
-    required bool can_use_source_ranges = 8;
-    repeated int64 equation_by_index = 10;
-    repeated TExpression evaluated_columns = 11;
+    required NYT.NTableClient.NProto.TTableSchemaExt joined_table_schema = 4;
+    required NYT.NTableClient.NProto.TTableSchemaExt foreign_table_schema = 5;
+    required NYT.NTableClient.NProto.TTableSchemaExt renamed_table_schema = 6;
+    required int64 foreign_key_columns_count = 7;
+    required NYT.NProto.TGuid foreign_data_id = 8;
+    required bool is_left = 9;
 }
 
 message TGroupClause

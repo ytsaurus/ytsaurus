@@ -1555,7 +1555,8 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
             foreignKeyColumnsCount,
             join.Table.Alias);
 
-        std::vector<std::pair<TConstExpressionPtr, TConstExpressionPtr>> equations;
+        std::vector<std::pair<TConstExpressionPtr, bool>> selfEquations;
+        std::vector<TConstExpressionPtr> foreignEquations;
 
         // Merge columns.
         for (const auto& reference : join.Fields) {
@@ -1578,134 +1579,115 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
                     << TErrorAttribute("foreign_type", foreignColumn->Type);
             }
 
-            equations.emplace_back(
-                New<TReferenceExpression>(selfColumn->Type, selfColumn->Name),
-                New<TReferenceExpression>(foreignColumn->Type, foreignColumn->Name));
+            selfEquations.emplace_back(New<TReferenceExpression>(selfColumn->Type, selfColumn->Name), false);
+            foreignEquations.push_back(New<TReferenceExpression>(foreignColumn->Type, foreignColumn->Name));
 
             joinClause->JoinedTableSchema.AppendColumn(*selfColumn);
         }
 
-        std::vector<TConstExpressionPtr> leftEquations;
-        std::vector<TConstExpressionPtr> rightEquations;
-
         for (const auto& argument : join.Left) {
-            leftEquations.push_back(builder.BuildTypedExpression(argument.Get(), schemaProxy));
+            selfEquations.emplace_back(builder.BuildTypedExpression(argument.Get(), schemaProxy), false);
         }
 
         for (const auto& argument : join.Right) {
-            rightEquations.push_back(builder.BuildTypedExpression(argument.Get(), foreignSourceProxy));
+            foreignEquations.push_back(builder.BuildTypedExpression(argument.Get(), foreignSourceProxy));
         }
 
-        if (leftEquations.size() != rightEquations.size()) {
+        if (selfEquations.size() != foreignEquations.size()) {
             THROW_ERROR_EXCEPTION("Tuples of same size are expected but got %v vs %v",
-                leftEquations.size(),
-                rightEquations.size())
+                selfEquations.size(),
+                foreignEquations.size())
                 << TErrorAttribute("lhs_source", InferName(join.Left))
                 << TErrorAttribute("rhs_source", InferName(join.Right));
         }
 
-        for (size_t index = 0; index < leftEquations.size(); ++index) {
-            if (leftEquations[index]->Type != rightEquations[index]->Type) {
+        for (size_t index = 0; index < selfEquations.size(); ++index) {
+            if (selfEquations[index].first->Type != foreignEquations[index]->Type) {
                 THROW_ERROR_EXCEPTION("Types mismatch in join equation \"%v = %v\"",
-                    InferName(leftEquations[index]),
-                    InferName(rightEquations[index]))
-                    << TErrorAttribute("self_type", leftEquations[index]->Type)
-                    << TErrorAttribute("foreign_type", rightEquations[index]->Type);
+                    InferName(selfEquations[index].first),
+                    InferName(foreignEquations[index]))
+                    << TErrorAttribute("self_type", selfEquations[index].first->Type)
+                    << TErrorAttribute("foreign_type", foreignEquations[index]->Type);
             }
-
-            equations.emplace_back(leftEquations[index], rightEquations[index]);
         }
 
         // If can use ranges, rearrange equations according to key columns and enrich with evaluated columns
         const auto& renamedTableSchema = joinClause->RenamedTableSchema;
 
+        std::vector<std::pair<TConstExpressionPtr, bool>> keySelfEquations(foreignKeyColumnsCount);
+        std::vector<TConstExpressionPtr> keyForeignEquations(foreignKeyColumnsCount);
 
-        std::vector<int> equationByIndex(foreignKeyColumnsCount, -1);
-        for (size_t equationIndex = 0; equationIndex < equations.size(); ++equationIndex) {
-            const auto& column = equations[equationIndex];
-            const auto& expr = column.second;
+        bool canUseSourceRanges = true;
+        for (size_t equationIndex = 0; equationIndex < foreignEquations.size(); ++equationIndex) {
+            const auto& expr = foreignEquations[equationIndex];
 
             if (const auto* refExpr = expr->As<TReferenceExpression>()) {
                 auto index = renamedTableSchema.GetColumnIndexOrThrow(refExpr->ColumnName);
                 if (index < foreignKeyColumnsCount) {
-                    equationByIndex[index] = equationIndex;
+                    keySelfEquations[index] = selfEquations[equationIndex];
+                    keyForeignEquations[index] = foreignEquations[equationIndex];
                     continue;
                 }
             }
+            canUseSourceRanges = false;
             break;
         }
 
-        std::vector<bool> usedJoinKeyEquations(equations.size(), false);
-
-        std::vector<std::vector<int>> referenceIds(foreignKeyColumnsCount);
-        std::vector<TConstExpressionPtr> evaluatedColumnExprs(foreignKeyColumnsCount);
-
-        for (size_t index = 0; index < foreignKeyColumnsCount; ++index) {
-            if (!foreignTableSchema.Columns()[index].Expression) {
+        size_t keyPrefix = 0;
+        for (size_t keyPrefix = 0; keyPrefix < foreignKeyColumnsCount; ++keyPrefix) {
+            if (keyForeignEquations[keyPrefix]) {
+                YCHECK(keySelfEquations[keyPrefix].first);
                 continue;
             }
 
+            if (!foreignTableSchema.Columns()[keyPrefix].Expression) {
+                break;
+            }
+
             yhash_set<Stroka> references;
-            evaluatedColumnExprs[index] = PrepareExpression(
-                foreignTableSchema.Columns()[index].Expression.Get(),
+            auto evaluatedColumnExpression = PrepareExpression(
+                foreignTableSchema.Columns()[keyPrefix].Expression.Get(),
                 foreignTableSchema,
                 functions,
                 &references);
 
+            auto canEvaluate = true;
             for (const auto& reference : references) {
-                referenceIds[index].push_back(foreignTableSchema.GetColumnIndexOrThrow(reference));
-            }
-            std::sort(referenceIds[index].begin(), referenceIds[index].end());
-        }
-
-        size_t keyPrefix = 0;
-        for (; keyPrefix < foreignKeyColumnsCount; ++keyPrefix) {
-            if (equationByIndex[keyPrefix] >= 0) {
-                usedJoinKeyEquations[equationByIndex[keyPrefix]] = true;
-                continue;
-            }
-
-            if (foreignTableSchema.Columns()[keyPrefix].Expression) {
-                const auto& references = referenceIds[keyPrefix];
-                auto canEvaluate = true;
-                for (int referenceIndex : references) {
-                    if (equationByIndex[referenceIndex] < 0) {
-                        canEvaluate = false;
-                    }
-                }
-                if (canEvaluate) {
-                    continue;
+                int referenceIndex = foreignTableSchema.GetColumnIndexOrThrow(reference);
+                if (!keySelfEquations[referenceIndex].first) {
+                    YCHECK(!keyForeignEquations[referenceIndex]);
+                    canEvaluate = false;
                 }
             }
-            break;
+
+            if (!canEvaluate) {
+                break;
+            }
+
+            keySelfEquations[keyPrefix] = std::make_pair(evaluatedColumnExpression, true);
+
+            keyForeignEquations[keyPrefix] = New<TReferenceExpression>(
+                renamedTableSchema.Columns()[keyPrefix].Type,
+                renamedTableSchema.Columns()[keyPrefix].Name);
         }
 
-        bool canUseSourceRanges = true;
-        for (auto flag : usedJoinKeyEquations) {
-            if (!flag) {
+        for (size_t index = keyPrefix; index < keyForeignEquations.size() && canUseSourceRanges; ++index) {
+            if (keyForeignEquations[index]) {
+                YCHECK(keySelfEquations[index].first);
                 canUseSourceRanges = false;
             }
         }
 
         joinClause->CanUseSourceRanges = canUseSourceRanges;
         if (canUseSourceRanges) {
-            equationByIndex.resize(keyPrefix);
-            joinClause->EvaluatedColumns.resize(keyPrefix);
-
-            for (int column = 0; column < keyPrefix; ++column) {
-                joinClause->EvaluatedColumns[column] = evaluatedColumnExprs[column];
-            }
+            keyForeignEquations.resize(keyPrefix);
+            keySelfEquations.resize(keyPrefix);
+            joinClause->SelfEquations = std::move(keySelfEquations);
+            joinClause->ForeignEquations = std::move(keyForeignEquations);
         } else {
-            keyPrefix = equations.size();
-            equationByIndex.resize(keyPrefix);
-            joinClause->EvaluatedColumns.resize(keyPrefix);
-            for (size_t index = 0; index < keyPrefix; ++index) {
-                equationByIndex[index] = index;
-            }
+            joinClause->SelfEquations = std::move(selfEquations);
+            joinClause->ForeignEquations = std::move(foreignEquations);
         }
-
-        joinClause->EquationByIndex = equationByIndex;
-        joinClause->Equations = std::move(equations);
 
         schemaProxy = New<TJoinSchemaProxy>(
             &joinClause->JoinedTableSchema,

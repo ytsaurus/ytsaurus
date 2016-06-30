@@ -86,10 +86,8 @@ TCodegenSource MakeCodegenFilterOp(
 
 TCodegenSource MakeCodegenJoinOp(
     int index,
-    std::vector<TCodegenExpression> equations,
-    TCodegenSource codegenSource,
-    std::vector<int> equationByIndex,
-    std::vector<TCodegenExpression> evaluatedColumns);
+    std::vector<std::pair<TCodegenExpression, bool>> equations,
+    TCodegenSource codegenSource);
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
     std::vector<TCodegenExpression> codegenGroupExprs,
