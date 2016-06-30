@@ -231,14 +231,16 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
     if not prepare_only:
         environment.start(not use_proxy_from_yt_source)
 
-        if start_proxy:
-            client = Yt(proxy=environment.get_proxy_address())
-        else:
-            client = environment.create_native_client("driver")
+        # FIXME(asaitgalin): Remove this when st/YT-3054 is done.
+        if not environment._load_existing_environment:
+            if start_proxy:
+                client = Yt(proxy=environment.get_proxy_address())
+            else:
+                client = environment.create_native_client("driver")
 
-        _initialize_world(client)
-        if local_cypress_dir is not None:
-            _synchronize_cypress_with_local_dir(local_cypress_dir, client)
+            _initialize_world(client)
+            if local_cypress_dir is not None:
+                _synchronize_cypress_with_local_dir(local_cypress_dir, client)
 
     log_started_instance_info(environment, start_proxy, prepare_only)
     touch(is_started_file)
