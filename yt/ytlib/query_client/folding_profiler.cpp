@@ -249,23 +249,20 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
         TSchemaProfiler::Profile(schema);
         TSchemaProfiler::Profile(joinClause->RenamedTableSchema);
 
-        std::vector<TCodegenExpression> selfKeys;
-        for (const auto& column : joinClause->Equations) {
-            selfKeys.push_back(TExpressionProfiler::Profile(column.first, schema));
-            TExpressionProfiler::Profile(column.second, joinClause->RenamedTableSchema);
+        std::vector<std::pair<TCodegenExpression, bool>> selfKeys;
+
+        for (const auto& column : joinClause->SelfEquations) {
+            TConstExpressionPtr expression;
+            bool isKey;
+            std::tie(expression, isKey) = column;
+
+            selfKeys.emplace_back(TExpressionProfiler::Profile(
+                expression,
+                isKey ? joinClause->ForeignTableSchema : schema), isKey);
         }
 
         if (auto selfFilter = ExtractPredicateForColumnSubset(query->WhereClause, schema)) {
             codegenSource = MakeCodegenFilterOp(TExpressionProfiler::Profile(selfFilter, schema), std::move(codegenSource));
-        }
-
-        std::vector<TCodegenExpression> evaluatedColumns;
-        for (const auto& column : joinClause->EvaluatedColumns) {
-            if (column) {
-                evaluatedColumns.push_back(TExpressionProfiler::Profile(column, joinClause->ForeignTableSchema));
-            } else {
-                evaluatedColumns.emplace_back();
-            }
         }
 
         int index = Variables_->AddObject<TJoinEvaluator>(GetJoinEvaluator(
@@ -276,9 +273,7 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
         codegenSource = MakeCodegenJoinOp(
             index,
             selfKeys,
-            std::move(codegenSource),
-            joinClause->EquationByIndex,
-            evaluatedColumns);
+            std::move(codegenSource));
 
         schema = joinClause->JoinedTableSchema;
     }

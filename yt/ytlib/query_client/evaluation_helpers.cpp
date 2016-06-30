@@ -147,11 +147,10 @@ TJoinEvaluator GetJoinEvaluator(
     TConstExpressionPtr foreignPredicate,
     const TTableSchema& selfTableSchema)
 {
-    const auto& equations = joinClause.Equations;
+    const auto& foreignEquations = joinClause.ForeignEquations;
     auto isLeft = joinClause.IsLeft;
     auto canUseSourceRanges = joinClause.CanUseSourceRanges;
-    const auto& equationByIndex = joinClause.EquationByIndex;
-    auto keyPrefix = equationByIndex.size();
+    auto keyPrefix = joinClause.SelfEquations.size();
     auto& foreignTableSchema = joinClause.ForeignTableSchema;
     auto& foreignKeyColumnsCount = joinClause.ForeignKeyColumnsCount;
     auto& renamedTableSchema = joinClause.RenamedTableSchema;
@@ -170,25 +169,9 @@ TJoinEvaluator GetJoinEvaluator(
     auto projectClause = New<TProjectClause>();
     std::vector<TConstExpressionPtr> joinKeyExprs;
 
-    if (canUseSourceRanges) {
-        int lookupKeySize = keyPrefix;
-        for (int column = 0; column < lookupKeySize; ++column) {
-            int index = equationByIndex[column];
-            if (index >= 0) {
-                const auto& equation = equations[index];
-                projectClause->AddProjection(equation.second, InferName(equation.second));
-            } else {
-                const auto& evaluatedColumn = renamedTableSchema.Columns()[column];
-                auto referenceExpr = New<TReferenceExpression>(evaluatedColumn.Type, evaluatedColumn.Name);
-                projectClause->AddProjection(referenceExpr, InferName(referenceExpr));
-            }
-        }
-
-    } else {
-        for (const auto& column : equations) {
-            projectClause->AddProjection(column.second, InferName(column.second));
-            joinKeyExprs.push_back(column.second);
-        }
+    for (const auto& column : foreignEquations) {
+        projectClause->AddProjection(column, InferName(column));
+        joinKeyExprs.push_back(column);
     }
 
     for (const auto& column : renamedTableSchema.Columns()) {

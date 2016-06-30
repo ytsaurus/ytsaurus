@@ -1008,22 +1008,16 @@ void CodegenScanOp(
 
 TCodegenSource MakeCodegenJoinOp(
     int index,
-    std::vector<TCodegenExpression> equations,
-    TCodegenSource codegenSource,
-    std::vector<int> equationByIndex,
-    std::vector<TCodegenExpression> evaluatedColumns)
+    std::vector<std::pair<TCodegenExpression, bool>> equations,
+    TCodegenSource codegenSource)
 {
     return [
         index,
         MOVE(equations),
-        codegenSource = std::move(codegenSource),
-        MOVE(equationByIndex),
-        MOVE(evaluatedColumns)
+        codegenSource = std::move(codegenSource)
     ] (TCGOperatorContext& builder, const TCodegenConsumer& codegenConsumer) {
-        int lookupKeySize = equationByIndex.size();
-        int joinKeySize = equationByIndex.size();
+        int lookupKeySize = equations.size();
         std::vector<EValueType> lookupKeyTypes(lookupKeySize);
-        std::vector<EValueType> joinKeyTypes(joinKeySize);
 
         auto collectRows = MakeClosure<void(TJoinClosure*, TRowBuffer*)>(builder, "CollectRows", [&] (
             TCGOperatorContext& builder,
@@ -1048,22 +1042,17 @@ TCodegenSource MakeCodegenJoinOp(
                     Value* keyRef = builder->CreateLoad(keyPtrRef);
 
                     for (int column = 0; column < lookupKeySize; ++column) {
-                        int index = equationByIndex[column];
-                        if (index >= 0) {
-                            auto joinKeyValue = equations[index](builder, row);
-                            joinKeyTypes[index] = joinKeyValue.GetStaticType();
+                        if (!equations[column].second) {
+                            auto joinKeyValue = equations[column].first(builder, row);
                             lookupKeyTypes[column] = joinKeyValue.GetStaticType();
-
                             joinKeyValue.StoreToRow(builder, keyRef, column, column);
                         }
                     }
 
                     for (int column = 0; column < lookupKeySize; ++column) {
-                        if (equationByIndex[column] < 0) {
-                            YCHECK(evaluatedColumns[column]);
-                            auto evaluatedColumn = evaluatedColumns[column](builder, keyRef);
+                        if (equations[column].second) {
+                            auto evaluatedColumn = equations[column].first(builder, keyRef);
                             lookupKeyTypes[column] = evaluatedColumn.GetStaticType();
-
                             evaluatedColumn.StoreToRow(builder, keyRef, column, column);
                         }
                     }

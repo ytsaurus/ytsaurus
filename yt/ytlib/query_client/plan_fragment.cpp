@@ -455,23 +455,24 @@ void FromProto(TAggregateItem* original, const NProto::TAggregateItem& serialize
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TEquation* proto, const std::pair<TConstExpressionPtr, TConstExpressionPtr>& original)
+void ToProto(NProto::TSelfEquation* proto, const std::pair<TConstExpressionPtr, bool>& original)
 {
-    ToProto(proto->mutable_left(), original.first);
-    ToProto(proto->mutable_right(), original.second);
+    ToProto(proto->mutable_expression(), original.first);
+    proto->set_is_key(original.second);
 }
 
-void FromProto(std::pair<TConstExpressionPtr, TConstExpressionPtr>* original, const NProto::TEquation& serialized)
+void FromProto(std::pair<TConstExpressionPtr, bool>* original, const NProto::TSelfEquation& serialized)
 {
-    FromProto(&original->first, serialized.left());
-    FromProto(&original->second, serialized.right());
+    FromProto(&original->first, serialized.expression());
+    FromProto(&original->second, serialized.is_key());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
 {
-    ToProto(proto->mutable_equations(), original->Equations);
+    ToProto(proto->mutable_foreign_equations(), original->ForeignEquations);
+    ToProto(proto->mutable_self_equations(), original->SelfEquations);
     ToProto(proto->mutable_joined_table_schema(), original->JoinedTableSchema);
     ToProto(proto->mutable_foreign_table_schema(), original->ForeignTableSchema);
     ToProto(proto->mutable_renamed_table_schema(), original->RenamedTableSchema);
@@ -479,14 +480,13 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     ToProto(proto->mutable_foreign_data_id(), original->ForeignDataId);
     proto->set_is_left(original->IsLeft);
     proto->set_can_use_source_ranges(original->CanUseSourceRanges);
-    ToProto(proto->mutable_equation_by_index(), original->EquationByIndex);
-    ToProto(proto->mutable_evaluated_columns(), original->EvaluatedColumns);
 }
 
 void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& serialized)
 {
     auto result = New<TJoinClause>();
-    FromProto(&result->Equations, serialized.equations());
+    FromProto(&result->ForeignEquations, serialized.foreign_equations());
+    FromProto(&result->SelfEquations, serialized.self_equations());
     FromProto(&result->JoinedTableSchema, serialized.joined_table_schema());
     FromProto(&result->ForeignTableSchema, serialized.foreign_table_schema());
     FromProto(&result->RenamedTableSchema, serialized.renamed_table_schema());
@@ -494,8 +494,6 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
     FromProto(&result->ForeignDataId, serialized.foreign_data_id());
     FromProto(&result->IsLeft, serialized.is_left());
     FromProto(&result->CanUseSourceRanges, serialized.can_use_source_ranges());
-    FromProto(&result->EquationByIndex, serialized.equation_by_index());
-    FromProto(&result->EvaluatedColumns, serialized.evaluated_columns());
     *original = result;
 }
 
