@@ -2443,7 +2443,7 @@ private:
 
         LOG_INFO("Polling job shell (JobId: %v, Parameters: %v)",
             jobId,
-            parameters);
+            ConvertToYsonString(parameters, EYsonFormat::Text));
 
         auto proxy = CreateJobProberProxy(job);
         auto req = proxy.PollJobShell();
