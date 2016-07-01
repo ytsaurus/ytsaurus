@@ -58,7 +58,7 @@ def convert_to_tskved_json(row):
             pass
         else:
             try:
-                value = json.dumps(value)
+                value = json.dumps(value, encoding="latin1")
             except TypeError:
                 # Ignore data that could be encoded to JSON
                 pass
