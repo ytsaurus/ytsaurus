@@ -379,8 +379,8 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoRead(
                 if (KeyComparer_(
                         partialRow.BeginKeys(),
                         partialRow.EndKeys(),
-                        &*CurrentKey_.begin(),
-                        &*CurrentKey_.end()) != 0)
+                        CurrentKey_.data(),
+                        CurrentKey_.data() + CurrentKey_.size()) != 0)
                 {
                     break;
                 }
