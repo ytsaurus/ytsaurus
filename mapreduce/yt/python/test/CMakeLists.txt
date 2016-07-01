@@ -8,6 +8,7 @@ PYTEST()
 TEST_SRCS(
     test.py
     test_with_config.py
+    test_suspend.py
 )
 
 TIMEOUT(100)

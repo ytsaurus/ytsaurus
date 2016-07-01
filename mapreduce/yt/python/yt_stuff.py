@@ -35,6 +35,7 @@ class YtStuff(object):
         self.config = config or YtConfig()
 
         self.yt_id = self.config.yt_id or str(uuid.uuid4())
+        self.yt_proxy_port = None
 
         self._prepare_logger()
         self._prepare_files()
@@ -107,6 +108,7 @@ class YtStuff(object):
         open(yt_local_err_path, 'a').close()
         self.yt_local_out = open(yt_local_out_path, "r+")
         self.yt_local_err = open(yt_local_err_path, "r+")
+        self.is_running = False
 
     def _prepare_env(self):
         self.env = {}
@@ -142,7 +144,8 @@ class YtStuff(object):
         self.yt_wrapper.config["pickling"]["python_binary"] = yatest.common.python_path()
 
     def _start_local_yt(self):
-        self.yt_proxy_port = devtools.swag.ports.find_free_port() if self.config.proxy_port is None else self.config.proxy_port
+        if self.yt_proxy_port is None:
+            self.yt_proxy_port = devtools.swag.ports.find_free_port() if self.config.proxy_port is None else self.config.proxy_port
 
         self._log("Try to start local YT with id=%s", self.yt_id)
         try:
@@ -175,8 +178,10 @@ class YtStuff(object):
             self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
 
             special_file = os.path.join(self.yt_work_dir, self.yt_id, "started")
-            assert not os.path.lexists(special_file)
 
+            if os.path.lexists(special_file):
+                # It may be start after suspend
+                os.remove(special_file)
             yt_daemon = devtools.swag.daemon.run_daemon(
                 cmd,
                 env=self.env,
@@ -235,12 +240,19 @@ class YtStuff(object):
         for i in xrange(max_retries):
             self._log("Start local YT, attempt %d.", i)
             if self._start_local_yt():
+                self.is_running = True
                 break
             else:
                 dirname = os.path.join(self.yt_work_dir, self.yt_id)
                 if os.path.exists(dirname):
-                    failed_dirname = "%s_FAILED_try_%d" % (dirname, i)
-                    os.rename(dirname, failed_dirname)
+                    dir_i = i
+                    while True:
+                        failed_dirname = "%s_FAILED_try_%d" % (dirname, dir_i)
+                        if os.path.exists(failed_dirname):
+                            dir_i += 1
+                        else:
+                            os.rename(dirname, failed_dirname)
+                            break
                 MAX_WAIT_TIME = 60
                 FAIL_PENALTY = 5
                 time_to_sleep = min(i * FAIL_PENALTY, MAX_WAIT_TIME)
@@ -249,8 +261,8 @@ class YtStuff(object):
             self._save_logs(save_yt_all=True)
             raise Exception("Can't start local YT for %d attempts." % max_retries)
 
-    @_timing
-    def stop_local_yt(self):
+
+    def suspend_local_yt(self):
         try:
             cmd = [
                 yatest.common.python_path(), self.yt_local_path,
@@ -264,10 +276,16 @@ class YtStuff(object):
                 stdout=self.yt_local_out,
                 stderr=self.yt_local_err,
             )
+            self.is_running = False
         except Exception, e:
             self._log("Errors while stopping local YT:\n%s", str(e))
             self._save_logs(save_yt_all=True)
             raise
+
+    @_timing
+    def stop_local_yt(self):
+        if self.is_running:
+            self.suspend_local_yt()
         self._save_logs(save_yt_all=yatest.common.get_param("yt_save_all_data"))
 
     @_timing
