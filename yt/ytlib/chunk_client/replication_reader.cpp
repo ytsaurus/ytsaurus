@@ -755,7 +755,11 @@ private:
             return lhs.BanCount - rhs.BanCount;
         }
 
-        return lhs.Random - rhs.Random;
+        if (lhs.Random != rhs.Random) {
+            return lhs.Random < rhs.Random ? -1 : 1;
+        }
+
+        return 0;
     }
 
     TDuration GetBackoffDuration(int index) const
