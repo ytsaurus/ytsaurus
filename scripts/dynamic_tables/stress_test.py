@@ -444,9 +444,8 @@ def single_iteration(schema, table, key_table, data_table, result_table, job_cou
 def single_execution(table, schema, attributes, tablet_count, key_count, iterations, job_count, force, keep):
     key_table = table + ".keys"
     data_table = table + ".data"
-    aggregated_table = table + ".aggregated"
     result_table = table + ".result"
-    remove_existing([table, key_table, data_table, aggregated_table, result_table], force)
+    remove_existing([table, key_table, data_table, result_table], force)
     yt.create_table(data_table)
 
     create_dynamic_table(table, schema, attributes, tablet_count)
@@ -460,7 +459,7 @@ def single_execution(table, schema, attributes, tablet_count, key_count, iterati
     unmount_table(table)
     mount_table(table)
     if good and not keep:
-        for path in [table, key_table, data_table, aggregated_table, result_table]:
+        for path in [table, key_table, data_table, result_table]:
             yt.remove(path)
 
 def variate_modes(table, args):
