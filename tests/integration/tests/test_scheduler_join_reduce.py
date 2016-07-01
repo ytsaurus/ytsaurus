@@ -556,7 +556,7 @@ echo {v = 2} >&7
             data2,
             sorted_by = ["key"])
 
-        join_reduce(
+        op = join_reduce(
             in_ = ["//tmp/in1", "<foreign=true>//tmp/in2"],
             out = ["//tmp/out"],
             command = "uniq",
@@ -575,6 +575,11 @@ echo {v = 2} >&7
                 {"key": "a", "@table_index": "1"},
                 {"key": "b", "@table_index": "1"},
             ])
+
+        estimated = get("//sys/operations/{0}/@progress/estimated_input_data_size_histogram".format(op.id))
+        histogram = get("//sys/operations/{0}/@progress/input_data_size_histogram".format(op.id))
+        assert estimated != histogram
+        assert sum(histogram["count"]) == 2
 
     # Check compatibility with deprecated <primary=true> attribute
     @unix_only

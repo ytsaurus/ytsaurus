@@ -542,6 +542,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
     Controller->CustomizeJoblet(joblet);
 
     Controller->RegisterJoblet(joblet);
+    Controller->UpdateEstimatedHistogram(joblet);
 
     OnJobStarted(joblet);
 }
@@ -640,6 +641,7 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
 
 void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason)
 {
+    Controller->UpdateEstimatedHistogram(joblet, reason);
     Controller->ReleaseChunkLists(joblet->ChunkListIds);
     if (joblet->StderrTableChunkListId && reason != EJobReinstallReason::Failed) {
         Controller->ReleaseChunkLists({joblet->StderrTableChunkListId});
@@ -1323,6 +1325,8 @@ void TOperationControllerBase::Materialize()
 
         CustomPrepare();
 
+        InitializeHistograms();
+
         if (InputChunkMap.empty()) {
             // Possible reasons:
             // - All input chunks are unavailable && Strategy == Skip
@@ -1874,7 +1878,7 @@ void TOperationControllerBase::OnJobStarted(const TJobId& jobId, TInstant startT
         .Item("job_type").Value(joblet->JobType);
 }
 
-void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistics statistics)
+void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TStatistics& statistics)
 {
     auto jobType = joblet->JobType;
     bool taskUpdateNeeded = false;
@@ -1906,6 +1910,38 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistic
 
     if (taskUpdateNeeded) {
         UpdateAllTasksIfNeeded();
+    }
+}
+
+void TOperationControllerBase::InitializeHistograms()
+{
+    if (IsInputDataSizeHistogramSupported()) {
+        EstimatedInputDataSizeHistogram_ = CreateHistogram();
+        InputDataSizeHistogram_ = CreateHistogram();
+    }
+}
+
+void TOperationControllerBase::UpdateEstimatedHistogram(TJobletPtr joblet)
+{
+    if (EstimatedInputDataSizeHistogram_) {
+        EstimatedInputDataSizeHistogram_->AddValue(joblet->InputStripeList->TotalDataSize);
+    }
+}
+
+void TOperationControllerBase::UpdateEstimatedHistogram(TJobletPtr joblet, EJobReinstallReason reason)
+{
+    if (EstimatedInputDataSizeHistogram_) {
+        EstimatedInputDataSizeHistogram_->RemoveValue(joblet->InputStripeList->TotalDataSize);
+    }
+}
+
+void TOperationControllerBase::UpdateActualHistogram(const TStatistics& statistics)
+{
+    if (InputDataSizeHistogram_) {
+        auto dataSize = FindNumericValue(statistics, "/data/input/uncompressed_data_size");
+        if (dataSize && *dataSize > 0) {
+            InputDataSizeHistogram_->AddValue(*dataSize);
+        }
     }
 }
 
@@ -1953,6 +1989,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
     auto joblet = GetJoblet(jobId);
 
     UpdateMemoryDigests(joblet, jobSummary->Statistics);
+    UpdateActualHistogram(jobSummary->Statistics);
 
     FinalizeJoblet(joblet, jobSummary.get());
     LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
@@ -2293,6 +2330,11 @@ std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
     } else {
         return {};
     }
+}
+
+bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
+{
+    return false;
 }
 
 void TOperationControllerBase::Abort()
@@ -4318,7 +4360,17 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             .Item("output_supported").Value(IsOutputLivePreviewSupported())
             .Item("intermediate_supported").Value(IsIntermediateLivePreviewSupported())
             .Item("stderr_supported").Value(StderrTable.HasValue())
-        .EndMap();
+        .EndMap()
+        .DoIf(EstimatedInputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
+            EstimatedInputDataSizeHistogram_->BuildHistogramView();
+            fluent
+                .Item("estimated_input_data_size_histogram").Value(*EstimatedInputDataSizeHistogram_);
+        })
+        .DoIf(InputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
+            InputDataSizeHistogram_->BuildHistogramView();
+            fluent
+                .Item("input_data_size_histogram").Value(*InputDataSizeHistogram_);
+        });
 }
 
 void TOperationControllerBase::BuildBriefProgress(IYsonConsumer* consumer) const
@@ -4873,6 +4925,9 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
             TUnsortedTag
         >
     >(context, UserJobMemoryDigests_);
+
+    Persist(context, EstimatedInputDataSizeHistogram_);
+    Persist(context, InputDataSizeHistogram_);
 
     if (context.IsLoad()) {
         for (const auto& task : Tasks) {

@@ -512,6 +512,11 @@ private:
             schedulerJobSpecExt->mutable_user_job_spec(),
             joblet);
     }
+
+    virtual bool IsInputDataSizeHistogramSupported() const override
+    {
+        return true;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapController);

@@ -1967,6 +1967,11 @@ protected:
         return true;
     }
 
+    virtual bool IsInputDataSizeHistogramSupported() const override
+    {
+        return true;
+    }
+
     virtual EJobType GetJobType() const override
     {
         return EJobType::SortedReduce;
