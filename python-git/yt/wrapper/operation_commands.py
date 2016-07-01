@@ -476,6 +476,9 @@ class OperationsTracker(object):
         self._abort_on_sigint = abort_on_sigint
 
     def add(self, operation):
+        """Adds Operation object to tracker.
+        :param operation: (Operation) operation to track
+        """
         if not isinstance(operation, Operation):
             raise YtError("Valid Operation object should be passed "
                           "to add method, not {0}".format(repr(operation)))
@@ -485,6 +488,9 @@ class OperationsTracker(object):
         self._operations[operation.id] = operation
 
     def add_by_id(self, operation_id, client=None):
+        """Adds operation to tracker (by operation id)
+        :param operation_id: (str) operation id
+        """
         try:
             attributes = get_operation_attributes(operation_id, client=client)
             operation = Operation(attributes["operation_type"], operation_id, client=client)
@@ -495,6 +501,11 @@ class OperationsTracker(object):
             raise
 
     def wait_all(self, check_result=True, print_progress=True):
+        """Waits all added operations and prints progress.
+        :param check_result: (bool) if True then `YtError` will be raised if any operation failed.
+        For each failed operation `YtOperationFailedError` object with details will be added to raised error.
+        :param print_progress: (bool)
+        """
         logger.info("Waiting for %d operations to complete...", len(self._operations))
 
         unsucessfully_finished_count = 0
@@ -527,6 +538,7 @@ class OperationsTracker(object):
                           .format(unsucessfully_finished_count), inner_errors=inner_errors)
 
     def abort_all(self):
+        """Aborts all added operations."""
         logger.info("Aborting %d operations", len(self._operations))
         for id_, operation in self._operations.iteritems():
             state = operation.get_state()
