@@ -42,6 +42,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/guid_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hash_filter_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/heap_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/histogram_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hyperloglog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/intrusive_ptr_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/integer_column_ut.cpp

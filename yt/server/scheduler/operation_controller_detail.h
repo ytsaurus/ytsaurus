@@ -43,6 +43,7 @@
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/digest.h>
+#include <yt/core/misc/histogram.h>
 
 #include <yt/core/ytree/ypath_client.h>
 
@@ -817,6 +818,7 @@ protected:
 
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
+    virtual bool IsInputDataSizeHistogramSupported() const;
 
     //! Successfully terminate and finalize operation.
     /*!
@@ -1042,7 +1044,15 @@ private:
 
     std::atomic<bool> AreTransactionsActive = {false};
 
-    void UpdateMemoryDigests(TJobletPtr joblet, NJobTrackerClient::TStatistics statistics);
+    std::unique_ptr<IHistogram> EstimatedInputDataSizeHistogram_;
+    std::unique_ptr<IHistogram> InputDataSizeHistogram_;
+
+    void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics);
+
+    void InitializeHistograms();
+    void UpdateEstimatedHistogram(TJobletPtr joblet);
+    void UpdateEstimatedHistogram(TJobletPtr joblet, EJobReinstallReason reason);
+    void UpdateActualHistogram(const NJobTrackerClient::TStatistics& statistics);
 
     void GetExecNodesInformation();
     int GetExecNodeCount();

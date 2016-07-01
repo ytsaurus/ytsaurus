@@ -51,9 +51,6 @@ static const NProfiling::TProfiler Profiler("/operations/sort");
 //! Maximum number of buckets for partition progress aggregation.
 static const int MaxProgressBuckets = 100;
 
-//! Maximum number of buckets for partition size histogram aggregation.
-static const int MaxSizeHistogramBuckets = 100;
-
 ////////////////////////////////////////////////////////////////////
 
 class TSortControllerBase
@@ -1703,55 +1700,17 @@ protected:
 
     // Partition sizes histogram.
 
-    struct TPartitionSizeHistogram
+    std::unique_ptr<IHistogram> ComputePartitionSizeHistogram() const
     {
-        i64 Min;
-        i64 Max;
-        std::vector<i64> Count;
-    };
-
-    TPartitionSizeHistogram ComputePartitionSizeHistogram() const
-    {
-        TPartitionSizeHistogram result;
-
-        result.Min = std::numeric_limits<i64>::max();
-        result.Max = std::numeric_limits<i64>::min();
+        auto histogram = CreateHistogram();
         for (auto partition : Partitions) {
             i64 size = partition->ChunkPoolOutput->GetTotalDataSize();
-            if (size == 0)
-                continue;
-            result.Min = std::min(result.Min, size);
-            result.Max = std::max(result.Max, size);
-        }
-
-        if (result.Min > result.Max)
-            return result;
-
-        int bucketCount = result.Min == result.Max ? 1 : MaxSizeHistogramBuckets;
-        result.Count.resize(bucketCount);
-
-        auto computeBucket = [&] (i64 size) -> int {
-            if (result.Min == result.Max) {
-                return 0;
+            if (size != 0) {
+                histogram->AddValue(size);
             }
-
-            int bucket = (size - result.Min) * MaxSizeHistogramBuckets / (result.Max - result.Min);
-            if (bucket == bucketCount) {
-                bucket = bucketCount - 1;
-            }
-
-            return bucket;
-        };
-
-        for (auto partition : Partitions) {
-            i64 size = partition->ChunkPoolOutput->GetTotalDataSize();
-            if (size == 0)
-                continue;
-            int bucket = computeBucket(size);
-            ++result.Count[bucket];
         }
-
-        return result;
+        histogram->BuildHistogramView();
+        return histogram;
     }
 
     void BuildPartitionsProgressYson(IYsonConsumer* consumer) const
@@ -1772,11 +1731,7 @@ protected:
 
         auto sizeHistogram = ComputePartitionSizeHistogram();
         BuildYsonMapFluently(consumer)
-            .Item("partition_size_histogram").BeginMap()
-                .Item("min").Value(sizeHistogram.Min)
-                .Item("max").Value(sizeHistogram.Max)
-                .Item("count").Value(sizeHistogram.Count)
-            .EndMap();
+            .Item("partition_size_histogram").Value(*sizeHistogram);
     }
 
     virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary) override
@@ -2881,6 +2836,11 @@ private:
     }
 
     virtual bool IsIntermediateLivePreviewSupported() const override
+    {
+        return true;
+    }
+
+    virtual bool IsInputDataSizeHistogramSupported() const override
     {
         return true;
     }
