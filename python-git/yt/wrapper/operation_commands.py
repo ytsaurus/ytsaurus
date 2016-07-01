@@ -469,6 +469,7 @@ class Operation(object):
                 logger.log(stderr_level, "\n" + format_operation_stderrs(stderrs))
 
 class OperationsTracker(object):
+    """Holds operations and allows to wait or abort all tracked operations."""
     def __init__(self, poll_period=5000, abort_on_sigint=True):
         self._operations = {}
         self._poll_period = poll_period
