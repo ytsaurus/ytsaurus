@@ -540,8 +540,12 @@ bool LoadLlvmBitcode(
     TSharedRef implementationFile)
 {
     auto diag = SMDiagnostic();
+
+    std::vector<char> nullTerminatedBuffer(implementationFile.Size() + 1, 0);
+    std::copy(implementationFile.Begin(), implementationFile.End(), nullTerminatedBuffer.data());
+
     auto buffer = MemoryBufferRef(
-        StringRef(implementationFile.Begin(), implementationFile.Size()),
+        StringRef(nullTerminatedBuffer.data(), implementationFile.Size()),
         StringRef("impl"));
     auto implModule = parseIR(buffer, diag, builder->getContext());
 
