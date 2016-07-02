@@ -39,9 +39,7 @@ namespace NScheduler {
 
 struct IOperationHost
 {
-    virtual ~IOperationHost()
-    { }
-
+    virtual ~IOperationHost() = default;
 
     /*!
      *  \note Thread affinity: any
