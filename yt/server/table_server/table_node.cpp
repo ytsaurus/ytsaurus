@@ -131,14 +131,10 @@ void TTableNode::Load(TLoadContext& context)
         }
     }
 
-    // COMPAT(babenko): Cf. YT-5045
-    if (Attributes_ && Attributes_->Attributes().empty()) {
-        Attributes_.reset();
-    }
-    
     // COMPAT(max42): In case there are channels associated with a table, we extend the
     // table schema with all columns mentioned in channels and erase the corresponding attribute.
-    {
+    // TODO(babenko): check snapshot version
+    if (Attributes_) {
         auto& attributesMap = GetMutableAttributes()->Attributes();
         if (attributesMap.find("channels")) {
             const auto& channels = ConvertTo<TChannels>(attributesMap["channels"]);
@@ -162,6 +158,11 @@ void TTableNode::Load(TLoadContext& context)
 
             TableSchema_ = TTableSchema(columns, false);
         }
+    }
+
+    // COMPAT(babenko): Cf. YT-5045
+    if (Attributes_ && Attributes_->Attributes().empty()) {
+        Attributes_.reset();
     }
 
     // COMPAT(max42)
