@@ -504,8 +504,8 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         // For aggregate columns merge values before MajorTimestamp_ and leave other values.
         int id = partialValueIt->Id;
         if (ColumnEvaluator_->IsAggregate(id)) {
-            while (retentionBeginIt != ColumnValues_.begin() &&
-                (retentionBeginIt - 1)->Timestamp >= MajorTimestamp_)
+            while (retentionBeginIt != ColumnValues_.begin()
+                && retentionBeginIt->Timestamp >= MajorTimestamp_)
             {
                 --retentionBeginIt;
             }
