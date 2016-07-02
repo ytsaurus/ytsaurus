@@ -81,6 +81,203 @@ static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////
 
+//! Ensures that operation controllers are being destroyed in a
+//! dedicated invoker.
+class TOperationControllerWrapper
+    : public IOperationController
+{
+public:
+    TOperationControllerWrapper(
+        const TOperationId& id,
+        IOperationControllerPtr underlying,
+        IInvokerPtr dtorInvoker)
+        : Id_(id)
+        , Underlying_(std::move(underlying))
+        , DtorInvoker_(std::move(dtorInvoker))
+    { }
+
+    virtual ~TOperationControllerWrapper()
+    {
+        DtorInvoker_->Invoke(BIND([underlying = std::move(Underlying_), id = Id_] () mutable {
+            LOG_INFO("Started destroying operation controller (OperationId: %v)",
+                id);
+            underlying.Reset();
+            LOG_INFO("Finished destroying operation controller (OperationId: %v)",
+                id);
+        }));
+    }
+
+    virtual void Initialize(bool cleanStart) override
+    {
+        Underlying_->Initialize(cleanStart);
+    }
+
+    virtual void Prepare() override
+    {
+        Underlying_->Prepare();
+    }
+
+    virtual void Materialize() override
+    {
+        Underlying_->Materialize();
+    }
+
+    virtual void Commit() override
+    {
+        Underlying_->Commit();
+    }
+
+    virtual void SaveSnapshot(TOutputStream* stream) override
+    {
+        Underlying_->SaveSnapshot(stream);
+    }
+
+    virtual void Revive(const TSharedRef& snapshot) override
+    {
+        Underlying_->Revive(snapshot);
+    }
+
+    virtual void Abort() override
+    {
+        Underlying_->Abort();
+    }
+
+    virtual void Complete() override
+    {
+        Underlying_->Complete();
+    }
+
+    virtual TCancelableContextPtr GetCancelableContext() const override
+    {
+        return Underlying_->GetCancelableContext();
+    }
+
+    virtual IInvokerPtr GetCancelableControlInvoker() const override
+    {
+        return Underlying_->GetCancelableControlInvoker();
+    }
+
+    virtual IInvokerPtr GetCancelableInvoker() const override
+    {
+        return Underlying_->GetCancelableInvoker();
+    }
+
+    virtual IInvokerPtr GetInvoker() const override
+    {
+        return Underlying_->GetInvoker();
+    }
+
+    virtual TFuture<void> Suspend() override
+    {
+        return Underlying_->Suspend();
+    }
+
+    virtual void Resume() override
+    {
+        Underlying_->Resume();
+    }
+
+    virtual bool GetCleanStart() const override
+    {
+        return Underlying_->GetCleanStart();
+    }
+
+    virtual int GetPendingJobCount() const override
+    {
+        return Underlying_->GetPendingJobCount();
+    }
+
+    virtual int GetTotalJobCount() const override
+    {
+        return Underlying_->GetTotalJobCount();
+    }
+
+    virtual TJobResources GetNeededResources() const override
+    {
+        return Underlying_->GetNeededResources();
+    }
+
+    virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) override
+    {
+        Underlying_->OnJobStarted(jobId, startTime);
+    }
+
+    virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override
+    {
+        Underlying_->OnJobCompleted(std::move(jobSummary));
+    }
+
+    virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) override
+    {
+        Underlying_->OnJobFailed(std::move(jobSummary));
+    }
+
+    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) override
+    {
+        Underlying_->OnJobAborted(std::move(jobSummary));
+    }
+
+    virtual TScheduleJobResultPtr ScheduleJob(
+        ISchedulingContextPtr context,
+        const TJobResources& jobLimits) override
+    {
+        return Underlying_->ScheduleJob(std::move(context), jobLimits);
+    }
+
+    virtual void UpdateConfig(TSchedulerConfigPtr config) override
+    {
+        Underlying_->UpdateConfig(std::move(config));
+    }
+
+    virtual bool HasProgress() const override
+    {
+        return Underlying_->HasProgress();
+    }
+
+    virtual void BuildProgress(IYsonConsumer* consumer) const override
+    {
+        Underlying_->BuildProgress(consumer);
+    }
+
+    virtual void BuildBriefProgress(IYsonConsumer* consumer) const override
+    {
+        Underlying_->BuildBriefProgress(consumer);
+    }
+
+    virtual Stroka GetLoggingProgress() const override
+    {
+        return Underlying_->GetLoggingProgress();
+    }
+
+    virtual void BuildResult(IYsonConsumer* consumer) const override
+    {
+        Underlying_->BuildResult(consumer);
+    }
+
+    virtual void BuildMemoryDigestStatistics(IYsonConsumer* consumer) const override
+    {
+        Underlying_->BuildMemoryDigestStatistics(consumer);
+    }
+
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    {
+        Underlying_->BuildBriefSpec(consumer);
+    }
+
+    virtual TFuture<TYsonString> BuildInputPathYson(const TJobId& jobId) const override
+    {
+        return Underlying_->BuildInputPathYson(jobId);
+    }
+
+private:
+    const TOperationId Id_;
+    const IOperationControllerPtr Underlying_;
+    const IInvokerPtr DtorInvoker_;
+
+};
+
+////////////////////////////////////////////////////////////////////
+
 class TScheduler::TImpl
     : public TRefCounted
     , public IOperationHost
@@ -1393,13 +1590,16 @@ private:
 
         bool registered = false;
         try {
-            auto controller = CreateController(operation.Get());
+            auto controller = New<TOperationControllerWrapper>(
+                operation->GetId(),
+                CreateController(operation.Get()),
+                ControllerThreadPool_->GetInvoker());
             operation->SetController(controller);
 
             RegisterOperation(operation);
             registered = true;
 
-            controller->Initialize(/* clean start */ true);
+            controller->Initialize(/* cleanStart */ true);
 
             WaitFor(MasterConnector_->CreateOperationNode(operation))
                 .ThrowOnError();
