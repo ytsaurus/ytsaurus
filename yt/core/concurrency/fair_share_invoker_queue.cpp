@@ -23,7 +23,6 @@ TFairShareInvokerQueue::TFairShareInvokerQueue(
             bucketsTagIds[index],
             enableLogging,
             enableProfiling);
-        Buckets_[index].ExcessTime = 0;
     }
 }
 
@@ -85,7 +84,6 @@ EBeginExecuteResult TFairShareInvokerQueue::BeginExecute(TEnqueuedAction* action
     }
 
     // Pump the starving queue.
-    StartInstant_ = GetCpuInstant();
     return CurrentBucket_->Queue->BeginExecute(action);
 }
 
@@ -96,21 +94,21 @@ void TFairShareInvokerQueue::EndExecute(TEnqueuedAction* action)
     }
 
     CurrentBucket_->Queue->EndExecute(action);
-    CurrentBucket_->ExcessTime += (GetCpuInstant() - StartInstant_);
+    CurrentBucket_->ExcessTime += (action->FinishedAt - action->StartedAt);
     CurrentBucket_ = nullptr;
 }
 
 TFairShareInvokerQueue::TBucket* TFairShareInvokerQueue::GetStarvingBucket()
 {
     // Compute min excess over non-empty queues.
-    i64 minExcess = std::numeric_limits<i64>::max();
+    auto minExcessTime = std::numeric_limits<NProfiling::TCpuDuration>::max();
     TBucket* minBucket = nullptr;
     for (auto& bucket : Buckets_) {
         const auto& queue = bucket.Queue;
         Y_ASSERT(queue);
         if (!queue->IsEmpty()) {
-            if (bucket.ExcessTime < minExcess) {
-                minExcess = bucket.ExcessTime;
+            if (bucket.ExcessTime < minExcessTime) {
+                minExcessTime = bucket.ExcessTime;
                 minBucket = &bucket;
             }
         }
