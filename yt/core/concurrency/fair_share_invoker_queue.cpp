@@ -78,10 +78,9 @@ EBeginExecuteResult TFairShareInvokerQueue::BeginExecute(TEnqueuedAction* action
     }
 
     // Reduce excesses (with truncation).
+    auto delta = CurrentBucket_->ExcessTime;
     for (auto& bucket : Buckets_) {
-        bucket.ExcessTime = std::max<NProfiling::TCpuDuration>(
-            0,
-            bucket.ExcessTime - CurrentBucket_->ExcessTime);
+        bucket.ExcessTime = std::max<NProfiling::TCpuDuration>(bucket.ExcessTime - delta, 0);
     }
 
     // Pump the starving queue.
