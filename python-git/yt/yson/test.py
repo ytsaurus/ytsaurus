@@ -162,7 +162,8 @@ class YsonParserTestBase(object):
                     "other_attr": to_yson_type(10, attributes={}),
                     u"ключ": None
                 }),
-                "e": to_yson_type(None, attributes={"x": "y"})
+            "e": to_yson_type(None, attributes={"x": "y"}),
+            "f": to_yson_type(u"abacaba", attributes={"attr": 4})
         })
 
         self.assertEqual(x["a"], {"$value": 10, "$attributes": {"attr": 1}})
@@ -170,7 +171,8 @@ class YsonParserTestBase(object):
         self.assertEqual(x["c"], {"$value": "string", "$attributes": {"attr": 3}})
         self.assertEqual(x["d"], {"$value": {"key": [1, 2]}, "$attributes": {"attr": 4, "$$xxx": "yyy", "other_attr": 10, u"ключ": None}})
         self.assertEqual(x["e"], {"$value": None, "$attributes": {"x": "y"}})
-        self.assertEqual(set(x.keys()), set(["a", "b", "c", "d", "e"]))
+        self.assertEqual(x["f"], {"$value": "abacaba", "$attributes": {"attr": 4}})
+        self.assertEqual(set(x.keys()), set(["a", "b", "c", "d", "e", "f"]))
 
 
 class TestParser(unittest.TestCase, YsonParserTestBase):
