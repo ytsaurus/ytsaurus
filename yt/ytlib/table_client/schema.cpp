@@ -333,7 +333,7 @@ TTableSchema TTableSchema::ToWrite() const
             }
         }
     }
-    return TTableSchema(std::move(columns));
+    return TTableSchema(std::move(columns), Strict_, UniqueKeys_);
 }
 
 TTableSchema TTableSchema::ToLookup() const
@@ -344,7 +344,7 @@ TTableSchema TTableSchema::ToLookup() const
             columns.push_back(column);
         }
     }
-    return TTableSchema(std::move(columns));
+    return TTableSchema(std::move(columns), Strict_, UniqueKeys_);
 }
 
 TTableSchema TTableSchema::ToDelete() const
@@ -354,13 +354,14 @@ TTableSchema TTableSchema::ToDelete() const
 
 TTableSchema TTableSchema::ToKeys() const
 {
-    return TTableSchema(std::vector<TColumnSchema>(Columns_.begin(), Columns_.begin() + KeyColumnCount_));
+    auto columns = std::vector<TColumnSchema>(Columns_.begin(), Columns_.begin() + KeyColumnCount_);
+    return TTableSchema(std::move(columns), Strict_, UniqueKeys_);
 }
 
 TTableSchema TTableSchema::ToValues() const
 {
     std::vector<TColumnSchema> columns(Columns_.begin() + KeyColumnCount_, Columns_.end());
-    return TTableSchema(std::move(columns));
+    return TTableSchema(std::move(columns), Strict_, false);
 }
 
 TTableSchema TTableSchema::ToUniqueKeys() const
