@@ -62,6 +62,7 @@ struct TCreateClientOptions
     using TSelf = TCreateClientOptions;
 
     FLUENT_FIELD(Stroka, Token);
+    FLUENT_FIELD(Stroka, TokenPath);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
