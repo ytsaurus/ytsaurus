@@ -1297,12 +1297,12 @@ TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
 
 bool TOperationElementSharedState::IsBlocked(
     TInstant now,
-    int MaxConcurrentScheduleJobCalls,
-    TDuration ScheduleJobFailBackoffTime) const
+    int maxConcurrentScheduleJobCalls,
+    TDuration scheduleJobFailBackoffTime) const
 {
     TReaderGuard guard(ConcurrentScheduleJobCallsLock_);
 
-    return IsBlockedImpl(now, MaxConcurrentScheduleJobCalls, ScheduleJobFailBackoffTime);
+    return IsBlockedImpl(now, maxConcurrentScheduleJobCalls, scheduleJobFailBackoffTime);
 }
 
 bool TOperationElementSharedState::TryStartScheduleJob(
@@ -1351,11 +1351,11 @@ TStatistics TOperationElementSharedState::GetControllerTimeStatistics()
 
 bool TOperationElementSharedState::IsBlockedImpl(
     TInstant now,
-    int MaxConcurrentScheduleJobCalls,
-    TDuration ScheduleJobFailBackoffTime) const
+    int maxConcurrentScheduleJobCalls,
+    TDuration scheduleJobFailBackoffTime) const
 {
-    return ConcurrentScheduleJobCalls_ >= MaxConcurrentScheduleJobCalls ||
-        (BackingOff_ && LastScheduleJobFailTime_ + ScheduleJobFailBackoffTime > now);
+    return ConcurrentScheduleJobCalls_ >= maxConcurrentScheduleJobCalls ||
+        (BackingOff_ && LastScheduleJobFailTime_ + scheduleJobFailBackoffTime > now);
 }
 
 void TOperationElementSharedState::IncreaseJobResourceUsage(TJobProperties& properties, const TJobResources& resourcesDelta)
