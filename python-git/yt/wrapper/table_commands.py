@@ -913,8 +913,7 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
 
     TODO
     """
-    # TODO(ignat): Add path preparetion
-    params = {"path": path}
+    params = {"path": prepare_path(path, client=client)}
     if first_tablet_index is not None:
         params["first_tablet_index"] = first_tablet_index
     if last_tablet_index is not None:
@@ -933,8 +932,7 @@ def alter_table(path, schema=None, dynamic=None, client=None):
     :param dynamic: (bool)
     """
 
-    params = {"path": path}
-
+    params = {"path": prepare_path(path, client=client)}
     if schema is not None:
         params["schema"] = schema
     if dynamic is not None:
@@ -947,7 +945,7 @@ def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=N
 
     TODO
     """
-    params = {"path": path}
+    params = {"path": prepare_path(path, client=client)}
     if first_tablet_index is not None:
         params["first_tablet_index"] = first_tablet_index
     if last_tablet_index is not None:
@@ -975,8 +973,7 @@ def freeze_table(path, first_tablet_index=None, last_tablet_index=None, client=N
 
     TODO
     """
-    # TODO(ignat): Add path preparetion
-    params = {"path": path}
+    params = {"path": prepare_path(path, client=client)}
     if first_tablet_index is not None:
         params["first_tablet_index"] = first_tablet_index
     if last_tablet_index is not None:
@@ -989,8 +986,7 @@ def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, client
 
     TODO
     """
-    # TODO(ignat): Add path preparetion
-    params = {"path": path}
+    params = {"path": prepare_path(path, client=client)}
     if first_tablet_index is not None:
         params["first_tablet_index"] = first_tablet_index
     if last_tablet_index is not None:
@@ -1003,7 +999,7 @@ def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=N
 
     TODO
     """
-    params = {"path": path}
+    params = {"path": prepare_path(path, client=client)}
 
     _set_option(params, "pivot_keys", pivot_keys)
     _set_option(params, "tablet_count", tablet_count)
