@@ -1061,28 +1061,35 @@ public:
         YCHECK(!sourceTable->Tablets().empty());
         YCHECK(clonedTable->Tablets().empty());
 
-        auto tabletState = sourceTable->GetTabletState();
-        switch (mode) {
-            case ENodeCloneMode::Copy:
-                if (!sourceTable->IsSorted()) {
-                    THROW_ERROR_EXCEPTION("Cannot copy dynamic ordered table");
-                }
-                if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::Frozen) {
-                    THROW_ERROR_EXCEPTION("Cannot copy dynamic table since not all of its tablets are in %Qlv or %Qlv mode",
-                        ETabletState::Unmounted,
-                        ETabletState::Frozen);
-                }
-                break;
+        try {
+            auto tabletState = sourceTable->GetTabletState();
+            switch (mode) {
+                case ENodeCloneMode::Copy:
+                    if (!sourceTable->IsSorted()) {
+                        THROW_ERROR_EXCEPTION("Cannot copy dynamic ordered table");
+                    }
+                    if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::Frozen) {
+                        THROW_ERROR_EXCEPTION("Cannot copy dynamic table since not all of its tablets are in %Qlv or %Qlv mode",
+                            ETabletState::Unmounted,
+                            ETabletState::Frozen);
+                    }
+                    break;
 
-            case ENodeCloneMode::Move:
-                if (tabletState != ETabletState::Unmounted) {
-                    THROW_ERROR_EXCEPTION("Cannot move dynamic table since not all of its tablets are in %Qlv state",
-                        ETabletState::Unmounted);
-                }
-                break;
+                case ENodeCloneMode::Move:
+                    if (tabletState != ETabletState::Unmounted) {
+                        THROW_ERROR_EXCEPTION("Cannot move dynamic table since not all of its tablets are in %Qlv state",
+                            ETabletState::Unmounted);
+                    }
+                    break;
 
-            default:
-                YUNREACHABLE();
+                default:
+                    YUNREACHABLE();
+            }
+        } catch (const std::exception& ex) {
+            auto cypressManager = Bootstrap_->GetCypressManager();
+            auto sourceTableProxy = cypressManager->GetNodeProxy(sourceTable->GetTrunkNode(), sourceTable->GetTransaction());
+            THROW_ERROR_EXCEPTION("Error cloning table %v",
+                sourceTableProxy->GetPath());
         }
 
         auto data = New<TCloneTableData>();
