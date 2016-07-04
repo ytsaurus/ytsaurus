@@ -130,6 +130,7 @@ private:
         void Run()
         {
             LOG_DEBUG("Starting peer discovery");
+
             DoRun();
         }
 
@@ -144,7 +145,6 @@ private:
         std::vector<TError> InnerErrors_;
 
         NLogging::TLogger Logger;
-
 
         void DoRun()
         {
@@ -272,7 +272,6 @@ private:
                     << *Owner_->EndpointAttributes_
                     << InnerErrors_;
             }
-
             TrySetResult(result);
         }
 
@@ -331,21 +330,31 @@ private:
 
         TDelayedExecutor::CancelAndClear(RediscoveryCookie_);
         RediscoveryCookie_ = TDelayedExecutor::Submit(
-            BIND(IgnoreResult(&TBalancingChannelSubprovider::RunDiscoverySession), MakeWeak(this)),
+            BIND(&TBalancingChannelSubprovider::OnRediscovery, MakeWeak(this)),
             Config_->RediscoverPeriod + RandomDuration(Config_->RediscoverSplay));
     }
 
+    void OnRediscovery(bool aborted)
+    {
+        if (aborted) {
+            return;
+        }
+
+        RunDiscoverySession();
+    }
 
     void AddPeers(const std::vector<Stroka>& addresses)
     {
         TWriterGuard guard(SpinLock_);
         for (const auto& address : addresses) {
-            if (!ActiveAddresses_.insert(address).second)
+            if (BannedAddresses_.find(address) != BannedAddresses_.end()) {
                 continue;
-            if (BannedAddresses_.find(address) != BannedAddresses_.end())
-                continue;
+            }
 
-            ActiveAddresses_.insert(address);
+            if (!ActiveAddresses_.insert(address).second) {
+                continue;
+            }
+
             LOG_DEBUG("Peer added (Address: %v)", address);
         }
     }
@@ -387,8 +396,9 @@ private:
     {
         {
             TWriterGuard guard(SpinLock_);
-            if (ActiveAddresses_.erase(address) != 1)
+            if (ActiveAddresses_.erase(address) != 1) {
                 return;
+            }
             BannedAddresses_.insert(address);
         }
 
@@ -401,12 +411,18 @@ private:
             backoffTime);
     }
 
-    void OnPeerBanTimeout(const Stroka& address)
+    void OnPeerBanTimeout(const Stroka& address, bool aborted)
     {
+        if (aborted) {
+            // If we are terminating -- do not unban anyone to prevent infinite retries.
+            return;
+        }
+
         {
             TWriterGuard guard(SpinLock_);
-            if (BannedAddresses_.erase(address) != 1)
+            if (BannedAddresses_.erase(address) != 1) {
                 return;
+            }
             ActiveAddresses_.insert(address);
         }
 

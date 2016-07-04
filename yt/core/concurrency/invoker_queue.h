@@ -59,7 +59,7 @@ private:
 
     std::atomic<bool> Running = {true};
 
-    TLockFreeQueue<TEnqueuedAction> Queue;
+    std::unique_ptr<TLockFreeQueue<TEnqueuedAction>> Queue;
     std::atomic<int> QueueSize = {0};
 
     NProfiling::TProfiler Profiler;

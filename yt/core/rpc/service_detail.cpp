@@ -599,7 +599,7 @@ void TServiceBase::HandleRequestCancelation(const TRequestId& requestId)
     context->Cancel();
 }
 
-void TServiceBase::OnRequestTimeout(const TRequestId& requestId)
+void TServiceBase::OnRequestTimeout(const TRequestId& requestId, bool /*aborted*/)
 {
     auto context = FindCancelableRequest(requestId);
     if (!context) {

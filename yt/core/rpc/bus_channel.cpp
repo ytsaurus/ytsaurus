@@ -284,6 +284,8 @@ private:
                 bus = Bus_;
             }
 
+            requestControl->Initialize();
+
             if (existingResponseHandler) {
                 existingResponseHandler->HandleError(TError(
                     NRpc::EErrorCode::TransportError,
@@ -383,13 +385,11 @@ private:
             bus->Send(std::move(message), EDeliveryTrackingLevel::None);
         }
 
-        void HandleTimeout(const TRequestId& requestId)
+        void HandleTimeout(const TRequestId& requestId, bool aborted)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
             TClientRequestControlPtr requestControl;
-            IClientRequestPtr request;
-            IClientResponseHandlerPtr responseHandler;
             {
                 TGuard<TSpinLock> guard(SpinLock_);
 
@@ -401,18 +401,23 @@ private:
                 }
 
                 requestControl = it->second;
-                request = requestControl->GetRequest();
-                responseHandler = requestControl->GetResponseHandler();
-                requestControl->TimingCheckpoint(STRINGBUF("timeout"));
-                requestControl->Finalize();
                 ActiveRequestMap_.erase(it);
             }
 
-            NotifyError(
-                requestControl,
-                request,
-                responseHandler,
-                TError(NYT::EErrorCode::Timeout, "Request timed out"));
+            auto request = requestControl->GetRequest();
+            auto responseHandler = requestControl->GetResponseHandler();
+
+            requestControl->TimingCheckpoint(STRINGBUF("timeout"));
+            requestControl->Finalize();
+
+            TError error;
+            if (aborted) {
+                error = TError(NYT::EErrorCode::Canceled, "Request timed out (timer was aborted)");
+            } else {
+                error = TError(NYT::EErrorCode::Timeout, "Request timed out");
+            }
+
+            NotifyError(requestControl, request, responseHandler, error);
         }
 
         virtual void HandleMessage(TSharedRefArray message, IBusPtr /*replyBus*/) throw() override
@@ -682,12 +687,6 @@ private:
                 "/request_time",
                 descriptor.TagIds,
                 NProfiling::ETimerMode::Sequential);
-
-            if (Timeout_) {
-                TimeoutCookie_ = TDelayedExecutor::Submit(
-                    BIND(&TSession::HandleTimeout, Session_, RequestId_),
-                    *Timeout_);
-            }
         }
 
         const IClientRequestPtr& GetRequest() const
@@ -713,6 +712,15 @@ private:
         void TimingCheckpoint(const TStringBuf& key)
         {
             Profiler.TimingCheckpoint(Timer_, key);
+        }
+
+        void Initialize()
+        {
+            if (Timeout_) {
+                TimeoutCookie_ = TDelayedExecutor::Submit(
+                    BIND(&TSession::HandleTimeout, Session_, RequestId_),
+                    *Timeout_);
+            }
         }
 
         void Finalize()

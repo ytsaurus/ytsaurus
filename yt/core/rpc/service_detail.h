@@ -591,7 +591,7 @@ private:
     std::atomic<int> ActiveRequestCount_ = {0};
 
 
-    void OnRequestTimeout(const TRequestId& requestId);
+    void OnRequestTimeout(const TRequestId& requestId, bool aborted);
     void OnReplyBusTerminated(NBus::IBusPtr bus, const TError& error);
 
     static bool TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo);

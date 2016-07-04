@@ -83,11 +83,12 @@ public:
     }
 
 private:
-    static void OnLeaseExpired(TLease lease)
+    static void OnLeaseExpired(TLease lease, bool /*aborted*/)
     {
         TGuard<TSpinLock> guard(lease->SpinLock);
-        if (!lease->IsValid)
+        if (!lease->IsValid) {
             return;
+        }
 
         auto onExpired = lease->OnExpired;
         InvalidateLease(lease);
