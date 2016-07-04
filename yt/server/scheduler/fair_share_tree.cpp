@@ -26,22 +26,21 @@ static const double RatioComparisonPrecision = sqrt(RatioComputationPrecision);
 
 ////////////////////////////////////////////////////////////////////
 
-TJobResources ToJobResources(const TResourceLimitsConfigPtr& config)
+TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResources defaultValue)
 {
-    auto perTypeLimits = InfiniteJobResources();
     if (config->UserSlots) {
-        perTypeLimits.SetUserSlots(*config->UserSlots);
+        defaultValue.SetUserSlots(*config->UserSlots);
     }
     if (config->Cpu) {
-        perTypeLimits.SetCpu(*config->Cpu);
+        defaultValue.SetCpu(*config->Cpu);
     }
     if (config->Network) {
-        perTypeLimits.SetNetwork(*config->Network);
+        defaultValue.SetNetwork(*config->Network);
     }
     if (config->Memory) {
-        perTypeLimits.SetMemory(*config->Memory);
+        defaultValue.SetMemory(*config->Memory);
     }
-    return perTypeLimits;
+    return defaultValue;
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -1000,7 +999,10 @@ double TPool::GetWeight() const
 
 double TPool::GetMinShareRatio() const
 {
-    return Config_->MinShareRatio;
+    auto minShareResources = ToJobResources(Config_->MinShareResources, ZeroJobResources());
+    return std::max(
+        Config_->MinShareRatio,
+        GetMaxResourceRatio(minShareResources, TotalResourceLimits_));
 }
 
 double TPool::GetMaxShareRatio() const
@@ -1109,7 +1111,7 @@ void TPool::DoSetConfig(TPoolConfigPtr newConfig)
 TJobResources TPool::ComputeResourceLimits() const
 {
     auto resourceLimits = GetHost()->GetResourceLimits(GetNodeTag()) * Config_->MaxShareRatio;
-    auto perTypeLimits = ToJobResources(Config_->ResourceLimits);
+    auto perTypeLimits = ToJobResources(Config_->ResourceLimits, InfiniteJobResources());
     return Min(resourceLimits, perTypeLimits);
 }
 
@@ -1590,7 +1592,10 @@ double TOperationElement::GetWeight() const
 
 double TOperationElement::GetMinShareRatio() const
 {
-    return Spec_->MinShareRatio;
+    auto minShareResources = ToJobResources(Spec_->MinShareResources, ZeroJobResources());
+    return std::max(
+        Spec_->MinShareRatio,
+        GetMaxResourceRatio(minShareResources, TotalResourceLimits_));
 }
 
 double TOperationElement::GetMaxShareRatio() const
@@ -1849,7 +1854,7 @@ TJobResources TOperationElement::ComputeResourceDemand() const
 TJobResources TOperationElement::ComputeResourceLimits() const
 {
     auto maxShareLimits = GetHost()->GetResourceLimits(GetNodeTag()) * Spec_->MaxShareRatio;
-    auto perTypeLimits = ToJobResources(Spec_->ResourceLimits);
+    auto perTypeLimits = ToJobResources(Spec_->ResourceLimits, InfiniteJobResources());
     return Min(maxShareLimits, perTypeLimits);
 }
 

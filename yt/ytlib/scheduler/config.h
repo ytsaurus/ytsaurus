@@ -1045,10 +1045,16 @@ class TSchedulableConfig
 {
 public:
     double Weight;
-    double MinShareRatio;
-    double MaxShareRatio;
 
+    // Specifies resource limits in terms of a share of all cluster resources.
+    double MaxShareRatio;
+    // Specifies resource limits in absolute values.
     TResourceLimitsConfigPtr ResourceLimits;
+
+    // Specifies guaranteed resources in terms of a share of all cluster resources.
+    double MinShareRatio;
+    // Specifies guaranteed resources in absolute values.
+    TResourceLimitsConfigPtr MinShareResources;
 
     TNullable<Stroka> SchedulingTag;
 
@@ -1067,14 +1073,16 @@ public:
             .Default(1.0)
             .InRange(MinSchedulableWeight, MaxSchedulableWeight);
 
-        RegisterParameter("min_share_ratio", MinShareRatio)
-            .Default(0.0)
-            .InRange(0.0, 1.0);
         RegisterParameter("max_share_ratio", MaxShareRatio)
             .Default(1.0)
             .InRange(0.0, 1.0);
-
         RegisterParameter("resource_limits", ResourceLimits)
+            .DefaultNew();
+
+        RegisterParameter("min_share_ratio", MinShareRatio)
+            .Default(0.0)
+            .InRange(0.0, 1.0);
+        RegisterParameter("min_share_resources", MinShareResources)
             .DefaultNew();
 
         RegisterParameter("scheduling_tag", SchedulingTag)

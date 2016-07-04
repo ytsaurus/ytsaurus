@@ -942,7 +942,8 @@ class TestSchedulerPreemption(YTEnvSetup):
         "scheduler": {
             "min_share_preemption_timeout": 100,
             "fair_share_starvation_tolerance": 0.7,
-            "fair_share_starvation_tolerance_limit": 0.9
+            "fair_share_starvation_tolerance_limit": 0.9,
+            "fair_share_update_period": 100
         }
     }
 
@@ -966,6 +967,55 @@ class TestSchedulerPreemption(YTEnvSetup):
         op2.track()
 
         op1.abort()
+
+    def test_min_share_ratio(self):
+        create("map_node", "//sys/pools/test_min_share_ratio_pool", attributes={"min_share_ratio": 1.0})
+
+        create("table", "//tmp/t_in")
+        for i in xrange(3):
+            write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out")
+
+        get_operation_min_share_ratio = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/adjusted_min_share_ratio".format(op_id))
+
+        min_share_settings = [
+            {"min_share_ratio": 0.5},
+            {"min_share_resources": {"cpu": 3}},
+            {"min_share_resources": {"cpu": 1, "user_slots": 3}},
+            {"min_share_ratio": 0.5, "min_share_resources": {"cpu": 3}},
+        ]
+
+        total_resource_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
+
+        def compute_min_share_ratio(spec):
+            min_share_ratio = spec.get("min_share_ratio", 0.0)
+            if "min_share_resources" in spec:
+                for resource, value in spec["min_share_resources"].iteritems():
+                    min_share_ratio = max(min_share_ratio, value * 1.0 / total_resource_limit[resource])
+            return min_share_ratio
+
+        for min_share_spec in min_share_settings:
+            spec = {"job_count": 3, "pool": "test_min_share_ratio_pool"}
+            spec.update(min_share_spec)
+            op = map(
+                dont_track=True,
+                waiting_jobs=True,
+                command="cat",
+                in_=["//tmp/t_in"],
+                out="//tmp/t_out",
+                spec=spec)
+
+            # Wait for fair share update.
+            time.sleep(0.2)
+
+            assert get_operation_min_share_ratio(op.id) == compute_min_share_ratio(min_share_spec)
+
+            op.resume_jobs()
+            op.track()
+
+
 
     def test_recursive_preemption_settings(self):
         create("map_node", "//sys/pools/p1", attributes={"fair_share_starvation_tolerance_limit": 0.6})
