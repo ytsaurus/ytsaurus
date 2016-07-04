@@ -37,20 +37,29 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         const auto* lock = GetThisTypedImpl();
+        const auto& request = lock->Request();
 
+        descriptors->push_back("implicit");
         descriptors->push_back("state");
         descriptors->push_back("transaction_id");
         descriptors->push_back("node_id");
         descriptors->push_back("mode");
         descriptors->push_back(TAttributeDescriptor("child_key")
-            .SetPresent(lock->Request().ChildKey.HasValue()));
+            .SetPresent(request.Key.Kind == ELockKeyKind::Child));
         descriptors->push_back(TAttributeDescriptor("attribute_key")
-            .SetPresent(lock->Request().AttributeKey.HasValue()));
+            .SetPresent(request.Key.Kind == ELockKeyKind::Attribute));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* lock = GetThisTypedImpl();
+        const auto& request = lock->Request();
+
+        if (key == "implicit") {
+            BuildYsonFluently(consumer)
+                .Value(lock->GetImplicit());
+            return true;
+        }
 
         if (key == "state") {
             BuildYsonFluently(consumer)
@@ -76,15 +85,15 @@ private:
             return true;
         }
 
-        if (key == "child_key" && lock->Request().ChildKey) {
+        if (key == "child_key" && request.Key.Kind == ELockKeyKind::Child) {
             BuildYsonFluently(consumer)
-                .Value(*lock->Request().ChildKey);
+                .Value(request.Key.Name);
             return true;
         }
 
-        if (key == "attribute_key" && lock->Request().AttributeKey) {
+        if (key == "attribute_key" && request.Key.Kind == ELockKeyKind::Attribute) {
             BuildYsonFluently(consumer)
-                .Value(*lock->Request().AttributeKey);
+                .Value(request.Key.Name);
             return true;
         }
 

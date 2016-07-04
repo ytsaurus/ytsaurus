@@ -797,11 +797,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(trunkNode->IsTrunk());
-        YCHECK(request.Mode != ELockMode::None);
-        if (recursive) {
-            YCHECK(!request.ChildKey);
-            YCHECK(!request.AttributeKey);
-        }
+        YCHECK(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
+        YCHECK(!recursive || request.Key.Kind == ELockKeyKind::None);
 
         TSubtreeNodes childrenToLock;
         if (recursive) {
@@ -810,17 +807,14 @@ public:
             childrenToLock.push_back(trunkNode);
         }
 
-        bool isMandatory;
-        CheckLock(
+        auto error = CheckLock(
             trunkNode,
             transaction,
             request,
-            true,
-            recursive,
-            &isMandatory)
-            .ThrowOnError();
+            recursive);
+        error.ThrowOnError();
 
-        if (!isMandatory) {
+        if (IsLockRedundant(trunkNode, transaction, request)) {
             return GetVersionedNode(trunkNode, transaction);
         }
 
@@ -829,7 +823,7 @@ public:
 
         TCypressNodeBase* lockedNode = nullptr;
         for (auto* child : childrenToLock) {
-            auto* lock = DoCreateLock(child, transaction, request);
+            auto* lock = DoCreateLock(child, transaction, request, true);
             auto* lockedChild = DoAcquireLock(lock);
             if (child == trunkNode) {
                 lockedNode = lockedChild;
@@ -855,23 +849,21 @@ public:
             THROW_ERROR_EXCEPTION("Waitable lock requires a transaction");
         }
 
+        if (request.Mode == ELockMode::Snapshot && !transaction) {
+            THROW_ERROR_EXCEPTION("%Qlv lock requires a transaction",
+                request.Mode);
+        }
+
         // Try to lock without waiting in the queue.
-        bool isMandatory;
         auto error = CheckLock(
             trunkNode,
             transaction,
             request,
-            true,
-            false,
-            &isMandatory);
+            true);
 
         // Is it OK?
         if (error.IsOK()) {
-            if (!isMandatory) {
-                return nullptr;
-            }
-
-            auto* lock = DoCreateLock(trunkNode, transaction, request);
+            auto* lock = DoCreateLock(trunkNode, transaction, request, false);
             DoAcquireLock(lock);
             return lock;
         }
@@ -882,8 +874,7 @@ public:
         }
 
         // Will wait.
-        YCHECK(isMandatory);
-        return DoCreateLock(trunkNode, transaction, request);
+        return DoCreateLock(trunkNode, transaction, request, false);
     }
 
 
@@ -944,10 +935,11 @@ public:
 
         auto nodes = ListSubtreeNodes(trunkNode, transaction, true);
         for (const auto* node : nodes) {
-            for (auto* lock : node->AcquiredLocks()) {
+            const auto& lockingState = node->LockingState();
+            for (auto* lock : lockingState.AcquiredLocks) {
                 addLock(lock);
             }
-            for (auto* lock : node->PendingLocks()) {
+            for (auto* lock : lockingState.PendingLocks) {
                 addLock(lock);
             }
         }
@@ -1162,6 +1154,7 @@ private:
 
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
+
         // COMPAT(babenko)
         RecomputeChunkOwnerStatistics_ = (context.GetVersion() < 200);
     }
@@ -1210,14 +1203,29 @@ private:
                 node->SetOriginator(originator);
             }
 
-            // Reconstruct iterators from locks to their positions in the lock list.
-            for (auto it = node->AcquiredLocks().begin(); it != node->AcquiredLocks().end(); ++it) {
-                auto* lock = *it;
-                lock->SetLockListIterator(it);
-            }
-            for (auto it = node->PendingLocks().begin(); it != node->PendingLocks().end(); ++it) {
-                auto* lock = *it;
-                lock->SetLockListIterator(it);
+            // Reconstruct lock iterators.
+            if (node->HasLockingState()) {
+                auto* lockingState = node->MutableLockingState();
+                for (auto it = lockingState->AcquiredLocks.begin(); it != lockingState->AcquiredLocks.end(); ++it) {
+                    auto* lock = *it;
+                    lock->SetLockListIterator(it);
+                }
+                for (auto it = lockingState->PendingLocks.begin(); it != lockingState->PendingLocks.end(); ++it) {
+                    auto* lock = *it;
+                    lock->SetLockListIterator(it);
+                }
+                for (auto it = lockingState->ExclusiveLocks.begin(); it != lockingState->ExclusiveLocks.end(); ++it) {
+                    auto* lock = *it;
+                    lock->SetExclusiveLocksIterator(it);
+                }
+                for (auto it = lockingState->SharedLocks.begin(); it != lockingState->SharedLocks.end(); ++it) {
+                    auto* lock = it->second;
+                    lock->SetSharedLocksIterator(it);
+                }
+                for (auto it = lockingState->SnapshotLocks.begin(); it != lockingState->SnapshotLocks.end(); ++it) {
+                    auto* lock = it->second;
+                    lock->SetSnapshotLocksIterator(it);
+                }
             }
 
             // COMPAT(babenko)
@@ -1343,22 +1351,17 @@ private:
         // Remove the object from the map but keep it alive.
         NodeMap_.Release(trunkNode->GetVersionedId()).release();
 
-        TCypressNodeBase::TLockList acquiredLocks;
-        trunkNode->AcquiredLocks().swap(acquiredLocks);
-
-        TCypressNodeBase::TLockList pendingLocks;
-        trunkNode->PendingLocks().swap(pendingLocks);
-
-        TCypressNodeBase::TLockStateMap lockStateMap;
-        trunkNode->LockStateMap().swap(lockStateMap);
-
         auto objectManager = Bootstrap_->GetObjectManager();
 
-        for (auto* lock : acquiredLocks) {
+        const auto& lockingState = trunkNode->LockingState();
+
+        for (auto* lock : lockingState.AcquiredLocks) {
             lock->SetTrunkNode(nullptr);
+            // NB: Transaction may have more than one lock for a given node.
+            lock->GetTransaction()->LockedNodes().erase(trunkNode);
         }
 
-        for (auto* lock : pendingLocks) {
+        for (auto* lock : lockingState.PendingLocks) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Lock orphaned (LockId: %v)",
                 lock->GetId());
             lock->SetTrunkNode(nullptr);
@@ -1368,10 +1371,7 @@ private:
             objectManager->UnrefObject(lock);
         }
 
-        for (const auto& pair : lockStateMap) {
-            auto* transaction = pair.first;
-            YCHECK(transaction->LockedNodes().erase(trunkNode) == 1);
-        }
+        trunkNode->ResetLockingState();
 
         if (HydraManager_->IsLeader()) {
             ExpirationTracker_->OnNodeDestroyed(trunkNode);
@@ -1387,7 +1387,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         MergeNodes(transaction);
-        ReleaseLocks(transaction);
+        ReleaseLocks(transaction, transaction->GetParent());
     }
 
     void OnTransactionAborted(TTransaction* transaction)
@@ -1395,7 +1395,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         RemoveBranchedNodes(transaction);
-        ReleaseLocks(transaction);
+        ReleaseLocks(transaction, false);
     }
 
 
@@ -1403,9 +1403,7 @@ private:
         TCypressNodeBase* trunkNode,
         TTransaction* transaction,
         const TLockRequest& request,
-        bool checkPending,
-        bool recursive,
-        bool* isMandatory)
+        bool recursive)
     {
         TSubtreeNodes childrenToLock;
         if (recursive) {
@@ -1414,20 +1412,15 @@ private:
             childrenToLock.push_back(trunkNode);
         }
 
-        // Validate all potentials lock to see if we need to take at least one of them.
+        // Validate all potential locks to see if we need to take at least one of them.
         // This throws an exception in case the validation fails.
-        *isMandatory = false;
         for (auto* child : childrenToLock) {
             auto* trunkChild = child->GetTrunkNode();
 
-            bool isChildMandatory;
             auto error = DoCheckLock(
                 trunkChild,
                 transaction,
-                request,
-                checkPending,
-                &isChildMandatory);
-            *isMandatory |= isChildMandatory;
+                request);
             if (!error.IsOK()) {
                 return error;
             }
@@ -1439,151 +1432,198 @@ private:
     TError DoCheckLock(
         TCypressNodeBase* trunkNode,
         TTransaction* transaction,
-        const TLockRequest& request,
-        bool checkPending,
-        bool* isMandatory)
+        const TLockRequest& request)
     {
         YCHECK(trunkNode->IsTrunk());
+        YCHECK(transaction || request.Mode != ELockMode::Snapshot);
 
-        *isMandatory = true;
+        const auto& lockingState = trunkNode->LockingState();
+        const auto& snapshotLocks = lockingState.SnapshotLocks;
+        const auto& sharedLocks = lockingState.SharedLocks;
+        const auto& exclusiveLocks = lockingState.ExclusiveLocks;
 
-        // Snapshot locks can only be taken inside a transaction.
-        if (request.Mode == ELockMode::Snapshot && !transaction) {
-            return TError("%Qlv lock requires a transaction",
-                request.Mode);
+        // Handle snapshot locks.
+        if (transaction && snapshotLocks.find(transaction) != snapshotLocks.end()) {
+            if (request.Mode == ELockMode::Snapshot) {
+                // Already taken by this transaction.
+                return TError();
+            } else {
+                // Cannot take non-snapshot lock when a snapshot lock is already taken.
+                return TError(
+                    NCypressClient::EErrorCode::SameTransactionLockConflict,
+                    "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by same transaction %v",
+                    request.Mode,
+                    GetNodePath(trunkNode, transaction),
+                    ELockMode::Snapshot,
+                    transaction->GetId());
+            }
         }
 
-        // Check for conflicts with other transactions.
-        for (const auto& pair : trunkNode->LockStateMap()) {
-            auto* existingTransaction = pair.first;
-            const auto& existingState = pair.second;
+        // New snapshot lock.
+        if (request.Mode == ELockMode::Snapshot) {
+            return TError();
+        }
 
-            // Skip same transaction.
-            if (existingTransaction == transaction)
-                continue;
+        // Check if any of parent transactions has taken a snapshot lock.
+        if (transaction) {
+            auto* currentTransaction = transaction->GetParent();
+            while (currentTransaction) {
+                if (snapshotLocks.find(currentTransaction) != snapshotLocks.end()) {
+                    return TError(
+                        NCypressClient::EErrorCode::SameTransactionLockConflict,
+                        "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by parent transaction %v",
+                        request.Mode,
+                        GetNodePath(trunkNode, transaction),
+                        ELockMode::Snapshot,
+                        currentTransaction->GetId());
+                }
+                currentTransaction = currentTransaction->GetParent();
+            }
+        }
 
-            // Ignore other Snapshot locks.
-            if (existingState.Mode == ELockMode::Snapshot)
-                continue;
-
-            if (!transaction || IsConcurrentTransaction(transaction, existingTransaction)) {
-                // For Exclusive locks we check locks held by concurrent transactions.
-                if ((request.Mode == ELockMode::Exclusive && existingState.Mode != ELockMode::Snapshot) ||
-                    (existingState.Mode == ELockMode::Exclusive && request.Mode != ELockMode::Snapshot))
-                {
+        auto checkExistingLock = [&] (const TLock* existingLock) {
+            auto* existingTransaction = existingLock->GetTransaction();
+            if (!IsConcurrentTransaction(transaction, existingTransaction)) {
+                return TError();
+            }
+            switch (request.Key.Kind) {
+                case ELockKeyKind::None:
                     return TError(
                         NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
                         "Cannot take %Qlv lock for node %v since %Qlv lock is taken by concurrent transaction %v",
                         request.Mode,
                         GetNodePath(trunkNode, transaction),
-                        existingState.Mode,
+                        ELockMode::Exclusive,
                         existingTransaction->GetId())
                         << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
-                }
 
-                // For Shared locks we check child and attribute keys.
-                if (request.Mode == ELockMode::Shared && existingState.Mode == ELockMode::Shared) {
-                    if (request.ChildKey &&
-                        existingState.ChildKeys.find(request.ChildKey.Get()) != existingState.ChildKeys.end())
-                    {
-                        return TError(
-                            NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
-                            "Cannot take lock for child %Qv of node %v since this child is locked by concurrent transaction %v",
-                            *request.ChildKey,
-                            GetNodePath(trunkNode, transaction),
-                            existingTransaction->GetId())
-                            << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
-                    }
-                    if (request.AttributeKey &&
-                        existingState.AttributeKeys.find(request.AttributeKey.Get()) != existingState.AttributeKeys.end())
-                    {
-                        return TError(
-                            NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
-                            "Cannot take lock for attribute %Qv of node %v since this attribute is locked by concurrent transaction %v",
-                            *request.AttributeKey,
-                            GetNodePath(trunkNode, transaction),
-                            existingTransaction->GetId())
-                            << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
-                    }
-                }
-            }
-        }
-
-        // Examine existing locks.
-        // A quick check: same transaction, same or weaker lock mode (beware of Snapshot!).
-        {
-            auto it = trunkNode->LockStateMap().find(transaction);
-            if (it != trunkNode->LockStateMap().end()) {
-                const auto& existingState = it->second;
-                if (IsRedundantLockRequest(existingState, request)) {
-                    *isMandatory = false;
-                    return TError();
-                }
-                if (existingState.Mode == ELockMode::Snapshot) {
+                case ELockKeyKind::Child:
                     return TError(
-                        NCypressClient::EErrorCode::SameTransactionLockConflict,
-                        "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by the same transaction",
-                        request.Mode,
+                        NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
+                        "Cannot take lock for child %Qv of node %v since this child is locked by concurrent transaction %v",
+                        request.Key.Name,
                         GetNodePath(trunkNode, transaction),
-                        existingState.Mode);
-                }
+                        existingTransaction->GetId())
+                        << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
+
+                case ELockKeyKind::Attribute:
+                    return TError(
+                        NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
+                        "Cannot take lock for attribute %Qv of node %v since this attribute is locked by concurrent transaction %v",
+                        request.Key.Name,
+                        GetNodePath(trunkNode, transaction),
+                        existingTransaction->GetId())
+                        << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
+
+                default:
+                    YUNREACHABLE();
+            }
+        };
+
+        for (auto* existingLock : exclusiveLocks) {
+            auto error = checkExistingLock(existingLock);
+            if (!error.IsOK()) {
+                return error;
             }
         }
 
-        // If we're outside of a transaction then the lock is not needed.
-        if (!transaction) {
-            *isMandatory = false;
-        }
+        switch (request.Mode) {
+            case ELockMode::Exclusive:
+                for (const auto& pair : sharedLocks) {
+                    auto error = checkExistingLock(pair.second);
+                    if (!error.IsOK()) {
+                        return error;
+                    }
+                }
+                break;
 
-        // Check pending locks.
-        if (request.Mode != ELockMode::Snapshot && checkPending && !trunkNode->PendingLocks().empty()) {
-            return TError(
-                NCypressClient::EErrorCode::PendingLockConflict,
-                "Cannot take %Qlv lock for node %v since there are %v pending lock(s) for this node",
-                request.Mode,
-                GetNodePath(trunkNode, transaction),
-                trunkNode->PendingLocks().size());
+            case ELockMode::Shared:
+                if (request.Key.Kind != ELockKeyKind::None) {
+                    auto range = sharedLocks.equal_range(request.Key);
+                    for (auto it = range.first; it != range.second; ++it) {
+                        auto error = checkExistingLock(it->second);
+                        if (!error.IsOK()) {
+                            return error;
+                        }
+                    }
+                }
+                break;
+
+            default:
+                YUNREACHABLE();
         }
 
         return TError();
     }
 
-    bool IsRedundantLockRequest(
-        const TTransactionLockState& state,
-        const TLockRequest& request)
+    bool IsLockRedundant(
+        TCypressNodeBase* trunkNode,
+        TTransaction* transaction,
+        const TLockRequest& request,
+        const TLock* lockToIgnore = nullptr)
     {
-        if (state.Mode == ELockMode::Snapshot && request.Mode == ELockMode::Snapshot) {
+        YCHECK(trunkNode->IsTrunk());
+        YCHECK(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
+
+        if (!transaction) {
             return true;
         }
 
-        if (state.Mode > request.Mode && request.Mode != ELockMode::Snapshot) {
-            return true;
-        }
+        const auto& lockingState = trunkNode->LockingState();
+        const auto& sharedLocks = lockingState.SharedLocks;
+        const auto& exclusiveLocks = lockingState.ExclusiveLocks;
 
-        if (state.Mode == request.Mode) {
-            if (request.Mode == ELockMode::Shared) {
-                if (request.ChildKey &&
-                    state.ChildKeys.find(request.ChildKey.Get()) == state.ChildKeys.end())
-                {
-                    return false;
+        auto checkExistingLock = [&] (const TLock* existingLock) {
+            auto* existingTransaction = existingLock->GetTransaction();
+            return
+                transaction == existingTransaction &&
+                existingLock->Request() == request &&
+                existingLock != lockToIgnore;
+        };
+
+        switch (request.Mode) {
+            case ELockMode::Exclusive:
+                for (auto* existingLock : exclusiveLocks) {
+                    if (checkExistingLock(existingLock)) {
+                        return true;
+                    }
                 }
-                if (request.AttributeKey &&
-                    state.AttributeKeys.find(request.AttributeKey.Get()) == state.AttributeKeys.end())
-                {
-                    return false;
+                break;
+
+            case ELockMode::Shared: {
+                auto range = sharedLocks.equal_range(request.Key);
+                for (auto it = range.first; it != range.second; ++it) {
+                    if (checkExistingLock(it->second)) {
+                        return true;
+                    }
                 }
+                break;
             }
-            return true;
+
+            default:
+                YUNREACHABLE();
         }
 
         return false;
     }
 
-    bool IsParentTransaction(
+    static bool IsRedundantLockRequest(
+        const TLockRequest& newRequest,
+        const TLockRequest& existingRequest)
+    {
+        Y_ASSERT(newRequest.Mode != ELockMode::Snapshot);
+        Y_ASSERT(existingRequest.Mode != ELockMode::Snapshot);
+
+        return
+            existingRequest.Mode > newRequest.Mode ||
+            existingRequest.Mode == newRequest.Mode && existingRequest.Key == newRequest.Key;
+    }
+
+    static bool IsParentTransaction(
         TTransaction* transaction,
         TTransaction* parent)
     {
-        auto currentTransaction = transaction;
+        auto* currentTransaction = transaction;
         while (currentTransaction) {
             if (currentTransaction == parent) {
                 return true;
@@ -1593,11 +1633,13 @@ private:
         return false;
     }
 
-    bool IsConcurrentTransaction(
+    static bool IsConcurrentTransaction(
         TTransaction* requestingTransaction,
         TTransaction* existingTransaction)
     {
-        return !IsParentTransaction(requestingTransaction, existingTransaction);
+        return
+            !requestingTransaction ||
+            !IsParentTransaction(requestingTransaction, existingTransaction);
     }
 
     TCypressNodeBase* DoAcquireLock(TLock* lock)
@@ -1612,19 +1654,36 @@ private:
         YCHECK(lock->GetState() == ELockState::Pending);
         lock->SetState(ELockState::Acquired);
 
-        trunkNode->PendingLocks().erase(lock->GetLockListIterator());
-        trunkNode->AcquiredLocks().push_back(lock);
-        lock->SetLockListIterator(--trunkNode->AcquiredLocks().end());
+        auto* lockingState = trunkNode->MutableLockingState();
+        lockingState->PendingLocks.erase(lock->GetLockListIterator());
+        lockingState->AcquiredLocks.push_back(lock);
+        lock->SetLockListIterator(--lockingState->AcquiredLocks.end());
 
-        UpdateNodeLockState(trunkNode, transaction, request);
-
-        // Upgrade locks held by parent transactions, if needed.
-        if (request.Mode != ELockMode::Snapshot) {
-            auto* currentTransaction = transaction->GetParent();
-            while (currentTransaction) {
-                UpdateNodeLockState(trunkNode, currentTransaction, request);
-                currentTransaction = currentTransaction->GetParent();
+        switch (request.Mode) {
+            case ELockMode::Exclusive: {
+                auto pair = lockingState->ExclusiveLocks.insert(lock);
+                YCHECK(pair.second);
+                lock->SetExclusiveLocksIterator(pair.first);
+                break;
             }
+            case ELockMode::Shared: {
+                auto it = lockingState->SharedLocks.emplace(request.Key, lock);
+                lock->SetSharedLocksIterator(it);
+                break;
+            }
+            case ELockMode::Snapshot: {
+                auto it = lockingState->SnapshotLocks.emplace(transaction, lock);
+                lock->SetSnapshotLocksIterator(it);
+                break;
+            }
+            default:
+                YUNREACHABLE();
+        }
+
+        if (transaction->LockedNodes().insert(trunkNode).second) {
+            LOG_DEBUG("Node locked (NodeId: %v, TransactionId: %v)",
+                trunkNode->GetId(),
+                transaction->GetId());
         }
 
         // Branch node, if needed.
@@ -1670,82 +1729,41 @@ private:
         }
     }
 
-    void UpdateNodeLockState(
-        TCypressNodeBase* trunkNode,
-        TTransaction* transaction,
-        const TLockRequest& request)
-    {
-        YCHECK(trunkNode->IsTrunk());
-
-        TVersionedNodeId versionedId(trunkNode->GetId(), transaction->GetId());
-        TTransactionLockState* lockState;
-        auto it = trunkNode->LockStateMap().find(transaction);
-        if (it == trunkNode->LockStateMap().end()) {
-            lockState = &trunkNode->LockStateMap()[transaction];
-            lockState->Mode = request.Mode;
-            YCHECK(transaction->LockedNodes().insert(trunkNode).second);
-
-            LOG_DEBUG_UNLESS(IsRecovery(), "Node locked (NodeId: %v, Mode: %v)",
-                versionedId,
-                request.Mode);
-        } else {
-            lockState = &it->second;
-            if (lockState->Mode < request.Mode) {
-                lockState->Mode = request.Mode;
-
-                LOG_DEBUG_UNLESS(IsRecovery(), "Node lock upgraded (NodeId: %v, Mode: %v)",
-                    versionedId,
-                    lockState->Mode);
-            }
-        }
-
-        if (request.ChildKey &&
-            lockState->ChildKeys.find(request.ChildKey.Get()) == lockState->ChildKeys.end())
-        {
-            YCHECK(lockState->ChildKeys.insert(request.ChildKey.Get()).second);
-            LOG_DEBUG_UNLESS(IsRecovery(), "Node child locked (NodeId: %v, Key: %v)",
-                versionedId,
-                request.ChildKey.Get());
-        }
-
-        if (request.AttributeKey &&
-            lockState->AttributeKeys.find(request.AttributeKey.Get()) == lockState->AttributeKeys.end())
-        {
-            YCHECK(lockState->AttributeKeys.insert(request.AttributeKey.Get()).second);
-            LOG_DEBUG_UNLESS(IsRecovery(), "Node attribute locked (NodeId: %v, Key: %v)",
-                versionedId,
-                request.AttributeKey.Get());
-        }
-    }
-
     TLock* DoCreateLock(
         TCypressNodeBase* trunkNode,
         TTransaction* transaction,
-        const TLockRequest& request)
+        const TLockRequest& request,
+        bool implicit)
     {
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Lock, NullObjectId);
         auto lockHolder = std::make_unique<TLock>(id);
-        lockHolder->SetState(ELockState::Pending);
-        lockHolder->SetTrunkNode(trunkNode);
-        lockHolder->SetTransaction(transaction);
-        lockHolder->Request() = request;
-        trunkNode->PendingLocks().push_back(lockHolder.get());
-        lockHolder->SetLockListIterator(--trunkNode->PendingLocks().end());
         auto* lock = LockMap_.Insert(id, std::move(lockHolder));
+
+        lock->SetImplicit(implicit);
+        lock->SetState(ELockState::Pending);
+        lock->SetTrunkNode(trunkNode);
+        lock->SetTransaction(transaction);
+        lock->Request() = request;
+
+        auto* lockingState = trunkNode->MutableLockingState();
+        lockingState->PendingLocks.push_back(lock);
+        lock->SetLockListIterator(--lockingState->PendingLocks.end());
 
         YCHECK(transaction->Locks().insert(lock).second);
         objectManager->RefObject(lock);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Lock created (LockId: %v, Mode: %v, NodeId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Lock created (LockId: %v, Mode: %v, Key: %v, NodeId: %v, Implicit: %v)",
             id,
             request.Mode,
-            TVersionedNodeId(trunkNode->GetId(), transaction->GetId()));
+            request.Key,
+            TVersionedNodeId(trunkNode->GetId(), transaction->GetId()),
+            implicit);
 
         return lock;
     }
 
-    void ReleaseLocks(TTransaction* transaction)
+    void ReleaseLocks(TTransaction* transaction, bool promote)
     {
         auto* parentTransaction = transaction->GetParent();
         auto objectManager = Bootstrap_->GetObjectManager();
@@ -1761,37 +1779,67 @@ private:
         for (auto* lock : locks) {
             auto* trunkNode = lock->GetTrunkNode();
             // Decide if the lock must be promoted.
-            if (parentTransaction && lock->Request().Mode != ELockMode::Snapshot) {
+            if (promote &&
+                lock->Request().Mode != ELockMode::Snapshot &&
+                (!lock->GetImplicit() || !IsLockRedundant(trunkNode, parentTransaction, lock->Request(), lock)))
+            {
                 lock->SetTransaction(parentTransaction);
                 YCHECK(parentTransaction->Locks().insert(lock).second);
-                LOG_DEBUG_UNLESS(IsRecovery(), "Lock promoted (LockId: %v, NewTransactionId: %v)",
+                // NB: Node could be locked more than once.
+                parentTransaction->LockedNodes().insert(trunkNode);
+                LOG_DEBUG_UNLESS(IsRecovery(), "Lock promoted (LockId: %v, TransactionId: %v->%v)",
                     lock->GetId(),
+                    transaction->GetId(),
                     parentTransaction->GetId());
             } else {
                 if (trunkNode) {
+                    auto* lockingState = trunkNode->MutableLockingState();
                     switch (lock->GetState()) {
-                        case ELockState::Acquired:
-                            trunkNode->AcquiredLocks().erase(lock->GetLockListIterator());
+                        case ELockState::Acquired: {
+                            lockingState->AcquiredLocks.erase(lock->GetLockListIterator());
+                            const auto& request = lock->Request();
+                            switch (request.Mode) {
+                                case ELockMode::Exclusive:
+                                    lockingState->ExclusiveLocks.erase(lock->GetExclusiveLocksIterator());
+                                    break;
+
+                                case ELockMode::Shared:
+                                    lockingState->SharedLocks.erase(lock->GetSharedLocksIterator());
+                                    break;
+
+                                case ELockMode::Snapshot:
+                                    lockingState->SnapshotLocks.erase(lock->GetSnapshotLocksIterator());
+                                    break;
+
+                                default:
+                                    YUNREACHABLE();
+                            }
                             break;
+                        }
+
                         case ELockState::Pending:
-                            trunkNode->PendingLocks().erase(lock->GetLockListIterator());
+                            lockingState->PendingLocks.erase(lock->GetLockListIterator());
                             break;
+
                         default:
                             YUNREACHABLE();
                     }
+
+                    trunkNode->ResetLockingStateIfEmpty();
                     lock->SetTrunkNode(nullptr);
                 }
                 lock->SetTransaction(nullptr);
                 objectManager->UnrefObject(lock);
+                LOG_DEBUG_UNLESS(IsRecovery(), "Lock destroyed (LockId: %v, TransactionId: %v)",
+                    lock->GetId(),
+                    transaction->GetId());
             }
         }
 
         for (auto* trunkNode : lockedNodes) {
-            YCHECK(trunkNode->LockStateMap().erase(transaction) == 1);
-
-            TVersionedNodeId versionedId(trunkNode->GetId(), transaction->GetId());
-            LOG_DEBUG_UNLESS(IsRecovery(), "Node unlocked (NodeId: %v)",
-                versionedId);
+            LOG_DEBUG_UNLESS(IsRecovery(), "Node unlocked (NodeId: %v, TransactionId: %v)",
+                trunkNode->GetId(),
+                transaction->GetId());
         }
 
         for (auto* trunkNode : lockedNodes) {
@@ -1809,22 +1857,18 @@ private:
         }
 
         // Make as many acquisitions as possible.
-        auto it = trunkNode->PendingLocks().begin();
-        while (it != trunkNode->PendingLocks().end()) {
+        const auto& lockingState = trunkNode->LockingState();
+        auto it = lockingState.PendingLocks.begin();
+        // Be prepared for locking state to vanish.
+        while (trunkNode->HasLockingState() && it != lockingState.PendingLocks.end()) {
             // Be prepared to possible iterator invalidation.
-            auto jt = it++;
-            auto* lock = *jt;
+            auto* lock = *it++;
 
-            bool isMandatory;
             auto error = CheckLock(
                 trunkNode,
                 lock->GetTransaction(),
                 lock->Request(),
-                false,
-                false,
-                &isMandatory);
-
-            // Is it OK?
+                false);
             if (!error.IsOK()) {
                 break;
             }
@@ -2189,14 +2233,11 @@ private:
                 continue;
             }
 
-            bool isMandatory;
             auto error = CheckLock(
                 trunkNode,
                 nullptr,
                 ELockMode::Exclusive,
-                true,
-                true,
-                &isMandatory);
+                true);
 
             if (error.IsOK()) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Removing expired node (NodeId: %v)",

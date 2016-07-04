@@ -77,6 +77,36 @@ void TCypressNodeBase::SetOriginator(TCypressNodeBase* originator)
     Originator_ = originator;
 }
 
+const TCypressNodeLockingState& TCypressNodeBase::LockingState() const
+{
+    return LockingState_ ? *LockingState_ : TCypressNodeLockingState::Empty;
+}
+
+TCypressNodeLockingState* TCypressNodeBase::MutableLockingState()
+{
+    if (!LockingState_) {
+        LockingState_ = std::make_unique<TCypressNodeLockingState>();
+    }
+    return LockingState_.get();
+}
+
+bool TCypressNodeBase::HasLockingState() const
+{
+    return LockingState_.operator bool();
+}
+
+void TCypressNodeBase::ResetLockingState()
+{
+    LockingState_.reset();
+}
+
+void TCypressNodeBase::ResetLockingStateIfEmpty()
+{
+    if (LockingState_ && LockingState_->IsEmpty()) {
+        LockingState_.reset();
+    }
+}
+
 TVersionedNodeId TCypressNodeBase::GetVersionedId() const
 {
     return TVersionedNodeId(Id_, TransactionId_);
@@ -94,9 +124,12 @@ void TCypressNodeBase::Save(TSaveContext& context) const
     using NYT::Save;
     Save(context, ExternalCellTag_);
     Save(context, AccountingEnabled_);
-    Save(context, LockStateMap_);
-    Save(context, AcquiredLocks_);
-    Save(context, PendingLocks_);
+    if (LockingState_) {
+        Save(context, true);
+        Save(context, *LockingState_);
+    } else {
+        Save(context, false);
+    }
     TNonversionedObjectRefSerializer::Save(context, Parent_);
     Save(context, LockMode_);
     Save(context, ExpirationTime_);
@@ -120,9 +153,17 @@ void TCypressNodeBase::Load(TLoadContext& context)
         Load(context, ExternalCellTag_);
         Load(context, AccountingEnabled_);
     }
-    Load(context, LockStateMap_);
-    Load(context, AcquiredLocks_);
-    Load(context, PendingLocks_);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 212) {
+        YCHECK(TSizeSerializer::Load(context) == 0);
+        YCHECK(TSizeSerializer::Load(context) == 0);
+        YCHECK(TSizeSerializer::Load(context) == 0);
+    } else {
+        if (Load<bool>(context)) {
+            LockingState_ = std::make_unique<TCypressNodeLockingState>();
+            Load(context, *LockingState_);
+        }
+    }
     TNonversionedObjectRefSerializer::Load(context, Parent_);
     Load(context, LockMode_);
     // COMPAT(babenko)

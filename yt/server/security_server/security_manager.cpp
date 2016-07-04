@@ -2125,7 +2125,6 @@ void TSecurityManager::ValidatePermission(
         permission);
 }
 
-
 void TSecurityManager::ValidateResourceUsageIncrease(
     TAccount* account,
     const TClusterResources& delta)
