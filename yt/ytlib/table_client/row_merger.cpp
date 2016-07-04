@@ -434,7 +434,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
     while (partialValueIt != PartialValues_.end()) {
         // Extract a range of values for the current column.
         auto columnBeginIt = partialValueIt;
-        auto columnEndIt = partialValueIt;
+        auto columnEndIt = partialValueIt + 1;
         while (columnEndIt != PartialValues_.end() && columnEndIt->Id == partialValueIt->Id) {
             ++columnEndIt;
         }
@@ -449,7 +449,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
             auto timestampIt = timestampBeginIt;
             while (columnValueIt != columnEndIt || timestampIt != timestampEndIt) {
                 if (timestampIt == timestampEndIt ||
-                    columnValueIt != columnEndIt && columnValueIt->Timestamp < *timestampIt)
+                    (columnValueIt != columnEndIt && columnValueIt->Timestamp < *timestampIt))
                 {
                     ColumnValues_.push_back(*columnValueIt++);
                 } else {
@@ -462,8 +462,8 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 
 #ifndef NDEBUG
         // Validate merged list.
-        for (auto it = ColumnValues_.begin(); it != ColumnValues_.end(); ++it) {
-            Y_ASSERT(it + 1 == ColumnValues_.end() || (it->Timestamp <= (it + 1)->Timestamp));
+        for (auto it = ColumnValues_.begin(); it != ColumnValues_.end() - 1; ++it) {
+            Y_ASSERT(it->Timestamp <= (it + 1)->Timestamp);
         }
 #endif
 
@@ -501,9 +501,9 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
             --retentionBeginIt;
         }
 
-        // For aggregate columns merge values before MajorTimestamp_ and leave other values.
+        // For uggregate columns merge values before MajorTimestamp_ and leave other values.
         int id = partialValueIt->Id;
-        if (ColumnEvaluator_->IsAggregate(id)) {
+        if (ColumnEvaluator_->IsAggregate(id) && retentionBeginIt < ColumnValues_.end()) {
             while (retentionBeginIt != ColumnValues_.begin()
                 && retentionBeginIt->Timestamp >= MajorTimestamp_)
             {
