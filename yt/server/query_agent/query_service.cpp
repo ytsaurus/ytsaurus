@@ -121,6 +121,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Read)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto mountRevision = request->mount_revision();
         auto timestamp = TTimestamp(request->timestamp());
         // TODO(sandello): Extract this out of RPC request.
         auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
@@ -145,6 +146,8 @@ private:
                     tabletSnapshot,
                     EPermission::Read,
                     timestamp);
+
+                tabletSnapshot->ValiateMountRevision(mountRevision);
 
                 TWireProtocolReader reader(requestData);
                 TWireProtocolWriter writer;

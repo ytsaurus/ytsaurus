@@ -175,8 +175,9 @@ message TQueryOptions
 message TDataRanges
 {
     required NYT.NProto.TGuid id = 1;
-    required bytes ranges = 2;
-    optional bool lookup_supported = 3 [default = true];
+    required int64 mount_revision = 2;
+    required bytes ranges = 3;
+    optional bool lookup_supported = 4 [default = true];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
