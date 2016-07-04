@@ -62,6 +62,12 @@ DEFINE_ENUM(ENodeCloneMode,
     (Move)
 );
 
+DEFINE_ENUM(ELockKeyKind,
+    (None)
+    (Child)
+    (Attribute)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressServer

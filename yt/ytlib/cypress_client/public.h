@@ -31,6 +31,7 @@ typedef TVersionedObjectId TVersionedNodeId;
 
 extern const TLockId NullLockId;
 
+// NB: The order is from weakest to strongest.
 DEFINE_ENUM(ELockMode,
     ((None)      (0))
     ((Snapshot)  (1))

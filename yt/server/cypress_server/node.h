@@ -40,17 +40,9 @@ public:
     //! Used by upload transactions, live preview etc.
     DEFINE_BYVAL_RW_PROPERTY(bool, AccountingEnabled);
 
-    typedef yhash_map<NTransactionServer::TTransaction*, TTransactionLockState> TLockStateMap;
-    DEFINE_BYREF_RW_PROPERTY(TLockStateMap, LockStateMap);
-
-    typedef std::list<TLock*> TLockList;
-    DEFINE_BYREF_RW_PROPERTY(TLockList, AcquiredLocks);
-    DEFINE_BYREF_RW_PROPERTY(TLockList, PendingLocks);
-
-    typedef yhash_set<TCypressNodeBase*> TNodeSet;
     //! Contains all nodes with parent pointing here.
     //! When a node dies parent pointers of its immediate descendants are reset.
-    DEFINE_BYREF_RW_PROPERTY(TNodeSet, ImmediateDescendants);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TCypressNodeBase*>, ImmediateDescendants);
 
     DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);
 
@@ -91,6 +83,12 @@ public:
     TCypressNodeBase* GetOriginator() const;
     void SetOriginator(TCypressNodeBase* originator);
 
+    const TCypressNodeLockingState& LockingState() const;
+    TCypressNodeLockingState* MutableLockingState();
+    bool HasLockingState() const;
+    void ResetLockingState();
+    void ResetLockingStateIfEmpty();
+
     //! Returns the composite (versioned) id of the node.
     TVersionedNodeId GetVersionedId() const;
 
@@ -106,6 +104,7 @@ public:
 private:
     TCypressNodeBase* Parent_;
     TCypressNodeBase* Originator_;
+    std::unique_ptr<TCypressNodeLockingState> LockingState_;
     NTransactionServer::TTransactionId TransactionId_;
 
 };

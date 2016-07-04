@@ -86,7 +86,7 @@ public:
         auto* node = cypressManager->LockNode(
             Proxy_->TrunkNode,
             Proxy_->Transaction,
-            TLockRequest::SharedAttribute(key));
+            TLockRequest::MakeSharedAttribute(key));
 
         auto* userAttributes = node->GetMutableAttributes();
         userAttributes->Attributes()[key] = value;
@@ -125,7 +125,7 @@ public:
         auto* node = cypressManager->LockNode(
             Proxy_->TrunkNode,
             Proxy_->Transaction,
-            TLockRequest::SharedAttribute(key));
+            TLockRequest::MakeSharedAttribute(key));
 
         auto* userAttributes = node->GetMutableAttributes();
         if (containingTransaction == Proxy_->Transaction) {
@@ -464,27 +464,28 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 
     if (key == "locks") {
         auto printLock = [=] (TFluentList fluent, const TLock* lock) {
+            const auto& request = lock->Request();
             fluent.Item()
                 .BeginMap()
                     .Item("id").Value(lock->GetId())
                     .Item("state").Value(lock->GetState())
                     .Item("transaction_id").Value(lock->GetTransaction()->GetId())
-                    .Item("mode").Value(lock->Request().Mode)
-                    .DoIf(lock->Request().ChildKey.HasValue(), [=] (TFluentMap fluent) {
+                    .Item("mode").Value(request.Mode)
+                    .DoIf(request.Key.Kind == ELockKeyKind::Child, [=] (TFluentMap fluent) {
                         fluent
-                            .Item("child_key").Value(*lock->Request().ChildKey);
+                            .Item("child_key").Value(request.Key.Name);
                     })
-                    .DoIf(lock->Request().AttributeKey.HasValue(), [=] (TFluentMap fluent) {
+                    .DoIf(request.Key.Kind == ELockKeyKind::Attribute, [=] (TFluentMap fluent) {
                         fluent
-                            .Item("attribute_key").Value(*lock->Request().AttributeKey);
+                            .Item("attribute_key").Value(request.Key.Name);
                     })
                 .EndMap();
         };
 
         BuildYsonFluently(consumer)
             .BeginList()
-                .DoFor(trunkNode->AcquiredLocks(), printLock)
-                .DoFor(trunkNode->PendingLocks(), printLock)
+                .DoFor(trunkNode->LockingState().AcquiredLocks, printLock)
+                .DoFor(trunkNode->LockingState().PendingLocks, printLock)
             .EndList();
         return true;
     }
@@ -620,7 +621,7 @@ void TNontemplateCypressNodeProxyBase::RemoveSelf(
     auto* node = GetThisImpl();
     if (node->IsForeign()) {
         YCHECK(node->IsTrunk());
-        YCHECK(node->AcquiredLocks().empty());
+        YCHECK(node->LockingState().AcquiredLocks.empty());
         YCHECK(node->GetObjectRefCounter() == 1);
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(node);
@@ -826,26 +827,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     auto mode = ELockMode(request->mode());
     bool waitable = request->waitable();
 
-    auto lockRequest = TLockRequest(mode);
-
-    if (request->has_child_key()) {
-        if (mode != ELockMode::Shared) {
-            THROW_ERROR_EXCEPTION("Only %Qlv locks are allowed on child keys, got %Qlv",
-                ELockMode::Shared,
-                mode);
-        }
-        lockRequest.ChildKey = request->child_key();
-    }
-
-    if (request->has_attribute_key()) {
-        if (mode != ELockMode::Shared) {
-            THROW_ERROR_EXCEPTION("Only %Qlv locks are allowed on attribute keys, got %Qlv",
-                ELockMode::Shared,
-                mode);
-        }
-        lockRequest.AttributeKey = request->attribute_key();
-    }
-
     if (mode != ELockMode::Snapshot &&
         mode != ELockMode::Shared &&
         mode != ELockMode::Exclusive)
@@ -854,8 +835,28 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
             mode);
     }
 
-    context->SetRequestInfo("Mode: %v, Waitable: %v",
+    TLockRequest lockRequest;
+    if (request->has_child_key()) {
+        if (mode != ELockMode::Shared) {
+            THROW_ERROR_EXCEPTION("Only %Qlv locks are allowed on child keys, got %Qlv",
+                ELockMode::Shared,
+                mode);
+        }
+        lockRequest = TLockRequest::MakeSharedChild(request->child_key());
+    } else if (request->has_attribute_key()) {
+        if (mode != ELockMode::Shared) {
+            THROW_ERROR_EXCEPTION("Only %Qlv locks are allowed on attribute keys, got %Qlv",
+                ELockMode::Shared,
+                mode);
+        }
+        lockRequest = TLockRequest::MakeSharedAttribute(request->attribute_key());
+    } else {
+        lockRequest = TLockRequest(mode);
+    }
+
+    context->SetRequestInfo("Mode: %v, Key: %v, Waitable: %v",
         mode,
+        lockRequest.Key,
         waitable);
 
     ValidateTransaction();
@@ -869,7 +870,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         Transaction,
         lockRequest,
         waitable);
-    auto lockId = GetObjectId(lock);
+    auto lockId = lock->GetId();
     ToProto(response->mutable_lock_id(), lockId);
 
     context->SetResponseInfo("LockId: %v",
@@ -1141,7 +1142,7 @@ void TMapNodeProxy::Clear()
     std::vector<TChild> children;
     children.reserve(keyToChild.size());
     for (const auto& pair : keyToChild) {
-        LockThisImpl(TLockRequest::SharedChild(pair.first));
+        LockThisImpl(TLockRequest::MakeSharedChild(pair.first));
         auto* childImpl = LockImpl(pair.second);
         children.push_back(std::make_pair(pair.first, childImpl));
     }
@@ -1218,7 +1219,7 @@ bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
         return false;
     }
 
-    auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
+    auto* impl = LockThisTypedImpl(TLockRequest::MakeSharedChild(key));
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
     auto* childImpl = LockImpl(trunkChildImpl);
 
@@ -1245,7 +1246,7 @@ bool TMapNodeProxy::RemoveChild(const Stroka& key)
     }
 
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
-    auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
+    auto* impl = LockThisTypedImpl(TLockRequest::MakeSharedChild(key));
     DoRemoveChild(impl, key, childImpl);
 
     SetModified();
@@ -1259,7 +1260,7 @@ void TMapNodeProxy::RemoveChild(INodePtr child)
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
-    auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
+    auto* impl = LockThisTypedImpl(TLockRequest::MakeSharedChild(key));
     DoRemoveChild(impl, key, childImpl);
 
     SetModified();
@@ -1279,7 +1280,7 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     auto* newTrunkChildImpl = ICypressNodeProxy::FromNode(newChild.Get())->GetTrunkNode();
     auto* newChildImpl = LockImpl(newTrunkChildImpl);
 
-    auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
+    auto* impl = LockThisTypedImpl(TLockRequest::MakeSharedChild(key));
 
     auto& keyToChild = impl->KeyToChild();
     auto& childToKey = impl->ChildToKey();
