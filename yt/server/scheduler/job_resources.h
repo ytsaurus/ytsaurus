@@ -79,6 +79,10 @@ double GetMinResourceRatio(
     const TJobResources& nominator,
     const TJobResources& denominator);
 
+double GetMaxResourceRatio(
+    const TJobResources& nominator,
+    const TJobResources& denominator);
+
 TJobResources GetAdjustedResourceLimits(
     const TJobResources& demand,
     const TJobResources& limits,
