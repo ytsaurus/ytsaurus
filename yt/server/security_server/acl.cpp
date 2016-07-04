@@ -110,7 +110,6 @@ void Serialize(const TAccessControlList& acl, IYsonConsumer* consumer)
 
 void Deserilize(
     TAccessControlList& acl,
-    EPermissionSet supportedPermissions,
     INodePtr node,
     TSecurityManagerPtr securityManager)
 {
@@ -132,7 +131,7 @@ void Deserilize(
         }
          
         // Permissions
-        ace.Permissions = ParsePermissions(serializableAce->Permissions, supportedPermissions);
+        ace.Permissions = ParsePermissions(serializableAce->Permissions);
 
         // Inheritance mode
         ace.InheritanceMode = serializableAce->InheritanceMode;

@@ -102,9 +102,6 @@ struct IObjectTypeHandler
     //! Returns the object containing parent ACL.
     virtual TObjectBase* GetParent(TObjectBase* object) = 0;
 
-    //! Returns the set of all permissions supported by this object type.
-    virtual NYTree::EPermissionSet GetSupportedPermissions() const = 0;
-
     //! Resets the transient state of all managed objects.
     /*!
      *  This is called upon recovery startup.

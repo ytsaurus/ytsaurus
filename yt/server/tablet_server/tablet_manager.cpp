@@ -129,11 +129,6 @@ public:
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override;
 
-    virtual EPermissionSet GetSupportedPermissions() const override
-    {
-        return TObjectTypeHandlerWithMapBase<TTabletCellBundle>::GetSupportedPermissions() | EPermissionSet::Use;
-    }
-
 private:
     TImpl* const Owner_;
 

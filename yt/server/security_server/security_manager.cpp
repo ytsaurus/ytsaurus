@@ -104,11 +104,6 @@ public:
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override;
 
-    virtual EPermissionSet GetSupportedPermissions() const override
-    {
-        return TObjectTypeHandlerWithMapBase<TAccount>::GetSupportedPermissions() | EPermissionSet::Use;
-    }
-
 private:
     TImpl* const Owner_;
 
@@ -698,13 +693,6 @@ public:
         subject->SetName(newName);
     }
 
-
-    EPermissionSet GetSupportedPermissions(TObjectBase* object)
-    {
-        auto objectManager = Bootstrap_->GetObjectManager();
-        const auto& handler = objectManager->GetHandler(object);
-        return handler->GetSupportedPermissions();
-    }
 
     TAccessControlDescriptor* FindAcd(TObjectBase* object)
     {
@@ -2057,11 +2045,6 @@ void TSecurityManager::RemoveMember(TGroup* group, TSubject* member)
 void TSecurityManager::RenameSubject(TSubject* subject, const Stroka& newName)
 {
     Impl_->RenameSubject(subject, newName);
-}
-
-EPermissionSet TSecurityManager::GetSupportedPermissions(TObjectBase* object)
-{
-    return Impl_->GetSupportedPermissions(object);
 }
 
 TAccessControlDescriptor* TSecurityManager::FindAcd(TObjectBase* object)

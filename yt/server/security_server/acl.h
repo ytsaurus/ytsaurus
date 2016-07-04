@@ -54,7 +54,6 @@ void Save(NCellMaster::TSaveContext& context, const TAccessControlList& acl);
 void Serialize(const TAccessControlList& acl, NYson::IYsonConsumer* consumer);
 void Deserilize(
     TAccessControlList& acl,
-    EPermissionSet supportedPermissions,
     NYTree::INodePtr node,
     TSecurityManagerPtr securityManager);
 
