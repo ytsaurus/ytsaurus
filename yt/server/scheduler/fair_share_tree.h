@@ -167,7 +167,7 @@ protected:
     TJobResources ResourceDemand_;
     TJobResources ResourceLimits_;
     TJobResources MaxPossibleResourceUsage_;
-    const TJobResources TotalResourceLimits_;
+    TJobResources TotalResourceLimits_;
 
     int PendingJobCount_ = 0;
 

@@ -146,6 +146,7 @@ void TSchedulerElementBase::UpdateBottomUp(TDynamicAttributesList& dynamicAttrib
 {
     YCHECK(!Cloned_);
 
+    TotalResourceLimits_ = GetHost()->GetTotalResourceLimits();
     UpdateAttributes();
     dynamicAttributesList[this->GetTreeIndex()].Active = true;
     UpdateDynamicAttributes(dynamicAttributesList);
@@ -185,19 +186,18 @@ void TSchedulerElementBase::UpdateAttributes()
     // Choose dominant resource types, compute max share ratios, compute demand ratios.
     const auto& demand = ResourceDemand();
     auto usage = GetResourceUsage();
-    auto totalLimits = GetHost()->GetTotalResourceLimits();
 
-    auto maxPossibleResourceUsage = Min(totalLimits, MaxPossibleResourceUsage_);
+    auto maxPossibleResourceUsage = Min(TotalResourceLimits_, MaxPossibleResourceUsage_);
 
     if (usage == ZeroJobResources()) {
-        Attributes_.DominantResource = GetDominantResource(demand, totalLimits);
+        Attributes_.DominantResource = GetDominantResource(demand, TotalResourceLimits_);
     } else {
-        Attributes_.DominantResource = GetDominantResource(usage, totalLimits);
+        Attributes_.DominantResource = GetDominantResource(usage, TotalResourceLimits_);
     }
 
     i64 dominantDemand = GetResource(demand, Attributes_.DominantResource);
     i64 dominantUsage = GetResource(usage, Attributes_.DominantResource);
-    i64 dominantLimit = GetResource(totalLimits, Attributes_.DominantResource);
+    i64 dominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
 
     Attributes_.DemandRatio =
         dominantLimit == 0 ? 1.0 : (double) dominantDemand / dominantLimit;
@@ -1420,13 +1420,12 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
     MaxPossibleResourceUsage_ = ComputeMaxPossibleResourceUsage();
     PendingJobCount_ = ComputePendingJobCount();
 
-    auto totalLimits = GetHost()->GetTotalResourceLimits();
     auto allocationLimits = GetAdjustedResourceLimits(
         ResourceDemand_,
-        totalLimits,
+        TotalResourceLimits_,
         GetHost()->GetExecNodeCount());
 
-    i64 dominantLimit = GetResource(totalLimits, Attributes_.DominantResource);
+    i64 dominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
     i64 dominantAllocationLimit = GetResource(allocationLimits, Attributes_.DominantResource);
 
     Attributes_.BestAllocationRatio =
