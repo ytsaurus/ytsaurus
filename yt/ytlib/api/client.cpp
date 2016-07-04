@@ -1584,12 +1584,11 @@ private:
     {
     public:
         TTabletCellLookupSession(
-            TClientPtr client,
+            TConnectionConfigPtr config,
             const TCellId& cellId,
             const TLookupRowsOptions& options,
             TTableMountInfoPtr tableInfo)
-            : Client_(std::move(client))
-            , Config_(Client_->Connection_->GetConfig())
+            : Config_(std::move(config))
             , CellId_(cellId)
             , Options_(options)
             , TableInfo_(std::move(tableInfo))
@@ -1609,7 +1608,7 @@ private:
             batch->Keys.push_back(key);
         }
 
-        TFuture<void> Invoke()
+        TFuture<void> Invoke(IChannelFactoryPtr channelFactory, TCellDirectoryPtr cellDirectory)
         {
             // Do all the heavy lifting here.
             for (auto& batch : Batches_) {
@@ -1657,10 +1656,9 @@ private:
                 }
             }
 
-            const auto& cellDirectory = Client_->Connection_->GetCellDirectory();
             const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(CellId_);
             auto channel = CreateTabletReadChannel(
-                Client_->GetHeavyChannelFactory(),
+                channelFactory,
                 cellDescriptor,
                 Config_,
                 Options_);
@@ -1824,7 +1822,7 @@ private:
                 it = cellIdToSession.insert(std::make_pair(
                     cellId,
                     New<TTabletCellLookupSession>(
-                        this,
+                        Connection_->GetConfig(),
                         cellId,
                         options,
                         tableInfo)))
@@ -1837,7 +1835,9 @@ private:
         std::vector<TFuture<void>> asyncResults;
         for (const auto& pair : cellIdToSession) {
             const auto& session = pair.second;
-            asyncResults.push_back(session->Invoke());
+            asyncResults.push_back(session->Invoke(
+                GetHeavyChannelFactory(),
+                Connection_->GetCellDirectory()));
         }
 
         WaitFor(Combine(asyncResults))
