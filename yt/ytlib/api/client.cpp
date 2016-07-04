@@ -1186,7 +1186,7 @@ public:
             options, \
             BIND( \
                 &TClient::doMethod, \
-                MakeStrong(this), \
+                Unretained(this), \
                 DROP_BRACES args)); \
     }
 
@@ -1422,7 +1422,12 @@ private:
         TCallback<T()> callback)
     {
         return
-            BIND([=, this_ = MakeStrong(this)] () {
+            BIND([commandName, callback = std::move(callback), this_ = MakeWeak(this)] () {
+                auto client = this_.Lock();
+                if (!client) {
+                    THROW_ERROR_EXCEPTION("Client was abandoned");
+                }
+                auto& Logger = client->Logger;
                 try {
                     LOG_DEBUG("Command started (Command: %v)", commandName);
                     TBox<T> result(callback);

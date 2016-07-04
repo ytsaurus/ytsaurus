@@ -19,6 +19,7 @@ TInvokerQueue::TInvokerQueue(
     bool enableProfiling)
     : CallbackEventCount(std::move(callbackEventCount))
     , EnableLogging(enableLogging)
+    , Queue(std::make_unique<TLockFreeQueue<TEnqueuedAction>>())
     , Profiler("/action_queue")
     , EnqueuedCounter("/enqueued", tagIds)
     , DequeuedCounter("/dequeued", tagIds)
@@ -62,7 +63,7 @@ void TInvokerQueue::Invoke(const TClosure& callback)
     action.Finished = false;
     action.EnqueuedAt = GetCpuInstant();
     action.Callback = callback;
-    Queue.Enqueue(action);
+    Queue->Enqueue(action);
 
     CallbackEventCount->NotifyOne();
 }
@@ -88,28 +89,16 @@ void TInvokerQueue::Drain()
 {
     YCHECK(!Running.load(std::memory_order_relaxed));
 
-    // We spin here for a while, because one action might be executing concurrently.
-    while (QueueSize.load(std::memory_order_relaxed) > 0) {
-        int dequeued = 0;
-
-        TEnqueuedAction action;
-        while (Queue.Dequeue(&action)) {
-            ++dequeued;
-            action.Callback.Reset();
-        }
-
-        QueueSize.fetch_sub(dequeued, std::memory_order_relaxed);
-    }
-
-    YCHECK(QueueSize.load(std::memory_order_relaxed) == 0);
-    YCHECK(Queue.IsEmpty()); // As a side effect, this releases free lists.
+    Queue.reset();
+    QueueSize = 0;
 }
 
 EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 {
     Y_ASSERT(action && action->Finished);
+    Y_ASSERT(Queue);
 
-    if (!Queue.Dequeue(action)) {
+    if (!Queue->Dequeue(action)) {
         return EBeginExecuteResult::QueueEmpty;
     }
 
@@ -162,7 +151,8 @@ int TInvokerQueue::GetSize() const
 
 bool TInvokerQueue::IsEmpty() const
 {
-    return const_cast<TLockFreeQueue<TEnqueuedAction>&>(Queue).IsEmpty();
+    auto queue = const_cast<TLockFreeQueue<TEnqueuedAction>*>(Queue.get());
+    return queue ? queue->IsEmpty() : true;
 }
 
 bool TInvokerQueue::IsRunning() const

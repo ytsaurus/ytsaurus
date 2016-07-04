@@ -55,8 +55,6 @@ public:
 
     void DoStart()
     {
-        FinalizerInvoker_ = GetFinalizerInvoker();
-
         Thread_->Start();
         // XXX(sandello): Racy! Fix me by moving this into OnThreadStart().
         Queue_->SetThreadId(Thread_->GetId());
@@ -72,10 +70,7 @@ public:
 
     void DoShutdown()
     {
-        bool expected = false;
-        if (StartFlag_.compare_exchange_strong(expected, true)) {
-            return;
-        }
+        StartFlag_ = true;
 
         Queue_->Shutdown();
 
@@ -107,7 +102,7 @@ private:
     std::atomic<bool> StartFlag_ = {false};
     std::atomic<bool> ShutdownFlag_ = {false};
 
-    IInvokerPtr FinalizerInvoker_;
+    IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
 };
 
 TFairShareActionQueue::TFairShareActionQueue(

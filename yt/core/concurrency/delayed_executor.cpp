@@ -37,14 +37,15 @@ struct TDelayedExecutorEntry
         }
     };
 
-    TDelayedExecutorEntry(TClosure callback, TInstant deadline)
-        : Deadline(deadline)
-        , Callback(std::move(callback))
+    TDelayedExecutorEntry(TDelayedExecutor::TDelayedCallback callback, TInstant deadline)
+        : Callback(std::move(callback))
+        , Deadline(deadline)
     { }
 
-    bool Canceled = false;
+    TDelayedExecutor::TDelayedCallback Callback;
     TInstant Deadline;
-    TClosure Callback;
+
+    bool Canceled = false;
     TNullable<std::set<TDelayedExecutorCookie, TComparer>::iterator> Iterator;
 };
 
@@ -62,24 +63,52 @@ public:
     TFuture<void> MakeDelayed(TDuration delay)
     {
         auto promise = NewPromise<void>();
-        Submit(
-            BIND([=] () mutable {
-                promise.TrySet();
+
+        auto cookie = Submit(
+            BIND([=] (bool aborted) mutable {
+                if (aborted) {
+                    promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed promise aborted"));
+                } else {
+                    promise.TrySet();
+                }
             }),
             delay);
-        promise.OnCanceled(
-            BIND([=] () mutable {
-                promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed promise canceled"));
-            }));
+
+        promise.OnCanceled(BIND([=] () mutable {
+            promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed promise was canceled"));
+        }));
+
         return promise;
     }
 
-    TDelayedExecutorCookie Submit(TClosure callback, TDuration delay)
+    static void ClosureToDelayedCallbackAdapter(const TClosure& closure, bool aborted)
+    {
+        if (aborted) {
+            return;
+        }
+        closure.Run();
+    }
+
+    TDelayedExecutorCookie Submit(TDelayedCallback callback, TDuration delay)
     {
         return Submit(std::move(callback), delay.ToDeadLine());
     }
 
-    TDelayedExecutorCookie Submit(TClosure callback, TInstant deadline)
+    TDelayedExecutorCookie Submit(TClosure closure, TDuration delay)
+    {
+        return Submit(
+            BIND(&ClosureToDelayedCallbackAdapter, std::move(closure)),
+            delay.ToDeadLine());
+    }
+
+    TDelayedExecutorCookie Submit(TClosure closure, TInstant deadline)
+    {
+        return Submit(
+            BIND(&ClosureToDelayedCallbackAdapter, std::move(closure)),
+            deadline);
+    }
+
+    TDelayedExecutorCookie Submit(TDelayedCallback callback, TInstant deadline)
     {
         auto entry = New<TDelayedExecutorEntry>(std::move(callback), deadline);
         SubmitQueue_.Enqueue(entry);
@@ -151,9 +180,11 @@ private:
         if (Started_) {
             return true;
         }
+
         if (Finished_) {
             return false;
         }
+
         DelayedQueue_ = New<TActionQueue>("DelayedExecutor", false, false);
         DelayedInvoker_ = DelayedQueue_->GetInvoker();
         SleeperThread_.Start();
@@ -171,23 +202,29 @@ private:
     void SleeperThreadMain()
     {
         TThread::CurrentThreadSetName("DelayedSleeper");
+
         while (!Finished_) {
-            usleep(SleepQuantum.MicroSeconds());
+            Sleep(SleepQuantum);
             SleeperThreadStep();
         }
+
+        for (const auto& entry : ScheduledEntries_) {
+            PurgeEntry(entry);
+        }
+
         ScheduledEntries_.clear();
     }
 
     void SleeperThreadStep()
     {
         auto now = TInstant::Now();
+
         if (PrevOnTimerInstant_ != TInstant::Zero() && now - PrevOnTimerInstant_ > PeriodicPrecisionWarningThreshold) {
             LOG_WARNING("Delayed executor stall detected (Delta: %v)",
                 now - PrevOnTimerInstant_);
         }
-        PrevOnTimerInstant_ = now;
 
-        TDelayedExecutorEntryPtr entry;
+        PrevOnTimerInstant_ = now;
 
         SubmitQueue_.DequeueAll(false, [&] (const TDelayedExecutorEntryPtr& entry) {
             if (entry->Canceled) {
@@ -218,24 +255,27 @@ private:
         while (!ScheduledEntries_.empty()) {
             auto it = ScheduledEntries_.begin();
             const auto& entry = *it;
-            if (entry->Deadline > now)
+            if (entry->Deadline > now) {
                 break;
+            }
             if (entry->Deadline + LateWarningThreshold < now) {
                 LOG_WARNING("Found a late delayed scheduled callback (Deadline: %v, Now: %v)",
                     entry->Deadline,
                     now);
             }
-            DelayedInvoker_->Invoke(entry->Callback);
+            auto boundFalseCallback = BIND(entry->Callback, false);
+            auto boundTrueCallback = BIND(entry->Callback, true);
             entry->Callback.Reset();
             entry->Iterator.Reset();
             ScheduledEntries_.erase(it);
+            GuardedInvoke(DelayedInvoker_, std::move(boundFalseCallback), std::move(boundTrueCallback));
         }
     }
 
     void PurgeQueues()
     {
-        SubmitQueue_.DequeueAll(false, &TImpl::PurgeFunctor);
-        CancelQueue_.DequeueAll(false, &TImpl::PurgeFunctor);
+        SubmitQueue_.DequeueAll(false, &TImpl::PurgeEntry);
+        CancelQueue_.DequeueAll(false, &TImpl::PurgeEntry);
     }
 
     void PurgeQueuesIfFinished()
@@ -245,14 +285,15 @@ private:
         }
     }
 
-    static void PurgeFunctor(const TDelayedExecutorEntryPtr& entry)
+    static void PurgeEntry(const TDelayedExecutorEntryPtr &entry)
     {
-        if (entry->Canceled) {
-            return;
+        if (entry->Callback) {
+            entry->Callback.Run(true);
+            entry->Callback.Reset();
         }
-        entry->Canceled = true;
-        entry->Callback.Reset();
-        entry->Iterator.Reset();
+        if (entry->Iterator) {
+            entry->Iterator.Reset();
+        }
     }
 };
 
@@ -271,14 +312,24 @@ TFuture<void> TDelayedExecutor::MakeDelayed(TDuration delay)
     return GetImpl()->MakeDelayed(delay);
 }
 
-TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TDuration delay)
+TDelayedExecutorCookie TDelayedExecutor::Submit(TDelayedCallback callback, TDuration delay)
 {
     return GetImpl()->Submit(std::move(callback), delay);
 }
 
-TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TInstant deadline)
+TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure closure, TDuration delay)
+{
+    return GetImpl()->Submit(std::move(closure), delay);
+}
+
+TDelayedExecutorCookie TDelayedExecutor::Submit(TDelayedCallback callback, TInstant deadline)
 {
     return GetImpl()->Submit(std::move(callback), deadline);
+}
+
+TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure closure, TInstant deadline)
+{
+    return GetImpl()->Submit(std::move(closure), deadline);
 }
 
 void TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& entry)

@@ -582,9 +582,15 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout)
     auto promise = NewPromise<T>();
 
     auto cookie = NConcurrency::TDelayedExecutor::Submit(
-        BIND([=] () mutable {
-            promise.TrySet(TError(NYT::EErrorCode::Timeout, "Operation timed out")
-                << TErrorAttribute("timeout", timeout));
+        BIND([=] (bool aborted) mutable {
+            TError error;
+            if (aborted) {
+                error = TError(NYT::EErrorCode::Canceled, "Operation aborted");
+            } else {
+                error = TError(NYT::EErrorCode::Timeout, "Operation timed out")
+                    << TErrorAttribute("timeout", timeout);
+            }
+            promise.TrySet(error);
             this_.Cancel();
         }),
         timeout);
