@@ -856,7 +856,7 @@ TJobResources TOperationControllerBase::TTask::GetMinNeededResources() const
     }
     auto result = ApplyMemoryReserve(*CachedMinNeededResources);
     if (result.GetUserSlots() > 0 && result.GetMemory() == 0) {
-        LOG_WARNING("Detected min needed resources of task with non-zero user slots and zero memory");
+        LOG_WARNING("Found min needed resources of task with non-zero user slots and zero memory");
     }
     return result;
 }
