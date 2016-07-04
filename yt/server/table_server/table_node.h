@@ -64,7 +64,6 @@ public:
 
     bool IsDynamic() const;
     bool IsEmpty() const;
-    bool HasMountedTablets() const;
     bool IsUniqueKeys() const;
     NTabletClient::ETabletState GetTabletState() const;
 };
