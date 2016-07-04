@@ -838,26 +838,30 @@ public:
         }
     }
 
-    void ClearTablets(TTableNode* table)
+    void DestroyTable(TTableNode* table)
     {
-        if (table->Tablets().empty()) {
-            return;
+        if (table->GetTabletCellBundle()) {
+            auto objectManager = Bootstrap_->GetObjectManager();
+            objectManager->UnrefObject(table->GetTabletCellBundle());
+            table->SetTabletCellBundle(nullptr);
         }
 
-        DoUnmountTable(
-            table,
-            true,
-            0,
-            static_cast<int>(table->Tablets().size()) - 1);
+        if (!table->Tablets().empty()) {
+            DoUnmountTable(
+                table,
+                true,
+                0,
+                static_cast<int>(table->Tablets().size()) - 1);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
-        for (auto* tablet : table->Tablets()) {
-            tablet->SetTable(nullptr);
-            YCHECK(tablet->GetState() == ETabletState::Unmounted);
-            objectManager->UnrefObject(tablet);
+            auto objectManager = Bootstrap_->GetObjectManager();
+            for (auto* tablet : table->Tablets()) {
+                tablet->SetTable(nullptr);
+                YCHECK(tablet->GetState() == ETabletState::Unmounted);
+                objectManager->UnrefObject(tablet);
+            }
+
+            table->Tablets().clear();
         }
-
-        table->Tablets().clear();
     }
 
     void ReshardTable(
@@ -1371,13 +1375,6 @@ public:
     {
         YCHECK(table->IsTrunk());
 
-        if (!table->GetTabletCellBundle()) {
-            return;
-        }
-
-        auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->UnrefObject(table->GetTabletCellBundle());
-        table->SetTabletCellBundle(nullptr);
     }
 
 
@@ -2965,9 +2962,9 @@ void TTabletManager::UnfreezeTable(
         lastTabletIndex);
 }
 
-void TTabletManager::ClearTablets(TTableNode* table)
+void TTabletManager::DestroyTable(TTableNode* table)
 {
-    Impl_->ClearTablets(table);
+    Impl_->DestroyTable(table);
 }
 
 void TTabletManager::ReshardTable(
@@ -3056,11 +3053,6 @@ TTabletCellBundle* TTabletManager::GetDefaultTabletCellBundle()
 void TTabletManager::SetTabletCellBundle(TTableNode* table, TTabletCellBundle* cellBundle)
 {
     Impl_->SetTabletCellBundle(table, cellBundle);
-}
-
-void TTabletManager::ResetTabletCellBundle(TTableNode* table)
-{
-    Impl_->ResetTabletCellBundle(table);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCellBundle, TTabletCellBundle, *Impl_)

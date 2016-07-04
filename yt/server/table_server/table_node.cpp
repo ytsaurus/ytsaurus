@@ -364,8 +364,7 @@ protected:
 
         if (table->IsTrunk()) {
             auto tabletManager = Bootstrap_->GetTabletManager();
-            tabletManager->ClearTablets(table);
-            tabletManager->ResetTabletCellBundle(table);
+            tabletManager->DestroyTable(table);
         }
     }
 

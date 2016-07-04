@@ -68,7 +68,7 @@ public:
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
 
-    void ClearTablets(
+    void DestroyTable(
         NTableServer::TTableNode* table);
 
     void ReshardTable(
@@ -111,7 +111,6 @@ public:
     void RenameTabletCellBundle(TTabletCellBundle* cellBundle, const Stroka& newName);
     TTabletCellBundle* GetDefaultTabletCellBundle();
     void SetTabletCellBundle(NTableServer::TTableNode* table, TTabletCellBundle* cellBundle);
-    void ResetTabletCellBundle(NTableServer::TTableNode* table);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell);
     TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id);
