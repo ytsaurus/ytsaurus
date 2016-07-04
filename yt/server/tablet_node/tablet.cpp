@@ -85,11 +85,12 @@ void TTabletSnapshot::ValiateMountRevision(i64 mountRevision)
 {
     if (MountRevision != mountRevision) {
         THROW_ERROR_EXCEPTION(
-            NRpc::EErrorCode::Unavailable,
+            NTabletClient::EErrorCode::InvalidMountRevision,
             "Invalid mount revision of tablet %v: expected %x, received %x",
             TabletId,
             MountRevision,
-            mountRevision);
+            mountRevision)
+            << TErrorAttribute("tablet_id", TabletId);
     }
 }
 
@@ -824,11 +825,12 @@ void TTablet::ValidateMountRevision(i64 mountRevision)
 {
     if (MountRevision_ != mountRevision) {
         THROW_ERROR_EXCEPTION(
-            NRpc::EErrorCode::Unavailable,
+            NTabletClient::EErrorCode::InvalidMountRevision,
             "Invalid mount revision of tablet %v: expected %x, received %x",
             Id_,
             MountRevision_,
-            mountRevision);
+            mountRevision)
+            << TErrorAttribute("tablet_id", Id_);
     }
 }
 

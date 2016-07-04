@@ -29,7 +29,8 @@ message TRspExecute
 message TReqRead
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required int64 timestamp = 2;
+    required int64 mount_revision = 2;
+    required int64 timestamp = 3;
     optional int32 response_codec = 4;
 }
 

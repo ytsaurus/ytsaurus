@@ -77,10 +77,6 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = QueryAgentLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSchema& tabletSchema)
@@ -119,47 +115,94 @@ struct TDataSourceFormatter
 struct TQueryExecutorBufferTag
 { };
 
-class TQueryExecutor
-    : public ISubexecutor
+////////////////////////////////////////////////////////////////////////////////
+
+class TTabletSnapshotCache
 {
 public:
-    TQueryExecutor(
-        TQueryAgentConfigPtr config,
-        TBootstrap* bootstrap)
-        : Config_(config)
-        , FunctionImplCache_(CreateFunctionImplCache(
-            config->FunctionImplCache,
-            bootstrap->GetMasterClient()))
-        , Bootstrap_(bootstrap)
-        , Evaluator_(New<TEvaluator>(Config_))
-        , ColumnEvaluatorCache_(Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetColumnEvaluatorCache())
+    TTabletSnapshotCache(TSlotManagerPtr slotManager)
+        : SlotManager_(std::move(slotManager))
     { }
 
-    // IExecutor implementation.
-    virtual TFuture<TQueryStatistics> Execute(
+    void RegisterTabletSnapshotOrThrow(
+        const TTabletId& tabletId,
+        const i64 mountRevision,
+        const TTimestamp timestamp)
+    {
+        auto tabletSnapshot = SlotManager_->GetTabletSnapshotOrThrow(tabletId);
+
+        tabletSnapshot->ValiateMountRevision(mountRevision);
+
+        SlotManager_->ValidateTabletAccess(
+            tabletSnapshot,
+            NYTree::EPermission::Read,
+            timestamp);
+
+        Map_.insert(std::make_pair(tabletId, tabletSnapshot));
+    }
+
+    TTabletSnapshotPtr GetCachedTabletSnapshot(const TTabletId& tabletId)
+    {
+        auto it = Map_.find(tabletId);
+        YCHECK(it != Map_.end());
+        return it->second;
+    }
+
+private:
+    const TSlotManagerPtr SlotManager_;
+    yhash_map<TTabletId, TTabletSnapshotPtr> Map_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueryExecution
+    : public TIntrinsicRefCounted
+{
+public:
+    TQueryExecution(
+        TQueryAgentConfigPtr config,
+        TFunctionImplCachePtr functionImplCache,
+        TBootstrap* const bootstrap,
+        const TEvaluatorPtr evaluator,
         TConstQueryPtr query,
+        const TQueryOptions& options)
+        : Config_(std::move(config))
+        , FunctionImplCache_(std::move(functionImplCache))
+        , Bootstrap_(bootstrap)
+        , Evaluator_(std::move(evaluator))
+        , Query_(std::move(query))
+        , Options_(std::move(options))
+        , Logger(BuildLogger(Query_))
+        , TabletSnapshots_(bootstrap->GetTabletSlotManager())
+    { }
+
+    TFuture<TQueryStatistics> Execute(
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
-        ISchemafulWriterPtr writer,
-        const TQueryOptions& options) override
+        ISchemafulWriterPtr writer)
     {
+        for (const auto& source : dataSources) {
+            if (TypeFromId(source.Id) == EObjectType::Tablet) {
+                TabletSnapshots_.RegisterTabletSnapshotOrThrow(
+                    source.Id,
+                    source.MountRevision,
+                    Options_.Timestamp);
+            }
+        }
+
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto maybeUser = securityManager->GetAuthenticatedUser();
 
-        auto execute = query->IsOrdered()
-            ? &TQueryExecutor::DoExecuteOrdered
-            : &TQueryExecutor::DoExecuteUnordered;
+        auto execute = Query_->IsOrdered()
+            ? &TQueryExecution::DoExecuteOrdered
+            : &TQueryExecution::DoExecuteUnordered;
 
         return BIND(execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
             .Run(
-                std::move(query),
                 std::move(externalCGInfo),
                 std::move(dataSources),
-                options,
                 std::move(writer),
                 maybeUser);
     }
@@ -169,20 +212,22 @@ private:
     const TFunctionImplCachePtr FunctionImplCache_;
     TBootstrap* const Bootstrap_;
     const TEvaluatorPtr Evaluator_;
-    const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+
+    const TConstQueryPtr Query_;
+    const TQueryOptions Options_;
+
+    const NLogging::TLogger Logger;
+
+    TTabletSnapshotCache TabletSnapshots_;
 
     typedef std::function<ISchemafulReaderPtr()> TSubreaderCreator;
 
     TQueryStatistics DoCoordinateAndExecute(
-        TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
-        const TQueryOptions& options,
         ISchemafulWriterPtr writer,
         const std::vector<TRefiner>& refiners,
         const std::vector<TSubreaderCreator>& subreaderCreators)
     {
-        auto Logger = BuildLogger(query);
-
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto maybeUser = securityManager->GetAuthenticatedUser();
 
@@ -209,7 +254,7 @@ private:
             FunctionImplCache_);
 
         return CoordinateAndExecute(
-            query,
+            Query_,
             writer,
             refiners,
             [&] (TConstQueryPtr subquery, int index) {
@@ -224,9 +269,9 @@ private:
                 auto foreignExecuteCallback = [
                     asyncSubqueryResults,
                     externalCGInfo,
-                    options,
                     remoteExecutor,
-                    Logger
+                    this,
+                    this_ = MakeStrong(this)
                 ] (
                     const TQueryPtr& subquery,
                     TDataRanges dataRanges,
@@ -235,8 +280,8 @@ private:
                     LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
                     TQueryOptions subqueryOptions;
-                    subqueryOptions.Timestamp = options.Timestamp;
-                    subqueryOptions.VerboseLogging = options.VerboseLogging;
+                    subqueryOptions.Timestamp = Options_.Timestamp;
+                    subqueryOptions.VerboseLogging = Options_.VerboseLogging;
 
                     asyncSubqueryResults->push_back(remoteExecutor->Execute(
                         subquery,
@@ -254,7 +299,7 @@ private:
                         foreignExecuteCallback,
                         functionGenerators,
                         aggregateGenerators,
-                        options.EnableCodeCache);
+                        Options_.EnableCodeCache);
 
                 asyncStatistics.Apply(BIND([=] (const TErrorOr<TQueryStatistics>& result) -> TErrorOr<TQueryStatistics>{
                     if (!result.IsOK()) {
@@ -286,31 +331,27 @@ private:
                     std::move(writer),
                     functionGenerators,
                     aggregateGenerators,
-                    options.EnableCodeCache);
+                    Options_.EnableCodeCache);
                 LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return result;
             });
     }
 
     TQueryStatistics DoExecuteUnordered(
-        TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
-        const TQueryOptions& options,
         ISchemafulWriterPtr writer,
         const TNullable<Stroka>& maybeUser)
     {
         auto securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, maybeUser);
 
-        auto Logger = BuildLogger(query);
-
         LOG_DEBUG("Classifying data sources into ranges and lookup keys");
 
         std::vector<TDataRanges> rangesByTablePart;
         std::vector<TDataKeys> keysByTablePart;
 
-        auto keySize = query->KeyColumnsCount;
+        auto keySize = Query_->KeyColumnsCount;
 
         for (const auto& source : dataSources) {
             TRowRanges rowRanges;
@@ -349,14 +390,14 @@ private:
 
         LOG_DEBUG("Splitting sources");
 
-        auto splits = Split(std::move(rangesByTablePart), Logger, options.VerboseLogging);
+        auto splits = Split(std::move(rangesByTablePart));
         int splitCount = splits.Size();
         int splitOffset = 0;
         std::vector<TSharedRange<TDataRange>> groupedSplits;
 
         LOG_DEBUG("Grouping %v splits", splitCount);
 
-        auto maxSubqueries = std::min(options.MaxSubqueries, Config_->MaxSubqueries);
+        auto maxSubqueries = std::min(Options_.MaxSubqueries, Config_->MaxSubqueries);
 
         for (int queryIndex = 1; queryIndex <= maxSubqueries; ++queryIndex) {
             int nextSplitOffset = queryIndex * splitCount / maxSubqueries;
@@ -368,8 +409,6 @@ private:
         }
 
         LOG_DEBUG("Got %v split groups", groupedSplits.size());
-
-        auto columnEvaluator = ColumnEvaluatorCache_->Find(query->TableSchema);
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
@@ -387,7 +426,7 @@ private:
                 return EliminatePredicate(keyRanges, expr, keyColumns);
             });
             subreaderCreators.push_back([&, MOVE(groupedSplit)] () {
-                if (options.VerboseLogging) {
+                if (Options_.VerboseLogging) {
                     LOG_DEBUG("Generating reader for ranges %v",
                         MakeFormattableRange(groupedSplit, TDataSourceFormatter()));
                 } else {
@@ -396,10 +435,7 @@ private:
                 }
 
                 auto bottomSplitReaderGenerator = [
-                    Logger,
-                    query,
                     MOVE(groupedSplit),
-                    options,
                     index = 0,
                     this,
                     this_ = MakeStrong(this)
@@ -409,11 +445,7 @@ private:
                     }
 
                     const auto& group = groupedSplit[index++];
-                    return GetReader(
-                        query->TableSchema,
-                        group.Id,
-                        group.Range,
-                        options);
+                    return GetReader(group.Id, group.Range);
                 };
 
                 return CreateUnorderedSchemafulReader(
@@ -430,27 +462,15 @@ private:
                 return EliminatePredicate(keys, expr, keyColumns);
             });
             subreaderCreators.push_back([&, MOVE(keys)] () {
-                ValidateReadTimestamp(options.Timestamp);
-
                 std::function<ISchemafulReaderPtr()> bottomSplitReaderGenerator;
 
                 switch (TypeFromId(tablePartId)) {
                     case EObjectType::Chunk:
-                    case EObjectType::ErasureChunk: {
-                        return GetChunkReader(
-                            query->TableSchema,
-                            tablePartId,
-                            keys,
-                            options);
-                    }
+                    case EObjectType::ErasureChunk:
+                        return GetChunkReader(tablePartId, keys);
 
-                    case EObjectType::Tablet: {
-                        return GetTabletReader(
-                            query->TableSchema,
-                            tablePartId,
-                            keys,
-                            options);
-                    }
+                    case EObjectType::Tablet:
+                        return GetTabletReader(tablePartId, keys);
 
                     default:
                         THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -460,28 +480,22 @@ private:
         }
 
         return DoCoordinateAndExecute(
-            query,
             externalCGInfo,
-            options,
             std::move(writer),
             refiners,
             subreaderCreators);
     }
 
     TQueryStatistics DoExecuteOrdered(
-        TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
-        const TQueryOptions& options,
         ISchemafulWriterPtr writer,
         const TNullable<Stroka>& maybeUser)
     {
         auto securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, maybeUser);
 
-        auto Logger = BuildLogger(query);
-
-        auto splits = Split(std::move(dataSources), Logger, options.VerboseLogging);
+        auto splits = Split(std::move(dataSources));
 
         LOG_DEBUG("Sorting %v splits", splits.Size());
 
@@ -489,16 +503,13 @@ private:
             return lhs.Range.first < rhs.Range.first;
         });
 
-        if (options.VerboseLogging) {
+        if (Options_.VerboseLogging) {
             LOG_DEBUG("Got ranges for groups %v",
                 MakeFormattableRange(splits, TDataSourceFormatter()));
         } else {
             LOG_DEBUG("Got ranges for %v groups",
                 splits.Size());
         }
-
-        auto columnEvaluator = ColumnEvaluatorCache_->Find(
-            query->TableSchema);
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
@@ -508,24 +519,19 @@ private:
                 return EliminatePredicate(MakeRange(&dataSplit.Range, 1), expr, keyColumns);
             });
             subreaderCreators.push_back([&] () {
-                return GetReader(query->TableSchema, dataSplit.Id, dataSplit.Range, options);
+                return GetReader(dataSplit.Id, dataSplit.Range);
             });
         }
 
         return DoCoordinateAndExecute(
-            query,
             externalCGInfo,
-            options,
             std::move(writer),
             refiners,
             subreaderCreators);
     }
 
     // TODO(lukyan): Use mutable shared range
-    TSharedMutableRange<TDataRange> Split(
-        std::vector<TDataRanges> rangesByTablePart,
-        const NLogging::TLogger& Logger,
-        bool verboseLogging)
+    TSharedMutableRange<TDataRange> Split(std::vector<TDataRanges> rangesByTablePart)
     {
         auto rowBuffer = New<TRowBuffer>(TQueryExecutorBufferTag());
         std::vector<TDataRange> allSplits;
@@ -553,14 +559,13 @@ private:
                     return lhs.first < rhs.first;
                 }));
 
-            auto slotManager = Bootstrap_->GetTabletSlotManager();
-            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tablePartId);
+            auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tablePartId);
 
             std::vector<TRowRange> resultRanges;
             int lastIndex = 0;
 
             auto addRange = [&] (int count, TUnversionedRow lowerBound, TUnversionedRow upperBound) {
-                LOG_DEBUG_IF(verboseLogging, "Merging %v ranges into [%v .. %v]",
+                LOG_DEBUG_IF(Options_.VerboseLogging, "Merging %v ranges into [%v .. %v]",
                     count,
                     lowerBound,
                     upperBound);
@@ -772,20 +777,16 @@ private:
     }
 
     ISchemafulReaderPtr GetReader(
-        const TTableSchema& schema,
         const TObjectId& objectId,
-        const TRowRange& range,
-        const TQueryOptions& options)
+        const TRowRange& range)
     {
-        ValidateReadTimestamp(options.Timestamp);
-
         switch (TypeFromId(objectId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetChunkReader(schema, objectId, range, options);
+                return GetChunkReader(objectId, range);
 
             case EObjectType::Tablet:
-                return GetTabletReader(schema, objectId, range, options);
+                return GetTabletReader(objectId, range);
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -794,20 +795,16 @@ private:
     }
 
     ISchemafulReaderPtr GetReader(
-        const TTableSchema& schema,
         const TObjectId& objectId,
-        const TSharedRange<TRow>& keys,
-        const TQueryOptions& options)
+        const TSharedRange<TRow>& keys)
     {
-        ValidateReadTimestamp(options.Timestamp);
-
         switch (TypeFromId(objectId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetChunkReader(schema,  objectId, keys, options);
+                return GetChunkReader(objectId, keys);
 
             case EObjectType::Tablet:
-                return GetTabletReader(schema, objectId, keys, options);
+                return GetTabletReader(objectId, keys);
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -816,10 +813,8 @@ private:
     }
 
     ISchemafulReaderPtr GetChunkReader(
-        const TTableSchema& schema,
         const TObjectId& chunkId,
-        const TRowRange& range,
-        const TQueryOptions& options)
+        const TRowRange& range)
     {
         std::vector<TReadRange> readRanges;
         TReadLimit lowerReadLimit;
@@ -827,14 +822,12 @@ private:
         lowerReadLimit.SetKey(TOwningKey(range.first));
         upperReadLimit.SetKey(TOwningKey(range.second));
         readRanges.emplace_back(std::move(lowerReadLimit), std::move(upperReadLimit));
-        return GetChunkReader(schema, chunkId, std::move(readRanges), options);
+        return GetChunkReader(chunkId, std::move(readRanges));
     }
 
     ISchemafulReaderPtr GetChunkReader(
-        const TTableSchema& schema,
         const TChunkId& chunkId,
-        const TSharedRange<TRow>& keys,
-        const TQueryOptions& options)
+        const TSharedRange<TRow>& keys)
     {
         std::vector<TReadRange> readRanges;
         TUnversionedOwningRowBuilder builder;
@@ -852,27 +845,25 @@ private:
             readRanges.emplace_back(std::move(lowerReadLimit), std::move(upperReadLimit));
         }
 
-        return GetChunkReader(schema, chunkId, readRanges, options);
+        return GetChunkReader(chunkId, readRanges);
     }
 
     ISchemafulReaderPtr GetChunkReader(
-        const TTableSchema& schema,
         const TChunkId& chunkId,
-        std::vector<TReadRange> readRanges,
-        const TQueryOptions& options)
+        std::vector<TReadRange> readRanges)
     {
         auto blockCache = Bootstrap_->GetBlockCache();
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
 
         auto config = CloneYsonSerializable(Bootstrap_->GetConfig()->TabletNode->TabletManager->ChunkReader);
-        config->WorkloadDescriptor = options.WorkloadDescriptor;
+        config->WorkloadDescriptor = Options_.WorkloadDescriptor;
 
         NChunkClient::IChunkReaderPtr chunkReader;
         if (chunk && !chunk->IsRemoveScheduled()) {
             LOG_DEBUG("Creating local reader for chunk split (ChunkId: %v, Timestamp: %v)",
                 chunkId,
-                options.Timestamp);
+                Options_.Timestamp);
 
             chunkReader = CreateLocalChunkReader(
                 config,
@@ -882,7 +873,7 @@ private:
         } else {
             LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %v, Timestamp: %v)",
                 chunkId,
-                options.Timestamp);
+                Options_.Timestamp);
 
             // TODO(babenko): seed replicas?
             // TODO(babenko): throttler?
@@ -904,62 +895,100 @@ private:
             std::move(config),
             std::move(chunkReader),
             Bootstrap_->GetBlockCache(),
-            schema,
+            Query_->TableSchema,
             chunkMeta,
             std::move(readRanges),
-            options.Timestamp);
+            Options_.Timestamp);
     }
 
     ISchemafulReaderPtr GetTabletReader(
-        const TTableSchema& schema,
         const TObjectId& tabletId,
-        const TRowRange& range,
-        const TQueryOptions& options)
+        const TRowRange& range)
     {
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-        slotManager->ValidateTabletAccess(
-            tabletSnapshot,
-            NYTree::EPermission::Read,
-            options.Timestamp);
-
         TOwningKey lowerBound(range.first);
         TOwningKey upperBound(range.second);
 
-        auto columnFilter = GetColumnFilter(schema, tabletSnapshot->QuerySchema);
+        auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
+        auto columnFilter = GetColumnFilter(Query_->TableSchema, tabletSnapshot->QuerySchema);
 
         return CreateSchemafulTabletReader(
             std::move(tabletSnapshot),
             columnFilter,
             std::move(lowerBound),
             std::move(upperBound),
-            options.Timestamp,
-            options.WorkloadDescriptor);
+            Options_.Timestamp,
+            Options_.WorkloadDescriptor);
     }
 
     ISchemafulReaderPtr GetTabletReader(
-        const TTableSchema& schema,
         const TTabletId& tabletId,
-        const TSharedRange<TRow>& keys,
-        const TQueryOptions& options)
+        const TSharedRange<TRow>& keys)
     {
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-        slotManager->ValidateTabletAccess(
-            tabletSnapshot,
-            NYTree::EPermission::Read,
-            options.Timestamp);
-
-        auto columnFilter = GetColumnFilter(schema, tabletSnapshot->QuerySchema);
+        auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
+        auto columnFilter = GetColumnFilter(Query_->TableSchema, tabletSnapshot->QuerySchema);
 
         return CreateSchemafulTabletReader(
             std::move(tabletSnapshot),
             columnFilter,
             keys,
-            options.Timestamp,
-            options.WorkloadDescriptor,
+            Options_.Timestamp,
+            Options_.WorkloadDescriptor,
             Config_->MaxBottomReaderConcurrency);
     }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueryExecutor
+    : public ISubexecutor
+{
+public:
+    TQueryExecutor(
+        TQueryAgentConfigPtr config,
+        TBootstrap* bootstrap)
+        : Config_(config)
+        , FunctionImplCache_(CreateFunctionImplCache(
+            config->FunctionImplCache,
+            bootstrap->GetMasterClient()))
+        , Bootstrap_(bootstrap)
+        , Evaluator_(New<TEvaluator>(Config_))
+        , ColumnEvaluatorCache_(Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetColumnEvaluatorCache())
+    { }
+
+    // IExecutor implementation.
+    virtual TFuture<TQueryStatistics> Execute(
+        TConstQueryPtr query,
+        TConstExternalCGInfoPtr externalCGInfo,
+        std::vector<TDataRanges> dataSources,
+        ISchemafulWriterPtr writer,
+        const TQueryOptions& options) override
+    {
+        ValidateReadTimestamp(options.Timestamp);
+
+        auto execution = New<TQueryExecution>(
+            Config_,
+            FunctionImplCache_,
+            Bootstrap_,
+            Evaluator_,
+            std::move(query),
+            options);
+
+        return execution->Execute(
+            std::move(externalCGInfo),
+            std::move(dataSources),
+            std::move(writer));
+    }
+
+private:
+    const TQueryAgentConfigPtr Config_;
+    const TFunctionImplCachePtr FunctionImplCache_;
+    TBootstrap* const Bootstrap_;
+    const TEvaluatorPtr Evaluator_;
+    const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 };
 
 ISubexecutorPtr CreateQueryExecutor(

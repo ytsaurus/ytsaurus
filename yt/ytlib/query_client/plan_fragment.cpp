@@ -668,6 +668,7 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original)
 {
     ToProto(serialized->mutable_id(), original.Id);
+    serialized->set_mount_revision(original.MountRevision);
 
     NTabletClient::TWireProtocolWriter writer;
     for (const auto& range : original.Ranges) {
@@ -682,6 +683,7 @@ void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original)
 void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized)
 {
     FromProto(&original->Id, serialized.id());
+    original->MountRevision = serialized.mount_revision();
 
     struct TDataRangesBufferTag
     { };

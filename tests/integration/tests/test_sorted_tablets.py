@@ -1165,7 +1165,6 @@ class TestSortedTablets(YTEnvSetup):
         self.sync_mount_table("//tmp/t", freeze=True)
         assert select_rows("* from [//tmp/t]") == rows
 
-
     def _prepare_copy(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t1")
@@ -1279,7 +1278,63 @@ class TestSortedTablets(YTEnvSetup):
 
 ##################################################################
 
+class TestSortedTabletsMetadataCaching(TestSortedTablets):
+    DELTA_DRIVER_CONFIG = {
+        "table_mount_cache": {
+            "success_expiration_time": 60000,
+            "success_probation_time": 60000,
+            "failure_expiration_time": 1000,
+        }
+    }
+
+    # Reimplement dynamic table commands without calling clear_metadata_caches()
+
+    def mount_table(self, path, **kwargs):
+        kwargs["path"] = path
+        return execute_command("mount_table", kwargs)
+
+    def unmount_table(self, path, **kwargs):
+        kwargs["path"] = path
+        return execute_command("unmount_table", kwargs)
+
+    def reshard_table(self, path, arg, **kwargs):
+        kwargs["path"] = path
+        kwargs["pivot_keys"] = arg
+        return execute_command("reshard_table", kwargs)
+
+    def sync_mount_table(self, path, **kwargs):
+        self.mount_table(path, **kwargs)
+        print "Waiting for tablets to become mounted..."
+        self._wait_for_tablets(path, "mounted", **kwargs)
+
+    def sync_unmount_table(self, path, **kwargs):
+        self.unmount_table(path, **kwargs)
+        print "Waiting for tablets to become unmounted..."
+        self._wait_for_tablets(path, "unmounted", **kwargs)
+
+
+    def test_select_with_expired_schema(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.reshard_table("//tmp/t", [[], [1]])
+        self.sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+        insert_rows("//tmp/t", rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        self.sync_unmount_table("//tmp/t")
+        alter_table("//tmp/t", schema=[
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "key2", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"}])
+        self.sync_mount_table("//tmp/t")
+        expected = [{"key": i, "key2": None, "value": str(i)} for i in xrange(2)]
+        assert_items_equal(select_rows("* from [//tmp/t]"), expected)
+
+##################################################################
+
 class TestSortedTabletsMulticell(TestSortedTablets):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+class TestSortedTabletsMetadataCachingMulticell(TestSortedTabletsMetadataCaching):
+    NUM_SECONDARY_MASTER_CELLS = 2
 

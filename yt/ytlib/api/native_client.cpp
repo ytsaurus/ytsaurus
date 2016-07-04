@@ -695,9 +695,12 @@ private:
                 state != ETabletState::Freezing &&
                 state != ETabletState::Frozen)
             {
-                THROW_ERROR_EXCEPTION("Cannot read from tablet %v while it is in %Qlv state",
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::TabletNotMounted,
+                    "Cannot read from tablet %v while it is in %Qlv state",
                     tabletInfo->TabletId,
-                    state);
+                    state)
+                    << TErrorAttribute("tablet_id", tabletInfo->TabletId);
             }
 
             auto insertResult = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, TCellDescriptor()));
@@ -756,6 +759,7 @@ private:
 
                 TDataRanges dataSource;
                 dataSource.Id = tabletInfo->TabletId;
+                dataSource.MountRevision = tabletInfo->MountRevision;
                 dataSource.Ranges = MakeSharedRange(
                     MakeRange<TRowRange>(rangesIt, rangesItEnd),
                     rowBuffer,
@@ -784,6 +788,7 @@ private:
 
                     TDataRanges dataSource;
                     dataSource.Id = tabletInfo->TabletId;
+                    dataSource.MountRevision = tabletInfo->MountRevision;
                     dataSource.Ranges = MakeSharedRange(
                         SmallVector<TRowRange, 1>{subrange},
                         rowBuffer,
@@ -977,7 +982,7 @@ private:
                     split.first.Id,
                     split.second);
 
-                return std::make_pair(std::vector<TDataRanges>(1, split.first), split.second);
+                return std::make_pair(std::vector<TDataRanges>{split.first}, split.second);
             });
     }
 
@@ -1468,18 +1473,21 @@ private:
 
             auto config = Connection_->GetConfig();
             if (++retryCount <= config->TableMountInfoUpdateRetryCount) {
-                auto noSuchTablet = error.FindMatching(NTabletClient::EErrorCode::NoSuchTablet);
-                auto notMounted = error.FindMatching(NTabletClient::EErrorCode::TabletNotMounted);
+                bool retry = false;
+                std::vector<NTabletClient::EErrorCode> retriableCodes = {
+                    NTabletClient::EErrorCode::NoSuchTablet,
+                    NTabletClient::EErrorCode::TabletNotMounted,
+                    NTabletClient::EErrorCode::InvalidMountRevision};
 
-                if (noSuchTablet) {
-                    error = noSuchTablet.Get();
+                for (const auto& errCode : retriableCodes) {
+                    if (auto err = error.FindMatching(errCode)) {
+                        error = err.Get();
+                        retry = true;
+                        break;
+                    }
                 }
 
-                if (notMounted) {
-                    error = notMounted.Get();
-                }
-
-                if (noSuchTablet || notMounted) {
+                if (retry) {
                     LOG_DEBUG(error, "Got error, will clear table mount cache and retry");
                     auto tabletId = error.Attributes().Get<TTabletId>("tablet_id");
                     auto tableMountCache = Connection_->GetTableMountCache();
@@ -1721,6 +1729,7 @@ private:
 
             auto req = InvokeProxy_->Read();
             ToProto(req->mutable_tablet_id(), batch->TabletInfo->TabletId);
+            req->set_mount_revision(batch->TabletInfo->MountRevision);
             req->set_timestamp(Options_.Timestamp);
             req->set_response_codec(static_cast<int>(Config_->LookupResponseCodec));
             req->Attachments() = std::move(batch->RequestData);
