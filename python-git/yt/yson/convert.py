@@ -6,7 +6,7 @@ def to_yson_type(value, attributes = None):
     """ Wrap value with YSON type """
     if isinstance(value, unicode):
         result = YsonString(str(bytearray(value, 'utf-8')))
-    if isinstance(value, str):
+    elif isinstance(value, str):
         result = YsonString(value)
     elif value is False or value is True:
         result = YsonBoolean(value)
