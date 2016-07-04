@@ -256,8 +256,9 @@ private:
             }
         }
 
-        if (newSchema && table->HasMountedTablets()) {
-            THROW_ERROR_EXCEPTION("Cannot change schema of a table with mounted tablets");
+        if (newSchema && table->GetTabletState() != ETabletState::Unmounted) {
+            THROW_ERROR_EXCEPTION("Cannot change talbe schema since not all of its tablets are in %Qlv state",
+                ETabletState::Unmounted);
         }
 
         if (newSchema) {
@@ -306,8 +307,9 @@ private:
             ValidateNoTransaction();
 
             auto* table = LockThisTypedImpl();
-            if (table->HasMountedTablets()) {
-                THROW_ERROR_EXCEPTION("Cannot atomicity mode of a dynamic table with mounted tablets");
+            if (table->GetTabletState() != ETabletState::Unmounted) {
+                THROW_ERROR_EXCEPTION("Cannot change table atomicity mode since not all of its tablets are in %Qlv state",
+                    ETabletState::Unmounted);
             }
 
             auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);

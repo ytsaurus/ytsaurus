@@ -924,8 +924,9 @@ public:
         }
 
         // Validate that all tablets are unmounted.
-        if (table->HasMountedTablets()) {
-            THROW_ERROR_EXCEPTION("Cannot reshard the table sinceit has mounted tablets");
+        if (table->GetTabletState() != ETabletState::Unmounted) {
+            THROW_ERROR_EXCEPTION("Cannot reshard table since not all of its tablets are in %Qlv state",
+                ETabletState::Unmounted);
         }
 
         // For ordered tablets, if the number of tablets decreases then validate that the trailing ones
@@ -940,7 +941,6 @@ public:
                 }
             }
         }
-
 
         // Create new tablets.
         std::vector<TTablet*> newTablets;
@@ -1121,11 +1121,12 @@ public:
         }
 
         if (table->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Cannot switch a sorted table static to dynamic mode");
+            THROW_ERROR_EXCEPTION("Cannot switch sorted static table to dynamic mode");
         }
 
-        if (table->HasMountedTablets()) {
-            THROW_ERROR_EXCEPTION("Cannot switch a dynamic table with mounted tablets to static mode");
+        if (table->GetTabletState() != ETabletState::Unmounted) {
+            THROW_ERROR_EXCEPTION("Cannot switch dynamic table to static mode since not all of its tablets are in %Qlv state",
+                ETabletState::Unmounted);
         }
 
         auto* oldRootChunkList = table->GetChunkList();

@@ -86,7 +86,7 @@ ETabletState TTableNode::GetTabletState() const
     YCHECK(IsTrunk());
 
     auto result = ETabletState::None;
-    for (const auto* tablet : Tablets_) {
+    for (const auto* tablet : GetTrunkNode()->Tablets_) {
         auto state = tablet->GetState();
         if (result == ETabletState::None) {
             result = state;
@@ -254,16 +254,6 @@ std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTab
     return std::make_pair(beginIt, endIt);
 }
 
-bool TTableNode::HasMountedTablets() const
-{
-    for (const auto* tablet : Tablets_) {
-        if (tablet->GetState() != ETabletState::Unmounted) {
-            return true;
-        }
-    }
-    return false;
-}
-
 bool TTableNode::IsDynamic() const
 {
     return !GetTrunkNode()->Tablets().empty();
@@ -416,8 +406,9 @@ protected:
                 break;
 
             case ENodeCloneMode::Move:
-                if (sourceNode->HasMountedTablets()) {
-                    THROW_ERROR_EXCEPTION("Cannot move a dynamic table with mounted tablets");
+                if (sourceNode->GetTabletState() != ETabletState::Unmounted) {
+                    THROW_ERROR_EXCEPTION("Not all tablets are in %Qlv state",
+                        ETabletState::Unmounted);
                 }
                 break;
 
