@@ -295,7 +295,11 @@ const TJobResources& TSchedulerElementBase::MaxPossibleResourceUsage() const
 
 TJobResources TSchedulerElementBase::GetResourceUsage() const
 {
-    return SharedState_->GetResourceUsage();
+    auto resourceUsage = SharedState_->GetResourceUsage();
+    if (resourceUsage.GetUserSlots() > 0 && resourceUsage.GetMemory() == 0) {
+        LOG_WARNING("Found usage of schedulable element %Qv with non-zero user slots and zero memory", GetId());
+    }
+    return resourceUsage;
 }
 
 double TSchedulerElementBase::GetResourceUsageRatio() const
