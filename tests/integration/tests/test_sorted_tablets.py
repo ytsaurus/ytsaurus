@@ -1,4 +1,5 @@
 import pytest
+import __builtin__
 
 from yt_env_setup import YTEnvSetup, make_schema, make_ace, wait
 from yt_commands import *
@@ -1163,6 +1164,118 @@ class TestSortedTablets(YTEnvSetup):
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t", freeze=True)
         assert select_rows("* from [//tmp/t]") == rows
+
+
+    def _prepare_copy(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t1")
+        reshard_table("//tmp/t1", [[]] + [[i * 100] for i in xrange(10)])
+
+    def test_copy_failure(self):
+        self._prepare_copy()
+        self.sync_mount_table("//tmp/t1")
+        with pytest.raises(YtError): copy("//tmp/t1", "//tmp/t2")
+
+    def test_copy_empty(self):
+        self._prepare_copy()
+        copy("//tmp/t1", "//tmp/t2")
+
+        root_chunk_list_id1 = get("//tmp/t1/@chunk_list_id")
+        root_chunk_list_id2 = get("//tmp/t2/@chunk_list_id")
+        assert root_chunk_list_id1 != root_chunk_list_id2
+
+        assert get("#{0}/@ref_counter".format(root_chunk_list_id1)) == 1
+        assert get("#{0}/@ref_counter".format(root_chunk_list_id2)) == 1
+
+        child_ids1 = get("#{0}/@child_ids".format(root_chunk_list_id1))
+        child_ids2 = get("#{0}/@child_ids".format(root_chunk_list_id2))
+        assert child_ids1 == child_ids2
+
+        for child_id in child_ids1:
+            assert get("#{0}/@ref_counter".format(child_id)) == 2
+            assert_items_equal(get("#{0}/@owning_nodes".format(child_id)), ["//tmp/t1", "//tmp/t2"])
+
+    def _test_copy_simple(self, unmount_func, mount_func, unmounted_state):
+        self._prepare_copy()
+        self.sync_mount_table("//tmp/t1")
+        rows = [{"key": i * 100 - 50} for i in xrange(10)]
+        insert_rows("//tmp/t1", rows)
+        unmount_func("//tmp/t1")
+        copy("//tmp/t1", "//tmp/t2")
+        assert get("//tmp/t1/@tablet_state") == unmounted_state
+        assert get("//tmp/t2/@tablet_state") == "unmounted"
+        mount_func("//tmp/t1")
+        self.sync_mount_table("//tmp/t2")
+        assert_items_equal(select_rows("key from [//tmp/t1]"), rows)
+        assert_items_equal(select_rows("key from [//tmp/t2]"), rows)
+
+    def test_copy_simple_unmounted(self):
+        self._test_copy_simple(self.sync_unmount_table, self.sync_mount_table, "unmounted")
+
+    def test_copy_simple_frozen(self):
+        self._test_copy_simple(self.sync_freeze_table, self.sync_unfreeze_table, "frozen")
+       
+    def _test_copy_and_fork(self, unmount_func, mount_func, unmounted_state):
+        self._prepare_copy()
+        self.sync_mount_table("//tmp/t1")
+        rows = [{"key": i * 100 - 50} for i in xrange(10)]
+        insert_rows("//tmp/t1", rows)
+        unmount_func("//tmp/t1")
+        copy("//tmp/t1", "//tmp/t2")
+        assert get("//tmp/t1/@tablet_state") == unmounted_state
+        assert get("//tmp/t2/@tablet_state") == "unmounted"
+        mount_func("//tmp/t1")
+        self.sync_mount_table("//tmp/t2")
+        ext_rows1 = [{"key": i * 100 - 51} for i in xrange(10)]
+        ext_rows2 = [{"key": i * 100 - 52} for i in xrange(10)]
+        insert_rows("//tmp/t1", ext_rows1)
+        insert_rows("//tmp/t2", ext_rows2)
+        assert_items_equal(select_rows("key from [//tmp/t1]"), rows + ext_rows1)
+        assert_items_equal(select_rows("key from [//tmp/t2]"), rows + ext_rows2)
+
+    def test_copy_and_fork_unmounted(self):
+        self._test_copy_and_fork(self.sync_unmount_table, self.sync_mount_table, "unmounted")
+
+    def test_copy_and_fork_frozen(self):
+        self._test_copy_and_fork(self.sync_freeze_table, self.sync_unfreeze_table, "frozen")
+
+    
+    def test_copy_and_compact(self):
+        self._prepare_copy()
+        self.sync_mount_table("//tmp/t1")
+        rows = [{"key": i * 100 - 50} for i in xrange(10)]
+        insert_rows("//tmp/t1", rows)
+        self.sync_unmount_table("//tmp/t1")
+        copy("//tmp/t1", "//tmp/t2")
+        self.sync_mount_table("//tmp/t1")
+        self.sync_mount_table("//tmp/t2")
+
+        original_chunk_ids1 = __builtin__.set(get("//tmp/t1/@chunk_ids"))
+        original_chunk_ids2 = __builtin__.set(get("//tmp/t2/@chunk_ids"))
+        assert original_chunk_ids1 == original_chunk_ids2
+
+        ext_rows1 = [{"key": i * 100 - 51} for i in xrange(10)]
+        ext_rows2 = [{"key": i * 100 - 52} for i in xrange(10)]
+        insert_rows("//tmp/t1", ext_rows1)
+        insert_rows("//tmp/t2", ext_rows2)
+
+        set("//tmp/x", 1)
+        revision = get("//tmp/@revision")
+        set("//tmp/t1/@forced_compaction_revision", revision)
+        remount_table("//tmp/t1")
+        set("//tmp/t2/@forced_compaction_revision", revision)
+        remount_table("//tmp/t2")
+
+        sleep(4.0)
+
+        compacted_chunk_ids1 = __builtin__.set(get("//tmp/t1/@chunk_ids"))
+        compacted_chunk_ids2 = __builtin__.set(get("//tmp/t2/@chunk_ids"))
+        assert len(compacted_chunk_ids1.intersection(original_chunk_ids1)) == 0
+        assert len(compacted_chunk_ids2.intersection(original_chunk_ids2)) == 0
+        assert len(compacted_chunk_ids1.intersection(compacted_chunk_ids2)) == 0
+        
+        assert_items_equal(select_rows("key from [//tmp/t1]"), rows + ext_rows1)
+        assert_items_equal(select_rows("key from [//tmp/t2]"), rows + ext_rows2)
 
 ##################################################################
 

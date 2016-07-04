@@ -256,8 +256,8 @@ private:
             }
         }
 
-        if (newSchema && table->GetTabletState() != ETabletState::Unmounted) {
-            THROW_ERROR_EXCEPTION("Cannot change talbe schema since not all of its tablets are in %Qlv state",
+        if (newSchema && table->IsDynamic() && table->GetTabletState() != ETabletState::Unmounted) {
+            THROW_ERROR_EXCEPTION("Cannot change table schema since not all of its tablets are in %Qlv state",
                 ETabletState::Unmounted);
         }
 
@@ -265,7 +265,7 @@ private:
             bool dynamic = newDynamic.Get(table->IsDynamic());
 
             // NB: Sorted dynamic tables contain unique keys, set this for user.
-            TTableSchema schema = dynamic && newSchema->IsSorted()
+            auto schema = dynamic && newSchema->IsSorted()
                 ? newSchema->ToUniqueKeys()
                 : *newSchema;
 

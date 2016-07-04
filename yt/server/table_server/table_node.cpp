@@ -83,8 +83,6 @@ bool TTableNode::IsUniqueKeys() const
 
 ETabletState TTableNode::GetTabletState() const
 {
-    YCHECK(IsTrunk());
-
     auto result = ETabletState::None;
     for (const auto* tablet : GetTrunkNode()->Tablets_) {
         auto state = tablet->GetState();
@@ -398,46 +396,27 @@ protected:
         ICypressNodeFactory* factory,
         ENodeCloneMode mode) override
     {
-        switch (mode) {
-            case ENodeCloneMode::Copy:
-                if (sourceNode->IsDynamic()) {
-                    THROW_ERROR_EXCEPTION("Cannot copy a dynamic table");
-                }
-                break;
-
-            case ENodeCloneMode::Move:
-                if (sourceNode->GetTabletState() != ETabletState::Unmounted) {
-                    THROW_ERROR_EXCEPTION("Not all tablets are in %Qlv state",
-                        ETabletState::Unmounted);
-                }
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
+        auto tabletManager = Bootstrap_->GetTabletManager();
 
         TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
-        clonedNode->TableSchema() = sourceNode->TableSchema();
-        clonedNode->SetPreserveSchemaOnWrite(sourceNode->GetPreserveSchemaOnWrite());
-
-        auto* trunkSourceNode = sourceNode->GetTrunkNode();
-
-        auto tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());
-
         if (sourceNode->IsDynamic()) {
-            auto tablets = std::move(trunkSourceNode->Tablets());
-            factory->RegisterCommitHandler([clonedNode, tablets] () mutable {
-                clonedNode->Tablets() = std::move(tablets);
-                for (auto* tablet : clonedNode->Tablets()) {
-                    tablet->SetTable(clonedNode);
-                }
+            auto data = tabletManager->BeginCloneTable(sourceNode, clonedNode, mode);
+            factory->RegisterCommitHandler([sourceNode, clonedNode, tabletManager, data] () {
+                tabletManager->CommitCloneTable(sourceNode, clonedNode, data);
             });
-            factory->RegisterRollbackHandler([trunkSourceNode, tablets] () mutable {
-                trunkSourceNode->Tablets() = std::move(tablets);
+            factory->RegisterRollbackHandler([sourceNode, clonedNode, tabletManager, data] () {
+                tabletManager->RollbackCloneTable(sourceNode, clonedNode, data);
             });
         }
+
+        clonedNode->TableSchema() = sourceNode->TableSchema();
+        clonedNode->SetPreserveSchemaOnWrite(sourceNode->GetPreserveSchemaOnWrite());
+        clonedNode->SetAtomicity(sourceNode->GetAtomicity());
+        clonedNode->SetLastCommitTimestamp(sourceNode->GetLastCommitTimestamp());
+
+        auto* trunkSourceNode = sourceNode->GetTrunkNode();
+        tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());
     }
 
     virtual int GetDefaultReplicationFactor() const override
