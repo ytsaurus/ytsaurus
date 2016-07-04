@@ -443,8 +443,6 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back(TAttributeDescriptor("import_ref_counter")
         .SetPresent(isForeign));
     descriptors->push_back("foreign");
-    descriptors->push_back(TAttributeDescriptor("supported_permissions")
-        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("inherit_acl")
         .SetPresent(hasAcd)
         .SetWritePermission(EPermission::Administer)
@@ -512,15 +510,6 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
         return true;
     }
 
-    if (key == "supported_permissions") {
-        auto objectManager = Bootstrap_->GetObjectManager();
-        const auto& handler = objectManager->GetHandler(Object_);
-        auto permissions = handler->GetSupportedPermissions();
-        BuildYsonFluently(consumer)
-            .Value(TEnumTraits<EPermissionSet>::Decompose(permissions));
-        return true;
-    }
-
     auto* acd = FindThisAcd();
     if (acd) {
         if (key == "inherit_acl") {
@@ -571,10 +560,9 @@ bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString&
         if (key == "acl") {
             ValidateNoTransaction();
 
-            auto supportedPermissions = securityManager->GetSupportedPermissions(Object_);
             auto valueNode = ConvertToNode(value);
             TAccessControlList newAcl;
-            Deserilize(newAcl, supportedPermissions, valueNode, securityManager);
+            Deserilize(newAcl, valueNode, securityManager);
 
             acd->ClearEntries();
             for (const auto& ace : newAcl.Entries) {

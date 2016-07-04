@@ -85,15 +85,6 @@ public:
         return DoGetParent(static_cast<TObject*>(object));
     }
 
-    virtual NYTree::EPermissionSet GetSupportedPermissions() const override
-    {
-        return
-            NYTree::EPermissionSet::Read |
-            NYTree::EPermissionSet::Write |
-            NYTree::EPermissionSet::Remove |
-            NYTree::EPermissionSet::Administer;
-    }
-
     virtual void ExportObject(
         TObjectBase* object,
         NObjectClient::TCellTag destinationCellTag) override

@@ -159,9 +159,6 @@ public:
     void RenameSubject(TSubject* subject, const Stroka& newName);
 
 
-    //! Returns the set of supported permissions.
-    EPermissionSet GetSupportedPermissions(NObjectServer::TObjectBase* object);
-
     //! Returns the object ACD or |nullptr| if access is not controlled.
     TAccessControlDescriptor* FindAcd(NObjectServer::TObjectBase* object);
 

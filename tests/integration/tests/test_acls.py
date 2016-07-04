@@ -544,37 +544,6 @@ class TestAcls(YTEnvSetup):
         remove("//sys/schemas/group/@acl/-1")
         remove("//sys/schemas/account/@acl/-1")
 
-    def test_supported_permissions(self):
-        create_user("u")
-        create_group("g")
-        create_account("a")
-        create("table", "//tmp/t")
-        create("file", "//tmp/f")
-
-        RWRA = ["read", "write", "remove", "administer"]
-        RWRAM = RWRA + ["mount"]
-        RWRAC = RWRA + ["create"]
-
-        def check(path, permissions):
-            assert sorted(get(path + "/@supported_permissions")) == sorted(permissions)
-
-        # cypress node
-        check("//tmp", RWRAM)
-        # chunk owner node
-        check("//tmp/t", RWRAM)
-        check("//tmp/f", RWRAM)
-        # user, group, account
-        check("//sys/users/u", RWRA)
-        check("//sys/groups/g", RWRA)
-        check("//sys/accounts/a", RWRA + ["use"])
-        # schemas
-        check("//sys/schemas/map_node", ["create"])
-        check("//sys/schemas/table", ["create"])
-        check("//sys/schemas/file", ["create"])
-        check("//sys/schemas/user", RWRAC)
-        check("//sys/schemas/group", RWRAC)
-        check("//sys/schemas/account", RWRAC + ["use"])
-
     def test_set_acl_upon_construction(self):
         create_user("u")
         create("table", "//tmp/t", attributes={
