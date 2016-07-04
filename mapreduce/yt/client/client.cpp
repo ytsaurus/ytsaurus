@@ -652,10 +652,12 @@ IClientPtr CreateClient(
     }
 
     auth.Token = TConfig::Get()->Token;
-    if (!options.Token_.empty()) {
-        TConfig::ValidateToken(options.Token_);
+    if (options.Token_) {
         auth.Token = options.Token_;
+    } else if (options.TokenPath_) {
+        auth.Token = TConfig::LoadTokenFromFile(options.TokenPath_);
     }
+    TConfig::ValidateToken(auth.Token);
 
     return new TClient(auth, globalTxId);
 }

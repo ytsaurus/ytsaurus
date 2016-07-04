@@ -88,6 +88,12 @@ void TConfig::ValidateToken(const Stroka& token)
     }
 }
 
+Stroka TConfig::LoadTokenFromFile(const Stroka& tokenPath)
+{
+    TFsPath path(tokenPath);
+    return path.IsFile() ? Strip(TFileInput(~path).ReadAll()) : Stroka();
+}
+
 TNode TConfig::LoadJsonSpec(const Stroka& strSpec)
 {
     TNode spec;
@@ -115,12 +121,8 @@ void TConfig::LoadToken()
         if (!tokenPath) {
             tokenPath = GetHomeDir() + "/.yt/token";
         }
-        TFsPath path(tokenPath);
-        if (path.IsFile()) {
-            Token = Strip(TFileInput(~path).ReadAll());
-        }
+        Token = LoadTokenFromFile(tokenPath);
     }
-
     ValidateToken(Token);
 }
 
