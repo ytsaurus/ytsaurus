@@ -78,6 +78,29 @@ public:
         int newTabletCount,
         const std::vector<NTableClient::TOwningKey>& pivotKeys);
 
+
+    struct TCloneTableData
+        : public TIntrinsicRefCounted
+    {
+        NCypressServer::ENodeCloneMode Mode;
+        std::vector<TTablet*> Tablets;
+    };
+
+    using TCloneTableDataPtr = TIntrusivePtr<TCloneTableData>;
+
+    TCloneTableDataPtr BeginCloneTable(
+        NTableServer::TTableNode* sourceTable,
+        NTableServer::TTableNode* clonedTable,
+        NCypressServer::ENodeCloneMode mode);
+    void CommitCloneTable(
+        NTableServer::TTableNode* sourceTable,
+        NTableServer::TTableNode* clonedTable,
+        TCloneTableDataPtr data);
+    void RollbackCloneTable(
+        NTableServer::TTableNode* sourceTable,
+        NTableServer::TTableNode* clonedTable,
+        TCloneTableDataPtr data);
+
     void MakeTableDynamic(NTableServer::TTableNode* table);
     void MakeTableStatic(NTableServer::TTableNode* table);
 

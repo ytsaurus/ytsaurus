@@ -109,6 +109,8 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
+    void CopyFrom(const TTablet& other);
+
     void ValidateMountRevision(i64 mountRevision);
 
 };

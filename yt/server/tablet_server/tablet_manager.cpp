@@ -860,7 +860,7 @@ public:
         table->Tablets().clear();
     }
 
-    void    ReshardTable(
+    void ReshardTable(
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
@@ -1048,8 +1048,139 @@ public:
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
     }
 
+    TCloneTableDataPtr BeginCloneTable(
+        TTableNode* sourceTable,
+        TTableNode* clonedTable,
+        ENodeCloneMode mode)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(!sourceTable->Tablets().empty());
+        YCHECK(clonedTable->Tablets().empty());
+
+        auto tabletState = sourceTable->GetTabletState();
+        switch (mode) {
+            case ENodeCloneMode::Copy:
+                if (!sourceTable->IsSorted()) {
+                    THROW_ERROR_EXCEPTION("Cannot copy dynamic ordered table");
+                }
+                if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::Frozen) {
+                    THROW_ERROR_EXCEPTION("Cannot copy dynamic table since not all of its tablets are in %Qlv or %Qlv mode",
+                        ETabletState::Unmounted,
+                        ETabletState::Frozen);
+                }
+                break;
+
+            case ENodeCloneMode::Move:
+                if (tabletState != ETabletState::Unmounted) {
+                    THROW_ERROR_EXCEPTION("Cannot move dynamic table since not all of its tablets are in %Qlv state",
+                        ETabletState::Unmounted);
+                }
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+
+        auto data = New<TCloneTableData>();
+        data->Mode = mode;
+
+        switch (data->Mode) {
+            case ENodeCloneMode::Move:
+                data->Tablets.swap(sourceTable->Tablets());
+                break;
+
+            case ENodeCloneMode::Copy:
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+
+        return data;
+    }
+
+    void CommitCloneTable(
+        TTableNode* sourceTable,
+        TTableNode* clonedTable,
+        TCloneTableDataPtr data)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(clonedTable->Tablets().empty());
+
+        switch (data->Mode) {
+            case ENodeCloneMode::Move:
+                YCHECK(sourceTable->Tablets().empty());
+                data->Tablets.swap(clonedTable->Tablets());
+                for (auto* tablet : clonedTable->Tablets()) {
+                    tablet->SetTable(clonedTable);
+                }
+                break;
+
+            case ENodeCloneMode::Copy: {
+                // Undo the harm done in TChunkOwnerTypeHandler::DoClone.
+                auto* fakeClonedRootChunkList = clonedTable->GetChunkList();
+                fakeClonedRootChunkList->RemoveOwningNode(clonedTable);
+                auto objectManager = Bootstrap_->GetObjectManager();
+                objectManager->UnrefObject(fakeClonedRootChunkList);
+
+                const auto& sourceTablets = sourceTable->Tablets();
+                YCHECK(!sourceTablets.empty());
+                auto& clonedTablets = clonedTable->Tablets();
+                YCHECK(clonedTablets.empty());
+
+                auto chunkManager = Bootstrap_->GetChunkManager();
+                auto* clonedRootChunkList = chunkManager->CreateChunkList(false);
+                clonedTable->SetChunkList(clonedRootChunkList);
+                objectManager->RefObject(clonedRootChunkList);
+                clonedRootChunkList->AddOwningNode(clonedTable);
+
+                clonedTablets.reserve(sourceTablets.size());
+                auto* sourceRootChunkList = sourceTable->GetChunkList();
+                YCHECK(sourceRootChunkList->Children().size() == sourceTablets.size());
+                for (int index = 0; index < static_cast<int>(sourceTablets.size()); ++index) {
+                    const auto* sourceTablet = sourceTablets[index];
+
+                    auto* clonedTablet = CreateTablet(clonedTable);
+                    clonedTablet->CopyFrom(*sourceTablet);
+
+                    auto* tabletChunkList = sourceRootChunkList->Children()[index];
+                    chunkManager->AttachToChunkList(clonedRootChunkList, tabletChunkList);
+
+                    clonedTablets.push_back(clonedTablet);
+                }
+                break;
+            }
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    void RollbackCloneTable(
+        TTableNode* sourceTable,
+        TTableNode* clonedTable,
+        TCloneTableDataPtr data)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(sourceTable->Tablets().empty());
+        YCHECK(clonedTable->Tablets().empty());
+
+        switch (data->Mode) {
+            case ENodeCloneMode::Move:
+                data->Tablets.swap(sourceTable->Tablets());
+                break;
+
+            case ENodeCloneMode::Copy:
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+
     void MakeTableDynamic(TTableNode* table)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
 
         if (table->IsDynamic()) {
@@ -1084,7 +1215,7 @@ public:
         table->SetLastCommitTimestamp(lastCommitTimestamp);
 
         auto chunkManager = Bootstrap_->GetChunkManager();
-        auto newRootChunkList = chunkManager->CreateChunkList(false);
+        auto* newRootChunkList = chunkManager->CreateChunkList(false);
 
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(newRootChunkList);
@@ -1114,6 +1245,7 @@ public:
 
     void MakeTableStatic(TTableNode* table)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
 
         if (!table->IsDynamic()) {
@@ -2851,6 +2983,39 @@ void TTabletManager::ReshardTable(
         lastTabletIndex,
         newTabletCount,
         pivotKeys);
+}
+
+TTabletManager::TCloneTableDataPtr TTabletManager::BeginCloneTable(
+    TTableNode* sourceTable,
+    TTableNode* clonedTable,
+    ENodeCloneMode mode)
+{
+    return Impl_->BeginCloneTable(
+        sourceTable,
+        clonedTable,
+        mode);
+}
+
+void TTabletManager::CommitCloneTable(
+    TTableNode* sourceTable,
+    TTableNode* clonedTable,
+    TCloneTableDataPtr data)
+{
+    Impl_->CommitCloneTable(
+        sourceTable,
+        clonedTable,
+        std::move(data));
+}
+
+void TTabletManager::RollbackCloneTable(
+    TTableNode* sourceTable,
+    TTableNode* clonedTable,
+    TCloneTableDataPtr data)
+{
+    Impl_->RollbackCloneTable(
+        sourceTable,
+        clonedTable,
+        std::move(data));
 }
 
 void TTabletManager::MakeTableDynamic(TTableNode* table)

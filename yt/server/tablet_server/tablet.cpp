@@ -162,6 +162,20 @@ void TTablet::Load(TLoadContext& context)
     }
 }
 
+void TTablet::CopyFrom(const TTablet& other)
+{
+    Index_ = other.Index_;
+    YCHECK(State_ == ETabletState::Unmounted);
+    MountRevision_ = other.MountRevision_;
+    YCHECK(!Cell_);
+    PivotKey_ = other.PivotKey_;
+    NodeStatistics_ = other.NodeStatistics_;
+    InMemoryMode_ = other.InMemoryMode_;
+    FlushedRowCount_ = other.FlushedRowCount_;
+    TrimmedStoresRowCount_ = other.TrimmedStoresRowCount_;
+    TrimmedRowCount_ = other.TrimmedRowCount_;
+}
+
 void TTablet::ValidateMountRevision(i64 mountRevision)
 {
     if (MountRevision_ != mountRevision) {
