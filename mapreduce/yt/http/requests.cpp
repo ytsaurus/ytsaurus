@@ -226,6 +226,8 @@ Stroka RetryRequest(
             hostName = GetProxyForHeavyRequest(auth);
         }
 
+        bool needMutationId = false;
+        bool needRetry = false;
         bool hasError = false;
         TDuration retryInterval;
 
@@ -233,10 +235,17 @@ Stroka RetryRequest(
             THttpRequest request(hostName);
             requestId = request.GetRequestId();
 
-            if (isOperation) {
+            if (needMutationId) {
                 header.AddMutationId();
-            } else if (attempt > 0) {
+                needMutationId = false;
+                needRetry = false;
+            }
+
+            if (needRetry) {
                 header.AddParam("retry", "true");
+            } else {
+                header.RemoveParam("retry");
+                needRetry = true;
             }
 
             request.Connect(socketTimeout);
@@ -256,6 +265,10 @@ Stroka RetryRequest(
             if (!e.IsRetriable() || attempt + 1 == retryCount) {
                 throw;
             }
+            if (e.IsConcurrentOperationsLimitReached()) {
+                needMutationId = true;
+            }
+
             hasError = true;
             retryInterval = e.GetRetryInterval();
 

@@ -141,6 +141,12 @@ bool TErrorResponse::IsResolveError() const
     return Error_.GetInnerCode() == 500;
 }
 
+bool TErrorResponse::IsConcurrentOperationsLimitReached() const
+{
+    return (Error_.GetInnerCode() == 202 ||
+        Error_.ContainsText("Limit for the number of concurrent operations"));
+}
+
 void TErrorResponse::Setup()
 {
     Retriable_ = true;
@@ -153,7 +159,7 @@ void TErrorResponse::Setup()
             RetryInterval_ = TConfig::Get()->RateLimitExceededRetryInterval;
             return;
         }
-        if (code == 202 || Error_.ContainsText("Limit for the number of concurrent operations")) {
+        if (IsConcurrentOperationsLimitReached()) {
             // limit for the number of concurrent operations exceeded
             RetryInterval_ = TConfig::Get()->StartOperationRetryInterval;
             return;
