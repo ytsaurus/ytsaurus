@@ -325,19 +325,6 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
         .ValueOrThrow();
     tableInfo->ValidateDynamic();
 
-    const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
-    if (ColumnNames) {
-        Options.ColumnFilter.All = false;
-        for (const auto& name : *ColumnNames) {
-            const auto* column = schema.FindColumn(name);
-            if (!column) {
-                THROW_ERROR_EXCEPTION("No such column %Qv",
-                    name);
-            }
-            Options.ColumnFilter.Indexes.push_back(schema.GetColumnIndex(*column));
-        }
-    }
-
     // COMPAT(babenko): remove Request_->TableWriter
     auto config = UpdateYsonSerializable(
         context->GetConfig()->TableWriter,
@@ -359,6 +346,22 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
         static_cast<const TUnversionedRow*>(mutableKeyRange.Begin()),
         static_cast<const TUnversionedRow*>(mutableKeyRange.End()),
         mutableKeyRange.GetHolder());
+    auto nameTable = valueConsumer.GetNameTable();
+
+    if (ColumnNames) {
+        Options.ColumnFilter.All = false;
+        for (const auto& name : *ColumnNames) {
+            auto maybeIndex = nameTable->FindId(name);
+            if (!maybeIndex) {
+                if (!tableInfo->Schemas[ETableSchemaKind::Primary].FindColumn(name)) {
+                    THROW_ERROR_EXCEPTION("No such column %Qv",
+                        name);
+                }
+                maybeIndex = nameTable->GetIdOrRegisterName(name);
+            }
+            Options.ColumnFilter.Indexes.push_back(*maybeIndex);
+        }
+    }
 
     // Run lookup.
     TIntrusivePtr<IClientBase> clientBase = context->GetClient();
@@ -371,7 +374,7 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
 
     auto asyncRowset = clientBase->LookupRows(
         Path.GetPath(),
-        valueConsumer.GetNameTable(),
+        std::move(nameTable),
         std::move(keyRange),
         Options);
     auto rowset = WaitFor(asyncRowset)
