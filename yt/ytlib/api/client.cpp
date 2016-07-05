@@ -1525,17 +1525,30 @@ private:
         const TYPath& path,
         TNameTablePtr nameTable,
         const TSharedRange<TKey>& keys,
-        const TLookupRowsOptions& options)
+        TLookupRowsOptions options)
     {
         auto tableInfo = SyncGetTableInfo(path);
 
         int schemaColumnCount = static_cast<int>(tableInfo->Schema.Columns().size());
         int keyColumnCount = static_cast<int>(tableInfo->KeyColumns.size());
 
-        ValidateColumnFilter(options.ColumnFilter, schemaColumnCount);
+        auto idMapping = BuildColumnIdMapping(tableInfo, nameTable);
+
+        for (auto& index : options.ColumnFilter.Indexes) {
+            if (index < 0 || index >= idMapping.size()) {
+                THROW_ERROR_EXCEPTION("Column filter contains invalid index: actual %v, expected in range [0, %v]",
+                    index,
+                    idMapping.size() - 1);
+            }
+            if (idMapping[index] == -1) {
+                THROW_ERROR_EXCEPTION("Invalid column %Qv in column filter",
+                    nameTable->GetName(index));
+            }
+
+            index = idMapping[index];
+        }
 
         auto resultSchema = tableInfo->Schema.Filter(options.ColumnFilter);
-        auto idMapping = BuildColumnIdMapping(tableInfo, nameTable);
 
         // Server-side is specifically optimized for handling long runs of keys
         // from the same partition. Let's sort the keys to facilitate this.
