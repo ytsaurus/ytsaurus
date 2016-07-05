@@ -614,10 +614,10 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList&
     }
 }
 
-void TCompositeSchedulerElement::BuildJobToOperationMapping(TFairShareContext& context)
+void TCompositeSchedulerElement::BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap)
 {
     for (const auto& child : Children) {
-        child->BuildJobToOperationMapping(context);
+        child->BuildOperationToElementMapping(operationElementByIdMap);
     }
 }
 
@@ -1525,17 +1525,6 @@ void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicA
     TSchedulerElementBase::UpdateDynamicAttributes(dynamicAttributesList);
 }
 
-void TOperationElement::BuildJobToOperationMapping(TFairShareContext& context)
-{
-    // TODO(acid): This can be done more efficiently if we precompute list of jobs from context
-    // for each operation.
-    for (const auto& job : context.SchedulingContext->RunningJobs()) {
-        if (job->GetOperationId() == OperationId_) {
-            context.JobToOperationElement[job] = this;
-        }
-    }
-}
-
 void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starvingOnly)
 {
     auto& attributes = context.DynamicAttributes(this);
@@ -1637,8 +1626,6 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
 
     UpdateDynamicAttributes(context.DynamicAttributesList);
     updateAncestorsAttributes();
-
-    // TODO(acid): Check hierarchical resource usage here.
 
     SharedState_->FinishScheduleJob(
         /*success*/ true,
@@ -1791,6 +1778,11 @@ void TOperationElement::OnJobFinished(const TJobId& jobId)
 TStatistics TOperationElement::GetControllerTimeStatistics()
 {
     return SharedState_->GetControllerTimeStatistics();
+}
+
+void TOperationElement::BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap)
+{
+    operationElementByIdMap->emplace(OperationId_, this);
 }
 
 ISchedulerElementPtr TOperationElement::Clone()

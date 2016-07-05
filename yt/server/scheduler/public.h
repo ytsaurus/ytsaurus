@@ -34,6 +34,9 @@ using TJobSpecBuilder = TCallback<void(NJobTrackerClient::NProto::TJobSpec* jobS
 
 class TJobResources;
 
+struct TUpdatedJob;
+struct TCompletedJob;
+
 struct TExecNodeDescriptor;
 DECLARE_REFCOUNTED_CLASS(TExecNode)
 

@@ -74,9 +74,6 @@ public:
     double PreemptionSatisfactionThreshold;
     double AggressivePreemptionSatisfactionThreshold;
 
-    //! Number of concurrent threads to serve schedule jobs requests.
-    int StrategyScheduleJobsThreadCount;
-
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -164,10 +161,6 @@ public:
 
         RegisterParameter("aggressive_preemption_satisfaction_threshold", AggressivePreemptionSatisfactionThreshold)
             .Default(0.5)
-            .GreaterThan(0);
-
-        RegisterParameter("strategy_schedule_jobs_thread_count", StrategyScheduleJobsThreadCount)
-            .Default(4)
             .GreaterThan(0);
 
         RegisterValidator([&] () {
@@ -392,10 +385,13 @@ public:
     int StatisticsAnalyzerThreadCount;
 
     //! Number of threads for building job specs.
-    int HeartbeatResponseBuilderThreadCount;
+    int JobSpecBuilderThreadCount;
 
     //! Number of parallel operation snapshot builders.
     int ParallelSnapshotBuilderCount;
+
+    //! Number of shards the nodes are split into.
+    int NodeShardCount;
 
     TDuration ConnectRetryBackoffTime;
 
@@ -578,12 +574,16 @@ public:
         RegisterParameter("statistics_analyzer_thread_count", StatisticsAnalyzerThreadCount)
             .Default(2)
             .GreaterThan(0);
-        RegisterParameter("heartbeat_response_builder_thread_count", HeartbeatResponseBuilderThreadCount)
+        RegisterParameter("job_spec_builder_thread_count", JobSpecBuilderThreadCount)
             .Default(8)
             .GreaterThan(0);
         RegisterParameter("parallel_snapshot_builder_count", ParallelSnapshotBuilderCount)
             .Default(4)
             .GreaterThan(0);
+        RegisterParameter("node_shard_count", NodeShardCount)
+            .Default(4)
+            .GreaterThan(0);
+
         RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
             .Default(TDuration::Seconds(15));
         RegisterParameter("node_heartbeat_timeout", NodeHeartbeatTimeout)
