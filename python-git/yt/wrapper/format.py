@@ -109,6 +109,16 @@ class Format(object):
         """
         pass
 
+    def load_rows_with_finalization(self, stream, raw=None, on_close=None):
+        """ Do the same thing as load_rows, but call on_close() if iterator closed.
+        """
+        try:
+            for row in self.load_rows(stream, raw):
+                yield row
+        finally:
+            if on_close is not None:
+                on_close()
+
     def dump_row(self, row, stream, raw=None):
         """Serialize row and write to the stream.
         """
