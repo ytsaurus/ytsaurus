@@ -366,6 +366,49 @@ class TestCypressCommands(object):
             yt.config["transaction_use_signal_if_ping_failed"] = False
             yt.config["proxy"]["request_retry_timeout"] = old_retry_timeout
 
+    def test_lock(self):
+        dir = TEST_DIR + "/dir"
+
+        yt.mkdir(dir)
+        assert len(yt.get(dir + "/@locks")) == 0
+
+        with yt.Transaction():
+            yt.lock(dir)
+            assert len(yt.get(dir + "/@locks")) == 1
+
+        assert len(yt.get(dir + "/@locks")) == 0
+        with yt.Transaction():
+            assert yt.lock(dir, waitable=True) != "0-0-0-0"
+            assert yt.lock(dir, waitable=True) == "0-0-0-0"
+            assert yt.lock(dir, waitable=True, wait_for=1000) == "0-0-0-0"
+
+        tx = yt.start_transaction()
+        yt.config.TRANSACTION = tx
+        try:
+            yt.lock(dir, waitable=True)
+            #with pytest.raises(yt.YtError):
+            #    yt.lock(dir, waitable=True)
+            assert yt.lock(dir, waitable=True) == "0-0-0-0"
+
+            yt.config.TRANSACTION = "0-0-0-0"
+            with pytest.raises(yt.YtError):
+                with yt.Transaction():
+                    yt.lock(dir, waitable=True, wait_for=1000)
+        finally:
+            yt.config.TRANSACTION = "0-0-0-0"
+            yt.abort_transaction(tx)
+
+        tx = yt.start_transaction(timeout=2000)
+        yt.config.TRANSACTION = tx
+        client = Yt(config=yt.config.config)
+        try:
+            assert yt.lock(dir) != "0-0-0-0"
+            with client.Transaction():
+                assert client.lock(dir, waitable=True, wait_for=4000) != "0-0-0-0"
+        finally:
+            yt.config.TRANSACTION = "0-0-0-0"
+            yt.abort_transaction(tx)
+
     def test_copy_move_sorted_table(self):
         def is_sorted_by_y(table_path):
             sorted_by = yt.get_attribute(table_path, "sorted_by", None)
