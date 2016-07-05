@@ -867,13 +867,8 @@ void ValidateTableSchemaUpdate(
 {
     ValidateTableSchema(newSchema);
 
-<<<<<<< HEAD
     if (isTableDynamic) {
         ValidateDynamicTableConstraints(newSchema);
-=======
-    if (isTableDynamic && !newSchema.GetStrict()) {
-        THROW_ERROR_EXCEPTION("\"strict\" cannot be \"false\" for a dynamic table");
->>>>>>> origin/prestable/18.4
     }
 
     if (isTableEmpty) {
@@ -887,10 +882,6 @@ void ValidateTableSchemaUpdate(
     if (oldSchema.GetKeyColumnCount() == 0 && newSchema.GetKeyColumnCount() > 0) {
         THROW_ERROR_EXCEPTION("Cannot change schema from unsorted to sorted");
     }
-<<<<<<< HEAD
-=======
-
->>>>>>> origin/prestable/18.4
     if (!oldSchema.GetStrict() && newSchema.GetStrict()) {
         THROW_ERROR_EXCEPTION("Changing \"strict\" from \"false\" to \"true\" is not allowed");
     }
