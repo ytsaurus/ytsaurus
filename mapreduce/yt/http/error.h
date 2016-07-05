@@ -54,6 +54,7 @@ public:
     TDuration GetRetryInterval() const;
 
     bool IsResolveError() const;
+    bool IsConcurrentOperationsLimitReached() const;
 
 private:
     int HttpCode_;
