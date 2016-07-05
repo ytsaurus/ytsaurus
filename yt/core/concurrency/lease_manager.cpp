@@ -55,7 +55,7 @@ public:
         if (!lease->IsValid)
             return false;
 
-        TDelayedExecutor::Cancel(lease->Cookie);
+        TDelayedExecutor::CancelAndClear(lease->Cookie);
         if (timeout) {
             lease->Timeout = timeout.Get();
         }

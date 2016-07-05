@@ -23,6 +23,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/digest_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/dsv_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/double_column_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/delayed_executor_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/dsv_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ordered_dynamic_store_ut.cpp

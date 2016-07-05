@@ -1113,7 +1113,20 @@ class TestCypress(YTEnvSetup):
         assert len(get_results) == 2
         assert get_batch_output(get_results[0]) == "a"
         assert get_batch_output(get_results[1]) == "b"
-        
+
+    def test_recursive_resource_usage_map(self):
+        create("map_node", "//tmp/m")
+        for i in xrange(10):
+            set("//tmp/m/" + str(i), i)
+        assert get("//tmp/m/@recursive_resource_usage/node_count") == 11
+
+    def test_recursive_resource_usage_list(self):
+        create("list_node", "//tmp/l")
+        for i in xrange(10):
+            set("//tmp/l/end", i)
+        assert get("//tmp/l/@recursive_resource_usage/node_count") == 11
+
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):

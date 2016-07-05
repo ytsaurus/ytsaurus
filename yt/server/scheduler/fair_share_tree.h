@@ -167,7 +167,7 @@ protected:
     TJobResources ResourceDemand_;
     TJobResources ResourceLimits_;
     TJobResources MaxPossibleResourceUsage_;
-    const TJobResources TotalResourceLimits_;
+    TJobResources TotalResourceLimits_;
 
     int PendingJobCount_ = 0;
 
@@ -640,6 +640,7 @@ public:
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
+    virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 

@@ -538,8 +538,11 @@ public:
     // Enables using tmpfs if tmpfs_path is specified in user spec.
     bool EnableTmpfs;
 
+<<<<<<< HEAD
     //! Acl used for intermediate tables and stderrs additional to acls specified by user.
     NYTree::IListNodePtr AdditionalIntermediateDataAcl;
+=======
+>>>>>>> origin/prestable/18.4
     double UserJobMemoryDigestPrecision;
     double UserJobMemoryReserveQuantile;
     double JobProxyMemoryReserveQuantile;
@@ -735,10 +738,13 @@ public:
         RegisterParameter("enable_tmpfs", EnableTmpfs)
             .Default(true);
 
+<<<<<<< HEAD
         RegisterParameter("additional_intermediate_data_acl", AdditionalIntermediateDataAcl)
             .Default(NYTree::BuildYsonNodeFluently()
                 .BeginList()
                 .EndList()->AsList());
+=======
+>>>>>>> origin/prestable/18.4
         RegisterParameter("user_job_memory_digest_precision", UserJobMemoryDigestPrecision)
             .Default(0.01)
             .GreaterThan(0);

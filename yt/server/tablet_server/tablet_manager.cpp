@@ -963,6 +963,7 @@ public:
         // Drop old tablets.
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = tablets[index];
+            tablet->SetTable(nullptr);
             objectManager->UnrefObject(tablet);
         }
 
@@ -1292,6 +1293,7 @@ public:
         objectManager->UnrefObject(oldRootChunkList);
 
         for (auto* tablet : table->Tablets()) {
+            tablet->SetTable(nullptr);
             objectManager->UnrefObject(tablet);
         }
         table->Tablets().clear();
