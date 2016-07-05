@@ -1951,7 +1951,7 @@ void TOperationControllerBase::FinalizeJoblet(
         statistics.AddSample("/time/exec", *jobSummary->ExecDuration);
     }
 
-    statistics.AddSample("/job_proxy/memory_reserve_factor_x1000", static_cast<int>(1e4 * joblet->JobProxyMemoryReserveFactor));
+    statistics.AddSample("/job_proxy/memory_reserve_factor_x10000", static_cast<int>(1e4 * joblet->JobProxyMemoryReserveFactor));
 }
 
 TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
