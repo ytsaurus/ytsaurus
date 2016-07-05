@@ -1278,14 +1278,39 @@ class TestSortedTablets(YTEnvSetup):
 
 ##################################################################
 
-class TestSortedTabletsMetadataCaching(TestSortedTablets):
+class TestSortedTabletsMetadataCaching(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 16
+    NUM_SCHEDULERS = 0
+
+    DELTA_MASTER_CONFIG = {
+        "tablet_manager": {
+            "leader_reassignment_timeout" : 1000,
+            "peer_revocation_timeout" : 3000
+        }
+    }
+
     DELTA_DRIVER_CONFIG = {
+        "max_rows_per_write_request": 2,
+
         "table_mount_cache": {
             "success_expiration_time": 60000,
             "success_probation_time": 60000,
             "failure_expiration_time": 1000,
         }
     }
+
+    def _create_simple_table(self, path, atomicity="full", optimize_for="lookup", tablet_cell_bundle="default"):
+        create("table", path,
+            attributes={
+                "dynamic": True,
+                "atomicity": atomicity,
+                "optimize_for": optimize_for,
+                "tablet_cell_bundle": tablet_cell_bundle,
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"}]
+            })
 
     # Reimplement dynamic table commands without calling clear_metadata_caches()
 
