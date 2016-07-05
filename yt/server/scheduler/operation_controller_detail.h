@@ -890,8 +890,7 @@ protected:
 
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
-        TJobletPtr joblet,
-        i64 memoryReserve);
+        TJobletPtr joblet);
 
     // Amount of memory reserved for output table writers in job proxy.
     i64 GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const;
