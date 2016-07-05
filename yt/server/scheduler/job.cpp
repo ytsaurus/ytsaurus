@@ -57,7 +57,6 @@ TJob::TJob(
     , Node_(node)
     , StartTime_(startTime)
     , Restarted_(restarted)
-    , HasPendingUnregistration_(false)
     , State_(EJobState::None)
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
@@ -92,7 +91,7 @@ TJobSummary::TJobSummary(const TJobPtr& job)
     , StatisticsSuffix(job->GetStatisticsSuffix())
     , FinishTime(*job->GetFinishTime())
     , ShouldLog(true)
-{ 
+{
     const auto& status = job->Status();
     if (status->has_prepare_duration()) {
         PrepareDuration = FromProto<TDuration>(status->prepare_duration());
