@@ -53,11 +53,7 @@ void TCountDownLatch::Wait() const
             nullptr,
             nullptr,
             0);
-<<<<<<< HEAD
-        Y_ASSERT(rv >= 0);
-=======
         Y_ASSERT(rv >= 0 || errno == EWOULDBLOCK || errno == EINTR);
->>>>>>> origin/prestable/18.4
         Y_UNUSED(rv);
 #else
         ConditionVariable_.WaitI(Mutex_);
