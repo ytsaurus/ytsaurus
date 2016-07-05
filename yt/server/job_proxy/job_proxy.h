@@ -48,12 +48,9 @@ private:
     const NYTree::INodePtr ConfigNode_;
     const NJobAgent::TJobId JobId_;
 
-<<<<<<< HEAD
     //! Can be null if running in non-cgroups environment.
     NExecAgent::TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
 
-=======
->>>>>>> origin/prestable/18.4
     // Job proxy memory reserve (= memory limit after multiplication by
     // job proxy memory reserve factor) by the scheduler.
     i64 JobProxyMemoryReserve_ = 0;
@@ -86,11 +83,7 @@ private:
 
     std::unique_ptr<NExecAgent::TSupervisorServiceProxy> SupervisorProxy_;
 
-<<<<<<< HEAD
     NApi::INativeClientPtr Client_;
-=======
-    NApi::IClientPtr Client_;
->>>>>>> origin/prestable/18.4
 
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
     NNodeTrackerClient::TNodeDirectoryPtr AuxNodeDirectory_;

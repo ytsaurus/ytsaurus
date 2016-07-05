@@ -993,16 +993,10 @@ private:
 
     void UpdateJobStatistics(const TJobSummary& jobSummary);
 
-<<<<<<< HEAD
     NApi::INativeClientPtr CreateClient();
     void UpdateAllTasksIfNeeded();
-=======
-    void UpdateAllTasksIfNeeded();
-
-    NApi::IClientPtr CreateClient();
 
     static const NProto::TUserJobResult* FindUserJobResult(const TRefCountedJobResultPtr& result);
->>>>>>> origin/prestable/18.4
 
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
 
