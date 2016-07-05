@@ -38,6 +38,12 @@ try:
     from yt_yson_bindings import load, loads, dump, dumps
     TYPE = "BINARY"
 except ImportError as error:
+    # XXX(asaitgalin): Sometimes module can't be imported because
+    # it depends on missing dynamic libraries (e.g. libatomic). In this case
+    # diagnostic is printed to stderr.
+    if "No module named" not in error.message:
+        import sys
+        print >>sys.stderr, "Warning! Failed to import YSON bindings: " + error.message
     from parser import load, loads
     from writer import dump, dumps
     TYPE = "PYTHON"
