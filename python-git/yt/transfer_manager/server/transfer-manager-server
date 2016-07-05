@@ -1510,43 +1510,63 @@ class Application(object):
         return task_description
 
     def _abort_running_operations(self, running_tasks):
-        logger.info("Abort running operations of tasks")
+        logger.info("Aborting running operations of tasks")
+        clusters = self._clusters_configuration.clusters
+
         for task_id in running_tasks:
             task = self._tasks[task_id]
-            if not task.progress or "operations" not in task.progress:
+
+            if not task.progress:
                 continue
-            for operation in task.progress["operations"]:
+
+            for operation in task.progress.get("operations", []):
                 # NB: To avoid aborting Hadoop tasks.
                 # TODO(ignat): support aborting Hadoop task.
                 if "id" not in operation:
                     continue
+
                 cluster_name, operation_id = operation["cluster_name"], operation["id"]
-                if cluster_name not in self._clusters_configuration.clusters:
+                if cluster_name not in clusters:
                     continue
-                if self._clusters_configuration.clusters[cluster_name]._type != "yt":
+
+                if clusters[cluster_name]._type != "yt":
                     logger.warning("Transfer manager does not support progress for non-YT cluster, "
-                                   "but it unexpectedly found for %s cluster." % self._clusters[cluster_name]._type)
+                                   "but it unexpectedly found for %s cluster", clusters[cluster_name]._type)
                     continue
+
                 try:
-                    cluster_client = self._clusters_configuration.clusters[cluster_name]
-                    if not cluster_client.exists("//sys/operations/%s" % operation_id) or \
+                    cluster_client = deepcopy(clusters[cluster_name])
+                    if cluster_name == task.source_cluster:
+                        cluster_client.config["token"] = task.source_cluster_token
+                    else:
+                        cluster_client.config["token"] = task.destination_cluster_token
+
+                    if not cluster_client.exists("//sys/operations/{0}".format(operation_id)) or \
                            cluster_client.get_operation_state(operation_id).is_finished():
                         continue
-                    cluster_client.abort_operation(operation_id)
-                    logger.info("Aborted outdated operation {} of task {}".format(operation_id, task_id))
-                except yt.YtError:
-                    log_yt_exception(logger, "Failed abort operation {} of task {}".format(operation_id, task_id))
 
-            for transaction in task.progress["transactions"]:
+                    cluster_client.abort_operation(operation_id)
+                    logger.info("Aborted outdated operation {0} of task {1}".format(operation_id, task_id))
+                except yt.YtError:
+                    log_yt_exception(logger, "Failed abort operation {0} of task {1}".format(operation_id, task_id))
+
+            for transaction in task.progress.get("transactions", []):
                 cluster_name, tx_id = transaction["cluster_name"], transaction["id"]
-                cluster_client = self._clusters_configuration.clusters.get(cluster_name)
+                cluster_client = deepcopy(clusters.get(cluster_name))
+
                 if cluster_client is None or cluster_client._type != "yt":
                     continue
+
+                if cluster_name == task.source_cluster:
+                    cluster_client.config["token"] = task.source_cluster_token
+                else:
+                    cluster_client.config["token"] = task.destination_cluster_token
+
                 try:
                     cluster_client.abort_transaction(tx_id)
-                    logger.info("Aborted outdated transaction {} of task {}".format(tx_id, task_id))
+                    logger.info("Aborted outdated transaction {0} of task {1}".format(tx_id, task_id))
                 except yt.YtError:
-                    log_yt_exception(logger, "Failed to abort transaction {} of task {}".format(tx_id, task_id))
+                    log_yt_exception(logger, "Failed to abort transaction {0} of task {1}".format(tx_id, task_id))
 
     def _create_task(self, params, token, user, dry_run, make_precheck):
         id = generate_uuid()
