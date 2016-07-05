@@ -1196,16 +1196,40 @@ std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArgs(
     size_t keySize,
-    std::vector<TCodegenExpression> codegenAggregateExprs)
+    std::vector<TCodegenExpression> codegenAggregateExprs,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    bool isMerge,
+    std::vector<EValueType> inputSchema)
 {
     return [
         keySize,
-        MOVE(codegenAggregateExprs)
+        MOVE(codegenAggregateExprs),
+        MOVE(codegenAggregates),
+        isMerge,
+        inputSchema
     ] (TCGContext& builder, Value* srcRow, Value* dstRow) {
-        for (int index = 0; index < codegenAggregateExprs.size(); index++) {
-            auto id = keySize + index;
-            auto value = codegenAggregateExprs[index](builder, srcRow);
-            value.StoreToRow(builder, dstRow, keySize + index, id);
+        auto aggregatesCount = codegenAggregates.size();
+
+        if (!isMerge) {
+            for (int index = 0; index < aggregatesCount; index++) {
+                auto id = keySize + index;
+                auto value = codegenAggregateExprs[index](builder, srcRow);
+                value.StoreToRow(builder, dstRow, keySize + index, id);
+            }
+        } else {
+            for (int index = 0; index < aggregatesCount; index++) {
+                auto id = keySize + index;
+                TCGValue::CreateFromRow(
+                    builder,
+                    srcRow,
+                    keySize + index,
+                    inputSchema[id])
+                    .StoreToRow(
+                        builder,
+                        dstRow,
+                        keySize + index,
+                        id);
+            }
         }
     };
 }
@@ -1311,7 +1335,6 @@ TCodegenSource MakeCodegenGroupOp(
     std::function<void(TCGContext&, Value*)> codegenFinalize,
     TCodegenSource codegenSource,
     std::vector<EValueType> keyTypes,
-    bool isMerge,
     int groupRowSize,
     bool appendToSource,
     bool checkNulls)
@@ -1329,7 +1352,6 @@ TCodegenSource MakeCodegenGroupOp(
         MOVE(codegenFinalize),
         MOVE(codegenSource),
         MOVE(keyTypes),
-        isMerge,
         groupRowSize,
         appendToSource,
         checkNulls
@@ -1403,14 +1425,10 @@ TCodegenSource MakeCodegenGroupOp(
                         });
 
                     // Here *newRowPtrRef != groupRow.
-                    if (!isMerge) {
-                        auto newRow = builder->CreateLoad(newRowPtrRef);
-                        codegenEvaluateAggregateArgs(builder, row, newRow);
-                        codegenUpdate(innerBuilder, newRow, groupRow);
-                    } else {
-                        codegenUpdate(innerBuilder, row, groupRow);
-                    }
+                    auto newRow = builder->CreateLoad(newRowPtrRef);
 
+                    codegenEvaluateAggregateArgs(builder, row, newRow);
+                    codegenUpdate(innerBuilder, newRow, groupRow);
                 });
 
             builder->CreateRetVoid();

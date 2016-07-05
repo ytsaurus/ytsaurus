@@ -323,7 +323,10 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
 
         auto aggregate = MakeCodegenEvaluateAggregateArgs(
             keySize,
-            codegenAggregateExprs);
+            codegenAggregateExprs,
+            codegenAggregates,
+            groupClause->IsMerge,
+            GetTypesFromSchema(schema));
 
         auto update = MakeCodegenAggregateUpdate(
             codegenAggregates,
@@ -343,7 +346,6 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
             finalize,
             std::move(codegenSource),
             keyTypes,
-            groupClause->IsMerge,
             keySize + codegenAggregates.size(),
             false,
             groupClause->TotalsMode != ETotalsMode::None);

@@ -95,7 +95,10 @@ std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArgs(
     size_t keySize,
-    std::vector<TCodegenExpression> codegenAggregateExprs);
+    std::vector<TCodegenExpression> codegenAggregateExprs,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    bool isMerge,
+    std::vector<EValueType> inputSchema);
 
 std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateInitialize(
     std::vector<TCodegenAggregate> codegenAggregates,
@@ -119,7 +122,6 @@ TCodegenSource MakeCodegenGroupOp(
     std::function<void(TCGContext&, Value*)> codegenFinalize,
     TCodegenSource codegenSource,
     std::vector<EValueType> keyTypes,
-    bool isMerge,
     int groupRowSize,
     bool appendToSource = false,
     bool checkNulls = false);
