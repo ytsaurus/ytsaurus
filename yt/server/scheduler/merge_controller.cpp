@@ -530,7 +530,6 @@ protected:
 
     //! Initializes #JobSpecTemplate.
     virtual void InitJobSpecTemplate() = 0;
-<<<<<<< HEAD
 
     //! Initialize IsInputTableTeleportable
     virtual void InitTeleportableInputTables()
@@ -545,8 +544,6 @@ protected:
             }
         }
     }
-=======
->>>>>>> origin/prestable/18.4
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeControllerBase::TMergeTask);
@@ -691,14 +688,6 @@ private:
     }
 
     virtual i64 GetUserJobMemoryReserve() const override
-<<<<<<< HEAD
-=======
-    {
-        return ComputeUserJobMemoryReserve(EJobType::OrderedMap, Spec->Mapper);
-    }
-
-    virtual bool IsSortedOutputSupported() const override
->>>>>>> origin/prestable/18.4
     {
         return ComputeUserJobMemoryReserve(EJobType::OrderedMap, Spec->Mapper);
     }
@@ -1535,14 +1524,6 @@ private:
     {
         return EJobType::SortedMerge;
     }
-<<<<<<< HEAD
-=======
-
-    virtual EJobType GetJobType() const override
-    {
-        return EJobType::SortedMerge;
-    }
->>>>>>> origin/prestable/18.4
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController);
@@ -1778,14 +1759,6 @@ protected:
         return Spec->Reducer;
     }
 
-<<<<<<< HEAD
-=======
-    virtual TUserJobSpecPtr GetUserJobSpec() const override
-    {
-        return Spec->Reducer;
-    }
-
->>>>>>> origin/prestable/18.4
     virtual i64 GetUserJobMemoryReserve() const override
     {
         return ComputeUserJobMemoryReserve(EJobType::SortedReduce, Spec->Reducer);

@@ -319,14 +319,11 @@ protected:
         auto maybeSchema = attributes->FindAndRemove<TTableSchema>("schema");
 
         if (maybeSchema) {
-<<<<<<< HEAD
             // NB: Sorted dynamic tables contain unique keys, set this for user.
             if (dynamic && maybeSchema->IsSorted()) {
                 maybeSchema = maybeSchema->ToUniqueKeys();
             }
 
-=======
->>>>>>> origin/prestable/18.4
             ValidateTableSchemaUpdate(TTableSchema(), *maybeSchema, dynamic, true);
         }
 
@@ -346,10 +343,7 @@ protected:
         try {
             if (maybeSchema) {
                 node->TableSchema() = *maybeSchema;
-<<<<<<< HEAD
                 node->SetPreserveSchemaOnWrite(true);
-=======
->>>>>>> origin/prestable/18.4
             }
 
             if (dynamic) {

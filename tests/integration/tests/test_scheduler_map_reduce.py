@@ -251,11 +251,8 @@ print "x={0}\ty={1}".format(x, y)
                                        {"x": "2", "y" : "4"},
                                        {"x": "2", "y" : "9"}]
 
-<<<<<<< HEAD
         assert get('//tmp/t_out/@sorted')
 
-=======
->>>>>>> origin/prestable/18.4
     @unix_only
     def test_row_count_limit(self):
         create("table", "//tmp/t_in")

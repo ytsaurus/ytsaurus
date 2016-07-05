@@ -844,7 +844,6 @@ echo {v = 2} >&7
         op.track()
         assert len(read_table("//tmp/output")) == 3
 
-<<<<<<< HEAD
     def _test_schema_validation(self, sort_order):
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={
@@ -883,8 +882,6 @@ echo {v = 2} >&7
     def test_schema_validation_sorted(self):
         self._test_schema_validation("ascending")
 
-=======
->>>>>>> origin/prestable/18.4
     @unix_only
     def test_reduce_input_paths_attr(self):
         create("table", "//tmp/input")

@@ -438,14 +438,6 @@ private:
     }
 
     virtual i64 GetUserJobMemoryReserve() const override
-<<<<<<< HEAD
-=======
-    {
-        return ComputeUserJobMemoryReserve(EJobType::Map, Spec->Mapper);
-    }
-
-    virtual bool IsSortedOutputSupported() const override
->>>>>>> origin/prestable/18.4
     {
         return ComputeUserJobMemoryReserve(EJobType::Map, Spec->Mapper);
     }
