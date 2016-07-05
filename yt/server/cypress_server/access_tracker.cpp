@@ -103,7 +103,9 @@ void TAccessTracker::Reset()
 {
     auto objectManager = Bootstrap_->GetObjectManager();
     for (auto* node : NodesWithAccessStatisticsUpdate_) {
-        node->SetAccessStatisticsUpdateIndex(-1);
+        if (node->IsAlive()) {
+            node->SetAccessStatisticsUpdateIndex(-1);
+        }
         objectManager->WeakUnrefObject(node);
     }    
 

@@ -26,6 +26,14 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCypressNodeDynamicData
+    : public NHydra::TEntityDynamicDataBase
+{
+    int AccessStatisticsUpdateIndex = -1;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Provides a common base for all versioned (aka Cypress) nodes.
 class TCypressNodeBase
     : public NObjectServer::TObjectBase
@@ -73,10 +81,13 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TClusterResources, CachedResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
-    DEFINE_BYVAL_RW_PROPERTY(int, AccessStatisticsUpdateIndex);
-
     explicit TCypressNodeBase(const TVersionedNodeId& id);
     virtual ~TCypressNodeBase();
+
+    TCypressNodeDynamicData* GetDynamicData() const;
+
+    int GetAccessStatisticsUpdateIndex() const;
+    void SetAccessStatisticsUpdateIndex(int value);
 
     //! Returns the static type of the node.
     /*!
