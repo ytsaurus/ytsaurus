@@ -66,6 +66,9 @@ class TJob
     //! Temporary flag used during heartbeat jobs processing to mark found jobs.
     DEFINE_BYVAL_RW_PROPERTY(bool, FoundOnNode);
 
+    //! Flag that marks job as preempted by scheduler.
+    DEFINE_BYVAL_RW_PROPERTY(bool, Preempted);
+
 public:
     TJob(
         const TJobId& id,

@@ -14,6 +14,8 @@
 #include "snapshot_downloader.h"
 #include "sort_controller.h"
 
+#include <yt/server/exec_agent/public.h>
+
 #include <yt/server/cell_scheduler/bootstrap.h>
 #include <yt/server/cell_scheduler/config.h>
 
@@ -2280,13 +2282,11 @@ private:
     {
         YCHECK(FindOperation(job->GetOperationId()));
 
-        LOG_DEBUG("Job preempted (JobId: %v, OperationId: %v)",
+        LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v)",
             job->GetId(),
             job->GetOperationId());
 
-        auto error = TError("Job preempted")
-            << TErrorAttribute("abort_reason", EAbortReason::Preemption);
-        OnJobAborted(job, JobStatusFromError(error));
+        job->SetPreempted(true);
     }
 
 
@@ -3093,7 +3093,13 @@ private:
             case EJobState::Aborted: {
                 auto error = FromProto<TError>(jobStatus->result().error());
                 LOG_DEBUG(error, "Job aborted, removal scheduled");
-                OnJobAborted(job, std::move(jobStatus));
+                if (job->GetPreempted() && error.GetCode() == NExecAgent::EErrorCode::AbortByScheduler) {
+                    auto error = TError("Job preempted")
+                        << TErrorAttribute("abort_reason", EAbortReason::Preemption);
+                    OnJobAborted(job, JobStatusFromError(error));
+                } else {
+                    OnJobAborted(job, std::move(jobStatus));
+                }
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
             }
