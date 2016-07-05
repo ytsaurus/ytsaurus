@@ -2741,6 +2741,31 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestRegexParseError)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"hello\"",
+        "a=\"hell\"",
+        "",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Boolean},
+    });
+
+    auto result = BuildRows({
+        "x=%false",
+        "x=%true",
+        "x=%false",
+    }, resultSplit);
+
+    EvaluateExpectingError("regex_full_match(\"hel[a-z)\", a) as x FROM [//t]", split, source, EFailureLocation::Execution, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+}
+
 TEST_F(TQueryEvaluateTest, TestRegexFullMatch)
 {
     auto split = MakeSplit({

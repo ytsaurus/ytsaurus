@@ -1764,7 +1764,7 @@ private:
         const TYPath& path,
         TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
-        const TLookupRowsOptions& options)
+        TLookupRowsOptions options)
     {
         auto tableInfo = SyncGetTableInfo(path);
         if (!tableInfo->IsSorted()) {
@@ -1773,11 +1773,23 @@ private:
         }
 
         const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
-        int schemaColumnCount = static_cast<int>(schema.Columns().size());
-        ValidateColumnFilter(options.ColumnFilter, schemaColumnCount);
+        auto idMapping = BuildColumnIdMapping(schema, nameTable);
+
+        for (auto& index : options.ColumnFilter.Indexes) {
+            if (index < 0 || index >= idMapping.size()) {
+                THROW_ERROR_EXCEPTION("Column filter contains invalid index: actual %v, expected in range [0, %v]",
+                    index,
+                    idMapping.size() - 1);
+            }
+            if (idMapping[index] == -1) {
+                THROW_ERROR_EXCEPTION("Invalid column %Qv in column filter",
+                    nameTable->GetName(index));
+            }
+
+            index = idMapping[index];
+        }
 
         auto resultSchema = tableInfo->Schemas[ETableSchemaKind::Primary].Filter(options.ColumnFilter);
-        auto idMapping = BuildColumnIdMapping(schema, nameTable);
 
         // NB: The server-side requires the keys to be sorted.
         std::vector<std::pair<NTableClient::TKey, int>> sortedKeys;
