@@ -2284,8 +2284,8 @@ private:
             job->GetId(),
             job->GetOperationId());
 
-        TError error("Job preempted");
-        error.Attributes().Set("abort_reason", EAbortReason::Preemption);
+        auto error = TError("Job preempted")
+            << TErrorAttribute("abort_reason", EAbortReason::Preemption);
         OnJobAborted(job, JobStatusFromError(error));
     }
 
