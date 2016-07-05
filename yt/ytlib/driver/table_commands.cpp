@@ -299,20 +299,6 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
         .ValueOrThrow();
     tableInfo->ValidateDynamic();
 
-    auto nameTable = TNameTable::FromSchema(tableInfo->Schema);
-
-    if (ColumnNames) {
-        Options.ColumnFilter.All = false;
-        for (const auto& name : *ColumnNames) {
-            auto maybeIndex = nameTable->FindId(name);
-            if (!maybeIndex) {
-                THROW_ERROR_EXCEPTION("No such column %Qv",
-                    name);
-            }
-            Options.ColumnFilter.Indexes.push_back(*maybeIndex);
-        }
-    }
-
     // COMPAT(babenko): remove Request_->TableWriter
     auto config = UpdateYsonSerializable(
         context->GetConfig()->TableWriter,
@@ -329,6 +315,22 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     auto rowBuffer = New<TRowBuffer>();
     auto capturedKeys = rowBuffer->Capture(keys);
     auto keyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
+    auto nameTable = valueConsumer->GetNameTable();
+
+    if (ColumnNames) {
+        Options.ColumnFilter.All = false;
+        for (const auto& name : *ColumnNames) {
+            auto maybeIndex = nameTable->FindId(name);
+            if (!maybeIndex) {
+                if (!tableInfo->Schema.FindColumn(name)) {
+                    THROW_ERROR_EXCEPTION("No such column %Qv",
+                        name);
+                }
+                maybeIndex = nameTable->GetIdOrRegisterName(name);
+            }
+            Options.ColumnFilter.Indexes.push_back(*maybeIndex);
+        }
+    }
 
     // Run lookup.
     TIntrusivePtr<IClientBase> clientBase = context->GetClient();
@@ -341,7 +343,7 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
 
     auto asyncRowset = clientBase->LookupRows(
             Path.GetPath(),
-            valueConsumer->GetNameTable(),
+            nameTable,
             std::move(keyRange),
             Options);
     auto rowset = WaitFor(asyncRowset)
