@@ -540,6 +540,7 @@ public:
 
     //! Acl used for intermediate tables and stderrs additional to acls specified by user.
     NYTree::IListNodePtr AdditionalIntermediateDataAcl;
+
     double UserJobMemoryDigestPrecision;
     double UserJobMemoryReserveQuantile;
     double JobProxyMemoryReserveQuantile;
@@ -739,6 +740,7 @@ public:
             .Default(NYTree::BuildYsonNodeFluently()
                 .BeginList()
                 .EndList()->AsList());
+
         RegisterParameter("user_job_memory_digest_precision", UserJobMemoryDigestPrecision)
             .Default(0.01)
             .GreaterThan(0);

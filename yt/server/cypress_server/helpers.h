@@ -20,6 +20,11 @@ yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
+const std::vector<TCypressNodeBase*>& GetListNodeChildren(
+    const TCypressManagerPtr& cypressManager,
+    TCypressNodeBase* trunkNode,
+    NTransactionServer::TTransaction* transaction);
+
 std::vector<std::pair<Stroka, TCypressNodeBase*>> SortKeyToChild(
     const yhash_map<Stroka, TCypressNodeBase*>& keyToChildMap);
 

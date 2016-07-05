@@ -853,7 +853,11 @@ TJobResources TOperationControllerBase::TTask::GetMinNeededResources() const
         YCHECK(GetPendingJobCount() > 0);
         CachedMinNeededResources = GetMinNeededResourcesHeavy();
     }
-    return ApplyMemoryReserve(*CachedMinNeededResources);
+    auto result = ApplyMemoryReserve(*CachedMinNeededResources);
+    if (result.GetUserSlots() > 0 && result.GetMemory() == 0) {
+        LOG_WARNING("Found min needed resources of task with non-zero user slots and zero memory");
+    }
+    return result;
 }
 
 void TOperationControllerBase::TTask::RegisterIntermediate(

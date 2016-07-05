@@ -50,16 +50,7 @@ TLogConfigPtr TLogConfig::CreateDefault()
 
 TLogConfigPtr TLogConfig::CreateQuiet()
 {
-    auto rule = New<TRuleConfig>();
-    rule->MinLevel = DefaultStderrQuietLevel;
-    rule->Writers.push_back(DefaultStderrWriterName);
-
-    auto stderrWriterConfig = New<TWriterConfig>();
-    stderrWriterConfig->Type = EWriterType::Stderr;
-
     auto config = New<TLogConfig>();
-    config->Rules.push_back(rule);
-    config->WriterConfigs.insert(std::make_pair(DefaultStderrWriterName, stderrWriterConfig));
 
     config->MinDiskSpace = 0;
     config->HighBacklogWatermark = 0;

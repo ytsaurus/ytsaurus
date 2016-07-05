@@ -174,7 +174,7 @@ private:
 
     void Cleanup()
     {
-        TDelayedExecutor::Cancel(DeadlineCookie_);
+        TDelayedExecutor::CancelAndClear(DeadlineCookie_);
     }
 
     TNullable<TDuration> GetBackupTimeout()
