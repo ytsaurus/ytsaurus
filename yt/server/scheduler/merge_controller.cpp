@@ -709,8 +709,7 @@ private:
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(
             schedulerJobSpecExt->mutable_user_job_spec(),
-            joblet,
-            GetUserJobMemoryReserve());
+            joblet);
     }
 
     virtual EJobType GetJobType() const override
@@ -1782,8 +1781,7 @@ protected:
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(
             schedulerJobSpecExt->mutable_user_job_spec(),
-            joblet,
-            GetUserJobMemoryReserve());
+            joblet);
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
