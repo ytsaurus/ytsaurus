@@ -996,8 +996,6 @@ private:
     NApi::INativeClientPtr CreateClient();
     void UpdateAllTasksIfNeeded();
 
-    static const NProto::TUserJobResult* FindUserJobResult(const TRefCountedJobResultPtr& result);
-
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
 
     //! Sets finish time and other timing statistics.
