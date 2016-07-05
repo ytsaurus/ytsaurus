@@ -28,6 +28,8 @@ typedef TIntrusivePtr<TRootElement> TRootElementPtr;
 
 struct TFairShareContext;
 
+typedef yhash_map<TOperationId, TOperationElement*> TOperationElementByIdMap;
+
 ////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESchedulableStatus,
@@ -81,7 +83,6 @@ struct ISchedulerElement
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) = 0;
 
-    virtual void BuildJobToOperationMapping(TFairShareContext& context) = 0;
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) = 0;
     virtual bool ScheduleJob(TFairShareContext& context) = 0;
 
@@ -126,6 +127,8 @@ struct ISchedulerElement
 
     virtual TCompositeSchedulerElement* GetParent() const = 0;
     virtual void SetParent(TCompositeSchedulerElement* parent) = 0;
+
+    virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) = 0;
 
     virtual ISchedulerElementPtr Clone() = 0;
     virtual void SetCloned(bool cloned) = 0;
@@ -320,7 +323,6 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
-    virtual void BuildJobToOperationMapping(TFairShareContext& context) override;
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override;
     virtual bool ScheduleJob(TFairShareContext& context) override;
 
@@ -338,6 +340,8 @@ public:
 
     virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
+
+    virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
 protected:
     yhash_set<ISchedulerElementPtr> Children;
@@ -650,7 +654,6 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
-    virtual void BuildJobToOperationMapping(TFairShareContext& context) override;
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override;
     virtual bool ScheduleJob(TFairShareContext& context) override;
 
@@ -684,6 +687,8 @@ public:
     void OnJobFinished(const TJobId& jobId);
 
     NJobTrackerClient::TStatistics GetControllerTimeStatistics();
+
+    virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
     virtual ISchedulerElementPtr Clone() override;
 

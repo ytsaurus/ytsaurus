@@ -133,7 +133,7 @@ public:
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
 
-    TFuture<NYson::TYsonString> BuildInputPathYson(const TJobId& jobId) const override;
+    NYson::TYsonString BuildInputPathYson(const TJobId& jobId) const override;
 
     virtual void Persist(TPersistenceContext& context) override;
 
@@ -1010,8 +1010,6 @@ private:
     virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
 
     TCodicilGuard MakeCodicilGuard() const;
-
-    NYson::TYsonString DoBuildInputPathYson(const TJobId& jobId) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -17,6 +17,16 @@
 namespace NYT {
 namespace NScheduler {
 
+struct TCreateJobNodeRequest
+{
+    TOperationId OperationId;
+    TJobId JobId;
+    NYson::TYsonString Attributes;
+    NChunkClient::TChunkId StderrChunkId;
+    NChunkClient::TChunkId FailContextChunkId;
+    TFuture<NYson::TYsonString> InputPathsFuture;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Information retrieved during scheduler-master handshake.
@@ -53,15 +63,13 @@ public:
     TFuture<TSharedRef> DownloadSnapshot(const TOperationId& operationId);
     TFuture<void> RemoveSnapshot(const TOperationId& operationId);
 
-    void CreateJobNode(TJobPtr job,
-        const NChunkClient::TChunkId& stderrChunkId,
-        const NChunkClient::TChunkId& failContextChunkId,
-        TFuture<NYson::TYsonString> inputPaths = Null);
+    void CreateJobNode(const TCreateJobNodeRequest& createJobNodeRequest);
 
     void AttachJobContext(
         const NYPath::TYPath& path,
         const NChunkClient::TChunkId& chunkId,
-        TJobPtr job);
+        const TOperationId& operationId,
+        const TJobId& jobId);
 
     TFuture<void> AttachToLivePreview(
         TOperationPtr operation,

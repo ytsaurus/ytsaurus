@@ -56,7 +56,7 @@ void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsum
         .Item("output_transaction_id").Value(outputTransaction ? outputTransaction->GetId() : NullTransactionId);
 }
 
-void BuildJobAttributes(TJobPtr job, const TNullable<NYson::TYsonString>& inputPaths, NYson::IYsonConsumer* consumer)
+void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
 {
     auto state = job->GetState();
     BuildYsonMapFluently(consumer)
@@ -76,9 +76,6 @@ void BuildJobAttributes(TJobPtr job, const TNullable<NYson::TYsonString>& inputP
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
             auto error = FromProto<TError>(job->Status().result().error());
             fluent.Item("error").Value(error);
-        })
-        .DoIf(static_cast<bool>(inputPaths), [=] (TFluentMap fluent) {
-            fluent.Item("input_paths").Value(*inputPaths);
         });
         // XXX(babenko): YT-4948
         //.DoIf(job->Status() && job->Status()->has_statistics(), [=] (TFluentMap fluent) {
@@ -190,6 +187,18 @@ EAbortReason GetAbortReason(const NJobTrackerClient::NProto::TJobResult& result)
 {
     auto error = FromProto<TError>(result.error());
     return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
+}
+
+////////////////////////////////////////////////////////////////////
+
+Stroka MakeOperationCodicilString(const TOperationId& operationId)
+{
+    return Format("OperationId: %v", operationId);
+}
+
+TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId)
+{
+    return TCodicilGuard(MakeOperationCodicilString(operationId));
 }
 
 ////////////////////////////////////////////////////////////////////

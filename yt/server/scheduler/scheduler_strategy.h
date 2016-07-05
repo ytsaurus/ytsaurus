@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "event_log.h"
+#include "job_resources.h"
 
 #include <yt/ytlib/node_tracker_client/node.pb.h>
 
@@ -21,29 +22,49 @@ struct ISchedulerStrategyHost
 {
     virtual ~ISchedulerStrategyHost() = default;
 
-    DECLARE_INTERFACE_SIGNAL(void(const TOperationPtr& operation), OperationRegistered);
-    DECLARE_INTERFACE_SIGNAL(void(const TOperationPtr& operation), OperationUnregistered);
-    DECLARE_INTERFACE_SIGNAL(void(const TOperationPtr& operation, const NYTree::INodePtr& update), OperationRuntimeParamsUpdated);
-
-    DECLARE_INTERFACE_SIGNAL(void(const TJobPtr& job), JobFinished);
-    DECLARE_INTERFACE_SIGNAL(void(const TJobPtr& job, const TJobResources& resourcesDelta), JobUpdated);
-
-    DECLARE_INTERFACE_SIGNAL(void(const NYTree::INodePtr& pools), PoolsUpdated);
-
     virtual TJobResources GetTotalResourceLimits() = 0;
     virtual TJobResources GetResourceLimits(const TNullable<Stroka>& tag) = 0;
 
     virtual void ActivateOperation(const TOperationId& operationId) = 0;
 
-    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& tag) const = 0;
     virtual int GetExecNodeCount() const = 0;
     virtual int GetTotalNodeCount() const = 0;
+    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& tag) const = 0;
 
     virtual TFuture<void> CheckPoolPermission(
         const NYPath::TYPath& path,
         const Stroka& user,
         NYTree::EPermission permission) = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TUpdatedJob
+{
+    TUpdatedJob(const TOperationId& operationId, const TJobId& jobId, const TJobResources& delta)
+        : OperationId(operationId)
+        , JobId(jobId)
+        , Delta(delta)
+    { }
+
+    TOperationId OperationId;
+    TJobId JobId;
+    TJobResources Delta;
+};
+
+struct TCompletedJob
+{
+    TCompletedJob(const TOperationId& operationId, const TJobId& jobId)
+        : OperationId(operationId)
+        , JobId(jobId)
+    { }
+
+    TOperationId OperationId;
+    TJobId JobId;
+};
+
+////////////////////////////////////////////////////////////////////
+
 
 struct ISchedulerStrategy
     : public virtual TRefCounted
@@ -70,8 +91,22 @@ struct ISchedulerStrategy
      */
     virtual TFuture<void> ValidateOperationStart(const TOperationPtr& operation) = 0;
 
+    virtual void RegisterOperation(const TOperationPtr& operation) = 0;
+    virtual void UnregisterOperation(const TOperationPtr& operation) = 0;
+
+    virtual void ProcessUpdatedAndCompletedJobs(
+        const std::vector<TUpdatedJob>& updatedJobs,
+        const std::vector<TCompletedJob>& completedJobs) = 0;
+
+    virtual void UpdatePools(const NYTree::INodePtr& poolsNode) = 0;
+
+    virtual void UpdateOperationRuntimeParams(
+        const TOperationPtr& operation,
+        const NYTree::INodePtr& update) = 0;
+
     //! Retrieves operation job scheduling timings statistics.
-    virtual NJobTrackerClient::TStatistics GetOperationTimeStatistics(const TOperationId& operationId) = 0;
+    virtual NJobTrackerClient::TStatistics GetOperationTimeStatistics(
+        const TOperationId& operationId) = 0;
 
     //! Builds a YSON structure containing a set of attributes to be assigned to operation's node
     //! in Cypress during creation.

@@ -1,5 +1,6 @@
 #include "operation.h"
 #include "exec_node.h"
+#include "helpers.h"
 #include "job.h"
 #include "operation_controller.h"
 
@@ -43,7 +44,7 @@ TOperation::TOperation(
     , StderrCount_(0)
     , JobNodeCount_(0)
     , MaxStderrCount_(0)
-    , CodicilData_(Format("OperationId: %v", Id_))
+    , CodicilData_(MakeOperationCodicilString(Id_))
 { }
 
 TFuture<TOperationPtr> TOperation::GetStarted()
@@ -103,14 +104,6 @@ bool TOperation::HasControllerProgress() const
 TCodicilGuard TOperation::MakeCodicilGuard()
 {
     return TCodicilGuard(CodicilData_);
-}
-
-TFuture<TYsonString> TOperation::MakeInputPathsYson(const TJobPtr& job) const
-{
-    if (Controller_) {
-        return Controller_->BuildInputPathYson(job->GetId());
-    }
-    return MakeFuture<TYsonString>(TError("No controller for operation"));
 }
 
 ////////////////////////////////////////////////////////////////////
