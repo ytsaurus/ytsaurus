@@ -79,7 +79,7 @@ const TTimestamp AllCommittedTimestamp        = 0x3fffffffffffff03ULL;
 //! Used by TSortedDynamicStore to mark values being written by transactions.
 const TTimestamp UncommittedTimestamp         = 0x3fffffffffffff02ULL;
 //! Used by TSortedDynamicStore in TLockDescriptor::PrepareTimestamp.
-//! TMust be larger than SyncLastCommittedTimestamp.
+//! Must be larger than SyncLastCommittedTimestamp.
 const TTimestamp NotPreparedTimestamp         = 0x3fffffffffffffffULL;
 
 ////////////////////////////////////////////////////////////////////////////////
