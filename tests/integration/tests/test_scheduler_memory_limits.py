@@ -96,7 +96,6 @@ class TestMemoryReserveFactor(YTEnvSetup):
             "supported_cgroups" : [ "cpuacct", "blkio", "memory", "cpu" ],
             "slot_manager" : {
                 "enforce_job_control"  : True,
-<<<<<<< HEAD
                 "memory_watchdog_period" : 100,
                 "job_environment" : {
                     "type" : "cgroups",                                   # >= 18.4
@@ -107,9 +106,6 @@ class TestMemoryReserveFactor(YTEnvSetup):
                         "memory", 
                         "cpu"],
                 },
-=======
-                "memory_watchdog_period" : 100
->>>>>>> origin/prestable/18.4
             }
         }
     }
