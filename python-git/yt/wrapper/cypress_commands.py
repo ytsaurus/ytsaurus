@@ -36,15 +36,16 @@ def ypath_join(*paths):
             result = []
 
         slash_count = 0
-        if path.startswith("/"):
-            slash_count += 1
-        if result and ends_with_slash(result[-1]):
-            slash_count += 1
+        if path != "/":
+            if path.startswith("/"):
+                slash_count += 1
+            if result and ends_with_slash(result[-1]):
+                slash_count += 1
 
         if slash_count == 2:
             result.append(path[1:])
         else: # slash_count <= 1
-            if slash_count == 0:
+            if (slash_count == 0 and result) or result == ["/"]:
                 result.append("/")
             result.append(path)
 
