@@ -82,10 +82,8 @@ public:
     TDelayedExecutorCookie Submit(TClosure callback, TInstant deadline)
     {
         auto entry = New<TDelayedExecutorEntry>(std::move(callback), deadline);
-        if (!EnsureStarted()) {
-            return entry;
-        }
-        SubmitQueue_.Enqueue(std::move(entry));
+        SubmitQueue_.Enqueue(entry);
+        EnsureStarted();
         PurgeQueuesIfFinished();
         return entry;
     }
@@ -95,9 +93,7 @@ public:
         if (!entry) {
             return;
         }
-        if (!EnsureStarted()) {
-            return;
-        }
+        EnsureStarted();
         CancelQueue_.Enqueue(std::move(entry));
         PurgeQueuesIfFinished();
     }
@@ -115,10 +111,10 @@ public:
 
             Finished_ = true;
             doJoinSleeper = Started_;
-            DelayedQueue_->Shutdown();
         }
 
         if (doJoinSleeper) {
+            DelayedQueue_->Shutdown();
             SleeperThread_.Join();
         }
 
@@ -137,6 +133,7 @@ private:
 
     TThread SleeperThread_;
     TActionQueuePtr DelayedQueue_;
+    IInvokerPtr DelayedInvoker_;
 
     std::atomic<bool> Started_ = {false};
     std::atomic<bool> Finished_ = {false};
@@ -158,6 +155,7 @@ private:
             return false;
         }
         DelayedQueue_ = New<TActionQueue>("DelayedExecutor", false, false);
+        DelayedInvoker_ = DelayedQueue_->GetInvoker();
         SleeperThread_.Start();
         Started_ = true;
 
@@ -217,7 +215,6 @@ private:
             }
         });
 
-        auto invoker = DelayedQueue_->GetInvoker();
         while (!ScheduledEntries_.empty()) {
             auto it = ScheduledEntries_.begin();
             const auto& entry = *it;
@@ -228,7 +225,7 @@ private:
                     entry->Deadline,
                     now);
             }
-            invoker->Invoke(entry->Callback);
+            DelayedInvoker_->Invoke(entry->Callback);
             entry->Callback.Reset();
             entry->Iterator.Reset();
             ScheduledEntries_.erase(it);
@@ -237,8 +234,8 @@ private:
 
     void PurgeQueues()
     {
-        SubmitQueue_.DequeueAll();
-        CancelQueue_.DequeueAll();
+        SubmitQueue_.DequeueAll(false, &TImpl::PurgeFunctor);
+        CancelQueue_.DequeueAll(false, &TImpl::PurgeFunctor);
     }
 
     void PurgeQueuesIfFinished()
@@ -246,6 +243,16 @@ private:
         if (Finished_) {
             PurgeQueues();
         }
+    }
+
+    static void PurgeFunctor(const TDelayedExecutorEntryPtr& entry)
+    {
+        if (entry->Canceled) {
+            return;
+        }
+        entry->Canceled = true;
+        entry->Callback.Reset();
+        entry->Iterator.Reset();
     }
 };
 
@@ -272,11 +279,6 @@ TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TDuration del
 TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TInstant deadline)
 {
     return GetImpl()->Submit(std::move(callback), deadline);
-}
-
-void TDelayedExecutor::Cancel(TDelayedExecutorCookie entry)
-{
-    GetImpl()->Cancel(std::move(entry));
 }
 
 void TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& entry)

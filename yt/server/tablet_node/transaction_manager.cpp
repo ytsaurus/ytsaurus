@@ -391,19 +391,18 @@ private:
 
         auto startInstants = TimestampToInstant(transaction->GetStartTimestamp());
         auto deadline = startInstants.first + Config_->MaxTransactionDuration;
-        auto cookie = TDelayedExecutor::Submit(
+
+        transaction->TimeoutCookie() = TDelayedExecutor::Submit(
             BIND(&TImpl::OnTransactionTimedOut, MakeStrong(this), transaction->GetId())
                 .Via(invoker),
             deadline);
-        transaction->SetTimeoutCookie(cookie);
     }
 
     void CloseLeases(TTransaction* transaction)
     {
         LeaseTracker_->UnregisterTransaction(transaction->GetId());
 
-        TDelayedExecutor::Cancel(transaction->GetTimeoutCookie());
-        transaction->SetTimeoutCookie(NullDelayedExecutorCookie);
+        TDelayedExecutor::CancelAndClear(transaction->TimeoutCookie());
     }
 
 

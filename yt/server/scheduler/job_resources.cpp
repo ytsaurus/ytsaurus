@@ -201,6 +201,22 @@ double GetMinResourceRatio(
     return result;
 }
 
+double GetMaxResourceRatio(
+    const TJobResources& nominator,
+    const TJobResources& denominator)
+{
+    double result = 0.0;
+    auto update = [&] (i64 a, i64 b) {
+        if (b > 0) {
+            result = std::max(result, (double) a / b);
+        }
+    };
+    #define XX(name, Name) update(nominator.Get##Name(), denominator.Get##Name());
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+    return result;
+}
+
 TJobResources GetAdjustedResourceLimits(
     const TJobResources& demand,
     const TJobResources& limits,
