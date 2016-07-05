@@ -3,7 +3,6 @@ from cluster_configuration import modify_cluster_configuration
 from yt.environment import YTInstance
 from yt.environment.init_cluster import initialize_world
 from yt.wrapper.common import generate_uuid, GB
-from yt.wrapper.client import Yt
 from yt.common import YtError, require
 import yt.yson as yson
 import yt.json as json
@@ -182,10 +181,10 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
 
     modify_configs_func = partial(
         modify_cluster_configuration,
-        master_config_patch=master_config,
-        scheduler_config_patch=scheduler_config,
-        node_config_patch=node_config,
-        proxy_config_patch=proxy_config)
+        master_config_patch=_load_config(master_config),
+        scheduler_config_patch=_load_config(scheduler_config),
+        node_config_patch=_load_config(node_config),
+        proxy_config_patch=_load_config(proxy_config, is_proxy_config=True))
 
     environment = YTInstance(sandbox_path,
                              master_count=master_count,

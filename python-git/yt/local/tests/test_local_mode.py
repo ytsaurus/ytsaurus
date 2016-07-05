@@ -2,8 +2,12 @@ from yt.local import start, stop, delete
 from yt.wrapper.client import Yt
 import yt.wrapper as yt
 
+import yt.yson as yson
+import yt.json as json
+
 import os
 import pytest
+import tempfile
 
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", os.path.join(TESTS_LOCATION, "sandbox"))
@@ -128,3 +132,26 @@ class TestLocalMode(object):
         environment = start(id=environment.id)
         client = environment.create_client()
         assert list(client.read_table("//home/my_table")) == [{"x": 1, "y": 2, "z": 3}]
+
+    def test_configs_patches(self):
+        patch = {"test_key": "test_value"}
+        with tempfile.NamedTemporaryFile(dir=TESTS_SANDBOX, delete=False) as yson_file:
+            yson.dump(patch, yson_file)
+        with tempfile.NamedTemporaryFile(dir=TESTS_SANDBOX, delete=False) as json_file:
+            json.dump(patch, json_file)
+
+        environment = start(
+            master_config=yson_file.name,
+            node_config=yson_file.name,
+            scheduler_config=yson_file.name,
+            proxy_config=json_file.name)
+
+        try:
+            for service in ["master", "node", "scheduler", "proxy"]:
+                if isinstance(environment.configs[service], list):
+                    for config in environment.configs[service]:
+                        assert config["test_key"] == "test_value"
+                else:  # Proxy config
+                    assert environment.configs[service]["test_key"] == "test_value"
+        finally:
+            stop(environment.id)
