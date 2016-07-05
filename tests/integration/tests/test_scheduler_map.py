@@ -1923,6 +1923,35 @@ class TestSandboxTmpfs(YTEnvSetup):
                 }
             })
 
+        map(command="cat",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024 * 1024,
+                    "tmpfs_path": "./",
+                    "file_paths": ["//tmp/test_file"]
+                }
+            })
+
+        script = "#!/usr/bin/env python\n"\
+                 "import sys; sys.stdout.write(sys.stdin.read())\n"
+        create("file", "//tmp/script")
+        write_file("//tmp/script", script)
+        set("//tmp/script/@executable", True)
+
+        map(command="./script.py",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 100 * 1024 * 1024,
+                    "tmpfs_path": ".",
+                    "copy_files": True,
+                    "file_paths": ["//tmp/test_file", to_yson_type("//tmp/script", attributes={"file_name": "script.py"})]
+                }
+            })
+
         with pytest.raises(YtError):
             map(command="cat; cp test_file local_file",
                 in_="//tmp/t_input",
