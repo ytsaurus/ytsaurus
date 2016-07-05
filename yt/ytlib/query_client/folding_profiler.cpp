@@ -323,10 +323,7 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
 
         auto aggregate = MakeCodegenEvaluateAggregateArgs(
             keySize,
-            codegenAggregateExprs,
-            codegenAggregates,
-            groupClause->IsMerge,
-            GetTypesFromSchema(schema));
+            codegenAggregateExprs);
 
         auto update = MakeCodegenAggregateUpdate(
             codegenAggregates,
@@ -346,6 +343,7 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
             finalize,
             std::move(codegenSource),
             keyTypes,
+            groupClause->IsMerge,
             keySize + codegenAggregates.size(),
             false,
             groupClause->TotalsMode != ETotalsMode::None);
@@ -363,8 +361,10 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
                 finalize,
                 std::move(codegenSource),
                 keyTypes,
+                groupClause->IsMerge,
                 keySize + codegenAggregates.size(),
-                true);
+                true,
+                false);
         }
 
         if (query->HavingClause) {
@@ -385,8 +385,10 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
                 finalize,
                 std::move(codegenSource),
                 keyTypes,
+                groupClause->IsMerge,
                 keySize + codegenAggregates.size(),
-                true);
+                true,
+                false);
         }
     }
 
