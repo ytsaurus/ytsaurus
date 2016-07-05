@@ -7,6 +7,23 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline TCypressNodeDynamicData* TCypressNodeBase::GetDynamicData() const
+{
+    return GetTypedDynamicData<TCypressNodeDynamicData>();
+}
+
+inline int TCypressNodeBase::GetAccessStatisticsUpdateIndex() const
+{
+    return GetDynamicData()->AccessStatisticsUpdateIndex;
+}
+
+inline void TCypressNodeBase::SetAccessStatisticsUpdateIndex(int value)
+{
+    GetDynamicData()->AccessStatisticsUpdateIndex = value;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 inline bool TCypressNodeRefComparer::Compare(const TCypressNodeBase* lhs, const TCypressNodeBase* rhs)
 {
     return lhs->GetVersionedId() < rhs->GetVersionedId();
