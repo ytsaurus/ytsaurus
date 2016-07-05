@@ -1069,7 +1069,7 @@ public:
                         THROW_ERROR_EXCEPTION("Cannot copy dynamic ordered table");
                     }
                     if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::Frozen) {
-                        THROW_ERROR_EXCEPTION("Cannot copy dynamic table since not all of its tablets are in %Qlv or %Qlv mode",
+                        THROW_ERROR_EXCEPTION("Cannot copy dynamic table since not all of its tablets are in %Qlv or %Qlv state",
                             ETabletState::Unmounted,
                             ETabletState::Frozen);
                     }
