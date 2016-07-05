@@ -14,7 +14,10 @@
 #include "user_job.h"
 #include "user_job_io.h"
 
+<<<<<<< HEAD
 #include <yt/server/exec_agent/config.h>
+=======
+>>>>>>> origin/prestable/18.4
 #include <yt/server/exec_agent/supervisor_service.pb.h>
 
 #include <yt/ytlib/api/client.h>
@@ -163,7 +166,7 @@ void TJobProxy::RetrieveJobSpec()
     auto rspOrError = req->Invoke().Get();
     if (!rspOrError.IsOK()) {
         LOG_ERROR(rspOrError, "Failed to get job spec");
-        Exit(EJobProxyExitCode::HeartbeatFailed);
+        Exit(EJobProxyExitCode::GetJobSpecFailed);
     }
 
     const auto& rsp = rspOrError.Value();
@@ -332,7 +335,11 @@ TJobResult TJobProxy::DoRun()
 
     RefCountedTrackerLogPeriod_ = FromProto<TDuration>(schedulerJobSpecExt.job_proxy_ref_counted_tracker_log_period());
 
+<<<<<<< HEAD
     if (CGroupsConfig_ && CGroupsConfig_->IsCGroupSupported(TCpu::Name)) {
+=======
+    if (Config_->IsCGroupSupported(TCpu::Name)) {
+>>>>>>> origin/prestable/18.4
         auto cpuCGroup = GetCurrentCGroup<TCpu>();
         cpuCGroup.SetShare(CpuLimit_);
     }
@@ -428,6 +435,7 @@ TJobProxyConfigPtr TJobProxy::GetConfig() const
     return Config_;
 }
 
+<<<<<<< HEAD
 const TJobSpec& TJobProxy::GetJobSpec() const
 {
     return JobSpec_;
@@ -435,6 +443,10 @@ const TJobSpec& TJobProxy::GetJobSpec() const
 
 void TJobProxy::UpdateResourceUsage()
 {
+=======
+void TJobProxy::UpdateResourceUsage()
+{
+>>>>>>> origin/prestable/18.4
     // Fire-and-forget.
     auto req = SupervisorProxy_->UpdateResourceUsage();
     ToProto(req->mutable_job_id(), JobId_);

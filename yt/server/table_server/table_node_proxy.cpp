@@ -242,14 +242,19 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
+<<<<<<< HEAD
     void AlterTable(
         const TNullable<TTableSchema>& newSchema,
         const TNullable<bool>& newDynamic)
+=======
+    void AlterTable(const TNullable<TTableSchema>& newSchema, const TNullable<bool>& newDynamic)
+>>>>>>> origin/prestable/18.4
     {
         auto* table = LockThisTypedImpl();
 
         if (newDynamic) {
             ValidateNoTransaction();
+<<<<<<< HEAD
 
             if (*newDynamic && table->IsExternal()) {
                 THROW_ERROR_EXCEPTION("External node cannot be a dynamic table");
@@ -277,6 +282,22 @@ private:
 
             table->TableSchema() = std::move(schema);
             table->SetPreserveSchemaOnWrite(true);
+=======
+        }
+
+        if (newSchema && table->HasMountedTablets()) {
+            THROW_ERROR_EXCEPTION("Cannot change schema of a table with mounted tablets");
+        }
+
+        if (newSchema) {
+            ValidateTableSchemaUpdate(
+                table->TableSchema(),
+                *newSchema,
+                newDynamic.Get(table->IsDynamic()),
+                table->IsEmpty());
+
+            table->TableSchema() = *newSchema;
+>>>>>>> origin/prestable/18.4
         }
 
         if (newDynamic) {
@@ -291,6 +312,7 @@ private:
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
+<<<<<<< HEAD
         if (key == "tablet_cell_bundle") {
             ValidateNoTransaction();
 
@@ -300,6 +322,13 @@ private:
 
             auto* table = LockThisTypedImpl();
             tabletManager->SetTabletCellBundle(table, cellBundle);
+=======
+        // COMPAT(max42): remove this when setting schema via attributes
+        // becomes obsolete.
+        if (key == "schema") {
+            auto newSchema = ConvertTo<TTableSchema>(value);
+            AlterTable(newSchema, Null);
+>>>>>>> origin/prestable/18.4
             return true;
         }
 

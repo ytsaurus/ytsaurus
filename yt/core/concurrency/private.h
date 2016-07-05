@@ -29,6 +29,7 @@ struct TEnqueuedAction
     bool Finished = true;
     NProfiling::TCpuInstant EnqueuedAt = 0;
     NProfiling::TCpuInstant StartedAt = 0;
+    NProfiling::TCpuInstant FinishedAt = 0;
     TClosure Callback;
 };
 

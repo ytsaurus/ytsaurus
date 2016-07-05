@@ -158,6 +158,7 @@ message TSchedulerJobSpecExt
     optional TQuerySpec input_query_spec = 13;
 
     optional int64 job_proxy_ref_counted_tracker_log_period = 17 [default = 5];
+<<<<<<< HEAD
 }
 
 message TOutputResult
@@ -174,6 +175,8 @@ message TOutputResult
     optional bytes min = 4;
 
     optional bytes max = 5;
+=======
+>>>>>>> origin/prestable/18.4
 }
 
 message TSchedulerJobResultExt

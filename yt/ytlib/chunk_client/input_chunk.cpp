@@ -19,6 +19,13 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+<<<<<<< HEAD
+=======
+const i64 DefaultMaxBlockSize = (i64) 16 * 1024 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
+>>>>>>> origin/prestable/18.4
 TInputChunkBase::TInputChunkBase(
     const NProto::TChunkSpec& chunkSpec)
     : TInputChunkBase(

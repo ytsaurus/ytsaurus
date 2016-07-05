@@ -24,16 +24,7 @@ public:
     //! Submits #callback for execution at a given #deadline.
     static TDelayedExecutorCookie Submit(TClosure callback, TInstant deadline);
 
-    //! Cancels an earlier scheduled execution.
-    /*!
-     *  \returns True iff the cookie is valid.
-     */
-    static void Cancel(TDelayedExecutorCookie cookie);
-
     //! Cancels an earlier scheduled execution and clears the cookie.
-    /*!
-     *  \returns True iff the cookie is valid.
-     */
     static void CancelAndClear(TDelayedExecutorCookie& cookie);
 
     //! Terminates the scheduler thread.

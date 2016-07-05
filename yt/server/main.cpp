@@ -488,6 +488,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
         // But we (currently) don't care.
         auto jobProxy = New<TJobProxy>(configNode, jobId);
         jobProxy->Run();
+
+        // XXX(sandello): Job proxy does not shutdown cleanly (there are cyclic references holding some threads)
+        // so we just wipe out the process.
+        _exit(static_cast<int>(EExitCode::OK));
     }
 
     return EExitCode::OK;

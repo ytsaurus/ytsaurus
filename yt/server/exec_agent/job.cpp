@@ -735,8 +735,12 @@ private:
         }
 
         if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode)) {
-            auto exitCode = processError->Attributes().Get<int>("exit_code");
-            if (exitCode == static_cast<int>(NExecAgent::EJobProxyExitCode::HeartbeatFailed)) {
+            auto exitCode = NExecAgent::EJobProxyExitCode(processError->Attributes().Get<int>("exit_code"));
+            if (exitCode == EJobProxyExitCode::HeartbeatFailed ||
+                exitCode == EJobProxyExitCode::ResultReportFailed ||
+                exitCode == EJobProxyExitCode::ResourcesUpdateFailed ||
+                exitCode == EJobProxyExitCode::GetJobSpecFailed)
+            {
                 return EAbortReason::Other;
             }
         }

@@ -181,14 +181,9 @@ void TTableNode::Load(TLoadContext& context)
         }
     }
 
-    // COMPAT(babenko): Cf. YT-5045
-    if (Attributes_ && Attributes_->Attributes().empty()) {
-        Attributes_.reset();
-    }
-    
     // COMPAT(max42): In case there are channels associated with a table, we extend the
     // table schema with all columns mentioned in channels and erase the corresponding attribute.
-    {
+    if (context.GetVersion() < 205 && Attributes_) {
         auto& attributesMap = GetMutableAttributes()->Attributes();
         if (attributesMap.find("channels")) {
             const auto& channels = ConvertTo<TChannels>(attributesMap["channels"]);
@@ -212,6 +207,11 @@ void TTableNode::Load(TLoadContext& context)
 
             TableSchema_ = TTableSchema(columns, false);
         }
+    }
+
+    // COMPAT(babenko): Cf. YT-5045
+    if (Attributes_ && Attributes_->Attributes().empty()) {
+        Attributes_.reset();
     }
 
     // COMPAT(max42)
@@ -319,11 +319,14 @@ protected:
         auto maybeSchema = attributes->FindAndRemove<TTableSchema>("schema");
 
         if (maybeSchema) {
+<<<<<<< HEAD
             // NB: Sorted dynamic tables contain unique keys, set this for user.
             if (dynamic && maybeSchema->IsSorted()) {
                 maybeSchema = maybeSchema->ToUniqueKeys();
             }
 
+=======
+>>>>>>> origin/prestable/18.4
             ValidateTableSchemaUpdate(TTableSchema(), *maybeSchema, dynamic, true);
         }
 
@@ -343,7 +346,10 @@ protected:
         try {
             if (maybeSchema) {
                 node->TableSchema() = *maybeSchema;
+<<<<<<< HEAD
                 node->SetPreserveSchemaOnWrite(true);
+=======
+>>>>>>> origin/prestable/18.4
             }
 
             if (dynamic) {

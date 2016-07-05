@@ -832,6 +832,7 @@ TJobResources TOperationControllerBase::TTask::ApplyMemoryReserve(const TExtende
         memory += jobResources.GetUserJobMemory() * Controller->GetUserJobMemoryDigest(GetJobType())->GetQuantile(Controller->Config->UserJobMemoryReserveQuantile);
     } else {
         YCHECK(jobResources.GetUserJobMemory() == 0);
+<<<<<<< HEAD
     }
     result.SetMemory(memory);
     result.SetNetwork(jobResources.GetNetwork());
@@ -849,11 +850,38 @@ void TOperationControllerBase::TTask::AddFootprintAndUserJobResources(TExtendedJ
 
 TJobResources TOperationControllerBase::TTask::GetMinNeededResources() const
 {
+=======
+    }
+    result.SetMemory(memory);
+    result.SetNetwork(jobResources.GetNetwork());
+    return result;
+}
+
+void TOperationControllerBase::TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const
+{
+    jobResources.SetFootprintMemory(GetFootprintMemorySize());
+    auto userJobSpec = GetUserJobSpec();
+    if (userJobSpec) {
+        jobResources.SetUserJobMemory(userJobSpec->MemoryLimit);
+    }
+}
+
+TJobResources TOperationControllerBase::TTask::GetMinNeededResources() const
+{
+>>>>>>> origin/prestable/18.4
     if (!CachedMinNeededResources) {
         YCHECK(GetPendingJobCount() > 0);
         CachedMinNeededResources = GetMinNeededResourcesHeavy();
     }
+<<<<<<< HEAD
     return ApplyMemoryReserve(*CachedMinNeededResources);
+=======
+    auto result = ApplyMemoryReserve(*CachedMinNeededResources);
+    if (result.GetUserSlots() > 0 && result.GetMemory() == 0) {
+        LOG_WARNING("Found min needed resources of task with non-zero user slots and zero memory");
+    }
+    return result;
+>>>>>>> origin/prestable/18.4
 }
 
 void TOperationControllerBase::TTask::RegisterIntermediate(

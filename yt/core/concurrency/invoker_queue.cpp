@@ -145,9 +145,9 @@ void TInvokerQueue::EndExecute(TEnqueuedAction* action)
     int queueSize = QueueSize.fetch_sub(1, std::memory_order_relaxed) - 1;
     Profiler.Update(SizeCounter, queueSize);
 
-    auto finishedAt = GetCpuInstant();
-    auto timeFromStart = CpuDurationToValue(finishedAt - action->StartedAt);
-    auto timeFromEnqueue = CpuDurationToValue(finishedAt - action->EnqueuedAt);
+    action->FinishedAt = GetCpuInstant();
+    auto timeFromStart = CpuDurationToValue(action->FinishedAt - action->StartedAt);
+    auto timeFromEnqueue = CpuDurationToValue(action->FinishedAt - action->EnqueuedAt);
     Profiler.Update(ExecTimeCounter, timeFromStart);
     Profiler.Increment(CumulativeTimeCounter, timeFromStart);
     Profiler.Update(TotalTimeCounter, timeFromEnqueue);
