@@ -63,10 +63,7 @@ public:
             GetThreadTagIds(false, ThreadName),
             false,
             false))
-<<<<<<< HEAD
-=======
         , OwningPid_(getpid())
->>>>>>> origin/prestable/18.4
     { }
 
     ~TFinalizerThread()
