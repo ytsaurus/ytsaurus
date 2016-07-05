@@ -218,11 +218,8 @@ TConstExpressionPtr MakeOrExpression(TConstExpressionPtr lhs, TConstExpressionPt
         rhs);
 }
 
-<<<<<<< HEAD
 namespace {
 
-=======
->>>>>>> origin/prestable/18.4
 int CompareRow(TRow lhs, TRow rhs, const std::vector<size_t>& mapping)
 {
     for (auto index : mapping) {
