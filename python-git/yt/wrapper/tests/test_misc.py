@@ -40,6 +40,19 @@ def test_docs_exist():
                                                             if (not inspect.getdoc(method))]
         assert not methods_without_doc
 
+def test_ypath_join():
+    assert ypath_join("a", "b") == "a/b"
+    assert ypath_join("a/", "b") == "a/b"
+    assert ypath_join("/", "b") == "//b"
+    assert ypath_join("//", "b") == "//b"
+    assert ypath_join("a", "b", "c") == "a/b/c"
+    assert ypath_join("a", "//b", "c") == "//b/c"
+    assert ypath_join("a", "//b", "/") == "/"
+    assert ypath_join("/", "a", "/") == "/"
+    assert ypath_join("/a", "/b", "/c") == "/a/b/c"
+    assert ypath_join("/a", "/b", "c") == "/a/b/c"
+    assert ypath_join("/a", "//b", "c") == "//b/c"
+
 @pytest.mark.usefixtures("yt_env")
 def test_yt_binary():
     env = get_environment_for_binary_test()
