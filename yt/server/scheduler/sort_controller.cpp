@@ -2780,8 +2780,7 @@ private:
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(
             schedulerJobSpecExt->mutable_user_job_spec(),
-            joblet,
-            ComputeUserJobMemoryReserve(EJobType(jobSpec->type()), userJobSpec));
+            joblet);
     }
 
     virtual bool IsOutputLivePreviewSupported() const override

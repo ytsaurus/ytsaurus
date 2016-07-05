@@ -395,8 +395,10 @@ void TOperationControllerBase::TTask::ScheduleJob(
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
 
     auto estimatedResourceUsage = GetNeededResources(joblet);
-
     auto neededResources = ApplyMemoryReserve(estimatedResourceUsage);
+
+    joblet->EstimatedResourceUsage = estimatedResourceUsage;
+    joblet->ResourceLimits = neededResources;
 
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources)) {
@@ -460,8 +462,6 @@ void TOperationControllerBase::TTask::ScheduleJob(
     if (userJobSpec) {
         joblet->UserJobMemoryReserveFactor = Controller->GetUserJobMemoryDigest(GetJobType())->GetQuantile(Controller->Config->UserJobMemoryReserveQuantile);
     }
-    joblet->EstimatedResourceUsage = estimatedResourceUsage;
-    joblet->ResourceLimits = neededResources;
 
     LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
@@ -4109,12 +4109,11 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
 void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* jobSpec,
-    TJobletPtr joblet,
-    i64 memoryReserve)
+    TJobletPtr joblet)
 {
     ToProto(jobSpec->mutable_async_scheduler_transaction_id(), AsyncSchedulerTransactionId);
 
-    jobSpec->set_memory_reserve(memoryReserve);
+    jobSpec->set_memory_reserve(joblet->EstimatedResourceUsage.GetUserJobMemory() * joblet->UserJobMemoryReserveFactor);
 
     jobSpec->add_environment(Format("YT_JOB_INDEX=%v", joblet->JobIndex));
     jobSpec->add_environment(Format("YT_JOB_ID=%v", joblet->JobId));
