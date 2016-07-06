@@ -3518,6 +3518,11 @@ void TOperationControllerBase::CollectTotals()
                         YUNREACHABLE();
                 }
             }
+
+            if (table.IsPrimary()) {
+                PrimaryInputDataSize_ += chunkSpec->GetUncompressedDataSize();
+            }
+
             TotalEstimatedInputDataSize += chunkSpec->GetUncompressedDataSize();
             TotalEstimatedInputRowCount += chunkSpec->GetRowCount();
             TotalEstimatedCompressedDataSize += chunkSpec->GetCompressedDataSize();

@@ -178,6 +178,10 @@ protected:
     i64 TotalEstimatedInputRowCount = 0;
     i64 TotalEstimatedCompressedDataSize = 0;
 
+    // Total uncompressed data size for primary tables.
+    // Used only during preparation, not persisted.
+    i64 PrimaryInputDataSize_ = 0;
+
     int ChunkLocatedCallCount = 0;
     int UnavailableInputChunkCount = 0;
 
