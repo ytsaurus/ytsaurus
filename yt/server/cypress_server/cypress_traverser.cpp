@@ -108,15 +108,15 @@ private:
 
         switch (trunkNode->GetNodeType()) {
             case ENodeType::Map: {
-                auto keyToChild = GetMapNodeChildren(CypressManager_, trunkNode, Transaction_);
-                for (const auto& pair : keyToChild) {
-                    AddEntryChild(&entry, pair.second);
+                const auto& children = GetMapNodeChildList(CypressManager_, trunkNode, Transaction_);
+                for (auto* child : children) {
+                    AddEntryChild(&entry, child);
                 }
                 break;
             }
 
             case ENodeType::List: {
-                const auto& children = GetListNodeChildren(CypressManager_, trunkNode, Transaction_);
+                const auto& children = GetListNodeChildList(CypressManager_, trunkNode, Transaction_);
                 for (auto* child : children) {
                     AddEntryChild(&entry, child);
                 }

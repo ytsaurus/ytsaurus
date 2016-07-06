@@ -341,7 +341,7 @@ void TMapNodeTypeHandler::DoClone(
 
     auto cypressManager = Bootstrap_->GetCypressManager();
 
-    auto keyToChildMap = GetMapNodeChildren(
+    auto keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         sourceNode->GetTrunkNode(),
         transaction);
