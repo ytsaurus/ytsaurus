@@ -1144,16 +1144,17 @@ void TMapNodeProxy::Clear()
     auto* impl = LockThisTypedImpl(ELockMode::Shared);
 
     // Construct children list.
-    auto keyToChild = GetMapNodeChildren(
+    auto keyToChildMap = GetMapNodeChildren(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
         Transaction);
+    auto keyToChildList = SortKeyToChild(keyToChildMap);
 
     // Take shared locks for children.
     typedef std::pair<Stroka, TCypressNodeBase*> TChild;
     std::vector<TChild> children;
-    children.reserve(keyToChild.size());
-    for (const auto& pair : keyToChild) {
+    children.reserve(keyToChildList.size());
+    for (const auto& pair : keyToChildList) {
         LockThisImpl(TLockRequest::SharedChild(pair.first));
         auto* childImpl = LockImpl(pair.second);
         children.push_back(std::make_pair(pair.first, childImpl));
