@@ -388,11 +388,6 @@ public:
         return UnderlyingHandler_->GetObjectType();
     }
 
-    virtual EPermissionSet GetSupportedPermissions() const override
-    {
-        return UnderlyingHandler_->GetSupportedPermissions();
-    }
-
     virtual TObjectBase* FindObject(const TObjectId& id) override
     {
         auto cypressManager = Bootstrap_->GetCypressManager();

@@ -123,11 +123,6 @@ public:
         YUNREACHABLE();
     }
 
-    virtual EPermissionSet GetSupportedPermissions() const override
-    {
-        return NonePermissions;
-    }
-
     virtual void ResetAllObjects() override
     { }
 
