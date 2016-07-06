@@ -93,40 +93,32 @@ private:
         }
     }
 
-    void AddEntryChild(TStackEntry* entry, TCypressNodeBase* trunkChild)
-    {
-        ObjectManager_->WeakRefObject(trunkChild);
-        entry->TrunkChildren.push_back(trunkChild);
-    }
-
     void PushEntry(TCypressNodeBase* trunkNode)
     {
         ObjectManager_->WeakRefObject(trunkNode);
         Stack_.push_back(TStackEntry(trunkNode));
 
-        auto& entry = Stack_.back();
+        auto addChildren = [&] (std::vector<TCypressNodeBase*> children) {
+            auto& entry = Stack_.back();
+            entry.TrunkChildren = std::move(children);
+            for (auto* child : entry.TrunkChildren) {
+                ObjectManager_->WeakRefObject(child);
+            }
+        };
 
         switch (trunkNode->GetNodeType()) {
-            case ENodeType::Map: {
-                const auto& children = GetMapNodeChildList(CypressManager_, trunkNode, Transaction_);
-                for (auto* child : children) {
-                    AddEntryChild(&entry, child);
-                }
+            case ENodeType::Map:
+                addChildren(GetMapNodeChildList(CypressManager_, trunkNode, Transaction_));
                 break;
-            }
 
-            case ENodeType::List: {
-                const auto& children = GetListNodeChildList(CypressManager_, trunkNode, Transaction_);
-                for (auto* child : children) {
-                    AddEntryChild(&entry, child);
-                }
+            case ENodeType::List:
+                addChildren(GetListNodeChildList(CypressManager_, trunkNode, Transaction_));
                 break;
-            }
 
             default:
                 // Do nothing.
                 break;
-        };
+        }
     }
 
     void DoTraverse()
