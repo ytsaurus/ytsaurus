@@ -12,19 +12,14 @@ static const Stroka AllPermissionsName("all");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EPermissionSet ParsePermissions(
-    const std::vector<Stroka>& items,
-    EPermissionSet supportedPermissions)
+EPermissionSet ParsePermissions(const std::vector<Stroka>& items)
 {
     auto result = NonePermissions;
     for (const auto& item : items) {
         if (item == AllPermissionsName) {
-            return supportedPermissions;
+            return AllPermissions;
         } else {
             auto permission = ParseEnum<EPermission>(item);
-            if ((supportedPermissions & permission) == NonePermissions) {
-                THROW_ERROR_EXCEPTION("Permission %Qv is not supported", item);
-            }
             result |= permission;
         }
     }
