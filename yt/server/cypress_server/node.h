@@ -30,6 +30,7 @@ struct TCypressNodeDynamicData
     : public NHydra::TEntityDynamicDataBase
 {
     int AccessStatisticsUpdateIndex = -1;
+    TNullable<TCypressNodeExpirationMap::iterator> ExpirationIterator;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,7 +72,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AccessTime);
 
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, ExpirationTime);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TCypressNodeExpirationMap::iterator>, ExpirationIterator);
 
     DEFINE_BYVAL_RW_PROPERTY(i64, AccessCounter);
 
@@ -88,6 +88,9 @@ public:
 
     int GetAccessStatisticsUpdateIndex() const;
     void SetAccessStatisticsUpdateIndex(int value);
+
+    TNullable<TCypressNodeExpirationMap::iterator> GetExpirationIterator() const;
+    void SetExpirationIterator(TNullable<TCypressNodeExpirationMap::iterator> value);
 
     //! Returns the static type of the node.
     /*!

@@ -22,6 +22,16 @@ inline void TCypressNodeBase::SetAccessStatisticsUpdateIndex(int value)
     GetDynamicData()->AccessStatisticsUpdateIndex = value;
 }
 
+inline TNullable<TCypressNodeExpirationMap::iterator> TCypressNodeBase::GetExpirationIterator() const
+{
+    return GetDynamicData()->ExpirationIterator;
+}
+
+inline void TCypressNodeBase::SetExpirationIterator(TNullable<TCypressNodeExpirationMap::iterator> value)
+{
+    GetDynamicData()->ExpirationIterator = value;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline bool TCypressNodeRefComparer::Compare(const TCypressNodeBase* lhs, const TCypressNodeBase* rhs)
