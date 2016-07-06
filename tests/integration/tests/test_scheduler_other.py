@@ -604,7 +604,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create("map_node", "//sys/pools/research")
         create("map_node", "//sys/pools/research/research_subpool")
         create("map_node", "//sys/pools/production")
-        set("//sys/pools/research/@max_operations", 3)
+        set("//sys/pools/research/@max_operation_count", 3)
 
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": "bar"}])
@@ -617,7 +617,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             def execute(dont_track):
                 return map(
                     dont_track=dont_track,
-                    command="sleep 5; cat",
+                    command="sleep 1000; cat",
                     in_=["//tmp/in"],
                     out="//tmp/out" + str(index),
                     spec={"pool": pool})
@@ -647,7 +647,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             run(i, "production", False)
 
         for op in ops:
-            op.track()
+            op.abort()
 
 
 class TestSchedulingTags(YTEnvSetup):
