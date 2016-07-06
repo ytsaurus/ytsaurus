@@ -29,10 +29,9 @@ using namespace NObjectClient;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NPipes;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static const NProfiling::TProfiler Profiler(SchedulerProfiler.GetPathPrefix() + "/snapshot");
 
 static const size_t PipeWriteBufferSize = (size_t) 1024 * 1024;
 static const size_t RemoteWriteBufferSize = (size_t) 1024 * 1024;
@@ -54,6 +53,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     : Config_(config)
     , Scheduler_(scheduler)
     , Client_(client)
+    , Profiler(TProfiler(SchedulerProfiler.GetPathPrefix() + "/snapshot"))
 {
     YCHECK(Config_);
     YCHECK(Scheduler_);
