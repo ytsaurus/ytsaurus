@@ -29,7 +29,6 @@ using namespace NObjectClient;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NPipes;
-using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,7 +52,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     : Config_(config)
     , Scheduler_(scheduler)
     , Client_(client)
-    , Profiler(TProfiler(SchedulerProfiler.GetPathPrefix() + "/snapshot"))
+    , Profiler(SchedulerProfiler.GetPathPrefix() + "/snapshot")
 {
     YCHECK(Config_);
     YCHECK(Scheduler_);
