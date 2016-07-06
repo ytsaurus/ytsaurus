@@ -4,6 +4,8 @@
 #include "operation.h"
 #include "operation_controller.h"
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -13,6 +15,7 @@ namespace NScheduler {
 using namespace NNodeTrackerClient::NProto;
 using namespace NYTree;
 using namespace NYson;
+using namespace NObjectClient;
 using namespace NJobTrackerClient;
 using namespace NChunkClient::NProto;
 
@@ -165,6 +168,22 @@ TJobStartRequest::TJobStartRequest(
 void TScheduleJobResult::RecordFail(EScheduleJobFailReason reason)
 {
     ++Failed[reason];
+}
+
+////////////////////////////////////////////////////////////////////
+
+TJobId MakeJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId)
+{
+    return MakeId(
+        EObjectType::SchedulerJob,
+        tag,
+        RandomNumber<ui64>(),
+        nodeId);
+}
+
+NNodeTrackerClient::TNodeId GetNodeId(const TJobId& jobId)
+{
+    return jobId.Parts32[3];
 }
 
 ////////////////////////////////////////////////////////////////////
