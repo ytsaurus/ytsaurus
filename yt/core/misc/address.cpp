@@ -85,6 +85,8 @@ TStringBuf GetServiceHostName(const TStringBuf& address)
 
 Stroka StripInterconnectFromAddress(const Stroka& localHostName, const Stroka& remoteHostName)
 {
+    static const Stroka dcLetters("defghi");
+
     // Extract DC name and interconnect from address.
     auto parse = [] (const Stroka& hostName) -> std::pair<TNullable<Stroka>, bool>  {
         auto dotPosition = hostName.find(".");
@@ -98,12 +100,21 @@ Stroka StripInterconnectFromAddress(const Stroka& localHostName, const Stroka& r
             firstPart = firstPart.substr(0, firstPart.length() - 2);
         }
 
+        TNullable<Stroka> dcName = Null;
+
         auto dashPosition = firstPart.rfind("-");
-        return std::make_pair(
-            dashPosition == Stroka::npos
-            ? Null
-            : MakeNullable(firstPart.substr(dashPosition + 1)),
-            hasInterconnect);
+        if (dashPosition != Stroka::npos) {
+            dcName = firstPart.substr(dashPosition + 1);
+        } else {
+            for (auto letter : dcLetters) {
+                if (letter == firstPart.back()) {
+                    dcName = Stroka(1, letter);
+                    break;
+                }
+            }
+        }
+
+        return std::make_pair(dcName, hasInterconnect);
     };
 
     auto stripInterconnect = [] (const Stroka& hostName) {

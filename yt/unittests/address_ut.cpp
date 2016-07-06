@@ -18,6 +18,10 @@ TEST(TAddressTest, StripInterconnectFromAddress)
     EXPECT_EQ("banach", StripInterconnectFromAddress("m02-fol.yt.yandex.net", "banach"));
     EXPECT_EQ("s01-i.hahn", StripInterconnectFromAddress("m02-fol.yt.yandex.net", "s01-i.hahn"));
     EXPECT_EQ("s01-i.hahn", StripInterconnectFromAddress("n02-fol-i.yt.yandex.net", "s01-i.hahn"));
+    EXPECT_EQ("s01h.hahn", StripInterconnectFromAddress("n02e-i.yt.yandex.net", "s01h-i.hahn"));
+    EXPECT_EQ("s01h-i.hahn", StripInterconnectFromAddress("n02h-i.yt.yandex.net", "s01h-i.hahn"));
+    EXPECT_EQ("s01h-i.hahn", StripInterconnectFromAddress("n02h.yt.yandex.net", "s01h-i.hahn"));
+    EXPECT_EQ("s01-i.hahn", StripInterconnectFromAddress("n02h-i.yt.yandex.net", "s01-i.hahn"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
