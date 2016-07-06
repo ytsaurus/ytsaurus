@@ -13,6 +13,7 @@ import logging
 import uuid
 import shutil
 import subprocess
+import __builtin__
 from time import sleep, time
 from threading import Thread
 
@@ -222,11 +223,12 @@ class YTEnvSetup(YTEnv):
 
     def sync_compact_table(self, path):
         self.sync_unmount_table(path)
+        chunk_ids = __builtin__.set(yt_commands.get(path + "/@chunk_ids"))
         yt_commands.set(path + "/@forced_compaction_revision", yt_commands.get(path + "/@revision"))
         self.sync_mount_table(path)
 
         print "Waiting for tablets to become compacted..."
-        wait(lambda: all(x["statistics"]["chunk_count"] == 1 for x in yt_commands.get(path + "/@tablets")))
+        wait(lambda: len(chunk_ids.intersection(__builtin__.set(yt_commands.get(path + "/@chunk_ids")))) == 0)
 
     def _abort_transactions(self, txs):
         for tx in txs:
