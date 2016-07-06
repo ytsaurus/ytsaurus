@@ -185,5 +185,11 @@ DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJobId MakeJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
+
+NNodeTrackerClient::TNodeId GetNodeId(const TJobId& jobId);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT

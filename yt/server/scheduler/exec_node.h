@@ -26,11 +26,17 @@ namespace NScheduler {
 class TExecNode
     : public TRefCounted
 {
+private:
+    typedef yhash_map<TJobId, TJobPtr> TJobMap;
+
 public:
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, Id);
 
     //! Jobs that are currently running on this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
+
+    //! Mapping from job id to job on this node.
+    DEFINE_BYREF_RW_PROPERTY(TJobMap, IdToJob);
 
     //! A set of scheduling tags assigned to this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<Stroka>, Tags);

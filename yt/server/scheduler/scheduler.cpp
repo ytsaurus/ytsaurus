@@ -490,7 +490,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(AddressToNodeLock_);
+        TReaderGuard guard(ExecNodeMapLock_);
 
         return ExecNodeCount_;
     }
@@ -499,7 +499,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(AddressToNodeLock_);
+        TReaderGuard guard(ExecNodeMapLock_);
 
         return TotalNodeCount_;
     }
@@ -508,11 +508,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(AddressToNodeLock_);
+        TReaderGuard guard(ExecNodeMapLock_);
 
         std::vector<TExecNodeDescriptor> result;
-        result.reserve(AddressToNode_.size());
-        for (const auto& pair : AddressToNode_) {
+        result.reserve(IdToNode_.size());
+        for (const auto& pair : IdToNode_) {
             const auto& node = pair.second;
             if (node->GetMasterState() == ENodeState::Online &&
                 node->CanSchedule(tag))
@@ -1180,9 +1180,11 @@ private:
 
     std::unique_ptr<ISchedulerStrategy> Strategy_;
 
-    NConcurrency::TReaderWriterSpinLock AddressToNodeLock_;
-    typedef yhash_map<Stroka, TExecNodePtr> TExecNodeMap;
-    TExecNodeMap AddressToNode_;
+    NConcurrency::TReaderWriterSpinLock ExecNodeMapLock_;
+    typedef yhash_map<Stroka, TExecNodePtr> TExecNodeByAddressMap;
+    TExecNodeByAddressMap AddressToNode_;
+    typedef yhash_map<TNodeId, TExecNodePtr> TExecNodeByIdMap;
+    TExecNodeByIdMap IdToNode_;
 
     TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
 
@@ -1190,7 +1192,8 @@ private:
     TOperationIdMap IdToOperation_;
 
     typedef yhash_map<TJobId, TJobPtr> TJobMap;
-    TJobMap IdToJob_;
+
+    int ActiveJobCount_ = 0;
 
     NProfiling::TProfiler TotalResourceLimitsProfiler_;
     NProfiling::TProfiler TotalResourceUsageProfiler_;
@@ -1287,7 +1290,7 @@ private:
             }
         }
 
-        Profiler.Enqueue("/active_job_count", IdToJob_.size());
+        Profiler.Enqueue("/active_job_count", ActiveJobCount_);
 
         Profiler.Enqueue("/operation_count", IdToOperation_.size());
         Profiler.Enqueue("/exec_node_count", GetExecNodeCount());
@@ -1368,14 +1371,15 @@ private:
         YCHECK(IdToOperation_.empty());
 
         {
-            TReaderGuard guard(AddressToNodeLock_);
+            TReaderGuard guard(ExecNodeMapLock_);
             for (const auto& pair : AddressToNode_) {
                 auto node = pair.second;
                 node->Jobs().clear();
+                node->IdToJob().clear();
             }
         }
 
-        IdToJob_.clear();
+        ActiveJobCount_ = 0;
 
         for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
             for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
@@ -1490,7 +1494,7 @@ private:
         }
 
         try {
-            TReaderGuard guard(AddressToNodeLock_);
+            TReaderGuard guard(ExecNodeMapLock_);
 
             const auto& rsp = rspOrError.Value();
             auto nodesMap = ConvertToNode(TYsonString(rsp->value()))->AsMap();
@@ -1872,7 +1876,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        TReaderGuard guard(AddressToNodeLock_);
+        TReaderGuard guard(ExecNodeMapLock_);
         auto it = AddressToNode_.find(descriptor.GetDefaultAddress());
         if (it == AddressToNode_.end()) {
             // NB: RegisterNode will acquire the write lock.
@@ -1903,8 +1907,9 @@ private:
         node->SetLease(lease);
 
         {
-            TWriterGuard guard(AddressToNodeLock_);
+            TWriterGuard guard(ExecNodeMapLock_);
             YCHECK(AddressToNode_.insert(std::make_pair(address, node)).second);
+            YCHECK(IdToNode_.insert(std::make_pair(node->GetId(), node)).second);
         }
 
         LOG_INFO("Node registered (Address: %v)", address);
@@ -2012,8 +2017,9 @@ private:
         AbortJobsAtNode(node);
 
         {
-            TWriterGuard guard(AddressToNodeLock_);
+            TWriterGuard guard(ExecNodeMapLock_);
             YCHECK(AddressToNode_.erase(node->GetDefaultAddress()) == 1);
+            YCHECK(IdToNode_.erase(node->GetId()) == 1);
         }
     }
 
@@ -2218,9 +2224,10 @@ private:
 
         auto node = job->GetNode();
 
-        YCHECK(IdToJob_.insert(std::make_pair(job->GetId(), job)).second);
         YCHECK(operation->Jobs().insert(job).second);
         YCHECK(node->Jobs().insert(job).second);
+        YCHECK(node->IdToJob().insert(std::make_pair(job->GetId(), job)).second);
+        ++ActiveJobCount_;
 
         LOG_DEBUG("Job registered (JobId: %v, JobType: %v, OperationId: %v)",
             job->GetId(),
@@ -2246,8 +2253,9 @@ private:
 
         YCHECK(!node->GetHasOngoingJobsScheduling());
 
-        YCHECK(IdToJob_.erase(job->GetId()) == 1);
         YCHECK(node->Jobs().erase(job) == 1);
+        YCHECK(node->IdToJob().erase(job->GetId()) == 1);
+        --ActiveJobCount_;
 
         if (operation) {
             YCHECK(operation->Jobs().erase(job) == 1);
@@ -2263,10 +2271,31 @@ private:
         }
     }
 
+    TExecNodePtr GetNodeByJob(const TJobId& jobId)
+    {
+        TReaderGuard guard(ExecNodeMapLock_);
+        auto nodeId = GetNodeId(jobId);
+        auto it = IdToNode_.find(nodeId);
+        if (it == IdToNode_.end()) {
+            return nullptr;
+        }
+        return it->second;
+    }
+
+    TJobPtr FindJob(const TJobId& jobId, const TExecNodePtr& node)
+    {
+        const auto& idToJob = node->IdToJob();
+        auto it = idToJob.find(jobId);
+        return it == idToJob.end() ? nullptr : it->second;
+    }
+
     TJobPtr FindJob(const TJobId& jobId)
     {
-        auto it = IdToJob_.find(jobId);
-        return it == IdToJob_.end() ? nullptr : it->second;
+        auto node = GetNodeByJob(jobId);
+        if (!node) {
+            return nullptr;
+        }
+        return FindJob(jobId, node);
     }
 
     TJobPtr GetJobOrThrow(const TJobId& jobId)
@@ -2909,7 +2938,7 @@ private:
                         BuildOperationYson(operation, fluent);
                     }
                 })
-                .Item("nodes").DoMapFor(AddressToNode_, [=] (TFluentMap fluent, const TExecNodeMap::value_type& pair) {
+                .Item("nodes").DoMapFor(IdToNode_, [=] (TFluentMap fluent, const TExecNodeByIdMap::value_type& pair) {
                     BuildNodeYson(pair.second, fluent);
                 })
                 .Item("clusters").DoMapFor(GetClusterDirectory()->GetClusterNames(), [=] (TFluentMap fluent, const Stroka& clusterName) {
@@ -3001,14 +3030,13 @@ private:
     {
         auto jobId = FromProto<TJobId>(jobStatus->job_id());
         auto state = EJobState(jobStatus->state());
-        const auto& jobAddress = node->GetDefaultAddress();
 
         NLogging::TLogger Logger(SchedulerLogger);
         Logger.AddTag("Address: %v, JobId: %v",
-            jobAddress,
+            node->GetDefaultAddress(),
             jobId);
 
-        auto job = FindJob(jobId);
+        auto job = FindJob(jobId, node);
         if (!job) {
             switch (state) {
                 case EJobState::Completed:
@@ -3056,8 +3084,8 @@ private:
             operation->GetId());
 
         // Check if the job is running on a proper node.
-        const auto& expectedAddress = job->GetNode()->GetDefaultAddress();
-        if (jobAddress != expectedAddress) {
+        if (node->GetId() != job->GetNode()->GetId()) {
+            const auto& expectedAddress = job->GetNode()->GetDefaultAddress();
             // Job has moved from one node to another. No idea how this could happen.
             if (state == EJobState::Aborting) {
                 // Do nothing, job is already terminating.
