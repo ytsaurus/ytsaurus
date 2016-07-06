@@ -237,7 +237,7 @@ class TestSortedTablets(YTEnvSetup):
             root_chunk_list = get("#" + root_chunk_list_id + "/@")
             tablet_chunk_lists = [get("#" + x + "/@") for x in root_chunk_list["child_ids"]]
             assert all([root_chunk_list_id in chunk_list["parent_ids"] for chunk_list in tablet_chunk_lists])
-            assert get("//tmp/t/@chunk_count") == sum([len(chunk_list["child_ids"]) for chunk_list in tablet_chunk_lists])
+            assert get(path + "/@chunk_count") == sum([len(chunk_list["child_ids"]) for chunk_list in tablet_chunk_lists])
             return root_chunk_list, tablet_chunk_lists
 
         def verify_chunk_tree_refcount(path, root_ref_count, tablet_ref_counts):
@@ -1399,6 +1399,18 @@ class TestSortedTablets(YTEnvSetup):
         assert len(actual) == 2
         assert_items_equal(rows[0], actual[0])
         assert actual[1] == None
+
+    def test_chunk_statistics(self):
+        self.sync_create_cells(1, 1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
+        self.sync_unmount_table("//tmp/t")
+        chunk_list_id = get("//tmp/t/@chunk_list_id")
+        statistics1 = get("#" + chunk_list_id + "/@statistics")
+        self.sync_compact_table("//tmp/t")
+        statistics2 = get("#" + chunk_list_id + "/@statistics")
+        assert statistics1 == statistics2
 
 ##################################################################
 

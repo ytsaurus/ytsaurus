@@ -143,6 +143,7 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
     }
 
     ++statistics.Rank;
+    ++statistics.ChunkListCount;
     chunkList->Statistics() = statistics;
 }
 
