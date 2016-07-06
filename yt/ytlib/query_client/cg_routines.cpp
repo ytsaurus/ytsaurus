@@ -477,9 +477,9 @@ google::re2::RE2* RegexCreate(TUnversionedValue* regexp)
     auto re2 = std::make_unique<google::re2::RE2>(google::re2::StringPiece(regexp->Data.String, regexp->Length), options);
     if (!re2->ok()) {
         THROW_ERROR_EXCEPTION(
-            "Error parsing regular expression %Qv: %Qv",
-            Stroka(regexp->Data.String, regexp->Length),
-            re2->error());
+            "Error parsing regular expression %Qv",
+            Stroka(regexp->Data.String, regexp->Length))
+            << TError(re2->error());
     }
     return re2.release();
 }
