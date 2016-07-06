@@ -18,7 +18,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
+yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildMap(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
@@ -43,7 +43,22 @@ yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
     return result;
 }
 
-const std::vector<TCypressNodeBase*>& GetListNodeChildren(
+std::vector<TCypressNodeBase*> GetMapNodeChildList(
+    const TCypressManagerPtr& cypressManager,
+    TCypressNodeBase* trunkNode,
+    TTransaction* transaction)
+{
+    Y_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
+
+    if (transaction) {
+        return GetValues(GetMapNodeChildMap(cypressManager, trunkNode, transaction));
+    } else {
+        const auto* mapNode = static_cast<const TMapNode*>(trunkNode);
+        return GetValues(mapNode->KeyToChild());
+    }
+}
+
+const std::vector<TCypressNodeBase*>& GetListNodeChildList(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction)

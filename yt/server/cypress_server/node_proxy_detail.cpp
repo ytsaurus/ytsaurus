@@ -1144,7 +1144,7 @@ void TMapNodeProxy::Clear()
     auto* impl = LockThisTypedImpl(ELockMode::Shared);
 
     // Construct children list.
-    auto keyToChildMap = GetMapNodeChildren(
+    auto keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
         Transaction);
@@ -1185,7 +1185,7 @@ int TMapNodeProxy::GetChildCount() const
 
 std::vector<std::pair<Stroka, INodePtr>> TMapNodeProxy::GetChildren() const
 {
-    auto keyToChild = GetMapNodeChildren(
+    auto keyToChild = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
         Transaction);
@@ -1201,7 +1201,7 @@ std::vector<std::pair<Stroka, INodePtr>> TMapNodeProxy::GetChildren() const
 
 std::vector<Stroka> TMapNodeProxy::GetKeys() const
 {
-    auto keyToChild = GetMapNodeChildren(
+    auto keyToChild = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
         Transaction);
