@@ -44,6 +44,10 @@ using namespace NConcurrency;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+static const auto& Profiler = HydraProfiler;
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TDistributedHydraManager;
 typedef TIntrusivePtr<TDistributedHydraManager> TDistributedHydraManagerPtr;
 
@@ -1451,6 +1455,7 @@ private:
         LOG_DEBUG("Synchronizing with upstream");
 
         epochContext->UpstreamSyncDeadlineReached = false;
+        epochContext->UpstreamSyncStartTime = NProfiling::GetCpuInstant();
 
         YCHECK(!epochContext->ActiveUpstreamSyncPromise);
         swap(epochContext->ActiveUpstreamSyncPromise, epochContext->PendingUpstreamSyncPromise);
@@ -1495,6 +1500,10 @@ private:
 
         if (combinedError.IsOK()) {
             LOG_DEBUG("Upstream synchronization complete");
+            auto syncTime = NProfiling::CpuDurationToDuration(
+                NProfiling::GetCpuInstant() -
+                epochContext->UpstreamSyncStartTime);
+            Profiler.Enqueue("/upstream_sync_time", syncTime.MilliSeconds());
         }
 
         epochContext->ActiveUpstreamSyncPromise.Set(combinedError);
