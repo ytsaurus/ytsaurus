@@ -181,7 +181,7 @@ TJobId MakeJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId
         nodeId);
 }
 
-NNodeTrackerClient::TNodeId GetNodeId(const TJobId& jobId)
+NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId)
 {
     return jobId.Parts32[3];
 }

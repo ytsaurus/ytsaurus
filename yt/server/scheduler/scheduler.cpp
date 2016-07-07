@@ -2274,7 +2274,7 @@ private:
     TExecNodePtr GetNodeByJob(const TJobId& jobId)
     {
         TReaderGuard guard(ExecNodeMapLock_);
-        auto nodeId = GetNodeId(jobId);
+        auto nodeId = NodeIdFromJobId(jobId);
         auto it = IdToNode_.find(nodeId);
         if (it == IdToNode_.end()) {
             return nullptr;
