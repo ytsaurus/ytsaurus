@@ -1,19 +1,19 @@
 from contextlib import contextmanager
 
 @contextmanager
-def KeyboardInterruptsCatcher(keyboard_interrupt_action, enable=True, limit=10):
+def ExceptionCatcher(exception_types, exception_action, enable=True, limit=10):
     """
     If caught KeyboardInterrupt(s), do keyboard_interrupt_action.
     """
     if enable:
         try:
             yield
-        except KeyboardInterrupt:
+        except exception_types:
             counter = 0
             while True:
                 try:
-                    keyboard_interrupt_action()
-                except KeyboardInterrupt:
+                    exception_action()
+                except exception_types:
                     counter += 1
                     if counter <= limit:
                         continue
@@ -23,3 +23,6 @@ def KeyboardInterruptsCatcher(keyboard_interrupt_action, enable=True, limit=10):
             raise
     else:
         yield
+
+def KeyboardInterruptsCatcher(*args, **kwargs):
+    return ExceptionCatcher(KeyboardInterrupt, *args, **kwargs)

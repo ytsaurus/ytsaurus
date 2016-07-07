@@ -49,7 +49,7 @@ from common import flatten, require, unlist, update, parse_bool, is_prefix, get_
                    run_with_retries, forbidden_inside_job
 from errors import YtIncorrectResponse, YtError, YtOperationFailedError, YtConcurrentOperationsLimitExceeded
 from driver import make_request
-from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
+from exceptions_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
 from cypress_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
                              move, mkdir, find_free_subpath, create, get, get_type, \
@@ -388,7 +388,7 @@ def _make_operation_request(command_name, spec, sync,
             backoff=get_config(client)["start_operation_retries"]["retry_timeout"] / 1000.0,
             exceptions=(YtConcurrentOperationsLimitExceeded,))
 
-        operation = Operation(command_name, operation_id, finalizer, client=client)
+        operation = Operation(command_name, operation_id, finalize=finalizer, client=client)
 
         if operation.url:
             logger.info("Operation started: %s", operation.url)
