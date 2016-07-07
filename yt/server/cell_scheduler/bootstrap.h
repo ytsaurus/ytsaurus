@@ -18,7 +18,8 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/core/misc/public.h>
+
 
 namespace NYT {
 namespace NCellScheduler {
@@ -52,6 +53,8 @@ private:
     const NYTree::INodePtr ConfigNode_;
 
     TCellSchedulerConfigPtr Config_;
+    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NConcurrency::TFairShareActionQueuePtr ControlQueue_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
