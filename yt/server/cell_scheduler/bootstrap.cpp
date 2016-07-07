@@ -220,9 +220,9 @@ TAddressMap TBootstrap::GetLocalAddresses() const
 
 TNetworkPreferenceList TBootstrap::GetLocalNetworks() const
 {
-    return Config_->Addresses.empty() ?
-        TNetworkPreferenceList{InterconnectNetworkName, DefaultNetworkName}:
-        GetIths<0>(Config_->Addresses);
+    return Config_->Addresses.empty()
+        ? DefaultNetworkPreferences
+        : GetIths<0>(Config_->Addresses);
 }
 
 IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const

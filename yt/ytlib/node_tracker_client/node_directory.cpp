@@ -54,51 +54,6 @@ const Stroka& TNodeDescriptor::GetInterconnectAddress() const
     return IsNull() ? NullAddress : NNodeTrackerClient::GetInterconnectAddress(Addresses_);
 }
 
-const Stroka& TNodeDescriptor::GetAddressOrThrow(const Stroka& name) const
-{
-    // Interconnect address requires special handling since we fallback to
-    // the default one when the interconnect address is missing.
-    if (name == InterconnectNetworkName) {
-        return GetInterconnectAddress();
-    }
-
-    auto it = Addresses_.find(name);
-    if (it == Addresses_.end()) {
-        THROW_ERROR_EXCEPTION(
-            NNodeTrackerClient::EErrorCode::NoSuchNetwork,
-            "Cannot find %Qv address for %v",
-            name,
-            GetDefaultAddress());
-    }
-    return it->second;
-}
-
-TNullable<Stroka> TNodeDescriptor::FindAddress(const Stroka& name) const
-{
-    // See above.
-    if (name == InterconnectNetworkName) {
-        return GetInterconnectAddress();
-    }
-
-    auto it = Addresses_.find(name);
-    if (it == Addresses_.end()) {
-        return Null;
-    }
-    return it->second;
-}
-
-const Stroka& TNodeDescriptor::GetAddress(const Stroka& name) const
-{
-    // See above.
-    if (name == InterconnectNetworkName) {
-        return GetInterconnectAddress();
-    }
-
-    auto it = Addresses_.find(name);
-    YCHECK(it != Addresses_.end());
-    return it->second;
-}
-
 void TNodeDescriptor::Persist(TStreamPersistenceContext& context)
 {
     using NYT::Persist;
@@ -106,9 +61,14 @@ void TNodeDescriptor::Persist(TStreamPersistenceContext& context)
     Persist(context, Rack_);
 }
 
-const Stroka& TNodeDescriptor::SelectAddress(const TNetworkPreferenceList& networks) const
+const Stroka& TNodeDescriptor::GetAddress(const TNetworkPreferenceList& networks) const
 {
-    return NNodeTrackerClient::SelectAddress(Addresses(), networks);
+    return NNodeTrackerClient::GetAddress(Addresses(), networks);
+}
+
+TNullable<Stroka> TNodeDescriptor::FindAddress(const TNetworkPreferenceList& networks) const
+{
+    return NNodeTrackerClient::FindAddress(Addresses(), networks);
 }
 
 Stroka ToString(const TNodeDescriptor& descriptor)
@@ -303,13 +263,33 @@ void TNodeDirectory::Persist(TStreamPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka& SelectAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks)
+namespace {
+
+TAddressMap::const_iterator SelectAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks)
 {
     for (const auto& network : networks) {
         const auto it = addresses.find(network);
         if (it != addresses.cend()) {
-            return it->second;
+            return it;
         }
+    }
+
+    return addresses.cend();
+}
+
+}
+
+TNullable<Stroka> FindAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks)
+{
+    const auto it = SelectAddress(addresses, networks);
+    return it == addresses.cend() ? Null : MakeNullable(it->second);
+}
+
+const Stroka& GetAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks)
+{
+    const auto it = SelectAddress(addresses, networks);
+    if (it != addresses.cend()) {
+        return it->second;
     }
 
     THROW_ERROR_EXCEPTION("Cannot select address for host %v since there is no compatible network",

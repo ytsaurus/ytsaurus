@@ -45,43 +45,44 @@ TCellPeerDescriptor::TCellPeerDescriptor(const TNodeDescriptor& other, bool voti
 
 namespace {
 
-TAddressMap ToAddressMap(const TCellPeerConfig& config, const Stroka& networkName)
+TAddressMap ToAddressMap(const TCellPeerConfig& config, const TNetworkPreferenceList& networks)
 {
+    TAddressMap result;
     if (config.Address) {
-        return {
-            {DefaultNetworkName, *config.Address},
-            {networkName, *config.Address}
-        };
-    } else {
-        return TAddressMap();
+        result.reserve(networks.size());
+        for (const auto& network : networks) {
+            YCHECK(result.emplace(network, *config.Address).second);
+        }
     }
+    return result;
 }
 
 } // namespace
 
 TCellPeerDescriptor::TCellPeerDescriptor(
     const TCellPeerConfig& config,
-    const Stroka& networkName)
-    : TNodeDescriptor(ToAddressMap(config, networkName))
+    const TNetworkPreferenceList& networks)
+    : TNodeDescriptor(ToAddressMap(config, networks))
     , Voting_(config.Voting)
 { }
 
-TCellPeerConfig TCellPeerDescriptor::ToConfig(const Stroka& networkName) const
+TCellPeerConfig TCellPeerDescriptor::ToConfig(const TNetworkPreferenceList& networks) const
 {
     TCellPeerConfig config;
     config.Voting = Voting_;
-    config.Address = IsNull() ? Null : MakeNullable(GetAddressOrThrow(networkName));
+    config.Address = IsNull() ? Null : MakeNullable(GetAddress(networks));
     return config;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellConfigPtr TCellDescriptor::ToConfig(const Stroka& networkName) const
+TCellConfigPtr TCellDescriptor::ToConfig(const TNetworkPreferenceList& networks) const
 {
     auto config = New<TCellConfig>();
     config->CellId = CellId;
+    config->Peers.reserve(Peers.size());
     for (const auto& peer : Peers) {
-        config->Peers.push_back(peer.ToConfig(networkName));
+        config->Peers.emplace_back(peer.ToConfig(networks));
     }
     return config;
 }
@@ -143,10 +144,10 @@ public:
     TImpl(
         TCellDirectoryConfigPtr config,
         IChannelFactoryPtr channelFactory,
-        const Stroka& networkName)
+        const TNetworkPreferenceList& networks)
         : Config_(config)
         , ChannelFactory_(channelFactory)
-        , NetworkName_(networkName)
+        , Networks_(networks)
     { }
 
     IChannelPtr FindChannel(const TCellId& cellId, EPeerKind peerKind)
@@ -228,8 +229,9 @@ public:
         TCellDescriptor descriptor;
         descriptor.CellId = config->CellId;
         descriptor.ConfigVersion = configVersion;
+        descriptor.Peers.reserve(config->Peers.size());
         for (const auto& peer : config->Peers) {
-            descriptor.Peers.push_back(TCellPeerDescriptor(peer, NetworkName_));
+            descriptor.Peers.emplace_back(peer, Networks_);
         }
         return ReconfigureCell(descriptor);
     }
@@ -301,7 +303,7 @@ public:
 private:
     const TCellDirectoryConfigPtr Config_;
     const IChannelFactoryPtr ChannelFactory_;
-    const Stroka NetworkName_;
+    const TNetworkPreferenceList Networks_;
 
     struct TEntry
     {
@@ -320,7 +322,7 @@ private:
         peerConfig->CellId = entry->Descriptor.CellId;
         for (const auto& peer : entry->Descriptor.Peers) {
             if (!peer.IsNull()) {
-                peerConfig->Addresses.push_back(peer.GetAddressOrThrow(NetworkName_));
+                peerConfig->Addresses.emplace_back(peer.GetAddress(Networks_));
             }
         }
         peerConfig->DiscoverTimeout = Config_->DiscoverTimeout;
@@ -361,11 +363,11 @@ private:
 TCellDirectory::TCellDirectory(
     TCellDirectoryConfigPtr config,
     IChannelFactoryPtr channelFactory,
-    const Stroka& networkName)
+    const TNetworkPreferenceList& networks)
     : Impl_(New<TImpl>(
         config,
         channelFactory,
-        networkName))
+        networks))
 { }
 
 TCellDirectory::~TCellDirectory()

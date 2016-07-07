@@ -51,6 +51,7 @@ DECLARE_REFCOUNTED_CLASS(TNodeDirectory)
 
 extern const Stroka DefaultNetworkName;
 extern const Stroka InterconnectNetworkName;
+extern const TNetworkPreferenceList DefaultNetworkPreferences;
 
 DEFINE_ENUM(EErrorCode,
     ((NoSuchNode)    (1600))

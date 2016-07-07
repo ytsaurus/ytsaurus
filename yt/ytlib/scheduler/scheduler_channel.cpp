@@ -31,9 +31,13 @@ class TSchedulerChannelProvider
     : public IRoamingChannelProvider
 {
 public:
-    TSchedulerChannelProvider(IChannelFactoryPtr channelFactory, IChannelPtr masterChannel)
+    TSchedulerChannelProvider(
+        IChannelFactoryPtr channelFactory,
+        IChannelPtr masterChannel,
+        const TNetworkPreferenceList& networks)
         : ChannelFactory_(std::move(channelFactory))
         , MasterChannel_(std::move(masterChannel))
+        , Networks_(networks)
         , EndpointDescription_(Format("Scheduler@%v",
             MasterChannel_->GetEndpointDescription()))
         , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
@@ -76,7 +80,7 @@ public:
 
                 auto addresses = ConvertTo<TAddressMap>(TYsonString(rsp.Value()->value()));
 
-                auto channel = ChannelFactory_->CreateChannel(GetInterconnectAddress(addresses));
+                auto channel = ChannelFactory_->CreateChannel(GetAddress(addresses, Networks_));
                 channel = CreateFailureDetectingChannel(
                     channel,
                     BIND(&TSchedulerChannelProvider::OnChannelFailed, MakeWeak(this)));
@@ -99,6 +103,7 @@ public:
 private:
     const IChannelFactoryPtr ChannelFactory_;
     const IChannelPtr MasterChannel_;
+    const TNetworkPreferenceList Networks_;
 
     const Stroka EndpointDescription_;
     const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
@@ -120,13 +125,14 @@ private:
 IChannelPtr CreateSchedulerChannel(
     TSchedulerConnectionConfigPtr config,
     IChannelFactoryPtr channelFactory,
-    IChannelPtr masterChannel)
+    IChannelPtr masterChannel,
+    const TNetworkPreferenceList& networks)
 {
     YCHECK(config);
     YCHECK(channelFactory);
     YCHECK(masterChannel);
 
-    auto channelProvider = New<TSchedulerChannelProvider>(channelFactory, masterChannel);
+    auto channelProvider = New<TSchedulerChannelProvider>(channelFactory, masterChannel, networks);
     auto channel = CreateRoamingChannel(channelProvider);
 
     channel = CreateRetryingChannel(config, channel);

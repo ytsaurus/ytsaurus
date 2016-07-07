@@ -9,13 +9,22 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSelectAddress, Test)
+TEST(TGetAddress, Test)
 {
     const TAddressMap map{{"ipv4", "127.0.0.1:8081"}, {"ipv6", "::1:8081"}, {"default", "localhost:8081"}};
 
-    EXPECT_EQ("::1:8081", SelectAddress(map, {"ipv6", "ipv4"}));
-    EXPECT_EQ("127.0.0.1:8081", SelectAddress(map, {"ipv4", "ipv6"}));
-    EXPECT_THROW(SelectAddress(map, {"wrong"}), TErrorException);
+    EXPECT_EQ("::1:8081", GetAddress(map, {"ipv6", "ipv4"}));
+    EXPECT_EQ("127.0.0.1:8081", GetAddress(map, {"ipv4", "ipv6"}));
+    EXPECT_THROW(GetAddress(map, {"wrong"}), TErrorException);
+}
+
+TEST(TFindAddress, Test)
+{
+    const TAddressMap map{{"ipv4", "127.0.0.1:8081"}, {"ipv6", "::1:8081"}, {"default", "localhost:8081"}};
+
+    EXPECT_EQ("::1:8081", *FindAddress(map, {"ipv6", "ipv4"}));
+    EXPECT_EQ("127.0.0.1:8081", *FindAddress(map, {"ipv4", "ipv6"}));
+    EXPECT_FALSE(FindAddress(map, {"wrong"}));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

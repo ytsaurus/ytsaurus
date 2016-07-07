@@ -182,7 +182,7 @@ private:
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
 
-    Stroka NetworkName_;
+    TNetworkPreferenceList Networks_;
 
     TAsyncStreamState State_;
 
@@ -482,7 +482,7 @@ TReplicationWriter::TReplicationWriter(
     , NodeDirectory_(nodeDirectory)
     , Throttler_(throttler)
     , BlockCache_(blockCache)
-    , NetworkName_(client->GetNativeConnection()->GetConfig()->NetworkName)
+    , Networks_(client->GetNativeConnection()->GetConfig()->Networks)
     , WindowSlots_(New<TAsyncSemaphore>(config->SendWindowSize))
     , UploadReplicationFactor_(Config_->UploadReplicationFactor)
     , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
@@ -570,7 +570,7 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     auto nodeDescriptor = NodeDirectory_->GetDescriptor(target);
-    auto address = nodeDescriptor.GetAddressOrThrow(NetworkName_);
+    auto address = nodeDescriptor.GetAddress(Networks_);
     LOG_DEBUG("Starting write session (Address: %v)", address);
 
     auto lightChannel = CreateRetryingNodeChannel(
@@ -629,11 +629,11 @@ void TReplicationWriter::DoOpen()
             StartSessions(AllocateTargets());
         }
 
-        LOG_INFO("Writer opened (Addresses: %v, PopulateCache: %v, Workload: %v, Network: %v)",
+        LOG_INFO("Writer opened (Addresses: %v, PopulateCache: %v, Workload: %v, Networks: %v)",
             Nodes_,
             Config_->PopulateCache,
             Config_->WorkloadDescriptor,
-            NetworkName_);
+            Networks_);
 
         IsOpen_ = true;
     } catch (const std::exception& ex) {

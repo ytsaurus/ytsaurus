@@ -709,9 +709,9 @@ TAddressMap TBootstrap::GetLocalAddresses()
 
 TNetworkPreferenceList TBootstrap::GetLocalNetworks()
 {
-    return Config->Addresses.empty() ?
-        TNetworkPreferenceList{InterconnectNetworkName, DefaultNetworkName}:
-        GetIths<0>(Config->Addresses);
+    return Config->Addresses.empty()
+        ? DefaultNetworkPreferences
+        : GetIths<0>(Config->Addresses);
 }
 
 void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)
