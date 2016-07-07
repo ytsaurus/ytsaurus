@@ -87,4 +87,4 @@
 #0 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=freud.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/scheduler_event_log_rotate_lock "/opt/cron/fennel_rotate.py"' >>/opt/cron/scheduler_event_log_rotation_freud.log 2>&1
 
 # Send cluster notification via mail
-*/2 * * * * TITLE="sending notification via mail" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! "/opt/cron/send_notifications_via_mail.py hahn banach barney locke hume smith freud vanga features -r max42@yandex-team.ru"' >>/opt/cron/send_notifications_via_mail.log 2>&1
+*/2 * * * * TITLE="sending notification via mail" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! /opt/cron/send_notifications_via_mail.py hahn banach barney locke hume smith freud vanga features -r yt-dev@yandex-team.ru -r yt-ops@yandex-team.ru' >>/opt/cron/send_notifications_via_mail.log 2>&1

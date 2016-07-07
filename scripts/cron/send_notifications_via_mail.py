@@ -30,7 +30,7 @@ def send_notification(cluster, notification_id, notification, recipients):
         time.ctime(notification["estimated_start_time"]) if "estimated_start_time" in notification else "(N/A)",
         time.ctime(notification["estimated_finish_time"]) if "estimated_finish_time" in notification else "(N/A)",
         notification.get("author", "(N/A)"))
-    msg = MIMEText(mail_body, "html")
+    msg = MIMEText(mail_body, "html", "utf-8")
     msg["Subject"] = mail_subject
     msg["From"] = notification.get("author", "unknown_yt_parrot") + "@yandex-team.ru"
     msg["To"] = ", ".join(recipients)
@@ -43,8 +43,9 @@ def main():
     parser.add_argument("cluster", type=str, nargs="+")
     parser.add_argument("-r", "--recipient", type=str, nargs="+")
     args = parser.parse_args()
+    logger.info("Processing following clusters: %s, sending notifications to following recipients: %s", args.cluster, args.recipient)
     for cluster in args.cluster:
-        logger.info("Processing cluster %s\n", cluster)
+        logger.info("Processing cluster %s", cluster)
         for notification_id in yt.list("//sys/notifications/{0}".format(cluster)): 
             notification = yt.get("//sys/notifications/{0}/{1}".format(cluster, notification_id))
             if notification.get("sent_via_mail", False) or notification.get("hidden", False):
