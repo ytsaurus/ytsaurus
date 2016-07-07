@@ -42,7 +42,13 @@ def main():
 
         locks = yt.get(yt.ypath_join(args.cypress_path, "lock/@locks"))
         if not locks:
+            logger.info("No locks acquired. Killing Transfer Manager process")
+            subprocess.check_call(["sv", "kill", "transfer_manager"])
+            time.sleep(15)
+            subprocess.check_call(["sv", "start", "transfer_manager"])
+            logger.info("Started Transfer Manager")
             return
+
         transaction_id = locks[0]["transaction_id"]
 
         subprocess.check_call(["sv", "kill", "transfer_manager"])
