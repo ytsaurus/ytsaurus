@@ -12,6 +12,7 @@ namespace NYT {
 
 TNodeTableWriter::TNodeTableWriter(THolder<TProxyOutput> output)
     : Output_(std::move(output))
+    , Locks_(Output_->GetStreamCount())
 {
     for (size_t i = 0; i < Output_->GetStreamCount(); ++i) {
         Writers_.push_back(
@@ -44,6 +45,8 @@ void TNodeTableWriter::AddRow(const TNode& row, size_t tableIndex)
         }
     }
 
+    auto guard = Guard(Locks_[tableIndex]);
+
     auto* writer = Writers_[tableIndex].Get();
     writer->OnListItem();
     TNodeVisitor visitor(writer);
@@ -54,6 +57,7 @@ void TNodeTableWriter::AddRow(const TNode& row, size_t tableIndex)
 void TNodeTableWriter::Finish()
 {
     for (size_t i = 0; i < Output_->GetStreamCount(); ++i) {
+        auto guard = Guard(Locks_[i]);
         Output_->GetStream(i)->Finish();
     }
 }

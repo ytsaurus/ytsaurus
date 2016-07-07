@@ -393,7 +393,7 @@ public:
     }
 
 protected:
-    TAuth Auth_;
+    const TAuth Auth_;
     TTransactionId TransactionId_;
 
 private:
@@ -468,18 +468,16 @@ public:
         bool isOwning,
         const TStartTransactionOptions& options)
         : TClientBase(auth)
-    {
-        if (isOwning) {
-            PingableTx_ = new TPingableTransaction(
+        , PingableTx_(isOwning ?
+            new TPingableTransaction(
                 auth,
                 transactionId, // parent id
                 options.Timeout_,
                 options.PingAncestors_,
-                options.Attributes_);
-            TransactionId_ = PingableTx_->GetId();
-        } else {
-            TransactionId_ = transactionId;
-        }
+                options.Attributes_)
+            : nullptr)
+    {
+        TransactionId_ = isOwning ? PingableTx_->GetId() : transactionId;
     }
 
     const TTransactionId& GetId() const override
