@@ -165,6 +165,7 @@ class YTEnvSetup(YTEnv):
             self._remove_groups()
             self._remove_tablet_cells()
             self._remove_racks()
+            self._remove_pools()
 
             yt_commands.gc_collect()
 
@@ -277,6 +278,9 @@ class YTEnvSetup(YTEnv):
         racks = yt_commands.get_racks()
         for rack in racks:
             yt_commands.remove_rack(rack)
+
+    def _remove_pools(self):
+        yt_commands.remove("//sys/pools/*")
 
     def _find_ut_file(self, file_name):
         from distutils.spawn import find_executable
