@@ -1589,7 +1589,6 @@ private:
             auto& statistics = chunkList->Statistics();
             auto oldStatistics = statistics;
             statistics = TChunkTreeStatistics();
-            statistics.Rank = 1;
             int childCount = chunkList->Children().size();
 
             auto& rowCountSums = chunkList->RowCountSums();
@@ -1632,9 +1631,7 @@ private:
                 statistics.Accumulate(childStatistics);
             }
 
-            if (!chunkList->Children().empty()) {
-                ++statistics.Rank;
-            }
+            ++statistics.Rank;
             ++statistics.ChunkListCount;
 
             if (statistics != oldStatistics) {
