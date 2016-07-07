@@ -159,41 +159,45 @@ TClusterResources GetDiskUsage(
     return result;
 }
 
-void VisitOwningNodes(
-    TChunkTree* chunkTree,
-    yhash_set<TChunkTree*>* visitedTrees,
-    yhash_set<TChunkOwnerBase*>* owningNodes)
-{
-    if (!visitedTrees->insert(chunkTree).second)
-        return;
-    
-    switch (chunkTree->GetType()) {
-        case EObjectType::Chunk:
-        case EObjectType::ErasureChunk:
-        case EObjectType::JournalChunk: {
-            for (auto* parent : chunkTree->AsChunk()->Parents()) {
-                VisitOwningNodes(parent, visitedTrees, owningNodes);
-            }
-            break;
-        }
-        case EObjectType::ChunkList: {
-            auto* chunkList = chunkTree->AsChunkList();
-            owningNodes->insert(chunkList->OwningNodes().begin(), chunkList->OwningNodes().end());
-            for (auto* parent : chunkList->Parents()) {
-                VisitOwningNodes(parent, visitedTrees, owningNodes);
-            }
-            break;
-        }
-        default:
-            YUNREACHABLE();
-    }
-}
-
 std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
 {
     yhash_set<TChunkOwnerBase*> owningNodes;
     yhash_set<TChunkTree*> visitedTrees;
-    VisitOwningNodes(chunkTree, &visitedTrees, &owningNodes);
+    std::vector<TChunkTree*> queue{chunkTree};
+
+    auto visit = [&] (TChunkTree* chunkTree) {
+        if (visitedTrees.insert(chunkTree).second) {
+            queue.push_back(chunkTree);
+        }
+    };
+
+    visit(chunkTree);
+
+    for (int index = 0; index < queue.size(); ++index) {
+        chunkTree = queue[index];
+
+        switch (chunkTree->GetType()) {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk:
+            case EObjectType::JournalChunk: {
+                for (auto* parent : chunkTree->AsChunk()->Parents()) {
+                    visit(parent);
+                }
+                break;
+            }
+            case EObjectType::ChunkList: {
+                auto* chunkList = chunkTree->AsChunkList();
+                owningNodes.insert(chunkList->OwningNodes().begin(), chunkList->OwningNodes().end());
+                for (auto* parent : chunkList->Parents()) {
+                    visit(parent);
+                }
+                break;
+            }
+            default:
+                YUNREACHABLE();
+        }
+    }
+
     return std::vector<TChunkOwnerBase*>(owningNodes.begin(), owningNodes.end());
 }
 
