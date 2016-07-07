@@ -212,7 +212,7 @@ public:
     int MaxCommitBatchRecordCount;
 
     //! Maximum time to wait before syncing with leader.
-    TDuration MaxLeaderSyncDelay;
+    TDuration UpstreamSyncDelay;
 
     //! Changelog record count limit.
     /*!
@@ -276,7 +276,7 @@ public:
         RegisterParameter("max_commit_batch_record_count", MaxCommitBatchRecordCount)
             .Default(10000);
 
-        RegisterParameter("max_leader_sync_delay", MaxLeaderSyncDelay)
+        RegisterParameter("upstream_sync_delay", UpstreamSyncDelay)
             .Default(TDuration::MilliSeconds(10));
 
         RegisterParameter("max_changelog_record_count", MaxChangelogRecordCount)

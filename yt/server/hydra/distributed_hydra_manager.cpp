@@ -287,7 +287,7 @@ public:
 
         return AutomatonEpochContext_ ? AutomatonEpochContext_->CancelableContext : nullptr;
     }
-    
+
     virtual bool GetReadOnly() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -373,7 +373,7 @@ public:
             TDelayedExecutor::Submit(
                 BIND(&TDistributedHydraManager::OnUpsteamSyncDeadlineReached, MakeStrong(this), epochContext)
                     .Via(epochContext->EpochUserAutomatonInvoker),
-                Config_->MaxLeaderSyncDelay);
+                Config_->UpstreamSyncDelay);
         }
 
         return epochContext->PendingUpstreamSyncPromise;
@@ -901,7 +901,7 @@ private:
     void Restart(TEpochContextPtr epochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        
+
         bool expected = false;
         if (!epochContext->Restarting.compare_exchange_strong(expected, true)) {
             return;
@@ -972,7 +972,7 @@ private:
 
         // NB: Epoch invokers are already canceled so we don't expect any more callbacks to
         // go through the automaton invoker.
-        
+
         switch (GetAutomatonState()) {
             case EPeerState::Leading:
             case EPeerState::LeaderRecovery:
@@ -1229,7 +1229,7 @@ private:
 
         YCHECK(ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::LeaderRecovery);
         ControlState_ = EPeerState::Elections;
-        
+
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1411,7 +1411,7 @@ private:
         ControlEpochContext_.Reset();
 
         LeaderLease_->Invalidate();
-        
+
         LeaderRecovered_ = false;
         FollowerRecovered_ = false;
 
