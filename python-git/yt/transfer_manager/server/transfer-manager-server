@@ -1,38 +1,32 @@
 #!/usr/bin/env python
 
-import yt.transfer_manager.server.traceback_helpers as traceback_helpers
-from yt.transfer_manager.server.flask_helpers import process_gzip
 from yt.transfer_manager.server.logger import TaskIdLogger
+from yt.transfer_manager.server.flask_helpers import process_gzip
 from yt.transfer_manager.server.pattern_matching import match_copy_pattern
-from yt.transfer_manager.server.message_queue import MessageReader, MessageWriter
-from yt.transfer_manager.server.yt_client import YtClientWithNotifications
+from yt.transfer_manager.server.message_queue import MessageReader
 from yt.transfer_manager.server.lock import CountedRLock
+from yt.transfer_manager.server.task_types import Task
+from yt.transfer_manager.server.clusters_configuration import get_clusters_configuration_from_config
+from yt.transfer_manager.server.errors import RequestFailed, SchedulingError
+from yt.transfer_manager.server.precheck import perform_precheck
+from yt.transfer_manager.server.helpers import log_yt_exception, get_token_and_user, remove_unsigned, \
+                                               SafeThread, get_cluster_version, configure_logging
+from yt.transfer_manager.server.executor import run_executor
 
 from yt.tools.logging_server import LogRecordSocketReceiver
-from yt.tools.yamr import Yamr, YamrError
-from yt.tools.hadoop import Airflow, Hdfs, Hive, HBase
-from yt.tools.remote_copy_tools import Kiwi
-from yt.tools.remote_copy_tools import \
-    copy_yamr_to_yt_pull, \
-    copy_yt_to_yamr_pull, \
-    copy_yt_to_yamr_push, \
-    copy_yt_to_kiwi, \
-    copy_yt_to_yt, \
-    copy_yt_to_yt_through_proxy, \
-    copy_hive_to_yt, \
-    copy_hadoop_to_hadoop_with_airflow
 
 from yt.common import remove_file
 from yt.wrapper.common import generate_uuid, get_value, update, parse_bool
 from yt.wrapper.client import Yt
 import yt.logger as logger
-import yt.wrapper as yt
 import yt.json as json
 from yt.packages.expiringdict import ExpiringDict
 from yt.packages.cherrypy import wsgiserver
 
 import yt.packages.pympler.muppy as pympler_muppy
 import yt.packages.pympler.summary as pympler_summary
+
+import yt.wrapper as yt
 
 from flask import Flask, request, jsonify, Response, make_response, send_file
 
@@ -51,16 +45,13 @@ import socket
 import logging
 import logging.handlers
 import tempfile
-import thread
 import argparse
 import traceback
-import subprocess
 import pwd
 from copy import deepcopy
 from datetime import datetime
 from collections import defaultdict, deque
-from subprocess32 import TimeoutExpired
-from threading import RLock, Thread, current_thread
+from threading import RLock
 from multiprocessing import Process
 from itertools import chain
 import Queue
@@ -68,45 +59,6 @@ import Queue
 OS_PAGE_SIZE = os.sysconf("SC_PAGE_SIZE")
 
 yt.config["read_retries"]["enable"] = True
-
-class RequestFailed(yt.YtError):
-    def __init__(self, *args, **kwargs):
-        http_code = kwargs.pop("http_code", 404)
-        super(RequestFailed, self).__init__(*args, **kwargs)
-        self.attributes["http_code"] = http_code
-
-class IncorrectTokenError(RequestFailed):
-    pass
-
-class SchedulingError(yt.YtError):
-    pass
-
-class SafeThread(Thread):
-    def __init__(self, group=None, target=None, name=None, terminate=None, args=None, kwargs=None):
-        self._parent_pid = os.getpid()
-
-        if args is None:
-            args = ()
-        if kwargs is None:
-            kwargs = {}
-
-        def safe_run(*args, **kwargs):
-            try:
-                target(*args, **kwargs)
-            except KeyboardInterrupt:
-                print >>sys.stderr, "Interrupting main from child thread:", current_thread()
-                thread.interrupt_main()
-                time.sleep(0.5)
-                os.kill(self._parent_pid, signal.SIGTERM)
-            except:
-                print >>sys.stderr, "Unknown exception"
-                print >>sys.stderr, traceback.format_exc()
-                logger.exception("Unknown exception")
-                os.kill(self._parent_pid, signal.SIGINT)
-                time.sleep(0.5)
-                os.kill(self._parent_pid, signal.SIGTERM)
-
-        super(SafeThread, self).__init__(group=group, target=safe_run, name=name, args=args, kwargs=kwargs)
 
 SIGTERM_SENT = False
 def sigterm_handler(signum, frame):
@@ -120,159 +72,12 @@ def sigterm_handler(signum, frame):
 
     os._exit(1)
 
-def log_yt_exception(logger, message=None):
-    # Python2.7 has a bug in unpickling exception with non-trivial constructor.
-    # To overcome it we convert exception to string before logging through socket handler.
-    # https://bugs.python.org/issue1692335
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    exception_string = "\n".join(traceback.format_exception(exc_type, str(exc_value), exc_traceback))
-    if message is not None:
-        logger.error(message + "\n" + exception_string)
-    else:
-        logger.error(exception_string)
-
-def filter_out_keys(dict, keys):
-    result = deepcopy(dict)
-    for key in keys:
-        if key in result:
-            del result[key]
-    return result
-
-def remove_unsigned(obj):
-    def is_uint(num):
-        return isinstance(num, long) and (num < -2 ** 63 or num >= 2 ** 63)
-
-    if isinstance(obj, list):
-        result = []
-        for value in obj:
-            new_value = remove_unsigned(value)
-            if not is_uint(new_value):
-                result.append(new_value)
-        return result
-    elif isinstance(obj, dict):
-        result = {}
-        for key, value in obj.iteritems():
-            new_value = remove_unsigned(value)
-            if not is_uint(new_value):
-                result[key] = new_value
-        return result
-    else:
-        return obj
-
 def make_solomon_sensor(name, value, **kwargs):
     labels = update({"sensor": name}, deepcopy(kwargs))
     return {"labels": labels, "value": value}
 
-def truncate_stderrs_attributes(error, limit):
-    if hasattr(error, "attributes") and "stderrs" in error.attributes:
-        if isinstance(error, yt.YtOperationFailedError):
-            error.attributes["details"] = yt.format_operation_stderrs(error.attributes["stderrs"])[:limit]
-        elif isinstance(error, YamrError):
-            error.attributes["details"] = error.attributes["stderrs"][:limit]
-        del error.attributes["stderrs"]
-    if hasattr(error, "inner_errors"):
-        for inner_error in error.inner_errors:
-            truncate_stderrs_attributes(inner_error, limit)
-
 def now_str():
     return str(datetime.utcnow().isoformat() + "Z")
-
-class Task(object):
-    # NB: destination table is missing if we copy to kiwi
-    def __init__(self, source_cluster, source_table, destination_cluster, creation_time, id, state, user,
-                 destination_table=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
-                 start_time=None, restart_time=None, finish_time=None, copy_method=None, skip_if_destination_exists=None, progress=None, history=None, backend_tag=None, kiwi_user=None, kwworm_options=None, pool=None, meta=None,
-                 destination_compression_codec=None, destination_erasure_codec=None, destination_force_sort=None, copy_spec=None, postprocess_spec=None,
-                 job_timeout=None, intermediate_format=None, lease_timeout=None, queue_name=None):
-        self.source_cluster = source_cluster
-        self.source_table = source_table
-        self.source_cluster_token = get_value(source_cluster_token, token)
-        self.destination_cluster = destination_cluster
-        self.destination_table = destination_table
-        self.destination_cluster_token = get_value(destination_cluster_token, token)
-
-        self.creation_time = creation_time
-        self.start_time = start_time
-        self.restart_time = restart_time
-        self.finish_time = finish_time
-        self.state = state
-        self.id = id
-        self.user = user
-        self.mr_user = mr_user
-        self.error = error
-        self.token = token
-        self.copy_method = copy_method
-        self.skip_if_destination_exists = skip_if_destination_exists
-        self.progress = progress
-        self.history = history
-
-        self.backend_tag = backend_tag
-        self.pool = pool
-        self.kiwi_user = kiwi_user
-        self.kwworm_options = kwworm_options
-        self.copy_spec = copy_spec
-        self.postprocess_spec = postprocess_spec
-        # NB: supported only for yamr_to_yt_pull
-        self.job_timeout = job_timeout
-        self.intermediate_format = intermediate_format
-
-        self.destination_compression_codec = destination_compression_codec
-        self.destination_erasure_codec = destination_erasure_codec
-        self.destination_force_sort = destination_force_sort
-
-        self.lease_timeout = lease_timeout
-        self.queue_name = queue_name
-
-        # Special field to store meta-information for web-interface
-        self.meta = meta
-
-        self._last_ping_time = None
-
-    def get_direction_id(self):
-        return self.queue_name, self.source_cluster, self.destination_cluster
-
-    def get_direction_id_with_user(self):
-        return self.queue_name, self.user, self.source_cluster, self.destination_cluster
-
-    def get_source_client(self, clusters):
-        if self.source_cluster not in clusters:
-            raise yt.YtError("Unknown cluster " + self.source_cluster)
-        client = deepcopy(clusters[self.source_cluster])
-        if client._type == "yt":
-            client.config["token"] = self.source_cluster_token
-        if client._type == "yamr" and self.mr_user is not None:
-            client.mr_user = self.mr_user
-        return client
-
-    def get_destination_client(self, clusters):
-        if self.destination_cluster not in clusters:
-            raise yt.YtError("Unknown cluster " + self.destination_cluster)
-        client = deepcopy(clusters[self.destination_cluster])
-        if client._type == "yt":
-            client.config["token"] = self.destination_cluster_token
-        if client._type == "yamr" and self.mr_user is not None:
-            client.mr_user = self.mr_user
-        return client
-
-    def dict(self, hide_token=False, fields=None):
-        result = self.__dict__.copy()
-        if hide_token:
-            for key in ["token", "source_cluster_token", "destination_cluster_token"]:
-                del result[key]
-        for key in result.keys():
-            if result[key] is None or (fields is not None and key not in fields) or key.startswith("_"):
-                del result[key]
-        return result
-
-    def copy(self):
-        return Task(**dict((key, value) for key, value in self.__dict__.items() if not key.startswith("_")))
-
-class ClustersConfiguration(object):
-    def __init__(self, clusters, availability_graph, kiwi_transmitter, hadoop_transmitter):
-        self.clusters = clusters
-        self.availability_graph = availability_graph
-        self.kiwi_transmitter = kiwi_transmitter
-        self.hadoop_transmitter = hadoop_transmitter
 
 class Application(object):
     ERROR_BUFFER_SIZE = 2 ** 16
@@ -300,19 +105,13 @@ class Application(object):
             "running_task_count": defaultdict(int)
         }
 
-        self._configure_logging(self._config.get("logging", {}))
+        configure_logging(self._config.get("logging", {}))
 
         self._clusters_config_mutex = RLock()
-        self._clusters_configuration = self._get_clusters_configuration_from_config(self._config)
+        self._clusters_configuration = get_clusters_configuration_from_config(self._config)
 
         self._path = self._config["path"]
         self._logging_port = self._config["port"] + 1
-
-        self._yandex_yt_python_tools_version = self._get_yandex_yt_python_tools_version()
-
-    def init_logger(self):
-        # Replace current logger with socket logger.
-        logger.LOGGER.handlers = [logging.handlers.SocketHandler("localhost", self._logging_port)]
 
     def start_processes(self):
         self._sleep_step = 0.5
@@ -326,7 +125,8 @@ class Application(object):
         self._logging_process.daemon = True
         self._logging_process.start()
 
-        self.init_logger()
+        # Replace current logger with socket logger.
+        logger.LOGGER.handlers = [logging.handlers.SocketHandler("localhost", self._logging_port)]
 
         # Prepare auth node if it is missing
         self._auth_path = os.path.join(self._path, "auth")
@@ -602,90 +402,9 @@ class Application(object):
                     return
                 time.sleep(self._sleep_step)
 
-    def _get_version(self, cluster_client):
-        if hasattr(cluster_client, "_version"):
-            return cluster_client._version
-        elif cluster_client._type == "yt":
-            try:
-                with self._mutex:
-                    return cluster_client.get("//sys/@protocol_version")
-            except yt.YtError as err:
-                if not err.is_resolve_error():
-                    raise
-        return None
-
     def _get_clusters_configuration(self):
         with self._clusters_config_mutex:
             return deepcopy(self._clusters_configuration)
-
-    def _get_clusters_configuration_from_config(self, config):
-        config = deepcopy(config)
-        clusters = {}
-        for name, cluster_description in config["clusters"].iteritems():
-            type = cluster_description["type"]
-            options = cluster_description.get("options", {})
-
-            if type == "yt":
-                if "config" not in options:
-                    options["config"] = {}
-                options["config"] = update(config["yt_client_config"], options["config"])
-                clusters[name] = YtClientWithNotifications(**options)
-                clusters[name]._pools = cluster_description.get("pools", {})
-                if "version" in cluster_description:
-                    clusters[name]._version = cluster_description["version"]
-            elif type == "yamr":
-                clusters[name] = Yamr(**options)
-            elif type == "kiwi":
-                clusters[name] = Kiwi(**options)
-            elif type == "hive":
-                clusters[name] = Hive(**options)
-            elif type == "hdfs":
-                clusters[name] = Hdfs(**options)
-            elif type == "hbase":
-                clusters[name] = HBase(**options)
-            else:
-                raise yt.YtError("Incorrect cluster type " + options["type"])
-
-            clusters[name]._name = name
-            clusters[name]._type = type
-            clusters[name]._parameters = filter_out_keys(cluster_description, ["type", "options"])
-
-        availability_graph = config["availability_graph"]
-
-        for name in availability_graph:
-            edges = {}
-            for neighbour in availability_graph[name]:
-                if isinstance(neighbour, dict):
-                    edges[neighbour["name"]] = neighbour.get("options", {})
-                else:
-                    edges[neighbour] = {}
-            availability_graph[name] = edges
-
-        for name in availability_graph:
-            if name not in clusters:
-                raise yt.YtError("Incorrect availability graph, cluster {} is missing".format(name))
-            for neighbour in availability_graph[name]:
-                if neighbour not in clusters:
-                    raise yt.YtError("Incorrect availability graph, cluster {} is missing".format(neighbour))
-
-        kiwi_transmitter = None
-        if "kiwi_transmitter" in config:
-            name = config["kiwi_transmitter"]
-            if name not in clusters:
-                raise yt.YtError("Incorrect kiwi transmitter, cluster {} is missing".format(name))
-            kiwi_transmitter = clusters[name]
-            if kiwi_transmitter._type != "yt":
-                raise yt.YtError("Kiwi transmitter must be YT cluster")
-
-        hadoop_transmitter = None
-        if "hadoop_transmitter" in config:
-            hadoop_transmitter_config = config["hadoop_transmitter"]
-            if hadoop_transmitter_config["type"] != "airflow":
-                raise yt.YtError("Hadoop transmitter must be airflow client")
-            hadoop_transmitter = Airflow(**hadoop_transmitter_config["options"])
-            hadoop_transmitter._name = hadoop_transmitter_config["name"]
-
-        return ClustersConfiguration(clusters, availability_graph, kiwi_transmitter, hadoop_transmitter)
 
     def _reload_clusters_config(self):
         reload_timeout = self._config["clusters_config_reload_timeout"] / 1000.0
@@ -703,7 +422,7 @@ class Application(object):
                         logger.debug("Config is not changed, reloading skipped")
                         continue
 
-                configuration = self._get_clusters_configuration_from_config(config)
+                configuration = get_clusters_configuration_from_config(config)
                 with self._clusters_config_mutex:
                     self._clusters_configuration = configuration
                     self._last_successfully_loaded_config = config
@@ -711,24 +430,6 @@ class Application(object):
                 logger.info("Clusters configuration was successfully reloaded")
             except:
                 logger.exception("Failed to update clusters configuration")
-
-    def _configure_logging(self, logging_node):
-        level = logging.__dict__[logging_node.get("level", "INFO")]
-
-        if "filename" in logging_node:
-            handler = logging.handlers.WatchedFileHandler(logging_node["filename"])
-        else:
-            handler = logging.StreamHandler()
-
-        new_logger = logging.getLogger("Transfer manager")
-        new_logger.propagate = False
-        new_logger.setLevel(level)
-        new_logger.handlers = [handler]
-        new_logger.handlers[0].setFormatter(logger.BASIC_FORMATTER)
-        logger.LOGGER = new_logger
-
-        logging.getLogger("werkzeug").setLevel(level)
-        logging.getLogger("werkzeug").addHandler(handler)
 
     def _run_logging_server(self):
         prctl.set_pdeathsig(signal.SIGINT)
@@ -748,7 +449,6 @@ class Application(object):
 
         # From ... to task ids
         self._running_tasks_per_direction = defaultdict(list)
-        self._last_scheduled_time = defaultdict(lambda: datetime(year=1970, month=1, day=1))
 
         # List of tasks sorted by creation time
         self._pending_tasks = []
@@ -767,8 +467,8 @@ class Application(object):
                 continue
 
             try:
-                active_client, passive_client = self._get_active_and_passive_clients(
-                    task, self._get_clusters_configuration())
+                active_client, passive_client = task.get_active_and_passive_clients(
+                    self._get_clusters_configuration())
             except yt.YtError as err:
                 logger.warning("Failed to load task %s: %s", id, str(err))
                 continue
@@ -844,29 +544,11 @@ class Application(object):
             raise yt.YtError("Transfer manager failed to create pool path: %s" % pool_path, inner_errors=[err])
         return pool_name
 
-    # Return pair: active client, that run copy operation and passive client.
-    def _get_active_and_passive_clients(self, task, clusters_configuration):
-        source_client = task.get_source_client(clusters_configuration.clusters)
-        destination_client = task.get_destination_client(clusters_configuration.clusters)
-
-        if destination_client._type == "yamr":
-            if source_client._type == "yt" and task.copy_method == "push":
-                return source_client, destination_client
-            return destination_client, source_client
-        elif destination_client._type == "yt":
-            return destination_client, source_client
-        elif destination_client._type == "kiwi":
-            return clusters_configuration.kiwi_transmitter, source_client
-        elif destination_client._type in ["hive", "hdfs", "hbase"]:
-            return source_client, destination_client
-        else:
-            raise yt.YtError("Unknown destination client type: %r", destination_client._type)
-
     def _initialize_pool(self, task, clusters_configuration):
         if task.pool is not None:
             return
 
-        active_client, passive_client = self._get_active_and_passive_clients(task, clusters_configuration)
+        active_client, passive_client = task.get_active_and_passive_clients(clusters_configuration)
         if active_client._type != "yt":
             return
 
@@ -877,64 +559,18 @@ class Application(object):
             pool = self._create_pool(active_client, name)
         task.pool = pool
 
-    def _get_token(self, authorization_header):
-        words = authorization_header.split()
-        if len(words) != 2 or words[0].lower() != "oauth":
-            return None
-        return words[1]
-
-    def _get_token_and_user(self, headers_):
-        headers = {}
-        for key, value in headers_.iteritems():
-            headers[key] = value
-
-        # Some headers should not be passed.
-        # NB: Passing Host header causes infinite redirect on locke
-        for name in ["Host", "Content-Length"]:
-            if name in headers:
-                del headers[name]
-
-        token = self._get_token(headers.get("Authorization", ""))
-        if "X-Forwarded-For" in headers:
-            #headers["X-Forwarded-For"] += ", " + request.remote_addr
-            # NB: it is not yet supported by proxy.
-            pass
-        else:
-            headers["X-Forwarded-For"] = request.remote_addr
-        if token == "undefined":
-            user = "guest"
-            token = ""
-        else:
-            client = Yt(**self._config["yt_backend_options"])
-            user = client.get_user_name(token, headers=headers)
-            if not user:
-                raise IncorrectTokenError("Authorization token is incorrect: " + token)
-        return token, user
-
-    @staticmethod
-    def _get_yandex_yt_python_tools_version():
-        if os.path.isfile("/etc/yandex_yt_python_tools/version"):
-            return open("/etc/yandex_yt_python_tools/version").read().strip()
-        return None
-
-    @staticmethod
-    def _has_write_permission_on_yt(client, user, dir):
-        while not client.exists(dir):
-            dir = dir.rsplit("/", 1)[0]
-        return client.check_permission(user, "write", dir)["action"] == "allow"
-
     def _check_permission(self, id, headers, action_name):
-        _, user = self._get_token_and_user(headers)
+        _, user = get_token_and_user(request, Yt(**self._config["yt_backend_options"]))
         if self._tasks[id].user != user:
             with self._mutex.discharge():
                 self._check_administer_permission(action_name, headers=headers, user=user)
 
     def _check_administer_permission(self, action_name, headers=None, user=None):
-        if user is None:
-            _, user = self._get_token_and_user(headers)
         client = Yt(**self._config["yt_backend_options"])
+        if user is None:
+            _, user = get_token_and_user(request, client)
         if client.check_permission(user, "administer", self._auth_path)["action"] != "allow":
-            raise RequestFailed("{0} task is not permitted.".format(action_name))
+            raise RequestFailed("{0} task is not permitted".format(action_name))
 
     def _set_defaults(self, task, clusters_configuration):
         source_client = task.get_source_client(clusters_configuration.clusters)
@@ -947,142 +583,20 @@ class Application(object):
             task.copy_method = "pull"
         if source_client._type == "yt" and destination_client._type == "yt":
             if task.copy_method is None:
-                task.copy_method = "proxy" if self._get_version(source_client) != self._get_version(destination_client) else "native"
+                task.copy_method = "proxy" if get_cluster_version(source_client) != get_cluster_version(destination_client) else "native"
             if task.intermediate_format is None and task.copy_method == "proxy":
                 task.intermediate_format = "<annotate_with_types=%true>json"
 
-    def _precheck(self, task, clusters_configuration, ignore_timeout=False, yamr_timeout=None, custom_logger=None):
-        if custom_logger is None:
-            custom_logger = logger
-
-        # TODO(ignat): add timeout for yt
-        custom_logger.info("Starting precheck")
-        source_client = task.get_source_client(clusters_configuration.clusters)
-        destination_client = task.get_destination_client(clusters_configuration.clusters)
-
-        if task.copy_method not in [None, "pull", "push", "proxy", "native"]:
-            raise yt.YtError("Incorrect copy method: " + str(task.copy_method))
-
-        if task.source_cluster not in clusters_configuration.availability_graph or \
-           task.destination_cluster not in clusters_configuration.availability_graph[task.source_cluster]:
-            raise yt.YtError("Cluster {} not available from {}".format(task.destination_cluster, task.source_cluster))
-
-        if task.destination_table is None and destination_client._type != "kiwi":
-            raise yt.YtError("Destination table should be specified for copying to {0}".format(destination_client._type))
-
-        try:
-            if yamr_timeout is not None:
-                if source_client._type == "yamr":
-                    source_client._light_command_timeout = yamr_timeout
-                if destination_client._type == "yamr":
-                    destination_client._light_command_timeout = yamr_timeout
-
-            if (source_client._type == "yamr" and source_client.is_empty(task.source_table)) or \
-               (source_client._type == "yt" and not source_client.exists(task.source_table)):
-                raise yt.YtError("Source table {} is empty or does not exist".format(task.source_table))
-
-            if source_client._type == "yt" and destination_client._type == "yamr":
-                if source_client.row_count(task.source_table) > 0:
-                    path = yt.TablePath(task.source_table, ranges=[{"upper_limit": {"row_index": 1}}], client=source_client)
-                    try:
-                        stream = source_client.read_table(path, format=yt.YamrFormat(), raw=True)
-                        stream.next()
-                        stream.close()
-                    except yt.YtError as err:
-                        raise yt.YtError("Failed to read first row in YAMR format", inner_errors=[err])
-
-            if source_client._type == "yt" and destination_client._type == "yt":
-                if task.copy_method == "native" and self._get_version(source_client) != self._get_version(destination_client):
-                    raise yt.YtError("Native copy method should not be specified for clusters with "
-                                     "different YT versions")
-
-            destination_exists = None
-            if destination_client._type == "yt":
-                destination_exists = destination_client.exists(task.destination_table)
-
-            if destination_client._type == "yt":
-                destination_dir = os.path.dirname(task.destination_table)
-                # NB: copy operations usually create directories if it do not exits.
-                #if not destination_client.exists(destination_dir):
-                #    raise yt.YtError("Destination directory {} should exist".format(destination_dir))
-                destination_user = destination_client.get_user_name(task.destination_cluster_token)
-                if destination_user is None:
-                    raise yt.YtError("User is not authenticated. Please log in (supply correct token) to write to {0}".format(destination_dir))
-                if not destination_exists and not self._has_write_permission_on_yt(destination_client, destination_user, destination_dir):
-                    raise yt.YtError("User {0} has no permission to write to {1}. Make sure correct token is "
-                                     "supplied and ACLs are correctly configured".format(destination_user, destination_dir))
-
-            if source_client._type == "yt" and source_client.get(yt.TablePath(task.source_table, client=source_client).name + "/@type") != "table":
-                raise yt.YtError("Source '{}' must be table".format(task.source_table))
-
-            if destination_client._type == "yt" and destination_exists \
-                    and destination_client.get(yt.TablePath(task.destination_table, client=destination_client).name + "/@type") != "table":
-                raise yt.YtError("Destination '{}' must be table".format(task.destination_table))
-
-            if destination_client._type == "kiwi" and clusters_configuration.kiwi_transmitter is None:
-                raise yt.YtError("Transimission cluster for transfer to kiwi is not configured")
-
-            if source_client._type == "hive" and "." not in task.source_table:
-                raise yt.YtError("Incorrect source table for hive, it must have format {database_name}.{table_name}")
-
-            if (source_client._type in ["hive", "hdfs", "hbase"]) and clusters_configuration.hadoop_transmitter is None:
-                raise yt.YtError("Hadoop transmitter (airflow client) should be configured for transfer from {0} to {1}"
-                                 .format(source_client._type, destination_client._type))
-
-            if task.skip_if_destination_exists and (
-                    (destination_client._type == "yamr" and not destination_client.is_empty(task.destination_table)) or \
-                    (destination_client._type == "yt" and destination_client.exists(task.destination_table))):
-                task.state = "skipped"
-        except TimeoutExpired:
-            custom_logger.info("Precheck timed out")
-            if not ignore_timeout:
-                raise
-            return
-
-        custom_logger.info("Precheck completed")
-
     def _can_run(self, task):
-        # Disable special limits for scheduling.
-        #if task.get_queue_id() in self._runned_during_heartbeat:
-        #    return False
-        #if datetime.now() - self._last_scheduled_time[task.get_queue_id()] < timedelta(seconds=self._config["scheduling_backoff"]):
-        #    return False
         direction_running_task_count = len(self._running_tasks_per_direction[task.get_direction_id()])
         if direction_running_task_count >= self._config["running_tasks_limit_per_direction"]:
             return False
 
-        client, _ = self._get_active_and_passive_clients(task, self._get_clusters_configuration())
+        client, _ = task.get_active_and_passive_clients(self._get_clusters_configuration())
         if client._type == "yt":
             if task.pool is None:
                 raise SchedulingError("Task has no pool")
-            #pool_path = "//sys/scheduler/orchid/scheduler/pools/" + task.pool
-
-            try:
-                #if not client.exists(pool_path):
-                #    raise SchedulingError("Pool %s does not exist" % task.pool)
-
-                # TODO(ignat): uncomment after fix of resource_limits in 0.17 (YT-2222).
-                #pool_info = client.get("//sys/scheduler/orchid/scheduler/pools/" + task.pool)
-                ## This usage ratio differ from scheduler usage ratio, because it is calculated due to resource limits of pool.
-                #usage_ratio = 0.0
-                #for resource, usage in pool_info["resource_usage"].iteritems():
-                #    limit = pool_info["resource_limits"][resource]
-                #    if limit == 0:
-                #        usage_ratio = 1.0
-                #    else:
-                #        usage_ratio = max(usage_ratio, float(usage) / limit)
-                #if usage_ratio > 0.95:
-                #    logger.warning("Pool %s on cluster %s is almost full, can not schedule task %s", task.pool, client.config["proxy"]["url"], task.id)
-                #    result = False
-                #else:
-                #    result = True
-
-                #return result
-                return True
-            except yt.YtError as error:
-                new_error = SchedulingError("Cannot check pool")
-                new_error.inner_errors = [error]
-                raise new_error
+            return True
 
         if client._type == "yamr":
             def is_transfer_manager_copy_operation(op):
@@ -1265,7 +779,6 @@ class Application(object):
                         continue
 
                     direction_id = self._tasks[id].get_direction_id()
-                    self._last_scheduled_time[direction_id] = datetime.now()
                     self._running_tasks_per_direction[direction_id].append(id)
 
                     user_and_direction = self._tasks[id].get_direction_id_with_user()
@@ -1283,9 +796,7 @@ class Application(object):
                             json.dump(self._get_config(), fout)
 
                     logger.info("Starting subprocess for task %s", id)
-                    task_process = subprocess.Popen(["transfer-manager-server", "--execute-task", "--config", temporary_config],
-                                                    stdout=subprocess.PIPE, stdin=subprocess.PIPE,
-                                                    preexec_fn=lambda: prctl.set_pdeathsig(signal.SIGINT), close_fds=True)
+                    task_process = run_executor(temporary_config)
                     logger.info("Subprocess for task %s started", id)
                     task_process.stdin.write(json.dumps(self._tasks[id].dict()))
                     task_process.stdin.close()
@@ -1306,183 +817,6 @@ class Application(object):
             logger.info("Scheduling round takes %.2lf seconds (%.2lf for waiting mutex)", time.time() - start_time, now - start_time)
 
             time.sleep(self._sleep_step)
-
-    def execute_task(self, task, message_queue):
-        logger.LOGGER = TaskIdLogger(task.id)
-
-        logger.info("Start executing task (pid %s)", os.getpid())
-        try:
-            clusters_configuration = self._get_clusters_configuration()
-            self._precheck(task, clusters_configuration)
-
-            title = "Supervised by transfer task " + task.id
-
-            common_spec = {
-                "title": title,
-                "transfer_manager": {
-                    "task_id": task.id,
-                    "backend_tag": task.backend_tag,
-                    "source_cluster": task.source_cluster,
-                    "destination_cluster": task.destination_cluster
-                }
-            }
-            copy_spec = update({"pool": task.pool}, update(deepcopy(common_spec), get_value(task.copy_spec, {})))
-            postprocess_spec = update(deepcopy(common_spec), get_value(task.postprocess_spec, {}))
-
-            source_client = task.get_source_client(clusters_configuration.clusters)
-            source_client.message_queue = message_queue
-
-            destination_client = task.get_destination_client(clusters_configuration.clusters)
-            destination_client.message_queue = message_queue
-
-            clusters_configuration.kiwi_transmitter.message_queue = message_queue
-            clusters_configuration.hadoop_transmitter.message_queue = message_queue
-
-            parameters = clusters_configuration.availability_graph[task.source_cluster][task.destination_cluster]
-
-            # Calculate fastbone
-            fastbone = source_client._parameters.get("fastbone", False) and destination_client._parameters.get("fastbone", False)
-            fastbone = parameters.get("fastbone", fastbone)
-
-            if source_client._type == "yt" and destination_client._type == "yt":
-                logger.info("Running YT -> YT remote copy operation")
-                if task.copy_method == "proxy":
-                    copy_yt_to_yt_through_proxy(
-                        source_client,
-                        destination_client,
-                        task.source_table,
-                        task.destination_table,
-                        fastbone=fastbone,
-                        token_storage_path=self._config["token_storage_path"],
-                        copy_spec_template=copy_spec,
-                        postprocess_spec_template=postprocess_spec,
-                        compression_codec=task.destination_compression_codec,
-                        erasure_codec=task.destination_erasure_codec,
-                        intermediate_format=task.intermediate_format,
-                        default_tmp_dir=self._config.get("default_tmp_dir"),
-                        enable_row_count_check=self._config.get("enable_row_count_check"))
-                else:  # native
-                    network_name = "fastbone" if fastbone else "default"
-                    network_name = parameters.get("network_name", network_name)
-                    copy_yt_to_yt(
-                        source_client,
-                        destination_client,
-                        task.source_table,
-                        task.destination_table,
-                        network_name=network_name,
-                        copy_spec_template=copy_spec,
-                        postprocess_spec_template=postprocess_spec,
-                        compression_codec=task.destination_compression_codec,
-                        erasure_codec=task.destination_erasure_codec)
-            elif source_client._type == "yt" and destination_client._type == "yamr":
-                logger.info("Running YT -> YAMR remote copy")
-                if task.copy_method == "push":
-                    copy_yt_to_yamr_push(
-                        source_client,
-                        destination_client,
-                        task.source_table,
-                        task.destination_table,
-                        fastbone=fastbone,
-                        copy_spec_template=copy_spec)
-                else:
-                    copy_yt_to_yamr_pull(
-                        source_client,
-                        destination_client,
-                        task.source_table,
-                        task.destination_table,
-                        fastbone=fastbone,
-                        force_sort=task.destination_force_sort,
-                        default_tmp_dir=self._config.get("default_tmp_dir"),
-                        enable_row_count_check=self._config.get("enable_row_count_check"))
-            elif source_client._type == "yamr" and destination_client._type == "yt":
-                logger.info("Running YAMR -> YT remote copy")
-                copy_yamr_to_yt_pull(
-                    source_client,
-                    destination_client,
-                    task.source_table,
-                    task.destination_table,
-                    fastbone=fastbone,
-                    compression_codec=task.destination_compression_codec,
-                    erasure_codec=task.destination_erasure_codec,
-                    force_sort=task.destination_force_sort,
-                    copy_spec_template=copy_spec,
-                    postprocess_spec_template=postprocess_spec,
-                    job_timeout=task.job_timeout)
-            elif source_client._type == "yamr" and destination_client._type == "yamr":
-                destination_client.remote_copy(
-                    source_client.server,
-                    task.source_table,
-                    task.destination_table,
-                    fastbone=fastbone)
-            elif source_client._type == "yt" and destination_client._type == "kiwi":
-                dc_name = source_client._parameters.get("dc_name")
-                if dc_name is not None:
-                    copy_spec["scheduling_tag"] = dc_name
-                copy_yt_to_kiwi(
-                    source_client,
-                    destination_client,
-                    clusters_configuration.kiwi_transmitter,
-                    task.source_table,
-                    token_storage_path=self._config["token_storage_path"],
-                    fastbone=fastbone,
-                    kiwi_user=task.kiwi_user,
-                    kwworm_options=task.kwworm_options,
-                    copy_spec_template=copy_spec,
-                    default_tmp_dir=self._config.get("default_tmp_dir"),
-                    enable_row_count_check=self._config.get("enable_row_count_check"))
-            elif source_client._type == "hive" and destination_client._type == "yt":
-                copy_hive_to_yt(
-                    source_client,
-                    destination_client,
-                    task.source_table,
-                    task.destination_table,
-                    copy_spec_template=copy_spec)
-            elif (source_client._type == "hdfs" and destination_client._type == "hdfs") \
-                    or (source_client._type == "hive" and destination_client._type == "hive") \
-                    or (source_client._type == "hbase" and destination_client._type == "hbase"):
-                type_to_task_type = {"hdfs": "distcp", "hive": "hivecp", "hbase": "hbasecp"}
-                copy_hadoop_to_hadoop_with_airflow(
-                    type_to_task_type[source_client._type],
-                    clusters_configuration.hadoop_transmitter,
-                    task.source_table,
-                    source_client.airflow_name,
-                    task.destination_table,
-                    destination_client.airflow_name,
-                    task.user)
-            else:
-                raise Exception("Incorrect cluster types: {} source and {} destination".format(
-                                source_client._type,
-                                destination_client._type))
-
-            logger.info("Task completed")
-            message_queue.put({"type": "completed"})
-
-        except yt.YtError as error:
-            try:
-                truncate_stderrs_attributes(error, self._config["error_details_length_limit"])
-            except Exception:
-                logger.exception("Task failed with error:")
-                raise
-            log_yt_exception(logger, "Task {} failed with error:".format(task.id))
-            message_queue.put({
-                "type": "error",
-                "error": error.simplify()
-            })
-        except BaseException as error:
-            logger.exception("Task failed with error:")
-            message_queue.put({
-                "type": "error",
-                "error": {
-                    "message": str(error),
-                    "code": 1,
-                    "attributes": {
-                        "details": (traceback_helpers.format_exc() if self._config["enable_detailed_traceback"] else traceback.format_exc())
-                    }
-                }
-            })
-
-        # NB: hack to avoid process died silently.
-        time.sleep(self._config["execute_task_grace_termination_sleep_timeout"] / 1000.0)
 
     def _get_config(self):
         # NB: Build the config, that actually used by transfer manager.
@@ -1510,63 +844,57 @@ class Application(object):
         return task_description
 
     def _abort_running_operations(self, running_tasks):
-        logger.info("Aborting running operations of tasks")
+        logger.info("Aborting running operations and transactions of tasks")
         clusters = self._clusters_configuration.clusters
+
+        def do_abort(task_id, object_dict, abort_func, type_):
+            # NB: To avoid aborting Hadoop tasks.
+            # TODO(ignat): support aborting Hadoop task.
+            if "id" not in object_dict:
+                return
+
+            cluster_name, object_id = object_dict["cluster_name"], object_dict["id"]
+            if cluster_name not in clusters:
+                return
+
+            if clusters[cluster_name]._type != "yt":
+                logger.warning("Transfer manager does not support progress for non-YT cluster, "
+                               "but it unexpectedly found for %s cluster (task: %s)",
+                               clusters[cluster_name]._type, task_id)
+                return
+
+            cluster_client = deepcopy(clusters[cluster_name])
+            if cluster_name == task.source_cluster:
+                cluster_client.config["token"] = task.source_cluster_token
+            else:
+                cluster_client.config["token"] = task.destination_cluster_token
+
+            try:
+                abort_func(object_id, cluster_client)
+                logger.info("Aborted outdated {0} {1} of task {2}".format(type_, object_id, task_id))
+            except yt.YtError:
+                log_yt_exception(logger, "Failed abort {0} {1} of task {2}"
+                                 .format(type_, object_id, task_id))
+
+        def safe_abort_operation(operation_id, client):
+            if not client.exists("//sys/operations/{0}".format(operation_id)) or \
+                   client.get_operation_state(operation_id).is_finished():
+                return
+            client.abort_operation(operation_id)
+
+        def abort_operations_and_transactions(task):
+            if not task.progress:
+                return
+
+            for operation in task.progress.get("operations", []):
+                do_abort(task.id, operation, safe_abort_operation, "operation")
+            for transaction in task.progress.get("transactions", []):
+                do_abort(task.id, transaction,
+                         lambda obj_id, client: client.abort_transaction(obj_id), "transaction")
 
         for task_id in running_tasks:
             task = self._tasks[task_id]
-
-            if not task.progress:
-                continue
-
-            for operation in task.progress.get("operations", []):
-                # NB: To avoid aborting Hadoop tasks.
-                # TODO(ignat): support aborting Hadoop task.
-                if "id" not in operation:
-                    continue
-
-                cluster_name, operation_id = operation["cluster_name"], operation["id"]
-                if cluster_name not in clusters:
-                    continue
-
-                if clusters[cluster_name]._type != "yt":
-                    logger.warning("Transfer manager does not support progress for non-YT cluster, "
-                                   "but it unexpectedly found for %s cluster", clusters[cluster_name]._type)
-                    continue
-
-                try:
-                    cluster_client = deepcopy(clusters[cluster_name])
-                    if cluster_name == task.source_cluster:
-                        cluster_client.config["token"] = task.source_cluster_token
-                    else:
-                        cluster_client.config["token"] = task.destination_cluster_token
-
-                    if not cluster_client.exists("//sys/operations/{0}".format(operation_id)) or \
-                           cluster_client.get_operation_state(operation_id).is_finished():
-                        continue
-
-                    cluster_client.abort_operation(operation_id)
-                    logger.info("Aborted outdated operation {0} of task {1}".format(operation_id, task_id))
-                except yt.YtError:
-                    log_yt_exception(logger, "Failed abort operation {0} of task {1}".format(operation_id, task_id))
-
-            for transaction in task.progress.get("transactions", []):
-                cluster_name, tx_id = transaction["cluster_name"], transaction["id"]
-                cluster_client = deepcopy(clusters.get(cluster_name))
-
-                if cluster_client is None or cluster_client._type != "yt":
-                    continue
-
-                if cluster_name == task.source_cluster:
-                    cluster_client.config["token"] = task.source_cluster_token
-                else:
-                    cluster_client.config["token"] = task.destination_cluster_token
-
-                try:
-                    cluster_client.abort_transaction(tx_id)
-                    logger.info("Aborted outdated transaction {0} of task {1}".format(tx_id, task_id))
-                except yt.YtError:
-                    log_yt_exception(logger, "Failed to abort transaction {0} of task {1}".format(tx_id, task_id))
+            abort_operations_and_transactions(task)
 
     def _create_task(self, params, token, user, dry_run, make_precheck):
         id = generate_uuid()
@@ -1608,8 +936,8 @@ class Application(object):
         self._set_defaults(task, clusters_configuration)
         if make_precheck:
             try:
-                self._precheck(task, clusters_configuration,
-                               ignore_timeout=True, yamr_timeout=5.0, custom_logger=TaskIdLogger(task.id))
+                perform_precheck(task, clusters_configuration,
+                                 ignore_timeout=True, yamr_timeout=5.0, custom_logger=TaskIdLogger(task.id))
             except yt.YtError as error:
                 raise RequestFailed("Precheck of task {} failed".format(task.id), inner_errors=[error]), None, sys.exc_info()[2]
 
@@ -1682,7 +1010,7 @@ class Application(object):
         except ValueError as error:
             raise RequestFailed("Cannot parse JSON from body '{}'".format(request.data), inner_errors=[yt.YtError(error.message)])
 
-        token, user = self._get_token_and_user(request.headers)
+        token, user = get_token_and_user(request, Yt(**self._config["yt_backend_options"]))
         dry_run = request.args.get("dry_run", False)
 
         if isinstance(params, list):
@@ -1872,7 +1200,7 @@ class Application(object):
             raise yt.YtError("Unknown cluster " + source_cluster)
         client = deepcopy(clusters_configuration.clusters[source_cluster])
         if client._type == "yt":
-            token, _ = self._get_token_and_user(request.headers)
+            token, _ = get_token_and_user(request, Yt(**self._config["yt_backend_options"]))
             client.config["token"] = get_value(params.get("source_cluster_token"), token)
 
         matchings = match_copy_pattern(client, source_pattern, destination_pattern)
@@ -1976,28 +1304,16 @@ class Application(object):
 
 def main():
     parser = argparse.ArgumentParser(description="Transfer manager.")
-    parser.add_argument("--execute-task", action="store_true", default=False)
     parser.add_argument("--config", required=True)
     args = parser.parse_args()
 
-    if args.execute_task:
-        # NB: we do not want see configuration messages for each task.
-        logger.LOGGER.setLevel(logging.WARNING)
-        app = Application(args.config)
-        app.init_logger()
-        logger.LOGGER.setLevel(logging.INFO)
+    # We should register sigterm handler only for main transfer manager process.
+    signal.signal(signal.SIGTERM, sigterm_handler)
 
-        task = Task(**json.loads_as_bytes(sys.stdin.read().strip()))
-        message_queue = MessageWriter(sys.stdout)
-        app.execute_task(task, message_queue)
-    else:
-        # We should register sigterm handler only for main transfer manager process.
-        signal.signal(signal.SIGTERM, sigterm_handler)
-
-        app = Application(args.config)
-        app.start_processes()
-        app.run()
-        app.terminate()
+    app = Application(args.config)
+    app.start_processes()
+    app.run()
+    app.terminate()
 
 if __name__ == "__main__":
     main()
