@@ -316,6 +316,14 @@ function runProxy(logger, profiler) {
         }
     });
 
+    process.on("SIGUSR1", function() {
+        console.error("[" + process.pid + "] Writing V8 heap dump...");
+        try {
+            v8_heapdump.writeSnapshot();
+        } catch (ex) {
+            console.error("Caught exception: " + ex.toString());
+        }
+    });
     process.on("SIGUSR2", master.restartWorkers.bind(master));
 }
 
