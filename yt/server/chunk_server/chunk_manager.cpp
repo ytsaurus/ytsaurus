@@ -1483,7 +1483,7 @@ private:
         ChunkListMap_.LoadValues(context);
 
         // COMPAT(savrus): Cf. YT-5120
-        if (context.GetVersion() < 302) {
+        if (context.GetVersion() < 303) {
             NeedToRecomputeStatistics_ = true;
         }
     }
