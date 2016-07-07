@@ -116,39 +116,31 @@ protected:
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false) const;
 
-    TCypressNodeBase* GetThisImpl();
-    const TCypressNodeBase* GetThisImpl() const;
-
-    TCypressNodeBase* LockThisImpl(
-        const TLockRequest& request = ELockMode::Exclusive,
-        bool recursive = false);
-
-
-    template <class TImpl>
-    TImpl* GetThisTypedImpl()
+    template <class TImpl = TCypressNodeBase>
+    TImpl* GetThisImpl()
     {
-        return static_cast<TImpl*>(GetThisImpl());
+        return static_cast<TImpl*>(DoGetThisImpl());
     }
 
-    template <class TImpl>
-    const TImpl* GetThisTypedImpl() const
+    template <class TImpl = TCypressNodeBase>
+    const TImpl* GetThisImpl() const
     {
-        return static_cast<const TImpl*>(GetThisImpl());
+        return const_cast<TNontemplateCypressNodeProxyBase*>(this)->GetThisImpl<TImpl>();
     }
 
-    template <class TImpl>
-    TImpl* LockThisTypedImpl(
+    template <class TImpl = TCypressNodeBase>
+    TImpl* LockThisImpl(
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false)
     {
-        return static_cast<TImpl*>(LockThisImpl(request, recursive));
+        return static_cast<TImpl*>(DoLockThisImpl(request, recursive));
     }
 
 
     ICypressNodeProxyPtr GetProxy(TCypressNodeBase* trunkNode) const;
 
     virtual std::unique_ptr<NYTree::IAttributeDictionary> DoCreateCustomAttributes() override;
-    
+
     // TSupportsPermissions members
     virtual void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
@@ -172,7 +164,7 @@ protected:
     void SuppressAccessTracking();
 
     virtual bool CanHaveChildren() const;
-    
+
     virtual void SetChildNode(
         NYTree::INodeFactory* factory,
         const NYPath::TYPath& path,
@@ -185,6 +177,12 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
+
+private:
+    TCypressNodeBase* DoGetThisImpl();
+    TCypressNodeBase* DoLockThisImpl(
+        const TLockRequest& request = ELockMode::Exclusive,
+        bool recursive = false);
 
 };
 
@@ -233,21 +231,21 @@ public:
     { }
 
 protected:
-    TImpl* GetThisTypedImpl()
+    TImpl* GetThisImpl()
     {
-        return TNontemplateCypressNodeProxyBase::GetThisTypedImpl<TImpl>();
+        return TNontemplateCypressNodeProxyBase::GetThisImpl<TImpl>();
     }
 
-    const TImpl* GetThisTypedImpl() const
+    const TImpl* GetThisImpl() const
     {
-        return TNontemplateCypressNodeProxyBase::GetThisTypedImpl<TImpl>();
+        return TNontemplateCypressNodeProxyBase::GetThisImpl<TImpl>();
     }
 
-    TImpl* LockThisTypedImpl(
+    TImpl* LockThisImpl(
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false)
     {
-        return TNontemplateCypressNodeProxyBase::LockThisTypedImpl<TImpl>(request, recursive);
+        return TNontemplateCypressNodeProxyBase::LockThisImpl<TImpl>(request, recursive);
     }
 };
 
@@ -277,13 +275,13 @@ public:
 
     virtual typename NMpl::TCallTraits<TValue>::TType GetValue() const override
     {
-        return this->GetThisTypedImpl()->Value();
+        return this->GetThisImpl()->Value();
     }
 
     virtual void SetValue(typename NMpl::TCallTraits<TValue>::TType value) override
     {
         this->ValidateValue(value);
-        this->LockThisTypedImpl()->Value() = value;
+        this->LockThisImpl()->Value() = value;
         this->SetModified();
     }
 
@@ -391,7 +389,7 @@ private:
     typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode> TBase;
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
-    
+
     virtual void SetChildNode(
         NYTree::INodeFactory* factory,
         const NYPath::TYPath& path,

@@ -74,7 +74,7 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        const auto* table = GetThisTypedImpl();
+        const auto* table = GetThisImpl();
         bool isDynamic = table->IsDynamic();
         bool isSorted = table->IsSorted();
 
@@ -113,7 +113,7 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        const auto* table = GetThisTypedImpl();
+        const auto* table = GetThisImpl();
         bool isDynamic = table->IsDynamic();
         bool isSorted = table->IsSorted();
 
@@ -246,7 +246,7 @@ private:
         const TNullable<TTableSchema>& newSchema,
         const TNullable<bool>& newDynamic)
     {
-        auto* table = LockThisTypedImpl();
+        auto* table = LockThisImpl();
 
         if (newDynamic) {
             ValidateNoTransaction();
@@ -298,7 +298,7 @@ private:
             auto tabletManager = Bootstrap_->GetTabletManager();
             auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
 
-            auto* table = LockThisTypedImpl();
+            auto* table = LockThisImpl();
             tabletManager->SetTabletCellBundle(table, cellBundle);
             return true;
         }
@@ -306,7 +306,7 @@ private:
         if (key == "atomicity") {
             ValidateNoTransaction();
 
-            auto* table = LockThisTypedImpl();
+            auto* table = LockThisImpl();
             if (table->GetTabletState() != ETabletState::Unmounted) {
                 THROW_ERROR_EXCEPTION("Cannot change table atomicity mode since not all of its tablets are in %Qlv state",
                     ETabletState::Unmounted);
@@ -342,7 +342,7 @@ private:
     {
         TChunkOwnerNodeProxy::ValidateFetchParameters(channel, ranges);
 
-        const auto* table = GetThisTypedImpl();
+        const auto* table = GetThisImpl();
         for (const auto& range : ranges) {
             const auto& lowerLimit = range.LowerLimit();
             const auto& upperLimit = range.UpperLimit();
@@ -379,7 +379,7 @@ private:
     {
         TBase::ValidateBeginUpload();
 
-        const auto* table = GetThisTypedImpl();
+        const auto* table = GetThisImpl();
         if (table->IsDynamic()) {
             THROW_ERROR_EXCEPTION("Cannot upload into a dynamic table");
         }
@@ -412,7 +412,7 @@ private:
             cell = tabletManager->GetTabletCellOrThrow(cellId);
         }
 
-        auto* table = LockThisTypedImpl();
+        auto* table = LockThisImpl();
 
         tabletManager->MountTable(
             table,
@@ -440,7 +440,7 @@ private:
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
-        auto* table = LockThisTypedImpl();
+        auto* table = LockThisImpl();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->UnmountTable(
@@ -469,7 +469,7 @@ private:
         ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
         auto tabletManager = Bootstrap_->GetTabletManager();
-        auto* table = LockThisTypedImpl();
+        auto* table = LockThisImpl();
 
         tabletManager->FreezeTable(
             table,
@@ -493,7 +493,7 @@ private:
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
-        auto* table = LockThisTypedImpl();
+        auto* table = LockThisImpl();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->UnfreezeTable(
@@ -518,7 +518,7 @@ private:
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
-        auto* table = LockThisTypedImpl();
+        auto* table = LockThisImpl();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->RemountTable(
@@ -546,7 +546,7 @@ private:
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
-        auto* table = LockThisTypedImpl();
+        auto* table = LockThisImpl();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->ReshardTable(
@@ -568,7 +568,7 @@ private:
         ValidateNotExternal();
         ValidateNoTransaction();
 
-        auto* table = GetThisTypedImpl();
+        auto* table = GetThisImpl();
 
         ToProto(response->mutable_table_id(), table->GetId());
         response->set_dynamic(table->IsDynamic());
