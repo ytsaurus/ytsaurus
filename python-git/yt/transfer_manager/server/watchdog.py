@@ -5,6 +5,7 @@ import yt.wrapper as yt
 import time
 import requests
 import argparse
+import socket
 import subprocess
 import logging
 
@@ -42,13 +43,20 @@ def main():
         locks = yt.get(yt.ypath_join(args.cypress_path, "lock/@locks"))
         if not locks:
             return
-        yt.abort_transaction(locks[0]["transaction_id"])
-        logger.info("Aborted lock transaction %s", locks[0]["transaction_id"])
+        transaction_id = locks[0]["transaction_id"]
 
         subprocess.check_call(["sv", "kill", "transfer_manager"])
-        time.sleep(30)
+        logger.info("Killed Transfer Manager process")
+        time.sleep(5)
+
+        if socket.getfqdn() == yt.get_attribute(args.cypress_path, "address"):
+            yt.abort_transaction(transaction_id)
+            logger.info("Aborted lock transaction %s", transaction_id)
+        else:
+            logger.info("Lock is acquired by another instance, skipping transaction abort")
+
         subprocess.check_call(["sv", "start", "transfer_manager"])
-        logger.info("Restarted Transfer Manager")
+        logger.info("Started Transfer Manager")
     else:
         logger.info("Everything is ok. Transfer Manager is alive")
 
