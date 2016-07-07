@@ -295,6 +295,18 @@ class TestSortedTablets(YTEnvSetup):
         abort_transaction(tx)
         verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
 
+        tx = start_transaction()
+        lock("//tmp/t", mode="snapshot", tx=tx)
+        verify_chunk_tree_refcount("//tmp/t", 2, [1, 1])
+
+        self.sync_compact_table("//tmp/t")
+        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+        assert_items_equal(read_table("//tmp/t"), rows1 + rows2 + rows3)
+        assert_items_equal(read_table("//tmp/t", tx=tx), rows1 + rows2 + rows3)
+
+        abort_transaction(tx)
+        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+
     def test_write_table(self):
         self.sync_create_cells(1, 1)
         self._create_simple_table("//tmp/t")
