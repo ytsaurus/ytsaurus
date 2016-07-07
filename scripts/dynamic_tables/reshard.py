@@ -24,10 +24,6 @@ yt.config.http.HEADER_FORMAT = "yson"
 
 GB = 1024 * 1024 * 1024
 
-STATIC_MEMORY_SIZE = 48 * GB
-SLOT_COUNT = 10
-SLOT_DEGREE = 2
-
 
 def make_pivot_keys(ty, expr, shards=1):
     logging.info("Type: %s ; Expression: %s ; Shards: %s", ty, expr, shards)
@@ -69,11 +65,9 @@ def reshard(table, shards=None, auto=False, yes=False):
             logging.error("`--auto` could be used only with in-memory tables")
             return
         elif in_memory_mode == "compressed":
-            shards = 1 + table_attributes["compressed_data_size"] / \
-                (STATIC_MEMORY_SIZE / SLOT_COUNT / SLOT_DEGREE)
+            shards = 1 + table_attributes["compressed_data_size"] / GB
         elif in_memory_mode == "uncompressed":
-            shards = 1 + table_attributes["uncompressed_data_size"] / \
-                (STATIC_MEMORY_SIZE / SLOT_COUNT / SLOT_DEGREE)
+            shards = 1 + table_attributes["uncompressed_data_size"] / GB
         else:
             raise RuntimeError("Unknown @in_memory_mode `%s`" % in_memory_mode)
 
