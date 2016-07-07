@@ -85,6 +85,11 @@ bool TChunkTreeStatistics::operator == (const TChunkTreeStatistics& other) const
         Sealed == other.Sealed;
 }
 
+bool TChunkTreeStatistics::operator != (const TChunkTreeStatistics& other) const
+{
+    return !(*this == other);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer)
