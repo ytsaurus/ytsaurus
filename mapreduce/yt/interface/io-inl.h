@@ -7,6 +7,7 @@
 
 #include <util/stream/length.h>
 #include <util/generic/typetraits.h>
+#include <util/system/mutex.h>
 
 namespace NYT {
 
@@ -94,6 +95,7 @@ public:
 
     const T& GetRow() const
     {
+        auto guard = Guard(Lock_);
         return Reader_->GetRow();
     }
 
@@ -104,6 +106,7 @@ public:
 
     void Next()
     {
+        auto guard = Guard(Lock_);
         Reader_->Next();
     }
 
@@ -119,6 +122,7 @@ public:
 
 private:
     TIntrusivePtr<IReaderImpl> Reader_;
+    TMutex Lock_;
 };
 
 template <>
@@ -159,12 +163,14 @@ public:
     template <class U, TEnableIf<TIsBaseOf<Message, U>::Value>* = nullptr>
     const U& GetRow() const
     {
+        auto guard = Guard(Lock_);
         if (CachedRow_) {
             return *dynamic_cast<U*>(CachedRow_.Get());
         }
-        CachedRow_.Reset(new U);
-        Reader_->ReadRow(CachedRow_.Get());
-        return *dynamic_cast<U*>(CachedRow_.Get());
+        auto* row = new U;
+        CachedRow_.Reset(row);
+        Reader_->ReadRow(row);
+        return *row;
     }
 
     bool IsValid() const
@@ -174,7 +180,8 @@ public:
 
     void Next()
     {
-        if (!CachedRow_.Get()) {
+        auto guard = Guard(Lock_);
+        if (!CachedRow_) {
             Reader_->SkipRow();
         }
         Reader_->Next();
@@ -194,6 +201,7 @@ public:
 private:
     TIntrusivePtr<IProtoReaderImpl> Reader_;
     mutable THolder<Message> CachedRow_;
+    TMutex Lock_;
 };
 
 template <class T>

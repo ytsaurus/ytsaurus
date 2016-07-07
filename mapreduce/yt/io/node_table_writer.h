@@ -21,7 +21,8 @@ public:
 
 private:
     THolder<TProxyOutput> Output_;
-    yvector<TSimpleSharedPtr<TYsonWriter>> Writers_;
+    yvector<THolder<TYsonWriter>> Writers_;
+    yvector<TMutex> Locks_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
