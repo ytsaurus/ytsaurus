@@ -14,6 +14,8 @@
 
 #include <yt/server/tablet_node/public.h>
 
+#include <yt/server/hive/public.h>
+
 #include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
@@ -35,7 +37,7 @@
 
 #include <yt/core/ytree/public.h>
 
-#include <yt/server/hive/public.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -102,6 +104,8 @@ private:
 
     NConcurrency::TThreadPoolPtr QueryThreadPool;
 
+    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NBus::IBusServerPtr BusServer;
     NApi::INativeConnectionPtr MasterConnection;
     NApi::INativeClientPtr MasterClient;

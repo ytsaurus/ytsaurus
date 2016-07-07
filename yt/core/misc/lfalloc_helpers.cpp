@@ -1,5 +1,10 @@
 #include "lfalloc_helpers.h"
 
+#include <yt/core/concurrency/periodic_executor.h>
+
+#include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/profiler.h>
+
 #include <library/malloc/api/malloc.h>
 
 #include <thread>
@@ -147,6 +152,62 @@ IMPL(GetSmallBlocksFreed, CT_SMALL_FREE);
 IMPL(GetLargeBlocksAllocated, CT_LARGE_ALLOC);
 IMPL(GetLargeBlocksFreed, CT_LARGE_FREE);
 #undef IMPL
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLFAllocProfiler::TImpl
+    : public TRefCounted
+{
+public:
+    TImpl()
+        : Executor_(New<NConcurrency::TPeriodicExecutor>(
+            NProfiling::TProfileManager::Get()->GetInvoker(),
+            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            TDuration::Seconds(1)))
+        , Profiler("/lf_alloc")
+    {
+        Executor_->Start();
+    }
+
+private:
+    const NConcurrency::TPeriodicExecutorPtr Executor_;
+    const NProfiling::TProfiler Profiler;
+
+    void OnProfiling()
+    {
+        Profiler.Enqueue("/total/user_allocated", GetUserAllocated());
+        Profiler.Enqueue("/total/mmapped", GetMmapped());
+        Profiler.Enqueue("/total/mmapped_count", GetMmappedCount());
+        Profiler.Enqueue("/total/munmapped", GetMunmapped());
+        Profiler.Enqueue("/total/munmapped_count", GetMunmappedCount());
+        Profiler.Enqueue("/total/system_allocated", GetSystemAllocated());
+        Profiler.Enqueue("/total/system_deallocated", GetSystemFreed());
+        Profiler.Enqueue("/total/small_blocks_allocated", GetSmallBlocksAllocated());
+        Profiler.Enqueue("/total/small_blocks_deallocated", GetSmallBlocksFreed());
+        Profiler.Enqueue("/total/large_blocks_allocated", GetLargeBlocksAllocated());
+        Profiler.Enqueue("/total/large_blocks_deallocated", GetLargeBlocksFreed());
+
+        Profiler.Enqueue("/current/system", GetCurrentSystem());
+        Profiler.Enqueue("/current/small_blocks", GetCurrentSmallBlocks());
+        Profiler.Enqueue("/current/large_blocks", GetCurrentLargeBlocks());
+
+        auto mmapped = GetCurrentMmapped();
+        Profiler.Enqueue("/current/mmapped", mmapped);
+
+        auto mmappedCount = GetCurrentMmappedCount();
+        Profiler.Enqueue("/current/mmapped_count", mmappedCount);
+
+        auto used = GetCurrentUsed();
+        Profiler.Enqueue("/current/used", used);
+        Profiler.Enqueue("/current/locked", mmapped - used);
+    }
+};
+
+TLFAllocProfiler::TLFAllocProfiler()
+    : Impl_(New<TImpl>())
+{ }
+
+TLFAllocProfiler::~TLFAllocProfiler() = default;
 
 ////////////////////////////////////////////////////////////////////////////////
 

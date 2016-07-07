@@ -33,5 +33,19 @@ i64 GetLargeBlocksFreed();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLFAllocProfiler
+{
+public:
+    TLFAllocProfiler();
+    ~TLFAllocProfiler();
+
+private:
+    class TImpl;
+    const TIntrusivePtr<TImpl> Impl_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NLFAlloc
 } // namespace NYT

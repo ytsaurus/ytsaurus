@@ -46,6 +46,7 @@
 
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/core/misc/lfalloc_helpers.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -88,8 +89,7 @@ TBootstrap::TBootstrap(const INodePtr configNode)
     : ConfigNode_(configNode)
 { }
 
-TBootstrap::~TBootstrap()
-{ }
+TBootstrap::~TBootstrap() = default;
 
 void TBootstrap::Run()
 {
@@ -149,17 +149,19 @@ void TBootstrap::DoRun()
         SchedulerLogger,
         SchedulerProfiler);
 
-    auto monitoringManager = New<TMonitoringManager>();
-    monitoringManager->Register(
+    MonitoringManager_ = New<TMonitoringManager>();
+    MonitoringManager_->Register(
         "/ref_counted",
         TRefCountedTracker::Get()->GetMonitoringProducer());
-    monitoringManager->Start();
+    MonitoringManager_->Start();
+
+    LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();
 
     auto orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
     SetNodeByYPath(
         orchidRoot,
         "/monitoring",
-        CreateVirtualNode(monitoringManager->GetService()));
+        CreateVirtualNode(MonitoringManager_->GetService()));
     SetNodeByYPath(
         orchidRoot,
         "/profiling",

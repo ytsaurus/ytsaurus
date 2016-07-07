@@ -37,6 +37,8 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/core/misc/public.h>
+
 namespace NYT {
 namespace NCellMaster {
 
@@ -109,6 +111,7 @@ private:
     NRpc::IServerPtr RpcServer_;
     NRpc::IChannelPtr LocalRpcChannel_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     std::unique_ptr<NHttp::TServer> HttpServer_;
     NElection::TCellManagerPtr CellManager_;
     NHydra::IChangelogStoreFactoryPtr ChangelogStoreFactory_;

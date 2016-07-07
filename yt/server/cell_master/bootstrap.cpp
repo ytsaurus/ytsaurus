@@ -75,6 +75,7 @@
 #include <yt/core/bus/tcp_server.h>
 
 #include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/core/misc/lfalloc_helpers.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -127,7 +128,6 @@ TBootstrap::TBootstrap(INodePtr configNode)
     : ConfigNode_(configNode)
 { }
 
-// Neither remove it nor move it to the header.
 TBootstrap::~TBootstrap() = default;
 
 TCellMasterConfigPtr TBootstrap::GetConfig() const
@@ -529,6 +529,8 @@ void TBootstrap::DoInitialize()
     MonitoringManager_->Register(
         "/election",
         HydraFacade_->GetElectionManager()->GetMonitoringProducer());
+
+    LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();
 
     auto orchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
     SetNodeByYPath(

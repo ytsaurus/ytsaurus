@@ -85,6 +85,7 @@
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/core/misc/lfalloc_helpers.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -137,8 +138,7 @@ TBootstrap::TBootstrap(INodePtr configNode)
     : ConfigNode(configNode)
 { }
 
-TBootstrap::~TBootstrap()
-{ }
+TBootstrap::~TBootstrap() = default;
 
 void TBootstrap::Run()
 {
@@ -210,10 +210,12 @@ void TBootstrap::DoRun()
 
     TabletChannelFactory = CreateCachingChannelFactory(GetBusChannelFactory());
 
-    auto monitoringManager = New<TMonitoringManager>();
-    monitoringManager->Register(
+    MonitoringManager_ = New<TMonitoringManager>();
+    MonitoringManager_->Register(
         "/ref_counted",
         TRefCountedTracker::Get()->GetMonitoringProducer());
+
+    LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();
 
     auto createBatchingChunkService = [&] (TMasterConnectionConfigPtr config) {
         RpcServer->RegisterService(CreateBatchingChunkService(
@@ -433,7 +435,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         OrchidRoot,
         "/monitoring",
-        CreateVirtualNode(monitoringManager->GetService()));
+        CreateVirtualNode(MonitoringManager_->GetService()));
     SetNodeByYPath(
         OrchidRoot,
         "/profiling",
@@ -476,7 +478,7 @@ void TBootstrap::DoRun()
     ChunkStore->Initialize();
     ChunkCache->Initialize();
     ExecSlotManager->Initialize(Config->ExecAgent->JobController->ResourceLimits->UserSlots);
-    monitoringManager->Start();
+    MonitoringManager_->Start();
     PeerBlockUpdater->Start();
     MasterConnector->Start();
     SchedulerConnector->Start();
