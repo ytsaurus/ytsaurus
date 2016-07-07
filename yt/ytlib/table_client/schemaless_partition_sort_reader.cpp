@@ -214,12 +214,12 @@ private:
         int KeyColumnCount_;
         std::vector<TUnversionedValue>& KeyBuffer_;
 
-        bool CompareRows(i32 lhs, i32 rhs) const
+        bool CompareRows(i64 lhs, i64 rhs) const
         {
-            int lhsStartIndex = lhs * KeyColumnCount_;
-            int lhsEndIndex   = lhsStartIndex + KeyColumnCount_;
-            int rhsStartIndex = rhs * KeyColumnCount_;
-            for (int lhsIndex = lhsStartIndex, rhsIndex = rhsStartIndex;
+            i64 lhsStartIndex = lhs * KeyColumnCount_;
+            i64 lhsEndIndex   = lhsStartIndex + KeyColumnCount_;
+            i64 rhsStartIndex = rhs * KeyColumnCount_;
+            for (i64 lhsIndex = lhsStartIndex, rhsIndex = rhsStartIndex;
                 lhsIndex < lhsEndIndex;
                 ++lhsIndex, ++rhsIndex)
             {
