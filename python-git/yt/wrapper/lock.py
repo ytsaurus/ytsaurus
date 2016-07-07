@@ -12,7 +12,7 @@ def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribu
     :param mode: (optional) blocking type ["snapshot", "shared" or "exclusive" (default)]
     :param waitable: (bool) wait for lock if node is under blocking
     :param wait_for: (int) wait interval in milliseconds. If timeout occurred, `YtError` raised
-    :return: taken lock id (YSON string) or ``None`` if lock was not taken.
+    :return: taken lock id (YSON string) or throws YtHttpResponseError with 40* code if lock conflict detected.
 
     .. seealso:: `lock on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions#versionirovanieiloki>`_
     """
