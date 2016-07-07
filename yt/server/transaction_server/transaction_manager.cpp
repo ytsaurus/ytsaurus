@@ -82,7 +82,7 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        const auto* transaction = GetThisTypedImpl();
+        const auto* transaction = GetThisImpl();
 
         descriptors->push_back("state");
         descriptors->push_back("secondary_cell_tags");
@@ -113,7 +113,7 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        const auto* transaction = GetThisTypedImpl();
+        const auto* transaction = GetThisImpl();
 
         if (key == "state") {
             BuildYsonFluently(consumer)
@@ -242,7 +242,7 @@ private:
 
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
     {
-        const auto* transaction = GetThisTypedImpl();
+        const auto* transaction = GetThisImpl();
 
         if (key == "last_ping_time") {
             RequireLeader();
@@ -264,7 +264,7 @@ private:
                     });
             }));
         }
-        
+
         if (key == "multicell_resource_usage") {
             return GetMulticellResourceUsageMap().Apply(BIND([] (const TMulticellAccountResourcesMap& multicellUsageMap) {
                 return BuildYsonStringFluently()
@@ -279,7 +279,7 @@ private:
                     });
             }));
         }
-        
+
         return Null;
     }
 
@@ -322,7 +322,7 @@ private:
 
     TFuture<std::pair<TCellTag, TAccountResourcesMap>> GetLocalResourcesMap(TCellTag cellTag)
     {
-        const auto* transaction = GetThisTypedImpl();
+        const auto* transaction = GetThisImpl();
         TAccountResourcesMap result;
         for (const auto& pair : transaction->AccountResourceUsage()) {
             YCHECK(result.insert(std::make_pair(pair.first->GetName(), pair.second)).second);

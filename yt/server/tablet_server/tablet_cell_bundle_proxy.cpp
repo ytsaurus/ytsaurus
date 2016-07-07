@@ -37,7 +37,7 @@ private:
 
     virtual void ValidateRemoval() override
     {
-        const auto* cellBundle = GetThisTypedImpl();
+        const auto* cellBundle = GetThisImpl();
         if (!cellBundle->TabletCells().empty()) {
             THROW_ERROR_EXCEPTION("Cannot remove tablet cell bundle %Qv since it has %v active tablet cell(s)",
                 cellBundle->GetName(),
@@ -47,7 +47,7 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
-        const auto* cellBundle = GetThisTypedImpl();
+        const auto* cellBundle = GetThisImpl();
         attributes->push_back(TAttributeDescriptor("name")
             .SetReplicated(true));
         attributes->push_back(TAttributeDescriptor("options")
@@ -64,7 +64,7 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        const auto* cellBundle = GetThisTypedImpl();
+        const auto* cellBundle = GetThisImpl();
 
         if (key == "name") {
             BuildYsonFluently(consumer)
@@ -106,7 +106,7 @@ private:
     {
         auto tabletManager = Bootstrap_->GetTabletManager();
 
-        auto* cellBundle = GetThisTypedImpl();
+        auto* cellBundle = GetThisImpl();
 
         if (key == "name") {
             auto newName = ConvertTo<Stroka>(value);
@@ -135,7 +135,7 @@ private:
 
     virtual bool RemoveBuiltinAttribute(const Stroka& key) override
     {
-        auto* cellBundle = GetThisTypedImpl();
+        auto* cellBundle = GetThisImpl();
 
         if (key == "node_tag") {
             cellBundle->SetNodeTag(Null);

@@ -88,7 +88,7 @@ private:
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto cypressManager = Bootstrap_->GetCypressManager();
 
-        auto* chunkList = GetThisTypedImpl();
+        auto* chunkList = GetThisImpl();
 
         if (key == "child_ids") {
             BuildYsonFluently(consumer)
@@ -143,7 +143,7 @@ private:
 
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
     {
-        auto* chunkList = GetThisTypedImpl();
+        auto* chunkList = GetThisImpl();
 
         if (key == "owning_nodes") {
             return GetMulticellOwningNodes(Bootstrap_, chunkList);

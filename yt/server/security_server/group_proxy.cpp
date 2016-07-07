@@ -31,7 +31,7 @@ private:
 
     virtual void ValidateRemoval() override
     {
-        const auto* group = GetThisTypedImpl();
+        const auto* group = GetThisImpl();
         if (group->IsBuiltin()) {
             THROW_ERROR_EXCEPTION("Cannot remove a built-in group %Qv",
                 group->GetName());
@@ -47,7 +47,7 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
-        const auto* group = GetThisTypedImpl();
+        const auto* group = GetThisImpl();
 
         if (key == "members") {
             BuildYsonFluently(consumer)
@@ -90,7 +90,7 @@ private:
         context->SetRequestInfo("Name: %v", name);
 
         auto* member = GetSubject(name);
-        auto* group = GetThisTypedImpl();
+        auto* group = GetThisImpl();
 
         auto securityManager = Bootstrap_->GetSecurityManager();
         securityManager->AddMember(group, member);
@@ -113,7 +113,7 @@ private:
         context->SetRequestInfo("Name: %v", name);
 
         auto* member = GetSubject(name);
-        auto* group = GetThisTypedImpl();
+        auto* group = GetThisImpl();
 
         auto securityManager = Bootstrap_->GetSecurityManager();
         securityManager->RemoveMember(group, member);

@@ -43,7 +43,7 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        const auto* tablet = GetThisTypedImpl();
+        const auto* tablet = GetThisImpl();
         const auto* table = tablet->GetTable();
 
         descriptors->push_back("state");
@@ -68,7 +68,7 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        const auto* tablet = GetThisTypedImpl();
+        const auto* tablet = GetThisImpl();
         const auto* table = tablet->GetTable();
 
         auto tabletManager = Bootstrap_->GetTabletManager();

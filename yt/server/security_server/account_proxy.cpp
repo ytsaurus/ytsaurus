@@ -35,7 +35,7 @@ private:
 
     virtual void ValidateRemoval() override
     {
-        const auto* account = GetThisTypedImpl();
+        const auto* account = GetThisImpl();
         if (account->IsBuiltin()) {
             THROW_ERROR_EXCEPTION("Cannot remove a built-in account %Qv",
                 account->GetName());
@@ -60,7 +60,7 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
-        const auto* account = GetThisTypedImpl();
+        const auto* account = GetThisImpl();
 
         if (key == "name") {
             BuildYsonFluently(consumer)
@@ -109,7 +109,7 @@ private:
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override
     {
-        auto* account = GetThisTypedImpl();
+        auto* account = GetThisImpl();
         auto securityManager = Bootstrap_->GetSecurityManager();
 
         if (key == "resource_limits") {

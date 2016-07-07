@@ -190,16 +190,15 @@ public:
     { }
 
 protected:
-    const TObject* GetThisTypedImpl() const
+    const TObject* GetThisImpl() const
     {
         return static_cast<const TObject*>(Object_);
     }
 
-    TObject* GetThisTypedImpl()
+    TObject* GetThisImpl()
     {
         return static_cast<TObject*>(Object_);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
