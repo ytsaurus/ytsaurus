@@ -57,6 +57,8 @@ struct TChunkTreeStatistics
     bool operator != (const TChunkTreeStatistics& other) const;
 };
 
+Stroka ToString(const TChunkTreeStatistics& statistics);
+
 void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////

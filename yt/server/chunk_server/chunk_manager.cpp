@@ -1640,8 +1640,8 @@ private:
             if (statistics != oldStatistics) {
                 LOG_DEBUG("Chunk list statistics changed (ChunkList: %v, OldStatistics: %v, NewStatistics: %v)",
                     chunkList->GetId(),
-                    ConvertToYsonString(oldStatistics, NYson::EYsonFormat::Text).Data(),
-                    ConvertToYsonString(statistics, NYson::EYsonFormat::Text).Data());
+                    oldStatistics,
+                    statistics);
             }
         }
 
