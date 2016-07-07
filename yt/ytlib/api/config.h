@@ -22,6 +22,8 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
+#include <yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/core/compression/public.h>
 
 #include <yt/core/misc/config.h>
@@ -54,7 +56,7 @@ class TConnectionConfig
     : public NChunkClient::TChunkTeleporterConfig
 {
 public:
-    Stroka NetworkName;
+    NNodeTrackerClient::TNetworkPreferenceList Networks;
     TMasterConnectionConfigPtr PrimaryMaster;
     std::vector<TMasterConnectionConfigPtr> SecondaryMasters;
     TMasterConnectionConfigPtr MasterCache;

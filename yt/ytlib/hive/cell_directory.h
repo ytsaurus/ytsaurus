@@ -43,9 +43,9 @@ public:
     TCellPeerDescriptor();
     TCellPeerDescriptor(const NNodeTrackerClient::TNodeDescriptor& other, bool voting = true);
     TCellPeerDescriptor(const TCellPeerDescriptor& other) = default;
-    TCellPeerDescriptor(const NElection::TCellPeerConfig& config, const Stroka& networkName);
+    TCellPeerDescriptor(const NElection::TCellPeerConfig& config, const NNodeTrackerClient::TNetworkPreferenceList& networks);
 
-    NElection::TCellPeerConfig ToConfig(const Stroka& networkName) const;
+    NElection::TCellPeerConfig ToConfig(const NNodeTrackerClient::TNetworkPreferenceList& networkName) const;
 
 };
 
@@ -60,7 +60,7 @@ struct TCellDescriptor
     int ConfigVersion = -1;
     std::vector<TCellPeerDescriptor> Peers;
 
-    NElection::TCellConfigPtr ToConfig(const Stroka& networkName) const;
+    NElection::TCellConfigPtr ToConfig(const NNodeTrackerClient::TNetworkPreferenceList& networks) const;
     TCellInfo ToInfo() const;
 };
 
@@ -82,7 +82,7 @@ public:
     TCellDirectory(
         TCellDirectoryConfigPtr config,
         NRpc::IChannelFactoryPtr channelFactory,
-        const Stroka& networkName);
+        const NNodeTrackerClient::TNetworkPreferenceList& networks);
     ~TCellDirectory();
 
     //! Returns a peer channel of a given kind for a given cell id (|nullptr| if none is known).

@@ -521,7 +521,7 @@ private:
             connectionConfig = CloneYsonSerializable(connection->GetConfig());
         }
         if (Spec_->NetworkName) {
-            connectionConfig->NetworkName = *Spec_->NetworkName;
+            connectionConfig->Networks = {*Spec_->NetworkName};
         }
 
         auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);

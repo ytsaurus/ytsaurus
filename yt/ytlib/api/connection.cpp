@@ -260,7 +260,8 @@ private:
         SchedulerChannel_ = CreateSchedulerChannel(
             Config_->Scheduler,
             GetBusChannelFactory(),
-            GetMasterChannelOrThrow(EMasterChannelKind::Leader));
+            GetMasterChannelOrThrow(EMasterChannelKind::Leader),
+            Config_->Networks);
 
         LightChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
         HeavyChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
@@ -268,7 +269,7 @@ private:
         CellDirectory_ = New<TCellDirectory>(
             Config_->CellDirectory,
             LightChannelFactory_,
-            Config_->NetworkName);
+            Config_->Networks);
         CellDirectory_->ReconfigureCell(Config_->PrimaryMaster);
         for (const auto& cellConfig : Config_->SecondaryMasters) {
             CellDirectory_->ReconfigureCell(cellConfig);
