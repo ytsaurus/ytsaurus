@@ -118,6 +118,26 @@ TEST(TJsonWriterTest, Entity)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TJsonWriterTest, Infinities)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->SupportInfinity = true;
+    auto consumer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
+
+    consumer->OnBeginMap();
+    consumer->OnKeyedItem("a");
+    consumer->OnDoubleScalar(-std::numeric_limits<double>::infinity());
+    consumer->OnKeyedItem("b");
+    consumer->OnDoubleScalar(std::numeric_limits<double>::infinity());
+    consumer->OnEndMap();
+
+    consumer->Flush();
+
+    Stroka output = "{\"a\":-inf,\"b\":inf}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 TEST(TJsonWriterTest, EmptyString)
 {
     TStringStream outputStream;
