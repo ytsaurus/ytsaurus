@@ -24,11 +24,12 @@ import signal
 from datetime import timedelta
 
 class JobShell(object):
-    def __init__(self, job_id, interactive, client=None):
+    def __init__(self, job_id, interactive=True, timeout=None, client=None):
         if get_backend_type(client) != "http" or get_api_version(client) != "v3":
             raise YtError("Command run-job-shell requires http v3 backend.")
 
         self.job_id = job_id
+        self.inactivity_timeout = timeout
         self.interactive = interactive
         self.client = client
         self.shell_id = None
@@ -68,6 +69,8 @@ class JobShell(object):
         parameters = {
             "operation": operation,
         }
+        if operation == "spawn" and self.inactivity_timeout is not None:
+            parameters["inactivity_timeout"] = self.inactivity_timeout
         if height is not None:
             parameters["height"] = height
         if width is not None:
@@ -111,13 +114,12 @@ class JobShell(object):
         if type(err) is HTTPError and hasattr(err, "response") and err.response:
             if "X-Yt-Error" in err.response.headers:
                 error = json.loads(err.response.headers["X-Yt-Error"])
-                indent = '  '
                 while "inner_errors" in error and len(error["inner_errors"]):
                     error = error["inner_errors"][0]
                 code = error["code"] if "code" in error else 0
                 if code == 1:
                     print "Shell exited"
-                elif code == 100:
+                elif code == 100 or code == 1500:
                     print "\nJob finished"
                 else:
                     message = error["message"] if "message" in error else "unknown"

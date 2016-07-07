@@ -96,7 +96,7 @@ class TestJobCommands(object):
         self._ensure_jobs_running(op)
         job_id = self.jobs[0]
 
-        shell = JobShell(job_id, interactive=False)
+        shell = JobShell(job_id, interactive=False, timeout=0)
         shell.make_request("spawn", term="screen-256color", height=50, width=132)
         self._poll_until_prompt(shell)
 
