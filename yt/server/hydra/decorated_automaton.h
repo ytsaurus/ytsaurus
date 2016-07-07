@@ -50,6 +50,7 @@ struct TEpochContext
     TPromise<void> ActiveUpstreamSyncPromise;
     TPromise<void> PendingUpstreamSyncPromise;
     bool UpstreamSyncDeadlineReached = false;
+    NProfiling::TCpuInstant UpstreamSyncStartTime;
 
     TNullable<TVersion> LeaderSyncVersion;
     TPromise<void> LeaderSyncPromise;
