@@ -2,7 +2,7 @@ from config import get_config
 from errors import YtError, YtOperationFailedError, YtTimeoutError, YtResponseError
 from driver import make_request
 from http import get_proxy_url, get_retriable_errors
-from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
+from exceptions_catcher import ExceptionCatcher
 from cypress_commands import exists, get, list, ypath_join
 from file_commands import read_file
 
@@ -345,9 +345,10 @@ def _create_operation_failed_error(operation, state):
 
 class Operation(object):
     """Holds information about started operation."""
-    def __init__(self, type, id, finalize=None, client=None):
+    def __init__(self, type, id, finalize=None, abort_exceptions=(KeyboardInterrupt,), client=None):
         self.type = type
         self.id = id
+        self.abort_exceptions = abort_exceptions
         self.finalize = finalize
         self.client = client
         self.printer = PrintOperationInfo(id, client=client)
@@ -445,7 +446,7 @@ class Operation(object):
             finalize(state)
 
 
-        with KeyboardInterruptsCatcher(abort, enable=get_config(self.client)["operation_tracker"]["abort_on_sigint"]):
+        with ExceptionCatcher(self.abort_exceptions, abort, enable=get_config(self.client)["operation_tracker"]["abort_on_sigint"]):
             for state in self.get_state_monitor(time_watcher):
                 print_info(state)
             timeout_occurred = time_watcher.is_time_up()

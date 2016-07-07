@@ -1,4 +1,4 @@
-from yt.wrapper.keyboard_interrupts_catcher import KeyboardInterruptsCatcher
+from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
 from yt.wrapper.cypress_commands import ypath_join
