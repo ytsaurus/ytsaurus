@@ -705,6 +705,11 @@ class ConfigsProvider_18_5(ConfigsProvider_18):
 
         current_user = 10000
         for i, config in enumerate(configs):
+            config["addresses"] = [
+                ("interconnect", provision["fqdn"]),
+                ("default", provision["fqdn"])
+            ]
+
             # TODO(psushin): This is a very dirty hack to ensure that different parallel
             # test and yt_node instances do not share same uids range for user jobs.
             start_uid = current_user + config["rpc_port"]
