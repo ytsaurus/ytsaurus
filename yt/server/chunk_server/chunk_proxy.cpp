@@ -64,7 +64,7 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        const auto* chunk = GetThisTypedImpl();
+        const auto* chunk = GetThisImpl();
         const auto& miscExt = chunk->MiscExt();
 
         bool hasBoundaryKeysExt = HasProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
@@ -145,7 +145,7 @@ private:
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto multicellManager = Bootstrap_->GetMulticellManager();
 
-        auto* chunk = GetThisTypedImpl();
+        auto* chunk = GetThisImpl();
         auto isForeign = chunk->IsForeign();
 
         typedef std::function<void(TFluentList fluent, TNodePtrWithIndex replica)> TReplicaSerializer;
@@ -427,7 +427,7 @@ private:
 
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
     {
-        auto* chunk = GetThisTypedImpl();
+        auto* chunk = GetThisImpl();
 
         if (chunk->IsJournal() && key == "quorum_row_count") {
             auto chunkManager = Bootstrap_->GetChunkManager();
@@ -459,7 +459,7 @@ private:
         context->SetRequestInfo();
 
         auto chunkManager = Bootstrap_->GetChunkManager();
-        const auto* chunk = GetThisTypedImpl();
+        const auto* chunk = GetThisImpl();
 
         auto replicas = chunk->GetReplicas();
 

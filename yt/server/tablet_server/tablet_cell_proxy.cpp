@@ -43,7 +43,7 @@ private:
 
     virtual void ValidateRemoval() override
     {
-        const auto* cell = GetThisTypedImpl();
+        const auto* cell = GetThisImpl();
         if (!cell->Tablets().empty()) {
             THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it has %v active tablet(s)",
                 cell->GetId(),
@@ -55,7 +55,7 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        const auto* cell = GetThisTypedImpl();
+        const auto* cell = GetThisImpl();
 
         descriptors->push_back("leading_peer_id");
         descriptors->push_back("health");
@@ -72,7 +72,7 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
-        const auto* cell = GetThisTypedImpl();
+        const auto* cell = GetThisImpl();
 
         if (key == "leading_peer_id") {
             BuildYsonFluently(consumer)

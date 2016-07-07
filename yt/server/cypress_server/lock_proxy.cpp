@@ -36,7 +36,7 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        const auto* lock = GetThisTypedImpl();
+        const auto* lock = GetThisImpl();
         const auto& request = lock->Request();
 
         descriptors->push_back("implicit");
@@ -52,7 +52,7 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        const auto* lock = GetThisTypedImpl();
+        const auto* lock = GetThisImpl();
         const auto& request = lock->Request();
 
         if (key == "implicit") {

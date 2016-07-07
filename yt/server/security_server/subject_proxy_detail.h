@@ -49,7 +49,7 @@ protected:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
-        const auto* subject = this->GetThisTypedImpl();
+        const auto* subject = this->GetThisImpl();
 
         if (key == "name") {
             NYTree::BuildYsonFluently(consumer)
@@ -80,7 +80,7 @@ protected:
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override
     {
-        auto* subject = this->GetThisTypedImpl();
+        auto* subject = this->GetThisImpl();
         auto securityManager = this->Bootstrap_->GetSecurityManager();
 
         if (key == "name") {

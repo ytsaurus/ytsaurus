@@ -41,7 +41,7 @@ private:
     {
         TNonversionedObjectProxyBase::ListSystemAttributes(descriptors);
 
-        const auto* node = GetThisTypedImpl();
+        const auto* node = GetThisImpl();
 
         descriptors->push_back(TAttributeDescriptor("banned")
             .SetReplicated(true));
@@ -81,7 +81,7 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        const auto* node = GetThisTypedImpl();
+        const auto* node = GetThisImpl();
         auto state = node->GetLocalState();
         bool isGood = state == ENodeState::Registered || state == ENodeState::Online;
 
@@ -252,7 +252,7 @@ private:
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
-        auto* node = GetThisTypedImpl();
+        auto* node = GetThisImpl();
         auto nodeTracker = Bootstrap_->GetNodeTracker();
 
         if (key == "banned") {
@@ -289,7 +289,7 @@ private:
 
     virtual bool RemoveBuiltinAttribute(const Stroka& key) override
     {
-        auto* node = GetThisTypedImpl();
+        auto* node = GetThisImpl();
         auto nodeTracker = Bootstrap_->GetNodeTracker();
 
         if (key == "rack") {
@@ -302,7 +302,7 @@ private:
 
     virtual void ValidateRemoval() override
     {
-        const auto* node = GetThisTypedImpl();
+        const auto* node = GetThisImpl();
         if (node->GetLocalState() != ENodeState::Offline) {
             THROW_ERROR_EXCEPTION("Cannot remove node since it is not offline");
         }
