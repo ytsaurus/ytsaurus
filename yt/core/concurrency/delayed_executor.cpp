@@ -143,8 +143,10 @@ public:
         }
 
         if (doJoinSleeper) {
-            DelayedQueue_->Shutdown();
             SleeperThread_.Join();
+            DelayedQueue_->Shutdown();
+            DelayedQueue_.Reset();
+            DelayedInvoker_.Reset();
         }
 
         PurgeQueues();
