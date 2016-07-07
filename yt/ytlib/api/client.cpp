@@ -288,13 +288,13 @@ IChannelPtr CreateTabletReadChannel(
     const TTabletReadOptions& options)
 {
     const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, options.ReadFrom);
-    auto primaryChannel = channelFactory->CreateChannel(primaryPeerDescriptor.GetAddress(config->NetworkName));
+    auto primaryChannel = channelFactory->CreateChannel(primaryPeerDescriptor.GetAddress(config->Networks));
     if (cellDescriptor.Peers.size() == 1 || !options.BackupRequestDelay) {
         return primaryChannel;
     }
 
     const auto& backupPeerDescriptor = GetBackupTabletPeerDescriptor(cellDescriptor, primaryPeerDescriptor);
-    auto backupChannel = channelFactory->CreateChannel(backupPeerDescriptor.GetAddress(config->NetworkName));
+    auto backupChannel = channelFactory->CreateChannel(backupPeerDescriptor.GetAddress(config->Networks));
 
     return CreateLatencyTamingChannel(
         std::move(primaryChannel),
@@ -634,7 +634,7 @@ private:
             return GetLowerBoundFromDataSplit(lhs) < GetLowerBoundFromDataSplit(rhs);
         });
 
-        const auto& networkName = Connection_->GetConfig()->NetworkName;
+        const auto& networks = Connection_->GetConfig()->Networks;
 
         for (auto& chunkSpec : chunkSpecs) {
             auto chunkSchema = FindProtoExtension<TTableSchemaExt>(chunkSpec.chunk_meta().extensions());
@@ -682,7 +682,7 @@ private:
 
                 const TChunkReplica& selectedReplica = replicas[RandomNumber(replicas.size())];
                 const auto& descriptor = nodeDirectory->GetDescriptor(selectedReplica);
-                const auto& address = descriptor.GetAddressOrThrow(networkName);
+                const auto& address = descriptor.GetAddress(networks);
 
                 TRowRange subrange;
                 subrange.first = rowBuffer->Capture(std::max(lowerBound, keyRange.first.Get()));
@@ -709,7 +709,7 @@ private:
         const TTableMountInfoPtr& tableInfo)
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
-        const auto& networkName = Connection_->GetConfig()->NetworkName;
+        const auto& networks = Connection_->GetConfig()->Networks;
 
         yhash_map<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
 
@@ -729,7 +729,7 @@ private:
 
             // TODO(babenko): pass proper read options
             const auto& peerDescriptor = GetPrimaryTabletPeerDescriptor(descriptor);
-            return peerDescriptor.GetAddress(networkName);
+            return peerDescriptor.GetAddress(networks);
         };
 
         std::vector<std::pair<TDataRanges, Stroka>> subsources;

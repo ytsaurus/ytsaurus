@@ -31,8 +31,8 @@ TMasterConnectionConfig::TMasterConnectionConfig()
 
 TConnectionConfig::TConnectionConfig()
 {
-    RegisterParameter("network_name", NetworkName)
-        .Default(NNodeTrackerClient::InterconnectNetworkName);
+    RegisterParameter("networks", Networks)
+        .Default(NNodeTrackerClient::DefaultNetworkPreferences);
     RegisterParameter("primary_master", PrimaryMaster);
     RegisterParameter("secondary_masters", SecondaryMasters)
         .Default();
