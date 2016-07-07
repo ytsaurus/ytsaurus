@@ -707,7 +707,7 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::LockImpl(
     return cypressManager->LockNode(trunkNode, Transaction, request, recursive);
 }
 
-TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetThisImpl()
+TCypressNodeBase* TNontemplateCypressNodeProxyBase::DoGetThisImpl()
 {
     if (CachedNode) {
         return CachedNode;
@@ -719,12 +719,7 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetThisImpl()
     return node;
 }
 
-const TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetThisImpl() const
-{
-    return const_cast<TNontemplateCypressNodeProxyBase*>(this)->GetThisImpl();
-}
-
-TCypressNodeBase* TNontemplateCypressNodeProxyBase::LockThisImpl(
+TCypressNodeBase* TNontemplateCypressNodeProxyBase::DoLockThisImpl(
     const TLockRequest& request /*= ELockMode::Exclusive*/,
     bool recursive /*= false*/)
 {
@@ -1142,7 +1137,7 @@ TMapNodeProxy::TMapNodeProxy(
 void TMapNodeProxy::Clear()
 {
     // Take shared lock for the node itself.
-    auto* impl = LockThisTypedImpl(ELockMode::Shared);
+    auto* impl = LockThisImpl(ELockMode::Shared);
 
     // Construct children list.
     auto keyToChild = GetMapNodeChildren(
@@ -1232,7 +1227,7 @@ bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
         return false;
     }
 
-    auto* impl = LockThisTypedImpl(TLockRequest::MakeSharedChild(key));
+    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
     auto* childImpl = LockImpl(trunkChildImpl);
 
@@ -1259,7 +1254,7 @@ bool TMapNodeProxy::RemoveChild(const Stroka& key)
     }
 
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
-    auto* impl = LockThisTypedImpl(TLockRequest::MakeSharedChild(key));
+    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
     DoRemoveChild(impl, key, childImpl);
 
     SetModified();
@@ -1273,7 +1268,7 @@ void TMapNodeProxy::RemoveChild(INodePtr child)
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
-    auto* impl = LockThisTypedImpl(TLockRequest::MakeSharedChild(key));
+    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
     DoRemoveChild(impl, key, childImpl);
 
     SetModified();
@@ -1293,7 +1288,7 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     auto* newTrunkChildImpl = ICypressNodeProxy::FromNode(newChild.Get())->GetTrunkNode();
     auto* newChildImpl = LockImpl(newTrunkChildImpl);
 
-    auto* impl = LockThisTypedImpl(TLockRequest::MakeSharedChild(key));
+    auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
 
     auto& keyToChild = impl->KeyToChild();
     auto& childToKey = impl->ChildToKey();
@@ -1407,7 +1402,7 @@ TListNodeProxy::TListNodeProxy(
 
 void TListNodeProxy::Clear()
 {
-    auto* impl = LockThisTypedImpl();
+    auto* impl = LockThisImpl();
 
     // Lock children and collect impls.
     std::vector<TCypressNodeBase*> children;
@@ -1428,14 +1423,14 @@ void TListNodeProxy::Clear()
 
 int TListNodeProxy::GetChildCount() const
 {
-    const auto* impl = GetThisTypedImpl();
+    const auto* impl = GetThisImpl();
     return impl->IndexToChild().size();
 }
 
 std::vector<INodePtr> TListNodeProxy::GetChildren() const
 {
     std::vector<INodePtr> result;
-    const auto* impl = GetThisTypedImpl();
+    const auto* impl = GetThisImpl();
     const auto& indexToChild = impl->IndexToChild();
     result.reserve(indexToChild.size());
     for (auto* child : indexToChild) {
@@ -1446,14 +1441,14 @@ std::vector<INodePtr> TListNodeProxy::GetChildren() const
 
 INodePtr TListNodeProxy::FindChild(int index) const
 {
-    const auto* impl = GetThisTypedImpl();
+    const auto* impl = GetThisImpl();
     const auto& indexToChild = impl->IndexToChild();
     return index >= 0 && index < indexToChild.size() ? GetProxy(indexToChild[index]) : nullptr;
 }
 
 void TListNodeProxy::AddChild(INodePtr child, int beforeIndex /*= -1*/)
 {
-    auto* impl = LockThisTypedImpl();
+    auto* impl = LockThisImpl();
     auto& list = impl->IndexToChild();
 
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
@@ -1480,7 +1475,7 @@ void TListNodeProxy::AddChild(INodePtr child, int beforeIndex /*= -1*/)
 
 bool TListNodeProxy::RemoveChild(int index)
 {
-    auto* impl = LockThisTypedImpl();
+    auto* impl = LockThisImpl();
     auto& list = impl->IndexToChild();
 
     if (index < 0 || index >= list.size()) {
@@ -1515,7 +1510,7 @@ void TListNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     if (oldChild == newChild)
         return;
 
-    auto* impl = LockThisTypedImpl();
+    auto* impl = LockThisImpl();
 
     auto* oldTrunkChildImpl = ICypressNodeProxy::FromNode(oldChild.Get())->GetTrunkNode();
     auto* oldChildImpl = LockImpl(oldTrunkChildImpl);
@@ -1541,7 +1536,7 @@ void TListNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
 
 int TListNodeProxy::GetChildIndex(IConstNodePtr child)
 {
-    const auto* impl = GetThisTypedImpl();
+    const auto* impl = GetThisImpl();
 
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
@@ -1641,7 +1636,7 @@ void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
 
 bool TLinkNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
-    const auto* impl = GetThisTypedImpl();
+    const auto* impl = GetThisImpl();
     const auto& targetId = impl->GetTargetId();
 
     if (key == "target_id") {
@@ -1678,7 +1673,7 @@ bool TLinkNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& v
 {
     if (key == "target_id") {
         auto targetId = ConvertTo<TObjectId>(value);
-        auto* impl = LockThisTypedImpl();
+        auto* impl = LockThisImpl();
         impl->SetTargetId(targetId);
         return true;
     }
@@ -1688,7 +1683,7 @@ bool TLinkNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& v
         auto objectManager = Bootstrap_->GetObjectManager();
         auto* resolver = objectManager->GetObjectResolver();
         auto targetProxy = resolver->ResolvePath(targetPath, Transaction);
-        auto* impl = LockThisTypedImpl();
+        auto* impl = LockThisImpl();
         impl->SetTargetId(targetProxy->GetId());
         return true;
     }
@@ -1698,7 +1693,7 @@ bool TLinkNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& v
 
 IObjectProxyPtr TLinkNodeProxy::FindTargetProxy() const
 {
-    const auto* impl = GetThisTypedImpl();
+    const auto* impl = GetThisImpl();
     const auto& targetId = impl->GetTargetId();
 
     if (IsBroken(targetId)) {
@@ -1714,7 +1709,7 @@ IObjectProxyPtr TLinkNodeProxy::GetTargetProxy() const
 {
     auto result = FindTargetProxy();
     if (!result) {
-        const auto* impl = GetThisTypedImpl();
+        const auto* impl = GetThisImpl();
         THROW_ERROR_EXCEPTION("Link target %v does not exist",
             impl->GetTargetId());
     }
@@ -1808,21 +1803,21 @@ void DelegateInvocation(
 void TDocumentNodeProxy::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
-    const auto* impl = GetThisTypedImpl();
+    const auto* impl = GetThisImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::GetRecursive(const TYPath& /*path*/, TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
-    const auto* impl = GetThisTypedImpl();
+    const auto* impl = GetThisImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::SetSelf(TReqSet* request, TRspSet* /*response*/, TCtxSetPtr context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-    auto* impl = LockThisTypedImpl();
+    auto* impl = LockThisImpl();
     impl->SetValue(ConvertToNode(TYsonString(request->value())));
     context->Reply();
 }
@@ -1830,35 +1825,35 @@ void TDocumentNodeProxy::SetSelf(TReqSet* request, TRspSet* /*response*/, TCtxSe
 void TDocumentNodeProxy::SetRecursive(const TYPath& /*path*/, TReqSet* request, TRspSet* response, TCtxSetPtr context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-    auto* impl = LockThisTypedImpl();
+    auto* impl = LockThisImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
-    const auto* impl = GetThisTypedImpl();
+    const auto* impl = GetThisImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::ListRecursive(const TYPath& /*path*/, TReqList* request, TRspList* response, TCtxListPtr context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
-    const auto* impl = GetThisTypedImpl();
+    const auto* impl = GetThisImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::RemoveRecursive(const TYPath& /*path*/, TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-    auto* impl = LockThisTypedImpl();
+    auto* impl = LockThisImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::ExistsRecursive(const TYPath& /*path*/, TReqExists* request, TRspExists* response, TCtxExistsPtr context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
-    const auto* impl = GetThisTypedImpl();
+    const auto* impl = GetThisImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
@@ -1873,7 +1868,7 @@ void TDocumentNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>*
 
 bool TDocumentNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
-    const auto* impl = GetThisTypedImpl();
+    const auto* impl = GetThisImpl();
 
     if (key == "value") {
         BuildYsonFluently(consumer)
@@ -1887,7 +1882,7 @@ bool TDocumentNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* c
 bool TDocumentNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
 {
     if (key == "value") {
-        auto* impl = LockThisTypedImpl();
+        auto* impl = LockThisImpl();
         impl->SetValue(ConvertToNode(value));
         return true;
     }

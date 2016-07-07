@@ -63,7 +63,7 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        auto* node = GetThisTypedImpl();
+        auto* node = GetThisImpl();
         auto statistics = node->ComputeTotalStatistics();
 
         if (key == "read_quorum") {
@@ -95,7 +95,7 @@ private:
 
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
     {
-        const auto* node = GetThisTypedImpl();
+        const auto* node = GetThisImpl();
         auto isExternal = node->IsExternal();
 
         if (key == "quorum_row_count" && !isExternal) {
@@ -123,7 +123,7 @@ private:
     {
         TBase::ValidateBeginUpload();
 
-        const auto* journal = GetThisTypedImpl();
+        const auto* journal = GetThisImpl();
         if (!journal->GetSealed()) {
             THROW_ERROR_EXCEPTION("Journal is not sealed");
         }
@@ -163,7 +163,7 @@ private:
 
         context->SetRequestInfo();
 
-        auto* journal = GetThisTypedImpl();
+        auto* journal = GetThisImpl();
         YCHECK(journal->IsTrunk());
 
         auto journalManager = Bootstrap_->GetJournalManager();

@@ -553,7 +553,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
 {
     TNontemplateCypressNodeProxyBase::ListSystemAttributes(descriptors);
 
-    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    const auto* node = GetThisImpl<TChunkOwnerBase>();
     auto isExternal = node->IsExternal();
 
     descriptors->push_back(TAttributeDescriptor("chunk_list_id")
@@ -590,7 +590,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
     const Stroka& key,
     IYsonConsumer* consumer)
 {
-    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    auto* node = GetThisImpl<TChunkOwnerBase>();
     const auto* chunkList = node->GetChunkList();
     auto statistics = node->ComputeTotalStatistics();
     auto isExternal = node->IsExternal();
@@ -653,7 +653,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 
 TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(const Stroka& key)
 {
-    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    auto* node = GetThisImpl<TChunkOwnerBase>();
     auto* chunkList = node->GetChunkList();
     auto isExternal = node->IsExternal();
 
@@ -718,7 +718,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 {
     auto chunkManager = Bootstrap_->GetChunkManager();
 
-    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    auto* node = GetThisImpl<TChunkOwnerBase>();
 
     if (key == "replication_factor") {
         ValidateNoTransaction();
@@ -773,7 +773,7 @@ void TChunkOwnerNodeProxy::ValidateFetchParameters(
 
 void TChunkOwnerNodeProxy::ValidateInUpdate()
 {
-    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    auto* node = GetThisImpl<TChunkOwnerBase>();
     if (node->GetUpdateMode() == EUpdateMode::None) {
         THROW_ERROR_EXCEPTION("Node is not in an update mode");
     }
@@ -805,7 +805,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     auto ranges = FromProto<std::vector<TReadRange>>(request->ranges());
     ValidateFetchParameters(channel, ranges);
 
-    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    const auto* node = GetThisImpl<TChunkOwnerBase>();
     auto* chunkList = node->GetChunkList();
 
     auto visitor = New<TFetchChunkVisitor>(
@@ -844,7 +844,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     auto uploadTransactionSecondaryCellTags = FromProto<TCellTagList>(request->upload_transaction_secondary_cell_tags());
 
-    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    auto* node = GetThisImpl<TChunkOwnerBase>();
     auto externalCellTag = node->GetExternalCellTag();
 
     // Make sure |uploadTransactionSecondaryCellTags| contains the external cell tag,
@@ -1004,7 +1004,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
     ValidateNotExternal();
     ValidateInUpdate();
 
-    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    auto* node = GetThisImpl<TChunkOwnerBase>();
     auto* snapshotChunkList = node->GetSnapshotChunkList();
     auto* deltaChunkList = node->GetDeltaChunkList();
 
@@ -1042,7 +1042,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         schema,
         chunkPropertiesUpdateNeeded);
 
-    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    auto* node = GetThisImpl<TChunkOwnerBase>();
     YCHECK(node->GetTransaction() == Transaction);
 
     if (node->IsExternal()) {
