@@ -378,17 +378,15 @@ class TestCypressCommands(object):
 
         assert len(yt.get(dir + "/@locks")) == 0
         with yt.Transaction():
-            assert yt.lock(dir, waitable=True) != "0-0-0-0"
-            assert yt.lock(dir, waitable=True) == "0-0-0-0"
-            assert yt.lock(dir, waitable=True, wait_for=1000) == "0-0-0-0"
+            yt.lock(dir, waitable=True)
+            yt.lock(dir, waitable=True, wait_for=1000)
+            assert len(yt.get(dir + "/@locks")) == 2
 
         tx = yt.start_transaction()
         yt.config.TRANSACTION = tx
         try:
             yt.lock(dir, waitable=True)
-            #with pytest.raises(yt.YtError):
-            #    yt.lock(dir, waitable=True)
-            assert yt.lock(dir, waitable=True) == "0-0-0-0"
+            assert len(yt.get(dir + "/@locks")) == 1
 
             yt.config.TRANSACTION = "0-0-0-0"
             with pytest.raises(yt.YtError):
