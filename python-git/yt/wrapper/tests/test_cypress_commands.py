@@ -366,7 +366,7 @@ class TestCypressCommands(object):
             yt.config["transaction_use_signal_if_ping_failed"] = False
             yt.config["proxy"]["request_retry_timeout"] = old_retry_timeout
 
-    def test_lock(self):
+    def test_lock(self, yt_env):
         dir = TEST_DIR + "/dir"
 
         yt.mkdir(dir)
@@ -378,9 +378,14 @@ class TestCypressCommands(object):
 
         assert len(yt.get(dir + "/@locks")) == 0
         with yt.Transaction():
-            yt.lock(dir, waitable=True)
-            yt.lock(dir, waitable=True, wait_for=1000)
-            assert len(yt.get(dir + "/@locks")) == 2
+            if yt_env.version >= "18.5":
+                yt.lock(dir, waitable=True)
+                yt.lock(dir, waitable=True, wait_for=1000)
+                assert len(yt.get(dir + "/@locks")) == 2
+            else:
+                assert yt.lock(dir, waitable=True) != "0-0-0-0"
+                assert yt.lock(dir, waitable=True) == "0-0-0-0"
+                assert yt.lock(dir, waitable=True, wait_for=1000) == "0-0-0-0"
 
         tx = yt.start_transaction()
         yt.config.TRANSACTION = tx
@@ -401,6 +406,8 @@ class TestCypressCommands(object):
         client = Yt(config=yt.config.config)
         try:
             assert yt.lock(dir) != "0-0-0-0"
+            if yt_env.version < "18.5":
+                assert yt.lock(dir, waitable=True) == "0-0-0-0"
             with client.Transaction():
                 assert client.lock(dir, waitable=True, wait_for=4000) != "0-0-0-0"
         finally:
