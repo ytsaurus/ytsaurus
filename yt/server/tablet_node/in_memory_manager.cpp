@@ -223,6 +223,8 @@ private:
             BIND(&IStoreManager::BackoffStorePreload, storeManager, store)
                 .Via(tablet->GetEpochAutomatonInvoker()));
 
+        // XXX(sandello): Slightly racy; PreloadStore could start to execute before
+        // BeginStorePreload changes preload store state below.
         auto future =
             BIND(
                 &TImpl::PreloadStore,
