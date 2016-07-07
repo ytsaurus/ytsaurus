@@ -193,16 +193,28 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     return mapping;
 }
 
+std::vector<TCellPeerDescriptor> GetValidPeers(const TCellDescriptor& cellDescriptor)
+{
+    std::vector<TCellPeerDescriptor> peers;
+    for (const auto& peer : cellDescriptor.Peers) {
+        if (!peer.IsNull()) {
+            peers.push_back(peer);
+        }
+    }
+    return peers;
+}
+
 const TCellPeerDescriptor& GetPrimaryTabletPeerDescriptor(
     const TCellDescriptor& cellDescriptor,
     EPeerKind peerKind = EPeerKind::Leader)
 {
-    if (cellDescriptor.Peers.empty()) {
+    auto peers = GetValidPeers(cellDescriptor);
+
+    if (peers.empty()) {
         THROW_ERROR_EXCEPTION("No alive replicas for tablet cell %v",
             cellDescriptor.CellId);
     }
 
-    const auto& peers = cellDescriptor.Peers;
     int leadingPeerIndex = -1;
     for (int index = 0; index < peers.size(); ++index) {
         if (peers[index].GetVoting()) {
@@ -246,13 +258,15 @@ const TCellPeerDescriptor& GetBackupTabletPeerDescriptor(
     const TCellDescriptor& cellDescriptor,
     const TCellPeerDescriptor& primaryPeerDescriptor)
 {
-    Y_ASSERT(cellDescriptor.Peers.size() > 1);
-    const auto& peers = cellDescriptor.Peers;
-    int primaryIndex = &primaryPeerDescriptor - cellDescriptor.Peers.data();
+    auto peers = GetValidPeers(cellDescriptor);
+
+    Y_ASSERT(peers.size() > 1);
+
     int randomIndex = RandomNumber(peers.size() - 1);
-    if (randomIndex >= primaryIndex) {
-        ++randomIndex;
+    if (peers[randomIndex] == primaryPeerDescriptor) {
+        randomIndex = (randomIndex + 1) % peers.size();
     }
+
     return peers[randomIndex];
 }
 
