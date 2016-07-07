@@ -122,7 +122,7 @@ public:
         , ChunkId_(chunkId)
         , BlockCache_(blockCache)
         , Throttler_(throttler)
-        , NetworkName_(client->GetNativeConnection()->GetConfig()->NetworkName)
+        , Networks_(client->GetNativeConnection()->GetConfig()->Networks)
         , InitialSeedReplicas_(seedReplicas)
         , SeedsTimestamp_(TInstant::Zero())
     {
@@ -142,13 +142,13 @@ public:
         }
 
         LOG_DEBUG("Reader initialized (InitialSeedReplicas: %v, FetchPromPeers: %v, LocalAddress: %v, PopulateCache: %v, "
-            "AllowFetchingSeedsFromMaster: %v, Network: %v)",
+            "AllowFetchingSeedsFromMaster: %v, Networks: %v)",
             MakeFormattableRange(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             Config_->FetchFromPeers,
             LocalDescriptor_.GetDefaultAddress(),
             Config_->PopulateCache,
             Options_->AllowFetchingSeedsFromMaster,
-            NetworkName_);
+            Networks_);
     }
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
@@ -184,7 +184,7 @@ private:
     const TChunkId ChunkId_;
     const IBlockCachePtr BlockCache_;
     const IThroughputThrottlerPtr Throttler_;
-    const Stroka NetworkName_;
+    const TNetworkPreferenceList Networks_;
 
     NLogging::TLogger Logger = ChunkClientLogger;
 
@@ -218,7 +218,7 @@ private:
             } else {
                 locateChunk.Run();
             }
-            
+
         }
 
         return SeedsPromise_;
@@ -307,7 +307,7 @@ private:
             TGuard<TSpinLock> guard(PeersSpinLock_);
             for (auto replica : seedReplicas) {
                 const auto& nodeDescriptor = NodeDirectory_->GetDescriptor(replica);
-                auto address = nodeDescriptor.FindAddress(NetworkName_);
+                auto address = nodeDescriptor.FindAddress(Networks_);
                 if (address) {
                     BannedForeverPeers_.erase(*address);
                 }
@@ -379,8 +379,8 @@ protected:
     //! Translates node ids to node descriptors.
     const TNodeDirectoryPtr NodeDirectory_;
 
-    //! Name of the network to use from descriptor.
-    const Stroka NetworkName_;
+    //! List of the networks to use from descriptor.
+    const TNetworkPreferenceList Networks_;
 
     //! Zero based retry index (less than |Reader->Config->RetryCount|).
     int RetryIndex_ = 0;
@@ -412,7 +412,7 @@ protected:
         , Config_(reader->Config_)
         , WorkloadDescriptor_(workloadDescriptor.SetCurrentInstant())
         , NodeDirectory_(reader->NodeDirectory_)
-        , NetworkName_(reader->NetworkName_)
+        , Networks_(reader->Networks_)
     {
         Logger.AddTag("Session: %p, ChunkId: %v",
             this,
@@ -643,12 +643,12 @@ protected:
 
         for (auto replica : SeedReplicas_) {
             const auto& descriptor = NodeDirectory_->GetDescriptor(replica);
-            auto address = descriptor.FindAddress(NetworkName_);
+            auto address = descriptor.FindAddress(Networks_);
             if (!address) {
                 RegisterError(TError(
                     NNodeTrackerClient::EErrorCode::NoSuchNetwork,
-                    "Cannot find %Qv address for seed %v",
-                    NetworkName_,
+                    "Cannot find %v address for seed %v",
+                    Networks_,
                     descriptor.GetDefaultAddress()));
                 OnSessionFailed();
                 return false;
@@ -1024,7 +1024,7 @@ private:
             TBlockId blockId(reader->ChunkId_, blockIndex);
             for (const auto& protoPeerDescriptor : peerDescriptor.node_descriptors()) {
                 auto suggestedDescriptor = FromProto<TNodeDescriptor>(protoPeerDescriptor);
-                auto suggestedAddress = suggestedDescriptor.FindAddress(NetworkName_);
+                auto suggestedAddress = suggestedDescriptor.FindAddress(Networks_);
                 if (suggestedAddress) {
                     AddPeer(*suggestedAddress, suggestedDescriptor, EPeerType::Peer);
                     PeerBlocksMap_[*suggestedAddress].insert(blockIndex);

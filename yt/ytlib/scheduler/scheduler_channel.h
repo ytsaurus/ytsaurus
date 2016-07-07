@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/core/rpc/public.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -13,7 +14,8 @@ namespace NScheduler {
 NRpc::IChannelPtr CreateSchedulerChannel(
     TSchedulerConnectionConfigPtr config,
     NRpc::IChannelFactoryPtr channelFactory,
-    NRpc::IChannelPtr masterChannel);
+    NRpc::IChannelPtr masterChannel,
+    const NNodeTrackerClient::TNetworkPreferenceList& networks);
 
 ////////////////////////////////////////////////////////////////////////////////
 

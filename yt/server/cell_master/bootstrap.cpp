@@ -408,7 +408,7 @@ void TBootstrap::DoInitialize()
     CellDirectory_ = New<TCellDirectory>(
         Config_->CellDirectory,
         GetBusChannelFactory(),
-        NNodeTrackerClient::InterconnectNetworkName);
+        NNodeTrackerClient::DefaultNetworkPreferences);
 
     YCHECK(CellDirectory_->ReconfigureCell(Config_->PrimaryMaster));
     for (const auto& cellConfig : Config_->SecondaryMasters) {

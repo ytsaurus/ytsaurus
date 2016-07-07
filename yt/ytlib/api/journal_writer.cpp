@@ -562,9 +562,9 @@ private:
                 targets.push_back(descriptor);
             }
 
-            const auto& networkName = Client_->GetNativeConnection()->GetConfig()->NetworkName;
+            const auto& networks = Client_->GetNativeConnection()->GetConfig()->Networks;
             for (const auto& target : targets) {
-                auto address = target.GetAddressOrThrow(networkName);
+                auto address = target.GetAddress(networks);
                 auto lightChannel = Client_->GetNodeChannelFactory()->CreateChannel(address);
                 auto heavyChannel = CreateRetryingChannel(
                     Config_->NodeChannel,
