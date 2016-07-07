@@ -193,12 +193,12 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     return mapping;
 }
 
-std::vector<TCellPeerDescriptor> GetValidPeers(const TCellDescriptor& cellDescriptor)
+SmallVector<const TCellPeerDescriptor*, 3> GetValidPeers(const TCellDescriptor& cellDescriptor)
 {
-    std::vector<TCellPeerDescriptor> peers;
+    SmallVector<const TCellPeerDescriptor*, 3> peers;
     for (const auto& peer : cellDescriptor.Peers) {
         if (!peer.IsNull()) {
-            peers.push_back(peer);
+            peers.push_back(&peer);
         }
     }
     return peers;
@@ -217,7 +217,7 @@ const TCellPeerDescriptor& GetPrimaryTabletPeerDescriptor(
 
     int leadingPeerIndex = -1;
     for (int index = 0; index < peers.size(); ++index) {
-        if (peers[index].GetVoting()) {
+        if (peers[index]->GetVoting()) {
             leadingPeerIndex = index;
             break;
         }
@@ -229,24 +229,25 @@ const TCellPeerDescriptor& GetPrimaryTabletPeerDescriptor(
                 THROW_ERROR_EXCEPTION("No leading peer is known for tablet cell %v",
                     cellDescriptor.CellId);
             }
-            return peers[leadingPeerIndex];
+            return *peers[leadingPeerIndex];
         }
 
         case EPeerKind::LeaderOrFollower: {
             int randomIndex = RandomNumber(peers.size());
-            return peers[randomIndex];
+            return *peers[randomIndex];
         }
 
         case EPeerKind::Follower: {
             if (leadingPeerIndex < 0 || peers.size() == 1) {
-                return peers[RandomNumber(peers.size())];
+                int randomIndex = RandomNumber(peers.size());
+                return *peers[randomIndex];
+            } else {
+                int randomIndex = RandomNumber(peers.size() - 1);
+                if (randomIndex >= leadingPeerIndex) {
+                    ++randomIndex;
+                }
+                return *peers[randomIndex];
             }
-
-            int randomIndex = RandomNumber(peers.size() - 1);
-            if (randomIndex >= leadingPeerIndex) {
-                ++randomIndex;
-            }
-            return peers[randomIndex];
         }
 
         default:
@@ -262,12 +263,22 @@ const TCellPeerDescriptor& GetBackupTabletPeerDescriptor(
 
     Y_ASSERT(peers.size() > 1);
 
-    int randomIndex = RandomNumber(peers.size() - 1);
-    if (peers[randomIndex] == primaryPeerDescriptor) {
-        randomIndex = (randomIndex + 1) % peers.size();
+    int primaryPeerIndex = -1;
+    for (int index = 0; index < peers.size(); ++index) {
+        if (peers[index] == &primaryPeerDescriptor) {
+            primaryPeerIndex = index;
+            break;
+        }
     }
 
-    return peers[randomIndex];
+    Y_ASSERT(primaryPeerIndex >= 0 && primaryPeerIndex < peers.size());
+
+    int randomIndex = RandomNumber(peers.size() - 1);
+    if (randomIndex >= primaryPeerIndex) {
+        ++randomIndex;
+    }
+
+    return *peers[randomIndex];
 }
 
 IChannelPtr CreateTabletReadChannel(
