@@ -115,6 +115,45 @@ TEST(TJsonParserTest, UnsignedInteger2)
     ParseJson(&stream, &Mock);
 }
 
+TEST(TJsonParserTest, Infinity)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    //InSequence dummy; // order in map is not specified
+
+    EXPECT_CALL(Mock, OnDoubleScalar(std::numeric_limits<double>::infinity()));
+
+    Stroka input = "inf";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
+TEST(TJsonParserTest, MinusInfinity)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    //InSequence dummy; // order in map is not specified
+
+    EXPECT_CALL(Mock, OnDoubleScalar(-std::numeric_limits<double>::infinity()));
+
+    Stroka input = "-inf";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
+TEST(TJsonParserTest, IncorrectInfinity)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    //InSequence dummy; // order in map is not specified
+
+    Stroka input = "[0, -in, 1.0]";
+
+    TStringInput stream(input);
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock)
+    );
+}
+
 TEST(TJsonParserTest, UnsignedInteger3)
 {
     StrictMock<TMockYsonConsumer> Mock;
