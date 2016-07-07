@@ -140,9 +140,9 @@ void TBootstrap::DoRun()
     Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
 
     ChunkLocationThrottlerManager_ = New<TThrottlerManager>(
-            Config_->Scheduler->ChunkLocationThrottler,
-            SchedulerLogger,
-            SchedulerProfiler);
+        Config_->Scheduler->ChunkLocationThrottler,
+        SchedulerLogger,
+        SchedulerProfiler);
 
     ResponseKeeper_ = New<TResponseKeeper>(
         Config_->ResponseKeeper,
