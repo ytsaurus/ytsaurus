@@ -65,9 +65,9 @@ void AssertTrapImpl(
 #endif
 
 //! Unimplemented code marker. Abnormally terminates the current process.
-#define YUNIMPLEMENTED() \
+#define Y_UNIMPLEMENTED() \
     do { \
-        ASSERT_TRAP("YUNIMPLEMENTED", ""); \
+        ASSERT_TRAP("Y_UNIMPLEMENTED", ""); \
     } while (false)
 
 ////////////////////////////////////////////////////////////////////////////////

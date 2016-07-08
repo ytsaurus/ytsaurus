@@ -167,7 +167,7 @@ public:
         int blockCount) override
     {
         // TODO(babenko): implement when first needed
-        YUNIMPLEMENTED();
+        Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<TChunkMeta> GetMeta(

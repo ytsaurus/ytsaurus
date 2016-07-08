@@ -58,17 +58,17 @@ TFuture<void> TMemoryWriter::Close(const TChunkMeta& chunkMeta)
 
 const TChunkInfo& TMemoryWriter::GetChunkInfo() const
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 const TDataStatistics& TMemoryWriter::GetDataStatistics() const
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 TChunkReplicaList TMemoryWriter::GetWrittenChunkReplicas() const
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 TChunkId TMemoryWriter::GetChunkId() const

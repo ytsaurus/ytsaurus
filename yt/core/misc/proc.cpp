@@ -458,112 +458,112 @@ void KillAllByUid(int uid)
 
 bool TryClose(int /* fd */, bool /* ignoreBadFD */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 void SafeClose(int /* fd */, bool /* ignoreBadFD */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 bool TryDup2(int /* oldFD */, int /* newFD */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 void SafeDup2(int /* oldFD */, int /* newFD */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 void SafeSetCloexec(int /* fd */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 bool TryExecve(const char /* *path */, const char* /* argv[] */, const char* /* env[] */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 TError StatusToError(int /* status */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 void RemoveDirAsRoot(const Stroka& /* path */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 void MountTmpfsAsRoot(TMountTmpfsConfigPtr /* config */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 void KillAllByUid(int /* uid */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 void UmountAsRoot(const Stroka& /* path */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 void CloseAllDescriptors()
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 void SetPermissions(int /* fd */, int /* permissions */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 void SafePipe(int /* fd */ [2])
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 int SafeDup(int /* fd */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 void SafeOpenPty(int* /* masterFD */, int* /* slaveFD */, int /* height */, int /* width */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 void SafeLoginTty(int /* slaveFD */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 void SafeSetTtyWindowSize(int /* slaveFD */, int /* height */, int /* width */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 bool TryMakeNonblocking(int /* fd */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 void SafeMakeNonblocking(int /* fd */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 void SafeSetUid(int /* uid */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 Stroka SafeGetUsernameByUid(int /* uid */)
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 #endif
 
