@@ -1484,8 +1484,13 @@ private:
 
         // COMPAT(savrus): Cf. YT-5120
         if (context.GetVersion() < 303) {
-            NeedToRecomputeStatistics_ = true;
+            ScheduleRecomputeStatistics();
         }
+    }
+
+    virtual void OnBeforeSnapshotLoaded() override
+    {
+        NeedToRecomputeStatistics_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1517,6 +1522,11 @@ private:
             if (chunk->IsForeign()) {
                 YCHECK(ForeignChunks_.insert(chunk).second);
             }
+        }
+
+        if (NeedToRecomputeStatistics_) {
+            RecomputeStatistics();
+            NeedToRecomputeStatistics_ = false;
         }
 
         LOG_INFO("Finished initializing chunks");
@@ -1650,8 +1660,6 @@ private:
         TMasterAutomatonPart::OnRecoveryStarted();
 
         Profiler.SetEnabled(false);
-
-        NeedToRecomputeStatistics_ = false;
     }
 
     virtual void OnRecoveryComplete() override
@@ -1659,11 +1667,6 @@ private:
         TMasterAutomatonPart::OnRecoveryComplete();
 
         Profiler.SetEnabled(true);
-
-        if (NeedToRecomputeStatistics_) {
-            RecomputeStatistics();
-            NeedToRecomputeStatistics_ = false;
-        }
     }
 
     virtual void OnLeaderRecoveryComplete() override
