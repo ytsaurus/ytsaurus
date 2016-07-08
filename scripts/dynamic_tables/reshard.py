@@ -38,7 +38,7 @@ def make_pivot_keys(ty, expr, shards=1):
         elif ty == "uint64":
             modulo = 2L**64L
         else:
-            raise RuntimeError("Cannot infer modulo")
+            raise RuntimeError("Unsupported type %s for sharding column" % ty)
     if ty == "int64":
         cls = yson.YsonInt64
         shift = long(modulo)
@@ -53,24 +53,7 @@ def make_pivot_keys(ty, expr, shards=1):
     return [[]] + [[cls(i * span / shards - shift)] for i in xrange(1, shards)]
 
 
-def reshard(table, shards=None, auto=False, yes=False):
-    if shards is None and not auto or shards is not None and auto:
-        logging.error("Please, specify exactly one of flags `--shards` and `--auto`")
-        return
-
-    if auto:
-        table_attributes = yt.get(table + "/@")
-        in_memory_mode = table_attributes.get("in_memory_mode", None)
-        if in_memory_mode is None:
-            logging.error("`--auto` could be used only with in-memory tables")
-            return
-        elif in_memory_mode == "compressed":
-            shards = 1 + table_attributes["compressed_data_size"] / GB
-        elif in_memory_mode == "uncompressed":
-            shards = 1 + table_attributes["uncompressed_data_size"] / GB
-        else:
-            raise RuntimeError("Unknown @in_memory_mode `%s`" % in_memory_mode)
-
+def reshard(table, shards=None, yes=False):
     pivot_schema = yt.get(table + "/@schema/0")
     pivot_keys = make_pivot_keys(
         pivot_schema.get("type", None),
@@ -107,16 +90,104 @@ def reshard(table, shards=None, auto=False, yes=False):
 
     logging.info("Done")
 
+
+def main(args):
+    if args.action == "one":
+        process_one(args)
+    elif args.action == "many":
+        process_many(args)
+
+
+def process_one(args):
+    reshard(args.table, args.shards, args.yes)
+
+
+def process_many(args):
+    tables = []
+    for table in args.table:
+        tables.append(table)
+
+    if len(args.include) + len(args.exclude) > 0:
+        for table in yt.search("/", node_type="table", attributes=["dynamic", "in_memory_mode"]):
+            dynamic = table.attributes.get("dynamic", False)
+            in_memory_mode = table.attributes.get("in_memory_mode", "none")
+            if not dynamic:
+                continue
+            if args.in_memory_only and in_memory_mode == "none":
+                continue
+            tables.append(str(table))
+
+    if len(tables) == 0:
+        logging.error("You must specify at least one table with either `--table` or `--include`/`--exclude`")
+        return
+
+    for table in tables:
+        logging.info("Processing %s", table)
+
+        table_attributes = yt.get(table + "/@")
+        tablets = yt.get(table + "/@tablets")
+
+        in_memory_mode = table_attributes.get("in_memory_mode", "none")
+
+        desired_size_gbs = args.desired_size_gbs
+        if desired_size_gbs == 0:
+            if in_memory_mode == "none":
+                desired_size_gbs = 80
+            else:
+                desired_size_gbs = 1
+
+        desired_size_kind = "uncompressed"
+        if in_memory_mode == "compressed":
+            desired_size_kind = "compressed"
+
+        sizes = [tablet["statistics"]["%s_data_size" % desired_size_kind] for tablet in tablets]
+
+        if all(size < 3 * desired_size_gbs * GB / 2 for size in sizes):
+            logging.info("Table %s is well-enough balanced; skipping", table)
+            continue
+
+        shards = 1 + sum(sizes) / (desired_size_gbs * GB)
+
+        try:
+            logging.info("Resharding table %s into %d shards", table, shards)
+            reshard(table, shards, args.yes)
+        except KeyboardInterrupt:
+            raise
+        except:
+            import traceback
+            traceback.print_exc()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--table", type=str, required=True, help="Table to reshard")
-    parser.add_argument("--shards", type=int, help="Target number of shards")
-    parser.add_argument("--auto", action="store_true", help="Target shards to fit in memory")
     parser.add_argument("--silent", action="store_true", help="Do not log anything")
     parser.add_argument("--yes", action="store_true", help="Actually do something (do nothing by default)")
+
+    subparsers = parser.add_subparsers()
+
+    one_parser = subparsers.add_parser("one", help="reshard one table")
+    one_parser.add_argument("--table", type=str, required=True, help="Table to reshard")
+    one_parser.add_argument("--shards", type=int, required=True, help="Target number of shards")
+    one_parser.set_defaults(action="one")
+
+    many_parser = subparsers.add_parser("many", help="reshard many tables")
+    many_parser.add_argument("--table", action="append", type=str,
+                             help="Add a single table to task list")
+    many_parser.add_argument("--include", metavar="REGEXP", action="append", type=str,
+                             help="Add tables matching regular expression to task list")
+    many_parser.add_argument("--exclude", metavar="REGEXP", action="append", type=str,
+                             help="Remove tables matching regular expression from task list")
+    many_parser.add_argument("--in-memory-only", action="store_true", default=False,
+                             help="Process only in-memory tables")
+    many_parser.add_argument("--desired-size-gbs", metavar="N", type=long, required=False, default=0,
+                             help="Desired tablet size (in GBs)")
+    many_parser.set_defaults(table=[], include=[], exclude=[], action="many")
+
     args = parser.parse_args()
+
     if args.silent:
         logging.basicConfig(level=logging.ERROR)
     else:
         logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
-    reshard(args.table, args.shards, args.auto, args.yes)
+
+    main(args)
