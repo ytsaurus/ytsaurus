@@ -23,56 +23,28 @@
 */
 
 /*_************************************
-*  Compiler Options
-**************************************/
-/* Disable some Visual warning messages */
-#define _CRT_SECURE_NO_WARNINGS
-#define _CRT_SECURE_NO_DEPRECATE     /* VS2005 */
-
-/* Unix Large Files support (>4GB) */
-#if (defined(__sun__) && (!defined(__LP64__)))   /* Sun Solaris 32-bits requires specific definitions */
-#  define _LARGEFILE_SOURCE
-#  define _FILE_OFFSET_BITS 64
-#elif ! defined(__LP64__)                        /* No point defining Large file for 64 bit */
-#  define _LARGEFILE64_SOURCE
-#endif
-
-
-/*_************************************
 *  Includes
 **************************************/
-#include <stdlib.h>       /* malloc */
-#include <stdio.h>        /* fprintf, fopen, ftello64 */
-#include <sys/types.h>    /* stat64 */
-#include <sys/stat.h>     /* stat64 */
-#include <string.h>       /* strcmp */
-#include <time.h>         /* clock_t, clock, CLOCKS_PER_SEC */
+#include "util.h"        /* Compiler options, UTIL_GetFileSize */
+#include <stdlib.h>      /* malloc */
+#include <stdio.h>       /* fprintf, fopen, ftello64 */
+#include <time.h>        /* clock_t, clock, CLOCKS_PER_SEC */
 
 #include "mem.h"
-#include "zstd_static.h"
-#include "fse_static.h"
+#define ZSTD_STATIC_LINKING_ONLY  /* ZSTD_compressBegin, ZSTD_compressContinue, etc. */
+#include "zstd.h"        /* ZSTD_VERSION_STRING */
+#define FSE_STATIC_LINKING_ONLY   /* FSE_DTABLE_SIZE_U32 */
+#include "fse.h"
 #include "zbuff.h"
 #include "datagen.h"
-
-
-/*_************************************
-*  Compiler Options
-**************************************/
-/* S_ISREG & gettimeofday() are not supported by MSVC */
-#if !defined(S_ISREG)
-#  define S_ISREG(x) (((x) & S_IFMT) == S_IFREG)
-#endif
 
 
 /*_************************************
 *  Constants
 **************************************/
 #define PROGRAM_DESCRIPTION "Zstandard speed analyzer"
-#ifndef ZSTD_VERSION
-#  define ZSTD_VERSION ""
-#endif
 #define AUTHOR "Yann Collet"
-#define WELCOME_MESSAGE "*** %s %s %i-bits, by %s (%s) ***\n", PROGRAM_DESCRIPTION, ZSTD_VERSION, (int)(sizeof(void*)*8), AUTHOR, __DATE__
+#define WELCOME_MESSAGE "*** %s %s %i-bits, by %s (%s) ***\n", PROGRAM_DESCRIPTION, ZSTD_VERSION_STRING, (int)(sizeof(void*)*8), AUTHOR, __DATE__
 
 
 #define KB *(1<<10)
@@ -132,21 +104,6 @@ static size_t BMK_findMaxMem(U64 requiredMem)
 
     free (testmem);
     return (size_t) requiredMem;
-}
-
-
-static U64 BMK_GetFileSize(const char* infilename)
-{
-    int r;
-#if defined(_MSC_VER)
-    struct _stat64 statbuf;
-    r = _stat64(infilename, &statbuf);
-#else
-    struct stat statbuf;
-    r = stat(infilename, &statbuf);
-#endif
-    if (r || !S_ISREG(statbuf.st_mode)) return 0;   /* No good... */
-    return (U64)statbuf.st_size;
 }
 
 
@@ -446,7 +403,7 @@ static int benchFiles(const char** fileNamesTable, const int nbFiles, U32 benchN
         if (inFile==NULL) { DISPLAY( "Pb opening %s\n", inFileName); return 11; }
 
         /* Memory allocation & restrictions */
-        inFileSize = BMK_GetFileSize(inFileName);
+        inFileSize = UTIL_getFileSize(inFileName);
         benchedSize = BMK_findMaxMem(inFileSize*3) / 3;
         if ((U64)benchedSize > inFileSize) benchedSize = (size_t)inFileSize;
         if (benchedSize < inFileSize)
@@ -588,4 +545,3 @@ int main(int argc, const char** argv)
 
     return result;
 }
-

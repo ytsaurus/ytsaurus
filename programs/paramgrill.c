@@ -25,35 +25,18 @@
 /*-************************************
 *  Compiler Options
 **************************************/
-/* Disable some Visual warning messages */
-#define _CRT_SECURE_NO_WARNINGS
-#define _CRT_SECURE_NO_DEPRECATE     /* VS2005 */
-
-/* Unix Large Files support (>4GB) */
-#if (defined(__sun__) && (!defined(__LP64__)))   /* Sun Solaris 32-bits requires specific definitions */
-#  define _LARGEFILE_SOURCE
-#  define _FILE_OFFSET_BITS 64
-#elif ! defined(__LP64__)                        /* No point defining Large file for 64 bit */
-#  define _LARGEFILE64_SOURCE
-#endif
-
-/* S_ISREG & gettimeofday() are not supported by MSVC */
+/* gettimeofday() are not supported by MSVC */
 #if defined(_MSC_VER) || defined(_WIN32)
 #  define BMK_LEGACY_TIMER 1
-#endif
-
-#if defined(_MSC_VER)
-#  define snprintf _snprintf    /* snprintf unsupported by Visual <= 2012 */
 #endif
 
 
 /*-************************************
 *  Dependencies
 **************************************/
+#include "util.h"         /* Compiler options, UTIL_GetFileSize */
 #include <stdlib.h>       /* malloc */
 #include <stdio.h>        /* fprintf, fopen, ftello64 */
-#include <sys/types.h>    /* stat64 */
-#include <sys/stat.h>     /* stat64 */
 #include <string.h>       /* strcmp */
 #include <math.h>         /* log */
 
@@ -65,29 +48,18 @@
 #endif
 
 #include "mem.h"
-#include "zstd_static.h"
+#define ZSTD_STATIC_LINKING_ONLY   /* ZSTD_parameters */
+#include "zstd.h"
 #include "datagen.h"
 #include "xxhash.h"
 
 
 /*-************************************
-*  Compiler Options
-**************************************/
-/* S_ISREG & gettimeofday() are not supported by MSVC */
-#if !defined(S_ISREG)
-#  define S_ISREG(x) (((x) & S_IFMT) == S_IFREG)
-#endif
-
-
-/*-************************************
 *  Constants
 **************************************/
-#define PROGRAM_DESCRIPTION "ZSTD_HC parameters tester"
-#ifndef ZSTD_VERSION
-#  define ZSTD_VERSION ""
-#endif
+#define PROGRAM_DESCRIPTION "ZSTD parameters tester"
 #define AUTHOR "Yann Collet"
-#define WELCOME_MESSAGE "*** %s %s %i-bits, by %s (%s) ***\n", PROGRAM_DESCRIPTION, ZSTD_VERSION, (int)(sizeof(void*)*8), AUTHOR, __DATE__
+#define WELCOME_MESSAGE "*** %s %s %i-bits, by %s (%s) ***\n", PROGRAM_DESCRIPTION, ZSTD_VERSION_STRING, (int)(sizeof(void*)*8), AUTHOR, __DATE__
 
 
 #define KB *(1<<10)
@@ -196,20 +168,6 @@ static size_t BMK_findMaxMem(U64 requiredMem)
     return (size_t) (requiredMem - step);
 }
 
-
-static U64 BMK_GetFileSize(char* infilename)
-{
-    int r;
-#if defined(_MSC_VER)
-    struct _stat64 statbuf;
-    r = _stat64(infilename, &statbuf);
-#else
-    struct stat statbuf;
-    r = stat(infilename, &statbuf);
-#endif
-    if (r || !S_ISREG(statbuf.st_mode)) return 0;   /* No good... */
-    return (U64)statbuf.st_size;
-}
 
 #  define FUZ_rotl32(x,r) ((x << r) | (x >> (32 - r)))
 U32 FUZ_rand(U32* src)
@@ -643,22 +601,22 @@ static void playAround(FILE* f, winnerInfo_t* winners,
 }
 
 
-static void potentialRandomParams(ZSTD_compressionParameters* p, U32 inverseChance)
+static ZSTD_compressionParameters randomParams(void)
 {
-    U32 chance = (FUZ_rand(&g_rand) % (inverseChance+1));
+    ZSTD_compressionParameters p;
     U32 validated = 0;
-    if (!chance)
     while (!validated) {
         /* totally random entry */
-        p->chainLog   = FUZ_rand(&g_rand) % (ZSTD_CHAINLOG_MAX+1 - ZSTD_CHAINLOG_MIN) + ZSTD_CHAINLOG_MIN;
-        p->hashLog    = FUZ_rand(&g_rand) % (ZSTD_HASHLOG_MAX+1 - ZSTD_HASHLOG_MIN) + ZSTD_HASHLOG_MIN;
-        p->searchLog  = FUZ_rand(&g_rand) % (ZSTD_SEARCHLOG_MAX+1 - ZSTD_SEARCHLOG_MIN) + ZSTD_SEARCHLOG_MIN;
-        p->windowLog  = FUZ_rand(&g_rand) % (ZSTD_WINDOWLOG_MAX+1 - ZSTD_WINDOWLOG_MIN) + ZSTD_WINDOWLOG_MIN;
-        p->searchLength=FUZ_rand(&g_rand) % (ZSTD_SEARCHLENGTH_MAX+1 - ZSTD_SEARCHLENGTH_MIN) + ZSTD_SEARCHLENGTH_MIN;
-        p->targetLength=FUZ_rand(&g_rand) % (ZSTD_TARGETLENGTH_MAX+1 - ZSTD_TARGETLENGTH_MIN) + ZSTD_TARGETLENGTH_MIN;
-        p->strategy   = (ZSTD_strategy) (FUZ_rand(&g_rand) % (ZSTD_btopt +1));
-        validated = !ZSTD_isError(ZSTD_checkCParams(*p));
+        p.chainLog   = FUZ_rand(&g_rand) % (ZSTD_CHAINLOG_MAX+1 - ZSTD_CHAINLOG_MIN) + ZSTD_CHAINLOG_MIN;
+        p.hashLog    = FUZ_rand(&g_rand) % (ZSTD_HASHLOG_MAX+1 - ZSTD_HASHLOG_MIN) + ZSTD_HASHLOG_MIN;
+        p.searchLog  = FUZ_rand(&g_rand) % (ZSTD_SEARCHLOG_MAX+1 - ZSTD_SEARCHLOG_MIN) + ZSTD_SEARCHLOG_MIN;
+        p.windowLog  = FUZ_rand(&g_rand) % (ZSTD_WINDOWLOG_MAX+1 - ZSTD_WINDOWLOG_MIN) + ZSTD_WINDOWLOG_MIN;
+        p.searchLength=FUZ_rand(&g_rand) % (ZSTD_SEARCHLENGTH_MAX+1 - ZSTD_SEARCHLENGTH_MIN) + ZSTD_SEARCHLENGTH_MIN;
+        p.targetLength=FUZ_rand(&g_rand) % (ZSTD_TARGETLENGTH_MAX+1 - ZSTD_TARGETLENGTH_MIN) + ZSTD_TARGETLENGTH_MIN;
+        p.strategy   = (ZSTD_strategy) (FUZ_rand(&g_rand) % (ZSTD_btopt +1));
+        validated = !ZSTD_isError(ZSTD_checkCParams(p));
     }
+    return p;
 }
 
 static void BMK_selectRandomStart(
@@ -666,12 +624,10 @@ static void BMK_selectRandomStart(
                        const void* srcBuffer, size_t srcSize,
                        ZSTD_CCtx* ctx)
 {
-    U32 id = (FUZ_rand(&g_rand) % (ZSTD_maxCLevel()+1));
+    U32 const id = (FUZ_rand(&g_rand) % (ZSTD_maxCLevel()+1));
     if ((id==0) || (winners[id].params.windowLog==0)) {
         /* totally random entry */
-        ZSTD_compressionParameters p;
-        potentialRandomParams(&p, 1);
-        ZSTD_adjustCParams(&p, srcSize, 0);
+        ZSTD_compressionParameters const p = ZSTD_adjustCParams(randomParams(), srcSize, 0);
         playAround(f, winners, p, srcBuffer, srcSize, ctx);
     }
     else
@@ -692,7 +648,7 @@ static void BMK_benchMem(void* srcBuffer, size_t srcSize)
 
     if (g_singleRun) {
         BMK_result_t testResult;
-        ZSTD_adjustCParams(&g_params, srcSize, 0);
+        g_params = ZSTD_adjustCParams(g_params, srcSize, 0);
         BMK_benchParam(&testResult, srcBuffer, srcSize, ctx, g_params);
         DISPLAY("\n");
         return;
@@ -790,7 +746,7 @@ int benchFiles(char** fileNamesTable, int nbFiles)
         }
 
         /* Memory allocation & restrictions */
-        inFileSize = BMK_GetFileSize(inFileName);
+        inFileSize = UTIL_getFileSize(inFileName);
         benchedSize = BMK_findMaxMem(inFileSize*3) / 3;
         if ((U64)benchedSize > inFileSize) benchedSize = (size_t)inFileSize;
         if (benchedSize < inFileSize)
@@ -841,7 +797,7 @@ int optimizeForSize(char* inFileName)
     }
 
     /* Memory allocation & restrictions */
-    inFileSize = BMK_GetFileSize(inFileName);
+    inFileSize = UTIL_getFileSize(inFileName);
     benchedSize = (size_t) BMK_findMaxMem(inFileSize*3) / 3;
     if ((U64)benchedSize > inFileSize) benchedSize = (size_t)inFileSize;
     if (benchedSize < inFileSize)
@@ -904,7 +860,7 @@ int optimizeForSize(char* inFileName)
             do {
                 params = winner.params;
                 paramVariation(&params);
-                potentialRandomParams(&params, 16);
+                if ((FUZ_rand(&g_rand) & 15) == 1) params = randomParams();
 
                 /* exclude faster if already played set of params */
                 if (FUZ_rand(&g_rand) & ((1 << NB_TESTS_PLAYED(params))-1)) continue;

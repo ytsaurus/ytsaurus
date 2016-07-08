@@ -1,3 +1,37 @@
+v0.7.2
+fixed : ZSTD_decompressBlock() using multiple consecutive blocks. Reported by Greg Slazinski
+fixed : potential segfault on very large files (many gigabytes). Reported by Chip Turner.
+fixed : CLI displays system error message when destination file cannot be created (#231). Reported by Chip Turner.
+
+v0.7.1
+fixed : ZBUFF_compressEnd() called multiple times with too small `dst` buffer, reported by Christophe Chevalier
+fixed : dictBuilder fails if first sample is too small, reported by Руслан Ковалёв
+fixed : corruption issue, reported by cj
+modified : checksum enabled by default in command line mode
+
+v0.7.0
+New : Support for directory compression, using `-r`, thanks to Przemyslaw Skibinski
+New : Command `--rm`, to remove source file after successful de/compression
+New : Visual build scripts, by Christophe Chevalier
+New : Support for Sparse File-systems (do not use space for zero-filled sectors)
+New : Frame checksum support
+New : Support pass-through mode (when using `-df`)
+API : more efficient Dictionary API : `ZSTD_compress_usingCDict()`, `ZSTD_decompress_usingDDict()`
+API : create dictionary files from custom content, by Giuseppe Ottaviano
+API : support for custom malloc/free functions
+New : controllable Dictionary ID
+New : Support for skippable frames
+
+v0.6.1
+New : zlib wrapper API, thanks to Przemyslaw Skibinski
+New : Ability to compile compressor / decompressor separately
+Changed : new lib directory structure
+Fixed : Legacy codec v0.5 compatible with dictionary decompression
+Fixed : Decoder corruption error (#173)
+Fixed : null-string roundtrip (#176)
+New : benchmark mode can select directory as input
+Experimental : midipix support, VMS support
+
 v0.6.0
 Stronger high compression modes, thanks to Przemyslaw Skibinski
 API : ZSTD_getFrameParams() provides size of decompressed content
@@ -49,7 +83,7 @@ Fixed : ZSTD_LEGACY_SUPPORT=0 build mode (reported by Luben)
 removed `zstd.c`
 
 v0.4.0
-Command line utility compatible with high compression levels 
+Command line utility compatible with high compression levels
 Removed zstdhc => merged into zstd
 Added : ZBUFF API (see zstd_buffered.h)
 Rolling buffer support
@@ -79,7 +113,7 @@ v0.2.2
 Fix : Visual Studio 2013 & 2015 release compilation, by Christophe Chevalier
 
 v0.2.1
-Fix : Read errors, advanced fuzzer tests, by Hanno Böck 
+Fix : Read errors, advanced fuzzer tests, by Hanno Böck
 
 v0.2.0
 **Breaking format change**
@@ -95,7 +129,6 @@ frame concatenation support
 v0.1.1
 fix compression bug
 detects write-flush errors
-
+git@github.com:Cyan4973/zstd.git
 v0.1.0
 first release
-
