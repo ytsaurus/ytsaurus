@@ -17,6 +17,7 @@ option(YT_BUILD_ENABLE_DRIVER             "Build driver" TRUE)
 option(YT_BUILD_ENABLE_EXPERIMENTS        "Build experiments" TRUE)
 option(YT_BUILD_ENABLE_TESTS              "Build tests" TRUE)
 option(YT_BUILD_ENABLE_NODEJS             "Build NodeJS bindings" FALSE)
+option(YT_BUILD_ENABLE_PYTHON_2_6         "Build Python 2.6 bindings" FALSE)
 option(YT_BUILD_ENABLE_PYTHON_2_7         "Build Python 2.7 bindings" TRUE)
 option(YT_BUILD_ENABLE_PYTHON_SKYNET      "Build Python Skynet bindings" FALSE)
 option(YT_BUILD_ENABLE_PERL               "Build Perl bindings" FALSE)
@@ -93,22 +94,25 @@ find_package(PythonInterp)
 
 # Discover Python world.
 # COMPAT(sandello): Trigger building of all Python bindings.
+set(_PYTHON_2_6_PATH "/usr/include/python2.6")
+set(_PYTHON_2_7_PATH "/usr/include/python2.7")
+set(_PYTHON_SKYNET_PATH "/skynet/python/include/python2.7")
+
 if(DEFINED YT_BUILD_ENABLE_PYTHON)
-  if(NOT DEFINED YT_BUILD_ENABLE_PYTHON_2_7)
+  if(NOT DEFINED YT_BUILD_ENABLE_PYTHON_2_6 AND EXISTS ${_PYTHON_2_6_PATH})
+    message(STATUS "[COMPAT] Setting YT_BUILD_ENABLE_PYTHON_2_6=ON due to YT_BUILD_ENABLE_PYTHON")
+    set(YT_BUILD_ENABLE_PYTHON_2_6 TRUE)
+  endif()
+  if(NOT DEFINED YT_BUILD_ENABLE_PYTHON_2_7 AND EXISTS ${_PYTHON_2_7_PATH})
     message(STATUS "[COMPAT] Setting YT_BUILD_ENABLE_PYTHON_2_7=ON due to YT_BUILD_ENABLE_PYTHON")
     set(YT_BUILD_ENABLE_PYTHON_2_7 TRUE)
   endif()
-  if(NOT DEFINED YT_BUILD_ENABLE_PYTHON_SKYNET)
+  if(NOT DEFINED YT_BUILD_ENABLE_PYTHON_SKYNET AND EXISTS ${_PYTHON_SKYNET_PATH})
     message(STATUS "[COMPAT] Setting YT_BUILD_ENABLE_PYTHON_SKYNET=ON due to YT_BUILD_ENABLE_PYTHON")
     set(YT_BUILD_ENABLE_PYTHON_SKYNET TRUE)
   endif()
+  message(STATUS "[COMPAT] Unsetting YT_BUILD_ENABLE_PYTHON")
   unset(YT_BUILD_ENABLE_PYTHON CACHE)
-endif()
-if(NOT DEFINED YT_BUILD_ENABLE_PYTHON)
-  if(YT_BUILD_ENABLE_PYTHON_2_7 OR YT_BUILD_ENABLE_PYTHON_SKYNET)
-    set(YT_BUILD_ENABLE_PYTHON TRUE)
-    message(STATUS "[COMPAT] Setting YT_BUILD_ENABLE_PYTHON=ON")
-  endif()
 endif()
 
 set(PYTHON_KINDS)
@@ -123,6 +127,11 @@ function(CHECK_PYTHON_KIND kind include_dir)
   mark_as_advanced(PYTHON_${kind}_INCLUDE_DIR)
   set(PYTHON_KINDS ${PYTHON_KINDS} ${kind} PARENT_SCOPE)
 endfunction()
+
+# Discover Python 2.6 world.
+if(YT_BUILD_ENABLE_PYTHON_2_6)
+  check_python_kind("2_6" "/usr/include/python2.6")
+endif()
 
 # Discover Python 2.7 world.
 if(YT_BUILD_ENABLE_PYTHON_2_7)
@@ -172,7 +181,6 @@ endif()
 ################################################################################
 # Assemble project.
 
-add_subdirectory(debian)
 add_subdirectory(cmake/deps-protobuf)
 add_subdirectory(cmake/deps-arcadia-util)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-minilzo)
@@ -211,18 +219,19 @@ endif()
 # because otherwise Debian scripts would produce empty packages.
 
 set(YT_CAN_BUILD_PACKAGE TRUE)
-foreach(YT_BUILD_ENABLE
-  YT_BUILD_ENABLE_NODEJS YT_BUILD_ENABLE_PERL
-  YT_BUILD_ENABLE_PYTHON_2_7 YT_BUILD_ENABLE_PYTHON_SKYNET)
-  if(NOT ${${YT_BUILD_ENABLE}})
-    message(STATUS "[PACKAGE] Disabling Debian packaging due to ${YT_BUILD_ENABLE}=OFF")
-    set(YT_CAN_BUILD_PACKAGE FALSE)
-  endif()
-endforeach()
+if(NOT UNIX)
+  set(YT_CAN_BUILD_PACKAGE FALSE)
+  message(STATUS "Disabling packaging because of non-Unix environment")
+endif()
+if(NOT CMAKE_GENERATOR STREQUAL "Unix Makefiles")
+  set(YT_CAN_BUILD_PACKAGE FALSE)
+  message(STATUS "Disabling packaging because CMake generator is '${CMAKE_GENERATOR}' rather than 'Unix Makefiles'")
+endif()
 
 if(YT_CAN_BUILD_PACKAGE)
-  execute_process(COMMAND lsb_release --codename --short
-                  OUTPUT_VARIABLE LSB_RELEASE)
+  add_subdirectory(debian)
+
+  execute_process(COMMAND lsb_release --codename --short OUTPUT_VARIABLE LSB_RELEASE)
   if(${LSB_RELEASE} MATCHES "trusty")
     set(DCH_VENDOR_FLAG "--vendor")
   else()
@@ -259,7 +268,10 @@ if(YT_CAN_BUILD_PACKAGE)
   )
 
   add_custom_target(python-package touch python-package-stamp
-    COMMAND cat ${CMAKE_BINARY_DIR}/debian/changelog | sed 's/^yandex-yt/yandex-yt-python-driver/' > ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver/debian/changelog
+    COMMAND
+      cat ${CMAKE_BINARY_DIR}/debian/changelog
+      | sed 's/^yandex-yt/yandex-yt-python-driver/'
+      > ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver/debian/changelog
     COMMAND ${CMAKE_SOURCE_DIR}/python/build_driver.sh
     COMMAND mv
       ../yandex-yt*${YT_VERSION}*
@@ -289,10 +301,12 @@ if(YT_CAN_BUILD_PACKAGE)
   hook_for_debian(yandex-yt-http-proxy nodejs)
   hook_for_debian(yandex-yt-perl perl-module)
   hook_for_debian(yandex-yt-perl-${YT_ABI_VERSION} perl-abi)
-  hook_for_debian(yandex-yt-python-2-7-driver yt-python-2-7-driver)
-  hook_for_debian(yandex-yt-python-2-7-yson yt-python-2-7-yson)
-  hook_for_debian(yandex-yt-python-skynet-driver yt-python-skynet-driver)
-  hook_for_debian(yandex-yt-python-skynet-yson yt-python-skynet-yson)
+  foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
+    string(TOLOWER ${PYTHON_KIND} PYTHON_KIND_LOWER)
+    string(REPLACE "_" "-" PYTHON_KIND_DASHED ${PYTHON_KIND_LOWER})
+    hook_for_debian(yandex-yt-python-${PYTHON_KIND_DASHED}-yson yt-python-${PYTHON_KIND_DASHED}-yson)
+    hook_for_debian(yandex-yt-python-${PYTHON_KIND_DASHED}-driver yt-python-${PYTHON_KIND_DASHED}-driver)
+  endforeach()
 else()
   add_custom_target(package touch package-stamp
     COMMAND ${CMAKE_COMMAND} -E echo -- PACKAGE BUILD IS DISABLED -- SEE CMAKE OUTPUT && exit 100
