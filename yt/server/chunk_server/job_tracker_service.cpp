@@ -128,7 +128,7 @@ private:
                         break;
 
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
             }
         }
@@ -211,7 +211,7 @@ private:
                 }
 
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
         }
 

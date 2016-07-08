@@ -79,7 +79,7 @@ bool TPacketTranscoderBase<TDerived>::EndPhase()
             return AsDerived()->EndMessagePartPhase();
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

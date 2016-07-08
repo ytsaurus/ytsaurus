@@ -433,7 +433,7 @@ void TMasterConnector::SendNodeHeartbeat(TCellTag cellTag)
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

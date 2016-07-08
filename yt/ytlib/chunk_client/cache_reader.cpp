@@ -64,7 +64,7 @@ public:
         const TNullable<std::vector<int>>& extensionTags) override
     {
         // Cache-based readers shouldn't ask meta from chunk reader.
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual TChunkId GetChunkId() const override

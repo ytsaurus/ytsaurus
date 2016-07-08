@@ -168,7 +168,7 @@ i64 GetResource(const TJobResources& resources, EResourceType type)
         ITERATE_JOB_RESOURCES(XX)
         #undef XX
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -181,7 +181,7 @@ void SetResource(TJobResources& resources, EResourceType type, i64 value)
         ITERATE_JOB_RESOURCES(XX)
         #undef XX
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

@@ -96,7 +96,7 @@ public:
 
     virtual void SetYson(const Stroka& key, const TYsonString& value) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual bool Remove(const Stroka& key) override

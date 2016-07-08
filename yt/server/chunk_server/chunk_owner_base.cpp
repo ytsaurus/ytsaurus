@@ -78,7 +78,7 @@ const TChunkList* TChunkOwnerBase::GetSnapshotChunkList() const
             }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -98,7 +98,7 @@ const TChunkList* TChunkOwnerBase::GetDeltaChunkList() const
             return ChunkList_;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -133,7 +133,7 @@ void TChunkOwnerBase::EndUpload(
                 break;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 }
@@ -165,7 +165,7 @@ TDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
             return GetSnapshotChunkList()->Statistics().ToDataStatistics();
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

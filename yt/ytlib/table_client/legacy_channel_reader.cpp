@@ -100,7 +100,7 @@ bool TLegacyChannelReader::NextColumn()
 
             if (nameSize < 0) {
                 // global key column index, not implemented yet.
-                YUNREACHABLE();
+                Y_UNREACHABLE();
             } else {
                 CurrentColumn = TStringBuf(rangeBuffer.Buf(), nameSize);
                 rangeBuffer.Skip(nameSize);

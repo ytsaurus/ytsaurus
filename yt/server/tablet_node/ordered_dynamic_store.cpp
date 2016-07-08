@@ -97,7 +97,7 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
 private:

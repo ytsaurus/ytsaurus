@@ -264,7 +264,7 @@ public:
 
     virtual bool TryAcquire(i64 /*count*/) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual void Acquire(i64 count) override

@@ -90,7 +90,7 @@ public:
                     break;
 
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             };
         }));
 

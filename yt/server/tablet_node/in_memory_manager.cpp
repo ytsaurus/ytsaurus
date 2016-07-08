@@ -59,7 +59,7 @@ EBlockType InMemoryModeToBlockType(EInMemoryMode mode)
             return EBlockType::None;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -350,7 +350,7 @@ private:
                 }
 
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
 
             chunkData->Blocks.insert(chunkData->Blocks.end(), cachedBlocks.begin(), cachedBlocks.end());

@@ -125,7 +125,7 @@ TUserWorkloadDescriptor::operator TWorkloadDescriptor() const
             result.Category = EWorkloadCategory::UserBatch;
             break;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
     result.Band = Band;
     return result;
@@ -239,7 +239,7 @@ const TCellPeerDescriptor& GetPrimaryTabletPeerDescriptor(
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -371,7 +371,7 @@ TError TCheckPermissionResult::ToError(const Stroka& user, EPermission permissio
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -3454,7 +3454,7 @@ private:
                         break;
 
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
             };
 
@@ -3515,7 +3515,7 @@ private:
                 }
 
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
 
             writer.WriteUnversionedRow(submittedRow.Row);
@@ -3703,7 +3703,7 @@ private:
                 // NB: Start timestamp is approximate.
                 return SyncLastCommittedTimestamp;
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 

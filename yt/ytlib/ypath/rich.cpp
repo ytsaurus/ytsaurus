@@ -191,7 +191,7 @@ void ParseChannel(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes
                 break;
             default:
                 ThrowUnexpectedToken(tokenizer.CurrentToken());
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
         if (isRange) {
             switch (tokenizer.GetCurrentType()) {
@@ -207,7 +207,7 @@ void ParseChannel(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes
                     break;
                 default:
                     ThrowUnexpectedToken(tokenizer.CurrentToken());
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
         } else {
             channel.AddColumn(begin);
@@ -220,7 +220,7 @@ void ParseChannel(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes
                 break;
             default:
                 ThrowUnexpectedToken(tokenizer.CurrentToken());
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
     tokenizer.ParseNext();
@@ -302,7 +302,7 @@ void ParseRowLimit(
                         break;
                     default:
                         ThrowUnexpectedToken(tokenizer.CurrentToken());
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
             }
             tokenizer.ParseNext();

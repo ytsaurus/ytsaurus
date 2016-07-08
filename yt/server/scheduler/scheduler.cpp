@@ -2377,7 +2377,7 @@ private:
                 Profiler.Increment(TotalAbortedJobTimeCounter_, duration.MicroSeconds());
                 break;
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -2476,7 +2476,7 @@ private:
             case EOperationType::RemoteCopy:
                 return CreateRemoteCopyController(config, this, operation);
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -2495,7 +2495,7 @@ private:
                     case EMergeMode::Sorted:
                         return Config_->SortedMergeOperationOptions->SpecTemplate;
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
             }
             case EOperationType::Erase:
@@ -2511,7 +2511,7 @@ private:
             case EOperationType::RemoteCopy:
                 return Config_->RemoteCopyOperationOptions->SpecTemplate;
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -2989,7 +2989,7 @@ private:
                     break;
 
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
             return nullptr;
         }
@@ -3069,7 +3069,7 @@ private:
                             break;
 
                         default:
-                            YUNREACHABLE();
+                            Y_UNREACHABLE();
                     }
                 }
                 break;
@@ -3079,7 +3079,7 @@ private:
                 break;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
 
         return job;

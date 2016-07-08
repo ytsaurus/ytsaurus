@@ -54,7 +54,7 @@ void IHydraManager::ValidatePeer(EPeerKind kind)
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

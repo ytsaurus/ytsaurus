@@ -66,7 +66,7 @@ void AddCompressionToStack(TGrowingInputStreamStack& stack, ECompression compres
             stack.Add<TLazyInput<TSnappyDecompress>>();
             break;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -94,7 +94,7 @@ void AddCompressionToStack(TGrowingOutputStreamStack& stack, ECompression compre
             stack.Add<TSnappyCompress>(DefaultStreamBufferSize);
             break;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

@@ -254,7 +254,7 @@ protected:
                  }
 
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
         }
 
@@ -583,7 +583,7 @@ public:
 
     virtual void OnError(const TError& /*error*/) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual void OnFinish() override

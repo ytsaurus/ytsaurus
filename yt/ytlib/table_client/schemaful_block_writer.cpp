@@ -182,7 +182,7 @@ void TBlockWriter::WriteVariable(const TUnversionedValue& value, int nameTableIn
                 writer.OnStringScalar(TStringBuf(value.Data.String, value.Length));
                 break;
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
         writer.Flush();
 

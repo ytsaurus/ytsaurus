@@ -688,7 +688,7 @@ public:
                 break;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
         subject->SetName(newName);
     }
@@ -1262,7 +1262,7 @@ private:
             }
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 

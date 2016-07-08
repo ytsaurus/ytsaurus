@@ -92,7 +92,7 @@ void TCancelableContext::SubscribeCanceled(const TClosure& callback)
 
 void TCancelableContext::UnsubscribeCanceled(const TClosure& /*callback*/)
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TCancelableContext::PropagateTo(TCancelableContextPtr context)

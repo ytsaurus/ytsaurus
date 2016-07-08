@@ -91,7 +91,7 @@ Stroka InferName(TConstExpressionPtr expr, bool omitValues)
         }
         return str + ")";
     } else {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 }
 
@@ -234,7 +234,7 @@ EValueType InferBinaryExprType(
             return EValueType::Boolean;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -282,7 +282,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
             }
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
 
     } else if (auto referenceExpr = original->As<TReferenceExpression>()) {
@@ -357,7 +357,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
                 }
 
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
 
             *original = result;
@@ -413,7 +413,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

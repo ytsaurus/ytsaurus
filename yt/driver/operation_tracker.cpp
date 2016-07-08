@@ -97,7 +97,7 @@ Stroka TOperationTracker::FormatProgress(const TYsonString& progress)
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
     return result;
 }
@@ -254,7 +254,7 @@ void TOperationTracker::DumpResult()
     //                ++abortedJobCount[jobType];
     //                break;
     //            default:
-    //                YUNREACHABLE();
+    //                Y_UNREACHABLE();
     //        }
     //
     //        if (job->FindChild("stderr")) {

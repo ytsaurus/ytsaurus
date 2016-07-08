@@ -76,12 +76,12 @@ private:
 
     virtual void GetRecursive(const TYPath& /*path*/, TReqGet* /*request*/, TRspGet* /*response*/, TCtxGetPtr /*context*/) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual void GetAttribute(const TYPath& /*path*/, TReqGet* /*request*/, TRspGet* /*response*/, TCtxGetPtr /*context*/) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
 

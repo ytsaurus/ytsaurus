@@ -250,7 +250,7 @@ void TFileLogWriter::Open()
 
         Close();
     } catch (...) {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 }
 
@@ -268,14 +268,14 @@ void TFileLogWriter::Close()
         Disabled_ = true;
         LOG_ERROR(ex, "Failed to close log file %v", FileName_);
     } catch (...) {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     try {
         FileOutput_.reset();
         File_.reset();
     } catch (...) {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 }
 

@@ -1052,7 +1052,7 @@ const TDataStatistics& TReplicationWriter::GetDataStatistics() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 TChunkReplicaList TReplicationWriter::GetWrittenChunkReplicas() const

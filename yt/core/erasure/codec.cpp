@@ -28,7 +28,7 @@ ICodec* GetCodec(ECodec id)
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

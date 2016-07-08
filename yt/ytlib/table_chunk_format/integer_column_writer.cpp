@@ -309,7 +309,7 @@ private:
                     Values_.size() / 8; // Null bitmap.
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -447,7 +447,7 @@ private:
                 break;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
 
         TColumnWriterBase::DumpSegment(&segmentInfo);

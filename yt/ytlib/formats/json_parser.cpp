@@ -251,7 +251,7 @@ void TJsonParser::TImpl::ConsumeNode(INodePtr node)
             ConsumeNode(node->AsList());
             break;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
             break;
     };
 }
@@ -337,7 +337,7 @@ void TJsonParser::TImpl::ConsumeNode(IMapNodePtr map)
                         break;
                     }
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                         break;
                 }
             } else if (node->GetType() == ENodeType::Int64) {
@@ -359,7 +359,7 @@ void TJsonParser::TImpl::ConsumeNode(IMapNodePtr map)
                             << TErrorAttribute("actual_type", node->GetType());
                         break;
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                         break;
                 }
             } else {

@@ -716,7 +716,7 @@ void Deserialize(TDescriptorType& value, NYTree::INodePtr node)
                 break;
             }
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

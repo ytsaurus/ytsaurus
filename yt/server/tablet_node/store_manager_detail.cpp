@@ -483,12 +483,12 @@ bool TStoreManagerBase::IsForcedRotationPossible() const
 
 ISortedStoreManagerPtr TStoreManagerBase::AsSorted()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 IOrderedStoreManagerPtr TStoreManagerBase::AsOrdered()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TStoreManagerBase::CheckForUnlockedStore(IDynamicStore* store)

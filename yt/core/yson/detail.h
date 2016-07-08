@@ -572,7 +572,7 @@ protected:
             throwIncorrectBoolean();
         }
 
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     void ReadBinaryInt64(i64* result)
@@ -731,7 +731,7 @@ public:
 
     void RefreshBlock()
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     void Advance(size_t bytes)

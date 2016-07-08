@@ -38,7 +38,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
         // Unversioned columns of any type are not supported.
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -87,7 +87,7 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
                 static_cast<bool>(schema.Aggregate));
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

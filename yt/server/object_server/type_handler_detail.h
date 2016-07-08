@@ -62,7 +62,7 @@ public:
         const TObjectId& /*hintId*/,
         NYTree::IAttributeDictionary* /*attributes*/) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual void ZombifyObject(TObjectBase* object) throw() override
@@ -138,7 +138,7 @@ protected:
         TObject* /*object*/,
         NObjectClient::TCellTag /*destinationCellTag*/)
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual void DoUnexportObject(
@@ -146,7 +146,7 @@ protected:
         NObjectClient::TCellTag /*destinationCellTag*/,
         int /*importRefCounter*/)
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
 

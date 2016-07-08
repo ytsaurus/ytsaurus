@@ -510,7 +510,7 @@ public:
                 tabletStatistics.MemorySize = 0;
                 break;
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
         tabletStatistics.DiskSpace =
             treeStatistics.RegularDiskSpace * table->GetReplicationFactor() +
@@ -1084,7 +1084,7 @@ public:
                     break;
 
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
         } catch (const std::exception& ex) {
             auto cypressManager = Bootstrap_->GetCypressManager();
@@ -1105,7 +1105,7 @@ public:
                 break;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
 
         return data;
@@ -1164,7 +1164,7 @@ public:
             }
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -1186,7 +1186,7 @@ public:
                 break;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -2397,7 +2397,7 @@ private:
                     result += cell->TotalStatistics().MemorySize;
                     break;
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
             result += cell->Tablets().size() * Config_->TabletDataSizeFootprint;
             return result;
@@ -2426,7 +2426,7 @@ private:
                     result += statistics.CompressedDataSize;
                     break;
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
             result += Config_->TabletDataSizeFootprint;
             return result;

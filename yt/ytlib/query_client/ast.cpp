@@ -20,7 +20,7 @@ Stroka LiteralValueToString(const TLiteralValue& literalValue)
         case NAst::TLiteralValue::TagOf<Stroka>():
             return literalValue.As<Stroka>().Quote();
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -124,7 +124,7 @@ Stroka InferName(const TExpression* expr, bool omitValues)
         result += ")";
         return result;
     } else {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 }
 

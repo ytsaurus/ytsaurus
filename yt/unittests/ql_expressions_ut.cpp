@@ -88,7 +88,7 @@ protected:
                 }
             }
         } else {
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
 
         return true;

@@ -252,7 +252,7 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
     ThrowIncorrectFormat();
 
     // To suppress warnings.
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TYamrDelimitedBaseParser::ThrowIncorrectFormat() const
@@ -410,7 +410,7 @@ const char* TYamrLenvalBaseParser::ConsumeData(const char* begin, const char* en
             State = EState::InsideKey;
             break;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     CurrentToken.clear();

@@ -48,7 +48,7 @@ public:
                 break;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
 
         while (!(TBase::IsFinished() && TBase::IsEmpty())) {

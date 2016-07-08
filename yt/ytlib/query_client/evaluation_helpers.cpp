@@ -195,7 +195,7 @@ TJoinEvaluator GetJoinEvaluator(
         } else if (auto foreign = subqueryTableSchema.FindColumn(column.Name)) {
             columnMapping.emplace_back(false, subqueryTableSchema.GetColumnIndex(*foreign));
         } else {
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
     }
 

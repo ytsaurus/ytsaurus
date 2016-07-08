@@ -182,7 +182,7 @@ private:
                 WD_,
                 Path_);
         } else {
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
 #else
         WD_ = -1;
@@ -462,7 +462,7 @@ private:
                     Write(*eventPtr);
                     ++eventsWritten;
                 } else {
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
                 }
             }))
         { }
@@ -592,7 +592,7 @@ private:
                     watch = CreateNoficiationWatch(writer, config->FileName);
                     break;
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
 
             YCHECK(Writers_.insert(std::make_pair(name, std::move(writer))).second);

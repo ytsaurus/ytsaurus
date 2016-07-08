@@ -79,7 +79,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

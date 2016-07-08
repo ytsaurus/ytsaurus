@@ -21,7 +21,7 @@ TErrorOr<T> WaitForWithStrategy(
         case ESyncStreamAdapterStrategy::Get:
             return future.Get();
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

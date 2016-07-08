@@ -242,7 +242,7 @@ void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
         if (!Writer_->WriteBlock(block)) {
             auto result = Writer_->GetReadyEvent().Get();
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
     } catch (const std::exception& ex) {
         TBlockId blockId(ChunkId_, blockIndex);
@@ -567,7 +567,7 @@ void TBlobSession::SetFailed(const TError& error)
         BIND(&TBlobSession::MarkAllSlotsWritten, MakeStrong(this), error));
 
     Location_->Disable(Error_);
-    YUNREACHABLE(); // Disable() exits the process.
+    Y_UNREACHABLE(); // Disable() exits the process.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

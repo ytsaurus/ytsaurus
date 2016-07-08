@@ -256,7 +256,7 @@ std::unique_ptr<IUserJobIO> TJobProxy::CreateUserJobIO()
             return CreatePartitionReduceJobIO(this);
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -287,7 +287,7 @@ IJobPtr TJobProxy::CreateBuiltinJob()
             return CreateRemoteCopyJob(this);
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

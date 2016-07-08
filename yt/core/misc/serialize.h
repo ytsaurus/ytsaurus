@@ -308,7 +308,7 @@ void Persist(C& context, T& value)
     } else if (context.IsLoad()) {
         S::Load(context.LoadContext(), value);
     } else {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 }
 

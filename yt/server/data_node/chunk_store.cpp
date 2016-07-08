@@ -161,7 +161,7 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
             }
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -203,7 +203,7 @@ void TChunkStore::DoRegisterChunk(const TChunkEntry& entry)
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     ChunkAdded_.Fire(chunk);
@@ -241,7 +241,7 @@ void TChunkStore::UpdateExistingChunk(IChunkPtr chunk)
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     ChunkAdded_.Fire(chunk);
@@ -421,7 +421,7 @@ IChunkPtr TChunkStore::CreateFromDescriptor(
                 descriptor);
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

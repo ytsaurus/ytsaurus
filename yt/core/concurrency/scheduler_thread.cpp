@@ -231,7 +231,7 @@ void TSchedulerThread::ThreadMainStep()
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     // Finish sync part of the execution.
@@ -385,7 +385,7 @@ void TSchedulerThread::Return()
         &SchedulerContext,
         nullptr);
 
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TSchedulerThread::Yield()

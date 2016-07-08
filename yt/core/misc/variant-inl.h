@@ -53,21 +53,21 @@ struct TStorageTraits<>
     static void Destroy(int /*tag*/, void* /*storage*/)
     {
         // Invalid TVariant tag.
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     template <class V>
     static void CopyConstruct(int /*tag*/, void* /*storage*/, const V& /*other*/)
     {
         // Invalid TVariant tag.
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     template <class V>
     static void MoveConstruct(int /*tag*/, void* /*storage*/, V&& /*other*/)
     {
         // Invalid TVariant tag.
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 };
 

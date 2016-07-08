@@ -188,7 +188,7 @@ void TSimpleVersionedBlockWriter::WriteValue(
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

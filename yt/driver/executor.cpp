@@ -268,7 +268,7 @@ TFormat TRequestExecutor::GetFormat(EDataType dataType, const TNullable<TYsonStr
             return Config->FormatDefaults->Tabular;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

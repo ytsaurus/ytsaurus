@@ -209,7 +209,7 @@ void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
                 return;
             }
         }
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 }
 
@@ -234,7 +234,7 @@ void TChunk::ApproveReplica(TNodePtrWithIndex replica)
                 return;
             }
         }
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 }
 
@@ -286,7 +286,7 @@ bool TChunk::IsAvailable() const
         }
         return false;
     } else {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 }
 
@@ -390,7 +390,7 @@ int TChunk::GetMaxReplicasPerRack(TNullable<int> replicationFactorOverride) cons
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

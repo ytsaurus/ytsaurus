@@ -66,7 +66,7 @@ size_t GetByteSize(const TUnversionedValue& value)
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     return result;
@@ -98,7 +98,7 @@ size_t GetDataWeight(const TUnversionedValue& value)
             return value.Length;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -141,7 +141,7 @@ size_t WriteValue(char* output, const TUnversionedValue& value)
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     return current - output;
@@ -192,7 +192,7 @@ size_t ReadValue(const char* input, TUnversionedValue* value)
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     return current - input;
@@ -259,7 +259,7 @@ Stroka ToString(const TUnversionedValue& value)
                 .Data();
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -361,7 +361,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 
         case EValueType::Any:
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -1074,7 +1074,7 @@ void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& pro
                 break;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 

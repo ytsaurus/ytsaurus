@@ -1390,7 +1390,7 @@ private:
 
         virtual i64 GetLocality(TNodeId /*nodeId*/) const override
         {
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
 
         virtual TCookie Extract(TNodeId /*nodeId*/) override

@@ -386,7 +386,7 @@ protected:
                 --index;
             }
         }
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     std::vector<TVersionedRow> CreateRows(int count = 10000)

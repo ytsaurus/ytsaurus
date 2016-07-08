@@ -279,7 +279,7 @@ private:
 
         virtual TFuture<void> Truncate(int /*recordCount*/) override
         {
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
 
         virtual TFuture<void> Close() override

@@ -219,7 +219,7 @@ public:
                 } else if (state == EReadStartCase::BinaryTrue) {
                     *token = TToken(true);
                 } else {
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
                 }
             }
         } else { // BinaryStringOrOtherSpecialToken = x0b

@@ -84,12 +84,12 @@ const Stroka& TYPathRequest::GetService() const
 
 void TYPathRequest::SetUser(const Stroka& /*user*/)
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 const Stroka& TYPathRequest::GetUser() const
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 bool TYPathRequest::GetRetry() const
@@ -304,7 +304,7 @@ void ExecuteVerb(
 
         virtual void LogRequest() override
         {
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
 
         virtual void LogResponse(const TError& /*error*/) override
@@ -469,7 +469,7 @@ INodePtr GetNodeByYPath(
 
             default:
                 ThrowCannotHaveChildren(currentNode);
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
     return currentNode;
@@ -517,7 +517,7 @@ void SetNodeByYPath(
 
             default:
                 ThrowCannotHaveChildren(currentNode);
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
         nextSegment();
     }
@@ -547,7 +547,7 @@ void SetNodeByYPath(
 
         default:
             ThrowCannotHaveChildren(currentNode);
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -599,7 +599,7 @@ void ForceYPath(
 
             default:
                 ThrowCannotHaveChildren(currentNode);
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
 
         nextSegment();
@@ -633,7 +633,7 @@ TYPath GetNodeYPath(
                 break;
             }
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
         tokens.push_back(token);
         current = parent;
@@ -769,7 +769,7 @@ bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs)
             return true;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

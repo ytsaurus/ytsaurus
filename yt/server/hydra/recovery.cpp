@@ -410,7 +410,7 @@ void TFollowerRecovery::DoRun()
                     }
 
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
             }
         }

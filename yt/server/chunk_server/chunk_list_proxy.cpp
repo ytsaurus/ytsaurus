@@ -79,7 +79,7 @@ private:
             }
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 

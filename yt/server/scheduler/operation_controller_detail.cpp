@@ -613,7 +613,7 @@ void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinst
             chunkPoolOutput->Aborted(joblet->OutputCookie);
             break;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     if (HasInputLocality()) {
@@ -2101,7 +2101,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -2188,7 +2188,7 @@ TScheduleJobResultPtr TOperationControllerBase::ScheduleJob(
     auto codicilGuard = MakeCodicilGuard();
 
     // ScheduleJob must be a synchronous action, any context switches are prohibited.
-    TContextSwitchedGuard contextSwitchGuard(BIND([] { YUNREACHABLE(); }));
+    TContextSwitchedGuard contextSwitchGuard(BIND([] { Y_UNREACHABLE(); }));
 
     NProfiling::TScopedTimer timer;
     auto scheduleJobResult = New<TScheduleJobResult>();
@@ -3336,7 +3336,7 @@ void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
                     break;
 
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
             SetTransactionId(req, InputTransactionId);
             batchReq->AddRequest(req, "fetch");
@@ -3414,7 +3414,7 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
                         break;
 
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
                 attributeKeys.push_back("key");
                 attributeKeys.push_back("chunk_count");
@@ -3508,7 +3508,7 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
                         break;
 
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
 
                 i64 fileSize = attributes.Get<i64>("uncompressed_data_size");
@@ -3601,7 +3601,7 @@ void TOperationControllerBase::CollectTotals()
                         break;
 
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
             }
             TotalEstimatedInputDataSize += chunkSpec->GetUncompressedDataSize();
@@ -3649,7 +3649,7 @@ std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryInputChunks(
                             break;
 
                         default:
-                            YUNREACHABLE();
+                            Y_UNREACHABLE();
                     }
                 }
                 result.push_back(chunkSpec);
@@ -3676,7 +3676,7 @@ std::vector<std::deque<TInputChunkPtr>> TOperationControllerBase::CollectForeign
                             break;
 
                         default:
-                            YUNREACHABLE();
+                            Y_UNREACHABLE();
                     }
                 }
                 result.back().push_back(chunkSpec);
@@ -3785,7 +3785,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
             }
         }
     }
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 bool TOperationControllerBase::CheckKeyColumnsCompatible(
@@ -4205,7 +4205,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
                 descriptor->set_format(file.Format.Data());
                 break;
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 }

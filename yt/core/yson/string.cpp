@@ -41,7 +41,7 @@ void TYsonString::Save(TStreamSaveContext& context) const
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

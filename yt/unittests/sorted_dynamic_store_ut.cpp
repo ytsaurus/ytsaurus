@@ -374,7 +374,7 @@ private:
                     }
 
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
             }
             return 0;
@@ -465,7 +465,7 @@ private:
                         break;
 
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
             }
             return lhsLength - rhsLength;

@@ -41,7 +41,7 @@ TJobPtr TSchedulingContextBase::GetStartedJob(const TJobId& jobId) const
             return job;
         }
     }
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 bool TSchedulingContextBase::HasEnoughResources(const TJobResources& neededResources) const

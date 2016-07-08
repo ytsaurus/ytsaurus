@@ -230,7 +230,7 @@ void TChunkTreeBalancer::MergeChunkTrees(
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

@@ -799,7 +799,7 @@ private:
                             keyPart = MakeUnversionedStringValue(it->key_part().str_value());
                             break;
                         default:
-                            YUNREACHABLE();
+                            Y_UNREACHABLE();
                     }
                 }
                 values.push_back(keyPart);

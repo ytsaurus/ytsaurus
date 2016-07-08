@@ -201,7 +201,7 @@ const TDataStatistics& TFileWriter::GetDataStatistics() const
 {
     YCHECK(IsClosed_);
 
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 const TChunkMeta& TFileWriter::GetChunkMeta() const

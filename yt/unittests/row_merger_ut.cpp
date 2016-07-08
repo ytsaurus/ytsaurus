@@ -94,7 +94,7 @@ protected:
                     builder.AddKey(MakeUnversionedStringValue(key->GetValue<Stroka>(), keyId));
                     break;
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
                     break;
             }
             ++keyId;

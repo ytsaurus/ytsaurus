@@ -296,7 +296,7 @@ IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, const TBootstrap* b
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

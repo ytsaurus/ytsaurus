@@ -157,7 +157,7 @@ private:
                             CodecInput_.reset(new TLz4Decompress(FileInput_.get()));
                             break;
                         default:
-                            YUNREACHABLE();
+                            Y_UNREACHABLE();
                     }
                     FacadeInput_ = CodecInput_ ? CodecInput_.get() : FileInput_.get();
                 }
@@ -325,7 +325,7 @@ private:
                         CodecOutput_.reset(new TLz4Compress(ChecksumOutput_.get()));
                         break;
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
                 LengthMeasureOutput_.reset(new TLengthMeasureOutputStream(CodecOutput_
                     ? CodecOutput_.get()

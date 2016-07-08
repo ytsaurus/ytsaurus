@@ -610,7 +610,7 @@ private:
             SetRequestYPath(&requestHeader, updatedYPath);
             parts = SetRequestHeader(requestMessage, requestHeader);
         } else {
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
 
         for (const auto& part : parts) {
@@ -645,7 +645,7 @@ private:
 
                 hiveManager->PostMessage(PrimaryMasterMailbox_, message, reliable);
             } else {
-                YUNREACHABLE();
+                Y_UNREACHABLE();
             }
         }
     }

@@ -124,7 +124,7 @@ public:
 
     virtual TYsonProducer GetMonitoringProducer() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     void SetEpochId(const TEpochId& epochId)
@@ -192,7 +192,7 @@ private:
                 return peerId;
             }
         }
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     bool IsLeader()

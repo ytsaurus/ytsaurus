@@ -424,7 +424,7 @@ public:
             } else if (StaticType_ == EValueType::Double) {
                 result = builder->CreateFPToSI(value, destType);
             } else {
-                YUNREACHABLE();
+                Y_UNREACHABLE();
             }
         } else if (dest == EValueType::Uint64) {
             auto destType = TDataTypeBuilder::TUint64::get(builder->getContext());
@@ -435,7 +435,7 @@ public:
             } else if (StaticType_ == EValueType::Double) {
                 result = builder->CreateFPToUI(value, destType);
             } else {
-                YUNREACHABLE();
+                Y_UNREACHABLE();
             }
         } else if (dest == EValueType::Double) {
             auto destType = TDataTypeBuilder::TDouble::get(builder->getContext());
@@ -446,10 +446,10 @@ public:
             } else if (StaticType_ == EValueType::Int64) {
                 result = builder->CreateSIToFP(value, destType);
             } else {
-                YUNREACHABLE();
+                Y_UNREACHABLE();
             }
         } else {
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
 
         return CreateFromValue(builder, IsNull(), GetLength(), result, dest);

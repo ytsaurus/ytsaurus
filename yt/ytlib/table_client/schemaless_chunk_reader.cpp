@@ -634,7 +634,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

@@ -825,7 +825,7 @@ void TNontemplateCypressNodeProxyBase::SetChildNode(
     INodePtr /*child*/,
     bool /*recursive*/)
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 TClusterResources TNontemplateCypressNodeProxyBase::GetResourceUsage() const

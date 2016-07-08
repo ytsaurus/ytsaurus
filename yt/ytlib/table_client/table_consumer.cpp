@@ -176,7 +176,7 @@ void TTableConsumer::OnEntity()
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     if (Depth_ == 0) {
@@ -293,7 +293,7 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
             THROW_ERROR AttachLocationAttributes(TError("Too many control attributes per record: at most one attribute is allowed"));
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     Y_ASSERT(Depth_ > 0);
@@ -365,7 +365,7 @@ void TTableConsumer::OnEndAttributes()
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

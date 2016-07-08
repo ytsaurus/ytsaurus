@@ -648,7 +648,7 @@ private:
 
     virtual TNullable<int> GetTeleportTableIndex() const override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual bool IsTeleportChunk(const TInputChunkPtr& chunkSpec) const override
@@ -1066,7 +1066,7 @@ protected:
 
     virtual bool IsTeleportChunk(const TInputChunkPtr& chunkSpec) const override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual bool IsSingleStripeInput() const override
@@ -1394,7 +1394,7 @@ private:
                     continue;
                 }
 
-                YUNREACHABLE();
+                Y_UNREACHABLE();
             }
 
             globalOpenedSlices.insert(localOpenedSlices.begin(), localOpenedSlices.end());
@@ -1558,7 +1558,7 @@ IOperationControllerPtr CreateMergeController(
                 operation);
         }
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -2197,12 +2197,12 @@ private:
 
     virtual void SortEndpoints() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual void FindTeleportChunks() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual void BuildTasks() override

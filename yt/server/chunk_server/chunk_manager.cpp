@@ -1571,7 +1571,7 @@ private:
                             break;
 
                         default:
-                            YUNREACHABLE();
+                            Y_UNREACHABLE();
                     }
                 }
 
@@ -1753,7 +1753,7 @@ private:
                 // Do nothing.
                 break;
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
 
         if (!IsRecovery()) {

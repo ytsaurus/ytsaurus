@@ -98,7 +98,7 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
         } else if (greaterThanInt64 == 0) {
             consumer->OnInt64Scalar(PyLong_AsLongLong(obj.ptr()));
         } else {
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
     };
 

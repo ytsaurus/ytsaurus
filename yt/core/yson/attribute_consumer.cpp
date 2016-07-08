@@ -235,7 +235,7 @@ void TAttributeValueConsumer::OnRaw(TFuture<TYsonString> asyncStr)
                 }
 
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
         })));
     } else {

@@ -139,7 +139,7 @@ private:
                 THROW_ERROR_EXCEPTION("Values of type \"any\" are not supported by dsv format (Value: %v)", value);
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
     
@@ -255,7 +255,7 @@ void TDsvNodeConsumer::OnBeginAttributes()
 
 void TDsvNodeConsumer::OnEndAttributes()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -113,7 +113,7 @@ public:
 
     virtual void DestroyObject(TObjectBase* /*object*/) throw() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual void ResetAllObjects() override

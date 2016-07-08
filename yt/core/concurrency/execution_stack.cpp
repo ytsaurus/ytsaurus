@@ -148,7 +148,7 @@ std::shared_ptr<TExecutionStack> CreateExecutionStack(EExecutionStack stack)
         case EExecutionStack::Large:
             return ObjectPool<TPooledExecutionStack<LargeExecutionStackSize>>().Allocate();
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

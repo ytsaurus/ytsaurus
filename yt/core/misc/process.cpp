@@ -289,7 +289,7 @@ void TProcess::SpawnChild()
         try {
             Child();
         } catch (...) {
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
     }
 
@@ -498,7 +498,7 @@ void TProcess::Child()
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

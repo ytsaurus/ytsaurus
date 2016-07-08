@@ -194,7 +194,7 @@ public:
 
     virtual const TDataStatistics& GetDataStatistics() const override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual NErasure::ECodec GetErasureCodecId() const override

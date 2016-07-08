@@ -205,7 +205,7 @@ public:
 #undef CASE
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -364,7 +364,7 @@ public:
 #undef CASE
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -413,7 +413,7 @@ public:
 #undef CASE
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -479,7 +479,7 @@ ICodec* GetCodec(ECodec id)
 #undef CASE
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

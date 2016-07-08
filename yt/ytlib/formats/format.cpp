@@ -145,7 +145,7 @@ std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForDsv(
                 dataType);
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     };
 }
 

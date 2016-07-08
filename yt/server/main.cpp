@@ -442,7 +442,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         } else if (isMasterSnapshotValidate) {
             bootstrap->TryLoadSnapshot(parser.ValidateMasterSnapshot.getValue(), false);
         } else {
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
     }
 

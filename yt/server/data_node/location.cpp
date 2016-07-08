@@ -152,7 +152,7 @@ std::vector<TChunkDescriptor> TLocation::Scan()
         return DoScan();
     } catch (const std::exception& ex) {
         Disable(TError("Location scan failed") << ex);
-        YUNREACHABLE(); // Disable() exits the process.
+        Y_UNREACHABLE(); // Disable() exits the process.
     }
 }
 
@@ -222,7 +222,7 @@ i64 TLocation::GetAvailableSpace() const
         auto error = TError("Failed to compute available space")
             << ex;
         const_cast<TLocation*>(this)->Disable(error);
-        YUNREACHABLE(); // Disable() exits the process.
+        Y_UNREACHABLE(); // Disable() exits the process.
     }
 
     i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - GetUsedSpace());
@@ -374,7 +374,7 @@ void TLocation::RemoveChunkFilesPermanently(const TChunkId& chunkId)
             chunkId)
             << ex;
         Disable(error);
-        YUNREACHABLE(); // Disable() exits the process.
+        Y_UNREACHABLE(); // Disable() exits the process.
     }
 }
 
@@ -438,7 +438,7 @@ void TLocation::ValidateWritable()
 void TLocation::OnHealthCheckFailed(const TError& error)
 {
     Disable(error);
-    YUNREACHABLE(); // Disable() exits the process.
+    Y_UNREACHABLE(); // Disable() exits the process.
 }
 
 void TLocation::MarkAsDisabled(const TError& error)
@@ -602,7 +602,7 @@ bool TStoreLocation::IsChunkTypeAccepted(EObjectType chunkType)
             return Config_->EnableJournals;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -664,7 +664,7 @@ void TStoreLocation::OnCheckTrash()
         auto error = TError("Error checking trash")
             << ex;
         Disable(error);
-        YUNREACHABLE(); // Disable() exits the process.
+        Y_UNREACHABLE(); // Disable() exits the process.
     }
 }
 
@@ -769,7 +769,7 @@ void TStoreLocation::MoveChunkFilesToTrash(const TChunkId& chunkId)
             chunkId)
             << ex;
         Disable(error);
-        YUNREACHABLE(); // Disable() exits the process.
+        Y_UNREACHABLE(); // Disable() exits the process.
     }
 }
 
@@ -902,7 +902,7 @@ std::vector<Stroka> TStoreLocation::GetChunkPartNames(const TChunkId& chunkId) c
             };
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -1062,7 +1062,7 @@ std::vector<Stroka> TCacheLocation::GetChunkPartNames(const TChunkId& chunkId) c
             };
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

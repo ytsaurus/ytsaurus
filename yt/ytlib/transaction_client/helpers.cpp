@@ -64,7 +64,7 @@ TTransactionId MakeTabletTransactionId(
             type = EObjectType::NonAtomicTabletTransaction;
             break;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     return MakeId(
@@ -90,7 +90,7 @@ EAtomicity AtomicityFromTransactionId(const TTransactionId& id)
             return EAtomicity::None;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

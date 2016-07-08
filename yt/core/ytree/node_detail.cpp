@@ -98,7 +98,7 @@ void TNodeBase::GetKeySelf(TReqGetKey* /*request*/, TRspGetKey* response, TCtxGe
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     context->SetResponseInfo("Key: %v", key);
@@ -142,7 +142,7 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
     }
 
     ThrowCannotHaveChildren(this);
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -245,7 +245,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 
         default:
             tokenizer.ThrowUnexpected();
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -409,7 +409,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
 
         default:
             tokenizer.ThrowUnexpected();
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
