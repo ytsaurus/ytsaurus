@@ -12,11 +12,11 @@ import argparse
 import subprocess
 
 def main():
-    parser = argparse.ArgumentParser(description='Run command under lock')
-    parser.add_argument('path')
-    parser.add_argument('command')
-    parser.add_argument('--step', type=float, default=1.0)
-    parser.add_argument('--conflict-exit-code', type=int, default=1)
+    parser = argparse.ArgumentParser(description="Run command under lock")
+    parser.add_argument("path")
+    parser.add_argument("command")
+    parser.add_argument("--step", type=float, default=1.0)
+    parser.add_argument("--conflict-exit-code", type=int, default=1)
     args = parser.parse_args()
 
     with yt.Transaction(attributes={"title": "yt_lock transaction"}) as tx:
