@@ -64,7 +64,7 @@ def prepare(options):
         return s
 
     options.build_enable_nodejs = checked_yes_no(os.environ.get("BUILD_ENABLE_NODEJS", "YES"))
-    options.build_enable_python_2_6 = checked_yes_no(os.environ.get("BUILD_ENABLE_PYTHON_2_6", "YES"))
+    options.build_enable_python_2_6 = checked_yes_no(os.environ.get("BUILD_ENABLE_PYTHON_2_6", "NO"))
     options.build_enable_python_2_7 = checked_yes_no(os.environ.get("BUILD_ENABLE_PYTHON_2_7", "YES"))
     options.build_enable_python_skynet = checked_yes_no(os.environ.get("BUILD_ENABLE_PYTHON_SKYNET", "YES"))
     options.build_enable_perl = checked_yes_no(os.environ.get("BUILD_ENABLE_PERL", "YES"))
