@@ -6,6 +6,7 @@ from yt.wrapper.http import get_token
 from yt.common import YtError, get_value, remove_file
 from yt.tools.yamr import Yamr
 from yt.transfer_manager.client import TransferManager
+import yt.json as json
 import yt.wrapper as yt
 
 import os
@@ -62,7 +63,7 @@ def get_src_dst_table(src_client, dst_client):
 
     return src_path, dst_path
 
-def check_direction(src_cluster, dst_cluster, clusters_clients, availability_graph):
+def check_direction(src_cluster, dst_cluster, clusters_clients, availability_graph, params):
     logger.info("Starting direction check (from: %s, to: %s)", src_cluster, dst_cluster)
 
     def get_client(cluster):
@@ -82,9 +83,12 @@ def check_direction(src_cluster, dst_cluster, clusters_clients, availability_gra
     except Exception as err:
         raise YtError("Check failed during prepare step", inner_errors=[err])
 
-    params = None
-    if src_client._type == "yamr" or dst_client._type == "yamr":
-        # XXX(asaitgalin): Usually userdata user has big enough quota on YAMR clusters.
+    if params is None:
+        params = {}
+    else:
+        params = json.loads(params)
+    if (src_client._type == "yamr" or dst_client._type == "yamr") and "mr_user" not in params:
+        # NB: Usually userdata user has big enough quota on YAMR clusters.
         params = {"mr_user": "userdata"}
 
     try:
@@ -208,6 +212,7 @@ def parse_arguments():
 
     parser.add_argument("--url", help="Transfer Manager url")
     parser.add_argument("--token", help="YT token. Detected by general rules if not specified.")
+    parser.add_argument("--params", help="Additional params for task.")
 
     return parser.parse_args()
 
@@ -237,13 +242,13 @@ def main():
             if dst_cluster not in graph[src_cluster]:
                 raise YtError("Check failed: cluster {0} is not available from {1}"
                               .format(dst_cluster, src_cluster))
-            check_direction(src_cluster, dst_cluster, clusters_clients, graph)
+            check_direction(src_cluster, dst_cluster, clusters_clients, graph, args.params)
         elif src_cluster and not dst_cluster:
             for neighbour in graph[src_cluster]:
-                check_direction(src_cluster, neighbour, clusters_clients, graph)
+                check_direction(src_cluster, neighbour, clusters_clients, graph, args.params)
         else:
             for neighbour in transposed_graph[dst_cluster]:
-                check_direction(neighbour, dst_cluster, clusters_clients, graph)
+                check_direction(neighbour, dst_cluster, clusters_clients, graph, args.params)
 
 if __name__ == "__main__":
     run_main(main)
