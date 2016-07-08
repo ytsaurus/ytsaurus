@@ -5,7 +5,11 @@
 
 #include <yt/core/yson/consumer.h>
 
+#ifdef YT_IN_ARCADIA
+#include <library/string_utils/base64/base64.h>
+#else
 #include <util/string/base64.h>
+#endif
 
 namespace NYT {
 namespace NFormats {
