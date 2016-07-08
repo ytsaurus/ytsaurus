@@ -745,7 +745,7 @@ bool TSchemalessMultiChunkWriter<TBase>::CheckSortOrder(TUnversionedRow lhs, TUn
                 rightBuilder.FinishRow().Get());
 
             if (Options_->ExplodeOnValidationError) {
-                YUNREACHABLE();
+                Y_UNREACHABLE();
             }
         }
     } catch (const std::exception& ex) {

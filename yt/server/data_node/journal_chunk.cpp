@@ -185,7 +185,7 @@ void TJournalChunk::DoReadBlockRange(
                 Id_)
                 << blocksOrError;
             Location_->Disable(error);
-            YUNREACHABLE(); // Disable() exits the process.
+            Y_UNREACHABLE(); // Disable() exits the process.
         }
 
         auto readTime = timer.GetElapsed();
@@ -233,7 +233,7 @@ void TJournalChunk::SyncRemove(bool force)
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             Location_->Disable(error);
-            YUNREACHABLE(); // Disable() exits the process.
+            Y_UNREACHABLE(); // Disable() exits the process.
         }
     }
 

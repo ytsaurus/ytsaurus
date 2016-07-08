@@ -491,7 +491,7 @@ private:
                 break;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
 
         TColumnWriterBase::DumpSegment(&segmentInfo);
@@ -531,7 +531,7 @@ private:
                 return GetDirectSize();
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 

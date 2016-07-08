@@ -388,7 +388,7 @@ TDivisors GetDivisors(const std::vector<TColumnSchema>& columns, int keyIndex, T
     } else if (expr->As<TLiteralExpression>()) {
         return TDivisors();
     } else {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 }
 

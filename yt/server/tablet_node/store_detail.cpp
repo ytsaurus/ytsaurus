@@ -164,7 +164,7 @@ bool TStoreBase::IsDynamic() const
 
 IDynamicStorePtr TStoreBase::AsDynamic()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 bool TStoreBase::IsChunk() const
@@ -174,7 +174,7 @@ bool TStoreBase::IsChunk() const
 
 IChunkStorePtr TStoreBase::AsChunk()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 bool TStoreBase::IsSorted() const
@@ -184,17 +184,17 @@ bool TStoreBase::IsSorted() const
 
 ISortedStorePtr TStoreBase::AsSorted()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 TSortedDynamicStorePtr TStoreBase::AsSortedDynamic()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 TSortedChunkStorePtr TStoreBase::AsSortedChunk()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 bool TStoreBase::IsOrdered() const
@@ -204,17 +204,17 @@ bool TStoreBase::IsOrdered() const
 
 IOrderedStorePtr TStoreBase::AsOrdered()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 TOrderedDynamicStorePtr TStoreBase::AsOrderedDynamic()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 TOrderedChunkStorePtr TStoreBase::AsOrderedChunk()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

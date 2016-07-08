@@ -93,7 +93,7 @@ public:
                     break;
 
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             };
         })
         .Via(TIODispatcher::Get()->GetInvoker())

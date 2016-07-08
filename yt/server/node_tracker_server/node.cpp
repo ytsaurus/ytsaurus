@@ -354,7 +354,7 @@ void TNode::AddSessionHint(ESessionType sessionType)
             ++HintedRepairSessionCount_;
             break;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -368,7 +368,7 @@ int TNode::GetSessionCount(ESessionType sessionType) const
         case ESessionType::Repair:
             return Statistics_.total_repair_session_count() + HintedRepairSessionCount_;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

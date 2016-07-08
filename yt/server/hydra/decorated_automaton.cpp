@@ -702,7 +702,7 @@ TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
 
     TContextSwitchedGuard guard(BIND([] () {
         // Context switches are not allowed during sync phase.
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }));
 
     return Automaton_->SaveSnapshot(writer);

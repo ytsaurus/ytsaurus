@@ -81,7 +81,7 @@ TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedVa
             writer.OnEntity();
             break;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
     writer.Flush();
 

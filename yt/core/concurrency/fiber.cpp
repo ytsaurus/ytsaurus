@@ -227,7 +227,7 @@ void TFiber::Trampoline(void* opaque)
 
     GetCurrentScheduler()->Return();
 
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -995,7 +995,7 @@ public:
                     }
 
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
 
                 if (key) {
@@ -1024,7 +1024,7 @@ public:
                         break;
 
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
             }
 
@@ -1511,7 +1511,7 @@ private:
                         << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
 
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
         };
 
@@ -1545,7 +1545,7 @@ private:
                 break;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
 
         return TError();
@@ -1596,7 +1596,7 @@ private:
             }
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
 
         return false;
@@ -1672,7 +1672,7 @@ private:
                 break;
             }
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
 
         if (transaction->LockedNodes().insert(trunkNode).second) {
@@ -1807,7 +1807,7 @@ private:
                                     break;
 
                                 default:
-                                    YUNREACHABLE();
+                                    Y_UNREACHABLE();
                             }
                             break;
                         }
@@ -1817,7 +1817,7 @@ private:
                             break;
 
                         default:
-                            YUNREACHABLE();
+                            Y_UNREACHABLE();
                     }
 
                     trunkNode->ResetLockingStateIfEmpty();

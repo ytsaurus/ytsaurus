@@ -117,7 +117,7 @@ public:
         const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
         bool /*sortKeys*/) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
 private:

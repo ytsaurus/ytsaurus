@@ -153,7 +153,7 @@ TNetworkAddress::TNetworkAddress(const TNetworkAddress& other, int port)
             Length = sizeof (sockaddr_in6);
             break;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

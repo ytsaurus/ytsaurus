@@ -207,7 +207,7 @@ size_t TPacketEncoder::GetPacketSize(
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
     return size;
 }
@@ -285,7 +285,7 @@ bool TPacketEncoder::EndFixedHeaderPhase()
             return true;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

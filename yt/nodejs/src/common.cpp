@@ -280,7 +280,7 @@ static void GCEpilogue(v8::GCType gcType, v8::GCCallbackFlags)
             timer = &TotalGCMarkSweepCompactTime;
             break;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     auto gcDuration = TInstant::Now() - GCStartInstant;

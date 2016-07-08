@@ -47,7 +47,7 @@ TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
         default:
 
 #ifdef YT_COMPILING_UDF
-            YUNREACHABLE();
+            Y_UNREACHABLE();
 #else
             THROW_ERROR_EXCEPTION(
                 EErrorCode::UnhashableType,

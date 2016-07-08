@@ -277,7 +277,7 @@ private:
             case EObjectType::Chunk:          addReplica = addRegularReplica; break;
             case EObjectType::ErasureChunk:   addReplica = addErasureReplica; break;
             case EObjectType::JournalChunk:   addReplica = addJournalReplica; break;
-            default:                          YUNREACHABLE();
+            default:                          Y_UNREACHABLE();
         }
 
         for (auto replica : chunk->StoredReplicas()) {
@@ -958,7 +958,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     lockedNode->BeginUpload(updateMode);

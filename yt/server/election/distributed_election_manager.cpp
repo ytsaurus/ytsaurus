@@ -632,7 +632,7 @@ void TDistributedElectionManager::DoParticipate()
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -654,7 +654,7 @@ void TDistributedElectionManager::DoAdandon()
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     Reset();

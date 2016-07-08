@@ -278,7 +278,7 @@ void TOneWayClientResponse::HandleAcknowledgement()
 
 void TOneWayClientResponse::HandleResponse(TSharedRefArray /*message*/)
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 auto TOneWayClientResponse::GetPromise() -> TPromise<TResult>

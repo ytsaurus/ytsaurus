@@ -56,11 +56,11 @@ void AssertTrapImpl(
 
 //! Unreachable code marker. Abnormally terminates the current process.
 #ifdef YT_COMPILING_UDF
-    #define YUNREACHABLE() __builtin_unreachable()
+    #define Y_UNREACHABLE() __builtin_unreachable()
 #else
-    #define YUNREACHABLE() \
+    #define Y_UNREACHABLE() \
         do { \
-            ASSERT_TRAP("YUNREACHABLE", ""); \
+            ASSERT_TRAP("Y_UNREACHABLE", ""); \
         } while (false)
 #endif
 

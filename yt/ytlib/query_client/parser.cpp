@@ -2143,7 +2143,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
                     break;
                 }
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
 
         }

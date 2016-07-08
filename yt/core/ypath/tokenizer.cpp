@@ -58,7 +58,7 @@ ETokenType TTokenizer::Advance()
                         case '@': Type_ = ETokenType::At;        break;
                         case '&': Type_ = ETokenType::Ampersand; break;
                         case '*': Type_ = ETokenType::Asterisk;  break;
-                        default:  YUNREACHABLE();
+                        default:  Y_UNREACHABLE();
                     }
                     return Type_;
                 }
@@ -141,7 +141,7 @@ int TTokenizer::ParseHexDigit(char ch, const TStringBuf& context)
     }
 
     ThrowMalformedEscapeSequence(context);
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TTokenizer::Expect(ETokenType expectedType)

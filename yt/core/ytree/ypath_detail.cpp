@@ -138,7 +138,7 @@ void TYPathServiceBase::WriteAttributesFragment(
         method, \
         { \
             tokenizer.ThrowUnexpected(); \
-            YUNREACHABLE(); \
+            Y_UNREACHABLE(); \
         } \
     ) \
     \
@@ -1315,7 +1315,7 @@ public:
 
     virtual void Invoke(IServiceContextPtr /*context*/) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual TResolveResult Resolve(const

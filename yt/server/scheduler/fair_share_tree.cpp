@@ -411,7 +411,7 @@ void TSchedulerElementBase::CheckForStarvationImpl(
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -503,7 +503,7 @@ void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAt
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     UpdatePreemptionSettingsLimits();
@@ -865,7 +865,7 @@ ISchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChild(const TDynam
         case ESchedulingMode::FairShare:
             return GetBestActiveChildFairShare(dynamicAttributesList);
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -896,7 +896,7 @@ ISchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFifo(const TD
                     break;
                 }
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
         }
         return false;
@@ -1942,7 +1942,7 @@ TDuration TRootElement::GetFairSharePreemptionTimeout() const
 
 void TRootElement::CheckForStarvation(TInstant now)
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 int TRootElement::GetMaxRunningOperationCount() const

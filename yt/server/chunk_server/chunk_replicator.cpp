@@ -171,7 +171,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(TChu
         case EObjectType::JournalChunk:
             return ComputeJournalChunkStatistics(chunk);
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -525,7 +525,7 @@ void TChunkReplicator::ProcessExistingJobs(
                         break;
 
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
                 break;
             }
@@ -554,14 +554,14 @@ void TChunkReplicator::ProcessExistingJobs(
                         break;
 
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
                 UnregisterJob(job);
                 break;
             }
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -1330,7 +1330,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkTree* chunkTree)
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

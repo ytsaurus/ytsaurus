@@ -299,7 +299,7 @@ private:
             default:
                 return "DK_(?)";
         }
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     static const char* DiagnosticSeverityToString(llvm::DiagnosticSeverity severity)
@@ -316,7 +316,7 @@ private:
             default:
                 return "DS_(?)";
         }
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
 private:

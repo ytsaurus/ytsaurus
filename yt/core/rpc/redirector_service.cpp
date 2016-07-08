@@ -106,12 +106,12 @@ public:
 
     virtual bool GetRetry() const override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual void SetRetry(bool /*value*/) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
 private:

@@ -38,7 +38,7 @@ void TCoroutineBase::Trampoline(void* opaque)
     coroutine->Completed_ = true;
     coroutine->JumpToCaller();
 
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TCoroutineBase::JumpToCaller()

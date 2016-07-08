@@ -605,7 +605,7 @@ private:
             }
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
 
         context->Reply();
@@ -649,7 +649,7 @@ private:
             }
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
 
         response->set_state(static_cast<int>(ControlState_));
@@ -808,7 +808,7 @@ private:
             }
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
 
         context->Reply();

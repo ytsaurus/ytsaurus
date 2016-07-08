@@ -1263,7 +1263,7 @@ private:
                 return index;
             }
         }
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     void FreeRackIndex(int index)

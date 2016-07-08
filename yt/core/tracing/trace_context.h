@@ -194,7 +194,7 @@ inline bool IsTracingEnabled(const TTraceContext& context)
 
 #define TRACE_CHILD(serviceName, spanName) \
     if (auto TRACE_CHILD__Guard = ::NYT::NTracing::TChildTraceContextGuard(serviceName, spanName)) \
-    { YUNREACHABLE(); } \
+    { Y_UNREACHABLE(); } \
     else
 
 ////////////////////////////////////////////////////////////////////////////////

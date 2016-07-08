@@ -156,7 +156,7 @@ void TTransactionLeaseTracker::ProcessRequest(const TRequest& request)
     } else if (const auto* unregisterRequest = request.TryAs<TUnregisterRequest>()) {
         ProcessUnregisterRequest(*unregisterRequest);
     } else {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 }
 

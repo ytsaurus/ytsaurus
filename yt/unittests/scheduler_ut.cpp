@@ -209,7 +209,7 @@ TEST_W(TSchedulerTest, TerminatedPropagated)
 
     SwitchTo(invoker1);
 
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 TEST_W(TSchedulerTest, CurrentInvokerAfterSwitch1)

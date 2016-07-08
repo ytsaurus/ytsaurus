@@ -237,7 +237,7 @@ private:
             case EValueType::String:
                 return TypeBuilder<TDynamicValueData, false>::TString::get(Builder_.Context_);
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -307,7 +307,7 @@ private:
             case EValueType::String:
                 return TypeBuilder<TUnversionedValueData, false>::TString::get(Builder_.Context_);
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -403,7 +403,7 @@ Value* TComparerBuilder::CreateCmp(Value* lhs, Value* rhs, EValueType type, bool
         case EValueType::Double:
             return CreateFCmp(isLessThan ? CmpInst::FCMP_ULT : CmpInst::FCMP_UGT, lhs, rhs);
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

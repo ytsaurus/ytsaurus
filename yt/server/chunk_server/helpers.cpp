@@ -153,7 +153,7 @@ void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)
             child->AsChunkList()->AddParent(parent);
             break;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -169,7 +169,7 @@ void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)
             child->AsChunkList()->RemoveParent(parent);
             break;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -186,7 +186,7 @@ TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
         case EObjectType::ChunkList:
             return chunkTree->AsChunkList()->Statistics();
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -286,7 +286,7 @@ void VisitOwningNodes(
             break;
         }
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -442,7 +442,7 @@ bool IsEmpty(const TChunkTree* chunkTree)
             return IsEmpty(chunkTree->AsChunkList());
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -481,7 +481,7 @@ TOwningKey GetMaxKey(const TChunkTree* chunkTree)
                 return child;
             }
         }
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     };
 
     const auto* currentChunkTree = chunkTree;
@@ -496,7 +496,7 @@ TOwningKey GetMaxKey(const TChunkTree* chunkTree)
                 break;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 }
@@ -534,7 +534,7 @@ TOwningKey GetMinKey(const TChunkTree* chunkTree)
                 return child;
             }
         }
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     };
 
     const auto* currentChunkTree = chunkTree;
@@ -549,7 +549,7 @@ TOwningKey GetMinKey(const TChunkTree* chunkTree)
                 break;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 }

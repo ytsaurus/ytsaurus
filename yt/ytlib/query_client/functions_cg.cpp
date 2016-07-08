@@ -432,7 +432,7 @@ ICallingConventionPtr GetCallingConvention(
                 return New<TUnversionedValueCallingConvention>(repeatedArgIndex);
             }
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -444,7 +444,7 @@ ICallingConventionPtr GetCallingConvention(ECallingConvention callingConvention)
         case ECallingConvention::UnversionedValue:
             return New<TUnversionedValueCallingConvention>(-1);
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

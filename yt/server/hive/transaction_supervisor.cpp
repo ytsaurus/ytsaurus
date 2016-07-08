@@ -1100,7 +1100,7 @@ private:
             }
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -1139,7 +1139,7 @@ private:
                 break;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
         response.Subscribe(
             BIND(&TImpl::OnParticipantResponse, MakeWeak(this), commit->GetTransactionId(), participant)
@@ -1265,7 +1265,7 @@ private:
                 return ECommitState::Finish;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 

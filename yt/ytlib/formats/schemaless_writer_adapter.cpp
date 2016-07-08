@@ -364,7 +364,7 @@ void TSchemalessWriterAdapter::ConsumeRow(TUnversionedRow row)
                 Consumer_->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
                 break;
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
     Consumer_->OnEndMap();

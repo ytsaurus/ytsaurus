@@ -85,7 +85,7 @@ public:
                         << ex;
                     cookie.Cancel(error);
                     chunk->GetLocation()->Disable(error);
-                    YUNREACHABLE(); // Disable() exits the process.
+                    Y_UNREACHABLE(); // Disable() exits the process.
                 }
             }
 

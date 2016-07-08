@@ -107,7 +107,7 @@ struct TNullFactory
     template <class T>
     static T* Instantiate()
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 };
 

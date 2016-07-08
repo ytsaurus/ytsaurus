@@ -232,7 +232,7 @@ void TSortedChunkStore::SetInMemoryMode(EInMemoryMode mode)
             case EStorePreloadState::Scheduled:
                 break;
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 

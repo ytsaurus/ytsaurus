@@ -264,7 +264,7 @@ TDuration TProfiler::DoTimingCheckpoint(
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -353,7 +353,7 @@ void TProfiler::DoUpdate(TAggregateCounter& counter, TValue value) const
                 break;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 }

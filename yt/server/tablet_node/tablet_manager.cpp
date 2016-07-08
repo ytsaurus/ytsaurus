@@ -235,7 +235,7 @@ public:
                 break;
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -880,7 +880,7 @@ private:
             }
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -1014,7 +1014,7 @@ private:
             }
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v, RowCount: %v, "
@@ -1174,7 +1174,7 @@ private:
                         store->SetStoreState(EStoreState::Persistent);
                         break;
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
 
                 if (IsLeader()) {
@@ -1762,7 +1762,7 @@ private:
                 newPersistentState = ETabletState::FreezeFlushing;
                 break;
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
         tablet->SetState(newTransientState);
 
@@ -1799,7 +1799,7 @@ private:
                 newPersistentState = ETabletState::Frozen;
                 break;
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
         tablet->SetState(newTransientState);
 
@@ -1944,7 +1944,7 @@ private:
             case EStoreType::OrderedChunk:
                 return EMemoryCategory::TabletStatic;
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -2144,7 +2144,7 @@ private:
                     tablet);
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 

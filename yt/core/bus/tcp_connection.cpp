@@ -98,7 +98,7 @@ TTcpConnection::TTcpConnection(
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
     UpdateConnectionCount(+1);
@@ -151,7 +151,7 @@ void TTcpConnection::SyncInitialize()
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -211,7 +211,7 @@ void TTcpConnection::UpdateConnectionCount(int delta)
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -726,7 +726,7 @@ bool TTcpConnection::OnPacketReceived() throw()
         case EPacketType::Message:
             return OnMessagePacketReceived();
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -1054,7 +1054,7 @@ void TTcpConnection::OnPacketSent()
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
 
@@ -1109,7 +1109,7 @@ void TTcpConnection::OnMessageEnqueued()
             break;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

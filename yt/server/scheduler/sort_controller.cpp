@@ -2545,7 +2545,7 @@ private:
                     break;
 
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
         }
 
@@ -2850,7 +2850,7 @@ private:
         const TChunkStripeStatistics& stat,
         i64 valueCount) const override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual TUserJobSpecPtr GetPartitionSortUserJobSpec(
@@ -2907,7 +2907,7 @@ private:
     virtual TExtendedJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     // Progress reporting.

@@ -112,7 +112,7 @@ private:
             Underlying_->Write(buf, len);
         } catch (const std::exception& ex) {
             Location_->Disable(ex);
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
     }
 
@@ -122,7 +122,7 @@ private:
             Underlying_->Write(parts, count);
         } catch (const std::exception& ex) {
             Location_->Disable(ex);
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
     }
 
@@ -132,7 +132,7 @@ private:
             Underlying_->Flush();
         } catch (const std::exception& ex) {
             Location_->Disable(ex);
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
     }
 
@@ -142,7 +142,7 @@ private:
             Underlying_->Finish();
         } catch (const std::exception& ex) {
             Location_->Disable(ex);
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
     }
 };
@@ -218,7 +218,7 @@ private:
         return result.Apply(BIND([location = Location_] (const TError& error) {
             if (!error.IsOK()) {
                 location->Disable(error);
-                YUNREACHABLE();
+                Y_UNREACHABLE();
             }
         }));
     }
@@ -328,7 +328,7 @@ public:
                         downloader = &TImpl::DownloadTable;
                         break;
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
             }
 

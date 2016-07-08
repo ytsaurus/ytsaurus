@@ -53,7 +53,7 @@ void ExtractFunctionNames(
     } else if (expr->As<NAst::TLiteralExpression>()) {
     } else if (expr->As<NAst::TReferenceExpression>()) {
     } else {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 }
 
@@ -131,7 +131,7 @@ void CheckExpressionDepth(TConstExpressionPtr op, int depth = 0)
         CheckExpressionDepth(binaryOpExpr->Rhs, depth + 1);
         return;
     }
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 };
 
 TValue CastValueWithCheck(TValue value, EValueType targetType)
@@ -151,7 +151,7 @@ TValue CastValueWithCheck(TValue value, EValueType targetType)
             }
             value.Data.Double = int64Value;
         } else {
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
     } else if (value.Type == EValueType::Uint64) {
         if (targetType == EValueType::Int64) {
@@ -166,7 +166,7 @@ TValue CastValueWithCheck(TValue value, EValueType targetType)
             }
             value.Data.Double = uint64Value;
         } else {
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
     } else if (value.Type == EValueType::Double) {
         auto doubleValue = value.Data.Double;
@@ -181,10 +181,10 @@ TValue CastValueWithCheck(TValue value, EValueType targetType)
             }
             value.Data.Int64 = doubleValue;
         } else {
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
     } else {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     value.Type = targetType;
@@ -223,7 +223,7 @@ EValueType InferUnaryExprType(EUnaryOp opCode, EValueType operandType, const TSt
             return operandType;
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -241,7 +241,7 @@ EValueType GetType(const NAst::TLiteralValue& literalValue)
         case NAst::TLiteralValue::TagOf<Stroka>():
             return EValueType::String;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -261,7 +261,7 @@ TValue GetValue(const NAst::TLiteralValue& literalValue)
                 literalValue.As<Stroka>().c_str(),
                 literalValue.As<Stroka>().length());
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -323,7 +323,7 @@ TConstExpressionPtr FoldConstants(
                         value.Data.Double = -value.Data.Double;
                         break;
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
                 return value;
             } else if (opcode == EUnaryOp::BitNot) {
@@ -337,7 +337,7 @@ TConstExpressionPtr FoldConstants(
                         break;
                         break;
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
                 return value;
             }
@@ -716,7 +716,7 @@ TConstExpressionPtr PropagateNotExpression(TConstExpressionPtr expr)
             unaryOp->Opcode,
             PropagateNotExpression(operand));
     }
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 struct TTypedExpressionBuilder;
@@ -1012,7 +1012,7 @@ struct TTypedExpressionBuilder
             return New<TInOpExpression>(std::move(typedArguments), std::move(capturedRows));
         }
 
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     TConstExpressionPtr BuildTypedExpression(

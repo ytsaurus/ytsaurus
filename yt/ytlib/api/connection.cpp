@@ -19,7 +19,7 @@ IConnectionPtr CreateConnection(IMapNodePtr config)
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

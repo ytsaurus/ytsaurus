@@ -152,7 +152,7 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
             case EValueType::Max:
                 return +infinity;
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     };
 

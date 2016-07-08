@@ -146,7 +146,7 @@ public:
                 return StartNonAtomicTabletTransaction();
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -203,7 +203,7 @@ public:
                         break;
 
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
             }
 
@@ -243,7 +243,7 @@ public:
                     return VoidFuture;
 
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
         } catch (const std::exception& ex) {
             return MakeFuture<void>(ex);
@@ -309,7 +309,7 @@ public:
                     return;
 
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
         }
 
@@ -455,7 +455,7 @@ private:
                 ValidateTabletStartOptions(options);
                 break;
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -535,7 +535,7 @@ private:
             case ETransactionType::Tablet:
                 return StartAtomicTabletTransaction();
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 

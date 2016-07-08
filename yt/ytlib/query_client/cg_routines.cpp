@@ -459,7 +459,7 @@ ui64 SimpleHash(const TUnversionedValue* begin, const TUnversionedValue* end)
                 result = hash64(0, result);
                 break;
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 

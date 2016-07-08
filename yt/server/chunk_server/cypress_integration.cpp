@@ -61,7 +61,7 @@ private:
             case EObjectType::ForeignChunkMap:
                 return chunkManager->ForeignChunks();
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -126,7 +126,7 @@ private:
             case EObjectType::ForeignChunkMap:
                 return "//sys/foreign_chunks";
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 

@@ -47,7 +47,7 @@ TFuture<void> TForkExecutor::Fork()
 
         if (ChildPid_ == 0) {
             DoRunChild(); // never returns
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
 
         DoRunParent();

@@ -183,7 +183,7 @@ public:
             return transaction;
         }
 
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     std::vector<TTransaction*> GetTransactions()

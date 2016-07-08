@@ -67,7 +67,7 @@ bool THydraServiceBase::IsUp(TCtxDiscoverPtr context)
         case EPeerKind::LeaderOrFollower:
             return isLeader || isFollower;
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

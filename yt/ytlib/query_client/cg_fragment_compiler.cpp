@@ -197,7 +197,7 @@ Function* CodegenGroupComparerFunction(
                         }
 
                         default:
-                            YUNREACHABLE();
+                            Y_UNREACHABLE();
                     }
                 });
         };
@@ -412,7 +412,7 @@ Function* CodegenTupleComparerFunction(
                         }
 
                         default:
-                            YUNREACHABLE();
+                            Y_UNREACHABLE();
                     }
                 });
         };
@@ -564,7 +564,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
                                 evalData = builder->CreateFSub(ConstantFP::get(builder->getDoubleTy(), 0.0), operandData);
                                 break;
                             default:
-                                YUNREACHABLE();
+                                Y_UNREACHABLE();
                         }
                         break;
 
@@ -582,7 +582,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
                         break;
 
                     default:
-                        YUNREACHABLE();
+                        Y_UNREACHABLE();
                 }
 
                 return TCGValue::CreateFromValue(
@@ -634,7 +634,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                 CMP_OP(Greater, ICmpSGT)
                 CMP_OP(GreaterOrEqual, ICmpSGE)
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
 
             return TCGValue::CreateFromValue(
@@ -682,7 +682,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                     CMP_OP(Greater, ICmpSGT)
                                     CMP_OP(GreaterOrEqual, ICmpSGE)
                                     default:
-                                        YUNREACHABLE();
+                                        Y_UNREACHABLE();
                                 }
                                 break;
                             case EValueType::Uint64:
@@ -694,7 +694,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                     CMP_OP(Greater, ICmpUGT)
                                     CMP_OP(GreaterOrEqual, ICmpUGE)
                                     default:
-                                        YUNREACHABLE();
+                                        Y_UNREACHABLE();
                                 }
                                 break;
                             case EValueType::Double:
@@ -706,7 +706,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                     CMP_OP(Greater, FCmpUGT)
                                     CMP_OP(GreaterOrEqual, FCmpUGE)
                                     default:
-                                        YUNREACHABLE();
+                                        Y_UNREACHABLE();
                                 }
                                 break;
                             case EValueType::String: {
@@ -760,7 +760,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                             CodegenLexicographicalCompare(builder, lhsData, lhsLength, rhsData, rhsLength));
                                         break;
                                     default:
-                                        YUNREACHABLE();
+                                        Y_UNREACHABLE();
                                 }
 
                                 evalData = builder->CreateZExtOrBitCast(
@@ -769,7 +769,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                 break;
                             }
                             default:
-                                YUNREACHABLE();
+                                Y_UNREACHABLE();
                         }
 
                         return TCGValue::CreateFromValue(
@@ -869,7 +869,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                                     OP(LeftShift, Shl)
                                     OP(RightShift, LShr)
                                     default:
-                                        YUNREACHABLE();
+                                        Y_UNREACHABLE();
                                 }
                                 break;
                             case EValueType::Uint64:
@@ -886,7 +886,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                                     OP(LeftShift, Shl)
                                     OP(RightShift, LShr)
                                     default:
-                                        YUNREACHABLE();
+                                        Y_UNREACHABLE();
                                 }
                                 break;
                             case EValueType::Double:
@@ -896,11 +896,11 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                                     OP(Multiply, FMul)
                                     OP(Divide, FDiv)
                                     default:
-                                        YUNREACHABLE();
+                                        Y_UNREACHABLE();
                                 }
                                 break;
                             default:
-                                YUNREACHABLE();
+                                Y_UNREACHABLE();
                         }
 
                         #undef OP

@@ -112,12 +112,12 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual TFuture<void> Close() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override

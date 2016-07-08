@@ -44,7 +44,7 @@ public:
 
     virtual TFuture<void> Terminate(const TError& /*error*/) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     void OnRequestCompleted()

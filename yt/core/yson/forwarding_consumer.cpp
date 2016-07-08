@@ -199,74 +199,74 @@ void TForwardingYsonConsumer::OnEndAttributes()
 
 void TForwardingYsonConsumer::OnMyStringScalar(const TStringBuf& /*value*/)
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyInt64Scalar(i64 /*value*/)
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyUint64Scalar(ui64 /*value*/)
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyDoubleScalar(double /*value*/)
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyBooleanScalar(bool /*value*/)
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyEntity()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyBeginList()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyListItem()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyEndList()
 {
 
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyBeginMap()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyKeyedItem(const TStringBuf& /*name*/)
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyEndMap()
 {
 
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyBeginAttributes()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyEndAttributes()
 {
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyRaw(const TStringBuf& yson, EYsonType type)

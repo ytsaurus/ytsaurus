@@ -40,8 +40,8 @@ DEFINE_ENUM(ETokenType,
 ////////////////////////////////////////////////////////////////////////////////
 
 ETokenType CharToTokenType(char ch);        // returns ETokenType::EndOfStream for non-special chars
-char TokenTypeToChar(ETokenType type);      // YUNREACHABLE for non-special types
-Stroka TokenTypeToString(ETokenType type);  // YUNREACHABLE for non-special types
+char TokenTypeToChar(ETokenType type);      // Y_UNREACHABLE for non-special types
+Stroka TokenTypeToString(ETokenType type);  // Y_UNREACHABLE for non-special types
 
 ////////////////////////////////////////////////////////////////////////////////
 

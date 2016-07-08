@@ -209,7 +209,7 @@ TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const 
         return MakeCodegenInOpExpr(codegenArgs, index);
     }
 
-    YUNREACHABLE();
+    Y_UNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

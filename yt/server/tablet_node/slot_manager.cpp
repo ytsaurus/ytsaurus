@@ -423,7 +423,7 @@ private:
                 return index;
             }
         }
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
 };

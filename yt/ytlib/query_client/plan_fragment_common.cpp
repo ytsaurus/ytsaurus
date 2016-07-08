@@ -12,7 +12,7 @@ const char* GetUnaryOpcodeLexeme(EUnaryOp opcode)
         case EUnaryOp::Minus: return "-";
         case EUnaryOp::Not:   return "NOT";
         case EUnaryOp::BitNot:return "~";
-        default:              YUNREACHABLE();
+        default:              Y_UNREACHABLE();
     }
 }
 
@@ -36,7 +36,7 @@ const char* GetBinaryOpcodeLexeme(EBinaryOp opcode)
         case EBinaryOp::LessOrEqual:    return "<=";
         case EBinaryOp::Greater:        return ">";
         case EBinaryOp::GreaterOrEqual: return ">=";
-        default:                        YUNREACHABLE();
+        default:                        Y_UNREACHABLE();
     }
 }
 
@@ -60,7 +60,7 @@ EBinaryOp GetInversedBinaryOpcode(EBinaryOp opcode)
         case EBinaryOp::LessOrEqual:    return EBinaryOp::Greater;
         case EBinaryOp::Greater:        return EBinaryOp::LessOrEqual;
         case EBinaryOp::GreaterOrEqual: return EBinaryOp::Less;
-        default:                        YUNREACHABLE();
+        default:                        Y_UNREACHABLE();
     }
 }
 

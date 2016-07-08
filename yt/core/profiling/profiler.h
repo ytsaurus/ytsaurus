@@ -309,7 +309,7 @@ private:
 //! Measures execution time of the statement that immediately follows this macro.
 #define PROFILE_TIMING(...) \
     if (auto PROFILE_TIMING__Guard = NYT::NProfiling::TTimingGuard(&Profiler, __VA_ARGS__)) \
-    { YUNREACHABLE(); } \
+    { Y_UNREACHABLE(); } \
     else
 
 //! Must be used inside #PROFILE_TIMING block to mark a checkpoint.
@@ -374,7 +374,7 @@ private:
 //! Measures aggregated execution time of the statement that immediately follows this macro.
 #define PROFILE_AGGREGATED_TIMING(counter) \
     if (auto PROFILE_TIMING__Guard = NYT::NProfiling::TAggregatedTimingGuard(&Profiler, &(counter))) \
-    { YUNREACHABLE(); } \
+    { Y_UNREACHABLE(); } \
     else
 
 ////////////////////////////////////////////////////////////////////////////////

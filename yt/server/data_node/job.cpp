@@ -153,7 +153,7 @@ public:
 
     virtual void SetResourceUsage(const TNodeResources& /*newUsage*/) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual TJobResult GetResult() const override
@@ -163,7 +163,7 @@ public:
 
     virtual void SetResult(const TJobResult& /*result*/) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual double GetProgress() const override
@@ -183,7 +183,7 @@ public:
 
     virtual void SetStatistics(const TYsonString& /*statistics*/) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
    
     virtual TNullable<TDuration> GetPrepareDuration() const override
@@ -204,12 +204,12 @@ public:
 
     virtual TInstant GetStatisticsLastSendTime() const override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual void ResetStatisticsLastSendTime() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual std::vector<TChunkId> DumpInputContext() override
@@ -464,7 +464,7 @@ private:
             }
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -757,7 +757,7 @@ IJobPtr CreateChunkJob(
                 bootstrap);
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 

@@ -83,7 +83,7 @@ IVersionedReaderPtr CreateReaderForFormat(ETableChunkFormat format, Ts&&... args
             return New<TImpl<TSimpleVersionedBlockReader>>(std::forward<Ts>(args)...);
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -1551,7 +1551,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -1597,7 +1597,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 timestamp);
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -1648,7 +1648,7 @@ public:
         const TSharedRef& /*block*/,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual TSharedRef Find(
@@ -1793,17 +1793,17 @@ public:
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual bool IsFetchingCompleted() const override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
 protected:
@@ -1893,7 +1893,7 @@ private:
         }
 
         LOG_FATAL("Cached block is missing (BlockId: %v)", blockId);
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 };
 
@@ -2047,7 +2047,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 }
 
@@ -2201,7 +2201,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
         }
 
         default:
-            YUNREACHABLE();
+            Y_UNREACHABLE();
     }
 
 }

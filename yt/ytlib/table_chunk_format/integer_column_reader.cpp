@@ -258,7 +258,7 @@ private:
                 return DoCreateSegmentReader<TDictionarySparseReader>(meta);
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 };
@@ -462,7 +462,7 @@ private:
                 }
 
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 };

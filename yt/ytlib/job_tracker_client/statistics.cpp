@@ -188,7 +188,7 @@ class TStatisticsBuildingConsumer
 public:
     virtual void OnStringScalar(const TStringBuf& value) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual void OnInt64Scalar(i64 value) override
@@ -203,44 +203,44 @@ public:
         } else if (LastKey_ == "max") {
             CurrentSummary_.Max_ = value;
         } else {
-            YUNREACHABLE();
+            Y_UNREACHABLE();
         }
         ++FilledSummaryFields_;
     }
     
     virtual void OnUint64Scalar(ui64 value) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
     
     virtual void OnDoubleScalar(double value) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
     
     virtual void OnBooleanScalar(bool value) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
     
     virtual void OnEntity() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
     
     virtual void OnBeginList() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
     
     virtual void OnListItem() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual void OnEndList() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual void OnBeginMap() override
@@ -281,12 +281,12 @@ public:
     
     virtual void OnBeginAttributes() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual void OnEndAttributes() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual TStatistics Finish() override

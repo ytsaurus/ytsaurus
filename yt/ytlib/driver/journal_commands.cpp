@@ -191,7 +191,7 @@ private:
 
     virtual void OnEndList() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
     virtual void OnBeginMap() override
@@ -228,7 +228,7 @@ private:
 
     virtual void OnEndAttributes() override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
 

@@ -113,7 +113,7 @@ public:
         const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
         bool /*sortKeys*/) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
 private:
@@ -172,7 +172,7 @@ public:
         const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
         bool /*sortKeys*/) override
     {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 
 private:
@@ -246,7 +246,7 @@ private:
 
             default:
                 tokenizer.ThrowUnexpected();
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 
@@ -311,7 +311,7 @@ public:
 
             default:
                 tokenizer.ThrowUnexpected();
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     }
 

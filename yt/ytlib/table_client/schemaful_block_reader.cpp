@@ -161,7 +161,7 @@ TUnversionedValue TBlockReader::Read(int index) const
                 break;
             }
             default:
-                YUNREACHABLE();
+                Y_UNREACHABLE();
         }
     } else {
         value.Type = EValueType::Null;
