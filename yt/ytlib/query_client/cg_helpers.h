@@ -32,8 +32,8 @@ class TCGContext
     : public TCGIRBuilder
 {
     Value* ExecutionContextPtr_;
-    std::vector<Value*> OpaqueValues_;
-
+    Value* OpaqueValues_;
+    size_t OpaqueValuesCount_;
 public:
     const TCGModulePtr Module;
 
@@ -45,14 +45,10 @@ public:
         llvm::BasicBlock* basicBlock)
         : TCGIRBuilder(basicBlock)
         , ExecutionContextPtr_(executionContextPtr)
+        , OpaqueValues_(opaqueValues)
+        , OpaqueValuesCount_(opaqueValuesCount)
         , Module(std::move(module))
-    {
-        for (size_t index = 0; index < opaqueValuesCount; ++index) {
-            OpaqueValues_.push_back(CreateLoad(
-                CreateConstGEP1_32(opaqueValues, index),
-                "opaqueValues." + Twine(index)));
-        }
-    }
+    { }
 
     TCGContext(
         llvm::Function* function,
@@ -61,12 +57,17 @@ public:
         : TCGIRBuilder(function, parent, closurePtr)
         , ExecutionContextPtr_(parent->ExecutionContextPtr_)
         , OpaqueValues_(parent->OpaqueValues_)
+        , OpaqueValuesCount_(parent->OpaqueValuesCount_)
         , Module(parent->Module)
     { }
 
     Value* GetOpaqueValue(size_t index)
     {
-        return ViaClosure(OpaqueValues_[index], "opaqueValues." + Twine(index));
+        Value* opaqueValues = ViaClosure(OpaqueValues_, "opaqueValues");
+        YCHECK(index < OpaqueValuesCount_);
+        return CreateLoad(
+            CreateConstGEP1_32(opaqueValues, index),
+            "opaqueValues." + Twine(index));
     }
 
     Value* GetExecutionContextPtr()
