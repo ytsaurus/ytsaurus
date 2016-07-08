@@ -217,6 +217,9 @@ Stroka RetryRequest(
     TDuration socketTimeout = (header.GetCommand() == "ping_tx") ?
         TConfig::Get()->PingTimeout : TDuration::Zero();
 
+    bool needMutationId = false;
+    bool needRetry = false;
+
     for (int attempt = 0; attempt < retryCount; ++attempt) {
         Stroka requestId;
         Stroka response;
@@ -226,8 +229,6 @@ Stroka RetryRequest(
             hostName = GetProxyForHeavyRequest(auth);
         }
 
-        bool needMutationId = false;
-        bool needRetry = false;
         bool hasError = false;
         TDuration retryInterval;
 
