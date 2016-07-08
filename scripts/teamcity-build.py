@@ -64,6 +64,7 @@ def prepare(options):
         return s
 
     options.build_enable_nodejs = checked_yes_no(os.environ.get("BUILD_ENABLE_NODEJS", "YES"))
+    options.build_enable_python_2_6 = checked_yes_no(os.environ.get("BUILD_ENABLE_PYTHON_2_6", "YES"))
     options.build_enable_python_2_7 = checked_yes_no(os.environ.get("BUILD_ENABLE_PYTHON_2_7", "YES"))
     options.build_enable_python_skynet = checked_yes_no(os.environ.get("BUILD_ENABLE_PYTHON_SKYNET", "YES"))
     options.build_enable_perl = checked_yes_no(os.environ.get("BUILD_ENABLE_PERL", "YES"))
@@ -144,6 +145,7 @@ def configure(options):
         "-DYT_BUILD_NUMBER={0}".format(options.build_number),
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
         "-DYT_BUILD_ENABLE_NODEJS={0}".format(options.build_enable_nodejs),
+        "-DYT_BUILD_ENABLE_PYTHON_2_6={0}".format(options.build_enable_python_2_6),
         "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(options.build_enable_python_2_7),
         "-DYT_BUILD_ENABLE_PYTHON_SKYNET={0}".format(options.build_enable_python_skynet),
         "-DYT_BUILD_ENABLE_PERL={0}".format(options.build_enable_perl),
@@ -329,7 +331,7 @@ def save_failed_test(options, suite_name, suite_path):
             teamcity_message("Detected core file {0}".format(core_path), status="WARNING")
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None):
-    if options.build_enable_python_2_7 != "YES":
+    if options.build_enable_python_2_6 != "YES" and options.build_enable_python_2_7 != "YES":
         return
 
     if pytest_args is None:
