@@ -72,9 +72,9 @@ void DeserializeSet(T& value, INodePtr node)
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
     for (int i = 0; i < size; ++i) {
-        typename T::value_type value;
-        Deserialize(value, listNode->GetChild(i));
-        value.insert(std::move(value));
+        typename T::value_type item;
+        Deserialize(item, listNode->GetChild(i));
+        value.insert(std::move(item));
     }
 }
 

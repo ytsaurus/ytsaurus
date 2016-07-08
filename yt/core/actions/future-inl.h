@@ -1197,7 +1197,7 @@ private:
     std::atomic<int> CurrentResponseIndex_ = {0};
     
 
-    virtual void OnFutureSet(int futureIndex, const TErrorOr<T>& result) override
+    virtual void OnFutureSet(int /*futureIndex*/, const TErrorOr<T>& result) override
     {
         if (!result.IsOK()) {
             this->CancelFutures();

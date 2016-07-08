@@ -13,7 +13,7 @@
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/cypress_client/rpc_helpers.cpp>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 

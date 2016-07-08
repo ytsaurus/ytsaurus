@@ -304,7 +304,7 @@ private:
 TDelayedExecutor::TDelayedExecutor() = default;
 TDelayedExecutor::~TDelayedExecutor() = default;
 
-TDelayedExecutor::TImpl* const TDelayedExecutor::GetImpl()
+TDelayedExecutor::TImpl* TDelayedExecutor::GetImpl()
 {
     return Singleton<TDelayedExecutor::TImpl>();
 }
