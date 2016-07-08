@@ -267,7 +267,7 @@ Function* CodegenGroupHasherFunction(
                     break;
 
                 default:
-                    YUNIMPLEMENTED();
+                    Y_UNIMPLEMENTED();
             }
 
             builder->CreateBr(endBB);

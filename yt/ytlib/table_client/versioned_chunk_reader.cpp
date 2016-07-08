@@ -591,7 +591,7 @@ public:
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        YUNIMPLEMENTED();
+        Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<void> GetReadyEvent()

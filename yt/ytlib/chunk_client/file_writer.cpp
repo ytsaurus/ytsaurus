@@ -213,7 +213,7 @@ const TChunkMeta& TFileWriter::GetChunkMeta() const
 
 TChunkReplicaList TFileWriter::GetWrittenChunkReplicas() const
 {
-    YUNIMPLEMENTED();
+    Y_UNIMPLEMENTED();
 }
 
 TChunkId TFileWriter::GetChunkId() const
