@@ -38,7 +38,7 @@ def start_transaction(parent_transaction=None, timeout=None, attributes=None, ty
     params["sticky"] = bool_to_string(sticky)
     return make_formatted_request("start_tx", params, None, client=client)
 
-def abort_transaction(transaction, client=None, sticky=False):
+def abort_transaction(transaction, sticky=False, client=None):
     """Abort transaction. All changes will be lost.
 
     :param transaction: (string) transaction id
@@ -48,7 +48,7 @@ def abort_transaction(transaction, client=None, sticky=False):
     params["sticky"] = sticky
     make_request("abort_tx", params, client=client)
 
-def commit_transaction(transaction, client=None, sticky=False):
+def commit_transaction(transaction, sticky=False, client=None):
     """Save all transaction changes.
 
     :param transaction: (string) transaction id
