@@ -38,21 +38,25 @@ def start_transaction(parent_transaction=None, timeout=None, attributes=None, ty
     params["sticky"] = bool_to_string(sticky)
     return make_formatted_request("start_tx", params, None, client=client)
 
-def abort_transaction(transaction, client=None):
+def abort_transaction(transaction, client=None, sticky=False):
     """Abort transaction. All changes will be lost.
 
     :param transaction: (string) transaction id
     .. seealso:: `abort_tx on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#aborttx>`_
     """
-    make_request("abort_tx", transaction_params(transaction, client=client), client=client)
+    params = transaction_params(transaction, client=client)
+    params["sticky"] = sticky
+    make_request("abort_tx", params, client=client)
 
-def commit_transaction(transaction, client=None):
+def commit_transaction(transaction, client=None, sticky=False):
     """Save all transaction changes.
 
     :param transaction: (string) transaction id
     .. seealso:: `commit_tx on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#committx>`_
     """
-    make_request("commit_tx", transaction_params(transaction, client=client), client=client)
+    params = transaction_params(transaction, client=client)
+    params["sticky"] = sticky
+    make_request("commit_tx", params, client=client)
 
 def ping_transaction(transaction, client=None):
     """Prolong transaction lifetime.

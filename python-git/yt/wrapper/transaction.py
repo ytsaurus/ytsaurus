@@ -52,7 +52,7 @@ class TransactionStack(object):
 
 class Transaction(object):
     """
-    It is designed to use by with_statement::
+    It is designed to be used by with_statement::
 
     >>> with Transaction():
     >>>    ...
@@ -74,8 +74,11 @@ class Transaction(object):
         timeout = get_value(timeout, get_total_request_timeout(client))
         if transaction_id == null_transaction_id:
             ping = False
+        if sticky:
+            ping = False
 
         self.transaction_id = transaction_id
+        self.sticky = sticky
 
         self._client = client
         self._ping = ping
@@ -111,7 +114,7 @@ class Transaction(object):
         if self._finished or self.transaction_id == null_transaction_id:
             return
         self._stop_pinger()
-        abort_transaction(self.transaction_id, client=self._client)
+        abort_transaction(self.transaction_id, client=self._client, sticky=self.sticky)
         self._finished = True
 
     def commit(self):
@@ -121,7 +124,7 @@ class Transaction(object):
         if self._finished:
             raise YtError("Transaction is already finished, cannot commit")
         self._stop_pinger()
-        commit_transaction(self.transaction_id, client=self._client)
+        commit_transaction(self.transaction_id, client=self._client, sticky=self.sticky)
         self._finished = True
 
     def is_pinger_alive(self):
