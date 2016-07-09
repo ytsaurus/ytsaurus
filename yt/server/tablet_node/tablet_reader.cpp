@@ -48,7 +48,6 @@ struct TSession
 
 typedef SmallVector<TSession, TypicalStoresPerSession> TSessions;
 typedef SmallVector<TSession*, TypicalStoresPerSession> TSessionPtrs;
-} // namespace
 
 TColumnFilter GetColumnFilter(const TTableSchema& schema, const TTableSchema& tabletSchema)
 {
@@ -68,6 +67,33 @@ TColumnFilter GetColumnFilter(const TTableSchema& schema, const TTableSchema& ta
 
     return columnFilter;
 }
+
+void TakePartition(
+    std::vector<IStorePtr>* stores,
+    const TPartitionSnapshotPtr& partitionSnapshot,
+    TKey minKey,
+    TKey maxKey)
+{
+    for (const auto& store : partitionSnapshot->Stores) {
+        if (store->GetMinKey() <= maxKey && store->GetMaxKey() >= minKey) {
+            stores->push_back(store);
+        }
+    }
+}
+
+void TakeLockedStores(
+    std::vector<IStorePtr>* stores,
+    const TTabletSnapshotPtr& tabletSnapshot)
+{
+    for (const auto& weakStore : tabletSnapshot->LockedStores) {
+        auto store = weakStore.Lock();
+        if (store) {
+            stores->push_back(store);
+        }
+    }
+}
+
+} // namespace
 
 template <class TMerger>
 class TTabletReaderBase
@@ -397,20 +423,15 @@ public:
     {
         // Select stores.
         std::vector<IStorePtr> stores;
-        auto takePartition = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-            for (const auto& store : partitionSnapshot->Stores) {
-                if (store->GetMinKey() <= upperBound && store->GetMaxKey() >= lowerBound) {
-                    stores.push_back(store);
-                }
-            }
-        };
 
-        takePartition(tabletSnapshot->Eden);
+        TakePartition(&stores, tabletSnapshot->Eden, lowerBound.Get(), upperBound.Get());
 
         auto range = tabletSnapshot->GetIntersectingPartitions(lowerBound, upperBound);
         for (auto it = range.first; it != range.second; ++it) {
-            takePartition(*it);
+            TakePartition(&stores, *it, lowerBound.Get(), upperBound.Get());
         }
+
+        TakeLockedStores(&stores, tabletSnapshot);
 
         LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v], WorkloadDescriptor: %v)",
             tabletSnapshot->TabletId,
@@ -483,19 +504,6 @@ public:
         , Pool_(TTabletReaderPoolTag())
     { }
 
-    static void TakePartition(
-        std::vector<IStorePtr>& stores,
-        const TPartitionSnapshotPtr& partitionSnapshot,
-        TKey minKey,
-        TKey maxKey)
-    {
-        for (const auto& store : partitionSnapshot->Stores) {
-            if (store->GetMinKey() <= maxKey && store->GetMaxKey() >= minKey) {
-                stores.push_back(store);
-            }
-        }
-    }
-
     static ISchemafulReaderPtr Create(
         TTabletSnapshotPtr tabletSnapshot,
         const TTableSchema& schema,
@@ -562,7 +570,6 @@ private:
 
 };
 
-
 ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TTableSchema& schema,
@@ -579,7 +586,6 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         timestamp,
         workloadDescriptor);
 }
-
 
 ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
@@ -599,7 +605,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     // Select stores.
     std::vector<IStorePtr> stores;
 
-    TTabletKeysReader::TakePartition(stores, tabletSnapshot->Eden, minKey, maxKey);
+    TakePartition(&stores, tabletSnapshot->Eden, minKey, maxKey);
 
     std::vector<TPartitionSnapshotPtr> snapshots;
     for (auto key : keys) {
@@ -610,7 +616,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     snapshots.erase(std::unique(snapshots.begin(), snapshots.end()), snapshots.end());
 
     for (const auto& snapshot : snapshots) {
-        TTabletKeysReader::TakePartition(stores, snapshot, minKey, maxKey);
+        TakePartition(&stores, snapshot, minKey, maxKey);
     }
 
     return TTabletKeysReader::Create(
@@ -638,8 +644,9 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     // Select stores.
     std::vector<IStorePtr> stores;
 
-    TTabletKeysReader::TakePartition(stores, tabletSnapshot->Eden, minKey, maxKey);
-    TTabletKeysReader::TakePartition(stores, paritionSnapshot, minKey, maxKey);
+    TakePartition(&stores, tabletSnapshot->Eden, minKey, maxKey);
+    TakePartition(&stores, paritionSnapshot, minKey, maxKey);
+    TakeLockedStores(&stores, tabletSnapshot);
 
     return TTabletKeysReader::Create(
         std::move(tabletSnapshot),
