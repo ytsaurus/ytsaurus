@@ -501,7 +501,7 @@ class OperationsTracker(object):
                 raise YtError("Operation %s does not exist and is not added", operation_id)
             raise
 
-    def wait_all(self, check_result=True, print_progress=True):
+    def wait_all(self, check_result=True, print_progress=True, abort_exceptions=(KeyboardInterrupt,)):
         """Waits all added operations and prints progress.
         :param check_result: (bool) if True then `YtError` will be raised if any operation failed.
         For each failed operation `YtOperationFailedError` object with details will be added to raised error.
@@ -512,7 +512,7 @@ class OperationsTracker(object):
         unsucessfully_finished_count = 0
         inner_errors = []
 
-        with KeyboardInterruptsCatcher(self.abort_all, enable=self._abort_on_sigint):
+        with ExceptionCatcher(abort_exceptions, self.abort_all, enable=self._abort_on_sigint):
             while self._operations:
                 operations_to_remove = []
 
