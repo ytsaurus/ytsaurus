@@ -736,7 +736,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
         }
     }
 
-    if (IsSorted()) {
+    if (IsSorted() && StoreManager_) {
         auto lockedStores = StoreManager_->GetLockedStores();
         for (const auto& store : lockedStores) {
             snapshot->LockedStores.push_back(store->AsSorted());
