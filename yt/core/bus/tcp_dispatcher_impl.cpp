@@ -61,7 +61,7 @@ bool IsLocalServiceAddress(const Stroka& address)
     int port;
     try {
         ParseServiceAddress(address, &hostName, &port);
-        return hostName == TAddressResolver::Get()->GetLocalHostName();
+        return TAddressResolver::Get()->IsLocalServiceAddress(Stroka(hostName));
     } catch (...) {
         return false;
     }
