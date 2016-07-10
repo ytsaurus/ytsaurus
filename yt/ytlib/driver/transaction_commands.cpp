@@ -28,19 +28,16 @@ void TStartTransactionCommand::Execute(ICommandContextPtr context)
         Options.Attributes = ConvertToAttributes(Attributes);
     }
 
-    if (!Sticky && Type != ETransactionType::Master) {
-        THROW_ERROR_EXCEPTION("Only master transactions could be non-sticky")
-            << TErrorAttribute("requested_transaction_type", Type);
+    if (!Options.Sticky && Type != ETransactionType::Master) {
+        THROW_ERROR_EXCEPTION("Tablet transactions must be sticky");
     }
 
     auto transaction = WaitFor(context->GetClient()->StartTransaction(Type, Options))
         .ValueOrThrow();
 
-    if (Sticky) {
-        context->PinTransaction(transaction);
+    if (!Options.Sticky) {
+        transaction->Detach();
     }
-
-    transaction->Detach();
 
     context->ProduceOutputValue(BuildYsonStringFluently()
         .Value(transaction->GetId()));
@@ -55,11 +52,6 @@ void TPingTransactionCommand::Execute(ICommandContextPtr context)
         return;
     }
 
-    auto stickyTransaction = context->FindAndTouchTransaction(Options.TransactionId);
-    if (stickyTransaction) {
-        return;
-    }
-
     auto transaction = AttachTransaction(context, true);
     WaitFor(transaction->Ping())
         .ThrowOnError();
@@ -69,13 +61,7 @@ void TPingTransactionCommand::Execute(ICommandContextPtr context)
 
 void TCommitTransactionCommand::Execute(ICommandContextPtr context)
 {
-    auto transaction = context->FindAndTouchTransaction(Options.TransactionId);
-    if (!transaction) {
-        transaction = AttachTransaction(context, true);
-    } else {
-        context->UnpinTransaction(Options.TransactionId);
-    }
-
+    auto transaction = AttachTransaction(context, true);
     WaitFor(transaction->Commit(Options))
         .ThrowOnError();
 }
@@ -84,13 +70,7 @@ void TCommitTransactionCommand::Execute(ICommandContextPtr context)
 
 void TAbortTransactionCommand::Execute(ICommandContextPtr context)
 {
-    auto transaction = context->FindAndTouchTransaction(Options.TransactionId);
-    if (!transaction) {
-        transaction = AttachTransaction(context, true);
-    } else {
-        context->UnpinTransaction(Options.TransactionId);
-    }
-
+    auto transaction = AttachTransaction(context, true);
     WaitFor(transaction->Abort(Options))
         .ThrowOnError();
 }

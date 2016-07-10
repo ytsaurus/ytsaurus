@@ -36,6 +36,9 @@ struct INativeConnection
     virtual NRpc::IChannelFactoryPtr GetHeavyChannelFactory() = 0;
 
     virtual INativeClientPtr CreateNativeClient(const TClientOptions& options = TClientOptions()) = 0;
+
+    virtual ITransactionPtr RegisterStickyTransaction(ITransactionPtr transaction) = 0;
+    virtual ITransactionPtr GetStickyTransaction(const NTransactionClient::TTransactionId& transactionId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INativeConnection)

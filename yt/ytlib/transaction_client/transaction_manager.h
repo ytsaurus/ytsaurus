@@ -122,13 +122,14 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    using TImplPtr = TIntrusivePtr<TImpl>;
+    const TImplPtr Impl_;
 
     friend class TTransactionManager;
     DECLARE_NEW_FRIEND();
 
-    static TTransactionPtr Create(TIntrusivePtr<TImpl> impl);
-    explicit TTransaction(TIntrusivePtr<TImpl> impl);
+    static TTransactionPtr Create(TImplPtr impl);
+    explicit TTransaction(TImplPtr impl);
 
 };
 
@@ -171,7 +172,7 @@ public:
     TFuture<TTransactionPtr> Start(
         ETransactionType type,
         const TTransactionStartOptions& options = TTransactionStartOptions());
-    
+
     //! Attaches to an existing transaction.
     /*!
      *  If |options.AutoAbort| is True then the transaction will be aborted

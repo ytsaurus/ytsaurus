@@ -3,6 +3,7 @@
 #include "native_connection.h"
 #include "native_client.h"
 #include "native_admin.h"
+#include "transaction.h"
 #include "private.h"
 
 #include <yt/ytlib/chunk_client/client_block_cache.h>
@@ -29,6 +30,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
+#include <yt/core/concurrency/lease_manager.h>
 
 #include <yt/core/rpc/bus_channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
@@ -46,6 +48,10 @@ using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NHydra;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = ApiLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -252,6 +258,53 @@ public:
         TableMountCache_->Clear();
     }
 
+    virtual ITransactionPtr RegisterStickyTransaction(ITransactionPtr transaction) override
+    {
+        const auto& transactionId = transaction->GetId();
+        TStickyTransactionEntry entry{
+            transaction,
+            TLeaseManager::CreateLease(
+                transaction->GetTimeout(),
+                BIND(&TNativeConnection::OnStickyTransactionLeaseExpired, MakeWeak(this), transactionId))
+        };
+
+        {
+            TWriterGuard guard(StickyTransactionLock_);
+            YCHECK(IdToStickyTransactionEntry_.emplace(transactionId, entry).second);
+        }
+
+        transaction->SubscribeCommitted(BIND(&TNativeConnection::OnStickyTransactionFinished, MakeWeak(this), transactionId));
+        transaction->SubscribeAborted(BIND(&TNativeConnection::OnStickyTransactionFinished, MakeWeak(this), transactionId));
+
+        LOG_DEBUG("Sticky transaction registered (TransactionId: %v)",
+            transactionId);
+
+        return transaction;
+    }
+
+    virtual ITransactionPtr GetStickyTransaction(const TTransactionId& transactionId) override
+    {
+        ITransactionPtr transaction;
+        TLease lease;
+        {
+            TReaderGuard guard(StickyTransactionLock_);
+            auto it = IdToStickyTransactionEntry_.find(transactionId);
+            if (it == IdToStickyTransactionEntry_.end()) {
+                THROW_ERROR_EXCEPTION(
+                    NTransactionClient::EErrorCode::NoSuchTransaction,
+                    "Sticky transaction %v is not found",
+                    transactionId);
+            }
+            const auto& entry = it->second;
+            transaction = entry.Transaction;
+            lease = entry.Lease;
+        }
+        TLeaseManager::RenewLease(lease);
+        LOG_DEBUG("Sticky transaction lease renewed (TransactionId: %v)",
+            transactionId);
+        return transaction;
+    }
+
 private:
     const TNativeConnectionConfigPtr Config_;
     const TNativeConnectionOptions Options_;
@@ -272,6 +325,15 @@ private:
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     TThreadPoolPtr LightPool_;
     TThreadPoolPtr HeavyPool_;
+
+    struct TStickyTransactionEntry
+    {
+        ITransactionPtr Transaction;
+        TLease Lease;
+    };
+
+    TReaderWriterSpinLock StickyTransactionLock_;
+    yhash_map<TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
 
     IChannelPtr CreatePeerChannel(TMasterConnectionConfigPtr config, EPeerKind kind)
     {
@@ -294,6 +356,45 @@ private:
         channel = CreateDefaultTimeoutChannel(channel, config->RpcTimeout);
 
         return channel;
+    }
+
+
+    void OnStickyTransactionLeaseExpired(const TTransactionId& transactionId)
+    {
+        ITransactionPtr transaction;
+        {
+            TWriterGuard guard(StickyTransactionLock_);
+            auto it = IdToStickyTransactionEntry_.find(transactionId);
+            if (it == IdToStickyTransactionEntry_.end()) {
+                return;
+            }
+            transaction = it->second.Transaction;
+            IdToStickyTransactionEntry_.erase(it);
+        }
+
+        LOG_DEBUG("Sticky transaction lease expired (TransactionId: %v)",
+            transactionId);
+
+        transaction->Abort();
+    }
+
+    void OnStickyTransactionFinished(const TTransactionId& transactionId)
+    {
+        TLease lease;
+        {
+            TWriterGuard guard(StickyTransactionLock_);
+            auto it = IdToStickyTransactionEntry_.find(transactionId);
+            if (it == IdToStickyTransactionEntry_.end()) {
+                return;
+            }
+            lease = it->second.Lease;
+            IdToStickyTransactionEntry_.erase(it);
+        }
+
+        LOG_DEBUG("Sticky transaction unregistered (TransactionId: %v)",
+            transactionId);
+
+        TLeaseManager::CloseLease(lease);
     }
 };
 
