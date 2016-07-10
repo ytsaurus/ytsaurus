@@ -8,6 +8,8 @@
 
 #include <yt/core/misc/singleton.h>
 
+#include <yt/core/misc/finally.h>
+
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/scoped_timer.h>
 
@@ -17,6 +19,7 @@
     #include <ws2ipdef.h>
     #include <winsock2.h>
 #else
+    #include <ifaddrs.h>
     #include <netdb.h>
     #include <netinet/in.h>
     #include <arpa/inet.h>
@@ -311,6 +314,36 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
     return result;
 }
 
+bool operator == (const TNetworkAddress& lhs, const TNetworkAddress& rhs)
+{
+    auto lhsAddr = lhs.GetSockAddr();
+    auto rhsAddr = rhs.GetSockAddr();
+    if (lhsAddr->sa_family != rhsAddr->sa_family) {
+        return false;
+    }
+
+    switch (lhsAddr->sa_family) {
+        case AF_INET:
+            return reinterpret_cast<const sockaddr_in*>(lhsAddr)->sin_addr.s_addr !=
+                reinterpret_cast<const sockaddr_in*>(rhsAddr)->sin_addr.s_addr;
+        case AF_INET6: {
+            const auto& lhsAddrIn6 = reinterpret_cast<const sockaddr_in6*>(lhsAddr)->sin6_addr;
+            const auto& rhsAddrIn6 = reinterpret_cast<const sockaddr_in6*>(rhsAddr)->sin6_addr;
+            return memcmp(
+                reinterpret_cast<const char*>(&lhsAddrIn6),
+                reinterpret_cast<const char*>(&rhsAddrIn6),
+                sizeof(lhsAddrIn6)) == 0;
+        }
+        default:
+            YUNREACHABLE();
+    }
+}
+
+bool operator != (const TNetworkAddress& lhs, const TNetworkAddress& rhs)
+{
+    return !(lhs == rhs);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Performs asynchronous host name resolution.
@@ -325,6 +358,8 @@ public:
     Stroka GetLocalHostName();
     bool IsLocalHostNameOK();
 
+    bool IsLocalServiceAddress(const Stroka& address);
+
     void PurgeCache();
 
     void Configure(TAddressResolverConfigPtr config);
@@ -334,6 +369,7 @@ private:
 
     TSpinLock CacheLock_;
     yhash_map<Stroka, TNetworkAddress> Cache_;
+    std::vector<TNetworkAddress> CachedLocalAddresses_;
 
     TActionQueuePtr Queue_ = New<TActionQueue>("AddressResolver");
     NConcurrency::TPeriodicExecutorPtr LocalHostChecker_;
@@ -347,6 +383,8 @@ private:
     Stroka DoGetLocalHostName();
 
     void CheckLocalHostResolution();
+
+    const std::vector<TNetworkAddress>& GetLocalAddresses();
 };
 
 void TAddressResolver::TImpl::Shutdown()
@@ -518,6 +556,50 @@ bool TAddressResolver::TImpl::IsLocalHostNameOK()
     return !GetLocalHostNameFailed_;
 }
 
+bool TAddressResolver::TImpl::IsLocalServiceAddress(const Stroka& address)
+{
+    auto localAddresses = GetLocalAddresses();
+    return std::find(localAddresses.begin(), localAddresses.end(), DoResolve(address)) != localAddresses.end();
+}
+
+const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
+{
+    {
+        TGuard<TSpinLock> guard(CacheLock_);
+        if (!CachedLocalAddresses_.empty()) {
+            return CachedLocalAddresses_;
+        }
+    }
+
+    struct ifaddrs* ifAddresses;
+    if (getifaddrs(&ifAddresses) == -1) {
+         THROW_ERROR_EXCEPTION("getifaddrs failed")
+             << TError::FromSystem();
+    }
+
+    auto guard = Finally([&] () {
+        freeifaddrs(ifAddresses);
+    });
+
+    std::vector<TNetworkAddress> localAddresses;
+    for (const auto* currentAddress = ifAddresses;
+        currentAddress;
+        currentAddress = currentAddress->ifa_next)
+    {
+        auto family = currentAddress->ifa_addr->sa_family;
+        if (family != AF_INET && family != AF_INET6) {
+            continue;
+        }
+        localAddresses.push_back(TNetworkAddress(*currentAddress->ifa_addr));
+    }
+
+    {
+        TGuard<TSpinLock> guard(CacheLock_);
+        CachedLocalAddresses_ = std::move(localAddresses);
+        return CachedLocalAddresses_;
+    }
+}
+
 Stroka TAddressResolver::TImpl::DoGetLocalHostName()
 {
     char hostName[1024];
@@ -638,6 +720,11 @@ Stroka TAddressResolver::GetLocalHostName()
 bool TAddressResolver::IsLocalHostNameOK()
 {
     return Impl_->IsLocalHostNameOK();
+}
+
+bool TAddressResolver::IsLocalServiceAddress(const Stroka& address)
+{
+    return Impl_->IsLocalServiceAddress(address);
 }
 
 void TAddressResolver::PurgeCache()
