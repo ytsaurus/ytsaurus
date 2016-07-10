@@ -61,19 +61,19 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
     std::vector<ISortedStorePtr> stores;
 
     // Pick stores which intersect [lowerBound, upperBound) (excluding upperBound).
-    auto takePartition = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-        for (const auto& store : partitionSnapshot->Stores) {
+    auto takePartition = [&] (const std::vector<ISortedStorePtr>& candidateStores) {
+        for (const auto& store : candidateStores) {
             if (store->GetMinKey() < upperBound && store->GetMaxKey() >= lowerBound) {
                 stores.push_back(store);
             }
         }
     };
 
-    takePartition(tabletSnapshot->Eden);
+    takePartition(tabletSnapshot->GetEdenStores());
 
     auto range = tabletSnapshot->GetIntersectingPartitions(lowerBound, upperBound);
     for (auto it = range.first; it != range.second; ++it) {
-        takePartition(*it);
+        takePartition((*it)->Stores);
     }
 
     LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, "
@@ -188,16 +188,16 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
     }
 
     std::vector<ISchemafulReaderPtr> readers;
-    if (lowerRowIndex < upperRowIndex && !tabletSnapshot->StoreList.empty()) {
+    if (lowerRowIndex < upperRowIndex && !tabletSnapshot->OrderedStores.empty()) {
         auto lowerIt = std::upper_bound(
-            tabletSnapshot->StoreList.begin(),
-            tabletSnapshot->StoreList.end(),
+            tabletSnapshot->OrderedStores.begin(),
+            tabletSnapshot->OrderedStores.end(),
             lowerRowIndex,
             [] (i64 lhs, const IOrderedStorePtr& rhs) {
                 return lhs < rhs->GetStartingRowIndex();
             }) - 1;
         auto it = lowerIt;
-        while (it != tabletSnapshot->StoreList.end()) {
+        while (it != tabletSnapshot->OrderedStores.end()) {
             const auto& store = *it;
             if (store->GetStartingRowIndex() >= upperRowIndex) {
                 break;
@@ -263,17 +263,16 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
     std::vector<ISortedStorePtr> stores;
 
     // Pick stores which intersect [minKey, maxKey] (including maxKey).
-    auto takePartition = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-        Y_ASSERT(partitionSnapshot);
-        for (const auto& store : partitionSnapshot->Stores) {
+    auto takeStores = [&] (const std::vector<ISortedStorePtr>& candidateStores) {
+        for (const auto& store : candidateStores) {
             if (store->GetMinKey() <= maxKey && store->GetMaxKey() >= minKey) {
                 stores.push_back(store);
             }
         }
     };
 
-    takePartition(tabletSnapshot->Eden);
-    takePartition(paritionSnapshot);
+    takeStores(tabletSnapshot->GetEdenStores());
+    takeStores(paritionSnapshot->Stores);
 
     LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, WorkloadDescriptor: %v, "
         "StoreIds: %v, StoreRanges: %v)",
