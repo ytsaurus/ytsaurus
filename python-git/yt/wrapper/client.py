@@ -38,8 +38,14 @@ def create_class_method(func):
 
     arg_spec = inspect.getargspec(func)
     arg_names = arg_spec.args
+
     if "client" in arg_names:
-        arg_names.pop(arg_names.index("client"))
+        client_index = arg_names.index("client")
+        assert client_index == len(arg_names) - 1, \
+                'By convention "client" argument should be last in function signature. ' \
+                'Function "{0}" should be fixed.'.format(func.__name__)
+        arg_names.pop(client_index)
+
     if is_class:
         arg_names.pop(0)
     evaldict = globals().copy()
