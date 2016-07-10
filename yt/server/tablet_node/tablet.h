@@ -57,7 +57,9 @@ struct TTabletSnapshot
     using TPartitionListIterator = TPartitionList::iterator;
     TPartitionList PartitionList;
 
-    std::vector<IOrderedStorePtr> StoreList;
+    std::vector<IOrderedStorePtr> OrderedStores;
+
+    std::vector<TWeakPtr<ISortedStore>> LockedStores;
 
     int StoreCount = 0;
     int PreloadPendingStoreCount = 0;
@@ -78,6 +80,10 @@ struct TTabletSnapshot
     //! Returns a partition possibly containing a given #key or
     //! |nullptr| is there's none.
     TPartitionSnapshotPtr FindContainingPartition(TKey key);
+
+    //! For sorted tablets only.
+    //! This includes both regular and locked Eden stores.
+    std::vector<ISortedStorePtr> GetEdenStores();
 
     void ValiateMountRevision(i64 mountRevision);
 };
