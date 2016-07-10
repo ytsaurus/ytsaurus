@@ -2842,10 +2842,9 @@ public:
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
         , CommitInvoker_(CreateSerializedInvoker(Client_->GetConnection()->GetHeavyInvoker()))
-        , Logger(Client_->Logger)
-    {
-        Logger.AddTag("TransactionId: %v", GetId());
-    }
+        , Logger(NLogging::TLogger(Client_->Logger)
+            .AddTag("TransactionId: %v", GetId()))
+    { }
 
 
     virtual IConnectionPtr GetConnection() override
@@ -3114,24 +3113,19 @@ public:
 #undef DELEGATE_TRANSACTIONAL_METHOD
 #undef DELEGATE_TIMESTAMPED_METHOD
 
-    TRowBufferPtr GetRowBuffer() const
-    {
-        return RowBuffer_;
-    }
-
 private:
     const TNativeClientPtr Client_;
     const NTransactionClient::TTransactionPtr Transaction_;
     const IInvokerPtr CommitInvoker_;
+    const NLogging::TLogger Logger;
 
     struct TTransactionBufferTag
     { };
 
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TTransactionBufferTag());
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TTransactionBufferTag());
 
     TFuture<void> Outcome_;
 
-    NLogging::TLogger Logger;
 
 
     class TRequestBase
@@ -3203,7 +3197,7 @@ private:
             const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_, ETableSchemaKind::Primary);
             const auto& writeSchema = TableInfo_->Schemas[ETableSchemaKind::Write];
             const auto& writeIdMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_, ETableSchemaKind::Write);
-            const auto& rowBuffer = Transaction_->GetRowBuffer();
+            const auto& rowBuffer = Transaction_->RowBuffer_;
             auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
             auto evaluator = TableInfo_->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
             auto randomTabletInfo = TableInfo_->GetRandomMountedTablet();
@@ -3722,8 +3716,12 @@ TFuture<ITransactionPtr> TNativeClient::StartTransaction(
     const TTransactionStartOptions& options)
 {
     return TransactionManager_->Start(type, options).Apply(
-        BIND([=, this_ = MakeStrong(this)] (NTransactionClient::TTransactionPtr transaction) -> ITransactionPtr {
-            return New<TTransaction>(this_, transaction);
+        BIND([=, this_ = MakeStrong(this)] (NTransactionClient::TTransactionPtr nativeTranasction) -> ITransactionPtr {
+            auto transaction = New<TTransaction>(this_, nativeTranasction);
+            if (options.Sticky) {
+                Connection_->RegisterStickyTransaction(transaction);
+            }
+            return transaction;
         }));
 }
 
@@ -3731,8 +3729,12 @@ ITransactionPtr TNativeClient::AttachTransaction(
     const TTransactionId& transactionId,
     const TTransactionAttachOptions& options)
 {
-    auto transaction = TransactionManager_->Attach(transactionId, options);
-    return New<TTransaction>(this, transaction);
+    if (options.Sticky) {
+        return Connection_->GetStickyTransaction(transactionId);
+    } else {
+        auto nativeTransaction = TransactionManager_->Attach(transactionId, options);
+        return New<TTransaction>(this, std::move(nativeTransaction));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

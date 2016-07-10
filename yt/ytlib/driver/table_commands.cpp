@@ -207,14 +207,7 @@ void TAlterTableCommand::Execute(ICommandContextPtr context)
 
 void TSelectRowsCommand::Execute(ICommandContextPtr context)
 {
-    TIntrusivePtr<IClientBase> clientBase = context->GetClient();
-    {
-        auto stickyTransaction = context->FindAndTouchTransaction(TransactionId);
-        if (stickyTransaction) {
-            clientBase = std::move(stickyTransaction);
-        }
-    }
-
+    auto clientBase = GetClientBase(context);
     auto asyncResult = clientBase->SelectRows(Query, Options);
 
     IRowsetPtr rowset;
@@ -300,13 +293,7 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
         mutableRowRange.GetHolder());
 
     // Run writes.
-    auto transaction = context->FindAndTouchTransaction(TransactionId);
-    bool shouldCommit = false;
-    if (!transaction) {
-        transaction = WaitFor(context->GetClient()->StartTransaction(ETransactionType::Tablet, Options))
-            .ValueOrThrow();
-        shouldCommit = true;
-    }
+    auto transaction = GetTransaction(context);
 
     transaction->WriteRows(
         Path.GetPath(),
@@ -314,7 +301,7 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
         std::move(rowRange),
         writeOptions);
 
-    if (shouldCommit) {
+    if (ShouldCommitTransaction()) {
         WaitFor(transaction->Commit())
             .ThrowOnError();
     }
@@ -362,14 +349,7 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
         mutableKeyRange.GetHolder());
 
     // Run lookup.
-    TIntrusivePtr<IClientBase> clientBase = context->GetClient();
-    {
-        auto stickyTransaction = context->FindAndTouchTransaction(TransactionId);
-        if (stickyTransaction) {
-            clientBase = std::move(stickyTransaction);
-        }
-    }
-
+    auto clientBase = GetClientBase(context);
     auto asyncRowset = clientBase->LookupRows(
         Path.GetPath(),
         valueConsumer.GetNameTable(),
@@ -418,20 +398,14 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
         mutableKeyRange.GetHolder());
 
     // Run deletes.
-    auto transaction = context->FindAndTouchTransaction(TransactionId);
-    bool shouldCommit = false;
-    if (!transaction) {
-        transaction = WaitFor(context->GetClient()->StartTransaction(ETransactionType::Tablet, Options))
-            .ValueOrThrow();
-        shouldCommit = true;
-    }
+    auto transaction = GetTransaction(context);
 
     transaction->DeleteRows(
         Path.GetPath(),
         valueConsumer.GetNameTable(),
         std::move(keyRange));
 
-    if (shouldCommit) {
+    if (ShouldCommitTransaction()) {
         WaitFor(transaction->Commit())
             .ThrowOnError();
     }

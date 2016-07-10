@@ -12,7 +12,6 @@ class TStartTransactionCommand
 {
 private:
     NTransactionClient::ETransactionType Type;
-    bool Sticky;
     NYTree::INodePtr Attributes;
 
 public:
@@ -20,12 +19,12 @@ public:
     {
         RegisterParameter("type", Type)
             .Default(NTransactionClient::ETransactionType::Master);
-        RegisterParameter("sticky", Sticky)
+        RegisterParameter("attributes", Attributes)
+            .Default(nullptr);
+        RegisterParameter("sticky", Options.Sticky)
             .Default(false);
         RegisterParameter("timeout", Options.Timeout)
             .Optional();
-        RegisterParameter("attributes", Attributes)
-            .Default(nullptr);
         RegisterParameter("transaction_id", Options.ParentId)
             .Optional();
         RegisterParameter("ping_ancestor_transactions", Options.PingAncestors)

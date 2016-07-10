@@ -35,10 +35,6 @@ struct ICommandContext
 
     virtual void ProduceOutputValue(const NYson::TYsonString& yson) = 0;
     virtual NYson::TYsonString ConsumeInputValue() = 0;
-
-    virtual void PinTransaction(NApi::ITransactionPtr transaction) = 0;
-    virtual bool UnpinTransaction(const NTransactionClient::TTransactionId& transactionId) = 0;
-    virtual NApi::ITransactionPtr FindAndTouchTransaction(const NTransactionClient::TTransactionId& transactionId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICommandContext)
@@ -82,6 +78,8 @@ protected:
             .Optional();
         this->RegisterParameter("ping_ancestor_transactions", this->Options.PingAncestors)
             .Optional();
+        this->RegisterParameter("sticky", this->Options.Sticky)
+            .Optional();
     }
 
     NApi::ITransactionPtr AttachTransaction(
@@ -99,9 +97,9 @@ protected:
         NApi::TTransactionAttachOptions options;
         options.Ping = !required;
         options.PingAncestors = this->Options.PingAncestors;
+        options.Sticky = this->Options.Sticky;
         return context->GetClient()->AttachTransaction(transactionId, options);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -239,10 +237,102 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTabletReadOptions
+{
+    NTransactionClient::TTransactionId TransactionId;
+};
+
+template <class TOptions, class = void>
+class TTabletReadCommandBase
+{ };
+
+template <class TOptions>
+class TTabletReadCommandBase<
+    TOptions,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletReadOptions&>>::TType
+>
+    : public virtual TTypedCommandBase<TOptions>
+{
+protected:
+    TTabletReadCommandBase()
+    {
+        this->RegisterParameter("transaction_id", this->Options.TransactionId)
+            .Optional();
+    }
+
+    NApi::IClientBasePtr GetClientBase(ICommandContextPtr context)
+    {
+        const auto& transactionId = this->Options.TransactionId;
+        if (transactionId) {
+            NApi::TTransactionAttachOptions options;
+            options.Sticky = true;
+            return context->GetClient()->AttachTransaction(transactionId, options);
+        } else {
+            return context->GetClient();
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTabletWriteOptions
+    : public TTabletReadOptions
+{
+    NTransactionClient::EAtomicity Atomicity;
+    NTransactionClient::EDurability Durability;
+};
+
+template <class TOptions, class = void>
+class TTabletWriteCommandBase
+{ };
+
+template <class TOptions>
+class TTabletWriteCommandBase<
+    TOptions,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletWriteOptions&>>::TType
+>
+    : public virtual TTypedCommandBase<TOptions>
+{
+protected:
+    TTabletWriteCommandBase()
+    {
+        this->RegisterParameter("atomicity", this->Options.Atomicity)
+            .Default(NTransactionClient::EAtomicity::Full);
+        this->RegisterParameter("durability", this->Options.Durability)
+            .Default(NTransactionClient::EDurability::Sync);
+    }
+
+    NApi::ITransactionPtr GetTransaction(ICommandContextPtr context)
+    {
+        const auto& transactionId = this->Options.TransactionId;
+        if (transactionId) {
+            NApi::TTransactionAttachOptions options;
+            options.Sticky = true;
+            return context->GetClient()->AttachTransaction(transactionId, options);
+        } else {
+            NApi::TTransactionStartOptions options;
+            options.Atomicity = this->Options.Atomicity;
+            options.Durability = this->Options.Durability;
+            auto asyncResult = context->GetClient()->StartTransaction(NTransactionClient::ETransactionType::Tablet, options);
+            return NConcurrency::WaitFor(asyncResult)
+                .ValueOrThrow();
+        }
+    }
+
+    bool ShouldCommitTransaction()
+    {
+        return !this->Options.TransactionId;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TOptions>
 class TTypedCommand
     : public virtual TTypedCommandBase<TOptions>
     , public TTransactionalCommandBase<TOptions>
+    , public TTabletReadCommandBase<TOptions>
+    , public TTabletWriteCommandBase<TOptions>
     , public TMutatingCommandBase<TOptions>
     , public TReadOnlyMasterCommandBase<TOptions>
     , public TReadOnlyTabletCommandBase<TOptions>

@@ -135,7 +135,6 @@ public:
 
 };
 
-
 class TUnfreezeTableCommand
     : public TTabletCommandBase<NApi::TUnfreezeTableOptions>
 {
@@ -143,7 +142,6 @@ public:
     void Execute(ICommandContextPtr context);
 
 };
-
 
 class TReshardTableCommand
     : public TTabletCommandBase<NApi::TReshardTableOptions>
@@ -194,18 +192,20 @@ private:
     NYPath::TRichYPath Path;
 };
 
+struct TSelectRowsOptions
+    : public NApi::TSelectRowsOptions
+    , public TTabletReadOptions
+{ };
+
 class TSelectRowsCommand
-    : public TTypedCommand<NApi::TSelectRowsOptions>
+    : public TTypedCommand<TSelectRowsOptions>
 {
 private:
-    NTransactionClient::TTransactionId TransactionId;
     Stroka Query;
 
 public:
     TSelectRowsCommand()
     {
-        RegisterParameter("transaction_id", TransactionId)
-            .Default();
         RegisterParameter("query", Query);
         RegisterParameter("timestamp", Options.Timestamp)
             .Optional();
@@ -232,10 +232,9 @@ public:
 };
 
 class TInsertRowsCommand
-    : public TTypedCommand<NApi::TTransactionStartOptions>
+    : public TTypedCommand<TTabletWriteOptions>
 {
 private:
-    NTransactionClient::TTransactionId TransactionId;
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
     bool Update;
@@ -244,8 +243,6 @@ private:
 public:
     TInsertRowsCommand()
     {
-        RegisterParameter("transaction_id", TransactionId)
-            .Default();
         RegisterParameter("table_writer", TableWriter)
             .Default();
         RegisterParameter("path", Path);
@@ -253,21 +250,21 @@ public:
             .Default(false);
         RegisterParameter("aggregate", Aggregate)
             .Default(false);
-        RegisterParameter("atomicity", Options.Atomicity)
-            .Optional();
-        RegisterParameter("durability", Options.Durability)
-            .Optional();
     }
 
     void Execute(ICommandContextPtr context);
 
 };
 
+struct TLookupRowsOptions
+    : public NApi::TLookupRowsOptions
+    , public TTabletReadOptions
+{ };
+
 class TLookupRowsCommand
-    : public TTypedCommand<NApi::TLookupRowsOptions>
+    : public TTypedCommand<TLookupRowsOptions>
 {
 private:
-    NTransactionClient::TTransactionId TransactionId;
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
     TNullable<std::vector<Stroka>> ColumnNames;
@@ -275,15 +272,13 @@ private:
 public:
     TLookupRowsCommand()
     {
-        RegisterParameter("transaction_id", TransactionId)
-            .Default();
         RegisterParameter("table_writer", TableWriter)
             .Default();
         RegisterParameter("path", Path);
-        RegisterParameter("timestamp", Options.Timestamp)
-            .Optional();
         RegisterParameter("column_names", ColumnNames)
             .Default();
+        RegisterParameter("timestamp", Options.Timestamp)
+            .Optional();
         RegisterParameter("keep_missing_rows", Options.KeepMissingRows)
             .Optional();
     }
@@ -293,25 +288,18 @@ public:
 };
 
 class TDeleteRowsCommand
-    : public TTypedCommand<NApi::TTransactionStartOptions>
+    : public TTypedCommand<TTabletWriteOptions>
 {
 private:
-    NTransactionClient::TTransactionId TransactionId;
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
 
 public:
     TDeleteRowsCommand()
     {
-        RegisterParameter("transaction_id", TransactionId)
-            .Default();
         RegisterParameter("table_writer", TableWriter)
             .Default();
         RegisterParameter("path", Path);
-        RegisterParameter("atomicity", Options.Atomicity)
-            .Optional();
-        RegisterParameter("durability", Options.Durability)
-            .Optional();
     }
 
     void Execute(ICommandContextPtr context);

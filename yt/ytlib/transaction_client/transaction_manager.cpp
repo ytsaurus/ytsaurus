@@ -130,6 +130,7 @@ public:
 
         Type_ = type;
         AutoAbort_ = options.AutoAbort;
+        Sticky_ = options.Sticky;
         PingPeriod_ = options.PingPeriod;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
@@ -159,6 +160,7 @@ public:
         Type_ = ETransactionType::Master;
         Id_ = id;
         AutoAbort_ = options.AutoAbort;
+        YCHECK(!options.Sticky);
         PingPeriod_ = options.PingPeriod;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
@@ -286,6 +288,10 @@ public:
         if (Type_ != ETransactionType::Master) {
             THROW_ERROR_EXCEPTION("Cannot detach a %Qlv transaction",
                 Type_);
+        }
+
+        if (Sticky_) {
+            THROW_ERROR_EXCEPTION("Cannot detach a sticky transaction");
         }
 
         YCHECK(Atomicity_ == EAtomicity::Full);
@@ -422,6 +428,7 @@ private:
     TIntrusivePtr<TTransactionManager::TImpl> Owner_;
     ETransactionType Type_;
     bool AutoAbort_ = false;
+    bool Sticky_ = false;
     TNullable<TDuration> PingPeriod_;
     bool Ping_ = false;
     bool PingAncestors_ = false;
@@ -484,14 +491,19 @@ private:
                 EDurability::Sync,
                 EAtomicity::Full);
         }
+        if (options.Sticky && options.Atomicity != EAtomicity::Full) {
+            THROW_ERROR_EXCEPTION("Atomicity must be %Qlv for sticky transactions",
+                EAtomicity::Full);
+        }
     }
 
     static void ValidateAttachOptions(
         const TTransactionId& id,
-        const TTransactionAttachOptions& /*options*/)
+        const TTransactionAttachOptions& options)
     {
         ValidateMasterTransactionId(id);
-        // No option checks for now.
+        // NB: Sticky transactions are handled in TNativeClient.
+        YCHECK(!options.Sticky);
     }
 
 
@@ -899,16 +911,15 @@ void TTransactionManager::TImpl::AbortAll()
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransaction::TTransaction(TIntrusivePtr<TImpl> impl)
-    : Impl_(impl)
+    : Impl_(std::move(impl))
 { }
 
 TTransactionPtr TTransaction::Create(TIntrusivePtr<TImpl> impl)
 {
-    return New<TTransaction>(impl);
+    return New<TTransaction>(std::move(impl));
 }
 
-TTransaction::~TTransaction()
-{ }
+TTransaction::~TTransaction() = default;
 
 TFuture<void> TTransaction::Commit(const TTransactionCommitOptions& options)
 {

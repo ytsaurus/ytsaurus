@@ -71,6 +71,7 @@ struct TTransactionalOptions
     NObjectClient::TTransactionId TransactionId;
     bool Ping = false;
     bool PingAncestors = false;
+    bool Sticky = false;
 };
 
 struct TSuppressableAccessTrackingOptions
@@ -181,6 +182,7 @@ struct TTransactionStartOptions
     TNullable<TDuration> Timeout;
     NTransactionClient::TTransactionId ParentId;
     bool AutoAbort = true;
+    bool Sticky = false;
     TNullable<TDuration> PingPeriod;
     // XXX(lukyan): What about these defaults?
     bool Ping = true;
@@ -193,6 +195,7 @@ struct TTransactionStartOptions
 struct TTransactionAttachOptions
 {
     bool AutoAbort = false;
+    bool Sticky = false;
     TNullable<TDuration> PingPeriod;
     bool Ping = true;
     bool PingAncestors = false;
