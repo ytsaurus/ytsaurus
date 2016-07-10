@@ -1051,7 +1051,7 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(TTransaction* transaction, TSo
             for (int index = 0; index < ColumnLockCount_; ++index, ++lock, ++migratedLock) {
                 if (lock->Transaction == transaction) {
                     // Validate the original lock's sanity.
-                    // NB: For simple transaction transacton may not go through preparation stage
+                    // NB: For simple commit, transaction may not go through preparation stage
                     // during recovery.
                     Y_ASSERT(
                         transaction->GetPrepareTimestamp() == NullTimestamp ||
