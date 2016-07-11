@@ -96,7 +96,7 @@ def get_filter_factors(op, attributes):
         attributes.get("authenticated_user", ""),
         attributes.get("state", ""),
         attributes.get("operation_type", ""),
-        attributes.get("pool", ""),
+        brief_spec.get("pool", ""),
         brief_spec.get("title", ""),
         str(brief_spec.get('input_table_paths', [''])[0]),
         str(brief_spec.get('input_table_paths', [''])[0])
