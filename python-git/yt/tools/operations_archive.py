@@ -1,7 +1,7 @@
 import yt.yson as yson
 import yt.wrapper as yt
 
-import time
+import calendar
 import datetime
 from yt.tools.dynamic_tables import get_dynamic_table_attributes
 
@@ -55,5 +55,5 @@ def create_ordered_by_start_time_table(path, force=False):
 
 def datestr_to_timestamp(time_str):
     dt = datetime.datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ")
-    return int(time.mktime(dt.timetuple()) * 1000000 + dt.microsecond)
+    return int(calendar.timegm(dt.timetuple()) * 1000000 + dt.microsecond)
 
