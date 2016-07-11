@@ -704,7 +704,7 @@ class ConfigsProvider_18_5(ConfigsProvider_18_4):
 
 class ConfigsProvider_18_6(ConfigsProvider_18):
     def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator):
-        configs = super(ConfigsProvider_18_5, self)._build_node_configs(
+        configs = super(ConfigsProvider_18_6, self)._build_node_configs(
                 provision, node_dirs, master_connection_configs, ports_generator)
 
         current_user = 10000
