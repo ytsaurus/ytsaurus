@@ -1185,6 +1185,27 @@ TEST_F(TVersionedRowMergerTest, ResettedAggregate2)
         merger->BuildMergedRow());
 }
 
+TEST_F(TVersionedRowMergerTest, ExpiredAggregate)
+{
+    auto config = New<TRetentionConfig>();
+    config->MinDataVersions = 0;
+    config->MinDataTtl = TDuration(0);
+    config->MaxDataTtl = TDuration(100);
+
+    auto merger = GetTypicalMerger(
+        config,
+        SecondsToTimestamp(300),
+        SecondsToTimestamp(0),
+        GetAggregateSumSchema());
+
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100;aggregate=true> 1"));
+
+    EXPECT_EQ(
+        TVersionedRow(),
+        merger->BuildMergedRow());
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class TMockVersionedReader

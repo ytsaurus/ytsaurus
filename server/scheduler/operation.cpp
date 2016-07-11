@@ -12,6 +12,7 @@ using namespace NApi;
 using namespace NJobTrackerClient;
 using namespace NRpc;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -102,6 +103,14 @@ bool TOperation::HasControllerProgress() const
 TCodicilGuard TOperation::MakeCodicilGuard()
 {
     return TCodicilGuard(CodicilData_);
+}
+
+TFuture<TYsonString> TOperation::MakeInputPathsYson(const TJobPtr& job) const
+{
+    if (Controller_) {
+        return Controller_->BuildInputPathYson(job->GetId());
+    }
+    return MakeFuture<TYsonString>(TError("No controller for operation"));
 }
 
 ////////////////////////////////////////////////////////////////////

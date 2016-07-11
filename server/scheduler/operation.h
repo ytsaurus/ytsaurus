@@ -138,6 +138,10 @@ public:
     //! Returns the codicil guard holding the operation id.
     TCodicilGuard MakeCodicilGuard();
 
+    //! Start building YSON representaion of all input paths with all ranges processed
+    //! for specified job.
+    TFuture<NYson::TYsonString> MakeInputPathsYson(const TJobPtr& job) const;
+
     TOperation(
         const TOperationId& operationId,
         EOperationType type,

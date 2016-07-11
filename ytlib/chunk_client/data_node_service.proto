@@ -6,7 +6,6 @@ import "yt/ytlib/misc/workload.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_info.proto";
-import "yt/ytlib/chunk_client/chunk_spec.proto";
 import "yt/ytlib/chunk_client/chunk_slice.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -232,7 +231,8 @@ message TRspGetTableSamples
 // Scheduler calls this method to perform sorted merge and join merge.
 message TReqGetChunkSlices
 {
-    repeated NChunkClient.NProto.TChunkSpec chunk_specs = 1;
+    // Only chunk_id, lower_limit and upper_limit are used
+    repeated TSliceRequest slice_requests = 1;
     repeated string key_columns = 2;
     required int64 slice_data_size = 3;
     // If false, chunks are sliced by row indexes and
@@ -249,7 +249,7 @@ message TRspGetChunkSlices
     {
         optional NYT.NProto.TError error = 1;
         // Deprecated = 2;
-        repeated NChunkClient.NProto.TChunkSlice chunk_slices = 3;
+        repeated TChunkSlice chunk_slices = 3;
     }
 
     repeated TChunkSlices slices = 1;

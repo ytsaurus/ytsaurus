@@ -18,7 +18,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TCallback<TFuture<void>(yhash_set<TRefCountedChunkSpecPtr> chunkSpecs)> TScrapeChunksCallback;
+typedef TCallback<TFuture<void>(yhash_set<TInputChunkPtr> chunkSpecs)> TScrapeChunksCallback;
 
 TScrapeChunksCallback CreateScrapeChunksSessionCallback(
     const TChunkScraperConfigPtr config,
@@ -42,7 +42,7 @@ public:
         NApi::IClientPtr client, // TODO(sandello): This is redundant; IConnection is sufficient.
         const NLogging::TLogger& logger);
 
-    virtual void AddChunk(TRefCountedChunkSpecPtr chunk);
+    virtual void AddChunk(TInputChunkPtr chunk);
     virtual TFuture<void> Fetch();
 
 protected:
@@ -51,7 +51,7 @@ protected:
     const IInvokerPtr Invoker_;
 
     //! All chunks for which info is to be fetched.
-    std::vector<TRefCountedChunkSpecPtr> Chunks_;
+    std::vector<TInputChunkPtr> Chunks_;
     TScrapeChunksCallback ScraperCallback_;
     NLogging::TLogger Logger;
 

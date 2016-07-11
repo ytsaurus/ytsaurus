@@ -51,7 +51,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_manager.proto
-  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_traversing.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_traverser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/expiration_tracker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/lock.cpp
@@ -404,9 +404,11 @@ set_target_properties(ytserver
   LINK_FLAGS "-static-libstdc++"
 )
 
-add_gdb_index(
-  ytserver
-)
+if(YT_BUILD_ENABLE_GDB_INDEX AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    add_gdb_index(
+      ytserver
+    )
+endif()
 
 install(
   TARGETS ytserver

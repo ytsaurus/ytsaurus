@@ -18,17 +18,23 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
+yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildMap(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
+    Y_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
+
     auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
 
     yhash_map<Stroka, TCypressNodeBase*> result;
     for (const auto* node : originators) {
         const auto* mapNode = static_cast<const TMapNode*>(node);
-        for (const auto& pair : mapNode->KeyToChild()) {
+        const auto& keyToChild = mapNode->KeyToChild();
+        if (mapNode == trunkNode) {
+            result.resize(keyToChild.size());
+        }
+        for (const auto& pair : keyToChild) {
             if (!pair.second) {
                 // NB: key may be absent.
                 result.erase(pair.first);
@@ -41,6 +47,32 @@ yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
     return result;
 }
 
+std::vector<TCypressNodeBase*> GetMapNodeChildList(
+    const TCypressManagerPtr& cypressManager,
+    TCypressNodeBase* trunkNode,
+    TTransaction* transaction)
+{
+    Y_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
+
+    if (transaction) {
+        return GetValues(GetMapNodeChildMap(cypressManager, trunkNode, transaction));
+    } else {
+        const auto* mapNode = static_cast<const TMapNode*>(trunkNode);
+        return GetValues(mapNode->KeyToChild());
+    }
+}
+
+const std::vector<TCypressNodeBase*>& GetListNodeChildList(
+    const TCypressManagerPtr& cypressManager,
+    TCypressNodeBase* trunkNode,
+    NTransactionServer::TTransaction* transaction)
+{
+    Y_ASSERT(trunkNode->GetNodeType() == ENodeType::List);
+
+    auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
+    auto* listNode = static_cast<TListNode*>(node);
+    return listNode->IndexToChild();
+}
 
 std::vector<std::pair<Stroka, TCypressNodeBase*>> SortKeyToChild(
     const yhash_map<Stroka, TCypressNodeBase*>& keyToChildMap)

@@ -186,7 +186,7 @@ class TNameTableWriter;
 DECLARE_REFCOUNTED_CLASS(TRowBuffer)
 
 DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)
-DECLARE_REFCOUNTED_CLASS(TChunkSlicesFetcher)
+DECLARE_REFCOUNTED_CLASS(TChunkSliceFetcher)
 
 DECLARE_REFCOUNTED_STRUCT(ISchemafulReader)
 DECLARE_REFCOUNTED_STRUCT(ISchemafulWriter)
@@ -240,6 +240,8 @@ DECLARE_REFCOUNTED_CLASS(TUnversionedRowMerger);
 DECLARE_REFCOUNTED_CLASS(TVersionedRowMerger);
 
 DECLARE_REFCOUNTED_CLASS(TVersionedChunkLookupHashTable);
+
+struct TBoundaryKeys;
 
 ////////////////////////////////////////////////////////////////////////////////
 

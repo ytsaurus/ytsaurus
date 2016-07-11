@@ -17,9 +17,9 @@
 namespace NYT {
 
 // Function is defined here due to ADL.
-void PrintTo(NChunkClient::TChunkSlicePtr slice, ::std::ostream* os)
+void PrintTo(const NChunkClient::TChunkSlice& slice, ::std::ostream* os)
 {
-    *os << "chunk slice with " << slice->GetRowCount() << " rows";
+    *os << "chunk slice with " << slice.GetRowCount() << " rows";
 }
 
 namespace NChunkClient {
@@ -40,12 +40,12 @@ using testing::PrintToString;
 
 MATCHER_P(HasRowCount, rowCount, "has row count " + std::string(negation ? "not " : "") + PrintToString(rowCount))
 {
-    return arg->GetRowCount() == rowCount;
+    return arg.GetRowCount() == rowCount;
 }
 
 MATCHER_P(HasLowerLimit, lowerLimit, "has lower limit " + std::string(negation ? "not " : "") + lowerLimit)
 {
-    auto actualLimitAsNode = ConvertToNode(arg->LowerLimit());
+    auto actualLimitAsNode = ConvertToNode(arg.LowerLimit());
     auto actualLimitAsText = ConvertToYsonString(actualLimitAsNode, EYsonFormat::Text).Data();
 
     auto expectedLimitAsNode = ConvertToNode(TYsonString(lowerLimit));
@@ -57,7 +57,7 @@ MATCHER_P(HasLowerLimit, lowerLimit, "has lower limit " + std::string(negation ?
 
 MATCHER_P(HasUpperLimit, upperLimit, "has upper limit " + std::string(negation ? "not " : "") + upperLimit)
 {
-    auto actualLimitAsNode = ConvertToNode(arg->UpperLimit());
+    auto actualLimitAsNode = ConvertToNode(arg.UpperLimit());
     auto actualLimitAsText = ConvertToYsonString(actualLimitAsNode, EYsonFormat::Text).Data();
 
     auto expectedLimitAsNode = ConvertToNode(TYsonString(upperLimit));
@@ -121,15 +121,15 @@ public:
     }
 
 protected:
-    TRefCountedChunkSpecPtr EmptyChunk_;
-    TRefCountedChunkSpecPtr OneKeyOldChunk_;
-    TRefCountedChunkSpecPtr OneKeyChunk_;
-    TRefCountedChunkSpecPtr TwoKeyOldChunk_;
-    TRefCountedChunkSpecPtr TwoKeyChunk_;
-    TRefCountedChunkSpecPtr OldChunkWithLimits_;
-    TRefCountedChunkSpecPtr ChunkWithLimits_;
-    TRefCountedChunkSpecPtr OldChunk2WithLimits_;
-    TRefCountedChunkSpecPtr Chunk2WithLimits_;
+    TChunkSpec EmptyChunk_;
+    TChunkSpec OneKeyOldChunk_;
+    TChunkSpec OneKeyChunk_;
+    TChunkSpec TwoKeyOldChunk_;
+    TChunkSpec TwoKeyChunk_;
+    TChunkSpec OldChunkWithLimits_;
+    TChunkSpec ChunkWithLimits_;
+    TChunkSpec OldChunk2WithLimits_;
+    TChunkSpec Chunk2WithLimits_;
 
     TGuid GenerateId(EObjectType type)
     {
@@ -154,7 +154,7 @@ protected:
         return builder.FinishRow();
     }
 
-    TRefCountedChunkSpecPtr CreateChunkSpec(
+    TChunkSpec CreateChunkSpec(
         ETableChunkFormat version,
         i64 keyRepetitions,         // the number of times that each key is repeated
         i64 chunkRows = 300,        // the number of rows in the chunk
@@ -228,14 +228,34 @@ protected:
         miscExt.set_uncompressed_data_size(chunkRows * rowBytes);
         SetProtoExtension<TMiscExt>(chunkMeta.mutable_extensions(), miscExt);
 
-        auto chunkSpec = New<TRefCountedChunkSpec>();
-        ToProto(chunkSpec->mutable_chunk_id(), GenerateChunkId());
+        TChunkSpec chunkSpec;
+        ToProto(chunkSpec.mutable_chunk_id(), GenerateChunkId());
         auto range = ConvertTo<NChunkClient::TReadRange>(TYsonString(ysonRange));
-        ToProto(chunkSpec->mutable_lower_limit(), range.LowerLimit());
-        ToProto(chunkSpec->mutable_upper_limit(), range.UpperLimit());
-        chunkSpec->mutable_chunk_meta()->Swap(&chunkMeta);
+        ToProto(chunkSpec.mutable_lower_limit(), range.LowerLimit());
+        ToProto(chunkSpec.mutable_upper_limit(), range.UpperLimit());
+        chunkSpec.mutable_chunk_meta()->Swap(&chunkMeta);
 
         return chunkSpec;
+    }
+
+    std::vector<NChunkClient::TChunkSlice> SliceChunk(
+        const TChunkSpec& chunkSpec,
+        i64 sliceDataSize,
+        int keyColumnCount,
+        bool sliceByKeys)
+    {
+        NProto::TSliceRequest sliceRequest;
+
+        sliceRequest.mutable_chunk_id()->CopyFrom(chunkSpec.chunk_id());
+        if (chunkSpec.has_lower_limit()) {
+            sliceRequest.mutable_lower_limit()->CopyFrom(chunkSpec.lower_limit());
+        }
+        if (chunkSpec.has_upper_limit()) {
+            sliceRequest.mutable_upper_limit()->CopyFrom(chunkSpec.upper_limit());
+        }
+        sliceRequest.set_erasure_codec(chunkSpec.erasure_codec());
+
+        return NChunkClient::SliceChunk(sliceRequest, chunkSpec.chunk_meta(), sliceDataSize, keyColumnCount, sliceByKeys);
     }
 };
 

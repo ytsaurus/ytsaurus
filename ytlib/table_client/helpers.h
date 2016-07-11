@@ -41,6 +41,12 @@ void PipeInputToOutput(
     TOutputStream* output,
     i64 bufferBlockSize);
 
+void PipeInputToOutput(
+    NConcurrency::IAsyncInputStreamPtr input,
+    TOutputStream* output,
+    i64 bufferBlockSize);
+
+
 //////////////////////////////////////////////////////////////////////////////////
 
 // NB: not using TYsonString here to avoid copying.

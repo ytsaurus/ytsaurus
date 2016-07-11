@@ -1682,20 +1682,20 @@ private:
                         .Item("eden").Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), tablet->GetEden()))
                         .Item("partitions").DoListFor(
                             tablet->PartitionList(), [&] (TFluentList fluent, const std::unique_ptr<TPartition>& partition) {
-                            fluent
-                                .Item()
-                                .Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
-                        });
+                                fluent
+                                    .Item()
+                                    .Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
+                            });
                 })
                 .DoIf(!tablet->IsSorted(), [&] (TFluentMap fluent) {
                     fluent
                         .Item("stores").DoMapFor(
-                        tablet->StoreIdMap(), [&] (TFluentMap fluent, const std::pair<const TStoreId, IStorePtr>& pair) {
-                            const auto& store = pair.second;
-                            fluent
-                                .Item(ToString(store->GetId()))
-                                .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
-                        });
+                            tablet->StoreIdMap(), [&] (TFluentMap fluent, const std::pair<const TStoreId, IStorePtr>& pair) {
+                                const auto& store = pair.second;
+                                fluent
+                                    .Item(ToString(store->GetId()))
+                                    .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
+                            });
                 })
             .EndMap();
     }

@@ -20,7 +20,6 @@ namespace NHydra {
 //! issues flush requests periodically.
 class TFileChangelogDispatcher
     : public TRefCounted
-    , public IShutdownable
 {
 public:
     TFileChangelogDispatcher(
@@ -29,8 +28,6 @@ public:
         const NProfiling::TProfiler& profiler);
 
     ~TFileChangelogDispatcher();
-
-    virtual void Shutdown() override;
 
     //! Returns the invoker managed by the dispatcher.
     IInvokerPtr GetInvoker();

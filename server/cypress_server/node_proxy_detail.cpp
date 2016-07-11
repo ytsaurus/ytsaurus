@@ -1,10 +1,12 @@
 #include "node_proxy_detail.h"
 #include "private.h"
-#include "cypress_traversing.h"
+#include "cypress_traverser.h"
 #include "helpers.h"
 
 #include <yt/server/cell_master/config.h>
 #include <yt/server/cell_master/multicell_manager.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
 
 #include <yt/server/security_server/account.h>
 #include <yt/server/security_server/security_manager.h>
@@ -150,27 +152,38 @@ class TNontemplateCypressNodeProxyBase::TResourceUsageVisitor
     : public ICypressNodeVisitor
 {
 public:
-    explicit TResourceUsageVisitor(NCellMaster::TBootstrap* bootstrap)
+    TResourceUsageVisitor(
+        NCellMaster::TBootstrap* bootstrap,
+        ICypressNodeProxyPtr rootNode)
         : Bootstrap_(bootstrap)
+        , RootNode_(std::move(rootNode))
     { }
 
-    TPromise<TYsonString> Run(ICypressNodeProxyPtr rootNode)
+    TPromise<TYsonString> Run()
     {
-        TraverseCypress(Bootstrap_, rootNode, this);
+        TraverseCypress(
+            Bootstrap_->GetCypressManager(),
+            Bootstrap_->GetTransactionManager(),
+            Bootstrap_->GetObjectManager(),
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::CypressTraverser),
+            RootNode_->GetTrunkNode(),
+            RootNode_->GetTransaction(),
+            this);
         return Promise_;
     }
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
+    const ICypressNodeProxyPtr RootNode_;
 
     TPromise<TYsonString> Promise_ = NewPromise<TYsonString>();
     TClusterResources ResourceUsage_;
 
 
-    virtual void OnNode(ICypressNodeProxyPtr proxy) override
+    virtual void OnNode(TCypressNodeBase* trunkNode, TTransaction* transaction) override
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
-        auto* node = cypressManager->GetVersionedNode(proxy->GetTrunkNode(), proxy->GetTransaction());
+        auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
         auto handler = cypressManager->GetHandler(node);
         ResourceUsage_ += handler->GetTotalResourceUsage(node);
     }
@@ -266,8 +279,8 @@ IAttributeDictionary* TNontemplateCypressNodeProxyBase::MutableAttributes()
 TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(const Stroka& key)
 {
     if (key == "recursive_resource_usage") {
-        auto visitor = New<TResourceUsageVisitor>(Bootstrap_);
-        return visitor->Run(this);
+        auto visitor = New<TResourceUsageVisitor>(Bootstrap_, this);
+        return visitor->Run();
     }
 
     auto asyncResult = GetExternalBuiltinAttributeAsync(key);
@@ -1131,16 +1144,17 @@ void TMapNodeProxy::Clear()
     auto* impl = LockThisTypedImpl(ELockMode::Shared);
 
     // Construct children list.
-    auto keyToChild = GetMapNodeChildren(
+    auto keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
         Transaction);
+    auto keyToChildList = SortKeyToChild(keyToChildMap);
 
     // Take shared locks for children.
     typedef std::pair<Stroka, TCypressNodeBase*> TChild;
     std::vector<TChild> children;
-    children.reserve(keyToChild.size());
-    for (const auto& pair : keyToChild) {
+    children.reserve(keyToChildList.size());
+    for (const auto& pair : keyToChildList) {
         LockThisImpl(TLockRequest::SharedChild(pair.first));
         auto* childImpl = LockImpl(pair.second);
         children.push_back(std::make_pair(pair.first, childImpl));
@@ -1171,7 +1185,7 @@ int TMapNodeProxy::GetChildCount() const
 
 std::vector<std::pair<Stroka, INodePtr>> TMapNodeProxy::GetChildren() const
 {
-    auto keyToChild = GetMapNodeChildren(
+    auto keyToChild = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
         Transaction);
@@ -1187,7 +1201,7 @@ std::vector<std::pair<Stroka, INodePtr>> TMapNodeProxy::GetChildren() const
 
 std::vector<Stroka> TMapNodeProxy::GetKeys() const
 {
-    auto keyToChild = GetMapNodeChildren(
+    auto keyToChild = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
         Transaction);

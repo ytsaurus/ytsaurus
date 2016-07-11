@@ -4,6 +4,8 @@
 #include "operation.h"
 #include "operation_controller.h"
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -13,6 +15,7 @@ namespace NScheduler {
 using namespace NNodeTrackerClient::NProto;
 using namespace NYTree;
 using namespace NYson;
+using namespace NObjectClient;
 using namespace NJobTrackerClient;
 using namespace NChunkClient::NProto;
 
@@ -57,8 +60,7 @@ TJob::TJob(
     , Node_(node)
     , StartTime_(startTime)
     , Restarted_(restarted)
-    , HasPendingUnregistration_(false)
-    , State_(EJobState::Waiting)
+    , State_(EJobState::None)
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
     , SpecBuilder_(std::move(specBuilder))
@@ -92,7 +94,7 @@ TJobSummary::TJobSummary(const TJobPtr& job)
     , StatisticsSuffix(job->GetStatisticsSuffix())
     , FinishTime(*job->GetFinishTime())
     , ShouldLog(true)
-{ 
+{
     const auto& status = job->Status();
     if (status->has_prepare_duration()) {
         PrepareDuration = FromProto<TDuration>(status->prepare_duration());
@@ -139,6 +141,15 @@ TAbortedJobSummary::TAbortedJobSummary(const TJobPtr& job)
 
 ////////////////////////////////////////////////////////////////////
 
+TRefCountedJobStatusPtr JobStatusFromError(const TError& error)
+{
+    auto status = New<TRefCountedJobStatus>();
+    ToProto(status->mutable_result()->mutable_error(), error);
+    return status;
+}
+
+////////////////////////////////////////////////////////////////////
+
 TJobStartRequest::TJobStartRequest(
     TJobId id,
     EJobType type,
@@ -157,6 +168,22 @@ TJobStartRequest::TJobStartRequest(
 void TScheduleJobResult::RecordFail(EScheduleJobFailReason reason)
 {
     ++Failed[reason];
+}
+
+////////////////////////////////////////////////////////////////////
+
+TJobId MakeJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId)
+{
+    return MakeId(
+        EObjectType::SchedulerJob,
+        tag,
+        RandomNumber<ui64>(),
+        nodeId);
+}
+
+NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId)
+{
+    return jobId.Parts32[0];
 }
 
 ////////////////////////////////////////////////////////////////////

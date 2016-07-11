@@ -4,7 +4,6 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/guid.h>
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/ref.h>
 
@@ -12,15 +11,6 @@ namespace NYT {
 namespace NShell {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using TShellId = TGuid;
-
-DEFINE_ENUM(EShellOperation,
-    ((Spawn)     (0))
-    ((Update)    (1))
-    ((Poll)      (2))
-    ((Terminate) (3))
-);
 
 struct TShellOptions
 {

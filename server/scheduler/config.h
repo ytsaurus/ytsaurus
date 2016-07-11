@@ -214,6 +214,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TOperationOptions)
+
 class TSimpleOperationOptions
     : public TOperationOptions
 {
@@ -419,8 +421,14 @@ public:
 
     TDuration OperationTimeLimitCheckPeriod;
 
+    TDuration TaskUpdatePeriod;
+
     //! Jobs running on node are logged periodically or when they change their state.
     TDuration JobsLoggingPeriod;
+
+    //! Statistics and resource usages of jobs running on a node are updated
+    //! not more often then this period.
+    TDuration RunningJobsUpdatePeriod;
 
     //! Maximum allowed running time of operation. Null value is interpreted as infinity.
     TNullable<TDuration> OperationTimeLimit;
@@ -544,6 +552,10 @@ public:
 
     bool EnableTmpfs;
 
+    double UserJobMemoryDigestPrecision;
+    double UserJobMemoryReserveQuantile;
+    double JobProxyMemoryReserveQuantile;
+
     TSchedulerConfig()
     {
         RegisterParameter("controller_thread_count", ControllerThreadCount)
@@ -576,6 +588,9 @@ public:
         RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
             .Default(TDuration::Seconds(300));
 
+        RegisterParameter("task_update_period", TaskUpdatePeriod)
+            .Default(TDuration::Seconds(3));
+
         RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
             .Default(TDuration::Seconds(1));
 
@@ -587,6 +602,9 @@ public:
 
         RegisterParameter("jobs_logging_period", JobsLoggingPeriod)
             .Default(TDuration::Seconds(30));
+
+        RegisterParameter("running_jobs_update_period", RunningJobsUpdatePeriod)
+            .Default(TDuration::Seconds(10));
 
         RegisterParameter("operation_time_limit", OperationTimeLimit)
             .Default();
@@ -728,6 +746,16 @@ public:
 
         RegisterParameter("enable_tmpfs", EnableTmpfs)
             .Default(true);
+
+        RegisterParameter("user_job_memory_digest_precision", UserJobMemoryDigestPrecision)
+            .Default(0.01)
+            .GreaterThan(0);
+        RegisterParameter("user_job_memory_reserve_quantile", UserJobMemoryReserveQuantile)
+            .InRange(0.0, 1.0)
+            .Default(0.95);
+        RegisterParameter("job_proxy_memory_reserve_quantile", JobProxyMemoryReserveQuantile)
+            .InRange(0.0, 1.0)
+            .Default(0.95);
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

@@ -42,11 +42,10 @@ private:
     struct TBucket
     {
         TInvokerQueuePtr Queue;
-        NProfiling::TCpuDuration ExcessTime;
+        NProfiling::TCpuDuration ExcessTime = 0;
     };
 
     std::vector<TBucket> Buckets_;
-    NProfiling::TCpuInstant StartInstant_;
 
     TBucket* CurrentBucket_ = nullptr;
 

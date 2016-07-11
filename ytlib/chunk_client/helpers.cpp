@@ -1,7 +1,7 @@
 #include "helpers.h"
 #include "private.h"
 #include "config.h"
-#include "chunk_slice.h"
+#include "input_slice.h"
 #include "erasure_reader.h"
 #include "replication_reader.h"
 
@@ -269,13 +269,22 @@ TError GetCumulativeError(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 GetChunkDataSize(const TChunkSpec& chunkSpec)
+{
+    auto sizeOverrideExt = FindProtoExtension<TSizeOverrideExt>(chunkSpec.chunk_meta().extensions());
+    if (sizeOverrideExt) {
+        return sizeOverrideExt->uncompressed_data_size();
+    }
+    auto miscExt = FindProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
+    return miscExt->uncompressed_data_size();
+}
+
 i64 GetChunkReaderMemoryEstimate(const TChunkSpec& chunkSpec, TMultiChunkReaderConfigPtr config)
 {
     // Misc may be cleared out by the scheduler (e.g. for partition chunks).
     auto miscExt = FindProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
     if (miscExt) {
-        i64 currentSize;
-        GetStatistics(chunkSpec, &currentSize);
+        i64 currentSize = GetChunkDataSize(chunkSpec);
 
         // Block used by upper level chunk reader.
         i64 chunkBufferSize = ChunkReaderMemorySize + miscExt->max_block_size();

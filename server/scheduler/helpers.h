@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/public.h>
@@ -19,8 +19,11 @@ namespace NScheduler {
 
 void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
 void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
-void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer);
+void BuildJobAttributes(TJobPtr job, const TNullable<NYson::TYsonString>& inputPaths, NYson::IYsonConsumer* consumer);
 void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer);
+NYson::TYsonString BuildInputPaths(
+    const std::vector<NYPath::TRichYPath>& inputPaths,
+    const TChunkStripeListPtr& inputStripeList);
 
 ////////////////////////////////////////////////////////////////////////////////
 

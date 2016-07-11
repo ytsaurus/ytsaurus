@@ -38,6 +38,7 @@ DECLARE_REFCOUNTED_CLASS(TExecNode)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyConfig)
 DECLARE_REFCOUNTED_CLASS(TEventLogConfig)
 
+DECLARE_REFCOUNTED_CLASS(TOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TSimpleOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TMapOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TUnorderedMergeOperationOptions)
@@ -56,7 +57,7 @@ DECLARE_REFCOUNTED_CLASS(TScheduler)
 
 struct IEventLogHost;
 
-struct ISchedulerStrategy;
+DECLARE_REFCOUNTED_STRUCT(ISchedulerStrategy)
 struct ISchedulerStrategyHost;
 
 struct IOperationHost;

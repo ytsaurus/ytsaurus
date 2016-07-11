@@ -63,17 +63,18 @@ bool TFileWriter::WriteBlock(const TSharedRef& block)
     YCHECK(!IsClosed_);
 
     try {
+        auto* blockInfo = BlocksExt_.add_blocks();
+        blockInfo->set_offset(DataFile_->GetPosition());
+        blockInfo->set_size(static_cast<int>(block.Size()));
+
+        auto checksum = GetChecksum(block);
+        blockInfo->set_checksum(checksum);
+
         NFS::ExpectIOErrors([&] () {
-            auto* blockInfo = BlocksExt_.add_blocks();
-            blockInfo->set_offset(DataFile_->GetPosition());
-            blockInfo->set_size(static_cast<int>(block.Size()));
-
-            auto checksum = GetChecksum(block);
-            blockInfo->set_checksum(checksum);
-
             DataFile_->Write(block.Begin(), block.Size());
-            DataSize_ += block.Size();
         });
+
+        DataSize_ += block.Size();
     } catch (const std::exception& ex) {
         Error_ = TError(
             "Failed to write chunk data file %v",

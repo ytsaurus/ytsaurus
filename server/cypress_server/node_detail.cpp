@@ -47,16 +47,6 @@ bool TNontemplateCypressNodeTypeHandlerBase::IsExternalizable() const
     return false;
 }
 
-EPermissionSet TNontemplateCypressNodeTypeHandlerBase::GetSupportedPermissions() const
-{
-    return
-        EPermissionSet::Read |
-        EPermissionSet::Write |
-        EPermissionSet::Remove |
-        EPermissionSet::Administer |
-        EPermissionSet::Mount;
-}
-
 bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader();
@@ -341,7 +331,7 @@ void TMapNodeTypeHandler::DoClone(
 
     auto cypressManager = Bootstrap_->GetCypressManager();
 
-    auto keyToChildMap = GetMapNodeChildren(
+    auto keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         sourceNode->GetTrunkNode(),
         transaction);

@@ -9,9 +9,10 @@ public: \
     const type& name() const;
 
 //! Defines a trivial public read-write property that is passed by reference.
-#define DEFINE_BYREF_RW_PROPERTY(type, name) \
+//! All arguments after name are used as default value (via braced-init-list).
+#define DEFINE_BYREF_RW_PROPERTY(type, name, ...) \
 protected: \
-    type name##_; \
+    type name##_ { __VA_ARGS__ }; \
     \
 public: \
     Y_FORCE_INLINE type& name() \
@@ -44,9 +45,10 @@ public: \
     const type& name() const;
 
 //! Defines a trivial public read-only property that is passed by reference.
-#define DEFINE_BYREF_RO_PROPERTY(type, name) \
+//! All arguments after name are used as default value (via braced-init-list).
+#define DEFINE_BYREF_RO_PROPERTY(type, name, ...) \
 protected: \
-    type name##_; \
+    type name##_ { __VA_ARGS__ }; \
     \
 public: \
     Y_FORCE_INLINE const type& name() const \
@@ -70,9 +72,10 @@ public: \
     void Set##name(type value);
 
 //! Defines a trivial public read-write property that is passed by value.
-#define DEFINE_BYVAL_RW_PROPERTY(type, name) \
+//! All arguments after name are used as default value (via braced-init-list).
+#define DEFINE_BYVAL_RW_PROPERTY(type, name, ...) \
 protected: \
-    type name##_; \
+    type name##_ { __VA_ARGS__ }; \
     \
 public: \
     Y_FORCE_INLINE type Get##name() const \
@@ -105,9 +108,10 @@ public: \
     type Get##name() const;
 
 //! Defines a trivial public read-only property that is passed by value.
-#define DEFINE_BYVAL_RO_PROPERTY(type, name) \
+//! All arguments after name are used as default value (via braced-init-list).
+#define DEFINE_BYVAL_RO_PROPERTY(type, name, ...) \
 protected: \
-    type name##_; \
+    type name##_ { __VA_ARGS__ }; \
     \
 public: \
     Y_FORCE_INLINE type Get##name() const \

@@ -24,6 +24,7 @@ public:
 
     explicit TReadLimit(const NProto::TReadLimit& readLimit);
     explicit TReadLimit(NProto::TReadLimit&& readLimit);
+    explicit TReadLimit(const std::unique_ptr<NProto::TReadLimit>& protoLimit);
 
     explicit TReadLimit(const NTableClient::TOwningKey& key);
     explicit TReadLimit(NTableClient::TOwningKey&& key);

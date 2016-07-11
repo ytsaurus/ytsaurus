@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/exec_agent/public.h>
+
 #include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
@@ -29,8 +31,7 @@ struct IJobHost
     virtual TJobProxyConfigPtr GetConfig() = 0;
     virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const = 0;
 
-    virtual const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const = 0;
-    virtual void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& usage) = 0;
+    virtual void SetUserJobMemoryUsage(i64 memoryUsage) = 0;
 
     virtual void ReleaseNetwork() = 0;
 

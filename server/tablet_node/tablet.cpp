@@ -72,6 +72,22 @@ TPartitionSnapshotPtr TTabletSnapshot::FindContainingPartition(TKey key)
     return it == PartitionList.begin() ? nullptr : *(--it);
 }
 
+std::vector<ISortedStorePtr> TTabletSnapshot::GetEdenStores()
+{
+    std::vector<ISortedStorePtr> stores;
+    stores.reserve(Eden->Stores.size() + LockedStores.size());
+    for (auto store : Eden->Stores) {
+        stores.emplace_back(std::move(store));
+    }
+    for (const auto& weakStore : LockedStores) {
+        auto store = weakStore.Lock();
+        if (store) {
+            stores.emplace_back(std::move(store));
+        }
+    }
+    return stores;
+}
+
 void TTabletSnapshot::ValiateMountRevision(i64 mountRevision)
 {
     if (MountRevision != mountRevision) {
@@ -663,12 +679,14 @@ IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
 TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
 {
     auto snapshot = New<TTabletSnapshot>();
+
     if (slot) {
         snapshot->CellId = slot->GetCellId();
         snapshot->HydraManager = slot->GetHydraManager();
         snapshot->TabletManager = slot->GetTabletManager();
     }
-	snapshot->TabletId = Id_;
+
+    snapshot->TabletId = Id_;
     snapshot->MountRevision = MountRevision_;
     snapshot->TableId = TableId_;
     snapshot->Config = Config_;
@@ -680,7 +698,9 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->Atomicity = Atomicity_;
     snapshot->HashTableSize = HashTableSize_;
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
+
     snapshot->Eden = Eden_->BuildSnapshot();
+
     snapshot->PartitionList.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {
         auto partitionSnapshot = partition->BuildSnapshot();
@@ -707,16 +727,26 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
             }
         }
     }
+
     if (IsOrdered()) {
         // TODO(babenko): optimize
-        snapshot->StoreList.reserve(StoreRowIndexMap_.size());
+        snapshot->OrderedStores.reserve(StoreRowIndexMap_.size());
         for (const auto& pair : StoreRowIndexMap_) {
-            snapshot->StoreList.push_back(pair.second);
+            snapshot->OrderedStores.push_back(pair.second);
         }
     }
+
+    if (IsSorted() && StoreManager_) {
+        auto lockedStores = StoreManager_->GetLockedStores();
+        for (const auto& store : lockedStores) {
+            snapshot->LockedStores.push_back(store->AsSorted());
+        }
+    }
+
     snapshot->RowKeyComparer = RowKeyComparer_;
     snapshot->PerformanceCounters = PerformanceCounters_;
     snapshot->ColumnEvaluator = ColumnEvaluator_;
+
     return snapshot;
 }
 

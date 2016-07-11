@@ -26,6 +26,15 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCypressNodeDynamicData
+    : public NHydra::TEntityDynamicDataBase
+{
+    int AccessStatisticsUpdateIndex = -1;
+    TNullable<TCypressNodeExpirationMap::iterator> ExpirationIterator;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Provides a common base for all versioned (aka Cypress) nodes.
 class TCypressNodeBase
     : public NObjectServer::TObjectBase
@@ -63,7 +72,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AccessTime);
 
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, ExpirationTime);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TCypressNodeExpirationMap::iterator>, ExpirationIterator);
 
     DEFINE_BYVAL_RW_PROPERTY(i64, AccessCounter);
 
@@ -73,10 +81,16 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TClusterResources, CachedResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
-    DEFINE_BYVAL_RW_PROPERTY(int, AccessStatisticsUpdateIndex);
-
     explicit TCypressNodeBase(const TVersionedNodeId& id);
     virtual ~TCypressNodeBase();
+
+    TCypressNodeDynamicData* GetDynamicData() const;
+
+    int GetAccessStatisticsUpdateIndex() const;
+    void SetAccessStatisticsUpdateIndex(int value);
+
+    TNullable<TCypressNodeExpirationMap::iterator> GetExpirationIterator() const;
+    void SetExpirationIterator(TNullable<TCypressNodeExpirationMap::iterator> value);
 
     //! Returns the static type of the node.
     /*!

@@ -363,8 +363,8 @@ void TSlot::MakeCopy(
         file.Flock(LOCK_EX);
     }
 
-    NFS::SetExecutableMode(sourcePath, isExecutable);
     NFs::Copy(sourcePath, destinationPath);
+    NFS::SetExecutableMode(destinationPath, isExecutable);
 }
 
 

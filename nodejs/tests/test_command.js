@@ -321,6 +321,7 @@ describe("YtCommand - command descriptors", function() {
             'dump_job_context',
             'erase',
             'exists',
+            'execute_batch',
             'get',
             'get_version',
             'insert_rows',

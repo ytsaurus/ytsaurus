@@ -62,6 +62,12 @@ YtStatistics.prototype.upd = function(metric, tags, value)
     }
 };
 
+YtStatistics.prototype.set = function(metric, tags, value)
+{
+    var gauge = this.getGauge(metric, tags);
+    gauge.value = value;
+};
+
 YtStatistics.prototype.dump = function()
 {
     var result = [];
@@ -90,6 +96,9 @@ YtStatistics.prototype.dump = function()
             result.push(patchName(key, ".q99") + " " + quantiles[3]);
             result.push(patchName(key, ".max") + " " + quantiles[4]);
         }
+        if (typeof(gauge.value) !== "undefined") {
+            result.push(key + " " + gauge.value.toString());
+        }
     }
     return result.join("\n");
 };
@@ -106,6 +115,9 @@ YtStatistics.prototype.mergeTo = function(other)
         }
         if (typeof(gauge.digest) !== "undefined") {
             other.upd(key, null, gauge.digest.toArray());
+        }
+        if (typeof(gauge.value) !== "undefined") {
+            other.set(key, null, gauge.value);
         }
     }
     this.gauges = {};

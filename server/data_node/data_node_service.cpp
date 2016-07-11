@@ -553,7 +553,7 @@ private:
             "KeyColumns: %v, ChunkCount: %v, "
             "SliceDataSize: %v, SliceByKeys: %v, Workload: %v",
             keyColumns,
-            request->chunk_specs_size(),
+            request->slice_requests_size(),
             request->slice_data_size(),
             request->slice_by_keys(),
             workloadDescriptor);
@@ -561,8 +561,8 @@ private:
         ValidateConnected();
 
         std::vector<TFuture<void>> asyncResults;
-        for (const auto& chunkSpec : request->chunk_specs()) {
-            auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+        for (const auto& sliceRequest : request->slice_requests()) {
+            auto chunkId = FromProto<TChunkId>(sliceRequest.chunk_id());
             auto* slices = response->add_slices();
             auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
 
@@ -581,7 +581,7 @@ private:
                 BIND(
                     &TDataNodeService::MakeChunkSlices,
                     MakeStrong(this),
-                    &chunkSpec,
+                    sliceRequest,
                     slices,
                     request->slice_data_size(),
                     request->slice_by_keys(),
@@ -593,14 +593,14 @@ private:
     }
 
     void MakeChunkSlices(
-        const NChunkClient::NProto::TChunkSpec* chunkSpec,
-        NChunkClient::NProto::TRspGetChunkSlices::TChunkSlices* result,
+        const TSliceRequest& sliceRequest,
+        TRspGetChunkSlices::TChunkSlices* result,
         i64 sliceDataSize,
         bool sliceByKeys,
         const TKeyColumns& keyColumns,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
-        auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
+        auto chunkId = FromProto<TChunkId>(sliceRequest.chunk_id());
         try {
             THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta of chunk %v",
                 chunkId);
@@ -624,10 +624,9 @@ private:
             auto chunkKeyColumns = FromProto<TKeyColumns>(keyColumnsExt);
             ValidateKeyColumns(keyColumns, chunkKeyColumns);
 
-            auto newChunkSpec = *chunkSpec;
-            *newChunkSpec.mutable_chunk_meta() = meta;
             auto slices = SliceChunk(
-                New<TRefCountedChunkSpec>(std::move(newChunkSpec)),
+                sliceRequest,
+                meta,
                 sliceDataSize,
                 keyColumns.size(),
                 sliceByKeys);

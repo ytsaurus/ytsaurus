@@ -219,20 +219,25 @@ TConstExpressionPtr MakeOrExpression(TConstExpressionPtr lhs, TConstExpressionPt
         rhs);
 }
 
+int CompareRow(TRow lhs, TRow rhs, const std::vector<size_t>& mapping)
+{
+    for (auto index : mapping) {
+        int result = CompareRowValues(lhs.Begin()[index], rhs.Begin()[index]);
+
+        if (result != 0) {
+            return result;
+        }
+    }
+    return 0;
+}
+
 void SortRows(
     std::vector<TRow>::iterator begin,
     std::vector<TRow>::iterator end,
     const std::vector<size_t>& mapping)
 {
     std::sort(begin, end, [&] (TRow lhs, TRow rhs) {
-        for (auto index : mapping) {
-            int result = CompareRowValues(lhs.Begin()[index], rhs.Begin()[index]);
-
-            if (result != 0) {
-                return result < 0;
-            }
-        }
-        return false;
+        return CompareRow(lhs, rhs, mapping) < 0;
     });
 };
 
@@ -242,14 +247,7 @@ void SortRows(
     const std::vector<size_t>& mapping)
 {
     std::sort(begin, end, [&] (const std::pair<TRow, size_t>& lhs, const std::pair<TRow, size_t>& rhs) {
-        for (auto index : mapping) {
-            int result = CompareRowValues(lhs.first.Begin()[index], rhs.first.Begin()[index]);
-
-            if (result != 0) {
-                return result < 0;
-            }
-        }
-        return false;
+        return CompareRow(lhs.first, rhs.first, mapping) < 0;
     });
 };
 
@@ -292,9 +290,7 @@ TConstExpressionPtr EliminateInExpression(
 
     auto compareKeyAndValue = [&] (TRow lhs, TRow rhs) {
         for (int index = 0; index < valueMapping.size(); ++index) {
-            int result = CompareRowValues(
-                lhs.Begin()[keyMapping[index]],
-                rhs.Begin()[valueMapping[index]]);
+            int result = CompareRowValues(lhs.Begin()[keyMapping[index]], rhs.Begin()[valueMapping[index]]);
 
             if (result != 0) {
                 return result;
@@ -328,7 +324,7 @@ TConstExpressionPtr EliminateInExpression(
             do {
                 ++keyIndex;
             } while (keyIndex < sortedKeys.size()
-                && compareKeyAndValue(currentKey.first, sortedKeys[keyIndex].first) == 0);
+                && CompareRow(currentKey.first, sortedKeys[keyIndex].first, keyMapping) == 0);
 
             // from keyIndexBegin to keyIndex
             std::vector<TBound> unitedBounds;
@@ -352,7 +348,7 @@ TConstExpressionPtr EliminateInExpression(
                 }
                 ++tupleIndex;
             } while (tupleIndex < sortedValues.size() &&
-                compareKeyAndValue(currentValue, sortedValues[tupleIndex]) == 0);
+                CompareRow(currentValue, sortedValues[tupleIndex], valueMapping) == 0);
         } else if (result < 0) {
             hasExtraLookupKeys = true;
             ++keyIndex;

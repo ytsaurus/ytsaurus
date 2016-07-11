@@ -94,7 +94,7 @@ void TSchedulingContextBase::PreemptJob(TJobPtr job)
 
 TJobId TSchedulingContextBase::GenerateJobId()
 {
-    return MakeRandomId(EObjectType::SchedulerJob, CellTag_);
+    return MakeJobId(CellTag_, Node_->GetId());
 }
 
 ////////////////////////////////////////////////////////////////////

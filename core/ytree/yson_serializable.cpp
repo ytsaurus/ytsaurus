@@ -29,6 +29,9 @@ std::vector<Stroka> TYsonSerializableLite::GetRegisteredKeys() const
     std::vector<Stroka> result;
     for (const auto& pair : Parameters) {
         result.push_back(pair.first);
+        for (const auto& key : pair.second->GetAliases()) {
+            result.push_back(key);
+        }
     }
     return result;
 }

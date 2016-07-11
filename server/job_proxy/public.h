@@ -29,7 +29,7 @@ DEFINE_ENUM(EJobProxyExitCode,
     ((SetRLimitFailed)        (23))
     ((ExecFailed)             (24))
     ((UncaughtException)      (25))
-    ((RetreiveJobSpecFailed)  (26))
+    ((GetJobSpecFailed)  (26))
 );
 
 DEFINE_ENUM(EErrorCode,

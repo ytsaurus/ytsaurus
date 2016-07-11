@@ -25,12 +25,13 @@ var MEMORY_PRESSURE_HIT_TIMESTAMP = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtClusterHandle(logger, profiler, rss_limit, worker)
+function YtClusterHandle(logger, profiler, rss_limit, worker, worker_no)
 {
     this.logger     = logger;
     this.profiler   = profiler;
     this.rss_limit  = rss_limit;
     this.worker     = worker;
+    this.worker_no  = worker_no;
     this.state      = "unknown";
     this.young      = true;
     this.alive      = true;
@@ -158,6 +159,10 @@ YtClusterHandle.prototype.handleLog = function(level, json)
 
 YtClusterHandle.prototype.handleProfile = function(method, metric, tags, value)
 {
+    if (method === "set") {
+        tags = tags || {};
+        tags.worker_no = this.worker_no;
+    }
     this.profiler[method](metric, tags, value);
 };
 
@@ -321,8 +326,9 @@ YtClusterMaster.prototype.countWorkers = function()
 YtClusterMaster.prototype.spawnNewWorker = function()
 {
     var worker = cluster.fork();
-    var handle = this.workers_handles[worker.id] =
-        new YtClusterHandle(this.logger, this.profiler, this.rss_limit, worker);
+    var handle = this.workers_handles[worker.id] = new YtClusterHandle(
+        this.logger, this.profiler, this.rss_limit,
+        worker, worker.id % this.workers_expected);
 
     worker.on("message", handle.handleMessage.bind(handle));
     this.logger.info("Spawned young worker");

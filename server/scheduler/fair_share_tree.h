@@ -167,7 +167,7 @@ protected:
     TJobResources ResourceDemand_;
     TJobResources ResourceLimits_;
     TJobResources MaxPossibleResourceUsage_;
-    const TJobResources TotalResourceLimits_;
+    TJobResources TotalResourceLimits_;
 
     int PendingJobCount_ = 0;
 
@@ -324,7 +324,8 @@ public:
     virtual void IncreaseResourceUsage(const TJobResources& delta) override;
 
     virtual bool IsRoot() const;
-    virtual bool AggressiveStarvationEnabled() const;
+    virtual bool IsExplicit() const;
+    virtual bool IsAggressiveStarvationEnabled() const;
 
     void AddChild(const ISchedulerElementPtr& child, bool enabled = true);
     void EnableChild(const ISchedulerElementPtr& child);
@@ -377,7 +378,8 @@ public:
     void SetConfig(TPoolConfigPtr config);
     void SetDefaultConfig();
 
-    virtual bool AggressiveStarvationEnabled() const override;
+    virtual bool IsExplicit() const override;
+    virtual bool IsAggressiveStarvationEnabled() const override;
 
     virtual Stroka GetId() const override;
 
@@ -407,8 +409,12 @@ public:
 
     virtual ISchedulerElementPtr Clone() override;
 
+    NProfiling::TTagId GetProfilingTag() const;
+
 private:
     TPoolConfigPtr Config_;
+
+    NProfiling::TTagId ProfilingTag_;
 
     void DoSetConfig(TPoolConfigPtr newConfig);
 
@@ -474,7 +480,79 @@ public:
     NJobTrackerClient::TStatistics GetControllerTimeStatistics();
 
 private:
-    typedef std::list<TJobId> TJobIdList;
+    template <typename T>
+    class TListWithSize
+    {
+    public:
+        using iterator = typename std::list<T>::iterator;
+
+        void push_front(const T& value)
+        {
+            Impl_.push_front(value);
+            ++Size_;
+        }
+
+        void push_back(const T& value)
+        {
+            Impl_.push_back(value);
+            ++Size_;
+        }
+
+        void pop_front()
+        {
+            Impl_.pop_front();
+            --Size_;
+        }
+
+        void pop_back()
+        {
+            Impl_.pop_back();
+            --Size_;
+        }
+
+        void erase(iterator it)
+        {
+            Impl_.erase(it);
+            --Size_;
+        }
+
+        iterator begin()
+        {
+            return Impl_.begin();
+        }
+
+        iterator end()
+        {
+            return Impl_.end();
+        }
+
+        const T& front() const
+        {
+            return Impl_.front();
+        }
+
+        const T& back() const
+        {
+            return Impl_.back();
+        }
+
+        size_t size() const
+        {
+            return Size_;
+        }
+
+        bool empty() const
+        {
+            return Size_ == 0;
+        }
+
+    private:
+        std::list<T> Impl_;
+        size_t Size_ = 0;
+
+    };
+
+    typedef TListWithSize<TJobId> TJobIdList;
 
     TJobIdList NonpreemptableJobs_;
     TJobIdList AggressivelyPreemptableJobs_;
@@ -564,6 +642,7 @@ public:
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
+    virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
@@ -603,8 +682,9 @@ public:
 
     virtual ISchedulerElementPtr Clone() override;
 
+    DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
+
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
-    DEFINE_BYVAL_RO_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
 
 private:
     TOperationElementSharedStatePtr SharedState_;

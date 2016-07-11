@@ -1,5 +1,8 @@
 #include "fair_share_tree.h"
 
+#include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/profiling/scoped_timer.h>
@@ -23,22 +26,21 @@ static const double RatioComparisonPrecision = sqrt(RatioComputationPrecision);
 
 ////////////////////////////////////////////////////////////////////
 
-TJobResources ToJobResources(const TResourceLimitsConfigPtr& config)
+TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResources defaultValue)
 {
-    auto perTypeLimits = InfiniteJobResources();
     if (config->UserSlots) {
-        perTypeLimits.SetUserSlots(*config->UserSlots);
+        defaultValue.SetUserSlots(*config->UserSlots);
     }
     if (config->Cpu) {
-        perTypeLimits.SetCpu(*config->Cpu);
+        defaultValue.SetCpu(*config->Cpu);
     }
     if (config->Network) {
-        perTypeLimits.SetNetwork(*config->Network);
+        defaultValue.SetNetwork(*config->Network);
     }
     if (config->Memory) {
-        perTypeLimits.SetMemory(*config->Memory);
+        defaultValue.SetMemory(*config->Memory);
     }
-    return perTypeLimits;
+    return defaultValue;
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -101,7 +103,7 @@ double TSchedulerElementBaseSharedState::GetResourceUsageRatio(
     TReaderGuard guard(ResourceUsageLock_);
 
     if (dominantResourceLimit == 0) {
-        return 1.0;
+        return 0.0;
     }
     return GetResource(ResourceUsage_, dominantResource) / dominantResourceLimit;
 }
@@ -143,6 +145,7 @@ void TSchedulerElementBase::UpdateBottomUp(TDynamicAttributesList& dynamicAttrib
 {
     YCHECK(!Cloned_);
 
+    TotalResourceLimits_ = GetHost()->GetTotalResourceLimits();
     UpdateAttributes();
     dynamicAttributesList[this->GetTreeIndex()].Active = true;
     UpdateDynamicAttributes(dynamicAttributesList);
@@ -182,25 +185,24 @@ void TSchedulerElementBase::UpdateAttributes()
     // Choose dominant resource types, compute max share ratios, compute demand ratios.
     const auto& demand = ResourceDemand();
     auto usage = GetResourceUsage();
-    auto totalLimits = GetHost()->GetTotalResourceLimits();
 
-    auto maxPossibleResourceUsage = Min(totalLimits, MaxPossibleResourceUsage_);
+    auto maxPossibleResourceUsage = Min(TotalResourceLimits_, MaxPossibleResourceUsage_);
 
     if (usage == ZeroJobResources()) {
-        Attributes_.DominantResource = GetDominantResource(demand, totalLimits);
+        Attributes_.DominantResource = GetDominantResource(demand, TotalResourceLimits_);
     } else {
-        Attributes_.DominantResource = GetDominantResource(usage, totalLimits);
+        Attributes_.DominantResource = GetDominantResource(usage, TotalResourceLimits_);
     }
 
     i64 dominantDemand = GetResource(demand, Attributes_.DominantResource);
     i64 dominantUsage = GetResource(usage, Attributes_.DominantResource);
-    i64 dominantLimit = GetResource(totalLimits, Attributes_.DominantResource);
+    i64 dominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
 
     Attributes_.DemandRatio =
         dominantLimit == 0 ? 1.0 : (double) dominantDemand / dominantLimit;
 
     double usageRatio =
-        dominantLimit == 0 ? 1.0 : (double) dominantUsage / dominantLimit;
+        dominantLimit == 0 ? 0.0 : (double) dominantUsage / dominantLimit;
 
     Attributes_.DominantLimit = dominantLimit;
 
@@ -292,7 +294,11 @@ const TJobResources& TSchedulerElementBase::MaxPossibleResourceUsage() const
 
 TJobResources TSchedulerElementBase::GetResourceUsage() const
 {
-    return SharedState_->GetResourceUsage();
+    auto resourceUsage = SharedState_->GetResourceUsage();
+    if (resourceUsage.GetUserSlots() > 0 && resourceUsage.GetMemory() == 0) {
+        LOG_WARNING("Found usage of schedulable element %Qv with non-zero user slots and zero memory", GetId());
+    }
+    return resourceUsage;
 }
 
 double TSchedulerElementBase::GetResourceUsageRatio() const
@@ -322,7 +328,7 @@ TSchedulerElementBase::TSchedulerElementBase(
 
 TSchedulerElementBase::TSchedulerElementBase(const TSchedulerElementBase& other)
     : TSchedulerElementBaseFixedState(other)
-    , StrategyConfig_(CloneYsonSerializable(other.StrategyConfig_))
+    , StrategyConfig_(other.StrategyConfig_)
     , SharedState_(other.SharedState_)
 {
     Cloned_ = true;
@@ -631,7 +637,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
         return;
     }
 
-    if (Starving_ && AggressiveStarvationEnabled()) {
+    if (Starving_ && IsAggressiveStarvationEnabled()) {
         context.HasAggressivelyStarvingNodes = true;
     }
 
@@ -682,7 +688,12 @@ bool TCompositeSchedulerElement::IsRoot() const
     return false;
 }
 
-bool TCompositeSchedulerElement::AggressiveStarvationEnabled() const
+bool TCompositeSchedulerElement::IsExplicit() const
+{
+    return false;
+}
+
+bool TCompositeSchedulerElement::IsAggressiveStarvationEnabled() const
 {
     return false;
 }
@@ -712,13 +723,16 @@ void TCompositeSchedulerElement::RemoveChild(const ISchedulerElementPtr& child)
 {
     YCHECK(!Cloned_);
 
-    bool foundInChildren = (Children.find(child) != Children.end());
-    bool foundInDisabledChildren = (DisabledChildren.find(child) != DisabledChildren.end());
+    auto childrenIt = Children.find(child);
+    auto disabledChildrenIt = DisabledChildren.find(child);
+
+    bool foundInChildren = (childrenIt != Children.end());
+    bool foundInDisabledChildren = (disabledChildrenIt != DisabledChildren.end());
     YCHECK((foundInChildren && !foundInDisabledChildren) || (!foundInChildren && foundInDisabledChildren));
     if (foundInChildren) {
-        Children.erase(child);
+        Children.erase(childrenIt);
     } else {
-        DisabledChildren.erase(child);
+        DisabledChildren.erase(disabledChildrenIt);
     }
 }
 
@@ -936,6 +950,7 @@ TPool::TPool(
     TFairShareStrategyConfigPtr strategyConfig)
     : TCompositeSchedulerElement(host, strategyConfig)
     , TPoolFixedState(id)
+    , ProfilingTag_(NProfiling::TProfileManager::Get()->RegisterTag("pool", id))
 {
     SetDefaultConfig();
 }
@@ -943,7 +958,7 @@ TPool::TPool(
 TPool::TPool(const TPool& other)
     : TCompositeSchedulerElement(other)
     , TPoolFixedState(other)
-    , Config_(CloneYsonSerializable(other.Config_))
+    , Config_(other.Config_)
 { }
 
 bool TPool::IsDefaultConfigured() const
@@ -972,9 +987,15 @@ void TPool::SetDefaultConfig()
     DefaultConfigured_ = true;
 }
 
-bool TPool::AggressiveStarvationEnabled() const
+bool TPool::IsExplicit() const
 {
-    return Config_->AggressiveStarvationEnabled;
+    // NB: This is no coincidence.
+    return !DefaultConfigured_;
+}
+
+bool TPool::IsAggressiveStarvationEnabled() const
+{
+    return Config_->EnableAggressiveStarvation;
 }
 
 Stroka TPool::GetId() const
@@ -989,7 +1010,10 @@ double TPool::GetWeight() const
 
 double TPool::GetMinShareRatio() const
 {
-    return Config_->MinShareRatio;
+    auto minShareResources = ToJobResources(Config_->MinShareResources, ZeroJobResources());
+    return std::max(
+        Config_->MinShareRatio,
+        GetMaxResourceRatio(minShareResources, TotalResourceLimits_));
 }
 
 double TPool::GetMaxShareRatio() const
@@ -1098,8 +1122,13 @@ void TPool::DoSetConfig(TPoolConfigPtr newConfig)
 TJobResources TPool::ComputeResourceLimits() const
 {
     auto resourceLimits = GetHost()->GetResourceLimits(GetNodeTag()) * Config_->MaxShareRatio;
-    auto perTypeLimits = ToJobResources(Config_->ResourceLimits);
+    auto perTypeLimits = ToJobResources(Config_->ResourceLimits, InfiniteJobResources());
     return Min(resourceLimits, perTypeLimits);
+}
+
+NProfiling::TTagId TPool::GetProfilingTag() const
+{
+    return ProfilingTag_;
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -1116,6 +1145,7 @@ TOperationElementFixedState::TOperationElementFixedState(TOperationPtr operation
 
 TOperationElementSharedState::TOperationElementSharedState()
     : NonpreemptableResourceUsage_(ZeroJobResources())
+    , AggressivelyPreemptableResourceUsage_(ZeroJobResources())
 { }
 
 void TOperationElementSharedState::IncreaseJobResourceUsage(const TJobId& jobId, const TJobResources& resourcesDelta)
@@ -1137,7 +1167,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
         auto dominantResource = GetDominantResource(resourcesUsage, totalResourceLimits);
         i64 dominantLimit = GetResource(totalResourceLimits, dominantResource);
         i64 usage = GetResource(resourcesUsage, dominantResource);
-        return dominantLimit == 0 ? 1.0 : (double) usage / dominantLimit;
+        return dominantLimit == 0 ? 0.0 : (double) usage / dominantLimit;
     };
 
     auto balanceLists = [&] (
@@ -1149,12 +1179,12 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
         std::function<void(TJobProperties*)> onMovedRightToLeft)
     {
         while (!left->empty()) {
-            if (getUsageRatio(resourceUsage) <= fairShareRatioBound) {
-                break;
-            }
-
             auto jobId = left->back();
             auto& jobProperties = JobPropertiesMap_.at(jobId);
+
+            if (getUsageRatio(resourceUsage - jobProperties.ResourceUsage) < fairShareRatioBound) {
+                break;
+            }
 
             left->pop_back();
             right->push_front(jobId);
@@ -1165,12 +1195,12 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
         }
 
         while (!right->empty()) {
-            auto jobId = right->front();
-            auto& jobProperties = JobPropertiesMap_.at(jobId);
-
-            if (getUsageRatio(resourceUsage + jobProperties.ResourceUsage) > fairShareRatioBound) {
+            if (getUsageRatio(resourceUsage) >= fairShareRatioBound) {
                 break;
             }
+
+            auto jobId = right->front();
+            auto& jobProperties = JobPropertiesMap_.at(jobId);
 
             right->pop_front();
             left->push_back(jobId);
@@ -1284,12 +1314,12 @@ TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
 
 bool TOperationElementSharedState::IsBlocked(
     TInstant now,
-    int MaxConcurrentScheduleJobCalls,
-    TDuration ScheduleJobFailBackoffTime) const
+    int maxConcurrentScheduleJobCalls,
+    TDuration scheduleJobFailBackoffTime) const
 {
     TReaderGuard guard(ConcurrentScheduleJobCallsLock_);
 
-    return IsBlockedImpl(now, MaxConcurrentScheduleJobCalls, ScheduleJobFailBackoffTime);
+    return IsBlockedImpl(now, maxConcurrentScheduleJobCalls, scheduleJobFailBackoffTime);
 }
 
 bool TOperationElementSharedState::TryStartScheduleJob(
@@ -1338,11 +1368,11 @@ TStatistics TOperationElementSharedState::GetControllerTimeStatistics()
 
 bool TOperationElementSharedState::IsBlockedImpl(
     TInstant now,
-    int MaxConcurrentScheduleJobCalls,
-    TDuration ScheduleJobFailBackoffTime) const
+    int maxConcurrentScheduleJobCalls,
+    TDuration scheduleJobFailBackoffTime) const
 {
-    return ConcurrentScheduleJobCalls_ >= MaxConcurrentScheduleJobCalls ||
-        (BackingOff_ && LastScheduleJobFailTime_ + ScheduleJobFailBackoffTime > now);
+    return ConcurrentScheduleJobCalls_ >= maxConcurrentScheduleJobCalls ||
+        (BackingOff_ && LastScheduleJobFailTime_ + scheduleJobFailBackoffTime > now);
 }
 
 void TOperationElementSharedState::IncreaseJobResourceUsage(TJobProperties& properties, const TJobResources& resourcesDelta)
@@ -1363,16 +1393,16 @@ TOperationElement::TOperationElement(
     TOperationPtr operation)
     : TSchedulerElementBase(host, strategyConfig)
     , TOperationElementFixedState(operation)
-    , Spec_(spec)
     , RuntimeParams_(runtimeParams)
+    , Spec_(spec)
     , SharedState_(New<TOperationElementSharedState>())
 { }
 
 TOperationElement::TOperationElement(const TOperationElement& other)
     : TSchedulerElementBase(other)
     , TOperationElementFixedState(other)
-    , Spec_(CloneYsonSerializable(other.Spec_))
-    , RuntimeParams_(CloneYsonSerializable(other.RuntimeParams_))
+    , RuntimeParams_(other.RuntimeParams_)
+    , Spec_(other.Spec_)
     , SharedState_(other.SharedState_)
 { }
 
@@ -1403,17 +1433,29 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
     MaxPossibleResourceUsage_ = ComputeMaxPossibleResourceUsage();
     PendingJobCount_ = ComputePendingJobCount();
 
-    auto totalLimits = GetHost()->GetTotalResourceLimits();
     auto allocationLimits = GetAdjustedResourceLimits(
         ResourceDemand_,
-        totalLimits,
+        TotalResourceLimits_,
         GetHost()->GetExecNodeCount());
 
-    i64 dominantLimit = GetResource(totalLimits, Attributes_.DominantResource);
+    i64 dominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
     i64 dominantAllocationLimit = GetResource(allocationLimits, Attributes_.DominantResource);
 
     Attributes_.BestAllocationRatio =
         dominantLimit == 0 ? 1.0 : (double) dominantAllocationLimit / dominantLimit;
+}
+
+void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesList)
+{
+    YCHECK(!Cloned_);
+
+    TSchedulerElementBase::UpdateTopDown(dynamicAttributesList);
+
+    SharedState_->UpdatePreemptableJobsList(
+        Attributes_.FairShareRatio,
+        TotalResourceLimits_,
+        StrategyConfig_->PreemptionSatisfactionThreshold,
+        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
 }
 
 void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList)
@@ -1561,7 +1603,10 @@ double TOperationElement::GetWeight() const
 
 double TOperationElement::GetMinShareRatio() const
 {
-    return Spec_->MinShareRatio;
+    auto minShareResources = ToJobResources(Spec_->MinShareResources, ZeroJobResources());
+    return std::max(
+        Spec_->MinShareRatio,
+        GetMaxResourceRatio(minShareResources, TotalResourceLimits_));
 }
 
 double TOperationElement::GetMaxShareRatio() const
@@ -1786,7 +1831,9 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
         auto jobLimits = GetHierarchicalResourceLimits(context);
         if (!Dominates(jobLimits, jobStartRequest.ResourceLimits)) {
             const auto& jobId = scheduleJobResult->JobStartRequest->Id;
-            LOG_DEBUG("Aborting job with overcommit (JobId: %v, OperationId: %v)",
+            LOG_DEBUG("Aborting job with resource overcommit: %v > %v (JobId: %v, OperationId: %v)",
+                FormatResources(jobStartRequest.ResourceLimits),
+                FormatResources(jobLimits),
                 jobId,
                 OperationId_);
 
@@ -1818,7 +1865,7 @@ TJobResources TOperationElement::ComputeResourceDemand() const
 TJobResources TOperationElement::ComputeResourceLimits() const
 {
     auto maxShareLimits = GetHost()->GetResourceLimits(GetNodeTag()) * Spec_->MaxShareRatio;
-    auto perTypeLimits = ToJobResources(Spec_->ResourceLimits);
+    auto perTypeLimits = ToJobResources(Spec_->ResourceLimits, InfiniteJobResources());
     return Min(maxShareLimits, perTypeLimits);
 }
 

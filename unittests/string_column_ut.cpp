@@ -18,6 +18,9 @@ const Stroka A("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 const Stroka B("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
 const Stroka Abra("abracadabra");
 const Stroka Bara("barakobama");
+const Stroka Empty("");
+const Stroka FewSymbol("abcde");
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,6 +73,11 @@ protected:
 
         // Rows 109 - 1118.
         WriteSegment(columnWriter, CreateDictionaryRle());
+
+        // Write-only, regression test.
+        columnWriter->WriteValues(MakeRange(CreateRows({Empty, Empty, Empty, Empty})));
+        columnWriter->WriteValues(MakeRange(CreateRows({FewSymbol, FewSymbol, FewSymbol, FewSymbol})));
+        columnWriter->FinishCurrentSegment();
     }
 
     virtual std::unique_ptr<IUnversionedColumnReader> CreateColumnReader() override
@@ -87,7 +95,8 @@ protected:
 
 TEST_F(TUnversionedStringColumnTest, CheckSegmentTypes)
 {
-    EXPECT_EQ(4, ColumnMeta_.segments_size());
+    EXPECT_EQ(5, ColumnMeta_.segments_size());
+
     auto checkSegment = [&] (EUnversionedStringSegmentType segmentType, int segmentIndex) {
         EXPECT_EQ(segmentType, EUnversionedStringSegmentType(ColumnMeta_.segments(segmentIndex).type()));
     };
@@ -96,6 +105,7 @@ TEST_F(TUnversionedStringColumnTest, CheckSegmentTypes)
     checkSegment(EUnversionedStringSegmentType::DictionaryDense, 1);
     checkSegment(EUnversionedStringSegmentType::DirectRle, 2);
     checkSegment(EUnversionedStringSegmentType::DictionaryRle, 3);
+    checkSegment(EUnversionedStringSegmentType::DictionaryDense, 4);
 }
 
 TEST_F(TUnversionedStringColumnTest, GetEqualRange)

@@ -159,6 +159,16 @@ void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NRpc::TMutationId TMutatingOptions::GetOrGenerateMutationId() const
+{
+    if (Retry && !MutationId) {
+        THROW_ERROR_EXCEPTION("Cannot execute retry without mutation id");
+    }
+    return MutationId ? MutationId : NRpc::GenerateMutationId();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 TNameTableToSchemaIdMapping BuildColumnIdMapping(
@@ -183,19 +193,31 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     return mapping;
 }
 
+SmallVector<const TCellPeerDescriptor*, 3> GetValidPeers(const TCellDescriptor& cellDescriptor)
+{
+    SmallVector<const TCellPeerDescriptor*, 3> peers;
+    for (const auto& peer : cellDescriptor.Peers) {
+        if (!peer.IsNull()) {
+            peers.push_back(&peer);
+        }
+    }
+    return peers;
+}
+
 const TCellPeerDescriptor& GetPrimaryTabletPeerDescriptor(
     const TCellDescriptor& cellDescriptor,
     EPeerKind peerKind = EPeerKind::Leader)
 {
-    if (cellDescriptor.Peers.empty()) {
+    auto peers = GetValidPeers(cellDescriptor);
+
+    if (peers.empty()) {
         THROW_ERROR_EXCEPTION("No alive replicas for tablet cell %v",
             cellDescriptor.CellId);
     }
 
-    const auto& peers = cellDescriptor.Peers;
     int leadingPeerIndex = -1;
     for (int index = 0; index < peers.size(); ++index) {
-        if (peers[index].GetVoting()) {
+        if (peers[index]->GetVoting()) {
             leadingPeerIndex = index;
             break;
         }
@@ -207,24 +229,25 @@ const TCellPeerDescriptor& GetPrimaryTabletPeerDescriptor(
                 THROW_ERROR_EXCEPTION("No leading peer is known for tablet cell %v",
                     cellDescriptor.CellId);
             }
-            return peers[leadingPeerIndex];
+            return *peers[leadingPeerIndex];
         }
 
         case EPeerKind::LeaderOrFollower: {
             int randomIndex = RandomNumber(peers.size());
-            return peers[randomIndex];
+            return *peers[randomIndex];
         }
 
         case EPeerKind::Follower: {
             if (leadingPeerIndex < 0 || peers.size() == 1) {
-                return peers[RandomNumber(peers.size())];
+                int randomIndex = RandomNumber(peers.size());
+                return *peers[randomIndex];
+            } else {
+                int randomIndex = RandomNumber(peers.size() - 1);
+                if (randomIndex >= leadingPeerIndex) {
+                    ++randomIndex;
+                }
+                return *peers[randomIndex];
             }
-
-            int randomIndex = RandomNumber(peers.size() - 1);
-            if (randomIndex >= leadingPeerIndex) {
-                ++randomIndex;
-            }
-            return peers[randomIndex];
         }
 
         default:
@@ -236,14 +259,26 @@ const TCellPeerDescriptor& GetBackupTabletPeerDescriptor(
     const TCellDescriptor& cellDescriptor,
     const TCellPeerDescriptor& primaryPeerDescriptor)
 {
-    Y_ASSERT(cellDescriptor.Peers.size() > 1);
-    const auto& peers = cellDescriptor.Peers;
-    int primaryIndex = &primaryPeerDescriptor - cellDescriptor.Peers.data();
+    auto peers = GetValidPeers(cellDescriptor);
+
+    Y_ASSERT(peers.size() > 1);
+
+    int primaryPeerIndex = -1;
+    for (int index = 0; index < peers.size(); ++index) {
+        if (peers[index] == &primaryPeerDescriptor) {
+            primaryPeerIndex = index;
+            break;
+        }
+    }
+
+    Y_ASSERT(primaryPeerIndex >= 0 && primaryPeerIndex < peers.size());
+
     int randomIndex = RandomNumber(peers.size() - 1);
-    if (randomIndex >= primaryIndex) {
+    if (randomIndex >= primaryPeerIndex) {
         ++randomIndex;
     }
-    return peers[randomIndex];
+
+    return *peers[randomIndex];
 }
 
 IChannelPtr CreateTabletReadChannel(
@@ -1176,7 +1211,7 @@ public:
             options, \
             BIND( \
                 &TClient::doMethod, \
-                MakeStrong(this), \
+                Unretained(this), \
                 DROP_BRACES args)); \
     }
 
@@ -1245,7 +1280,7 @@ public:
         (path, type, options))
     IMPLEMENT_METHOD(TLockId, LockNode, (
         const TYPath& path,
-        NCypressClient::ELockMode mode,
+        ELockMode mode,
         const TLockNodeOptions& options),
         (path, mode, options))
     IMPLEMENT_METHOD(TNodeId, CopyNode, (
@@ -1412,7 +1447,12 @@ private:
         TCallback<T()> callback)
     {
         return
-            BIND([=, this_ = MakeStrong(this)] () {
+            BIND([commandName, callback = std::move(callback), this_ = MakeWeak(this)] () {
+                auto client = this_.Lock();
+                if (!client) {
+                    THROW_ERROR_EXCEPTION("Client was abandoned");
+                }
+                auto& Logger = client->Logger;
                 try {
                     LOG_DEBUG("Command started (Command: %v)", commandName);
                     TBox<T> result(callback);
@@ -1484,13 +1524,9 @@ private:
     }
 
 
-    static void GenerateMutationId(IClientRequestPtr request, TMutatingOptions& options)
+    static void SetMutationId(IClientRequestPtr request, const TMutatingOptions& options)
     {
-        if (!options.MutationId) {
-            options.MutationId = NRpc::GenerateMutationId();
-        }
-        SetMutationId(request, options.MutationId, options.Retry);
-        ++options.MutationId.Parts32[1];
+        NRpc::SetMutationId(request, options.GetOrGenerateMutationId(), options.Retry);
     }
 
 
@@ -1578,12 +1614,11 @@ private:
     {
     public:
         TTabletCellLookupSession(
-            TClientPtr client,
+            TConnectionConfigPtr config,
             const TCellId& cellId,
             const TLookupRowsOptions& options,
             TTableMountInfoPtr tableInfo)
-            : Client_(std::move(client))
-            , Config_(Client_->Connection_->GetConfig())
+            : Config_(std::move(config))
             , CellId_(cellId)
             , Options_(options)
             , TableInfo_(std::move(tableInfo))
@@ -1603,7 +1638,7 @@ private:
             batch->Keys.push_back(key);
         }
 
-        TFuture<void> Invoke()
+        TFuture<void> Invoke(IChannelFactoryPtr channelFactory, TCellDirectoryPtr cellDirectory)
         {
             // Do all the heavy lifting here.
             for (auto& batch : Batches_) {
@@ -1651,10 +1686,9 @@ private:
                 }
             }
 
-            const auto& cellDirectory = Client_->Connection_->GetCellDirectory();
             const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(CellId_);
             auto channel = CreateTabletReadChannel(
-                Client_->GetHeavyChannelFactory(),
+                channelFactory,
                 cellDescriptor,
                 Config_,
                 Options_);
@@ -1758,7 +1792,7 @@ private:
         const TYPath& path,
         TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
-        const TLookupRowsOptions& options)
+        TLookupRowsOptions options)
     {
         auto tableInfo = SyncGetTableInfo(path);
         if (!tableInfo->IsSorted()) {
@@ -1767,11 +1801,23 @@ private:
         }
 
         const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
-        int schemaColumnCount = static_cast<int>(schema.Columns().size());
-        ValidateColumnFilter(options.ColumnFilter, schemaColumnCount);
+        auto idMapping = BuildColumnIdMapping(schema, nameTable);
+
+        for (auto& index : options.ColumnFilter.Indexes) {
+            if (index < 0 || index >= idMapping.size()) {
+                THROW_ERROR_EXCEPTION("Column filter contains invalid index: actual %v, expected in range [0, %v]",
+                    index,
+                    idMapping.size() - 1);
+            }
+            if (idMapping[index] == -1) {
+                THROW_ERROR_EXCEPTION("Invalid column %Qv in column filter",
+                    nameTable->GetName(index));
+            }
+
+            index = idMapping[index];
+        }
 
         auto resultSchema = tableInfo->Schemas[ETableSchemaKind::Primary].Filter(options.ColumnFilter);
-        auto idMapping = BuildColumnIdMapping(schema, nameTable);
 
         // NB: The server-side requires the keys to be sorted.
         std::vector<std::pair<NTableClient::TKey, int>> sortedKeys;
@@ -1806,7 +1852,7 @@ private:
                 it = cellIdToSession.insert(std::make_pair(
                     cellId,
                     New<TTabletCellLookupSession>(
-                        this,
+                        Connection_->GetConfig(),
                         cellId,
                         options,
                         tableInfo)))
@@ -1819,7 +1865,9 @@ private:
         std::vector<TFuture<void>> asyncResults;
         for (const auto& pair : cellIdToSession) {
             const auto& session = pair.second;
-            asyncResults.push_back(session->Invoke());
+            asyncResults.push_back(session->Invoke(
+                GetHeavyChannelFactory(),
+                Connection_->GetCellDirectory()));
         }
 
         WaitFor(Combine(asyncResults))
@@ -2075,7 +2123,7 @@ private:
     void DoSetNode(
         const TYPath& path,
         const TYsonString& value,
-        TSetNodeOptions options)
+        const TSetNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
@@ -2083,7 +2131,7 @@ private:
 
         auto req = TYPathProxy::Set(path);
         SetTransactionId(req, options, true);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_value(value.Data());
         batchReq->AddRequest(req);
 
@@ -2095,7 +2143,7 @@ private:
 
     void DoRemoveNode(
         const TYPath& path,
-        TRemoveNodeOptions options)
+        const TRemoveNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
@@ -2103,7 +2151,7 @@ private:
 
         auto req = TYPathProxy::Remove(path);
         SetTransactionId(req, options, true);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_recursive(options.Recursive);
         req->set_force(options.Force);
         batchReq->AddRequest(req);
@@ -2138,7 +2186,7 @@ private:
     TNodeId DoCreateNode(
         const TYPath& path,
         EObjectType type,
-        TCreateNodeOptions options)
+        const TCreateNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
@@ -2146,7 +2194,7 @@ private:
 
         auto req = TCypressYPathProxy::Create(path);
         SetTransactionId(req, options, true);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_type(static_cast<int>(type));
         req->set_recursive(options.Recursive);
         req->set_ignore_existing(options.IgnoreExisting);
@@ -2164,8 +2212,8 @@ private:
 
     TLockId DoLockNode(
         const TYPath& path,
-        NCypressClient::ELockMode mode,
-        TLockNodeOptions options)
+        ELockMode mode,
+        const TLockNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
@@ -2173,7 +2221,7 @@ private:
 
         auto req = TCypressYPathProxy::Lock(path);
         SetTransactionId(req, options, false);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_mode(static_cast<int>(mode));
         req->set_waitable(options.Waitable);
         if (options.ChildKey) {
@@ -2194,7 +2242,7 @@ private:
     TNodeId DoCopyNode(
         const TYPath& srcPath,
         const TYPath& dstPath,
-        TCopyNodeOptions options)
+        const TCopyNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
@@ -2202,7 +2250,7 @@ private:
 
         auto req = TCypressYPathProxy::Copy(dstPath);
         SetTransactionId(req, options, true);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_source_path(srcPath);
         req->set_preserve_account(options.PreserveAccount);
         req->set_recursive(options.Recursive);
@@ -2219,7 +2267,7 @@ private:
     TNodeId DoMoveNode(
         const TYPath& srcPath,
         const TYPath& dstPath,
-        TMoveNodeOptions options)
+        const TMoveNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
@@ -2227,7 +2275,7 @@ private:
 
         auto req = TCypressYPathProxy::Copy(dstPath);
         SetTransactionId(req, options, true);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_source_path(srcPath);
         req->set_preserve_account(options.PreserveAccount);
         req->set_remove_source(true);
@@ -2245,7 +2293,7 @@ private:
     TNodeId DoLinkNode(
         const TYPath& srcPath,
         const TYPath& dstPath,
-        TLinkNodeOptions options)
+        const TLinkNodeOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
@@ -2256,7 +2304,7 @@ private:
         req->set_recursive(options.Recursive);
         req->set_ignore_existing(options.IgnoreExisting);
         SetTransactionId(req, options, true);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         auto attributes = options.Attributes ? ConvertToAttributes(options.Attributes.get()) : CreateEphemeralAttributes();
         attributes->Set("target_path", srcPath);
         ToProto(req->mutable_node_attributes(), *attributes);
@@ -2522,14 +2570,14 @@ private:
 
     TObjectId DoCreateObject(
         EObjectType type,
-        TCreateObjectOptions options)
+        const TCreateObjectOptions& options)
     {
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
         auto req = TMasterYPathProxy::CreateObject();
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_type(static_cast<int>(type));
         if (options.Attributes) {
             ToProto(req->mutable_object_attributes(), *options.Attributes);
@@ -2547,11 +2595,11 @@ private:
     void DoAddMember(
         const Stroka& group,
         const Stroka& member,
-        TAddMemberOptions options)
+        const TAddMemberOptions& options)
     {
         auto req = TGroupYPathProxy::AddMember(GetGroupPath(group));
         req->set_name(member);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
@@ -2561,11 +2609,11 @@ private:
     void DoRemoveMember(
         const Stroka& group,
         const Stroka& member,
-        TRemoveMemberOptions options)
+        const TRemoveMemberOptions& options)
     {
         auto req = TGroupYPathProxy::RemoveMember(GetGroupPath(group));
         req->set_name(member);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
@@ -2600,11 +2648,11 @@ private:
     TOperationId DoStartOperation(
         EOperationType type,
         const TYsonString& spec,
-        TStartOperationOptions options)
+        const TStartOperationOptions& options)
     {
         auto req = SchedulerProxy_->StartOperation();
         SetTransactionId(req, options, true);
-        GenerateMutationId(req, options);
+        SetMutationId(req, options);
         req->set_type(static_cast<int>(type));
         req->set_spec(spec.Data());
 

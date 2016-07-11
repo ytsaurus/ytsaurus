@@ -6,6 +6,8 @@
 
 #include <yt/server/hydra/entity_map.h>
 
+#include <yt/ytlib/hive/hive_service.pb.h>
+
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 
 #include <yt/core/misc/property.h>

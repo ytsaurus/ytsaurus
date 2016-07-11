@@ -39,14 +39,12 @@ bool IsUnavailable(const NProto::TChunkSpec& chunkSpec, bool checkParityParts)
 }
 
 void GetStatistics(
-    const TChunkSpec& chunkSpec,
+    const TChunkMeta& meta,
     i64* dataSize,
-    i64* rowCount,
-    i64* valueCount,
-    i64* compressedDataSize)
+    i64* rowCount)
 {
-    auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
-    auto sizeOverrideExt = FindProtoExtension<TSizeOverrideExt>(chunkSpec.chunk_meta().extensions());
+    auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
+    auto sizeOverrideExt = FindProtoExtension<TSizeOverrideExt>(meta.extensions());
 
     if (sizeOverrideExt) {
         if (dataSize) {
@@ -62,13 +60,6 @@ void GetStatistics(
         if (rowCount) {
             *rowCount = miscExt.row_count();
         }
-    }
-
-    if (valueCount) {
-        *valueCount = miscExt.value_count();
-    }
-    if (compressedDataSize) {
-        *compressedDataSize = miscExt.compressed_data_size();
     }
 }
 
@@ -94,58 +85,6 @@ i64 GetCumulativeRowCount(const std::vector<NProto::TChunkSpec>& chunkSpecs)
         result += upperRowLimit - lowerRowLimit;
     }
     return result;
-}
-
-TChunkId EncodeChunkId(
-    const TChunkSpec& chunkSpec,
-    NNodeTrackerClient::TNodeId nodeId)
-{
-    auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
-    auto replicaIt = std::find_if(
-        replicas.begin(),
-        replicas.end(),
-        [=] (TChunkReplica replica) {
-            return replica.GetNodeId() == nodeId;
-        });
-    YCHECK(replicaIt != replicas.end());
-
-    TChunkIdWithIndex chunkIdWithIndex(
-        NYT::FromProto<TChunkId>(chunkSpec.chunk_id()),
-        replicaIt->GetIndex());
-    return EncodeChunkId(chunkIdWithIndex);
-}
-
-//! Returns |false| iff the chunk has nontrivial limits.
-bool IsCompleteChunk(const NProto::TChunkSpec& chunkSpec)
-{
-    return (!chunkSpec.has_lower_limit() || IsTrivial(chunkSpec.lower_limit()))
-        && (!chunkSpec.has_upper_limit() || IsTrivial(chunkSpec.upper_limit()));
-}
-
-//! Returns |true| iff the chunk is complete and is large enough.
-bool IsLargeCompleteChunk(const NProto::TChunkSpec& chunkSpec, i64 desiredChunkSize)
-{
-    if (!IsCompleteChunk(chunkSpec)) {
-        return false;
-    }
-
-    auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
-
-    // ChunkSequenceWriter may actually produce a chunk a bit smaller than desiredChunkSize,
-    // so we have to be more flexible here.
-    return 0.9 * miscExt.compressed_data_size() >= desiredChunkSize;
-}
-
-Stroka ToString(const TRefCountedChunkSpecPtr& spec)
-{
-    auto chunkLowerLimit = FromProto<NChunkClient::TReadLimit>(spec->lower_limit());
-    auto chunkUpperLimit = FromProto<NChunkClient::TReadLimit>(spec->upper_limit());
-    auto chunkId = FromProto<TChunkId>(spec->chunk_id());
-    return Format(
-        "{ChunkId: %v, LowerLimit: %v, UpperLimit: %v}",
-        chunkId,
-        chunkLowerLimit,
-        chunkUpperLimit);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

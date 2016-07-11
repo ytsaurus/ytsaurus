@@ -8,7 +8,7 @@
 #include <yt/ytlib/api/config.h>
 #include <yt/ytlib/api/connection.h>
 
-#include <yt/ytlib/chunk_client/chunk_slice.h>
+#include <yt/ytlib/chunk_client/input_slice.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -60,10 +60,12 @@ public:
         TRemoteCopyOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, spec, host, operation)
+        : TOperationControllerBase(config, spec, config->RemoteCopyOperationOptions, host, operation)
         , Spec_(spec)
         , Options_(config->RemoteCopyOperationOptions)
-    { }
+    {
+        RegisterJobProxyMemoryDigest(EJobType::RemoteCopy, spec->JobProxyMemoryDigest);
+    }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
@@ -127,11 +129,10 @@ private:
             return false;
         }
 
-        virtual TJobResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
         {
             return GetRemoteCopyResources(
-                joblet->InputStripeList->GetStatistics(),
-                joblet->MemoryReserveEnabled);
+                joblet->InputStripeList->GetStatistics());
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -163,30 +164,25 @@ private:
 
         int Index_;
 
-        virtual bool IsMemoryReserveEnabled() const override
-        {
-            return Controller_->IsMemoryReserveEnabled(Controller_->JobCounter);
-        }
-
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
             static const auto options = New<TTableReaderOptions>();
             return options;
         }
 
-        virtual TJobResources GetMinNeededResourcesHeavy() const override
+        virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
             return GetRemoteCopyResources(
-                ChunkPool_->GetApproximateStripeStatistics(),
-                IsMemoryReserveEnabled());
+                ChunkPool_->GetApproximateStripeStatistics());
         }
 
-        TJobResources GetRemoteCopyResources(const TChunkStripeStatisticsVector& statistics, bool isReserveEnabled) const
+        TExtendedJobResources GetRemoteCopyResources(const TChunkStripeStatisticsVector& statistics) const
         {
-            TJobResources result;
+            TExtendedJobResources result;
             result.SetUserSlots(1);
             result.SetCpu(0);
-            result.SetMemory(GetMemoryResources(statistics));
+            result.SetJobProxyMemory(GetMemoryResources(statistics));
+            AddFootprintAndUserJobResources(result);
             return result;
         }
 
@@ -205,15 +201,12 @@ private:
             }
             result += maxBlockSize;
 
-            // Memory footprint
-            result += GetFootprintMemorySize();
-
             return result;
         }
 
         virtual EJobType GetJobType() const override
         {
-            return EJobType(Controller_->JobSpecTemplate_.type());
+            return EJobType::RemoteCopy;
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -232,7 +225,7 @@ private:
                 for (const auto& chunkSlice : stripe->ChunkSlices) {
                     auto* chunkSpec = inputSpec->add_chunks();
                     ToProto(chunkSpec, chunkSlice);
-                    auto replicas = FromProto<TChunkReplicaList>(chunkSlice->GetChunkSpec()->replicas());
+                    auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
                     directoryBuilder.Add(replicas);
                 }
             }
@@ -250,9 +243,7 @@ private:
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
             TTask::OnJobAborted(joblet, jobSummary);
-            Controller_->UpdateAllTasksIfNeeded(Controller_->JobCounter);
         }
-
     };
 
     TTaskGroupPtr RemoteCopyTaskGroup_;
@@ -331,12 +322,12 @@ private:
 
         std::vector<TChunkStripePtr> stripes;
         for (const auto& chunkSpec : CollectPrimaryInputChunks()) {
-            if (chunkSpec->has_lower_limit() && !IsTrivial(chunkSpec->lower_limit()) ||
-                chunkSpec->has_upper_limit() && !IsTrivial(chunkSpec->upper_limit()))
+            if (chunkSpec->LowerLimit() && !IsTrivial(*chunkSpec->LowerLimit()) ||
+                chunkSpec->UpperLimit() && !IsTrivial(*chunkSpec->UpperLimit()))
             {
                 THROW_ERROR_EXCEPTION("Remote copy operation does not support non-trivial table limits");
             }
-            stripes.push_back(New<TChunkStripe>(CreateChunkSlice(chunkSpec)));
+            stripes.push_back(New<TChunkStripe>(CreateInputSlice(chunkSpec)));
         }
 
         auto jobCount = SuggestJobCount(
