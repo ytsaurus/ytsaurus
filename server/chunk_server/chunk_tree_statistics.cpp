@@ -6,11 +6,14 @@
 #include <yt/server/chunk_server/chunk_manager.h>
 
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/convert.h>
 
 namespace NYT {
 namespace NChunkServer {
 
 using namespace NChunkClient::NProto;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,7 +88,17 @@ bool TChunkTreeStatistics::operator == (const TChunkTreeStatistics& other) const
         Sealed == other.Sealed;
 }
 
+bool TChunkTreeStatistics::operator != (const TChunkTreeStatistics& other) const
+{
+    return !(*this == other);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+
+Stroka ToString(const TChunkTreeStatistics& statistics)
+{
+    return ConvertToYsonString(statistics, EYsonFormat::Text).Data();
+}
 
 void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer)
 {

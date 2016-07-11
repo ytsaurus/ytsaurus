@@ -709,6 +709,7 @@ public:
 
         auto objectManager = Bootstrap_->GetObjectManager();
         for (auto* tablet : table->Tablets()) {
+            tablet->SetTable(nullptr);
             YCHECK(tablet->GetState() == ETabletState::Unmounted);
             objectManager->UnrefObject(tablet);
         }
@@ -1688,7 +1689,9 @@ private:
 
         TMasterAutomatonPart::OnLeaderActive();
 
-        TabletTracker_->Start();
+        if (Bootstrap_->IsPrimaryMaster()) {
+            TabletTracker_->Start();
+        }
 
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;

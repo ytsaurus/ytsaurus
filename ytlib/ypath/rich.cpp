@@ -352,6 +352,41 @@ void ParseRowRanges(NYson::TTokenizer& tokenizer, IAttributeDictionary* attribut
     }
 }
 
+template <class TFunc>
+auto RunAttributeAccessor(const TRichYPath& path, const Stroka& key, TFunc accessor) -> decltype(accessor())
+{
+    try {
+        return accessor();
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing attribute %Qv of rich YPath %v",
+            key,
+            path.GetPath());
+    }
+}
+
+template <class T>
+T GetAttribute(const TRichYPath& path, const Stroka& key, const T& defaultValue)
+{
+    return RunAttributeAccessor(path, key, [&] () {
+        return path.Attributes().Get(key, defaultValue);
+    });
+}
+
+template <class T>
+TNullable<T> FindAttribute(const TRichYPath& path, const Stroka& key)
+{
+    return RunAttributeAccessor(path, key, [&] () {
+        return path.Attributes().Find<T>(key);
+    });
+}
+
+TNullable<TYsonString> FindAttributeYson(const TRichYPath& path, const Stroka& key)
+{
+    return RunAttributeAccessor(path, key, [&] () {
+        return path.Attributes().FindYson(key);
+    });
+}
+
 } // namespace
 
 TRichYPath TRichYPath::Parse(const Stroka& str)
@@ -400,7 +435,7 @@ void TRichYPath::Load(TStreamLoadContext& context)
 
 bool TRichYPath::GetAppend() const
 {
-    return Attributes().Get("append", false);
+    return GetAttribute(*this, "append", false);
 }
 
 void TRichYPath::SetAppend(bool value)
@@ -410,17 +445,17 @@ void TRichYPath::SetAppend(bool value)
 
 bool TRichYPath::GetTeleport() const
 {
-    return Attributes().Get("teleport", false);
+    return GetAttribute(*this, "teleport", false);
 }
 
 bool TRichYPath::GetPrimary() const
 {
-    return Attributes().Get("primary", false);
+    return GetAttribute(*this, "primary", false);
 }
 
 bool TRichYPath::GetForeign() const
 {
-    return Attributes().Get("foreign", false);
+    return GetAttribute(*this, "foreign", false);
 }
 
 TChannel TRichYPath::GetChannel() const
@@ -429,18 +464,18 @@ TChannel TRichYPath::GetChannel() const
         if (Attributes().Contains("columns")) {
             THROW_ERROR_EXCEPTION("Conflicting attributes 'channel' and 'columns' in YPath");
         }
-        return Attributes().Get("channel", TChannel::Universal());
+        return GetAttribute(*this, "channel", TChannel::Universal());
     } else {
-        return Attributes().Get("columns", TChannel::Universal());
+        return GetAttribute(*this, "columns", TChannel::Universal());
     }
 }
 
 std::vector<NChunkClient::TReadRange> TRichYPath::GetRanges() const
 {
     // COMPAT(ignat): top-level "lower_limit" and "upper_limit" are processed for compatibility.
-    auto maybeLowerLimit = Attributes().Find<TReadLimit>("lower_limit");
-    auto maybeUpperLimit = Attributes().Find<TReadLimit>("upper_limit");
-    auto maybeRanges = Attributes().Find<std::vector<TReadRange>>("ranges");
+    auto maybeLowerLimit = FindAttribute<TReadLimit>(*this, "lower_limit");
+    auto maybeUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
+    auto maybeRanges = FindAttribute<std::vector<TReadRange>>(*this, "ranges");
 
     if (maybeLowerLimit || maybeUpperLimit) {
         if (maybeRanges) {
@@ -467,27 +502,27 @@ void TRichYPath::SetRanges(const std::vector<NChunkClient::TReadRange>& value)
 
 TNullable<Stroka> TRichYPath::GetFileName() const
 {
-    return Attributes().Find<Stroka>("file_name");
+    return FindAttribute<Stroka>(*this, "file_name");
 }
 
 TNullable<bool> TRichYPath::GetExecutable() const
 {
-    return Attributes().Find<bool>("executable");
+    return FindAttribute<bool>(*this, "executable");
 }
 
 TNullable<TYsonString> TRichYPath::GetFormat() const
 {
-    return Attributes().FindYson("format");
+    return FindAttributeYson(*this, "format");
 }
 
 TNullable<TTableSchema> TRichYPath::GetSchema() const
 {
-    return Attributes().Find<TTableSchema>("schema");   
+    return FindAttribute<TTableSchema>(*this, "schema");
 }
 
 TKeyColumns TRichYPath::GetSortedBy() const
 {
-    return Attributes().Get<TKeyColumns>("sorted_by", TKeyColumns());
+    return GetAttribute(*this, "sorted_by", TKeyColumns());
 }
 
 void TRichYPath::SetSortedBy(const TKeyColumns& value)
@@ -501,7 +536,7 @@ void TRichYPath::SetSortedBy(const TKeyColumns& value)
 
 TNullable<i64> TRichYPath::GetRowCountLimit() const
 {
-    return Attributes().Find<i64>("row_count_limit");
+    return FindAttribute<i64>(*this, "row_count_limit");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

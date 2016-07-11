@@ -98,7 +98,6 @@ typedef TIntrusivePtr<TSerializableAccessControlEntry> TSerializableAccessContro
 
 void Deserilize(
     TAccessControlList& acl,
-    EPermissionSet supportedPermissions,
     INodePtr node,
     TSecurityManagerPtr securityManager)
 {
@@ -120,7 +119,7 @@ void Deserilize(
         }
          
         // Permissions
-        ace.Permissions = ParsePermissions(serializableAce->Permissions, supportedPermissions);
+        ace.Permissions = ParsePermissions(serializableAce->Permissions);
 
         acl.Entries.push_back(ace);
     }

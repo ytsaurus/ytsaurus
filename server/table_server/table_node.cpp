@@ -33,6 +33,11 @@ using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// FIXME(savrus): Remove after YT-5031 investigation.
+static const auto& Logger = TableServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
     , Atomicity_(NTransactionClient::EAtomicity::Full)
@@ -68,6 +73,10 @@ bool TTableNode::IsSorted() const
 
 void TTableNode::Save(TSaveContext& context) const
 {
+    if (IsDynamic() && !TableSchema_.GetStrict()) {
+        LOG_ERROR("Dynamic table %v schema is not strict", GetId());
+    }
+
     TChunkOwnerBase::Save(context);
 
     using NYT::Save;
@@ -104,9 +113,9 @@ void TTableNode::Load(TLoadContext& context)
     Load(context, Atomicity_);
 
     // COMPAT(max42)
-    if (context.GetVersion() < 205) {
+    if (context.GetVersion() < 205 && Attributes_) {
         // We erase schema from attributes map since it is now a built-in attribute.
-        auto& attributesMap = GetMutableAttributes()->Attributes();
+        auto& attributesMap = Attributes_->Attributes();
         auto tableSchemaAttribute = attributesMap["schema"];
         attributesMap.erase("schema");
         if (IsDynamic()) {
@@ -121,10 +130,10 @@ void TTableNode::Load(TLoadContext& context)
             TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
         }
     }
-    
+
     // COMPAT(max42): In case there are channels associated with a table, we extend the
     // table schema with all columns mentioned in channels and erase the corresponding attribute.
-    {
+    if (context.GetVersion() < 205 && Attributes_) {
         auto& attributesMap = GetMutableAttributes()->Attributes();
         if (attributesMap.find("channels")) {
             const auto& channels = ConvertTo<TChannels>(attributesMap["channels"]);
@@ -150,9 +159,22 @@ void TTableNode::Load(TLoadContext& context)
         }
     }
 
+    // COMPAT(babenko): Cf. YT-5045
+    if (Attributes_ && Attributes_->Attributes().empty()) {
+        Attributes_.reset();
+    }
+
     // COMPAT(max42)
     if (context.GetVersion() < 206) {
         YCHECK(!(sorted && !TableSchema_.IsSorted()));
+    }
+
+    // COMPAT(savrus) See YT-5031
+    if (context.GetVersion() < 301) {
+        if (IsDynamic() && !TableSchema_.GetStrict()) {
+            LOG_ERROR("Dynamic table %v schema was made strict during load from snapshot", GetId());
+            TableSchema_ = TTableSchema(TableSchema_.Columns(), true /* strict */);
+        }
     }
 }
 
@@ -255,7 +277,7 @@ protected:
         attributes->Remove("schema");
 
         if (maybeSchema) {
-            ValidateTableSchema(*maybeSchema);
+            ValidateTableSchemaUpdate(TTableSchema(), *maybeSchema, dynamic, true);
         }
 
         if (dynamic && !maybeSchema) {
@@ -271,13 +293,18 @@ protected:
             attributes);
         auto* node = nodeHolder.get();
 
-        if (maybeSchema) {
-            node->TableSchema() = *maybeSchema;
-        }
+        try {
+            if (maybeSchema) {
+                node->TableSchema() = *maybeSchema;
+            }
 
-        if (dynamic) {
-            auto tabletManager = Bootstrap_->GetTabletManager();
-            tabletManager->MakeTableDynamic(nodeHolder.get());
+            if (dynamic) {
+                auto tabletManager = Bootstrap_->GetTabletManager();
+                tabletManager->MakeTableDynamic(node);
+            }
+        } catch (...) {
+            DoDestroy(node);
+            throw;
         }
 
         return nodeHolder;

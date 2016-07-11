@@ -20,6 +20,45 @@ static const i64 LowWatermarkMemorySize = (i64) 256 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////
 
+TExtendedJobResources::TExtendedJobResources()
+    : UserSlots_(0)
+    , Cpu_(0)
+    , JobProxyMemory_(0)
+    , UserJobMemory_(0)
+    , FootprintMemory_(0)
+    , Network_(0)
+{ }
+
+i64 TExtendedJobResources::GetMemory() const
+{
+    return JobProxyMemory_ + UserJobMemory_ + FootprintMemory_;
+}
+
+void Serialize(const TExtendedJobResources& resources, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("cpu").Value(resources.GetCpu())
+            .Item("user_slots").Value(resources.GetUserSlots())
+            .Item("job_proxy_memory").Value(resources.GetJobProxyMemory())
+            .Item("user_job_memory").Value(resources.GetUserJobMemory())
+            .Item("footprint_memory").Value(resources.GetFootprintMemory())
+            .Item("network").Value(resources.GetNetwork())
+        .EndMap();
+}
+
+void TExtendedJobResources::Persist(TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Cpu_);
+    Persist(context, UserSlots_);
+    Persist(context, JobProxyMemory_);
+    Persist(context, UserJobMemory_);
+    Persist(context, FootprintMemory_);
+    Persist(context, Network_);
+}
+
 TJobResources::TJobResources()
     : TEmptyJobResourcesBase()
 #define XX(name, Name) , Name##_(0)
@@ -79,6 +118,18 @@ Stroka FormatResources(const TJobResources& resources)
         resources.GetUserSlots(),
         resources.GetCpu(),
         resources.GetMemory() / (1024 * 1024),
+        resources.GetNetwork());
+}
+
+Stroka FormatResources(const TExtendedJobResources& resources)
+{
+    return Format(
+        "{UserSlots: %v, Cpu: %v, JobProxyMemory: %v, UserJobMemory: %v, FootprintMemory: %v, Network: %v}",
+        resources.GetUserSlots(),
+        resources.GetCpu(),
+        resources.GetJobProxyMemory() / (1024 * 1024),
+        resources.GetUserJobMemory() / (1024 * 1024),
+        resources.GetFootprintMemory() / (1024 * 1024),
         resources.GetNetwork());
 }
 
@@ -150,6 +201,22 @@ double GetMinResourceRatio(
     return result;
 }
 
+double GetMaxResourceRatio(
+    const TJobResources& nominator,
+    const TJobResources& denominator)
+{
+    double result = 0.0;
+    auto update = [&] (i64 a, i64 b) {
+        if (b > 0) {
+            result = std::max(result, (double) a / b);
+        }
+    };
+    #define XX(name, Name) update(nominator.Get##Name(), denominator.Get##Name());
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+    return result;
+}
+
 TJobResources GetAdjustedResourceLimits(
     const TJobResources& demand,
     const TJobResources& limits,
@@ -161,9 +228,11 @@ TJobResources GetAdjustedResourceLimits(
     if (demand.GetUserSlots() > 0 && nodeCount > 0) {
         i64 memoryDemandPerJob = demand.GetMemory() / demand.GetUserSlots();
         i64 memoryLimitPerNode = limits.GetMemory() / nodeCount;
-        int slotsPerNode = memoryLimitPerNode / memoryDemandPerJob;
-        i64 adjustedMemoryLimit = slotsPerNode * memoryDemandPerJob * nodeCount;
-        adjustedLimits.SetMemory(adjustedMemoryLimit);
+        if (memoryDemandPerJob > 0) {
+            int slotsPerNode = memoryLimitPerNode / memoryDemandPerJob;
+            i64 adjustedMemoryLimit = slotsPerNode * memoryDemandPerJob * nodeCount;
+            adjustedLimits.SetMemory(adjustedMemoryLimit);
+        }
     }
 
     return adjustedLimits;

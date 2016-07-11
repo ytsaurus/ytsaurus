@@ -1062,7 +1062,7 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(TTransaction* transaction, TSo
                     Y_ASSERT(migratedLock->PrepareTimestamp == NotPreparedTimestamp);
 
                     migratedLock->Transaction = lock->Transaction;
-                    migratedLock->PrepareTimestamp = lock->PrepareTimestamp;
+                    migratedLock->PrepareTimestamp = lock->PrepareTimestamp.load();
                     if (index == TSortedDynamicRow::PrimaryLockIndex) {
                         Y_ASSERT(!migratedRow.GetDeleteLockFlag());
                         migratedRow.SetDeleteLockFlag(row.GetDeleteLockFlag());
@@ -1166,11 +1166,11 @@ void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow
         auto* lock = locks;
         for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
             if (lock->Transaction == transaction) {
-                lock->Transaction = nullptr;
-                lock->PrepareTimestamp = NotPreparedTimestamp;
                 if (!row.GetDeleteLockFlag()) {
                     AddWriteRevision(*lock, commitRevision);
                 }
+                lock->Transaction = nullptr;
+                lock->PrepareTimestamp = NotPreparedTimestamp;
             }
         }
     }
@@ -1762,6 +1762,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         auto chunkWriter = New<TMemoryWriter>();
         auto tableWriterConfig = New<TChunkWriterConfig>();
         auto tableWriterOptions = New<TTabletWriterOptions>();
+        tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
         auto tableWriter = CreateVersionedChunkWriter(
             tableWriterConfig,
             tableWriterOptions,

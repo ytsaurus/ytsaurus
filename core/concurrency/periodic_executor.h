@@ -72,6 +72,7 @@ private:
     void PostDelayedCallback(TDuration delay);
     void PostCallback();
 
+    void OnTimer(bool aborted);
     void OnCallbackSuccess();
     void OnCallbackFailure();
 

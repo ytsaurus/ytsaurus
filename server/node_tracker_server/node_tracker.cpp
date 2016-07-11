@@ -1308,7 +1308,7 @@ private:
 
         auto nodes = GetValuesSortedByKey(NodeMap_);
         for (auto* node : nodes) {
-            objectManager->ReplicateObjectCreationToSecondaryMaster(node, cellTag);
+            objectManager->ReplicateObjectAttributesToSecondaryMaster(node, cellTag);
         }
 
         auto racks = GetValuesSortedByKey(RackMap_);

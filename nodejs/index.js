@@ -1,6 +1,9 @@
 // Register at-exit callback.
 var binding = require("./lib/ytnode");
-process.on("exit", binding.ShutdownSingletons);
+process.on("exit", function() {
+    // Call _exit to avoid subtle shutdown issues.
+    binding.WipeOutCurrentProcess(0);
+});
 
 // Ability to configure singletons.
 exports.configureSingletons = binding.ConfigureSingletons;

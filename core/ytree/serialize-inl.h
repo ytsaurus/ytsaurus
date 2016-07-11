@@ -238,7 +238,7 @@ template <class T>
 void Deserialize(std::unique_ptr<T>& value, INodePtr node)
 {
     if (!value) {
-        value.Reset(new T());
+        value.reset(new T());
     }
     Deserialize(*value, node);
 }

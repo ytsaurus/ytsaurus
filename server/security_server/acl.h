@@ -53,7 +53,6 @@ void Save(NCellMaster::TSaveContext& context, const TAccessControlList& acl);
 void Serialize(const TAccessControlList& acl, NYson::IYsonConsumer* consumer);
 void Deserilize(
     TAccessControlList& acl,
-    EPermissionSet supportedPermissions,
     NYTree::INodePtr node,
     TSecurityManagerPtr securityManager);
 
@@ -66,7 +65,7 @@ class TAccessControlDescriptor
     DEFINE_BYVAL_RO_PROPERTY(NObjectServer::TObjectBase*, Object);
 
 public:
-    explicit TAccessControlDescriptor(NObjectServer::TObjectBase* object);
+    explicit TAccessControlDescriptor(NObjectServer::TObjectBase* object = nullptr);
     
     void Clear();
 

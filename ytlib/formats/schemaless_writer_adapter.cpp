@@ -23,7 +23,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 ContextBufferSize = (i64) 1024 * 1024;
+static const i64 ContextBufferSize = static_cast<i64>(128 * 7) * 1024;
+static const i64 ContextBufferCapacity = static_cast<i64>(1024) * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,17 +35,13 @@ TSchemalessFormatWriterBase::TSchemalessFormatWriterBase(
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
     : NameTable_(nameTable)
-    , Output_(CreateSyncAdapter(output))
+    , Output_(output)
     , EnableContextSaving_(enableContextSaving)
     , ControlAttributesConfig_(controlAttributesConfig)
     , KeyColumnCount_(keyColumnCount)
     , NameTableReader_(std::make_unique<TNameTableReader>(NameTable_))
 {
-    CurrentBuffer_.Reserve(ContextBufferSize);
-
-    if (EnableContextSaving_) {
-        PreviousBuffer_.Reserve(ContextBufferSize);
-    }
+    CurrentBuffer_.Reserve(ContextBufferCapacity);
 
     EnableRowControlAttributes_ = ControlAttributesConfig_->EnableTableIndex || 
         ControlAttributesConfig_->EnableRangeIndex || 
@@ -73,7 +70,6 @@ TFuture<void> TSchemalessFormatWriterBase::Close()
 {
     try {
         DoFlushBuffer();
-        Output_->Finish();
     } catch (const std::exception& ex) {
         Error_ = TError(ex);
     }
@@ -99,7 +95,7 @@ TBlobOutput* TSchemalessFormatWriterBase::GetOutputStream()
 TBlob TSchemalessFormatWriterBase::GetContext() const
 {
     TBlob result;
-    result.Append(TRef::FromBlob(PreviousBuffer_.Blob()));
+    result.Append(PreviousBuffer_);
     result.Append(TRef::FromBlob(CurrentBuffer_.Blob()));
     return result;
 }
@@ -122,13 +118,16 @@ void TSchemalessFormatWriterBase::DoFlushBuffer()
         return;
     }
 
-    const auto& buffer = CurrentBuffer_.Blob();
-    Output_->Write(buffer.Begin(), buffer.Size());
+    auto buffer = CurrentBuffer_.Flush();
+    WaitFor(Output_->Write(buffer))
+        .ThrowOnError();
 
     if (EnableContextSaving_) {
-        std::swap(PreviousBuffer_, CurrentBuffer_);
+        PreviousBuffer_ = std::move(buffer);
     }
+
     CurrentBuffer_.Clear();
+    CurrentBuffer_.Reserve(ContextBufferCapacity);
 }
 
 bool TSchemalessFormatWriterBase::Write(const std::vector<TUnversionedRow> &rows)

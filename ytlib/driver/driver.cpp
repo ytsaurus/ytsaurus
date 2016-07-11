@@ -47,11 +47,20 @@ TDriverRequest::TDriverRequest()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TCommandDescriptor IDriver::GetCommandDescriptor(const Stroka& commandName) const
+TCommandDescriptor IDriver::GetCommandDescriptor(const Stroka& commandName) const
 {
     auto descriptor = FindCommandDescriptor(commandName);
     YCHECK(descriptor);
-    return descriptor.Get();
+    return *descriptor;
+}
+
+TCommandDescriptor IDriver::GetCommandDescriptorOrThrow(const Stroka& commandName) const
+{
+    auto descriptor = FindCommandDescriptor(commandName);
+    if (!descriptor) {
+        THROW_ERROR_EXCEPTION("Unknown command %Qv", commandName);
+    }
+    return *descriptor;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,13 +170,14 @@ public:
 
         REGISTER(TGetVersionCommand,           "get_version",             Null,       Structured, false, false);
 
+        REGISTER(TExecuteBatchCommand,         "execute_batch",           Null,       Structured, true,  false);
 #undef REGISTER
     }
 
     virtual TFuture<void> Execute(const TDriverRequest& request) override
     {
-        auto it = Commands.find(request.CommandName);
-        if (it == Commands.end()) {
+        auto it = CommandNameToEntry_.find(request.CommandName);
+        if (it == CommandNameToEntry_.end()) {
             return MakeFuture(TError(
                 "Unknown command %Qv",
                 request.CommandName));
@@ -195,7 +205,7 @@ public:
             request,
             cachedClient->GetClient());
 
-        auto invoker = entry.Descriptor.IsHeavy
+        auto invoker = entry.Descriptor.Heavy
             ? Connection_->GetHeavyInvoker()
             : Connection_->GetLightInvoker();
 
@@ -204,20 +214,17 @@ public:
             .Run();
     }
 
-    virtual const TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) const override
+    virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) const override
     {
-        auto it = Commands.find(commandName);
-        if (it == Commands.end()) {
-            return Null;
-        }
-        return it->second.Descriptor;
+        auto it = CommandNameToEntry_.find(commandName);
+        return it == CommandNameToEntry_.end() ? Null : MakeNullable(it->second.Descriptor);
     }
 
     virtual const std::vector<TCommandDescriptor> GetCommandDescriptors() const override
     {
         std::vector<TCommandDescriptor> result;
-        result.reserve(Commands.size());
-        for (const auto& pair : Commands) {
+        result.reserve(CommandNameToEntry_.size());
+        for (const auto& pair : CommandNameToEntry_) {
             result.push_back(pair.second.Descriptor);
         }
         return result;
@@ -233,7 +240,7 @@ private:
     typedef TIntrusivePtr<TCommandContext> TCommandContextPtr;
     typedef TCallback<void(ICommandContextPtr)> TExecuteCallback;
 
-    TDriverConfigPtr Config;
+    const TDriverConfigPtr Config;
 
     IConnectionPtr Connection_;
 
@@ -243,7 +250,7 @@ private:
         TExecuteCallback Execute;
     };
 
-    yhash_map<Stroka, TCommandEntry> Commands;
+    yhash_map<Stroka, TCommandEntry> CommandNameToEntry_;
 
     struct TTransactionEntry
     {
@@ -266,7 +273,7 @@ private:
             Deserialize(command, parameters);
             command.Execute(context);
         });
-        YCHECK(Commands.insert(std::make_pair(descriptor.CommandName, entry)).second);
+        YCHECK(CommandNameToEntry_.insert(std::make_pair(descriptor.CommandName, entry)).second);
     }
 
     static void DoExecute(TExecuteCallback executeCallback, TCommandContextPtr context)
@@ -385,7 +392,12 @@ private:
             return Client_;
         }
 
-        virtual const TDriverRequest& Request() const override
+        virtual IDriverPtr GetDriver() override
+        {
+            return Driver_;
+        }
+
+        virtual const TDriverRequest& Request() override
         {
             return Request_;
         }

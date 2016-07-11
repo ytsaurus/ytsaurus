@@ -51,7 +51,7 @@ class TJob
     //! True if job was unregistered during heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasPendingUnregistration);
 
-    //! Some rough approximation that is updated with every heartbeat.
+    //! Current state of the job.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
 
     //! Some rough approximation that is updated with every heartbeat.
@@ -62,6 +62,12 @@ class TJob
 
     //! Asynchronous spec builder callback.
     DEFINE_BYVAL_RW_PROPERTY(TJobSpecBuilder, SpecBuilder);
+
+    //! Temporary flag used during heartbeat jobs processing to mark found jobs.
+    DEFINE_BYVAL_RW_PROPERTY(bool, FoundOnNode);
+
+    //! Flag that marks job as preempted by scheduler.
+    DEFINE_BYVAL_RW_PROPERTY(bool, Preempted);
 
 public:
     TJob(
@@ -128,6 +134,10 @@ struct TAbortedJobSummary
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRefCountedJobStatusPtr JobStatusFromError(const TError& error);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobStartRequest
 {
     TJobStartRequest(
@@ -172,6 +182,12 @@ struct TScheduleJobResult
 };
 
 DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobId MakeJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
+
+NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

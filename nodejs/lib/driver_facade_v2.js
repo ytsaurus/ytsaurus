@@ -99,6 +99,8 @@ function YtDriverFacadeV2(logger, driver)
 
     delete descriptors.complete_op;
 
+    delete descriptors.execute_batch;
+
     this.logger = logger;
     this.driver = driver;
 

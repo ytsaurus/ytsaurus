@@ -116,25 +116,6 @@ public:
         YUNREACHABLE();
     }
 
-    virtual EPermissionSet GetSupportedPermissions() const override
-    {
-        auto permissions = NonePermissions;
-
-        auto objectManager = Bootstrap_->GetObjectManager();
-        const auto& handler = objectManager->GetHandler(Type_);
-
-        if (!IsVersionedType(Type_)) {
-            permissions |= handler->GetSupportedPermissions();
-        }
-
-        auto flags = handler->GetFlags();
-        if (Any(flags & ETypeFlags::Creatable)) {
-            permissions |= EPermission::Create;
-        }
-
-        return permissions;
-    }
-
     virtual void ResetAllObjects() override
     { }
 

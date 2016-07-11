@@ -445,7 +445,7 @@ YtCommand.prototype._checkAvailability = function() {
 YtCommand.prototype._redirectHeavyRequests = function() {
     this.__DBG("_redirectHeavyRequests");
 
-    if (this.descriptor.is_heavy && this.coordinator.getSelf().role !== "data") {
+    if (this.descriptor.is_heavy && this.coordinator.getSelf().role === "control") {
         var target = this.coordinator.allocateProxy("data");
         if (target) {
             var is_ssl;
@@ -872,9 +872,10 @@ YtCommand.prototype._execute = function(cb) {
 
     var self = this;
 
-    var watcher_tags = JSON.parse(JSON.stringify(self.req.tags));
+    var sema_command = this.command;
+    var sema_user = this.user;
 
-    if (!self.watcher.acquireThread(watcher_tags)) {
+    if (!self.watcher.acquireThread(sema_user, sema_command)) {
         self.rsp.statusCode = 503;
         self.rsp.setHeader("Retry-After", "60");
         return Q.reject(new YtError(
@@ -907,7 +908,7 @@ YtCommand.prototype._execute = function(cb) {
             }
         },
         function execute$interceptor(result, bytes_in, bytes_out) {
-            self.watcher.releaseThread(watcher_tags);
+            self.watcher.releaseThread(sema_user, sema_command);
             self.logger.debug(
                 "Command '" + self.command + "' has finished executing",
                 { result: result });

@@ -248,7 +248,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
     int totalPartCount = codec->GetTotalPartCount();
     int dataPartCount = codec->GetDataPartCount();
-    int maxReplicasPerRack = codec->GetGuaranteedRepairablePartCount();
+    int maxReplicasPerRack = chunk->GetMaxReplicasPerRack(Null);
     std::array<TNodePtrWithIndexList, ChunkReplicaIndexBound> decommissionedReplicas{};
     std::array<ui8, MaxRackCount + 1> perRackReplicaCounters{};
     int unsafelyPlacedReplicaIndex = -1; // an arbitrary replica collocated with too may others within a single rack
@@ -270,7 +270,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
             int rackIndex = rack->GetIndex();
             if (++perRackReplicaCounters[rackIndex] > maxReplicasPerRack) {
                 // A erasure chunk is considered placed unsafely if some non-null rack
-                // contains more replicas than returned by ICodec::GetGuaranteedRepairablePartCount.
+                // contains more replicas than returned by TChunk::GetMaxReplicasPerRack.
                 unsafelyPlacedReplicaIndex = index;
             }
         }
@@ -327,13 +327,14 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
 
     int replicationFactor = chunk->ComputeReplicationFactor();
     int readQuorum = chunk->GetReadQuorum();
+    int maxReplicasPerRack = chunk->GetMaxReplicasPerRack(Null);
 
     int replicaCount = 0;
     int decommissionedReplicaCount = 0;
     int sealedReplicaCount = 0;
     int unsealedReplicaCount = 0;
     TNodePtrWithIndexList decommissionedReplicas;
-    TRackSet usedRacks;
+    std::array<ui8, MaxRackCount + 1> perRackReplicaCounters{};
     bool hasUnsafelyPlacedReplicas = false;
 
     for (auto replica : chunk->StoredReplicas()) {
@@ -351,12 +352,10 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
         const auto* rack = replica.GetPtr()->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
-            if (usedRacks.test(rackIndex)) {
+            if (++perRackReplicaCounters[rackIndex] > maxReplicasPerRack) {
                 // A journal chunk is considered placed unsafely if some non-null rack
-                // contains more than one of its replicas.
+                // contains more replicas than returned by TChunk::GetMaxReplicasPerRack.
                 hasUnsafelyPlacedReplicas = true;
-            } else {
-                usedRacks.set(rackIndex);
             }
         }
     }

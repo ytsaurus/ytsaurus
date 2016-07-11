@@ -388,11 +388,6 @@ public:
         return UnderlyingHandler_->GetObjectType();
     }
 
-    virtual EPermissionSet GetSupportedPermissions() const override
-    {
-        return UnderlyingHandler_->GetSupportedPermissions();
-    }
-
     virtual TObjectBase* FindObject(const TObjectId& id) override
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
@@ -1350,8 +1345,6 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(trunkNode->IsTrunk());
 
-        NodeMap_.Release(trunkNode->GetVersionedId()).release();
-
         TCypressNodeBase::TLockList acquiredLocks;
         trunkNode->AcquiredLocks().swap(acquiredLocks);
 
@@ -1388,6 +1381,9 @@ private:
 
         auto handler = GetHandler(trunkNode);
         handler->Destroy(trunkNode);
+
+        // Remove the object from the map but keep it alive.
+        NodeMap_.Release(trunkNode->GetVersionedId()).release();
     }
 
 

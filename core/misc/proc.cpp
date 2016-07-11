@@ -34,7 +34,7 @@
     #include <utmp.h>
 #endif
 #ifdef _darwin_
-    //include <util.h>
+    #include <util.h>
 #endif
 
 namespace NYT {
@@ -322,7 +322,7 @@ int SafeDup(int fd)
 
 void SafeOpenPty(int* masterFD, int* slaveFD, int height, int width)
 {
-#if 0
+#ifndef YT_IN_ARCADIA
     {
         struct termios tt = { };
         tt.c_iflag = TTYDEF_IFLAG & ~ISTRIP;
@@ -355,7 +355,7 @@ void SafeOpenPty(int* masterFD, int* slaveFD, int height, int width)
 
 void SafeLoginTty(int slaveFD)
 {
-#if 0
+#ifndef YT_IN_ARCADIA
     int result = ::login_tty(slaveFD);
     if (result == -1) {
         THROW_ERROR_EXCEPTION("Error attaching pty to standard streams")

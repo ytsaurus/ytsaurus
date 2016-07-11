@@ -1481,6 +1481,16 @@ private:
     {
         ChunkMap_.LoadValues(context);
         ChunkListMap_.LoadValues(context);
+
+        // COMPAT(savrus): Cf. YT-5120
+        if (context.GetVersion() < 303) {
+            ScheduleRecomputeStatistics();
+        }
+    }
+
+    virtual void OnBeforeSnapshotLoaded() override
+    {
+        NeedToRecomputeStatistics_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1514,6 +1524,11 @@ private:
             }
         }
 
+        if (NeedToRecomputeStatistics_) {
+            RecomputeStatistics();
+            NeedToRecomputeStatistics_ = false;
+        }
+
         LOG_INFO("Finished initializing chunks");
     }
 
@@ -1540,15 +1555,51 @@ private:
         NeedToRecomputeStatistics_ = true;
     }
 
-    const TChunkTreeStatistics& ComputeStatisticsFor(TChunkList* chunkList, TAtomic visitMark)
+    void RecomputeStatistics()
     {
-        auto& statistics = chunkList->Statistics();
-        if (chunkList->GetVisitMark() != visitMark) {
-            chunkList->SetVisitMark(visitMark);
+        LOG_INFO("Started recomputing statistics");
 
+        auto visitMark = TChunkList::GenerateVisitMark();
+
+        std::vector<TChunkList*> chunkLists;
+        std::vector<std::pair<TChunkList*, int>> stack;
+
+        auto visit = [&] (TChunkList* chunkList) {
+            if (chunkList->GetVisitMark() != visitMark) {
+                chunkList->SetVisitMark(visitMark);
+                stack.emplace_back(chunkList, 0);
+            }
+        };
+
+        // Sort chunk lists in topological order
+        for (const auto& pair : ChunkListMap_) {
+            auto* chunkList = pair.second;
+            visit(chunkList);
+
+            while (!stack.empty()) {
+                chunkList = stack.back().first;
+                int childIndex = stack.back().second;
+                int childCount = chunkList->Children().size();
+
+                if (childIndex == childCount) {
+                    chunkLists.push_back(chunkList);
+                    stack.pop_back();
+                } else {
+                    ++stack.back().second;
+                    auto* child = chunkList->Children()[childIndex];
+                    if (child && child->GetType() == EObjectType::ChunkList) {
+                        visit(child->AsChunkList());
+                    }
+                }
+            }
+        }
+
+        // Recompute statistics
+        for (auto* chunkList : chunkLists) {
+            auto& statistics = chunkList->Statistics();
+            auto oldStatistics = statistics;
             statistics = TChunkTreeStatistics();
-            statistics.Rank = 1;
-            int childrenCount = chunkList->Children().size();
+            int childCount = chunkList->Children().size();
 
             auto& rowCountSums = chunkList->RowCountSums();
             rowCountSums.clear();
@@ -1559,8 +1610,12 @@ private:
             auto& dataSizeSums = chunkList->DataSizeSums();
             dataSizeSums.clear();
 
-            for (int childIndex = 0; childIndex < childrenCount; ++childIndex) {
+            for (int childIndex = 0; childIndex < childCount; ++childIndex) {
                 auto* child = chunkList->Children()[childIndex];
+                if (!child) {
+                    continue;
+                }
+
                 TChunkTreeStatistics childStatistics;
                 switch (child->GetType()) {
                     case EObjectType::Chunk:
@@ -1570,14 +1625,14 @@ private:
                         break;
 
                     case EObjectType::ChunkList:
-                        childStatistics = ComputeStatisticsFor(child->AsChunkList(), visitMark);
+                        childStatistics.Accumulate(child->AsChunkList()->Statistics());
                         break;
 
                     default:
                         YUNREACHABLE();
                 }
 
-                if (childIndex + 1 < childrenCount) {
+                if (childIndex + 1 < childCount) {
                     rowCountSums.push_back(statistics.RowCount + childStatistics.RowCount);
                     chunkCountSums.push_back(statistics.ChunkCount + childStatistics.ChunkCount);
                     dataSizeSums.push_back(statistics.UncompressedDataSize + childStatistics.UncompressedDataSize);
@@ -1586,26 +1641,15 @@ private:
                 statistics.Accumulate(childStatistics);
             }
 
-            if (!chunkList->Children().empty()) {
-                ++statistics.Rank;
-            }
+            ++statistics.Rank;
             ++statistics.ChunkListCount;
-        }
-        return statistics;
-    }
 
-    void RecomputeStatistics()
-    {
-        // Chunk trees traversal with memoization.
-
-        LOG_INFO("Started recomputing statistics");
-
-        auto mark = TChunkList::GenerateVisitMark();
-
-        // Force all statistics to be recalculated.
-        for (const auto& pair : ChunkListMap_) {
-            auto* chunkList = pair.second;
-            ComputeStatisticsFor(chunkList, mark);
+            if (statistics != oldStatistics) {
+                LOG_DEBUG("Chunk list statistics changed (ChunkList: %v, OldStatistics: %v, NewStatistics: %v)",
+                    chunkList->GetId(),
+                    oldStatistics,
+                    statistics);
+            }
         }
 
         LOG_INFO("Finished recomputing statistics");
@@ -1616,8 +1660,6 @@ private:
         TMasterAutomatonPart::OnRecoveryStarted();
 
         Profiler.SetEnabled(false);
-
-        NeedToRecomputeStatistics_ = false;
     }
 
     virtual void OnRecoveryComplete() override
@@ -1625,11 +1667,6 @@ private:
         TMasterAutomatonPart::OnRecoveryComplete();
 
         Profiler.SetEnabled(true);
-
-        if (NeedToRecomputeStatistics_) {
-            RecomputeStatistics();
-            NeedToRecomputeStatistics_ = false;
-        }
     }
 
     virtual void OnLeaderRecoveryComplete() override

@@ -87,10 +87,12 @@ private:
     socklen_t Length;
 
     static socklen_t GetGenericLength(const sockaddr& sockAddr);
-
 };
 
 Stroka ToString(const TNetworkAddress& address, bool withPort = true);
+
+bool operator == (const TNetworkAddress& lhs, const TNetworkAddress& rhs);
+bool operator != (const TNetworkAddress& lhs, const TNetworkAddress& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,6 +127,9 @@ public:
 
     //! Return |true| if the local host FQDN can be properly determined.
     bool IsLocalHostNameOK();
+
+    //! Return |true| if the address matches one of local host addresses.
+    bool IsLocalServiceAddress(const Stroka& address);
 
     //! Removes all cached resolutions.
     void PurgeCache();

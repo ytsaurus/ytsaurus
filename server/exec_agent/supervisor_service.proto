@@ -14,7 +14,7 @@ message TReqGetJobSpec
 message TRspGetJobSpec
 {
     required NJobTrackerClient.NProto.TJobSpec job_spec = 1;
-    required NNodeTrackerClient.NProto.TNodeResources resource_usage = 2;
+    required TJobProxyResources resource_usage = 2;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -45,7 +45,17 @@ message TReqOnJobProgress
 message TReqUpdateResourceUsage
 {
     required NYT.NProto.TGuid job_id = 1;
-    required NNodeTrackerClient.NProto.TNodeResources resource_usage = 2;
+    required TJobProxyResources resource_usage = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Describes the resource usage of job proxy (possibly, combined with user job resource usage).
+message TJobProxyResources
+{
+    required int64 memory = 1;
+    required int32 cpu = 2;
+    required int32 network = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

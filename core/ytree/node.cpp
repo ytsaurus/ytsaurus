@@ -68,6 +68,23 @@ void Deserialize(INodePtr& value, INodePtr node)
     value = node;
 }
 
+#define DESERIALIZE_TYPED(type) \
+    void Deserialize(I##type##NodePtr& value, INodePtr node) \
+    { \
+        value = node->As##type(); \
+    }
+
+DESERIALIZE_TYPED(String)
+DESERIALIZE_TYPED(Int64)
+DESERIALIZE_TYPED(Uint64)
+DESERIALIZE_TYPED(Double)
+DESERIALIZE_TYPED(Boolean)
+DESERIALIZE_TYPED(Map)
+DESERIALIZE_TYPED(List)
+DESERIALIZE_TYPED(Entity)
+
+#undef DESERIALIZE_TYPED
+
 TYsonString ConvertToYsonStringStable(INodePtr node)
 {
     TStringStream stream;

@@ -59,42 +59,42 @@ public:
         , PreemptiveProfilingCounters("/preemptive")
         , ScheduleJobsThreadPool_(New<TThreadPool>(Config->StrategyScheduleJobsThreadCount, "ScheduleJob"))
     {
-        Host->SubscribeOperationRegistered(BIND(&TFairShareStrategy::OnOperationRegistered, this));
-        Host->SubscribeOperationUnregistered(BIND(&TFairShareStrategy::OnOperationUnregistered, this));
+        Host->SubscribeOperationRegistered(BIND(&TFairShareStrategy::OnOperationRegistered, MakeWeak(this)));
+        Host->SubscribeOperationUnregistered(BIND(&TFairShareStrategy::OnOperationUnregistered, MakeWeak(this)));
 
-        Host->SubscribeJobFinished(BIND(&TFairShareStrategy::OnJobFinished, this));
-        Host->SubscribeJobUpdated(BIND(&TFairShareStrategy::OnJobUpdated, this));
-        Host->SubscribePoolsUpdated(BIND(&TFairShareStrategy::OnPoolsUpdated, this));
+        Host->SubscribeJobFinished(BIND(&TFairShareStrategy::OnJobFinished, MakeWeak(this)));
+        Host->SubscribeJobUpdated(BIND(&TFairShareStrategy::OnJobUpdated, MakeWeak(this)));
+        Host->SubscribePoolsUpdated(BIND(&TFairShareStrategy::OnPoolsUpdated, MakeWeak(this)));
 
         Host->SubscribeOperationRuntimeParamsUpdated(
-            BIND(&TFairShareStrategy::OnOperationRuntimeParamsUpdated, this));
+            BIND(&TFairShareStrategy::OnOperationRuntimeParamsUpdated, MakeWeak(this)));
 
         RootElement = New<TRootElement>(Host, config);
 
         FairShareUpdateExecutor_ = New<TPeriodicExecutor>(
             GetCurrentInvoker(),
-            BIND(&TFairShareStrategy::OnFairShareUpdate, this),
+            BIND(&TFairShareStrategy::OnFairShareUpdate, MakeWeak(this)),
             Config->FairShareUpdatePeriod);
 
         FairShareLoggingExecutor_ = New<TPeriodicExecutor>(
             GetCurrentInvoker(),
-            BIND(&TFairShareStrategy::OnFairShareLogging, this),
+            BIND(&TFairShareStrategy::OnFairShareLogging, MakeWeak(this)),
             Config->FairShareLogPeriod);
     }
 
-    virtual void ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
+    virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&ScheduleJobsLock))
-            .Value();
-
-        auto asyncResult = BIND(&TFairShareStrategy::DoScheduleJobs, this)
-            .AsyncVia(ScheduleJobsThreadPool_->GetInvoker())
-            .Run(schedulingContext, RootElementSnapshot);
-
-        WaitFor(asyncResult)
-            .ThrowOnError();
+        auto asyncGuard = TAsyncLockReaderGuard::Acquire(&ScheduleJobsLock);
+        auto jobScheduler =
+            BIND(
+                &TFairShareStrategy::DoScheduleJobs,
+                MakeStrong(this),
+                schedulingContext,
+                RootElementSnapshot)
+            .AsyncVia(ScheduleJobsThreadPool_->GetInvoker());
+        return asyncGuard.Apply(jobScheduler);
     }
 
     virtual void StartPeriodicActivity() override
@@ -115,34 +115,13 @@ public:
         LastPoolsNodeUpdate.Reset();
     }
 
-    virtual TError CanAddOperation(TOperationPtr operation) override
+    virtual TFuture<void> ValidateOperationStart(const TOperationPtr& operation) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto spec = ParseSpec(operation, operation->GetSpec());
-        auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
-        auto pool = FindPool(poolName);
-        TCompositeSchedulerElement* poolElement;
-        if (!pool) {
-            auto defaultPool = FindPool(Config->DefaultParentPool);
-            if (!defaultPool) {
-                poolElement = RootElement.Get();
-            } else {
-                poolElement = defaultPool.Get();
-            }
-        } else {
-            poolElement = pool.Get();
-        }
-
-        const auto& poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(poolElement);
-        if (poolWithViolatedLimit) {
-            return TError(
-                EErrorCode::TooManyOperations,
-                "Limit for the number of concurrent operations %v for pool %v has been reached",
-                poolWithViolatedLimit->GetMaxOperationCount(),
-                poolWithViolatedLimit->GetId());
-        }
-        return TError();
+        return BIND(&TFairShareStrategy::DoValidateOperationStart, MakeStrong(this))
+            .AsyncVia(GetCurrentInvoker())
+            .Run(operation);
     }
 
     virtual TStatistics GetOperationTimeStatistics(const TOperationId& operationId) override
@@ -178,7 +157,7 @@ public:
             .Item("start_time").Value(dynamicAttributes.MinSubtreeStartTime)
             .Item("preemptable_job_count").Value(element->GetPreemptableJobCount())
             .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
-            .Do(BIND(&TFairShareStrategy::BuildElementYson, this, element));
+            .Do(BIND(&TFairShareStrategy::BuildElementYson, Unretained(this), element));
     }
 
     virtual void BuildBriefOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
@@ -252,21 +231,34 @@ public:
         PROFILE_TIMING ("/fair_share_update_time") {
             // The root element gets the whole cluster.
             RootElement->Update(GlobalDynamicAttributes_);
-        }
 
-        // Update starvation flags for all operations.
-        for (const auto& pair : OperationToElement) {
-            pair.second->CheckForStarvation(now);
-        }
-
-        // Update starvation flags for all pools.
-        if (Config->EnablePoolStarvation) {
-            for (const auto& pair : Pools) {
+            // Update starvation flags for all operations.
+            for (const auto& pair : OperationToElement) {
                 pair.second->CheckForStarvation(now);
             }
-        }
 
-        RootElementSnapshot = RootElement->CloneRoot();
+            // Update starvation flags for all pools.
+            if (Config->EnablePoolStarvation) {
+                for (const auto& pair : Pools) {
+                    pair.second->CheckForStarvation(now);
+                }
+            }
+
+            RootElementSnapshot = RootElement->CloneRoot();
+
+            // Profiling.
+            for (const auto& pair : Pools) {
+                const auto& tag = pair.second->GetProfilingTag();
+                Profiler.Enqueue(
+                    "/pools/fair_share_ratio_x100000",
+                    static_cast<i64>(pair.second->Attributes().FairShareRatio * 1e5),
+                    {tag});
+                Profiler.Enqueue(
+                    "/pools/usage_ratio_x100000",
+                    static_cast<i64>(pair.second->GetResourceUsageRatio() * 1e5),
+                    {tag});
+            }
+        }
     }
 
     // NB: This function is public for testing purposes.
@@ -274,23 +266,25 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // Log pools information.
-        Host->LogEventFluently(ELogEventType::FairShareInfo, now)
-            .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
-            .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
-                const auto& operationId = pair.first;
-                BuildYsonMapFluently(fluent)
-                    .Item(ToString(operationId))
-                    .BeginMap()
-                        .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operationId))
-                    .EndMap();
-            });
+        PROFILE_TIMING ("/fair_share_log_time") {
+            // Log pools information.
+            Host->LogEventFluently(ELogEventType::FairShareInfo, now)
+                .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, Unretained(this)))
+                .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
+                    const auto& operationId = pair.first;
+                    BuildYsonMapFluently(fluent)
+                        .Item(ToString(operationId))
+                        .BeginMap()
+                            .Do(BIND(&TFairShareStrategy::BuildOperationProgress, Unretained(this), operationId))
+                        .EndMap();
+                });
 
-        for (auto& pair : OperationToElement) {
-            const auto& operationId = pair.first;
-            LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
-                GetOperationLoggingProgress(operationId),
-                operationId);
+            for (const auto& pair : OperationToElement) {
+                const auto& operationId = pair.first;
+                LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
+                    GetOperationLoggingProgress(operationId),
+                    operationId);
+            }
         }
     }
 
@@ -370,7 +364,10 @@ private:
         OnFairShareLoggingAt(TInstant::Now());
     }
 
-    void DoScheduleJobs(const ISchedulingContextPtr schedulingContext, const TRootElementPtr rootElement)
+    void DoScheduleJobs(
+        const ISchedulingContextPtr& schedulingContext,
+        const TRootElementPtr& rootElement,
+        const TIntrusivePtr<TAsyncLockReaderGuard>& /*guard*/)
     {
         auto context = TFairShareContext(schedulingContext, rootElement->GetTreeSize());
         rootElement->BuildJobToOperationMapping(context);
@@ -618,7 +615,7 @@ private:
         }
     }
 
-    TOperationRuntimeParamsPtr BuildInitialRuntimeParams(TStrategyOperationSpecPtr spec)
+    TOperationRuntimeParamsPtr BuildInitialRuntimeParams(const TStrategyOperationSpecPtr& spec)
     {
         auto params = New<TOperationRuntimeParams>();
         params->Weight = spec->Weight;
@@ -638,7 +635,7 @@ private:
         return true;
     }
 
-    void OnOperationRegistered(TOperationPtr operation)
+    void OnOperationRegistered(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -675,13 +672,14 @@ private:
         }
     }
 
-    TCompositeSchedulerElementPtr FindPoolWithViolatedOperationCountLimit(TCompositeSchedulerElement* element)
+    TCompositeSchedulerElementPtr FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element)
     {
-        while (element) {
-            if (element->OperationCount() >= element->GetMaxOperationCount()) {
-                return element;
+        auto current = element;
+        while (current) {
+            if (current->OperationCount() >= current->GetMaxOperationCount()) {
+                return current;
             }
-            element = element->GetParent();
+            current = current->GetParent();
         }
         return nullptr;
     }
@@ -718,7 +716,7 @@ private:
             parent->GetId());
     }
 
-    void OnOperationUnregistered(TOperationPtr operation)
+    void OnOperationUnregistered(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -768,8 +766,8 @@ private:
     }
 
     void OnOperationRuntimeParamsUpdated(
-        TOperationPtr operation,
-        INodePtr update)
+        const TOperationPtr& operation,
+        const INodePtr& update)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -781,7 +779,9 @@ private:
         Logger.AddTag("OperationId: %v", operation->GetId());
 
         try {
-            if (ReconfigureYsonSerializable(element->GetRuntimeParams(), update)) {
+            auto newRuntimeParams = CloneYsonSerializable(element->GetRuntimeParams());
+            if (ReconfigureYsonSerializable(newRuntimeParams, update)) {
+                element->SetRuntimeParams(newRuntimeParams);
                 LOG_INFO("Operation runtime parameters updated");
             }
         } catch (const std::exception& ex) {
@@ -871,7 +871,7 @@ private:
     {
         auto defaultParentPool = FindPool(Config->DefaultParentPool);
         if (!defaultParentPool || defaultParentPool == pool) {
-            // NB: root element is not a pool, so we should supress warning in this special case.
+            // NB: root element is not a pool, so we should suppress warning in this special case.
             if (Config->DefaultParentPool != RootPoolName) {
                 LOG_WARNING("Default parent pool %Qv is not registered", Config->DefaultParentPool);
             }
@@ -912,7 +912,7 @@ private:
         return element;
     }
 
-    void OnPoolsUpdated(INodePtr poolsNode)
+    void OnPoolsUpdated(const INodePtr& poolsNode)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1016,6 +1016,7 @@ private:
                         .Item("operation_count").Value(pool->OperationCount())
                         .Item("max_running_operation_count").Value(pool->GetMaxRunningOperationCount())
                         .Item("max_operation_count").Value(pool->GetMaxOperationCount())
+                        .Item("aggressive_starvation_enabled").Value(pool->IsAggressiveStarvationEnabled())
                         .DoIf(config->Mode == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
                             fluent
                                 .Item("fifo_sort_parameters").Value(config->FifoSortParameters);
@@ -1024,7 +1025,7 @@ private:
                             fluent
                                 .Item("parent").Value(pool->GetParent()->GetId());
                         })
-                        .Do(BIND(&TFairShareStrategy::BuildElementYson, this, pool))
+                        .Do(BIND(&TFairShareStrategy::BuildElementYson, Unretained(this), pool))
                     .EndMap();
             });
     }
@@ -1059,13 +1060,71 @@ private:
             .Item("best_allocation_ratio").Value(attributes.BestAllocationRatio);
     }
 
+    TYPath GetPoolPath(const TCompositeSchedulerElementPtr& element)
+    {
+        std::vector<Stroka> tokens;
+        auto current = element;
+        while (!current->IsRoot()) {
+            if (current->IsExplicit()) {
+                tokens.push_back(current->GetId());
+            }
+            current = current->GetParent();
+        }
+
+        std::reverse(tokens.begin(), tokens.end());
+
+        TYPath path;
+        for (const auto& token : tokens) {
+            path.append('/');
+            path.append(NYPath::ToYPathLiteral(token));
+        }
+        return path;
+    }
+
+    TCompositeSchedulerElementPtr GetOperationParentElement(const TOperationPtr& operation)
+    {
+        auto spec = ParseSpec(operation, operation->GetSpec());
+        auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
+        auto pool = FindPool(poolName);
+        if (pool) {
+            return pool;
+        }
+
+        auto defaultPool = FindPool(Config->DefaultParentPool);
+        if (defaultPool) {
+            return defaultPool;
+        }
+
+        return RootElement;
+    }
+
+    void DoValidateOperationStart(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto parentElement = GetOperationParentElement(operation);
+
+        auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(parentElement);
+        if (poolWithViolatedLimit) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::TooManyOperations,
+                "Limit for the number of concurrent operations %v for pool %Qv has been reached",
+                poolWithViolatedLimit->GetMaxOperationCount(),
+                poolWithViolatedLimit->GetId());
+        }
+
+        auto poolPath = GetPoolPath(parentElement);
+        const auto& user = operation->GetAuthenticatedUser();
+        WaitFor(Host->CheckPoolPermission(poolPath, user, EPermission::Use))
+            .ThrowOnError();
+    }
 };
 
-std::unique_ptr<ISchedulerStrategy> CreateFairShareStrategy(
+ISchedulerStrategyPtr CreateFairShareStrategy(
     TFairShareStrategyConfigPtr config,
     ISchedulerStrategyHost* host)
 {
-    return std::unique_ptr<ISchedulerStrategy>(new TFairShareStrategy(config, host));
+    return New<TFairShareStrategy>(config, host);
 }
 
 ////////////////////////////////////////////////////////////////////
