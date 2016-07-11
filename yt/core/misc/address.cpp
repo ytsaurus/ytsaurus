@@ -369,9 +369,11 @@ private:
 
     TSpinLock CacheLock_;
     yhash_map<Stroka, TNetworkAddress> Cache_;
+
+    std::atomic<bool> HasCachedLocalAddresses_ = {false};
     std::vector<TNetworkAddress> CachedLocalAddresses_;
 
-    TActionQueuePtr Queue_ = New<TActionQueue>("AddressResolver");
+    const TActionQueuePtr Queue_ = New<TActionQueue>("AddressResolver");
     NConcurrency::TPeriodicExecutorPtr LocalHostChecker_;
 
     bool GetLocalHostNameFailed_ = false;
@@ -558,17 +560,14 @@ bool TAddressResolver::TImpl::IsLocalHostNameOK()
 
 bool TAddressResolver::TImpl::IsLocalServiceAddress(const Stroka& address)
 {
-    auto localAddresses = GetLocalAddresses();
+    const auto& localAddresses = GetLocalAddresses();
     return std::find(localAddresses.begin(), localAddresses.end(), DoResolve(address)) != localAddresses.end();
 }
 
 const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
 {
-    {
-        TGuard<TSpinLock> guard(CacheLock_);
-        if (!CachedLocalAddresses_.empty()) {
-            return CachedLocalAddresses_;
-        }
+    if (HasCachedLocalAddresses_) {
+        return CachedLocalAddresses_;
     }
 
     struct ifaddrs* ifAddresses;
@@ -595,9 +594,14 @@ const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
 
     {
         TGuard<TSpinLock> guard(CacheLock_);
-        CachedLocalAddresses_ = std::move(localAddresses);
-        return CachedLocalAddresses_;
+        // NB: Only update CachedLocalAddresses_ once.
+        if (!HasCachedLocalAddresses_) {
+            CachedLocalAddresses_ = std::move(localAddresses);
+            HasCachedLocalAddresses_ = true;
+        }
     }
+
+    return CachedLocalAddresses_;
 }
 
 Stroka TAddressResolver::TImpl::DoGetLocalHostName()
