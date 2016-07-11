@@ -388,8 +388,8 @@ public:
     //! Number of threads for running controllers invokers.
     int ControllerThreadCount;
 
-    //! Number of threads for retreiving important fields from job statistics.
-    int StatisticAnalyzerThreadCount;
+    //! Number of threads for retrieving important fields from job statistics.
+    int StatisticsAnalyzerThreadCount;
 
     //! Number of threads for building job specs.
     int JobSpecBuilderThreadCount;
@@ -562,7 +562,7 @@ public:
     // Duration of no activity by job to be considered as suspicious.
     TDuration SuspiciousInactivityTimeout;
 
-    // User job cpu usage delta that is considered insignifcant when checking if job is suspicious.
+    // User job cpu usage delta that is considered insignificant when checking if job is suspicious.
     i64 SuspiciousUserJobCpuUsageThreshold;
 
     TSchedulerConfig()
@@ -570,7 +570,7 @@ public:
         RegisterParameter("controller_thread_count", ControllerThreadCount)
             .Default(4)
             .GreaterThan(0);
-        RegisterParameter("statistic_analyzer_thread_count", StatisticAnalyzerThreadCount)
+        RegisterParameter("statistics_analyzer_thread_count", StatisticsAnalyzerThreadCount)
             .Default(2)
             .GreaterThan(0);
         RegisterParameter("job_spec_builder_thread_count", JobSpecBuilderThreadCount)

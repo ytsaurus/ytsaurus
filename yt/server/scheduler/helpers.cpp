@@ -67,13 +67,7 @@ void BuildJobAttributes(TJobPtr job, const TNullable<NYson::TYsonString>& inputP
         .Item("account").Value(TmpAccountName)
         .Item("progress").Value(job->GetProgress())
         .DoIf(static_cast<bool>(job->GetBriefStatistics()), [=] (TFluentMap fluent) {
-            fluent
-                .Item("processed_input_row_count").Value(job->GetBriefStatistics()->ProcessedInputRowCount)
-                .Item("processed_input_data_size").Value(job->GetBriefStatistics()->ProcessedInputDataSize)
-                .Item("processed_output_data_size").Value(job->GetBriefStatistics()->ProcessedOutputDataSize)
-                .DoIf(static_cast<bool>(job->GetBriefStatistics()->UserJobCpuUsage), [=] (TFluentMap fluent) {
-                    fluent.Item("user_job_cpu_usage").Value(*job->GetBriefStatistics()->UserJobCpuUsage);
-                });
+            fluent.Item("brief_statistics").Value(*job->GetBriefStatistics());
         })
         .Item("suspicious").Value(job->GetSuspicious())
         .DoIf(job->GetFinishTime().HasValue(), [=] (TFluentMap fluent) {
@@ -86,7 +80,7 @@ void BuildJobAttributes(TJobPtr job, const TNullable<NYson::TYsonString>& inputP
         .DoIf(static_cast<bool>(inputPaths), [=] (TFluentMap fluent) {
             fluent.Item("input_paths").Value(*inputPaths);
         });
-    // XXX(babenko): YT-4948
+        // XXX(babenko): YT-4948
         //.DoIf(job->Status() && job->Status()->has_statistics(), [=] (TFluentMap fluent) {
         //    fluent.Item("statistics").Value(NYson::TYsonString(job->Status()->statistics()));
         //});
