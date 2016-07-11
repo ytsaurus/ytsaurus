@@ -699,7 +699,7 @@ class ConfigsProvider_18_3(ConfigsProvider_18_3_18_4):
 class ConfigsProvider_18_4(ConfigsProvider_18_3_18_4):
     pass
 
-class ConfigsProvider_18_5(ConfigsProvider_18_5):
+class ConfigsProvider_18_5(ConfigsProvider_18_4):
     pass
 
 class ConfigsProvider_18_6(ConfigsProvider_18):
