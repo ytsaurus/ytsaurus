@@ -34,7 +34,7 @@
     #include <utmp.h>
 #endif
 #ifdef _darwin_
-    #include <util.h>
+    //include <util.h>
 #endif
 
 namespace NYT {
