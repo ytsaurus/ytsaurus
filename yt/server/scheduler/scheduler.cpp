@@ -412,11 +412,11 @@ public:
         PendingEventLogRowsFlushExecutor_->Start();
     }
 
-    ISchedulerStrategy* GetStrategy()
+    ISchedulerStrategyPtr GetStrategy()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Strategy_.get();
+        return Strategy_;
     }
 
     IYPathServicePtr GetOrchidService()
@@ -523,8 +523,27 @@ public:
         return result;
     }
 
+    virtual TFuture<void> CheckPoolPermission(
+        const TYPath& path,
+        const Stroka& user,
+        EPermission permission) override
+    {
+        auto client = Bootstrap_->GetMasterClient();
+        return client->CheckPermission(user, GetPoolsPath() + path, permission)
+            .Apply(BIND([=] (const TCheckPermissionResult& result) {
+                if (result.Action == ESecurityAction::Deny) {
+                    THROW_ERROR_EXCEPTION(
+                        NSecurityClient::EErrorCode::AuthorizationError,
+                        "User %Qv has been denied access to pool %v",
+                        user,
+                        path)
+                        << result.ToError(user, permission);
+                }
+            }));
+    }
 
-    void ValidatePermission(
+
+    void ValidateOperationPermission(
         const Stroka& user,
         const TOperationId& operationId,
         EPermission permission)
@@ -600,7 +619,7 @@ public:
             TInstant::Now());
         operation->SetState(EOperationState::Initializing);
 
-        Strategy_->CanAddOperation(operation)
+        WaitFor(Strategy_->ValidateOperationStart(operation))
             .ThrowOnError();
 
         LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, User: %v)",
@@ -627,7 +646,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidatePermission(user, operation->GetId(), EPermission::Write);
+        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
@@ -656,7 +675,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidatePermission(user, operation->GetId(), EPermission::Write);
+        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             return MakeFuture(TError(
@@ -679,7 +698,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidatePermission(user, operation->GetId(), EPermission::Write);
+        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
 
         if (!operation->GetSuspended()) {
             return MakeFuture(TError(
@@ -702,7 +721,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidatePermission(user, operation->GetId(), EPermission::Write);
+        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
@@ -1004,7 +1023,8 @@ public:
 
                     PROFILE_TIMING ("/schedule_time") {
                         node->SetHasOngoingJobsScheduling(true);
-                        Strategy_->ScheduleJobs(schedulingContext);
+                        WaitFor(Strategy_->ScheduleJobs(schedulingContext))
+                            .ThrowOnError();
                         node->SetHasOngoingJobsScheduling(false);
                     }
 
@@ -1050,14 +1070,14 @@ public:
 
 
     // ISchedulerStrategyHost implementation
-    DEFINE_SIGNAL(void(TOperationPtr), OperationRegistered);
-    DEFINE_SIGNAL(void(TOperationPtr), OperationUnregistered);
-    DEFINE_SIGNAL(void(TOperationPtr, INodePtr update), OperationRuntimeParamsUpdated);
+    DEFINE_SIGNAL(void(const TOperationPtr& operation), OperationRegistered);
+    DEFINE_SIGNAL(void(const TOperationPtr& operation), OperationUnregistered);
+    DEFINE_SIGNAL(void(const TOperationPtr& operation, const INodePtr& update), OperationRuntimeParamsUpdated);
 
     DEFINE_SIGNAL(void(const TJobPtr& job), JobFinished);
-    DEFINE_SIGNAL(void(const TJobPtr&, const TJobResources& resourcesDelta), JobUpdated);
+    DEFINE_SIGNAL(void(const TJobPtr& job, const TJobResources& resourcesDelta), JobUpdated);
 
-    DEFINE_SIGNAL(void(INodePtr pools), PoolsUpdated);
+    DEFINE_SIGNAL(void(const INodePtr& pools), PoolsUpdated);
 
 
     virtual TMasterConnector* GetMasterConnector() override
@@ -1178,7 +1198,7 @@ private:
 
     std::unique_ptr<TMasterConnector> MasterConnector_;
 
-    std::unique_ptr<ISchedulerStrategy> Strategy_;
+    ISchedulerStrategyPtr Strategy_;
 
     NConcurrency::TReaderWriterSpinLock ExecNodeMapLock_;
     typedef yhash_map<Stroka, TExecNodePtr> TExecNodeByAddressMap;
@@ -1447,7 +1467,7 @@ private:
     {
         LOG_INFO("Updating pools");
 
-        auto req = TYPathProxy::Get("//sys/pools");
+        auto req = TYPathProxy::Get(GetPoolsPath());
         static auto poolConfigTemplate = New<TPoolConfig>();
         static auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
         ToProto(req->mutable_attributes()->mutable_keys(), poolConfigKeys);
@@ -2596,7 +2616,7 @@ private:
 
         auto job = GetJobOrThrow(jobId);
 
-        ValidatePermission(user, job->GetOperationId(), EPermission::Write);
+        ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
         LOG_INFO("Getting strace dump (JobId: %v)",
             jobId);
@@ -2623,7 +2643,7 @@ private:
 
         auto job = GetJobOrThrow(jobId);
 
-        ValidatePermission(user, job->GetOperationId(), EPermission::Write);
+        ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
         LOG_INFO("Saving input contexts (JobId: %v, Path: %v)",
             jobId,
@@ -2656,7 +2676,7 @@ private:
 
         auto job = GetJobOrThrow(jobId);
 
-        ValidatePermission(user, job->GetOperationId(), EPermission::Write);
+        ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
         LOG_INFO("Sending job signal (JobId: %v, Signal: %v)",
             jobId,
@@ -2682,7 +2702,7 @@ private:
 
         auto job = GetJobOrThrow(jobId);
 
-        ValidatePermission(user, job->GetOperationId(), EPermission::Write);
+        ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
         switch (job->GetType()) {
             case EJobType::Map:
@@ -2718,7 +2738,7 @@ private:
         TShellParameters shellParameters;
         Deserialize(shellParameters, ConvertToNode(parameters));
         if (shellParameters.Operation == EShellOperation::Spawn) {
-            ValidatePermission(user, job->GetOperationId(), EPermission::Write);
+            ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
         }
 
         LOG_INFO("Polling job shell (JobId: %v, Parameters: %v)",
@@ -2747,7 +2767,7 @@ private:
 
         auto job = GetJobOrThrow(jobId);
 
-        ValidatePermission(user, job->GetOperationId(), EPermission::Write);
+        ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
         if (job->GetState() != EJobState::Running &&
             job->GetState() != EJobState::Waiting)
@@ -2945,7 +2965,7 @@ private:
                     BuildClusterYson(clusterName, fluent);
                 })
                 .Item("config").Value(Config_)
-                .DoIf(Strategy_ != nullptr, BIND(&ISchedulerStrategy::BuildOrchid, Strategy_.get()))
+                .DoIf(Strategy_.operator bool(), BIND(&ISchedulerStrategy::BuildOrchid, Strategy_))
             .EndMap();
     }
 
@@ -2973,7 +2993,7 @@ private:
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(consumer));
                     }))
-                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_.get(), operation->GetId()))
+                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_, operation->GetId()))
                 .EndMap()
                 .Item("brief_progress").BeginMap()
                     .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
@@ -2982,7 +3002,7 @@ private:
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(consumer));
                     }))
-                    .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_.get(), operation->GetId()))
+                    .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_, operation->GetId()))
                 .EndMap()
                 .Item("running_jobs").BeginAttributes()
                     .Item("opaque").Value("true")
@@ -3188,7 +3208,7 @@ void TScheduler::Initialize()
     Impl_->Initialize();
 }
 
-ISchedulerStrategy* TScheduler::GetStrategy()
+ISchedulerStrategyPtr TScheduler::GetStrategy()
 {
     return Impl_->GetStrategy();
 }

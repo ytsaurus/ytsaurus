@@ -57,7 +57,7 @@ DECLARE_REFCOUNTED_CLASS(TScheduler)
 
 struct IEventLogHost;
 
-struct ISchedulerStrategy;
+DECLARE_REFCOUNTED_STRUCT(ISchedulerStrategy)
 struct ISchedulerStrategyHost;
 
 struct IOperationHost;

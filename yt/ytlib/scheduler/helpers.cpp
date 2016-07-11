@@ -52,6 +52,11 @@ TYPath GetSnapshotPath(const TOperationId& operationId)
         + "/snapshot";
 }
 
+TYPath GetPoolsPath()
+{
+    return "//sys/pools";
+}
+
 TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex)
 {
     return
@@ -64,13 +69,6 @@ TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId)
     return
         GetOperationPath(operationId)
         + "/intermediate";
-}
-
-TYPath GetTransactionPath(const NTransactionClient::TTransactionId& transactionId)
-{
-    return
-        "//sys/transactions/" +
-        ToYPathLiteral(ToString(transactionId));
 }
 
 bool IsOperationFinished(EOperationState state)
