@@ -395,6 +395,7 @@ TOperationId StartOperation(
 {
     THttpHeader header("POST", operationName);
     header.AddTransactionId(transactionId);
+    header.AddMutationId();
 
     TOperationId operationId = ParseGuidFromResponse(
         RetryRequest(auth, header, ysonSpec, false, true));
