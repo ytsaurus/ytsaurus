@@ -59,7 +59,8 @@ VERSION_TO_CONFIGS_PROVIDER_CLASS = {
     "0.17.5": "ConfigsProvider_17_5",
     "18.3": "ConfigsProvider_18_3",
     "18.4": "ConfigsProvider_18_4",
-    "18.5": "ConfigsProvider_18_5"
+    "18.5": "ConfigsProvider_18_5",
+    "18.6": "ConfigsProvider_18_6"
 }
 
 def create_configs_provider(version):
@@ -698,7 +699,10 @@ class ConfigsProvider_18_3(ConfigsProvider_18_3_18_4):
 class ConfigsProvider_18_4(ConfigsProvider_18_3_18_4):
     pass
 
-class ConfigsProvider_18_5(ConfigsProvider_18):
+class ConfigsProvider_18_5(ConfigsProvider_18_5):
+    pass
+
+class ConfigsProvider_18_6(ConfigsProvider_18):
     def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator):
         configs = super(ConfigsProvider_18_5, self)._build_node_configs(
                 provision, node_dirs, master_connection_configs, ports_generator)
