@@ -969,7 +969,9 @@ private:
                 LOG_DEBUG("Chunk session started (Address: %v)",
                     node->Descriptor.GetDefaultAddress());
                 node->Started = true;
-                MaybeFlushBlocks(node);
+                if (CurrentSession_ == session) {
+                    MaybeFlushBlocks(node);
+                }
             } else {
                 BanNode(node->Descriptor.GetDefaultAddress());
                 EnqueueCommand(TSwitchChunkCommand{session});
