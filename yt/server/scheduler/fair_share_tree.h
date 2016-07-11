@@ -324,7 +324,8 @@ public:
     virtual void IncreaseResourceUsage(const TJobResources& delta) override;
 
     virtual bool IsRoot() const;
-    virtual bool AggressiveStarvationEnabled() const;
+    virtual bool IsExplicit() const;
+    virtual bool IsAggressiveStarvationEnabled() const;
 
     void AddChild(const ISchedulerElementPtr& child, bool enabled = true);
     void EnableChild(const ISchedulerElementPtr& child);
@@ -377,7 +378,8 @@ public:
     void SetConfig(TPoolConfigPtr config);
     void SetDefaultConfig();
 
-    virtual bool AggressiveStarvationEnabled() const override;
+    virtual bool IsExplicit() const override;
+    virtual bool IsAggressiveStarvationEnabled() const override;
 
     virtual Stroka GetId() const override;
 

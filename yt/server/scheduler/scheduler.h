@@ -33,7 +33,7 @@ public:
 
     void Initialize();
 
-    ISchedulerStrategy* GetStrategy();
+    ISchedulerStrategyPtr GetStrategy();
 
     NYTree::IYPathServicePtr GetOrchidService();
 
@@ -77,7 +77,7 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
     class TSchedulingContext;
 

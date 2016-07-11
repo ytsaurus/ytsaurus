@@ -727,6 +727,43 @@ class TestSchedulingTags(YTEnvSetup):
         time.sleep(0.8)
         assert len(get_job_nodes(op)) <= 2
 
+
+    def _test_pool_acl_prologue(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        create_user("u")
+
+    def _test_pool_acl_core(self, pool, acl_path):
+        def _run_op():
+            map(command="cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                user="u",
+                spec={"pool": pool})
+        _run_op()
+        set("//sys/pools{0}/@acl/0/action".format(acl_path), "deny")
+        with pytest.raises(YtError):
+            _run_op()
+    
+    def test_global_pool_acl(self):
+        self._test_pool_acl_prologue()
+        # TODO(babenko): use make_ace after merging into 18.5
+        create("map_node", "//sys/pools/p", attributes={
+            "inherit_acl": False,
+            "acl": [{"action": "allow", "subjects": ["u"], "permissions": ["use"]}]
+        })
+        self._test_pool_acl_core("p", "/p")
+
+    def test_inner_pool_acl(self):
+        self._test_pool_acl_prologue()
+        # TODO(babenko): use make_ace after merging into 18.5
+        create("map_node", "//sys/pools/p1", attributes={
+            "inherit_acl": False,
+            "acl": [{"action": "allow", "subjects": ["u"], "permissions": ["use"]}]
+        })
+        create("map_node", "//sys/pools/p1/p2")
+        self._test_pool_acl_core("p2", "/p1")
+
 ##################################################################
 
 class TestSchedulerConfig(YTEnvSetup):

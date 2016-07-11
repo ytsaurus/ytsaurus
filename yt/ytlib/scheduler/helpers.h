@@ -19,7 +19,7 @@ NYPath::TYPath GetFailContextPath(const TOperationId& operationId, const TJobId&
 NYPath::TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex);
 NYPath::TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId);
 NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);
-NYPath::TYPath GetTransactionPath(const NTransactionClient::TTransactionId& transactionId);
+NYPath::TYPath GetPoolsPath();
 
 bool IsOperationFinished(EOperationState state);
 bool IsOperationFinishing(EOperationState state);
