@@ -14,7 +14,12 @@ yt.config["proxy"]["url"] = "locke"
 
 def send_notification(cluster, notification_id, notification, recipients):
     logger.debug("Notification %s content:\n%s".format(notification_id, notification))
-    
+   
+    description = notification.get("description", "No description")
+    if not ("<" in description and ">" in description):
+        # Seems like the author of description forgot about html-format, let's 
+        # fix newlines for him.
+        description = description.replace("\n", "<br />") 
     mail_subject = "[{0}] Notification: {1}".format(cluster, notification.get("title", "(no subject)"))
     mail_body = """<html>
     <head></head>
@@ -26,7 +31,7 @@ def send_notification(cluster, notification_id, notification, recipients):
     </body>
 </html>
 """.format(
-        notification.get("description", "No description"),
+        description,
         time.ctime(notification["estimated_start_time"]) if "estimated_start_time" in notification else "(N/A)",
         time.ctime(notification["estimated_finish_time"]) if "estimated_finish_time" in notification else "(N/A)",
         notification.get("author", "(N/A)"))
