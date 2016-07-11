@@ -302,7 +302,7 @@ public:
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
         , JobSpecBuilderThreadPool_(New<TThreadPool>(Config_->JobSpecBuilderThreadCount, "SpecBuilder"))
-        , StatisticAnalyzerThreadPool_(New<TThreadPool>(Config_->StatisticAnalyzerThreadCount, "StatisticAnalyzer"))
+        , StatisticsAnalyzerThreadPool_(New<TThreadPool>(Config_->StatisticsAnalyzerThreadCount, "StatisticsAnalyzer"))
         , MasterConnector_(new TMasterConnector(Config_, Bootstrap_))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
@@ -435,6 +435,21 @@ public:
             operations.push_back(pair.second);
         }
         return operations;
+    }
+
+    std::vector<TJobPtr> GetSuspiciousJobs()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        std::vector<TJobPtr> jobs;
+        for (const auto& operation : GetOperations()) {
+            for (const auto& job : operation->Jobs()) {
+                if (job->GetSuspicious()) {
+                    jobs.push_back(job);
+                }
+            }
+        }
+        return jobs;
     }
 
     IInvokerPtr GetSnapshotIOInvoker()
@@ -1196,7 +1211,7 @@ private:
     TActionQueuePtr SnapshotIOQueue_;
     TThreadPoolPtr ControllerThreadPool_;
     TThreadPoolPtr JobSpecBuilderThreadPool_;
-    TThreadPoolPtr StatisticAnalyzerThreadPool_;
+    TThreadPoolPtr StatisticsAnalyzerThreadPool_;
 
     std::unique_ptr<TMasterConnector> MasterConnector_;
 
@@ -2351,13 +2366,17 @@ private:
         {
             job->SetStatus(std::move(status));
 
-            auto asyncResult = job->BuildBriefStatistics(StatisticAnalyzerThreadPool_->GetInvoker());
+            auto asyncResult = BIND(&TJob::BuildBriefStatistics, job)
+                .AsyncVia(StatisticsAnalyzerThreadPool_->GetInvoker())
+                .Run();
+
             // Resulting future is dropped intentionally.
-            asyncResult.Apply(BIND(&TJob::AnalyzeBriefStatistics,
+            asyncResult.Apply(BIND(
+                &TJob::AnalyzeBriefStatistics,
                 job,
                 Config_->SuspiciousInactivityTimeout,
                 Config_->SuspiciousUserJobCpuUsageThreshold)
-                .AsyncVia(GetControlInvoker()));
+                .Via(GetControlInvoker()));
         }
     }
 
@@ -2967,6 +2986,15 @@ private:
                     if (FindOperation(operation->GetId())) {
                         BuildOperationYson(operation, fluent);
                     }
+                })
+                .Item("suspicious_jobs").DoMapFor(GetSuspiciousJobs(), [=] (TFluentMap fluent, const TJobPtr& job) {
+                    fluent.Item(ToString(job->GetId())).BeginMap()
+                        .Item("operation_id").Value(ToString(job->GetOperationId()))
+                        .Item("type").Value(FormatEnum(job->GetType()))
+                        .Item("brief_statistics").Value(job->GetBriefStatistics())
+                        .Item("node").Value(job->GetNode()->GetDefaultAddress())
+                        .Item("last_activity_time").Value(job->GetLastActivityTime())
+                    .EndMap();
                 })
                 .Item("nodes").DoMapFor(IdToNode_, [=] (TFluentMap fluent, const TExecNodeByIdMap::value_type& pair) {
                     BuildNodeYson(pair.second, fluent);

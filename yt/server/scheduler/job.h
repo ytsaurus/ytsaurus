@@ -15,6 +15,8 @@
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>
 
+#include <yt/core/yson/consumer.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -31,6 +33,15 @@ struct TBriefJobStatistics
 };
 
 DEFINE_REFCOUNTED_TYPE(TBriefJobStatistics)
+
+bool CompareBriefJobStatistics(
+    const TBriefJobStatisticsPtr& lhs,
+    const TBriefJobStatisticsPtr& rhs,
+    i64 userJobCpuUsageThreshold);
+
+void Serialize(const TBriefJobStatistics& briefJobStatistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TJob
     : public TRefCounted
@@ -86,6 +97,9 @@ class TJob
     //! Means that job probably hung up.
     DEFINE_BYVAL_RO_PROPERTY(bool, Suspicious);
 
+    //! Last time when brief statistics changed in comparison to their previous values.
+    DEFINE_BYVAL_RO_PROPERTY(TInstant, LastActivityTime);
+
 public:
     TJob(
         const TJobId& id,
@@ -103,24 +117,13 @@ public:
     void AnalyzeBriefStatistics(
         TDuration suspiciousInactivityTimeout,
         i64 suspiciousCpuUsageThreshold,
-        TBriefJobStatisticsPtr briefStatistics);
+        const TBriefJobStatisticsPtr& briefStatistics);
 
-    TFuture<TBriefJobStatisticsPtr> BuildBriefStatistics(IInvokerPtr invoker) const;
+    TBriefJobStatisticsPtr BuildBriefStatistics() const;
 
     void SetStatus(TRefCountedJobStatusPtr status);
 
     const Stroka& GetStatisticsSuffix() const;
-
-    i64 GetProcessedInputRowCount() const;
-    i64 GetProcessedInputDataSize() const;
-    i64 GetProcessedOutputDataSize() const;
-    i64 GetCpuUsage() const;
-private:
-
-    TBriefJobStatisticsPtr DoBuildBriefStatistics() const;
-
-    TInstant LastActivityTime_ = TInstant::Max();
-    bool IsSuspicious_ = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)

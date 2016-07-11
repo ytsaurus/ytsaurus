@@ -51,6 +51,36 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
+bool CompareBriefJobStatistics(
+    const TBriefJobStatisticsPtr& lhs,
+    const TBriefJobStatisticsPtr& rhs,
+    i64 userJobCpuUsageThreshold)
+{
+    return lhs->ProcessedInputRowCount < rhs->ProcessedInputRowCount ||
+        lhs->ProcessedInputDataSize < rhs->ProcessedInputDataSize ||
+        lhs->ProcessedOutputRowCount < rhs->ProcessedOutputRowCount ||
+        lhs->ProcessedOutputDataSize < rhs->ProcessedOutputDataSize ||
+        (lhs->UserJobCpuUsage && rhs->UserJobCpuUsage &&
+        *lhs->UserJobCpuUsage + userJobCpuUsageThreshold < *rhs->UserJobCpuUsage);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void Serialize(const TBriefJobStatistics& briefJobStatistics, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("processed_input_row_count").Value(briefJobStatistics.ProcessedInputRowCount)
+            .Item("processed_input_data_size").Value(briefJobStatistics.ProcessedInputDataSize)
+            .Item("processed_output_data_size").Value(briefJobStatistics.ProcessedOutputDataSize)
+            .DoIf(static_cast<bool>(briefJobStatistics.UserJobCpuUsage), [&] (TFluentMap fluent) {
+                fluent.Item("user_job_cpu_usage").Value(*briefJobStatistics.UserJobCpuUsage);
+            })
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////
+
 TJob::TJob(
     const TJobId& id,
     EJobType type,
@@ -70,6 +100,7 @@ TJob::TJob(
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
     , SpecBuilder_(std::move(specBuilder))
+    , LastActivityTime_(startTime)
 { }
 
 TDuration TJob::GetDuration() const
@@ -77,12 +108,7 @@ TDuration TJob::GetDuration() const
     return *FinishTime_ - StartTime_;
 }
 
-TFuture<TBriefJobStatisticsPtr> TJob::BuildBriefStatistics(IInvokerPtr invoker) const
-{
-    return BIND(&TJob::DoBuildBriefStatistics, MakeStrong(this)).AsyncVia(invoker).Run();
-}
-
-TBriefJobStatisticsPtr TJob::DoBuildBriefStatistics() const
+TBriefJobStatisticsPtr TJob::BuildBriefStatistics() const
 {
     auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(*StatisticsYson_);
 
@@ -98,7 +124,9 @@ TBriefJobStatisticsPtr TJob::DoBuildBriefStatistics() const
     if (std::any_of(
         statistics.Data().begin(),
         statistics.Data().end(),
-        [] (auto pair) { return HasPrefix(pair.first, "/user_job"); }))
+        [] (const auto& pair) {
+            return HasPrefix(pair.first, "/user_job/cpu");
+        }))
     {
         briefStatistics->UserJobCpuUsage = GetValues<i64>(statistics, "/user_job/cpu/user", getValue);
     }
@@ -113,25 +141,19 @@ TBriefJobStatisticsPtr TJob::DoBuildBriefStatistics() const
 void TJob::AnalyzeBriefStatistics(
     TDuration suspiciousInactivityTimeout,
     i64 suspiciousUserJobCpuUsageThreshold,
-    TBriefJobStatisticsPtr briefStatistics)
+    const TBriefJobStatisticsPtr& briefStatistics)
 {
     bool wasActive = false;
 
-    if (!BriefStatistics_) {
-        wasActive = true;
-    } else if (briefStatistics->ProcessedInputRowCount != BriefStatistics_->ProcessedInputRowCount ||
-        briefStatistics->ProcessedInputDataSize != BriefStatistics_->ProcessedInputDataSize ||
-        briefStatistics->ProcessedOutputRowCount != BriefStatistics_->ProcessedOutputRowCount ||
-        briefStatistics->ProcessedOutputDataSize != BriefStatistics_->ProcessedOutputDataSize ||
-        (briefStatistics->UserJobCpuUsage && BriefStatistics_->UserJobCpuUsage &&
-        *briefStatistics->UserJobCpuUsage > *BriefStatistics_->UserJobCpuUsage + suspiciousUserJobCpuUsageThreshold))
-    {
+    if (!BriefStatistics_ || CompareBriefJobStatistics(BriefStatistics_, briefStatistics, suspiciousUserJobCpuUsageThreshold)) {
         wasActive = true;
     }
     BriefStatistics_ = briefStatistics;
 
-    if (Suspicious_ = (!wasActive && TInstant::Now() - LastActivityTime_ > suspiciousInactivityTimeout)) {
-        LOG_WARNING("Found a suspicious job (JobId: %v, LastActivityTime: %v, suspiciousInactivityTimeout: %v)",
+    bool wasSuspicious = Suspicious_;
+    Suspicious_ = (!wasActive && TInstant::Now() - LastActivityTime_ > suspiciousInactivityTimeout);
+    if (!wasSuspicious && Suspicious_) {
+        LOG_WARNING("Found a suspicious job (JobId: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v)",
             Id_,
             LastActivityTime_,
             suspiciousInactivityTimeout);
