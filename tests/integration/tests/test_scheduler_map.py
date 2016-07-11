@@ -822,6 +822,11 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 }
             })
 
+        # Wait till job starts reading input
+        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, op.jobs[0])
+        while get(progress_path) < 0.5:
+            time.sleep(1)
+
         dump_job_context(op.jobs[0], "//tmp/input_context")
 
         op.resume_jobs()
