@@ -1333,7 +1333,7 @@ void TObjectManager::OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
 {
     auto schemas = GetValuesSortedByKey(SchemaMap_);
     for (auto* schema : schemas) {
-        ReplicateObjectCreationToSecondaryMaster(schema, cellTag);
+        ReplicateObjectAttributesToSecondaryMaster(schema, cellTag);
     }
 }
 
