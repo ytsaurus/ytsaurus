@@ -427,6 +427,10 @@ class Operation(object):
         except OSError:
             sys.excepthook(*sys.exc_info())
 
+    def get_job_count(self, state):
+        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/{1}".format(self.id, state)
+        return get(path, verbose=False)
+
     def get_state(self, **kwargs):
         return get("//sys/operations/{0}/@state".format(self.id), **kwargs)
 
