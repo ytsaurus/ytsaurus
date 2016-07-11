@@ -3,6 +3,8 @@
 
 #include <yt/core/misc/error.h>
 
+#include <cerrno>
+
 namespace NYT {
 namespace NConcurrency {
 
