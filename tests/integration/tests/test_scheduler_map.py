@@ -1254,9 +1254,8 @@ cat > /dev/null; echo {hello=world}
             op.resume_job(job_id)
 
         path = "//sys/operations/{0}/@state".format(op.id)
-        completed_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/completed".format(op.id)
         assert get(path) != "completed"
-        while get(completed_path) < 3:
+        while op.get_job_count("completed") < 3:
             time.sleep(0.2)
 
         op.complete()
@@ -1367,7 +1366,9 @@ print row + table_index
 
         op.resume_job(op.jobs[0])
         op.resume_job(op.jobs[1])
-        time.sleep(2)
+        while op.get_job_count("completed") < 2:
+            time.sleep(0.2)
+        time.sleep(1)
 
         transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         live_preview_data = read_table(operation_path + "/output_0", tx=transaction_id)
