@@ -48,6 +48,7 @@ apt-get download "${PACKAGE_NAME}=${VERSION}"
 dpkg -x "${PACKAGE_NAME}_${VERSION}_all.deb" "${VERSION}"
 
 cp -r "${VERSION}/usr/share/pyshared/"* "$ARCADIA/"
+rm -rf "$ARCADIA/*egg-info"
 cp -r "${VERSION}/usr/bin" "$ARCADIA/"
 
 pushd "$ARCADIA_DIR" 
@@ -62,7 +63,8 @@ for file in $LATEST_FILES; do
     fi
 done
 cp -r "$VERSION"/* latest 
-svn add "$VERSION" latest --force
+svn add latest --force
+#svn add "$VERSION"
 svn ci -m "Updated $ARCADIA_PATH to version $VERSION"
 
 popd # $ARCADIA_DIR
