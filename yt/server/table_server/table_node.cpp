@@ -1,6 +1,6 @@
 #include "table_node.h"
-#include "private.h"
 #include "table_node_proxy.h"
+#include "private.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config.h>
@@ -40,6 +40,7 @@ static const auto& Logger = TableServerLogger;
 
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
+    , PreserveSchemaOnWrite_(false)
     , Atomicity_(NTransactionClient::EAtomicity::Full)
 { }
 
@@ -60,15 +61,22 @@ void TTableNode::BeginUpload(EUpdateMode mode)
 
 void TTableNode::EndUpload(
     const TDataStatistics* statistics,
-    const TTableSchema& schema)
+    const TTableSchema& schema,
+    bool preserveSchemaOnWrite)
 {
+    PreserveSchemaOnWrite_ = preserveSchemaOnWrite;
     TableSchema_ = schema;
-    TChunkOwnerBase::EndUpload(statistics, schema);
+    TChunkOwnerBase::EndUpload(statistics, schema, preserveSchemaOnWrite);
 }
 
 bool TTableNode::IsSorted() const
 {
     return TableSchema_.IsSorted();
+}
+
+bool TTableNode::IsUniqueKeys() const
+{
+    return TableSchema_.IsUniqueKeys();
 }
 
 void TTableNode::Save(TSaveContext& context) const
@@ -81,6 +89,7 @@ void TTableNode::Save(TSaveContext& context) const
 
     using NYT::Save;
     Save(context, TableSchema_);
+    Save(context, PreserveSchemaOnWrite_);
     Save(context, Tablets_);
     Save(context, Atomicity_);
 }
@@ -94,12 +103,12 @@ void TTableNode::Load(TLoadContext& context)
     TChunkOwnerBase::Load(context);
 
     using NYT::Load;
-    
+
     // COMPAT(max42)
     bool sorted;
     if (context.GetVersion() < 206) {
-        Load(context, sorted); 
-    } 
+        Load(context, sorted);
+    }
 
     // COMPAT(max42)
     TKeyColumns keyColumns;
@@ -108,9 +117,22 @@ void TTableNode::Load(TLoadContext& context)
     } else {
         Load(context, TableSchema_);
     }
-    
+
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 350) {
+        Load(context, PreserveSchemaOnWrite_);
+    }
+
     Load(context, Tablets_);
     Load(context, Atomicity_);
+
+    // COMPAT(savrus)
+    if (context.GetVersion() < 350) {
+        // Set PreserveSchemaOnWrite for dynamic tables.
+        if (IsDynamic()) {
+            PreserveSchemaOnWrite_ = true;
+        }
+    }
 
     // COMPAT(max42)
     if (context.GetVersion() < 205 && Attributes_) {
@@ -125,7 +147,7 @@ void TTableNode::Load(TLoadContext& context)
                 YCHECK(columns[index].Name == columnName);
                 columns[index].SetSortOrder(ESortOrder::Ascending);
             }
-            TableSchema_ = TTableSchema(columns, true /* strict */);
+            TableSchema_ = TTableSchema(columns, true /* strict */, true /* unique_keys */);
         } else {
             TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
         }
@@ -222,6 +244,20 @@ bool TTableNode::IsEmpty() const
     return ComputeTotalStatistics().chunk_count() == 0;
 }
 
+void TTableNode::SetCustomSchema(TTableSchema schema, bool dynamic)
+{
+    PreserveSchemaOnWrite_ = true;
+
+    // NB: Sorted dynamic tables contain unique keys, set this for user.
+    if (dynamic && schema.IsSorted()) {
+        schema.MakeUniqueKeys();
+    }
+
+    ValidateTableSchemaUpdate(TableSchema_, schema, dynamic, IsEmpty());
+
+    TableSchema_ = std::move(schema);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNodeTypeHandler
@@ -295,7 +331,7 @@ protected:
 
         try {
             if (maybeSchema) {
-                node->TableSchema() = *maybeSchema;
+                node->SetCustomSchema(*maybeSchema, dynamic);
             }
 
             if (dynamic) {
@@ -326,6 +362,7 @@ protected:
         ELockMode mode) override
     {
         branchedNode->TableSchema() = originatingNode->TableSchema();
+        branchedNode->PreserveSchemaOnWrite() = originatingNode->PreserveSchemaOnWrite();
 
         TBase::DoBranch(originatingNode, branchedNode, mode);
     }
@@ -335,6 +372,7 @@ protected:
         TTableNode* branchedNode) override
     {
         originatingNode->TableSchema() = branchedNode->TableSchema();
+        originatingNode->PreserveSchemaOnWrite() = branchedNode->PreserveSchemaOnWrite();
 
         TBase::DoMerge(originatingNode, branchedNode);
     }
@@ -365,6 +403,7 @@ protected:
         TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
         clonedNode->TableSchema() = sourceNode->TableSchema();
+        clonedNode->PreserveSchemaOnWrite() = sourceNode->PreserveSchemaOnWrite();
 
         if (sourceNode->IsDynamic()) {
             auto tablets = std::move(sourceNode->Tablets());

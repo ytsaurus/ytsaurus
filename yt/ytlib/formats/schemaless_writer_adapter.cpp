@@ -77,7 +77,12 @@ TFuture<void> TSchemalessFormatWriterBase::Close()
     return MakeFuture(Error_);
 }
 
-bool TSchemalessFormatWriterBase::IsSorted() const 
+bool TSchemalessFormatWriterBase::IsSorted() const
+{
+    return false;
+}
+
+bool TSchemalessFormatWriterBase::IsUniqueKeys() const
 {
     return false;
 }

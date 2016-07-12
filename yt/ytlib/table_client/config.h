@@ -71,6 +71,8 @@ public:
     bool ValidateRowWeight;
     bool ValidateDuplicateIds;
     bool ValidateColumnCount;
+    bool ValidateUniqueKeys;
+    bool ExplodeOnValidationError;
 
     EOptimizeFor OptimizeFor;
 
@@ -83,10 +85,20 @@ public:
         RegisterParameter("validate_duplicate_ids", ValidateDuplicateIds)
             .Default(false);
         RegisterParameter("validate_column_count", ValidateColumnCount)
+        	.Default(false);
+        RegisterParameter("validate_unique_keys", ValidateUniqueKeys)
+            .Default(false);
+        RegisterParameter("explode_on_validation_error", ExplodeOnValidationError)
             .Default(false);
 
         RegisterParameter("optimize_for", OptimizeFor)
             .Default(EOptimizeFor::Lookup);
+
+        RegisterValidator([&] () {
+            if (ValidateUniqueKeys && !ValidateSorted) {
+                THROW_ERROR_EXCEPTION("\"validate_unique_keys\" is allowed to be true only if \"validate_sorted\" is true");
+            }
+        });
     }
 };
 

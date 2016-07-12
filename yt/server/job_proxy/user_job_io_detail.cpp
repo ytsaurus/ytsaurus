@@ -1,5 +1,6 @@
 #include "user_job_io_detail.h"
 #include "config.h"
+#include "helpers.h"
 #include "job.h"
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -7,7 +8,6 @@
 #include <yt/ytlib/chunk_client/schema.h>
 #include <yt/ytlib/chunk_client/schema.pb.h>
 
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
@@ -59,13 +59,13 @@ void TUserJobIOBase::Init()
         options->ValidateColumnCount = true;
 
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
-        TKeyColumns keyColumns;
 
-        if (outputSpec.has_key_columns()) {
-            keyColumns = FromProto<TKeyColumns>(outputSpec.key_columns());
+        TTableSchema schema;
+        if (outputSpec.has_table_schema()) {
+            schema = FromProto<TTableSchema>(outputSpec.table_schema());
         }
 
-        auto writer = DoCreateWriter(options, chunkListId, transactionId, keyColumns);
+        auto writer = DoCreateWriter(options, chunkListId, transactionId, schema);
         // ToDo(psushin): open writers in parallel.
         auto error = WaitFor(writer->Open());
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
@@ -124,26 +124,10 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::GetReader() const
     }
 }
 
-TBoundaryKeysExt TUserJobIOBase::GetBoundaryKeys(ISchemalessMultiChunkWriterPtr writer) const
-{
-    const auto& chunks = writer->GetWrittenChunksMasterMeta();
-    if (!writer->IsSorted() || chunks.empty()) {
-        return EmptyBoundaryKeys();
-    }
-
-    TBoundaryKeysExt boundaryKeys;
-    auto frontBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.front().chunk_meta().extensions());
-    boundaryKeys.set_min(frontBoundaryKeys.min());
-    auto backBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.back().chunk_meta().extensions());
-    boundaryKeys.set_max(backBoundaryKeys.max());
-    return boundaryKeys;
-}
-
 void TUserJobIOBase::PopulateResult(TSchedulerJobResultExt* schedulerJobResultExt)
 {
-    auto* result = schedulerJobResultExt->mutable_user_job_result();
     for (const auto& writer : Writers_) {
-        *result->add_output_boundary_keys() = GetBoundaryKeys(writer);
+        *schedulerJobResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(writer);
     }
 }
 
@@ -151,12 +135,13 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
     TTableWriterOptionsPtr options,
     const TChunkListId& chunkListId,
     const TTransactionId& transactionId,
-    const TKeyColumns& keyColumns)
+    const TTableSchema& tableSchema)
 {
+    auto keyColumns = tableSchema.GetKeyColumns();
     auto nameTable = TNameTable::FromKeyColumns(keyColumns);
     nameTable->SetEnableColumnNameValidation();
 
-    return CreateSchemalessMultiChunkWriter(
+    auto writer = CreateSchemalessMultiChunkWriter(
         JobIOConfig_->TableWriter,
         std::move(options),
         std::move(nameTable),
@@ -167,6 +152,8 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
         transactionId,
         chunkListId,
         true);
+
+    return CreateSchemaValidatingWriter(std::move(writer), tableSchema);
 }
 
 ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateRegularReader(

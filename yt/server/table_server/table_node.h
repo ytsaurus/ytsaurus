@@ -29,6 +29,7 @@ class TTableNode
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TTableSchema, TableSchema);
+    DEFINE_BYREF_RW_PROPERTY(bool, PreserveSchemaOnWrite);
 
     // For dynamic tables only.
     typedef std::vector<NTabletServer::TTablet*> TTabletList;
@@ -46,7 +47,9 @@ public:
     virtual void BeginUpload(NChunkClient::EUpdateMode mode) override;
     virtual void EndUpload(
         const NChunkClient::NProto::TDataStatistics* statistics,
-        const NTableClient::TTableSchema& schema) override;
+        const NTableClient::TTableSchema& schema,
+        bool preserveSchemaOnWrite) override;
+
     virtual bool IsSorted() const override;
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;
@@ -59,7 +62,9 @@ public:
     bool IsDynamic() const;
     bool IsEmpty() const;
     bool HasMountedTablets() const;
+    bool IsUniqueKeys() const;
 
+    void SetCustomSchema(NTableClient::TTableSchema, bool dynamic);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

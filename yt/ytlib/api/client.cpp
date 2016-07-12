@@ -2082,6 +2082,9 @@ private:
         const TAlterTableOptions& options)
     {
         auto req = TTableYPathProxy::Alter(path);
+        SetTransactionId(req, options, true);
+        SetMutationId(req, options);
+
         if (options.Schema) {
             ToProto(req->mutable_schema(), *options.Schema);
         }

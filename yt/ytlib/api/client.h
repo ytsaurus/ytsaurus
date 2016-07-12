@@ -129,6 +129,7 @@ struct TReshardTableOptions
 struct TAlterTableOptions
     : public TTimeoutOptions
     , public TMutatingOptions
+    , public TTransactionalOptions
 {
     TNullable<NTableClient::TTableSchema> Schema;
     TNullable<bool> Dynamic;

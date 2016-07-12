@@ -88,6 +88,8 @@ DEFINE_ENUM(EErrorCode,
     ((UnhashableType)             (304))
     // E.g. name table with more than #MaxColumnId columns (may come from legacy chunks).
     ((CorruptedNameTable)         (305))
+    ((UniqueKeyViolation)         (306))
+    ((SchemaViolation)            (307))
 );
 
 DEFINE_ENUM(ETableChunkFormat,

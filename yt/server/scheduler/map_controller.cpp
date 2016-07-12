@@ -1,10 +1,10 @@
 #include "map_controller.h"
 #include "merge_controller.h"
-#include "private.h"
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
 #include "helpers.h"
 #include "job_memory.h"
+#include "private.h"
 #include "operation_controller_detail.h"
 
 #include <yt/ytlib/chunk_client/input_slice.h>
@@ -442,11 +442,6 @@ private:
         return ComputeUserJobMemoryReserve(EJobType::Map, Spec->Mapper);
     }
 
-    virtual bool IsSortedOutputSupported() const override
-    {
-        return true;
-    }
-
     virtual void InitJobSpecTemplate() override
     {
         TUnorderedOperationControllerBase::InitJobSpecTemplate();
@@ -534,7 +529,13 @@ private:
     //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
     virtual bool IsTeleportChunk(const TInputChunkPtr& chunkSpec) const override
     {
-        if (Spec->ForceTransform || chunkSpec->Channel()) {
+        bool isSchemaCompatible =
+        	ValidateTableSchemaCompatibility(
+            	InputTables[chunkSpec->GetTableIndex()].Schema,
+            	OutputTables[0].Schema)
+            .IsOK();
+
+        if (Spec->ForceTransform || chunkSpec->Channel() || !isSchemaCompatible) {
             return false;
         }
 

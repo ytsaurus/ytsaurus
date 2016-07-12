@@ -46,6 +46,7 @@ public:
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
 
     virtual bool IsSorted() const = 0;
+    virtual bool IsUniqueKeys() const = 0;
 
 protected:
     NLogging::TLogger Logger;
@@ -103,6 +104,7 @@ public:
     virtual i64 GetDataSize() const override;
 
     virtual bool IsSorted() const override;
+    virtual bool IsUniqueKeys() const override;
 
 protected:
     const TKeyColumns KeyColumns_;
@@ -152,6 +154,7 @@ public:
 
     virtual i64 GetMetaSize() const override;
     virtual bool IsSorted() const override;
+    virtual bool IsUniqueKeys() const override;
 
 protected:
     TOwningKey LastKey_;
@@ -159,7 +162,6 @@ protected:
     i64 BlockIndexExtSize_;
 
     NProto::TBoundaryKeysExt BoundaryKeysExt_;
-
 
     virtual void OnRow(const TUnversionedValue* begin, const TUnversionedValue* end) override;
     virtual void RegisterBlock(TBlock& block) override;
