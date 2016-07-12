@@ -159,6 +159,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/monitoring/monitoring_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/monitoring/private.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node.proto
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory.cpp

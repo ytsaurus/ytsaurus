@@ -28,6 +28,8 @@
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/ytlib/node_tracker_client/channel.h>
+
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/coordinator.h>
 #include <yt/ytlib/query_client/evaluator.h>
@@ -105,6 +107,8 @@ using namespace NHydra;
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
 using NTableClient::TColumnSchema;
+using NNodeTrackerClient::INodeChannelFactoryPtr;
+using NNodeTrackerClient::CreateNodeChannelFactory;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1111,8 +1115,12 @@ public:
 
         SchedulerChannel_ = wrapChannel(Connection_->GetSchedulerChannel());
 
-        LightChannelFactory_ = wrapChannelFactory(Connection_->GetLightChannelFactory());
-        HeavyChannelFactory_ = wrapChannelFactory(Connection_->GetHeavyChannelFactory());
+        LightChannelFactory_ = CreateNodeChannelFactory(
+            wrapChannelFactory(Connection_->GetLightChannelFactory()),
+            Connection_->GetConfig()->Networks);
+        HeavyChannelFactory_ = CreateNodeChannelFactory(
+            wrapChannelFactory(Connection_->GetHeavyChannelFactory()),
+            Connection_->GetConfig()->Networks);
 
         SchedulerProxy_.reset(new TSchedulerServiceProxy(GetSchedulerChannel()));
         JobProberProxy_.reset(new TJobProberServiceProxy(GetSchedulerChannel()));
@@ -1170,12 +1178,12 @@ public:
         return SchedulerChannel_;
     }
 
-    virtual IChannelFactoryPtr GetNodeChannelFactory() override
+    virtual INodeChannelFactoryPtr GetNodeChannelFactory() override
     {
         return LightChannelFactory_;
     }
 
-    virtual IChannelFactoryPtr GetHeavyChannelFactory() override
+    virtual INodeChannelFactoryPtr GetHeavyChannelFactory() override
     {
         return HeavyChannelFactory_;
     }
@@ -1454,8 +1462,8 @@ private:
 
     TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
-    IChannelFactoryPtr LightChannelFactory_;
-    IChannelFactoryPtr HeavyChannelFactory_;
+    INodeChannelFactoryPtr LightChannelFactory_;
+    INodeChannelFactoryPtr HeavyChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
     TQueryHelperPtr QueryHelper_;
     IFunctionRegistryPtr FunctionRegistry_;

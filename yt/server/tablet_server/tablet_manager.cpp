@@ -10,6 +10,7 @@
 #include "tablet_proxy.h"
 #include "tablet_tracker.h"
 
+#include <yt/server/cell_master/config.h>
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/serialize.h>
@@ -2325,7 +2326,7 @@ private:
             if (peer.Descriptor.IsNull()) {
                 config->Addresses.push_back(Null);
             } else {
-                config->Addresses.push_back(peer.Descriptor.GetInterconnectAddress());
+                config->Addresses.push_back(peer.Descriptor.GetAddress(Bootstrap_->GetConfig()->Networks));
             }
         }
 

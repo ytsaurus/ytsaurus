@@ -42,6 +42,8 @@
 #include <yt/server/journal_server/journal_node.h>
 #include <yt/server/journal_server/journal_manager.h>
 
+#include <yt/ytlib/node_tracker_client/channel.h>
+
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/schema.h>
 #include <yt/ytlib/chunk_client/chunk_service.pb.h>
