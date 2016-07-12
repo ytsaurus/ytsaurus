@@ -74,11 +74,6 @@ bool TTableNode::IsSorted() const
     return TableSchema_.IsSorted();
 }
 
-bool TTableNode::IsUniqueKeys() const
-{
-    return TableSchema_.IsUniqueKeys();
-}
-
 void TTableNode::Save(TSaveContext& context) const
 {
     if (IsDynamic() && !TableSchema_.GetStrict()) {
@@ -244,20 +239,6 @@ bool TTableNode::IsEmpty() const
     return ComputeTotalStatistics().chunk_count() == 0;
 }
 
-void TTableNode::SetCustomSchema(TTableSchema schema, bool dynamic)
-{
-    PreserveSchemaOnWrite_ = true;
-
-    // NB: Sorted dynamic tables contain unique keys, set this for user.
-    if (dynamic && schema.IsSorted()) {
-        schema.MakeUniqueKeys();
-    }
-
-    ValidateTableSchemaUpdate(TableSchema_, schema, dynamic, IsEmpty());
-
-    TableSchema_ = std::move(schema);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNodeTypeHandler
@@ -313,6 +294,11 @@ protected:
         attributes->Remove("schema");
 
         if (maybeSchema) {
+            // NB: Sorted dynamic tables contain unique keys, set this for user.
+            if (dynamic && maybeSchema->IsSorted()) {
+                maybeSchema = maybeSchema->ToUniqueKeys();
+            }
+
             ValidateTableSchemaUpdate(TTableSchema(), *maybeSchema, dynamic, true);
         }
 
@@ -331,7 +317,8 @@ protected:
 
         try {
             if (maybeSchema) {
-                node->SetCustomSchema(*maybeSchema, dynamic);
+                node->TableSchema() = *maybeSchema;
+                node->SetPreserveSchemaOnWrite(true);
             }
 
             if (dynamic) {
@@ -362,7 +349,7 @@ protected:
         ELockMode mode) override
     {
         branchedNode->TableSchema() = originatingNode->TableSchema();
-        branchedNode->PreserveSchemaOnWrite() = originatingNode->PreserveSchemaOnWrite();
+        branchedNode->SetPreserveSchemaOnWrite(originatingNode->GetPreserveSchemaOnWrite());
 
         TBase::DoBranch(originatingNode, branchedNode, mode);
     }
@@ -372,7 +359,7 @@ protected:
         TTableNode* branchedNode) override
     {
         originatingNode->TableSchema() = branchedNode->TableSchema();
-        originatingNode->PreserveSchemaOnWrite() = branchedNode->PreserveSchemaOnWrite();
+        originatingNode->SetPreserveSchemaOnWrite(branchedNode->GetPreserveSchemaOnWrite());
 
         TBase::DoMerge(originatingNode, branchedNode);
     }
@@ -403,7 +390,7 @@ protected:
         TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
         clonedNode->TableSchema() = sourceNode->TableSchema();
-        clonedNode->PreserveSchemaOnWrite() = sourceNode->PreserveSchemaOnWrite();
+        clonedNode->SetPreserveSchemaOnWrite(sourceNode->GetPreserveSchemaOnWrite());
 
         if (sourceNode->IsDynamic()) {
             auto tablets = std::move(sourceNode->Tablets());

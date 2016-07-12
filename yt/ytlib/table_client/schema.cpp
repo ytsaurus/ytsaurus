@@ -265,16 +265,6 @@ bool TTableSchema::IsSorted() const
     return KeyColumnCount_ > 0;
 }
 
-bool TTableSchema::IsUniqueKeys() const
-{
-    return UniqueKeys_;
-}
-
-void TTableSchema::MakeUniqueKeys()
-{
-    UniqueKeys_ = true;
-}
-
 TKeyColumns TTableSchema::GetKeyColumns() const
 {
     TKeyColumns keyColumns;
@@ -366,6 +356,11 @@ TTableSchema TTableSchema::ToValues() const
 {
     std::vector<TColumnSchema> columns(Columns_.begin() + KeyColumnCount_, Columns_.end());
     return TTableSchema(std::move(columns));
+}
+
+TTableSchema TTableSchema::ToUniqueKeys() const
+{
+    return TTableSchema(Columns_, Strict_, true);
 }
 
 void TTableSchema::Save(TStreamSaveContext& context) const
@@ -620,7 +615,7 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
         THROW_ERROR_EXCEPTION("\"strict\" cannot be \"false\" for a dynamic table");
     }
 
-    if (schema.IsSorted() && !schema.IsUniqueKeys()) {
+    if (schema.IsSorted() && !schema.GetUniqueKeys()) {
         THROW_ERROR_EXCEPTION("\"unique_keys\" cannot be \"false\" for a sorted dynamic table");
     }
 
@@ -883,6 +878,9 @@ void ValidateTableSchemaUpdate(
     }
     if (!oldSchema.GetStrict() && newSchema.GetStrict()) {
         THROW_ERROR_EXCEPTION("Changing \"strict\" from \"false\" to \"true\" is not allowed");
+    }
+    if (!oldSchema.GetUniqueKeys() && newSchema.GetUniqueKeys()) {
+        THROW_ERROR_EXCEPTION("Changing \"unique_keys\" from \"false\" to \"true\" is not allowed");
     }
 
     if (oldSchema.GetStrict() && !newSchema.GetStrict()) {
