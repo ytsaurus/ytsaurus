@@ -1215,12 +1215,12 @@ private:
 
     int ActiveJobCount_ = 0;
 
-    NProfiling::TProfiler TotalResourceLimitsProfiler_;
-    NProfiling::TProfiler TotalResourceUsageProfiler_;
+    TProfiler TotalResourceLimitsProfiler_;
+    TProfiler TotalResourceUsageProfiler_;
 
-    NProfiling::TAggregateCounter TotalCompletedJobTimeCounter_;
-    NProfiling::TAggregateCounter TotalFailedJobTimeCounter_;
-    NProfiling::TAggregateCounter TotalAbortedJobTimeCounter_;
+    TAggregateCounter TotalCompletedJobTimeCounter_;
+    TAggregateCounter TotalFailedJobTimeCounter_;
+    TAggregateCounter TotalAbortedJobTimeCounter_;
 
     typedef TEnumIndexedVector<TEnumIndexedVector<i64, EJobType>, EJobState> TJobCounter;
     TJobCounter JobCounter_;
@@ -1302,19 +1302,19 @@ private:
                     for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
                         auto tags = commonTags;
                         tags.push_back(JobAbortReasonToTag_[reason]);
-                        Profiler.Enqueue("/job_count", AbortedJobCounter_[reason][state][type], tags);
+                        Profiler.Enqueue("/job_count", AbortedJobCounter_[reason][state][type], EMetricType::Counter, tags);
                     }
                 } else {
-                    Profiler.Enqueue("/job_count", JobCounter_[state][type], commonTags);
+                    Profiler.Enqueue("/job_count", JobCounter_[state][type], EMetricType::Counter, commonTags);
                 }
             }
         }
 
-        Profiler.Enqueue("/active_job_count", ActiveJobCount_);
+        Profiler.Enqueue("/active_job_count", ActiveJobCount_, EMetricType::Gauge);
 
-        Profiler.Enqueue("/operation_count", IdToOperation_.size());
-        Profiler.Enqueue("/exec_node_count", GetExecNodeCount());
-        Profiler.Enqueue("/total_node_count", GetTotalNodeCount());
+        Profiler.Enqueue("/operation_count", IdToOperation_.size(), EMetricType::Gauge);
+        Profiler.Enqueue("/exec_node_count", GetExecNodeCount(), EMetricType::Gauge);
+        Profiler.Enqueue("/total_node_count", GetTotalNodeCount(), EMetricType::Gauge);
 
         ProfileResources(TotalResourceLimitsProfiler_, TotalResourceLimits_);
         ProfileResources(TotalResourceUsageProfiler_, TotalResourceUsage_);
@@ -1720,7 +1720,7 @@ private:
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run();
 
-            NProfiling::TScopedTimer timer;
+            TScopedTimer timer;
             auto result = WaitFor(asyncResult);
             auto prepareDuration = timer.GetElapsed();
             operation->UpdateControllerTimeStatistics("/prepare", prepareDuration);
