@@ -11,6 +11,8 @@ using namespace NObjectClient;
 
 TCellMasterConfig::TCellMasterConfig()
 {
+    RegisterParameter("networks", Networks)
+        .Default(NNodeTrackerClient::DefaultNetworkPreferences);
     RegisterParameter("primary_master", PrimaryMaster)
         .Default();
     RegisterParameter("secondary_masters", SecondaryMasters)

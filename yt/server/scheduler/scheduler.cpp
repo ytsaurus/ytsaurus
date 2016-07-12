@@ -28,6 +28,8 @@
 
 #include <yt/ytlib/shell/config.h>
 
+#include <yt/ytlib/node_tracker_client/channel.h>
+
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_buffered_table_writer.h>
 #include <yt/ytlib/table_client/schemaless_writer.h>

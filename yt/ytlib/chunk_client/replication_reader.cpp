@@ -17,6 +17,7 @@
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
