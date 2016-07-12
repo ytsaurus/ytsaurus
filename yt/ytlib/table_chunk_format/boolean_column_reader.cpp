@@ -160,7 +160,7 @@ public:
         i64 lowerRowIndex,
         i64 upperRowIndex) override
     {
-        return DoGetEqualRange<EValueType::Double>(
+        return DoGetEqualRange<EValueType::Boolean>(
             value, 
             lowerRowIndex, 
             upperRowIndex);
