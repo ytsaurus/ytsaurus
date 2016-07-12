@@ -232,6 +232,8 @@ def make_request(command_name, params,
             response_should_be_json=response_should_be_json,
             timeout=timeout,
             auth=auth,
+            # TODO(ignat): Refactor retrying logic to avoid this hack.
+            is_ping=(command_name == "ping"),
             client=client)
     except get_proxy_ban_errors():
         ban_host(proxy, client=client)
