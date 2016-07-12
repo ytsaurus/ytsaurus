@@ -142,7 +142,7 @@ private:
 
         if (key == "preserve_schema_on_write") {
             BuildYsonFluently(consumer)
-                .Value(table->PreserveSchemaOnWrite());
+                .Value(table->GetPreserveSchemaOnWrite());
             return true;
         }
 
@@ -217,8 +217,23 @@ private:
             THROW_ERROR_EXCEPTION("Cannot change schema of a table with mounted tablets");
         }
 
+        auto dynamic = newDynamic.Get(table->IsDynamic());
+        auto schema = newSchema.Get(table->TableSchema());
+
+        // NB: Sorted dynamic tables contain unique keys, set this for user.
+        if (dynamic && newSchema && newSchema->IsSorted()) {
+            schema = schema.ToUniqueKeys();
+        }
+
+        ValidateTableSchemaUpdate(
+            table->TableSchema(),
+            schema,
+            dynamic,
+            table->IsEmpty());
+
         if (newSchema) {
-            table->SetCustomSchema(*newSchema, newDynamic.Get(table->IsDynamic()));
+            table->TableSchema() = schema;
+            table->SetPreserveSchemaOnWrite(true);
         }
 
         if (newDynamic) {

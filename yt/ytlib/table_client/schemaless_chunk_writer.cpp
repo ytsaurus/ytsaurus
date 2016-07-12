@@ -1093,7 +1093,7 @@ void TSchemalessTableWriter::DoOpen()
         Options_->Account = attributes.Get<Stroka>("account");
         Options_->ChunksVital = attributes.Get<bool>("vital");
         Options_->ValidateSorted = sorted;
-        Options_->ValidateUniqueKeys = TableSchema_.IsUniqueKeys();
+        Options_->ValidateUniqueKeys = TableSchema_.GetUniqueKeys();
 
         LOG_INFO("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",
             Options_->Account,

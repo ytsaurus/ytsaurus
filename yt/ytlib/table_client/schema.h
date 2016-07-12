@@ -86,11 +86,9 @@ public:
 
     // TODO(babenko): this function is deprecated
     void AppendColumn(const TColumnSchema& column);
-    void MakeUniqueKeys();
 
     bool HasComputedColumns() const;
     bool IsSorted() const;
-    bool IsUniqueKeys() const;
 
     TKeyColumns GetKeyColumns() const;
     int GetKeyColumnCount() const;
@@ -122,6 +120,9 @@ public:
 
     //! Returns the non-key columns.
     TTableSchema ToValues() const;
+
+    //! Returns the schema with UniqueKeys set to true.
+    TTableSchema ToUniqueKeys() const;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
