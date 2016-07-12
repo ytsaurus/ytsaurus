@@ -1832,15 +1832,6 @@ private:
 
     // Custom bits of preparation pipeline.
 
-    virtual void DoInitialize() override
-    {
-        TSortControllerBase::DoInitialize();
-
-        auto& table = OutputTables[0];
-        table.UpdateMode = EUpdateMode::Overwrite;
-        table.LockMode = ELockMode::Exclusive;
-    }
-
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
@@ -1853,11 +1844,25 @@ private:
         return result;
     }
 
+    virtual void PrepareOutputTables() override
+    {
+        auto& table = OutputTables[0];
+        table.UpdateMode = EUpdateMode::Overwrite;
+        table.LockMode = ELockMode::Exclusive;
+
+        if (!table.PreserveSchemaOnWrite) {
+            table.Schema = TTableSchema::FromKeyColumns(Spec->SortBy);
+        } else if (!CheckKeyColumnsCompatible(Spec->SortBy, table.Schema.GetKeyColumns())) {
+            THROW_ERROR_EXCEPTION("Table %v is expected to be sorted by columns [%v], but sort operation key columns are [%v]",
+                table.Path,
+                JoinToString(table.Schema.GetKeyColumns()),
+                JoinToString(Spec->SortBy));
+        }
+    }
+
     virtual void CustomPrepare() override
     {
         TSortControllerBase::CustomPrepare();
-
-        OutputTables[0].KeyColumns = Spec->SortBy;
 
         if (TotalEstimatedInputDataSize == 0)
             return;
@@ -2902,11 +2907,6 @@ private:
         const TChunkStripeStatisticsVector& statistics) const override
     {
         YUNREACHABLE();
-    }
-
-    virtual bool IsSortedOutputSupported() const override
-    {
-        return true;
     }
 
     // Progress reporting.

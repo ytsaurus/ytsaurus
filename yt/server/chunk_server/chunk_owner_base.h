@@ -9,8 +9,9 @@
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/data_statistics.pb.h>
 
+#include <yt/ytlib/table_client/public.h>
+
 #include <yt/core/misc/property.h>
-#include <yt/ytlib/table_client/schema.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -41,7 +42,8 @@ public:
     virtual void BeginUpload(NChunkClient::EUpdateMode mode);
     virtual void EndUpload(
         const NChunkClient::NProto::TDataStatistics* statistics,
-        const NTableClient::TTableSchema& schema);
+        const NTableClient::TTableSchema& schema,
+        bool preserveSchemaOnWrite);
     virtual bool IsSorted() const;
 
     virtual NYTree::ENodeType GetNodeType() const override;

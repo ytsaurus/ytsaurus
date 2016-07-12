@@ -95,11 +95,16 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
     TTableWriterOptionsPtr options,
     const NYPath::TRichYPath& richPath,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns,
     NApi::IClientPtr client,
     NApi::ITransactionPtr transaction,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessMultiChunkWriterPtr CreateSchemaValidatingWriter(
+    ISchemalessMultiChunkWriterPtr underlyingWriter,
+    const TTableSchema& tableSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

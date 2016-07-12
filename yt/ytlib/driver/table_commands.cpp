@@ -110,7 +110,6 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
         options,
         Path,
         nameTable,
-        keyColumns,
         context->GetClient(),
         transaction);
 

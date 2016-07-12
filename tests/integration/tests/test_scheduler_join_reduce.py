@@ -396,7 +396,7 @@ echo {v = 2} >&7
     @unix_only
     def test_join_reduce_job_count(self):
         create("table", "//tmp/in1", attributes={"compression_codec": "none"})
-        create("table", "//tmp/in2", attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]})
+        create("table", "//tmp/in2", attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]})
         create("table", "//tmp/out")
 
         count = 1000

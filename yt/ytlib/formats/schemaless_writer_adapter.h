@@ -37,6 +37,8 @@ public:
 
     virtual bool IsSorted() const override;
 
+    virtual bool IsUniqueKeys() const override;
+
     virtual TBlob GetContext() const;
 
 protected:

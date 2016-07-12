@@ -15,7 +15,7 @@ TSchemalessRowReorderer::TSchemalessRowReorderer(
 {
     EmptyKey_.resize(KeyColumns_.size(), MakeUnversionedSentinelValue(EValueType::Null));
     for (int i = 0; i < KeyColumns_.size(); ++i) {
-        auto id = NameTable_->GetId(KeyColumns_[i]);
+        auto id = NameTable_->GetIdOrRegisterName(KeyColumns_[i]);
         EmptyKey_[i].Id = id;
         if (id >= IdMapping_.size()) {
             IdMapping_.resize(id + 1, -1);

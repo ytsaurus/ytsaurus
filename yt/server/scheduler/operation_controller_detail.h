@@ -217,6 +217,8 @@ protected:
         int ChunkCount = -1;
         std::vector<NChunkClient::TInputChunkPtr> Chunks;
         NTableClient::TKeyColumns KeyColumns;
+        NTableClient::TTableSchema Schema;
+        bool PreserveSchemaOnWrite;
 
         bool IsForeign() const
         {
@@ -238,7 +240,7 @@ protected:
     {
         NTableClient::TOwningKey MinKey;
         NTableClient::TOwningKey MaxKey;
-        int ChunkTreeKey;
+        NChunkClient::TChunkTreeId ChunkTreeId;
 
         void Persist(TPersistenceContext& context);
 
@@ -252,7 +254,8 @@ protected:
         NChunkClient::EUpdateMode UpdateMode = NChunkClient::EUpdateMode::Overwrite;
         NCypressClient::ELockMode LockMode = NCypressClient::ELockMode::Exclusive;
         NTableClient::TTableWriterOptionsPtr Options = New<NTableClient::TTableWriterOptions>();
-        NTableClient::TKeyColumns KeyColumns;
+        NTableClient::TTableSchema Schema;
+        bool PreserveSchemaOnWrite;
         bool ChunkPropertiesUpdateNeeded = false;
 
         // Server-side upload transaction.
@@ -660,6 +663,8 @@ protected:
     // Preparation.
     void FetchInputTables();
     void LockInputTables();
+    void GetOutputTablesSchema();
+    virtual void PrepareOutputTables();
     void BeginUploadOutputTables();
     void GetOutputTablesUploadParams();
     void FetchUserFiles(std::vector<TUserFile>* files);
@@ -796,8 +801,8 @@ protected:
 
     // Unsorted helpers.
 
-    //! Enables sorted output from user jobs.
-    virtual bool IsSortedOutputSupported() const;
+    //! Enables verification that the output is sorted.
+    virtual bool ShouldVerifySortedOutput() const;
 
     //! Enables fetching all input replicas (not only data)
     virtual bool IsParityReplicasFetchEnabled() const;
@@ -824,13 +829,8 @@ protected:
 
 
     void RegisterBoundaryKeys(
-        const NTableClient::NProto::TBoundaryKeysExt& boundaryKeys,
-        int key,
-        TOutputTable* outputTable);
-
-    void RegisterBoundaryKeys(
-        const NTableClient::TBoundaryKeys& boundaryKeys,
-        int key,
+        const NProto::TOutputResult& boundaryKeys,
+        const NChunkClient::TChunkTreeId& chunkTreeId,
         TOutputTable* outputTable);
 
     virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary);
@@ -994,8 +994,6 @@ private:
     void UpdateAllTasksIfNeeded();
 
     NApi::IClientPtr CreateClient();
-
-    static const NProto::TUserJobResult* FindUserJobResult(const TRefCountedJobResultPtr& result);
 
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
 

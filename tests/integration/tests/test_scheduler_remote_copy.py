@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, make_schema
 from yt_commands import *
 
 import time
@@ -55,6 +55,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
         assert read_table("//tmp/t2") == []
+        assert not get("//tmp/t2/@sorted")
 
     def test_non_empty_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
@@ -65,6 +66,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
+        assert not get("//tmp/t2/@sorted")
 
     def test_cluster_connection_config(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
@@ -123,6 +125,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
         assert read_table("//tmp/t2") == [{"a": "b"}, {"a": "c"}]
+        assert get("//tmp/t2/@sorted")
         assert get("//tmp/t2/@sorted_by") == ["a"]
 
     def test_erasure_table(self):
@@ -246,6 +249,29 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         with pytest.raises(YtError):
             remote_copy(in_=["//tmp/t1", "//tmp/t1"], out="//tmp/t2", spec={"cluster_name": "remote", "copy_attributes": True})
+
+    def test_copy_strict_schema(self):
+        create("table", "//tmp/t1", driver=self.remote_driver, attributes={"schema":
+            make_schema([
+                {"name": "a", "type": "string", "sort_order": "ascending"},
+                {"name": "b", "type": "string"}],
+                unique_keys=True)
+            })
+        assert get("//tmp/t1/@preserve_schema_on_write", driver=self.remote_driver)
+
+        create("table", "//tmp/t2")
+
+        rows = [{"a": "x", "b": "v"}, {"a": "y", "b": "v"}]
+        write_table("//tmp/t1", rows, driver=self.remote_driver)
+
+        assert get("//tmp/t1/@preserve_schema_on_write", driver=self.remote_driver)
+
+        remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
+
+        assert read_table("//tmp/t2") == rows
+        assert get("//tmp/t2/@schema/@strict")
+        assert get("//tmp/t2/@schema/@unique_keys")
+        assert get("//tmp/t2/@preserve_schema_on_write")
 
 class TestSchedulerRemoteCopyNetworks(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {

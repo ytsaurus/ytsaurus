@@ -49,7 +49,7 @@ protected:
         NTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
         const NTransactionClient::TTransactionId& transactionId,
-        const NTableClient::TKeyColumns& keyColumns) = 0;
+        const NTableClient::TTableSchema& tableSchema) = 0;
 
     virtual NTableClient::ISchemalessMultiChunkReaderPtr DoCreateReader(
         NTableClient::TNameTablePtr nameTable,
@@ -72,7 +72,7 @@ protected:
         NTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
         const NTransactionClient::TTransactionId& transactionId,
-        const NTableClient::TKeyColumns& keyColumns);
+        const NTableClient::TTableSchema& tableSchema);
 
     NTableClient::NProto::TBoundaryKeysExt GetBoundaryKeys(
         NTableClient::ISchemalessMultiChunkWriterPtr writer) const;

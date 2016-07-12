@@ -63,6 +63,7 @@ public:
         const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
+        options->ExplodeOnValidationError = true;
 
         Writer_ = CreateSchemalessMultiChunkWriter(
             config->JobIO->TableWriter,
@@ -74,6 +75,11 @@ public:
             CellTagFromId(chunkListId),
             transactionId,
             chunkListId);
+
+        if (outputSpec.has_table_schema()) {
+            auto schema = FromProto<TTableSchema>(outputSpec.table_schema());
+            Writer_ = CreateSchemaValidatingWriter(std::move(Writer_), schema);
+        }
     }
 
 private:

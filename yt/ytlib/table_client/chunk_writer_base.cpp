@@ -319,6 +319,11 @@ bool TSequentialChunkWriterBase::IsSorted() const
     return false;
 }
 
+bool TSequentialChunkWriterBase::IsUniqueKeys() const
+{
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSortedChunkWriterBase::TSortedChunkWriterBase(
@@ -354,8 +359,6 @@ void TSortedChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnvers
     auto newKey = TOwningKey(begin, begin + KeyColumns_.size());
     if (RowCount_ == 0) {
         ToProto(BoundaryKeysExt_.mutable_min(), newKey);
-    } else if (Options_->ValidateSorted) {
-        YCHECK(CompareRows(newKey, LastKey_) >= 0);
     }
     LastKey_ = std::move(newKey);
 
@@ -374,6 +377,7 @@ void TSortedChunkWriterBase::PrepareChunkMeta()
 
     auto& miscExt = EncodingChunkWriter_->MiscExt();
     miscExt.set_sorted(true);
+    miscExt.set_unique_keys(Options_->ValidateUniqueKeys);
 
     ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
 
@@ -389,6 +393,11 @@ void TSortedChunkWriterBase::PrepareChunkMeta()
 bool TSortedChunkWriterBase::IsSorted() const
 {
     return true;
+}
+
+bool TSortedChunkWriterBase::IsUniqueKeys() const
+{
+    return Options_->ValidateUniqueKeys;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
