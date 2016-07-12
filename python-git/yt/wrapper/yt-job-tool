@@ -1,0 +1,181 @@
+#!/usr/bin/env python
+
+from yt.common import makedirp
+from yt.wrapper.cli_helpers import run_main
+from yt.wrapper.common import parse_bool, DoNotReplaceAction, chunk_iter_stream, MB
+from yt.wrapper.job_runner import make_run_script
+import yt.logger as logger
+import yt.yson as yson
+import yt.wrapper as yt
+
+import os
+import sys
+import stat
+import argparse
+import subprocess
+
+DESCRIPTION = """
+Tool helps to debug user job code by preparing job environment on local machine.
+
+It downloads all necessary job files, fail context (small portion of job input data)
+and prepares run script.
+"""
+
+EPILOG = """
+Examples:
+$ yt-job-tool prepare-job-environment 84702787-e6196e33-3fe03e8-f0f415f8 3c9a3b91-5689208c-3fe0384-e32dff58
+...
+<job_path>
+$ yt-job-tool run-job <job_path>
+"""
+
+JOB_PATH_PATTERN = "//sys/operations/{0}/jobs/{1}"
+
+JOB_TYPE_TO_SPEC_TYPE = {
+    "partition_reduce": "reducer",
+    "partition_map": "mapper",
+    "ordered_map": "mapper",
+    "reduce_combiner": "reducer",
+    "sorted_reduce": "reducer",
+    "map": "mapper"
+}
+
+def add_hybrid_argument(parser, name, group_required=True, **kwargs):
+    group = parser.add_mutually_exclusive_group(required=group_required)
+    group.add_argument(name, nargs="?", action=DoNotReplaceAction, **kwargs)
+    group.add_argument("--" + name.replace("_", "-"), **kwargs)
+
+def download_file(path, destination_path):
+    with open(destination_path, "wb") as f:
+        for chunk in chunk_iter_stream(yt.read_file(path), 16 * MB):
+            f.write(chunk)
+
+def run_job(job_path):
+    if not os.path.exists(job_path):
+        raise yt.YtError("Job path {0} does not exist".format(job_path))
+
+    run_script = os.path.join(job_path, "run")
+    p = subprocess.Popen([run_script], close_fds=False)
+    sys.exit(p.wait())
+
+def prepare_job_environment(operation_id, job_id, job_path, run=False):
+    if job_path is None:
+        job_path = os.path.join(os.getcwd(), "job_" + job_id)
+
+    attributes = yt.get_operation_attributes(operation_id)
+
+    if attributes["operation_type"] in ["remote_copy", "sort", "merge"]:
+        raise yt.YtError("Operation {0} is {1} operation and does not run user code"
+                         .format(operation_id, attributes["operation_type"]))
+
+    logger.info("Preparing job environment for job %s, operation %s", job_id, operation_id)
+
+    cypress_job_path = JOB_PATH_PATTERN.format(operation_id, job_id)
+    if not yt.exists(cypress_job_path):
+        raise yt.YtError("Job {0} (operation id: {1}) does not exist".format(job_id, operation_id))
+
+    job_type = yt.get_attribute(cypress_job_path, "job_type")
+    if job_type not in JOB_TYPE_TO_SPEC_TYPE:
+        raise yt.YtError('Unknown job type "{0}"'.format(repr(job_type)))
+
+    op_type = JOB_TYPE_TO_SPEC_TYPE[job_type]
+
+    # Fail context (small portion of job input)
+    fail_context_path = yt.ypath_join(cypress_job_path, "fail_context")
+    if not yt.exists(fail_context_path):
+        raise yt.YtError("Job input data is missing. Fail context does not exist")
+
+    makedirp(job_path)
+
+    fail_context_destination = os.path.join(job_path, "fail_context")
+    logger.info("Downloading job fail context to %s", fail_context_destination)
+    download_file(fail_context_path, fail_context_destination)
+
+    # Sandbox files
+    sandbox_path = os.path.join(job_path, "sandbox")
+    makedirp(sandbox_path)
+
+    file_count = len(attributes["spec"][op_type]["file_paths"])
+    for index, file_ in enumerate(attributes["spec"][op_type]["file_paths"]):
+        file_name = file_.attributes.get("file_name", yt.get_attribute(file_, "key"))
+        logger.info('Downloading job file "%s" (%d of %d)', file_name, index + 1, file_count)
+        destination_path = os.path.join(sandbox_path, file_name)
+        download_file(file_, destination_path)
+
+        if parse_bool(file_.attributes.get("executable", False)):
+            os.chmod(destination_path, os.stat(destination_path).st_mode | stat.S_IXUSR)
+
+    if file_count > 0:
+        logger.info("Job files were downloaded to %s", sandbox_path)
+    else:
+        logger.info("Job has no files to download")
+
+    command_path = os.path.join(job_path, "command")
+    with open(command_path, "wb") as fout:
+        fout.write(attributes["spec"][op_type]["command"])
+    logger.info("Command was written to %s", command_path)
+
+    run_config = {
+        "command_path": command_path,
+        "sandbox_path": sandbox_path,
+        "input_path": fail_context_destination,
+        "output_path": os.path.join(job_path, "output"),
+        "output_table_count": len(attributes["spec"]["output_table_paths"]),
+        "use_yamr_descriptors": attributes["spec"][op_type].get("use_yamr_descriptors", False),
+        "job_id": job_id,
+        "operation_id": operation_id
+    }
+    with open(os.path.join(job_path, "run_config"), "wb") as fout:
+        yson.dump(run_config, fout, yson_format="pretty")
+    make_run_script(job_path)
+
+    if run:
+        run_job(job_path)
+    else:
+        logger.info('Done! Job can be started with "run" script in job directory or '
+                    'with "yt-job-tool run-job" subcommand'.format(job_path))
+        print job_path
+
+def main():
+    options_parser = argparse.ArgumentParser(add_help=False)
+    options_parser.add_argument("--proxy", help="proxy url")
+    options_parser.add_argument("--token", help="YT token")
+
+    parser = argparse.ArgumentParser(parents=[options_parser],
+                                     description=DESCRIPTION,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     epilog=EPILOG)
+
+    subparsers = parser.add_subparsers(metavar="command", dest="command")
+
+    prepare_job_env_parser = subparsers.add_parser("prepare-job-environment",
+                                                   help="prepare all necessary stuff for job")
+    add_hybrid_argument(prepare_job_env_parser, "operation_id")
+    add_hybrid_argument(prepare_job_env_parser, "job_id")
+    prepare_job_env_parser.add_argument("--job-path",
+                                        help="output directory to store job environment. Default: <cwd>/job_<job_id>")
+    prepare_job_env_parser.add_argument("--run", help="run job when job environment is prepared",
+                                        action="store_true", default=False)
+
+    run_job_parser = subparsers.add_parser("run-job", help="runs job binary")
+    add_hybrid_argument(run_job_parser, "job_path", help="path to prepared job environment")
+
+    options, remaining_args = options_parser.parse_known_args()
+    if options.proxy is not None:
+        yt.config["proxy"]["url"] = options.proxy
+    if options.token is not None:
+        yt.config["token"] = options.token
+
+    args = dict(vars(parser.parse_args(remaining_args)))
+    for key in vars(options):
+        args.pop(key)
+
+    commands = {
+        "prepare-job-environment": prepare_job_environment,
+        "run-job": run_job
+    }
+    command = args.pop("command")
+    commands[command](**args)
+
+if __name__ == "__main__":
+    run_main(main)
