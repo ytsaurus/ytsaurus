@@ -4,6 +4,7 @@
 #include <yt/core/misc/blob.h>
 #include <yt/core/misc/finally.h>
 
+#define ZSTD_STATIC_LINKING_ONLY
 #include <yt/contrib/zstd/lib/common/zstd.h>
 
 namespace NYT {

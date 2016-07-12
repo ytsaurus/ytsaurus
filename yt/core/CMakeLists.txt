@@ -220,8 +220,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ytree/yson_serializable.cpp
 )
 
-add_definitions(-DZSTD_STATIC_LINKING_ONLY)
-
 IF(NOT WIN32)
   SET(YT_SRCS ${YT_SRCS} ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_context-supp.S)
 ENDIF()
@@ -243,6 +241,7 @@ CXXFLAGS(
   -Wno-unused-parameter
   -Wno-unused-value
   -Wno-c++14-extensions
+  -DYT_IN_ARCADIA
 )
 
 ADDINCL(
