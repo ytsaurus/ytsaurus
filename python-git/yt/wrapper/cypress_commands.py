@@ -429,7 +429,8 @@ def search(root="", node_type=None,
                 for obj in walk("{0}/{1}".format(path, index), value, depth + 1):
                     yield obj
 
-    return walk(root, safe_get(root, ignore_resolve_error=False), 0, True)
+    ignore_root_path_resolve_error = get_config(client)["ignore_root_path_resolve_error_in_search"]
+    return walk(root, safe_get(root, ignore_resolve_error=ignore_root_path_resolve_error), 0, True)
 
 def remove_with_empty_dirs(path, force=True, client=None):
     """Remove path and all empty dirs that appear after deletion.
