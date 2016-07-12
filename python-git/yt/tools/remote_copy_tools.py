@@ -653,7 +653,7 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, token_storage
 
     tmp_dir = tempfile.mkdtemp(dir=kwargs.get("tmp_dir"))
     enable_row_count_check = get_value(kwargs.pop("enable_row_count_check", None), False)
-    yt_client.create("map_node", token_storage_path, ignore_existing=True, recursive=True)
+    kiwi_transmittor.create("map_node", token_storage_path, ignore_existing=True, recursive=True)
     try:
         with yt_client.Transaction(attributes={"title": "copy_yt_to_kiwi"}):
             yt_client.lock(src, mode="snapshot")
