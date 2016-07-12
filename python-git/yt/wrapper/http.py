@@ -125,7 +125,7 @@ def raise_for_status(response, request_info):
         raise YtHttpResponseError(error=response.error(), **request_info)
 
 def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False,
-                              params=None, timeout=None, retry_action=None, client=None, log_body=True, **kwargs):
+                              params=None, timeout=None, retry_action=None, client=None, log_body=True, is_ping=False, **kwargs):
     configure_ip(get_session(client),
                  get_config(client)["proxy"]["force_ipv4"],
                  get_config(client)["proxy"]["force_ipv6"])
@@ -199,6 +199,9 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                     time.sleep(backoff)
                 logger.warning("New retry (%d) ...", attempt + 2)
             else:
+                raise
+        except YtHttpResponseError as err:
+            if not is_ping or err.is_no_such_transaction():
                 raise
 
 def make_get_request_with_retries(url, **kwargs):

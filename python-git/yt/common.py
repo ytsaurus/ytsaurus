@@ -83,6 +83,10 @@ class YtResponseError(YtError):
         """Too many concurrent operations"""
         return self.contains_code(202) or self.contains_text("Limit for the number of concurrent operations")
 
+    def is_no_such_transaction(self):
+        """No such transaction"""
+        return self.contains_code(11000)
+
     def contains_code(self, code):
         """Check if HTTP response has specified error code."""
         def contains_code_recursive(error, error_code):
