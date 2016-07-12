@@ -2,7 +2,6 @@
 
 from __future__ import absolute_import
 
-import unittest
 from cStringIO import StringIO
 
 import yt.yson
@@ -25,14 +24,15 @@ class YsonParserTestBase(object):
     def loads(*args, **kws):
         raise NotImplementedError
 
-    def assert_equal(self, parsed, expected, attributes):
+    @staticmethod
+    def assert_equal(parsed, expected, attributes):
         if expected is None:
             assert isinstance(parsed, yt.yson.yson_types.YsonEntity)
-            self.assertEqual(parsed.attributes, attributes)
+            assert parsed.attributes == attributes
         else:
-            self.assertEqual(parsed, to_yson_type(expected, attributes))
+            assert parsed == to_yson_type(expected, attributes)
 
-    def assert_parse(self, string, expected, attributes = {}):
+    def assert_parse(self, string, expected, attributes={}):
         self.assert_equal(self.loads(string), expected, attributes)
         stream = StringIO(string)
         self.assert_equal(self.load(stream), expected, attributes)
@@ -115,7 +115,7 @@ class YsonParserTestBase(object):
         )
 
 
-class TestParserDefault(unittest.TestCase, YsonParserTestBase):
+class TestParserDefault(YsonParserTestBase):
     @staticmethod
     def load(*args, **kws):
         return yt.yson.load(*args, **kws)
@@ -125,7 +125,7 @@ class TestParserDefault(unittest.TestCase, YsonParserTestBase):
         return yt.yson.loads(*args, **kws)
 
 
-class TestParserPython(unittest.TestCase, YsonParserTestBase):
+class TestParserPython(YsonParserTestBase):
     @staticmethod
     def load(*args, **kws):
         return yt.yson.parser.load(*args, **kws)
@@ -136,7 +136,7 @@ class TestParserPython(unittest.TestCase, YsonParserTestBase):
 
 
 if yt_yson_bindings:
-    class TestParserBindings(unittest.TestCase, YsonParserTestBase):
+    class TestParserBindings(YsonParserTestBase):
         @staticmethod
         def load(*args, **kws):
             return yt_yson_bindings.load(*args, **kws)
