@@ -2,8 +2,6 @@
 
 from __future__ import absolute_import
 
-import unittest
-
 import yt.yson.writer
 import yt.yson.parser
 from yt.yson.yson_types import YsonUint64
@@ -25,21 +23,21 @@ class CommonTestBase(object):
 
     def test_long_integers(self):
         num = 1
-        self.assertEqual("1", self.dumps(num))
+        assert self.dumps(num) == "1"
         loaded = self.loads("1")
-        self.assertEqual(1, loaded)
-        self.assertTrue(isinstance(loaded, long))
+        assert loaded == 1
+        assert isinstance(loaded, long)
 
         num = 2 ** 50
         loaded = self.loads(self.dumps(num))
-        self.assertEqual(2 ** 50, loaded)
-        self.assertTrue(isinstance(loaded, long))
+        assert loaded == 2 ** 50
+        assert isinstance(loaded, long)
 
         yson_num = "1u"
         loaded = self.loads(yson_num)
-        self.assertEqual(1, loaded)
-        self.assertTrue(isinstance(loaded, YsonUint64))
-        self.assertEqual("1u", self.dumps(loaded))
+        assert loaded == 1
+        assert isinstance(loaded, YsonUint64)
+        assert self.dumps(loaded) == "1u"
 
     def test_equalities(self):
         num = 1
@@ -48,19 +46,19 @@ class CommonTestBase(object):
         s = "abc"
         f = 1.0
         d = {"x": 2}
-        self.assertEqual(self.loads(self.dumps(num)), num_long)
+        assert self.loads(self.dumps(num)) == num_long
 
-        self.assertFalse(None == self.loads(self.dumps(num)))
-        self.assertFalse(None == self.loads(self.dumps(lst)))
-        self.assertFalse(None == self.loads(self.dumps(s)))
-        self.assertFalse(None == self.loads(self.dumps(f)))
+        assert self.loads(self.dumps(num)) is not None
+        assert self.loads(self.dumps(lst)) is not None
+        assert self.loads(self.dumps(s)) is not None
+        assert self.loads(self.dumps(f)) is not None
 
-        self.assertFalse(lst == self.loads(self.dumps(f)))
-        self.assertFalse(num == self.loads(self.dumps(s)))
-        self.assertFalse(self.loads(self.dumps(d)) == s)
+        assert lst != self.loads(self.dumps(f))
+        assert num != self.loads(self.dumps(s))
+        assert self.loads(self.dumps(d)) != s
 
 
-class TestCommonDefault(unittest.TestCase, CommonTestBase):
+class TestCommonDefault(CommonTestBase):
     @staticmethod
     def loads(*args, **kws):
         return yt.yson.loads(*args, **kws)
@@ -70,7 +68,7 @@ class TestCommonDefault(unittest.TestCase, CommonTestBase):
         return yt.yson.dumps(*args, **kws)
 
 
-class TestCommonPython(unittest.TestCase, CommonTestBase):
+class TestCommonPython(CommonTestBase):
     @staticmethod
     def loads(*args, **kws):
         return yt.yson.parser.loads(*args, **kws)
@@ -81,7 +79,7 @@ class TestCommonPython(unittest.TestCase, CommonTestBase):
 
 
 if yt_yson_bindings:
-    class TestCommonBindings(unittest.TestCase, CommonTestBase):
+    class TestCommonBindings(CommonTestBase):
         @staticmethod
         def loads(*args, **kws):
             return yt_yson_bindings.loads(*args, **kws)
