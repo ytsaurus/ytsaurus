@@ -433,7 +433,16 @@ TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName_)
     try {
         addrinfo hints;
         memset(&hints, 0, sizeof(hints));
-        hints.ai_family = AF_UNSPEC;    // Allow both IPv4 and IPv6 addresses.
+
+        // Do not use AF_UNSPEC in all cases
+        // since resolving unnecessary address may take time.
+        hints.ai_family = AF_UNSPEC;
+        if (Config_->EnableIPv4 && !Config_->EnableIPv6) {
+            hints.ai_family = AF_INET;
+        }
+        if (Config_->EnableIPv6 && !Config_->EnableIPv4) {
+            hints.ai_family = AF_INET6;
+        }
         hints.ai_socktype = SOCK_STREAM;
 
         addrinfo* addrInfo = nullptr;
