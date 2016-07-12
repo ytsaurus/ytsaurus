@@ -673,6 +673,41 @@ echo {v = 2} >&7
         assert len(read_table("//tmp/output")) == 18
 
     @unix_only
+    def test_reduce_with_foreign_multiple_jobs(self):
+        for i in range(4):
+            create("table", "//tmp/t{0}".format(i))
+            write_table(
+                "//tmp/t" + str(i),
+                [{"key": "%05d" % j, "value": "%05d" % j} for j in range(20-i, 30+i)],
+                sorted_by = ["key","value"])
+
+        create("table", "//tmp/foreign")
+        write_table(
+            "//tmp/foreign",
+            [{"key": "%05d" % i, "value": "%05d" % (10000+i)} for i in range(50)],
+            sorted_by = ["key"])
+
+        create("table", "//tmp/output")
+
+        reduce(
+            in_ = ["<foreign=true>//tmp/foreign"] + ["//tmp/t{0}".format(i) for i in range(4)],
+            out = ["//tmp/output"],
+            command = "[ $YT_JOB_INDEX -eq 0 ] && grep @table_index=0 | head -n 1 || true",
+            reduce_by = ["key","value"],
+            join_by = ["key"],
+            spec = {
+                "reducer": {
+                    "format": yson.loads("<enable_table_index=true>dsv")
+                },
+                "job_count": 5,
+            })
+
+        assert read_table("//tmp/output") == \
+            [
+                {"key":"00017", "value":"10017", "@table_index":"0"},
+            ]
+
+    @unix_only
     def test_reduce_with_foreign_reduce_by_equals_join_by(self):
         self._prepare_join_tables()
 
