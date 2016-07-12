@@ -96,7 +96,7 @@ public:
         const NObjectClient::TCellTag& PrimaryMasterCellTag,
         TSchedulerConfigPtr config,
         INodeShardHost* host,
-        TBootstrap* bootstrap);
+        NCellScheduler::TBootstrap* bootstrap);
 
     IInvokerPtr GetInvoker();
 
@@ -192,7 +192,7 @@ private:
     const NObjectClient::TCellTag PrimaryMasterCellTag_;
     TSchedulerConfigPtr Config_;
     INodeShardHost* Host_;
-    TBootstrap* const Bootstrap_;
+    NCellScheduler::TBootstrap* const Bootstrap_;
 
     NLogging::TLogger Logger;
 

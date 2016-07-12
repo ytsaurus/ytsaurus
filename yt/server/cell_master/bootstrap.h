@@ -82,8 +82,8 @@ public:
     NHive::TCellDirectoryPtr GetCellDirectory() const;
     IInvokerPtr GetControlInvoker() const;
 
-    NRpc::IChannelFactoryPtr GetLightNodeChannelFactory() const;
-    NRpc::IChannelFactoryPtr GetHeavyNodeChannelFactory() const;
+    NNodeTrackerClient::INodeChannelFactoryPtr GetLightNodeChannelFactory() const;
+    NNodeTrackerClient::INodeChannelFactoryPtr GetHeavyNodeChannelFactory() const;
 
     void Initialize();
     void Run();
@@ -127,8 +127,8 @@ private:
     NHive::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;
 
-    NRpc::IChannelFactoryPtr LightNodeChannelFactory_;
-    NRpc::IChannelFactoryPtr HeavyNodeChannelFactory_;
+    NNodeTrackerClient::INodeChannelFactoryPtr LightNodeChannelFactory_;
+    NNodeTrackerClient::INodeChannelFactoryPtr HeavyNodeChannelFactory_;
 
     static NElection::TPeerId ComputePeerId(
         NElection::TCellConfigPtr config,

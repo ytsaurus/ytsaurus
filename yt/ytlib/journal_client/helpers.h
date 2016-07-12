@@ -5,6 +5,7 @@
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/core/actions/future.h>
 
@@ -20,14 +21,14 @@ TFuture<void> AbortSessionsQuorum(
     const std::vector<NNodeTrackerClient::TNodeDescriptor>& replicas,
     TDuration timeout,
     int quorum,
-    NRpc::IChannelFactoryPtr channelFactory);
+    NNodeTrackerClient::INodeChannelFactoryPtr channelFactory);
 
 TFuture<NChunkClient::NProto::TMiscExt> ComputeQuorumInfo(
     const NChunkClient::TChunkId& chunkId,
     const std::vector<NNodeTrackerClient::TNodeDescriptor>& replicas,
     TDuration timeout,
     int quorum,
-    NRpc::IChannelFactoryPtr channelFactory);
+    NNodeTrackerClient::INodeChannelFactoryPtr channelFactory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

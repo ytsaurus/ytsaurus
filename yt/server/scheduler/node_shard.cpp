@@ -7,6 +7,8 @@
 
 #include <yt/server/scheduler/config.h>
 
+#include <yt/server/cell_scheduler/bootstrap.h>
+
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/shell/config.h>
@@ -18,6 +20,7 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
+using namespace NCellScheduler;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NJobProberClient;
@@ -622,7 +625,7 @@ TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor
 
     auto node = it->second;
     // Update the current descriptor, just in case.
-    node->UpdateNodeDescriptor(descriptor);
+    node->NodeDescriptor() = descriptor;
     return node;
 }
 

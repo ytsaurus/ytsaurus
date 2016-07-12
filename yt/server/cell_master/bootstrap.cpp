@@ -60,6 +60,8 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
+#include <yt/ytlib/node_tracker_client/channel.h>
+
 #include <yt/ytlib/monitoring/http_integration.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
@@ -99,6 +101,7 @@ using namespace NYTree;
 using namespace NElection;
 using namespace NHydra;
 using namespace NHive;
+using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 using namespace NTransactionServer;
 using namespace NChunkServer;
@@ -283,12 +286,12 @@ IInvokerPtr TBootstrap::GetControlInvoker() const
     return ControlQueue_->GetInvoker();
 }
 
-IChannelFactoryPtr TBootstrap::GetLightNodeChannelFactory() const
+INodeChannelFactoryPtr TBootstrap::GetLightNodeChannelFactory() const
 {
     return LightNodeChannelFactory_;
 }
 
-IChannelFactoryPtr TBootstrap::GetHeavyNodeChannelFactory() const
+INodeChannelFactoryPtr TBootstrap::GetHeavyNodeChannelFactory() const
 {
     return HeavyNodeChannelFactory_;
 }
@@ -592,8 +595,12 @@ void TBootstrap::DoInitialize()
 
     RpcServer_->Configure(Config_->RpcServer);
 
-    LightNodeChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
-    HeavyNodeChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+    LightNodeChannelFactory_ = CreateNodeChannelFactory(
+        CreateCachingChannelFactory(GetBusChannelFactory()),
+        Config_->Networks);
+    HeavyNodeChannelFactory_ = CreateNodeChannelFactory(
+        CreateCachingChannelFactory(GetBusChannelFactory()),
+        Config_->Networks);
 }
 
 void TBootstrap::DoRun()

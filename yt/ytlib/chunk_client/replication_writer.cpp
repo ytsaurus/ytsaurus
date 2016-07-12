@@ -15,6 +15,7 @@
 #include <yt/ytlib/api/connection.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -253,7 +254,7 @@ private:
     void AddBlocks(const std::vector<TSharedRef>& blocks);
 
     IChannelPtr CreateRetryingNodeChannel(
-        IChannelFactoryPtr channelFactory,
+        INodeChannelFactoryPtr channelFactory,
         const Stroka& address);
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
@@ -1083,7 +1084,7 @@ NErasure::ECodec TReplicationWriter::GetErasureCodecId() const
 }
 
 IChannelPtr TReplicationWriter::CreateRetryingNodeChannel(
-    IChannelFactoryPtr channelFactory,
+    INodeChannelFactoryPtr channelFactory,
     const Stroka& address)
 {
     return CreateRetryingChannel(
