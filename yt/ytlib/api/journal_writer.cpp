@@ -18,6 +18,7 @@
 #include <yt/ytlib/journal_client/journal_ypath_proxy.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>

@@ -9,6 +9,7 @@
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
@@ -271,7 +272,7 @@ void TFetcherBase::StartFetchingRound()
 IChannelPtr TFetcherBase::GetNodeChannel(TNodeId nodeId)
 {
     const auto& descriptor = NodeDirectory_->GetDescriptor(nodeId);
-    auto channel = Client_->GetNodeChannelFactory()->CreateChannel(descriptor.GetInterconnectAddress());
+    auto channel = Client_->GetNodeChannelFactory()->CreateChannel(descriptor);
     return CreateRetryingChannel(Config_->NodeChannel, channel);
 }
 
