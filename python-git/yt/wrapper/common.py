@@ -10,6 +10,7 @@ import sys
 import inspect
 import socket
 import getpass
+import argparse
 import random
 import time
 from datetime import datetime
@@ -202,3 +203,7 @@ def forbidden_inside_job(func, *args, **kwargs):
                       '"allow_http_requests_to_yt_from_job" option in config.')
     return func(*args, **kwargs)
 
+class DoNotReplaceAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if not getattr(namespace, self.dest):
+            setattr(namespace, self.dest, values)

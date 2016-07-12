@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import yt.wrapper.yson as yson
-from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB
+from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB, DoNotReplaceAction
 from yt.wrapper.cli_helpers import write_silently, run_main
 import yt.wrapper.completers as completers
 import yt.wrapper as yt
@@ -163,11 +163,6 @@ class ParseMemoryLimit(Action):
         if values is not None:
             values = yt.common.MB * int(values)
         setattr(namespace, self.dest, values)
-
-class DoNotReplaceAction(Action):
-    def __call__(self, parser, namespace, values, option_string=None):
-        if not getattr(namespace, self.dest):
-            setattr(namespace, self.dest, values)
 
 def add_argument(parser, name, help, description, **kwargs):
     if description:
