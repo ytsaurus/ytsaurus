@@ -183,6 +183,7 @@ public:
     void Enqueue(
         const NYPath::TYPath& path,
         TValue value,
+        EMetricType metricType,
         const TTagIdList& tagIds = EmptyTagIds) const;
 
 

@@ -151,6 +151,7 @@ TProfiler::TProfiler(
 void TProfiler::Enqueue(
     const NYPath::TYPath& path,
     TValue value,
+    EMetricType metricType,
     const TTagIdList& tagIds) const
 {
     if (!Enabled_)
@@ -161,6 +162,7 @@ void TProfiler::Enqueue(
     sample.Path = PathPrefix_ + path;
     sample.Value = value;
     sample.TagIds = TagIds_ + tagIds;
+    sample.MetricType = metricType;
     TProfileManager::Get()->Enqueue(sample, SelfProfiling_);
 }
 
@@ -207,7 +209,7 @@ TDuration TProfiler::DoTimingStop(
 
     auto path = key ? timer.Path + "/" + ToYPathLiteral(*key) : timer.Path;
     auto tagIds = totalTagIds ? timer.TagIds + *totalTagIds : timer.TagIds;
-    Enqueue(path, value, tagIds);
+    Enqueue(path, value, EMetricType::Gauge, tagIds);
 
     timer.Start = 0;
 
@@ -251,7 +253,7 @@ TDuration TProfiler::DoTimingCheckpoint(
             auto lastCheckpoint = timer.LastCheckpoint == 0 ? timer.Start : timer.LastCheckpoint;
             auto duration = CpuDurationToValue(now - lastCheckpoint);
             Y_ASSERT(duration >= 0);
-            Enqueue(path, duration, tagIds);
+            Enqueue(path, duration, EMetricType::Gauge, tagIds);
             timer.LastCheckpoint = now;
             return CpuDurationToDuration(duration);
         }
@@ -259,7 +261,7 @@ TDuration TProfiler::DoTimingCheckpoint(
         case ETimerMode::Parallel: {
             auto duration = CpuDurationToValue(now - timer.Start);
             Y_ASSERT(duration >= 0);
-            Enqueue(path, duration, tagIds);
+            Enqueue(path, duration, EMetricType::Gauge, tagIds);
             return CpuDurationToDuration(duration);
         }
 
@@ -335,21 +337,21 @@ void TProfiler::DoUpdate(TAggregateCounter& counter, TValue value) const
         counter.Deadline = now + counter.Interval;
         switch (counter.Mode) {
             case EAggregateMode::All:
-                Enqueue(counter.Path + "/min", min, counter.TagIds);
-                Enqueue(counter.Path + "/max", max, counter.TagIds);
-                Enqueue(counter.Path + "/avg", avg, counter.TagIds);
+                Enqueue(counter.Path + "/min", min, EMetricType::Gauge, counter.TagIds);
+                Enqueue(counter.Path + "/max", max, EMetricType::Gauge, counter.TagIds);
+                Enqueue(counter.Path + "/avg", avg, EMetricType::Gauge, counter.TagIds);
                 break;
 
             case EAggregateMode::Min:
-                Enqueue(counter.Path, min, counter.TagIds);
+                Enqueue(counter.Path, min, EMetricType::Gauge, counter.TagIds);
                 break;
 
             case EAggregateMode::Max:
-                Enqueue(counter.Path, max, counter.TagIds);
+                Enqueue(counter.Path, max, EMetricType::Gauge, counter.TagIds);
                 break;
 
             case EAggregateMode::Avg:
-                Enqueue(counter.Path, avg, counter.TagIds);
+                Enqueue(counter.Path, avg, EMetricType::Gauge, counter.TagIds);
                 break;
 
             default:
@@ -375,7 +377,7 @@ void TProfiler::OnUpdated(TSimpleCounter& counter) const
         counter.Deadline = now + counter.Interval;
     }
 
-    Enqueue(counter.Path, sampleValue, counter.TagIds);
+    Enqueue(counter.Path, sampleValue, EMetricType::Counter, counter.TagIds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

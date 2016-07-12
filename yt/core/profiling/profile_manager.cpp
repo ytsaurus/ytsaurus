@@ -157,6 +157,7 @@ private:
         TInstant Time;
         TValue Value;
         TTagIdList TagIds;
+        EMetricType MetricType;
     };
 
     class TBucket
@@ -250,6 +251,7 @@ private:
                                 fluent
                                     .Item(tag.Key).Value(tag.Value);
                             })
+                            .Item("metric_type").Value(sample.MetricType)
                         .EndMap();
                 }).Data());
 
@@ -375,6 +377,7 @@ private:
         storedSample.Time = CpuInstantToInstant(queuedSample.Time);
         storedSample.Value = queuedSample.Value;
         storedSample.TagIds = queuedSample.TagIds;
+        storedSample.MetricType = queuedSample.MetricType;
 
         bucket->AddSample(storedSample);
         bucket->TrimSamples(MaxKeepInterval);
