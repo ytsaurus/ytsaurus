@@ -57,7 +57,9 @@ def clean_tasks(url, token, count, total_count, failed_timeout, max_regular_task
         robots = []
 
     logger.info("Requesting all tasks")
-    rsp = requests.get("{0}/tasks/".format(url))
+    rsp = requests.get("{0}/tasks/".format(url),
+                       params={"fields[]": ["creation_time", "start_time", "finish_time", "id", "user", "state"]})
+    rsp.raise_for_status()
     logger.info("Tasks recieved")
 
     tasks = [create_task(task_dict) for task_dict in rsp.json()]
