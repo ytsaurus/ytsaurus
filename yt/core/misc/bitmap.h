@@ -12,8 +12,8 @@ template <class TChunkType>
 TChunkType GetChunkMask(int bitIndex, bool value)
 {
     auto x = static_cast<TChunkType>(value) << (bitIndex % (sizeof(TChunkType) * 8));
-    // NB: Self-check here to avoid nasty problems. See for example YT-5161.
-    YCHECK((x & (x-1)) == 0);
+    // NB: Self-check to avoid nasty problems. See for example YT-5161.
+    YCHECK((x & (x - 1)) == 0);
     return x;
 }
 
