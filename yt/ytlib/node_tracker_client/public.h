@@ -41,7 +41,7 @@ extern const TRackId NullRackId;
 // Address type and value list.
 using TAddressList = std::vector<std::pair<Stroka, Stroka>>;
 using TNetworkPreferenceList = std::vector<Stroka>;
-using TAddressMap = std::unordered_map<Stroka, Stroka>;
+using TAddressMap = yhash_map<Stroka, Stroka>;
 
 class TNodeDescriptor;
 

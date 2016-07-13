@@ -49,7 +49,7 @@ TAddressMap ToAddressMap(const TCellPeerConfig& config, const TNetworkPreference
 {
     TAddressMap result;
     if (config.Address) {
-        result.reserve(networks.size());
+        result.resize(networks.size());
         for (const auto& network : networks) {
             YCHECK(result.emplace(network, *config.Address).second);
         }
