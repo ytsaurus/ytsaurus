@@ -122,24 +122,20 @@ private:
 
 protected:
     TFutureState(int strongRefCount, int weakRefCount)
-    {
-        // TODO(babenko): VS compat
-        StrongRefCount_ = strongRefCount;
-        WeakRefCount_ = weakRefCount;
-        Set_ = false;
-        Canceled_ = false;
-    }
+        : StrongRefCount_(strongRefCount)
+        , WeakRefCount_(weakRefCount)
+        , Canceled_(false)
+        , Set_(false)
+    { }
 
     template <class U>
     TFutureState(int strongRefCount, int weakRefCount, U&& value)
-        : Value_(std::forward<U>(value))
-    {
-        // TODO(babenko): VS compat
-        StrongRefCount_ = strongRefCount;
-        WeakRefCount_ = weakRefCount;
-        Set_ = true;
-        Canceled_ = false;
-    }
+        : StrongRefCount_(strongRefCount)
+        , WeakRefCount_(weakRefCount)
+        , Canceled_ (false)
+        , Set_(true)
+        , Value_(std::forward<U>(value))
+    { }
 
 public:
     void RefFuture()

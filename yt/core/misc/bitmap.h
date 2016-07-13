@@ -13,7 +13,7 @@ TChunkType GetChunkMask(int bitIndex, bool value)
 {
     auto x = static_cast<TChunkType>(value) << (bitIndex % (sizeof(TChunkType) * 8));
     // NB: Self-check to avoid nasty problems. See for example YT-5161.
-    YCHECK((x & (x - 1)) == 0);
+    YCHECK((x & ~(static_cast<TChunkType>(1) << (bitIndex % (sizeof(TChunkType) * 8)))) == 0);
     return x;
 }
 
