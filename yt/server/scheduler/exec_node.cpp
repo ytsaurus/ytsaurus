@@ -16,16 +16,17 @@ TExecNode::TExecNode(
     TNodeId id,
     const TNodeDescriptor& nodeDescriptor)
     : Id_(id)
-    , NodeDescriptor_(nodeDescriptor)
     , MasterState_(ENodeState::Offline)
     , HasOngoingHeartbeat_(false)
     , HasOngoingJobsScheduling_(false)
     , HasPendingUnregistration_(false)
-{
-}
+    , NodeDescriptor_(nodeDescriptor)
+    , DefaultAddress_(NodeDescriptor_.GetDefaultAddress())
+{ }
 
 const Stroka& TExecNode::GetDefaultAddress() const
 {
+    TReaderGuard guard(SpinLock_);
     return NodeDescriptor_.GetDefaultAddress();
 }
 
@@ -77,6 +78,19 @@ void TExecNode::SetResourceUsage(const TJobResources& value)
     // NB: No locking is needed since ResourceUsage_ is not used
     // in BuildExecDescriptor.
     ResourceUsage_ = value;
+}
+
+TNodeDescriptor TExecNode::GetNodeDescriptor() const
+{
+    TReaderGuard guard(SpinLock_);
+    return NodeDescriptor_;
+}
+
+void TExecNode::SetNodeDescriptor(const NNodeTrackerClient::TNodeDescriptor& descriptor)
+{
+    TWriterGuard guard(SpinLock_);
+    YCHECK(DefaultAddress_ == descriptor.GetDefaultAddress());
+    NodeDescriptor_ = descriptor;
 }
 
 ////////////////////////////////////////////////////////////////////
