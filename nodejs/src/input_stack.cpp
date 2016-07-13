@@ -1,8 +1,8 @@
 #include "input_stack.h"
 
-#include <yt/core/utilex/lzop.h>
 
 #include <library/streams/lz/lz.h>
+#include <library/streams/lzop/lzop.h>
 
 #include <util/stream/zlib.h>
 
