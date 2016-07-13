@@ -518,6 +518,17 @@ public:
         return result;
     }
 
+    std::vector<TExecNodePtr> GetExecNodes() const
+    {
+        TReaderGuard guard(AddressToNodeLock_);
+
+        std::vector<TExecNodePtr> result;
+        result.reserve(AddressToNode_.size());
+        for (const auto& pair : AddressToNode_) {
+            result.push_back(pair.second);
+        }
+        return result;
+    }
 
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,
@@ -1464,14 +1475,15 @@ private:
                 auto newState = attributes.Get<ENodeState>("state");
                 auto ioWeight = attributes.Get<double>("io_weight", 0.0);
 
-                if (AddressToNode_.find(address) == AddressToNode_.end()) {
+                auto it = AddressToNode_.find(address);
+                if (it == AddressToNode_.end()) {
                     if (newState == ENodeState::Online) {
                         LOG_WARNING("Node %v is not registered in scheduler but online at master", address);
                     }
                     continue;
                 }
 
-                auto execNode = AddressToNode_[address];
+                auto execNode = it->second;
                 auto oldState = execNode->GetMasterState();
 
                 auto tags = node->Attributes().Get<std::vector<Stroka>>("tags");
@@ -1847,7 +1859,7 @@ private:
 
         auto node = it->second;
         // Update the current descriptor, just in case.
-        node->NodeDescriptor() = descriptor;
+        node->SetNodeDescriptor(descriptor);
         return node;
     }
 
@@ -2517,7 +2529,7 @@ private:
 
     TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job)
     {
-        const auto& address = job->GetNode()->NodeDescriptor().GetAddress(Bootstrap_->GetLocalNetworks());
+        const auto& address = job->GetNode()->GetNodeDescriptor().GetAddress(Bootstrap_->GetLocalNetworks());
         auto factory = Bootstrap_->GetMasterClient()->GetNodeChannelFactory();
         auto channel = factory->CreateChannel(address);
 
@@ -2857,8 +2869,8 @@ private:
                         BuildOperationYson(operation, fluent);
                     }
                 })
-                .Item("nodes").DoMapFor(AddressToNode_, [=] (TFluentMap fluent, const TExecNodeMap::value_type& pair) {
-                    BuildNodeYson(pair.second, fluent);
+                .Item("nodes").DoMapFor(GetExecNodes(), [=] (TFluentMap fluent, const TExecNodePtr& execNode) {
+                    BuildNodeYson(execNode, fluent);
                 })
                 .Item("clusters").DoMapFor(GetClusterDirectory()->GetClusterNames(), [=] (TFluentMap fluent, const Stroka& clusterName) {
                     BuildClusterYson(clusterName, fluent);

@@ -28,7 +28,6 @@ class TExecNode
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, Id);
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::TNodeDescriptor, NodeDescriptor);
 
     //! Jobs that are currently running on this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
@@ -102,12 +101,19 @@ public:
     //! Sets the node's resource usage.
     void SetResourceUsage(const TJobResources& value);
 
+    NNodeTrackerClient::TNodeDescriptor GetNodeDescriptor() const;
+
+    void SetNodeDescriptor(const NNodeTrackerClient::TNodeDescriptor& descriptor);
+
 private:
     TJobResources ResourceUsage_;
 
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
     TJobResources ResourceLimits_;
     double IOWeight_ = 0;
+
+    NNodeTrackerClient::TNodeDescriptor NodeDescriptor_;
+    Stroka DefaultAddress_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TExecNode)
