@@ -21,7 +21,8 @@ class TInt64():
     def comparable(self):
         return True
     def aggregatable(self):
-        return ["sum", "min", "max"]
+        #return ["sum", "min", "max"]
+        return ["min", "max"]
     def aggregate(self, function, lhs, rhs):
         if function == "sum":
             r = lhs + rhs
@@ -43,7 +44,8 @@ class TUnt64():
     def comparable(self):
         return True
     def aggregatable(self):
-        return ["sum", "min", "max"]
+        #return ["sum", "min", "max"]
+        return ["min", "max"]
     def aggregate(self, function, lhs, rhs):
         if function == "sum":
             return (lhs + rhs) % 2**64
