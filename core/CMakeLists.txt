@@ -176,7 +176,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tracing/trace_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tracing/trace_service.proto
 
-  ${CMAKE_CURRENT_LIST_DIR}/utilex/lzop.cpp
   ${CMAKE_CURRENT_LIST_DIR}/utilex/random.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/ypath/token.cpp
