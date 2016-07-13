@@ -692,7 +692,7 @@ echo {v = 2} >&7
         reduce(
             in_ = ["<foreign=true>//tmp/foreign"] + ["//tmp/t{0}".format(i) for i in range(4)],
             out = ["//tmp/output"],
-            command = "[ $YT_JOB_INDEX -eq 0 ] && grep @table_index=0 | head -n 1 || true",
+            command = "grep @table_index=0 | head -n 1",
             reduce_by = ["key","value"],
             join_by = ["key"],
             spec = {
@@ -702,10 +702,9 @@ echo {v = 2} >&7
                 "job_count": 5,
             })
 
-        assert read_table("//tmp/output") == \
-            [
-                {"key":"00017", "value":"10017", "@table_index":"0"},
-            ]
+        output = read_table("//tmp/output")
+        assert len(output) > 1
+        assert output[0] == {"key":"00017", "value":"10017", "@table_index":"0"}
 
     @unix_only
     def test_reduce_with_foreign_reduce_by_equals_join_by(self):
