@@ -26,7 +26,7 @@ def main():
     parser.add_argument("--maximum-chunk-size", type=int, default=100 *1024 * 1024)
     parser.add_argument("--account")
     parser.add_argument("--minimal-age", type=int, default=0)
-    parser.add_argument("--filter-out", action="append")
+    parser.add_argument("--filter-out", action="append", default=["//sys"])
     parser.add_argument("--ignore-suppress-nightly-merge", action="store_true", default=False)
     parser.add_argument("--append", action="store_true", default=False)
     parser.add_argument("--print-only", action="store_true", default=False)
