@@ -1315,7 +1315,7 @@ private:
         const int prefixLength = static_cast<int>(SortKeyColumns.size());
 
         yhash_set<TInputSlicePtr> globalOpenedSlices;
-        TNullable<TOwningKey> lastBreakpoint = Null;
+        TOwningKey lastBreakpoint;
 
         int startIndex = 0;
         while (startIndex < static_cast<int>(Endpoints.size())) {
@@ -1381,7 +1381,7 @@ private:
             globalOpenedSlices.insert(localOpenedSlices.begin(), localOpenedSlices.end());
 
             auto endTask = [&] () {
-                if (lastBreakpoint && CompareRows(key, *lastBreakpoint) == 0) {
+                if (lastBreakpoint && CompareRows(key, lastBreakpoint) == 0) {
                     // Already flushed at this key.
                     return;
                 }
@@ -2012,7 +2012,7 @@ private:
         const int prefixLength = ReduceKeyColumnCount;
 
         yhash_set<TInputSlicePtr> openedSlices;
-        TNullable<TOwningKey> lastBreakpoint = Null;
+        TOwningKey lastBreakpoint;
 
         auto hasLargeActiveTask = [&] () {
             return HasLargeActiveTask() ||
@@ -2067,7 +2067,7 @@ private:
             }
 
             if (hasLargeActiveTask()) {
-                YCHECK(!lastBreakpoint || CompareRows(key, *lastBreakpoint, prefixLength) != 0);
+                YCHECK(!lastBreakpoint || CompareRows(key, lastBreakpoint, prefixLength) != 0);
 
                 auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength);
                 LOG_TRACE("Finish current task, flushing %v chunks at key %v",
