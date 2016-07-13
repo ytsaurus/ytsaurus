@@ -199,6 +199,7 @@ public:
         return Format(
             "Scheduling = {Status: %v, DominantResource: %v, Demand: %.4lf, "
             "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lg, AdjustedMinShare: %.4lf, "
+            "GuaranteedResourcesRatio: %.4lf, "
             "MaxPossibleUsage: %.4lf,  BestAllocation: %.4lf, "
             "Starving: %v, Weight: %v, "
             "PreemptableRunningJobs: %v, "
@@ -210,6 +211,7 @@ public:
             attributes.FairShareRatio,
             dynamicAttributes.SatisfactionRatio,
             attributes.AdjustedMinShareRatio,
+            attributes.GuaranteedResourcesRatio,
             attributes.MaxPossibleUsageRatio,
             attributes.BestAllocationRatio,
             element->GetStarving(),
@@ -1048,6 +1050,8 @@ private:
         const auto& attributes = element->Attributes();
         auto dynamicAttributes = GetGlobalDynamicAttributes(element);
 
+        auto guaranteedResources = Host->GetTotalResourceLimits() * attributes.GuaranteedResourcesRatio;
+
         BuildYsonMapFluently(consumer)
             .Item("scheduling_status").Value(element->GetStatus())
             .Item("starving").Value(element->GetStarving())
@@ -1065,6 +1069,8 @@ private:
             .Item("min_share_ratio").Value(element->GetMinShareRatio())
             .Item("max_share_ratio").Value(element->GetMaxShareRatio())
             .Item("adjusted_min_share_ratio").Value(attributes.AdjustedMinShareRatio)
+            .Item("guaranteed_resources_ratio").Value(attributes.GuaranteedResourcesRatio)
+            .Item("guaranteed_resources").Value(guaranteedResources)
             .Item("max_possible_usage_ratio").Value(attributes.MaxPossibleUsageRatio)
             .Item("usage_ratio").Value(element->GetResourceUsageRatio())
             .Item("demand_ratio").Value(attributes.DemandRatio)
