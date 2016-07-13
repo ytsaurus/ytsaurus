@@ -4606,7 +4606,7 @@ private:
 IOperationControllerPtr CreateControllerWrapper(
     const TOperationId& id,
     const IOperationControllerPtr& controller,
-    const IInvokerPtr dtorInvoker)
+    const IInvokerPtr& dtorInvoker)
 {
     return New<TOperationControllerWrapper>(id, controller, dtorInvoker);
 }
