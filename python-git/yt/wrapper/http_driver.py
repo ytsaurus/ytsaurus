@@ -233,7 +233,7 @@ def make_request(command_name, params,
             timeout=timeout,
             auth=auth,
             # TODO(ignat): Refactor retrying logic to avoid this hack.
-            is_ping=(command_name == "ping"),
+            is_ping=(command_name == "ping_tx"),
             client=client)
     except get_proxy_ban_errors():
         ban_host(proxy, client=client)
