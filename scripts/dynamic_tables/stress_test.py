@@ -173,7 +173,7 @@ class SchemafulMapper(object):
         #self.sleep_interval = args.sleep_interval
         #self.max_retry_count = args.max_retry_count
         self.sleep_interval = 120
-        self.max_retry_count = 2
+        self.max_retry_count = 10
         self.schema = schema
         self.table = table
 
@@ -211,7 +211,7 @@ def create_keys(schema, dst, count, job_count):
     tmp = yt.create_temp_table()
     rows = [{"count": count/job_count} for i in xrange(job_count)]
     yt.write_table(tmp, rows, raw=False)
-    yt.run_map(Mapper(schema), tmp, dst, spec={"job_count": job_count, "max_failed_job_count": 10})
+    yt.run_map(Mapper(schema), tmp, dst, spec={"job_count": job_count, "max_failed_job_count": 100})
     yt.run_sort(dst, sort_by=schema.get_key_column_names())
     def reducer(key, records):
         yield next(records)
@@ -268,12 +268,13 @@ class DataCreationMapper(SchemafulMapper):
             record["iteration"] = self.iteration
             yield record
 
-def create_random_data(schema, key_table, iter_table, iteration):
+def create_random_data(schema, key_table, iter_table, iteration, job_count):
     print "Generate random data, iteration %s" % iteration
     yt.run_map(
         DataCreationMapper(schema, iter_table, iteration),
         key_table,
         iter_table,
+        spec={"job_count": job_count, "max_failed_job_count": 100},
         format=yt.YsonFormat(process_table_index=False, boolean_as_string=False))
     yt.run_sort(iter_table, sort_by=schema.get_key_column_names())
 
@@ -311,7 +312,7 @@ def write_data(schema, iter_table, table, iteration, aggregate, update, job_coun
         WriterMapper(schema, table, aggregate, update),
         iter_table,
         tmp_table,
-        spec={"job_count": job_count, "max_failed_job_count": 10},
+        spec={"job_count": job_count, "max_failed_job_count": 100},
         format=yt.YsonFormat(process_table_index=False, boolean_as_string=False))
     yt.remove(tmp_table)
 
@@ -342,7 +343,7 @@ class AggregateReducer:
                         record[c] = r[c]
         yield record
 
-def aggregate_data(schema, data_table, iter_table, new_data_table, aggregate, update):
+def aggregate_data(schema, data_table, iter_table, new_data_table, aggregate, update, job_count):
     print "Aggregate data"
     key = schema.get_key_column_names()
     yt.run_sort(data_table, sort_by=key + ["iteration"])
@@ -351,7 +352,7 @@ def aggregate_data(schema, data_table, iter_table, new_data_table, aggregate, up
         [data_table, iter_table],
         new_data_table,
         reduce_by=schema.get_key_column_names(),
-        spec={"max_failed_job_count": 10},
+        spec={"job_count": job_count, "max_failed_job_count": 100},
         format=yt.YsonFormat(boolean_as_string=False))
 
 @yt.aggregator
@@ -402,7 +403,7 @@ def verify(schema, data_table, table, result_table, job_count):
         VerifierMapper(schema, table),
         data_table,
         result_table,
-        spec={"job_count": job_count, "max_failed_job_count": 10},
+        spec={"job_count": job_count, "max_failed_job_count": 100},
         format=yt.YsonFormat(process_table_index=False, boolean_as_string=False))
     rows = yt.read_table(result_table, raw=False)
     if next(rows, None) == None:
@@ -430,18 +431,18 @@ def single_iteration(schema, table, key_table, data_table, result_table, job_cou
     iter_table = table + ".iter.(%s-%s-%s)" % (iterno, aggregate, update)
     remove_existing([iter_table], force)
 
-    create_random_data(schema, key_table, iter_table, iterno)
+    create_random_data(schema, key_table, iter_table, iterno, job_count)
     write_data(schema, iter_table, table, iterno, aggregate, update, job_count)
-    aggregate_data(schema, data_table, iter_table, new_data_table, aggregate, update)
+    aggregate_data(schema, data_table, iter_table, new_data_table, aggregate, update, job_count)
     good = verify(schema, new_data_table, table, result_table, job_count)
 
     if good:
         yt.move(new_data_table, data_table, force=True)
-        if not keep:
-            yt.remove(iter_table)
-    return good
+    else:
+        raise Exception("Verification failed at iteration %s" % iterno)
+    return iter_table
 
-def single_execution(table, schema, attributes, tablet_count, key_count, iterations, job_count, force, keep):
+def do_single_execution(table, schema, attributes, tablet_count, key_count, iterations, job_count, force, keep):
     key_table = table + ".keys"
     data_table = table + ".data"
     result_table = table + ".result"
@@ -451,24 +452,30 @@ def single_execution(table, schema, attributes, tablet_count, key_count, iterati
     create_dynamic_table(table, schema, attributes, tablet_count)
     create_keys(schema, key_table, key_count, job_count)
 
-    good = True
+    iter_tables = []
     for i in xrange(iterations):
-        if not single_iteration(schema, table, key_table, data_table, result_table, job_count, i, force, keep):
-            good = False
-            break
+        iter_table = single_iteration(schema, table, key_table, data_table, result_table, job_count, i, force, keep)
+        iter_tables.append(iter_table)
     unmount_table(table)
     mount_table(table)
-    if good and not keep:
-        for path in [table, key_table, data_table, result_table]:
+    if not keep:
+        for path in [table, key_table, data_table, result_table] + iter_tables:
             yt.remove(path)
+
+def single_execution(table, schema, attributes, tablet_count, key_count, iterations, job_count, force, keep):
+    try:
+         do_single_execution(table, schema, attributes, tablet_count, key_count, iterations, job_count, force, keep)
+    except Exception:
+        pass
 
 def variate_modes(table, args):
     schema = Schema()
 
-    single_execution(table + ".none", schema, {}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
-    single_execution(table + ".compressed", schema, {"in_memory_mode": "compressed"}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
-    single_execution(table + ".uncompressed", schema, {"in_memory_mode": "uncompressed"}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
-    single_execution(table + ".uncompressed.lookuptable", schema, {"in_memory_mode": "uncompressed", "enable_lookup_hash_table": True}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
+    for optimize_for in ["lookup", "scan"]:
+        single_execution(table + "." + optimize_for + ".none", schema, {"optimize_for": optimize_for}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
+        single_execution(table + "." + optimize_for + ".compressed", schema, {"optimize_for": optimize_for, "in_memory_mode": "compressed"}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
+        single_execution(table + "." + optimize_for + ".uncompressed", schema, {"optimize_for": optimize_for, "in_memory_mode": "uncompressed"}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
+        single_execution(table + "." + optimize_for + ".uncompressed.lookuptable", schema, {"optimize_for": optimize_for, "in_memory_mode": "uncompressed", "enable_lookup_hash_table": True}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
 
 def run_test(args):
     #for i in range(100):
