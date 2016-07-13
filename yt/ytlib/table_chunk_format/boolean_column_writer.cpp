@@ -41,7 +41,9 @@ public:
         AddPendingValues(
             rows,
             [&] (const TVersionedValue& value) {
-                Values_.Append(value.Data.Boolean);
+                bool isNull = value.Type == EValueType::Null;
+                bool data = isNull ? false : value.Data.Boolean;
+                Values_.Append(data);
             });
     }
 
