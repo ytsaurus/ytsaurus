@@ -2166,17 +2166,19 @@ private:
         {
             job->SetStatus(std::move(status));
 
-            auto asyncResult = BIND(&TJob::BuildBriefStatistics, job)
-                .AsyncVia(StatisticsAnalyzerThreadPool_->GetInvoker())
-                .Run();
+            if (job->StatisticsYson().HasValue()) {
+                auto asyncResult = BIND(&TJob::BuildBriefStatistics, job)
+                    .AsyncVia(StatisticsAnalyzerThreadPool_->GetInvoker())
+                    .Run();
 
-            // Resulting future is dropped intentionally.
-            asyncResult.Apply(BIND(
-                &TJob::AnalyzeBriefStatistics,
-                job,
-                Config_->SuspiciousInactivityTimeout,
-                Config_->SuspiciousUserJobCpuUsageThreshold)
-                .Via(GetControlInvoker()));
+                // Resulting future is dropped intentionally.
+                asyncResult.Apply(BIND(
+                    &TJob::AnalyzeBriefStatistics,
+                    job,
+                    Config_->SuspiciousInactivityTimeout,
+                    Config_->SuspiciousUserJobCpuUsageThreshold)
+                    .Via(GetControlInvoker()));
+            }
         }
     }
 

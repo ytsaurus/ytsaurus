@@ -122,11 +122,11 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, PollJobShell)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
-        const auto& parameters = TYsonString(request->parameters());
+        auto parameters = TYsonString(request->parameters());
 
         context->SetRequestInfo("JobId: %v, Parameters: %v",
             jobId,
-            parameters);
+            ConvertToYsonString(parameters, EYsonFormat::Text));
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();

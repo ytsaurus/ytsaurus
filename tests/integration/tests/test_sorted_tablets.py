@@ -1424,6 +1424,29 @@ class TestSortedTablets(YTEnvSetup):
         statistics2 = get("#" + chunk_list_id + "/@statistics")
         assert statistics1 == statistics2
 
+    def _test_timestamp_access(self, optimize_for):
+        self.sync_create_cells(3, 1)
+        self._create_simple_table("//tmp/t", optimize_for = optimize_for)
+        self.sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows)
+
+        self.sync_unmount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", rows)
+
+        assert lookup_rows("//tmp/t", keys, timestamp=MinTimestamp) == []
+        assert select_rows("* from [//tmp/t]", timestamp=MinTimestamp) == []
+
+    def test_timestamp_access_lookup(self):
+        self._test_timestamp_access("lookup")
+
+    def test_timestamp_access_scan(self):
+        self._test_timestamp_access("scan")
+
 ##################################################################
 
 class TestSortedTabletsMulticell(TestSortedTablets):
