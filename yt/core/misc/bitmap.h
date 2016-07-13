@@ -11,7 +11,10 @@ namespace NYT {
 template <class TChunkType>
 TChunkType GetChunkMask(int bitIndex, bool value)
 {
-    return static_cast<TChunkType>(value) << (bitIndex % (sizeof(TChunkType) * 8));
+    auto x = static_cast<TChunkType>(value) << (bitIndex % (sizeof(TChunkType) * 8));
+    // NB: Self-check here to avoid nasty problems. See for example YT-5161.
+    YCHECK((x & (x-1)) == 0);
+    return x;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

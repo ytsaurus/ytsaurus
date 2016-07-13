@@ -163,8 +163,10 @@ private:
             ++RowCount_;
 
             const auto& value = row.BeginKeys()[ColumnIndex_];
-            NullBitmap_.Append(value.Type == EValueType::Null);
-            Values_.Append(value.Data.Boolean);
+            bool isNull = value.Type == EValueType::Null;
+            bool data = isNull ? false : value.Data.Boolean;
+            NullBitmap_.Append(isNull);
+            Values_.Append(data);
         }
     }
 };
