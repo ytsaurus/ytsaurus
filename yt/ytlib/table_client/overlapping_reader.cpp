@@ -246,6 +246,14 @@ private:
             : Key(std::move(key))
             , Index(index)
         { }
+
+        void SkipToNextRow() {
+            Y_ASSERT(CurrentRow >= Rows.begin() && CurrentRow < Rows.end());
+
+            do {
+                ++CurrentRow;
+            } while (CurrentRow < Rows.end() && !(*CurrentRow));
+        }
     };
 
     class TSessionComparer
@@ -409,7 +417,9 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoRead(
 
             RowMerger_->AddPartialRow(partialRow);
 
-            if (++session->CurrentRow == session->Rows.end()) {
+            session->SkipToNextRow();
+
+            if (session->CurrentRow == session->Rows.end()) {
                 AwaitingSessions_.push_back(session);
                 ExtractHeap(ActiveSessions_.begin(), ActiveSessions_.end(), SessionComparer_);
                 ActiveSessions_.pop_back();
@@ -476,8 +486,13 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSession(TSession* s
 
     if (!session->Rows.empty()) {
         session->CurrentRow = session->Rows.begin();
-        ActiveSessions_.push_back(session);
-        AdjustHeapBack(ActiveSessions_.begin(), ActiveSessions_.end(), SessionComparer_);
+        session->SkipToNextRow();
+        if (session->CurrentRow == session->Rows.end()) {
+            return false;
+        } else {
+            ActiveSessions_.push_back(session);
+            AdjustHeapBack(ActiveSessions_.begin(), ActiveSessions_.end(), SessionComparer_);
+        }
     } else if (finished) {
         session->Reader.Reset();
     } else {

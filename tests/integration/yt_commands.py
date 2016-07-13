@@ -23,6 +23,7 @@ path_to_run_tests = None
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
 AsyncLastCommittedTimestamp  = 0x3fffffffffffff04
+MinTimestamp                 = 0x0000000000000001
 
 def get_driver(index=0):
     if index == 0:
