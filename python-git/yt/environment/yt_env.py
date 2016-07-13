@@ -301,9 +301,9 @@ class YTInstance(object):
         self._stderr_paths = defaultdict(list)
 
         self._tmpfs_path = tmpfs_path
-        self._port_locks_path = port_locks_path
-        if self._port_locks_path is not None:
-            makedirp(self._port_locks_path)
+        self.port_locks_path = port_locks_path
+        if self.port_locks_path is not None:
+            makedirp(self.port_locks_path)
 
         if fqdn is None:
             self._hostname = socket.getfqdn()
@@ -336,7 +336,7 @@ class YTInstance(object):
     def _get_ports_generator(self, port_range_start):
         def random_port_generator():
             while True:
-                yield get_open_port(self._port_locks_path)
+                yield get_open_port(self.port_locks_path)
 
         get_open_port.busy_ports = set()
         get_open_port.lock_fds = set()
