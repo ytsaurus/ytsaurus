@@ -27,7 +27,7 @@ TExecNode::TExecNode(
 const Stroka& TExecNode::GetDefaultAddress() const
 {
     TReaderGuard guard(SpinLock_);
-    return NodeDescriptor_.GetDefaultAddress();
+    return DefaultAddress_;
 }
 
 bool TExecNode::CanSchedule(const TNullable<Stroka>& tag) const
