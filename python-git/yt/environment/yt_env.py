@@ -481,6 +481,19 @@ class YTInstance(object):
         return "{0}:{1}".format(self._hostname, _config_safe_get(self.configs["proxy"],
                                                                  self.config_paths["proxy"], "port"))
 
+    def kill_schedulers(self):
+        self.kill_service("scheduler")
+
+    def kill_nodes(self):
+        self.kill_service("node")
+
+    def kill_proxy(self):
+        self.kill_service("proxy")
+
+    def kill_master_cell(self, cell_index=0):
+        name = self._get_master_name("master", cell_index)
+        self.kill_service(name)
+
     def kill_service(self, name):
         with self._lock:
             logger.info("Killing %s", name)
