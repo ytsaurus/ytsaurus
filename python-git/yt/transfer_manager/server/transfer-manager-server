@@ -11,7 +11,7 @@ from yt.transfer_manager.server.errors import RequestFailed, SchedulingError
 from yt.transfer_manager.server.precheck import perform_precheck
 from yt.transfer_manager.server.helpers import log_yt_exception, get_token_and_user, remove_unsigned, \
                                                SafeThread, get_cluster_version, configure_logging
-from yt.transfer_manager.server.executor import run_executor
+from yt.transfer_manager.server.task_executor import run_executor
 
 from yt.tools.logging_server import LogRecordSocketReceiver
 
