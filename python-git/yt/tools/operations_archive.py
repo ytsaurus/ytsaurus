@@ -5,8 +5,9 @@ import calendar
 import datetime
 from yt.tools.dynamic_tables import get_dynamic_table_attributes
 
-BY_ID_ARCHIVE = "//sys/operations_archive/ordered_by_id"
-BY_START_TIME_ARCHIVE = "//sys/operations_archive/ordered_by_start_time"
+OPERATIONS_ARCHIVE_PATH = "//sys/operations_archive"
+BY_ID_ARCHIVE = "{}/ordered_by_id".format(OPERATIONS_ARCHIVE_PATH)
+BY_START_TIME_ARCHIVE = "{}/ordered_by_start_time".format(OPERATIONS_ARCHIVE_PATH)
 SHARD_COUNT = 100
 
 def create_ordered_by_id_table(path, force=False):
@@ -46,6 +47,25 @@ def create_ordered_by_start_time_table(path, force=False):
         {"name": "id_hi",  "type": "uint64"},
         {"name": "id_lo",  "type": "uint64"},
         {"name": "dummy", "type": "int64"}]
+
+    key_columns = ["start_time", "id_hi", "id_lo"]
+
+    yt.create("table", path, recursive=True, attributes=get_dynamic_table_attributes(yt, schema, key_columns))
+
+    yt.mount_table(path)
+
+def create_ordered_by_start_time_table_v1(path, force=False):
+    if force and yt.exists(path):
+        yt.remove(path, force=True)
+
+    schema = [
+        {"name": "start_time", "type": "int64"},
+        {"name": "id_hi",  "type": "uint64"},
+        {"name": "id_lo",  "type": "uint64"},
+        {"name": "operation_type", "type": "string"},
+        {"name": "state", "type": "string"},
+        {"name": "authenticated_user", "type": "string"},
+        {"name": "filter_factors", "type": "string"}]
 
     key_columns = ["start_time", "id_hi", "id_lo"]
 
