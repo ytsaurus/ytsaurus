@@ -1,4 +1,6 @@
 import convert
+from common import YsonError
+
 import yt.yson.yson_types
 
 import struct

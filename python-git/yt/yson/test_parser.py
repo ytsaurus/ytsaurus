@@ -5,9 +5,11 @@ from __future__ import absolute_import
 from cStringIO import StringIO
 
 import yt.yson
-import yt.yson.yson_types
+from yt.yson.yson_types import YsonEntity, YsonMap, YsonList, YsonInt64, YsonString
 
 from yt.yson import to_yson_type
+
+import pytest
 
 try:
     import yt_yson_bindings
@@ -18,16 +20,16 @@ except ImportError:
 class YsonParserTestBase(object):
     @staticmethod
     def load(*args, **kws):
-        raise NotImplementedError
+        raise NotImplementedError()
 
     @staticmethod
     def loads(*args, **kws):
-        raise NotImplementedError
+        raise NotImplementedError()
 
     @staticmethod
     def assert_equal(parsed, expected, attributes):
         if expected is None:
-            assert isinstance(parsed, yt.yson.yson_types.YsonEntity)
+            assert isinstance(parsed, YsonEntity)
             assert parsed.attributes == attributes
         else:
             assert parsed == to_yson_type(expected, attributes)
@@ -94,6 +96,7 @@ class YsonParserTestBase(object):
 
     def test_entity(self):
         self.assert_parse('#', None)
+        self.assert_parse('#', YsonEntity())
 
     def test_nested(self):
         self.assert_parse(
@@ -113,6 +116,24 @@ class YsonParserTestBase(object):
                 'read': ['*.sh', '*.py']
             }
         )
+
+    def test_incorrect_params_in_loads(self):
+        with pytest.raises(Exception):
+            self.loads('123;#;{a={b=[";"]}};<attr=10>0.1;', raw=True, yson_type="aaa")
+        with pytest.raises(Exception):
+            self.loads('123;#;{a={b=[";"]}};<attr=10>0.1;', raw=True, yson_format="bbb")
+        with pytest.raises(Exception):
+            self.loads('123;#;{a={b=[";"]}};<attr=10>0.1;', xxx=True)
+
+    def test_list_fragment(self):
+        assert list(self.loads("{x=1};{y=2}", yson_type="list_fragment")) == [{"x": 1}, {"y": 2}]
+        assert list(self.loads("{x=[1.0;abc]};#", yson_type="list_fragment")) == \
+            [{"x": [1.0, "abc"]}, to_yson_type(None)]
+
+    def test_map_fragment(self):
+        assert self.loads("x=z;y=1", yson_type="map_fragment") == {"x": "z", "y": 1}
+        assert self.loads('k={x=#; o=[%true; "1"; 2]};t=3', yson_type="map_fragment") == \
+            {"k": {"x": to_yson_type(None), "o": [True, "1", 2]}, "t": 3}
 
 
 class TestParserDefault(YsonParserTestBase):
@@ -144,3 +165,42 @@ if yt_yson_bindings:
         @staticmethod
         def loads(*args, **kws):
             return yt_yson_bindings.loads(*args, **kws)
+
+        def test_loading_raw_rows(self):
+            rows = list(self.loads("{a=b};{c=d};", raw=True, yson_type="list_fragment"))
+            assert ["{a=b};", "{c=d};"] == rows
+
+            rows = list(self.loads('123;#;{a={b=[";"]}};<attr=10>0.1;', raw=True, yson_type="list_fragment"))
+            assert ["123;", "#;", '{a={b=[";"]}};', "<attr=10>0.1;"] == rows
+
+            rows = list(self.loads("123;#", raw=True, yson_type="list_fragment"))
+            assert ["123;", "#;"] == rows
+
+            with pytest.raises(Exception):
+                self.loads("{a=b")
+            with pytest.raises(Exception):
+                self.loads("{a=b}{c=d}")
+
+        def test_always_create_attributes(self):
+            obj = self.loads("{a=[b;1]}")
+            assert isinstance(obj, YsonMap)
+            assert isinstance(obj["a"], YsonList)
+            assert isinstance(obj["a"][0], YsonString)
+            assert isinstance(obj["a"][1], YsonInt64)
+
+            obj = self.loads("{a=[b;1]}", always_create_attributes=False)
+            assert not isinstance(obj, YsonMap)
+            assert not isinstance(obj["a"], YsonList)
+            assert not isinstance(obj["a"][0], YsonString)
+            assert not isinstance(obj["a"][1], YsonInt64)
+            assert isinstance(obj, dict)
+            assert isinstance(obj["a"], list)
+            assert isinstance(obj["a"][0], str)
+            assert isinstance(obj["a"][1], long)
+
+            obj = self.loads("{a=[b;<attr=#>1]}", always_create_attributes=False)
+            assert not isinstance(obj, YsonMap)
+            assert not isinstance(obj["a"], YsonList)
+            assert not isinstance(obj["a"][0], YsonString)
+            assert isinstance(obj["a"][1], YsonInt64)
+            assert obj["a"][1].attributes["attr"] is None

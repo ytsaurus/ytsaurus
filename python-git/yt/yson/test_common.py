@@ -15,11 +15,11 @@ except ImportError:
 class CommonTestBase(object):
     @staticmethod
     def loads(*args, **kws):
-        raise NotImplementedError
+        raise NotImplementedError()
 
     @staticmethod
     def dumps(*args, **kws):
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def test_long_integers(self):
         num = 1
@@ -56,6 +56,10 @@ class CommonTestBase(object):
         assert lst != self.loads(self.dumps(f))
         assert num != self.loads(self.dumps(s))
         assert self.loads(self.dumps(d)) != s
+
+    def test_unicode(self):
+        unicode_str = u"ав"
+        assert unicode_str == self.loads(self.dumps(unicode_str)).decode("utf-8")
 
 
 class TestCommonDefault(CommonTestBase):

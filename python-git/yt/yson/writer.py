@@ -71,6 +71,9 @@ def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='
         raise YsonError("%s format is not supported" % yson_format)
     if yson_format == "text":
         indent = None
+    if yson_type is not None:
+        if yson_type not in ["list_fragment", "map_fragment", "node"]:
+            raise YsonError("YSON type %r is not supported" % yson_type)
 
     d = Dumper(check_circular, encoding, indent, yson_type, boolean_as_string)
     return d.dumps(object)
