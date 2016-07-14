@@ -428,8 +428,7 @@ class DynamicTablesClient(object):
 
                 return do_insert
 
-            rows = mapped_iterator()
-            rowsets = split_in_groups(rows, batch_size)
+            rowsets = split_in_groups(mapped_iterator(), batch_size)
             for rowset in rowsets:
                 # Avoiding a closure inside the loop just in case
                 do_insert_these = make_do_insert(rowset)
