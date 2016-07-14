@@ -2529,7 +2529,7 @@ private:
 
     TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job)
     {
-        const auto& address = job->GetNode()->GetNodeDescriptor().GetAddress(Bootstrap_->GetLocalNetworks());
+        auto address = job->GetNode()->GetNodeDescriptor().GetAddress(Bootstrap_->GetLocalNetworks());
         auto factory = Bootstrap_->GetMasterClient()->GetNodeChannelFactory();
         auto channel = factory->CreateChannel(address);
 
