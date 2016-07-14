@@ -5,7 +5,7 @@ from __future__ import absolute_import
 import pytest
 
 import yt.yson.writer
-from yt.yson import YsonUint64, YsonInt64, YsonEntity
+from yt.yson import YsonUint64, YsonInt64, YsonEntity, YsonMap
 
 try:
     import yt_yson_bindings
@@ -16,7 +16,7 @@ except ImportError:
 class YsonWriterTestBase(object):
     @staticmethod
     def dumps(*args, **kws):
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def test_slash(self):
         assert self.dumps({"key": "1\\"}, yson_format="text") == '{"key"="1\\\\";}'
@@ -85,6 +85,18 @@ class YsonWriterTestBase(object):
         with pytest.raises(Exception):
             self.dumps(obj)
 
+    def test_invalid_params_in_dumps(self):
+        with pytest.raises(Exception):
+            self.dumps({"a": "b"}, xxx=True)
+        with pytest.raises(Exception):
+            self.dumps({"a": "b"}, yson_format="aaa")
+        with pytest.raises(Exception):
+            self.dumps({"a": "b"}, yson_type="bbb")
+
+    def test_entity(self):
+        assert "#" == self.dumps(None)
+        assert "#" == self.dumps(YsonEntity())
+
 
 class TestWriterDefault(YsonWriterTestBase):
     @staticmethod
@@ -103,3 +115,16 @@ if yt_yson_bindings:
         @staticmethod
         def dumps(*args, **kws):
             return yt_yson_bindings.dumps(*args, **kws)
+
+        def test_ignore_inner_attributes(self):
+            m = YsonMap()
+            m["value"] = YsonEntity()
+            m["value"].attributes = {"attr": 10}
+            assert self.dumps(m) in \
+                ['{"value"=<"attr"=10;>#;}', '{"value"=<"attr"=10>#}']
+            assert self.dumps(m, ignore_inner_attributes=True) in \
+                ['{"value"=#;}', '{"value"=#}']
+
+        def test_zero_byte(self):
+            assert '"\\0"' == self.dumps("\x00")
+            assert '\x01\x02\x00' == self.dumps("\x00", yson_format="binary")
