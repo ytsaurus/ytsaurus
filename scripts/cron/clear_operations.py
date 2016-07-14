@@ -21,7 +21,6 @@ from logging import Formatter
 
 import argparse
 import sys
-import time
 
 Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state", "spec"])
 
@@ -102,72 +101,63 @@ def get_filter_factors(op, attributes):
         str(brief_spec.get('input_table_paths', [''])[0])
     ]).lower()
 
-def clean_operation(op_id, scheme_type, archive=False):
-    if archive:
-        if not yt.exists(operations_archive.BY_ID_ARCHIVE) or not yt.exists(operations_archive.BY_START_TIME_ARCHIVE):
-            if (scheme_type != "new"):
-                raise Exception("Old scheme type is not supported")
-            prepare_operation_tablets.prepare_tables(yt.config["proxy"]["url"])
-
-        logger.info("Archiving operation %s", op_id)
-        data = yt.get("//sys/operations/{}/@".format(op_id))
-
-        keys = ["state", "authenticated_user", "operation_type",
-                "progress", "brief_progress", "spec", "brief_spec", "result"]
-        by_id_row = {}
-        for key in keys:
-            if key in data:
-                by_id_row[key] = data[key]
-
-        def datestr_to_timestamp(time_str):
-            dt = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ")
-            return int(time.mktime(dt.timetuple()) * 1000000 + dt.microsecond)
-
-        if scheme_type == "new":
-            id_parts = op_id.split("-")
-
-            id_hi = long(id_parts[3], 16) << 32 | int(id_parts[2], 16)
-            id_lo = long(id_parts[1], 16) << 32 | int(id_parts[0], 16)
-
-            by_id_row["id_hi"] = yson.YsonUint64(id_hi)
-            by_id_row["id_lo"] = yson.YsonUint64(id_lo)
-            by_id_row["start_time"] = datestr_to_timestamp(data["start_time"])
-            by_id_row["finish_time"] = datestr_to_timestamp(data["finish_time"])
-            by_id_row["filter_factors"] = get_filter_factors(op_id, data)
-
-            by_start_time_row = {
-                "id_hi": by_id_row["id_hi"],
-                "id_lo": by_id_row["id_lo"],
-                "start_time": by_id_row["start_time"],
-                "dummy": 0
-            }
-        else:
-            for key in ["start_time", "finish_time", "result"]:
-                by_id_row[key] = data[key]
-            by_id_row["id"] = op_id
-            by_id_row["filter_factors"] = get_filter_factors(op_id, data)
-            by_start_time_row = {
-                "id": by_id_row["id"],
-                "start_time": by_id_row["start_time"],
-                "dummy": "null"
-            }
-
-        run_with_retries(lambda: yt.insert_rows(operations_archive.BY_ID_ARCHIVE, [by_id_row], raw=False))
-        run_with_retries(lambda: yt.insert_rows(operations_archive.BY_START_TIME_ARCHIVE, [by_start_time_row], raw=False))
-    else:
-        logger.info("Removing operation %s", op_id)
-
+def clean_operation(op_id):
+    logger.info("Removing operation %s", op_id)
     try:
         yt.remove("//sys/operations/{}".format(op_id), recursive=True)
     except yt.YtResponseError as err:
         if not err.is_resolve_error():
             raise
 
+def archive_operation(op_id, version):
+    if not yt.exists(operations_archive.BY_ID_ARCHIVE) or not yt.exists(operations_archive.BY_START_TIME_ARCHIVE):
+        raise Exception("Operations archive tables do not exist")
+
+    logger.info("Archiving operation %s", op_id)
+    data = yt.get("//sys/operations/{}/@".format(op_id))
+
+    index_columns = ["state", "authenticated_user", "operation_type"]
+    value_columns = ["progress", "brief_progress", "spec", "brief_spec", "result"]
+
+    by_id_row = {}
+    for key in index_columns + value_columns:
+        if key in data:
+            by_id_row[key] = data[key]
+
+    id_parts = op_id.split("-")
+
+    id_hi = long(id_parts[3], 16) << 32 | int(id_parts[2], 16)
+    id_lo = long(id_parts[1], 16) << 32 | int(id_parts[0], 16)
+
+    by_id_row["id_hi"] = yson.YsonUint64(id_hi)
+    by_id_row["id_lo"] = yson.YsonUint64(id_lo)
+    by_id_row["start_time"] = operations_archive.datestr_to_timestamp(data["start_time"])
+    by_id_row["finish_time"] = operations_archive.datestr_to_timestamp(data["finish_time"])
+    by_id_row["filter_factors"] = get_filter_factors(op_id, data)
+
+    by_start_time_row = {
+        "id_hi": by_id_row["id_hi"],
+        "id_lo": by_id_row["id_lo"],
+        "start_time": by_id_row["start_time"]
+    }
+
+    if version == 0:
+        by_start_time_row["dummy"] = 0
+    elif version == 1:
+        by_start_time_row["filter_factors"] = get_filter_factors(op_id, data)
+        for key in index_columns:
+            if key in data:
+                by_start_time_row[key] = data[key]
+    else:
+        raise Exception("Unsupported version of operations archive")
+
+    run_with_retries(lambda: yt.insert_rows(operations_archive.BY_ID_ARCHIVE, [by_id_row], raw=False))
+    run_with_retries(lambda: yt.insert_rows(operations_archive.BY_START_TIME_ARCHIVE, [by_start_time_row], raw=False))
+
+    clean_operation(op_id);
 
 def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout,
-                     max_operations_per_user, robots, log, archive, scheme_type, thread_count):
-    if scheme_type not in ["old", "new"]:
-        raise Exception("Incorrect scheme type (%s not in ['old', 'new'])")
+                     max_operations_per_user, robots, log, archive, thread_count):
 
     #
     # Step 1: Fetch data from Cypress.
@@ -256,7 +246,11 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout,
 
     now_before_clean = datetime.utcnow()
 
-    parallel_map(clean_operation, {"scheme_type": scheme_type, "archive": archive}, operations_to_archive, thread_count)
+    if archive:
+        version = yt.get("{}/@".format(operations_archive.OPERATIONS_ARCHIVE_PATH)).get("version", 0)
+        parallel_map(archive_operation, {"version": version}, operations_to_archive, thread_count)
+    else:
+        parallel_map(clean_operation, {}, operations_to_archive, thread_count)
 
     now_after_clean = datetime.utcnow()
 
@@ -295,7 +289,7 @@ def main():
     parser.add_argument("--archive", action="store_true", default=False,
                         help="whether save cleared operations to tablets")
     parser.add_argument("--scheme-type", default="old",
-                        help="scheme type of operations archive, possible values: 'old', 'new'")
+                        help="(deprecated) scheme type of operations archive, possible values: 'old', 'new'")
     parser.add_argument("--thread-count", metavar="N", type=int, default=24,
                         help="parallelism level for operation cleansing")
 
@@ -310,7 +304,6 @@ def main():
         args.robot if args.robot is not None else [],
         args.log,
         args.archive,
-        args.scheme_type,
         args.thread_count)
 
 if __name__ == "__main__":
