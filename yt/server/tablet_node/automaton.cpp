@@ -55,12 +55,12 @@ TTabletAutomatonPart::TTabletAutomatonPart(
         slot->GetAutomatonInvoker())
     , Slot_(slot)
     , Bootstrap_(bootstrap)
-    , Logger(TabletNodeLogger)
 {
     YCHECK(Slot_);
     YCHECK(Bootstrap_);
 
-    Logger.AddTag("CellId: %v", Slot_->GetCellId());
+    Logger = NLogging::TLogger(TabletNodeLogger)
+        .AddTag("CellId: %v", Slot_->GetCellId());
 }
 
 bool TTabletAutomatonPart::ValidateSnapshotVersion(int version)

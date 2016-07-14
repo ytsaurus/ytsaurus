@@ -50,13 +50,12 @@ DEFINE_REFCOUNTED_TYPE(TTabletAutomaton)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletAutomatonPart
-    : public NHydra::TCompositeAutomatonPart
+    : public virtual NHydra::TCompositeAutomatonPart
+    , public virtual NLogging::TLoggerOwner
 {
 protected:
     const TTabletSlotPtr Slot_;
     NCellNode::TBootstrap* const Bootstrap_;
-
-    NLogging::TLogger Logger;
 
 
     TTabletAutomatonPart(

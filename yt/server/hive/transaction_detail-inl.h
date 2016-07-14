@@ -1,6 +1,6 @@
 #pragma once
 #ifndef TRANSACTION_DETAIL_INL_H_
-#error "Direct inclusion of this file is not allowed, include transaction_detail-inl.h"
+#error "Direct inclusion of this file is not allowed, include transaction_detail.h"
 #endif
 
 namespace NYT {
@@ -32,6 +32,22 @@ void TTransactionBase<TBase>::ThrowInvalidState() const
     THROW_ERROR_EXCEPTION("Transaction %v is in %Qlv state",
         this->Id_,
         this->State_);
+}
+
+template <class TBase>
+void TTransactionBase<TBase>::Save(TStreamSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, Actions_);
+}
+
+template <class TBase>
+void TTransactionBase<TBase>::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, Actions_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,6 +15,18 @@ namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTransactionActionData
+{
+    //! Protobuf message type.
+    Stroka Type;
+    //! Protobuf-encoded value.
+    Stroka Value;
+
+    void Persist(TStreamPersistenceContext& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ITransactionManager
     : public virtual TRefCounted
 {
@@ -38,6 +50,10 @@ struct ITransactionManager
     virtual void PingTransaction(
         const TTransactionId& transactionId,
         bool pingAncestors) = 0;
+
+    virtual void RegisterAction(
+        const TTransactionId& transactionId,
+        const TTransactionActionData& data) = 0;
 
 };
 

@@ -14,6 +14,7 @@
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/ytree/public.h>
+#include <yt/server/hive/helpers.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -67,6 +68,10 @@ public:
     //! Returns the full list of transactions, including transient and persistent.
     std::vector<TTransaction*> GetTransactions();
 
+    void RegisterPrepareActionHandler(const NHiveServer::TTransactionPrepareActionHandlerDescriptor& descriptor);
+    void RegisterCommitActionHandler(const NHiveServer::TTransactionCommitActionHandlerDescriptor& descriptor);
+    void RegisterAbortActionHandler(const NHiveServer::TTransactionAbortActionHandlerDescriptor& descriptor);
+
     NYTree::IYPathServicePtr GetOrchidService();
 
 private:
@@ -89,7 +94,9 @@ private:
     virtual void PingTransaction(
         const TTransactionId& transactionId,
         bool pingAncestors) override;
-
+    virtual void RegisterAction(
+        const TTransactionId& transactionId,
+        const NHiveServer::TTransactionActionData& data) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionManager)

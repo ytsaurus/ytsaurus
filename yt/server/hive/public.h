@@ -10,6 +10,8 @@
 
 #include <yt/core/misc/enum.h>
 
+#include <yt/core/actions/callback.h>
+
 namespace NYT {
 namespace NHiveServer {
 
@@ -29,6 +31,18 @@ DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizer)
 
 DECLARE_ENTITY_TYPE(TMailbox, TCellId, ::THash<TCellId>)
 DECLARE_ENTITY_TYPE(TCommit, TTransactionId, ::THash<TTransactionId>)
+
+struct TTransactionActionData;
+
+using TTransactionPrepareActionHandler = TCallback<void(const Stroka&, bool persistent)>;
+using TTransactionCommitActionHandler = TCallback<void(const Stroka&)>;
+using TTransactionAbortActionHandler = TCallback<void(const Stroka&)>;
+
+template <class TCallback>
+struct TTransactionActionHandlerDescriptor;
+using TTransactionPrepareActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionPrepareActionHandler>;
+using TTransactionCommitActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionCommitActionHandler>;
+using TTransactionAbortActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionAbortActionHandler>;
 
 DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
 

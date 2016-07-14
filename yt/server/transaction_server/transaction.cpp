@@ -39,6 +39,7 @@ TTransaction::TTransaction(const TTransactionId& id)
 
 void TTransaction::Save(NCellMaster::TSaveContext& context) const
 {
+    // TODO(babenko): call TTransactionBase::Save
     TNonversionedObjectBase::Save(context);
 
     using NYT::Save;
@@ -63,6 +64,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
 {
+    // TODO(babenko): call TTransactionBase::Load
     TNonversionedObjectBase::Load(context);
 
     // COMPAT(babenko)

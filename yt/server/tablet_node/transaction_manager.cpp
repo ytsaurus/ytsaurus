@@ -10,6 +10,7 @@
 
 #include <yt/server/hive/transaction_supervisor.h>
 #include <yt/server/hive/transaction_lease_tracker.h>
+#include <yt/server/hive/transaction_manager_detail.h>
 
 #include <yt/server/hydra/hydra_manager.h>
 #include <yt/server/hydra/mutation.h>
@@ -42,6 +43,7 @@ using namespace NTabletClient::NProto;
 
 class TTransactionManager::TImpl
     : public TTabletAutomatonPart
+    , public TTransactionManagerBase<TTransaction>
 {
 public:
     DEFINE_SIGNAL(void(TTransaction*), TransactionStarted);
@@ -55,9 +57,17 @@ public:
         TTransactionManagerConfigPtr config,
         TTabletSlotPtr slot,
         NCellNode::TBootstrap* bootstrap)
-        : TTabletAutomatonPart(
+        : TCompositeAutomatonPart(
+            slot->GetHydraManager(),
+            slot->GetAutomaton(),
+            slot->GetAutomatonInvoker())
+        , TTabletAutomatonPart(
             slot,
             bootstrap)
+        , TTransactionManagerBase(
+            slot->GetHydraManager(),
+            slot->GetAutomaton(),
+            slot->GetAutomatonInvoker())
         , Config_(config)
         , LeaseTracker_(New<TTransactionLeaseTracker>(
             Slot_->GetAutomatonInvoker(),
@@ -94,17 +104,6 @@ public:
     }
 
 
-    TTransaction* GetPersistentTransactionOrThrow(const TTransactionId& transactionId)
-    {
-        if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
-            return transaction;
-        }
-        THROW_ERROR_EXCEPTION(
-            NTransactionClient::EErrorCode::NoSuchTransaction,
-            "No such transaction %v",
-            transactionId);
-    }
-
     TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
     {
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
@@ -117,16 +116,6 @@ public:
             NTransactionClient::EErrorCode::NoSuchTransaction,
             "No such transaction %v",
             transactionId);
-    }
-
-    TTransaction* GetPersistentTransaction(const TTransactionId& transactionId)
-    {
-        return PersistentTransactionMap_.Get(transactionId);
-    }
-
-    TTransaction* FindPersistentTransaction(const TTransactionId& transactionId)
-    {
-        return PersistentTransactionMap_.Find(transactionId);
     }
 
     TTransaction* GetOrCreateTransaction(
@@ -226,7 +215,7 @@ public:
 
         // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
         if (state != ETransactionState::Active &&
-            (!persistent || state != ETransactionState::TransientCommitPrepared))
+            !(persistent && state == ETransactionState::TransientCommitPrepared))
         {
             transaction->ThrowInvalidState();
         }
@@ -251,6 +240,7 @@ public:
             transaction->SetPrepareTimestamp(prepareTimestamp);
 
             TransactionPrepared_.Fire(transaction);
+            RunPrepareTransactionActions(transaction, persistent);
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %v)",
                 transactionId,
@@ -299,6 +289,7 @@ public:
         transaction->SetState(ETransactionState::Committed);
 
         TransactionCommitted_.Fire(transaction);
+        RunCommitTransactionActions(transaction);
 
         FinishTransaction(transaction);
 
@@ -325,6 +316,7 @@ public:
         transaction->SetState(ETransactionState::Aborted);
 
         TransactionAborted_.Fire(transaction);
+        RunAbortTransactionActions(transaction);
 
         FinishTransaction(transaction);
 
@@ -345,7 +337,6 @@ private:
     const TTransactionLeaseTrackerPtr LeaseTracker_;
 
     TEntityMap<TTransaction> TransientTransactionMap_;
-    TEntityMap<TTransaction> PersistentTransactionMap_;
 
     IYPathServicePtr OrchidService_;
 
@@ -631,6 +622,21 @@ std::vector<TTransaction*> TTransactionManager::GetTransactions()
     return Impl_->GetTransactions();
 }
 
+void TTransactionManager::RegisterPrepareActionHandler(const TTransactionPrepareActionHandlerDescriptor& descriptor)
+{
+    Impl_->RegisterPrepareActionHandler(descriptor);
+}
+
+void TTransactionManager::RegisterCommitActionHandler(const TTransactionCommitActionHandlerDescriptor& descriptor)
+{
+    Impl_->RegisterCommitActionHandler(descriptor);
+}
+
+void TTransactionManager::RegisterAbortActionHandler(const TTransactionAbortActionHandlerDescriptor& descriptor)
+{
+    Impl_->RegisterAbortActionHandler(descriptor);
+}
+
 void TTransactionManager::PrepareTransactionCommit(
     const TTransactionId& transactionId,
     bool persistent)
@@ -658,11 +664,16 @@ void TTransactionManager::PingTransaction(const TTransactionId& transactionId, b
     Impl_->PingTransaction(transactionId, pingAncestors);
 }
 
+void TTransactionManager::RegisterAction(const TTransactionId& transactionId, const TTransactionActionData& data)
+{
+    Impl_->RegisterAction(transactionId, data);
+}
+
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionPrepared, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionTransientReset, *Impl_);
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionTransientReset, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
