@@ -127,6 +127,9 @@ private:
     virtual void PingTransaction(
         const TTransactionId& transactionId,
         bool pingAncestors) override;
+    virtual void RegisterAction(
+        const TTransactionId& transactionId,
+        const NHiveServer::TTransactionActionData& data) override;
 
 };
 

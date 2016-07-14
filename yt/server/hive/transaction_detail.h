@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "transaction_manager.h"
 
 namespace NYT {
 namespace NHiveServer {
@@ -13,9 +13,13 @@ class TTransactionBase
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TTransactionActionData>, Actions);
 
 public:
     explicit TTransactionBase(const TTransactionId& id);
+
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
 
     ETransactionState GetPersistentState() const;
 

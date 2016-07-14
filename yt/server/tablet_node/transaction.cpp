@@ -21,6 +21,7 @@ namespace NTabletNode {
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NTableClient;
+using namespace NHiveServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,6 +54,8 @@ TTransaction::TTransaction(const TTransactionId& id)
 
 void TTransaction::Save(TSaveContext& context) const
 {
+    TTransactionBase::Save(context);
+
     using NYT::Save;
 
     YCHECK(!Transient_);
@@ -66,6 +69,8 @@ void TTransaction::Save(TSaveContext& context) const
 
 void TTransaction::Load(TLoadContext& context)
 {
+    TTransactionBase::Load(context);
+
     using NYT::Load;
 
     Transient_ = false;
