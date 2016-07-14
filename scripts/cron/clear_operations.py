@@ -21,6 +21,7 @@ from logging import Formatter
 
 import argparse
 import sys
+import time
 
 Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state", "spec"])
 
@@ -109,6 +110,10 @@ def clean_operation(op_id):
         if not err.is_resolve_error():
             raise
 
+def datestr_to_timestamp_legacy(time_str):
+    dt = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+    return int(time.mktime(dt.timetuple()) * 1000000 + dt.microsecond)
+
 def archive_operation(op_id, version):
     if not yt.exists(operations_archive.BY_ID_ARCHIVE) or not yt.exists(operations_archive.BY_START_TIME_ARCHIVE):
         raise Exception("Operations archive tables do not exist")
@@ -129,10 +134,15 @@ def archive_operation(op_id, version):
     id_hi = long(id_parts[3], 16) << 32 | int(id_parts[2], 16)
     id_lo = long(id_parts[1], 16) << 32 | int(id_parts[0], 16)
 
+    if version == 0:
+        datestr_to_timestamp = datestr_to_timestamp_legacy
+    else:
+        datestr_to_timestamp = operations_archive.datestr_to_timestamp
+
     by_id_row["id_hi"] = yson.YsonUint64(id_hi)
     by_id_row["id_lo"] = yson.YsonUint64(id_lo)
-    by_id_row["start_time"] = operations_archive.datestr_to_timestamp(data["start_time"])
-    by_id_row["finish_time"] = operations_archive.datestr_to_timestamp(data["finish_time"])
+    by_id_row["start_time"] = datestr_to_timestamp(data["start_time"])
+    by_id_row["finish_time"] = datestr_to_timestamp(data["finish_time"])
     by_id_row["filter_factors"] = get_filter_factors(op_id, data)
 
     by_start_time_row = {
@@ -141,9 +151,9 @@ def archive_operation(op_id, version):
         "start_time": by_id_row["start_time"]
     }
 
-    if version == 0:
+    if version <= 1:
         by_start_time_row["dummy"] = 0
-    elif version == 1:
+    elif version == 2:
         by_start_time_row["filter_factors"] = get_filter_factors(op_id, data)
         for key in index_columns:
             if key in data:
