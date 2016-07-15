@@ -64,7 +64,7 @@ public:
     TInputChunkSlice() = default;
     TInputChunkSlice(TInputChunkSlice&& other) = default;
 
-    TInputChunkSlice(
+    explicit TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
         NTableClient::TKey lowerKey = NTableClient::TKey(),
         NTableClient::TKey upperKey = NTableClient::TKey());
@@ -91,6 +91,11 @@ public:
         const TInputChunkPtr& inputChunk,
         const NTableClient::TRowBufferPtr& rowBuffer,
         const NProto::TChunkSlice& protoChunkSlice);
+
+    TInputChunkSlice(
+        const TInputChunkPtr& inputChunk,
+        const NTableClient::TRowBufferPtr& rowBuffer,
+        const NProto::TChunkSpec& protoChunkSpec);
 
     //! Tries to split chunk slice into parts of almost equal size, about #sliceDataSize.
     std::vector<TInputChunkSlicePtr> SliceEvenly(i64 sliceDataSize, i64 sliceRowCount) const;
@@ -133,6 +138,12 @@ TInputChunkSlicePtr CreateInputChunkSlice(
     const TInputChunkPtr& inputChunk,
     const NTableClient::TRowBufferPtr& rowBuffer,
     const NProto::TChunkSlice& protoChunkSlice);
+
+//! Constructs a new chunk slice based on inputChunk with limits from protoChunkSpec.
+TInputChunkSlicePtr CreateInputChunkSlice(
+    const TInputChunkPtr& inputChunk,
+    const NTableClient::TRowBufferPtr& rowBuffer,
+    const NProto::TChunkSpec& protoChunkSpec);
 
 //! Constructs separate chunk slice for each part of erasure chunk.
 std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(

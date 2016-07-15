@@ -117,13 +117,41 @@ void ToProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInputDataSlicePtr CreateInputDataSlice(TInputChunkSlicePtr chunkSlice)
+TInputDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSlice)
 {
     return New<TInputDataSlice>(
         EDataSliceDescriptorType::UnversionedTable,
         TInputDataSlice::TChunkSliceList{chunkSlice},
         chunkSlice->LowerLimit(),
         chunkSlice->UpperLimit());
+}
+
+TInputDataSlicePtr CreateVersionedInputDataSlice(const std::vector<TInputChunkSlicePtr>& inputChunks)
+{
+    std::vector<TInputDataSlicePtr> dataSlices;
+
+    YCHECK(!inputChunks.empty());
+    TInputDataSlice::TChunkSliceList chunkSlices;
+    TNullable<int> tableIndex;
+    TInputSliceLimit lowerLimit;
+    TInputSliceLimit upperLimit;
+    for (const auto& inputChunk : inputChunks) {
+        if (!tableIndex) {
+            tableIndex = inputChunk->GetInputChunk()->GetTableIndex();
+            lowerLimit.Key = inputChunk->LowerLimit().Key;
+            upperLimit.Key = inputChunk->UpperLimit().Key;
+        } else {
+            YCHECK(*tableIndex == inputChunk->GetInputChunk()->GetTableIndex());
+            YCHECK(lowerLimit.Key == inputChunk->LowerLimit().Key);
+            YCHECK(upperLimit.Key == inputChunk->UpperLimit().Key);
+        }
+        chunkSlices.push_back(inputChunk);
+    }
+    return New<TInputDataSlice>(
+        EDataSliceDescriptorType::VersionedTable,
+        std::move(chunkSlices),
+        std::move(lowerLimit),
+        std::move(upperLimit));
 }
 
 TInputDataSlicePtr CreateInputDataSlice(

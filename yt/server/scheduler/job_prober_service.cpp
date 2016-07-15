@@ -159,12 +159,15 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, AbortJob)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
-        context->SetRequestInfo("JobId: %v", jobId);
+        auto interruptTimeout = request->has_interrupt_timeout()
+            ? MakeNullable(FromProto<TDuration>(request->interrupt_timeout()))
+            : Null;
+        context->SetRequestInfo("JobId: %v, InterruptTimeout: %v", jobId, interruptTimeout);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        WaitFor(scheduler->AbortJob(jobId, context->GetUser()))
+        WaitFor(scheduler->AbortJob(jobId, interruptTimeout, context->GetUser()))
             .ThrowOnError();
 
         context->Reply();

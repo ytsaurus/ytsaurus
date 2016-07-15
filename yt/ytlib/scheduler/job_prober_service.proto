@@ -67,6 +67,7 @@ message TRspPollJobShell
 message TReqAbortJob
 {
     required NYT.NProto.TGuid job_id = 1;
+    optional int64 interrupt_timeout = 2;
 }
 
 message TRspAbortJob

@@ -4,6 +4,7 @@ from yt.environment.helpers import assert_items_equal
 from yt_env_setup import YTEnvSetup, make_schema, unix_only
 from yt_commands import *
 from yt.yson import YsonEntity
+import time
 
 
 ##################################################################
@@ -648,6 +649,50 @@ echo {v = 2} >&7
                 {"host":"4", "url":"4/2", "value":"48", "@table_index":"3"},
             ]
 
+    @unix_only
+    def test_reduce_with_foreign_skip_joining_rows(self):
+        create("table", "//tmp/hosts")
+        write_table(
+            "//tmp/hosts",
+            [{"host": "%d" % i, "value": 20 + i} for i in range(10)],
+            sorted_by = ["host"])
+
+        create("table", "//tmp/urls")
+        write_table(
+            "//tmp/urls",
+            [
+                {"host":"2", "url":"2/1", "value":11},
+                {"host":"2", "url":"2/2", "value":12},
+                {"host":"5", "url":"5/1", "value":13},
+                {"host":"5", "url":"5/2", "value":14},
+            ],
+            sorted_by = ["host", "url"])
+
+        create("table", "//tmp/output")
+
+        reduce(
+            in_ = ["<foreign=true>//tmp/hosts", "//tmp/urls"],
+            out = ["<sorted_by=[host;url]>//tmp/output"],
+            command = "cat",
+            reduce_by = ["host", "url"],
+            join_by = "host",
+            spec = {
+                "reducer": {
+                    "format": yson.loads("<enable_table_index=true>dsv")
+                },
+                "job_count": 1,
+            })
+
+        assert read_table("//tmp/output") == \
+            [
+                {"host":"2", "url":None,  "value":"22", "@table_index":"0"},
+                {"host":"2", "url":"2/1", "value":"11", "@table_index":"1"},
+                {"host":"2", "url":"2/2", "value":"12", "@table_index":"1"},
+                {"host":"5", "url":None,  "value":"25", "@table_index":"0"},
+                {"host":"5", "url":"5/1", "value":"13", "@table_index":"1"},
+                {"host":"5", "url":"5/2", "value":"14", "@table_index":"1"},
+            ]
+
     def _prepare_join_tables(self):
         create("table", "//tmp/hosts")
         for i in range(9):
@@ -1082,6 +1127,87 @@ echo {v = 2} >&7
         expected = [{"key": i} for i in (8, 9)] + [{"key": i, "value": str(i)} for i in (8, 9)]
 
         assert_items_equal(read_table("//tmp/t_out"), expected)
+
+    @unix_only
+    @pytest.mark.parametrize("with_foreign", [False, True])
+    def test_reduce_interrupt_job(self, with_foreign):
+        if with_foreign:
+            key_columns={"reduce_by": ["key", "value"], "join_by": ["key"]}
+            in_=["<foreign=true>//tmp/input3", '//tmp/input1["(00040000)":"(00050000)"]', '//tmp/input2'],
+            sorted_by=["key"]
+        else:
+            key_columns={"sort_by": ["key", "value"], "reduce_by": ["key"]}
+            in_=["//tmp/input3", '//tmp/input1["(00040000)":"(00050000)"]', '//tmp/input2'],
+            sorted_by=["key", "value"]
+
+        create("table", "//tmp/input1")
+        write_table(
+            "//tmp/input1",
+            [{"key": "(%08d)" % (i + 100), "value": "(t_1)"} for i in range(50000)],
+            sorted_by = ["key", "value"])
+
+        create("table", "//tmp/input2")
+        write_table(
+            "//tmp/input2",
+            [{"key": "(%08d)" % (i + 200), "value": "(t_2)"} for i in range(50000)],
+            sorted_by = ["key", "value"])
+
+        create("table", "//tmp/input3")
+        write_table(
+            "//tmp/input3",
+            [{"key": "(%08d)" % (i / 10), "value": "(t_3)"} for i in range(50000)],
+            sorted_by = sorted_by)
+
+        create("table", "//tmp/output")
+
+        op = reduce(
+            dont_track=True,
+            waiting_jobs=True,
+            label="interrupt_job",
+            in_=in_,
+            out="<sorted_by=[key]>//tmp/output",
+            precommand='read; echo "${REPLY/(???)/(job)}"; echo "$REPLY"',
+            command='cat',
+            spec={
+                "reducer": {
+                    "format": "dsv"
+                },
+                "max_failed_job_count": 1,
+                "job_io" : {
+                    "buffer_row_count" : 10,
+                },
+            },
+            **key_columns)
+
+        interrupt_job(op.jobs[0])
+        op.resume_jobs()
+        op.track()
+
+        row_count = get("//tmp/output/@row_count")
+        if with_foreign:
+            assert row_count >= 108002 and row_count <= 108012
+        else:
+            assert row_count == 110002
+        result = read_table("//tmp/output", verbose=False)
+        row_index = 0
+        job_indexes = []
+        row_table_count = {}
+        for row in result:
+            if row["value"] == "(job)":
+                job_indexes.append(row_index)
+            row_table_count[row["value"]] = row_table_count.get(row["value"], 0) + 1
+            row_index += 1
+        #print "row_table_count:", row_table_count
+        assert row_table_count["(job)"] == 2
+        assert row_table_count["(t_1)"] == 10000
+        assert row_table_count["(t_2)"] == 50000
+        if with_foreign:
+            assert row_table_count["(t_3)"] >= 48000
+        else:
+            assert row_table_count["(t_3)"] == 50000
+        assert job_indexes[1] > 0 and job_indexes[1] < row_count-1
+        input_row_count = get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/sorted_reduce/sum".format(op.id))
+        assert input_row_count == row_count - 2
 
 ##################################################################
 

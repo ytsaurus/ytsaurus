@@ -62,8 +62,8 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             "//tmp/in1",
             [
                 {"key": 0, "value": 1},
-                {"key": 2, "value": 2},
-                {"key": 4, "value": 3},
+                {"key": 1, "value": 2},
+                {"key": 3, "value": 3},
                 {"key": 7, "value": 4}
             ],
             sorted_by = "key")
@@ -93,11 +93,10 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         assert read_table("//tmp/out") == \
             [
                 {"key": "-1", "value": "5"},
-                {"key": "0", "value": "1"},
+                {"key": "1", "value": "2"},
                 {"key": "1", "value": "6"},
-                {"key": "2", "value": "2"},
+                {"key": "3", "value": "3"},
                 {"key": "3", "value": "7"},
-                {"key": "4", "value": "3"},
                 {"key": "5", "value": "8"},
             ]
 
@@ -106,10 +105,10 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
     @unix_only
     def test_join_reduce_primary_attribute_compatibility(self):
         create("table", "//tmp/in1")
-        write_table("//tmp/in1", [{"key": 2*i, "value": i+1} for i in range(4)], sorted_by = "key")
+        write_table("//tmp/in1", [{"key": i, "value": i+1} for i in range(8)], sorted_by = "key")
 
         create("table", "//tmp/in2")
-        write_table("//tmp/in2", [{"key": 2*i-1, "value": i+5} for i in range(4)], sorted_by = "key")
+        write_table("//tmp/in2", [{"key": 2*i-1, "value": i+10} for i in range(4)], sorted_by = "key")
 
         create("table", "//tmp/out")
 
@@ -124,13 +123,13 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
         assert read_table("//tmp/out") == \
             [
-                {"key": "-1", "value": "5"},
-                {"key": "0", "value": "1"},
-                {"key": "1", "value": "6"},
-                {"key": "2", "value": "2"},
-                {"key": "3", "value": "7"},
-                {"key": "4", "value": "3"},
-                {"key": "5", "value": "8"},
+                {"key": "-1", "value": "10"},
+                {"key": "1", "value": "2"},
+                {"key": "1", "value": "11"},
+                {"key": "3", "value": "4"},
+                {"key": "3", "value": "12"},
+                {"key": "5", "value": "6"},
+                {"key": "5", "value": "13"},
             ]
 
         assert get("//tmp/out/@sorted")
@@ -141,8 +140,8 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         write_table(
             "//tmp/in1",
             [
-                {"key": 1, "value": 7},
-                {"key": 5, "value": 3},
+                {"key": 2, "value": 7},
+                {"key": 4, "value": 3},
             ],
             sorted_by = "key")
 
@@ -178,14 +177,16 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         assert read_file("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, job_ids[0])) == \
 """<"table_index"=0;>#;
 <"row_index"=0;>#;
-{"key"=1;"value"=7;};
+{"key"=2;"value"=7;};
 <"table_index"=1;>#;
 <"row_index"=1;>#;
 {"key"=2;"value"=6;};
-{"key"=4;"value"=8;};
 <"table_index"=0;>#;
 <"row_index"=1;>#;
-{"key"=5;"value"=3;};
+{"key"=4;"value"=3;};
+<"table_index"=1;>#;
+<"row_index"=2;>#;
+{"key"=4;"value"=8;};
 """
 
     @unix_only
@@ -250,8 +251,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 {"key": "2", "value": "2", "@table_index": "0"},
                 {"key": "2", "value": "5", "@table_index": "1"},
                 {"key": "2", "value": "1", "@table_index": "2"},
-                {"key": "3", "value": "6", "@table_index": "1"},
-                {"key": "3", "value": "7", "@table_index": "3"},
                 {"key": "4", "value": "3", "@table_index": "0"},
                 {"key": "8", "value": "4", "@table_index": "0"},
             ]
@@ -350,11 +349,11 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         create("table", "//tmp/in1", attributes={"schema" : schema, "optimize_for" : optimize_for})
         create("table", "//tmp/in2", attributes={"schema" : schema, "optimize_for" : optimize_for})
         create("table", "//tmp/out")
-        write_table("//tmp/in1", [{"key": "1", "subkey": "2"}, {"key": "3"}])
-        write_table("//tmp/in2", [{"key": "1", "subkey": "3"}, {"key": "2"}])
+        write_table("//tmp/in1", [{"key": "1", "subkey": "2"}, {"key": "3"}, {"key": "5"}])
+        write_table("//tmp/in2", [{"key": "1", "subkey": "3"}, {"key": "3", "subkey": "3"}, {"key": "4"}])
 
         join_reduce(
-            in_ = ['//tmp/in1["1":"3"]', "<foreign=true>//tmp/in2"],
+            in_ = ['//tmp/in1["1":"4"]', "<foreign=true>//tmp/in2"],
             out = "<sorted_by=[key; subkey]>//tmp/out",
             command = "cat",
             join_by = ["key", "subkey"],
@@ -366,8 +365,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         assert read_table("//tmp/out") == \
             [
                 {"key": "1", "subkey": "2"},
-                {"key": "1", "subkey": "3"},
-                {"key": "2", "subkey": YsonEntity()}
+                {"key": "3", "subkey": YsonEntity()}
             ]
 
     @unix_only
@@ -588,7 +586,7 @@ echo {v = 2} >&7
         write_table(
             "//tmp/in1",
             [
-                {"key": 0, "value": 1},
+                {"key": 1, "value": 1},
                 {"key": 2, "value": 2},
             ],
             sorted_by = "key")
@@ -616,8 +614,8 @@ echo {v = 2} >&7
         assert read_table("//tmp/out") == \
             [
                 {"key": "-1", "value": "5"},
-                {"key": "0", "value": "1"},
-                {"key": "0", "value": "1"},
+                {"key": "1", "value": "1"},
+                {"key": "1", "value": "1"},
                 {"key": "1", "value": "6"},
             ]
 
@@ -693,7 +691,7 @@ echo {v = 2} >&7
                 "max_failed_job_count": 1
             })
 
-        assert get("//tmp/out/@row_count") > 200
+        assert get("//tmp/out/@row_count") == 200
 
     @unix_only
     def test_join_reduce_input_paths_attr(self):
@@ -790,3 +788,65 @@ echo {v = 2} >&7
 
         assert read_table("//tmp/t_out") == rows + joined_rows
 
+    def test_join_reduce_interrupt_job(self):
+        create("table", "//tmp/input1")
+        write_table(
+            "<append=true>//tmp/input1",
+            [{"key": "(%08d)" % (i + 100), "value": "(t_1)"} for i in range(50000)],
+            sorted_by = ["key", "value"])
+
+        create("table", "//tmp/input2")
+        write_table(
+            "<append=true>//tmp/input2",
+            [{"key": "(%08d)" % (i + 200), "value": "(t_2)"} for i in range(50000)],
+            sorted_by = ["key", "value"])
+
+        create("table", "//tmp/input3")
+        write_table(
+            "<append=true>//tmp/input3",
+            [{"key": "(%08d)" % (i / 10), "value": "(t_3)"} for i in range(50000)],
+            sorted_by = ["key"])
+
+        create("table", "//tmp/output")
+
+        op = join_reduce(
+            dont_track=True,
+            waiting_jobs=True,
+            label="interrupt_job",
+            in_=["<foreign=true>//tmp/input3", '<foreign=true>//tmp/input1["(00040000)":"(00050000)"]', '//tmp/input2'],
+            out="<sorted_by=[key]>//tmp/output",
+            precommand='read; echo "${REPLY/(???)/(job)}"; echo "$REPLY"',
+            command="cat",
+            join_by=["key"],
+            spec={
+                "reducer": {
+                    "format": "dsv"
+                },
+                "max_failed_job_count": 1,
+                "job_io" : {
+                    "buffer_row_count" : 10,
+                },
+            })
+
+        interrupt_job(op.jobs[0])
+        op.resume_jobs()
+        op.track()
+
+        row_count = get("//tmp/output/@row_count")
+        assert row_count >= 108002 and row_count <= 108012
+        result = read_table("//tmp/output", verbose=False)
+        row_index = 0
+        job_indexes = []
+        row_table_count = {}
+        for row in result:
+            if row["value"] == "(job)":
+                job_indexes.append(row_index)
+            row_table_count[row["value"]] = row_table_count.get(row["value"], 0) + 1
+            row_index += 1
+        assert row_table_count["(job)"] == 2
+        assert row_table_count["(t_1)"] == 10000
+        assert row_table_count["(t_2)"] == 50000
+        assert row_table_count["(t_3)"] >= 48000
+        assert job_indexes[1] > 0 and job_indexes[1] < row_count-1
+        input_row_count = get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/join_reduce/sum".format(op.id))
+        assert input_row_count == row_count - 2

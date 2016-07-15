@@ -110,6 +110,13 @@ private:
      */
     void AbortJob(IJobPtr job);
 
+    //! Interrupts a job.
+    /*!
+     *  If the job is running, interrupts it.
+     */
+    void InterruptJob(IJobPtr job);
+    void DoInterruptJob(IJobPtr job);
+
     //! Removes the job from the map.
     /*!
      *  It is illegal to call #Remove before the job is stopped.
@@ -379,6 +386,25 @@ void TJobController::TImpl::AbortJob(IJobPtr job)
     job->Abort(TError(NExecAgent::EErrorCode::AbortByScheduler, "Job aborted by scheduler"));
 }
 
+void TJobController::TImpl::InterruptJob(IJobPtr job)
+{
+    LOG_INFO("Job interrupt requested (JobId: %v)",
+        job->GetId());
+    GetCurrentInvoker()->Invoke(BIND(
+        &TJobController::TImpl::DoInterruptJob,
+        MakeWeak(this),
+        job));
+}
+
+void TJobController::TImpl::DoInterruptJob(IJobPtr job)
+{
+    try {
+        job->Interrupt();
+    } catch (const std::exception& ex) {
+        LOG_WARNING(ex, "Failed to interrupt job (JobId: %v)", job->GetId());
+    }
+}
+
 void TJobController::TImpl::RemoveJob(IJobPtr job)
 {
     LOG_INFO("Job removed (JobId: %v)", job->GetId());
@@ -539,6 +565,17 @@ void TJobController::TImpl::ProcessHeartbeatResponse(TRspHeartbeat* response)
             AbortJob(job);
         } else {
             LOG_WARNING("Requested to abort a non-existing job (JobId: %v)",
+                jobId);
+        }
+    }
+
+    for (const auto& protoJobId : response->jobs_to_interrupt()) {
+        auto jobId = FromProto<TJobId>(protoJobId);
+        auto job = FindJob(jobId);
+        if (job) {
+            InterruptJob(job);
+        } else {
+            LOG_WARNING("Requested to interrupt a non-existing job (JobId: %v)",
                 jobId);
         }
     }

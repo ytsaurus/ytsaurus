@@ -67,6 +67,7 @@ public:
         , CurrentPartitionIndex(0)
         , MaxDataSizePerJob(0)
         , ChunkSliceSize(0)
+        , IsExplicitJobCount(false)
     { }
 
     // Persistence.
@@ -83,6 +84,7 @@ public:
         Persist(context, TableReaderOptions);
         Persist(context, MaxDataSizePerJob);
         Persist(context, ChunkSliceSize);
+        Persist(context, IsExplicitJobCount);
         Persist(context, MergeTaskGroup);
     }
 
@@ -133,6 +135,9 @@ protected:
     //! Overrides the spec limit to satisfy global job count limit.
     i64 MaxDataSizePerJob;
     i64 ChunkSliceSize;
+
+    //! Flag set when job count was explicitly specified.
+    bool IsExplicitJobCount;
 
     //! Indicates if input table chunks can be teleported to output table.
     std::vector<bool> IsInputTableTeleportable;
@@ -379,7 +384,7 @@ protected:
 
     void AddPendingChunkSlice(TInputChunkSlicePtr chunkSlice)
     {
-        AddPendingDataSlice(CreateInputDataSlice(chunkSlice));
+        AddPendingDataSlice(CreateUnversionedInputDataSlice(chunkSlice));
     }
 
     //! Add chunk directly to the output.
@@ -397,6 +402,18 @@ protected:
         }
     }
 
+    //! Create new task from unread input data slices.
+    void AddTaskForUnreadInputDataSlices(std::vector<TInputDataSlicePtr> inputDataSlices)
+    {
+        CurrentTaskDataSize = 0;
+        CurrentChunkCount = 0;
+        ClearCurrentTaskStripes();
+
+        for (auto& inputDataSlice : inputDataSlices) {
+            AddPendingDataSlice(inputDataSlice);
+        }
+        EndTaskIfActive();
+    }
 
     // Custom bits of preparation pipeline.
 
@@ -432,11 +449,13 @@ protected:
 
         MaxDataSizePerJob = jobSizeConstraints->GetDataSizePerJob();
         ChunkSliceSize = jobSizeConstraints->GetInputSliceDataSize();
+        IsExplicitJobCount = jobSizeConstraints->IsExplicitJobCount();
 
-        LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataSizePerJob: %v, ChunkSliceSize: %v)",
+        LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataSizePerJob: %v, ChunkSliceSize: %v, IsExplicitJobCount: %v)",
             jobSizeConstraints->GetJobCount(),
             MaxDataSizePerJob,
-            ChunkSliceSize);
+            ChunkSliceSize,
+            IsExplicitJobCount);
     }
 
     void ProcessInputs()
@@ -450,7 +469,7 @@ protected:
             ClearCurrentTaskStripes();
 
             for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
-                ProcessInputDataSlice(CreateInputDataSlice(CreateInputChunkSlice(chunk)));
+                ProcessInputDataSlice(CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk)));
                 yielder.TryYield();
             }
             for (const auto& slice : CollectPrimaryVersionedDataSlices(ChunkSliceSize)) {
@@ -488,7 +507,7 @@ protected:
     virtual Stroka GetLoggingProgress() const override
     {
         return Format(
-            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v}, "
+            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
             "UnavailableInputChunks: %v",
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
@@ -496,6 +515,7 @@ protected:
             GetPendingJobCount(),
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),
+            JobCounter.GetInterrupted(),
             UnavailableInputChunkCount);
     }
 
@@ -733,8 +753,17 @@ private:
         return true;
     }
 
+    virtual void ReinstallUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices) override
+    {
+        AddTaskForUnreadInputDataSlices(inputDataSlices);
+    }
 
     // Unsorted helpers.
+    virtual bool IsJobInterruptible() const override
+    {
+        return !IsExplicitJobCount;
+    }
+
     virtual int GetCpuLimit() const override
     {
         return Spec->Mapper->CpuLimit;
@@ -1298,7 +1327,7 @@ protected:
         };
 
         for (const auto& chunkSlice : ChunkSliceFetcher->GetChunkSlices()) {
-            processSlice(CreateInputDataSlice(chunkSlice));
+            processSlice(CreateUnversionedInputDataSlice(chunkSlice));
         }
 
         for (const auto& slice : VersionedDataSlices) {
@@ -1776,10 +1805,7 @@ public:
         TOperation* operation)
         : TSortedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->MemoryReserveFactor);
-    }
+    { }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
@@ -1798,14 +1824,8 @@ public:
         using NYT::Persist;
         Persist(context, StartRowIndex);
         Persist(context, ForeignKeyColumnCount);
-    }
-
-    virtual void CustomPrepare() override
-    {
-        TSortedMergeControllerBase::CustomPrepare();
-
-        // Clean the rest, if anything left.
-        ForeignInputDataSlices.resize(0);
+        Persist(context, ReduceKeyColumnCount);
+        Persist(context, ForeignInputDataSlices);
     }
 
 protected:
@@ -1865,13 +1885,11 @@ protected:
         YCHECK(ForeignKeyColumnCount <= static_cast<int>(SortKeyColumns.size()));
         YCHECK(foreignMinKey.GetCount() <= ForeignKeyColumnCount);
 
-        for (auto& tableDataSlices : ForeignInputDataSlices) {
-            auto firstUsed = tableDataSlices.cbegin();
+        for (const auto& tableDataSlices : ForeignInputDataSlices) {
             for (const auto& dataSlice : tableDataSlices) {
                 const auto& minKey = dataSlice->LowerLimit().Key;
                 const auto& maxKey = dataSlice->UpperLimit().Key;
                 if (CompareRows(foreignMinKey, maxKey, ForeignKeyColumnCount) > 0) {
-                    ++firstUsed;
                     continue;
                 }
                 if (CompareRows(foreignMaxKey, minKey, ForeignKeyColumnCount) < 0) {
@@ -1879,7 +1897,6 @@ protected:
                 }
                 AddPendingDataSlice(CreateInputDataSlice(dataSlice, foreignMinKey, foreignMaxKey));
             }
-            tableDataSlices.erase(tableDataSlices.cbegin(), firstUsed);
         }
     }
 
@@ -1962,6 +1979,17 @@ protected:
         return result;
     }
 
+    virtual void ReinstallUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices) override
+    {
+        AddTaskForUnreadInputDataSlices(inputDataSlices);
+    }
+
+    // Unsorted helpers.
+    virtual bool IsJobInterruptible() const override
+    {
+        return !IsExplicitJobCount;
+    }
+
     virtual int GetCpuLimit() const override
     {
         return Spec->Reducer->CpuLimit;
@@ -1974,14 +2002,14 @@ protected:
 
     virtual i64 GetUserJobMemoryReserve() const override
     {
-        return ComputeUserJobMemoryReserve(EJobType::SortedReduce, Spec->Reducer);
+        return ComputeUserJobMemoryReserve(GetJobType(), Spec->Reducer);
     }
 
     virtual void InitJobSpecTemplate() override
     {
         YCHECK(!SortKeyColumns.empty());
 
-        JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
+        JobSpecTemplate.set_type(static_cast<int>(GetJobType()));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -2030,11 +2058,6 @@ protected:
     {
         return true;
     }
-
-    virtual EJobType GetJobType() const override
-    {
-        return EJobType::SortedReduce;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -2050,7 +2073,10 @@ public:
         TOperation* operation)
         : TReduceControllerBase(config, spec, config->ReduceOperationOptions, host, operation)
         , Spec(spec)
-    { }
+    {
+        RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->JobProxyMemoryDigest);
+        RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->MemoryReserveFactor);
+    }
 
     // Persistence.
     virtual void Persist(const TPersistenceContext& context) override
@@ -2345,6 +2371,11 @@ private:
         YCHECK(openedSlices.empty());
         EndTaskIfActive();
     }
+
+    virtual EJobType GetJobType() const override
+    {
+        return EJobType::SortedReduce;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceController);
@@ -2371,7 +2402,10 @@ public:
         TOperation* operation)
         : TReduceControllerBase(config, spec, config->JoinReduceOperationOptions, host, operation)
         , Spec(spec)
-    { }
+    {
+        RegisterJobProxyMemoryDigest(EJobType::JoinReduce, spec->JobProxyMemoryDigest);
+        RegisterUserJobMemoryDigest(EJobType::JoinReduce, spec->Reducer->MemoryReserveFactor);
+    }
 
     // Persistence.
     virtual void Persist(const TPersistenceContext& context) override
@@ -2429,6 +2463,7 @@ private:
         LOG_INFO("Spec key columns are %v", Spec->JoinBy);
         SortKeyColumns = CheckInputTablesSorted(Spec->JoinBy);
 
+        ReduceKeyColumnCount = SortKeyColumns.size();
         ForeignKeyColumnCount = SortKeyColumns.size();
     }
 
@@ -2465,7 +2500,7 @@ private:
         };
 
         for (const auto& chunkSlice : ChunkSliceFetcher->GetChunkSlices()) {
-            processSlice(CreateInputDataSlice(chunkSlice));
+            processSlice(CreateUnversionedInputDataSlice(chunkSlice));
         }
 
         for (const auto& dataSlice : VersionedDataSlices) {
@@ -2479,6 +2514,11 @@ private:
     {
         // JoinReduce slices by row indexes.
         return false;
+    }
+
+    virtual EJobType GetJobType() const override
+    {
+        return EJobType::JoinReduce;
     }
 };
 

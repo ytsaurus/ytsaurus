@@ -3007,15 +3007,17 @@ private:
 
     void DoAbortJob(
         const TJobId& jobId,
-        const TAbortJobOptions& /*options*/)
+        const TAbortJobOptions& options)
     {
         auto req = JobProberProxy_->AbortJob();
         ToProto(req->mutable_job_id(), jobId);
+        if (options.InterruptTimeout) {
+            req->set_interrupt_timeout(ToProto(*options.InterruptTimeout));
+        }
 
         WaitFor(req->Invoke())
             .ThrowOnError();
     }
-
 
     TClusterMeta DoGetClusterMeta(
         const TGetClusterMetaOptions& options)
@@ -3040,6 +3042,7 @@ private:
         }
         return meta;
     }
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TNativeClient)

@@ -28,6 +28,7 @@ using namespace NConcurrency;
 using NRpc::IChannelPtr;
 using NNodeTrackerClient::TNodeDirectoryPtr;
 using NChunkClient::TDataSliceDescriptor;
+using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,6 +200,17 @@ public:
     {
         YCHECK(UnderlyingReader_);
         return UnderlyingReader_->GetFailedChunkIds();
+    }
+
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
+        const TRange<TUnversionedRow>& unreadRows) const override
+    {
+        return std::vector<TDataSliceDescriptor>();
+    }
+
+    virtual void Interrupt() override
+    {
+        Y_UNREACHABLE();
     }
 
     virtual i64 GetTableRowIndex() const override

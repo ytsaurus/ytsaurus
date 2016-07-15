@@ -17,6 +17,7 @@
 #include <yt/ytlib/chunk_client/cache_reader.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/ytlib/chunk_client/data_statistics.pb.h>

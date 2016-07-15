@@ -10,6 +10,7 @@
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/partitioner.h>
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 
 namespace NYT {
@@ -18,9 +19,12 @@ namespace NJobProxy {
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NObjectClient;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
+
+using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -32,6 +36,26 @@ public:
         : TUserJobIOBase(host)
     { }
 
+    virtual void InterruptReader() override
+    {
+        THROW_ERROR_EXCEPTION("Interrupting is not supported for partition map jobs");
+    }
+
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const override
+    {
+        return std::vector<TDataSliceDescriptor>();
+    }
+
+    virtual void PopulateResult(TSchedulerJobResultExt* schedulerJobResult) override
+    {
+        // Don't call base class method, no need to fill boundary keys.
+
+        YCHECK(Writers_.size() == 1);
+        auto& writer = Writers_.front();
+        ToProto(schedulerJobResult->mutable_output_chunk_specs(), writer->GetWrittenChunksMasterMeta());
+    }
+
+private:
     virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(
         TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
@@ -74,16 +98,9 @@ public:
         return CreateRegularReader(false, std::move(nameTable), columnFilter);
     }
 
-    virtual void PopulateResult(TSchedulerJobResultExt* schedulerJobResult) override
-    {
-        // Don't call base class method, no need to fill boundary keys.
-
-        YCHECK(Writers_.size() == 1);
-        auto& writer = Writers_.front();
-        ToProto(schedulerJobResult->mutable_output_chunk_specs(), writer->GetWrittenChunksMasterMeta());
-    }
-
 };
+
+////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IUserJobIO> CreatePartitionMapJobIO(IJobHostPtr host)
 {

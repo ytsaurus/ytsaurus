@@ -20,6 +20,7 @@ using namespace NChunkClient;
 using namespace NTransactionClient;
 
 using NChunkClient::TDataSliceDescriptor;
+using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -86,6 +87,18 @@ public:
         // Partition reduce may come as intermediate job (reduce-combiner),
         // so we return written chunks to scheduler.
         ToProto(schedulerJobResult->mutable_output_chunk_specs(), writer->GetWrittenChunksMasterMeta());
+    }
+
+    virtual void InterruptReader() override
+    {
+        if (Reader_) {
+            Reader_->Interrupt();
+        }
+    }
+
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const override
+    {
+        return Reader_->GetUnreadDataSliceDescriptors(TRange<TUnversionedRow>());
     }
 
 private:

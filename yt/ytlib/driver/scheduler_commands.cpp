@@ -125,11 +125,13 @@ void TPollJobShellCommand::DoExecute(ICommandContextPtr context)
 TAbortJobCommand::TAbortJobCommand()
 {
     RegisterParameter("job_id", JobId);
+    RegisterParameter("interrupt_timeout", Options.InterruptTimeout)
+        .Optional();
 }
 
 void TAbortJobCommand::DoExecute(ICommandContextPtr context)
 {
-    WaitFor(context->GetClient()->AbortJob(JobId))
+    WaitFor(context->GetClient()->AbortJob(JobId, Options))
         .ThrowOnError();
 }
 

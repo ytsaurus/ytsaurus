@@ -22,6 +22,7 @@ using namespace NNodeTrackerClient;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NProto;
 
 using NTableClient::NProto::TPartitionsExt;
 using NChunkClient::NProto::TMiscExt;
@@ -368,6 +369,15 @@ public:
         return cookie;
     }
 
+    virtual void Finish() override
+    {
+        if (Finished) {
+            JobCounter.Increment(1);
+        } else {
+            TChunkPoolInputBase::Finish();
+        }
+    }
+
     virtual void Suspend(IChunkPoolInput::TCookie cookie) override
     {
         ++SuspendedStripeCount;
@@ -473,7 +483,7 @@ public:
         return ExtractedList;
     }
 
-    virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& /* jobSummary */) override
+    virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
         YCHECK(cookie == 0);
         YCHECK(ExtractedList);
@@ -484,6 +494,10 @@ public:
         RowCounter.Completed(RowCounter.GetTotal());
 
         ExtractedList = nullptr;
+
+        if (jobSummary.Interrupted) {
+            JobCounter.Interrupted(1);
+        }
     }
 
     virtual void Failed(IChunkPoolOutput::TCookie cookie) override
@@ -603,7 +617,7 @@ public:
 
     virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
-        YCHECK(!Finished);
+        // No check for finished here, because stripes may be added for interrupted jobs.
 
         auto cookie = Stripes.size();
 
@@ -618,6 +632,15 @@ public:
         Register(cookie);
 
         return cookie;
+    }
+
+    virtual void Finish() override
+    {
+        if (Finished) {
+            UpdateJobCounter();
+        } else {
+            TChunkPoolInputBase::Finish();
+        }
     }
 
     virtual void Suspend(IChunkPoolInput::TCookie cookie) override
@@ -694,7 +717,7 @@ public:
 
         int freePendingJobCount = GetFreePendingJobCount();
         YCHECK(freePendingJobCount >= 0);
-        YCHECK(!(FreePendingDataSize > 0 && freePendingJobCount == 0));
+        YCHECK(!(FreePendingDataSize > 0 && freePendingJobCount == 0 && JobCounter.GetInterrupted() == 0));
 
         if (freePendingJobCount == 0) {
             return 0;
@@ -841,6 +864,10 @@ public:
 
         // NB: may fail.
         ReplayCookies.erase(cookie);
+
+        if (jobSummary.Interrupted) {
+            JobCounter.Interrupted(1);
+        }
     }
 
     virtual void Failed(IChunkPoolOutput::TCookie cookie) override
@@ -1136,6 +1163,7 @@ private:
             for (int stripeIndex : extractedStripeList.StripeIndexes) {
                 auto& suspendableStripe = Stripes[stripeIndex];
                 suspendableStripe.SetExtractedCookie(IChunkPoolOutput::NullCookie);
+                ++PendingStripeCount;
                 if (suspendableStripe.IsSuspended()) {
                     SuspendedDataSize += suspendableStripe.GetStatistics().DataSize;
                 } else {

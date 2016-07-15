@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+
 #include <yt/ytlib/scheduler/job.pb.h>
 #include <yt/ytlib/scheduler/public.h>
 
@@ -36,6 +38,10 @@ struct IUserJobIO
     virtual void CreateReader() = 0;
 
     virtual NTableClient::TSchemalessReaderFactory GetReaderFactory() = 0;
+
+    virtual void InterruptReader() = 0;
+
+    virtual std::vector<NChunkClient::TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

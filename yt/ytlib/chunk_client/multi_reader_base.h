@@ -53,6 +53,13 @@ protected:
         }
     };
 
+    struct TUnreadState
+    {
+        IReaderBasePtr CurrentReader;
+        std::vector<IReaderBasePtr> ActiveReaders;
+        std::vector<IReaderFactoryPtr> ReaderFactories;
+    };
+
     NLogging::TLogger Logger;
 
     const TMultiChunkReaderConfigPtr Config_;
@@ -79,6 +86,10 @@ protected:
     void RegisterFailedReader(IReaderBasePtr reader);
 
 protected:
+    virtual void OnInterrupt();
+
+    virtual TUnreadState GetUnreadState() const = 0;
+
     TSpinLock PrefetchLock_;
     int PrefetchIndex_ = 0;
     i64 FreeBufferSize_;
@@ -92,6 +103,7 @@ protected:
     NProto::TDataStatistics DataStatistics_;
     std::atomic<int> ActiveReaderCount_ = { 0 };
     yhash_set<IReaderBasePtr> ActiveReaders_;
+    yhash_set<int> NonOpenedReaderIndexes_;
 
     // If KeepInMemory option is set, we store here references to finished readers.
     std::vector<IReaderBasePtr> FinishedReaders_;
@@ -114,6 +126,9 @@ public:
         TMultiChunkReaderOptionsPtr options,
         const std::vector<IReaderFactoryPtr>& readerFactories);
 
+protected:
+    virtual TUnreadState GetUnreadState() const override;
+
 private:
     int NextReaderIndex_ = 0;
     int FinishedReaderCount_ = 0;
@@ -132,6 +147,7 @@ private:
     void WaitForCurrentReader();
 
     void PropagateError(const TError& error);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,6 +160,9 @@ public:
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
         const std::vector<IReaderFactoryPtr>& readerFactories);
+
+protected:
+    virtual TUnreadState GetUnreadState() const override;
 
 private:
     typedef NConcurrency::TNonblockingQueue<TSession> TSessionQueue;
@@ -164,6 +183,7 @@ private:
     void WaitForReader(TSession session);
 
     void PropagateError(const TError& error);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

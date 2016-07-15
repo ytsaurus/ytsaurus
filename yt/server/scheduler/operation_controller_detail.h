@@ -817,6 +817,11 @@ protected:
     //! Returns false if the chunk was already considered lost.
     bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
 
+    virtual bool IsJobInterruptible() const;
+    void OnJobInterrupted(const TCompletedJobSummary& jobSummary);
+    std::vector<NChunkClient::TInputDataSlicePtr> ExtractInputDataSlices(const TCompletedJobSummary& jobSummary) const;
+    virtual void ReinstallUnreadInputDataSlices(const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices);
+
     struct TStripeDescriptor
     {
         TChunkStripePtr Stripe;

@@ -124,6 +124,12 @@ TYsonString TJobProxy::PollJobShell(const TJobId& jobId, const TYsonString& para
     return Job_->PollJobShell(parameters);
 }
 
+void TJobProxy::Interrupt(const TJobId& jobId)
+{
+    ValidateJobId(jobId);
+    Job_->Interrupt();
+}
+
 IServerPtr TJobProxy::GetRpcServer() const
 {
     return RpcServer_;
@@ -262,6 +268,10 @@ void TJobProxy::Run()
                 : chunkId;
             ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
         }
+
+        auto unreadDescriptors = Job_->GetUnreadDataSliceDescriptors();
+        ToProto(schedulerResultExt->mutable_unread_input_data_slice_descriptors(), unreadDescriptors);
+        LOG_DEBUG("Found %v unread input data slice descriptors (SchedulerResultExt: %v)", unreadDescriptors.size(), schedulerResultExt->ShortDebugString());
     }
 
     auto statistics = ConvertToYsonString(GetStatistics());
@@ -284,6 +294,9 @@ std::unique_ptr<IUserJobIO> TJobProxy::CreateUserJobIO()
 
         case NScheduler::EJobType::SortedReduce:
             return CreateSortedReduceJobIO(this);
+
+        case NScheduler::EJobType::JoinReduce:
+            return CreateJoinReduceJobIO(this);
 
         case NScheduler::EJobType::PartitionMap:
             return CreatePartitionMapJobIO(this);

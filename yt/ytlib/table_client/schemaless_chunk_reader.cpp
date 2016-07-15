@@ -37,6 +37,7 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/numeric_helpers.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -61,6 +62,7 @@ using NChunkClient::TChannel;
 using NChunkClient::NProto::TMiscExt;
 
 using NYT::FromProto;
+using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,6 +113,13 @@ public:
         return ChunkSpec_.table_row_index() + RowIndex_;
     }
 
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
+        const TRange<TUnversionedRow>& unreadRows) const override
+    {
+        Y_UNREACHABLE();
+    }
+
+
 protected:
     const TChunkSpec ChunkSpec_;
 
@@ -150,6 +159,78 @@ protected:
                 << ex;
         }
     }
+
+    std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptorsImpl(
+        const TRange<TUnversionedRow>& unreadRows,
+        const TMiscExt& misc,
+        const NProto::TBlockMetaExt& blockMeta,
+        const TChunkSpec& chunkSpec,
+        const TReadLimit& lowerLimit,
+        const TReadLimit& upperLimit,
+        const TKeyColumns& keyColumns,
+        i64 rowIndex) const
+    {
+        i64 rowCount = 0;
+        std::vector<TDataSliceDescriptor> unreadDescriptors;
+
+        // Verify row index is in the chunk range
+        YCHECK(unreadRows.Size() <= rowIndex);
+        rowIndex -= unreadRows.Size();
+        i64 lowerRowIndex = lowerLimit.HasRowIndex() ? lowerLimit.GetRowIndex() : 0;
+        i64 upperRowIndex = upperLimit.HasRowIndex() ? upperLimit.GetRowIndex() : misc.row_count();
+        if (!upperLimit.HasRowIndex() && upperLimit.HasKey()) {
+            auto it = std::upper_bound(
+                blockMeta.blocks().begin(),
+                blockMeta.blocks().end(),
+                upperLimit.GetKey(),
+                [] (const TOwningKey& key, const TBlockMeta& block) -> bool {
+                    auto lastKey = FromProto<TOwningKey>(block.last_key());
+                    return key < lastKey;
+                });
+            if (it != blockMeta.blocks().end()) {
+                upperRowIndex = it->chunk_row_count();
+            }
+        }
+        YCHECK(upperRowIndex <= misc.row_count());
+        YCHECK(rowIndex >= lowerRowIndex && rowIndex <= upperRowIndex);
+        if (rowIndex == upperRowIndex) {
+            return unreadDescriptors;
+        }
+
+        // Verify the first unread key is in the chunk range
+        auto lowerKey = lowerLimit.HasKey() ? lowerLimit.GetKey() : TOwningKey();
+        auto lastChunkKey = FromProto<TOwningKey>(blockMeta.blocks().rbegin()->last_key());
+        auto upperKey = upperLimit.HasKey() ? upperLimit.GetKey() : lastChunkKey;
+        TOwningKey firstUnreadKey;
+        if (!unreadRows.Empty()) {
+            firstUnreadKey = GetKeyPrefix(unreadRows[0], keyColumns.size());
+        }
+        YCHECK(
+            !firstUnreadKey || (
+                (!lowerKey || CompareRows(firstUnreadKey, lowerKey) >= 0) &&
+                (!upperKey || CompareRows(firstUnreadKey, upperKey) <= 0)));
+
+        unreadDescriptors.emplace_back(MakeUnversionedDataSliceDescriptor(chunkSpec));
+
+        // Check if whole chunk is unread
+        if (rowIndex == lowerRowIndex) {
+            return unreadDescriptors;
+        }
+
+        auto& chunk = unreadDescriptors[0].ChunkSpecs[0];
+        chunk.mutable_lower_limit()->set_row_index(std::max(rowIndex, lowerRowIndex));
+        if (firstUnreadKey) {
+            ToProto(chunk.mutable_lower_limit()->mutable_key(), firstUnreadKey);
+        }
+        rowCount = upperRowIndex - rowIndex;
+
+        chunk.set_row_count_override(rowCount);
+        i64 dataSize = DivCeil(misc.uncompressed_data_size(), misc.row_count()) * rowCount;
+        YCHECK(dataSize > 0);
+        chunk.set_uncompressed_data_size_override(dataSize);
+        return unreadDescriptors;
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -333,6 +414,7 @@ public:
         TNullable<int> partitionTag);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(const TRange<TUnversionedRow>& unreadRows) const override;
 
 private:
     TReadRange ReadRange_;
@@ -567,6 +649,20 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
     }
 
     return true;
+}
+
+std::vector<TDataSliceDescriptor> THorizontalSchemalessRangeChunkReader::GetUnreadDataSliceDescriptors(
+    const TRange<TUnversionedRow>& unreadRows) const
+{
+    return GetUnreadDataSliceDescriptorsImpl(
+        unreadRows,
+        GetProtoExtension<TMiscExt>(ChunkMeta_.extensions()),
+        BlockMetaExt_,
+        ChunkSpec_,
+        ReadRange_.LowerLimit(),
+        ReadRange_.UpperLimit(),
+        KeyColumns_,
+        RowIndex_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -927,6 +1023,20 @@ public:
         RowCount_ += rows->size();
 
         return true;
+    }
+
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
+        const TRange<TUnversionedRow>& unreadRows) const override
+    {
+        return GetUnreadDataSliceDescriptorsImpl(
+            unreadRows,
+            ChunkMeta_->Misc(),
+            ChunkMeta_->BlockMeta(),
+            ChunkSpec_,
+            LowerLimit_,
+            UpperLimit_,
+            KeyColumns_,
+            RowIndex_);
     }
 
     virtual TDataStatistics GetDataStatistics() const override
@@ -1668,7 +1778,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         partitionTag);
                 };
 
-                factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate));
+                factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate, dataSliceDescriptor));
                 break;
             }
 
@@ -1688,7 +1798,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         throttler);
                 };
 
-                factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate));
+                factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate, dataSliceDescriptor));
                 break;
             }
 
@@ -1734,6 +1844,11 @@ public:
 
     virtual i64 GetTableRowIndex() const override;
 
+    virtual void Interrupt() override;
+
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
+        const TRange<TUnversionedRow>& unreadRows) const override;
+
 private:
     const TNameTablePtr NameTable_;
     const TKeyColumns KeyColumns_;
@@ -1741,6 +1856,8 @@ private:
     ISchemalessChunkReaderPtr CurrentReader_;
     std::atomic<i64> RowIndex_ = {0};
     std::atomic<i64> RowCount_ = {-1};
+
+    std::atomic<bool> Interrupting_ = {false};
 
     using TBase::ReadyEvent_;
     using TBase::CurrentSession_;
@@ -1789,6 +1906,10 @@ template <class TBase>
 bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows)
 {
     rows->clear();
+    if (Interrupting_) {
+        CurrentReader_ = nullptr;
+        return false;
+    }
     if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
         return true;
     }
@@ -1848,6 +1969,40 @@ template <class TBase>
 TKeyColumns TSchemalessMultiChunkReader<TBase>::GetKeyColumns() const
 {
     return KeyColumns_;
+}
+
+template <class TBase>
+void TSchemalessMultiChunkReader<TBase>::Interrupt()
+{
+    if (!Interrupting_) {
+        Interrupting_ = true;
+        TBase::OnInterrupt();
+    }
+}
+
+template <class TBase>
+std::vector<TDataSliceDescriptor> TSchemalessMultiChunkReader<TBase>::GetUnreadDataSliceDescriptors(
+    const TRange<TUnversionedRow>& unreadRows) const
+{
+    static TRange<TUnversionedRow> emptyRange;
+    auto state = TBase::GetUnreadState();
+
+    std::vector<TDataSliceDescriptor> result;
+    if (state.CurrentReader) {
+        auto chunkReader = dynamic_cast<ISchemalessChunkReader*>(state.CurrentReader.Get());
+        YCHECK(chunkReader);
+        result = chunkReader->GetUnreadDataSliceDescriptors(unreadRows);
+    }
+    for (const auto& activeReader : state.ActiveReaders) {
+        auto chunkReader = dynamic_cast<ISchemalessChunkReader*>(activeReader.Get());
+        YCHECK(chunkReader);
+        auto unreadChunks = chunkReader->GetUnreadDataSliceDescriptors(emptyRange);
+        std::move(unreadChunks.begin(), unreadChunks.end(), std::back_inserter(result));
+    }
+    for (const auto& factory : state.ReaderFactories) {
+        result.emplace_back(factory->GetDataSliceDescriptor());
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1940,6 +2095,9 @@ public:
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
     virtual TDataStatistics GetDataStatistics() const override;
     virtual std::vector<TChunkId> GetFailedChunkIds() const override;
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
+        const TRange<TUnversionedRow>& unreadRows) const override;
+    virtual void Interrupt() override;
     virtual bool IsFetchingCompleted() const override;
     virtual i64 GetSessionRowIndex() const override;
     virtual i64 GetTotalRowCount() const override;
@@ -1950,12 +2108,24 @@ public:
 private:
     const ISchemalessReaderPtr UnderlyingReader_;
 
+    const TDataSliceDescriptor& DataSliceDescriptor_;
+    int KeyColumnCount_;
+    std::atomic<bool> Interrupting_ = {false};
+    std::atomic<bool> Finished_ = {false};
+    TOwningKey LastKey_;
+    TFuture<void> ReadyEvent_;
+    TPromise<void> CompletionError_ = NewPromise<void>();
+
     i64 RowIndex_ = 0;
     const i64 RowCount_;
 
     TSchemalessMergingMultiChunkReader(
         ISchemalessReaderPtr underlyingReader,
+        const TDataSliceDescriptor& dataSliceDescriptor,
+        int keyColumnCount,
         i64 rowCount);
+
+    TFuture<void> CombineCompletionError(TFuture<void> future);
 
     DECLARE_NEW_FRIEND();
 };
@@ -1964,10 +2134,16 @@ private:
 
 TSchemalessMergingMultiChunkReader::TSchemalessMergingMultiChunkReader(
     ISchemalessReaderPtr underlyingReader,
+    const TDataSliceDescriptor& dataSliceDescriptor,
+    int keyColumnCount,
     i64 rowCount)
     : UnderlyingReader_(std::move(underlyingReader))
+    , DataSliceDescriptor_(dataSliceDescriptor)
+    , KeyColumnCount_(keyColumnCount)
     , RowCount_(rowCount)
-{ }
+{
+    ReadyEvent_ = CombineCompletionError(UnderlyingReader_->GetReadyEvent());
+}
 
 ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     TTableReaderConfigPtr config,
@@ -2113,19 +2289,40 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     return New<TSchemalessMergingMultiChunkReader>(
         std::move(reader),
+        dataSliceDescriptor,
+        tableSchema.GetKeyColumnCount(),
         rowCount);
+}
+
+TFuture<void> TSchemalessMergingMultiChunkReader::CombineCompletionError(TFuture<void> future)
+{
+    auto promise = NewPromise<void>();
+    promise.TrySetFrom(CompletionError_.ToFuture());
+    promise.TrySetFrom(future);
+    return promise.ToFuture();
 }
 
 bool TSchemalessMergingMultiChunkReader::Read(std::vector<TUnversionedRow>* rows)
 {
+    if (Interrupting_) {
+        rows->clear();
+        return false;
+    }
     bool result = UnderlyingReader_->Read(rows);
     RowIndex_ += rows->size();
+    if (!rows->empty()) {
+        LastKey_ = GetKeyPrefix(rows->back(), KeyColumnCount_);
+    }
+    if (!result) {
+        Finished_ = true;
+    }
+    ReadyEvent_ = CombineCompletionError(UnderlyingReader_->GetReadyEvent());
     return result;
 }
 
 TFuture<void> TSchemalessMergingMultiChunkReader::GetReadyEvent()
 {
-    return UnderlyingReader_->GetReadyEvent();
+    return ReadyEvent_;
 }
 
 TDataStatistics TSchemalessMergingMultiChunkReader::GetDataStatistics() const
@@ -2136,6 +2333,41 @@ TDataStatistics TSchemalessMergingMultiChunkReader::GetDataStatistics() const
 std::vector<TChunkId> TSchemalessMergingMultiChunkReader::GetFailedChunkIds() const
 {
     return UnderlyingReader_->GetFailedChunkIds();
+}
+
+std::vector<TDataSliceDescriptor> TSchemalessMergingMultiChunkReader::GetUnreadDataSliceDescriptors(
+    const TRange<TUnversionedRow>& unreadRows) const
+{
+    std::vector<TDataSliceDescriptor> unreadDescriptors;
+    TOwningKey firstUnreadKey;
+
+    if (unreadRows.Empty()) {
+        if (Finished_) {
+            // Return the empty vector.
+            return unreadDescriptors;
+        }
+        unreadDescriptors.emplace_back(DataSliceDescriptor_);
+        if (!LastKey_) {
+            // Return the whole data slice descriptor.
+            return unreadDescriptors;
+        }
+        firstUnreadKey = GetKeySuccessor(LastKey_);
+    } else {
+        firstUnreadKey = GetKeyPrefix(unreadRows[0], KeyColumnCount_);
+    }
+    for (auto& descriptor : unreadDescriptors) {
+        for (auto& chunk : descriptor.ChunkSpecs) {
+            ToProto(chunk.mutable_lower_limit()->mutable_key(), firstUnreadKey);
+            // TODO: Estimate row count and data size.
+        }
+    }
+    return unreadDescriptors;
+}
+
+void TSchemalessMergingMultiChunkReader::Interrupt()
+{
+    Interrupting_ = true;
+    CompletionError_.TrySet(TError());
 }
 
 bool TSchemalessMergingMultiChunkReader::IsFetchingCompleted() const

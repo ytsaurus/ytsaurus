@@ -20,6 +20,7 @@ using namespace NObjectClient;
 using namespace NYPath;
 using namespace NJobTrackerClient;
 using namespace NChunkClient::NProto;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -103,6 +104,7 @@ TJob::TJob(
     TInstant startTime,
     const TJobResources& resourceLimits,
     bool restarted,
+    bool interruptible,
     TJobSpecBuilder specBuilder,
     const Stroka& account)
     : Id_(id)
@@ -111,6 +113,7 @@ TJob::TJob(
     , Node_(node)
     , StartTime_(startTime)
     , Restarted_(restarted)
+    , Interruptible_(interruptible)
     , State_(EJobState::None)
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
@@ -236,7 +239,10 @@ void TJobSummary::ParseStatistics()
 TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, bool abandoned)
     : TJobSummary(job)
     , Abandoned(abandoned)
-{ }
+{
+    const auto& schedulerResultExt = Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    Interrupted = schedulerResultExt.unread_input_data_slice_descriptors_size() != 0;
+}
 
 ////////////////////////////////////////////////////////////////////
 
@@ -271,12 +277,14 @@ TJobStartRequest::TJobStartRequest(
     EJobType type,
     const TJobResources& resourceLimits,
     bool restarted,
+    bool interruptible,
     TJobSpecBuilder specBuilder,
     const Stroka& account)
     : Id(id)
     , Type(type)
     , ResourceLimits(resourceLimits)
     , Restarted(restarted)
+    , Interruptible(interruptible)
     , SpecBuilder(std::move(specBuilder))
     , Account(account)
 { }

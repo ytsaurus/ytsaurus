@@ -72,6 +72,8 @@ struct IJob
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
 
     virtual void ReportStatistics(TJobStatistics&& statistics) = 0;
+
+    virtual void Interrupt() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)

@@ -17,6 +17,7 @@ TProgressCounter::TProgressCounter()
     , Pending_(0)
     , Failed_(0)
     , Lost_(0)
+    , Interrupted_(0)
 { }
 
 TProgressCounter::TProgressCounter(i64 total)
@@ -34,6 +35,7 @@ void TProgressCounter::Set(i64 total)
     Pending_ = total;
     Failed_ = 0;
     Lost_ = 0;
+    Interrupted_ = 0;
 
     std::fill(Aborted_.begin(), Aborted_.end(), 0);
 }
@@ -104,6 +106,11 @@ i64 TProgressCounter::GetLost() const
     return Lost_;
 }
 
+i64 TProgressCounter::GetInterrupted() const
+{
+    return Interrupted_;
+}
+
 void TProgressCounter::Start(i64 count)
 {
     if (TotalEnabled_) {
@@ -150,6 +157,11 @@ void TProgressCounter::Lost(i64 count)
     }
 }
 
+void TProgressCounter::Interrupted(i64 count)
+{
+    Interrupted_ += count;
+}
+
 void TProgressCounter::Finalize()
 {
     if (TotalEnabled_) {
@@ -169,6 +181,7 @@ void TProgressCounter::Persist(const TStreamPersistenceContext& context)
     Persist(context, Pending_);
     Persist(context, Failed_);
     Persist(context, Lost_);
+    Persist(context, Interrupted_);
     Persist(context, Aborted_);
 }
 
@@ -181,20 +194,22 @@ const TProgressCounter NullProgressCounter;
 Stroka ToString(const TProgressCounter& counter)
 {
     return counter.IsTotalEnabled()
-        ? Format("{T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}",
+        ? Format("{T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v, I: %v}",
             counter.GetTotal(),
             counter.GetRunning(),
             counter.GetCompleted(),
             counter.GetPending(),
             counter.GetFailed(),
             counter.GetAbortedTotal(),
-            counter.GetLost())
-        : Format("{R: %v, C: %v, F: %v, A: %v, L: %v}",
+            counter.GetLost(),
+            counter.GetInterrupted())
+        : Format("{R: %v, C: %v, F: %v, A: %v, L: %v, I: %v}",
             counter.GetRunning(),
             counter.GetCompleted(),
             counter.GetFailed(),
             counter.GetAbortedTotal(),
-            counter.GetLost());
+            counter.GetLost(),
+            counter.GetInterrupted());
 }
 
 void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
@@ -222,6 +237,7 @@ void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
                 })
             .EndMap()
             .Item("lost").Value(counter.GetLost())
+            .Item("interrupted").Value(counter.GetInterrupted())
         .EndMap();
 }
 

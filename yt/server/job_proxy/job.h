@@ -7,6 +7,7 @@
 #include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
 #include <yt/ytlib/job_tracker_client/statistics.h>
@@ -70,6 +71,7 @@ struct IJob
     virtual void Abort() = 0;
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const = 0;
+    virtual std::vector<NChunkClient::TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const = 0;
 
     virtual double GetProgress() const = 0;
 
@@ -80,6 +82,7 @@ struct IJob
     virtual NYson::TYsonString StraceJob() = 0;
     virtual void SignalJob(const Stroka& signalName) = 0;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
+    virtual void Interrupt() = 0;
 
 };
 

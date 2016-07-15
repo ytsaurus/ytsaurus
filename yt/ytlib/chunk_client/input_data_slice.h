@@ -74,7 +74,10 @@ TInputDataSlicePtr CreateInputDataSlice(
     NTableClient::TKey lowerKey = NTableClient::TKey(),
     NTableClient::TKey upperKey = NTableClient::TKey());
 
-TInputDataSlicePtr CreateInputDataSlice(TInputChunkSlicePtr chunkSlice);
+TInputDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSlice);
+
+TInputDataSlicePtr CreateVersionedInputDataSlice(
+    const std::vector<TInputChunkSlicePtr>& inputChunks);
 
 TNullable<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool checkParityParts);
 bool CompareDataSlicesByLowerLimit(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2);

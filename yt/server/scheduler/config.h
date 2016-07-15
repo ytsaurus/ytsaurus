@@ -689,6 +689,9 @@ public:
     // Enables statistics reporter to send job events/statistics/specs etc.
     bool EnableStatisticsReporter;
 
+    // Timeout to try interrupt job before abort it.
+    TDuration JobInterruptTimeout;
+
     TSchedulerConfig()
     {
         RegisterParameter("controller_thread_count", ControllerThreadCount)
@@ -942,6 +945,9 @@ public:
 
         RegisterParameter("enable_statistics_reporter", EnableStatisticsReporter)
             .Default(false);
+
+        RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)
+            .Default(TDuration::Seconds(10));
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

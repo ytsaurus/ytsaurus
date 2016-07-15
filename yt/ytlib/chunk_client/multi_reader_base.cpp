@@ -3,6 +3,7 @@
 #include "dispatcher.h"
 #include "private.h"
 #include "reader_factory.h"
+#include "data_slice_descriptor.h"
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -10,7 +11,10 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NConcurrency;
-using namespace NProto;
+using namespace NTableClient;
+
+using NYT::FromProto;
+using NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +39,10 @@ TMultiReaderBase::TMultiReaderBase(
         CompletionError_.Set(TError());
         ReadyEvent_ = CompletionError_.ToFuture();
         return;
+    }
+    NonOpenedReaderIndexes_.reserve(readerFactories.size());
+    for (int i = 0; i < static_cast<int>(readerFactories.size()); ++i) {
+        NonOpenedReaderIndexes_.insert(i);
     }
 }
 
@@ -66,7 +74,7 @@ bool TMultiReaderBase::IsFetchingCompleted() const
 {
     if (OpenedReaderCount_ == ReaderFactories_.size()) {
         TGuard<TSpinLock> guard(ActiveReadersLock_);
-        for (auto reader : ActiveReaders_) {
+        for (const auto& reader : ActiveReaders_) {
             if (!reader->IsFetchingCompleted()) {
                 return false;
             }
@@ -135,6 +143,7 @@ void TMultiReaderBase::DoOpenReader(int index)
     OnReaderOpened(reader, index);
 
     TGuard<TSpinLock> guard(ActiveReadersLock_);
+    YCHECK(NonOpenedReaderIndexes_.erase(index));
     YCHECK(ActiveReaders_.insert(reader).second);
 }
 
@@ -191,6 +200,11 @@ void TMultiReaderBase::RegisterFailedReader(IReaderBasePtr reader)
     for (const auto& chunkId : chunkIds) {
         FailedChunks_.insert(chunkId);
     }
+}
+
+void TMultiReaderBase::OnInterrupt()
+{
+    CompletionError_.TrySet(TError());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -272,11 +286,16 @@ void TSequentialMultiReaderBase::WaitForNextReader()
         return;
     }
 
-    CurrentSession_.Index = NextReaderIndex_;
-    CurrentSession_.Reader = WaitFor(NextReaders_[NextReaderIndex_].ToFuture())
+    auto currentReader = WaitFor(NextReaders_[NextReaderIndex_].ToFuture())
         .ValueOrThrow();
 
-    ++NextReaderIndex_;
+    {
+        TGuard<TSpinLock> guard(ActiveReadersLock_);
+        CurrentSession_.Index = NextReaderIndex_;
+        CurrentSession_.Reader = currentReader;
+
+        ++NextReaderIndex_;
+    }
 
     // Avoid memory leaks, drop smart pointer reference.
     NextReaders_[CurrentSession_.Index].Reset();
@@ -291,6 +310,18 @@ void TSequentialMultiReaderBase::WaitForCurrentReader()
         RegisterFailedReader(CurrentSession_.Reader);
         CompletionError_.TrySet(error);
     }
+}
+
+TMultiReaderBase::TUnreadState TSequentialMultiReaderBase::GetUnreadState() const
+{
+    TUnreadState state;
+    TGuard<TSpinLock> guard(ActiveReadersLock_);
+
+    state.CurrentReader = CurrentSession_.Reader;
+    for (int index = NextReaderIndex_; index < static_cast<int>(ReaderFactories_.size()); ++index) {
+        state.ReaderFactories.emplace_back(ReaderFactories_[index]);
+    }
+    return state;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -384,6 +415,24 @@ void TParallelMultiReaderBase::WaitForReader(TSession session)
 
     RegisterFailedReader(session.Reader);
     CompletionError_.TrySet(error);
+}
+
+TMultiReaderBase::TUnreadState TParallelMultiReaderBase::GetUnreadState() const
+{
+    TUnreadState state;
+    TGuard<TSpinLock> guard(ActiveReadersLock_);
+
+    state.CurrentReader = CurrentSession_.Reader;
+    state.ActiveReaders.reserve(ActiveReaders_.size());
+    for (const auto& reader : ActiveReaders_) {
+        if (reader != CurrentSession_.Reader) {
+            state.ActiveReaders.emplace_back(reader);
+        }
+    }
+    for (int index : NonOpenedReaderIndexes_) {
+        state.ReaderFactories.emplace_back(ReaderFactories_[index]);
+    }
+    return state;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

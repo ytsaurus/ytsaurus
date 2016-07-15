@@ -36,6 +36,10 @@ public:
 
     virtual NTableClient::TSchemalessReaderFactory GetReaderFactory() override;
 
+    virtual void InterruptReader() override;
+
+    virtual std::vector<NChunkClient::TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const override;
+
 protected:
     const IJobHostPtr Host_;
 

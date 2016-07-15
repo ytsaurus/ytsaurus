@@ -61,6 +61,9 @@ class TJob
     //! True if this is a reincarnation of a lost job.
     DEFINE_BYVAL_RO_PROPERTY(bool, Restarted);
 
+    //! True if job can be interrupted.
+    DEFINE_BYVAL_RO_PROPERTY(bool, Interruptible);
+
     //! The time when the job was finished.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
 
@@ -90,6 +93,10 @@ class TJob
 
     //! Flag that marks job as preempted by scheduler.
     DEFINE_BYVAL_RW_PROPERTY(bool, Preempted);
+
+    //! Deadline for job to be interrupted.
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, InterruptDeadline);
+
     //! Contains several important values extracted from job statistics.
     DEFINE_BYVAL_RO_PROPERTY(TBriefJobStatisticsPtr, BriefStatistics);
 
@@ -102,6 +109,9 @@ class TJob
     //! Account for node in cypress.
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Account);
 
+    //! Cookie for timeout on interrupted job.
+    DEFINE_BYREF_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, InterruptCookie);
+
 public:
     TJob(
         const TJobId& id,
@@ -111,6 +121,7 @@ public:
         TInstant startTime,
         const TJobResources& resourceLimits,
         bool restarted,
+        bool interruptible,
         TJobSpecBuilder specBuilder,
         const Stroka& account);
 
@@ -164,6 +175,7 @@ struct TCompletedJobSummary
     explicit TCompletedJobSummary(const TJobPtr& job, bool abandoned = false);
 
     const bool Abandoned = false;
+    bool Interrupted = false;
 };
 
 struct TAbortedJobSummary
@@ -189,6 +201,7 @@ struct TJobStartRequest
         EJobType type,
         const TJobResources& resourceLimits,
         bool restarted,
+        bool interruptible,
         TJobSpecBuilder specBuilder,
         const Stroka& account);
 
@@ -196,6 +209,7 @@ struct TJobStartRequest
     const EJobType Type;
     const TJobResources ResourceLimits;
     const bool Restarted;
+    const bool Interruptible;
     const TJobSpecBuilder SpecBuilder;
     const Stroka Account;
 };

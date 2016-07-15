@@ -56,4 +56,12 @@ message TRspPollJobShell
     required string result = 1;
 }
 
+message TReqInterrupt
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspInterrupt
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////

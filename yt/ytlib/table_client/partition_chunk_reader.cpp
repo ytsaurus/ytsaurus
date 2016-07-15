@@ -194,7 +194,8 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
 
                 factories.emplace_back(CreateReaderFactory(
                     createReader,
-                    memoryEstimate));
+                    memoryEstimate,
+                    dataSliceDescriptor));
                 break;
             }
 

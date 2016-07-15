@@ -30,6 +30,7 @@
 #include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/range.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -53,6 +54,7 @@ using namespace NYson;
 using namespace NRpc;
 
 using NChunkClient::TDataSliceDescriptor;
+using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,6 +85,9 @@ public:
     virtual bool IsFetchingCompleted() const override;
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
     virtual std::vector<TChunkId> GetFailedChunkIds() const override;
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
+        const TRange<TUnversionedRow>& unreadRows) const override;
+    virtual void Interrupt() override;
 
 private:
     const TTableReaderConfigPtr Config_;
@@ -366,6 +371,17 @@ std::vector<TChunkId> TSchemalessTableReader::GetFailedChunkIds() const
 {
     YCHECK(UnderlyingReader_);
     return UnderlyingReader_->GetFailedChunkIds();
+}
+
+std::vector<TDataSliceDescriptor> TSchemalessTableReader::GetUnreadDataSliceDescriptors(
+    const TRange<TUnversionedRow>& unreadRows) const
+{
+    Y_UNREACHABLE();
+}
+
+void TSchemalessTableReader::Interrupt()
+{
+    Y_UNREACHABLE();
 }
 
 void TSchemalessTableReader::RemoveUnavailableChunks(std::vector<TChunkSpec>* chunkSpecs) const

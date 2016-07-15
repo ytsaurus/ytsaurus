@@ -32,12 +32,14 @@ public:
     i64 GetAbortedNonScheduled() const;
     i64 GetAborted(EAbortReason reason) const;
     i64 GetLost() const;
+    i64 GetInterrupted() const;
 
     void Start(i64 count);
     void Completed(i64 count);
     void Failed(i64 count);
     void Aborted(i64 count, EAbortReason reason = EAbortReason::Other);
     void Lost(i64 count);
+    void Interrupted(i64 count);
 
     void Persist(const TStreamPersistenceContext& context);
 
@@ -49,6 +51,7 @@ private:
     i64 Pending_;
     i64 Failed_;
     i64 Lost_;
+    i64 Interrupted_;
     TEnumIndexedVector<i64, EAbortReason> Aborted_;
 
 };

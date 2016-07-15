@@ -198,6 +198,11 @@ def abort_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
     execute_command('abort_job', kwargs)
 
+def interrupt_job(job_id, interrupt_timeout=10000, **kwargs):
+    kwargs["job_id"] = job_id
+    kwargs["interrupt_timeout"] = interrupt_timeout
+    execute_command('abort_job', kwargs)
+
 def lock(path, waitable=False, **kwargs):
     kwargs["path"] = path
     kwargs["waitable"] = waitable

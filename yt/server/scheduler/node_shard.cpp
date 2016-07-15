@@ -498,6 +498,7 @@ void TNodeShard::AbandonJob(const TJobId& jobId, const Stroka& user)
         case EJobType::Map:
         case EJobType::OrderedMap:
         case EJobType::SortedReduce:
+        case EJobType::JoinReduce:
         case EJobType::PartitionMap:
         case EJobType::ReduceCombiner:
         case EJobType::PartitionReduce:
@@ -553,7 +554,7 @@ TYsonString TNodeShard::PollJobShell(const TJobId& jobId, const TYsonString& par
     return TYsonString(rsp->result());
 }
 
-void TNodeShard::AbortJob(const TJobId& jobId, const Stroka& user)
+void TNodeShard::AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const Stroka& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -561,24 +562,69 @@ void TNodeShard::AbortJob(const TJobId& jobId, const Stroka& user)
 
     Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
-    LOG_DEBUG("Aborting job by user request (JobId: %v, OperationId: %v, User: %v)",
-        job->GetId(),
-        job->GetOperationId(),
-        user);
-
     if (job->GetState() != EJobState::Running &&
         job->GetState() != EJobState::Waiting)
     {
         THROW_ERROR_EXCEPTION("Cannot abort job %v of operation %v since it is not running",
-            job->GetId(),
+            jobId,
             job->GetOperationId());
     }
 
-    auto status = JobStatusFromError(TError("Job aborted by user request")
-        << TErrorAttribute("abort_reason", EAbortReason::UserRequest)
-        << TErrorAttribute("user", user));
-    OnJobAborted(job, &status);
+    if (interruptTimeout.Get(TDuration::Zero()) != TDuration::Zero() && !job->InterruptCookie()) {
+        if (!job->GetInterruptible()) {
+            THROW_ERROR_EXCEPTION("Cannot abort job %v of type %Qlv with interrupt timeout",
+                jobId,
+                job->GetType());
+        }
+
+        LOG_DEBUG("Trying to interrupt job by user request (JobId: %v, InterruptTimeout: %v)",
+            jobId,
+            interruptTimeout);
+
+        auto proxy = CreateJobProberProxy(job);
+        auto req = proxy.Interrupt();
+        ToProto(req->mutable_job_id(), jobId);
+
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error interrupting job %v",
+            jobId);
+
+        LOG_INFO("User interrupt requested (JobId: %v, InterruptTimeout: %v)",
+            jobId,
+            interruptTimeout);
+
+        // Abort job after timeout.
+        job->InterruptCookie() = TDelayedExecutor::Submit(
+            BIND(&TNodeShard::OnInterruptTimeout, MakeWeak(this), jobId, user).Via(GetCurrentInvoker()),
+            *interruptTimeout);
+    } else {
+        LOG_DEBUG("Aborting job by user request (JobId: %v, OperationId: %v, User: %v)",
+            jobId,
+            job->GetOperationId(),
+            user);
+
+        auto status = JobStatusFromError(TError("Job aborted by user request")
+            << TErrorAttribute("abort_reason", EAbortReason::UserRequest)
+            << TErrorAttribute("user", user));
+        OnJobAborted(job, &status);
+    }
 }
+
+void TNodeShard::OnInterruptTimeout(const TJobId& jobId, const Stroka& user)
+{
+    auto job = FindJob(jobId);
+    if (job) {
+        LOG_DEBUG("Aborting job after interrupt timeout (JobId: %v, OperationId: %v)",
+            jobId,
+            job->GetOperationId());
+
+        auto status = JobStatusFromError(TError("Job aborted by user request")
+            << TErrorAttribute("abort_reason", EAbortReason::UserRequest)
+            << TErrorAttribute("user", user));
+        OnJobAborted(job, &status);
+    }
+}
+
 
 void TNodeShard::BuildNodesYson(IYsonConsumer* consumer)
 {
@@ -1229,6 +1275,8 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
         operationsToLog->insert(job->GetOperationId());
     }
 
+    auto now = TInstant::Now();
+    auto interruptDeadline = now + Config_->JobInterruptTimeout;
     for (const auto& job : schedulingContext->PreemptedJobs()) {
         if (!OperationExists(job->GetOperationId()) || job->GetHasPendingUnregistration()) {
             LOG_DEBUG("Dangling preempted job found (JobId: %v, OperationId: %v)",
@@ -1236,8 +1284,25 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
                 job->GetOperationId());
             continue;
         }
-        PreemptJob(job);
-        ToProto(response->add_jobs_to_abort(), job->GetId());
+        if (job->GetInterruptible()) {
+            if (job->GetPreempted()) {
+                if (now > job->GetInterruptDeadline()) {
+                    ToProto(response->add_jobs_to_abort(), job->GetId());
+                }
+            } else {
+                PreemptJob(job, interruptDeadline);
+                if (Config_->JobInterruptTimeout != TDuration::Zero()) {
+                    ToProto(response->add_jobs_to_interrupt(), job->GetId());
+                } else {
+                    ToProto(response->add_jobs_to_abort(), job->GetId());
+                }
+            }
+        } else {
+            ToProto(response->add_jobs_to_abort(), job->GetId());
+        }
+    }
+    if (response->jobs_to_interrupt_size() != 0) {
+        response->set_job_interrupt_timeout(ToProto(Config_->JobInterruptTimeout));
     }
 
     return Combine(asyncResults);
@@ -1482,6 +1547,10 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
 
 void TNodeShard::UnregisterJob(const TJobPtr& job)
 {
+    if (job->InterruptCookie()) {
+        TDelayedExecutor::CancelAndClear(job->InterruptCookie());
+    }
+
     auto node = job->GetNode();
 
     if (node->GetHasOngoingJobsScheduling()) {
@@ -1517,13 +1586,14 @@ void TNodeShard::DoUnregisterJob(const TJobPtr& job)
     }
 }
 
-void TNodeShard::PreemptJob(const TJobPtr& job)
+void TNodeShard::PreemptJob(const TJobPtr& job, const TInstant& interruptDeadline)
 {
     LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v)",
         job->GetId(),
         job->GetOperationId());
 
     job->SetPreempted(true);
+    job->SetInterruptDeadline(interruptDeadline);
 }
 
 TExecNodePtr TNodeShard::GetNodeByJob(const TJobId& jobId)

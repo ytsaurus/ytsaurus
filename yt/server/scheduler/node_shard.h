@@ -133,7 +133,8 @@ public:
 
     NYson::TYsonString PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const Stroka& user);
 
-    void AbortJob(const TJobId& jobId, const Stroka& user);
+    void AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const Stroka& user);
+    void OnInterruptTimeout(const TJobId& jobId, const Stroka& user);
 
     void BuildNodesYson(NYson::IYsonConsumer* consumer);
     void BuildOperationJobsYson(const TOperationId& operationId, NYson::IYsonConsumer* consumer);
@@ -280,7 +281,7 @@ private:
 
     void DoUnregisterJob(const TJobPtr& job);
 
-    void PreemptJob(const TJobPtr& job);
+    void PreemptJob(const TJobPtr& job, const TInstant& interruptDeadline);
 
     TExecNodePtr GetNodeByJob(const TJobId& jobId);
 

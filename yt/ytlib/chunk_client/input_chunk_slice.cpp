@@ -226,6 +226,24 @@ TInputChunkSlice::TInputChunkSlice(
     }
 }
 
+TInputChunkSlice::TInputChunkSlice(
+    const TInputChunkPtr& inputChunk,
+    const TRowBufferPtr& rowBuffer,
+    const NProto::TChunkSpec& protoChunkSpec)
+    : TInputChunkSlice(inputChunk)
+{
+    LowerLimit_.MergeLowerLimit(TInputSliceLimit(protoChunkSpec.lower_limit(), rowBuffer));
+    UpperLimit_.MergeUpperLimit(TInputSliceLimit(protoChunkSpec.upper_limit(), rowBuffer));
+    PartIndex_ = DefaultPartIndex;
+
+    if (protoChunkSpec.has_row_count_override()) {
+        SetRowCount(protoChunkSpec.row_count_override());
+    }
+    if (protoChunkSpec.has_uncompressed_data_size_override()) {
+        SetDataSize(protoChunkSpec.uncompressed_data_size_override());
+    }
+}
+
 std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataSize, i64 sliceRowCount) const
 {
     YCHECK(sliceDataSize > 0);
@@ -360,6 +378,14 @@ TInputChunkSlicePtr CreateInputChunkSlice(
     const NProto::TChunkSlice& protoChunkSlice)
 {
     return New<TInputChunkSlice>(inputChunk, rowBuffer, protoChunkSlice);
+}
+
+TInputChunkSlicePtr CreateInputChunkSlice(
+    const TInputChunkPtr& inputChunk,
+    const NTableClient::TRowBufferPtr& rowBuffer,
+    const NProto::TChunkSpec& protoChunkSpec)
+{
+    return New<TInputChunkSlice>(inputChunk, rowBuffer, protoChunkSpec);
 }
 
 std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(

@@ -46,6 +46,7 @@ using namespace NApi;
 using namespace NErasure;
 
 using NJobTrackerClient::TStatistics;
+using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,6 +122,11 @@ public:
         return FailedChunkId_
             ? std::vector<TChunkId>(1, *FailedChunkId_)
             : std::vector<TChunkId>();
+    }
+
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const override
+    {
+        return std::vector<TDataSliceDescriptor>();
     }
 
     virtual TStatistics GetStatistics() const override

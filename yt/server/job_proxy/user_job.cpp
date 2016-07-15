@@ -109,6 +109,7 @@ using NJobTrackerClient::NProto::TJobResult;
 using NJobTrackerClient::NProto::TJobSpec;
 using NScheduler::NProto::TUserJobSpec;
 using NCoreDump::NProto::TCoreInfo;
+using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -349,6 +350,11 @@ public:
             failedChunks.insert(failedChunks.end(), chunks.begin(), chunks.end());
         }
         return failedChunks;
+    }
+
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const override
+    {
+        return JobIO_->GetUnreadDataSliceDescriptors();
     }
 
 private:
@@ -697,6 +703,13 @@ private:
             .ValueOrThrow();
     }
 
+    virtual void Interrupt() override
+    {
+        ValidatePrepared();
+
+        JobIO_->InterruptReader();
+    }
+
     void ValidatePrepared()
     {
         if (!Prepared_) {
@@ -857,7 +870,6 @@ private:
                     reader,
                     writer,
                     bufferRowCount);
-
                 WaitFor(asyncOutput->Close())
                     .ThrowOnError();
             } catch (const std::exception& ex) {
