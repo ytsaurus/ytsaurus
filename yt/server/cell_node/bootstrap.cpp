@@ -392,20 +392,21 @@ void TBootstrap::DoRun()
                 std::move(jobSpec),
                 this);
         });
-    JobController->RegisterFactory(NJobAgent::EJobType::Map,             createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::PartitionMap,    createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::SortedMerge,     createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::OrderedMerge,    createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::UnorderedMerge,  createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::Partition,       createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::SimpleSort,      createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::IntermediateSort,createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::FinalSort,       createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::SortedReduce,    createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::PartitionReduce, createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::ReduceCombiner,  createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::RemoteCopy,      createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::OrderedMap,      createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::Map,               createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::PartitionMap,      createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::SortedMerge,       createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::OrderedMerge,      createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::UnorderedMerge,    createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::Partition,         createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::SimpleSort,        createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::IntermediateSort,  createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::FinalSort,         createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::SortedReduce,      createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::PartitionReduce,   createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::ReduceCombiner,    createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::RemoteCopy,        createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::OrderedMap,        createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::JoinReduce,        createExecJob);
 
     auto createChunkJob = BIND([this] (
             const NJobAgent::TJobId& jobId,

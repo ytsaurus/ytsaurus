@@ -3,12 +3,18 @@
 
 #include <yt/ytlib/scheduler/config.h>
 
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+
 namespace NYT {
 namespace NJobProxy {
 
 using namespace NTableClient;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NTransactionClient;
+
+using NChunkClient::TDataSliceDescriptor;
+using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -20,6 +26,21 @@ public:
         : TUserJobIOBase(host)
         , UseParallelReader_(useParallelReader)
     { }
+
+    virtual void InterruptReader() override
+    {
+        if (Reader_) {
+            Reader_->Interrupt();
+        }
+    }
+
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const override
+    {
+        if (Reader_) {
+            return Reader_->GetUnreadDataSliceDescriptors(TRange<TUnversionedRow>());
+        }
+        return std::vector<TDataSliceDescriptor>();
+    }
 
 private:
     const bool UseParallelReader_;
@@ -41,8 +62,9 @@ private:
     {
         return CreateRegularReader(UseParallelReader_, std::move(nameTable), columnFilter);
     }
-
 };
+
+////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IUserJobIO> CreateMapJobIO(IJobHostPtr host)
 {

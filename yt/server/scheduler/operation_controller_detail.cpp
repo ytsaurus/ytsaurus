@@ -507,6 +507,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
         jobType,
         neededResources,
         restarted,
+        controller->IsJobInterruptible(),
         jobSpecBuilder,
         Controller->Spec->JobNodeAccount);
 
@@ -639,7 +640,8 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
 
         auto inputStatistics = GetTotalInputDataStatistics(statistics);
         auto outputStatistics = GetTotalOutputDataStatistics(statistics);
-        if (Controller->IsRowCountPreserved()) {
+        // It's impossible to check row count preserve on interrupted job.
+        if (Controller->IsRowCountPreserved() && !jobSummary.Interrupted) {
             if (inputStatistics.row_count() != outputStatistics.row_count()) {
                 Controller->OnOperationFailed(TError(
                     "Input/output row count mismatch in completed job: %v != %v",
@@ -1037,7 +1039,7 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
     for (auto& chunkSpec : *chunkSpecs) {
         auto inputChunk = New<TInputChunk>(std::move(chunkSpec));
         auto chunkSlice = CreateInputChunkSlice(std::move(inputChunk));
-        auto dataSlice = CreateInputDataSlice(std::move(chunkSlice));
+        auto dataSlice = CreateUnversionedInputDataSlice(std::move(chunkSlice));
         stripe->DataSlices.emplace_back(std::move(dataSlice));
     }
     return stripe;
@@ -2104,6 +2106,9 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
     UpdateJobStatistics(*jobSummary);
 
     joblet->Task->OnJobCompleted(joblet, *jobSummary);
+    if (jobSummary->Interrupted) {
+        OnJobInterrupted(*jobSummary);
+    }
 
     RemoveJoblet(jobId);
 
@@ -2119,6 +2124,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
             case EJobType::Map:
             case EJobType::OrderedMap:
             case EJobType::SortedReduce:
+            case EJobType::JoinReduce:
             case EJobType::PartitionReduce: {
                 auto path = Format("/data/output/%v/row_count%v", *RowCountLimitTableIndex, jobSummary->StatisticsSuffix);
                 i64 count = GetNumericValue(JobStatistics, path);
@@ -4164,8 +4170,10 @@ void TOperationControllerBase::ClearInputChunkBoundaryKeys()
     for (auto& pair : InputChunkMap) {
         auto& inputChunkDescriptor = pair.second;
         for (auto chunkSpec : inputChunkDescriptor.InputChunks) {
-            // We don't need boundary key ext after preparation phase.
-            chunkSpec->ReleaseBoundaryKeys();
+            // We don't need boundary key ext after preparation phase (for primary tables only).
+            if (InputTables[chunkSpec->GetTableIndex()].IsPrimary()) {
+                chunkSpec->ReleaseBoundaryKeys();
+            }
         }
     }
 }
@@ -4328,7 +4336,7 @@ std::vector<std::deque<TInputDataSlicePtr>> TOperationControllerBase::CollectFor
                                 Y_UNREACHABLE();
                         }
                     }
-                    result.back().push_back(CreateInputDataSlice(CreateInputChunkSlice(
+                    result.back().push_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(
                         chunkSpec,
                         GetKeyPrefix(chunkSpec->BoundaryKeys()->MinKey.Get(), foreignKeyColumnCount, RowBuffer),
                         GetKeyPrefixSuccessor(chunkSpec->BoundaryKeys()->MaxKey.Get(), foreignKeyColumnCount, RowBuffer))));
@@ -4366,7 +4374,7 @@ void TOperationControllerBase::SliceUnversionedChunks(
 {
     auto appendStripes = [&] (const std::vector<TInputChunkSlicePtr>& slices) {
         for (const auto& slice : slices) {
-            result->push_back(New<TChunkStripe>(CreateInputDataSlice(slice)));
+            result->push_back(New<TChunkStripe>(CreateUnversionedInputDataSlice(slice)));
         }
     };
 
@@ -4413,6 +4421,62 @@ void TOperationControllerBase::SlicePrimaryVersionedChunks(
     for (const auto& dataSlice : CollectPrimaryVersionedDataSlices(jobSizeConstraints->GetInputSliceDataSize())) {
         result->push_back(New<TChunkStripe>(dataSlice));
     }
+}
+
+bool TOperationControllerBase::IsJobInterruptible() const
+{
+    return false;
+}
+
+void TOperationControllerBase::OnJobInterrupted(const TCompletedJobSummary& jobSummary)
+{
+    JobCounter.Interrupted(1);
+
+    const auto& inputDataSlices = ExtractInputDataSlices(jobSummary);
+    ReinstallUnreadInputDataSlices(inputDataSlices);
+}
+
+std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices(const TCompletedJobSummary& jobSummary) const
+{
+    std::vector<TInputDataSlicePtr> dataSliceList;
+
+    const auto& result = jobSummary.Result;
+    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(schedulerResultExt.unread_input_data_slice_descriptors());
+
+    for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
+        std::vector<TInputChunkSlicePtr> chunkSliceList;
+        chunkSliceList.reserve(dataSliceDescriptor.ChunkSpecs.size());
+        for (const auto& protoChunkSpec : dataSliceDescriptor.ChunkSpecs) {
+            auto chunkId = FromProto<TChunkId>(protoChunkSpec.chunk_id());
+            auto it = InputChunkMap.find(chunkId);
+            YCHECK(it != InputChunkMap.end());
+            const auto& inputChunks = it->second.InputChunks;
+            auto chunkIt = std::find_if(
+                inputChunks.begin(),
+                inputChunks.end(),
+                [&] (const TInputChunkPtr& inputChunk) -> bool {
+                    return inputChunk->GetTableIndex() == protoChunkSpec.table_index() &&
+                        inputChunk->GetRangeIndex() == protoChunkSpec.range_index();
+                });
+            YCHECK(chunkIt != inputChunks.end());
+            auto chunkSlice = New<TInputChunkSlice>(*chunkIt, RowBuffer, protoChunkSpec);
+            chunkSliceList.emplace_back(std::move(chunkSlice));
+        }
+        if (dataSliceDescriptor.Type == EDataSliceDescriptorType::VersionedTable) {
+            dataSliceList.emplace_back(CreateVersionedInputDataSlice(chunkSliceList));
+        } else {
+            YCHECK(dataSliceDescriptor.Type == EDataSliceDescriptorType::UnversionedTable);
+            YCHECK(chunkSliceList.size() == 1);
+            dataSliceList.emplace_back(CreateUnversionedInputDataSlice(chunkSliceList[0]));
+        }
+    }
+    return dataSliceList;
+}
+
+void TOperationControllerBase::ReinstallUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices)
+{
+    Y_UNREACHABLE();
 }
 
 TKeyColumns TOperationControllerBase::CheckInputTablesSorted(

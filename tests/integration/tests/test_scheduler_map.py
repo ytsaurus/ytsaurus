@@ -2207,6 +2207,71 @@ print row + table_index
         assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
 
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_map_interrupt_job(self, ordered):
+        create("table", "//tmp/in_1")
+        write_table(
+            "//tmp/in_1",
+            [{"key": "%08d" % i, "value": "(xyz)"} for i in range(50000)],
+            table_writer = {
+                "block_size": 1024,
+                "desired_chunk_size": 1024})
+        create("table", "//tmp/in_2")
+        write_table(
+            "//tmp/in_2",
+            [{"key": "%08d" % i, "value": "(xyz)"} for i in range(50000,100000)],
+            table_writer = {
+                "block_size": 1024,
+                "desired_chunk_size": 1024})
+
+        output = "//tmp/output"
+        job_type = "map"
+        if ordered:
+            output = "<sorted_by=[key]>" + output
+            job_type = "ordered_map"
+        create("table", output)
+
+        op = map(
+            ordered=ordered,
+            dont_track=True,
+            waiting_jobs=True,
+            label="interrupt_job",
+            in_=["//tmp/in_1", "//tmp/in_2"],
+            out=output,
+            precommand='read; echo "${REPLY/(???)/(job)}"; echo "$REPLY"',
+            command="cat",
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "max_failed_job_count": 1,
+                "job_io" : {
+                    "buffer_row_count" : 10,
+                },
+            })
+
+        interrupt_job(op.jobs[0])
+        op.resume_jobs()
+        op.track()
+
+        row_count = get("//tmp/output/@row_count")
+        assert row_count == 100002
+        result = read_table("//tmp/output", verbose=False)
+        if not ordered:
+            result.sort()
+        row_index = 0
+        job_indexes = []
+        for row in result:
+            assert row["key"] == "%08d" % row_index
+            if row["value"] == "(job)":
+                job_indexes.append(int(row["key"]))
+            else:
+                row_index += 1
+        assert job_indexes[1] > 0 and job_indexes[1] < 99999
+        input_row_count = get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/{1}/sum".format(op.id, job_type))
+        assert input_row_count == row_count - 2
+
+
 class TestSchedulerControllerThrottling(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5

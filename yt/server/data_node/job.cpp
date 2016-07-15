@@ -233,6 +233,11 @@ public:
         THROW_ERROR_EXCEPTION("Job shell is not supported");
     }
 
+    virtual void Interrupt() override
+    {
+        THROW_ERROR_EXCEPTION("Interrupting is not supported");
+    }
+
     virtual void OnJobPrepared() override
     {
         Y_UNREACHABLE();

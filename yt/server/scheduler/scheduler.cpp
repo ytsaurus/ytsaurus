@@ -704,10 +704,10 @@ public:
             .Run();
     }
 
-    TFuture<void> AbortJob(const TJobId& jobId, const Stroka& user)
+    TFuture<void> AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const Stroka& user)
     {
         auto nodeShard = GetNodeShardByJobId(jobId);
-        return BIND(&TNodeShard::AbortJob, nodeShard, jobId, user)
+        return BIND(&TNodeShard::AbortJob, nodeShard, jobId, interruptTimeout, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
     }
@@ -2483,9 +2483,9 @@ TFuture<TYsonString> TScheduler::PollJobShell(const TJobId& jobId, const TYsonSt
     return Impl_->PollJobShell(jobId, parameters, user);
 }
 
-TFuture<void> TScheduler::AbortJob(const TJobId& jobId, const Stroka& user)
+TFuture<void> TScheduler::AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const Stroka& user)
 {
-    return Impl_->AbortJob(jobId, user);
+    return Impl_->AbortJob(jobId, interruptTimeout, user);
 }
 
 void TScheduler::ProcessHeartbeat(TCtxHeartbeatPtr context)

@@ -514,7 +514,9 @@ struct TPollJobShellOptions
 
 struct TAbortJobOptions
     : public TTimeoutOptions
-{ };
+{
+    TNullable<TDuration> InterruptTimeout;
+};
 
 struct TSelectRowsResult
 {
@@ -806,11 +808,9 @@ struct IClient
         const NJobTrackerClient::TJobId& jobId,
         const TAbortJobOptions& options = TAbortJobOptions()) = 0;
 
-
     // Metadata
     virtual TFuture<TClusterMeta> GetClusterMeta(
         const TGetClusterMetaOptions& options = TGetClusterMetaOptions()) = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

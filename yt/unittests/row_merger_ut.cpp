@@ -8,6 +8,7 @@
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/versioned_row.h>
 
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_statistics.h>
 
 #include <yt/ytlib/table_client/config.h>
@@ -24,6 +25,9 @@
 
 namespace NYT {
 namespace NTableClient {
+
+using NChunkClient::TDataSliceDescriptor;
+using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 

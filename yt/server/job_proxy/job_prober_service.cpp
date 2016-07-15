@@ -34,6 +34,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Strace));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Interrupt));
     }
 
 private:
@@ -104,6 +105,20 @@ private:
         auto result = JobProxy_->PollJobShell(jobId, parameters);
 
         ToProto(response->mutable_result(), result.Data());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Interrupt)
+    {
+        Y_UNUSED(response);
+
+        auto jobId = FromProto<TJobId>(request->job_id());
+
+        context->SetRequestInfo("JobId: %v",
+            jobId);
+
+        JobProxy_->Interrupt(jobId);
+
         context->Reply();
     }
 };

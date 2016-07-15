@@ -29,6 +29,10 @@ struct ISchemalessChunkReader
     //! The current row index (measured from the table beginning).
     //! Only makes sense if the read range is nonempty.
     virtual i64 GetTableRowIndex() const = 0;
+
+    //! Return unreadRows to reader and build data slice descriptors for unread data.
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
+        const NYT::TRange<NTableClient::TUnversionedRow>& unreadRows) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
@@ -72,6 +76,9 @@ struct ISchemalessMultiChunkReader
     //! Approximate row count readable with this reader.
     //! May change over time and finally converges to actually read row count.
     virtual i64 GetTotalRowCount() const = 0;
+
+    //! Interrupt the reader, notify consumer via end of stream in Read() method.
+    virtual void Interrupt() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkReader)

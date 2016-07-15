@@ -344,7 +344,7 @@ private:
             {
                 THROW_ERROR_EXCEPTION("Remote copy operation does not support non-trivial table limits");
             }
-            stripes.push_back(New<TChunkStripe>(CreateInputDataSlice(CreateInputChunkSlice(chunkSpec))));
+            stripes.push_back(New<TChunkStripe>(CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunkSpec))));
         }
 
         auto jobSizeConstraints = CreateSimpleJobSizeConstraints(Spec_, Options_, TotalEstimatedInputDataSize);

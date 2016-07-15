@@ -35,6 +35,10 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NRpc;
 using namespace NNodeTrackerClient;
+using namespace NTableClient;
+
+using NChunkClient::TDataSliceDescriptor;
+using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,6 +130,7 @@ public:
             return std::vector<TChunkId>();
         }
     }
+
 
 private:
     const TBlockFetcherConfigPtr Config_;
@@ -363,7 +368,10 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 endOffset);
         };
 
-        factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate));
+        factories.emplace_back(CreateReaderFactory(
+            createReader,
+            memoryEstimate,
+            MakeFileDataSliceDescriptor(chunkSpec)));
     }
 
     auto reader = New<TFileMultiChunkReader>(

@@ -38,6 +38,7 @@ using namespace NQueryClient;
 using namespace NExecAgent;
 
 using NJobTrackerClient::TStatistics;
+using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,6 +89,11 @@ TYsonString TJob::PollJobShell(const TYsonString& /*parameters*/)
     THROW_ERROR_EXCEPTION(
         EErrorCode::UnsupportedJobType,
         "Job shell is not supported for built-in jobs");
+}
+
+void TJob::Interrupt()
+{
+    THROW_ERROR_EXCEPTION("Interrupting is not supported for built-in jobs");
 }
 
 void RunQuery(
@@ -230,6 +236,11 @@ TTableWriterConfigPtr TSimpleJobBase::GetWriterConfig(const TTableOutputSpec& ou
             ConvertTo<INodePtr>(TYsonString(outputSpec.table_writer_config())));
     }
     return config;
+}
+
+std::vector<TDataSliceDescriptor> TSimpleJobBase::GetUnreadDataSliceDescriptors() const
+{
+    return std::vector<TDataSliceDescriptor>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

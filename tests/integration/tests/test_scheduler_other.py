@@ -1508,6 +1508,50 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         op1.abort()
 
+    @pytest.mark.parametrize("interruptible", [False, True])
+    def test_interrupt_job_on_preemption(self, interruptible):
+        create("table", "//tmp/t_in")
+        write_table(
+            "//tmp/t_in",
+            [{"key": "%08d" % i, "value": "(foo)"} for i in range(300000)],
+            table_writer = {
+                "block_size": 1024,
+                "desired_chunk_size": 1024})
+
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+        spec={
+            "pool": "fake_pool",
+            "locality_timeout": 0
+        }
+        if interruptible:
+            data_size_per_job = get("//tmp/t_in/@uncompressed_data_size")
+            spec["data_size_per_job"] = data_size_per_job / 3 + 1
+        else:
+            spec["job_count"] = 3
+        op1 = map(
+            dont_track=True,
+            command="sleep 5; cat; echo stderr 1>&2",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out1",
+            spec=spec)
+        time.sleep(3)
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/fake_pool/fair_share_ratio") >= 0.999
+        assert get("//sys/scheduler/orchid/scheduler/pools/fake_pool/usage_ratio") >= 0.999
+
+        create("map_node", "//sys/pools/test_pool", attributes={"min_share_ratio": 1.0})
+        op2 = map(
+            dont_track=True,
+            command="cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out2",
+            spec={"pool": "test_pool"})
+        op2.track()
+        op1.track()
+        assert get("//sys/operations/" + op1.id + "/jobs/@count") == (4 if interruptible else 3)
+
     def test_min_share_ratio(self):
         create("map_node", "//sys/pools/test_min_share_ratio_pool", attributes={"min_share_ratio": 1.0})
 

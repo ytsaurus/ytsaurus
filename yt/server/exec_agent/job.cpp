@@ -435,6 +435,19 @@ public:
             std::move(statistics).OperationId(GetOperationId()).JobId(GetId()));
     }
 
+    virtual void Interrupt() override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        ValidateJobRunning();
+        auto proxy = Slot_->GetJobProberProxy();
+
+        auto req = proxy.Interrupt();
+
+        ToProto(req->mutable_job_id(), Id_);
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error interrupting job on job proxy");
+    }
+
 private:
     const TJobId Id_;
     const TOperationId OperationId_;

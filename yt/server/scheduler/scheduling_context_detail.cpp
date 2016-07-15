@@ -81,6 +81,7 @@ TJobPtr TSchedulingContextBase::StartJob(const TOperationId& operationId, const 
         startTime,
         jobStartRequest.ResourceLimits,
         jobStartRequest.Restarted,
+        jobStartRequest.Interruptible,
         jobStartRequest.SpecBuilder,
         jobStartRequest.Account);
     StartedJobs_.push_back(job);

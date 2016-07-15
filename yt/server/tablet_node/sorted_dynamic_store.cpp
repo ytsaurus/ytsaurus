@@ -6,6 +6,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/ytlib/chunk_client/memory_writer.h>
 
@@ -42,6 +43,9 @@ using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
+
+using NChunkClient::TDataSliceDescriptor;
+using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -60,6 +60,7 @@ public:
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
         Persist(context, TableReaderOptions);
+        Persist(context, IsExplicitJobCount);
         Persist(context, UnorderedPool);
         Persist(context, UnorderedTask);
         Persist(context, UnorderedTaskGroup);
@@ -77,6 +78,9 @@ protected:
 
     //! Table reader options for map jobs.
     TTableReaderOptionsPtr TableReaderOptions;
+
+    //! Flag set when job count was explicitly specified.
+    bool IsExplicitJobCount;
 
 
     class TUnorderedTask
@@ -268,6 +272,8 @@ protected:
                     totalDataSize,
                     totalRowCount);
 
+                IsExplicitJobCount = jobSizeConstraints->IsExplicitJobCount();
+
                 std::vector<TChunkStripePtr> stripes;
                 SliceUnversionedChunks(mergedChunks, jobSizeConstraints, &stripes);
                 SlicePrimaryVersionedChunks(jobSizeConstraints, &stripes);
@@ -284,7 +290,9 @@ protected:
                 UnorderedTask->FinishInput();
                 RegisterTask(UnorderedTask);
 
-                LOG_INFO("Inputs processed (JobCount: %v)", UnorderedTask->GetPendingJobCount());
+                LOG_INFO("Inputs processed (JobCount: %v, IsExplicitJobCount: %v)",
+                    UnorderedTask->GetPendingJobCount(),
+                    IsExplicitJobCount);
             } else {
                 LOG_INFO("Inputs processed, all chunks were teleported");
             }
@@ -294,6 +302,16 @@ protected:
         InitJobSpecTemplate();
     }
 
+    virtual void ReinstallUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices) override
+    {
+        std::vector<TChunkStripePtr> stripes;
+        for (const auto& slice : inputDataSlices) {
+            auto chunkStripe = New<TChunkStripe>(slice);
+            stripes.emplace_back(std::move(chunkStripe));
+        }
+        UnorderedTask->AddInput(stripes);
+        UnorderedTask->FinishInput();
+    }
 
     // Resource management.
     TExtendedJobResources GetUnorderedOperationResources(
@@ -311,7 +329,7 @@ protected:
     virtual Stroka GetLoggingProgress() const override
     {
         return Format(
-            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v}, "
+            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
             "UnavailableInputChunks: %v",
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
@@ -319,6 +337,7 @@ protected:
             GetPendingJobCount(),
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),
+            JobCounter.GetInterrupted(),
             UnavailableInputChunkCount);
     }
 
@@ -524,6 +543,11 @@ private:
     virtual bool IsInputDataSizeHistogramSupported() const override
     {
         return true;
+    }
+
+    virtual bool IsJobInterruptible() const override
+    {
+        return !IsExplicitJobCount;
     }
 };
 

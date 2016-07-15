@@ -185,6 +185,20 @@ void TUserJobIOBase::PopulateStderrResult(NScheduler::NProto::TSchedulerJobResul
     }
 }
 
+void TUserJobIOBase::InterruptReader()
+{
+    THROW_ERROR_EXCEPTION("Interrupting is not supported for this user job")
+        << TErrorAttribute("job_type", Host_->GetJobSpec().type());
+}
+
+std::vector<TDataSliceDescriptor> TUserJobIOBase::GetUnreadDataSliceDescriptors() const
+{
+    THROW_ERROR_EXCEPTION("Getting of unread data slice descriptors is not supported for this user job")
+        << TErrorAttribute("job_type", Host_->GetJobSpec().type());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,

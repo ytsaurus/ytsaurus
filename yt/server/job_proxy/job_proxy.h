@@ -45,6 +45,7 @@ public:
     NYson::TYsonString Strace(const NJobTrackerClient::TJobId& jobId);
     void SignalJob(const NJobTrackerClient::TJobId& jobId, const Stroka& signalName);
     NYson::TYsonString PollJobShell(const NJobTrackerClient::TJobId& jobId, const NYson::TYsonString& parameters);
+    void Interrupt(const NJobTrackerClient::TJobId& jobId);
 
     virtual NRpc::IServerPtr GetRpcServer() const override;
 

@@ -16,6 +16,9 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 
+using NChunkClient::TDataSliceDescriptor;
+using NYT::TRange;
+
 // Reasonable default for max data size per one read call.
 static const i64 MaxDataSizePerRead = 16 * 1024 * 1024;
 static const int RowsPerRead = 10000;
@@ -113,6 +116,17 @@ public:
     {
         YCHECK(UnderlyingReader_);
         return UnderlyingReader_->GetFailedChunkIds();
+    }
+
+    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
+        const TRange<TUnversionedRow>& unreadRows) const override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual void Interrupt() override
+    {
+        Y_UNREACHABLE();
     }
 
     virtual TNameTablePtr GetNameTable() const override
