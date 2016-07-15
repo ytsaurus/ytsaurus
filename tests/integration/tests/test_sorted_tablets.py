@@ -649,6 +649,19 @@ class TestSortedTablets(YTEnvSetup):
         assert get("#" + tablet_id + "/@table_id") == table_id2
         assert get("//tmp/t2/@tablets/0/tablet_id") == tablet_id
 
+    def test_move_unmounted_in_tx(self):
+        self.sync_create_cells(1, 1)
+        self._create_simple_table("//tmp/t1")
+        self.sync_mount_table("//tmp/t1")
+        self.sync_unmount_table("//tmp/t1")
+
+        table_id1 = get("//tmp/t1/@id")
+        tablet_id = get("//tmp/t1/@tablets/0/tablet_id")
+        assert get("#" + tablet_id + "/@table_id") == table_id1
+
+        tx = start_transaction()
+        with pytest.raises(YtError): move("//tmp/t1", "//tmp/t2", tx=tx)
+
     def test_move_multiple_rollback(self):
         self.sync_create_cells(1, 1)
 
