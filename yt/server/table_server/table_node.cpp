@@ -356,7 +356,7 @@ protected:
                 if (sourceNode->HasMountedTablets()) {
                     THROW_ERROR_EXCEPTION("Cannot move a dynamic table with mounted tablets");
                 }
-                if (factory->GetTransaction()) {
+                if (sourceNode->IsDynamic() && factory->GetTransaction()) {
                     THROW_ERROR_EXCEPTION("Cannot move a dynamic table inside transaction");
                 }
                 break;
