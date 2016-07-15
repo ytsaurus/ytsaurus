@@ -24,6 +24,7 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 
+#include <yt/ytlib/table_client/data_slice_descriptor.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_consumer.h>
@@ -764,8 +765,10 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     TChunkStripePtr stripe)
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
-        auto* chunkSpec = inputSpec->add_chunks();
-        ToProto(chunkSpec, chunkSlice);
+        auto chunkSpec = ToProto<NChunkClient::NProto::TChunkSpec>(chunkSlice);
+        TDataSliceDescriptor dataSliceDescriptor(EDataSliceDescriptorType::UnversionedTable, {std::move(chunkSpec)});
+        ToProto(inputSpec->add_data_slice_descriptors(), dataSliceDescriptor);
+
         auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
         directoryBuilder->Add(replicas);
     }
@@ -3448,6 +3451,7 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
 
                     case EObjectType::Table:
                         attributeKeys.push_back("format");
+                        attributeKeys.push_back("dynamic");
                         break;
 
                     default:
@@ -3541,6 +3545,9 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
                         } catch (const std::exception& ex) {
                             THROW_ERROR_EXCEPTION("Failed to parse format of table file %v",
                                 file.Path) << ex;
+                        }
+                        if (attributes.Get<bool>("dynamic")) {
+                            THROW_ERROR_EXCEPTION("Dynamic table cannot be placed as a local file");
                         }
                         break;
 
@@ -4267,7 +4274,15 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         auto *descriptor = jobSpec->add_files();
         descriptor->set_type(static_cast<int>(file.Type));
         descriptor->set_file_name(file.FileName);
-        ToProto(descriptor->mutable_chunks(), file.ChunkSpecs);
+
+        for (const auto& chunkSpec : file.ChunkSpecs) {
+            auto type = file.Type == EObjectType::File
+                ? EDataSliceDescriptorType::File
+                : EDataSliceDescriptorType::UnversionedTable;
+            TDataSliceDescriptor dataSliceDescriptor(type, {chunkSpec});
+            ToProto(descriptor->add_data_slice_descriptors(), dataSliceDescriptor);
+        }
+
         switch (file.Type) {
             case EObjectType::File:
                 descriptor->set_executable(file.Executable);

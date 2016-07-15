@@ -49,7 +49,7 @@ public:
 
         YCHECK(SchedulerJobSpecExt_.input_specs_size() == 1);
         const auto& inputSpec = SchedulerJobSpecExt_.input_specs(0);
-        std::vector<TChunkSpec> chunkSpecs(inputSpec.chunks().begin(), inputSpec.chunks().end());
+        auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
 
         Reader_ = CreateSchemalessPartitionSortReader(
             config->JobIO->TableReader,
@@ -59,7 +59,7 @@ public:
             keyColumns,
             nameTable,
             BIND(&IJobHost::ReleaseNetwork, Host_),
-            chunkSpecs,
+            std::move(dataSliceDescriptors),
             TotalRowCount_,
             SchedulerJobSpecExt_.is_approximate(),
             SortJobSpecExt_.partition_tag());

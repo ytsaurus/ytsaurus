@@ -24,7 +24,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     const TKeyColumns& keyColumns,
     TNameTablePtr nameTable,
     TClosure onNetworkReleased,
-    const std::vector<NChunkClient::NProto::TChunkSpec>& chunks,
+    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     i64 estimatedRowCount,
     bool isApproximate,
     int partitionTag);

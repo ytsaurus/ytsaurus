@@ -56,7 +56,7 @@ public:
 
         for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
-            std::vector<TChunkSpec> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
+            auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
 
             auto reader = CreateSchemalessSequentialMultiChunkReader(
                 JobIOConfig_->TableReader,
@@ -65,7 +65,7 @@ public:
                 Host_->LocalDescriptor(),
                 Host_->GetBlockCache(),
                 Host_->GetInputNodeDirectory(),
-                chunks,
+                std::move(dataSliceDescriptors),
                 nameTable,
                 columnFilter,
                 keyColumns);
@@ -82,7 +82,7 @@ public:
         keyColumns.resize(ForeignKeyColumnCount_);
 
         for (const auto& inputSpec : SchedulerJobSpec_.foreign_input_specs()) {
-            std::vector<TChunkSpec> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
+            auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
 
             auto reader = CreateSchemalessSequentialMultiChunkReader(
                 JobIOConfig_->TableReader,
@@ -91,7 +91,7 @@ public:
                 Host_->LocalDescriptor(),
                 Host_->GetBlockCache(),
                 Host_->GetInputNodeDirectory(),
-                chunks,
+                std::move(dataSliceDescriptors),
                 nameTable,
                 columnFilter,
                 keyColumns);

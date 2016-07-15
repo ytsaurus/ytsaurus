@@ -45,7 +45,6 @@ using namespace NCypressClient;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NTableClient;
-using namespace NTableClient::NProto;
 using namespace NApi;
 using namespace NTransactionClient;
 using namespace NYPath;
@@ -251,6 +250,12 @@ void TSchemalessTableReader::DoOpen()
             TColumnFilter(),
             schema);
     } else {
+        std::vector<TDataSliceDescriptor> dataSliceDescriptors;
+        for (auto& chunkSpec : chunkSpecs) {
+            TDataSliceDescriptor dataSliceDescriptor(EDataSliceDescriptorType::UnversionedTable, {std::move(chunkSpec)});
+            dataSliceDescriptors.push_back(std::move(dataSliceDescriptor));
+        }
+
         auto factory = Unordered_
             ? CreateSchemalessParallelMultiChunkReader
             : CreateSchemalessSequentialMultiChunkReader;
@@ -262,7 +267,7 @@ void TSchemalessTableReader::DoOpen()
             TNodeDescriptor(),
             Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
-            std::move(chunkSpecs),
+            std::move(dataSliceDescriptors),
             New<TNameTable>(),
             TColumnFilter(),
             TKeyColumns(),

@@ -3,24 +3,30 @@
 #include <yt/core/misc/hash.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/ytlib/table_client/data_slice_descriptor.h>
+
 namespace NYT {
 namespace NDataNode {
 
 using namespace NChunkClient;
 using namespace NObjectClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TArtifactKey::TArtifactKey(const TChunkId& chunkId)
 {
     set_type(static_cast<int>(EObjectType::File));
-    ToProto(add_chunks()->mutable_chunk_id(), chunkId);
+    NChunkClient::NProto::TChunkSpec chunkSpec;
+    ToProto(chunkSpec.mutable_chunk_id(), chunkId);
+    TDataSliceDescriptor dataSliceDescriptor(EDataSliceDescriptorType::File, {chunkSpec});
+    ToProto(add_data_slice_descriptors(), dataSliceDescriptor);
 }
 
 TArtifactKey::TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor)
 {
     set_type(descriptor.type());
-    mutable_chunks()->MergeFrom(descriptor.chunks());
+    mutable_data_slice_descriptors()->MergeFrom(descriptor.data_slice_descriptors());
     if (descriptor.has_format()) {
         set_format(descriptor.format());
     }
@@ -47,15 +53,20 @@ TArtifactKey::operator size_t() const
         }
     };
 
-    for (const auto& spec : chunks()) {
-        auto id = FromProto<TGuid>(spec.chunk_id());
-        result = HashCombine(result, id);
+    auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(data_slice_descriptors());
+    for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
+        result = HashCombine(result, dataSliceDescriptor.Type);
 
-        if (spec.has_lower_limit()) {
-            hashReadLimit(spec.lower_limit());
-        }
-        if (spec.has_upper_limit()) {
-            hashReadLimit(spec.upper_limit());
+        for (const auto& spec : dataSliceDescriptor.ChunkSpecs) {
+            auto id = FromProto<TGuid>(spec.chunk_id());
+            result = HashCombine(result, id);
+
+            if (spec.has_lower_limit()) {
+                hashReadLimit(spec.lower_limit());
+            }
+            if (spec.has_upper_limit()) {
+                hashReadLimit(spec.upper_limit());
+            }
         }
     }
 
@@ -73,7 +84,7 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
     if (has_format() && format() != other.format())
         return false;
 
-    if (chunks_size() != other.chunks_size())
+    if (data_slice_descriptors_size() != other.data_slice_descriptors_size())
         return false;
 
     auto compareLimits = [] (
@@ -101,27 +112,47 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
         return true;
     };
 
-    for (int index = 0; index < chunks_size(); ++index) {
-        const auto& lhs = chunks(index);
-        const auto& rhs = other.chunks(index);
+    auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(data_slice_descriptors());
+    auto otherDataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(other.data_slice_descriptors());
 
-        auto leftId = FromProto<TGuid>(lhs.chunk_id());
-        auto rightId = FromProto<TGuid>(rhs.chunk_id());
+    for (int index = 0; index < dataSliceDescriptors.size(); ++index) {
+        const auto& descriptor = dataSliceDescriptors[index];
+        const auto& otherDescriptor = otherDataSliceDescriptors[index];
 
-        if (leftId != rightId)
+        if (descriptor.Type != otherDescriptor.Type)
             return false;
 
-        if (lhs.has_lower_limit() != rhs.has_lower_limit())
+        if (descriptor.Schema != otherDescriptor.Schema)
             return false;
 
-        if (lhs.has_lower_limit() && !compareLimits(lhs.lower_limit(), rhs.lower_limit()))
+        if (descriptor.Timestamp != otherDescriptor.Timestamp)
             return false;
 
-        if (lhs.has_upper_limit() != rhs.has_upper_limit())
+        if (descriptor.ChunkSpecs.size() != otherDescriptor.ChunkSpecs.size())
             return false;
 
-        if (lhs.has_upper_limit() && !compareLimits(lhs.upper_limit(), rhs.upper_limit()))
-            return false;
+        for (int chunkIndex = 0; chunkIndex < descriptor.ChunkSpecs.size(); ++chunkIndex) {
+            const auto& lhs = descriptor.ChunkSpecs[chunkIndex];
+            const auto& rhs = otherDescriptor.ChunkSpecs[chunkIndex];
+
+            auto leftId = FromProto<TGuid>(lhs.chunk_id());
+            auto rightId = FromProto<TGuid>(rhs.chunk_id());
+
+            if (leftId != rightId)
+                return false;
+
+            if (lhs.has_lower_limit() != rhs.has_lower_limit())
+                return false;
+
+            if (lhs.has_lower_limit() && !compareLimits(lhs.lower_limit(), rhs.lower_limit()))
+                return false;
+
+            if (lhs.has_upper_limit() != rhs.has_upper_limit())
+                return false;
+
+            if (lhs.has_upper_limit() && !compareLimits(lhs.upper_limit(), rhs.upper_limit()))
+                return false;
+        }
     }
 
     return true;

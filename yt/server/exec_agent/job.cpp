@@ -20,6 +20,8 @@
 
 #include <yt/ytlib/security_client/public.h>
 
+#include <yt/ytlib/table_client/data_slice_descriptor.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/actions/cancelable_context.h>
 
@@ -760,7 +762,11 @@ private:
             for (const auto& function : querySpec.external_functions()) {
                 TArtifactKey key;
                 key.set_type(static_cast<int>(NObjectClient::EObjectType::File));
-                key.mutable_chunks()->MergeFrom(function.chunk_specs());
+
+                for (const auto& chunkSpec : function.chunk_specs()) {
+                    TDataSliceDescriptor dataSliceDescriptor(EDataSliceDescriptorType::File, {chunkSpec});
+                    ToProto(key.add_data_slice_descriptors(), dataSliceDescriptor);
+                }
 
                 Artifacts_.push_back(TArtifact{
                     ESandboxKind::Udf,

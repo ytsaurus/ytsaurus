@@ -4,6 +4,7 @@
 #include "user_job_io.h"
 
 #include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/data_slice_descriptor.h>
 
 #include <yt/core/logging/log.h>
 
@@ -63,7 +64,7 @@ protected:
 
     NTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
         NTableClient::TTableReaderOptionsPtr options,
-        const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+        std::vector<NTableClient::TDataSliceDescriptor> dataSliceDescriptors,
         NTableClient::TNameTablePtr nameTable,
         const NTableClient::TColumnFilter& columnFilter,
         bool isParallel);

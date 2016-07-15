@@ -19,6 +19,7 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/data_slice_descriptor.h>
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
@@ -223,8 +224,10 @@ private:
             auto list = joblet->InputStripeList;
             for (const auto& stripe : list->Stripes) {
                 for (const auto& chunkSlice : stripe->ChunkSlices) {
-                    auto* chunkSpec = inputSpec->add_chunks();
-                    ToProto(chunkSpec, chunkSlice);
+                    auto chunkSpec = ToProto<NChunkClient::NProto::TChunkSpec>(chunkSlice);
+                    TDataSliceDescriptor dataSliceDescriptor(EDataSliceDescriptorType::UnversionedTable, {chunkSpec});
+                    ToProto(inputSpec->add_data_slice_descriptors(), dataSliceDescriptor);
+
                     auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
                     directoryBuilder.Add(replicas);
                 }

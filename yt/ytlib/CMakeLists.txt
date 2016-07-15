@@ -297,6 +297,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorted_merging_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorting_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/table_consumer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/data_slice_descriptor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/data_slice_descriptor.proto
   ${CMAKE_CURRENT_LIST_DIR}/table_client/table_ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/table_client/unordered_schemaful_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/unversioned_row.cpp
