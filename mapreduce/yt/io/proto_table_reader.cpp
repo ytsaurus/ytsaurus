@@ -73,6 +73,10 @@ void ReadMessageFromNode(const TNode& node, Message* row)
                 checkType(TNode::DOUBLE, actualType);
                 reflection->SetDouble(row, fieldDesc, it->second.AsDouble());
                 break;
+            case FieldDescriptor::TYPE_FLOAT:
+                checkType(TNode::DOUBLE, actualType);
+                reflection->SetFloat(row, fieldDesc, it->second.AsDouble());
+                break;
             case FieldDescriptor::TYPE_BOOL:
                 checkType(TNode::BOOL, actualType);
                 reflection->SetBool(row, fieldDesc, it->second.AsBool());

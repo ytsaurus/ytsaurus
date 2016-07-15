@@ -190,6 +190,12 @@ void IdMapperProto()
         row.set_a(i);
         row.set_b(i * 3.14);
         row.set_c("foo");
+        row.set_d(i * 3);
+        row.set_e(true);
+        row.set_f(i * 5);
+        row.set_g(i * 7);
+        row.set_h(i * 2.71);
+        row.set_i("bar");
         writer->AddRow(row);
     }
     writer->Finish();
@@ -208,6 +214,12 @@ void IdMapperProto()
             "a = " << row.a() <<
             ", b = " << row.b() <<
             ", c = " << row.c() <<
+            ", d = " << row.d() <<
+            ", e = " << row.e() <<
+            ", f = " << row.f() <<
+            ", g = " << row.g() <<
+            ", h = " << row.h() <<
+            ", i = " << row.i() <<
         Endl;
     }
 }
