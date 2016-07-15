@@ -3,6 +3,7 @@
 #include "chunk_meta_extensions.h"
 #include "name_table.h"
 #include "schema.h"
+#include "schemaless_chunk_reader.h"
 
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -13,6 +14,8 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/ytree/yson_serializable.h>
+
 namespace NYT {
 namespace NTableClient {
 
@@ -22,7 +25,7 @@ using namespace NConcurrency;
 using namespace NRpc;
 using namespace NApi;
 using namespace NNodeTrackerClient;
-using namespace NTableClient::NProto;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,16 +57,16 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 
     std::vector<int> extensionTags = {
         TProtoExtensionTag<TMiscExt>::Value,
-        TProtoExtensionTag<TBlockMetaExt>::Value,
-        TProtoExtensionTag<TNameTableExt>::Value,
-        TProtoExtensionTag<TKeyColumnsExt>::Value
+        TProtoExtensionTag<NProto::TBlockMetaExt>::Value,
+        TProtoExtensionTag<NProto::TNameTableExt>::Value,
+        TProtoExtensionTag<NProto::TKeyColumnsExt>::Value
     };
 
     ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(Config_->WorkloadDescriptor, PartitionTag_, extensionTags))
         .ValueOrThrow();
 
     TNameTablePtr chunkNameTable;
-    auto nameTableExt = GetProtoExtension<TNameTableExt>(ChunkMeta_.extensions());
+    auto nameTableExt = GetProtoExtension<NProto::TNameTableExt>(ChunkMeta_.extensions());
     try {
         FromProto(&chunkNameTable, nameTableExt);
     } catch (const std::exception& ex) {
@@ -76,11 +79,11 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 
     InitNameTable(chunkNameTable);
 
-    auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
+    auto keyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(ChunkMeta_.extensions());
     auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
     YCHECK(chunkKeyColumns == KeyColumns_);
 
-    BlockMetaExt_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
+    BlockMetaExt_ = GetProtoExtension<NProto::TBlockMetaExt>(ChunkMeta_.extensions());
     std::vector<TBlockFetcher::TBlockInfo> blocks;
     for (auto& blockMeta : BlockMetaExt_.blocks()) {
         TBlockFetcher::TBlockInfo blockInfo;
@@ -148,49 +151,59 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     INativeClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const std::vector<TChunkSpec>& chunkSpecs,
+    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     int partitionTag)
 {
     std::vector<IReaderFactoryPtr> factories;
-    for (const auto& chunkSpec : chunkSpecs) {
-        auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
-        auto createReader = [=] () {
-            auto remoteReader = CreateRemoteReader(
-                chunkSpec,
-                config,
-                options,
-                client,
-                nodeDirectory,
-                TNodeDescriptor(),
-                blockCache,
-                GetUnlimitedThrottler());
+    for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
+        switch (dataSliceDescriptor.Type) {
+            case EDataSliceDescriptorType::UnversionedTable: {
+                YCHECK(dataSliceDescriptor.ChunkSpecs.size() == 1);
+                const auto& chunkSpec = dataSliceDescriptor.ChunkSpecs[0];
+                auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
+                auto createReader = [=] () {
+                    auto remoteReader = CreateRemoteReader(
+                        chunkSpec,
+                        config,
+                        options,
+                        client,
+                        nodeDirectory,
+                        TNodeDescriptor(),
+                        blockCache,
+                        GetUnlimitedThrottler());
 
-            YCHECK(!chunkSpec.has_channel());
-            YCHECK(!chunkSpec.has_lower_limit());
-            YCHECK(!chunkSpec.has_upper_limit());
+                    YCHECK(!chunkSpec.has_channel());
+                    YCHECK(!chunkSpec.has_lower_limit());
+                    YCHECK(!chunkSpec.has_upper_limit());
 
-            TBlockFetcherConfigPtr sequentialReaderConfig = config;
+                    TBlockFetcherConfigPtr sequentialReaderConfig = config;
 
-            return New<TPartitionChunkReader>(
-                sequentialReaderConfig,
-                remoteReader,
-                nameTable,
-                blockCache,
-                keyColumns,
-                chunkSpec.chunk_meta(),
-                partitionTag);
-        };
+                    return New<TPartitionChunkReader>(
+                        sequentialReaderConfig,
+                        remoteReader,
+                        nameTable,
+                        blockCache,
+                        keyColumns,
+                        chunkSpec.chunk_meta(),
+                        partitionTag);
+                };
 
-        factories.emplace_back(CreateReaderFactory(
-            createReader, 
-            memoryEstimate));
+                factories.emplace_back(CreateReaderFactory(
+                    createReader,
+                    memoryEstimate));
+                break;
+            }
+
+            default:
+                Y_UNREACHABLE();
+        }
     }
 
     auto reader = New<TPartitionMultiChunkReader>(
-        config, 
-        options, 
+        config,
+        options,
         factories);
 
     reader->Open();

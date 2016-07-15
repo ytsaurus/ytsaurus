@@ -226,6 +226,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TArtifactMetaHeader
+{
+    ui64 Signature = ExpectedSignature;
+    ui64 Version = ExpectedVersion;
+
+    static constexpr ui64 ExpectedSignature = 0x313030484d415459ull; // YTAMH001
+    static constexpr ui64 ExpectedVersion = 1;
+};
+
+constexpr ui64 TArtifactMetaHeader::ExpectedSignature;
+constexpr ui64 TArtifactMetaHeader::ExpectedVersion;
+
+struct TArtifactReaderMetaBufferTag { };
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkCache::TImpl
     : public TAsyncSlruCacheBase<TArtifactKey, TCachedBlobChunk>
 {
@@ -482,8 +498,8 @@ private:
     TChunkId GetOrCreateArtifactId(const TArtifactKey& key, bool canPrepareSingleChunk)
     {
         if (canPrepareSingleChunk) {
-            YCHECK(key.chunks_size() == 1);
-            const auto& chunkSpec = key.chunks(0);
+            YCHECK(key.data_slice_descriptors_size() == 1 && key.data_slice_descriptors(0).chunks_size() == 1);
+            const auto& chunkSpec = key.data_slice_descriptors(0).chunks(0);
             return FromProto<TChunkId>(chunkSpec.chunk_id());
         } else {
             return TChunkId(
@@ -499,11 +515,14 @@ private:
         if (EObjectType(key.type()) != EObjectType::File) {
             return false;
         }
-        if (key.chunks_size() != 1) {
+        if (key.data_slice_descriptors_size() != 1) {
+            return false;
+        }
+        if (key.data_slice_descriptors(0).chunks_size() != 1) {
             return false;
         }
 
-        const auto& chunk = key.chunks(0);
+        const auto& chunk = key.data_slice_descriptors(0).chunks(0);
         if (chunk.has_lower_limit() && !IsTrivial(chunk.lower_limit())) {
             return false;
         }
@@ -532,7 +551,7 @@ private:
         TNodeDirectoryPtr nodeDirectory,
         TInsertCookie cookie)
     {
-        const auto& chunkSpec = key.chunks(0);
+        const auto& chunkSpec = key.data_slice_descriptors(0).chunks(0);
         auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
         auto Logger = DataNodeLogger;
@@ -635,7 +654,12 @@ private:
         TNodeDirectoryPtr nodeDirectory,
         TInsertCookie cookie)
     {
-        std::vector<TChunkSpec> chunkSpecs(key.chunks().begin(), key.chunks().end());
+        std::vector<TChunkSpec> chunkSpecs;
+
+        for (const auto& descriptor : key.data_slice_descriptors()) {
+            YCHECK(descriptor.type() == EDataSliceDescriptorType::File && descriptor.chunks_size() == 1);
+            chunkSpecs.push_back(descriptor.chunks(0));
+        }
 
         auto options = New<TMultiChunkReaderOptions>();
         options->EnableP2P = true;
@@ -688,11 +712,10 @@ private:
     {
         auto nameTable = New<TNameTable>();
 
-        std::vector<TChunkSpec> chunkSpecs;
-        chunkSpecs.insert(chunkSpecs.end(), key.chunks().begin(), key.chunks().end());
-
         auto options = New<NTableClient::TTableReaderOptions>();
         options->EnableP2P = true;
+
+        auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(key.data_slice_descriptors());
 
         auto reader = CreateSchemalessSequentialMultiChunkReader(
             Config_->ArtifactCacheReader,
@@ -701,7 +724,7 @@ private:
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
-            std::move(chunkSpecs),
+            std::move(dataSliceDescriptors),
             nameTable,
             TColumnFilter(),
             TKeyColumns(),
@@ -753,6 +776,7 @@ private:
         auto tempMetaFileName = metaFileName + NFS::TempFileSuffix;
 
         auto metaBlob = SerializeToProto(key);
+        TArtifactMetaHeader metaHeader;
 
         std::unique_ptr<TFile> tempDataFile;
         std::unique_ptr<TFile> tempMetaFile;
@@ -779,6 +803,7 @@ private:
             chunkSize = tempDataFile->GetLength();
             tempDataFile->Close();
 
+            tempMetaFile->Write(static_cast<void*>(&metaHeader), sizeof(TArtifactMetaHeader));
             tempMetaFile->Write(metaBlob.Begin(), metaBlob.Size());
             tempMetaFile->Close();
 
@@ -800,23 +825,57 @@ private:
         auto dataFileName = location->GetChunkPath(chunkId);
         auto metaFileName = dataFileName + ArtifactMetaSuffix;
 
-        Stroka metaBlob;
+        TSharedMutableRef metaBlob;
 
         location->DisableOnError(BIND([&] () {
             TFile metaFile(
                 metaFileName,
                 OpenExisting | RdOnly | Seq | CloseOnExec);
             TBufferedFileInput metaInput(metaFile);
-            metaBlob = metaInput.ReadAll();
+            metaBlob = TSharedMutableRef::Allocate<TArtifactReaderMetaBufferTag>(metaFile.GetLength());
+            metaInput.Read(metaBlob.Begin(), metaFile.GetLength());
         })).Run();
 
-        TArtifactKey key;
-        if (!TryDeserializeFromProto(&key, TRef::FromString(metaBlob))) {
-            LOG_WARNING("Failed to parse artifact meta file %v",
-                metaFileName);
-            return Null;
-        }
+        auto readMeta = [&] () -> TNullable<TArtifactKey> {
+            if (metaBlob.Size() < sizeof(TArtifactMetaHeader)) {
+                LOG_WARNING("Artifact meta file %v is too short: at least %v bytes expected",
+                    metaFileName,
+                    sizeof(TArtifactMetaHeader));
+                return Null;
+            }
 
+            const auto* header = reinterpret_cast<const TArtifactMetaHeader*>(metaBlob.Begin());
+            if (header->Signature != header->ExpectedSignature) {
+                LOG_WARNING("Bad signature in artifact meta file %v: expected %X, actual %X",
+                    metaFileName,
+                    header->ExpectedSignature,
+                    header->Signature);
+                return Null;
+            }
+
+            if (header->Version != header->ExpectedVersion) {
+                LOG_WARNING("Incompatible version in artifact meta file %v: expected %v, actual %v",
+                    metaFileName,
+                    header->ExpectedVersion,
+                    header->Version);
+                return Null;
+            }
+
+            metaBlob = metaBlob.Slice(sizeof(TArtifactMetaHeader), metaBlob.Size());
+            TArtifactKey key;
+            if (!TryDeserializeFromProto(&key, metaBlob)) {
+                LOG_WARNING("Failed to parse artifact meta file %v",
+                    metaFileName);
+                return Null;
+            }
+
+            return key;
+        };
+
+        auto key = readMeta();
+        if (!key) {
+            location->RemoveChunkFilesPermanently(chunkId);
+        }
         return key;
     }
 

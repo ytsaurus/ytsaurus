@@ -43,9 +43,7 @@ public:
         YCHECK(SchedulerJobSpec_.input_specs_size() == 1);
 
         const auto& inputSpec = SchedulerJobSpec_.input_specs(0);
-        std::vector<TChunkSpec> chunks(
-            inputSpec.chunks().begin(),
-            inputSpec.chunks().end());
+        auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
 
         const auto& reduceJobSpecExt = Host_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
@@ -61,7 +59,7 @@ public:
             keyColumns,
             nameTable,
             BIND(&IJobHost::ReleaseNetwork, Host_),
-            chunks,
+            std::move(dataSliceDescriptors),
             SchedulerJobSpec_.input_row_count(),
             SchedulerJobSpec_.is_approximate(),
             reduceJobSpecExt.partition_tag());

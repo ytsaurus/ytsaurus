@@ -69,9 +69,11 @@ public:
         YCHECK(SchedulerJobSpecExt_.input_specs_size() == 1);
         YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
 
-        for (const auto& inputChunkSpec : SchedulerJobSpecExt_.input_specs(0).chunks()) {
-            YCHECK(!inputChunkSpec.has_lower_limit());
-            YCHECK(!inputChunkSpec.has_upper_limit());
+        for (const auto& dataSliceDescriptor : SchedulerJobSpecExt_.input_specs(0).data_slice_descriptors()) {
+            for (const auto& inputChunkSpec : dataSliceDescriptor.chunks()) {
+                YCHECK(!inputChunkSpec.has_lower_limit());
+                YCHECK(!inputChunkSpec.has_upper_limit());
+            }
         }
     }
 
@@ -92,8 +94,10 @@ public:
     virtual TJobResult Run() override
     {
         PROFILE_TIMING ("/remote_copy_time") {
-            for (const auto& inputChunkSpec : SchedulerJobSpecExt_.input_specs(0).chunks()) {
-                CopyChunk(inputChunkSpec);
+            for (const auto& dataSliceDescriptor : SchedulerJobSpecExt_.input_specs(0).data_slice_descriptors()) {
+                for (const auto& inputChunkSpec : dataSliceDescriptor.chunks()) {
+                    CopyChunk(inputChunkSpec);
+                }
             }
         }
 
@@ -109,7 +113,7 @@ public:
     {
         // Caution: progress calculated approximately (assuming all chunks have equal size).
         double chunkProgress = TotalChunkSize_ ? static_cast<double>(CopiedChunkSize_) / *TotalChunkSize_ : 0.0;
-        return (CopiedChunkCount_ + chunkProgress) / SchedulerJobSpecExt_.input_specs(0).chunks_size();
+        return (CopiedChunkCount_ + chunkProgress) / SchedulerJobSpecExt_.input_specs(0).data_slice_descriptors_size();
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override

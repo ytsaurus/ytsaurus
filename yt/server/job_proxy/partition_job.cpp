@@ -42,10 +42,10 @@ public:
         YCHECK(SchedulerJobSpecExt_.input_specs_size() == 1);
         const auto& inputSpec = SchedulerJobSpecExt_.input_specs(0);
 
-        std::vector<TChunkSpec> chunkSpecs(inputSpec.chunks().begin(), inputSpec.chunks().end());
+        auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
         auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(inputSpec.table_reader_options()));
 
-        TotalRowCount_ = GetCumulativeRowCount(chunkSpecs);
+        TotalRowCount_ = GetCumulativeRowCount(dataSliceDescriptors);
 
         auto keyColumns = FromProto<TKeyColumns>(PartitionJobSpecExt_.sort_key_columns());
 
@@ -62,7 +62,7 @@ public:
                 Host_->LocalDescriptor(),
                 Host_->GetBlockCache(),
                 Host_->GetInputNodeDirectory(),
-                std::move(chunkSpecs),
+                std::move(dataSliceDescriptors),
                 nameTable,
                 columnFilter,
                 TKeyColumns());

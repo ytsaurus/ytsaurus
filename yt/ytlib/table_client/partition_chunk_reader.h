@@ -1,8 +1,9 @@
 #pragma once
 
-#include "public.h"
 #include "chunk_reader_base.h"
+#include "public.h"
 #include "schemaless_block_reader.h"
+#include "data_slice_descriptor.h"
 
 #include <yt/ytlib/chunk_client/multi_reader_base.h>
 
@@ -108,7 +109,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     NApi::INativeClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     int partitionTag);

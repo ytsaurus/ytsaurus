@@ -186,7 +186,7 @@ protected:
     std::unique_ptr<THorizontalSchemalessBlockReader> BlockReader_;
 
     TChunkMeta ChunkMeta_;
-    TBlockMetaExt BlockMetaExt_;
+    NProto::TBlockMetaExt BlockMetaExt_;
 
     std::vector<int> BlockIndexes_;
 
@@ -252,8 +252,8 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
 void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> extensionTags, TNullable<int> partitionTag)
 {
     extensionTags.push_back(TProtoExtensionTag<TMiscExt>::Value);
-    extensionTags.push_back(TProtoExtensionTag<TBlockMetaExt>::Value);
-    extensionTags.push_back(TProtoExtensionTag<TNameTableExt>::Value);
+    extensionTags.push_back(TProtoExtensionTag<NProto::TBlockMetaExt>::Value);
+    extensionTags.push_back(TProtoExtensionTag<NProto::TNameTableExt>::Value);
     auto asynChunkMeta = UnderlyingReader_->GetMeta(
         Config_->WorkloadDescriptor,
         partitionTag,
@@ -261,9 +261,9 @@ void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> ex
     ChunkMeta_ = WaitFor(asynChunkMeta)
         .ValueOrThrow();
 
-    BlockMetaExt_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
+    BlockMetaExt_ = GetProtoExtension<NProto::TBlockMetaExt>(ChunkMeta_.extensions());
 
-    auto nameTableExt = GetProtoExtension<TNameTableExt>(ChunkMeta_.extensions());
+    auto nameTableExt = GetProtoExtension<NProto::TNameTableExt>(ChunkMeta_.extensions());
     try {
         FromProto(&ChunkNameTable_, nameTableExt);
     } catch (const std::exception& ex) {
@@ -405,7 +405,7 @@ void THorizontalSchemalessRangeChunkReader::DoInitializeBlockSequence()
 void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceSorted()
 {
     std::vector<int> extensionTags = {
-        TProtoExtensionTag<TKeyColumnsExt>::Value,
+        TProtoExtensionTag<NProto::TKeyColumnsExt>::Value,
     };
 
     DownloadChunkMeta(extensionTags);
@@ -415,7 +415,7 @@ void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceSorted()
         THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
     }
 
-    auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
+    auto keyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(ChunkMeta_.extensions());
     TKeyColumns chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
     ChunkKeyColumnCount_ = chunkKeyColumns.size();
 
@@ -1250,7 +1250,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const std::vector<TChunkSpec>& chunkSpecs,
+    const std::vector<NTableClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TKeyColumns& keyColumns,
@@ -1258,43 +1258,74 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     IThroughputThrottlerPtr throttler)
 {
     std::vector<IReaderFactoryPtr> factories;
-    for (const auto& chunkSpec : chunkSpecs) {
-        auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
-        auto createReader = [=] () {
-            auto remoteReader = CreateRemoteReader(
-                chunkSpec,
-                config,
-                options,
-                client,
-                nodeDirectory,
-                localDescriptor,
-                blockCache,
-                throttler);
+    for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
+        switch (dataSliceDescriptor.Type) {
+            case EDataSliceDescriptorType::UnversionedTable: {
+                YCHECK(dataSliceDescriptor.ChunkSpecs.size() == 1);
+                const auto& chunkSpec = dataSliceDescriptor.ChunkSpecs[0];
+                auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
+                auto createReader = [=] () {
+                    auto remoteReader = CreateRemoteReader(
+                        chunkSpec,
+                        config,
+                        options,
+                        client,
+                        nodeDirectory,
+                        localDescriptor,
+                        blockCache,
+                        throttler);
 
-            using NYT::FromProto;
-            auto channel = chunkSpec.has_channel()
-                ? FromProto<TChannel>(chunkSpec.channel())
-                : TChannel::Universal();
+                    using NYT::FromProto;
+                    auto channel = chunkSpec.has_channel()
+                        ? FromProto<TChannel>(chunkSpec.channel())
+                        : TChannel::Universal();
 
-            TReadRange range = {
-                chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
-                chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
-            };
+                    TReadRange range = {
+                        chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
+                        chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
+                    };
 
-            return CreateSchemalessChunkReader(
-                chunkSpec,
-                PatchConfig(config, memoryEstimate),
-                options,
-                remoteReader,
-                nameTable,
-                blockCache,
-                keyColumns,
-                columnFilter.All ? CreateColumnFilter(channel, nameTable) : columnFilter,
-                range,
-                partitionTag);
-        };
+                    return CreateSchemalessChunkReader(
+                        chunkSpec,
+                        PatchConfig(config, memoryEstimate),
+                        options,
+                        remoteReader,
+                        nameTable,
+                        blockCache,
+                        keyColumns,
+                        columnFilter.All ? CreateColumnFilter(channel, nameTable) : columnFilter,
+                        range,
+                        partitionTag);
+                };
 
-        factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate));
+                factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate));
+                break;
+            }
+
+            case EDataSliceDescriptorType::VersionedTable: {
+                auto memoryEstimate = GetDataSliceDescriptorReaderMemoryEstimate(dataSliceDescriptor, config);
+                auto createReader  = [=] () {
+                    return CreateSchemalessMergingMultiChunkReader(
+                        config,
+                        options,
+                        client,
+                        localDescriptor,
+                        blockCache,
+                        nodeDirectory,
+                        dataSliceDescriptor.ChunkSpecs,
+                        nameTable,
+                        columnFilter,
+                        dataSliceDescriptor.Schema,
+                        throttler);
+                };
+
+                factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate));
+                break;
+            }
+
+            default:
+                Y_UNREACHABLE();
+        }
     }
 
     return factories;
@@ -1315,7 +1346,7 @@ public:
         const TNodeDescriptor& localDescriptor,
         IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
-        const std::vector<TChunkSpec>& chunkSpecs,
+        const std::vector<NTableClient::TDataSliceDescriptor>& dataSliceDescriptors,
         TNameTablePtr nameTable,
         TColumnFilter columnFilter,
         const TKeyColumns& keyColumns,
@@ -1358,7 +1389,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const std::vector<TChunkSpec>& chunkSpecs,
+    const std::vector<NTableClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TKeyColumns& keyColumns,
@@ -1374,7 +1405,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
             localDescriptor,
             blockCache,
             nodeDirectory,
-            chunkSpecs,
+            dataSliceDescriptors,
             nameTable,
             columnFilter,
             keyColumns,
@@ -1382,7 +1413,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
             throttler))
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
-    , RowCount_(GetCumulativeRowCount(chunkSpecs))
+    , RowCount_(GetCumulativeRowCount(dataSliceDescriptors))
 { }
 
 template <class TBase>
@@ -1459,7 +1490,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const std::vector<TChunkSpec>& chunkSpecs,
+    const std::vector<NTableClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TKeyColumns& keyColumns,
@@ -1473,7 +1504,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
         localDescriptor,
         blockCache,
         nodeDirectory,
-        chunkSpecs,
+        dataSliceDescriptors,
         nameTable,
         columnFilter,
         keyColumns,
@@ -1493,7 +1524,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const std::vector<TChunkSpec>& chunkSpecs,
+    const std::vector<NTableClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TKeyColumns& keyColumns,
@@ -1507,7 +1538,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
         localDescriptor,
         blockCache,
         nodeDirectory,
-        chunkSpecs,
+        dataSliceDescriptors,
         nameTable,
         columnFilter,
         keyColumns,
@@ -1591,20 +1622,15 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     const TTableSchema& tableSchema,
     IThroughputThrottlerPtr throttler)
 {
-    try {
-        for (const auto& column : tableSchema.Columns()) {
-            nameTable->RegisterName(column.Name);
-        }
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to update name table for schemaless merging reader") 
-            << ex;
+    for (const auto& column : tableSchema.Columns()) {
+        nameTable->GetIdOrRegisterName(column.Name);
     }
 
     std::vector<TOwningKey> boundaries;
     boundaries.reserve(chunkSpecs.size());
 
     for (const auto& chunkSpec : chunkSpecs) {
-        auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunkSpec.chunk_meta().extensions());
+        auto boundaryKeysExt = GetProtoExtension<NProto::TBoundaryKeysExt>(chunkSpec.chunk_meta().extensions());
         auto minKey = WidenKey(NYT::FromProto<TOwningKey>(boundaryKeysExt.min()), tableSchema.GetKeyColumnCount());
         boundaries.push_back(minKey);
     }
@@ -1699,7 +1725,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
         });
 
-    i64 rowCount = GetCumulativeRowCount(chunkSpecs);
+    i64 rowCount = NChunkClient::GetCumulativeRowCount(chunkSpecs);
 
     return New<TSchemalessMergingMultiChunkReader>(
         std::move(reader),

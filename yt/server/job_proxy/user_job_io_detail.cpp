@@ -29,7 +29,6 @@ using namespace NScheduler::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTableClient;
-using namespace NTableClient::NProto;
 using namespace NTransactionClient;
 using namespace NObjectClient;
 
@@ -87,9 +86,11 @@ void TUserJobIOBase::CreateReader()
 TSchemalessReaderFactory TUserJobIOBase::GetReaderFactory()
 {
     for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
-        for (const auto& chunkSpec : inputSpec.chunks()) {
-            if (chunkSpec.has_channel() && !FromProto<NChunkClient::TChannel>(chunkSpec.channel()).IsUniversal()) {
-                THROW_ERROR_EXCEPTION("Channels and QL filter cannot appear in the same operation.");
+        for (const auto& dataSliceDescriptor : inputSpec.data_slice_descriptors()) {
+            for (const auto& chunkSpec : dataSliceDescriptor.chunks()) {
+                if (chunkSpec.has_channel() && !FromProto<NChunkClient::TChannel>(chunkSpec.channel()).IsUniversal()) {
+                    THROW_ERROR_EXCEPTION("Channels and QL filter cannot appear in the same operation");
+                }
             }
         }
     }
@@ -156,23 +157,23 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateRegularReader(
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter)
 {
-    std::vector<TChunkSpec> chunkSpecs;
+    std::vector<TDataSliceDescriptor> dataSliceDescriptors;
     for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
-        chunkSpecs.insert(
-            chunkSpecs.end(),
-            inputSpec.chunks().begin(),
-            inputSpec.chunks().end());
+        for (const auto& descriptor : inputSpec.data_slice_descriptors()) {
+            auto dataSliceDescriptor = FromProto<TDataSliceDescriptor>(descriptor);
+            dataSliceDescriptors.push_back(std::move(dataSliceDescriptor));
+        }
     }
 
     auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
         SchedulerJobSpec_.input_specs(0).table_reader_options()));
 
-    return CreateTableReader(options, chunkSpecs, std::move(nameTable), columnFilter, isParallel);
+    return CreateTableReader(options, std::move(dataSliceDescriptors), std::move(nameTable), columnFilter, isParallel);
 }
 
 ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
     NTableClient::TTableReaderOptionsPtr options,
-    const std::vector<TChunkSpec>& chunkSpecs,
+    std::vector<TDataSliceDescriptor> dataSliceDescriptors,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
     bool isParallel)
@@ -185,7 +186,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
             Host_->LocalDescriptor(),
             Host_->GetBlockCache(),
             Host_->GetInputNodeDirectory(),
-            chunkSpecs,
+            std::move(dataSliceDescriptors),
             std::move(nameTable),
             columnFilter);
     } else {
@@ -196,7 +197,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
             Host_->LocalDescriptor(),
             Host_->GetBlockCache(),
             Host_->GetInputNodeDirectory(),
-            chunkSpecs,
+            std::move(dataSliceDescriptors),
             std::move(nameTable),
             columnFilter);
     }

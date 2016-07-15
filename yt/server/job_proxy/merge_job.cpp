@@ -53,12 +53,13 @@ public:
             LOG_INFO("Ordered merge produces sorted output");
         }
 
-        std::vector<TChunkSpec> chunkSpecs;
+        std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         auto readerOptions = New<NTableClient::TTableReaderOptions>();
         for (const auto& inputSpec : SchedulerJobSpecExt_.input_specs()) {
             readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(inputSpec.table_reader_options()));
-            for (const auto& chunkSpec : inputSpec.chunks()) {
-                chunkSpecs.push_back(chunkSpec);
+            for (const auto& descriptor : inputSpec.data_slice_descriptors()) {
+                auto dataSliceDescriptor = FromProto<TDataSliceDescriptor>(descriptor);
+                dataSliceDescriptors.push_back(std::move(dataSliceDescriptor));
             }
         }
 
@@ -81,7 +82,7 @@ public:
                 Host_->LocalDescriptor(),
                 Host_->GetBlockCache(),
                 Host_->GetInputNodeDirectory(),
-                std::move(chunkSpecs),
+                std::move(dataSliceDescriptors),
                 nameTable,
                 columnFilter,
                 TKeyColumns(),

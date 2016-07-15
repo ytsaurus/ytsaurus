@@ -56,7 +56,7 @@ public:
         const TKeyColumns& keyColumns,
         TNameTablePtr nameTable,
         TClosure onNetworkReleased,
-        std::vector<TChunkSpec> chunks,
+        std::vector<TDataSliceDescriptor> dataSliceDescriptors,
         int estimatedRowCount,
         bool isApproximate,
         int partitionTag)
@@ -77,7 +77,7 @@ public:
     {
         YCHECK(EstimatedRowCount_ <= std::numeric_limits<i32>::max());
 
-        std::random_shuffle(chunks.begin(), chunks.end());
+        std::random_shuffle(dataSliceDescriptors.begin(), dataSliceDescriptors.end());
 
         auto options = New<NTableClient::TTableReaderOptions>();
         options->KeepInMemory = true;
@@ -92,7 +92,7 @@ public:
             client,
             blockCache,
             nodeDirectory,
-            std::move(chunks),
+            std::move(dataSliceDescriptors),
             nameTable,
             KeyColumns_,
             partitionTag);
@@ -538,7 +538,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     const TKeyColumns& keyColumns,
     TNameTablePtr nameTable,
     TClosure onNetworkReleased,
-    const std::vector<TChunkSpec>& chunks,
+    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     i64 estimatedRowCount,
     bool isApproximate,
     int partitionTag)
@@ -551,7 +551,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
         keyColumns,
         nameTable,
         onNetworkReleased,
-        chunks,
+        dataSliceDescriptors,
         estimatedRowCount,
         isApproximate,
         partitionTag);

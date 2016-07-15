@@ -1,12 +1,13 @@
 package NYT.NScheduler.NProto;
 
-import "yt/ytlib/node_tracker_client/node.proto";
-import "yt/ytlib/job_tracker_client/job.proto";
-import "yt/ytlib/chunk_client/chunk_spec.proto";
-import "yt/ytlib/table_client/chunk_meta.proto";
-import "yt/ytlib/query_client/query.proto";
-import "yt/ytlib/query_client/functions_cache.proto";
 import "yt/core/misc/guid.proto";
+import "yt/ytlib/chunk_client/chunk_spec.proto";
+import "yt/ytlib/job_tracker_client/job.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/query_client/functions_cache.proto";
+import "yt/ytlib/query_client/query.proto";
+import "yt/ytlib/table_client/chunk_meta.proto";
+import "yt/ytlib/table_client/data_slice_descriptor.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,7 +15,7 @@ message TFileDescriptor
 {
     // Deprecated = 2.
     required string file_name = 3;
-    repeated NChunkClient.NProto.TChunkSpec chunks = 4;
+    repeated NYT.NTableClient.NProto.TDataSliceDescriptor data_slice_descriptors = 4;
     required int32 type = 5;
     optional bool executable = 6;
     optional bytes format = 7;
@@ -89,8 +90,8 @@ message TQuerySpec
 // Describes a part of input table(s) to be processed by a job.
 message TTableInputSpec
 {
-    // Chunks comprising the input.
-    repeated NYT.NChunkClient.NProto.TChunkSpec chunks = 1;
+    // Table slice descriptors comprising the input.
+    repeated NYT.NTableClient.NProto.TDataSliceDescriptor data_slice_descriptors = 1;
 
     // YSON-serialized reader options.
     required string table_reader_options = 2;
