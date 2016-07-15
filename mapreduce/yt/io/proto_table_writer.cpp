@@ -58,6 +58,9 @@ TNode MakeNodeFromMessage(const Message& row)
             case FieldDescriptor::TYPE_DOUBLE:
                 builder.OnDoubleScalar(reflection->GetDouble(row, fieldDesc));
                 break;
+            case FieldDescriptor::TYPE_FLOAT:
+                builder.OnDoubleScalar(reflection->GetFloat(row, fieldDesc));
+                break;
             case FieldDescriptor::TYPE_BOOL:
                 builder.OnBooleanScalar(reflection->GetBool(row, fieldDesc));
                 break;

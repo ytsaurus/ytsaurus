@@ -9,6 +9,12 @@ message TSampleProto
     optional int64  a = 1 [(NYT.column_name) = "column_a"];
     optional double b = 2 [(NYT.column_name) = "column_b"];
     optional string c = 3 [(NYT.column_name) = "column_c"];
+    optional uint64 d = 4 [(NYT.column_name) = "column_d"];
+    optional bool   e = 5 [(NYT.column_name) = "column_e"];
+    optional int32  f = 6 [(NYT.column_name) = "column_f"];
+    optional uint32 g = 7 [(NYT.column_name) = "column_g"];
+    optional float  h = 8 [(NYT.column_name) = "column_h"];
+    optional bytes  i = 9 [(NYT.column_name) = "column_i"];
 }
 
 // TJoinReducerProto
