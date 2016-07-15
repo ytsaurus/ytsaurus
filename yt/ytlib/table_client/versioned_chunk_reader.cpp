@@ -1021,7 +1021,7 @@ public:
         rows->clear();
         RowBuilder_.Clear();
 
-        if (!ReadyEvent_.IsSet()) {
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return true;
         }
 
@@ -1312,7 +1312,7 @@ public:
         rows->clear();
         Pool_.Clear();
 
-        if (!ReadyEvent_.IsSet()) {
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return true;
         }
 
