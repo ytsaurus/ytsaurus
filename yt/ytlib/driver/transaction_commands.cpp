@@ -39,9 +39,9 @@ void TStartTransactionCommand::Execute(ICommandContextPtr context)
     if (Sticky) {
         auto timeout = Options.Timeout.Get(context->GetConfig()->TransactionManager->DefaultTransactionTimeout);
         context->PinTransaction(transaction, timeout);
+    } else {
+        transaction->Detach();
     }
-
-    transaction->Detach();
 
     context->ProduceOutputValue(BuildYsonStringFluently()
         .Value(transaction->GetId()));
