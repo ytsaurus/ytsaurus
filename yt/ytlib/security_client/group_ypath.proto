@@ -5,6 +5,7 @@ package NYT.NSecurityClient.NProto;
 message TReqAddMember
 {
     required string name = 1;
+    optional bool ignore_existing = 2;
 }
 
 message TRspAddMember
@@ -15,6 +16,7 @@ message TRspAddMember
 message TReqRemoveMember
 {
     required string name = 1;
+    optional bool ignore_missing = 2;
 }
 
 message TRspRemoveMember
