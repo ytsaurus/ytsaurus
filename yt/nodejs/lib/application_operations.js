@@ -364,7 +364,7 @@ function YtApplicationOperations$list(parameters)
 
     if (substr_filter) {
         counts_filter_conditions.push(
-            "is_substr(\"{}\", filter_factors)".format(escapeC(substr_filter)));
+            "is_substr(\"{}\", spec.filter_factors)".format(escapeC(substr_filter)));
     }
 
     var items_filter_conditions = counts_filter_conditions.slice();
@@ -381,23 +381,23 @@ function YtApplicationOperations$list(parameters)
     }
 
     if (state_filter) {
-        items_filter_conditions.push("state = \"{}\"".format(escapeC(state_filter)));
+        items_filter_conditions.push("spec.state = \"{}\"".format(escapeC(state_filter)));
     }
 
     if (type_filter) {
-        items_filter_conditions.push("operation_type = \"{}\"".format(escapeC(type_filter)));
+        items_filter_conditions.push("spec.operation_type = \"{}\"".format(escapeC(type_filter)));
     }
 
     if (user_filter) {
-        items_filter_conditions.push("authenticated_user = \"{}\"".format(escapeC(user_filter)));
+        items_filter_conditions.push("spec.authenticated_user = \"{}\"".format(escapeC(user_filter)));
     }
 
-    var query_source = "[{}] JOIN [{}] USING id_hi, id_lo, start_time"
+    var query_source = "[{}] JOIN [{}] spec ON (id_hi, id_lo) = (spec.id_hi, spec.id_lo)"
         .format(OPERATIONS_ARCHIVE_INDEX_PATH, OPERATIONS_ARCHIVE_PATH);
     var query_for_counts =
         "user, state, type, sum(1) AS count FROM {}".format(query_source) +
         " WHERE {}".format(counts_filter_conditions.join(" AND ")) +
-        " GROUP BY authenticated_user AS user, state AS state, operation_type AS type";
+        " GROUP BY spec.authenticated_user AS user, spec.state AS state, spec.operation_type AS type";
     var query_for_items =
         "* FROM {}".format(query_source) +
         " WHERE {}".format(items_filter_conditions.join(" AND ")) +

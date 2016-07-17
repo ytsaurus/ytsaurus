@@ -27,6 +27,7 @@ namespace NHydra {
 
 using namespace NConcurrency;
 using namespace NHydra::NProto;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +43,7 @@ class TFileChangelogQueue
 public:
     explicit TFileChangelogQueue(
         TSyncFileChangelogPtr changelog,
-        const NProfiling::TProfiler& profiler)
+        const TProfiler& profiler)
         : Changelog_(std::move(changelog))
         , Profiler(profiler)
         , FlushedRecordCount_(Changelog_->GetRecordCount())
@@ -220,7 +221,7 @@ public:
 
 private:
     const TSyncFileChangelogPtr Changelog_;
-    const NProfiling::TProfiler Profiler;
+    const TProfiler Profiler;
 
     std::atomic<int> UseCount_ = {0};
 
@@ -291,7 +292,7 @@ public:
     TImpl(
         const TFileChangelogDispatcherConfigPtr config,
         const Stroka& threadName,
-        const NProfiling::TProfiler& profiler)
+        const TProfiler& profiler)
         : Config_(config)
         , ProcessQueuesCallback_(BIND(&TImpl::ProcessQueues, MakeWeak(this)))
         , ActionQueue_(New<TActionQueue>(threadName))
@@ -413,15 +414,15 @@ private:
     const TActionQueuePtr ActionQueue_;
     const TPeriodicExecutorPtr PeriodicExecutor_;
 
-    const NProfiling::TProfiler Profiler;
+    const TProfiler Profiler;
 
     std::atomic<bool> ProcessQueuesCallbackPending_ = {false};
 
     TSpinLock SpinLock_;
     yhash_map<TSyncFileChangelogPtr, TFileChangelogQueuePtr> QueueMap_;
 
-    NProfiling::TSimpleCounter RecordCounter_;
-    NProfiling::TSimpleCounter ByteCounter_;
+    TSimpleCounter RecordCounter_;
+    TSimpleCounter ByteCounter_;
 
 
     std::vector<TFileChangelogQueuePtr> ListQueues()
@@ -562,8 +563,8 @@ private:
             }
         }
 
-        Profiler.Enqueue("/changelog_read_record_count", records.size());
-        Profiler.Enqueue("/changelog_read_size", GetByteSize(records));
+        Profiler.Enqueue("/changelog_read_record_count", records.size(), EMetricType::Gauge);
+        Profiler.Enqueue("/changelog_read_size", GetByteSize(records), EMetricType::Gauge);
 
         return records;
     }
@@ -691,7 +692,7 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelog)
 TFileChangelogDispatcher::TFileChangelogDispatcher(
     TFileChangelogDispatcherConfigPtr config,
     const Stroka& threadName,
-    const NProfiling::TProfiler& profiler)
+    const TProfiler& profiler)
     : Impl_(New<TImpl>(
         config,
         threadName,

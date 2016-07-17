@@ -21,6 +21,7 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NYson;
 using namespace NYTree;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -29,16 +30,16 @@ static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////
 
-NProfiling::TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
+TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 {
-    static std::unordered_map<Stroka, NProfiling::TTagId> tagId;
+    static std::unordered_map<Stroka, TTagId> tagId;
 
     auto reasonAsString = ToString(reason);
     auto it = tagId.find(reasonAsString);
     if (it == tagId.end()) {
         it = tagId.emplace(
             reasonAsString,
-            NProfiling::TProfileManager::Get()->RegisterTag("reason", reasonAsString)
+            TProfileManager::Get()->RegisterTag("reason", reasonAsString)
         ).first;
     }
     return {it->second};
@@ -252,10 +253,12 @@ public:
                 Profiler.Enqueue(
                     "/pools/fair_share_ratio_x100000",
                     static_cast<i64>(pair.second->Attributes().FairShareRatio * 1e5),
+                    EMetricType::Gauge,
                     {tag});
                 Profiler.Enqueue(
                     "/pools/usage_ratio_x100000",
                     static_cast<i64>(pair.second->GetResourceUsageRatio() * 1e5),
+                    EMetricType::Gauge,
                     {tag});
             }
         }
@@ -319,19 +322,19 @@ private:
         {
             for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues())
             {
-                ControllerScheduleJobFailCounter[reason] = NProfiling::TSimpleCounter(
+                ControllerScheduleJobFailCounter[reason] = TSimpleCounter(
                     prefix + "/controller_schedule_job_fail",
                     GetFailReasonProfilingTags(reason));
             }
         }
 
-        NProfiling::TAggregateCounter PrescheduleJobTimeCounter;
-        NProfiling::TAggregateCounter TotalControllerScheduleJobTimeCounter;
-        NProfiling::TAggregateCounter ExecControllerScheduleJobTimeCounter;
-        NProfiling::TAggregateCounter StrategyScheduleJobTimeCounter;
-        NProfiling::TAggregateCounter ScheduleJobCallCounter;
+        TAggregateCounter PrescheduleJobTimeCounter;
+        TAggregateCounter TotalControllerScheduleJobTimeCounter;
+        TAggregateCounter ExecControllerScheduleJobTimeCounter;
+        TAggregateCounter StrategyScheduleJobTimeCounter;
+        TAggregateCounter ScheduleJobCallCounter;
 
-        TEnumIndexedVector<NProfiling::TSimpleCounter, EScheduleJobFailReason> ControllerScheduleJobFailCounter;
+        TEnumIndexedVector<TSimpleCounter, EScheduleJobFailReason> ControllerScheduleJobFailCounter;
     };
 
     TProfilingCounters NonPreemptiveProfilingCounters;
@@ -406,7 +409,7 @@ private:
                 rootElement->PrescheduleJob(context, /*starvingOnly*/ false);
             }
 
-            NProfiling::TScopedTimer timer;
+            TScopedTimer timer;
             while (schedulingContext->CanStartMoreJobs()) {
                 ++nonPreemptiveScheduleJobCount;
                 if (!rootElement->ScheduleJob(context)) {
@@ -466,7 +469,7 @@ private:
             context.ExecScheduleJobDuration = TDuration::Zero();
             std::fill(context.FailedScheduleJob.begin(), context.FailedScheduleJob.end(), 0);
 
-            NProfiling::TScopedTimer timer;
+            TScopedTimer timer;
             while (schedulingContext->CanStartMoreJobs()) {
                 ++preemptiveScheduleJobCount;
                 if (!rootElement->ScheduleJob(context)) {

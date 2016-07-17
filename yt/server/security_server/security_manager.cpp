@@ -50,6 +50,7 @@ using namespace NCypressServer;
 using namespace NSecurityClient;
 using namespace NObjectServer;
 using namespace NHive;
+using namespace NProfiling;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -1024,7 +1025,7 @@ private:
 
     NHydra::TEntityMap<TUser> UserMap_;
     yhash_map<Stroka, TUser*> UserNameMap_;
-    yhash_map<Stroka, NProfiling::TTagId> UserNameToProfilingTagId_;
+    yhash_map<Stroka, TTagId> UserNameToProfilingTagId_;
 
     TUserId RootUserId_;
     TUser* RootUser_ = nullptr;
@@ -1162,14 +1163,14 @@ private:
         return user;
     }
 
-    NProfiling::TTagId GetProfilingTagForUser(TUser* user)
+    TTagId GetProfilingTagForUser(TUser* user)
     {
         auto it = UserNameToProfilingTagId_.find(user->GetName());
         if (it != UserNameToProfilingTagId_.end()) {
             return it->second;
         }
 
-        auto tagId = NProfiling::TProfileManager::Get()->RegisterTag("user", user->GetName());
+        auto tagId = TProfileManager::Get()->RegisterTag("user", user->GetName());
         YCHECK(UserNameToProfilingTagId_.insert(std::make_pair(user->GetName(), tagId)).second);
         return tagId;
     }
@@ -1682,17 +1683,17 @@ private:
             user->LocalStatistics() += statisticsDelta;
             user->ClusterStatistics() += statisticsDelta;
 
-            NProfiling::TTagIdList tagIds{
+            TTagIdList tagIds{
                 GetProfilingTagForUser(user)
             };
 
             const auto& localStatistics = user->LocalStatistics();
-            Profiler.Enqueue("/user_read_time", localStatistics.ReadRequestTime.MicroSeconds(), tagIds);
-            Profiler.Enqueue("/user_write_time", localStatistics.WriteRequestTime.MicroSeconds(), tagIds);
-            Profiler.Enqueue("/user_request_count", localStatistics.RequestCount, tagIds);
-            Profiler.Enqueue("/user_request_queue_size", user->GetRequestQueueSize(), tagIds);
+            Profiler.Enqueue("/user_read_time", localStatistics.ReadRequestTime.MicroSeconds(), EMetricType::Gauge, tagIds);
+            Profiler.Enqueue("/user_write_time", localStatistics.WriteRequestTime.MicroSeconds(), EMetricType::Gauge, tagIds);
+            Profiler.Enqueue("/user_request_count", localStatistics.RequestCount, EMetricType::Gauge, tagIds);
+            Profiler.Enqueue("/user_request_queue_size", user->GetRequestQueueSize(), EMetricType::Gauge, tagIds);
             // COMPAT(babenko)
-            Profiler.Enqueue("/user_request_counter", localStatistics.RequestCount, tagIds);
+            Profiler.Enqueue("/user_request_counter", localStatistics.RequestCount, EMetricType::Gauge, tagIds);
         }
     }
 

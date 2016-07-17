@@ -23,6 +23,7 @@ path_to_run_tests = None
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
 AsyncLastCommittedTimestamp  = 0x3fffffffffffff04
+MinTimestamp                 = 0x0000000000000001
 
 def get_driver(index=0):
     if index == 0:
@@ -408,19 +409,22 @@ class Operation(object):
         if state != "running":
             raise TimeoutError("Operation didn't become running within timeout")
 
+    def _remove_job_files(self, job):
+        os.unlink(os.path.join(self._tmpdir, "started_" + job))
+
     def resume_job(self, job):
         print >>sys.stderr, "Resume operation job %s" % job
 
         self.resumed_jobs.add(job)
         self.jobs.remove(job)
-        os.unlink(os.path.join(self._tmpdir, "started_" + job))
+        self._remove_job_files(job)
 
     def resume_jobs(self):
         if self.jobs is None:
             raise RuntimeError('"ensure_running" must be called before resuming jobs')
 
         for job in self.jobs:
-            os.unlink(os.path.join(self._tmpdir, "started_" + job))
+            self._remove_job_files(job)
 
         try:
             os.rmdir(self._tmpdir)

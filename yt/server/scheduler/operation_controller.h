@@ -308,5 +308,12 @@ DEFINE_REFCOUNTED_TYPE(IOperationController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IOperationControllerPtr CreateControllerWrapper(
+    const TOperationId& id,
+    const IOperationControllerPtr& controller,
+    const IInvokerPtr& dtorInvoker);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT

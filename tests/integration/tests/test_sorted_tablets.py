@@ -649,6 +649,19 @@ class TestSortedTablets(YTEnvSetup):
         assert get("#" + tablet_id + "/@table_id") == table_id2
         assert get("//tmp/t2/@tablets/0/tablet_id") == tablet_id
 
+    def test_move_unmounted_in_tx(self):
+        self.sync_create_cells(1, 1)
+        self._create_simple_table("//tmp/t1")
+        self.sync_mount_table("//tmp/t1")
+        self.sync_unmount_table("//tmp/t1")
+
+        table_id1 = get("//tmp/t1/@id")
+        tablet_id = get("//tmp/t1/@tablets/0/tablet_id")
+        assert get("#" + tablet_id + "/@table_id") == table_id1
+
+        tx = start_transaction()
+        with pytest.raises(YtError): move("//tmp/t1", "//tmp/t2", tx=tx)
+
     def test_move_multiple_rollback(self):
         self.sync_create_cells(1, 1)
 
@@ -1431,6 +1444,29 @@ class TestSortedTablets(YTEnvSetup):
         self.sync_compact_table("//tmp/t")
         statistics2 = get("#" + chunk_list_id + "/@statistics")
         assert statistics1 == statistics2
+
+    def _test_timestamp_access(self, optimize_for):
+        self.sync_create_cells(3, 1)
+        self._create_simple_table("//tmp/t", optimize_for = optimize_for)
+        self.sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows)
+
+        self.sync_unmount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", rows)
+
+        assert lookup_rows("//tmp/t", keys, timestamp=MinTimestamp) == []
+        assert select_rows("* from [//tmp/t]", timestamp=MinTimestamp) == []
+
+    def test_timestamp_access_lookup(self):
+        self._test_timestamp_access("lookup")
+
+    def test_timestamp_access_scan(self):
+        self._test_timestamp_access("scan")
 
 ##################################################################
 

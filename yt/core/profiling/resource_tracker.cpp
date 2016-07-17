@@ -135,8 +135,8 @@ void TResourceTracker::EnqueueCpuUsage()
             TTagIdList tagIds;
             tagIds.push_back(TProfileManager::Get()->RegisterTag("thread", threadName));
 
-            Profiler.Enqueue("/user_cpu", 100 * userCpuTime / timeDelta, tagIds);
-            Profiler.Enqueue("/system_cpu", 100 * systemCpuTime / timeDelta, tagIds);
+            Profiler.Enqueue("/user_cpu", 100 * userCpuTime / timeDelta, EMetricType::Gauge, tagIds);
+            Profiler.Enqueue("/system_cpu", 100 * systemCpuTime / timeDelta, EMetricType::Gauge, tagIds);
         }
 
         {
@@ -152,7 +152,7 @@ void TResourceTracker::EnqueueCpuUsage()
 void TResourceTracker::EnqueueMemoryUsage()
 {
     try {
-        Profiler.Enqueue("/total/memory", GetProcessRss());
+        Profiler.Enqueue("/total/memory", GetProcessRss(), EMetricType::Gauge);
     } catch (const TIoException&) {
         // Ignore all IO exceptions.
         return;
@@ -164,31 +164,31 @@ void TResourceTracker::EnqueueLFAllocCounters()
 {
     using namespace NLFAlloc;
 
-    Profiler.Enqueue("/lf_alloc/total/user_allocated", GetUserAllocated());
-    Profiler.Enqueue("/lf_alloc/total/mmapped", GetMmapped());
-    Profiler.Enqueue("/lf_alloc/total/mmapped_count", GetMmappedCount());
-    Profiler.Enqueue("/lf_alloc/total/munmapped", GetMunmapped());
-    Profiler.Enqueue("/lf_alloc/total/munmapped_count", GetMunmappedCount());
-    Profiler.Enqueue("/lf_alloc/total/system_allocated", GetSystemAllocated());
-    Profiler.Enqueue("/lf_alloc/total/system_deallocated", GetSystemFreed());
-    Profiler.Enqueue("/lf_alloc/total/small_blocks_allocated", GetSmallBlocksAllocated());
-    Profiler.Enqueue("/lf_alloc/total/small_blocks_deallocated", GetSmallBlocksFreed());
-    Profiler.Enqueue("/lf_alloc/total/large_blocks_allocated", GetLargeBlocksAllocated());
-    Profiler.Enqueue("/lf_alloc/total/large_blocks_deallocated", GetLargeBlocksFreed());
+    Profiler.Enqueue("/lf_alloc/total/user_allocated", GetUserAllocated(), EMetricType::Counter);
+    Profiler.Enqueue("/lf_alloc/total/mmapped", GetMmapped(), EMetricType::Counter);
+    Profiler.Enqueue("/lf_alloc/total/mmapped_count", GetMmappedCount(), EMetricType::Counter);
+    Profiler.Enqueue("/lf_alloc/total/munmapped", GetMunmapped(), EMetricType::Counter);
+    Profiler.Enqueue("/lf_alloc/total/munmapped_count", GetMunmappedCount(), EMetricType::Counter);
+    Profiler.Enqueue("/lf_alloc/total/system_allocated", GetSystemAllocated(), EMetricType::Counter);
+    Profiler.Enqueue("/lf_alloc/total/system_deallocated", GetSystemFreed(), EMetricType::Counter);
+    Profiler.Enqueue("/lf_alloc/total/small_blocks_allocated", GetSmallBlocksAllocated(), EMetricType::Counter);
+    Profiler.Enqueue("/lf_alloc/total/small_blocks_deallocated", GetSmallBlocksFreed(), EMetricType::Counter);
+    Profiler.Enqueue("/lf_alloc/total/large_blocks_allocated", GetLargeBlocksAllocated(), EMetricType::Counter);
+    Profiler.Enqueue("/lf_alloc/total/large_blocks_deallocated", GetLargeBlocksFreed(), EMetricType::Counter);
 
-    Profiler.Enqueue("/lf_alloc/current/system", GetCurrentSystem());
-    Profiler.Enqueue("/lf_alloc/current/small_blocks", GetCurrentSmallBlocks());
-    Profiler.Enqueue("/lf_alloc/current/large_blocks", GetCurrentLargeBlocks());
+    Profiler.Enqueue("/lf_alloc/current/system", GetCurrentSystem(), EMetricType::Gauge);
+    Profiler.Enqueue("/lf_alloc/current/small_blocks", GetCurrentSmallBlocks(), EMetricType::Gauge);
+    Profiler.Enqueue("/lf_alloc/current/large_blocks", GetCurrentLargeBlocks(), EMetricType::Gauge);
 
     auto mmapped = NLFAlloc::GetCurrentMmapped();
-    Profiler.Enqueue("/lf_alloc/current/mmapped", mmapped);
+    Profiler.Enqueue("/lf_alloc/current/mmapped", mmapped, EMetricType::Gauge);
 
     auto mmappedCount = NLFAlloc::GetCurrentMmappedCount();
-    Profiler.Enqueue("/lf_alloc/current/mmapped_count", mmappedCount);
+    Profiler.Enqueue("/lf_alloc/current/mmapped_count", mmappedCount, EMetricType::Gauge);
 
     auto used = NLFAlloc::GetCurrentUsed();
-    Profiler.Enqueue("/lf_alloc/current/used", used);
-    Profiler.Enqueue("/lf_alloc/current/locked", mmapped - used);
+    Profiler.Enqueue("/lf_alloc/current/used", used, EMetricType::Gauge);
+    Profiler.Enqueue("/lf_alloc/current/locked", mmapped - used, EMetricType::Gauge);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
