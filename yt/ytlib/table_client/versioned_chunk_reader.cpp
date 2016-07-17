@@ -1225,6 +1225,7 @@ private:
 
     bool TryFetchNextRow()
     {
+        std::vector<TFuture<void>> blockFetchResult;
         YCHECK(PendingBlocks_.empty());
         for (int i = 0; i < Columns_.size(); ++i) {
             auto& column = Columns_[i];
@@ -1237,10 +1238,14 @@ private:
                 YCHECK(nextBlockIndex);
                 column.PendingBlockIndex_ = *nextBlockIndex;
                 PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
+                blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
             }
         }
 
-        ReadyEvent_ = Combine(PendingBlocks_).template As<void>();
+        if (!blockFetchResult.empty()) {
+            ReadyEvent_ = Combine(blockFetchResult);
+        }
+
         return PendingBlocks_.empty();
     }
 };
@@ -1400,6 +1405,7 @@ private:
             return true;
         }
 
+        std::vector<TFuture<void>> blockFetchResult;
         PendingBlocks_.clear();
         for (int i = 0; i < Columns_.size(); ++i) {
             auto& column = Columns_[i];
@@ -1410,10 +1416,14 @@ private:
 
                 column.PendingBlockIndex_ = column.BlockIndexSequence[NextKeyIndex_];
                 PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
+                blockFetchResult.push_back(PendingBlocks_.back().As<void>());
             }
         }
 
-        ReadyEvent_ = Combine(PendingBlocks_).As<void>();
+        if (!blockFetchResult.empty()) {
+            ReadyEvent_ = Combine(PendingBlocks_).As<void>();
+        }
+
         return PendingBlocks_.empty();
     }
 
