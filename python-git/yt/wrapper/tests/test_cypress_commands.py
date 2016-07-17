@@ -378,7 +378,7 @@ class TestCypressCommands(object):
 
         assert len(yt.get(dir + "/@locks")) == 0
         with yt.Transaction():
-            if yt_env.version >= "18.5":
+            if yt_env.version >= "18.6":
                 yt.lock(dir, waitable=True)
                 yt.lock(dir, waitable=True, wait_for=1000)
                 assert len(yt.get(dir + "/@locks")) == 2
@@ -406,7 +406,7 @@ class TestCypressCommands(object):
         client = Yt(config=yt.config.config)
         try:
             assert yt.lock(dir) != "0-0-0-0"
-            if yt_env.version < "18.5":
+            if yt_env.version < "18.6":
                 assert yt.lock(dir, waitable=True) == "0-0-0-0"
             with client.Transaction():
                 assert client.lock(dir, waitable=True, wait_for=4000) != "0-0-0-0"
