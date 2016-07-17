@@ -388,6 +388,9 @@ public:
     //! Number of threads for running controllers invokers.
     int ControllerThreadCount;
 
+    //! Number of threads for retrieving important fields from job statistics.
+    int StatisticsAnalyzerThreadCount;
+
     //! Number of threads for building job specs.
     int JobSpecBuilderThreadCount;
 
@@ -556,10 +559,19 @@ public:
     double UserJobMemoryReserveQuantile;
     double JobProxyMemoryReserveQuantile;
 
+    // Duration of no activity by job to be considered as suspicious.
+    TDuration SuspiciousInactivityTimeout;
+
+    // User job cpu usage delta that is considered insignificant when checking if job is suspicious.
+    i64 SuspiciousUserJobCpuUsageThreshold;
+
     TSchedulerConfig()
     {
         RegisterParameter("controller_thread_count", ControllerThreadCount)
             .Default(4)
+            .GreaterThan(0);
+        RegisterParameter("statistics_analyzer_thread_count", StatisticsAnalyzerThreadCount)
+            .Default(2)
             .GreaterThan(0);
         RegisterParameter("job_spec_builder_thread_count", JobSpecBuilderThreadCount)
             .Default(8)
@@ -756,6 +768,11 @@ public:
         RegisterParameter("job_proxy_memory_reserve_quantile", JobProxyMemoryReserveQuantile)
             .InRange(0.0, 1.0)
             .Default(0.95);
+
+        RegisterParameter("suspicious_inactivity_timeout", SuspiciousInactivityTimeout)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("suspicious_user_job_cpu_usage_threshold", SuspiciousUserJobCpuUsageThreshold)
+            .Default(10);
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

@@ -107,6 +107,8 @@ void TStoreManagerBase::StopEpoch()
             }
         }
     }
+
+    Tablet_->PreloadStoreIds().clear();
 }
 
 bool TStoreManagerBase::IsRotationScheduled() const
@@ -509,6 +511,7 @@ void TStoreManagerBase::UpdateInMemoryMode()
             chunkStore->SetPreloadState(EStorePreloadState::None);
         }
     }
+
     Tablet_->PreloadStoreIds().clear();
 
     for (const auto& pair : Tablet_->StoreIdMap()) {

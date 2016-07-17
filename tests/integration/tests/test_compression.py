@@ -11,17 +11,54 @@ import tempfile
 class TestCompression(object):
     codecs = [
         "snappy",
-        "zlib6",
-        "zlib9",
         "lz4",
         "lz4_high_compression",
         "quick_lz",
-        "zstd",
-        "brotli3",
-        "brotli5",
-        "brotli8"]
+        "brotli_1",
+        "brotli_2",
+        "brotli_3",
+        "brotli_4",
+        "brotli_5",
+        "brotli_6",
+        "brotli_7",
+        "brotli_8",
+        "brotli_9",
+        "brotli_10",
+        "brotli_11",
+        "zlib_1",
+        "zlib_2",
+        "zlib_3",
+        "zlib_4",
+        "zlib_5",
+        "zlib_6",
+        "zlib_7",
+        "zlib_8",
+        "zlib_9",
+        "zstd_1",
+        "zstd_2",
+        "zstd_3",
+        "zstd_4",
+        "zstd_5",
+        "zstd_6",
+        "zstd_7",
+        "zstd_8",
+        "zstd_9",
+        "zstd_10",
+        "zstd_11",
+        "zstd_12",
+        "zstd_13",
+        "zstd_14",
+        "zstd_15",
+        "zstd_16",
+        "zstd_17",
+        "zstd_18",
+        "zstd_19",
+        "zstd_20",
+        "zstd_21",
+        "zstd_legacy",
+    ]
 
-    testsets = ["data"]
+    testsets = ["YT-2072", "YT-5096"]
 
     proxy = "locke.yt.yandex.net"
     test_data_path = "//home/files/test_data/compression"
@@ -34,7 +71,8 @@ class TestCompression(object):
         for testset in self.testsets:
             print >>sys.stderr, 'Using testset "{0}"'.format(testset)
 
-            file_path = "{0}/{1}".format(self.test_data_path, testset)
+            testset_path = os.path.join(self.test_data_path, testset)
+            file_path = os.path.join(testset_path, "data")
             try:
                 data = self.client.read_file(file_path).read()
             except Exception as e:
@@ -47,11 +85,12 @@ class TestCompression(object):
                     assert codec_data == data
 
     def run_codec(self, codec, testset):
-        file_path = "{0}/{1}.compressed.{2}".format(self.test_data_path, testset, codec)
+        testset_path = os.path.join(self.test_data_path, testset)
+        file_path = "{0}/data.compressed.{1}".format(testset_path, codec)
         try:
             data = self.client.read_file(file_path).read()
         except Exception as e:
-            logger.exception("Unable to download compressed data %s", file_path)
+            logger.info("Unable to download compressed data %s", file_path)
             return None
 
         process = subprocess.Popen(

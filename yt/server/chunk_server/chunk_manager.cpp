@@ -66,6 +66,7 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NConcurrency;
+using namespace NProfiling;
 using namespace NRpc;
 using namespace NHydra;
 using namespace NNodeTrackerServer;
@@ -341,7 +342,7 @@ public:
             "ChunkManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        auto* profileManager = NProfiling::TProfileManager::Get();
+        auto* profileManager = TProfileManager::Get();
         Profiler.TagIds().push_back(profileManager->RegisterTag("cell_tag", Bootstrap_->GetCellTag()));
     }
 
@@ -896,7 +897,7 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-    NProfiling::TProfiler Profiler = ChunkServerProfiler;
+    TProfiler Profiler = ChunkServerProfiler;
     i64 ChunksCreated_ = 0;
     i64 ChunksDestroyed_ = 0;
     i64 ChunkReplicasAdded_ = 0;
@@ -1962,20 +1963,20 @@ private:
             return;
         }
 
-        Profiler.Enqueue("/refresh_list_size", ChunkReplicator_->GetRefreshListSize());
-        Profiler.Enqueue("/properties_update_list_size", ChunkReplicator_->GetPropertiesUpdateListSize());
+        Profiler.Enqueue("/refresh_list_size", ChunkReplicator_->GetRefreshListSize(), EMetricType::Gauge);
+        Profiler.Enqueue("/properties_update_list_size", ChunkReplicator_->GetPropertiesUpdateListSize(), EMetricType::Gauge);
 
-        Profiler.Enqueue("/chunk_count", ChunkMap_.GetSize());
-        Profiler.Enqueue("/chunks_created", ChunksCreated_);
-        Profiler.Enqueue("/chunks_destroyed", ChunksDestroyed_);
+        Profiler.Enqueue("/chunk_count", ChunkMap_.GetSize(), EMetricType::Gauge);
+        Profiler.Enqueue("/chunks_created", ChunksCreated_, EMetricType::Counter);
+        Profiler.Enqueue("/chunks_destroyed", ChunksDestroyed_, EMetricType::Counter);
 
-        Profiler.Enqueue("/chunk_replica_count", TotalReplicaCount_);
-        Profiler.Enqueue("/chunk_replicas_added", ChunkReplicasAdded_);
-        Profiler.Enqueue("/chunk_replicas_removed", ChunkReplicasRemoved_);
+        Profiler.Enqueue("/chunk_replica_count", TotalReplicaCount_, EMetricType::Gauge);
+        Profiler.Enqueue("/chunk_replicas_added", ChunkReplicasAdded_, EMetricType::Counter);
+        Profiler.Enqueue("/chunk_replicas_removed", ChunkReplicasRemoved_, EMetricType::Counter);
 
-        Profiler.Enqueue("/chunk_list_count", ChunkListMap_.GetSize());
-        Profiler.Enqueue("/chunk_lists_created", ChunkListsCreated_);
-        Profiler.Enqueue("/chunk_lists_destroyed", ChunkListsDestroyed_);
+        Profiler.Enqueue("/chunk_list_count", ChunkListMap_.GetSize(), EMetricType::Gauge);
+        Profiler.Enqueue("/chunk_lists_created", ChunkListsCreated_, EMetricType::Counter);
+        Profiler.Enqueue("/chunk_lists_destroyed", ChunkListsDestroyed_, EMetricType::Counter);
     }
 
 };

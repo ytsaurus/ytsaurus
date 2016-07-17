@@ -107,14 +107,14 @@ public:
         LOG_DEBUG("Flushing batched mutations (MutationCount: %v)",
             mutationCount);
 
-        Profiler.Enqueue("/commit_batch_size", mutationCount);
+        Profiler.Enqueue("/commit_batch_size", mutationCount, EMetricType::Gauge);
 
         std::vector<TFuture<void>> asyncResults;
 
         Timer_ = Profiler.TimingStart(
             "/changelog_flush_time",
-            NProfiling::EmptyTagIds,
-            NProfiling::ETimerMode::Parallel);
+            EmptyTagIds,
+            ETimerMode::Parallel);
 
         if (!BatchedRecordsData_.empty()) {
             YCHECK(LocalFlushResult_);
@@ -275,8 +275,8 @@ private:
     TVersion CommittedVersion_;
 
     NLogging::TLogger Logger;
-    
-    NProfiling::TTimer Timer_;
+
+    TTimer Timer_;
 
 };
 

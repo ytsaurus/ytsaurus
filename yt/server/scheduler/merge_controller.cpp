@@ -1335,7 +1335,7 @@ private:
         const int prefixLength = static_cast<int>(SortKeyColumns.size());
 
         yhash_set<TInputSlicePtr> globalOpenedSlices;
-        TNullable<TOwningKey> lastBreakpoint = Null;
+        TOwningKey lastBreakpoint;
 
         int startIndex = 0;
         while (startIndex < static_cast<int>(Endpoints.size())) {
@@ -1401,7 +1401,7 @@ private:
             globalOpenedSlices.insert(localOpenedSlices.begin(), localOpenedSlices.end());
 
             auto endTask = [&] () {
-                if (lastBreakpoint && CompareRows(key, *lastBreakpoint) == 0) {
+                if (lastBreakpoint && CompareRows(key, lastBreakpoint) == 0) {
                     // Already flushed at this key.
                     return;
                 }
@@ -1626,9 +1626,9 @@ protected:
     std::vector<std::deque<TInputChunkPtr>> ForeignInputChunks;
 
     //! Not serialized.
-    TInputSlicePtr CurrentTaskFirstChunkSlice;
+    TOwningKey CurrentTaskMinForeignKey;
     //! Not serialized.
-    TInputSlicePtr CurrentTaskLastChunkSlice;
+    TOwningKey CurrentTaskMaxForeignKey;
 
     virtual void DoInitialize() override
     {
@@ -1661,20 +1661,12 @@ protected:
     }
 
     void AddForeignTablesToTask(
-        const TOwningKey& primaryMinKey,
-        const TOwningKey& primaryMaxKey)
+        const TOwningKey& foreignMinKey,
+        const TOwningKey& foreignMaxKey)
     {
-        YCHECK(ForeignKeyColumnCount > 0 && ForeignKeyColumnCount <= static_cast<int>(SortKeyColumns.size()));
-
-        TOwningKey primaryMinPrefix;
-        TOwningKey primaryMaxPrefix;
-        if (ForeignKeyColumnCount < static_cast<int>(SortKeyColumns.size())) {
-            primaryMinPrefix = GetKeyPrefix(primaryMinKey, ForeignKeyColumnCount);
-            primaryMaxPrefix = GetKeyPrefixSuccessor(primaryMaxKey, ForeignKeyColumnCount);
-        } else {
-            primaryMinPrefix = primaryMinKey;
-            primaryMaxPrefix = primaryMaxKey;
-        }
+        YCHECK(ForeignKeyColumnCount > 0);
+        YCHECK(ForeignKeyColumnCount <= static_cast<int>(SortKeyColumns.size()));
+        YCHECK(ForeignKeyColumnCount == foreignMinKey.GetCount());
 
         for (auto& tableChunks : ForeignInputChunks) {
             auto firstUsed = tableChunks.cbegin();
@@ -1682,14 +1674,14 @@ protected:
                 YCHECK(chunkSpec->BoundaryKeys());
                 const auto& minKey = chunkSpec->BoundaryKeys()->MinKey;
                 const auto& maxKey = chunkSpec->BoundaryKeys()->MaxKey;
-                if (CompareRows(primaryMinPrefix, maxKey, ForeignKeyColumnCount) > 0) {
+                if (CompareRows(foreignMinKey, maxKey, ForeignKeyColumnCount) > 0) {
                     ++firstUsed;
                     continue;
                 }
-                if (CompareRows(primaryMaxPrefix, minKey, ForeignKeyColumnCount) < 0) {
+                if (CompareRows(foreignMaxKey, minKey, ForeignKeyColumnCount) < 0) {
                     break;
                 }
-                AddPendingChunkSlice(CreateInputSlice(chunkSpec, primaryMinPrefix, primaryMaxPrefix));
+                AddPendingChunkSlice(CreateInputSlice(chunkSpec, foreignMinKey, foreignMaxKey));
             }
             tableChunks.erase(tableChunks.cbegin(), firstUsed);
         }
@@ -1697,10 +1689,26 @@ protected:
 
     virtual void AddPendingChunkSlice(TInputSlicePtr chunkSlice) override
     {
-        if (!CurrentTaskFirstChunkSlice) {
-            CurrentTaskFirstChunkSlice = chunkSlice;
+        if (ForeignKeyColumnCount > 0) {
+            if (!CurrentTaskMinForeignKey ||
+                CompareRows(CurrentTaskMinForeignKey, chunkSlice->LowerLimit().GetKey(), ForeignKeyColumnCount) > 0)
+            {
+                if (ForeignKeyColumnCount == static_cast<int>(SortKeyColumns.size())) {
+                    CurrentTaskMinForeignKey = chunkSlice->LowerLimit().GetKey();
+                } else {
+                    CurrentTaskMinForeignKey = GetKeyPrefix(chunkSlice->LowerLimit().GetKey(), ForeignKeyColumnCount);
+                }
+            }
+            if (!CurrentTaskMaxForeignKey ||
+                CompareRows(CurrentTaskMaxForeignKey, chunkSlice->UpperLimit().GetKey(), ForeignKeyColumnCount) < 0)
+            {
+                if (ForeignKeyColumnCount == static_cast<int>(SortKeyColumns.size())) {
+                    CurrentTaskMaxForeignKey = chunkSlice->UpperLimit().GetKey();
+                } else {
+                    CurrentTaskMaxForeignKey = GetKeyPrefixSuccessor(chunkSlice->UpperLimit().GetKey(), ForeignKeyColumnCount);
+                }
+            }
         }
-        CurrentTaskLastChunkSlice = chunkSlice;
 
         TSortedMergeControllerBase::AddPendingChunkSlice(chunkSlice);
     }
@@ -1711,17 +1719,13 @@ protected:
             return;
 
         if (ForeignKeyColumnCount != 0) {
-            YCHECK(CurrentTaskFirstChunkSlice);
-            YCHECK(CurrentTaskFirstChunkSlice->LowerLimit().HasKey());
-            YCHECK(CurrentTaskLastChunkSlice->LowerLimit().HasKey());
+            YCHECK(CurrentTaskMinForeignKey && CurrentTaskMaxForeignKey);
 
-            AddForeignTablesToTask(
-                CurrentTaskFirstChunkSlice->LowerLimit().GetKey(),
-                CurrentTaskLastChunkSlice->UpperLimit().GetKey());
+            AddForeignTablesToTask(CurrentTaskMinForeignKey, CurrentTaskMaxForeignKey);
         }
 
-        CurrentTaskFirstChunkSlice.Reset();
-        CurrentTaskLastChunkSlice.Reset();
+        CurrentTaskMinForeignKey = TOwningKey();
+        CurrentTaskMaxForeignKey = TOwningKey();
 
         TSortedMergeControllerBase::EndTaskIfActive();
     }
@@ -2027,7 +2031,7 @@ private:
         const int prefixLength = ReduceKeyColumnCount;
 
         yhash_set<TInputSlicePtr> openedSlices;
-        TNullable<TOwningKey> lastBreakpoint = Null;
+        TOwningKey lastBreakpoint;
 
         auto hasLargeActiveTask = [&] () {
             return HasLargeActiveTask() ||
@@ -2082,7 +2086,7 @@ private:
             }
 
             if (hasLargeActiveTask()) {
-                YCHECK(!lastBreakpoint || CompareRows(key, *lastBreakpoint, prefixLength) != 0);
+                YCHECK(!lastBreakpoint || CompareRows(key, lastBreakpoint, prefixLength) != 0);
 
                 auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength);
                 LOG_TRACE("Finish current task, flushing %v chunks at key %v",

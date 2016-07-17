@@ -65,7 +65,8 @@ void SerializeMapFragment(const Py::Object& map, IYsonConsumer* consumer, bool i
     auto iterator = Py::Object(PyObject_GetIter(*items), true);
     while (auto* item = PyIter_Next(*iterator)) {
          auto key = Py::Object(PyTuple_GET_ITEM(item, 0), false);
-         char* keyStr = PyString_AsString(ConvertToString(key).ptr());
+         auto pyKey = ConvertToString(key);
+         char* keyStr = PyString_AsString(pyKey.ptr());
          auto value = Py::Object(PyTuple_GET_ITEM(item, 1), false);
          consumer->OnKeyedItem(TStringBuf(keyStr));
          Serialize(value, consumer, ignoreInnerAttributes, ysonType, depth + 1);

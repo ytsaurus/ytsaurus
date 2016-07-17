@@ -474,7 +474,7 @@ private:
     {
         while (true) {
             i64 totalSize = 0;
-            i64 maxWriterSize = 0;
+            i64 maxWriterSize = -1;
             int maxWriterIndex = -1;
 
             for (int i = 0; i < BlockWriters_.size(); ++i) {

@@ -425,8 +425,11 @@ void FromProto(
     for (int columnIndex = 0; columnIndex < protoKeyColumns.names_size(); ++columnIndex) {
         auto& columnSchema = columns[columnIndex];
         YCHECK(columnSchema.Name == protoKeyColumns.names(columnIndex));
-        YCHECK(!columnSchema.SortOrder);
         columnSchema.SortOrder = ESortOrder::Ascending;
+    }
+    for (int columnIndex = protoKeyColumns.names_size(); columnIndex < columns.size(); ++columnIndex) {
+        auto& columnSchema = columns[columnIndex];
+        YCHECK(!columnSchema.SortOrder);
     }
     *schema = TTableSchema(
         std::move(columns),
