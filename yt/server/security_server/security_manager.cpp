@@ -1779,15 +1779,11 @@ private:
         
         auto multicellManager = Bootstrap_->GetMulticellManager();
         auto replicateMembership = [&] (TSubject* subject) {
-            if (subject->IsBuiltin())
-                return;
-
             for (auto* group : subject->MemberOf()) {
-                if (!group->IsBuiltin()) {
-                    auto req = TGroupYPathProxy::AddMember(FromObjectId(group->GetId()));
-                    req->set_name(subject->GetName());
-                    multicellManager->PostToMaster(req, cellTag);
-                }
+                auto req = TGroupYPathProxy::AddMember(FromObjectId(group->GetId()));
+                req->set_name(subject->GetName());
+                req->set_ignore_existing(true);
+                multicellManager->PostToMaster(req, cellTag);
             }
         };
 
@@ -1799,7 +1795,6 @@ private:
             replicateMembership(group);
         }
     }
-
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, AccountMap_)
