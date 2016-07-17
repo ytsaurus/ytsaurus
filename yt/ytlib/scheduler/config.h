@@ -295,7 +295,7 @@ public:
         RegisterParameter("max_stderr_size", MaxStderrSize)
             .Default((i64)5 * 1024 * 1024) // 5MB
             .GreaterThan(0)
-            .LessThanOrEqual((i64)1024 * 1024 * 1024);
+            .LessThanOrEqual((i64)32 * 1024 * 1024);
         RegisterParameter("custom_statistics_count_limit", CustomStatisticsCountLimit)
             .Default(128)
             .GreaterThan(0)
