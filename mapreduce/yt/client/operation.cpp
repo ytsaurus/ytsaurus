@@ -132,6 +132,7 @@ public:
         : Auth_(auth)
         , Spec_(spec)
     {
+        CreateStorage();
         UploadFilesFromSpec(spec);
         UploadJobState(job);
 
@@ -202,6 +203,15 @@ private:
         return new TBufferInput(buffer);
     }
 
+    void CreateStorage()
+    {
+        Stroka cypressFolder = TStringBuilder() <<
+            TConfig::Get()->RemoteTempFilesDirectory << "/hash";
+        if (!Exists(Auth_, TTransactionId(), cypressFolder)) {
+            Create(Auth_, TTransactionId(), cypressFolder, "map_node", true, true);
+        }
+    }
+
     template <class TSource>
     Stroka UploadToCache(const TSource& source)
     {
@@ -210,7 +220,6 @@ private:
 
         Stroka cypressPath = TStringBuilder() <<
             TConfig::Get()->RemoteTempFilesDirectory << "/hash/" << buf;
-
         if (Exists(Auth_, TTransactionId(), cypressPath)) {
             Set(Auth_, TTransactionId(), cypressPath + "/@touched", "\"true\"");
             try {
