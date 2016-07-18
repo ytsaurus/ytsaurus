@@ -12,6 +12,12 @@ set(SRCS
   ${BASE}/lib/decompress/huf_decompress.c
   ${BASE}/lib/decompress/zbuff_decompress.c
   ${BASE}/lib/decompress/zstd_decompress.c
+  ${BASE}/lib/legacy/zstd_v01.c
+  ${BASE}/lib/legacy/zstd_v02.c
+  ${BASE}/lib/legacy/zstd_v03.c
+  ${BASE}/lib/legacy/zstd_v04.c
+  ${BASE}/lib/legacy/zstd_v05.c
+  ${BASE}/lib/legacy/zstd_v06.c
 )
 
 set_source_files_properties(${SRCS} PROPERTIES LANGUAGE C)
