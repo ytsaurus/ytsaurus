@@ -222,7 +222,7 @@ public:
 
         RegisterValidator([&] () {
             if (EnableRangeIndex && !EnableRowIndex) {
-                THROW_ERROR_EXCEPTION("\"enable_row_index\" must be set when \"enable_range_index\" is set");
+                THROW_ERROR_EXCEPTION("\"enable_range_index\" must be set when \"enable_row_index\" is set");
             }
         });
     }
