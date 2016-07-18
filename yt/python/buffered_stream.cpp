@@ -133,32 +133,32 @@ PyObject* TBufferedStream::ExtractChunk(size_t size)
         AllowWrite_.Set(TError());
     }
 
-    // NB: we could not call Py::String since it calls PyString_Check
+    // NB: we could not call Py::Bytes since it calls PyBytes_Check
     // that requires GIL in python2.6.
-    return PyString_FromStringAndSize(result.Begin(), static_cast<int>(result.Size()));
+    return PyBytes_FromStringAndSize(result.Begin(), static_cast<int>(result.Size()));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 TBufferedStreamWrap::TBufferedStreamWrap(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
     : Py::PythonClass<TBufferedStreamWrap>::PythonClass(self, args, kwargs)
-    , Stream_(New<TBufferedStream>(Py::Int(ExtractArgument(args, kwargs, "size")).asLongLong()))
+    , Stream_(New<TBufferedStream>(Py::ConvertToLongLong(ExtractArgument(args, kwargs, "size"))))
 {
     ValidateArgumentsEmpty(args, kwargs);
 }
 
 Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict& kwargs)
 {
-    auto size = Py::Int(ExtractArgument(args, kwargs, "size"));
+    auto size = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "size"));
     ValidateArgumentsEmpty(args, kwargs);
 
     PyObject* rawResult;
     {
         Py_BEGIN_ALLOW_THREADS
-        rawResult = Stream_->Read(size.asLongLong());
+        rawResult = Stream_->Read(size);
         Py_END_ALLOW_THREADS
     }
-    return Py::String(rawResult, true);
+    return Py::Object(rawResult, true);
 }
 
 Py::Object TBufferedStreamWrap::Empty(Py::Tuple& args, Py::Dict& kwargs)

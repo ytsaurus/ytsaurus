@@ -9,35 +9,52 @@ bool IsInstance(const Object& obj, const Object& cls)
     return PyObject_IsInstance(*obj, *cls) == 1;
 }
 
-bool IsStringLike(const Object& obj)
+bool IsInteger(const Object& obj)
 {
-    return PyString_Check(obj.ptr());
+#if PY_MAJOR_VERSION < 3
+    return PyInt_Check(obj.ptr()) || PyLong_Check(obj.ptr());
+#else
+    return PyLong_Check(obj.ptr());
+#endif
 }
 
-String ConvertToString(const Object& obj)
+bool IsFloat(const Object& obj)
 {
-    return String(PyObject_Str(*obj), true);
+    return PyFloat_Check(obj.ptr());
 }
 
-TStringBuf ConvertToStringBuf(const String& pyString)
+TStringBuf ConvertToStringBuf(const Bytes& pyString)
 {
     char* stringData;
     Py_ssize_t length;
-    PyString_AsStringAndSize(pyString.ptr(), &stringData, &length);
+    PyBytes_AsStringAndSize(pyString.ptr(), &stringData, &length);
     return TStringBuf(stringData, length);
 }
 
-Stroka ConvertToStroka(const String& pyString)
+Stroka ConvertStringObjectToStroka(const Object& obj)
 {
+    Object pyString = obj;
+    if (!PyBytes_Check(pyString.ptr())) {
+        if (PyUnicode_Check(pyString.ptr())) {
+            pyString = Py::Object(PyUnicode_AsUTF8String(pyString.ptr()), true);
+        } else {
+            throw RuntimeError("Object '" + Repr(pyString) + "' is not bytes or unicode string");
+        }
+    }
     char* stringData;
     Py_ssize_t length;
-    PyString_AsStringAndSize(pyString.ptr(), &stringData, &length);
+    PyBytes_AsStringAndSize(pyString.ptr(), &stringData, &length);
     return Stroka(stringData, length);
 }
 
-String ConvertToPythonString(const Stroka& string)
+Bytes ConvertToPythonString(const Stroka& string)
 {
-    return Py::String(string.c_str(), string.length());
+    return Py::Bytes(string.c_str(), string.length());
+}
+
+i64 ConvertToLongLong(const Object& obj)
+{
+    return static_cast<i64>(Py::LongLong(obj));
 }
 
 Object GetAttr(const Object& obj, const std::string& fieldName)
@@ -46,6 +63,11 @@ Object GetAttr(const Object& obj, const std::string& fieldName)
         throw RuntimeError("There is no field " + fieldName);
     }
     return obj.getAttr(fieldName);
+}
+
+std::string Repr(const Object& obj)
+{
+    return obj.repr().as_std_string("utf-8", "replace");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -88,7 +110,7 @@ void ValidateArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs)
         throw Py::RuntimeError("Excessive positinal argument");
     }
     if (kwargs.length() > 0) {
-        auto name = ConvertToStroka(ConvertToString(kwargs.keys()[0]));
+        auto name = ConvertStringObjectToStroka(kwargs.keys()[0]);
         throw Py::RuntimeError("Excessive named argument '" + name + "'");
     }
 

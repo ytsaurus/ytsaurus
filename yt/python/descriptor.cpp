@@ -16,12 +16,12 @@ void TCommandDescriptor::SetDescriptor(const NDriver::TCommandDescriptor& descri
 
 Py::Object TCommandDescriptor::InputType(Py::Tuple& args, Py::Dict& kwargs)
 {
-    return Py::String(ToString(Descriptor_.InputType));
+    return Py::Bytes(ToString(Descriptor_.InputType));
 }
 
 Py::Object TCommandDescriptor::OutputType(Py::Tuple& args, Py::Dict& kwargs)
 {
-    return Py::String(ToString(Descriptor_.OutputType));
+    return Py::Bytes(ToString(Descriptor_.OutputType));
 }
     
 Py::Object TCommandDescriptor::IsVolatile(Py::Tuple& args, Py::Dict& kwargs)

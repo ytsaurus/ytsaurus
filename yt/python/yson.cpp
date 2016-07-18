@@ -21,10 +21,8 @@ using namespace NYPath;
 
 Py::Exception CreateYsonError(const NYT::TError& error)
 {
-    auto ysonErrorClass = Py::Callable(
-        PyObject_GetAttr(
-            PyImport_ImportModule("yt.yson.common"),
-            PyString_FromString("YsonError")));
+    auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), true);
+    auto ysonErrorClass = Py::Callable(GetAttr(ysonModule, "YsonError"));
 
     Py::Dict options;
     options.setItem("message", ConvertTo<Py::Object>(error.GetMessage()));
@@ -36,10 +34,8 @@ Py::Exception CreateYsonError(const NYT::TError& error)
 
 Py::Exception CreateYsonError(const std::string& message)
 {
-    auto ysonErrorClass = Py::Object(
-        PyObject_GetAttr(
-            PyImport_ImportModule("yt.yson.common"),
-            PyString_FromString("YsonError")));
+    auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), true);
+    auto ysonErrorClass = Py::Object(GetAttr(ysonModule, "YsonError"));
     return Py::Exception(*ysonErrorClass, message);
 }
 
@@ -64,12 +60,13 @@ public:
         : Py::PythonClass<TYsonIterator>::PythonClass(self, args, kwargs)
     { }
 
-    void Init(TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner, bool alwaysCreateAttributes)
+    void Init(TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner,
+              bool alwaysCreateAttributes, const TNullable<Stroka>& encoding)
     {
         YCHECK(!inputStreamOwner || inputStreamOwner.get() == inputStream);
         InputStream_ = inputStream;
         InputStreamOwner_ = std::move(inputStreamOwner);
-        Consumer_.reset(new NYTree::TPythonObjectBuilder(alwaysCreateAttributes));
+        Consumer_.reset(new NYTree::TPythonObjectBuilder(alwaysCreateAttributes, encoding));
         Parser_.reset(new NYson::TYsonParser(Consumer_.get(), NYson::EYsonType::ListFragment));
         IsStreamRead_ = false;
 
@@ -164,7 +161,7 @@ public:
                 PyErr_SetNone(PyExc_StopIteration);
                 return 0;
             }
-            auto result = Py::String(item.Begin(), item.Size());
+            auto result = Py::Bytes(item.Begin(), item.Size());
             result.increment_reference_count();
             return result.ptr();
         } CATCH;
@@ -232,9 +229,13 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
 
-        auto pythonString = ConvertToString(ExtractArgument(args, kwargs, "string"));
-        auto string = Stroka(PyString_AsString(*pythonString), pythonString.size());
-
+        auto stringArgument = ExtractArgument(args, kwargs, "string");
+#if PY_MAJOR_VERSION >= 3
+        if (PyUnicode_Check(stringArgument.ptr())) {
+            throw Py::TypeError("Only binary strings parsing is supported, got unicode");
+        }
+#endif
+        auto string = ConvertStringObjectToStroka(stringArgument);
         std::unique_ptr<TInputStream> stringStream(new TOwningStringInput(string));
 
         try {
@@ -266,7 +267,7 @@ public:
             DumpImpl(args, kwargs, &stringOutput);
         } CATCH;
 
-        return Py::String(~result, result.Size());
+        return Py::ConvertToPythonString(result);
     }
 
     Py::Object ParseYPath(const Py::Tuple& args_, const Py::Dict& kwargs_)
@@ -274,11 +275,11 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
 
-        auto path = ConvertToStroka(ConvertToString(ExtractArgument(args, kwargs, "path")));
+        auto path = ConvertStringObjectToStroka(ExtractArgument(args, kwargs, "path"));
         ValidateArgumentsEmpty(args, kwargs);
 
         auto richPath = TRichYPath::Parse(path);
-        return CreateYsonObject("YsonString", Py::String(richPath.GetPath()), ConvertTo<Py::Object>(richPath.Attributes().ToMap()));
+        return CreateYsonObject("YsonString", Py::Bytes(richPath.GetPath()), ConvertTo<Py::Object>(richPath.Attributes().ToMap()));
     }
 
     virtual ~TYsonModule()
@@ -294,11 +295,15 @@ private:
         TInputStream* inputStreamPtr;
         if (!inputStream) {
             auto streamArg = ExtractArgument(args, kwargs, "stream");
-
+            bool wrapStream = true;
+#if PY_MAJOR_VERSION < 3
             if (PyFile_Check(streamArg.ptr())) {
                 FILE* file = PyFile_AsFile(streamArg.ptr());
                 inputStream.reset(new TFileInput(Duplicate(file)));
-            } else {
+                wrapStream = false;
+            }
+#endif
+            if (wrapStream) {
                 inputStream.reset(new TInputStreamWrap(streamArg));
             }
         }
@@ -307,7 +312,7 @@ private:
         auto ysonType = NYson::EYsonType::Node;
         if (HasArgument(args, kwargs, "yson_type")) {
             auto arg = ExtractArgument(args, kwargs, "yson_type");
-                ysonType = ParseEnum<NYson::EYsonType>(ConvertToStroka(ConvertToString(arg)));
+                ysonType = ParseEnum<NYson::EYsonType>(ConvertStringObjectToStroka(arg));
         }
 
         bool alwaysCreateAttributes = true;
@@ -320,6 +325,22 @@ private:
         if (HasArgument(args, kwargs, "raw")) {
             auto arg = ExtractArgument(args, kwargs, "raw");
             raw = Py::Boolean(arg);
+        }
+
+        TNullable<Stroka> encoding;
+        if (HasArgument(args, kwargs, "encoding")) {
+            auto arg = ExtractArgument(args, kwargs, "encoding");
+            if (!arg.isNone()) {
+#if PY_MAJOR_VERSION < 3
+                throw Py::RuntimeError("Encoding parameter is not supported for Python 2");
+#else
+                encoding = ConvertStringObjectToStroka(arg);
+#endif
+            }
+#if PY_MAJOR_VERSION >= 3
+        } else {
+            encoding = "utf-8";
+#endif
         }
 
         ValidateArgumentsEmpty(args, kwargs);
@@ -337,14 +358,14 @@ private:
                 Py::PythonClassObject<TYsonIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
 
                 auto* iter = pythonIter.getCxxObject();
-                iter->Init(inputStreamPtr, std::move(inputStream), alwaysCreateAttributes);
+                iter->Init(inputStreamPtr, std::move(inputStream), alwaysCreateAttributes, encoding);
                 return pythonIter;
             }
         } else {
             if (raw) {
                 throw CreateYsonError("Raw mode is only supported for list fragments");
             }
-            NYTree::TPythonObjectBuilder consumer(alwaysCreateAttributes);
+            NYTree::TPythonObjectBuilder consumer(alwaysCreateAttributes, encoding);
             NYson::TYsonParser parser(&consumer, ysonType);
 
             const int BufferSize = 1024 * 1024;
@@ -380,35 +401,48 @@ private:
 
         if (!outputStream) {
             auto streamArg = ExtractArgument(args, kwargs, "stream");
-
+            bool wrapStream = true;
+#if PY_MAJOR_VERSION < 3
             if (PyFile_Check(streamArg.ptr())) {
                 FILE* file = PyFile_AsFile(streamArg.ptr());
                 fileOutput.reset(new TFileOutput(Duplicate(file)));
                 outputStream = fileOutput.get();
-            } else {
+                wrapStream = false;
+            }
+#endif
+            if (wrapStream) {
                 outputStreamWrap.reset(new TOutputStreamWrap(streamArg));
                 outputStream = outputStreamWrap.get();
             }
+#if PY_MAJOR_VERSION < 3
+            // Python 3 has "io" module with fine-grained buffering control, no need in
+            // additional buferring here.
             bufferedOutputStream.reset(new TBufferedOutput(outputStream, 1024 * 1024));
             outputStream = bufferedOutputStream.get();
+#endif
         }
 
         auto ysonFormat = NYson::EYsonFormat::Text;
         if (HasArgument(args, kwargs, "yson_format")) {
             auto arg = ExtractArgument(args, kwargs, "yson_format");
-            ysonFormat = ParseEnum<NYson::EYsonFormat>(ConvertToStroka(ConvertToString(arg)));
+            ysonFormat = ParseEnum<NYson::EYsonFormat>(ConvertStringObjectToStroka(arg));
         }
 
         NYson::EYsonType ysonType = NYson::EYsonType::Node;
         if (HasArgument(args, kwargs, "yson_type")) {
             auto arg = ExtractArgument(args, kwargs, "yson_type");
-            ysonType = ParseEnum<NYson::EYsonType>(ConvertToStroka(ConvertToString(arg)));
+            ysonType = ParseEnum<NYson::EYsonType>(ConvertStringObjectToStroka(arg));
         }
 
         int indent = NYson::TYsonWriter::DefaultIndent;
+        const int maxIndentValue = 128;
+
         if (HasArgument(args, kwargs, "indent")) {
-            auto arg = ExtractArgument(args, kwargs, "indent");
-            indent = static_cast<int>(Py::Int(arg).asLongLong());
+            auto arg = Py::Int(ExtractArgument(args, kwargs, "indent"));
+            if (arg > maxIndentValue) {
+                throw Py::ValueError(Format("Indent value exceeds indentation limit (%d)", maxIndentValue));
+            }
+            indent = static_cast<int>(Py::Long(arg).as_long());
         }
 
         bool booleanAsString = false;
@@ -421,6 +455,16 @@ private:
         if (HasArgument(args, kwargs, "ignore_inner_attributes")) {
             auto arg = ExtractArgument(args, kwargs, "ignore_inner_attributes");
             ignoreInnerAttributes = Py::Boolean(arg);
+        }
+
+        TNullable<Stroka> encoding("utf-8");
+        if (HasArgument(args, kwargs, "encoding")) {
+            auto arg = ExtractArgument(args, kwargs, "encoding");
+            if (arg.isNone()) {
+                encoding = Null;
+            } else {
+                encoding = ConvertStringObjectToStroka(arg);
+            }
         }
 
         ValidateArgumentsEmpty(args, kwargs);
@@ -436,13 +480,13 @@ private:
         switch (ysonType) {
             case NYson::EYsonType::Node:
             case NYson::EYsonType::MapFragment:
-                Serialize(obj, writer.get(), ignoreInnerAttributes, ysonType);
+                Serialize(obj, writer.get(), encoding, ignoreInnerAttributes, ysonType);
                 break;
 
             case NYson::EYsonType::ListFragment: {
                 auto iterator = Py::Object(PyObject_GetIter(obj.ptr()), true);
                 while (auto* item = PyIter_Next(*iterator)) {
-                    Serialize(Py::Object(item, true), writer.get(), ignoreInnerAttributes);
+                    Serialize(Py::Object(item, true), writer.get(), encoding, ignoreInnerAttributes);
                 }
                 if (PyErr_Occurred()) {
                     throw Py::Exception();
@@ -475,14 +519,16 @@ private:
 #define EXPORT_SYMBOL
 #endif
 
-extern "C" EXPORT_SYMBOL void inityson_lib()
+static PyObject* init_module()
 {
     static NYT::NPython::TYsonModule* yson = new NYT::NPython::TYsonModule;
-    Y_UNUSED(yson);
+    return yson->module().ptr();
 }
 
-extern "C" EXPORT_SYMBOL void inityson_lib_d()
-{
-    inityson_lib();
-}
-
+#if PY_MAJOR_VERSION < 3
+extern "C" EXPORT_SYMBOL void inityson_lib() { Y_UNUSED(init_module()); }
+extern "C" EXPORT_SYMBOL void inityson_lib_d() { inityson_lib(); }
+#else
+extern "C" EXPORT_SYMBOL PyObject* PyInit_yson_lib() { return init_module(); }
+extern "C" EXPORT_SYMBOL PyObject* PyInit_yson_lib_d() { return PyInit_yson_lib(); }
+#endif

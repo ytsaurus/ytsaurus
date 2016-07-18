@@ -25,6 +25,10 @@ SyncLastCommittedTimestamp   = 0x3fffffffffffff01
 AsyncLastCommittedTimestamp  = 0x3fffffffffffff04
 MinTimestamp                 = 0x0000000000000001
 
+def is_debug():
+    from build_type import BUILD_TYPE
+    return BUILD_TYPE == "Debug"
+
 def get_driver(index=0):
     if index == 0:
         return driver
