@@ -20,6 +20,7 @@ option(YT_BUILD_ENABLE_NODEJS             "Build NodeJS bindings" FALSE)
 option(YT_BUILD_ENABLE_PYTHON_2_6         "Build Python 2.6 bindings" FALSE)
 option(YT_BUILD_ENABLE_PYTHON_2_7         "Build Python 2.7 bindings" TRUE)
 option(YT_BUILD_ENABLE_PYTHON_SKYNET      "Build Python Skynet bindings" FALSE)
+option(YT_BUILD_ENABLE_PYTHON_3_4         "Build Python 3.4 bindings" FALSE)
 option(YT_BUILD_ENABLE_PERL               "Build Perl bindings" FALSE)
 option(YT_BUILD_HAVE_RAGEL                "Do you have Ragel 6.8?" FALSE)
 option(YT_BUILD_HAVE_BISON                "Do you have Bison 3.0?" FALSE)
@@ -149,6 +150,11 @@ endif()
 # Discover Python Skynet world.
 if(YT_BUILD_ENABLE_PYTHON_SKYNET)
   check_python_kind("SKYNET" "/skynet/python/include/python2.7")
+endif()
+
+# Discover Python 3.4 world.
+if(YT_BUILD_ENABLE_PYTHON_3_4)
+  check_python_kind("3_4" "/usr/include/python3.4")
 endif()
 
 message(STATUS "[PYTHON] Using following kinds of Python: \"${PYTHON_KINDS}\"")
@@ -334,3 +340,8 @@ add_custom_target(version
   COMMENT "Stamping YT..."
 )
 
+add_custom_target(build-type ALL
+    COMMAND echo "BUILD_TYPE = \"${CMAKE_BUILD_TYPE}\"" > ${CMAKE_SOURCE_DIR}/tests/integration/build_type.py
+    COMMENT "Writing build type..."
+    VERBATIM
+)

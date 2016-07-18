@@ -22,6 +22,7 @@ public:
 
 private:
     Py::Object InputStream_;
+    Py::Callable ReadFunction_;
 };
 
 class TOutputStreamWrap: public TOutputStream {
