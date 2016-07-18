@@ -1468,6 +1468,28 @@ class TestSortedTablets(YTEnvSetup):
     def test_timestamp_access_scan(self):
         self._test_timestamp_access("scan")
 
+    def test_column_groups(self):
+        self.sync_create_cells(1, 1)
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": "scan",
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending", "group": "a"},
+                    {"name": "value", "type": "string", "group": "a"}]
+            })
+        self.sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
+        keys = [{"key": row["key"]} for row in rows]
+        insert_rows("//tmp/t", rows)
+
+        self.sync_unmount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", keys) == rows
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
 ##################################################################
 
 class TestSortedTabletsMulticell(TestSortedTablets):

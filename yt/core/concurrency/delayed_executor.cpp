@@ -138,11 +138,11 @@ public:
         {
             auto guard = Guard(SpinLock_);
 
-            if (Stopped_) {
+            if (Finished_) {
                 return;
             }
 
-            Stopped_ = true;
+            Finished_ = true;
             doJoinSleeper = Started_;
         }
 
@@ -151,8 +151,6 @@ public:
             DelayedQueue_->Shutdown();
             DelayedQueue_.Reset();
             DelayedInvoker_.Reset();
-
-            Finished_ = true;
         }
 
         PurgeQueues();
@@ -169,14 +167,13 @@ private:
     TInstant PrevOnTimerInstant_;
 
     TThread SleeperThread_;
-
-    TSpinLock SpinLock_;
     TActionQueuePtr DelayedQueue_;
     IInvokerPtr DelayedInvoker_;
 
     std::atomic<bool> Started_ = {false};
-    std::atomic<bool> Stopped_ = {false};
     std::atomic<bool> Finished_ = {false};
+    TSpinLock SpinLock_;
+
 
     bool EnsureStarted()
     {
@@ -190,13 +187,12 @@ private:
             return true;
         }
 
-        if (Stopped_) {
+        if (Finished_) {
             return false;
         }
 
         DelayedQueue_ = New<TActionQueue>("DelayedExecutor", false, false);
         DelayedInvoker_ = DelayedQueue_->GetInvoker();
-
         SleeperThread_.Start();
         Started_ = true;
 
@@ -213,7 +209,7 @@ private:
     {
         TThread::CurrentThreadSetName("DelayedSleeper");
 
-        while (!Stopped_) {
+        while (!Finished_) {
             Sleep(SleepQuantum);
             SleeperThreadStep();
         }
@@ -292,10 +288,7 @@ private:
 
     void PurgeQueuesIfFinished()
     {
-        if (Stopped_) {
-            while (!Finished_) {
-                Sleep(SleepQuantum);
-            }
+        if (Finished_) {
             PurgeQueues();
         }
     }
