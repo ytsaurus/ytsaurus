@@ -46,7 +46,8 @@
 #include <yt/server/security_server/cypress_integration.h>
 #include <yt/server/security_server/security_manager.h>
 
-#include <yt/server/table_server/table_node.h>
+#include <yt/server/table_server/table_node_type_handler.h>
+#include <yt/server/table_server/replicated_table_node_type_handler.h>
 
 #include <yt/server/tablet_server/cypress_integration.h>
 #include <yt/server/tablet_server/tablet_manager.h>
@@ -592,6 +593,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateRackMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateFileTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTableTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateReplicatedTableTypeHandler(this));
     CypressManager_->RegisterHandler(CreateJournalTypeHandler(this));
     CypressManager_->RegisterHandler(CreateAccountMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateUserMapTypeHandler(this));

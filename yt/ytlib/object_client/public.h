@@ -137,6 +137,7 @@ DEFINE_ENUM(EObjectType,
     ((Orchid)                     (412))
     ((Link)                       (417))
     ((Document)                   (421))
+    ((ReplicatedTable)            (425))
 
     // Security Manager stuff
     ((Account)                    (500))
