@@ -228,7 +228,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             Config_->ChunkWriter,
             tabletSnapshot->WriterOptions,
             TNameTable::FromSchema(tabletSnapshot->TableSchema),
-            TKeyColumns(),
+            tabletSnapshot->TableSchema,
             TOwningKey(),
             Client_,
             Client_->GetConnection()->GetPrimaryMasterCellTag(),

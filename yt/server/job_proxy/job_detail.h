@@ -63,6 +63,8 @@ public:
 
     virtual NJobTrackerClient::TStatistics GetStatistics() const override;
 
+    virtual bool ShouldSendBoundaryKeys() const;
+
 protected:
     const NJobTrackerClient::NProto::TJobSpec& JobSpec_;
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpecExt_;

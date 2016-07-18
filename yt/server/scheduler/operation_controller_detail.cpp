@@ -3183,7 +3183,8 @@ void TOperationControllerBase::BeginUploadOutputTables()
                     "erasure_codec",
                     "replication_factor",
                     "row_count",
-                    "vital"
+                    "vital",
+                    "optimize_for"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 SetTransactionId(req, OutputTransactionId);
@@ -3222,6 +3223,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 table.Options->ReplicationFactor = attributes->Get<int>("replication_factor");
                 table.Options->Account = attributes->Get<Stroka>("account");
                 table.Options->ChunksVital = attributes->Get<bool>("vital");
+                table.Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for");
 
                 table.EffectiveAcl = attributes->GetYson("effective_acl");
             }

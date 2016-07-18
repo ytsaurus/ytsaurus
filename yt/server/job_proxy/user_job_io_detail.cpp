@@ -137,23 +137,19 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
     const TTransactionId& transactionId,
     const TTableSchema& tableSchema)
 {
-    auto keyColumns = tableSchema.GetKeyColumns();
-    auto nameTable = TNameTable::FromKeyColumns(keyColumns);
+    auto nameTable = New<TNameTable>();
     nameTable->SetEnableColumnNameValidation();
 
-    auto writer = CreateSchemalessMultiChunkWriter(
+    return CreateSchemalessMultiChunkWriter(
         JobIOConfig_->TableWriter,
         std::move(options),
         std::move(nameTable),
-        keyColumns,
+        tableSchema,
         TOwningKey(),
         Host_->GetClient(),
         CellTagFromId(chunkListId),
         transactionId,
-        chunkListId,
-        true);
-
-    return CreateSchemaValidatingWriter(std::move(writer), tableSchema);
+        chunkListId);
 }
 
 ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateRegularReader(

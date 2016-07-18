@@ -239,6 +239,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/integer_column_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/integer_column_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/null_column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/schemaless_column_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/string_column_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/string_column_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/timestamp_writer.cpp
@@ -249,7 +250,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta_extensions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_slices_fetcher.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_writer_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/legacy_channel_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/legacy_chunk_meta.proto

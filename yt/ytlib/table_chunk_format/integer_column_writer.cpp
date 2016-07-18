@@ -244,10 +244,12 @@ public:
 
     virtual void WriteValues(TRange<TVersionedRow> rows) override
     {
-        AddPendingValues(rows);
-        if (Values_.size() > MaxValueCount) {
-            FinishCurrentSegment();
-        }
+        DoWriteValues(rows);
+    }
+
+    virtual void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
+    {
+        DoWriteValues(rows);
     }
 
     virtual i32 GetCurrentSegmentSize() const override
@@ -453,10 +455,20 @@ private:
         TColumnWriterBase::DumpSegment(&segmentInfo);
     }
 
-    void AddPendingValues(const TRange<TVersionedRow> rows)
+    template <class TRow>
+    void DoWriteValues(TRange<TRow> rows)
+    {
+        AddPendingValues(rows);
+        if (Values_.size() > MaxValueCount) {
+            FinishCurrentSegment();
+        }
+    }
+
+    template <class TRow>
+    void AddPendingValues(const TRange<TRow> rows)
     {
         for (auto row : rows) {
-            const auto& value = row.BeginKeys()[ColumnIndex_];
+            const auto& value = GetUnversionedValue(row, ColumnIndex_);
             bool isNull = value.Type == EValueType::Null;
             ui64 data = 0;
             if (!isNull) {

@@ -1568,9 +1568,10 @@ print row + table_index
                 out=["<row_count_limit=1>//tmp/out_1", "<row_count_limit=1>//tmp/out_2"],
                 command="cat")
 
-    def test_schema_validation(self):
+    def _test_schema_validation(self, optimize_for):
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={
+            "optimize_for" : optimize_for,
             "schema": make_schema([
                 {"name": "key", "type": "int64"},
                 {"name": "value", "type": "string"}])
@@ -1594,9 +1595,16 @@ print row + table_index
                 out="//tmp/output",
                 command="cat")
 
-    def test_unique_keys_validation(self):
+    def test_schema_validation_scan(self):
+        self._test_schema_validation("scan")
+
+    def test_schema_validation_scan(self):
+        self._test_schema_validation("lookup")
+
+    def _test_unique_keys_validation(self, optimize_for):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2", attributes={
+            "optimize_for" : optimize_for,
             "schema": make_schema([
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "string"}],
@@ -1623,6 +1631,12 @@ print row + table_index
                 out="//tmp/t2",
                 command=command,
                 spec={"job_count": 1})
+
+    def test_unique_keys_validation_scan(self):
+        self._test_unique_keys_validation("scan")
+
+    def test_unique_keys_validation_lookup(self):
+        self._test_unique_keys_validation("lookup")
 
 
 class TestSchedulerControllerThrottling(YTEnvSetup):

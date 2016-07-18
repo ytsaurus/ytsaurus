@@ -147,9 +147,10 @@ class TestTables(YTEnvSetup):
         write_file("//tmp/file", content)
         with pytest.raises(YtError): read_table("//tmp/file") 
 
-    def test_sorted_unique(self):
+    def _test_sorted_unique(self, optimize_for):
         create("table", "//tmp/table",
             attributes={
+                "optimize_for" : optimize_for,
                 "schema": make_schema(
                     [{"name": "key", "type": "int64", "sort_order": "ascending"}],
                     unique_keys=True)
@@ -170,6 +171,12 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/table/@preserve_schema_on_write")
         assert get("//tmp/table/@schema/@unique_keys")
         assert read_table("//tmp/table") == [{"key": i} for i in xrange(3)]
+
+    def test_sorted_unique_scan(self):
+        self._test_sorted_unique("scan")
+
+    def test_sorted_unique_lookup(self):
+        self._test_sorted_unique("lookup")
 
     def test_row_index_selector(self):
         create("table", "//tmp/table")

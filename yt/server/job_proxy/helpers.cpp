@@ -23,13 +23,13 @@ TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer
         return result;
     }
 
-    result.set_sorted(writer->IsSorted());
+    result.set_sorted(writer->GetSchema().IsSorted());
 
-    if (!writer->IsSorted()) {
+    if (!writer->GetSchema().IsSorted()) {
         return result;
     }
 
-    result.set_unique_keys(writer->IsUniqueKeys());
+    result.set_unique_keys(writer->GetSchema().GetUniqueKeys());
 
     auto frontBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.front().chunk_meta().extensions());
     result.set_min(frontBoundaryKeys.min());

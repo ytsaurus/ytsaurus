@@ -36,6 +36,9 @@ struct IValueColumnWriter
 {
     // Batch interface for writing values from several rows at once.
     virtual void WriteValues(TRange<NTableClient::TVersionedRow> rows) = 0;
+
+    // Batch interface for writing values from several rows at once.
+    virtual void WriteUnversionedValues(TRange<NTableClient::TUnversionedRow> rows) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

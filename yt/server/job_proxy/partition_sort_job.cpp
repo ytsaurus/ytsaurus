@@ -65,17 +65,19 @@ public:
             SortJobSpecExt_.partition_tag());
 
         YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
+
         const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
-        options->ExplodeOnValidationError = true;
+        auto schema = FromProto<TTableSchema>(outputSpec.table_schema());
 
+        options->ExplodeOnValidationError = true;
         Writer_ = CreateSchemalessMultiChunkWriter(
             config->JobIO->TableWriter,
             options,
             nameTable,
-            keyColumns,
+            schema,
             TOwningKey(),
             Host_->GetClient(),
             CellTagFromId(chunkListId),
