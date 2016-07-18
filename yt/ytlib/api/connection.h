@@ -45,6 +45,8 @@ struct TClientOptions
 struct IConnection
     : public virtual TRefCounted
 {
+    virtual NObjectClient::TCellTag GetCellTag() = 0;
+
     virtual NTabletClient::ITableMountCachePtr GetTableMountCache() = 0;
 
     virtual IInvokerPtr GetLightInvoker() = 0;
@@ -60,7 +62,7 @@ DEFINE_REFCOUNTED_TYPE(IConnection)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IConnectionPtr CreateConnection(NYTree::IMapNodePtr config);
+IConnectionPtr CreateConnection(NYTree::INodePtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

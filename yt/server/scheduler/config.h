@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/table_client/config.h>
 
+#include <yt/ytlib/hive/config.h>
+
 #include <yt/ytlib/ypath/public.h>
 
 #include <yt/core/concurrency/config.h>
@@ -399,7 +401,7 @@ public:
 
     TDuration AlertsUpdatePeriod;
 
-    TDuration ClusterDirectoryUpdatePeriod;
+    NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
 
     TDuration ResourceDemandSanityCheckPeriod;
 
@@ -606,8 +608,8 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
             .Default(TDuration::Seconds(1));
-        RegisterParameter("cluster_directory_update_period", ClusterDirectoryUpdatePeriod)
-            .Default(TDuration::Seconds(3));
+        RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
+            .DefaultNew();
         RegisterParameter("resource_demand_sanity_check_period", ResourceDemandSanityCheckPeriod)
             .Default(TDuration::Seconds(15));
         RegisterParameter("lock_transaction_timeout", LockTransactionTimeout)
