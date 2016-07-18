@@ -11,34 +11,44 @@ namespace NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Maintains a map for a bunch of cluster connections.
+/*!
+ *  Thread affinity: any
+ */
 class TClusterDirectory
     : public virtual TRefCounted
 {
 public:
-    explicit TClusterDirectory(NApi::INativeConnectionPtr selfConnection);
+    explicit TClusterDirectory(NApi::INativeConnectionPtr directoryConnection);
 
-    NApi::INativeConnectionPtr GetConnection(NObjectClient::TCellTag cellTag) const;
+    //! Returns the connection to cluster with a given #cellTag.
+    //! Only applies to native connections. Returns |nullptr| if no connection is found.
+    NApi::INativeConnectionPtr FindConnection(NObjectClient::TCellTag cellTag) const;
+    //! Same as #FindConnection but throws instead of failing.
     NApi::INativeConnectionPtr GetConnectionOrThrow(NObjectClient::TCellTag cellTag) const;
 
-    NApi::INativeConnectionPtr GetConnection(const Stroka& clusterName) const;
+    //! Returns the connection to cluster with a given #clusterName.
+    //! Returns |nullptr| if no connection is found.
+    NApi::INativeConnectionPtr FindConnection(const Stroka& clusterName) const;
+    //! Same as #FindConnection but throws instead of failing.
     NApi::INativeConnectionPtr GetConnectionOrThrow(const Stroka& clusterName) const;
 
+    //! Returns the list of names of all registered clusters.
     std::vector<Stroka> GetClusterNames() const;
 
-    void RemoveCluster(const Stroka& clusterName);
+    //! Removes the cluster of a given #name.
+    //! Does nothing if no such cluster is registered.
+    void RemoveCluster(const Stroka& name);
 
-    void UpdateCluster(const Stroka& clusterName, NApi::TNativeConnectionConfigPtr config);
-
-    void UpdateSelf();
+    //! Updates the configuration of a cluster with a given #name, recreates the connection.
+    void UpdateCluster(const Stroka& name, NYTree::INodePtr config);
 
 private:
-    const NApi::INativeConnectionPtr SelfConnection_;
-    const NApi::INativeClientPtr SelfClient_;
+    const NApi::INativeClientPtr DirectoryClient_;
 
     struct TCluster
     {
-        Stroka Name;
-        NApi::TNativeConnectionConfigPtr Config;
+        NYTree::INodePtr Config;
         NApi::INativeConnectionPtr Connection;
     };
 
@@ -47,9 +57,7 @@ private:
     yhash_map<Stroka, TCluster> NameToCluster_;
 
 
-    TCluster CreateCluster(const Stroka& name, NApi::TNativeConnectionConfigPtr config) const;
-    TCluster CreateSelfCluster() const;
-
+    TCluster CreateCluster(const Stroka& name, NYTree::INodePtr config) const;
     static NObjectClient::TCellTag GetCellTag(const TCluster& cluster);
 
 };

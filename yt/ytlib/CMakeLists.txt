@@ -130,6 +130,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory.proto
   ${CMAKE_CURRENT_LIST_DIR}/hive/cluster_directory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/cluster_directory_synchronizer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/hive_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/hive/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/public.cpp

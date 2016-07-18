@@ -9,8 +9,12 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IConnectionPtr CreateConnection(IMapNodePtr config)
+IConnectionPtr CreateConnection(INodePtr config)
 {
+    if (config->GetType() != ENodeType::Map) {
+        THROW_ERROR_EXCEPTION("Cluster configuration must be a map node");
+    }
+
     auto genericConfig = ConvertTo<TConnectionConfigPtr>(config);
     switch (genericConfig->ConnectionType) {
         case EConnectionType::Native: {

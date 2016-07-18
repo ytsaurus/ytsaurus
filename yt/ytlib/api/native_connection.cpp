@@ -147,6 +147,43 @@ public:
 
     // IConnection implementation.
 
+    virtual TCellTag GetCellTag() override
+    {
+        return CellTagFromId(Config_->PrimaryMaster->CellId);
+    }
+
+    virtual ITableMountCachePtr GetTableMountCache() override
+    {
+        return TableMountCache_;
+    }
+
+    virtual IInvokerPtr GetLightInvoker() override
+    {
+        return LightPool_->GetInvoker();
+    }
+
+    virtual IInvokerPtr GetHeavyInvoker() override
+    {
+        return HeavyPool_->GetInvoker();
+    }
+
+    virtual IAdminPtr CreateAdmin(const TAdminOptions& options) override
+    {
+        return CreateNativeAdmin(this, options);
+    }
+
+    virtual IClientPtr CreateClient(const TClientOptions& options) override
+    {
+        return CreateNativeClient(options);
+    }
+
+    virtual void ClearMetadataCaches() override
+    {
+        TableMountCache_->Clear();
+    }
+
+    // INativeConnection implementation.
+
     virtual TNativeConnectionConfigPtr GetConfig() override
     {
         return Config_;
@@ -200,11 +237,6 @@ public:
         return BlockCache_;
     }
 
-    virtual ITableMountCachePtr GetTableMountCache() override
-    {
-        return TableMountCache_;
-    }
-
     virtual ITimestampProviderPtr GetTimestampProvider() override
     {
         return TimestampProvider_;
@@ -225,34 +257,9 @@ public:
         return ColumnEvaluatorCache_;
     }
 
-    virtual IInvokerPtr GetLightInvoker() override
-    {
-        return LightPool_->GetInvoker();
-    }
-
-    virtual IInvokerPtr GetHeavyInvoker() override
-    {
-        return HeavyPool_->GetInvoker();
-    }
-
-    virtual IAdminPtr CreateAdmin(const TAdminOptions& options) override
-    {
-        return CreateNativeAdmin(this, options);
-    }
-
-    virtual IClientPtr CreateClient(const TClientOptions& options) override
-    {
-        return CreateNativeClient(options);
-    }
-
     virtual INativeClientPtr CreateNativeClient(const TClientOptions& options) override
     {
         return NApi::CreateNativeClient(this, options);
-    }
-
-    virtual void ClearMetadataCaches() override
-    {
-        TableMountCache_->Clear();
     }
 
     virtual ITransactionPtr RegisterStickyTransaction(ITransactionPtr transaction) override

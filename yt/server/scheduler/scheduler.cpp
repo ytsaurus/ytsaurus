@@ -2122,7 +2122,7 @@ private:
     {
         BuildYsonMapFluently(consumer)
             .Item(clusterName)
-            .Value(GetClusterDirectory()->GetConnection(clusterName)->GetConfig());
+            .Value(GetClusterDirectory()->FindConnection(clusterName)->GetConfig());
     }
 
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer) const

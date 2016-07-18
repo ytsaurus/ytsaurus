@@ -2,12 +2,7 @@
 #include "cluster_directory.h"
 
 #include <yt/ytlib/api/client.h>
-#include <yt/ytlib/api/config.h>
 #include <yt/ytlib/api/native_connection.h>
-
-#include <yt/core/concurrency/scheduler.h>
-
-#include <yt/core/ytree/convert.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -23,12 +18,11 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterDirectory::TClusterDirectory(INativeConnectionPtr selfConnection)
-    : SelfConnection_(selfConnection)
-    , SelfClient_(SelfConnection_->CreateNativeClient(TClientOptions(RootUserName)))
+TClusterDirectory::TClusterDirectory(INativeConnectionPtr directoryConnection)
+    : DirectoryClient_(directoryConnection->CreateNativeClient(TClientOptions(RootUserName)))
 { }
 
-INativeConnectionPtr TClusterDirectory::GetConnection(TCellTag cellTag) const
+INativeConnectionPtr TClusterDirectory::FindConnection(TCellTag cellTag) const
 {
     TGuard<TSpinLock> guard(Lock_);
     auto it = CellTagToCluster_.find(cellTag);
@@ -37,14 +31,14 @@ INativeConnectionPtr TClusterDirectory::GetConnection(TCellTag cellTag) const
 
 INativeConnectionPtr TClusterDirectory::GetConnectionOrThrow(TCellTag cellTag) const
 {
-    auto connection = GetConnection(cellTag);
+    auto connection = FindConnection(cellTag);
     if (!connection) {
         THROW_ERROR_EXCEPTION("Cannot find cluster with cell tag %v", cellTag);
     }
     return connection;
 }
 
-INativeConnectionPtr TClusterDirectory::GetConnection(const Stroka& clusterName) const
+INativeConnectionPtr TClusterDirectory::FindConnection(const Stroka& clusterName) const
 {
     TGuard<TSpinLock> guard(Lock_);
     auto it = NameToCluster_.find(clusterName);
@@ -53,7 +47,7 @@ INativeConnectionPtr TClusterDirectory::GetConnection(const Stroka& clusterName)
 
 INativeConnectionPtr TClusterDirectory::GetConnectionOrThrow(const Stroka& clusterName) const
 {
-    auto connection = GetConnection(clusterName);
+    auto connection = FindConnection(clusterName);
     if (!connection) {
         THROW_ERROR_EXCEPTION("Cannot find cluster with name %Qv", clusterName);
     }
@@ -66,20 +60,19 @@ std::vector<Stroka> TClusterDirectory::GetClusterNames() const
     return GetKeys(NameToCluster_);
 }
 
-void TClusterDirectory::RemoveCluster(const Stroka& clusterName)
+void TClusterDirectory::RemoveCluster(const Stroka& name)
 {
     TGuard<TSpinLock> guard(Lock_);
-    auto it = NameToCluster_.find(clusterName);
-    if (it == NameToCluster_.end())
+    auto it = NameToCluster_.find(name);
+    if (it == NameToCluster_.end()) {
         return;
+    }
     auto cellTag = GetCellTag(it->second);
     NameToCluster_.erase(it);
     YCHECK(CellTagToCluster_.erase(cellTag) == 1);
 }
 
-void TClusterDirectory::UpdateCluster(
-    const Stroka& clusterName,
-    TNativeConnectionConfigPtr config)
+void TClusterDirectory::UpdateCluster(const Stroka& name, INodePtr config)
 {
     auto addNewCluster = [&] (const TCluster& cluster) {
         auto cellTag = GetCellTag(cluster);
@@ -87,16 +80,16 @@ void TClusterDirectory::UpdateCluster(
             THROW_ERROR_EXCEPTION("Duplicate cell tag %v", cellTag);
         }
         CellTagToCluster_[cellTag] = cluster;
-        NameToCluster_[cluster.Name] = cluster;
+        NameToCluster_[name] = cluster;
     };
 
-    auto it = NameToCluster_.find(clusterName);
+    auto it = NameToCluster_.find(name);
     if (it == NameToCluster_.end()) {
-        auto cluster = CreateCluster(clusterName, config);
+        auto cluster = CreateCluster(name, config);
         TGuard<TSpinLock> guard(Lock_);
         addNewCluster(cluster);
-    } else if (!AreNodesEqual(ConvertToNode(*(it->second.Config)), ConvertToNode(*config))) {
-        auto cluster = CreateCluster(clusterName, config);
+    } else if (!AreNodesEqual(it->second.Config, config)) {
+        auto cluster = CreateCluster(name, config);
         TGuard<TSpinLock> guard(Lock_);
         CellTagToCluster_.erase(GetCellTag(it->second));
         NameToCluster_.erase(it);
@@ -104,36 +97,24 @@ void TClusterDirectory::UpdateCluster(
     }
 }
 
-void TClusterDirectory::UpdateSelf()
-{
-    auto cluster = CreateSelfCluster();
-    TGuard<TSpinLock> guard(Lock_);
-    CellTagToCluster_[GetCellTag(cluster)] = cluster;
-}
-
-TClusterDirectory::TCluster TClusterDirectory::CreateCluster(
-    const Stroka& name,
-    TNativeConnectionConfigPtr config) const
+TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const Stroka& name, INodePtr config) const
 {
     TCluster cluster;
-    cluster.Name = name;
     cluster.Config = config;
-    cluster.Connection = CreateNativeConnection(config);
-    return cluster;
-}
-
-TClusterDirectory::TCluster TClusterDirectory::CreateSelfCluster() const
-{
-    TCluster cluster;
-    cluster.Name = "";
-    cluster.Config = SelfConnection_->GetConfig();
-    cluster.Connection = SelfConnection_;
+    try {
+        // TODO(babenko): no native connection here
+        cluster.Connection = dynamic_cast<INativeConnection*>(CreateConnection(config).Get());
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error creating connection to cluster %Qv",
+            name)
+            << ex;
+    }
     return cluster;
 }
 
 TCellTag TClusterDirectory::GetCellTag(const TClusterDirectory::TCluster& cluster)
 {
-    return CellTagFromId(cluster.Config->PrimaryMaster->CellId);
+    return cluster.Connection->GetCellTag();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

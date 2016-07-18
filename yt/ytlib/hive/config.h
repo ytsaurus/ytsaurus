@@ -27,5 +27,23 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectoryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TClusterDirectorySynchronizerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Interval between consequent SyncCells requests to the primary Hive Manager.
+    TDuration SyncPeriod;
+
+    TClusterDirectorySynchronizerConfig()
+    {
+        RegisterParameter("sync_period", SyncPeriod)
+            .Default(TDuration::Seconds(15));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TClusterDirectorySynchronizerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NHiveClient
 } // namespace NYT

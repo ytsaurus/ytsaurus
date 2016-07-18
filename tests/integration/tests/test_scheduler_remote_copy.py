@@ -9,13 +9,18 @@ import time
 
 ##################################################################
 
-class TestSchedulerRemoteCopyCommands(YTEnvSetup):
+class TestSchedulerRemoteCopyBase(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "cluster_directory_update_period": 500
+            "cluster_directory_synchronizer": {
+                "sync_period": 500
+            }
         }
     }
 
+##################################################################
+
+class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyBase):
     NUM_MASTERS = 3
     NUM_NODES = 9
     NUM_SCHEDULERS = 1
@@ -277,13 +282,9 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         assert get("//tmp/t2/@schema/@unique_keys")
         assert get("//tmp/t2/@schema_mode") == "strong"
 
-class TestSchedulerRemoteCopyNetworks(YTEnvSetup):
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "cluster_directory_update_period": 500
-        }
-    }
+##################################################################
 
+class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyBase):
     NUM_MASTERS = 3
     NUM_NODES = 9
     NUM_SCHEDULERS = 1

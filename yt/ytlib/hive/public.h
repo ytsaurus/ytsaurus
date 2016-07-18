@@ -30,8 +30,10 @@ struct TCellInfo;
 
 DECLARE_REFCOUNTED_CLASS(TCellDirectory)
 DECLARE_REFCOUNTED_CLASS(TClusterDirectory)
+DECLARE_REFCOUNTED_CLASS(TClusterDirectorySynchronizer)
 
 DECLARE_REFCOUNTED_CLASS(TCellDirectoryConfig)
+DECLARE_REFCOUNTED_CLASS(TClusterDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

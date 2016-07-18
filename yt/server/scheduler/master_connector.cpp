@@ -22,6 +22,7 @@
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
+#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -47,6 +48,7 @@ using namespace NObjectClient::NProto;
 using namespace NChunkClient;
 using namespace NFileClient;
 using namespace NTransactionClient;
+using namespace NHiveClient;
 using namespace NRpc;
 using namespace NApi;
 using namespace NSecurityClient;
@@ -68,6 +70,10 @@ public:
         : Config(config)
         , Bootstrap(bootstrap)
         , ClusterDirectory(Bootstrap->GetClusterDirectory())
+        , ClusterDirectorySynchronizer(New<TClusterDirectorySynchronizer>(
+            Config->ClusterDirectorySynchronizer,
+            Bootstrap->GetMasterClient()->GetConnection(),
+            ClusterDirectory))
     { }
 
     void Start()
@@ -329,7 +335,7 @@ private:
     TPeriodicExecutorPtr WatchersExecutor;
     TPeriodicExecutorPtr SnapshotExecutor;
     TPeriodicExecutorPtr AlertsExecutor;
-    TPeriodicExecutorPtr ClusterDirectoryUpdateExecutor;
+    TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer;
 
     std::vector<TWatcherRequester> GlobalWatcherRequesters;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
@@ -553,8 +559,8 @@ private:
 
         void UpdateClusterDirectory()
         {
-            Owner->Bootstrap->GetClusterDirectory()->UpdateSelf();
-            Owner->UpdateClusterDirectory();
+            WaitFor(Owner->ClusterDirectorySynchronizer->Sync())
+                .ThrowOnError();
         }
 
         // - Request operations and their states.
@@ -717,9 +723,9 @@ private:
                 return nullptr;
             }
             try {
-                auto clusterDirectory = Bootstrap->GetClusterDirectory();
-                auto connection = clusterDirectory->GetConnectionOrThrow(CellTagFromId(transactionId));
+                auto connection = GetConnectionOrThrow(CellTagFromId(transactionId));
                 auto client = connection->CreateNativeClient(TClientOptions(SchedulerUserName));
+
                 TTransactionAttachOptions options;
                 options.Ping = ping;
                 options.PingAncestors = false;
@@ -805,12 +811,7 @@ private:
             EPeriodicExecutorMode::Automatic);
         WatchersExecutor->Start();
 
-        ClusterDirectoryUpdateExecutor = New<TPeriodicExecutor>(
-            CancelableControlInvoker,
-            BIND(&TImpl::UpdateClusterDirectory, MakeWeak(this)),
-            Config->ClusterDirectoryUpdatePeriod,
-            EPeriodicExecutorMode::Automatic);
-        ClusterDirectoryUpdateExecutor->Start();
+        ClusterDirectorySynchronizer->Start();
 
         SnapshotExecutor = New<TPeriodicExecutor>(
             CancelableControlInvoker,
@@ -844,10 +845,7 @@ private:
             WatchersExecutor.Reset();
         }
 
-        if (ClusterDirectoryUpdateExecutor) {
-            ClusterDirectoryUpdateExecutor->Stop();
-            ClusterDirectoryUpdateExecutor.Reset();
-        }
+        ClusterDirectorySynchronizer->Stop();
 
         if (SnapshotExecutor) {
             SnapshotExecutor->Stop();
@@ -890,7 +888,7 @@ private:
         for (const auto& id : watchSet) {
             auto cellTag = CellTagFromId(id);
             if (batchReqs.find(cellTag) == batchReqs.end()) {
-                auto connection = ClusterDirectory->GetConnection(cellTag);
+                auto connection = FindConnection(cellTag);
                 if (!connection) {
                     continue;
                 }
@@ -1896,45 +1894,6 @@ private:
         }
     }
 
-
-    void UpdateClusterDirectory()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto batchReq = StartObjectBatchRequest();
-        auto req = TYPathProxy::Get("//sys/clusters");
-        batchReq->AddRequest(req, "get_cluster");
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        auto error = GetCumulativeError(batchRspOrError);
-        if (!error.IsOK()) {
-            LOG_WARNING(error, "Error requesting cluster directory");
-            return;
-        }
-
-        try {
-            const auto& batchRsp = batchRspOrError.Value();
-            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_cluster").Value();
-            auto clustersNode = ConvertToNode(TYsonString(rsp->value()))->AsMap();
-
-            for (const auto& name : ClusterDirectory->GetClusterNames()) {
-                if (!clustersNode->FindChild(name)) {
-                    ClusterDirectory->RemoveCluster(name);
-                }
-            }
-
-            for (const auto& pair : clustersNode->GetChildren()) {
-                const auto& clusterName = pair.first;
-                auto config = ConvertTo<NApi::TNativeConnectionConfigPtr>(pair.second);
-                ClusterDirectory->UpdateCluster(clusterName, config);
-            }
-
-            LOG_DEBUG("Cluster directory updated successfully");
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error updating cluster directory");
-        }
-    }
-
     void DoAttachToLivePreview(
         const TOperationId& operationId,
         const TTransactionId& transactionId,
@@ -1967,6 +1926,23 @@ private:
             list->LivePreviewRequests.push_back(TLivePreviewRequest{tableId, childId});
         }
     }
+
+
+    INativeConnectionPtr FindConnection(TCellTag cellTag)
+    {
+        auto localConnection = Bootstrap->GetMasterClient()->GetNativeConnection();
+        return cellTag == localConnection->GetCellTag()
+            ? localConnection
+            : ClusterDirectory->FindConnection(cellTag);
+    }
+
+    INativeConnectionPtr GetConnectionOrThrow(TCellTag cellTag)
+    {
+        auto localConnection = Bootstrap->GetMasterClient()->GetNativeConnection();
+        return cellTag == localConnection->GetCellTag()
+            ? localConnection
+            : ClusterDirectory->GetConnectionOrThrow(cellTag);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1977,8 +1953,7 @@ TMasterConnector::TMasterConnector(
     : Impl(New<TImpl>(config, bootstrap))
 { }
 
-TMasterConnector::~TMasterConnector()
-{ }
+TMasterConnector::~TMasterConnector() = default;
 
 void TMasterConnector::Start()
 {
