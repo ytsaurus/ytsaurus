@@ -1,5 +1,6 @@
 #include "double_column_writer.h"
 #include "column_writer_detail.h"
+#include "helpers.h"
 
 #include "compressed_integer_vector.h"
 
@@ -122,10 +123,12 @@ public:
 
     virtual void WriteValues(TRange<TVersionedRow> rows) override
     {
-        AddPendingValues(rows);
-        if (Values_.size() > MaxValueCount) {
-            FinishCurrentSegment();
-        }
+        DoWriteValues(rows);
+    }
+
+    virtual void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
+    {
+        DoWriteValues(rows);
     }
 
     virtual i32 GetCurrentSegmentSize() const override
@@ -171,12 +174,22 @@ private:
         TColumnWriterBase::DumpSegment(&segmentInfo);
     }
 
-    void AddPendingValues(const TRange<TVersionedRow> rows)
+    template <class TRow>
+    void DoWriteValues(TRange<TRow> rows)
+    {
+        AddPendingValues(rows);
+        if (Values_.size() > MaxValueCount) {
+            FinishCurrentSegment();
+        }
+    }
+
+    template <class TRow>
+    void AddPendingValues(const TRange<TRow> rows)
     {
         for (auto row : rows) {
             ++RowCount_;
 
-            const auto& value = row.BeginKeys()[ColumnIndex_];
+            const auto& value = GetUnversionedValue(row, ColumnIndex_);
             NullBitmap_.Append(value.Type == EValueType::Null);
             Values_.push_back(value.Data.Double);
         }

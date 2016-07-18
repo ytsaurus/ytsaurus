@@ -320,10 +320,12 @@ public:
 
     virtual void WriteValues(TRange<TVersionedRow> rows) override
     {
-        AddPendingValues(rows);
-        if (Values_.size() > MaxValueCount) {
-            FinishCurrentSegment();
-        }
+        DoWriteValues(rows);
+    }
+
+    virtual void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
+    {
+        DoWriteValues(rows);
     }
 
     virtual i32 GetCurrentSegmentSize() const override
@@ -535,7 +537,17 @@ private:
         }
     }
 
-    void AddPendingValues(const TRange<TVersionedRow> rows)
+    template <class TRow>
+    void DoWriteValues(TRange<TRow> rows)
+    {
+        AddPendingValues(rows);
+        if (Values_.size() > MaxValueCount) {
+            FinishCurrentSegment();
+        }
+    }
+
+    template <class TRow>
+    void AddPendingValues(TRange<TRow> rows)
     {
         size_t cumulativeSize = 0;
         for (auto row : rows) {

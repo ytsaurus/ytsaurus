@@ -64,4 +64,14 @@ message TDenseVersionedSegmentMeta
     required uint32 expected_values_per_row = 1;
 }
 
+message TSchemalessSegmentMeta
+{
+    extend TSegmentMeta
+    {
+        optional TSchemalessSegmentMeta schemaless_segment_meta = 124;
+    }
+
+    required uint32 expected_bytes_per_row = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
