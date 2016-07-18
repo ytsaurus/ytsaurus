@@ -1421,7 +1421,7 @@ private:
         }
 
         if (!blockFetchResult.empty()) {
-            ReadyEvent_ = Combine(blockFetchResult).As<void>();
+            ReadyEvent_ = Combine(blockFetchResult);
         }
 
         return PendingBlocks_.empty();
