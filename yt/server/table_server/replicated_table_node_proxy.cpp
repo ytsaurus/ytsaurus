@@ -10,13 +10,13 @@ using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ICypressNodeProxyPtr CreateTableNodeProxy(
+ICypressNodeProxyPtr CreateReplicatedTableNodeProxy(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
     TTransaction* transaction,
     TTableNode* trunkNode)
 {
-    return New<TTableNodeProxy>(
+    return New<TReplicatedTableNodeProxy>(
         bootstrap,
         metadata,
         transaction,

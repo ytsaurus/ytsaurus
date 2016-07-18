@@ -1,17 +1,8 @@
 #include "table_node.h"
-#include "table_node_proxy.h"
 #include "private.h"
 
-#include <yt/server/cell_master/bootstrap.h>
-#include <yt/server/cell_master/config.h>
-
-#include <yt/server/chunk_server/chunk.h>
-#include <yt/server/chunk_server/chunk_list.h>
-#include <yt/server/chunk_server/chunk_manager.h>
-#include <yt/server/chunk_server/chunk_owner_type_handler.h>
-
 #include <yt/server/tablet_server/tablet.h>
-#include <yt/server/tablet_server/tablet_manager.h>
+#include <yt/server/tablet_server/tablet_cell_bundle.h>
 
 #include <yt/ytlib/chunk_client/schema.h>
 
@@ -21,13 +12,11 @@ namespace NTableServer {
 using namespace NTableClient;
 using namespace NCypressServer;
 using namespace NYTree;
-using namespace NYson;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NObjectServer;
 using namespace NTransactionServer;
-using namespace NSecurityServer;
 using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -244,177 +233,6 @@ bool TTableNode::IsDynamic() const
 bool TTableNode::IsEmpty() const
 {
     return ComputeTotalStatistics().chunk_count() == 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTableNodeTypeHandler
-    : public TChunkOwnerTypeHandler<TTableNode>
-{
-public:
-    typedef TChunkOwnerTypeHandler<TTableNode> TBase;
-
-    explicit TTableNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
-        : TBase(bootstrap)
-    { }
-
-    virtual EObjectType GetObjectType() const override
-    {
-        return EObjectType::Table;
-    }
-
-    virtual bool IsExternalizable() const override
-    {
-        return true;
-    }
-
-protected:
-    virtual ICypressNodeProxyPtr DoGetProxy(
-        TTableNode* trunkNode,
-        TTransaction* transaction) override
-    {
-        return CreateTableNodeProxy(
-            Bootstrap_,
-            &Metadata_,
-            transaction,
-            trunkNode);
-    }
-
-    virtual std::unique_ptr<TTableNode> DoCreate(
-        const TVersionedNodeId& id,
-        TCellTag cellTag,
-        TTransaction* transaction,
-        IAttributeDictionary* attributes) override
-    {
-        if (!attributes->Contains("compression_codec")) {
-            attributes->Set("compression_codec", NCompression::ECodec::Lz4);
-        }
-
-        if (!attributes->Contains("optimize_for")) {
-            attributes->Set("optimize_for", EOptimizeFor::Lookup);
-        }
-
-        if (!attributes->Contains("tablet_cell_bundle")) {
-            attributes->Set("tablet_cell_bundle", DefaultTabletCellBundleName);
-        }
-
-        bool dynamic = attributes->GetAndRemove<bool>("dynamic", false);
-
-        auto maybeSchema = attributes->FindAndRemove<TTableSchema>("schema");
-
-        if (maybeSchema) {
-            // NB: Sorted dynamic tables contain unique keys, set this for user.
-            if (dynamic && maybeSchema->IsSorted() && !maybeSchema->GetUniqueKeys()) {
-                maybeSchema = maybeSchema->ToUniqueKeys();
-            }
-
-            ValidateTableSchemaUpdate(TTableSchema(), *maybeSchema, dynamic, true);
-        }
-
-        if (dynamic && !maybeSchema) {
-            THROW_ERROR_EXCEPTION("\"schema\" is mandatory for dynamic tables");
-        }
-
-        TBase::InitializeAttributes(attributes);
-
-        auto nodeHolder = TChunkOwnerTypeHandler::DoCreate(
-            id,
-            cellTag,
-            transaction,
-            attributes);
-        auto* node = nodeHolder.get();
-
-        try {
-            if (maybeSchema) {
-                node->TableSchema() = *maybeSchema;
-                node->SetSchemaMode(ETableSchemaMode::Strong);
-            }
-
-            if (dynamic) {
-                auto tabletManager = Bootstrap_->GetTabletManager();
-                tabletManager->MakeTableDynamic(node);
-            }
-        } catch (...) {
-            DoDestroy(node);
-            throw;
-        }
-
-        return nodeHolder;
-    }
-
-    virtual void DoDestroy(TTableNode* table) override
-    {
-        TBase::DoDestroy(table);
-
-        if (table->IsTrunk()) {
-            auto tabletManager = Bootstrap_->GetTabletManager();
-            tabletManager->DestroyTable(table);
-        }
-    }
-
-    virtual void DoBranch(
-        const TTableNode* originatingNode,
-        TTableNode* branchedNode,
-        ELockMode mode) override
-    {
-        branchedNode->TableSchema() = originatingNode->TableSchema();
-        branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
-
-        TBase::DoBranch(originatingNode, branchedNode, mode);
-    }
-
-    virtual void DoMerge(
-        TTableNode* originatingNode,
-        TTableNode* branchedNode) override
-    {
-        originatingNode->TableSchema() = branchedNode->TableSchema();
-        originatingNode->SetSchemaMode(branchedNode->GetSchemaMode());
-
-        TBase::DoMerge(originatingNode, branchedNode);
-    }
-
-    virtual void DoClone(
-        TTableNode* sourceNode,
-        TTableNode* clonedNode,
-        ICypressNodeFactory* factory,
-        ENodeCloneMode mode) override
-    {
-        if (sourceNode->IsDynamic() && factory->GetTransaction()) {
-            THROW_ERROR_EXCEPTION("Operation cannot be performed in transaction");
-        }
-
-        auto tabletManager = Bootstrap_->GetTabletManager();
-
-        TBase::DoClone(sourceNode, clonedNode, factory, mode);
-
-        if (sourceNode->IsDynamic()) {
-            auto data = tabletManager->BeginCloneTable(sourceNode, clonedNode, mode);
-            factory->RegisterCommitHandler([sourceNode, clonedNode, tabletManager, data] () {
-                tabletManager->CommitCloneTable(sourceNode, clonedNode, data);
-            });
-            factory->RegisterRollbackHandler([sourceNode, clonedNode, tabletManager, data] () {
-                tabletManager->RollbackCloneTable(sourceNode, clonedNode, data);
-            });
-        }
-
-        clonedNode->TableSchema() = sourceNode->TableSchema();
-        clonedNode->SetSchemaMode(sourceNode->GetSchemaMode());
-        clonedNode->SetAtomicity(sourceNode->GetAtomicity());
-        clonedNode->SetLastCommitTimestamp(sourceNode->GetLastCommitTimestamp());
-
-        auto* trunkSourceNode = sourceNode->GetTrunkNode();
-        tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());
-    }
-
-    virtual int GetDefaultReplicationFactor() const override
-    {
-        return Bootstrap_->GetConfig()->CypressManager->DefaultTableReplicationFactor;
-    }
-};
-
-INodeTypeHandlerPtr CreateTableTypeHandler(NCellMaster::TBootstrap* bootstrap)
-{
-    return New<TTableNodeTypeHandler>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

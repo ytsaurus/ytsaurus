@@ -284,7 +284,12 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_server/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_server/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_server/table_node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_server/table_node_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_server/replicated_table_node.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_server/table_node_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_server/replicated_table_node_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_server/table_node_proxy_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_server/table_node_type_handler_detail.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/automaton.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/chunk_writer_pool.cpp

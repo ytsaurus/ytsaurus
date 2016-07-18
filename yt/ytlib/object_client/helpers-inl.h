@@ -27,6 +27,7 @@ inline bool IsVersionedType(EObjectType type)
         type == EObjectType::ListNode ||
         type == EObjectType::File ||
         type == EObjectType::Table ||
+        type == EObjectType::ReplicatedTable ||
         type == EObjectType::Journal ||
         type == EObjectType::ChunkMap ||
         type == EObjectType::LostChunkMap ||
@@ -74,6 +75,7 @@ inline bool IsUserType(EObjectType type)
         type == EObjectType::ListNode ||
         type == EObjectType::File ||
         type == EObjectType::Table ||
+        type == EObjectType::ReplicatedTable ||
         type == EObjectType::Journal ||
         type == EObjectType::Link ||
         type == EObjectType::Document;
