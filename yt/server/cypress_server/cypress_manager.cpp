@@ -897,6 +897,7 @@ public:
         TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(trunkNode->IsTrunk());
 
         AccessTracker_->SetModified(trunkNode, transaction);
     }
@@ -904,6 +905,7 @@ public:
     void SetAccessed(TCypressNodeBase* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(trunkNode->IsTrunk());
 
         if (HydraManager_->IsLeader() || HydraManager_->IsFollower() && !HasMutationContext()) {
             AccessTracker_->SetAccessed(trunkNode);
@@ -913,6 +915,7 @@ public:
     void SetExpirationTime(TCypressNodeBase* trunkNode, TNullable<TInstant> time)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(trunkNode->IsTrunk());
 
         trunkNode->SetExpirationTime(time);
 
@@ -2052,6 +2055,12 @@ private:
         auto* user = securityManager->GetAuthenticatedUser();
         auto* acd = securityManager->GetAcd(clonedNode);
         acd->SetOwner(user);
+
+        // Copy expiration time.
+        auto expirationTime = sourceNode->GetTrunkNode()->GetExpirationTime(); 
+        if (expirationTime) {
+            SetExpirationTime(clonedNode, *expirationTime);
+        }
 
         return clonedNode;
     }

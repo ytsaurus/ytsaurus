@@ -71,7 +71,7 @@ TColumnSchema& TColumnSchema::SetAggregate(const TNullable<Stroka>& value)
 
 struct TSerializableColumnSchema
     : public TYsonSerializableLite
-        , public TColumnSchema
+    , public TColumnSchema
 {
     TSerializableColumnSchema()
     {
@@ -86,23 +86,34 @@ struct TSerializableColumnSchema
             .Default();
         RegisterParameter("sort_order", SortOrder)
             .Default();
+        RegisterParameter("group", Group)
+            .Default();
 
-        RegisterValidator(
-            [ & ]() {
-                // Name
-                if (Name.empty()) {
-                    THROW_ERROR_EXCEPTION("Column name cannot be empty");
+        RegisterValidator([&] () {
+            // Name
+            if (Name.empty()) {
+                THROW_ERROR_EXCEPTION("Column name cannot be empty");
+            }
+
+            try {
+               // Type
+                ValidateSchemaValueType(Type);
+
+                // Lock
+                if (Lock && Lock->empty()) {
+                    THROW_ERROR_EXCEPTION("Lock name cannot be empty");
                 }
 
-                // Type
-                try {
-                    ValidateSchemaValueType(Type);
-                } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Error validating column %Qv in table schema",
-                        Name)
-                            << ex;
+                // Group
+                if (Group && Group->empty()) {
+                    THROW_ERROR_EXCEPTION("Group name cannot be empty");
                 }
-            });
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error validating column %Qv in table schema",
+                    Name)
+                    << ex;
+            }
+        });
     }
 };
 
@@ -136,6 +147,9 @@ void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
     if (schema.SortOrder) {
         protoSchema->set_sort_order(static_cast<int>(*schema.SortOrder));
     }
+    if (schema.Group) {
+        protoSchema->set_group(*schema.Group);
+    }
 }
 
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
@@ -146,6 +160,7 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
     schema->Expression = protoSchema.has_expression() ? MakeNullable(protoSchema.expression()) : Null;
     schema->Aggregate = protoSchema.has_aggregate() ? MakeNullable(protoSchema.aggregate()) : Null;
     schema->SortOrder = protoSchema.has_sort_order() ? MakeNullable(ESortOrder(protoSchema.sort_order())) : Null;
+    schema->Group = protoSchema.has_group() ? MakeNullable(protoSchema.group()) : Null;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
