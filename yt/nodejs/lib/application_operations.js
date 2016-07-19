@@ -142,10 +142,20 @@ function stripJsonAnnotations(annotated_json)
 
 function tidyArchiveOperation(operation)
 {
-    delete operation.id_hi;
-    delete operation.id_lo;
-    delete operation.id_hash;
-    delete operation.filter_factors;
+    var keys = [
+        "id_hi",
+        "id_lo",
+        "id_hash",
+        "filter_factors",
+        "index.id_hi",
+        "index.id_lo",
+        "index.start_time",
+        "index.dummy"
+    ];
+
+    _.each(keys, function(key) {
+        delete operation[key];
+    });
 
     operation.is_archived = true;
     if (operation.start_time) {
@@ -364,40 +374,40 @@ function YtApplicationOperations$list(parameters)
 
     if (substr_filter) {
         counts_filter_conditions.push(
-            "is_substr(\"{}\", spec.filter_factors)".format(escapeC(substr_filter)));
+            "is_substr(\"{}\", filter_factors)".format(escapeC(substr_filter)));
     }
 
     var items_filter_conditions = counts_filter_conditions.slice();
     var items_sort_direction;
 
     if (cursor_direction === "past") {
-        items_filter_conditions.push("start_time <= {}000".format(cursor_time));
+        items_filter_conditions.push("index.start_time <= {}000".format(cursor_time));
         items_sort_direction = "DESC";
     }
 
     if (cursor_direction === "future") {
-        items_filter_conditions.push("start_time > {}000".format(cursor_time));
+        items_filter_conditions.push("index.start_time > {}000".format(cursor_time));
         items_sort_direction = "ASC";
     }
 
     if (state_filter) {
-        items_filter_conditions.push("spec.state = \"{}\"".format(escapeC(state_filter)));
+        items_filter_conditions.push("state = \"{}\"".format(escapeC(state_filter)));
     }
 
     if (type_filter) {
-        items_filter_conditions.push("spec.operation_type = \"{}\"".format(escapeC(type_filter)));
+        items_filter_conditions.push("operation_type = \"{}\"".format(escapeC(type_filter)));
     }
 
     if (user_filter) {
-        items_filter_conditions.push("spec.authenticated_user = \"{}\"".format(escapeC(user_filter)));
+        items_filter_conditions.push("authenticated_user = \"{}\"".format(escapeC(user_filter)));
     }
 
-    var query_source = "[{}] JOIN [{}] spec ON (id_hi, id_lo) = (spec.id_hi, spec.id_lo)"
+    var query_source = "[{}] index JOIN [{}] ON (index.id_hi, index.id_lo) = (id_hi, id_lo)"
         .format(OPERATIONS_ARCHIVE_INDEX_PATH, OPERATIONS_ARCHIVE_PATH);
     var query_for_counts =
         "user, state, type, sum(1) AS count FROM {}".format(query_source) +
         " WHERE {}".format(counts_filter_conditions.join(" AND ")) +
-        " GROUP BY spec.authenticated_user AS user, spec.state AS state, spec.operation_type AS type";
+        " GROUP BY authenticated_user AS user, state AS state, operation_type AS type";
     var query_for_items =
         "* FROM {}".format(query_source) +
         " WHERE {}".format(items_filter_conditions.join(" AND ")) +
