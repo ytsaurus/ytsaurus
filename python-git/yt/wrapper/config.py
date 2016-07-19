@@ -173,10 +173,10 @@ class Config(types.ModuleType, client_state.ClientState):
             except ValueError:
                 raise self.common_module.YtError("Incorrect value of option '{0}': failed to apply type '{1}' to '{2}'".format(key, type, value))
 
-        # These options should be processed before reading config fil
+        # These options should be processed before reading config file
         for opt_name in ["YT_CONFIG_PATH", "YT_CONFIG_FORMAT"]:
             if opt_name in os.environ:
-                self.config[self.shortcuts[opt_name]] = os.environ[opt_name]
+                self.config[self.shortcuts[opt_name[3:]]] = os.environ[opt_name]
 
         config_path = self.config["config_path"]
         if config_path is None:

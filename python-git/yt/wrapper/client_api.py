@@ -18,6 +18,7 @@ from http import get_user_name
 from transaction import Transaction, PingableTransaction, PingTransaction
 from lock import lock
 from table import TempTable
+from transform import transform
 
 from job_commands import run_job_shell
 
