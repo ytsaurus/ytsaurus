@@ -24,13 +24,15 @@ def send_notification(cluster, notification_id, notification, recipients):
     mail_body = """<html>
     <head></head>
     <body>
-        <p>{0}</p>
-        <p><b>Estimated start time</b>: {1}</p>
-        <p><b>Estimated finish time</b>: {2}</p>
-        <p><b>Created by</b>: {3}</p>
+        <p><b>Cluster</b>: {0}</p>
+        <p>{1}</p>
+        <p><b>Estimated start time</b>: {2}</p>
+        <p><b>Estimated finish time</b>: {3}</p>
+        <p><b>Created by</b>: {4}</p>
     </body>
 </html>
 """.format(
+        cluster,
         description,
         time.ctime(notification["estimated_start_time"]) if "estimated_start_time" in notification else "(N/A)",
         time.ctime(notification["estimated_finish_time"]) if "estimated_finish_time" in notification else "(N/A)",
