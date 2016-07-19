@@ -4,11 +4,10 @@ import yt.wrapper as yt_module
 import yt.yson as yson
 from yt.wrapper.client import Yt
 from yt.wrapper.common import run_with_retries
-from yt.tools.dynamic_tables import DynamicTablesClient, \
-    get_schema_and_key_columns, get_dynamic_table_attributes, \
-    split_in_groups, log_exception
+from yt.tools.dump_restore_client import DumpRestoreClient
 
 import os
+import copy
 import argparse
 
 
@@ -24,8 +23,6 @@ INPUT_ROW_LIMIT = 100000000
 USER_SLOTS = 100
 # Maximum amount of memory allowed for a job
 JOB_MEMORY_LIMIT = "4GB"
-# Attribute prefix
-ATTRIBUTE_PREFIX = "_yt_dump_restore_"
 
 
 def parse_size(size):
@@ -34,7 +31,7 @@ def parse_size(size):
     try:
         if size[-2:].lower() in scale.keys():
             value, scale_name = size[:-2], size[-2:].lower()
-            return int(float(size[:-2]) * scale[scale_name])
+            return int(float(value) * scale[scale_name])
         else:
             return int(size)
     except Exception:
@@ -43,40 +40,15 @@ def parse_size(size):
             (size, ", ".join(["'%s'" % key for key in scale.keys()])))
 
 
-def save_attributes(dst, schema, key_columns, pivot_keys, yt):
-    """ Save dynamic table properties to simple attributes """
-    yt.set(dst + "/@" + ATTRIBUTE_PREFIX + "schema", schema)
-    yt.set(dst + "/@" + ATTRIBUTE_PREFIX + "key_columns", key_columns)
-    yt.set(dst + "/@" + ATTRIBUTE_PREFIX + "pivot_keys", pivot_keys)
-
-
-def restore_attributes(src, yt):
-    """ Reverse of the `save_attributes`: load dynamic table
-    properties from simple attributes """
-    schema = yt.get(src + "/@" + ATTRIBUTE_PREFIX + "schema")
-    key_columns = yt.get(src + "/@" + ATTRIBUTE_PREFIX + "key_columns")
-    pivot_keys = yt.get(src + "/@" + ATTRIBUTE_PREFIX + "pivot_keys")
-    return schema, key_columns, pivot_keys
-
-
-def create_destination(dst, yt, force=False, attributes=None):
-    """ Create the destination table (force-overwrite logic) """
-    if yt.exists(dst):
-        if force:
-            yt.remove(dst)
-        else:
-            raise Exception("Destination table exists. Use --force")
-    yt.create_table(dst, attributes=attributes)
-
 def common_preprocess(options):
-    """ options -> dynamic_tables_client.
+    """ options -> DumpRestoreClient.
 
-    Because some options are utils-dynamic_tables_client-specific and some are local.
+    Because some options are utils-DynamicTablesClient-specific and some are local.
     """
+    options = copy.deepcopy(options)
+
     # An inclusive list of things to remove.
-    local_options = (
-        "force", "batch_size", "dump", "restore", "erase",
-        "predicate")
+    local_options = ("dump", "restore", "erase", "force", "predicate")
     extra_options = {
         name: options.pop(name, None)
         for name in local_options}
@@ -84,101 +56,8 @@ def common_preprocess(options):
     options["job_memory_limit"] = (  # compat
         options.pop("memory_limit", None) or
         options.get("job_memory_limit"))
-    dynamic_tables_client = DynamicTablesClient(**options)
-    return extra_options, dynamic_tables_client
-
-
-def dump_table(src_table, dst_table, force=False, predicate=None, **options):
-    """ Dump dynamic table rows into a static table """
-    _, dynamic_tables_client = common_preprocess(options)
-    yt = dynamic_tables_client.yt
-
-    schema, key_columns = get_schema_and_key_columns(yt, src_table)
-    tablets = yt.get(src_table + "/@tablets")
-    pivot_keys = sorted([tablet["pivot_key"] for tablet in tablets])
-
-    create_destination(dst_table, yt=yt, force=force)
-    save_attributes(dst_table, schema, key_columns, pivot_keys, yt=yt)
-
-    def dump_mapper(rows):
-        for row in rows:
-            yield row
-
-    dynamic_tables_client.run_map_over_dynamic(
-        dump_mapper, src_table, dst_table,
-        predicate=predicate)
-
-
-def restore_table(src_table, dst_table, force=False, batch_size=BATCH_SIZE, **options):
-    """ Insert static table rows into a dynamic table """
-    _, dynamic_tables_client = common_preprocess(options)
-    yt = dynamic_tables_client.yt
-    schema, key_columns, pivot_keys = restore_attributes(src_table, yt=yt)
-
-    create_destination(
-        dst_table,
-        yt=yt,
-        force=force,
-        attributes=get_dynamic_table_attributes(yt, schema, key_columns))
-    yt.reshard_table(dst_table, pivot_keys)
-
-    dynamic_tables_client.mount_table(dst_table)
-
-    @yt_module.aggregator
-    def restore_mapper(rows):
-        client = dynamic_tables_client.make_driver_yt_client()
-
-        def make_inserter(rowset):
-            def do_insert():
-                client.insert_rows(dst_table, rowset, raw=False)
-
-            return do_insert
-
-        for rowset in split_in_groups(rows, batch_size):
-            inserter = make_inserter(rowset)
-            run_with_retries(inserter, except_action=log_exception)
-
-        if False:  # make this function into a generator
-            yield
-
-    with yt.TempTable() as out_table:
-        yt.run_map(
-            restore_mapper,
-            src_table,
-            out_table,
-            spec=dynamic_tables_client.build_spec_from_options(),
-            format=dynamic_tables_client.yson_format)
-
-
-def erase_table(table, batch_size=BATCH_SIZE, force=False, predicate=None, **options):
-    """ Delete all rows from a dynamic table """
-    _, dynamic_tables_client = common_preprocess(options)
-
-    yt = dynamic_tables_client.yt
-
-    _, key_columns = get_schema_and_key_columns(yt, table)
-
-    def erase_mapper(rows):
-        client = dynamic_tables_client.make_driver_yt_client()
-
-        def make_deleter(rowset):
-            def do_delete():
-                client.delete_rows(table, rowset, raw=False)
-
-            return do_delete
-
-        for rowset in split_in_groups(rows, batch_size):
-            deleter = make_deleter(rowset)
-            run_with_retries(deleter, except_action=log_exception)
-
-        if False:  # make this function into a generator
-            yield
-
-    with yt.TempTable() as out_table:
-        dynamic_tables_client.run_map_over_dynamic(
-            erase_mapper, table, out_table,
-            columns=key_columns,
-            predicate=predicate)
+    dump_restore_client = DumpRestoreClient(**options)
+    return extra_options, dump_restore_client
 
 
 def make_parser():
@@ -210,20 +89,27 @@ def make_parser():
 def main():
     parser = make_parser()
     args = parser.parse_args()
-    args_dict = vars(args)
 
     if os.environ.get('DEBUG'):
         import logging
         logging.basicConfig(level=1)
         logging.getLogger('yt.packages.requests.packages.urllib3.connectionpool').setLevel('ERROR')
 
+    extra_options, dump_restore_client = common_preprocess(vars(args))
+
     if args.dump:
-        dump_table(*args.dump, **args_dict)
+        dump_restore_client.dump_table(
+            *args.dump,
+            force=extra_options.get('force'),
+            predicate=extra_options.get('predicate'))
     elif args.restore:
-        restore_table(*args.restore, **args_dict)
+        dump_restore_client.restore_table(
+            *args.restore,
+            force=extra_options.get('force'))
     elif args.erase:
-        erase_table(*args.erase, **args_dict)
+        dump_restore_client.erase_table(
+            *args.erase,
+            predicate=extra_options.get('predicate'))
 
 if __name__ == "__main__":
     main()
-

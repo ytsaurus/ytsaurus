@@ -6,7 +6,7 @@ import yt.yson as yson
 import sys
 import time
 import logging
-import itertools as it
+import itertools
 
 from yt.common import YtError
 from yt.wrapper.common import run_with_retries
@@ -46,7 +46,7 @@ def get_schema_and_key_columns(client, path):
 
     return schema, key_columns
 
-def get_dynamic_table_attributes(client, schema, key_columns): 
+def get_dynamic_table_attributes(client, schema, key_columns):
     attributes = {
         "dynamic": True
     }
@@ -145,6 +145,8 @@ class DynamicTablesClient(object):
     max_failed_job_count = None
     # data size per job
     data_size_per_job = None
+    # maximum number or rows passed to yt insert
+    batch_size = 50000
     # maximum number of output rows
     output_row_limit = 100000000
     # maximum number of input rows
@@ -222,7 +224,7 @@ class DynamicTablesClient(object):
         if self.data_size_per_job:
             spec["data_size_per_job"] = self.data_size_per_job
         if self.pool is not None:
-            spec['pool'] = self.pool
+            spec["pool"] = self.pool
         return spec
 
     def _collect_pivot_keys_mapper(self, tablet):
@@ -335,7 +337,7 @@ class DynamicTablesClient(object):
         partition_keys = [
             # NOTE: using `!= None` because there's some YsonEntity
             # which is `== None` but `is not None`.
-            list(it.takewhile(lambda val: not is_none(val), key))
+            list(itertools.takewhile(lambda val: not is_none(val), key))
             for key in partition_keys]
         partition_keys = [key for key in partition_keys if len(key) > 0]
         partition_keys = sorted(partition_keys)
@@ -397,7 +399,9 @@ class DynamicTablesClient(object):
                         workload_descriptor=self.workload_descriptor,
                         raw=False)
                 rows = run_with_retries(do_select, except_action=log_exception)
-                for res in mapper(rows):
+                if mapper is not None:
+                    rows = mapper(rows)
+                for res in rows:
                     yield res
 
         map_spec = self.build_spec_from_options()
@@ -412,26 +416,26 @@ class DynamicTablesClient(object):
                 spec=map_spec,
                 format=self.yson_format)
 
-    def run_map_dynamic(self, mapper, src_table, dst_table, batch_size=50000):
+    # explicit batch_size is for backward compatibility
+    def run_map_dynamic(self, mapper, src_table, dst_table, batch_size=None):
 
         def insert_mapper(rows):
             client = self.make_driver_yt_client()
 
-            def mapped_iterator():
-                for row in rows:
-                    for res in mapper(row):
-                        yield res
-
-            def make_do_insert(rowset):
+            def make_inserter(rowset):
                 def do_insert():
                     client.insert_rows(dst_table, rowset, raw=False)
 
                 return do_insert
 
-            rowsets = split_in_groups(mapped_iterator(), batch_size)
+            result_iterator = rows
+            if mapper is not None:
+                result_iterator = itertools.chain.from_iterable(itertools.imap(mapper, rows))
+
+            rowsets = split_in_groups(result_iterator, batch_size or self.batch_size)
             for rowset in rowsets:
                 # Avoiding a closure inside the loop just in case
-                do_insert_these = make_do_insert(rowset)
+                do_insert_these = make_inserter(rowset)
                 run_with_retries(do_insert_these, except_action=log_exception)
 
             # Make a generator out of this function.
@@ -439,7 +443,15 @@ class DynamicTablesClient(object):
                 yield
 
         with self.yt.TempTable() as out_table:
-            self.run_map_over_dynamic(insert_mapper, src_table, out_table)
+            if self.yt.get_attribute(src_table, "dynamic"):
+                self.run_map_over_dynamic(insert_mapper, src_table, out_table)
+            else:
+                self.yt.run_map(
+                    yt_module.aggregator(insert_mapper),
+                    src_table,
+                    out_table,
+                    spec=self.build_spec_from_options(),
+                    format=self.yson_format)
 
 # Make a singleton and make the functions accessible in the module
 # (same as it was previously)
