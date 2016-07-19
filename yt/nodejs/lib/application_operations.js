@@ -147,10 +147,6 @@ function tidyArchiveOperation(operation)
         "id_lo",
         "id_hash",
         "filter_factors",
-        "index.id_hi",
-        "index.id_lo",
-        "index.start_time",
-        "index.dummy"
     ];
 
     _.each(keys, function(key) {
@@ -184,7 +180,7 @@ function idUint64ToString(id_hi, id_lo)
 
 function idStringToUint64(id)
 {
-    var hi, log, parts;
+    var hi, lo, parts;
     parts = id.split("-");
     hi = UI64(parts[3], 16).shiftLeft(32).or(UI64(parts[2], 16));
     lo = UI64(parts[1], 16).shiftLeft(32).or(UI64(parts[0], 16));
@@ -369,24 +365,23 @@ function YtApplicationOperations$list(parameters)
         });
 
     var counts_filter_conditions = [
-        "index.start_time > {} AND index.start_time <= {}".format(from_time, to_time)
+        "start_time > {} AND start_time <= {}".format(from_time, to_time)
     ];
 
     if (substr_filter) {
         counts_filter_conditions.push(
             "is_substr(\"{}\", filter_factors)".format(escapeC(substr_filter)));
     }
-
     var items_filter_conditions = counts_filter_conditions.slice();
     var items_sort_direction;
 
     if (cursor_direction === "past") {
-        items_filter_conditions.push("index.start_time <= {}".format(cursor_time));
+        items_filter_conditions.push("start_time <= {}".format(cursor_time));
         items_sort_direction = "DESC";
     }
 
     if (cursor_direction === "future") {
-        items_filter_conditions.push("index.start_time > {}".format(cursor_time));
+        items_filter_conditions.push("start_time > {}".format(cursor_time));
         items_sort_direction = "ASC";
     }
 
@@ -402,17 +397,23 @@ function YtApplicationOperations$list(parameters)
         items_filter_conditions.push("authenticated_user = \"{}\"".format(escapeC(user_filter)));
     }
 
-    var query_source = "[{}] index JOIN [{}] ON (index.id_hi, index.id_lo) = (id_hi, id_lo)"
-        .format(OPERATIONS_ARCHIVE_INDEX_PATH, OPERATIONS_ARCHIVE_PATH);
+    var query_source = "[{}]"
+        .format(OPERATIONS_ARCHIVE_INDEX_PATH);
     var query_for_counts =
         "user, state, type, sum(1) AS count FROM {}".format(query_source) +
         " WHERE {}".format(counts_filter_conditions.join(" AND ")) +
         " GROUP BY authenticated_user AS user, state AS state, operation_type AS type";
+
     var query_for_items =
-        "* FROM {}".format(query_source) +
+        "id_hi, id_lo FROM {}".format(query_source) +
         " WHERE {}".format(items_filter_conditions.join(" AND ")) +
         " ORDER BY start_time {}".format(items_sort_direction) +
         " LIMIT {}".format(1 + max_size);
+
+    console.log(query_for_counts);
+
+    console.log(query_for_items);
+
 
     var archive_counts = null;
     if (include_archive && include_counters) {
@@ -425,9 +426,15 @@ function YtApplicationOperations$list(parameters)
 
     var archive_data = null;
     if (include_archive) {
-        archive_data = this.driver.executeSimple(
-            "select_rows",
-            {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT});
+        var driver_ = this.driver;
+        archive_data = this.driver
+            .executeSimple(
+                "select_rows",
+                {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT})
+            .then(this.driver.executeSimple.bind(this.driver, "lookup_rows", {
+                path: OPERATIONS_ARCHIVE_PATH,
+                input_format: ANNOTATED_JSON_FORMAT,
+                output_format: ANNOTATED_JSON_FORMAT})); 
     } else {
         archive_data = Q.resolve([]);
     }
@@ -487,6 +494,7 @@ function YtApplicationOperations$list(parameters)
 
     function makeErrorHandler(message) {
         return function(error) {
+            console.log(error);
             var err = YtError.ensureWrapped(error);
             logger.error(message, {error: err.toJson()});
             return Q.reject(new YtError(message, err));
