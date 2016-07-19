@@ -24,6 +24,7 @@ struct TShellOptions
     std::vector<Stroka> Environment;
     TNullable<Stroka> Bashrc;
     TNullable<Stroka> MessageOfTheDay;
+    TDuration InactivityTimeout;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,6 +42,8 @@ struct IShell
     virtual TFuture<TSharedRef> Poll() = 0;
     //! Tries to clean up, best effort guarantees.
     virtual void Terminate(const TError& error) = 0;
+    //! Asynchronously wait for inactivity timeout and terminate.
+    virtual TFuture<void> Shutdown(const TError& error) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IShell)
