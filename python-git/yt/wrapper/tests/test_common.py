@@ -1,6 +1,9 @@
 from yt.wrapper.common import update, unlist, parse_bool, dict_depth, bool_to_string, \
-                              is_prefix, prefix, first_not_none, chunk_iter_blobs
+                              is_prefix, prefix, first_not_none, chunk_iter_blobs, \
+                              datetime_to_string, date_string_to_timestamp
 import yt.wrapper as yt
+
+from datetime import datetime
 
 import pytest
 
@@ -69,4 +72,13 @@ def test_chunk_iter_blobs():
     assert list(chunk_iter_blobs(lines, 3)) == \
            [["ab", "abc"], ["def"], ["ghijklmn"], ["op"]]
     assert list(chunk_iter_blobs(["abcdef"], 2)) == [["abcdef"], []]
+
+def test_time_functions():
+    now = datetime.now()
+    now_utc = datetime.utcnow()
+    str1 = datetime_to_string(now_utc)
+    str2 = datetime_to_string(now, is_local=True)
+    tm1 = date_string_to_timestamp(str1)
+    tm2 = date_string_to_timestamp(str2)
+    assert abs(tm1 - tm2) < 10
 
