@@ -286,13 +286,10 @@ TEST_F(TChunkSliceTest, TwoKeyChunkSmallSlice)
             500, // sliceDataSize
             1,   // keyColumnCount
             DoSliceByKeys);
-        EXPECT_EQ(keySlices.size(), 2);
+        EXPECT_EQ(keySlices.size(), 1);
         EXPECT_EQ(ConvertLimitsToYson(keySlices[0]),
-            R"_({"lower_limit"={"key"=["10000"]};"upper_limit"={"key"=["10000";<"type"="max">#]}})_");
-        EXPECT_EQ(keySlices[0]->GetRowCount(), 158);
-        EXPECT_EQ(ConvertLimitsToYson(keySlices.back()),
-            R"_({"lower_limit"={"key"=["10000";<"type"="max">#]};"upper_limit"={"key"=["10001";<"type"="max">#]}})_");
-        EXPECT_EQ(keySlices.back()->GetRowCount(), 142);
+            R"_({"lower_limit"={"key"=["10000"]};"upper_limit"={"key"=["10001";<"type"="max">#]}})_");
+        EXPECT_EQ(keySlices[0]->GetRowCount(), 300);
 
         auto rowSlices = SliceChunk(
             chunkSpec,
