@@ -20,7 +20,7 @@ def send_notification(cluster, notification_id, notification, recipients):
         # Seems like the author of description forgot about html-format, let's 
         # fix newlines for him.
         description = description.replace("\n", "<br />") 
-    mail_subject = "[{0}] Notification: {1}".format(cluster, notification.get("title", "(no subject)"))
+    mail_subject = "{0} / Notification: {1}".format(cluster, notification.get("title", "(no subject)"))
     mail_body = """<html>
     <head></head>
     <body>
