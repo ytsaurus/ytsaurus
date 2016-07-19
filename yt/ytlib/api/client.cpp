@@ -59,6 +59,7 @@
 #include <yt/core/compression/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/async_semaphore.h>
 
 #include <yt/core/misc/common.h>
 
@@ -838,6 +839,7 @@ public:
         : Connection_(std::move(connection))
         , Options_(options)
         , Invoker_(Connection_->GetDispatcher()->GetLightInvoker())
+        , ConcurrentRequestsSemaphore_(Connection_->GetConfig()->MaxConcurrentRequests)
     {
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
             MasterChannels_[kind] = Connection_->GetMasterChannel(kind);
@@ -1167,6 +1169,8 @@ private:
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
     std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
 
+    TAsyncSemaphore ConcurrentRequestsSemaphore_;
+
     NLogging::TLogger Logger = ApiLogger;
 
 
@@ -1176,8 +1180,13 @@ private:
         const TTimeoutOptions& options,
         TCallback<T()> callback)
     {
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(&ConcurrentRequestsSemaphore_);
+        if (!guard) {
+            return MakeFuture<T>(TError(EErrorCode::TooManyConcurrentRequests, "Too many concurrent requests"));
+        }
+
         return
-            BIND([=, this_ = MakeStrong(this)] () {
+            BIND([=, this_ = MakeStrong(this), guard = std::move(guard)] () {
                 try {
                     LOG_DEBUG("Command started (Command: %v)", commandName);
                     TBox<T> result(callback);

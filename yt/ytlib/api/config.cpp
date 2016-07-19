@@ -105,6 +105,11 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("heavy_pool_size", HeavyInvokerPoolSize)
         .Describe("Number of threads handling heavy requests")
         .Default(4);
+
+    RegisterParameter("max_concurrent_requests", MaxConcurrentRequests)
+        .Describe("Maximum concurrent requests in client")
+        .GreaterThan(0)
+        .Default(1000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
