@@ -293,7 +293,13 @@ default_config = {
 
     # Do not fail with resolve error (just print warning) in yt.search(root, ...)
     # if root path does not exist.
-    "ignore_root_path_resolve_error_in_search": False
+    "ignore_root_path_resolve_error_in_search": False,
+
+    "transform_options": {
+        "chunk_count_to_compute_compression_ratio": 1,
+        "desired_chunk_size": 2 * 1024 ** 3,
+        "max_data_size_per_job": 16 * 1024 ** 3,
+    }
 }
 
 def transform_value(value, original_value):

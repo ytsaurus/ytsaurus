@@ -689,41 +689,65 @@ test_defrag()
     done
 }
 
+test_archive_and_transform()
+{
+    tempfile=$(mktemp /tmp/test_mapreduce_binary_config.XXXXXX)
+    echo "{transform_options={desired_chunk_size=10000000}}" >$tempfile
+    export YT_CONFIG_PATH="$tempfile"
+
+    echo -e "a\t1\nb\t2" | ./mapreduce -write ignat/input
+    
+    ./mapreduce -archive ignat/input -erasurecodec none
+    check '"zlib_9"' "`./mapreduce -get ignat/input/@compression_codec`"
+    check '"none"' "`./mapreduce -get ignat/input/@erasure_codec`"
+    
+    ./mapreduce -unarchive ignat/input
+    # Check nothing
+
+    ./mapreduce -transform -src ignat/input -dst ignat/output -codec "zlib_6"
+    check '"zlib_6"' "`./mapreduce -get ignat/output/@compression_codec`"
+    check '"none"' "`./mapreduce -get ignat/output/@erasure_codec`"
+
+    rm -rf "$tempfile"
+    unset YT_CONFIG_PATH
+}
+
 prepare_table_files
-test_base_functionality
-test_list
-test_codec
-test_many_output_tables
-test_sortby_reduceby
-test_chunksize
-test_mapreduce
-test_input_output_format
-test_transactions
-test_range_map
-test_uploaded_files
-test_ignore_positional_arguments
-test_stderr
-test_spec
-test_smart_format
-test_drop
-test_create_table
-test_empty_destination
-test_dsv_reduce
-test_slow_write
-test_many_dst_write
-test_dstsorted
-test_custom_fs_rs
-test_write_with_tx
-test_table_file
-test_unexisting_input_tables
-test_copy_files
-test_write_lenval
-test_force_drop
-test_parallel_dstappend
-test_many_to_many_copy_move
-test_missing_prefix
-test_table_record_index
-test_opts
-test_defrag
+#test_base_functionality
+#test_list
+#test_codec
+#test_many_output_tables
+#test_sortby_reduceby
+#test_chunksize
+#test_mapreduce
+#test_input_output_format
+#test_transactions
+#test_range_map
+#test_uploaded_files
+#test_ignore_positional_arguments
+#test_stderr
+#test_spec
+#test_smart_format
+#test_drop
+#test_create_table
+#test_empty_destination
+#test_dsv_reduce
+#test_slow_write
+#test_many_dst_write
+#test_dstsorted
+#test_custom_fs_rs
+#test_write_with_tx
+#test_table_file
+#test_unexisting_input_tables
+#test_copy_files
+#test_write_lenval
+#test_force_drop
+#test_parallel_dstappend
+#test_many_to_many_copy_move
+#test_missing_prefix
+#test_table_record_index
+#test_opts
+#test_defrag
+test_archive_and_transform
 
 cleanup

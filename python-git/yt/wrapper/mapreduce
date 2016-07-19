@@ -267,8 +267,8 @@ Examples:
     action_maybe_stores = ["write", "defrag"]
     action_stores = ["read", "writesorted", "map", "orderedmap", "reduce", "hash-reduce", "reducews", "reducewsonly", "drop",
                      "erase", "aborttx", "committx", "renewtx", "set", "get", "upload", "download",
-                     "createtable", "exists", "track", "ytlock"]
-    action_flags = ["version", "copy", "move", "merge", "list", "listfiles", "starttx"]
+                     "createtable", "exists", "track", "ytlock", "archive", "unarchive"]
+    action_flags = ["version", "copy", "move", "merge", "list", "listfiles", "starttx", "transform"]
 
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
                                           "smartformat", "force", "executable", "waitable", "failonemptysrctable", "nocreatetmptable",
@@ -277,7 +277,7 @@ Examples:
 
     add_maybe_missing_value_args(parser, action_maybe_stores)
 
-    add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
+    add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec", "erasurecodec",
                                             "format", "inputformat", "outputformat", "tx", "value",
                                             "replicationfactor", "memlimit", "timeout", "title", "fs", "rs",
                                             "mode", "tablereader", "tablewriter", "compress", "exact"])
@@ -291,6 +291,8 @@ Examples:
              "NEW! abort given transaction"),
             ("append",
              "turn on append mode in write operation"),
+            ("archive",
+             "archive table"),
             ("chunksize",
              "bound for the size of the chunk in write operation"),
             ("codec",
@@ -325,6 +327,9 @@ Examples:
              "NEW! use delimited separated value format"),
             ("erase",
              "NEW! delete the table, this option supports range specifications"),
+            ("erasurecodec",
+             "NEW! type of erasure algorithm used while writing table. "
+             "Applicable only in trasform and archive commands."),
             ("exists",
              "NEW! check table for existance"),
             ("failonemptysrctable",
@@ -435,6 +440,8 @@ Examples:
              "NEW! track operation progress"),
             ("tx",
              "NEW! perform command in the context of the given transaction"),
+            ("unarchive",
+             "unarchive table"),
             ("upload",
              "NEW! upload given file to destination"),
             ("upperkey",
@@ -796,6 +803,21 @@ Examples:
         config["operation_tracker"]["abort_on_sigint"] = False
         operation = yt.Operation("unknown", args.track)
         operation.wait()
+
+    if args.transform:
+        if len(args.src) > 1:
+            die("Transform command supports only one input table")
+        if len(dst) > 1:
+            die("Transform command supports only one output table")
+        yt.transform(source_table=args.src[0], destination_table=dst[0], compression_codec=args.codec, erasure_codec=args.erasurecodec)
+
+    if args.archive:
+        compression_codec = get_value(args.codec, "zlib_9")
+        erasure_codec = get_value(args.erasurecodec, "lrc_12_2_2")
+        yt.transform(source_table=args.archive, compression_codec=compression_codec, erasure_codec=erasure_codec)
+
+    if args.unarchive:
+        pass
 
 if __name__ == "__main__":
     run_main(main)
