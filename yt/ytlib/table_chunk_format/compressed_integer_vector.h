@@ -43,10 +43,15 @@ private:
     size_t Size_;
     ui8 Width_;
 
-    std::vector<T> Values_;
+    const T* Values_;
+    std::unique_ptr<T[]> ValuesHolder_;
 
     T GetValue(size_t index) const;
     void UnpackValues();
+    template <int Width>
+    void UnpackValuesUnrolled();
+    void UnpackValuesFallback();
+    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
