@@ -1,6 +1,7 @@
 """Some common useful misc"""
 
-from yt.common import require, flatten, update, which, YtError, update_from_env, unlist, get_value, filter_dict, date_string_to_timestamp
+from yt.common import require, flatten, update, which, YtError, update_from_env, \
+                      unlist, get_value, filter_dict, date_string_to_timestamp, datetime_to_string
 import yt.yson as yson
 from yt.packages.decorator import decorator
 

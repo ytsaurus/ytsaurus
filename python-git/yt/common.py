@@ -3,6 +3,7 @@ from collections import Mapping
 import os
 import sys
 import time
+import calendar
 import ctypes
 import types
 import signal
@@ -269,9 +270,11 @@ def makedirp(path):
 
 def date_string_to_timestamp(date):
     # It is standard time representation in YT.
-    return time.mktime(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple())
+    return calendar.timegm(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple())
 
-def datetime_to_string(date):
+def datetime_to_string(date, is_local=False):
+    if is_local:
+        date = datetime.utcfromtimestamp(time.mktime(date.timetuple()))
     # It is standard time representation in YT.
     return date.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
