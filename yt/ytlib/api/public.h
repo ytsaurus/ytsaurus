@@ -11,6 +11,13 @@ namespace NApi {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// Api error codes
+DEFINE_ENUM(EErrorCode,
+    ((TooManyConcurrentRequests)                         (1800))
+);
+
+///////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(IRowset)
 
 DECLARE_REFCOUNTED_STRUCT(IConnection)
