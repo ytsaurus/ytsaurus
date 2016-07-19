@@ -164,143 +164,34 @@ T TCompressedUnsignedVectorReader<T, Scan>::GetValue(size_t index) const
     }
 }
 
-namespace {
-
-template <class T, int Width, int Remaining>
-struct TCompressedUnsignedVectorUnrolledReader
-{
-    static Y_FORCE_INLINE void Do(ui64& data, T*& output, ui64 mask)
-    {
-        *output++ = static_cast<T>(data & mask);
-        data >>= Width;
-        TCompressedUnsignedVectorUnrolledReader<T, Width, Remaining - 1>::Do(data, output, mask);
-    }
-};
-
-template <class T, int Width>
-struct TCompressedUnsignedVectorUnrolledReader<T, Width, 0>
-{
-    static Y_FORCE_INLINE void Do(ui64& data, T*& output, ui64 mask)
-    { }
-};
-
-} // namespace
-
 template <class T, bool Scan>
-template <int Width>
-void TCompressedUnsignedVectorReader<T, Scan>::UnpackValuesUnrolled()
+void TCompressedUnsignedVectorReader<T, Scan>::UnpackValues()
 {
-    constexpr bool Aligned = (Width % 64 == 0);
-    constexpr int UnrollFactor = (64 / Width) - (Aligned ? 0 : 1);
+    Values_.resize(Size_, 0);
 
-    const ui64* input = Data_;
-    auto* output = ValuesHolder_.get();
-    auto* outputEnd = output + Size_;
-    ui8 offset = 0;
-    ui64 mask = MaskLowerBits(Width_);
-
-    ui64 data = *input++;
-    while (output < outputEnd) {
-        TCompressedUnsignedVectorUnrolledReader<T, Width, UnrollFactor>::Do(data, output, mask);
-        offset += UnrollFactor * Width;
-        if (!Aligned && offset + Width <= 64) {
-            TCompressedUnsignedVectorUnrolledReader<T, Width, 1>::Do(data, output, mask);
-            offset += Width;
-        }
-        if (output >= outputEnd) {
-            break;
-        }
-        if (offset == 64) {
-            offset = 0;
-            data = *input++;
-        } else {
-            ui64 nextData = *input++;
-            ui8 nextOffset = (offset + Width) & 0x3F;
-            *output++ = static_cast<T>(((nextData & MaskLowerBits(nextOffset)) << (64 - offset)) | data);
-            data = nextData;
-            offset = nextOffset;
-            data >>= offset;
-        }
+    if (Width_ == 0) {
+        return;
     }
-}
 
-template <class T, bool Scan>
-void TCompressedUnsignedVectorReader<T, Scan>::UnpackValuesFallback()
-{
-    const ui64* input = Data_;
-    auto* output = ValuesHolder_.get();
-    auto* outputEnd = output + Size_;
+    const ui64* word = Data_;
     ui8 offset = 0;
-    ui64 mask = MaskLowerBits(Width_);
-    while (output != outputEnd) {
-        ui64 w1 = *input >> offset;
+
+    for (size_t index = 0; index < Size_; ++index) {
+        ui64 w1 = (*word) >> offset;
         if (offset + Width_ > 64) {
-            ++input;
-            ui64 w2 = (*input & MaskLowerBits((offset + Width_) & 0x3F)) << (64 - offset);
-            *output = static_cast<T>(w1 | w2);
+            ++word;
+            ui64 w2 = (*word & MaskLowerBits((offset + Width_) & 0x3F)) << (64 - offset);
+            Values_[index] = static_cast<T>(w1 | w2);
         } else {
-            *output = static_cast<T>(w1 & mask);
+            Values_[index] = static_cast<T>(w1 & MaskLowerBits(Width_));
         }
 
         offset = (offset + Width_) & 0x3F;
         if (offset == 0) {
-            ++input;
+            ++word;
         }
-
-        ++output;
     }
-}
-
-template <class T, bool Scan>
-void TCompressedUnsignedVectorReader<T, Scan>::UnpackValues()
-{
-    if (Width_ == 8 || Width_ == 16 || Width_ == 32 || Width_ == 64) {
-        Values_ = reinterpret_cast<const T*>(Data_);
-        return;
-    }
-    
-    // NB: Unrolled loop may unpack more values than actually needed.
-    // Make sure we have enough room for them.
-    auto valuesSize = Size_ + ((Width_ > 0) ? (64 / Width_ + 1) : 0);
-    ValuesHolder_.reset(new T[valuesSize]);
-    Values_ = ValuesHolder_.get();
-
-    switch (Width_) {
-        case 0: std::fill(ValuesHolder_.get(), ValuesHolder_.get() + Size_, 0); break;
-        #define XX(width) case width: UnpackValuesUnrolled<width>(); break;
-        XX( 1)
-        XX( 2)
-        XX( 3)
-        XX( 4)
-        XX( 5)
-        XX( 6)
-        XX( 7)
-        XX( 9)
-        XX(10)
-        XX(11)
-        XX(12)
-        XX(13)
-        XX(14)
-        XX(15)
-        XX(17)
-        XX(18)
-        XX(19)
-        XX(20)
-        XX(21)
-        XX(22)
-        XX(23)
-        XX(24)
-        XX(25)
-        XX(26)
-        XX(27)
-        XX(28)
-        XX(29)
-        XX(30)
-        XX(31)
-        #undef XX
-        default: UnpackValuesFallback(); break;
-    }
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
