@@ -110,6 +110,38 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read_table("//tmp/t_out") == [{"a": 1}, {"a": 2}, {"a": 3}, {"a": 10}, {"a": 15}, {"a": 100}]
         assert get("//tmp/t_out/@chunk_count") == 1 # resulting number of chunks is always equal to 1 (as long they are small)
 
+    def test_sorted_merge_result_is_sorted(self):
+        create("table", "//tmp/t1")
+
+        count = 100
+        write_table("<append=true>//tmp/t1",
+            [{"key": "%05d" % (i if i < count / 2 else count / 2), "value": "%05d" % i} for i in range(count)],
+            sorted_by = "key",
+            table_writer = {"block_size": 1024})
+        write_table("<append=true>//tmp/t1",
+            [{"key": "%05d" % (count / 2), "value": "%05d" % (i + count)} for i in range(count)],
+            sorted_by = "key",
+            table_writer = {"block_size": 1024})
+        write_table("<append=true>//tmp/t1",
+            [{"key": "%05d" % (count / 2), "value": "%05d" % (i + 2 * count)} for i in range(count)],
+            sorted_by = "key",
+            table_writer = {"block_size": 1024})
+        write_table("<append=true>//tmp/t1",
+            [{"key": "%05d" % (count / 2 if i < count / 2 else i), "value": "%05d" % (i + 3 * count)} for i in range(count)],
+            sorted_by = "key",
+            table_writer = {"block_size": 1024})
+
+        create("table", "//tmp/t_out")
+        merge(mode="sorted",
+                in_=["//tmp/t1"],
+                out="//tmp/t_out",
+                spec={"data_size_per_job": 100})
+
+        result = read_table("//tmp/t_out")
+        assert len(result) == 4 * count
+        for i in range(len(result)-1):
+            assert result[i]["key"] <= result[i + 1]["key"]
+
     def test_sorted_trivial(self):
         create("table", "//tmp/t1")
 
