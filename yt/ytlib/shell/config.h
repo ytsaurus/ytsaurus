@@ -19,6 +19,8 @@ struct TShellParameters
     TNullable<ui64> InputOffset;
     int Height;
     int Width;
+    //! Timeout for inactive shell after failed or completed job.
+    TDuration InactivityTimeout;
 
     TShellParameters()
     {
@@ -35,6 +37,8 @@ struct TShellParameters
             .Default(0);
         RegisterParameter("width", Width)
             .Default(0);
+        RegisterParameter("inactivity_timeout", InactivityTimeout)
+            .Default(TDuration::Seconds(60));
 
         RegisterValidator([&] () {
             if (Operation != EShellOperation::Spawn && !ShellId) {

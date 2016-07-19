@@ -6,6 +6,7 @@
 #include <yt/core/actions/bind.h>
 
 #include <yt/core/concurrency/async_stream.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/logging/log.h>
 
@@ -51,30 +52,32 @@ public:
         , Freezer_(Options_->CGroupBasePath.Get("") + CGroupShellPrefix + ToString(Id_))
         , CurrentHeight_(Options_->Height)
         , CurrentWidth_(Options_->Width)
+        , InactivityTimeout_(Options_->InactivityTimeout)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         Logger.AddTag("ShellId: %v", Id_);
     }
 
     void Spawn()
     {
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-            YCHECK(!IsRunning_);
-            IsRunning_ = true;
-        }
+        YCHECK(!IsRunning_);
+        IsRunning_ = true;
 
         int uid = Options_->Uid.Get(::getuid());
         auto user = SafeGetUsernameByUid(uid);
         auto home = Options_->WorkingDir;
 
-        LOG_INFO("Spawning TTY (Term: %v, Height: %v, Width: %v, Uid: %v, Username: %v, Home: %v)",
+        LOG_INFO("Spawning TTY (Term: %v, Height: %v, Width: %v, Uid: %v, Username: %v, Home: %v, InactivityTimeout: %v)",
             Options_->Term,
             CurrentHeight_,
             CurrentWidth_,
             uid,
             user,
-            home);
+            home,
+            InactivityTimeout_);
 
         TPty pty(CurrentHeight_, CurrentWidth_);
 
@@ -134,13 +137,14 @@ public:
         ResizeWindow(CurrentHeight_, CurrentWidth_);
         Process_->Spawn()
             .Subscribe(
-                BIND(&TShell::Terminate, MakeWeak(this)));
+                BIND(&TShell::Terminate, MakeWeak(this))
+                    .Via(GetCurrentInvoker()));
         LOG_INFO("Shell started");
     }
 
     virtual void ResizeWindow(int height, int width) override
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (CurrentHeight_ != height || CurrentWidth_ != width) {
             SafeSetTtyWindowSize(Reader_->GetHandle(), height, width);
@@ -151,6 +155,8 @@ public:
 
     virtual ui64 SendKeys(const TSharedRef& keys, ui64 inputOffset) override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         if (ConsumedOffset_ < inputOffset) {
             // Key sequence from the future is not possible.
             THROW_ERROR_EXCEPTION("Input offset is more than consumed offset")
@@ -169,28 +175,56 @@ public:
         if (offset < keys.Size()) {
             ConsumedOffset_ += keys.Size() - offset;
             ZeroCopyWriter_->Write(keys.Slice(offset, keys.Size()));
+
+            LastActivity_ = TInstant::Now();
+            if (InactivityCookie_) {
+                TDelayedExecutor::CancelAndClear(InactivityCookie_);
+                InactivityCookie_ = TDelayedExecutor::Submit(
+                    BIND(&TShell::Terminate, MakeWeak(this), InactivityError_)
+                        .Via(GetCurrentInvoker()),
+                    InactivityTimeout_);
+            }
         }
         return ConsumedOffset_;
     }
 
     virtual TFuture<TSharedRef> Poll() override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         return ConcurrentReader_->Read();
     }
 
     virtual void Terminate(const TError& error) override
     {
-        LOG_INFO(error, "Shell terminated");
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            if (!IsRunning_) {
-                return;
-            }
-            IsRunning_ = false;
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!IsRunning_) {
+            return;
         }
+        IsRunning_ = false;
+
+        TDelayedExecutor::CancelAndClear(InactivityCookie_);
         Writer_->Abort();
         Reader_->Abort();
         CleanupShellProcesses();
+        TerminatedPromise_.TrySet();
+        LOG_INFO(error, "Shell terminated");
+    }
+
+    virtual TFuture<void> Shutdown(const TError& error) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (IsRunning_ && !InactivityCookie_) {
+            auto delay = InactivityTimeout_;
+            InactivityError_ = error;
+            InactivityCookie_ = TDelayedExecutor::Submit(
+                BIND(&TShell::Terminate, MakeWeak(this), InactivityError_)
+                    .Via(GetCurrentInvoker()),
+                delay);
+        }
+        return TerminatedPromise_;
     }
 
     virtual const TShellId& GetId() override
@@ -207,7 +241,6 @@ private:
     int CurrentWidth_;
 
     bool IsRunning_ = false;
-    TSpinLock SpinLock_;
 
     TAsyncWriterPtr Writer_;
     IAsyncZeroCopyOutputStreamPtr ZeroCopyWriter_;
@@ -216,7 +249,15 @@ private:
     TAsyncReaderPtr Reader_;
     IAsyncZeroCopyInputStreamPtr ConcurrentReader_;
 
+    TInstant LastActivity_ = TInstant::Now();
+    TDuration InactivityTimeout_;
+    TDelayedExecutorCookie InactivityCookie_;
+    TError InactivityError_;
+    TPromise<void> TerminatedPromise_ = NewPromise<void>();
+
     NLogging::TLogger Logger = ShellLogger;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void PrepareCGroups()
     {
@@ -225,7 +266,6 @@ private:
         }
 
         try {
-            TGuard<TSpinLock> guard(SpinLock_);
             Freezer_.Create();
             Process_->AddArguments({ "--cgroup", Freezer_.GetFullPath() });
         } catch (const std::exception& ex) {
@@ -248,6 +288,7 @@ private:
             LOG_FATAL(ex, "Failed to clean up shell processes");
         }
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
