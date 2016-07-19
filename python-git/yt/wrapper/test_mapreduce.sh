@@ -75,6 +75,7 @@ check_failed() {
 test_base_functionality()
 {
     ./mapreduce -list
+    ./mapreduce -list -prefix //unexisting/path
     ./mapreduce -drop "ignat/temp"
     ./mapreduce -write "ignat/temp" <table_file
     ./mapreduce -move -src "ignat/temp" -dst "ignat/other_table"
