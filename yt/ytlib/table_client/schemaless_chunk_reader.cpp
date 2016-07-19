@@ -179,7 +179,7 @@ protected:
     const TColumnFilter ColumnFilter_;
     TKeyColumns KeyColumns_;
 
-    i64 RowIndex_ = -1;
+    i64 RowIndex_ = 0;
     i64 RowCount_ = 0;
 
     std::unique_ptr<IRowSampler> RowSampler_;
@@ -205,7 +205,7 @@ protected:
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to add system columns to name table for schemaless chunk reader")
-                    << ex;
+                << ex;
         }
     }
 };
