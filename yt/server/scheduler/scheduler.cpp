@@ -2342,7 +2342,8 @@ private:
         if (!transaction)
             return;
 
-        auto channel = GetMasterClient()->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader);
+        auto cellTag = CellTagFromId(chunkId);
+        auto channel = GetMasterClient()->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, cellTag);
         TChunkServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
