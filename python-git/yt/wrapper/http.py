@@ -75,7 +75,6 @@ def check_response_is_decodable(response, format):
             raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)", response)
     elif format == "yson":
         try:
-            print >>sys.stderr, response.text
             yson.loads(response.text)
         except yson.YsonError:
             raise YtIncorrectResponse("Response body can not be decoded from YSON (bug in proxy)", response)
