@@ -1538,7 +1538,6 @@ private:
     {
         auto tableInfo = SyncGetTableInfo(path);
 
-        int schemaColumnCount = static_cast<int>(tableInfo->Schema.Columns().size());
         int keyColumnCount = static_cast<int>(tableInfo->KeyColumns.size());
 
         auto idMapping = BuildColumnIdMapping(tableInfo, nameTable);
