@@ -242,9 +242,9 @@ private:
 
     TNullable<int> PartitionTag_;
 
-    // Maps chunk name table ids into client id.
-    // For filtered out columns maps id to -1.
-    std::vector<int> IdMapping_;
+    // Maps chunk name table ids into client ids.
+    // For filtered out columns ReaderSchemaIndex is -1.
+    std::vector<TColumnIdMapping> IdMapping_;
 
     std::unique_ptr<THorizontalSchemalessBlockReader> BlockReader_;
 
@@ -382,15 +382,14 @@ void THorizontalSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extens
             << ex;
     }
 
-    IdMapping_.resize(ChunkNameTable_->GetSize(), -1);
-
+    IdMapping_.reserve(ChunkNameTable_->GetSize());
 
     if (ColumnFilter_.All) {
         try {
             for (int chunkNameId = 0; chunkNameId < ChunkNameTable_->GetSize(); ++chunkNameId) {
                 auto name = ChunkNameTable_->GetName(chunkNameId);
                 auto id = NameTable_->GetIdOrRegisterName(name);
-                IdMapping_[chunkNameId] = id;
+                IdMapping_.push_back({chunkNameId, id});
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to update name table for schemaless chunk reader")
@@ -398,11 +397,15 @@ void THorizontalSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extens
                 << ex;
         }
     } else {
+        for (int chunkNameId = 0; chunkNameId < ChunkNameTable_->GetSize(); ++chunkNameId) {
+            IdMapping_.push_back({chunkNameId, -1});
+        }
+
         for (auto id : ColumnFilter_.Indexes) {
             auto name = NameTable_->GetName(id);
             auto chunkNameId = ChunkNameTable_->FindId(name);
             if (chunkNameId) {
-                IdMapping_[chunkNameId.Get()] = id;
+                IdMapping_[chunkNameId.Get()] = {chunkNameId.Get(), id};
             }
         }
     }
