@@ -1171,7 +1171,7 @@ private:
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
         // COMPAT(babenko)
-        RecomputeChunkOwnerStatistics_ = (context.GetVersion() < 200);
+        RecomputeChunkOwnerStatistics_ = (context.GetVersion() < 304);
     }
 
 
@@ -1229,7 +1229,9 @@ private:
             }
 
             // COMPAT(babenko)
-            if (RecomputeChunkOwnerStatistics_ && (node->GetType() == EObjectType::Table || node->GetType() == EObjectType::Table)) {
+            if (RecomputeChunkOwnerStatistics_ &&
+                (node->GetType() == EObjectType::Table || node->GetType() == EObjectType::File))
+            {
                 auto* chunkOwnerNode = static_cast<TChunkOwnerBase*>(node);
                 const auto* chunkList = chunkOwnerNode->GetChunkList();
                 if (chunkList) {
