@@ -316,8 +316,10 @@ THorizontalSchemalessChunkReader::THorizontalSchemalessChunkReader(
         .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
         .Run()
         .Apply(BIND([this, this_ = MakeStrong(this)] () {
-            InitFirstBlock();
-            InitFirstBlockNeeded_ = false;
+            if (InitFirstBlockNeeded_) {
+                InitFirstBlock();
+                InitFirstBlockNeeded_ = false;
+            }
         }));
 }
 
