@@ -66,7 +66,15 @@ protected:
 TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
 {
     // Reorder value columns in reading schema.
-    std::vector<int> idMapping = {-1, -1, 0, -1, -1, -1, -1, 1};
+    std::vector<TColumnIdMapping> idMapping = {
+        {0, -1}, 
+        {1, -1}, 
+        {2,  0}, 
+        {3, -1}, 
+        {4, -1}, 
+        {5, -1},
+        {6, -1},
+        {7,  1}};
 
     auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 2);
     row[0] = MakeUnversionedDoubleValue(1.5, 0);
@@ -87,7 +95,15 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
 TEST_F(TSchemalessBlocksTestOneRow, SkipToKey)
 {
     // Reorder value columns in reading schema.
-    std::vector<int> idMapping = {0, 1, 2, 3, 4, 5, 6, 7};
+    std::vector<TColumnIdMapping> idMapping = {
+        {0, 0}, 
+        {1, 1}, 
+        {2, 2}, 
+        {3, 3}, 
+        {4, 4}, 
+        {5, 5}, 
+        {6, 6}, 
+        {7, 7}};
 
     THorizontalSchemalessBlockReader blockReader(
         Data,
@@ -153,7 +169,7 @@ protected:
 TEST_F(TSchemalessBlocksTestManyRows, SkipToKey)
 {
     // Reorder value columns in reading schema.
-    std::vector<int> idMapping = {0, 1};
+    std::vector<TColumnIdMapping> idMapping = {{0, 0}, {1, 1}};
 
     THorizontalSchemalessBlockReader blockReader(
         Data,
