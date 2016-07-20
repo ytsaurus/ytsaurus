@@ -11,6 +11,7 @@
 #include <llvm/Object/ObjectFile.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/IR/DiagnosticPrinter.h>
 
 using namespace llvm;
 
@@ -535,8 +536,12 @@ bool LoadLlvmBitcode(
     TSharedRef implementationFile)
 {
     auto diag = SMDiagnostic();
+
+    std::vector<char> nullTerminatedBuffer(implementationFile.Size() + 1, 0);
+    std::copy(implementationFile.Begin(), implementationFile.End(), nullTerminatedBuffer.data());
+
     auto buffer = MemoryBufferRef(
-        StringRef(implementationFile.Begin(), implementationFile.Size()),
+        StringRef(nullTerminatedBuffer.data(), implementationFile.Size()),
         StringRef("impl"));
     auto implModule = parseIR(buffer, diag, builder.getContext());
 
@@ -566,14 +571,24 @@ bool LoadLlvmBitcode(
     }
 
     auto module = builder.Module->GetModule();
+
+    std::string what;
+    llvm::raw_string_ostream os(what);
+    llvm::DiagnosticPrinterRawOStream printer(os);
     // Link two modules together, with the first module modified to be the
     // composite of the two input modules.
-    auto linkError = Linker::LinkModules(module, implModule.get());
+    auto linkError = Linker::LinkModules(module, implModule.get(), [&] (const DiagnosticInfo& info) {
+        if (info.getSeverity() != llvm::DS_Error && info.getSeverity() != llvm::DS_Warning) {
+            return;
+        }
+        info.print(printer);
+    });
 
     if (linkError) {
         THROW_ERROR_EXCEPTION(
             "Error linking LLVM bitcode for function %Qv",
-            functionName);
+            functionName)
+            << TErrorAttribute("messages",  os.str().c_str());
     }
 
     return true;
