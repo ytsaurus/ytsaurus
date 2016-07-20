@@ -45,7 +45,7 @@ Operation run under self-pinged transaction, if `yt.wrapper.get_config(client)["
 from config import get_config
 import py_wrapper
 from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
-                   compose, bool_to_string, chunk_iter_stream, get_started_by, MB, EMPTY_GENERATOR, \
+                   compose, bool_to_string, chunk_iter_stream, get_started_by, MB, GB, EMPTY_GENERATOR, \
                    run_with_retries, forbidden_inside_job
 from errors import YtIncorrectResponse, YtError, YtOperationFailedError, YtConcurrentOperationsLimitExceeded
 from driver import make_request
@@ -342,7 +342,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
     if memory_limit is not None:
         memory_limit = int(memory_limit)
     if memory_limit is None and get_config(client)["use_yamr_defaults"]:
-        memory_limit = 4 * 1024 * MB
+        memory_limit = 4 * GB
     if get_config(client)["pickling"]["add_tmpfs_archive_size_to_memory_limit"]:
         if memory_limit is None:
             # Guess that memory limit is 512 MB.
@@ -357,7 +357,7 @@ def _configure_spec(spec, client):
     spec = update({"started_by": started_by}, spec)
     spec = update(deepcopy(get_config(client)["spec_defaults"]), spec)
     if get_config(client)["use_yamr_defaults"]:
-        spec = update({"data_size_per_job": 4 * 1024 * MB}, spec)
+        spec = update({"data_size_per_job": 4 * GB}, spec)
     return spec
 
 def _add_input_output_spec(source_table, destination_table, spec):
@@ -1316,7 +1316,7 @@ class Finalizer(object):
         chunk_count_per_job_limit = 10000
 
         compression_ratio = get_attribute(table, "compression_ratio", client=self.client)
-        data_size_per_job = min(16 * 1024 * MB, int(500 * MB / float(compression_ratio)))
+        data_size_per_job = min(16 * GB, int(500 * MB / float(compression_ratio)))
 
         data_size = get_attribute(table, "uncompressed_data_size", client=self.client)
         data_size_per_job = min(data_size_per_job, data_size / max(1, chunk_count / chunk_count_per_job_limit))

@@ -192,9 +192,9 @@ default_config = {
     },
 
     # Special option that enables 4Gb memory_limit, 4Gb data_size_per_job and default zlib_6 codec for
-    # newly created tables. This defaults are similar to defaults on Yamr-clusters, but look inappropriate
+    # newly created tables. These defaults are similar to defaults on Yamr-clusters, but look inappropriate
     # for YT. Please do not use this option in new code. This option will be deleted after
-    # migration to YT from Yamr cluster. More discussion in YT-5220.
+    # migration to YT from Yamr. More discussion can found in YT-5220.
     "use_yamr_defaults": False,
 
     # Run sorted merge instead of sort if input tables are sorted by sort_by prefix.
