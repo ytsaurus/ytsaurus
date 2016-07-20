@@ -53,6 +53,8 @@
 #include <yt/core/profiling/scoped_timer.h>
 #include <yt/core/profiling/profile_manager.h>
 
+#include <yt/core/ytree/service_combiner.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -238,8 +240,13 @@ public:
 
     IYPathServicePtr GetOrchidService()
     {
-        auto producer = BIND(&TImpl::BuildOrchid, MakeStrong(this));
-        return IYPathService::FromProducer(producer);
+        auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
+        auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
+            ->Cached(Config_->StaticOrchidCacheUpdatePeriod)
+            ->Via(GetControlInvoker());
+        return New<TServiceCombiner>(std::vector<IYPathServicePtr> {
+            staticOrchidService,
+        });
     }
 
     std::vector<TOperationPtr> GetOperations()
@@ -2057,7 +2064,7 @@ private:
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
 
-    void BuildOrchid(IYsonConsumer* consumer)
+    void BuildStaticOrchid(IYsonConsumer* consumer)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
