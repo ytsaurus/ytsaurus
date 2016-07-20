@@ -1416,9 +1416,7 @@ private:
 
                 column.PendingBlockIndex_ = column.BlockIndexSequence[NextKeyIndex_];
                 PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
-                if (!PendingBlocks_.back().IsSet()) {
-                    blockFetchResult.push_back(PendingBlocks_.back().As<void>());
-                }
+                blockFetchResult.push_back(PendingBlocks_.back().As<void>());
             }
         }
 
