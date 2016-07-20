@@ -680,27 +680,27 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 blockCache,
                 throttler);
 
-        using NYT::FromProto;
-        auto channel = chunkSpec.has_channel()
-            ? FromProto<TChannel>(chunkSpec.channel())
-            : TChannel::Universal();
+            using NYT::FromProto;
+            auto channel = chunkSpec.has_channel()
+                ? FromProto<TChannel>(chunkSpec.channel())
+                : TChannel::Universal();
 
-        TReadRange range = {
-            chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
-            chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
-        };
+            TReadRange range = {
+                chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
+                chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
+            };
 
-        return CreateSchemalessChunkReader(
-            chunkSpec,
-            PatchConfig(config, memoryEstimate),
-            options,
-            remoteReader,
-            nameTable,
-            blockCache,
-            keyColumns,
-            columnFilter.All ? CreateColumnFilter(channel, nameTable) : columnFilter,
-            std::vector<TReadRange>(1, std::move(range)),
-            partitionTag);
+            return CreateSchemalessChunkReader(
+                chunkSpec,
+                PatchConfig(config, memoryEstimate),
+                options,
+                remoteReader,
+                nameTable,
+                blockCache,
+                keyColumns,
+                columnFilter.All ? CreateColumnFilter(channel, nameTable) : columnFilter,
+                std::vector<TReadRange>(1, std::move(range)),
+                partitionTag);
         };
 
         factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate));
