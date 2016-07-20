@@ -16,7 +16,7 @@ def make_request(command_name, params,
                  proxy=None,
                  return_content=True,
                  retry_unavailable_proxy=True,
-                 response_should_be_json=False,
+                 response_format=None,
                  use_heavy_proxy=False,
                  timeout=None,
                  allow_retries=None,
@@ -48,7 +48,7 @@ def make_request(command_name, params,
             proxy=proxy,
             return_content=return_content,
             retry_unavailable_proxy=retry_unavailable_proxy,
-            response_should_be_json=response_should_be_json,
+            response_format=response_format,
             use_heavy_proxy=use_heavy_proxy,
             timeout=timeout,
             allow_retries=allow_retries,
@@ -71,19 +71,22 @@ def make_formatted_request(command_name, params, format, ignore_result=False, **
 
     client = kwargs.get("client", None)
 
+    response_format = None
+
     has_yson_bindings = (yson.TYPE == "BINARY")
-    response_should_be_json = format is None and not has_yson_bindings
     if format is None:
         if get_config(client)["force_using_yson_for_formatted_requests"] or has_yson_bindings:
             params["output_format"] = yson.to_yson_type("yson", attributes={"format": "text"})
+            response_format = "yson"
         else:
             params["output_format"] = "json"
+            response_format = "json"
     else:
         if isinstance(format, str):
             format = create_format(format)
         params["output_format"] = format.to_yson_type()
 
-    result = make_request(command_name, params, response_should_be_json=response_should_be_json, **kwargs)
+    result = make_request(command_name, params, response_format=response_format, **kwargs)
 
     if ignore_result:
         return
