@@ -64,11 +64,22 @@ def get_header_format(client):
         get_config(client)["proxy"]["header_format"],
         "json" if get_api_version(client=client) == "v2" else "yson")
 
-def check_response_is_json_decodable(response):
-    try:
-        response.json()
-    except json.JSONDecodeError:
-        raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)", response)
+def check_response_is_decodable(response, format):
+    if response.status_code / 100 != 2:
+        return
+
+    if format == "json":
+        try:
+            response.json()
+        except json.JSONDecodeError:
+            raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)", response)
+    elif format == "yson":
+        try:
+            print >>sys.stderr, response.text
+            yson.loads(response.text)
+        except yson.YsonError:
+            raise YtIncorrectResponse("Response body can not be decoded from YSON (bug in proxy)", response)
+
 
 def create_response(response, request_info, client):
     def loads(str):
@@ -81,7 +92,7 @@ def create_response(response, request_info, client):
 
     def get_error():
         if not str(response.status_code).startswith("2"):
-            check_response_is_json_decodable(response)
+            check_response_is_decodable(response, format="json")
             return response.json()
         else:
             return parse_error_from_headers(response.headers)
@@ -124,7 +135,7 @@ def raise_for_status(response, request_info):
     if not response.is_ok():
         raise YtHttpResponseError(error=response.error(), **request_info)
 
-def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False,
+def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_format=None,
                               params=None, timeout=None, retry_action=None, client=None, log_body=True, is_ping=False, **kwargs):
     configure_ip(get_session(client),
                  get_config(client)["proxy"]["force_ipv4"],
@@ -173,8 +184,8 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
 
             # Sometimes (quite often) we obtain incomplete response with body expected to be JSON.
             # So we should retry such requests.
-            if response_should_be_json:
-                check_response_is_json_decodable(response)
+            if response_format is not None and get_config(client)["proxy"]["check_response_format"]:
+                check_response_is_decodable(response, response_format)
 
             logger.debug("Response headers %r", response.headers)
 
