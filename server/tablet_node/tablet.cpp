@@ -699,6 +699,8 @@ TTabletSnapshotPtr TTablet::RebuildSnapshot()
             }
         }
     }
+    const auto& lockedStores = StoreManager_->GetLockedStores();
+    Snapshot_->LockedStores.insert(Snapshot_->LockedStores.end(), lockedStores.begin(), lockedStores.end());
     Snapshot_->RowKeyComparer = RowKeyComparer_;
     Snapshot_->PerformanceCounters = PerformanceCounters_;
     return Snapshot_;

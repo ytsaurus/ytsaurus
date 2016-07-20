@@ -92,6 +92,8 @@ public:
     int LightInvokerPoolSize;
     int HeavyInvokerPoolSize;
 
+    int MaxConcurrentRequests;
+
     TConnectionConfig();
 
 };

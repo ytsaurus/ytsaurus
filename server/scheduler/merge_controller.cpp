@@ -1280,7 +1280,7 @@ private:
         while (startIndex < static_cast<int>(Endpoints.size())) {
             auto& key = Endpoints[startIndex].GetKey();
 
-            yhash_set<TRefCountedChunkSpecPtr> teleportChunks;
+            std::vector<TRefCountedChunkSpecPtr> teleportChunks;
             yhash_set<TChunkSlicePtr> localOpenedSlices;
 
             // Slices with equal left and right boundaries.
@@ -1299,7 +1299,7 @@ private:
 
                 if (endpoint.IsTeleport) {
                     auto chunkSpec = endpoint.ChunkSlice->GetChunkSpec();
-                    YCHECK(teleportChunks.insert(chunkSpec).second);
+                    teleportChunks.push_back(chunkSpec);
                     while (currentIndex < static_cast<int>(Endpoints.size()) &&
                         Endpoints[currentIndex].IsTeleport &&
                         Endpoints[currentIndex].ChunkSlice->GetChunkSpec() == chunkSpec)
@@ -1378,7 +1378,13 @@ private:
             if (!teleportChunks.empty()) {
                 endTask();
 
+                TOwningKey previousMaxKey, minKey, maxKey;
                 for (auto& chunkSpec : teleportChunks) {
+                    // Ensure sorted order of teleported chunks.
+                    YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
+                    YCHECK(CompareRows(previousMaxKey, minKey, prefixLength) <= 0);
+                    previousMaxKey = maxKey;
+
                     AddTeleportChunk(chunkSpec);
                 }
             }

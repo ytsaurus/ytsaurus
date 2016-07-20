@@ -1013,7 +1013,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicR
                     Y_ASSERT(migratedLock->PrepareTimestamp == NotPreparedTimestamp);
 
                     migratedLock->Transaction = lock->Transaction;
-                    migratedLock->PrepareTimestamp = lock->PrepareTimestamp;
+                    migratedLock->PrepareTimestamp = lock->PrepareTimestamp.load();
                     if (index == TDynamicRow::PrimaryLockIndex) {
                         Y_ASSERT(!migratedRow.GetDeleteLockFlag());
                         migratedRow.SetDeleteLockFlag(row.GetDeleteLockFlag());
@@ -1125,11 +1125,11 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
         auto* lock = locks;
         for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
             if (lock->Transaction == transaction) {
-                lock->Transaction = nullptr;
-                lock->PrepareTimestamp = NotPreparedTimestamp;
                 if (!row.GetDeleteLockFlag()) {
                     AddWriteRevision(*lock, commitRevision);
                 }
+                lock->PrepareTimestamp = NotPreparedTimestamp;
+                lock->Transaction = nullptr;
             }
         }
     }
