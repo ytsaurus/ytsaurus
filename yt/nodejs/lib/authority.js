@@ -361,13 +361,19 @@ YtAuthority.prototype._syncFinalize = function(context, result)
         this.authentication_cache.del(context.cache_key);
     }
 
-    var tags = {
+    var count_tags = {
         success: success,
         authenticated_user: result.login,
         authenticated_from: result.realm
     };
-    context.profiler.inc("yt.http_proxy.authentication_count", tags, 1);
-    context.profiler.upd("yt.http_proxy.authentication_time", tags, dt);
+
+    var time_tags = {
+        success: success,
+        authenticated_from: result.realm
+    };
+
+    context.profiler.inc("yt.http_proxy.authentication_count", count_tags, 1);
+    context.profiler.upd("yt.http_proxy.authentication_time", time_tags, dt);
 
     return result;
 };
