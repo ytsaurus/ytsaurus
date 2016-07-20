@@ -316,7 +316,8 @@ THorizontalSchemalessChunkReader::THorizontalSchemalessChunkReader(
         .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
         .Run()
         .Apply(BIND([this, this_ = MakeStrong(this)] () {
-            BeginRead();
+            InitFirstBlock();
+            InitFirstBlockNeeded_ = false;
         }));
 }
 
@@ -492,6 +493,7 @@ TDataStatistics THorizontalSchemalessChunkReader::GetDataStatistics() const
 
 void THorizontalSchemalessChunkReader::InitFirstBlock()
 {
+
     int blockIndex = BlockIndexes_[CurrentBlockIndex_];
     const auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
 
