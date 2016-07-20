@@ -477,9 +477,12 @@ TEST(TJsonWriterTest, TestAnnotateWithTypesStringify)
     writer->OnBeginMap();
         writer->OnKeyedItem("hello");
         writer->OnUint64Scalar(-1);
+        writer->OnKeyedItem("world");
+        writer->OnDoubleScalar(1.7976931348623157e+308);
     writer->OnEndMap();
 
-    Stroka output = "{\"hello\":{\"$type\":\"uint64\",\"$value\":\"18446744073709551615\"}}";
+    Stroka output = "{\"hello\":{\"$type\":\"uint64\",\"$value\":\"18446744073709551615\"},"
+        "\"world\":{\"$type\":\"double\",\"$value\":\"1.7976931348623157e+308\"}}";
     EXPECT_EQ(output, outputStream.Str());
 }
 

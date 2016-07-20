@@ -401,7 +401,9 @@ void TJsonConsumerImpl::OnDoubleScalar(double value)
         }
         EnterNode();
         if (Config->Stringify) {
-            WriteStringScalar(::ToString(value));
+            char buf[256];
+            auto str = TStringBuf(buf, FloatToString(value, buf, sizeof(buf)));
+            WriteStringScalar(str);
         } else {
             JsonWriter->Write(value);
         }
