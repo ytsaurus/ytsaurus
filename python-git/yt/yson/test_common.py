@@ -6,6 +6,10 @@ import yt.yson.writer
 import yt.yson.parser
 from yt.yson.yson_types import YsonUint64
 
+from yt.packages.six import PY3
+
+import pytest
+
 try:
     import yt_yson_bindings
 except ImportError:
@@ -23,30 +27,34 @@ class CommonTestBase(object):
 
     def test_long_integers(self):
         num = 1
-        assert self.dumps(num) == "1"
-        loaded = self.loads("1")
+        assert self.dumps(num) == b"1"
+        loaded = self.loads(b"1")
         assert loaded == 1
-        assert isinstance(loaded, long)
+        if not PY3:
+            assert isinstance(loaded, long)
 
         num = 2 ** 50
         loaded = self.loads(self.dumps(num))
         assert loaded == 2 ** 50
-        assert isinstance(loaded, long)
+        if not PY3:
+            assert isinstance(loaded, long)
 
-        yson_num = "1u"
+        yson_num = b"1u"
         loaded = self.loads(yson_num)
         assert loaded == 1
         assert isinstance(loaded, YsonUint64)
-        assert self.dumps(loaded) == "1u"
+        assert self.dumps(loaded) == b"1u"
 
     def test_equalities(self):
         num = 1
-        num_long = 1L
         lst = [1, 2, 3]
         s = "abc"
         f = 1.0
         d = {"x": 2}
-        assert self.loads(self.dumps(num)) == num_long
+
+        if not PY3:
+            num_long = long(1)
+            assert self.loads(self.dumps(num)) == num_long
 
         assert self.loads(self.dumps(num)) is not None
         assert self.loads(self.dumps(lst)) is not None
@@ -57,9 +65,12 @@ class CommonTestBase(object):
         assert num != self.loads(self.dumps(s))
         assert self.loads(self.dumps(d)) != s
 
+    @pytest.mark.skipif("PY3")
     def test_unicode(self):
         unicode_str = u"ав"
         assert unicode_str == self.loads(self.dumps(unicode_str)).decode("utf-8")
+        expected = '"' + unicode_str.encode("utf-8").encode("string-escape") + '"'
+        assert self.dumps(unicode_str).lower() == expected.lower()
 
 
 class TestCommonDefault(CommonTestBase):

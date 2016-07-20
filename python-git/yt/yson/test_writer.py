@@ -6,6 +6,7 @@ import pytest
 
 import yt.yson.writer
 from yt.yson import YsonUint64, YsonInt64, YsonEntity, YsonMap
+from yt.packages.six import b, PY3
 
 try:
     import yt_yson_bindings
@@ -19,24 +20,24 @@ class YsonWriterTestBase(object):
         raise NotImplementedError()
 
     def test_slash(self):
-        assert self.dumps({"key": "1\\"}, yson_format="text") == '{"key"="1\\\\";}'
+        assert self.dumps({"key": "1\\"}, yson_format="text") == b'{"key"="1\\\\";}'
 
     def test_boolean(self):
-        assert self.dumps(False, boolean_as_string=True) == '"false"'
-        assert self.dumps(True, boolean_as_string=True) == '"true"'
-        assert self.dumps(False, boolean_as_string=False) == "%false"
-        assert self.dumps(True, boolean_as_string=False) == "%true"
+        assert self.dumps(False, boolean_as_string=True) == b'"false"'
+        assert self.dumps(True, boolean_as_string=True) == b'"true"'
+        assert self.dumps(False, boolean_as_string=False) == b"%false"
+        assert self.dumps(True, boolean_as_string=False) == b"%true"
 
     def test_long_integers(self):
         value = 2 ** 63
-        assert '%su' % str(value) == self.dumps(value)
+        assert b(str(value) + "u") == self.dumps(value)
 
         value = 2 ** 63 - 1
-        assert '%s' % str(value) == self.dumps(value)
-        assert '%su' % str(value) == self.dumps(YsonUint64(value))
+        assert b(str(value)) == self.dumps(value)
+        assert b(str(value) + "u") == self.dumps(YsonUint64(value))
 
         value = -2 ** 63
-        assert '%s' % str(value) == self.dumps(value)
+        assert str(value).encode("ascii") == self.dumps(value)
 
         with pytest.raises(Exception):
             self.dumps(2 ** 64)
@@ -52,34 +53,34 @@ class YsonWriterTestBase(object):
             ["a", "b", "c", 42],
             yson_format="text",
             yson_type="list_fragment"
-        ) == '"a";\n"b";\n"c";\n42;\n'
+        ) == b'"a";\n"b";\n"c";\n42;\n'
 
     def test_map_fragment_text(self):
         assert self.dumps(
             {"a": "b", "c": "d"},
             yson_format="text",
             yson_type="map_fragment"
-        ) == '"a"="b";\n"c"="d";\n'
+        ) == b'"a"="b";\n"c"="d";\n'
 
     def test_list_fragment_pretty(self):
         assert self.dumps(
             ["a", "b", "c", 42],
             yson_format="pretty",
             yson_type="list_fragment"
-        ) == '"a";\n"b";\n"c";\n42;\n'
+        ) == b'"a";\n"b";\n"c";\n42;\n'
 
     def test_map_fragment_pretty(self):
         assert self.dumps(
             {"a": "b", "c": "d"},
             yson_format="pretty",
             yson_type="map_fragment"
-        ) == '"a" = "b";\n"c" = "d";\n'
+        ) == b'"a" = "b";\n"c" = "d";\n'
 
     def test_invalid_attributes(self):
         obj = YsonEntity()
 
         obj.attributes = None
-        assert self.dumps(obj) == "#"
+        assert self.dumps(obj) == b"#"
 
         obj.attributes = []
         with pytest.raises(Exception):
@@ -94,13 +95,22 @@ class YsonWriterTestBase(object):
             self.dumps({"a": "b"}, yson_type="bbb")
 
     def test_entity(self):
-        assert "#" == self.dumps(None)
-        assert "#" == self.dumps(YsonEntity())
+        assert b"#" == self.dumps(None)
+        assert b"#" == self.dumps(YsonEntity())
+
+    @pytest.mark.skipif("not PY3")
+    def test_dump_encoding(self):
+        assert self.dumps({"a": 1}, yson_format="pretty") == b'{\n    "a" = 1;\n}'
+        with pytest.raises(Exception):
+            assert self.dumps({b"a": 1})
+        assert self.dumps({b"a": 1}, yson_format="pretty", encoding=None) == b'{\n    "a" = 1;\n}'
+        with pytest.raises(Exception):
+            assert self.dumps({"a": 1}, encoding=None)
 
     def test_formatting(self):
-        assert '{\n    "a" = "b";\n}' == self.dumps({"a": "b"}, yson_format="pretty")
-        assert '{"a"="b";}' == self.dumps({"a": "b"})
-        canonical_result = """\
+        assert b'{\n    "a" = "b";\n}' == self.dumps({"a": "b"}, yson_format="pretty")
+        assert b'{"a"="b";}' == self.dumps({"a": "b"})
+        canonical_result = b"""\
 {
     "x" = {
         "a" = [
@@ -111,11 +121,11 @@ class YsonWriterTestBase(object):
     };
 }"""
         assert canonical_result == self.dumps({"x": {"a": [1, 2, 3]}}, yson_format="pretty")
-        assert '{"x"={"a"=[1;2;3;];};}' == self.dumps({"x": {"a": [1, 2, 3]}})
-        assert '"x"=1;\n' == self.dumps({"x": 1}, yson_type="map_fragment")
-        assert '"x" = 1;\n' == self.dumps({"x": 1}, yson_type="map_fragment", yson_format="pretty")
-        assert '1;\n2;\n3;\n' == self.dumps([1, 2, 3], yson_type="list_fragment")
-        assert '1;\n2;\n3;\n' == self.dumps([1, 2, 3], yson_type="list_fragment", yson_format="pretty")
+        assert b'{"x"={"a"=[1;2;3;];};}' == self.dumps({"x": {"a": [1, 2, 3]}})
+        assert b'"x"=1;\n' == self.dumps({"x": 1}, yson_type="map_fragment")
+        assert b'"x" = 1;\n' == self.dumps({"x": 1}, yson_type="map_fragment", yson_format="pretty")
+        assert b'1;\n2;\n3;\n' == self.dumps([1, 2, 3], yson_type="list_fragment")
+        assert b'1;\n2;\n3;\n' == self.dumps([1, 2, 3], yson_type="list_fragment", yson_format="pretty")
 
 class TestWriterDefault(YsonWriterTestBase):
     @staticmethod
@@ -140,13 +150,13 @@ if yt_yson_bindings:
             m["value"] = YsonEntity()
             m["value"].attributes = {"attr": 10}
             assert self.dumps(m) in \
-                ['{"value"=<"attr"=10;>#;}', '{"value"=<"attr"=10>#}']
+                [b'{"value"=<"attr"=10;>#;}', b'{"value"=<"attr"=10>#}']
             assert self.dumps(m, ignore_inner_attributes=True) in \
-                ['{"value"=#;}', '{"value"=#}']
+                [b'{"value"=#;}', b'{"value"=#}']
 
         def test_zero_byte(self):
-            assert '"\\0"' == self.dumps("\x00")
-            assert '\x01\x02\x00' == self.dumps("\x00", yson_format="binary")
+            assert b'"\\0"' == self.dumps("\x00")
+            assert b'\x01\x02\x00' == self.dumps("\x00", yson_format="binary")
 
 if yt_yson_bindings:
     def test_equal_formatting():

@@ -30,10 +30,13 @@ Examples:
 
 """
 
-import writer
-import parser
-import yson_types
+from __future__ import print_function
 
+from . import writer
+from . import parser
+from . import yson_types
+
+TYPE = None
 try:
     from yt_yson_bindings import load, loads, dump, dumps
     TYPE = "BINARY"
@@ -41,13 +44,16 @@ except ImportError as error:
     # XXX(asaitgalin): Sometimes module can't be imported because
     # it depends on missing dynamic libraries (e.g. libatomic). In this case
     # diagnostic is printed to stderr.
-    if "No module named" not in error.message:
-        import sys
-        print >>sys.stderr, "Warning! Failed to import YSON bindings: " + error.message
-    from parser import load, loads
-    from writer import dump, dumps
+    message = str(error)
+    if "No module named" not in message:
+        import sys as _sys
+        print("Warning! Failed to import YSON bindings: " + message, file=_sys.stderr)
+
+if TYPE is None:
+    from .parser import load, loads
+    from .writer import dump, dumps
     TYPE = "PYTHON"
 
-from yson_types import YsonString, YsonInt64, YsonUint64, YsonDouble, YsonBoolean, YsonList, YsonMap, YsonEntity, YsonType
-from convert import to_yson_type, yson_to_json, json_to_yson
-from common import YsonError
+from .yson_types import YsonString, YsonInt64, YsonUint64, YsonDouble, YsonBoolean, YsonList, YsonMap, YsonEntity, YsonType
+from .convert import to_yson_type, yson_to_json, json_to_yson
+from .common import YsonError

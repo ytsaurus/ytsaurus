@@ -1,3 +1,5 @@
+from yt.packages.six import PY3, integer_types, binary_type, text_type
+
 class YsonType(object):
     def __init__(self, *kargs, **kwargs):
         self.attributes = {}
@@ -15,43 +17,65 @@ class YsonType(object):
             return str_func({"value": base_type(self), "attributes": self.attributes})
         return str_func(base_type(self))
 
-    def base_hash(self, type):
+    def base_hash(self, type_):
         if self.attributes:
             raise TypeError("unhashable type: YSON has non-trivial attributes")
-        return hash(type(self))
+        return hash(type_(self))
 
-class YsonString(str, YsonType):
+class YsonString(binary_type, YsonType):
     def __eq__(self, other):
-        if not isinstance(other, basestring):
+        # COMPAT: With implicit promotion of str to unicode it can make sense
+        # to compare binary YsonString to unicode string.
+        if not isinstance(other, (binary_type, text_type)):
             return False
-        return str(self) == str(other) and YsonType.__eq__(self, other)
+        return binary_type(self) == binary_type(other) and YsonType.__eq__(self, other)
 
     def __ne__(self, other):
         return not (self == other)
 
     def __hash__(self):
-        return self.base_hash(str)
+        return self.base_hash(binary_type)
 
     def __repr__(self):
-        return self.to_str(str, repr)
+        return self.to_str(binary_type, repr)
 
-class YsonIntegerBase(long, YsonType):
+class YsonUnicode(text_type, YsonType):
     def __eq__(self, other):
-        if not isinstance(other, (int, long)):
+        if not isinstance(other, text_type):
             return False
-        return long(self) == long(other) and YsonType.__eq__(self, other)
+        return text_type(self) == text_type(other) and YsonType.__eq__(self, other)
 
     def __ne__(self, other):
         return not (self == other)
 
     def __hash__(self):
-        return self.base_hash(long)
+        return self.base_hash(text_type)
 
     def __repr__(self):
-        return self.to_str(long, repr)
+        return self.to_str(text_type, repr)
+
+if PY3:
+    _YsonIntegerBase = int
+else:
+    _YsonIntegerBase = long
+
+class YsonIntegerBase(_YsonIntegerBase, YsonType):
+    def __eq__(self, other):
+        if not isinstance(other, integer_types):
+            return False
+        return _YsonIntegerBase(self) == _YsonIntegerBase(other) and YsonType.__eq__(self, other)
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __hash__(self):
+        return self.base_hash(_YsonIntegerBase)
+
+    def __repr__(self):
+        return self.to_str(_YsonIntegerBase, repr)
 
     def __str__(self):
-        return self.to_str(long, str)
+        return self.to_str(_YsonIntegerBase, str)
 
 class YsonInt64(YsonIntegerBase):
     pass
@@ -89,7 +113,7 @@ class YsonBoolean(int, YsonType):
     def __hash__(self):
         return self.base_hash(bool)
 
-    # NB: do not change this representation, because 
+    # NB: do not change this representation, because
     # this type required to be JSON serializable.
     # JSON encoder thinks that it is interger and calls str.
     def __repr__(self):
