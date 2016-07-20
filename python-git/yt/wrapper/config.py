@@ -101,7 +101,9 @@ class Config(types.ModuleType, client_state.ClientState):
             "CONFIG_PATH": "config_path",
             "CONFIG_FORMAT": "config_format",
 
-            "ARGCOMPLETE_VERBOSE": "argcomplete_verbose"
+            "ARGCOMPLETE_VERBOSE": "argcomplete_verbose",
+
+            "USE_YAMR_DEFAULTS": "use_yamr_defaults"
         }
 
         # Some shortcuts can't be backported one-to-one so they are processed manually
