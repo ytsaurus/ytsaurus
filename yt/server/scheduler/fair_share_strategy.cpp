@@ -533,7 +533,7 @@ private:
         for (const auto& job : preemptableJobs) {
             const auto& operationElement = context.JobToOperationElement.at(job);
             if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
-                LOG_INFO("Dangling preemptable job found (JobId: %v, OperationId: %v)",
+                LOG_DEBUG("Dangling preemptable job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
                     job->GetOperationId());
                 continue;
