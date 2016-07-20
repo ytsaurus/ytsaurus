@@ -100,7 +100,7 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
       COMPONENT ${TARGET_NAME}
     )
 
-    if(${PYTHON_KIND} MATCHES "^2_7$")
+    if(${PYTHON_KIND} MATCHES "^2_[67]$")
       exec_program(
         ${CMAKE_COMMAND} ARGS -E create_symlink
         ${LIBRARY_OUTPUT_PATH}/pyshared-${PYTHON_KIND_DASHED}/${COMPONENT}_lib${CMAKE_SHARED_MODULE_SUFFIX}

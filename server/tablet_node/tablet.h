@@ -49,6 +49,8 @@ struct TTabletSnapshot
     typedef TPartitionList::iterator TPartitionListIterator;
     TPartitionList Partitions;
 
+    std::vector<TWeakPtr<IStore>> LockedStores;
+
     int StoreCount = 0;
     int PreloadPendingStoreCount = 0;
     int PreloadCompletedStoreCount = 0;
