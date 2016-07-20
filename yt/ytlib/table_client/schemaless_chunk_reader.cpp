@@ -310,9 +310,14 @@ THorizontalSchemalessChunkReader::THorizontalSchemalessChunkReader(
         LOG_DEBUG("Reading multiple ranges (RangeCount: %v)", ReadRanges_.size());
     }
 
+    // Ready event must be set only when all initialization is finished and 
+    // RowIndex_ is set into proper value.
     ReadyEvent_ = BIND(&THorizontalSchemalessChunkReader::InitializeBlockSequence, MakeStrong(this))
         .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
-        .Run();
+        .Run()
+        .Apply(BIND([this, this_ = MakeStrong(this)] () {
+            BeginRead();
+        }));
 }
 
 TFuture<void> THorizontalSchemalessChunkReader::InitializeBlockSequence()
@@ -664,13 +669,6 @@ public:
             return true;
         }
 
-        if (!Initialized_) {
-            ResetExhaustedColumns();
-            Initialize(ColumnReaders_);
-            RowIndex_ = LowerRowIndex_;
-            Initialized_ = true;
-        }
-
         if (Completed_) {
             return false;
         }
@@ -766,7 +764,6 @@ public:
 private:
     std::vector<std::unique_ptr<IUnversionedColumnReader>> ColumnReaders_;
 
-    bool Initialized_ = false;
     bool Completed_ = false;
 
     TChunkedMemoryPool Pool_;
@@ -848,10 +845,16 @@ private:
         InitUpperRowIndex();
 
         if (LowerRowIndex_ < ChunkMeta_->Misc().row_count()) {
+            // We must continue initialization and set RowIndex_ before
+            // ReadyEvent is set for the first time.
             InitBlockFetcher();
-            RequestFirstBlocks();
+            WaitFor(RequestFirstBlocks())
+                .ThrowOnError();
+
+            ResetExhaustedColumns();
+            Initialize(ColumnReaders_);
+            RowIndex_ = LowerRowIndex_;
         } else {
-            Initialized_ = true;
             Completed_ = true;
         }
     }

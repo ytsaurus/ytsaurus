@@ -905,7 +905,7 @@ public:
 
         if (LowerRowIndex_ < VersionedChunkMeta_->Misc().row_count()) {
             InitBlockFetcher();
-            RequestFirstBlocks();
+            ReadyEvent_ = RequestFirstBlocks();
         } else {
             Initialized_ = true;
             Completed_ = true;

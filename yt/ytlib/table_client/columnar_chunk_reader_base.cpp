@@ -266,7 +266,7 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
     }
 }
 
-void TColumnarRangeChunkReaderBase::RequestFirstBlocks()
+TFuture<void> TColumnarRangeChunkReaderBase::RequestFirstBlocks()
 {
     PendingBlocks_.clear();
     for (auto& column : Columns_) {
@@ -274,8 +274,10 @@ void TColumnarRangeChunkReaderBase::RequestFirstBlocks()
         column.PendingBlockIndex_ = column.BlockIndexSequence.front();
     }
 
-    if (!PendingBlocks_.empty()) {
-        ReadyEvent_ = Combine(PendingBlocks_).template As<void>();
+    if (PendingBlocks_.empty()) {
+        return VoidFuture;
+    } else {
+        return Combine(PendingBlocks_).template As<void>();
     }
 }
 
