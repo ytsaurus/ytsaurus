@@ -57,7 +57,7 @@ private:
     const int PartitionTag_;
 
     NProto::TBlockMetaExt BlockMetaExt_;
-    std::vector<int> IdMapping_;
+    std::vector<TColumnIdMapping> IdMapping_;
 
     int CurrentBlockIndex_ = 0;
     i64 RowCount_ = 0;
