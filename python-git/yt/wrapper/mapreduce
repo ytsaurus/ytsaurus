@@ -25,7 +25,7 @@ from yt.wrapper.cli_helpers import write_silently, run_main, die
 from yt.wrapper.table_commands import copy_table, move_table, _remove_locks, _get_format_from_tables
 from yt.wrapper.cypress_commands import remove_with_empty_dirs
 
-from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, chunk_iter_stream, date_string_to_timestamp
+from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, GB, chunk_iter_stream, date_string_to_timestamp
 import yt.wrapper.config as config
 import yt.yson as yson
 import yt.json as json
@@ -758,7 +758,7 @@ Examples:
         defrag_job_io = deepcopy(get_value(job_io, {}))
         if "table_writer" not in defrag_job_io:
             defrag_job_io["table_writer"] = {}
-        defrag_job_io["table_writer"]["desired_chunk_size"] = 1024 * MB
+        defrag_job_io["table_writer"]["desired_chunk_size"] = GB
         yt.run_merge(args.src, unlist_destination_tables(dst),
                      job_io=defrag_job_io,
                      spec=defrag_spec)
