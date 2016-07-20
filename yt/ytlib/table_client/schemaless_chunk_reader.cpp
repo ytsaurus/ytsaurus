@@ -619,7 +619,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 std::move(partitionTag));
 
         case ETableChunkFormat::Old: {
-            YCHECK(readRanges.size() == 0);
+            YCHECK(readRanges.size() <= 1);
             YCHECK(!partitionTag);
 
             return New<TLegacyTableChunkReader>(
