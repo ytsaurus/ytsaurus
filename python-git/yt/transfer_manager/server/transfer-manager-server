@@ -1082,8 +1082,6 @@ class Application(object):
 
         task_description = self._get_task_description(task)
 
-        self._renew_lease(id)
-
         return jsonify(**task_description)
 
     def ping_and_get_task(self, id):
