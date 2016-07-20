@@ -86,10 +86,14 @@ def make_formatted_request(command_name, params, format, ignore_result=False, **
             format = create_format(format)
         params["output_format"] = format.to_yson_type()
 
+    if ignore_result:
+        response_format = None
+
     result = make_request(command_name, params, response_format=response_format, **kwargs)
 
     if ignore_result:
         return
+
     if format is None:
         if has_yson_bindings:
             return yson.loads(result)
