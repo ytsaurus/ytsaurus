@@ -113,7 +113,7 @@ protected:
     void Initialize(std::vector<std::unique_ptr<NTableChunkFormat::IUnversionedColumnReader>>& keyReaders);
 
     void InitBlockFetcher();
-    void RequestFirstBlocks();
+    TFuture<void> RequestFirstBlocks();
 
     bool TryFetchNextRow();
 };
