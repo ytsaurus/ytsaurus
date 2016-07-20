@@ -29,16 +29,16 @@ Stroka ToString(TChunkReplica replica)
 
 Stroka ToString(const TChunkIdWithIndex& id)
 {
-    if (TypeFromId(id.Id) == EObjectType::JournalChunk) {
+    if (id.Index == GenericChunkReplicaIndex) {
+        return ToString(id.Id);
+    } else if (TypeFromId(id.Id) == EObjectType::JournalChunk) {
         return Format("%v/%v",
             id.Id,
             EJournalReplicaType(id.Index));
-    } else if (id.Index != GenericChunkReplicaIndex) {
+    } else {
         return Format("%v/%v",
             id.Id,
             id.Index);
-    } else {
-        return ToString(id.Id);
     }
 }
 
