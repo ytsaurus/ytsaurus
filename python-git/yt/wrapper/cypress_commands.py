@@ -175,7 +175,7 @@ def concatenate(source_paths, destination_path, client=None):
     create(type, destination_path, ignore_existing=True)
     params = {"source_paths": source_paths,
               "destination_path": destination_path}
-    _make_formatted_transactional_request("concatenate", params, format=None, ignore_result=True, client=client)
+    _make_transactional_request("concatenate", params, client=client)
 
 def link(target_path, link_path, recursive=False, ignore_existing=False, client=None):
     """Make link to Cypress node.
