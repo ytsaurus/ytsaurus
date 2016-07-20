@@ -3,7 +3,7 @@
 from __future__ import absolute_import
 
 from yt.yson.convert import to_yson_type, json_to_yson, yson_to_json
-
+from yt.packages.six import PY3
 
 def test_convert_json_to_yson():
     x = json_to_yson({
@@ -24,7 +24,10 @@ def test_convert_json_to_yson():
         }
     })
 
-    z = str(bytearray(u"Брюссельская капуста", "utf-8"))
+    if not PY3:
+        z = str(bytearray(u"Брюссельская капуста", "utf-8"))
+    else:
+        z = u"Брюссельская капуста"
     assert dict(x) == {"x": 10, "y": 11, "z": z}
     assert x.attributes == "abc"
 

@@ -1,13 +1,19 @@
-import convert
-from common import YsonError
+from . import convert, yson_types
+from .common import YsonError
 
-import yt.yson.yson_types
+from yt.packages.six import int2byte, PY3, indexbytes, iterbytes, BytesIO, text_type
+from yt.packages.six.moves import xrange
 
 import struct
-from StringIO import StringIO
+
+_ENCODING_SENTINEL = object()
+
+def _is_text_reader(stream):
+    return type(stream.read(0)) is text_type
 
 class YsonParseError(ValueError):
-    def __init__(self, message, (line_index, position, offset)):
+    def __init__(self, message, position_info):
+        line_index, position, offset = position_info
         ValueError.__init__(self, _format_message(message, line_index, position, offset))
         self.message = message
         self.line_index = line_index
@@ -15,43 +21,45 @@ class YsonParseError(ValueError):
         self.offset = offset
 
 def _format_message(message, line_index, position, offset):
-    return "%s (Line: %d, Poisition: %d, Offset: %d)" % (message, line_index, position, offset)
+    return "%s (Line: %d, Position: %d, Offset: %d)" % (message, line_index, position, offset)
 
-_SEEMS_INT64 = chr(0)
-_SEEMS_UINT64 = chr(1)
-_SEEMS_DOUBLE = chr(2)
+_SEEMS_INT64 = int2byte(0)
+_SEEMS_UINT64 = int2byte(1)
+_SEEMS_DOUBLE = int2byte(2)
 
 def _get_numeric_type(string):
-    for ch in string:
-        if ch == 'E' or ch == 'e' or ch == '.':
+    for code in iterbytes(string):
+        ch = int2byte(code)
+        if ch == b'E' or ch == b'e' or ch == b'.':
             return _SEEMS_DOUBLE
-        elif ch == 'u':
+        elif ch == b'u':
             return _SEEMS_UINT64
     return _SEEMS_INT64
 
 # Binary literals markers
-_STRING_MARKER = chr(1)
-_INT64_MARKER = chr(2)
-_DOUBLE_MARKER = chr(3)
-_FALSE_MARKER = chr(4)
-_TRUE_MARKER = chr(5)
-_UINT64_MARKER = chr(6)
+_STRING_MARKER = int2byte(1)
+_INT64_MARKER = int2byte(2)
+_DOUBLE_MARKER = int2byte(3)
+_FALSE_MARKER = int2byte(4)
+_TRUE_MARKER = int2byte(5)
+_UINT64_MARKER = int2byte(6)
 
 def _zig_zag_decode(value):
     return (value >> 1) ^ -(value & 1)
 
 class YsonParserBase(object):
-    def __init__(self, stream):
+    def __init__(self, stream, encoding):
         self._line_index = 1
         self._position = 1
         self._offset = 0
         self._stream = stream
         self._lookahead = None
+        self._encoding = encoding
 
     def _get_position_info(self):
-        return (self._line_index, self._position, self._offset)
+        return self._line_index, self._position, self._offset
 
-    def _read_char(self, binary_input = False):
+    def _read_char(self, binary_input=False):
         if self._lookahead is None:
             result = self._stream.read(1)
         else:
@@ -59,7 +67,7 @@ class YsonParserBase(object):
         self._lookahead = None
 
         self._offset += 1
-        if not binary_input and result == '\n':
+        if not binary_input and result == b'\n':
             self._line_index += 1
             self._position = 1
         else:
@@ -74,15 +82,15 @@ class YsonParserBase(object):
         return self._lookahead
 
     def _read_binary_chars(self, char_count):
-        result = ''
+        result = []
         for i in xrange(char_count):
             ch = self._read_char(True)
             if not ch:
                 raise YsonParseError(
                     "Premature end-of-stream while reading byte %d out of %d" % (i + 1, char_count),
                     self._get_position_info())
-            result += ch
-        return result
+            result.append(ch)
+        return b"".join(result)
 
     def _expect_char(self, expected_ch):
         read_ch = self._read_char()
@@ -107,9 +115,9 @@ class YsonParserBase(object):
                 self._get_position_info())
         if ch == _STRING_MARKER:
             return self._read_binary_string()
-        if ch == '"':
+        if ch == b'"':
             return self._read_quoted_string()
-        if not ch.isalpha() and not ch == '_' and not ch == '%':
+        if not ch.isalpha() and not ch == b'_' and not ch == b'%':
             raise YsonParseError(
                 "Expecting string literal but found %s in Yson" % ch,
                 self._get_position_info())
@@ -118,7 +126,7 @@ class YsonParserBase(object):
     def _read_binary_string(self):
         self._expect_char(_STRING_MARKER)
         length = _zig_zag_decode(self._read_varint())
-        return self._read_binary_chars(length)
+        return self._decode_string(self._read_binary_chars(length))
 
     def _read_varint(self):
         count = 0
@@ -142,8 +150,8 @@ class YsonParserBase(object):
         return result
 
     def _read_quoted_string(self):
-        self._expect_char('"')
-        result = ""
+        self._expect_char(b'"')
+        result = []
         pending_next_char = False
         while True:
             ch = self._read_char()
@@ -151,39 +159,48 @@ class YsonParserBase(object):
                 raise YsonParseError(
                     "Premature end-of-stream while reading string literal in Yson",
                     self._get_position_info())
-            if ch == '"' and not pending_next_char:
+            if ch == b'"' and not pending_next_char:
                 break
-            result += ch
+            result.append(ch)
             if pending_next_char:
                 pending_next_char = False
-            elif ch == '\\':
+            elif ch == b"\\":
                 pending_next_char = True
-        return result.decode('string_escape')
+        return self._decode_string(self._unescape(b"".join(result)))
+
+    def _unescape(self, string):
+        return string.decode("unicode_escape").encode("latin1")
+
+    def _decode_string(self, string):
+        if self._encoding is not None:
+            return string.decode(self._encoding)
+        else:
+            return string
 
     def _read_unquoted_string(self):
-        result = ""
+        result = []
         while True:
             ch = self._peek_char()
-            if ch and (ch.isalpha() or ch.isdigit() or ch in '_%-'):
+            if ch and (ch.isalpha() or ch.isdigit() or ch in b"_%-"):
                 self._read_char()
-                result += ch
+                result.append(ch)
             else:
                 break
-        return result
+        return self._decode_string(b"".join(result))
 
     def _read_numeric(self):
-        result = ""
+        result = []
         while True:
             ch = self._peek_char()
-            if not ch or not (ch.isdigit() or ch in "+-.eEu"):
+            if not ch or not (ch.isdigit() or ch in b"+-.eEu"):
                 break
             self._read_char()
-            result += ch
+            result.append(ch)
         if not result:
             raise YsonParseError(
                 "Premature end-of-stream while parsing numeric literal in Yson",
                 self._get_position_info())
-        return result
+        return b"".join(result)
 
     def _parse_any(self):
         attributes = None
@@ -196,13 +213,13 @@ class YsonParserBase(object):
             raise YsonParseError(
                 "Premature end-of-stream in Yson",
                 self._get_position_info())
-        elif ch == '[':
+        elif ch == b'[':
             result = self._parse_list()
 
-        elif ch == '{':
+        elif ch == b'{':
             result = self._parse_map()
 
-        elif ch == '#':
+        elif ch == b'#':
             result = self._parse_entity()
 
         elif ch == _STRING_MARKER:
@@ -225,13 +242,13 @@ class YsonParserBase(object):
             self._expect_char(ch)
             result = True
 
-        elif ch == '%':
+        elif ch == b'%':
             result = self._parse_boolean()
 
-        elif ch == '+' or ch == '-' or ch.isdigit():
+        elif ch == b'+' or ch == b'-' or ch.isdigit():
             result = self._parse_numeric()
 
-        elif ch == '_' or ch == '"' or ch.isalpha():
+        elif ch == b'_' or ch == b'"' or ch.isalpha():
             result = self._parse_string()
 
         else:
@@ -242,31 +259,31 @@ class YsonParserBase(object):
         return convert.to_yson_type(result, attributes)
 
     def _parse_list(self):
-        self._expect_char('[')
+        self._expect_char(b'[')
         result = []
         while True:
             self._skip_whitespaces()
-            if self._peek_char() == ']':
+            if self._peek_char() == b']':
                 break
             value = self._parse_any()
             result.append(value)
             self._skip_whitespaces()
-            if self._peek_char() == ']':
+            if self._peek_char() == b']':
                 break
-            self._expect_char(';')
-        self._expect_char(']')
+            self._expect_char(b';')
+        self._expect_char(b']')
         return result
 
     def _parse_map(self):
-        self._expect_char('{')
+        self._expect_char(b'{')
         result = {}
         while True:
             self._skip_whitespaces()
-            if self._peek_char() == '}':
+            if self._peek_char() == b'}':
                 break
             key = self._read_string()
             self._skip_whitespaces()
-            self._expect_char('=')
+            self._expect_char(b'=')
             value = self._parse_any()
             if key in result:
                 raise YsonParseError(
@@ -274,29 +291,29 @@ class YsonParserBase(object):
                     self._get_position_info())
             result[key] = value
             self._skip_whitespaces()
-            if self._peek_char() == '}':
+            if self._peek_char() == b'}':
                 break
-            self._expect_char(';')
-        self._expect_char('}')
+            self._expect_char(b';')
+        self._expect_char(b'}')
         return result
 
     def _parse_entity(self):
-        self._expect_char('#')
+        self._expect_char(b'#')
         return None
 
     def _parse_boolean(self):
-        self._expect_char('%')
+        self._expect_char(b'%')
         ch = self._peek_char()
-        if ch not in ['f', 't']:
-            raise YsonParseError("Found '%s' while expecting 'f' or 't'")
-        if ch == 'f':
+        if ch not in [b'f', b't']:
+            raise YsonParseError("Found '%s' while expecting 'f' or 't'" % ch)
+        if ch == b'f':
             str = self._read_binary_chars(5)
-            if str != "false":
+            if str != b"false":
                 raise YsonParseError("Incorrect boolean value '%s', expected 'false'" % str)
             return False
-        if ch == 't':
+        if ch == b't':
             str = self._read_binary_chars(4)
-            if str != "true":
+            if str != b"true":
                 raise YsonParseError("Incorrect boolean value '%s', expected 'true'" % str)
             return True
         return None
@@ -312,13 +329,13 @@ class YsonParserBase(object):
 
     def _parse_binary_uint64(self):
         self._expect_char(_UINT64_MARKER)
-        result = yt.yson.yson_types.YsonUint64(self._read_varint())
+        result = yson_types.YsonUint64(self._read_varint())
         return result
 
     def _parse_binary_double(self):
         self._expect_char(_DOUBLE_MARKER)
-        bytes = self._read_binary_chars(struct.calcsize('d'))
-        result = struct.unpack('d', bytes)[0]
+        bytes_ = self._read_binary_chars(struct.calcsize(b'd'))
+        result = struct.unpack(b'd', bytes_)[0]
         return result
 
     def _parse_numeric(self):
@@ -335,11 +352,11 @@ class YsonParserBase(object):
                     self._get_position_info())
         elif numeric_type == _SEEMS_UINT64:
             try:
-                if string.endswith("u"):
+                if string.endswith(b"u"):
                     string = string[:-1]
                 else:
                     raise ValueError()
-                result = yt.yson.yson_types.YsonUint64(int(string))
+                result = yson_types.YsonUint64(int(string))
                 if result > 2 ** 64 - 1:
                     raise ValueError()
             except ValueError:
@@ -357,14 +374,14 @@ class YsonParserBase(object):
 
     def _has_attributes(self):
         self._skip_whitespaces()
-        return self._peek_char() == '<'
+        return self._peek_char() == b'<'
 
     def _parse_attributes(self):
-        self._expect_char('<')
+        self._expect_char(b'<')
         result = {}
         while True:
             self._skip_whitespaces()
-            if self._peek_char() == '>':
+            if self._peek_char() == b'>':
                 break
             key = self._read_string()
             if not key:
@@ -372,7 +389,7 @@ class YsonParserBase(object):
                     "Empty attribute name in Yson",
                     self._get_position_info())
             self._skip_whitespaces()
-            self._expect_char('=')
+            self._expect_char(b'=')
             value = self._parse_any()
             if key in result:
                 raise YsonParseError(
@@ -380,15 +397,19 @@ class YsonParserBase(object):
                     self._get_position_info())
             result[key] = value
             self._skip_whitespaces()
-            if self._peek_char() == '>':
+            if self._peek_char() == b'>':
                 break
-            self._expect_char(';')
-        self._expect_char('>')
+            self._expect_char(b';')
+        self._expect_char(b'>')
         return result
 
 class YsonParser(YsonParserBase):
-    def __init__(self, stream):
-        super(YsonParser, self).__init__(stream)
+    def __init__(self, stream, encoding):
+        # COMPAT: Before porting YSON to Python 3 it supported parsing from
+        # unicode strings.
+        if _is_text_reader(stream) and PY3:
+            raise RuntimeError("Only binary streams are supported by YSON parser")
+        super(YsonParser, self).__init__(stream, encoding)
 
     def parse(self):
         result = self._parse_any()
@@ -408,14 +429,17 @@ class StreamWrap(object):
         self.pos = 0
         self.state = 0
 
-    def read(self, n=None):
+    def read(self, n):
+        if n == 0:
+            return self.stream.read(0)
+
         assert n == 1
 
         if self.state == 0:
             if self.pos == len(self.header):
                 self.state += 1
             else:
-                res = self.header[self.pos]
+                res = int2byte(indexbytes(self.header, self.pos))
                 self.pos += 1
                 return res
 
@@ -431,30 +455,34 @@ class StreamWrap(object):
             if self.pos == len(self.footer):
                 self.state += 1
             else:
-                res = self.footer[self.pos]
+                res = int2byte(indexbytes(self.footer, self.pos))
                 self.pos += 1
                 return res
 
         if self.state == 3:
-            return ""
+            return b""
 
 
-
-def load(stream, yson_type=None):
+def load(stream, yson_type=None, encoding=_ENCODING_SENTINEL):
     """Deserialize `object` from YSON formatted stream `stream`.
 
     :param yson_type: (string) type of YSON ("node", "list_fragment" or "map_fragment").
     """
-    if yson_type == "list_fragment":
-        stream = StreamWrap(stream, "[", "]")
-    if yson_type == "map_fragment":
-        stream = StreamWrap(stream, "{", "}")
+    if not PY3 and encoding is not _ENCODING_SENTINEL and encoding is not None:
+        raise YsonError("Encoding parameter is not supported for Python 2")
 
-    parser = YsonParser(stream)
+    if encoding is _ENCODING_SENTINEL:
+        encoding = "utf-8"
+
+    if yson_type == "list_fragment":
+        stream = StreamWrap(stream, b"[", b"]")
+    if yson_type == "map_fragment":
+        stream = StreamWrap(stream, b"{", b"}")
+
+    parser = YsonParser(stream, encoding)
     return parser.parse()
 
-def loads(string, yson_type=None):
+def loads(string, yson_type=None, encoding=_ENCODING_SENTINEL):
     """Deserialize `object` from YSON formatted string `string`. See `load`.
     """
-    return load(StringIO(string), yson_type)
-
+    return load(BytesIO(string), yson_type, encoding=encoding)

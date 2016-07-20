@@ -1,16 +1,21 @@
-from yt.yson.yson_types import *
+from .yson_types import *
+from .common import YsonError
 
-from common import YsonError
+from yt.packages.six import text_type, binary_type, integer_types, iteritems, PY3
+from yt.packages.six.moves import map
 
 def to_yson_type(value, attributes=None):
     """ Wrap value with YSON type """
-    if isinstance(value, unicode):
-        result = YsonString(str(bytearray(value, 'utf-8')))
-    elif isinstance(value, str):
+    if isinstance(value, text_type):
+        if PY3:
+            result = YsonUnicode(value)
+        else:  # COMPAT
+            result = YsonString(value.encode("utf-8"))
+    elif isinstance(value, binary_type):
         result = YsonString(value)
     elif value is False or value is True:
         result = YsonBoolean(value)
-    elif isinstance(value, (int, long)):
+    elif isinstance(value, integer_types):
         if value < -2 ** 63 or value >= 2 ** 64:
             raise TypeError("Integer {0} cannot be represented in YSON "
                             "since it is out of range [-2^63, 2^64 - 1])".format(value))
@@ -40,22 +45,27 @@ def json_to_yson(json_tree, encode_key=False):
             json_tree = json_tree[1:]
     has_attrs = isinstance(json_tree, dict) and "$value" in json_tree
     value = json_tree["$value"] if has_attrs else json_tree
-    if isinstance(value, unicode):
-        result = YsonString(str(bytearray(value, 'utf-8')))
-    elif isinstance(value, str):
+    if isinstance(value, text_type):
+        if PY3:
+            result = YsonUnicode(value)
+        else:  # COMPAT
+            result = YsonString(value.encode("utf-8"))
+    elif isinstance(value, binary_type):
         result = YsonString(value)
     elif value is False or value is True:
         result = YsonBoolean(value)
-    elif isinstance(value, int):
-        result = YsonInt64(value)
-    elif isinstance(value, long):
-        result = YsonUint64(value)
+    elif isinstance(value, integer_types):
+        greater_than_max_int64 = value >= 2 ** 63
+        if greater_than_max_int64:
+            result = YsonUint64(value)
+        else:
+            result = YsonInt64(value)
     elif isinstance(value, float):
         result = YsonDouble(value)
     elif isinstance(value, list):
         result = YsonList(map(json_to_yson, value))
     elif isinstance(value, dict):
-        result = YsonMap((json_to_yson(k, True), json_to_yson(v)) for k, v in YsonMap(value).iteritems())
+        result = YsonMap((json_to_yson(k, True), json_to_yson(v)) for k, v in iteritems(YsonMap(value)))
     elif value is None:
         result = YsonEntity()
     else:
@@ -72,13 +82,13 @@ def yson_to_json(yson_tree, print_attributes=True):
         return key
 
     def process_dict(d):
-        return dict((fix_key(k), yson_to_json(v)) for k, v in d.iteritems())
+        return dict((fix_key(k), yson_to_json(v)) for k, v in iteritems(d))
 
     if hasattr(yson_tree, "attributes") and yson_tree.attributes and print_attributes:
         return {"$attributes": process_dict(yson_tree.attributes),
                 "$value": yson_to_json(yson_tree, print_attributes=False)}
     if isinstance(yson_tree, list):
-        return map(yson_to_json, yson_tree)
+        return list(map(yson_to_json, yson_tree))
     elif isinstance(yson_tree, dict):
         return process_dict(yson_tree)
     elif isinstance(yson_tree, YsonEntity):
