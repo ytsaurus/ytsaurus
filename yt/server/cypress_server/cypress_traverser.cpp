@@ -142,7 +142,7 @@ private:
                     ++currentNodeCount;
                 } else if (childIndex < entry.TrunkChildren.size()) {
                     auto* child = entry.TrunkChildren[childIndex];
-                    if (child->IsAlive()) {
+                    if (IsObjectAlive(child)) {
                         PushEntry(child);
                     }
                     ++currentNodeCount;
