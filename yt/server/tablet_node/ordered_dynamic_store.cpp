@@ -277,13 +277,11 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
         auto chunkWriter = New<TMemoryWriter>();
         auto tableWriterConfig = New<TChunkWriterConfig>();
         auto tableWriterOptions = New<TChunkWriterOptions>();
-        auto nameTable = TNameTable::FromSchema(Schema_);
-        // TODO(babenko): replace with native schemaful writer
+
         auto schemalessTableWriter = CreateSchemalessChunkWriter(
             tableWriterConfig,
             tableWriterOptions,
-            nameTable,
-            TKeyColumns(),
+            Schema_,
             chunkWriter);
         auto tableWriter = CreateSchemafulWriterAdapter(schemalessTableWriter);
 

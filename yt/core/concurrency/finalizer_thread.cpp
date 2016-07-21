@@ -26,7 +26,6 @@ class TFinalizerThread
         virtual ~TInvoker() override
         {
             YCHECK(Owner_->Refs_.fetch_sub(1, std::memory_order_release) > 0);
-            Owner_->ShutdownEventCount_->NotifyAll();
         }
 
         virtual void Invoke(const TClosure& callback) override
@@ -93,22 +92,37 @@ public:
             return;
         }
 
-        Refs_.fetch_sub(1, std::memory_order_relaxed);
-
         if (IsSameProcess()) {
             // Wait until all alive invokers would terminate.
-            ShutdownEventCount_->Await([&] () {
-                return Refs_.load(std::memory_order_relaxed) == 0;
-            });
+            if (Refs_ != 1) {
+                // Spin for 30s.
+                for (int i = 0; i < 30000; ++i) {
+                    if (Refs_ == 1) {
+                        break;
+                    }
+                    Sleep(TDuration::MilliSeconds(1));
+                }
+                if (Refs_ != 1) {
+                    // Things gone really bad.
+                    NYT::DumpRefCountedTracker();
+                    YCHECK(false && "Hung during ShutdownFinalizerThread");
+                }
+            }
 
-            // Make sure all pending actions are
-            // Spin for a while to give pending actions some time to finish.
+            // There might be pending actions (i. e. finalizer thread may execute TFuture::dtor
+            // which temporary acquires finalizer invoker). Spin for a while to give pending actions
+            // some time to finish.
             for (int i = 0; i < ShutdownSpinCount; ++i) {
                 BIND([] () {}).AsyncVia(Queue_).Run().Get();
             }
 
+            int refs = 1;
+            YCHECK(Refs_.compare_exchange_strong(refs, 0));
+
             Queue_->Shutdown();
             Thread_->Shutdown();
+
+            Queue_->Drain();
         }
 
         ShutdownFinished = true;

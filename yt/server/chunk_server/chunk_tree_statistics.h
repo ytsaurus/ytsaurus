@@ -55,7 +55,10 @@ struct TChunkTreeStatistics
     void Load(NCellMaster::TLoadContext& context);
 
     bool operator == (const TChunkTreeStatistics& other) const;
+    bool operator != (const TChunkTreeStatistics& other) const;
 };
+
+Stroka ToString(const TChunkTreeStatistics& statistics);
 
 void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer);
 

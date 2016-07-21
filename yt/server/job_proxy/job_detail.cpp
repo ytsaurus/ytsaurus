@@ -150,8 +150,11 @@ TJobResult TSimpleJobBase::Run()
             // ToDo(psushin): return written chunks only if required.
             auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             Writer_->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_output_node_directory());
-            *schedulerResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(Writer_);
             ToProto(schedulerResultExt->mutable_output_chunks(), Writer_->GetWrittenChunksMasterMeta());
+
+            if (ShouldSendBoundaryKeys()) {
+                *schedulerResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(Writer_);
+            }
 
             return result;
         }
@@ -160,6 +163,11 @@ TJobResult TSimpleJobBase::Run()
 
 void TSimpleJobBase::Abort()
 { }
+
+bool TSimpleJobBase::ShouldSendBoundaryKeys() const
+{
+    return true;
+}
 
 double TSimpleJobBase::GetProgress() const
 {

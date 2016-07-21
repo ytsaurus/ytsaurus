@@ -72,7 +72,6 @@ private:
     i64 RowIndex_ = 0;
 
     TFuture<void> ReadyEvent_;
-    int TableIndex_ = 0;
     i64 TableRowIndex_ = 0;
 
     TOwningKey LastKey_;

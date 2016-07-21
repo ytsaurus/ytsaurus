@@ -88,7 +88,7 @@ public:
         RequestControls_.push_back(requestControl);
 
         if (Delay_ == TDuration()) {
-            OnDeadlineReached();
+            OnDeadlineReached(false);
         } else {
             DeadlineCookie_ = TDelayedExecutor::Submit(
                 BIND(&TLatencyTamingSession::OnDeadlineReached, MakeStrong(this)),
@@ -191,8 +191,12 @@ private:
         return timeout - Delay_;
     }
 
-    void OnDeadlineReached()
+    void OnDeadlineReached(bool aborted)
     {
+        if (aborted) {
+            return;
+        }
+
         // Shortcut.
         if (Responded_.load(std::memory_order_relaxed)) {
             return;

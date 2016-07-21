@@ -463,8 +463,7 @@ private:
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(
             schedulerJobSpecExt->mutable_user_job_spec(),
-            joblet,
-            GetUserJobMemoryReserve());
+            joblet);
     }
 };
 
@@ -530,9 +529,10 @@ private:
     //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
     virtual bool IsTeleportChunk(const TInputChunkPtr& chunkSpec) const override
     {
-        bool isSchemaCompatible = ValidateTableSchemaCompatibility(
-            InputTables[chunkSpec->GetTableIndex()].Schema,
-            OutputTables[0].Schema)
+        bool isSchemaCompatible =
+        	ValidateTableSchemaCompatibility(
+            	InputTables[chunkSpec->GetTableIndex()].Schema,
+            	OutputTables[0].Schema)
             .IsOK();
 
         if (Spec->ForceTransform || chunkSpec->Channel() || !isSchemaCompatible) {

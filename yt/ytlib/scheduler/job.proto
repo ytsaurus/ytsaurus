@@ -105,7 +105,7 @@ message TTableOutputSpec
     // YSON-serialized writer options obtained from table attributes.
     required string table_writer_options = 6;
 
-    optional NTableClient.NProto.TTableSchemaExt table_schema = 8;
+    required NTableClient.NProto.TTableSchemaExt table_schema = 8;
 }
 
 // Describes a job submitted by a scheduler.

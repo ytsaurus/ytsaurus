@@ -14,6 +14,7 @@ using namespace NJobProberClient;
 using namespace NConcurrency;
 using namespace NJobAgent;
 using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -82,13 +83,13 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, PollJobShell)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
-        const auto& parameters = request->parameters();
+        auto parameters = TYsonString(request->parameters());
 
         context->SetRequestInfo("JobId: %v, Parameters: %v",
             jobId,
-            parameters);
+            ConvertToYsonString(parameters, EYsonFormat::Text));
 
-        auto result = JobProxy_->PollJobShell(jobId, TYsonString(parameters));
+        auto result = JobProxy_->PollJobShell(jobId, parameters);
 
         ToProto(response->mutable_result(), result.Data());
         context->Reply();

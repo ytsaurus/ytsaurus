@@ -92,20 +92,8 @@ void TCachedVersionedChunkMeta::Init(
     MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), GetKeyColumnCount());
     MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), GetKeyColumnCount());
 
-    Misc_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
-    BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
-
-    auto columnMeta = FindProtoExtension<TColumnMetaExt>(ChunkMeta_.extensions());
-    if (columnMeta) {
-        ColumnMeta_.Swap(&*columnMeta);
-    }
-
-    BlockLastKeys_.reserve(BlockMeta_.blocks_size());
-    for (const auto& block : BlockMeta_.blocks()) {
-        YCHECK(block.has_last_key());
-        auto key = FromProto<TOwningKey>(block.last_key());
-        BlockLastKeys_.push_back(WidenKey(key, GetKeyColumnCount()));
-    }
+    TColumnarChunkMeta::InitExtensions();
+    TColumnarChunkMeta::InitBlockLastKeys(GetKeyColumnCount());
 }
 
 void TCachedVersionedChunkMeta::ValidateChunkMeta()

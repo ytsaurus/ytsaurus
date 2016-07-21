@@ -118,6 +118,7 @@ TCompressedUnsignedVectorReader<T, Scan>::TCompressedUnsignedVectorReader()
 template <class T, bool Scan>
 inline T TCompressedUnsignedVectorReader<T, Scan>::operator[] (size_t index) const
 {
+    Y_ASSERT(index < Size_);
     if (Scan) {
         return Values_[index];
     } else {
@@ -144,8 +145,6 @@ inline size_t TCompressedUnsignedVectorReader<T, Scan>::GetByteSize() const
 template <class T, bool Scan>
 T TCompressedUnsignedVectorReader<T, Scan>::GetValue(size_t index) const
 {
-    Y_ASSERT(index < Size_);
-
     if (Width_ == 0) {
         return 0;
     }
@@ -164,34 +163,166 @@ T TCompressedUnsignedVectorReader<T, Scan>::GetValue(size_t index) const
     }
 }
 
-template <class T, bool Scan>
-void TCompressedUnsignedVectorReader<T, Scan>::UnpackValues()
+namespace {
+
+template <class T, int Width, int Remaining>
+struct TCompressedUnsignedVectorUnrolledReader
 {
-    Values_.resize(Size_, 0);
-
-    if (Width_ == 0) {
-        return;
+    static Y_FORCE_INLINE void Do(ui64& data, T*& output, ui64 mask)
+    {
+        *output++ = static_cast<T>(data & mask);
+        data >>= Width;
+        TCompressedUnsignedVectorUnrolledReader<T, Width, Remaining - 1>::Do(data, output, mask);
     }
+};
 
-    const ui64* word = Data_;
+template <class T, int Width>
+struct TCompressedUnsignedVectorUnrolledReader<T, Width, 0>
+{
+    static Y_FORCE_INLINE void Do(ui64& data, T*& output, ui64 mask)
+    { }
+};
+
+} // namespace
+
+template <class T, bool Scan>
+template <int Width>
+void TCompressedUnsignedVectorReader<T, Scan>::UnpackValuesUnrolled()
+{
+    constexpr bool Aligned = (Width % 64 == 0);
+    constexpr int UnrollFactor = (64 / Width) - (Aligned ? 0 : 1);
+
+    const ui64* input = Data_;
+    auto* output = ValuesHolder_.get();
+    auto* outputEnd = output + Size_;
     ui8 offset = 0;
+    ui64 mask = MaskLowerBits(Width_);
 
-    for (size_t index = 0; index < Size_; ++index) {
-        ui64 w1 = (*word) >> offset;
-        if (offset + Width_ > 64) {
-            ++word;
-            ui64 w2 = (*word & MaskLowerBits((offset + Width_) & 0x3F)) << (64 - offset);
-            Values_[index] = static_cast<T>(w1 | w2);
+    ui64 data = *input++;
+    while (output < outputEnd) {
+        TCompressedUnsignedVectorUnrolledReader<T, Width, UnrollFactor>::Do(data, output, mask);
+        offset += UnrollFactor * Width;
+        if (!Aligned && offset + Width <= 64) {
+            TCompressedUnsignedVectorUnrolledReader<T, Width, 1>::Do(data, output, mask);
+            offset += Width;
+        }
+        if (output >= outputEnd) {
+            break;
+        }
+        if (offset == 64) {
+            offset = 0;
+            data = *input++;
         } else {
-            Values_[index] = static_cast<T>(w1 & MaskLowerBits(Width_));
+            ui64 nextData = *input++;
+            ui8 nextOffset = (offset + Width) & 0x3F;
+            *output++ = static_cast<T>(((nextData & MaskLowerBits(nextOffset)) << (64 - offset)) | data);
+            data = nextData;
+            offset = nextOffset;
+            data >>= offset;
+        }
+    }
+}
+
+template <class T, bool Scan>
+void TCompressedUnsignedVectorReader<T, Scan>::UnpackValuesFallback()
+{
+    const ui64* input = Data_;
+    auto* output = ValuesHolder_.get();
+    auto* outputEnd = output + Size_;
+    ui8 offset = 0;
+    ui64 mask = MaskLowerBits(Width_);
+    while (output != outputEnd) {
+        ui64 w1 = *input >> offset;
+        if (offset + Width_ > 64) {
+            ++input;
+            ui64 w2 = (*input & MaskLowerBits((offset + Width_) & 0x3F)) << (64 - offset);
+            *output = static_cast<T>(w1 | w2);
+        } else {
+            *output = static_cast<T>(w1 & mask);
         }
 
         offset = (offset + Width_) & 0x3F;
         if (offset == 0) {
-            ++word;
+            ++input;
         }
+
+        ++output;
     }
-};
+}
+
+template <class T, bool Scan>
+template <class S>
+void TCompressedUnsignedVectorReader<T, Scan>::UnpackValuesAligned()
+{
+    const auto* input = reinterpret_cast<const S*>(Data_);
+    auto* output = ValuesHolder_.get();
+    auto* outputEnd = output + Size_;
+    while (output != outputEnd) {
+        *output++ = *input++;
+    }
+}
+
+template <class T, bool Scan>
+void TCompressedUnsignedVectorReader<T, Scan>::UnpackValues()
+{
+    // Zero-copy path.
+    if (Width_ ==  8 && sizeof(T) == 1 ||
+        Width_ == 16 && sizeof(T) == 2 ||
+        Width_ == 32 && sizeof(T) == 4 ||
+        Width_ == 64 && sizeof(T) == 8)
+    {
+        Values_ = reinterpret_cast<const T*>(Data_);
+        return;
+    }
+    
+    // NB: Unrolled loop may unpack more values than actually needed.
+    // Make sure we have enough room for them.
+    auto valuesSize = Size_ + ((Width_ > 0) ? (64 / Width_ + 1) : 0);
+    ValuesHolder_.reset(new T[valuesSize]);
+    Values_ = ValuesHolder_.get();
+
+    switch (Width_) {
+        case  0: std::fill(ValuesHolder_.get(), ValuesHolder_.get() + Size_, 0); break;
+        #define UNROLLED(width)      case width: UnpackValuesUnrolled<width>(); break;
+        #define ALIGNED(width, type) case width: UnpackValuesAligned<type>(); break;
+        UNROLLED( 1)
+        UNROLLED( 2)
+        UNROLLED( 3)
+        UNROLLED( 4)
+        UNROLLED( 5)
+        UNROLLED( 6)
+        UNROLLED( 7)
+        ALIGNED ( 8, ui8)
+        UNROLLED( 9)
+        UNROLLED(10)
+        UNROLLED(11)
+        UNROLLED(12)
+        UNROLLED(13)
+        UNROLLED(14)
+        UNROLLED(15)
+        ALIGNED (16, ui16)
+        UNROLLED(17)
+        UNROLLED(18)
+        UNROLLED(19)
+        UNROLLED(20)
+        UNROLLED(21)
+        UNROLLED(22)
+        UNROLLED(23)
+        UNROLLED(24)
+        UNROLLED(25)
+        UNROLLED(26)
+        UNROLLED(27)
+        UNROLLED(28)
+        UNROLLED(29)
+        UNROLLED(30)
+        UNROLLED(31)
+        ALIGNED (32, ui32)
+        // NB: ALIGNED(64, ui64) is redundant, cf. zero-copy path above.
+        #undef UNROLLED
+        #undef ALIGNED
+        default: UnpackValuesFallback(); break;
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

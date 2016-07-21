@@ -52,8 +52,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
     InitFirstBlockNeeded_ = true;
     YCHECK(SequentialBlockFetcher_->HasMoreBlocks());
     CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
-    ReadyEvent_ = CurrentBlock_.As<void>();
-    return ReadyEvent_;
+    return CurrentBlock_.As<void>();
 }
 
 TFuture<void> TChunkReaderBase::GetReadyEvent()

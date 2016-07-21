@@ -61,8 +61,6 @@ private:
 
     std::atomic<i64> UserJobCurrentMemoryUsage_ = {0};
 
-    // Job proxy and possibly user job combined memory limit.
-    i64 TotalMemoryLimit_ = 0;
     // Job proxy and possibly user job peak memory usage.
     i64 TotalMaxMemoryUsage_ = 0;
 

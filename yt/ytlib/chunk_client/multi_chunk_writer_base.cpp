@@ -2,7 +2,6 @@
 #include "private.h"
 #include "chunk_replica.h"
 #include "chunk_writer.h"
-#include "chunk_writer_base.h"
 #include "config.h"
 #include "confirming_writer.h"
 #include "dispatcher.h"
@@ -12,6 +11,7 @@
 #include <yt/ytlib/api/connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/ytlib/chunk_client/chunk_writer_base.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 

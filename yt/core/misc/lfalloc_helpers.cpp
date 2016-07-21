@@ -15,6 +15,8 @@
 namespace NYT {
 namespace NLFAlloc {
 
+using namespace NProfiling;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static std::once_flag BindWithMallocInfoFlag;
@@ -175,31 +177,31 @@ private:
 
     void OnProfiling()
     {
-        Profiler.Enqueue("/total/user_allocated", GetUserAllocated());
-        Profiler.Enqueue("/total/mmapped", GetMmapped());
-        Profiler.Enqueue("/total/mmapped_count", GetMmappedCount());
-        Profiler.Enqueue("/total/munmapped", GetMunmapped());
-        Profiler.Enqueue("/total/munmapped_count", GetMunmappedCount());
-        Profiler.Enqueue("/total/system_allocated", GetSystemAllocated());
-        Profiler.Enqueue("/total/system_deallocated", GetSystemFreed());
-        Profiler.Enqueue("/total/small_blocks_allocated", GetSmallBlocksAllocated());
-        Profiler.Enqueue("/total/small_blocks_deallocated", GetSmallBlocksFreed());
-        Profiler.Enqueue("/total/large_blocks_allocated", GetLargeBlocksAllocated());
-        Profiler.Enqueue("/total/large_blocks_deallocated", GetLargeBlocksFreed());
+        Profiler.Enqueue("/total/user_allocated", GetUserAllocated(), EMetricType::Counter);
+        Profiler.Enqueue("/total/mmapped", GetMmapped(), EMetricType::Counter);
+        Profiler.Enqueue("/total/mmapped_count", GetMmappedCount(), EMetricType::Counter);
+        Profiler.Enqueue("/total/munmapped", GetMunmapped(), EMetricType::Counter);
+        Profiler.Enqueue("/total/munmapped_count", GetMunmappedCount(), EMetricType::Counter);
+        Profiler.Enqueue("/total/system_allocated", GetSystemAllocated(), EMetricType::Counter);
+        Profiler.Enqueue("/total/system_deallocated", GetSystemFreed(), EMetricType::Counter);
+        Profiler.Enqueue("/total/small_blocks_allocated", GetSmallBlocksAllocated(), EMetricType::Counter);
+        Profiler.Enqueue("/total/small_blocks_deallocated", GetSmallBlocksFreed(), EMetricType::Counter);
+        Profiler.Enqueue("/total/large_blocks_allocated", GetLargeBlocksAllocated(), EMetricType::Counter);
+        Profiler.Enqueue("/total/large_blocks_deallocated", GetLargeBlocksFreed(), EMetricType::Counter);
 
-        Profiler.Enqueue("/current/system", GetCurrentSystem());
-        Profiler.Enqueue("/current/small_blocks", GetCurrentSmallBlocks());
-        Profiler.Enqueue("/current/large_blocks", GetCurrentLargeBlocks());
+        Profiler.Enqueue("/current/system", GetCurrentSystem(), EMetricType::Gauge);
+        Profiler.Enqueue("/current/small_blocks", GetCurrentSmallBlocks(), EMetricType::Gauge);
+        Profiler.Enqueue("/current/large_blocks", GetCurrentLargeBlocks(), EMetricType::Gauge);
 
         auto mmapped = GetCurrentMmapped();
-        Profiler.Enqueue("/current/mmapped", mmapped);
+        Profiler.Enqueue("/current/mmapped", mmapped, EMetricType::Gauge);
 
         auto mmappedCount = GetCurrentMmappedCount();
-        Profiler.Enqueue("/current/mmapped_count", mmappedCount);
+        Profiler.Enqueue("/current/mmapped_count", mmappedCount, EMetricType::Gauge);
 
         auto used = GetCurrentUsed();
-        Profiler.Enqueue("/current/used", used);
-        Profiler.Enqueue("/current/locked", mmapped - used);
+        Profiler.Enqueue("/current/used", used, EMetricType::Gauge);
+        Profiler.Enqueue("/current/locked", mmapped - used, EMetricType::Gauge);
     }
 };
 

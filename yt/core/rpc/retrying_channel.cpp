@@ -176,8 +176,18 @@ private:
             }
 
             TDelayedExecutor::Submit(
-                BIND(&TRetryingRequest::DoSend, MakeStrong(this)),
+                BIND(&TRetryingRequest::DoRetry, MakeStrong(this)),
                 Config_->RetryBackoffTime);
+        }
+
+        void DoRetry(bool aborted)
+        {
+            if (aborted) {
+                ReportError(TError(NYT::EErrorCode::Canceled, "Request timed out (timer was aborted)"));
+                return;
+            }
+
+            DoSend();
         }
 
         void DoSend()

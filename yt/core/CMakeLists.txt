@@ -1,6 +1,6 @@
 IF(YMAKE)
   SET(CMAKE_CURRENT_LIST_DIR .)
-  SET(YT_ABI 17_5)
+  SET(YT_ABI 18_4)
 ENDIF()
 
 SET(PROTO_NAMESPACE yt/${YT_ABI})
@@ -241,6 +241,7 @@ CXXFLAGS(
   -Wno-unused-parameter
   -Wno-unused-value
   -Wno-c++14-extensions
+  -DYT_IN_ARCADIA
 )
 
 ADDINCL(
@@ -252,6 +253,8 @@ SRCS(${YT_SRCS})
 PEERDIR(
   contrib/libs/llvm37/lib
   contrib/libs/snappy
+  contrib/libs/brotli/dec
+  contrib/libs/brotli/enc
   yt/${YT_ABI}/yt/build
   yt/${YT_ABI}/yt/contrib
 )

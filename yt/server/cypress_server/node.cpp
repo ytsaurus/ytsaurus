@@ -30,14 +30,12 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     , Revision_(0)
     , Account_(nullptr)
     , Acd_(this)
-    , AccessStatisticsUpdateIndex_(-1)
     , Parent_(nullptr)
     , Originator_(nullptr)
     , TransactionId_(id.TransactionId)
 { }
 
-TCypressNodeBase::~TCypressNodeBase()
-{ }
+TCypressNodeBase::~TCypressNodeBase() = default;
 
 TCypressNodeBase* TCypressNodeBase::GetParent() const
 {

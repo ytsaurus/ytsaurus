@@ -1880,10 +1880,10 @@ private:
                         .Item("eden").Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), tablet->GetEden()))
                         .Item("partitions").DoListFor(
                             tablet->PartitionList(), [&] (TFluentList fluent, const std::unique_ptr<TPartition>& partition) {
-                            fluent
-                                .Item()
-                                .Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
-                        });
+                                fluent
+                                    .Item()
+                                    .Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
+                            });
                 })
                 .DoIf(!tablet->IsSorted(), [&] (TFluentMap fluent) {
                     fluent

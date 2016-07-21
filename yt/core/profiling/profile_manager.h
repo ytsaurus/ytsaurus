@@ -23,6 +23,7 @@ struct TQueuedSample
     NYPath::TYPath Path;
     TValue Value = -1;
     TTagIdList TagIds;
+    EMetricType MetricType;
 
 };
 

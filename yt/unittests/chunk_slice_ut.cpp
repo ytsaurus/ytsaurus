@@ -329,15 +329,11 @@ TEST_F(TChunkSliceTest, TwoKeyChunkSmallSlice)
             500, // sliceDataSize
             1,   // keyColumnCount
             DoSliceByKeys);
-        EXPECT_EQ(keySlices.size(), 2);
+        EXPECT_EQ(keySlices.size(), 1);
 
         EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({"key"=["10000"]})_"));
-        EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10000";<"type"="max">#]})_"));
-        EXPECT_THAT(keySlices[0], HasRowCount(158));
-
-        EXPECT_THAT(keySlices[1], HasLowerLimit(R"_({"key"=["10000";<"type"="max">#]})_"));
-        EXPECT_THAT(keySlices[1], HasUpperLimit(R"_({"key"=["10001";<"type"="max">#]})_"));
-        EXPECT_THAT(keySlices[1], HasRowCount(142));
+        EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10001";<"type"="max">#]})_"));
+        EXPECT_THAT(keySlices[0], HasRowCount(300));
 
         auto rowSlices = SliceChunk(
             chunkSpec,

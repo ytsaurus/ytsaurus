@@ -5,7 +5,11 @@
 
 #include <yt/core/yson/consumer.h>
 
+#ifdef YT_IN_ARCADIA
+#include <library/string_utils/base64/base64.h>
+#else
 #include <util/string/base64.h>
+#endif
 
 namespace NYT {
 namespace NFormats {
@@ -115,6 +119,26 @@ TEST(TJsonWriterTest, Entity)
     consumer->Flush();
 
     Stroka output = "null";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, Infinities)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->SupportInfinity = true;
+    auto consumer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
+
+    consumer->OnBeginMap();
+    consumer->OnKeyedItem("a");
+    consumer->OnDoubleScalar(-std::numeric_limits<double>::infinity());
+    consumer->OnKeyedItem("b");
+    consumer->OnDoubleScalar(std::numeric_limits<double>::infinity());
+    consumer->OnEndMap();
+
+    consumer->Flush();
+
+    Stroka output = "{\"a\":-inf,\"b\":inf}";
     EXPECT_EQ(output, outputStream.Str());
 }
 

@@ -146,14 +146,9 @@ public:
         return true;
     }
 
-    virtual bool IsSorted() const override
+    virtual const TTableSchema& GetSchema() const override
     {
-        return false;
-    }
-
-    virtual bool IsUniqueKeys() const override
-    {
-        return false;
+        return Schema_;
     }
 
     virtual TNameTablePtr GetNameTable() const override
@@ -169,6 +164,8 @@ private:
     const TYPath Path_;
 
     const TPeriodicExecutorPtr FlushExecutor_;
+
+    const TTableSchema Schema_;
 
     // Double buffering.
     TBuffer Buffers_[2];

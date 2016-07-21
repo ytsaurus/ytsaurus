@@ -14,6 +14,8 @@
 #include "snapshot_downloader.h"
 #include "sort_controller.h"
 
+#include <yt/server/exec_agent/public.h>
+
 #include <yt/server/cell_scheduler/bootstrap.h>
 #include <yt/server/cell_scheduler/config.h>
 
@@ -22,6 +24,8 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
+
+#include <yt/ytlib/shell/config.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_buffered_table_writer.h>
@@ -69,6 +73,8 @@ using namespace NTableClient;
 using namespace NNodeTrackerServer;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
+using namespace NSecurityClient;
+using namespace NShell;
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
@@ -79,203 +85,6 @@ using NNodeTrackerClient::TNodeDirectory;
 static const auto& Logger = SchedulerLogger;
 static const auto& Profiler = SchedulerProfiler;
 static const auto ProfilingPeriod = TDuration::Seconds(1);
-
-////////////////////////////////////////////////////////////////////
-
-//! Ensures that operation controllers are being destroyed in a
-//! dedicated invoker.
-class TOperationControllerWrapper
-    : public IOperationController
-{
-public:
-    TOperationControllerWrapper(
-        const TOperationId& id,
-        IOperationControllerPtr underlying,
-        IInvokerPtr dtorInvoker)
-        : Id_(id)
-        , Underlying_(std::move(underlying))
-        , DtorInvoker_(std::move(dtorInvoker))
-    { }
-
-    virtual ~TOperationControllerWrapper()
-    {
-        DtorInvoker_->Invoke(BIND([underlying = std::move(Underlying_), id = Id_] () mutable {
-            LOG_INFO("Started destroying operation controller (OperationId: %v)",
-                id);
-            underlying.Reset();
-            LOG_INFO("Finished destroying operation controller (OperationId: %v)",
-                id);
-        }));
-    }
-
-    virtual void Initialize(bool cleanStart) override
-    {
-        Underlying_->Initialize(cleanStart);
-    }
-
-    virtual void Prepare() override
-    {
-        Underlying_->Prepare();
-    }
-
-    virtual void Materialize() override
-    {
-        Underlying_->Materialize();
-    }
-
-    virtual void Commit() override
-    {
-        Underlying_->Commit();
-    }
-
-    virtual void SaveSnapshot(TOutputStream* stream) override
-    {
-        Underlying_->SaveSnapshot(stream);
-    }
-
-    virtual void Revive(const TSharedRef& snapshot) override
-    {
-        Underlying_->Revive(snapshot);
-    }
-
-    virtual void Abort() override
-    {
-        Underlying_->Abort();
-    }
-
-    virtual void Complete() override
-    {
-        Underlying_->Complete();
-    }
-
-    virtual TCancelableContextPtr GetCancelableContext() const override
-    {
-        return Underlying_->GetCancelableContext();
-    }
-
-    virtual IInvokerPtr GetCancelableControlInvoker() const override
-    {
-        return Underlying_->GetCancelableControlInvoker();
-    }
-
-    virtual IInvokerPtr GetCancelableInvoker() const override
-    {
-        return Underlying_->GetCancelableInvoker();
-    }
-
-    virtual IInvokerPtr GetInvoker() const override
-    {
-        return Underlying_->GetInvoker();
-    }
-
-    virtual TFuture<void> Suspend() override
-    {
-        return Underlying_->Suspend();
-    }
-
-    virtual void Resume() override
-    {
-        Underlying_->Resume();
-    }
-
-    virtual bool GetCleanStart() const override
-    {
-        return Underlying_->GetCleanStart();
-    }
-
-    virtual int GetPendingJobCount() const override
-    {
-        return Underlying_->GetPendingJobCount();
-    }
-
-    virtual int GetTotalJobCount() const override
-    {
-        return Underlying_->GetTotalJobCount();
-    }
-
-    virtual TJobResources GetNeededResources() const override
-    {
-        return Underlying_->GetNeededResources();
-    }
-
-    virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) override
-    {
-        Underlying_->OnJobStarted(jobId, startTime);
-    }
-
-    virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override
-    {
-        Underlying_->OnJobCompleted(std::move(jobSummary));
-    }
-
-    virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) override
-    {
-        Underlying_->OnJobFailed(std::move(jobSummary));
-    }
-
-    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) override
-    {
-        Underlying_->OnJobAborted(std::move(jobSummary));
-    }
-
-    virtual TScheduleJobResultPtr ScheduleJob(
-        ISchedulingContextPtr context,
-        const TJobResources& jobLimits) override
-    {
-        return Underlying_->ScheduleJob(std::move(context), jobLimits);
-    }
-
-    virtual void UpdateConfig(TSchedulerConfigPtr config) override
-    {
-        Underlying_->UpdateConfig(std::move(config));
-    }
-
-    virtual bool HasProgress() const override
-    {
-        return Underlying_->HasProgress();
-    }
-
-    virtual void BuildProgress(IYsonConsumer* consumer) const override
-    {
-        Underlying_->BuildProgress(consumer);
-    }
-
-    virtual void BuildBriefProgress(IYsonConsumer* consumer) const override
-    {
-        Underlying_->BuildBriefProgress(consumer);
-    }
-
-    virtual Stroka GetLoggingProgress() const override
-    {
-        return Underlying_->GetLoggingProgress();
-    }
-
-    virtual void BuildResult(IYsonConsumer* consumer) const override
-    {
-        Underlying_->BuildResult(consumer);
-    }
-
-    virtual void BuildMemoryDigestStatistics(IYsonConsumer* consumer) const override
-    {
-        Underlying_->BuildMemoryDigestStatistics(consumer);
-    }
-
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
-    {
-        Underlying_->BuildBriefSpec(consumer);
-    }
-
-    virtual TFuture<TYsonString> BuildInputPathYson(const TJobId& jobId) const override
-    {
-        return Underlying_->BuildInputPathYson(jobId);
-    }
-
-private:
-    const TOperationId Id_;
-    const IOperationControllerPtr Underlying_;
-    const IInvokerPtr DtorInvoker_;
-
-};
 
 ////////////////////////////////////////////////////////////////////
 
@@ -297,6 +106,7 @@ public:
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
         , JobSpecBuilderThreadPool_(New<TThreadPool>(Config_->JobSpecBuilderThreadCount, "SpecBuilder"))
+        , StatisticsAnalyzerThreadPool_(New<TThreadPool>(Config_->StatisticsAnalyzerThreadCount, "StatisticsAnalyzer"))
         , MasterConnector_(new TMasterConnector(Config_, Bootstrap_))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
@@ -407,11 +217,11 @@ public:
         PendingEventLogRowsFlushExecutor_->Start();
     }
 
-    ISchedulerStrategy* GetStrategy()
+    ISchedulerStrategyPtr GetStrategy()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Strategy_.get();
+        return Strategy_;
     }
 
     IYPathServicePtr GetOrchidService()
@@ -429,6 +239,21 @@ public:
             operations.push_back(pair.second);
         }
         return operations;
+    }
+
+    std::vector<TJobPtr> GetSuspiciousJobs()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        std::vector<TJobPtr> jobs;
+        for (const auto& operation : GetOperations()) {
+            for (const auto& job : operation->Jobs()) {
+                if (job->GetSuspicious()) {
+                    jobs.push_back(job);
+                }
+            }
+        }
+        return jobs;
     }
 
     IInvokerPtr GetSnapshotIOInvoker()
@@ -485,7 +310,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(AddressToNodeLock_);
+        TReaderGuard guard(ExecNodeMapLock_);
 
         return ExecNodeCount_;
     }
@@ -494,7 +319,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(AddressToNodeLock_);
+        TReaderGuard guard(ExecNodeMapLock_);
 
         return TotalNodeCount_;
     }
@@ -503,11 +328,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(AddressToNodeLock_);
+        TReaderGuard guard(ExecNodeMapLock_);
 
         std::vector<TExecNodeDescriptor> result;
-        result.reserve(AddressToNode_.size());
-        for (const auto& pair : AddressToNode_) {
+        result.reserve(IdToNode_.size());
+        for (const auto& pair : IdToNode_) {
             const auto& node = pair.second;
             if (node->GetMasterState() == ENodeState::Online &&
                 node->CanSchedule(tag))
@@ -518,16 +343,48 @@ public:
         return result;
     }
 
-    std::vector<TExecNodePtr> GetExecNodes() const
+    virtual TFuture<void> CheckPoolPermission(
+        const TYPath& path,
+        const Stroka& user,
+        EPermission permission) override
     {
-        TReaderGuard guard(AddressToNodeLock_);
+        auto client = Bootstrap_->GetMasterClient();
+        return client->CheckPermission(user, GetPoolsPath() + path, permission)
+            .Apply(BIND([=] (const TCheckPermissionResult& result) {
+                if (result.Action == ESecurityAction::Deny) {
+                    THROW_ERROR_EXCEPTION(
+                        NSecurityClient::EErrorCode::AuthorizationError,
+                        "User %Qv has been denied access to pool %v",
+                        user,
+                        path)
+                        << result.ToError(user, permission);
+                }
+            }));
+    }
 
-        std::vector<TExecNodePtr> result;
-        result.reserve(AddressToNode_.size());
-        for (const auto& pair : AddressToNode_) {
-            result.push_back(pair.second);
+
+    void ValidateOperationPermission(
+        const Stroka& user,
+        const TOperationId& operationId,
+        EPermission permission)
+    {
+        auto path = GetOperationPath(operationId);
+
+        auto client = Bootstrap_->GetMasterClient();
+        auto asyncResult = client->CheckPermission(user, path, permission);
+        auto resultOrError = WaitFor(asyncResult);
+        if (!resultOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error checking permission for operation %v",
+                operationId)
+                << resultOrError;
         }
-        return result;
+
+        const auto& result = resultOrError.Value();
+        if (result.Action == ESecurityAction::Deny) {
+            THROW_ERROR_EXCEPTION("User %Qv has been denied access to operation %v",
+                user,
+                operationId);
+        }
     }
 
     TFuture<TOperationPtr> StartOperation(
@@ -582,7 +439,7 @@ public:
             TInstant::Now());
         operation->SetState(EOperationState::Initializing);
 
-        Strategy_->CanAddOperation(operation)
+        WaitFor(Strategy_->ValidateOperationStart(operation))
             .ThrowOnError();
 
         LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, User: %v)",
@@ -603,11 +460,13 @@ public:
         return operation->GetStarted();
     }
 
-    TFuture<void> AbortOperation(TOperationPtr operation, const TError& error)
+    TFuture<void> AbortOperation(TOperationPtr operation, const TError& error, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto codicilGuard = operation->MakeCodicilGuard();
+
+        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
@@ -630,11 +489,13 @@ public:
         return operation->GetFinished();
     }
 
-    TFuture<void> SuspendOperation(TOperationPtr operation)
+    TFuture<void> SuspendOperation(TOperationPtr operation, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto codicilGuard = operation->MakeCodicilGuard();
+
+        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             return MakeFuture(TError(
@@ -651,11 +512,13 @@ public:
         return MasterConnector_->FlushOperationNode(operation);
     }
 
-    TFuture<void> ResumeOperation(TOperationPtr operation)
+    TFuture<void> ResumeOperation(TOperationPtr operation, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto codicilGuard = operation->MakeCodicilGuard();
+
+        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
 
         if (!operation->GetSuspended()) {
             return MakeFuture(TError(
@@ -672,11 +535,13 @@ public:
         return MasterConnector_->FlushOperationNode(operation);
     }
 
-    TFuture<void> CompleteOperation(TOperationPtr operation, const TError& error)
+    TFuture<void> CompleteOperation(TOperationPtr operation, const TError& error, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto codicilGuard = operation->MakeCodicilGuard();
+
+        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
@@ -702,44 +567,44 @@ public:
         return operation->GetFinished();
     }
 
-    TFuture<TYsonString> Strace(const TJobId& jobId)
+    TFuture<TYsonString> Strace(const TJobId& jobId, const Stroka& user)
     {
-        return BIND(&TImpl::DoStrace, MakeStrong(this), jobId)
+        return BIND(&TImpl::DoStrace, MakeStrong(this), jobId, user)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
     }
 
-    TFuture<void> DumpInputContext(const TJobId& jobId, const TYPath& path)
+    TFuture<void> DumpInputContext(const TJobId& jobId, const TYPath& path, const Stroka& user)
     {
-        return BIND(&TImpl::DoDumpInputContext, MakeStrong(this), jobId, path)
+        return BIND(&TImpl::DoDumpInputContext, MakeStrong(this), jobId, path, user)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
     }
 
-    TFuture<void> SignalJob(const TJobId& jobId, const Stroka& signalName)
+    TFuture<void> SignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user)
     {
-        return BIND(&TImpl::DoSignalJob, MakeStrong(this), jobId, signalName)
+        return BIND(&TImpl::DoSignalJob, MakeStrong(this), jobId, signalName, user)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
     }
 
-    TFuture<void> AbandonJob(const TJobId& jobId)
+    TFuture<void> AbandonJob(const TJobId& jobId, const Stroka& user)
     {
-        return BIND(&TImpl::DoAbandonJob, MakeStrong(this), jobId)
+        return BIND(&TImpl::DoAbandonJob, MakeStrong(this), jobId, user)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
     }
 
-    TFuture<TYsonString> PollJobShell(const TJobId& jobId, const TYsonString& parameters)
+    TFuture<TYsonString> PollJobShell(const TJobId& jobId, const TYsonString& parameters, const Stroka& user)
     {
-        return BIND(&TImpl::DoPollJobShell, MakeStrong(this), jobId, parameters)
+        return BIND(&TImpl::DoPollJobShell, MakeStrong(this), jobId, parameters, user)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
     }
 
-    TFuture<void> AbortJobByUser(const TJobId& jobId, const Stroka& user)
+    TFuture<void> AbortJob(const TJobId& jobId, const Stroka& user)
     {
-        return BIND(&TImpl::DoAbortJobByUser, MakeStrong(this), jobId, user)
+        return BIND(&TImpl::DoAbortJob, MakeStrong(this), jobId, user)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
     }
@@ -978,7 +843,8 @@ public:
 
                     PROFILE_TIMING ("/schedule_time") {
                         node->SetHasOngoingJobsScheduling(true);
-                        Strategy_->ScheduleJobs(schedulingContext);
+                        WaitFor(Strategy_->ScheduleJobs(schedulingContext))
+                            .ThrowOnError();
                         node->SetHasOngoingJobsScheduling(false);
                     }
 
@@ -1024,14 +890,14 @@ public:
 
 
     // ISchedulerStrategyHost implementation
-    DEFINE_SIGNAL(void(TOperationPtr), OperationRegistered);
-    DEFINE_SIGNAL(void(TOperationPtr), OperationUnregistered);
-    DEFINE_SIGNAL(void(TOperationPtr, INodePtr update), OperationRuntimeParamsUpdated);
+    DEFINE_SIGNAL(void(const TOperationPtr& operation), OperationRegistered);
+    DEFINE_SIGNAL(void(const TOperationPtr& operation), OperationUnregistered);
+    DEFINE_SIGNAL(void(const TOperationPtr& operation, const INodePtr& update), OperationRuntimeParamsUpdated);
 
     DEFINE_SIGNAL(void(const TJobPtr& job), JobFinished);
-    DEFINE_SIGNAL(void(const TJobPtr&, const TJobResources& resourcesDelta), JobUpdated);
+    DEFINE_SIGNAL(void(const TJobPtr& job, const TJobResources& resourcesDelta), JobUpdated);
 
-    DEFINE_SIGNAL(void(INodePtr pools), PoolsUpdated);
+    DEFINE_SIGNAL(void(const INodePtr& pools), PoolsUpdated);
 
 
     virtual TMasterConnector* GetMasterConnector() override
@@ -1149,14 +1015,17 @@ private:
     TActionQueuePtr SnapshotIOQueue_;
     TThreadPoolPtr ControllerThreadPool_;
     TThreadPoolPtr JobSpecBuilderThreadPool_;
+    TThreadPoolPtr StatisticsAnalyzerThreadPool_;
 
     std::unique_ptr<TMasterConnector> MasterConnector_;
 
-    std::unique_ptr<ISchedulerStrategy> Strategy_;
+    ISchedulerStrategyPtr Strategy_;
 
-    NConcurrency::TReaderWriterSpinLock AddressToNodeLock_;
-    typedef yhash_map<Stroka, TExecNodePtr> TExecNodeMap;
-    TExecNodeMap AddressToNode_;
+    NConcurrency::TReaderWriterSpinLock ExecNodeMapLock_;
+    typedef yhash_map<Stroka, TExecNodePtr> TExecNodeByAddressMap;
+    TExecNodeByAddressMap AddressToNode_;
+    typedef yhash_map<TNodeId, TExecNodePtr> TExecNodeByIdMap;
+    TExecNodeByIdMap IdToNode_;
 
     TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
 
@@ -1164,14 +1033,15 @@ private:
     TOperationIdMap IdToOperation_;
 
     typedef yhash_map<TJobId, TJobPtr> TJobMap;
-    TJobMap IdToJob_;
 
-    NProfiling::TProfiler TotalResourceLimitsProfiler_;
-    NProfiling::TProfiler TotalResourceUsageProfiler_;
+    int ActiveJobCount_ = 0;
 
-    NProfiling::TAggregateCounter TotalCompletedJobTimeCounter_;
-    NProfiling::TAggregateCounter TotalFailedJobTimeCounter_;
-    NProfiling::TAggregateCounter TotalAbortedJobTimeCounter_;
+    TProfiler TotalResourceLimitsProfiler_;
+    TProfiler TotalResourceUsageProfiler_;
+
+    TAggregateCounter TotalCompletedJobTimeCounter_;
+    TAggregateCounter TotalFailedJobTimeCounter_;
+    TAggregateCounter TotalAbortedJobTimeCounter_;
 
     typedef TEnumIndexedVector<TEnumIndexedVector<i64, EJobType>, EJobState> TJobCounter;
     TJobCounter JobCounter_;
@@ -1253,19 +1123,19 @@ private:
                     for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
                         auto tags = commonTags;
                         tags.push_back(JobAbortReasonToTag_[reason]);
-                        Profiler.Enqueue("/job_count", AbortedJobCounter_[reason][state][type], tags);
+                        Profiler.Enqueue("/job_count", AbortedJobCounter_[reason][state][type], EMetricType::Counter, tags);
                     }
                 } else {
-                    Profiler.Enqueue("/job_count", JobCounter_[state][type], commonTags);
+                    Profiler.Enqueue("/job_count", JobCounter_[state][type], EMetricType::Counter, commonTags);
                 }
             }
         }
 
-        Profiler.Enqueue("/active_job_count", IdToJob_.size());
+        Profiler.Enqueue("/active_job_count", ActiveJobCount_, EMetricType::Gauge);
 
-        Profiler.Enqueue("/operation_count", IdToOperation_.size());
-        Profiler.Enqueue("/exec_node_count", GetExecNodeCount());
-        Profiler.Enqueue("/total_node_count", GetTotalNodeCount());
+        Profiler.Enqueue("/operation_count", IdToOperation_.size(), EMetricType::Gauge);
+        Profiler.Enqueue("/exec_node_count", GetExecNodeCount(), EMetricType::Gauge);
+        Profiler.Enqueue("/total_node_count", GetTotalNodeCount(), EMetricType::Gauge);
 
         ProfileResources(TotalResourceLimitsProfiler_, TotalResourceLimits_);
         ProfileResources(TotalResourceUsageProfiler_, TotalResourceUsage_);
@@ -1342,14 +1212,15 @@ private:
         YCHECK(IdToOperation_.empty());
 
         {
-            TReaderGuard guard(AddressToNodeLock_);
+            TReaderGuard guard(ExecNodeMapLock_);
             for (const auto& pair : AddressToNode_) {
                 auto node = pair.second;
                 node->Jobs().clear();
+                node->IdToJob().clear();
             }
         }
 
-        IdToJob_.clear();
+        ActiveJobCount_ = 0;
 
         for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
             for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
@@ -1417,7 +1288,7 @@ private:
     {
         LOG_INFO("Updating pools");
 
-        auto req = TYPathProxy::Get("//sys/pools");
+        auto req = TYPathProxy::Get(GetPoolsPath());
         static auto poolConfigTemplate = New<TPoolConfig>();
         static auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
         ToProto(req->mutable_attributes()->mutable_keys(), poolConfigKeys);
@@ -1464,7 +1335,7 @@ private:
         }
 
         try {
-            TReaderGuard guard(AddressToNodeLock_);
+            TReaderGuard guard(ExecNodeMapLock_);
 
             const auto& rsp = rspOrError.Value();
             auto nodesMap = ConvertToNode(TYsonString(rsp->value()))->AsMap();
@@ -1603,10 +1474,7 @@ private:
 
         bool registered = false;
         try {
-            auto controller = New<TOperationControllerWrapper>(
-                operation->GetId(),
-                CreateController(operation.Get()),
-                ControllerThreadPool_->GetInvoker());
+            auto controller = CreateController(operation.Get());
             operation->SetController(controller);
 
             RegisterOperation(operation);
@@ -1671,7 +1539,7 @@ private:
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run();
 
-            NProfiling::TScopedTimer timer;
+            TScopedTimer timer;
             auto result = WaitFor(asyncResult);
             auto prepareDuration = timer.GetElapsed();
             operation->UpdateControllerTimeStatistics("/prepare", prepareDuration);
@@ -1847,7 +1715,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        TReaderGuard guard(AddressToNodeLock_);
+        TReaderGuard guard(ExecNodeMapLock_);
         auto it = AddressToNode_.find(descriptor.GetDefaultAddress());
         if (it == AddressToNode_.end()) {
             // NB: RegisterNode will acquire the write lock.
@@ -1878,8 +1746,9 @@ private:
         node->SetLease(lease);
 
         {
-            TWriterGuard guard(AddressToNodeLock_);
+            TWriterGuard guard(ExecNodeMapLock_);
             YCHECK(AddressToNode_.insert(std::make_pair(address, node)).second);
+            YCHECK(IdToNode_.insert(std::make_pair(node->GetId(), node)).second);
         }
 
         LOG_INFO("Node registered (Address: %v)", address);
@@ -1987,8 +1856,9 @@ private:
         AbortJobsAtNode(node);
 
         {
-            TWriterGuard guard(AddressToNodeLock_);
+            TWriterGuard guard(ExecNodeMapLock_);
             YCHECK(AddressToNode_.erase(node->GetDefaultAddress()) == 1);
+            YCHECK(IdToNode_.erase(node->GetId()) == 1);
         }
     }
 
@@ -2193,9 +2063,10 @@ private:
 
         auto node = job->GetNode();
 
-        YCHECK(IdToJob_.insert(std::make_pair(job->GetId(), job)).second);
         YCHECK(operation->Jobs().insert(job).second);
         YCHECK(node->Jobs().insert(job).second);
+        YCHECK(node->IdToJob().insert(std::make_pair(job->GetId(), job)).second);
+        ++ActiveJobCount_;
 
         LOG_DEBUG("Job registered (JobId: %v, JobType: %v, OperationId: %v)",
             job->GetId(),
@@ -2221,8 +2092,9 @@ private:
 
         YCHECK(!node->GetHasOngoingJobsScheduling());
 
-        YCHECK(IdToJob_.erase(job->GetId()) == 1);
         YCHECK(node->Jobs().erase(job) == 1);
+        YCHECK(node->IdToJob().erase(job->GetId()) == 1);
+        --ActiveJobCount_;
 
         if (operation) {
             YCHECK(operation->Jobs().erase(job) == 1);
@@ -2238,10 +2110,31 @@ private:
         }
     }
 
+    TExecNodePtr GetNodeByJob(const TJobId& jobId)
+    {
+        TReaderGuard guard(ExecNodeMapLock_);
+        auto nodeId = NodeIdFromJobId(jobId);
+        auto it = IdToNode_.find(nodeId);
+        if (it == IdToNode_.end()) {
+            return nullptr;
+        }
+        return it->second;
+    }
+
+    TJobPtr FindJob(const TJobId& jobId, const TExecNodePtr& node)
+    {
+        const auto& idToJob = node->IdToJob();
+        auto it = idToJob.find(jobId);
+        return it == idToJob.end() ? nullptr : it->second;
+    }
+
     TJobPtr FindJob(const TJobId& jobId)
     {
-        auto it = IdToJob_.find(jobId);
-        return it == IdToJob_.end() ? nullptr : it->second;
+        auto node = GetNodeByJob(jobId);
+        if (!node) {
+            return nullptr;
+        }
+        return FindJob(jobId, node);
     }
 
     TJobPtr GetJobOrThrow(const TJobId& jobId)
@@ -2257,13 +2150,11 @@ private:
     {
         YCHECK(FindOperation(job->GetOperationId()));
 
-        LOG_DEBUG("Job preempted (JobId: %v, OperationId: %v)",
+        LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v)",
             job->GetId(),
             job->GetOperationId());
 
-        TError error("Job preempted");
-        error.Attributes().Set("abort_reason", EAbortReason::Preemption);
-        OnJobAborted(job, JobStatusFromError(error));
+        job->SetPreempted(true);
     }
 
 
@@ -2276,6 +2167,20 @@ private:
             job->GetState() == EJobState::Waiting)
         {
             job->SetStatus(std::move(status));
+
+            if (job->StatisticsYson().HasValue()) {
+                auto asyncResult = BIND(&TJob::BuildBriefStatistics, job)
+                    .AsyncVia(StatisticsAnalyzerThreadPool_->GetInvoker())
+                    .Run();
+
+                // Resulting future is dropped intentionally.
+                asyncResult.Apply(BIND(
+                    &TJob::AnalyzeBriefStatistics,
+                    job,
+                    Config_->SuspiciousInactivityTimeout,
+                    Config_->SuspiciousUserJobCpuUsageThreshold)
+                    .Via(GetControlInvoker()));
+            }
         }
     }
 
@@ -2470,26 +2375,40 @@ private:
     {
         auto config = CloneYsonSerializable(Config_);
 
+        IOperationControllerPtr controller;
         switch (operation->GetType()) {
             case EOperationType::Map:
-                return CreateMapController(config, this, operation);
+                controller = CreateMapController(config, this, operation);
+                break;
             case EOperationType::Merge:
-                return CreateMergeController(config, this, operation);
+                controller = CreateMergeController(config, this, operation);
+                break;
             case EOperationType::Erase:
-                return CreateEraseController(config, this, operation);
+                controller = CreateEraseController(config, this, operation);
+                break;
             case EOperationType::Sort:
-                return CreateSortController(config, this, operation);
+                controller = CreateSortController(config, this, operation);
+                break;
             case EOperationType::Reduce:
-                return CreateReduceController(config, this, operation);
+                controller = CreateReduceController(config, this, operation);
+                break;
             case EOperationType::JoinReduce:
-                return CreateJoinReduceController(config, this, operation);
+                controller = CreateJoinReduceController(config, this, operation);
+                break;
             case EOperationType::MapReduce:
-                return CreateMapReduceController(config, this, operation);
+                controller = CreateMapReduceController(config, this, operation);
+                break;
             case EOperationType::RemoteCopy:
-                return CreateRemoteCopyController(config, this, operation);
+                controller = CreateRemoteCopyController(config, this, operation);
+                break;
             default:
                 Y_UNREACHABLE();
         }
+
+        return CreateControllerWrapper(
+            operation->GetId(),
+            controller,
+            ControllerThreadPool_->GetInvoker());
     }
 
     INodePtr GetSpecTemplate(EOperationType type, IMapNodePtr spec)
@@ -2538,11 +2457,13 @@ private:
         return proxy;
     }
 
-    TYsonString DoStrace(const TJobId& jobId)
+    TYsonString DoStrace(const TJobId& jobId, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
+
+        ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
         LOG_INFO("Getting strace dump (JobId: %v)",
             jobId);
@@ -2563,11 +2484,13 @@ private:
         return TYsonString(rsp->trace());
     }
 
-    void DoDumpInputContext(const TJobId& jobId, const TYPath& path)
+    void DoDumpInputContext(const TJobId& jobId, const TYPath& path, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
+
+        ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
         LOG_INFO("Saving input contexts (JobId: %v, Path: %v)",
             jobId,
@@ -2594,11 +2517,13 @@ private:
             jobId);
     }
 
-    void DoSignalJob(const TJobId& jobId, const Stroka& signalName)
+    void DoSignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
+
+        ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
         LOG_INFO("Sending job signal (JobId: %v, Signal: %v)",
             jobId,
@@ -2618,11 +2543,14 @@ private:
             jobId);
     }
 
-    void DoAbandonJob(const TJobId& jobId)
+    void DoAbandonJob(const TJobId& jobId, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
+
+        ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
+
         switch (job->GetType()) {
             case EJobType::Map:
             case EJobType::OrderedMap:
@@ -2648,11 +2576,17 @@ private:
         OnJobCompleted(job, std::move(status), /* abandoned */ true);
     }
 
-    TYsonString DoPollJobShell(const TJobId& jobId, const TYsonString& parameters)
+    TYsonString DoPollJobShell(const TJobId& jobId, const TYsonString& parameters, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
+
+        TShellParameters shellParameters;
+        Deserialize(shellParameters, ConvertToNode(parameters));
+        if (shellParameters.Operation == EShellOperation::Spawn) {
+            ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
+        }
 
         LOG_INFO("Polling job shell (JobId: %v, Parameters: %v)",
             jobId,
@@ -2674,11 +2608,13 @@ private:
         return TYsonString(rsp->result());
     }
 
-    void DoAbortJobByUser(const TJobId& jobId, const Stroka& user)
+    void DoAbortJob(const TJobId& jobId, const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
+
+        ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
         if (job->GetState() != EJobState::Running &&
             job->GetState() != EJobState::Waiting)
@@ -2869,14 +2805,23 @@ private:
                         BuildOperationYson(operation, fluent);
                     }
                 })
-                .Item("nodes").DoMapFor(GetExecNodes(), [=] (TFluentMap fluent, const TExecNodePtr& execNode) {
-                    BuildNodeYson(execNode, fluent);
+                .Item("suspicious_jobs").DoMapFor(GetSuspiciousJobs(), [=] (TFluentMap fluent, const TJobPtr& job) {
+                    fluent.Item(ToString(job->GetId())).BeginMap()
+                        .Item("operation_id").Value(ToString(job->GetOperationId()))
+                        .Item("type").Value(FormatEnum(job->GetType()))
+                        .Item("brief_statistics").Value(job->GetBriefStatistics())
+                        .Item("node").Value(job->GetNode()->GetDefaultAddress())
+                        .Item("last_activity_time").Value(job->GetLastActivityTime())
+                    .EndMap();
+                })
+                .Item("nodes").DoMapFor(IdToNode_, [=] (TFluentMap fluent, const TExecNodeByIdMap::value_type& pair) {
+                    BuildNodeYson(pair.second, fluent);
                 })
                 .Item("clusters").DoMapFor(GetClusterDirectory()->GetClusterNames(), [=] (TFluentMap fluent, const Stroka& clusterName) {
                     BuildClusterYson(clusterName, fluent);
                 })
                 .Item("config").Value(Config_)
-                .DoIf(Strategy_ != nullptr, BIND(&ISchedulerStrategy::BuildOrchid, Strategy_.get()))
+                .DoIf(Strategy_.operator bool(), BIND(&ISchedulerStrategy::BuildOrchid, Strategy_))
             .EndMap();
     }
 
@@ -2904,7 +2849,7 @@ private:
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(consumer));
                     }))
-                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_.get(), operation->GetId()))
+                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_, operation->GetId()))
                 .EndMap()
                 .Item("brief_progress").BeginMap()
                     .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
@@ -2913,7 +2858,7 @@ private:
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(consumer));
                     }))
-                    .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_.get(), operation->GetId()))
+                    .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_, operation->GetId()))
                 .EndMap()
                 .Item("running_jobs").BeginAttributes()
                     .Item("opaque").Value("true")
@@ -2961,14 +2906,13 @@ private:
     {
         auto jobId = FromProto<TJobId>(jobStatus->job_id());
         auto state = EJobState(jobStatus->state());
-        const auto& jobAddress = node->GetDefaultAddress();
 
         NLogging::TLogger Logger(SchedulerLogger);
         Logger.AddTag("Address: %v, JobId: %v",
-            jobAddress,
+            node->GetDefaultAddress(),
             jobId);
 
-        auto job = FindJob(jobId);
+        auto job = FindJob(jobId, node);
         if (!job) {
             switch (state) {
                 case EJobState::Completed:
@@ -3016,8 +2960,8 @@ private:
             operation->GetId());
 
         // Check if the job is running on a proper node.
-        const auto& expectedAddress = job->GetNode()->GetDefaultAddress();
-        if (jobAddress != expectedAddress) {
+        if (node->GetId() != job->GetNode()->GetId()) {
+            const auto& expectedAddress = job->GetNode()->GetDefaultAddress();
             // Job has moved from one node to another. No idea how this could happen.
             if (state == EJobState::Aborting) {
                 // Do nothing, job is already terminating.
@@ -3053,7 +2997,13 @@ private:
             case EJobState::Aborted: {
                 auto error = FromProto<TError>(jobStatus->result().error());
                 LOG_DEBUG(error, "Job aborted, removal scheduled");
-                OnJobAborted(job, std::move(jobStatus));
+                if (job->GetPreempted() && error.GetCode() == NExecAgent::EErrorCode::AbortByScheduler) {
+                    auto error = TError("Job preempted")
+                        << TErrorAttribute("abort_reason", EAbortReason::Preemption);
+                    OnJobAborted(job, JobStatusFromError(error));
+                } else {
+                    OnJobAborted(job, std::move(jobStatus));
+                }
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
             }
@@ -3114,7 +3064,7 @@ void TScheduler::Initialize()
     Impl_->Initialize();
 }
 
-ISchedulerStrategy* TScheduler::GetStrategy()
+ISchedulerStrategyPtr TScheduler::GetStrategy()
 {
     return Impl_->GetStrategy();
 }
@@ -3171,56 +3121,62 @@ TFuture<TOperationPtr> TScheduler::StartOperation(
 
 TFuture<void> TScheduler::AbortOperation(
     TOperationPtr operation,
-    const TError& error)
+    const TError& error,
+    const Stroka& user)
 {
-    return Impl_->AbortOperation(operation, error);
+    return Impl_->AbortOperation(operation, error, user);
 }
 
-TFuture<void> TScheduler::SuspendOperation(TOperationPtr operation)
+TFuture<void> TScheduler::SuspendOperation(
+    TOperationPtr operation,
+    const Stroka& user)
 {
-    return Impl_->SuspendOperation(operation);
+    return Impl_->SuspendOperation(operation, user);
 }
 
-TFuture<void> TScheduler::ResumeOperation(TOperationPtr operation)
+TFuture<void> TScheduler::ResumeOperation(
+    TOperationPtr operation,
+    const Stroka& user)
 {
-    return Impl_->ResumeOperation(operation);
+    return Impl_->ResumeOperation(operation, user);
 }
 
 TFuture<void> TScheduler::CompleteOperation(
     TOperationPtr operation,
-    const TError& error)
+    const TError& error,
+    const Stroka& user)
 {
-    return Impl_->CompleteOperation(operation, error);
+    return Impl_->CompleteOperation(operation, error, user);
 }
 
-TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const Stroka& user)
 {
-    return Impl_->DumpInputContext(jobId, path);
+    return Impl_->DumpInputContext(jobId, path, user);
 }
 
-TFuture<TYsonString> TScheduler::Strace(const TJobId& jobId)
+TFuture<TYsonString> TScheduler::Strace(const TJobId& jobId, const Stroka& user)
 {
-    return Impl_->Strace(jobId);
+    return Impl_->Strace(jobId, user);
 }
 
-TFuture<void> TScheduler::SignalJob(const TJobId& jobId, const Stroka& signalName)
+TFuture<void> TScheduler::SignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user)
 {
-    return Impl_->SignalJob(jobId, signalName);
+    return Impl_->SignalJob(jobId, signalName, user);
 }
 
-TFuture<void> TScheduler::AbandonJob(const TJobId& jobId)
+TFuture<void> TScheduler::AbandonJob(const TJobId& jobId, const Stroka& user)
 {
-    return Impl_->AbandonJob(jobId);
+    return Impl_->AbandonJob(jobId, user);
 }
 
-TFuture<TYsonString> TScheduler::PollJobShell(const TJobId& jobId, const TYsonString& parameters)
+TFuture<TYsonString> TScheduler::PollJobShell(const TJobId& jobId, const TYsonString& parameters, const Stroka& user)
 {
-    return Impl_->PollJobShell(jobId, parameters);
+    return Impl_->PollJobShell(jobId, parameters, user);
 }
 
-TFuture<void> TScheduler::AbortJobByUser(const TJobId& jobId, const Stroka& user)
+TFuture<void> TScheduler::AbortJob(const TJobId& jobId, const Stroka& user)
 {
-    return Impl_->AbortJobByUser(jobId, user);
+    return Impl_->AbortJob(jobId, user);
 }
 
 void TScheduler::ProcessHeartbeat(TCtxHeartbeatPtr context)

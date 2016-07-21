@@ -474,6 +474,15 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSession(TSession* s
 
     bool finished = !session->Reader->Read(&session->Rows);
 
+    session->Rows.erase(
+        std::remove_if(
+            session->Rows.begin(),
+            session->Rows.end(),
+            [] (TVersionedRow row) {
+                return !row;
+            }),
+        session->Rows.end());
+
     if (!session->Rows.empty()) {
         session->CurrentRow = session->Rows.begin();
         ActiveSessions_.push_back(session);

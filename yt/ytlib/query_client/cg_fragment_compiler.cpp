@@ -1571,8 +1571,7 @@ TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValu
         Value* opaqueValuesPtr,
         Value* executionContextPtr
     ) {
-        auto opaqueValues = MakeOpaqueValues(baseBuilder, opaqueValuesPtr, opaqueValuesCount);
-        TCGOperatorContext builder(TCGBaseContext(baseBuilder, &opaqueValues, module), executionContextPtr);
+        TCGOperatorContext builder(TCGBaseContext(baseBuilder, opaqueValuesPtr, opaqueValuesCount, module), executionContextPtr);
 
         auto collect = MakeClosure<void(TWriteOpClosure*)>(builder, "WriteOpInner", [&] (
             TCGOperatorContext& builder,
@@ -1617,8 +1616,7 @@ TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression, si
         Value* inputRow,
         Value* buffer
     ) {
-        auto opaqueValues = MakeOpaqueValues(baseBuilder, opaqueValuesPtr, opaqueValuesCount);
-        TCGExprContext builder(TCGBaseContext(baseBuilder, &opaqueValues, module), buffer);
+        TCGExprContext builder(TCGBaseContext(baseBuilder, opaqueValuesPtr, opaqueValuesCount, module), buffer);
 
         auto result = codegenExpression(builder, inputRow);
         result.StoreToValue(builder, resultPtr, 0, "writeResult");
@@ -1641,7 +1639,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             Value* buffer,
             Value* resultPtr
         ) {
-            TCGExprContext builder(TCGBaseContext(baseBuilder, nullptr, module), buffer);
+            TCGExprContext builder(TCGBaseContext(baseBuilder, nullptr, 0, module), buffer);
 
             auto result = codegenAggregate.Initialize(builder, nullptr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");
@@ -1660,7 +1658,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             Value* statePtr,
             Value* newValuePtr
         ) {
-            TCGExprContext builder(TCGBaseContext(baseBuilder, nullptr, module), buffer);
+            TCGExprContext builder(TCGBaseContext(baseBuilder, nullptr, 0, module), buffer);
 
             auto result = codegenAggregate.Update(builder, statePtr, newValuePtr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");
@@ -1679,7 +1677,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             Value* dstStatePtr,
             Value* statePtr
         ) {
-            TCGExprContext builder(TCGBaseContext(baseBuilder, nullptr, module), buffer);
+            TCGExprContext builder(TCGBaseContext(baseBuilder, nullptr, 0, module), buffer);
 
             auto result = codegenAggregate.Merge(builder, dstStatePtr, statePtr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");
@@ -1697,7 +1695,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             Value* resultPtr,
             Value* statePtr
         ) {
-            TCGExprContext builder(TCGBaseContext(baseBuilder, nullptr, module), buffer);
+            TCGExprContext builder(TCGBaseContext(baseBuilder, nullptr, 0, module), buffer);
 
             auto result = codegenAggregate.Finalize(builder, statePtr);
             result.StoreToValue(builder, resultPtr, 0, "writeResult");

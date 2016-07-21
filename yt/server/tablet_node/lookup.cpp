@@ -86,7 +86,7 @@ public:
             ColumnFilter_,
             TabletSnapshot_->ColumnEvaluator);
 
-        CreateReadSessions(&EdenSessions_, TabletSnapshot_->Eden, LookupKeys_);
+        CreateReadSessions(&EdenSessions_, TabletSnapshot_->GetEdenStores(), LookupKeys_);
 
         TPartitionSnapshotPtr currentPartitionSnapshot;
         int currentPartitionStartOffset = 0;
@@ -175,17 +175,14 @@ private:
 
     void CreateReadSessions(
         TReadSessionList* sessions,
-        const TPartitionSnapshotPtr& partitionSnapshot,
+        const std::vector<ISortedStorePtr>& stores,
         const TSharedRange<TKey>& keys)
     {
         sessions->clear();
-        if (!partitionSnapshot) {
-            return;
-        }
 
         // NB: Will remain empty for in-memory tables.
         std::vector<TFuture<void>> asyncFutures;
-        for (const auto& store : partitionSnapshot->Stores) {
+        for (const auto& store : stores) {
             auto reader = store->CreateReader(
                 TabletSnapshot_,
                 keys,
@@ -209,14 +206,14 @@ private:
     }
 
     void LookupInPartition(
-        const TPartitionSnapshotPtr partitionSnapshot,
+        const TPartitionSnapshotPtr& partitionSnapshot,
         const TSharedRange<TKey>& keys)
     {
-        if (keys.Empty()) {
+        if (keys.Empty() || !partitionSnapshot) {
             return;
         }
 
-        CreateReadSessions(&PartitionSessions_, partitionSnapshot, keys);
+        CreateReadSessions(&PartitionSessions_, partitionSnapshot->Stores, keys);
 
         auto processSessions = [&] (TReadSessionList& sessions) {
             for (auto& session : sessions) {

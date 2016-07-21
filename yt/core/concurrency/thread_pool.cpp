@@ -81,7 +81,6 @@ public:
         decltype(Threads_) threads;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            FinalizerInvoker_ = GetFinalizerInvoker();
             threads = Threads_;
         }
 
@@ -100,10 +99,7 @@ public:
 
     void DoShutdown()
     {
-        bool expected = false;
-        if (StartFlag_.compare_exchange_strong(expected, true)) {
-            return;
-        }
+        StartFlag_ = true;
 
         Queue_->Shutdown();
 
@@ -144,7 +140,7 @@ private:
     const TInvokerQueuePtr Queue_;
     const IInvokerPtr Invoker_;
 
-    IInvokerPtr FinalizerInvoker_;
+    IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
 
     std::vector<TSchedulerThreadPtr> Threads_;
 
