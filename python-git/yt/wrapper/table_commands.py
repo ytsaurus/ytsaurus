@@ -1547,6 +1547,8 @@ def _run_operation(binary, source_table, destination_table,
                 return
 
             if are_input_tables_not_properly_sorted and are_sorted_output:
+                if not sync:
+                    raise YtError("Replacing yamr-style reduce operation with sort + reduce operations is not supported in sync=False mode.")
                 logger.info("Sorting %s", source_table)
                 temp_table = create_temp_table(client=client)
                 run_sort(source_table, temp_table, sort_by=sort_by, client=client)
