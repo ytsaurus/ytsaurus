@@ -200,13 +200,13 @@ void TNode::Load(NCellMaster::TLoadContext& context)
 
 void TNode::ReserveStoredReplicas(int sizeHint)
 {
-    StoredReplicas_.resize(sizeHint);
+    StoredReplicas_.reserve(sizeHint);
     RandomReplicaIt_ = StoredReplicas_.end();
 }
 
 void TNode::ReserveCachedReplicas(int sizeHint)
 {
-    CachedReplicas_.resize(sizeHint);
+    CachedReplicas_.reserve(sizeHint);
 }
 
 bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
@@ -220,7 +220,7 @@ bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
             RemoveStoredReplica(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
             RemoveStoredReplica(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
             RemoveStoredReplica(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
-        } 
+        }
         // NB: For journal chunks result is always true.
         return AddStoredReplica(replica);
     }
