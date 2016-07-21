@@ -1055,7 +1055,7 @@ const yhash_set<const char*>& TBuiltinAttributeKeysCache::GetBuiltinAttributeKey
     if (!Initialized_) {
         std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
         provider->ListSystemAttributes(&descriptors);
-        BuiltinKeys_.resize(descriptors.size());
+        BuiltinKeys_.reserve(descriptors.size());
         for (const auto& descriptor : descriptors) {
             if (!descriptor.Custom) {
                 YCHECK(BuiltinKeys_.insert(descriptor.Key).second);
