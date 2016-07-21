@@ -141,7 +141,6 @@ def get_scheduler_config():
         watchers_update_period = 100;
         chunk_list_release_batch_delay = 100;
         connect_grace_delay = 0;
-        max_running_operation_count_per_pool=1;
         environment = {
              PYTHONUSERBASE = "/tmp"
         };
