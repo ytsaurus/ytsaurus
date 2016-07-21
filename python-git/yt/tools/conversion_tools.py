@@ -2,7 +2,10 @@ from yt.common import update, get_value
 import yt.logger as logger
 import yt.wrapper as yt
 
+from copy import deepcopy
+
 def _get_compression_ratio(table, codec, yt_client, spec):
+    spec = deepcopy(spec)
     logger.info("Compress sample of '%s' to calculate compression ratio", table) 
     tmp = yt_client.create_temp_table()
     spec["force_transform"] = "true"
