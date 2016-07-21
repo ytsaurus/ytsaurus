@@ -121,7 +121,7 @@ def find(root):
             min_table_size = params.pop("min_table_size", 0)
             enabled = parse_bool(params.pop("enabled", "false"))
             force_recompress_to_specified_codecs = \
-                parse_bool(params.pop("force_recompress_to_specified_codecs"), "true")
+                parse_bool(params.pop("force_recompress_to_specified_codecs", "true"))
 
             if parse_bool(yt.get_attribute(path, "nightly_compressed", "false")) and \
                     not force_recompress_to_specified_codecs:
