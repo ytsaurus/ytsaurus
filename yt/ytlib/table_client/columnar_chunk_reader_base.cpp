@@ -138,7 +138,7 @@ TBlockFetcher::TBlockInfo TColumnarChunkReaderBase::CreateBlockInfo(int blockInd
 i64 TColumnarChunkReaderBase::GetSegmentIndex(const TColumn& column, i64 rowIndex) const
 {
     YCHECK(ChunkMeta_);
-    const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ChunkSchemaIndex);
+    const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ColumnMetaIndex);
     auto it = std::lower_bound(
         columnMeta.segments().begin(),
         columnMeta.segments().end(),
@@ -248,7 +248,7 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
     std::vector<TBlockFetcher::TBlockInfo> blockInfos;
 
     for (auto& column : Columns_) {
-        const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ChunkSchemaIndex);
+        const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ColumnMetaIndex);
         i64 segmentIndex = GetSegmentIndex(column, LowerRowIndex_);
         column.BlockIndexSequence.push_back(columnMeta.segments(segmentIndex).block_index());
 

@@ -72,6 +72,26 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Reads schemaless parts of unverisoned chunks.
+struct ISchemalessColumnReader
+    : public virtual IColumnReaderBase
+{
+    virtual void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) = 0;
+
+    //! For rows from #CurrentRowIndex to (#CurrentRowIndex + valueCounts.Size())
+    //! return number of schemaless values per row.
+    virtual void GetValueCounts(TMutableRange<ui32> valueCounts) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<ISchemalessColumnReader> CreateSchemalessColumnReader(
+    const NProto::TColumnMeta& meta,
+    const std::vector<NTableClient::TColumnIdMapping>& idMapping,
+    int schemaColumnCount);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IVersionedColumnReader
     : public virtual IColumnReaderBase
 {

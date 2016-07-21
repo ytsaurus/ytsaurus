@@ -91,7 +91,7 @@ private:
         segmentInfo.Data.push_back(CompressUnsignedVector(MakeRange(ValueCounts_), MaxValueCount_));
 
         auto data = DataBuffer_->Flush();
-        segmentInfo.Data.insert(segmentInfo.Data.begin(), data.begin(), data.end());
+        segmentInfo.Data.insert(segmentInfo.Data.end(), data.begin(), data.end());
 
         auto* schemalessSegmentMeta = segmentInfo.SegmentMeta.MutableExtension(TSchemalessSegmentMeta::schemaless_segment_meta);
         schemalessSegmentMeta->set_expected_bytes_per_row(expectedBytesPerRow);

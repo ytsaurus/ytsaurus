@@ -68,11 +68,11 @@ protected:
     {
         TColumn(NTableChunkFormat::IColumnReaderBase* reader, int chunkSchemaIndex)
             : ColumnReader(reader)
-            , ChunkSchemaIndex(chunkSchemaIndex)
+            , ColumnMetaIndex(chunkSchemaIndex)
         { }
 
         NTableChunkFormat::IColumnReaderBase* ColumnReader;
-        int ChunkSchemaIndex;
+        int ColumnMetaIndex;
         std::vector<int> BlockIndexSequence;
         int PendingBlockIndex_ = 0;
     };
