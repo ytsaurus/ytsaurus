@@ -68,6 +68,7 @@ def compress(task):
 
         if yt.exists(table + "/@force_nightly_compress"):
             yt.remove(table + "/@force_nightly_compress")
+        yt.set_attribute(table, "nightly_compressed", True)
     except yt.YtError:
         logger.exception("Failed to merge table %s", table)
 
@@ -119,6 +120,12 @@ def find(root):
             params = deepcopy(compression_settings)
             min_table_size = params.pop("min_table_size", 0)
             enabled = parse_bool(params.pop("enabled", "false"))
+            force_recompress_to_specified_codecs = \
+                parse_bool(params.pop("force_recompress_to_specified_codecs"), "true")
+
+            if parse_bool(yt.get_attribute(path, "nightly_compressed", "false")) and \
+                    not force_recompress_to_specified_codecs:
+                return
 
             if enabled and object.attributes["uncompressed_data_size"] > min_table_size:
                 tables.append(make_compression_task(path, **params))
