@@ -169,6 +169,7 @@ private:
     TInstant PrevOnTimerInstant_;
 
     TThread SleeperThread_;
+    TThread::TId SleeperThreadId_ = TThread::ImpossibleThreadId();
 
     TSpinLock SpinLock_;
     TActionQueuePtr DelayedQueue_;
@@ -198,6 +199,8 @@ private:
         DelayedInvoker_ = DelayedQueue_->GetInvoker();
 
         SleeperThread_.Start();
+        SleeperThreadId_ = SleeperThread_.Id();
+
         Started_ = true;
 
         return true;
@@ -293,7 +296,7 @@ private:
     void PurgeQueuesIfFinished()
     {
         if (Stopped_) {
-            if (TThread::CurrentThreadId() != SleeperThread_.Id()) {
+            if (TThread::CurrentThreadId() != SleeperThreadId_) {
                 while (!Finished_) {
                     Sleep(SleepQuantum);
                 }
