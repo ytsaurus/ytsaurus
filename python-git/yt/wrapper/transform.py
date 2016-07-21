@@ -7,13 +7,15 @@ from table import TablePath, TempTable, to_name
 
 import yt.logger as logger
 
+from copy import deepcopy
+
 def _get_compression_ratio(table, codec, client, spec):
     logger.info("Compress sample of '%s' to calculate compression ratio", table) 
     with TempTable(prefix="compute_compression_ratio", client=client) as tmp:
-        spec = {
+        spec = update(deepcopy(spec), {
             "title": "Merge to calculate compression ratio",
             "force_transform": True,
-        }
+        })
         set(tmp + "/@compression_codec", codec, client=client)
         chunk_index = get_config(client)["transform_options"]["chunk_count_to_compute_compression_ratio"]
         run_merge(TablePath(table, ranges=[{"upper_limit": {"chunk_index": chunk_index}}]), tmp, mode="unordered", spec=spec, client=client)
