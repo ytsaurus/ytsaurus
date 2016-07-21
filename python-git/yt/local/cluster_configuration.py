@@ -60,6 +60,7 @@ SCHEDULER_CONFIG_PATCH = {
         "watchers_update_period": 300,
         "connect_grace_delay": None,
         "lock_transaction_timeout": 30000,
+        "max_running_operation_count_per_pool": 1,
         "sort_operation_options": {
             "spec_template": {
                 "partition_data_size": 512 * 1024 * 1024,
