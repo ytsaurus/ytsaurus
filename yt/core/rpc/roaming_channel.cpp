@@ -17,8 +17,8 @@ class TRoamingRequestControlThunk
     : public TClientRequestControlThunk
 {
 public:
-    TRoamingRequestControlThunk(TClosure onCancel)
-        : OnCancel_(onCancel)
+    explicit TRoamingRequestControlThunk(TClosure onCancel)
+        : OnCancel_(std::move(onCancel))
     { }
 
     virtual void Cancel() override
@@ -28,7 +28,7 @@ public:
     }
 
 private:
-    TClosure OnCancel_;
+    const TClosure OnCancel_;
 
 };
 
