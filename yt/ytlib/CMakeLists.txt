@@ -239,6 +239,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/integer_column_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/integer_column_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/null_column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/schemaless_column_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/schemaless_column_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/string_column_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/string_column_reader.cpp

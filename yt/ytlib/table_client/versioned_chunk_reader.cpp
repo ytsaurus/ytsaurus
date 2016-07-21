@@ -1033,7 +1033,7 @@ public:
         for (auto& column : Columns_) {
             for (auto rowIndex : RowIndexes_) {
                 if (rowIndex < VersionedChunkMeta_->Misc().row_count()) {
-                    const auto& columnMeta = VersionedChunkMeta_->ColumnMeta().columns(column.ChunkSchemaIndex);
+                    const auto& columnMeta = VersionedChunkMeta_->ColumnMeta().columns(column.ColumnMetaIndex);
                     auto segmentIndex = GetSegmentIndex(column, rowIndex);
                     const auto& segment = columnMeta.segments(segmentIndex);
                     column.BlockIndexSequence.push_back(segment.block_index());

@@ -12,6 +12,7 @@
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/table_chunk_format/column_writer.h>
+#include <yt/ytlib/table_chunk_format/schemaless_column_writer.h>
 #include <yt/ytlib/table_chunk_format/data_block_writer.h>
 
 #include <yt/ytlib/chunk_client/chunk_writer.h>
@@ -424,7 +425,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB (psushin) : only strict schema for now.
 class TColumnUnversionedChunkWriter
     : public TUnversionedChunkWriterBase
 {
@@ -472,12 +472,13 @@ public:
                 getBlockWriter(column)));
         }
 
-         /*
-         // ToDo(psushin): add schemaless writer here.
-         auto blockWriter = std::make_unique<TDataBlockWriter>();
-         SchemalessWriter_ = CreateSchemalessWriter(blockWriter.get());
-         BlockWriters_.emplace_back(std::move(blockWriter));
-         */
+        if (!Schema_.GetStrict()) {
+             auto blockWriter = std::make_unique<TDataBlockWriter>();
+             ValueColumnWriters_.emplace_back(CreateSchemalessColumnWriter(
+                Schema_.Columns().size(), 
+                blockWriter.get()));
+             BlockWriters_.emplace_back(std::move(blockWriter));
+        }
 
         YCHECK(BlockWriters_.size() > 0);
     }
@@ -612,7 +613,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     IChunkWriterPtr chunkWriter,
     IBlockCachePtr blockCache)
 {
-    if (options->OptimizeFor == EOptimizeFor::Lookup || !schema.GetStrict()) {
+    if (options->OptimizeFor == EOptimizeFor::Lookup) {
         return New<TSchemalessChunkWriter>(
             config,
             options,

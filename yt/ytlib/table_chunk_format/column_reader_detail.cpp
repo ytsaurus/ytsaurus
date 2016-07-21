@@ -100,7 +100,7 @@ i64 TDenseVersionedValueExtractorBase::GetLowerValueIndex(i64 segmentRowIndex) c
         return 0;
     } else {
         return DenseVersionedMeta_.expected_values_per_row() * segmentRowIndex +
-               ZigZagDecode64(ValuesPerRowDiffReader_[segmentRowIndex - 1]);
+           ZigZagDecode32(ValuesPerRowDiffReader_[segmentRowIndex - 1]);
     }
 }
 

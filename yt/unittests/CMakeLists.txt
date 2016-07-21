@@ -80,6 +80,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_dsv_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_blocks_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_chunks_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/schemaless_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/serialize_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/skip_list_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/small_string_ut.cpp
