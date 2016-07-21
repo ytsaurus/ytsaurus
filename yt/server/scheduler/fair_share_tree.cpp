@@ -637,7 +637,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
         return;
     }
 
-    if (Starving_ && AggressiveStarvationEnabled()) {
+    if (Starving_ && IsAggressiveStarvationEnabled()) {
         context.HasAggressivelyStarvingNodes = true;
     }
 
@@ -688,7 +688,12 @@ bool TCompositeSchedulerElement::IsRoot() const
     return false;
 }
 
-bool TCompositeSchedulerElement::AggressiveStarvationEnabled() const
+bool TCompositeSchedulerElement::IsExplicit() const
+{
+    return false;
+}
+
+bool TCompositeSchedulerElement::IsAggressiveStarvationEnabled() const
 {
     return false;
 }
@@ -982,7 +987,13 @@ void TPool::SetDefaultConfig()
     DefaultConfigured_ = true;
 }
 
-bool TPool::AggressiveStarvationEnabled() const
+bool TPool::IsExplicit() const
+{
+    // NB: This is no coincidence.
+    return !DefaultConfigured_;
+}
+
+bool TPool::IsAggressiveStarvationEnabled() const
 {
     return Config_->EnableAggressiveStarvation;
 }

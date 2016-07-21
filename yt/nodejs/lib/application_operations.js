@@ -142,10 +142,20 @@ function stripJsonAnnotations(annotated_json)
 
 function tidyArchiveOperation(operation)
 {
-    delete operation.id_hi;
-    delete operation.id_lo;
-    delete operation.id_hash;
-    delete operation.filter_factors;
+    var keys = [
+        "id_hi",
+        "id_lo",
+        "id_hash",
+        "filter_factors",
+        "index.id_hi",
+        "index.id_lo",
+        "index.start_time",
+        "index.dummy"
+    ];
+
+    _.each(keys, function(key) {
+        delete operation[key];
+    });
 
     operation.is_archived = true;
     if (operation.start_time) {
@@ -371,12 +381,12 @@ function YtApplicationOperations$list(parameters)
     var items_sort_direction;
 
     if (cursor_direction === "past") {
-        items_filter_conditions.push("start_time <= {}000".format(cursor_time));
+        items_filter_conditions.push("index.start_time <= {}000".format(cursor_time));
         items_sort_direction = "DESC";
     }
 
     if (cursor_direction === "future") {
-        items_filter_conditions.push("start_time > {}000".format(cursor_time));
+        items_filter_conditions.push("index.start_time > {}000".format(cursor_time));
         items_sort_direction = "ASC";
     }
 
@@ -392,7 +402,7 @@ function YtApplicationOperations$list(parameters)
         items_filter_conditions.push("authenticated_user = \"{}\"".format(escapeC(user_filter)));
     }
 
-    var query_source = "[{}] JOIN [{}] USING id_hi, id_lo, start_time"
+    var query_source = "[{}] index JOIN [{}] ON (index.id_hi, index.id_lo) = (id_hi, id_lo)"
         .format(OPERATIONS_ARCHIVE_INDEX_PATH, OPERATIONS_ARCHIVE_PATH);
     var query_for_counts =
         "user, state, type, sum(1) AS count FROM {}".format(query_source) +

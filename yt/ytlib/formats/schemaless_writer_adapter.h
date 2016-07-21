@@ -35,9 +35,7 @@ public:
 
     virtual NTableClient::TNameTablePtr GetNameTable() const override;
 
-    virtual bool IsSorted() const override;
-
-    virtual bool IsUniqueKeys() const override;
+    virtual const NTableClient::TTableSchema& GetSchema() const override;
 
     virtual TBlob GetContext() const;
 

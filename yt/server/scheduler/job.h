@@ -15,8 +15,31 @@
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>
 
+#include <yt/core/yson/consumer.h>
+
 namespace NYT {
 namespace NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBriefJobStatistics
+    : public TIntrinsicRefCounted
+{
+    i64 ProcessedInputRowCount = 0;
+    i64 ProcessedInputDataSize = 0;
+    i64 ProcessedOutputRowCount = 0;
+    i64 ProcessedOutputDataSize = 0;
+    TNullable<i64> UserJobCpuUsage = Null;
+};
+
+DEFINE_REFCOUNTED_TYPE(TBriefJobStatistics)
+
+bool CompareBriefJobStatistics(
+    const TBriefJobStatisticsPtr& lhs,
+    const TBriefJobStatisticsPtr& rhs,
+    i64 userJobCpuUsageThreshold);
+
+void Serialize(const TBriefJobStatistics& briefJobStatistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,6 +89,17 @@ class TJob
     //! Temporary flag used during heartbeat jobs processing to mark found jobs.
     DEFINE_BYVAL_RW_PROPERTY(bool, FoundOnNode);
 
+    //! Flag that marks job as preempted by scheduler.
+    DEFINE_BYVAL_RW_PROPERTY(bool, Preempted);
+    //! Contains several important values extracted from job statistics.
+    DEFINE_BYVAL_RO_PROPERTY(TBriefJobStatisticsPtr, BriefStatistics);
+
+    //! Means that job probably hung up.
+    DEFINE_BYVAL_RO_PROPERTY(bool, Suspicious);
+
+    //! Last time when brief statistics changed in comparison to their previous values.
+    DEFINE_BYVAL_RO_PROPERTY(TInstant, LastActivityTime);
+
 public:
     TJob(
         const TJobId& id,
@@ -79,6 +113,13 @@ public:
 
     //! The difference between |FinishTime| and |StartTime|.
     TDuration GetDuration() const;
+
+    void AnalyzeBriefStatistics(
+        TDuration suspiciousInactivityTimeout,
+        i64 suspiciousCpuUsageThreshold,
+        const TBriefJobStatisticsPtr& briefStatistics);
+
+    TBriefJobStatisticsPtr BuildBriefStatistics() const;
 
     void SetStatus(TRefCountedJobStatusPtr status);
 
@@ -179,6 +220,12 @@ struct TScheduleJobResult
 };
 
 DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobId MakeJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
+
+NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

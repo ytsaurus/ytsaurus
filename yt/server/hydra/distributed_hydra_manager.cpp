@@ -1503,7 +1503,7 @@ private:
             auto syncTime = NProfiling::CpuDurationToDuration(
                 NProfiling::GetCpuInstant() -
                 epochContext->UpstreamSyncStartTime);
-            Profiler.Enqueue("/upstream_sync_time", syncTime.MilliSeconds());
+            Profiler.Enqueue("/upstream_sync_time", syncTime.MilliSeconds(), NProfiling::EMetricType::Gauge);
         }
 
         epochContext->ActiveUpstreamSyncPromise.Set(combinedError);

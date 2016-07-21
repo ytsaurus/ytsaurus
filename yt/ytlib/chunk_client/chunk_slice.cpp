@@ -291,7 +291,9 @@ public:
             // Wait until some key to split
             if (currentIndex < EndIndex_ - 1) {
                 const auto& nextIndexKey = IndexKeys_[currentIndex + 1].Key;
-                if (CompareRows(nextIndexKey, key, keyColumnCount) == 0) {
+                if (CompareRows(key, lowerKeyPrefix, keyColumnCount) == 0 ||
+                    CompareRows(nextIndexKey, key, keyColumnCount) == 0)
+                {
                     continue;
                 }
             }

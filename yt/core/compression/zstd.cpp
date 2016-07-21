@@ -4,7 +4,8 @@
 #include <yt/core/misc/blob.h>
 #include <yt/core/misc/finally.h>
 
-#include <yt/contrib/zstd/lib/zstd_static.h>
+#define ZSTD_STATIC_LINKING_ONLY
+#include <yt/contrib/zstd/lib/common/zstd.h>
 
 namespace NYT {
 namespace NCompression {

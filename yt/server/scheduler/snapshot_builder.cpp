@@ -32,8 +32,6 @@ using namespace NPipes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NProfiling::TProfiler Profiler(SchedulerProfiler.GetPathPrefix() + "/snapshot");
-
 static const size_t PipeWriteBufferSize = (size_t) 1024 * 1024;
 static const size_t RemoteWriteBufferSize = (size_t) 1024 * 1024;
 
@@ -54,6 +52,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     : Config_(config)
     , Scheduler_(scheduler)
     , Client_(client)
+    , Profiler(SchedulerProfiler.GetPathPrefix() + "/snapshot")
 {
     YCHECK(Config_);
     YCHECK(Scheduler_);

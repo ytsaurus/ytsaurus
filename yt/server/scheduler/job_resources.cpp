@@ -11,6 +11,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -133,9 +134,9 @@ Stroka FormatResources(const TExtendedJobResources& resources)
         resources.GetNetwork());
 }
 
-void ProfileResources(NProfiling::TProfiler& profiler, const TJobResources& resources)
+void ProfileResources(TProfiler& profiler, const TJobResources& resources)
 {
-    #define XX(name, Name) profiler.Enqueue("/" #name, resources.Get##Name());
+    #define XX(name, Name) profiler.Enqueue("/" #name, resources.Get##Name(), EMetricType::Gauge);
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
 }

@@ -28,12 +28,13 @@ using namespace NCellNode;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
 
-static NProfiling::TSimpleCounter DiskBlobReadByteCounter("/blob_block_read_bytes");
+static TSimpleCounter DiskBlobReadByteCounter("/blob_block_read_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -263,7 +264,7 @@ void TBlobChunkBase::DoReadBlockSet(
             Location_->GetId(),
             workloadDescriptor);
 
-        NProfiling::TScopedTimer timer;
+        TScopedTimer timer;
         // NB: The reader is synchronous.
         auto blocksOrError = reader->ReadBlocks(workloadDescriptor, firstBlockIndex, blocksToRead).Get();
         auto readTime = timer.GetElapsed();
@@ -311,9 +312,9 @@ void TBlobChunkBase::DoReadBlockSet(
             Location_->GetId(),
             bytesRead);
 
-        locationProfiler.Enqueue("/blob_block_read_size", bytesRead);
-        locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds());
-        locationProfiler.Enqueue("/blob_block_read_throughput", bytesRead * 1000000 / (1 + readTime.MicroSeconds()));
+        locationProfiler.Enqueue("/blob_block_read_size", bytesRead, EMetricType::Gauge);
+        locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds(), EMetricType::Gauge);
+        locationProfiler.Enqueue("/blob_block_read_throughput", bytesRead * 1000000 / (1 + readTime.MicroSeconds()), EMetricType::Gauge);
         DataNodeProfiler.Increment(DiskBlobReadByteCounter, bytesRead);
 
         currentIndex = endIndex;

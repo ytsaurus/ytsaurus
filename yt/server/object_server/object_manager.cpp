@@ -64,6 +64,7 @@ using namespace NObjectClient;
 using namespace NHydra;
 using namespace NCellMaster;
 using namespace NConcurrency;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -468,7 +469,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     YCHECK(RegisteredTypes_.insert(type).second);
     auto& entry = TypeToEntry_[type];
     entry.Handler = handler;
-    entry.TagId = NProfiling::TProfileManager::Get()->RegisterTag("type", type);
+    entry.TagId = TProfileManager::Get()->RegisterTag("type", type);
 
     if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
@@ -1104,7 +1105,7 @@ void TObjectManager::HydraExecuteLeader(
     const IServiceContextPtr& context,
     TMutationContext*)
 {
-    NProfiling::TScopedTimer timer;
+    TScopedTimer timer;
 
     auto securityManager = Bootstrap_->GetSecurityManager();
 
@@ -1253,23 +1254,23 @@ void TObjectManager::HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects*
         request->entries_size());
 }
 
-const NProfiling::TProfiler& TObjectManager::GetProfiler()
+const TProfiler& TObjectManager::GetProfiler()
 {
     return Profiler;
 }
 
-NProfiling::TTagId TObjectManager::GetTypeTagId(EObjectType type)
+TTagId TObjectManager::GetTypeTagId(EObjectType type)
 {
     return TypeToEntry_[type].TagId;
 }
 
-NProfiling::TTagId TObjectManager::GetMethodTagId(const Stroka& method)
+TTagId TObjectManager::GetMethodTagId(const Stroka& method)
 {
     auto it = MethodToTag_.find(method);
     if (it != MethodToTag_.end()) {
         return it->second;
     }
-    auto tag = NProfiling::TProfileManager::Get()->RegisterTag("method", method);
+    auto tag = TProfileManager::Get()->RegisterTag("method", method);
     YCHECK(MethodToTag_.insert(std::make_pair(method, tag)).second);
     return tag;
 }
@@ -1278,11 +1279,11 @@ void TObjectManager::OnProfiling()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    Profiler.Enqueue("/zombie_object_count", GarbageCollector_->GetZombieCount());
-    Profiler.Enqueue("/ghost_object_count", GarbageCollector_->GetGhostCount());
-    Profiler.Enqueue("/created_objects", CreatedObjects_);
-    Profiler.Enqueue("/destroyed_objects", DestroyedObjects_);
-    Profiler.Enqueue("/locked_object_count", LockedObjectCount_);
+    Profiler.Enqueue("/zombie_object_count", GarbageCollector_->GetZombieCount(), EMetricType::Gauge);
+    Profiler.Enqueue("/ghost_object_count", GarbageCollector_->GetGhostCount(), EMetricType::Gauge);
+    Profiler.Enqueue("/locked_object_count", LockedObjectCount_, EMetricType::Gauge);
+    Profiler.Enqueue("/created_objects", CreatedObjects_, EMetricType::Counter);
+    Profiler.Enqueue("/destroyed_objects", DestroyedObjects_, EMetricType::Counter);
 }
 
 std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttributes(
@@ -1335,7 +1336,7 @@ void TObjectManager::OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
 {
     auto schemas = GetValuesSortedByKey(SchemaMap_);
     for (auto* schema : schemas) {
-        ReplicateObjectCreationToSecondaryMaster(schema, cellTag);
+        ReplicateObjectAttributesToSecondaryMaster(schema, cellTag);
     }
 }
 

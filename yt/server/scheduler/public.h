@@ -21,6 +21,8 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerService)
 
 DECLARE_REFCOUNTED_CLASS(TOperation)
 
+DECLARE_REFCOUNTED_STRUCT(TBriefJobStatistics)
+
 DECLARE_REFCOUNTED_CLASS(TJob)
 
 DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
@@ -57,7 +59,7 @@ DECLARE_REFCOUNTED_CLASS(TScheduler)
 
 struct IEventLogHost;
 
-struct ISchedulerStrategy;
+DECLARE_REFCOUNTED_STRUCT(ISchedulerStrategy)
 struct ISchedulerStrategyHost;
 
 struct IOperationHost;

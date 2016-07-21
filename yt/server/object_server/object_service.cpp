@@ -80,6 +80,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetMaxQueueSize(10000)
             .SetMaxConcurrency(10000)
+            .SetCancelable(true)
             .SetInvoker(NRpc::TDispatcher::Get()->GetInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
     }
@@ -332,10 +333,6 @@ private:
         }
 
         while (CurrentSubrequestIndex_ < SubrequestCount_ ) {
-            if (Context_->IsCanceled()) {
-                return;
-            }
-
             while (CurrentSubrequestIndex_ > ThrottledSubrequestIndex_) {
                 ++ThrottledSubrequestIndex_;
                 auto result = SecurityManager_->ThrottleUser(user, 1);

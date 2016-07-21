@@ -17,8 +17,10 @@ class TNullStrategy
     : public ISchedulerStrategy
 {
 public:
-    virtual void ScheduleJobs(const ISchedulingContextPtr& /*context*/) override
-    { }
+    virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& /*context*/) override
+    {
+        return VoidFuture;
+    }
 
     virtual void StartPeriodicActivity() override
     { }
@@ -32,9 +34,9 @@ public:
     virtual void ResetState() override
     { }
 
-    virtual TError CanAddOperation(TOperationPtr operation) override
+    virtual TFuture<void> ValidateOperationStart(const TOperationPtr& operation) override
     {
-        return TError();
+        return VoidFuture;
     }
 
     virtual TStatistics GetOperationTimeStatistics(const TOperationId& operationId) override
@@ -64,10 +66,9 @@ public:
 
 };
 
-std::unique_ptr<ISchedulerStrategy> CreateNullStrategy(ISchedulerStrategyHost* host)
+ISchedulerStrategyPtr CreateNullStrategy(ISchedulerStrategyHost* /*host*/)
 {
-    Y_UNUSED(host);
-    return std::unique_ptr<ISchedulerStrategy>(new TNullStrategy());
+    return New<TNullStrategy>();
 }
 
 ////////////////////////////////////////////////////////////////////

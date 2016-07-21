@@ -744,7 +744,7 @@ private:
 
     }
 
-    void OnTimeout(TPromise<TSharedRef> promise)
+    void OnTimeout(TPromise<TSharedRef> promise, bool aborted)
     {
         bool timedOut = false;
         {
@@ -756,8 +756,14 @@ private:
         }
 
         if (timedOut) {
-            promise.Set(TError(NYT::EErrorCode::Timeout, "Operation timed out")
-                << TErrorAttribute("timeout", Timeout_));
+            TError error;
+            if (aborted) {
+                error = TError(NYT::EErrorCode::Canceled, "Operation aborted");
+            } else {
+                error = TError(NYT::EErrorCode::Timeout, "Operation timed out")
+                    << TErrorAttribute("timeout", Timeout_);
+            }
+            promise.Set(error);
         }
     }
 };

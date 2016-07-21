@@ -15,6 +15,7 @@ import logging
 import uuid
 import shutil
 import subprocess
+import __builtin__
 from time import sleep, time
 from threading import Thread
 
@@ -186,6 +187,7 @@ class YTEnvSetup(YTEnv):
             self._remove_tablet_cells()
             self._remove_tablet_cell_bundles()
             self._remove_racks()
+            self._remove_pools()
 
             yt_commands.gc_collect()
 
@@ -258,11 +260,12 @@ class YTEnvSetup(YTEnv):
 
     def sync_compact_table(self, path):
         self.sync_unmount_table(path)
+        chunk_ids = __builtin__.set(yt_commands.get(path + "/@chunk_ids"))
         yt_commands.set(path + "/@forced_compaction_revision", yt_commands.get(path + "/@revision"))
         self.sync_mount_table(path)
 
         print "Waiting for tablets to become compacted..."
-        wait(lambda: all(x["statistics"]["chunk_count"] == 1 for x in yt_commands.get(path + "/@tablets")))
+        wait(lambda: len(chunk_ids.intersection(__builtin__.set(yt_commands.get(path + "/@chunk_ids")))) == 0)
 
     def _abort_transactions(self, txs):
         for tx in txs:
@@ -319,6 +322,9 @@ class YTEnvSetup(YTEnv):
         racks = yt_commands.get_racks()
         for rack in racks:
             yt_commands.remove_rack(rack)
+
+    def _remove_pools(self):
+        yt_commands.remove("//sys/pools/*")
 
     def _find_ut_file(self, file_name):
         from distutils.spawn import find_executable

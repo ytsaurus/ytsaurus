@@ -3,6 +3,7 @@
 #include "cached_versioned_chunk_meta.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_reader_base.h"
+#include "columnar_chunk_reader_base.h"
 #include "config.h"
 #include "schema.h"
 #include "unversioned_row.h"
@@ -176,15 +177,15 @@ public:
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp)
         : TVersionedChunkReaderBase(
-        std::move(config),
-        std::move(chunkMeta),
-        std::move(underlyingReader),
-        std::move(blockCache),
-        columnFilter,
-        std::move(performanceCounters),
-        timestamp)
-          , LowerLimit_(std::move(lowerLimit))
-          , UpperLimit_(std::move(upperLimit))
+            std::move(config),
+            std::move(chunkMeta),
+            std::move(underlyingReader),
+            std::move(blockCache),
+            columnFilter,
+            std::move(performanceCounters),
+            timestamp)
+        , LowerLimit_(std::move(lowerLimit))
+        , UpperLimit_(std::move(upperLimit))
     {
         ReadyEvent_ = DoOpen(GetBlockSequence(), ChunkMeta_->Misc());
     }
@@ -452,7 +453,7 @@ private:
             auto& key = Keys_[keyIndex];
 #if 0
             //FIXME(savrus): use bloom filter here.
-    if (!ChunkMeta_->KeyFilter().Contains(key)) {
+    if (!VersionedChunkMeta_->KeyFilter().Contains(key)) {
         KeyFilterTest_[keyIndex] = false;
         continue;
     }
@@ -507,8 +508,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TBase>
 class TColumnarVersionedChunkReaderBase
-    : public IVersionedReader
+    : public TBase
+    , public IVersionedReader
 {
 public:
     TColumnarVersionedChunkReaderBase(
@@ -519,38 +522,37 @@ public:
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp)
-        : Config_(std::move(config))
-        , ChunkMeta_(std::move(chunkMeta))
-        , UnderlyingReader_(std::move(underlyingReader))
-        , BlockCache_(std::move(blockCache))
+        : TBase(std::move(config), std::move(underlyingReader), std::move(blockCache))
+        , VersionedChunkMeta_(std::move(chunkMeta))
         , Timestamp_(timestamp)
-        , SchemaIdMapping_(BuildSchemaIdMapping(columnFilter, ChunkMeta_))
-        , Semaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
+        , SchemaIdMapping_(BuildSchemaIdMapping(columnFilter, VersionedChunkMeta_))
         , PerformanceCounters_(std::move(performanceCounters))
     {
-        YCHECK(ChunkMeta_->Misc().sorted());
-        YCHECK(EChunkType(ChunkMeta_->ChunkMeta().type()) == EChunkType::Table);
-        YCHECK(ETableChunkFormat(ChunkMeta_->ChunkMeta().version()) == ETableChunkFormat::VersionedColumnar);
+        YCHECK(VersionedChunkMeta_->Misc().sorted());
+        YCHECK(EChunkType(VersionedChunkMeta_->ChunkMeta().type()) == EChunkType::Table);
+        YCHECK(ETableChunkFormat(VersionedChunkMeta_->ChunkMeta().version()) == ETableChunkFormat::VersionedColumnar);
         YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.All);
         YCHECK(PerformanceCounters_);
 
-        KeyColumnReaders_.resize(ChunkMeta_->GetKeyColumnCount());
+        TBase::ChunkMeta_ = VersionedChunkMeta_;
+
+        KeyColumnReaders_.resize(VersionedChunkMeta_->GetKeyColumnCount());
         for (int keyColumnIndex = 0;
-             keyColumnIndex < ChunkMeta_->GetChunkKeyColumnCount();
+             keyColumnIndex < VersionedChunkMeta_->GetChunkKeyColumnCount();
              ++keyColumnIndex)
         {
             auto columnReader = CreateUnversionedColumnReader(
-                ChunkMeta_->ChunkSchema().Columns()[keyColumnIndex],
-                ChunkMeta_->ColumnMeta().columns(keyColumnIndex),
+                VersionedChunkMeta_->ChunkSchema().Columns()[keyColumnIndex],
+                VersionedChunkMeta_->ColumnMeta().columns(keyColumnIndex),
                 keyColumnIndex,
                 keyColumnIndex);
 
-            Columns_.emplace_back(columnReader.get(), keyColumnIndex);
+            TBase::Columns_.emplace_back(columnReader.get(), keyColumnIndex);
             KeyColumnReaders_[keyColumnIndex].swap(columnReader);
         }
 
         // Null readers for wider keys.
-        for (int keyColumnIndex = ChunkMeta_->GetChunkKeyColumnCount();
+        for (int keyColumnIndex = VersionedChunkMeta_->GetChunkKeyColumnCount();
              keyColumnIndex < KeyColumnReaders_.size();
              ++keyColumnIndex)
         {
@@ -561,11 +563,11 @@ public:
 
         for (const auto& idMapping : SchemaIdMapping_) {
             auto columnReader = CreateVersionedColumnReader(
-                ChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex],
-                ChunkMeta_->ColumnMeta().columns(idMapping.ChunkSchemaIndex),
+                VersionedChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex],
+                VersionedChunkMeta_->ColumnMeta().columns(idMapping.ChunkSchemaIndex),
                 idMapping.ReaderSchemaIndex);
 
-            Columns_.emplace_back(columnReader.get(), idMapping.ChunkSchemaIndex);
+            TBase::Columns_.emplace_back(columnReader.get(), idMapping.ChunkSchemaIndex);
 
             ValueColumnReaders_.push_back(std::move(columnReader));
         }
@@ -573,30 +575,9 @@ public:
 
     virtual TDataStatistics GetDataStatistics() const override
     {
-        if (!BlockFetcher_) {
-            return TDataStatistics();
-        }
-
-        TDataStatistics dataStatistics;
-        dataStatistics.set_chunk_count(1);
-        dataStatistics.set_uncompressed_data_size(BlockFetcher_->GetUncompressedDataSize());
-        dataStatistics.set_compressed_data_size(BlockFetcher_->GetCompressedDataSize());
+        auto dataStatistics = TBase::GetDataStatistics();
+        dataStatistics.set_row_count(RowCount_);
         return dataStatistics;
-    }
-
-    virtual bool IsFetchingCompleted() const override
-    {
-        return BlockFetcher_->IsFetchingCompleted();
-    }
-
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
-    virtual TFuture<void> GetReadyEvent()
-    {
-        return ReadyEvent_;
     }
 
     virtual TFuture<void> Open() override
@@ -605,102 +586,17 @@ public:
     }
 
 protected:
-    TChunkReaderConfigPtr Config_;
-    const TCachedVersionedChunkMetaPtr ChunkMeta_;
-    IChunkReaderPtr UnderlyingReader_;
-    IBlockCachePtr BlockCache_;
-
+    const TCachedVersionedChunkMetaPtr VersionedChunkMeta_;
     const TTimestamp Timestamp_;
 
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
 
     i64 RowCount_ = 0;
 
-    TAsyncSemaphorePtr Semaphore_;
-    TBlockFetcherPtr BlockFetcher_;
-
     TChunkReaderPerformanceCountersPtr PerformanceCounters_;
-
-    struct TColumn
-    {
-        TColumn(IColumnReaderBase* reader, int chunkSchemaIndex)
-            : ColumnReader(reader)
-            , ChunkSchemaIndex(chunkSchemaIndex)
-        { }
-
-        IColumnReaderBase* ColumnReader;
-        int ChunkSchemaIndex;
-        std::vector<int> BlockIndexSequence;
-        int PendingBlockIndex_ = 0;
-    };
 
     std::vector<std::unique_ptr<IUnversionedColumnReader>> KeyColumnReaders_;
     std::vector<std::unique_ptr<IVersionedColumnReader>> ValueColumnReaders_;
-
-    std::vector<TColumn> Columns_;
-
-    TFuture<void> ReadyEvent_ = VoidFuture;
-
-    std::vector<TFuture<TSharedRef>> PendingBlocks_;
-
-    void ResetExhaustedColumns()
-    {
-        for (int i = 0; i < PendingBlocks_.size(); ++i) {
-            if (PendingBlocks_[i]) {
-                YCHECK(PendingBlocks_[i].IsSet());
-                YCHECK(PendingBlocks_[i].Get().IsOK());
-                Columns_[i].ColumnReader->ResetBlock(
-                    PendingBlocks_[i].Get().Value(),
-                    Columns_[i].PendingBlockIndex_);
-            }
-        }
-
-        PendingBlocks_.clear();
-    }
-
-    i64 GetLowerRowIndex(TKey key) const
-    {
-        auto it = std::lower_bound(
-            ChunkMeta_->BlockLastKeys().begin(),
-            ChunkMeta_->BlockLastKeys().end(),
-            key);
-
-        if (it == ChunkMeta_->BlockLastKeys().end()) {
-            return ChunkMeta_->Misc().row_count();
-        }
-
-        if (it == ChunkMeta_->BlockLastKeys().begin()) {
-            return 0;
-        }
-
-        --it;
-        int blockIndex = std::distance(ChunkMeta_->BlockLastKeys().begin(), it);
-        const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(blockIndex);
-        return blockMeta.chunk_row_count();
-    }
-
-    i64 GetSegmentIndex(const TColumn& column, i64 rowIndex) const
-    {
-        const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ChunkSchemaIndex);
-        auto it = std::lower_bound(
-            columnMeta.segments().begin(),
-            columnMeta.segments().end(),
-            rowIndex,
-            [](const TSegmentMeta& segmentMeta, i64 index) {
-                return segmentMeta.chunk_row_count() < index + 1;
-            });
-        return std::distance(columnMeta.segments().begin(), it);
-    }
-
-    TBlockFetcher::TBlockInfo CreateBlockInfo(int blockIndex) const
-    {
-        const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(blockIndex);
-        TBlockFetcher::TBlockInfo blockInfo;
-        blockInfo.Index = blockIndex;
-        blockInfo.Priority = blockMeta.chunk_row_count() - blockMeta.row_count();
-        blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
-        return blockInfo;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -970,7 +866,7 @@ private:
 
 template <class TRowBuilder>
 class TColumnarVersionedRangeChunkReader
-    : public TColumnarVersionedChunkReaderBase
+    : public TColumnarVersionedChunkReaderBase<TColumnarRangeChunkReaderBase>
 {
 public:
     TColumnarVersionedRangeChunkReader(
@@ -991,11 +887,12 @@ public:
             columnFilter,
             std::move(performanceCounters),
             timestamp)
-        , LowerLimit_(std::move(lowerLimit))
-        , UpperLimit_(std::move(upperLimit))
         , RowBuilder_(chunkMeta, ValueColumnReaders_, SchemaIdMapping_, timestamp)
     {
-        int timestampReaderIndex = ChunkMeta_->ColumnMeta().columns().size() - 1;
+        LowerLimit_ = std::move(lowerLimit);
+        UpperLimit_ = std::move(upperLimit);
+
+        int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta().columns().size() - 1;
         Columns_.emplace_back(RowBuilder_.GetTimestampReader(), timestampReaderIndex);
 
         // Empirical formula to determine max rows per read for better cache friendliness.
@@ -1006,9 +903,9 @@ public:
         InitLowerRowIndex();
         InitUpperRowIndex();
 
-        if (LowerRowIndex_ < ChunkMeta_->Misc().row_count()) {
+        if (LowerRowIndex_ < VersionedChunkMeta_->Misc().row_count()) {
             InitBlockFetcher();
-            RequestFirstBlocks();
+            ReadyEvent_ = RequestFirstBlocks();
         } else {
             Initialized_ = true;
             Completed_ = true;
@@ -1021,14 +918,15 @@ public:
         rows->clear();
         RowBuilder_.Clear();
 
-        if (!ReadyEvent_.IsSet()) {
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return true;
         }
 
         if (!Initialized_) {
             ResetExhaustedColumns();
-            Initialize();
+            Initialize(KeyColumnReaders_);
             Initialized_ = true;
+            RowIndex_ = LowerRowIndex_;
         }
 
         if (Completed_) {
@@ -1084,176 +982,20 @@ public:
         return true;
     }
 
-    virtual TFuture<void> GetReadyEvent()
-    {
-        return ReadyEvent_;
-    }
-
 private:
-    const TReadLimit LowerLimit_;
-    const TReadLimit UpperLimit_;
-
-    i64 MaxRowsPerRead_;
-
-    i64 LowerRowIndex_;
-    i64 SafeUpperRowIndex_;
-    i64 HardUpperRowIndex_;
-
-    i64 RowIndex_;
-
     bool Initialized_ = false;
     bool Completed_ = false;
 
+    i64 MaxRowsPerRead_;
+    i64 RowIndex_;
+
     TRowBuilder RowBuilder_;
-
-    void InitLowerRowIndex()
-    {
-        LowerRowIndex_ = 0;
-        if (LowerLimit_.HasRowIndex()) {
-            LowerRowIndex_ = std::max(LowerRowIndex_, LowerLimit_.GetRowIndex());
-        }
-
-        if (LowerLimit_.HasKey()) {
-            LowerRowIndex_ = std::max(LowerRowIndex_, GetLowerRowIndex(LowerLimit_.GetKey()));
-        }
-    }
-
-    void InitUpperRowIndex()
-    {
-        SafeUpperRowIndex_ = HardUpperRowIndex_ = ChunkMeta_->Misc().row_count();
-        if (UpperLimit_.HasRowIndex()) {
-            SafeUpperRowIndex_ = HardUpperRowIndex_ = std::min(HardUpperRowIndex_, UpperLimit_.GetRowIndex());
-        }
-
-        if (UpperLimit_.HasKey()) {
-            auto it = std::lower_bound(
-                ChunkMeta_->BlockLastKeys().begin(),
-                ChunkMeta_->BlockLastKeys().end(),
-                UpperLimit_.GetKey());
-
-
-            if (it == ChunkMeta_->BlockLastKeys().end()) {
-                SafeUpperRowIndex_ = HardUpperRowIndex_ = ChunkMeta_->Misc().row_count();
-            } else {
-                int blockIndex = std::distance(ChunkMeta_->BlockLastKeys().begin(), it);
-                const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(blockIndex);
-                SafeUpperRowIndex_ = std::min(
-                    SafeUpperRowIndex_,
-                    blockMeta.chunk_row_count() - blockMeta.row_count() - 1);
-                HardUpperRowIndex_ = std::min(
-                    HardUpperRowIndex_,
-                    blockMeta.chunk_row_count());
-            }
-        }
-    }
-
-    void Initialize()
-    {
-        for (auto& column : Columns_) {
-            column.ColumnReader->SkipToRowIndex(LowerRowIndex_);
-        }
-
-        RowIndex_ = LowerRowIndex_;
-
-        if (!LowerLimit_.HasKey()) {
-            return;
-        }
-
-        i64 lowerRowIndex = KeyColumnReaders_[0]->GetCurrentRowIndex();
-        i64 upperRowIndex = KeyColumnReaders_[0]->GetBlockUpperRowIndex();
-        for (int i = 0; i < LowerLimit_.GetKey().GetCount(); ++i) {
-            std::tie(lowerRowIndex, upperRowIndex) = KeyColumnReaders_[i]->GetEqualRange(
-                LowerLimit_.GetKey().Begin()[i],
-                lowerRowIndex,
-                upperRowIndex);
-        }
-
-        RowIndex_ = lowerRowIndex;
-        YCHECK(RowIndex_ < ChunkMeta_->Misc().row_count());
-        for (auto& column : Columns_) {
-            column.ColumnReader->SkipToRowIndex(RowIndex_);
-        }
-    }
-
-    void InitBlockFetcher()
-    {
-        YCHECK(LowerRowIndex_ < ChunkMeta_->Misc().row_count());
-
-        std::vector<TBlockFetcher::TBlockInfo> blockInfos;
-
-        for (auto& column : Columns_) {
-            const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ChunkSchemaIndex);
-            i64 segmentIndex = GetSegmentIndex(column, LowerRowIndex_);
-            column.BlockIndexSequence.push_back(columnMeta.segments(segmentIndex).block_index());
-
-            int lastBlockIndex = -1;
-            for (; segmentIndex < columnMeta.segments_size(); ++segmentIndex) {
-                const auto& segment = columnMeta.segments(segmentIndex);
-                if (segment.block_index() != lastBlockIndex) {
-                    lastBlockIndex = segment.block_index();
-                    blockInfos.push_back(CreateBlockInfo(lastBlockIndex));
-                }
-                if (segment.chunk_row_count() > HardUpperRowIndex_) {
-                    break;
-                }
-            }
-        }
-
-        BlockFetcher_ = New<TBlockFetcher>(
-            Config_,
-            std::move(blockInfos),
-            Semaphore_,
-            UnderlyingReader_,
-            BlockCache_,
-            NCompression::ECodec(ChunkMeta_->Misc().compression_codec()));
-    }
-
-    void RequestFirstBlocks()
-    {
-        std::vector<TFuture<void>> blockFetchResult;
-        PendingBlocks_.clear();
-        for (auto& column : Columns_) {
-            PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.BlockIndexSequence.front()));
-            column.PendingBlockIndex_ = column.BlockIndexSequence.front();
-            blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
-        }
-
-        if (!blockFetchResult.empty()) {
-            ReadyEvent_ = Combine(blockFetchResult);
-        }
-    }
-
-    bool TryFetchNextRow()
-    {
-        std::vector<TFuture<void>> blockFetchResult;
-        YCHECK(PendingBlocks_.empty());
-        for (int i = 0; i < Columns_.size(); ++i) {
-            auto& column = Columns_[i];
-            if (column.ColumnReader->GetCurrentRowIndex() == column.ColumnReader->GetBlockUpperRowIndex()) {
-                while (PendingBlocks_.size() < i) {
-                    PendingBlocks_.emplace_back();
-                }
-
-                auto nextBlockIndex = column.ColumnReader->GetNextBlockIndex();
-                YCHECK(nextBlockIndex);
-                column.PendingBlockIndex_ = *nextBlockIndex;
-                PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
-                blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
-            }
-        }
-
-        if (!blockFetchResult.empty()) {
-            ReadyEvent_ = Combine(blockFetchResult);
-        }
-
-        return PendingBlocks_.empty();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TColumnarVersionedLookupChunkReader
-    : public TColumnarVersionedChunkReaderBase
+    : public TColumnarVersionedChunkReaderBase<TColumnarChunkReaderBase>
 {
 public:
     TColumnarVersionedLookupChunkReader(
@@ -1276,9 +1018,9 @@ public:
         , Keys_(keys)
         , Pool_(TVersionedChunkReaderPoolTag())
     {
-        int timestampReaderIndex = ChunkMeta_->ColumnMeta().columns().size() - 1;
+        int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta().columns().size() - 1;
         TimestampReader_ = std::make_unique<TLookupTransactionTimestampReader>(
-            ChunkMeta_->ColumnMeta().columns(timestampReaderIndex),
+            VersionedChunkMeta_->ColumnMeta().columns(timestampReaderIndex),
             Timestamp_);
 
         Columns_.emplace_back(TimestampReader_.get(), timestampReaderIndex);
@@ -1290,8 +1032,8 @@ public:
 
         for (auto& column : Columns_) {
             for (auto rowIndex : RowIndexes_) {
-                if (rowIndex < ChunkMeta_->Misc().row_count()) {
-                    const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ChunkSchemaIndex);
+                if (rowIndex < VersionedChunkMeta_->Misc().row_count()) {
+                    const auto& columnMeta = VersionedChunkMeta_->ColumnMeta().columns(column.ChunkSchemaIndex);
                     auto segmentIndex = GetSegmentIndex(column, rowIndex);
                     const auto& segment = columnMeta.segments(segmentIndex);
                     column.BlockIndexSequence.push_back(segment.block_index());
@@ -1312,7 +1054,7 @@ public:
         rows->clear();
         Pool_.Clear();
 
-        if (!ReadyEvent_.IsSet()) {
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return true;
         }
 
@@ -1323,14 +1065,14 @@ public:
         while (rows->size() < rows->capacity()) {
             ResetExhaustedColumns();
 
-            if (RowIndexes_[NextKeyIndex_] < ChunkMeta_->Misc().row_count()) {
+            if (RowIndexes_[NextKeyIndex_] < VersionedChunkMeta_->Misc().row_count()) {
                 const auto& key = Keys_[NextKeyIndex_];
-                YCHECK(key.GetCount() == ChunkMeta_->GetKeyColumnCount());
+                YCHECK(key.GetCount() == VersionedChunkMeta_->GetKeyColumnCount());
 
                 // Reading row.
                 i64 lowerRowIndex = KeyColumnReaders_[0]->GetCurrentRowIndex();
                 i64 upperRowIndex = KeyColumnReaders_[0]->GetBlockUpperRowIndex();
-                for (int i = 0; i < ChunkMeta_->GetKeyColumnCount(); ++i) {
+                for (int i = 0; i < VersionedChunkMeta_->GetKeyColumnCount(); ++i) {
                     std::tie(lowerRowIndex, upperRowIndex) = KeyColumnReaders_[i]->GetEqualRange(
                         key[i],
                         lowerRowIndex,
@@ -1396,12 +1138,12 @@ private:
             Semaphore_,
             UnderlyingReader_,
             BlockCache_,
-            NCompression::ECodec(ChunkMeta_->Misc().compression_codec()));
+            NCompression::ECodec(VersionedChunkMeta_->Misc().compression_codec()));
     }
 
     bool TryFetchNextRow()
     {
-        if (RowIndexes_[NextKeyIndex_] >= ChunkMeta_->Misc().row_count()) {
+        if (RowIndexes_[NextKeyIndex_] >= VersionedChunkMeta_->Misc().row_count()) {
             return true;
         }
 
@@ -1416,9 +1158,7 @@ private:
 
                 column.PendingBlockIndex_ = column.BlockIndexSequence[NextKeyIndex_];
                 PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
-                if (!PendingBlocks_.back().IsSet()) {
-                    blockFetchResult.push_back(PendingBlocks_.back().As<void>());
-                }
+                blockFetchResult.push_back(PendingBlocks_.back().As<void>());
             }
         }
 
@@ -1446,9 +1186,9 @@ private:
         }
 
         size_t valueCount = 0;
-        for (int valueColumnIndex = 0; valueColumnIndex < ChunkMeta_->SchemaIdMapping().size(); ++valueColumnIndex) {
-            const auto& idMapping = ChunkMeta_->SchemaIdMapping()[valueColumnIndex];
-            const auto& columnSchema = ChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex];
+        for (int valueColumnIndex = 0; valueColumnIndex < VersionedChunkMeta_->SchemaIdMapping().size(); ++valueColumnIndex) {
+            const auto& idMapping = VersionedChunkMeta_->SchemaIdMapping()[valueColumnIndex];
+            const auto& columnSchema = VersionedChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex];
             ui32 columnValueCount = 1;
             if (columnSchema.Aggregate) {
                 // Possibly multiple values per column for aggregate columns.
@@ -1461,7 +1201,7 @@ private:
         // Allocate according to schema.
         auto row = TMutableVersionedRow::Allocate(
             &Pool_,
-            ChunkMeta_->GetKeyColumnCount(),
+            VersionedChunkMeta_->GetKeyColumnCount(),
             hasWriteTimestamp ? valueCount : 0,
             hasWriteTimestamp ? 1 : 0,
             hasDeleteTimestamp ? 1 : 0);

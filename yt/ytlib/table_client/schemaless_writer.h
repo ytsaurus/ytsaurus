@@ -24,8 +24,7 @@ struct ISchemalessWriter
 
     virtual TNameTablePtr GetNameTable() const = 0;
 
-    virtual bool IsSorted() const = 0;
-    virtual bool IsUniqueKeys() const = 0;
+    virtual const TTableSchema& GetSchema() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessWriter)

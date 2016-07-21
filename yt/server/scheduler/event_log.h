@@ -134,9 +134,7 @@ private:
 
 struct IEventLogHost
 {
-public:
-    virtual ~IEventLogHost()
-    { }
+    virtual ~IEventLogHost() = default;
 
     virtual TFluentLogEvent LogEventFluently(ELogEventType eventType) = 0;
     virtual TFluentLogEvent LogEventFluently(ELogEventType eventType, TInstant now) = 0;

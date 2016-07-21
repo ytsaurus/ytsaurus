@@ -86,10 +86,10 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidDoubleValue)         (302))
     ((IncomparableType)           (303))
     ((UnhashableType)             (304))
-    ((UniqueKeyViolation)         (305))
-    ((SchemaViolation)            (306))
     // E.g. name table with more than #MaxColumnId columns (may come from legacy chunks).
     ((CorruptedNameTable)         (305))
+    ((UniqueKeyViolation)         (306))
+    ((SchemaViolation)            (307))
 );
 
 DEFINE_ENUM(ETableChunkFormat,
@@ -98,6 +98,7 @@ DEFINE_ENUM(ETableChunkFormat,
     ((Schemaful)            (3))
     ((SchemalessHorizontal) (4))
     ((VersionedColumnar)    (5))
+    ((UnversionedColumnar)  (6))
 );
 
 DEFINE_ENUM(EControlAttribute,
@@ -212,6 +213,7 @@ DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
 DECLARE_REFCOUNTED_STRUCT(IVersionedChunkWriter)
 DECLARE_REFCOUNTED_STRUCT(IVersionedMultiChunkWriter)
 
+DECLARE_REFCOUNTED_CLASS(TColumnarChunkMeta)
 DECLARE_REFCOUNTED_CLASS(TCachedVersionedChunkMeta)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkReaderPerformanceCounters)

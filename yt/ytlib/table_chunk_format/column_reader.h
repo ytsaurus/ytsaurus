@@ -55,6 +55,11 @@ struct IUnversionedColumnReader
      *  Read values into proper position inside rows.
      */
     virtual void ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) = 0;
+
+    /*!
+     *  Read values into proper position inside rows.
+     */
+    virtual void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

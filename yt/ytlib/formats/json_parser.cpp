@@ -8,7 +8,7 @@
 #include <array>
 
 #ifdef YT_IN_ARCADIA
-#include <contrib/libs/yajl/yajl_parse.h>
+#include <contrib/libs/yajl/api/yajl_parse.h>
 #else
 #include <yajl/yajl_parse.h>
 #endif

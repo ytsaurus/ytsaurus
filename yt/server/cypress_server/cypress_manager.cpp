@@ -878,6 +878,7 @@ public:
         TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(trunkNode->IsTrunk());
 
         AccessTracker_->SetModified(trunkNode, transaction);
     }
@@ -885,6 +886,7 @@ public:
     void SetAccessed(TCypressNodeBase* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(trunkNode->IsTrunk());
 
         if (HydraManager_->IsLeader() || HydraManager_->IsFollower() && !HasMutationContext()) {
             AccessTracker_->SetAccessed(trunkNode);
@@ -894,6 +896,7 @@ public:
     void SetExpirationTime(TCypressNodeBase* trunkNode, TNullable<TInstant> time)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(trunkNode->IsTrunk());
 
         trunkNode->SetExpirationTime(time);
 
@@ -1151,7 +1154,7 @@ private:
         LockMap_.LoadValues(context);
 
         // COMPAT(babenko)
-        RecomputeChunkOwnerStatistics_ = (context.GetVersion() < 200);
+        RecomputeChunkOwnerStatistics_ = (context.GetVersion() < 304);
     }
 
 
@@ -1224,7 +1227,9 @@ private:
             }
 
             // COMPAT(babenko)
-            if (RecomputeChunkOwnerStatistics_ && (node->GetType() == EObjectType::Table || node->GetType() == EObjectType::Table)) {
+            if (RecomputeChunkOwnerStatistics_ &&
+                (node->GetType() == EObjectType::Table || node->GetType() == EObjectType::File))
+            {
                 auto* chunkOwnerNode = static_cast<TChunkOwnerBase*>(node);
                 const auto* chunkList = chunkOwnerNode->GetChunkList();
                 if (chunkList) {
@@ -1343,11 +1348,6 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(trunkNode->IsTrunk());
 
-        // Remove the object from the map but keep it alive.
-        NodeMap_.Release(trunkNode->GetVersionedId()).release();
-
-        auto objectManager = Bootstrap_->GetObjectManager();
-
         const auto& lockingState = trunkNode->LockingState();
 
         for (auto* lock : lockingState.AcquiredLocks) {
@@ -1356,6 +1356,7 @@ private:
             lock->GetTransaction()->LockedNodes().erase(trunkNode);
         }
 
+        auto objectManager = Bootstrap_->GetObjectManager();
         for (auto* lock : lockingState.PendingLocks) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Lock orphaned (LockId: %v)",
                 lock->GetId());
@@ -1374,6 +1375,9 @@ private:
 
         auto handler = GetHandler(trunkNode);
         handler->Destroy(trunkNode);
+
+        // Remove the object from the map but keep it alive.
+        NodeMap_.Release(trunkNode->GetVersionedId()).release();
     }
 
 
@@ -2086,6 +2090,12 @@ private:
         auto* user = securityManager->GetAuthenticatedUser();
         auto* acd = securityManager->GetAcd(clonedNode);
         acd->SetOwner(user);
+
+        // Copy expiration time.
+        auto expirationTime = sourceNode->GetTrunkNode()->GetExpirationTime(); 
+        if (expirationTime) {
+            SetExpirationTime(clonedNode, *expirationTime);
+        }
 
         return clonedNode;
     }

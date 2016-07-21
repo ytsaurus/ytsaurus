@@ -66,6 +66,7 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NConcurrency;
+using namespace NProfiling;
 using namespace NRpc;
 using namespace NHydra;
 using namespace NNodeTrackerServer;
@@ -341,7 +342,7 @@ public:
             "ChunkManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        auto* profileManager = NProfiling::TProfileManager::Get();
+        auto* profileManager = TProfileManager::Get();
         Profiler.TagIds().push_back(profileManager->RegisterTag("cell_tag", Bootstrap_->GetCellTag()));
     }
 
@@ -896,7 +897,7 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-    NProfiling::TProfiler Profiler = ChunkServerProfiler;
+    TProfiler Profiler = ChunkServerProfiler;
     i64 ChunksCreated_ = 0;
     i64 ChunksDestroyed_ = 0;
     i64 ChunkReplicasAdded_ = 0;
@@ -1483,6 +1484,16 @@ private:
     {
         ChunkMap_.LoadValues(context);
         ChunkListMap_.LoadValues(context);
+
+        // COMPAT(savrus): Cf. YT-5120
+        if (context.GetVersion() < 303) {
+            ScheduleRecomputeStatistics();
+        }
+    }
+
+    virtual void OnBeforeSnapshotLoaded() override
+    {
+        NeedToRecomputeStatistics_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1516,6 +1527,11 @@ private:
             }
         }
 
+        if (NeedToRecomputeStatistics_) {
+            RecomputeStatistics();
+            NeedToRecomputeStatistics_ = false;
+        }
+
         LOG_INFO("Finished initializing chunks");
     }
 
@@ -1542,40 +1558,78 @@ private:
         NeedToRecomputeStatistics_ = true;
     }
 
-    const TChunkTreeStatistics& ComputeStatisticsFor(TChunkList* chunkList, TAtomic visitMark)
+    void RecomputeStatistics()
     {
-        auto& statistics = chunkList->Statistics();
-        if (chunkList->GetVisitMark() != visitMark) {
-            chunkList->SetVisitMark(visitMark);
+        LOG_INFO("Started recomputing statistics");
 
+        auto visitMark = TChunkList::GenerateVisitMark();
+
+        std::vector<TChunkList*> chunkLists;
+        std::vector<std::pair<TChunkList*, int>> stack;
+
+        auto visit = [&] (TChunkList* chunkList) {
+            if (chunkList->GetVisitMark() != visitMark) {
+                chunkList->SetVisitMark(visitMark);
+                stack.emplace_back(chunkList, 0);
+            }
+        };
+
+        // Sort chunk lists in topological order
+        for (const auto& pair : ChunkListMap_) {
+            auto* chunkList = pair.second;
+            visit(chunkList);
+
+            while (!stack.empty()) {
+                chunkList = stack.back().first;
+                int childIndex = stack.back().second;
+                int childCount = chunkList->Children().size();
+
+                if (childIndex == childCount) {
+                    chunkLists.push_back(chunkList);
+                    stack.pop_back();
+                } else {
+                    ++stack.back().second;
+                    auto* child = chunkList->Children()[childIndex];
+                    if (child && child->GetType() == EObjectType::ChunkList) {
+                        visit(child->AsChunkList());
+                    }
+                }
+            }
+        }
+
+        // Recompute statistics
+        for (auto* chunkList : chunkLists) {
+            auto& statistics = chunkList->Statistics();
+            auto oldStatistics = statistics;
             statistics = TChunkTreeStatistics();
-            statistics.Rank = 1;
-            int childrenCount = chunkList->Children().size();
+            int childCount = chunkList->Children().size();
 
             auto& cumulativeStatistics = chunkList->CumulativeStatistics();
             cumulativeStatistics.clear();
 
-            for (int childIndex = 0; childIndex < childrenCount; ++childIndex) {
+            for (int childIndex = 0; childIndex < childCount; ++childIndex) {
                 auto* child = chunkList->Children()[childIndex];
-                TChunkTreeStatistics childStatistics;
-                if (child) {
-                    switch (child->GetType()) {
-                        case EObjectType::Chunk:
-                        case EObjectType::ErasureChunk:
-                        case EObjectType::JournalChunk:
-                            childStatistics.Accumulate(child->AsChunk()->GetStatistics());
-                            break;
-
-                        case EObjectType::ChunkList:
-                            childStatistics = ComputeStatisticsFor(child->AsChunkList(), visitMark);
-                            break;
-
-                        default:
-                            Y_UNREACHABLE();
-                    }
+                if (!child) {
+                    continue;
                 }
 
-                if (childIndex + 1 < childrenCount) {
+                TChunkTreeStatistics childStatistics;
+                switch (child->GetType()) {
+                    case EObjectType::Chunk:
+                    case EObjectType::ErasureChunk:
+                    case EObjectType::JournalChunk:
+                        childStatistics.Accumulate(child->AsChunk()->GetStatistics());
+                        break;
+
+                    case EObjectType::ChunkList:
+                        childStatistics.Accumulate(child->AsChunkList()->Statistics());
+                        break;
+
+                    default:
+                        Y_UNREACHABLE();
+                }
+
+                if (childIndex + 1 < childCount) {
                     cumulativeStatistics.push_back({
                         statistics.RowCount + childStatistics.RowCount,
                         statistics.ChunkCount + childStatistics.ChunkCount,
@@ -1586,26 +1640,15 @@ private:
                 statistics.Accumulate(childStatistics);
             }
 
-            if (!chunkList->Children().empty()) {
-                ++statistics.Rank;
-            }
+            ++statistics.Rank;
             ++statistics.ChunkListCount;
-        }
-        return statistics;
-    }
 
-    void RecomputeStatistics()
-    {
-        // Chunk trees traversal with memoization.
-
-        LOG_INFO("Started recomputing statistics");
-
-        auto mark = TChunkList::GenerateVisitMark();
-
-        // Force all statistics to be recalculated.
-        for (const auto& pair : ChunkListMap_) {
-            auto* chunkList = pair.second;
-            ComputeStatisticsFor(chunkList, mark);
+            if (statistics != oldStatistics) {
+                LOG_DEBUG("Chunk list statistics changed (ChunkList: %v, OldStatistics: %v, NewStatistics: %v)",
+                    chunkList->GetId(),
+                    oldStatistics,
+                    statistics);
+            }
         }
 
         LOG_INFO("Finished recomputing statistics");
@@ -1616,8 +1659,6 @@ private:
         TMasterAutomatonPart::OnRecoveryStarted();
 
         Profiler.SetEnabled(false);
-
-        NeedToRecomputeStatistics_ = false;
     }
 
     virtual void OnRecoveryComplete() override
@@ -1625,11 +1666,6 @@ private:
         TMasterAutomatonPart::OnRecoveryComplete();
 
         Profiler.SetEnabled(true);
-
-        if (NeedToRecomputeStatistics_) {
-            RecomputeStatistics();
-            NeedToRecomputeStatistics_ = false;
-        }
     }
 
     virtual void OnLeaderRecoveryComplete() override
@@ -1925,20 +1961,20 @@ private:
             return;
         }
 
-        Profiler.Enqueue("/refresh_list_size", ChunkReplicator_->GetRefreshListSize());
-        Profiler.Enqueue("/properties_update_list_size", ChunkReplicator_->GetPropertiesUpdateListSize());
+        Profiler.Enqueue("/refresh_list_size", ChunkReplicator_->GetRefreshListSize(), EMetricType::Gauge);
+        Profiler.Enqueue("/properties_update_list_size", ChunkReplicator_->GetPropertiesUpdateListSize(), EMetricType::Gauge);
 
-        Profiler.Enqueue("/chunk_count", ChunkMap_.GetSize());
-        Profiler.Enqueue("/chunks_created", ChunksCreated_);
-        Profiler.Enqueue("/chunks_destroyed", ChunksDestroyed_);
+        Profiler.Enqueue("/chunk_count", ChunkMap_.GetSize(), EMetricType::Gauge);
+        Profiler.Enqueue("/chunks_created", ChunksCreated_, EMetricType::Counter);
+        Profiler.Enqueue("/chunks_destroyed", ChunksDestroyed_, EMetricType::Counter);
 
-        Profiler.Enqueue("/chunk_replica_count", TotalReplicaCount_);
-        Profiler.Enqueue("/chunk_replicas_added", ChunkReplicasAdded_);
-        Profiler.Enqueue("/chunk_replicas_removed", ChunkReplicasRemoved_);
+        Profiler.Enqueue("/chunk_replica_count", TotalReplicaCount_, EMetricType::Gauge);
+        Profiler.Enqueue("/chunk_replicas_added", ChunkReplicasAdded_, EMetricType::Counter);
+        Profiler.Enqueue("/chunk_replicas_removed", ChunkReplicasRemoved_, EMetricType::Counter);
 
-        Profiler.Enqueue("/chunk_list_count", ChunkListMap_.GetSize());
-        Profiler.Enqueue("/chunk_lists_created", ChunkListsCreated_);
-        Profiler.Enqueue("/chunk_lists_destroyed", ChunkListsDestroyed_);
+        Profiler.Enqueue("/chunk_list_count", ChunkListMap_.GetSize(), EMetricType::Gauge);
+        Profiler.Enqueue("/chunk_lists_created", ChunkListsCreated_, EMetricType::Counter);
+        Profiler.Enqueue("/chunk_lists_destroyed", ChunkListsDestroyed_, EMetricType::Counter);
     }
 
 };

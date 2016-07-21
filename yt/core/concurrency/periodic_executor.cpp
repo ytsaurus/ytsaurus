@@ -88,7 +88,7 @@ void TPeriodicExecutor::PostDelayedCallback(TDuration delay)
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
     TDelayedExecutor::CancelAndClear(Cookie_);
     Cookie_ = TDelayedExecutor::Submit(
-        BIND(&TPeriodicExecutor::PostCallback, MakeWeak(this)),
+        BIND(&TPeriodicExecutor::OnTimer, MakeWeak(this)),
         delay); 
 }
 
@@ -99,6 +99,14 @@ void TPeriodicExecutor::PostCallback()
         Invoker_,
         BIND(&TPeriodicExecutor::OnCallbackSuccess, this_),
         BIND(&TPeriodicExecutor::OnCallbackFailure, this_));
+}
+
+void TPeriodicExecutor::OnTimer(bool aborted)
+{
+    if (aborted) {
+        return;
+    }
+    PostCallback();
 }
 
 void TPeriodicExecutor::OnCallbackSuccess()

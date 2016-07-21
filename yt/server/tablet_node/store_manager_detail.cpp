@@ -103,9 +103,20 @@ void TStoreManagerBase::StopEpoch()
             store->AsDynamic()->SetFlushState(EStoreFlushState::None);
         }
         if (store->IsChunk()) {
-            store->AsChunk()->SetCompactionState(EStoreCompactionState::None);
+            auto chunkStore = store->AsChunk();
+            chunkStore->SetCompactionState(EStoreCompactionState::None);
+            auto preloadState = chunkStore->GetPreloadState();
+            if (preloadState == EStorePreloadState::Scheduled ||
+                preloadState == EStorePreloadState::Running ||
+                preloadState == EStorePreloadState::Failed)
+            {
+                chunkStore->SetPreloadState(EStorePreloadState::None);
+                chunkStore->SetPreloadFuture(TFuture<void>());
+            }
         }
     }
+
+    Tablet_->PreloadStoreIds().clear();
 }
 
 bool TStoreManagerBase::IsRotationScheduled() const
@@ -313,22 +324,22 @@ void TStoreManagerBase::BeginStorePreload(IChunkStorePtr store, TFuture<void> fu
 {
     YCHECK(store->GetId() == Tablet_->PreloadStoreIds().front());
     Tablet_->PreloadStoreIds().pop_front();
+
+    YCHECK(store->GetPreloadState() == EStorePreloadState::Scheduled);
     store->SetPreloadState(EStorePreloadState::Running);
     store->SetPreloadFuture(future);
 }
 
 void TStoreManagerBase::EndStorePreload(IChunkStorePtr store)
 {
+    YCHECK(store->GetPreloadState() == EStorePreloadState::Running);
     store->SetPreloadState(EStorePreloadState::Complete);
     store->SetPreloadFuture(TFuture<void>());
 }
 
 void TStoreManagerBase::BackoffStorePreload(IChunkStorePtr store)
 {
-    if (store->GetPreloadState() != EStorePreloadState::Running) {
-        return;
-    }
-
+    YCHECK(store->GetPreloadState() == EStorePreloadState::Running);
     store->SetPreloadState(EStorePreloadState::Failed);
     store->SetPreloadFuture(TFuture<void>());
     NConcurrency::TDelayedExecutor::Submit(
@@ -514,6 +525,7 @@ void TStoreManagerBase::UpdateInMemoryMode()
             chunkStore->SetPreloadState(EStorePreloadState::None);
         }
     }
+
     Tablet_->PreloadStoreIds().clear();
 
     for (const auto& pair : Tablet_->StoreIdMap()) {

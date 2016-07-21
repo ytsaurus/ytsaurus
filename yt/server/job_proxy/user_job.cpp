@@ -180,7 +180,9 @@ public:
                 FinalizeJobIO();
             }
 
-            CleanupUserProcesses();
+            auto error = TError("Job finished");
+            WaitForActiveShellProcesses(error);
+            CleanupUserProcesses(error);
 
             if (BlockIOWatchdogExecutor_) {
                 WaitFor(BlockIOWatchdogExecutor_->Stop());
@@ -214,7 +216,7 @@ public:
         bool expected = true;
         if (Prepared_.compare_exchange_strong(expected, false)) {
             // Job has been prepared.
-            CleanupUserProcesses();
+            CleanupUserProcesses(TError("Job aborted"));
         }
     }
 
@@ -347,8 +349,19 @@ private:
             Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))));
     }
 
-    void CleanupUserProcesses()
+    void WaitForActiveShellProcesses(const TError& error)
     {
+        // Ignore errors.
+        WaitFor(BIND(&IShellManager::GracefulShutdown, ShellManager_, error)
+            .AsyncVia(AuxQueue_->GetInvoker())
+            .Run());
+    }
+
+    void CleanupUserProcesses(const TError& error)
+    {
+        BIND(&IShellManager::Terminate, ShellManager_, error)
+            .Via(AuxQueue_->GetInvoker())
+            .Run();
         BIND(&TUserJob::DoCleanupUserProcesses, MakeWeak(this))
             .Via(PipeIOPool_->GetInvoker())
             .Run();
@@ -356,8 +369,6 @@ private:
 
     void DoCleanupUserProcesses()
     {
-        ShellManager_->CleanupProcesses();
-
         if (!CGroupsConfig_) {
             return;
         }
@@ -526,7 +537,12 @@ private:
     {
         ValidatePrepared();
 
-        return ShellManager_->PollJobShell(parameters);
+        auto result = WaitFor(BIND([=] () { return ShellManager_->PollJobShell(parameters); })
+            .AsyncVia(AuxQueue_->GetInvoker())
+            .Run());
+
+        return result
+            .ValueOrThrow();
     }
 
     void ValidatePrepared()
@@ -917,7 +933,7 @@ private:
 
         LOG_ERROR(error, "%v", message);
 
-        CleanupUserProcesses();
+        CleanupUserProcesses(error);
 
         for (const auto& reader : TablePipeReaders_) {
             reader->Abort();
@@ -1050,21 +1066,23 @@ private:
                 rss,
                 memoryLimit);
             if (currentMemoryUsage > memoryLimit) {
-                JobErrorPromise_.TrySet(TError(
+                auto error = TError(
                     NJobProxy::EErrorCode::MemoryLimitExceeded,
                     "Memory limit exceeded")
                     << TErrorAttribute("rss", rss)
                     << TErrorAttribute("tmpfs", tmpfsSize)
-                    << TErrorAttribute("limit", memoryLimit));
-                CleanupUserProcesses();
+                    << TErrorAttribute("limit", memoryLimit);
+                JobErrorPromise_.TrySet(error);
+                CleanupUserProcesses(error);
             }
 
             Host_->SetUserJobMemoryUsage(rss);
         } catch (const std::exception& ex) {
-            JobErrorPromise_.TrySet(TError(
+            auto error = TError(
                 NJobProxy::EErrorCode::MemoryCheckFailed,
-                "Failed to check user job memory usage") << ex);
-            CleanupUserProcesses();
+                "Failed to check user job memory usage") << ex;
+            JobErrorPromise_.TrySet(error);
+            CleanupUserProcesses(error);
         }
     }
 

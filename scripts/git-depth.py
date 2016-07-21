@@ -25,6 +25,8 @@ _seeds = {
     "7842db634296e5d70cce4a6cdb7114f921ca1081": 1,  # rootless commit
     "fa3a02ad37c5a7bac734051615442a0f5f96e61a": 1,  # rootless commit
     "8ca18d293d4df3cd548b6bd874035486094c1506": 1,  # zstd subtree update commit
+    "9b6843d82eff222a9ae20af284eb2d9a5d291588": 1,  # zstd subtree update commit
+    "d1eb750837a4538d301c59397a4b8d4b1ceda14b": 1,  # 18.4 init commit of YT in Arcadia
 }
 
 

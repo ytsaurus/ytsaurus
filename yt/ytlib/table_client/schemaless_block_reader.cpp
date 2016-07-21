@@ -12,7 +12,7 @@ namespace NTableClient {
 THorizontalSchemalessBlockReader::THorizontalSchemalessBlockReader(
     const TSharedRef& block,
     const NProto::TBlockMeta& meta,
-    const std::vector<int>& idMapping,
+    const std::vector<TColumnIdMapping>& idMapping,
     int keyColumnCount,
     int extraColumnCount)
     : Block_(block)
@@ -79,8 +79,8 @@ TMutableUnversionedRow THorizontalSchemalessBlockReader::GetRow(TChunkedMemoryPo
         TUnversionedValue value;
         CurrentPointer_ += ReadValue(CurrentPointer_, &value);
 
-        if (IdMapping_[value.Id] >= 0) {
-            value.Id = IdMapping_[value.Id];
+        if (IdMapping_[value.Id].ReaderSchemaIndex >= 0) {
+            value.Id = IdMapping_[value.Id].ReaderSchemaIndex;
             if (value.Type == EValueType::Any) {
                 // Try to unpack any value.
                 value = MakeUnversionedValue(
