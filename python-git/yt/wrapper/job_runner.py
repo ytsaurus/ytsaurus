@@ -15,9 +15,12 @@ from functools import partial
 
 SCRIPT_DIR = os.path.dirname(__file__)
 
-def preexec_dup2(old_fds, new_fds):
-    for old_fd, new_fd in zip(old_fds, new_fds):
-        os.dup2(old_fd, new_fd)
+def preexec_dup2(new_fds, output_path):
+    for new_fd in new_fds:
+        fd = os.open(os.path.join(output_path, str(new_fd)), os.O_CREAT | os.O_WRONLY)
+        os.dup2(fd, new_fd)
+        if fd != new_fd:
+            os.close(fd)
 
 def main():
     parser = argparse.ArgumentParser(description="Job runner for yt-job-tool")
@@ -43,8 +46,6 @@ def main():
         new_fds.append(5)  # Job statistics are written to fifth descriptor
 
     makedirp(config["output_path"])
-    output_files = [open(os.path.join(config["output_path"], str(fd)), "wb") for fd in new_fds]
-    old_fds = [file_.fileno() for file_ in output_files]
 
     env = {
         "YT_JOB_INDEX": "0",
@@ -53,12 +54,9 @@ def main():
         "YT_STARTED_BY_JOB_TOOL": "1"
     }
     process = subprocess.Popen(command, shell=True, close_fds=False, stdin=subprocess.PIPE,
-                               preexec_fn=partial(preexec_dup2, old_fds=old_fds, new_fds=new_fds),
+                               preexec_fn=partial(preexec_dup2, new_fds=new_fds, output_path=config["output_path"]),
                                cwd=config["sandbox_path"], env=env)
     logger.info("Started job process")
-
-    for file_ in output_files:
-        file_.close()
 
     with open(config["input_path"], "rb") as fin:
         for chunk in chunk_iter_stream(fin, 16 * MB):
