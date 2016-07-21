@@ -889,7 +889,7 @@ private:
                 Stroka address;
                 std::tie(dataSources, address) = getSubsources(index);
 
-                LOG_DEBUG("Delegating subquery (SubqueryId: %v, Address: %v, MaxSubqueries %v)",
+                LOG_DEBUG("Delegating subquery (SubQueryId: %v, Address: %v, MaxSubqueries: %v)",
                     subquery->Id,
                     address,
                     options.MaxSubqueries);
