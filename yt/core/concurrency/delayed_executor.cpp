@@ -293,8 +293,10 @@ private:
     void PurgeQueuesIfFinished()
     {
         if (Stopped_) {
-            while (!Finished_) {
-                Sleep(SleepQuantum);
+            if (TThread::CurrentThreadId() != SleeperThread_.Id()) {
+                while (!Finished_) {
+                    Sleep(SleepQuantum);
+                }
             }
             PurgeQueues();
         }
