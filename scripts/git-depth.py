@@ -18,7 +18,11 @@ _seeds = {
     "cec75b5addb26f4c8e5f4d1f403b15216b2355df": 10089,  # stable/0.14
     "b5bdd1e6fc0ecd681412e6f720130ea96a1335f1": 10743,  # stable/0.15
     "e150d55a6eb565a08d0980d15900d5475b6fa055": 11369,  # stable/0.16
-    "cada334f4e7d9cef222612748d8510da771f270f": 15000,  # just a round number
+    "28becff27082ec4e50ee844fb31bbb6ac1a2a05c": 10000,  # round number to prune search space
+    "b13e0b9a25f907fc06157f0b1dbdf12e1f25777d": 10000,  # round number to prune search space
+    "cada334f4e7d9cef222612748d8510da771f270f": 15000,  # round number to prune search space
+    "71eba9ebd4f582603d0f87e5070632c6049c719e": 20000,  # round number to prune search space
+    "b5f2820594ec6a5859dd24fe7fb26d4936f16f38": 20000,  # round number to prune search space
     "e894f3638299b75c9251f5d1fcb81b19fdc9e18d": 1,  # rootless commit
     "c5605d44efde66b90366bdbcc4fd511276f57d3b": 1,  # rootless commit
     "7dcfc452fa0ca5f60dd3755ac154945d61b7b385": 1,  # rootless commit
@@ -47,7 +51,8 @@ def get_depth_pygit2(path, sha1):
 
     repo = pygit2.Repository(pygit2.discover_repository(path))
     head = repo.get(sha1)
-    return _impl(head)
+    depth = _impl(head)
+    return depth
 
 
 def get_depth_subprocess(path):
@@ -71,11 +76,12 @@ def get_depth_subprocess(path):
         return cache[commit]
 
     head = subprocess.check_output(["git", "rev-parse", "HEAD"]).strip()
-    return _impl(head)
+    depth = _impl(head)
+    return depth
 
 
 def main():
-    sys.setrecursionlimit(200000)
+    sys.setrecursionlimit(32768)
     current_path = os.getcwd()
 
     if len(sys.argv) > 1:
