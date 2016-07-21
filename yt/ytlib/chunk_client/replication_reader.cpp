@@ -1131,7 +1131,7 @@ private:
             ReinstallPeer(peerAddress);
         }
 
-        LOG_DEBUG("Finished processing block response (Address: %v, PeerType: %lv, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v)",
+        LOG_DEBUG("Finished processing block response (Address: %v, PeerType: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v)",
               peerAddress,
               maybePeer->Type,
               receivedBlockIndexes,
