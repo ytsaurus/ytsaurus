@@ -1091,10 +1091,10 @@ class TestSortedTablets(YTEnvSetup):
         snapshots = ls("//sys/tablet_cells/" + cell_id + "/snapshots")
         assert len(snapshots) == 1
 
-        self.Env.kill_service("node")
+        self.Env.kill_nodes()
         # Wait to make sure all leases have expired
         time.sleep(3.0)
-        self.Env.start_nodes("node")
+        self.Env.start_nodes()
 
         self.wait_for_cells()
 

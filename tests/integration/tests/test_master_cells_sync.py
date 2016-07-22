@@ -15,21 +15,21 @@ class TestMasterCellsSync(YTEnvSetup):
 
     def _check_true_for_secondary(self, check):
         if self.delayed_secondary_cells_start:
-            self.Env.start_secondary_master_cells("master", self.Env.NUM_SECONDARY_MASTER_CELLS)
+            self.Env.start_secondary_master_cells()
         try:
             multicell_sleep()
-            for i in xrange(self.Env.NUM_SECONDARY_MASTER_CELLS):
+            for i in xrange(self.Env.secondary_master_cell_count):
                 value = check(get_driver(i + 1))
                 assert value
         finally:
             if self.delayed_secondary_cells_start:
-                for i in xrange(self.Env.NUM_SECONDARY_MASTER_CELLS):
-                    self.Env.kill_service("master_secondary_{0}".format(i))
+                for cell_index in xrange(self.Env.secondary_master_cell_count):
+                    self.Env.kill_master_cell(cell_index + 1)
 
     def teardown(self):
         if self.delayed_secondary_cells_start:
-            for i in xrange(self.Env.NUM_SECONDARY_MASTER_CELLS):
-                self.Env.kill_service("master_secondary_{0}".format(i))
+            for cell_index in xrange(self.Env.secondary_master_cell_count):
+                self.Env.kill_master_cell(cell_index + 1)
 
     def test_users_sync(self):
         create_user("tester")
@@ -137,4 +137,4 @@ class TestMasterCellsSyncDelayed(TestMasterCellsSync):
     @classmethod
     def setup_class(cls):
         super(TestMasterCellsSyncDelayed, cls).setup_class(
-                delayed_secondary_cells_start=True)
+            delayed_secondary_cells_start=True)
