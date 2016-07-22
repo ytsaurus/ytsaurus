@@ -7,6 +7,8 @@ import os
 import sys
 import time
 import execnet
+import random
+import string
 from functools import partial
 
 try:
@@ -24,6 +26,8 @@ except NameError:  # Python 3
 
 MAX_PROCESS_COUNT = 24
 PROCESS_FAILURES_LIMIT = 10
+
+WRAP_PYTHON_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "wrap_python")
 
 def pytest_addoption(parser):
     parser.addoption("--process-count", type=int,
@@ -52,8 +56,15 @@ class YtParallelTestsRunnerPlugin(object):
         if self.config.option.verbose > 0:
             self.terminal.write_line(line)
 
-    def _make_process(self):
-        gateway = self.group.makegateway()
+    def _make_process(self, process_index):
+        suffix = "".join(random.sample(string.ascii_letters + string.digits, 5))
+
+        output_file_name = os.path.join(
+            os.environ.get("TESTS_SANDBOX", ""),
+            "executor_{0}.strace{1}".format(process_index, suffix))
+
+        gateway = self.group.makegateway('popen//python={0} {1}'.format(
+            WRAP_PYTHON_SCRIPT, output_file_name))
         channel = gateway.remote_exec(executor)
         return TestProcess(gateway, channel)
 
@@ -88,7 +99,7 @@ class YtParallelTestsRunnerPlugin(object):
             raise RuntimeError("Incorrect event type")
 
     def _restart_process(self, process_index):
-        self.processes[process_index] = self._make_process()
+        self.processes[process_index] = self._make_process(process_index)
         self._initialize_process(process_index)
 
     def _handle_endmarker(self, process_index):
@@ -146,7 +157,7 @@ class YtParallelTestsRunnerPlugin(object):
 
         self.processes = []
         for process_index in xrange(self.process_count):
-            self.processes.append(self._make_process())
+            self.processes.append(self._make_process(process_index))
             self._initialize_process(process_index)
 
         for process, tasks in izip(self.processes, self.processes_tasks):
