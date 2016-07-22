@@ -168,6 +168,13 @@ default_config = {
         # In this case jobs can use local files without uploading it on cluster.
         # None - client will try to auto-detect that server and client are run on the same node.
         "local_mode": None,
+        # Collect dependencies for shared libraries automatically. All dependencies listed by
+        # ldd command (and not filtered by "library_filter") will be added to special dir in
+        # job sandbox and LD_LIBRARY_PATH will be set accordingly.
+        "dynamic_libraries": {
+            "enable_auto_collection": False,
+            "library_filter": None
+        }
     },
 
     # By default HTTP requests to YT are forbidden inside jobs to avoid strange errors

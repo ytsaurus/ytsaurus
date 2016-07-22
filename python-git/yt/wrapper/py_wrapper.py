@@ -2,7 +2,7 @@ import config
 from config import get_config
 from pickling import Pickler
 from cypress_commands import get
-from common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value
+from common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value, which
 from errors import YtResponseError
 from py_runner_helpers import process_rows
 
@@ -10,6 +10,7 @@ from yt.packages.importlib import import_module
 from yt.zip import ZipFile
 import yt.logger as logger
 
+import re
 import imp
 import string
 import inspect
@@ -21,6 +22,7 @@ import hashlib
 import sys
 import time
 import logging
+import subprocess
 import pickle as standard_pickle
 
 LOCATION = os.path.dirname(os.path.abspath(__file__))
@@ -159,6 +161,24 @@ def find_file(path):
             return None
         path = dirname
 
+def list_dynamic_library_dependencies(library_path):
+    if not which("ldd"):
+        raise YtError("Failed to list dynamic library dependencies, ldd not found. To disable automatic shared "
+                      "libraries collection set pickling/dynamic_libraries/enable_auto_collection option in "
+                      "config to False")
+
+    pattern = re.compile(r"\t(.*) => (.*) \(0x")
+    result = []
+
+    ldd_output = subprocess.check_output(["ldd", library_path])
+    for line in ldd_output.splitlines():
+        match = pattern.match(line)
+        if match:
+            lib_path = match.group(2)
+            if lib_path:
+                result.append(lib_path)
+    return result
+
 class Zip(object):
     def __init__(self, prefix, tempfiles_manager, client):
         self.prefix = prefix
@@ -166,16 +186,34 @@ class Zip(object):
                                                           prefix=prefix, suffix=".zip")
         self.size = 0
         self.python_eggs = []
+        self.dynamic_libraries = set()
         self.hash = init_md5()
+        self.client = client
 
     def __enter__(self):
         self.zip = ZipFile(self.filename, "w")
         self.zip.__enter__()
         return self
 
+    def _append_dynamic_library_dependencies(self, filepath):
+        if not get_config(self.client)["pickling"]["dynamic_libraries"]["enable_auto_collection"] \
+                or not sys.platform.startswith("linux"):
+            return
+        library_filter = get_config(self.client)["pickling"]["dynamic_libraries"]["library_filter"]
+        for library in list_dynamic_library_dependencies(filepath):
+            if library in self.dynamic_libraries:
+                continue
+            if library_filter is not None and not library_filter(library):
+                continue
+            self.zip.write(library, os.path.join("_shared", os.path.basename(library)))
+            self.dynamic_libraries.add(library)
+
     def append(self, filepath, relpath):
         if relpath.endswith(".egg"):
             self.python_eggs.append(relpath)
+        if relpath.endswith(".so"):
+            self._append_dynamic_library_dependencies(filepath)
+
         self.zip.write(filepath, relpath)
         self.size += get_disk_size(filepath)
         self.hash = merge_md5(self.hash, calc_md5_from_file(filepath))

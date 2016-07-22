@@ -301,17 +301,15 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
     files = _reliably_upload_files(files, client=client)
     input_format, output_format = _prepare_formats(format, input_format, output_format, binary=binary, client=client)
 
+    environment = {}
     if _is_python_function(binary):
         # XXX(asaitgalin): Some flags are needed before operation (and config) is unpickled
         # so these flags are passed through environment variables.
         allow_requests_to_yt_from_job = \
                 str(int(get_config(client)["allow_http_requests_to_yt_from_job"]))
 
-        environment = {}
         environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = allow_requests_to_yt_from_job
         environment["YT_WRAPPER_IS_INSIDE_JOB"] = "1"
-
-        spec = update({op_type: {"environment": environment}}, spec)
 
     binary, additional_files, additional_local_files_to_remove, tmpfs_size = \
         _prepare_binary(binary, op_type, input_format, output_format,
@@ -334,8 +332,17 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         },
         spec)
 
+    if get_config(client)["pickling"]["dynamic_libraries"]["enable_auto_collection"]:
+        ld_library_path = spec[op_type].get("environment", {}).get("LD_LIBRARY_PATH")
+        paths = ["./modules/_shared", "./tmpfs/modules/_shared"]
+        if ld_library_path is not None:
+            paths.insert(0, ld_library_path)
+        environment["LD_LIBRARY_PATH"] = os.pathsep.join(paths)
+
     if tmpfs_size > 0:
         spec = update({op_type: {"tmpfs_size": tmpfs_size, "tmpfs_path": "tmpfs"}}, spec)
+    if environment:
+        spec = update({op_type: {"environment": environment}}, spec)
 
     # NB: Configured by common rule now.
     memory_limit = get_value(memory_limit, get_config(client)["memory_limit"])
