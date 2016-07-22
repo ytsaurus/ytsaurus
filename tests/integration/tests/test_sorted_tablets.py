@@ -1035,7 +1035,12 @@ class TestSortedTablets(YTEnvSetup):
             {"name": "key3", "type": "int64", "expression": "key1 * 100 + 3", "sort_order": "ascending"},
             {"name": "value", "type": "string"}])
 
-        create("table", "//tmp/t2", attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]})
+        create("table", "//tmp/t2", attributes={"schema": [
+            {"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        with pytest.raises(YtError): alter_table("//tmp/t2", dynamic=True)
+        alter_table("//tmp/t2", schema=[
+            {"name": "key", "type": "any", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}])
         with pytest.raises(YtError): alter_table("//tmp/t2", dynamic=True)
 
     def _test_update_key_columns_success(self, optimize_for):
