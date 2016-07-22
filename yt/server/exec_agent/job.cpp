@@ -102,6 +102,8 @@ public:
             AuxNodeDirectory_->MergeFrom(schedulerJobSpecExt.aux_node_directory());
         }
 
+        InitializeArtifacts();
+
         Logger.AddTag("JobId: %v, OperationId: %v, JobType: %v",
             Id_,
             OperationId_,
@@ -150,7 +152,7 @@ public:
         YCHECK(Slot_);
 
         auto this_ = MakeStrong(this);
-        PrepareResult_.Subscribe(BIND([this, this_] (const TError& /*error*/) {
+        SyncPrepareResult_.Subscribe(BIND([this, this_] (const TError& /*error*/) {
             Slot_->GetInvoker()->Invoke(BIND(&TJob::DoAbort, MakeStrong(this)));
         }));
     }
@@ -193,7 +195,7 @@ public:
         }
     }
 
-    virtual TNullable<TDuration> GetExecDuration() const override 
+    virtual TNullable<TDuration> GetExecDuration() const override
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (!ExecTime_) {
@@ -204,7 +206,7 @@ public:
             return *FinishTime_ - *ExecTime_;
         }
     }
-    
+
     virtual EJobPhase GetPhase() const override
     {
         return JobPhase_;
@@ -264,7 +266,7 @@ public:
         TGuard<TSpinLock> guard(SpinLock);
         return Statistics_;
     }
-    
+
     virtual TInstant GetStatisticsLastSendTime() const override
     {
         return StatisticsLastSendTime_;
@@ -283,7 +285,7 @@ public:
         }
     }
 
-    virtual bool ShouldSendStatistics() const override 
+    virtual bool ShouldSendStatistics() const override
     {
         return true;
     }
@@ -364,13 +366,13 @@ private:
 
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
 
-    TFuture<void> PrepareResult_ = VoidFuture;
+    TFuture<void> SyncPrepareResult_ = VoidFuture;
 
     double Progress_ = 0.0;
 
     TYsonString Statistics_;
     TInstant StatisticsLastSendTime_ = TInstant::Now();
-    
+
     bool Signaled_ = false;
 
     TNullable<TJobResult> JobResult_;
@@ -384,7 +386,16 @@ private:
 
     EJobState FinalJobState_ = EJobState::Completed;
 
-    std::vector<NDataNode::IChunkPtr> CachedChunks_;
+    struct TArtifact
+    {
+        ESandboxKind SandboxKind;
+        Stroka Name;
+        bool IsExecutable;
+        TArtifactKey Key;
+        NDataNode::IChunkPtr Chunk;
+    };
+
+    std::vector<TArtifact> Artifacts_;
 
     TNodeDirectoryPtr AuxNodeDirectory_ = New<TNodeDirectory>();
 
@@ -413,9 +424,21 @@ private:
         }
     }
 
-    void DoPrepare()
+    //! Asyncronous part of prepare.
+    //! It can be safely canceled.
+    void DoAsyncPrepare()
     {
         YCHECK(JobPhase_ == EJobPhase::Created);
+        JobPhase_ = EJobPhase::DownloadingFiles;
+        DownloadFiles();
+    }
+
+    //! Syncronous part of prepare.
+    //! It cannot be safely canceled since separate processes are used
+    //! to prepare tmpfs and files.
+    void DoSyncPrepare()
+    {
+        YCHECK(JobPhase_ == EJobPhase::DownloadingFiles);
         JobPhase_ = EJobPhase::PreparingConfig;
         PrepareConfig();
 
@@ -433,7 +456,7 @@ private:
 
         YCHECK(JobPhase_ == EJobPhase::PreparingTmpfs);
         JobPhase_ = EJobPhase::PreparingFiles;
-        PrepareUserFiles();
+        PrepareFiles();
 
         YCHECK(JobPhase_ == EJobPhase::PreparingFiles);
     }
@@ -453,16 +476,23 @@ private:
     void Run()
     {
         try {
-            auto prepareResult = BIND(&TJob::DoPrepare, MakeWeak(this))
+            auto asyncPrepareResult = BIND(&TJob::DoAsyncPrepare, MakeWeak(this))
+                .AsyncVia(GetCurrentInvoker())
+                .Run();
+
+            WaitFor(asyncPrepareResult)
+                .ThrowOnError();
+
+            auto syncPrepareResult = BIND(&TJob::DoSyncPrepare, MakeWeak(this))
                 .AsyncVia(GetCurrentInvoker())
                 .Run();
 
             {
                 TGuard<TSpinLock> guard(SpinLock);
-                PrepareResult_ = prepareResult;
+                SyncPrepareResult_ = syncPrepareResult;
             }
 
-            WaitFor(prepareResult)
+            WaitFor(syncPrepareResult)
                 .ThrowOnError();
 
             DoRun();
@@ -613,23 +643,20 @@ private:
         }
     }
 
-    void PrepareUserFiles()
+    void InitializeArtifacts()
     {
         const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-
-            std::vector<TArtifactInfo> infos;
             for (const auto& descriptor : userJobSpec.files()) {
-                infos.push_back(TArtifactInfo{
+                Artifacts_.push_back(TArtifact{
+                    ESandboxKind::User,
                     descriptor.file_name(),
                     descriptor.executable(),
-                    TArtifactKey(descriptor)});
-
+                    TArtifactKey(descriptor),
+                    nullptr});
             }
-
-            PrepareFiles(ESandboxKind::User, infos);
         }
 
         if (schedulerJobSpecExt.has_input_query_spec()) {
@@ -637,19 +664,18 @@ private:
 
             AuxNodeDirectory_->MergeFrom(querySpec.node_directory());
 
-            std::vector<TArtifactInfo> infos;
             for (const auto& function : querySpec.external_functions()) {
                 TArtifactKey key;
                 key.set_type(static_cast<int>(NObjectClient::EObjectType::File));
                 key.mutable_chunks()->MergeFrom(function.chunk_specs());
 
-                infos.push_back(TArtifactInfo{
+                Artifacts_.push_back(TArtifact{
+                    ESandboxKind::Udf,
                     function.name(),
                     false,
-                    key});
+                    key,
+                    nullptr});
             }
-
-            PrepareFiles(ESandboxKind::Udf, infos);
         }
     }
 
@@ -721,26 +747,16 @@ private:
         FinalizeJob();
     }
 
-    struct TArtifactInfo
-    {
-        Stroka Name;
-        bool IsExecutable;
-        TArtifactKey Key;
-    };
-
-    void PrepareFiles(ESandboxKind sandboxKind, const std::vector<TArtifactInfo>& infos)
+    void DownloadFiles()
     {
         auto chunkCache = Bootstrap_->GetChunkCache();
 
         std::vector<TFuture<IChunkPtr>> asyncChunks;
-        for (const auto& info : infos) {
+        for (const auto& artifact : Artifacts_) {
+            LOG_INFO("Downloading user file (FileName: %v)", artifact.Name);
 
-            LOG_INFO("Preparing user file (FileName: %v, Executable: %v)",
-                info.Name,
-                info.IsExecutable);
-
-            auto asyncChunk = chunkCache->PrepareArtifact(info.Key, AuxNodeDirectory_)
-                .Apply(BIND([fileName = info.Name] (const TErrorOr<IChunkPtr>& chunkOrError) {
+            auto asyncChunk = chunkCache->PrepareArtifact(artifact.Key, AuxNodeDirectory_)
+                .Apply(BIND([fileName = artifact.Name] (const TErrorOr<IChunkPtr>& chunkOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
                         "Failed to prepare user file %Qv",
                         fileName);
@@ -755,45 +771,57 @@ private:
         auto chunks = WaitFor(Combine(asyncChunks))
             .ValueOrThrow();
 
-        CachedChunks_.insert(CachedChunks_.end(), chunks.begin(), chunks.end());
+        for (size_t index = 0; index < Artifacts_.size(); ++index) {
+            Artifacts_[index].Chunk = chunks[index];
+        }
+    }
 
+    //! Putting files to sandbox.
+    void PrepareFiles()
+    {
         const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         bool copyFiles = schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().copy_files();
 
-        for (size_t index = 0; index < chunks.size(); ++index) {
-            const auto& info = infos[index];
-            const auto& chunk = chunks[index];
+        for (const auto& artifact : Artifacts_) {
+            YCHECK(artifact.Chunk);
 
             if (copyFiles) {
+                LOG_INFO("Copying user file (FileName: %v, IsExecutable: %v)",
+                    artifact.Name,
+                    artifact.IsExecutable);
                 try {
                     Slot_->MakeCopy(
-                        sandboxKind,
-                        chunk->GetFileName(),
-                        info.Name,
-                        info.IsExecutable);
+                        artifact.SandboxKind,
+                        artifact.Chunk->GetFileName(),
+                        artifact.Name,
+                        artifact.IsExecutable);
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION(
                         "Failed to create a copy of user file %Qv",
-                        info.Name)
+                        artifact.Name)
                         << ex;
                 }
             } else {
+                LOG_INFO("Making symlink for user file (FileName: %v, IsExecutable: %v)",
+                    artifact.Name,
+                    artifact.IsExecutable);
+
                 try {
                     Slot_->MakeLink(
-                        sandboxKind,
-                        chunk->GetFileName(),
-                        info.Name,
-                        info.IsExecutable);
+                        artifact.SandboxKind,
+                        artifact.Chunk->GetFileName(),
+                        artifact.Name,
+                        artifact.IsExecutable);
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION(
                         "Failed to create a symlink for user file %Qv",
-                        info.Name)
+                        artifact.Name)
                         << ex;
                 }
             }
 
             LOG_INFO("User file prepared successfully (FileName: %v)",
-                info.Name);
+                artifact.Name);
         }
     }
 

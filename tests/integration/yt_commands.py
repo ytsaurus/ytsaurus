@@ -433,6 +433,8 @@ class Operation(object):
 
     def get_job_count(self, state):
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/{1}".format(self.id, state)
+        if not exists(path):
+            return 0
         return get(path, verbose=False)
 
     def get_state(self, **kwargs):
