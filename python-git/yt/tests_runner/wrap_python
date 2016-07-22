@@ -1,0 +1,3 @@
+#!/bin/bash
+STRACE_OUT="$1" && shift
+strace -tt -o $STRACE_OUT /usr/bin/env python "$@"
