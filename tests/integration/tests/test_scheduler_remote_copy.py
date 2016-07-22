@@ -2,6 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt.environment import YTInstance
 
 import time
 
@@ -22,26 +23,29 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
     @classmethod
     def setup_class(cls, secondary_master_cell_count=0):
         super(TestSchedulerRemoteCopyCommands, cls).setup_class()
-        # Change cell tag of remote cluster
-        cls.Env._run_all(master_count=1,
-                         nonvoting_master_count=0,
-                         node_count=9,
-                         secondary_master_cell_count=secondary_master_cell_count,
-                         scheduler_count=0,
-                         has_proxy=False,
-                         instance_id="_remote",
-                         cell_tag=10)
+        cls.remote_env = YTInstance(
+            os.path.join(cls.Env.path, "_remote"),
+            master_count=1,
+            nonvoting_master_count=0,
+            node_count=9,
+            secondary_master_cell_count=secondary_master_cell_count,
+            scheduler_count=0,
+            has_proxy=False,
+            cell_tag=10,
+            port_locks_path=cls.Env.port_locks_path,
+            modify_configs_func=cls.apply_config_patches)
+        cls.remote_env.start(start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS)
 
     def setup(self):
         set("//sys/clusters/remote",
             {
-                "primary_master": self.Env.configs["master_remote"][0]["primary_master"],
-                "secondary_masters": self.Env.configs["master_remote"][0]["secondary_masters"],
-                "timestamp_provider": self.Env.configs["master_remote"][0]["timestamp_provider"],
-                "transaction_manager": self.Env.configs["master_remote"][0]["transaction_manager"],
+                "primary_master": self.remote_env.configs["master"][0]["primary_master"],
+                "secondary_masters": self.remote_env.configs["master"][0]["secondary_masters"],
+                "timestamp_provider": self.remote_env.configs["master"][0]["timestamp_provider"],
+                "transaction_manager": self.remote_env.configs["master"][0]["transaction_manager"],
                 "cell_tag": 10
             })
-        self.remote_driver = Driver(config=self.Env.configs["driver_remote"])
+        self.remote_driver = Driver(config=self.remote_env.configs["driver"])
         time.sleep(1.0)
 
     def teardown(self):
@@ -182,9 +186,9 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         op = remote_copy(dont_track=True, in_="//tmp/t1", out="//tmp/t2",
                             spec={"cluster_name": "remote"})
 
-        self.Env.kill_service("scheduler")
+        self.Env.kill_schedulers()
         time.sleep(1)
-        self.Env.start_schedulers("scheduler")
+        self.Env.start_schedulers()
 
         op.track()
 
@@ -258,37 +262,41 @@ class TestSchedulerRemoteCopyNetworks(YTEnvSetup):
     NUM_NODES = 9
     NUM_SCHEDULERS = 1
 
-    def modify_node_config(self, config):
+    @classmethod
+    def modify_node_config(cls, config):
         config["addresses"]["custom_network"] = config["addresses"]["default"]
 
     @classmethod
     def setup_class(cls, secondary_master_cell_count=0):
         super(TestSchedulerRemoteCopyNetworks, cls).setup_class()
-        # Change cell tag of remote cluster
-        cls.Env._run_all(master_count=1,
-                         nonvoting_master_count=0,
-                         node_count=9,
-                         secondary_master_cell_count=secondary_master_cell_count,
-                         scheduler_count=0,
-                         has_proxy=False,
-                         instance_id="_remote",
-                         cell_tag=10)
+        cls.remote_env = YTInstance(
+            os.path.join(cls.Env.path, "_remote"),
+            master_count=1,
+            nonvoting_master_count=0,
+            node_count=9,
+            secondary_master_cell_count=secondary_master_cell_count,
+            scheduler_count=0,
+            has_proxy=False,
+            cell_tag=10,
+            port_locks_path=cls.Env.port_locks_path,
+            modify_configs_func=cls.apply_config_patches)
+        cls.remote_env.start(start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS)
 
     def setup(self):
         set("//sys/clusters/remote",
             {
-                "primary_master": self.Env.configs["master_remote"][0]["primary_master"],
-                "secondary_masters": self.Env.configs["master_remote"][0]["secondary_masters"],
-                "timestamp_provider": self.Env.configs["master_remote"][0]["timestamp_provider"],
-                "transaction_manager": self.Env.configs["master_remote"][0]["transaction_manager"],
+                "primary_master": self.remote_env.configs["master"][0]["primary_master"],
+                "secondary_masters": self.remote_env.configs["master"][0]["secondary_masters"],
+                "timestamp_provider": self.remote_env.configs["master"][0]["timestamp_provider"],
+                "transaction_manager": self.remote_env.configs["master"][0]["transaction_manager"],
                 "cell_tag": 10
             })
-        self.remote_driver = Driver(config=self.Env.configs["driver_remote"])
+        self.remote_driver = Driver(config=self.remote_env.configs["driver"])
         time.sleep(1.0)
 
     def teardown(self):
         set("//tmp", {}, driver=self.remote_driver)
-    
+
     def test_default_network(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
         write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
@@ -298,7 +306,7 @@ class TestSchedulerRemoteCopyNetworks(YTEnvSetup):
         remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
-    
+
     def test_custom_network(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
         write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)

@@ -59,8 +59,8 @@ class TestSchedulerOther(YTEnvSetup):
         op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 3")
 
         time.sleep(2)
-        self.Env.kill_service("scheduler")
-        self.Env.start_schedulers("scheduler")
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
 
         op.track()
 
@@ -120,7 +120,7 @@ class TestSchedulerOther(YTEnvSetup):
 
         assert "aborting" == get("//sys/operations/" + op.id + "/@state")
 
-        self.Env.start_schedulers("scheduler")
+        self.Env.start_schedulers()
 
         time.sleep(1)
 
@@ -530,8 +530,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         time.sleep(1.5)
 
-        self.Env.kill_service("scheduler")
-        self.Env.start_schedulers("scheduler")
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
 
         op1.track()
         op2.track()
@@ -637,8 +637,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         for i in xrange(3, 5):
             run(i, "research_subpool", True)
 
-        self.Env.kill_service("scheduler")
-        self.Env.start_schedulers("scheduler")
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
 
         for i in xrange(3, 5):
             run(i, "research", True)
@@ -1136,7 +1136,8 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         }
     }
 
-    def modify_node_config(self, config):
+    @classmethod
+    def modify_node_config(cls, config):
         for resource in ["cpu", "user_slots"]:
             config["exec_agent"]["job_controller"]["resource_limits"][resource] = 2
 
@@ -1180,11 +1181,12 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    def modify_node_config(self, config):
-        if not hasattr(self, "node_counter"):
-            self.node_counter = 0
-        self.node_counter += 1
-        if self.node_counter == 1:
+    @classmethod
+    def modify_node_config(cls, config):
+        if not hasattr(cls, "node_counter"):
+            cls.node_counter = 0
+        cls.node_counter += 1
+        if cls.node_counter == 1:
             config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] = 0
 
     def test_job_count(self):
