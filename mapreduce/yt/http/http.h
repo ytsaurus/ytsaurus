@@ -8,6 +8,8 @@
 #include <util/generic/strbuf.h>
 #include <util/generic/guid.h>
 #include <util/network/socket.h>
+#include <util/system/rwlock.h>
+#include <util/generic/ptr.h>
 
 namespace NYT {
 
@@ -83,6 +85,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAddressCache
+{
+public:
+    using TAddressPtr = TAtomicSharedPtr<TNetworkAddress>;
+
+    static TAddressCache* Get();
+
+    TAddressPtr Resolve(const Stroka& hostName);
+
+private:
+    yhash_map<Stroka, TAddressPtr> Cache_;
+    TRWMutex Lock_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class THttpRequest
 {
 public:
@@ -104,7 +122,7 @@ private:
     Stroka HostName;
     Stroka RequestId;
 
-    THolder<TNetworkAddress> NetworkAddress;
+    TAtomicSharedPtr<TNetworkAddress> NetworkAddress;
     THolder<TSocket> Socket;
 
     THolder<TSocketOutput> SocketOutput;

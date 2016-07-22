@@ -204,6 +204,38 @@ Stroka THttpHeader::GetHeader(const Stroka& hostName, const Stroka& requestId) c
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAddressCache* TAddressCache::Get()
+{
+    return Singleton<TAddressCache>();
+}
+
+TAddressCache::TAddressPtr TAddressCache::Resolve(const Stroka& hostName)
+{
+    {
+        TReadGuard guard(Lock_);
+        if (auto* entry = Cache_.FindPtr(hostName)) {
+            return *entry;
+        }
+    }
+
+    Stroka host(hostName);
+    ui16 port = 80;
+
+    auto colon = hostName.find(':');
+    if (colon != Stroka::npos) {
+        port = FromString<ui16>(hostName.substr(colon + 1));
+        host = hostName.substr(0, colon);
+    }
+
+    TAddressPtr entry = new TNetworkAddress(host, port);
+
+    TWriteGuard guard(Lock_);
+    Cache_.insert({hostName, entry});
+    return entry;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 THttpRequest::THttpRequest(const Stroka& hostName)
     : HostName(hostName)
 {
@@ -219,16 +251,7 @@ void THttpRequest::Connect(TDuration socketTimeout)
 {
     LOG_DEBUG("REQ %s - connect to %s", ~RequestId, ~HostName);
 
-    Stroka hostName(HostName);
-    ui16 port = 80;
-
-    auto colon = HostName.find(':');
-    if (colon != Stroka::npos) {
-        port = FromString<ui16>(HostName.substr(colon + 1));
-        hostName = HostName.substr(0, colon);
-    }
-
-    NetworkAddress.Reset(new TNetworkAddress(hostName, port));
+    NetworkAddress = TAddressCache::Get()->Resolve(HostName);
 
     TSocketHolder socket(DoConnect());
     SetNonBlock(socket, false);
@@ -247,7 +270,7 @@ SOCKET THttpRequest::DoConnect()
 {
     int lastError = 0;
 
-    for (TNetworkAddress::TIterator i = NetworkAddress->Begin(); i != NetworkAddress->End(); ++i) {
+    for (auto i = NetworkAddress->Begin(); i != NetworkAddress->End(); ++i) {
         struct addrinfo* info = &*i;
 
         if (TConfig::Get()->ForceIpV4 && info->ai_family != AF_INET) {
