@@ -210,13 +210,16 @@ private:
             THROW_ERROR_EXCEPTION("Cannot change schema of a table with mounted tablets");
         }
 
-        if (newSchema) {
-            ValidateTableSchemaUpdate(
-                table->TableSchema(),
-                *newSchema,
-                newDynamic.Get(table->IsDynamic()),
-                table->IsEmpty());
+        auto dynamic = newDynamic.Get(table->IsDynamic());
+        auto schema = newSchema.Get(table->TableSchema());
 
+        ValidateTableSchemaUpdate(
+            table->TableSchema(),
+            schema,
+            dynamic,
+            table->IsEmpty());
+
+        if (newSchema) {
             table->TableSchema() = *newSchema;
         }
 

@@ -612,6 +612,26 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateDynamicTableConstraints(const TTableSchema& schema)
+{
+    if (!schema.GetStrict()) {
+        THROW_ERROR_EXCEPTION("\"strict\" cannot be \"false\" for a dynamic table");
+    }
+
+    if (schema.GetKeyColumnCount() == schema.Columns().size()) {
+        THROW_ERROR_EXCEPTION("There must be at least one non-key column");
+    }
+
+    for (const auto& column : schema.Columns()) {
+        if (column.SortOrder && column.Type == EValueType::Any) {
+            THROW_ERROR_EXCEPTION("Invalid dynamic table key column type: %Qv",
+                column.Type);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Validates that all columns from the old schema are present in the new schema.
 void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
@@ -838,8 +858,8 @@ void ValidateTableSchemaUpdate(
 {
     ValidateTableSchema(newSchema);
 
-    if (isTableDynamic && !newSchema.GetStrict()) {
-        THROW_ERROR_EXCEPTION("\"strict\" cannot be \"false\" for a dynamic table");
+    if (isTableDynamic) {
+        ValidateDynamicTableConstraints(newSchema);
     }
 
     if (isTableEmpty) {
