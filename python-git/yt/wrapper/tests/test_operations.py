@@ -1,5 +1,6 @@
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
 
+from yt.common import which, makedirp
 from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.table import TablePath
@@ -7,9 +8,10 @@ import yt.wrapper as yt
 import yt.logger as logger
 
 from helpers import TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, \
-                    build_python_egg
+                    build_python_egg, TESTS_SANDBOX
 
 import os
+import imp
 import sys
 import time
 import string
@@ -949,3 +951,48 @@ if __name__ == "__main__":
                 tracker.wait_all(check_result=True)
         finally:
             logger.LOGGER.setLevel(old_level)
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_enable_dynamic_libraries_collection(self):
+        def mapper(rec):
+            assert "_shared" in os.environ["LD_LIBRARY_PATH"]
+            for root, dirs, files in os.walk("."):
+                if "libgetnumber.so" in files:
+                    break
+            else:
+                assert False, "Dependency libgetnumber.so not collected"
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1, "y": 1}])
+
+        if not which("g++"):
+            raise RuntimeError("g++ not found")
+
+        libs_dir = os.path.join(TESTS_SANDBOX, "test_enable_dynamic_libraries_collection_libs")
+        makedirp(libs_dir)
+
+        get_number_lib = get_test_file_path("getnumber.cpp")
+        subprocess.check_call(["g++", get_number_lib, "-shared", "-o", os.path.join(libs_dir, "libgetnumber.so")])
+
+        dependant_lib = get_test_file_path("yt_test_lib.cpp")
+        dependant_lib_output = os.path.join(libs_dir, "yt_test_dynamic_libraries_collection.so")
+        subprocess.check_call(["g++", dependant_lib, "-shared", "-o", dependant_lib_output,
+                               "-L", libs_dir, "-l", "getnumber", "-fPIC"])
+
+        # Adding this pseudo-module to sys.modules and ensuring it will be collected with
+        # its dependency (libgetnumber.so)
+        module = imp.new_module("yt_test_dynamic_libraries_collection")
+        module.__file__ = dependant_lib_output
+        sys.modules["yt_test_dynamic_libraries_collection"] = module
+        old_ld_library_path = os.environ.get("LD_LIBRARY_PATH", "")
+        os.environ["LD_LIBRARY_PATH"] = os.pathsep.join([old_ld_library_path, libs_dir])
+        try:
+            with set_config_option("pickling/dynamic_libraries/enable_auto_collection", True):
+                 with set_config_option("pickling/dynamic_libraries/library_filter",
+                                        lambda lib: not lib.startswith("/lib")):
+                    yt.run_map(mapper, table, TEST_DIR + "/out")
+        finally:
+            del sys.modules["yt_test_dynamic_libraries_collection"]
+            if old_ld_library_path:
+                os.environ["LD_LIBRARY_PATH"] = old_ld_library_path
