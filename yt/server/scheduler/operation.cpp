@@ -104,7 +104,7 @@ bool TOperation::HasControllerProgress() const
         Controller_->HasProgress();
 }
 
-TCodicilGuard TOperation::MakeCodicilGuard()
+TCodicilGuard TOperation::MakeCodicilGuard() const
 {
     return TCodicilGuard(CodicilData_);
 }
