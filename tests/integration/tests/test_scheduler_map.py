@@ -2113,3 +2113,57 @@ class TestSandboxTmpfs(YTEnvSetup):
                     },
                     "max_failed_job_count": 1
                 })
+
+
+class TestFilesInSandbox(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    def test_operation_abort_with_lost_file(self):
+        create("file", "//tmp/script", attributes={"replication_factor": 1, "executable": True})
+        write_file("//tmp/script", "#!/bin/bash\ncat")
+
+        chunk_ids = get("//tmp/script/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        replicas = get("#{0}/@stored_replicas".format(chunk_id))
+        assert len(replicas) == 1
+        replica_to_ban = replicas[0]
+
+        banned = False
+        for node in ls("//sys/nodes"):
+            if node == replica_to_ban:
+                set("//sys/nodes/{0}/@banned".format(node), True)
+                banned = True
+        assert banned
+
+        time.sleep(1)
+        assert get("#{0}/@replication_status/lost".format(chunk_id))
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+        op = map(dont_track=True,
+                 command="./script",
+                 in_="//tmp/t_input",
+                 out="//tmp/t_output",
+                 spec={
+                     "mapper": {
+                         "file_paths": ["//tmp/script"]
+                     }
+                 })
+
+        while True:
+            if op.get_job_count("running") == 1:
+                break
+            time.sleep(0.5)
+
+        time.sleep(1)
+        op.abort()
+
+        time.sleep(1)
+        assert op.get_state() == "aborted"
+        assert get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu") == 0
+
