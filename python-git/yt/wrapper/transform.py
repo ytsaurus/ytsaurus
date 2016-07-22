@@ -10,7 +10,7 @@ import yt.logger as logger
 from copy import deepcopy
 
 def _get_compression_ratio(table, codec, client, spec):
-    logger.info("Compress sample of '%s' to calculate compression ratio", table) 
+    logger.debug("Compress sample of '%s' to calculate compression ratio", table)
     with TempTable(prefix="compute_compression_ratio", client=client) as tmp:
         spec = update(deepcopy(spec), {
             "title": "Merge to calculate compression ratio",
@@ -50,14 +50,14 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
         desired_chunk_size = get_config(client)["transform_options"]["desired_chunk_size"]
 
     if not exists(src, client=client) or get(src + "/@row_count", client=client) == 0:
-        logger.info("Table is empty")
+        logger.debug("Table %s is empty", src)
         return False
 
     if dst is None:
         dst = src
     else:
         create("table", dst, ignore_existing=True, client=client)
-    
+
     if compression_codec is not None:
         ratio = _get_compression_ratio(src, compression_codec, spec=spec, client=client)
         set(dst + "/@compression_codec", compression_codec, client=client)
@@ -70,17 +70,17 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
         erasure_codec = get(dst + "/@erasure_codec", client=client)
 
     if check_codecs and _check_codec(dst, "compression", compression_codec, client=client) and _check_codec(dst, "erasure", erasure_codec, client=client):
-        logger.info("Table already has proper codecs")
+        logger.debug("Table %s already has proper codecs", dst)
         return False
 
     data_size_per_job = max(
-        1, 
+        1,
         min(
             get_config(client)["transform_options"]["max_data_size_per_job"],
             int(desired_chunk_size / ratio)
         )
     )
-    
+
     spec = update(
         {
             "title": "Transform table",
@@ -94,7 +94,7 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
             }
         },
         spec)
-   
-    logger.info("Merge from '%s' to '%s' (spec: '%s')", src, dst, spec) 
+
+    logger.debug("Transform from '%s' to '%s' (spec: '%s')", src, dst, spec)
     run_merge(src, dst, spec=spec, client=client)
 
