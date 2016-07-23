@@ -369,7 +369,7 @@ function YtApplicationOperations$list(parameters)
         });
 
     var counts_filter_conditions = [
-        "start_time > {} AND start_time <= {}".format(from_time, to_time)
+        "index.start_time > {} AND index.start_time <= {}".format(from_time, to_time)
     ];
 
     if (substr_filter) {
@@ -381,12 +381,12 @@ function YtApplicationOperations$list(parameters)
     var items_sort_direction;
 
     if (cursor_direction === "past") {
-        items_filter_conditions.push("index.start_time <= {}000".format(cursor_time));
+        items_filter_conditions.push("index.start_time <= {}".format(cursor_time));
         items_sort_direction = "DESC";
     }
 
     if (cursor_direction === "future") {
-        items_filter_conditions.push("index.start_time > {}000".format(cursor_time));
+        items_filter_conditions.push("index.start_time > {}".format(cursor_time));
         items_sort_direction = "ASC";
     }
 
