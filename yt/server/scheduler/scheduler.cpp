@@ -1315,7 +1315,7 @@ private:
     {
         LOG_INFO("Updating nodes information");
 
-        auto req = TYPathProxy::Get("//sys/nodes");
+        auto req = TYPathProxy::List("//sys/nodes");
         std::vector<Stroka> attributeKeys{
             "tags",
             "state",
@@ -1327,7 +1327,7 @@ private:
 
     void HandleNodesAttributes(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
-        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_nodes");
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>("get_nodes");
         if (!rspOrError.IsOK()) {
             LOG_ERROR(rspOrError, "Error updating nodes information");
             return;
@@ -1337,11 +1337,10 @@ private:
             TReaderGuard guard(ExecNodeMapLock_);
 
             const auto& rsp = rspOrError.Value();
-            auto nodesMap = ConvertToNode(TYsonString(rsp->value()))->AsMap();
-            for (const auto& child : nodesMap->GetChildren()) {
-                auto address = child.first;
-                auto node = child.second;
-                const auto& attributes = node->Attributes();
+            auto nodesList = ConvertToNode(TYsonString(rsp->value()))->AsList();
+            for (const auto& child : nodesList->GetChildren()) {
+                auto address = child->GetValue<Stroka>();
+                const auto& attributes = child->Attributes();
                 auto newState = attributes.Get<ENodeState>("state");
                 auto ioWeight = attributes.Get<double>("io_weight", 0.0);
 
@@ -1355,7 +1354,7 @@ private:
                 auto execNode = AddressToNode_[address];
                 auto oldState = execNode->GetMasterState();
 
-                auto tags = node->Attributes().Get<std::vector<Stroka>>("tags");
+                auto tags = attributes.Get<std::vector<Stroka>>("tags");
                 UpdateNodeTags(execNode, tags);
 
                 if (oldState != newState) {
