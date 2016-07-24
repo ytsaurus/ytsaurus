@@ -33,6 +33,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/compression/helpers.proto
   ${CMAKE_CURRENT_LIST_DIR}/compression/lz.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/snappy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/zlib.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/zstd.cpp
