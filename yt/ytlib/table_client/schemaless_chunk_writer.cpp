@@ -945,7 +945,6 @@ void TSchemalessTableWriter::DoOpen()
             userObject.Type);
     }
 
-    auto uploadMasterChannel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
     auto objectIdPath = FromObjectId(ObjectId_);
 
     {
