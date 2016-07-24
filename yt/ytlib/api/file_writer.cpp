@@ -17,7 +17,7 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/helpers.h>`
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 #include <yt/ytlib/transaction_client/config.h>
 
@@ -148,7 +148,7 @@ private:
             auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
             TObjectServiceProxy proxy(channel);
 
-            auto req = TCypressYPathProxy::Get(objectIdPath);
+            auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
             SetTransactionId(req, UploadTransaction_);
             std::vector<Stroka> attributeKeys{
                 "replication_factor",
@@ -165,12 +165,11 @@ private:
                 Path_);
 
             auto rsp = rspOrError.Value();
-            auto node = ConvertToNode(TYsonString(rsp->value()));
-            const auto& attributes = node->Attributes();
-            writerOptions->ReplicationFactor = attributes.Get<int>("replication_factor");
-            writerOptions->Account = attributes.Get<Stroka>("account");
-            writerOptions->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
-            writerOptions->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+            writerOptions->ReplicationFactor = attributes->Get<int>("replication_factor");
+            writerOptions->Account = attributes->Get<Stroka>("account");
+            writerOptions->CompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
+            writerOptions->ErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
 
             LOG_INFO("Extended file attributes received (Account: %v)",
                 writerOptions->Account);

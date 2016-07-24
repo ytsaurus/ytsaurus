@@ -361,7 +361,7 @@ private:
                 auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
                 TObjectServiceProxy proxy(channel);
 
-                auto req = TCypressYPathProxy::Get(objectIdPath);
+                auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
                 SetTransactionId(req, UploadTransaction_);
                 std::vector<Stroka> attributeKeys{
                     "type",
@@ -379,12 +379,11 @@ private:
                     Path_);
 
                 auto rsp = rspOrError.Value();
-                auto node = ConvertToNode(TYsonString(rsp->value()));
-                const auto& attributes = node->Attributes();
-                ReplicationFactor_ = attributes.Get<int>("replication_factor");
-                ReadQuorum_ = attributes.Get<int>("read_quorum");
-                WriteQuorum_ = attributes.Get<int>("write_quorum");
-                Account_ = attributes.Get<Stroka>("account");
+                auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+                ReplicationFactor_ = attributes->Get<int>("replication_factor");
+                ReadQuorum_ = attributes->Get<int>("read_quorum");
+                WriteQuorum_ = attributes->Get<int>("write_quorum");
+                Account_ = attributes->Get<Stroka>("account");
 
                 LOG_INFO("Extended journal attributes received (ReplicationFactor: %v, WriteQuorum: %v, Account: %v)",
                     ReplicationFactor_,
