@@ -233,8 +233,8 @@ void TJobController::OnResourcesUpdated(TWeakPtr<IJob> job, const TNodeResources
         if (job_) {
             job_->Abort(TError(
                 NExecAgent::EErrorCode::ResourceOverdraft,
-                "Failed to increase resource usage (ResourceDelta: %v)",
-                FormatResources(resourceDelta)));
+                "Failed to increase resource usage") 
+                << TErrorAttribute("resource_delta", FormatResources(resourceDelta)));
         }
         return;
     }
@@ -247,16 +247,13 @@ void TJobController::OnResourcesUpdated(TWeakPtr<IJob> job, const TNodeResources
 
 bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
 {
-    // Do this check in the first place in order to avoid weird behavior
-    // when decreasing resource usage leads to job abortion because of 
-    // other memory consuming subsystems (e.g. ChunkMeta),
-    if (Dominates(ZeroNodeResources(), delta)) {
-        return true;
-    }
+    // Nonincreasing resources cannot lead to overdraft.
+    auto nodeLimits = GetResourceLimits();
+    auto newUsage = GetResourceUsage(false) + delta;
 
-    if (!Dominates(GetResourceLimits(), GetResourceUsage(false) + delta)) {
-        return false;
-    }
+    #define XX(name, Name) if (delta.name() > 0 && nodeLimits.name() < newUsage.name()) { return false; }
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX 
 
     if (delta.memory() > 0) {
         auto* tracker = Bootstrap_->GetMemoryUsageTracker();
