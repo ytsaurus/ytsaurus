@@ -8,6 +8,7 @@
 
 #include <util/folder/dirut.h>
 #include <util/folder/filelist.h>
+#include <util/system/shellcommand.h>
 
 #include <array>
 
@@ -522,9 +523,24 @@ void Umount(const Stroka& path)
     // EINVAL for ::umount means that nothing mounted at this point.
     // ENOENT means 'No such file or directory'.
     if (result < 0 && LastSystemError() != EINVAL && LastSystemError() != ENOENT) {
-        THROW_ERROR_EXCEPTION("Failed to umount %v", path)
+        auto error = TError("Failed to umount %v", path)
             << TError::FromSystem();
+        if (LastSystemError() == EBUSY) {
+            auto lsofOutput = TShellCommand("lsof")
+                .Run()
+                .Wait()
+                .GetOutput();
+            auto findOutput = TShellCommand(Format("find %v -name '*'", path))
+                .Run()
+                .Wait()
+                .GetOutput();
+            error = error
+                << TErrorAttribute("lsof_output", lsofOutput)
+                << TErrorAttribute("find_output", findOutput);
+        }
+        THROW_ERROR error;
     }
+
 #else
     ThrowNotSupported();
 #endif
