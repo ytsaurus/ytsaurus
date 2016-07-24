@@ -1,3 +1,5 @@
+#include "private.h"
+#include "public.h"
 #include "lz.h"
 
 #include <yt/contrib/lz4/lz4.h>
@@ -10,6 +12,8 @@ namespace NCompression {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = CompressionLogger;
 
 struct THeader
 {
@@ -62,18 +66,19 @@ void Lz4Compress(bool highCompression, StreamSource* source, TBlob* output)
     {
         THeader header;
         header.Signature = THeader::CorrectSignature;
-        header.InputSize = source->Available();
+        LOG_FATAL_IF(source->Available() > MaxBlockSize, "Input size is too large");
+        header.InputSize = static_cast<i32>(source->Available());
 
         TMemoryOutput memoryOutput(output->Begin(), sizeof(THeader));
         WritePod(memoryOutput, header);
     }
 
     while (source->Available() > 0) {
-        size_t len;
-        const char* input = source->Peek(&len);
+        size_t inputLen;
+        const char* input = source->Peek(&inputLen);
 
-        // LZ4 only supports i32 length.
-        len = std::min(len, static_cast<size_t>(1 << 30));
+        YCHECK(inputLen <= MaxBlockSize);
+        i32 len = inputLen;
 
         size_t bound =
             currentPos +
@@ -170,6 +175,7 @@ void QuickLzCompress(StreamSource* source, TBlob* output)
         currentPos += sizeof(TBlockHeader);
 
         TBlockHeader header;
+        LOG_FATAL_IF(len > MaxBlockSize, "Input size is too large");
         header.InputSize = len;
         header.OutputSize = qlz_compress(input, output->Begin() + currentPos, len, &state);
         YCHECK(header.OutputSize >= 0);
