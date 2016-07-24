@@ -119,7 +119,7 @@ public:
         i64 suspiciousCpuUsageThreshold,
         const TBriefJobStatisticsPtr& briefStatistics);
 
-    TBriefJobStatisticsPtr BuildBriefStatistics() const;
+    TBriefJobStatisticsPtr BuildBriefStatistics(const NYson::TYsonString& statisticsYson) const;
 
     void SetStatus(TRefCountedJobStatusPtr status);
 

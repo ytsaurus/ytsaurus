@@ -2165,8 +2165,8 @@ private:
         {
             job->SetStatus(std::move(status));
 
-            if (job->StatisticsYson().HasValue()) {
-                auto asyncResult = BIND(&TJob::BuildBriefStatistics, job)
+            if (job->StatisticsYson()) {
+                auto asyncResult = BIND(&TJob::BuildBriefStatistics, job, *job->StatisticsYson())
                     .AsyncVia(StatisticsAnalyzerThreadPool_->GetInvoker())
                     .Run();
 
