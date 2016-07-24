@@ -21,6 +21,8 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
     ((ZstdLegacy)                 (7))
 );
 
+const int MaxBlockSize = 1 << 30;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCompression
