@@ -953,7 +953,7 @@ void TSchemalessTableWriter::DoOpen()
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
         TObjectServiceProxy proxy(channel);
 
-        auto req = TCypressYPathProxy::Get(objectIdPath);
+        auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
         SetTransactionId(req, Transaction_);
         std::vector<Stroka> attributeKeys{
             "replication_factor",
@@ -975,11 +975,10 @@ void TSchemalessTableWriter::DoOpen()
             path);
 
         const auto& rsp = rspOrError.Value();
-        auto node = ConvertToNode(TYsonString(rsp->value()));
-        const auto& attributes = node->Attributes();
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-        if (append && sorted && attributes.Get<i64>("row_count") > 0) {
-            auto tableKeyColumns = attributes.Get<TKeyColumns>("sorted_by", TKeyColumns());
+        if (append && sorted && attributes->Get<i64>("row_count") > 0) {
+            auto tableKeyColumns = attributes->Get<TKeyColumns>("sorted_by", TKeyColumns());
 
             bool areKeyColumnsCompatible = true;
             if (tableKeyColumns.size() < KeyColumns_.size()) {
@@ -1001,11 +1000,11 @@ void TSchemalessTableWriter::DoOpen()
             }
         }
 
-        Options_->ReplicationFactor = attributes.Get<int>("replication_factor");
-        Options_->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
-        Options_->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec");
-        Options_->Account = attributes.Get<Stroka>("account");
-        Options_->ChunksVital = attributes.Get<bool>("vital");
+        Options_->ReplicationFactor = attributes->Get<int>("replication_factor");
+        Options_->CompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
+        Options_->ErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec");
+        Options_->Account = attributes->Get<Stroka>("account");
+        Options_->ChunksVital = attributes->Get<bool>("vital");
 
         LOG_INFO("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",
             Options_->Account,
