@@ -24,6 +24,11 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedStringColumnReader(
     int columnIndex,
     int columnId);
 
+std::unique_ptr<IUnversionedColumnReader> CreateUnversionedAnyColumnReader(
+    const NProto::TColumnMeta& columnMeta,
+    int columnIndex,
+    int columnId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableChunkFormat

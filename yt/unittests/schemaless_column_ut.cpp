@@ -18,7 +18,6 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(psushin): more and better tests.
-
 TEST(TSchemalessColumnTest, Simple)
 {
     TUnversionedOwningRowBuilder builder;

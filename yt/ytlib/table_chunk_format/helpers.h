@@ -159,6 +159,14 @@ inline int CompareValues<NTableClient::EValueType::Boolean>(
     return CompareTypedValues<bool>(lhs, rhs);
 }
 
+template<>
+inline int CompareValues<NTableClient::EValueType::Any>(
+    const NTableClient::TUnversionedValue& lhs,
+    const NTableClient::TUnversionedValue& rhs)
+{
+    return NTableClient::CompareRowValues(lhs, rhs);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline ui32 GetTimestampIndex(

@@ -33,6 +33,9 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
         case EValueType::Boolean:
             return CreateUnversionedBooleanColumnWriter(columnIndex, blockWriter);
 
+        case EValueType::Any:
+            return CreateUnversionedAnyColumnWriter(columnIndex, blockWriter);
+
         default:
             YUNIMPLEMENTED();
     }
@@ -71,6 +74,11 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
                 blockWriter);
 
         case EValueType::Any:
+            return CreateVersionedAnyColumnWriter(
+                id,
+                static_cast<bool>(columnSchema.Aggregate),
+                blockWriter);
+
         case EValueType::String:
             return CreateVersionedStringColumnWriter(
                 id,
