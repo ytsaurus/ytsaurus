@@ -148,6 +148,9 @@ TUnversionedValue MakeUnversionedValue(const TStringBuf& ysonString, int id, TSt
         case ETokenType::Double:
             return MakeUnversionedDoubleValue(token.GetDoubleValue(), id);
 
+        case ETokenType::Boolean:
+            return MakeUnversionedBooleanValue(token.GetBooleanValue(), id);
+
         case ETokenType::Hash:
             return MakeUnversionedSentinelValue(EValueType::Null, id);
 
