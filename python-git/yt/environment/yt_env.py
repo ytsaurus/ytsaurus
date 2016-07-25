@@ -589,6 +589,16 @@ class YTInstance(object):
             self._all_processes[p.pid] = (p, args)
             self._append_pid(p.pid)
 
+    def _supports_pdeath_signal(self):
+        if hasattr(self, "_supports_pdeath_signal_result"):
+            return self._supports_pdeath_signal_result
+
+        help_output = subprocess.check_output(["ytserver", "-h"])
+        self._supports_pdeath_signal_result = "pdeath-signal" in help_output
+
+        return self._supports_pdeath_signal_result
+
+
     def _run_ytserver(self, service_name, name=None):
         if name is None:
             name = service_name
@@ -603,6 +613,8 @@ class YTInstance(object):
                 "ytserver", "--" + service_name,
                 "--config", self.config_paths[name][i]
             ]
+            if self._supports_pdeath_signal():
+                command.extend(["--pdeath-signal", str(signal.SIGTERM)])
             if service_name == "node" and sys.platform.startswith("linux"):
                 user_name = getpass.getuser()
                 for type_ in ["cpuacct", "cpu", "blkio", "memory", "freezer"]:
