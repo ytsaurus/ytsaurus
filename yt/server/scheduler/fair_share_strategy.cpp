@@ -182,6 +182,10 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         BuildPoolsInformation(consumer);
+        BuildYsonMapFluently(consumer)
+            .Item("fair_share_info").BeginMap()
+                .Do(BIND(&TFairShareStrategy::BuildFairShareInfo, Unretained(this)))
+            .EndMap();
     }
 
     virtual Stroka GetOperationLoggingProgress(const TOperationId& operationId) override
@@ -271,16 +275,9 @@ public:
 
         PROFILE_TIMING ("/fair_share_log_time") {
             // Log pools information.
+
             Host->LogEventFluently(ELogEventType::FairShareInfo, now)
-                .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, Unretained(this)))
-                .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
-                    const auto& operationId = pair.first;
-                    BuildYsonMapFluently(fluent)
-                        .Item(ToString(operationId))
-                        .BeginMap()
-                            .Do(BIND(&TFairShareStrategy::BuildOperationProgress, Unretained(this), operationId))
-                        .EndMap();
-                });
+                .Do(BIND(&TFairShareStrategy::BuildFairShareInfo, Unretained(this)));
 
             for (const auto& pair : OperationToElement) {
                 const auto& operationId = pair.first;
@@ -1029,6 +1026,19 @@ private:
                                 .Item("parent").Value(pool->GetParent()->GetId());
                         })
                         .Do(BIND(&TFairShareStrategy::BuildElementYson, Unretained(this), pool))
+                    .EndMap();
+            });
+    }
+
+    void BuildFairShareInfo(IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, Unretained(this)))
+            .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
+                const auto& operationId = pair.first;
+                BuildYsonMapFluently(fluent)
+                    .Item(ToString(operationId)).BeginMap()
+                        .Do(BIND(&TFairShareStrategy::BuildOperationProgress, Unretained(this), operationId))
                     .EndMap();
             });
     }
