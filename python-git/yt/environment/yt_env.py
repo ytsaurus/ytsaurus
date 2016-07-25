@@ -613,7 +613,7 @@ class YTInstance(object):
                 "ytserver", "--" + service_name,
                 "--config", self.config_paths[name][i]
             ]
-            if self._supports_pdeath_signal():
+            if self._supports_pdeath_signal() and self._kill_child_processes:
                 command.extend(["--pdeath-signal", str(signal.SIGTERM)])
             if service_name == "node" and sys.platform.startswith("linux"):
                 user_name = getpass.getuser()
