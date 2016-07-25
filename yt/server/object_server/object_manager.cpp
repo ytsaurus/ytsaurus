@@ -905,6 +905,11 @@ TObjectBase* TObjectManager::CreateObject(
     }
 
     auto flags = handler->GetFlags();
+    if (None(flags & ETypeFlags::Creatable)) {
+        THROW_ERROR_EXCEPTION("Objects of type %Qlv cannot be created explicitly",
+            type);
+    }
+    
     bool replicate =
         Bootstrap_->IsPrimaryMaster() &&
         Any(flags & ETypeFlags::ReplicateCreate);
