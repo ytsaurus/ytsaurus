@@ -1762,6 +1762,7 @@ TQueryPtr PrepareJobQuery(
     auto unlimited = std::numeric_limits<i64>::max();
 
     auto query = New<TQuery>(unlimited, unlimited, TGuid::Create());
+    query->OriginalSchema = tableSchema;
     TSchemaProxyPtr schemaProxy = New<TScanSchemaProxy>(
         tableSchema,
         "",
