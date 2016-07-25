@@ -43,7 +43,10 @@
 
 #include <contrib/tclap/yt_helpers.h>
 
+#include <iostream>
+
 #ifdef _unix_
+    #include <sys/prctl.h>
     #include <sys/resource.h>
 #endif
 #ifdef _linux_
@@ -103,6 +106,7 @@ public:
         , Uid("", "uid", "set uid  (for executor and shell mode)", false, -1, "NUM")
         , Environment("", "env", "set environment variable  (for executor and shell mode)", false, "ENV")
         , Command("", "command", "command (for executor mode)", false, "", "COMMAND")
+        , ParentDeathSignal("", "pdeath-signal", "parent death signal", false, 0, "PDEATH_SIG")
 #endif
     {
         CmdLine.add(WorkingDirectory);
@@ -129,6 +133,7 @@ public:
         CmdLine.add(Uid);
         CmdLine.add(Environment);
         CmdLine.add(Command);
+        CmdLine.add(ParentDeathSignal);
 #endif
     }
 
@@ -159,6 +164,7 @@ public:
     TCLAP::ValueArg<int> Uid;
     TCLAP::MultiArg<Stroka> Environment;
     TCLAP::ValueArg<Stroka> Command;
+    TCLAP::ValueArg<int> ParentDeathSignal;
 #endif
 
 };
@@ -229,6 +235,11 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (modeCount != 1) {
         TCLAP::StdOutput().usage(parser.CmdLine);
         return EExitCode::OptionsError;
+    }
+
+    auto parentDeathSignal = parser.ParentDeathSignal.getValue();
+    if (parentDeathSignal) {
+        YCHECK(prctl(PR_SET_PDEATHSIG, parentDeathSignal) == 0);
     }
 
     if (!workingDirectory.empty()) {
