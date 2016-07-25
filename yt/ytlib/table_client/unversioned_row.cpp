@@ -228,6 +228,75 @@ void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryP
     }
 }
 
+size_t GetYsonSize(const TUnversionedValue& value)
+{
+    switch (value.Type) {
+        case EValueType::Any:
+            return value.Length;
+
+        case EValueType::Null:
+            // Marker type.
+            return 1;
+
+        case EValueType::Int64:
+        case EValueType::Uint64:
+            // Type marker + size;
+            return 1 + MaxVarInt64Size;
+
+        case EValueType::Double:
+            // Type marker + sizeof double.
+            return 1 + 8;
+
+        case EValueType::String:
+            // Type marker + length + string bytes.
+            return 1 + MaxVarInt32Size + value.Length;
+
+        case EValueType::Boolean:
+            // Type marker + value.
+            return 1 + 1;
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue)
+{
+    // TODO(psushin): get rid of output stream.
+    TMemoryOutput output(buffer, GetYsonSize(unversionedValue));
+    TYsonWriter writer(&output, EYsonFormat::Binary);
+    switch (unversionedValue.Type) {
+        case EValueType::Int64:
+            writer.OnInt64Scalar(unversionedValue.Data.Int64);
+            break;
+        case EValueType::Uint64:
+            writer.OnUint64Scalar(unversionedValue.Data.Uint64);
+            break;
+
+        case EValueType::Double:
+            writer.OnDoubleScalar(unversionedValue.Data.Double);
+            break;
+
+        case EValueType::String:
+            writer.OnStringScalar(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
+            break;
+
+        case EValueType::Boolean:
+            writer.OnBooleanScalar(unversionedValue.Data.Boolean);
+            break;
+
+        case EValueType::Null:
+            writer.OnEntity();
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+
+    return output.Buf() - buffer;
+
+}
+
 Stroka ToString(const TUnversionedValue& value)
 {
     switch (value.Type) {

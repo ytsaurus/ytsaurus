@@ -2,11 +2,15 @@
 
 #include "column_reader_detail.h"
 
+#include <yt/ytlib/table_client/helpers.h>
+#include <yt/core/yson/lexer.h>
+
 namespace NYT {
 namespace NTableChunkFormat {
 
 using namespace NTableClient;
 using namespace NProto;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,6 +70,13 @@ public:
                     rows[rowIndex][insertIndex] = value;
                     ++insertIndex;
                 }
+
+                if (value.Type == EValueType::Any) {
+                    value = MakeUnversionedValue(
+                        TStringBuf(value.Data.String, value.Length),
+                        value.Id,
+                        Lexer_);
+                }
             } 
             YCHECK(insertIndex <= rows[rowIndex].GetCount());
             rows[rowIndex].SetCount(insertIndex);
@@ -100,6 +111,8 @@ private:
     const char* Data_;
 
     i64 SegmentRowIndex_ = 0;
+
+    TStatelessLexer Lexer_;
 
     i64 GetSegmentRowIndex(i64 rowIndex) const
     {
