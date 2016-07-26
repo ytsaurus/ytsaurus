@@ -69,7 +69,9 @@ struct TTabletSnapshot
     using TPartitionListIterator = TPartitionList::iterator;
     TPartitionList PartitionList;
 
-    std::vector<IOrderedStorePtr> StoreList;
+    std::vector<IOrderedStorePtr> OrderedStores;
+
+    std::vector<TWeakPtr<ISortedStore>> LockedStores;
 
     int StoreCount = 0;
     int PreloadPendingStoreCount = 0;
@@ -95,6 +97,11 @@ struct TTabletSnapshot
 
     void ValiateCellId(const NElection::TCellId& cellId);
     void ValiateMountRevision(i64 mountRevision);
+
+    //! For sorted tablets only.
+    //! This includes both regular and locked Eden stores.
+    std::vector<ISortedStorePtr> GetEdenStores();
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)

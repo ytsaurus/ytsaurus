@@ -17,6 +17,7 @@ namespace NYT {
 namespace NBus {
 
 using namespace NConcurrency;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +62,7 @@ bool IsLocalServiceAddress(const Stroka& address)
     int port;
     try {
         ParseServiceAddress(address, &hostName, &port);
-        return hostName == TAddressResolver::Get()->GetLocalHostName();
+        return TAddressResolver::Get()->IsLocalServiceAddress(Stroka(hostName));
     } catch (...) {
         return false;
     }
@@ -145,7 +146,7 @@ void TTcpDispatcherThread::OnCheck()
 
 TTcpDispatcher::TImpl::TImpl()
 {
-    auto* profileManager = NProfiling::TProfileManager::Get();
+    auto* profileManager = TProfileManager::Get();
     for (auto interfaceType : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
         InterfaceTypeToProfilingTag_[interfaceType] = profileManager->RegisterTag("interface", interfaceType);
     }
@@ -229,26 +230,26 @@ TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetClientThread()
 void TTcpDispatcher::TImpl::OnProfiling()
 {
     for (auto interfaceType : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
-        NProfiling::TTagIdList tagIds{
+        TTagIdList tagIds{
             InterfaceTypeToProfilingTag_[interfaceType]
         };
 
         auto statistics = GetStatistics(interfaceType);
 
-        Profiler.Enqueue("/in_bytes", statistics.InBytes, tagIds);
-        Profiler.Enqueue("/in_packets", statistics.InPackets, tagIds);
-        Profiler.Enqueue("/out_bytes", statistics.OutBytes, tagIds);
-        Profiler.Enqueue("/out_packets", statistics.OutPackets, tagIds);
-        Profiler.Enqueue("/pending_out_bytes", statistics.PendingOutBytes, tagIds);
-        Profiler.Enqueue("/pending_out_packets", statistics.PendingOutPackets, tagIds);
-        Profiler.Enqueue("/client_connections", statistics.ClientConnections, tagIds);
-        Profiler.Enqueue("/server_connections", statistics.ServerConnections, tagIds);
-        Profiler.Enqueue("/stalled_reads", statistics.StalledReads, tagIds);
-        Profiler.Enqueue("/stalled_writes", statistics.StalledWrites, tagIds);
-        Profiler.Enqueue("/read_errors", statistics.ReadErrors, tagIds);
-        Profiler.Enqueue("/write_errors", statistics.WriteErrors, tagIds);
-        Profiler.Enqueue("/encoder_errors", statistics.EncoderErrors, tagIds);
-        Profiler.Enqueue("/decoder_errors", statistics.DecoderErrors, tagIds);
+        Profiler.Enqueue("/in_bytes", statistics.InBytes, EMetricType::Counter, tagIds);
+        Profiler.Enqueue("/in_packets", statistics.InPackets, EMetricType::Counter, tagIds);
+        Profiler.Enqueue("/out_bytes", statistics.OutBytes, EMetricType::Counter, tagIds);
+        Profiler.Enqueue("/out_packets", statistics.OutPackets, EMetricType::Counter, tagIds);
+        Profiler.Enqueue("/pending_out_bytes", statistics.PendingOutBytes, EMetricType::Gauge, tagIds);
+        Profiler.Enqueue("/pending_out_packets", statistics.PendingOutPackets, EMetricType::Gauge, tagIds);
+        Profiler.Enqueue("/client_connections", statistics.ClientConnections, EMetricType::Gauge, tagIds);
+        Profiler.Enqueue("/server_connections", statistics.ServerConnections, EMetricType::Gauge, tagIds);
+        Profiler.Enqueue("/stalled_reads", statistics.StalledReads, EMetricType::Counter, tagIds);
+        Profiler.Enqueue("/stalled_writes", statistics.StalledWrites, EMetricType::Counter, tagIds);
+        Profiler.Enqueue("/read_errors", statistics.ReadErrors, EMetricType::Counter, tagIds);
+        Profiler.Enqueue("/write_errors", statistics.WriteErrors, EMetricType::Counter, tagIds);
+        Profiler.Enqueue("/encoder_errors", statistics.EncoderErrors, EMetricType::Counter, tagIds);
+        Profiler.Enqueue("/decoder_errors", statistics.DecoderErrors, EMetricType::Counter, tagIds);
     }
 }
 

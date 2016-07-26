@@ -54,17 +54,20 @@ class TCGBaseContext
     : public TCGIRBuilderPtr
 {
 private:
-    const std::vector<Value*>* const OpaqueValues_;
+    Value* OpaqueValues_;
+    size_t OpaqueValuesCount_;
 
 public:
     const TCGModulePtr Module;
 
     TCGBaseContext(
         const TCGIRBuilderPtr& base,
-        const std::vector<Value*>* opaqueValues,
+        Value* opaqueValues,
+        size_t opaqueValuesCount,
         TCGModulePtr module)
         : TCGIRBuilderPtr(base)
         , OpaqueValues_(opaqueValues)
+        , OpaqueValuesCount_(opaqueValuesCount)
         , Module(std::move(module))
     { }
 
@@ -73,20 +76,20 @@ public:
         const TCGBaseContext& other)
         : TCGIRBuilderPtr(base)
         , OpaqueValues_(other.OpaqueValues_)
+        , OpaqueValuesCount_(other.OpaqueValuesCount_)
         , Module(other.Module)
     { }
 
     Value* GetOpaqueValue(size_t index) const
     {
-        return Builder_->ViaClosure((*OpaqueValues_)[index], "opaqueValues." + Twine(index));
+        Value* opaqueValues = Builder_->ViaClosure(OpaqueValues_, "opaqueValues");
+        YCHECK(index < OpaqueValuesCount_);
+        return Builder_->CreateLoad(
+            Builder_->CreateConstGEP1_32(opaqueValues, index),
+            "opaqueValues." + Twine(index));
     }
 
 };
-
-std::vector<Value*> MakeOpaqueValues(
-    TCGIRBuilderPtr& builder,
-    Value* opaqueValues,
-    size_t opaqueValuesCount);
 
 class TCGOperatorContext
     : public virtual TCGBaseContext

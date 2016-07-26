@@ -167,10 +167,17 @@ private:
             return Replied_.compare_exchange_strong(expected, true);
         }
 
-        void OnTimeout()
+        void OnTimeout(bool aborted)
         {
             if (AcquireLock()) {
-                ReportError(TError(NYT::EErrorCode::Timeout, "Request timed out"));
+                TError error;
+                if (aborted) {
+                    error = TError(NYT::EErrorCode::Canceled, "Request timed out (timer was aborted)");
+                } else {
+                    error = TError(NYT::EErrorCode::Timeout, "Request timed out");
+                }
+
+                ReportError(error);
             }
         }
 

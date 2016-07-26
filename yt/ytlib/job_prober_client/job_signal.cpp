@@ -7,9 +7,11 @@
 namespace NYT {
 namespace NJobProberClient {
 
+////////////////////////////////////////////////////////////////////
+
 TNullable<int> FindSignalIdBySignalName(const Stroka& signalName)
 {
-    static std::map<Stroka, int> signalNumbersByName = {
+    static yhash_map<Stroka, int> SignalNameToNumber = {
         { "SIGHUP",  SIGHUP },
         { "SIGINT",  SIGINT },
         { "SIGALRM", SIGALRM },
@@ -20,13 +22,8 @@ TNullable<int> FindSignalIdBySignalName(const Stroka& signalName)
         { "SIGURG", SIGURG },
     };
 
-    TNullable<int> result;
-
-    auto it = signalNumbersByName.find(signalName);
-    if (it != signalNumbersByName.end()) {
-        result = it->second;
-    }
-    return result;
+    auto it = SignalNameToNumber.find(signalName);
+    return it == SignalNameToNumber.end() ? Null : MakeNullable(it->second);
 }
 
 void ValidateSignalName(const Stroka& signalName)
@@ -36,6 +33,8 @@ void ValidateSignalName(const Stroka& signalName)
         THROW_ERROR_EXCEPTION("Unsupported signal name %Qv", signalName);
     }
 }
+
+////////////////////////////////////////////////////////////////////
 
 } // namespace NJobProberClient
 } // namespace NYT

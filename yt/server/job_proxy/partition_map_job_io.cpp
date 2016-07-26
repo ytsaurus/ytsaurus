@@ -48,12 +48,15 @@ public:
 
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
         nameTable->SetEnableColumnNameValidation();
+
+        // We pass partitioning columns through schema but input stream is not sorted.
+        options->ValidateSorted = false;
         
         return CreatePartitionMultiChunkWriter(
             JobIOConfig_->TableWriter,
             options,
             nameTable,
-            keyColumns,
+            TTableSchema::FromKeyColumns(keyColumns),
             Host_->GetClient(),
             CellTagFromId(chunkListId),
             transactionId,
@@ -65,7 +68,7 @@ public:
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
-        // ToDo(psushin): don't use parallel readers here to minimize nondetermenistics
+        // NB(psushin): don't use parallel readers here to minimize nondetermenistics
         // behaviour in mapper, that may lead to huge problems in presence of lost jobs.
         return CreateRegularReader(false, std::move(nameTable), columnFilter);
     }

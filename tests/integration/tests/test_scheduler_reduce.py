@@ -697,6 +697,40 @@ echo {v = 2} >&7
         assert len(read_table("//tmp/output")) == 18
 
     @unix_only
+    def test_reduce_with_foreign_multiple_jobs(self):
+        for i in range(4):
+            create("table", "//tmp/t{0}".format(i))
+            write_table(
+                "//tmp/t" + str(i),
+                [{"key": "%05d" % j, "value": "%05d" % j} for j in range(20-i, 30+i)],
+                sorted_by = ["key","value"])
+
+        create("table", "//tmp/foreign")
+        write_table(
+            "//tmp/foreign",
+            [{"key": "%05d" % i, "value": "%05d" % (10000+i)} for i in range(50)],
+            sorted_by = ["key"])
+
+        create("table", "//tmp/output")
+
+        reduce(
+            in_ = ["<foreign=true>//tmp/foreign"] + ["//tmp/t{0}".format(i) for i in range(4)],
+            out = ["//tmp/output"],
+            command = "grep @table_index=0 | head -n 1",
+            reduce_by = ["key","value"],
+            join_by = ["key"],
+            spec = {
+                "reducer": {
+                    "format": yson.loads("<enable_table_index=true>dsv")
+                },
+                "job_count": 5,
+            })
+
+        output = read_table("//tmp/output")
+        assert len(output) > 1
+        assert output[0] == {"key":"00017", "value":"10017", "@table_index":"0"}
+
+    @unix_only
     def test_reduce_with_foreign_reduce_by_equals_join_by(self):
         self._prepare_join_tables()
 
@@ -919,6 +953,44 @@ echo {v = 2} >&7
         assert len(input_paths[0].attributes["ranges"][0]["lower_limit"]["key"][0]) == 5
         assert len(input_paths[0].attributes["ranges"][0]["upper_limit"]["key"]) == 2
         assert len(input_paths[0].attributes["ranges"][0]["upper_limit"]["key"][0]) == 5
+
+    def _test_schema_validation(self, sort_order):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": sort_order},
+                {"name": "value", "type": "string"}])
+            })
+
+        for i in xrange(10):
+            write_table("<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"})
+            print get("//tmp/input/@schema")
+
+        reduce(
+            in_="//tmp/input",
+            out="//tmp/output",
+            reduce_by="key",
+            command="cat")
+
+        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema/@strict")
+        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
+
+        write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
+        assert get("//tmp/input/@sorted_by") == ["key"]
+
+        with pytest.raises(YtError):
+            reduce(
+                in_="//tmp/input",
+                out="//tmp/output",
+                reduce_by="key",
+                command="cat")
+
+    def test_schema_validation(self):
+        self._test_schema_validation(None)
+
+    def test_schema_validation_sorted(self):
+        self._test_schema_validation("ascending")
 
 ##################################################################
 

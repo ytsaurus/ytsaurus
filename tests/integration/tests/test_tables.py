@@ -147,9 +147,11 @@ class TestTables(YTEnvSetup):
         write_file("//tmp/file", content)
         with pytest.raises(YtError): read_table("//tmp/file") 
 
-    def test_sorted_unique(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_sorted_unique(self, optimize_for):
         create("table", "//tmp/table",
             attributes={
+                "optimize_for" : optimize_for,
                 "schema": make_schema(
                     [{"name": "key", "type": "int64", "sort_order": "ascending"}],
                     unique_keys=True)

@@ -122,24 +122,20 @@ private:
 
 protected:
     TFutureState(int strongRefCount, int weakRefCount)
-    {
-        // TODO(babenko): VS compat
-        StrongRefCount_ = strongRefCount;
-        WeakRefCount_ = weakRefCount;
-        Set_ = false;
-        Canceled_ = false;
-    }
+        : StrongRefCount_(strongRefCount)
+        , WeakRefCount_(weakRefCount)
+        , Canceled_(false)
+        , Set_(false)
+    { }
 
     template <class U>
     TFutureState(int strongRefCount, int weakRefCount, U&& value)
-        : Value_(std::forward<U>(value))
-    {
-        // TODO(babenko): VS compat
-        StrongRefCount_ = strongRefCount;
-        WeakRefCount_ = weakRefCount;
-        Set_ = true;
-        Canceled_ = false;
-    }
+        : StrongRefCount_(strongRefCount)
+        , WeakRefCount_(weakRefCount)
+        , Canceled_ (false)
+        , Set_(true)
+        , Value_(std::forward<U>(value))
+    { }
 
 public:
     void RefFuture()
@@ -582,9 +578,15 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout)
     auto promise = NewPromise<T>();
 
     auto cookie = NConcurrency::TDelayedExecutor::Submit(
-        BIND([=] () mutable {
-            promise.TrySet(TError(NYT::EErrorCode::Timeout, "Operation timed out")
-                << TErrorAttribute("timeout", timeout));
+        BIND([=] (bool aborted) mutable {
+            TError error;
+            if (aborted) {
+                error = TError(NYT::EErrorCode::Canceled, "Operation aborted");
+            } else {
+                error = TError(NYT::EErrorCode::Timeout, "Operation timed out")
+                    << TErrorAttribute("timeout", timeout);
+            }
+            promise.TrySet(error);
             this_.Cancel();
         }),
         timeout);
@@ -1191,7 +1193,7 @@ private:
     std::atomic<int> CurrentResponseIndex_ = {0};
     
 
-    virtual void OnFutureSet(int futureIndex, const TErrorOr<T>& result) override
+    virtual void OnFutureSet(int /*futureIndex*/, const TErrorOr<T>& result) override
     {
         if (!result.IsOK()) {
             this->CancelFutures();

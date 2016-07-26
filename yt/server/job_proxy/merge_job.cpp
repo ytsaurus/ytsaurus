@@ -92,6 +92,7 @@ public:
         const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
+        auto schema = FromProto<TTableSchema>(outputSpec.table_schema());
         options->ExplodeOnValidationError = true;
 
         WriterFactory_ = [=] (TNameTablePtr nameTable) {
@@ -100,19 +101,12 @@ public:
                 config->JobIO->TableWriter,
                 options,
                 nameTable,
-                keyColumns,
+                schema,
                 TOwningKey(),
                 Host_->GetClient(),
                 CellTagFromId(chunkListId),
                 transactionId,
-                chunkListId,
-                true); // Allow value reordering if key columns are present.
-
-            if (outputSpec.has_table_schema()) {
-                auto schema = FromProto<TTableSchema>(outputSpec.table_schema());
-                Writer_ = CreateSchemaValidatingWriter(std::move(Writer_), schema);
-            }
-
+                chunkListId);
             return Writer_;
         };
     }

@@ -36,6 +36,8 @@ struct IUnversionedSegmentReader
 {
     virtual i64 ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) = 0;
 
+    virtual i64 ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) = 0;
+
     //! Last value of the segment.
     virtual NTableClient::TUnversionedValue GetLastValue() const = 0;
 
@@ -148,19 +150,14 @@ public:
 
     virtual i64 ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
     {
-        i64 rangeRowIndex = 0;
-        while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
-            auto row = rows[rangeRowIndex];
-            if (row) {
-                YCHECK(row.GetKeyCount() > ColumnIndex_);
-                SetValue(row.BeginKeys() + ColumnIndex_);
-            }
-
-            ++SegmentRowIndex_;
-            ++rangeRowIndex;
-        }
-        return rangeRowIndex;
+        return DoReadValues(rows);
     }
+
+    virtual i64 ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override
+    {
+        return DoReadValues(rows);
+    }
+
 
 private:
     TValueExtractor ValueExtractor_;
@@ -174,6 +171,23 @@ private:
     {
         value->Id = ColumnId_;
         ValueExtractor_.ExtractValue(value, rowIndex);
+    }
+
+    template<class TRow>
+    i64 DoReadValues(TMutableRange<TRow> rows)
+    {
+        i64 rangeRowIndex = 0;
+        while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
+            auto row = rows[rangeRowIndex];
+            if (row) {
+                YCHECK(GetUnversionedValueCount(row) > ColumnIndex_);
+                SetValue(&GetUnversionedValue(row, ColumnIndex_));
+            }
+
+            ++SegmentRowIndex_;
+            ++rangeRowIndex;
+        }
+        return rangeRowIndex;
     }
 };
 
@@ -230,33 +244,7 @@ public:
         }
     }
 
-    virtual i64 ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
-    {
-        i64 rangeRowIndex = 0;
-        while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
-            i64 valueRowCount = ValueIndex_ + 1 == ValueExtractor_.GetValueCount()
-                ? Meta_.row_count()
-                : ValueExtractor_.GetRowIndex(ValueIndex_ + 1);
 
-            NTableClient::TUnversionedValue value;
-            SetValue(&value);
-
-            while (SegmentRowIndex_ < valueRowCount && rangeRowIndex < rows.Size()) {
-                auto row = rows[rangeRowIndex];
-                if (row) {
-                    row.BeginKeys()[ColumnIndex_] = value;
-                }
-
-                SegmentRowIndex_ += 1;
-                rangeRowIndex += 1;
-            }
-
-            if (SegmentRowIndex_ == valueRowCount) {
-                ++ValueIndex_;
-            }
-        }
-        return rangeRowIndex;
-    }
 
     virtual NTableClient::TUnversionedValue GetLastValue() const override
     {
@@ -293,6 +281,16 @@ public:
             });
 
         return std::min(GetValueLowerRowIndex(valueIndex), rowIndexLimit);
+    }
+
+    virtual i64 ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
+    {
+        return DoReadValues(rows);
+    }
+
+    virtual i64 ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override
+    {
+        return DoReadValues(rows);
     }
 
 private:
@@ -333,6 +331,35 @@ private:
     {
         value->Id = ColumnId_;
         ValueExtractor_.ExtractValue(value, valueIndex);
+    }
+
+    template <class TRow>
+    i64 DoReadValues(TMutableRange<TRow> rows)
+    {
+        i64 rangeRowIndex = 0;
+        while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
+            i64 valueRowCount = ValueIndex_ + 1 == ValueExtractor_.GetValueCount()
+                                ? Meta_.row_count()
+                                : ValueExtractor_.GetRowIndex(ValueIndex_ + 1);
+
+            NTableClient::TUnversionedValue value;
+            SetValue(&value);
+
+            while (SegmentRowIndex_ < valueRowCount && rangeRowIndex < rows.Size()) {
+                auto row = rows[rangeRowIndex];
+                if (row) {
+                    GetUnversionedValue(row, ColumnIndex_) = value;
+                }
+
+                SegmentRowIndex_ += 1;
+                rangeRowIndex += 1;
+            }
+
+            if (SegmentRowIndex_ == valueRowCount) {
+                ++ValueIndex_;
+            }
+        }
+        return rangeRowIndex;
     }
 };
 
@@ -429,7 +456,7 @@ protected:
         return ColumnMeta_.segments(CurrentSegmentIndex_);
     }
 
-    const i64 GetSegmentStartRowIndex(int segmentIndex) const
+    i64 GetSegmentStartRowIndex(int segmentIndex) const
     {
         auto meta = ColumnMeta_.segments(segmentIndex);
         return meta.chunk_row_count() - meta.row_count();
@@ -495,25 +522,12 @@ public:
 
     virtual void ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
     {
-        i64 readRowCount = 0;
-        while (readRowCount < rows.Size()) {
-            YCHECK(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
-            if (!SegmentReader_) {
-                SegmentReader_ = CreateSegmentReader(CurrentSegmentIndex_);
-            }
+        DoReadValues(rows);
+    }
 
-            SegmentReader_->SkipToRowIndex(CurrentRowIndex_);
-
-            i64 count = SegmentReader_->ReadValues(rows.Slice(rows.Begin() + readRowCount, rows.End()));
-
-            readRowCount += count;
-            CurrentRowIndex_ += count;
-
-            if (SegmentReader_->EndOfSegment()) {
-                SegmentReader_.reset();
-                ++CurrentSegmentIndex_;
-            }
-        }
+    virtual void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override
+    {
+        DoReadValues(rows);
     }
 
 protected:
@@ -539,6 +553,30 @@ protected:
     virtual void ResetSegmentReader() override
     {
         SegmentReader_.reset();
+    }
+
+    template <class TRow>
+    void DoReadValues(TMutableRange<TRow> rows)
+    {
+        i64 readRowCount = 0;
+        while (readRowCount < rows.Size()) {
+            YCHECK(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
+            if (!SegmentReader_) {
+                SegmentReader_ = CreateSegmentReader(CurrentSegmentIndex_);
+            }
+
+            SegmentReader_->SkipToRowIndex(CurrentRowIndex_);
+
+            i64 count = SegmentReader_->ReadValues(rows.Slice(rows.Begin() + readRowCount, rows.End()));
+
+            readRowCount += count;
+            CurrentRowIndex_ += count;
+
+            if (SegmentReader_->EndOfSegment()) {
+                SegmentReader_.reset();
+                ++CurrentSegmentIndex_;
+            }
+        }
     }
 
     template <NTableClient::EValueType ValueType>

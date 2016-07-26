@@ -286,7 +286,7 @@ class TestOrderedTablets(YTEnvSetup):
         self.sync_unmount_table("//tmp/t")
         alter_table("//tmp/t", dynamic=False)
 
-        assert read_table("//tmp/t") == [{"a": j * 10} for j in xrange(0, 100)]
+        assert read_table("//tmp/t") == [{"a": j * 10, "b": None, "c": None} for j in xrange(0, 100)]
 
     def test_trimmed_rows_perserved_on_unmount(self):
         self.sync_create_cells(1)

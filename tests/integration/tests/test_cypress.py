@@ -1068,6 +1068,26 @@ class TestCypress(YTEnvSetup):
     def test_no_expiration_time_for_root(self):
         with pytest.raises(YtError): set("//@expiration_time", str(self._now()))
 
+    def test_copy_expiration_time(self):
+        create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1.0))})
+        copy("//tmp/t1", "//tmp/t2")
+        assert exists("//tmp/t2/@expiration_time")
+        time.sleep(2.0)
+        assert not exists("//tmp/t1")
+        assert not exists("//tmp/t2")
+
+    def test_copy_expiration_time_in_tx(self):
+        create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1.0))})
+        tx = start_transaction()
+        copy("//tmp/t1", "//tmp/t2", tx=tx)
+        assert exists("//tmp/t2/@expiration_time", tx=tx)
+        time.sleep(2.0)
+        assert not exists("//tmp/t1")
+        assert exists("//tmp/t2", tx=tx)
+        commit_transaction(tx)
+        time.sleep(0.1)
+        assert not exists("//tmp/t2")
+
     
     def test_ignore_ampersand1(self):
         set("//tmp/map", {})

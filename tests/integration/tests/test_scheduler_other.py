@@ -1,7 +1,7 @@
 
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, make_ace
 from yt_commands import *
 
 import time
@@ -617,7 +617,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             def execute(dont_track):
                 return map(
                     dont_track=dont_track,
-                    command="sleep 5; cat",
+                    command="sleep 1000; cat",
                     in_=["//tmp/in"],
                     out="//tmp/out" + str(index),
                     spec={"pool": pool})
@@ -647,7 +647,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             run(i, "production", False)
 
         for op in ops:
-            op.track()
+            op.abort()
 
 
 class TestSchedulingTags(YTEnvSetup):
@@ -718,6 +718,42 @@ class TestSchedulingTags(YTEnvSetup):
         op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 20})
         time.sleep(0.8)
         assert len(get_job_nodes(op)) <= 2
+
+
+    def _test_pool_acl_prologue(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        create_user("u")
+
+    def _test_pool_acl_core(self, pool, acl_path):
+        def _run_op():
+            map(command="cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                authenticated_user="u",
+                spec={"pool": pool})
+        _run_op()
+        set("//sys/pools{0}/@acl/0/action".format(acl_path), "deny")
+        with pytest.raises(YtError):
+            _run_op()
+    
+    def test_global_pool_acl(self):
+        self._test_pool_acl_prologue()
+        create("map_node", "//sys/pools/p", attributes={
+            "inherit_acl": False,
+            "acl": [make_ace("allow", "u", "use")]
+        })
+        self._test_pool_acl_core("p", "/p")
+
+    def test_inner_pool_acl(self):
+        self._test_pool_acl_prologue()
+        # TODO(babenko): use make_ace after merging into 18.5
+        create("map_node", "//sys/pools/p1", attributes={
+            "inherit_acl": False,
+            "acl": [make_ace("allow", "u", "use")]
+        })
+        create("map_node", "//sys/pools/p1/p2")
+        self._test_pool_acl_core("p2", "/p1")
 
 ##################################################################
 
@@ -1279,3 +1315,79 @@ class TestResourceLimits(YTEnvSetup):
         assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
         op.abort()
 
+
+class TestSchedulerSuspiciousJobs(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "heartbeat_period": 100 # 100 msec
+            },
+            "slot_manager" : {
+                "enforce_job_control" : True,
+                "job_environment" : {
+                    "type": "cgroups",
+                    "memory_watchdog_period": 100,
+                    "supported_cgroups" : [ "cpuacct", "blkio", "memory", "cpu" ],
+                }
+            }
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "suspicious_inactivity_timeout": 3000 # 3 sec
+        }
+    }
+
+    def test_suspiciousness(self):
+        create("table", "//tmp/t")
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t", [{"foo": i} for i in xrange(10)])
+        
+        op1 = map(
+            dont_track=True,
+            command='echo -ne "x = 1\nwhile True:\n    x = (x * x + 1) % 424243" | python',
+            in_="//tmp/t",
+            out="//tmp/t1")
+        
+        op2 = map(
+            dont_track=True,
+            command='sleep 1000',
+            in_="//tmp/t",
+            out="//tmp/t2")
+
+        while True:
+            running_jobs1 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op1.id))
+            running_jobs2 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op2.id))
+
+            if len(running_jobs1) == 0 or len(running_jobs2) == 0:
+                time.sleep(1)
+            else:
+                break
+        
+        job1_id = running_jobs1.keys()[0]
+        job2_id = running_jobs2.keys()[0]
+      
+        for i in xrange(200):
+            suspicious1 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/suspicious".format(op1.id, job1_id))
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}".format(op1.id, job1_id))
+            suspicious2 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/suspicious".format(op2.id, job2_id))
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}".format(op2.id, job2_id))
+
+            assert not suspicious1
+            if suspicious2:
+                break
+            time.sleep(1.0)
+        assert suspicious2
+
+        suspicious_jobs = get("//sys/scheduler/orchid/scheduler/suspicious_jobs")
+        assert len(suspicious_jobs) == 1
+        assert job2_id in suspicious_jobs
+        
+        op1.abort()
+        op2.abort()

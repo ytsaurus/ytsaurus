@@ -4,7 +4,6 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/guid.h>
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/ref.h>
 
@@ -12,15 +11,6 @@ namespace NYT {
 namespace NShell {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using TShellId = TGuid;
-
-DEFINE_ENUM(EShellOperation,
-    ((Spawn)     (0))
-    ((Update)    (1))
-    ((Poll)      (2))
-    ((Terminate) (3))
-);
 
 struct TShellOptions
 {
@@ -34,6 +24,7 @@ struct TShellOptions
     std::vector<Stroka> Environment;
     TNullable<Stroka> Bashrc;
     TNullable<Stroka> MessageOfTheDay;
+    TDuration InactivityTimeout;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,6 +42,8 @@ struct IShell
     virtual TFuture<TSharedRef> Poll() = 0;
     //! Tries to clean up, best effort guarantees.
     virtual void Terminate(const TError& error) = 0;
+    //! Asynchronously wait for inactivity timeout and terminate.
+    virtual TFuture<void> Shutdown(const TError& error) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IShell)

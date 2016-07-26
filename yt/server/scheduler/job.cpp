@@ -1,8 +1,11 @@
+#include "private.h"
 #include "job.h"
 #include "exec_node.h"
 #include "helpers.h"
 #include "operation.h"
 #include "operation_controller.h"
+
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/protobuf_helpers.h>
@@ -13,8 +16,14 @@ namespace NScheduler {
 using namespace NNodeTrackerClient::NProto;
 using namespace NYTree;
 using namespace NYson;
+using namespace NObjectClient;
+using namespace NYPath;
 using namespace NJobTrackerClient;
 using namespace NChunkClient::NProto;
+
+////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -42,6 +51,36 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
+bool CompareBriefJobStatistics(
+    const TBriefJobStatisticsPtr& lhs,
+    const TBriefJobStatisticsPtr& rhs,
+    i64 userJobCpuUsageThreshold)
+{
+    return lhs->ProcessedInputRowCount < rhs->ProcessedInputRowCount ||
+        lhs->ProcessedInputDataSize < rhs->ProcessedInputDataSize ||
+        lhs->ProcessedOutputRowCount < rhs->ProcessedOutputRowCount ||
+        lhs->ProcessedOutputDataSize < rhs->ProcessedOutputDataSize ||
+        (lhs->UserJobCpuUsage && rhs->UserJobCpuUsage &&
+        *lhs->UserJobCpuUsage + userJobCpuUsageThreshold < *rhs->UserJobCpuUsage);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void Serialize(const TBriefJobStatistics& briefJobStatistics, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("processed_input_row_count").Value(briefJobStatistics.ProcessedInputRowCount)
+            .Item("processed_input_data_size").Value(briefJobStatistics.ProcessedInputDataSize)
+            .Item("processed_output_data_size").Value(briefJobStatistics.ProcessedOutputDataSize)
+            .DoIf(static_cast<bool>(briefJobStatistics.UserJobCpuUsage), [&] (TFluentMap fluent) {
+                fluent.Item("user_job_cpu_usage").Value(*briefJobStatistics.UserJobCpuUsage);
+            })
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////
+
 TJob::TJob(
     const TJobId& id,
     EJobType type,
@@ -57,16 +96,72 @@ TJob::TJob(
     , Node_(node)
     , StartTime_(startTime)
     , Restarted_(restarted)
-    , HasPendingUnregistration_(false)
     , State_(EJobState::None)
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
     , SpecBuilder_(std::move(specBuilder))
+    , LastActivityTime_(startTime)
 { }
 
 TDuration TJob::GetDuration() const
 {
     return *FinishTime_ - StartTime_;
+}
+
+TBriefJobStatisticsPtr TJob::BuildBriefStatistics() const
+{
+    auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(*StatisticsYson_);
+
+    auto getValue = [] (const TSummary& summary) {
+        return summary.GetSum();
+    };
+
+    auto briefStatistics = New<TBriefJobStatistics>();
+
+    briefStatistics->ProcessedInputRowCount = GetValues<i64>(statistics, "/data/input/row_count", getValue);
+    briefStatistics->ProcessedInputDataSize = GetValues<i64>(statistics, "/data/input/uncompressed_data_size", getValue);
+
+    if (std::any_of(
+        statistics.Data().begin(),
+        statistics.Data().end(),
+        [] (const auto& pair) {
+            return HasPrefix(pair.first, "/user_job/cpu");
+        }))
+    {
+        briefStatistics->UserJobCpuUsage = GetValues<i64>(statistics, "/user_job/cpu/user", getValue);
+    }
+
+    auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
+
+    briefStatistics->ProcessedOutputDataSize = outputDataStatistics.uncompressed_data_size();
+    briefStatistics->ProcessedOutputRowCount = outputDataStatistics.row_count();
+    return briefStatistics;
+}
+
+void TJob::AnalyzeBriefStatistics(
+    TDuration suspiciousInactivityTimeout,
+    i64 suspiciousUserJobCpuUsageThreshold,
+    const TBriefJobStatisticsPtr& briefStatistics)
+{
+    bool wasActive = false;
+
+    if (!BriefStatistics_ || CompareBriefJobStatistics(BriefStatistics_, briefStatistics, suspiciousUserJobCpuUsageThreshold)) {
+        wasActive = true;
+    }
+    BriefStatistics_ = briefStatistics;
+
+    bool wasSuspicious = Suspicious_;
+    Suspicious_ = (!wasActive && TInstant::Now() - LastActivityTime_ > suspiciousInactivityTimeout);
+    if (!wasSuspicious && Suspicious_) {
+        LOG_WARNING("Found a suspicious job (JobId: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v)",
+            Id_,
+            LastActivityTime_,
+            suspiciousInactivityTimeout);
+    }
+
+    if (wasActive) {
+        LastActivityTime_ = TInstant::Now();
+    }
 }
 
 void TJob::SetStatus(TRefCountedJobStatusPtr status)
@@ -92,7 +187,7 @@ TJobSummary::TJobSummary(const TJobPtr& job)
     , StatisticsSuffix(job->GetStatisticsSuffix())
     , FinishTime(*job->GetFinishTime())
     , ShouldLog(true)
-{ 
+{
     const auto& status = job->Status();
     if (status->has_prepare_duration()) {
         PrepareDuration = FromProto<TDuration>(status->prepare_duration());
@@ -166,6 +261,22 @@ TJobStartRequest::TJobStartRequest(
 void TScheduleJobResult::RecordFail(EScheduleJobFailReason reason)
 {
     ++Failed[reason];
+}
+
+////////////////////////////////////////////////////////////////////
+
+TJobId MakeJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId)
+{
+    return MakeId(
+        EObjectType::SchedulerJob,
+        tag,
+        RandomNumber<ui64>(),
+        nodeId);
+}
+
+NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId)
+{
+    return jobId.Parts32[0];
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -119,8 +119,8 @@ void TSlotLocation::MakeSandboxCopy(
 
             try {
                 EnsureNotInUse(sourcePath);
-                NFS::SetExecutableMode(sourcePath, executable);
                 NFs::Copy(sourcePath, destinationPath);
+                NFS::SetExecutableMode(destinationPath, executable);
             } catch (const std::exception& ex) {
                 try {
                     // If tmpfs does not have enough space, this is a user error, not location error. 

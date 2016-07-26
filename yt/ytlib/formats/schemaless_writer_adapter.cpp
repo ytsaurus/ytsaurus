@@ -77,14 +77,9 @@ TFuture<void> TSchemalessFormatWriterBase::Close()
     return MakeFuture(Error_);
 }
 
-bool TSchemalessFormatWriterBase::IsSorted() const
+const TTableSchema& TSchemalessFormatWriterBase::GetSchema() const
 {
-    return false;
-}
-
-bool TSchemalessFormatWriterBase::IsUniqueKeys() const
-{
-    return false;
+    Y_UNREACHABLE();
 }
 
 TNameTablePtr TSchemalessFormatWriterBase::GetNameTable() const

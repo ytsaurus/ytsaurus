@@ -177,9 +177,12 @@ void TJobProxy::RetrieveJobSpec()
         resourceUsage.network(),
         rsp->job_spec().DebugString());
 
-    JobProxyMemoryReserve_ = TotalMemoryLimit_ = resourceUsage.memory();
+    JobProxyMemoryReserve_ = resourceUsage.memory();
     CpuLimit_ = resourceUsage.cpu();
     NetworkUsage_ = resourceUsage.network();
+
+    // We never report to node less memory usage, than was initially reserved.
+    TotalMaxMemoryUsage_ = JobProxyMemoryReserve_;
 }
 
 void TJobProxy::Run()

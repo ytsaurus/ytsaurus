@@ -1,5 +1,7 @@
 #include "null_column_reader.h"
 
+#include "helpers.h"
+
 namespace NYT {
 namespace NTableChunkFormat {
 
@@ -64,11 +66,12 @@ public:
     
     virtual void ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
     {
-        for (auto row : rows) {
-            if (row) {
-                row.BeginKeys()[ColumnIndex_] = MakeUnversionedSentinelValue(EValueType::Null, ColumnId_);
-            }
-        }
+        DoReadValues(rows);
+    }
+
+    virtual void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override
+    {
+        DoReadValues(rows);
     }
 
 private:
@@ -76,6 +79,17 @@ private:
     const int ColumnId_;
 
     i64 RowIndex_ = 0;
+
+    template <class TRow>
+    void DoReadValues(TMutableRange<TRow> rows)
+    {
+        for (auto row : rows) {
+            if (row) {
+                GetUnversionedValue(row, ColumnIndex_) = MakeUnversionedSentinelValue(EValueType::Null, ColumnId_);
+            }
+        }
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

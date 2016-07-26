@@ -21,6 +21,7 @@
 namespace NYT {
 namespace NDataNode {
 
+using namespace NProfiling;
 using namespace NRpc;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -30,7 +31,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NProfiling::TSimpleCounter DiskBlobWriteByteCounter("/disk_blob_write_bytes");
+static TSimpleCounter DiskBlobWriteByteCounter("/disk_blob_write_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -237,7 +238,7 @@ void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
         blockIndex,
         block.Size());
 
-    NProfiling::TScopedTimer timer;
+    TScopedTimer timer;
     try {
         if (!Writer_->WriteBlock(block)) {
             auto result = Writer_->GetReadyEvent().Get();
@@ -258,9 +259,9 @@ void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
     LOG_DEBUG("Finished writing block %v", blockIndex);
 
     auto& locationProfiler = Location_->GetProfiler();
-    locationProfiler.Enqueue("/blob_block_write_size", block.Size());
-    locationProfiler.Enqueue("/blob_block_write_time", writeTime.MicroSeconds());
-    locationProfiler.Enqueue("/blob_block_write_throughput", block.Size() * 1000000 / (1 + writeTime.MicroSeconds()));
+    locationProfiler.Enqueue("/blob_block_write_size", block.Size(), EMetricType::Gauge);
+    locationProfiler.Enqueue("/blob_block_write_time", writeTime.MicroSeconds(), EMetricType::Gauge);
+    locationProfiler.Enqueue("/blob_block_write_throughput", block.Size() * 1000000 / (1 + writeTime.MicroSeconds()), EMetricType::Gauge);
 
     DataNodeProfiler.Increment(DiskBlobWriteByteCounter, block.Size());
 

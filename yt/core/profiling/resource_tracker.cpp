@@ -134,8 +134,8 @@ void TResourceTracker::EnqueueCpuUsage()
             TTagIdList tagIds;
             tagIds.push_back(TProfileManager::Get()->RegisterTag("thread", threadName));
 
-            Profiler.Enqueue("/user_cpu", 100 * userCpuTime / timeDelta, tagIds);
-            Profiler.Enqueue("/system_cpu", 100 * systemCpuTime / timeDelta, tagIds);
+            Profiler.Enqueue("/user_cpu", 100 * userCpuTime / timeDelta, EMetricType::Gauge, tagIds);
+            Profiler.Enqueue("/system_cpu", 100 * systemCpuTime / timeDelta, EMetricType::Gauge, tagIds);
         }
 
         {
@@ -151,7 +151,7 @@ void TResourceTracker::EnqueueCpuUsage()
 void TResourceTracker::EnqueueMemoryUsage()
 {
     try {
-        Profiler.Enqueue("/total/memory", GetProcessRss());
+        Profiler.Enqueue("/total/memory", GetProcessRss(), EMetricType::Gauge);
     } catch (const TIoException&) {
         // Ignore all IO exceptions.
         return;

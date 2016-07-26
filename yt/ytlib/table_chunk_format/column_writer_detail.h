@@ -42,6 +42,8 @@ public:
 
     virtual i32 GetCurrentSegmentSize() const override;
 
+    virtual void WriteUnversionedValues(TRange<NTableClient::TUnversionedRow> rows) override;
+
 protected:
     const int ColumnId_;
     const bool Aggregate_;

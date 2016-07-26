@@ -23,6 +23,7 @@ path_to_run_tests = None
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
 AsyncLastCommittedTimestamp  = 0x3fffffffffffff04
+MinTimestamp                 = 0x0000000000000001
 
 def get_driver(index=0):
     if index == 0:
@@ -162,9 +163,11 @@ def abandon_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
     execute_command('abandon_job', kwargs)
 
-def poll_job_shell(job_id, **kwargs):
-    kwargs = {"job_id": job_id, "parameters": kwargs};
-    return yson.loads(execute_command('poll_job_shell', kwargs));
+def poll_job_shell(job_id, authenticated_user=None, **kwargs):
+    kwargs = {"job_id": job_id, "parameters": kwargs}
+    if authenticated_user:
+        kwargs["authenticated_user"] = authenticated_user
+    return yson.loads(execute_command('poll_job_shell', kwargs))
 
 def abort_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
@@ -430,24 +433,31 @@ class Operation(object):
         if state != "running":
             raise TimeoutError("Operation didn't become running within timeout")
 
+    def _remove_job_files(self, job):
+        os.unlink(os.path.join(self._tmpdir, "started_" + job))
+
     def resume_job(self, job):
         print >>sys.stderr, "Resume operation job %s" % job
 
         self.resumed_jobs.add(job)
         self.jobs.remove(job)
-        os.unlink(os.path.join(self._tmpdir, "started_" + job))
+        self._remove_job_files(job)
 
     def resume_jobs(self):
         if self.jobs is None:
             raise RuntimeError('"ensure_running" must be called before resuming jobs')
 
         for job in self.jobs:
-            os.unlink(os.path.join(self._tmpdir, "started_" + job))
+            self._remove_job_files(job)
 
         try:
             os.rmdir(self._tmpdir)
         except OSError:
             sys.excepthook(*sys.exc_info())
+
+    def get_job_count(self, state):
+        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/{1}".format(self.id, state)
+        return get(path, verbose=False)
 
     def get_state(self, **kwargs):
         return get("//sys/operations/{0}/@state".format(self.id), **kwargs)
@@ -664,13 +674,6 @@ def remove_member(member, group, **kwargs):
     kwargs["member"] = member
     kwargs["group"] = group
     execute_command("remove_member", kwargs)
-
-def create_tablet_cell_bundle(name, **kwargs):
-    kwargs["type"] = "tablet_cell_bundle"
-    if "attributes" not in kwargs:
-        kwargs["attributes"] = dict()
-    kwargs["attributes"]["name"] = name
-    return yson.loads(execute_command("create", kwargs))
 
 def create_tablet_cell(**kwargs):
     kwargs["type"] = "tablet_cell"

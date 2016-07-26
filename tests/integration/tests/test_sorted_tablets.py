@@ -226,7 +226,7 @@ class TestSortedTablets(YTEnvSetup):
             root_chunk_list = get("#" + root_chunk_list_id + "/@")
             tablet_chunk_lists = [get("#" + x + "/@") for x in root_chunk_list["child_ids"]]
             assert all([root_chunk_list_id in chunk_list["parent_ids"] for chunk_list in tablet_chunk_lists])
-            assert get("//tmp/t/@chunk_count") == sum([len(chunk_list["child_ids"]) for chunk_list in tablet_chunk_lists])
+            assert get(path + "/@chunk_count") == sum([len(chunk_list["child_ids"]) for chunk_list in tablet_chunk_lists])
             return root_chunk_list, tablet_chunk_lists
 
         def verify_chunk_tree_refcount(path, root_ref_count, tablet_ref_counts):
@@ -280,6 +280,18 @@ class TestSortedTablets(YTEnvSetup):
         verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
         assert_items_equal(read_table("//tmp/t"), rows1 + rows2 + rows3)
         assert read_table("//tmp/t", tx=tx) == rows1
+
+        abort_transaction(tx)
+        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+
+        tx = start_transaction()
+        lock("//tmp/t", mode="snapshot", tx=tx)
+        verify_chunk_tree_refcount("//tmp/t", 2, [1, 1])
+
+        self.sync_compact_table("//tmp/t")
+        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+        assert_items_equal(read_table("//tmp/t"), rows1 + rows2 + rows3)
+        assert_items_equal(read_table("//tmp/t", tx=tx), rows1 + rows2 + rows3)
 
         abort_transaction(tx)
         verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
@@ -545,6 +557,125 @@ class TestSortedTablets(YTEnvSetup):
 
         reshard([[]])
         assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+
+    def test_metadata_cache_invalidation(self):
+        def sync_mount_table_and_preserve_cache(path, **kwargs):
+            kwargs["path"] = path
+            execute_command("mount_table", kwargs)
+            wait(lambda: all(x["state"] == "mounted" for x in get(path + "/@tablets")))
+
+        def sync_unmount_table_and_preserve_cache(path, **kwargs):
+            kwargs["path"] = path
+            execute_command("unmount_table", kwargs)
+            wait(lambda: all(x["state"] == "unmounted" for x in get(path + "/@tablets")))
+
+        def reshard_and_preserve_cache(path, pivots):
+            sync_unmount_table_and_preserve_cache(path)
+            reshard_table(path, pivots)
+            sync_mount_table_and_preserve_cache(path)
+
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t1")
+        self.sync_mount_table("//tmp/t1")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(3)]
+        keys = [{"key": row["key"]} for row in rows]
+        insert_rows("//tmp/t1", rows)
+        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
+
+        sync_unmount_table_and_preserve_cache("//tmp/t1")
+        with pytest.raises(YtError): lookup_rows("//tmp/t1", keys)
+        clear_metadata_caches()
+        sync_mount_table_and_preserve_cache("//tmp/t1")
+
+        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
+
+        sync_unmount_table_and_preserve_cache("//tmp/t1")
+        with pytest.raises(YtError): select_rows("* from [//tmp/t1]")
+        clear_metadata_caches()
+        sync_mount_table_and_preserve_cache("//tmp/t1")
+
+        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+
+        reshard_and_preserve_cache("//tmp/t1", [[], [1]])
+        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
+
+        reshard_and_preserve_cache("//tmp/t1", [[], [1], [2]])
+        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+
+
+    def test_no_copy(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t1")
+        self.sync_mount_table("//tmp/t1")
+
+        with pytest.raises(YtError): copy("//tmp/t1", "//tmp/t2")
+
+    def test_no_move_mounted(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t1")
+        self.sync_mount_table("//tmp/t1")
+
+        with pytest.raises(YtError): move("//tmp/t1", "//tmp/t2")
+
+    def test_move_unmounted(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t1")
+        self.sync_mount_table("//tmp/t1")
+        self.sync_unmount_table("//tmp/t1")
+
+        table_id1 = get("//tmp/t1/@id")
+        tablet_id = get("//tmp/t1/@tablets/0/tablet_id")
+        assert get("#" + tablet_id + "/@table_id") == table_id1
+
+        move("//tmp/t1", "//tmp/t2")
+
+        mount_table("//tmp/t2")
+        sleep(1)
+        assert get("//tmp/t2/@tablets/0/state") == "mounted"
+
+        table_id2 = get("//tmp/t2/@id")
+        assert get("#" + tablet_id + "/@table_id") == table_id2
+        assert get("//tmp/t2/@tablets/0/tablet_id") == tablet_id
+
+    def test_move_unmounted_in_tx(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t1")
+        self.sync_mount_table("//tmp/t1")
+        self.sync_unmount_table("//tmp/t1")
+
+        table_id1 = get("//tmp/t1/@id")
+        tablet_id = get("//tmp/t1/@tablets/0/tablet_id")
+        assert get("#" + tablet_id + "/@table_id") == table_id1
+
+        tx = start_transaction()
+        with pytest.raises(YtError): move("//tmp/t1", "//tmp/t2", tx=tx)
+
+    def test_move_multiple_rollback(self):
+        self.sync_create_cells(1)
+
+        set("//tmp/x", {})
+        self._create_simple_table("//tmp/x/a")
+        self._create_simple_table("//tmp/x/b")
+        self.sync_mount_table("//tmp/x/a")
+        self.sync_unmount_table("//tmp/x/a")
+        self.sync_mount_table("//tmp/x/b")
+
+        def get_tablet_ids(path):
+            return list(x["tablet_id"] for x in get(path + "/@tablets"))
+
+        # NB: children are moved in lexicographic order
+        # //tmp/x/a is fine to move
+        # //tmp/x/b is not
+        tablet_ids_a = get_tablet_ids("//tmp/x/a")
+        tablet_ids_b = get_tablet_ids("//tmp/x/b")
+
+        with pytest.raises(YtError): move("//tmp/x", "//tmp/y")
+
+        assert get("//tmp/x/a/@dynamic")
+        assert get("//tmp/x/b/@dynamic")
+        assert_items_equal(get_tablet_ids("//tmp/x/a"), tablet_ids_a)
+        assert_items_equal(get_tablet_ids("//tmp/x/b"), tablet_ids_b)
 
     def _test_any_value_type(self, optimize_for):
         self.sync_create_cells(1)
@@ -1124,6 +1255,63 @@ class TestSortedTablets(YTEnvSetup):
         assert_items_equal(rows[0], actual[0])
         assert actual[1] == None
 
+    def test_chunk_statistics(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
+        self.sync_unmount_table("//tmp/t")
+        chunk_list_id = get("//tmp/t/@chunk_list_id")
+        statistics1 = get("#" + chunk_list_id + "/@statistics")
+        self.sync_compact_table("//tmp/t")
+        statistics2 = get("#" + chunk_list_id + "/@statistics")
+        assert statistics1 == statistics2
+
+    def _test_timestamp_access(self, optimize_for):
+        self.sync_create_cells(3)
+        self._create_simple_table("//tmp/t", optimize_for = optimize_for)
+        self.sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows)
+
+        self.sync_unmount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", rows)
+
+        assert lookup_rows("//tmp/t", keys, timestamp=MinTimestamp) == []
+        assert select_rows("* from [//tmp/t]", timestamp=MinTimestamp) == []
+
+    def test_timestamp_access_lookup(self):
+        self._test_timestamp_access("lookup")
+
+    def test_timestamp_access_scan(self):
+        self._test_timestamp_access("scan")
+
+    def test_column_groups(self):
+        self.sync_create_cells(1)
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": "scan",
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending", "group": "a"},
+                    {"name": "value", "type": "string", "group": "a"}]
+            })
+        self.sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
+        keys = [{"key": row["key"]} for row in rows]
+        insert_rows("//tmp/t", rows)
+
+        self.sync_unmount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", keys) == rows
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
     def test_freeze_empty(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -1238,7 +1426,6 @@ class TestSortedTablets(YTEnvSetup):
     def test_copy_and_fork_frozen(self):
         self._test_copy_and_fork(self.sync_freeze_table, self.sync_unfreeze_table, "frozen")
 
-    
     def test_copy_and_compact(self):
         self._prepare_copy()
         self.sync_mount_table("//tmp/t1")

@@ -4,24 +4,6 @@ namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-std::vector<Value*> MakeOpaqueValues(
-    TCGIRBuilderPtr& builder,
-    Value* opaqueValues,
-    size_t opaqueValuesCount)
-{
-    std::vector<Value*> opaqueValuesArray;
-
-    for (size_t index = 0; index < opaqueValuesCount; ++index) {
-        opaqueValuesArray.push_back(builder->CreateLoad(
-            builder->CreateConstGEP1_32(opaqueValues, index),
-            "opaqueValues." + Twine(index)));
-    }
-
-    return opaqueValuesArray;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // Row manipulation helpers
 //
 

@@ -311,6 +311,35 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
+    @unix_only
+    def test_abandon_job_permissions(self):
+        create_user("u1")
+        create_user("u2")
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        for i in xrange(5):
+            write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="abandon_job",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat",
+            spec={
+                "data_size_per_job": 1
+            },
+            authenticated_user="u1")
+
+        with pytest.raises(YtError):
+            abandon_job(op.jobs[3], authenticated_user="u2")
+
+        op.resume_jobs()
+        op.track()
+        assert len(read_table("//tmp/t2")) == 5
+
     def _poll_until_prompt(self, job_id, shell_id):
         output = ""
         while len(output) < 4 or output[-4:] != ":~$ ":
@@ -360,6 +389,36 @@ class TestJobProber(YTEnvSetup):
         op.resume_jobs()
         op.track()
         assert len(read_table("//tmp/t2")) == 0
+
+    def test_poll_job_shell_permissions(self):
+        create_user("u1")
+        create_user("u2")
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"key": "foo"})
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="poll_job_shell",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat",
+            authenticated_user="u1")
+
+        job_id = op.jobs[0]
+        with pytest.raises(YtError):
+            poll_job_shell(
+                job_id,
+                operation="spawn",
+                term="screen-256color",
+                height=50,
+                width=132,
+                authenticated_user="u2")
+
+        op.resume_jobs()
+        op.track()
 
     def get_job_count_profiling(self):
         time.sleep(1)
@@ -762,6 +821,11 @@ class TestSchedulerMapCommands(YTEnvSetup):
                     "output_format": "json"
                 }
             })
+
+        # Wait till job starts reading input
+        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, op.jobs[0])
+        while get(progress_path) < 0.5:
+            time.sleep(1)
 
         dump_job_context(op.jobs[0], "//tmp/input_context")
 
@@ -1195,9 +1259,8 @@ cat > /dev/null; echo {hello=world}
             op.resume_job(job_id)
 
         path = "//sys/operations/{0}/@state".format(op.id)
-        completed_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/completed".format(op.id)
         assert get(path) != "completed"
-        while get(completed_path) < 3:
+        while op.get_job_count("completed") < 3:
             time.sleep(0.2)
 
         op.complete()
@@ -1308,7 +1371,9 @@ print row + table_index
 
         op.resume_job(op.jobs[0])
         op.resume_job(op.jobs[1])
-        time.sleep(2)
+        while op.get_job_count("completed") < 2:
+            time.sleep(0.2)
+        time.sleep(1)
 
         transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         live_preview_data = read_table(operation_path + "/output_0", tx=transaction_id)
@@ -1503,9 +1568,11 @@ print row + table_index
                 out=["<row_count_limit=1>//tmp/out_1", "<row_count_limit=1>//tmp/out_2"],
                 command="cat")
 
-    def test_schema_validation(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_schema_validation(self, optimize_for):
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={
+            "optimize_for" : optimize_for,
             "schema": make_schema([
                 {"name": "key", "type": "int64"},
                 {"name": "value", "type": "string"}])
@@ -1529,9 +1596,11 @@ print row + table_index
                 out="//tmp/output",
                 command="cat")
 
-    def test_unique_keys_validation(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_unique_keys_validation(self, optimize_for):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2", attributes={
+            "optimize_for" : optimize_for,
             "schema": make_schema([
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "string"}],
@@ -1920,6 +1989,35 @@ class TestSandboxTmpfs(YTEnvSetup):
                     "tmpfs_size": 1024 * 1024,
                     "tmpfs_path": ".",
                     "file_paths": ["//tmp/test_file"]
+                }
+            })
+
+        map(command="cat",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024 * 1024,
+                    "tmpfs_path": "./",
+                    "file_paths": ["//tmp/test_file"]
+                }
+            })
+
+        script = "#!/usr/bin/env python\n"\
+                 "import sys; sys.stdout.write(sys.stdin.read())\n"
+        create("file", "//tmp/script")
+        write_file("//tmp/script", script)
+        set("//tmp/script/@executable", True)
+
+        map(command="./script.py",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 100 * 1024 * 1024,
+                    "tmpfs_path": ".",
+                    "copy_files": True,
+                    "file_paths": ["//tmp/test_file", to_yson_type("//tmp/script", attributes={"file_name": "script.py"})]
                 }
             })
 

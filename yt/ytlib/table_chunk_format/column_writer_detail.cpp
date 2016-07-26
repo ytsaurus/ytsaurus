@@ -70,6 +70,12 @@ i32 TVersionedColumnWriterBase::GetCurrentSegmentSize() const
         AggregateBitmap_.Size();
 }
 
+void TVersionedColumnWriterBase::WriteUnversionedValues(TRange<NTableClient::TUnversionedRow> rows)
+{
+    // Versioned column writers don't support unversioned rows.
+    Y_UNREACHABLE();
+}
+
  void TVersionedColumnWriterBase::Reset()
  {
      TimestampIndexes_.clear();

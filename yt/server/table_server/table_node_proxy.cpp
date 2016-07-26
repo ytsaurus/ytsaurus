@@ -261,20 +261,21 @@ private:
                 ETabletState::Unmounted);
         }
 
+        auto dynamic = newDynamic.Get(table->IsDynamic());
+        auto schema = newSchema.Get(table->TableSchema());
+
+        // NB: Sorted dynamic tables contain unique keys, set this for user.
+        if (dynamic && newSchema && newSchema->IsSorted()) {
+            schema = schema.ToUniqueKeys();
+        }
+
+        ValidateTableSchemaUpdate(
+            table->TableSchema(),
+            schema,
+            dynamic,
+            table->IsEmpty());
+
         if (newSchema) {
-            bool dynamic = newDynamic.Get(table->IsDynamic());
-
-            // NB: Sorted dynamic tables contain unique keys, set this for user.
-            auto schema = dynamic && newSchema->IsSorted()
-                ? newSchema->ToUniqueKeys()
-                : *newSchema;
-
-            ValidateTableSchemaUpdate(
-                table->TableSchema(),
-                schema,
-                dynamic,
-                table->IsEmpty());
-
             table->TableSchema() = std::move(schema);
             table->SetPreserveSchemaOnWrite(true);
         }
