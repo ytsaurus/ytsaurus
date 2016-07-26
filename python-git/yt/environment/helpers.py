@@ -77,6 +77,10 @@ def assert_items_equal(actual_seq, expected_seq):
     assert not missing, "Expected, but missing:\n    %s" % repr(missing)
     assert not unexpected, "Unexpected, but present:\n    %s" % repr(unexpected)
 
+def assert_almost_equal(actual, expected, decimal_places=4):
+    eps = 10**(-decimal_places)
+    return abs(actual - expected) < eps
+
 def get_open_port(port_locks_path=None):
     local_port_range = map(int, open("/proc/sys/net/ipv4/ip_local_port_range").read().split())
 
