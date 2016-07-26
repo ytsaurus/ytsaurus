@@ -12,7 +12,7 @@ TAddressMap GetLocalAddresses(const TAddressList& addresses, int port)
 {
     // Аppend port number.
     TAddressMap result;
-    result.resize(addresses.size());
+    result.reserve(addresses.size());
     for (const auto& pair : addresses) {
         YCHECK(result.emplace(pair.first, BuildServiceAddress(pair.second, port)).second);
     }
