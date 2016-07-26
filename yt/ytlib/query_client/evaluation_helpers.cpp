@@ -142,10 +142,54 @@ std::vector<TMutableRow> TTopCollector::GetRows(int rowSize) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJoinEvaluator GetJoinEvaluator(
+TJoinClosure::TJoinClosure(
+    THasherFunction* lookupHasher,
+    TComparerFunction* lookupEqComparer,
+    int keySize,
+    size_t batchSize)
+    : Buffer(New<TRowBuffer>(TPermanentBufferTag()))
+    , Lookup(
+        InitialGroupOpHashtableCapacity,
+        lookupHasher,
+        lookupEqComparer)
+    , KeySize(keySize)
+    , BatchSize(batchSize)
+{
+    Lookup.set_empty_key(TRow());
+}
+
+TGroupByClosure::TGroupByClosure(
+    THasherFunction* groupHasher,
+    TComparerFunction* groupComparer,
+    int keySize,
+    bool checkNulls)
+    : Buffer(New<TRowBuffer>(TPermanentBufferTag()))
+    , Lookup(
+        InitialGroupOpHashtableCapacity,
+        groupHasher,
+        groupComparer)
+    , KeySize(keySize)
+    , CheckNulls(checkNulls)
+{
+    Lookup.set_empty_key(TRow());
+}
+
+TWriteOpClosure::TWriteOpClosure()
+    : OutputBuffer(New<TRowBuffer>(TOutputBufferTag()))
+{
+    OutputRowsBatch.reserve(RowsetProcessingSize);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJoinParameters GetJoinEvaluator(
     const TJoinClause& joinClause,
     TConstExpressionPtr foreignPredicate,
-    const TTableSchema& selfTableSchema)
+    const TTableSchema& selfTableSchema,
+    i64 inputRowLimit,
+    i64 outputRowLimit,
+    size_t batchSize,
+    bool isOrdered)
 {
     const auto& foreignEquations = joinClause.ForeignEquations;
     auto isLeft = joinClause.IsLeft;
@@ -154,11 +198,10 @@ TJoinEvaluator GetJoinEvaluator(
     auto& foreignDataId = joinClause.ForeignDataId;
 
     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
-    auto subquery = New<TQuery>(std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    auto subquery = New<TQuery>(inputRowLimit, outputRowLimit);
 
     subquery->OriginalSchema = joinClause.OriginalSchema;
     subquery->SchemaMapping = joinClause.SchemaMapping;
-    subquery->WhereClause = foreignPredicate;
 
     // (join key... , other columns...)
     auto projectClause = New<TProjectClause>();
@@ -207,19 +250,14 @@ TJoinEvaluator GetJoinEvaluator(
                     joinRenamedTableColumns[index].Name),
                 joinRenamedTableColumns[index].Name);
         }
-    }
+    };
 
-    return [=] (
-        TExecutionContext* context,
-        THasherFunction* groupHasher,
-        TComparerFunction* groupComparer,
-        TJoinLookup& joinLookup,
-        std::vector<TRow> keys,
-        std::vector<std::pair<TRow, i64>> chainedRows,
-        TRowBufferPtr permanentBuffer,
-        void** consumeRowsClosure,
-        void (*consumeRows)(void** closure, TRowBuffer* ,TRow* rows, i64 size))
-    {
+    auto executeForeign = [subquery, canUseSourceRanges, keyPrefix, joinKeyExprs, foreignDataId, foreignPredicate] (
+            ISchemafulWriterPtr writer,
+            std::vector<TRow> keys,
+            TRowBufferPtr permanentBuffer,
+            TExecuteQueryCallback executeCallback)
+        {
         // TODO: keys should be joined with allRows: [(key, sourceRow)]
         TRowRanges ranges;
 
@@ -244,133 +282,21 @@ TJoinEvaluator GetJoinEvaluator(
 
             auto inClause = New<TInOpExpression>(joinKeyExprs, MakeSharedRange(std::move(keys), permanentBuffer));
 
-            subquery->WhereClause = subquery->WhereClause
-                ? MakeAndExpression(inClause, subquery->WhereClause)
+            subquery->WhereClause = foreignPredicate
+                ? MakeAndExpression(inClause, foreignPredicate)
                 : inClause;
         }
 
         LOG_DEBUG("Executing subquery");
 
-        auto pipe = New<NTableClient::TSchemafulPipe>();
-
         TDataRanges dataSource;
         dataSource.Id = foreignDataId;
         dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(permanentBuffer));
 
-        context->ExecuteCallback(subquery, dataSource, pipe->GetWriter());
-
-        // Join rowsets.
-        // allRows have format (join key... , other columns...)
-
-        LOG_DEBUG("Joining started");
-
-        std::vector<TRow> foreignRows;
-        foreignRows.reserve(RowsetProcessingSize);
-
-        auto reader = pipe->GetReader();
-
-        std::vector<TRow> joinedRows;
-        auto intermediateBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
-
-        auto consumeJoinedRows = [&] () {
-            // Consume joined rows.
-            consumeRows(consumeRowsClosure, intermediateBuffer.Get(), joinedRows.data(), joinedRows.size());
-            joinedRows.clear();
-            intermediateBuffer->Clear();
-        };
-
-        while (true) {
-            bool hasMoreData = reader->Read(&foreignRows);
-            bool shouldWait = foreignRows.empty();
-
-            for (auto foreignRow : foreignRows) {
-                auto it = joinLookup.find(foreignRow);
-
-                if (it == joinLookup.end()) {
-                    continue;
-                }
-
-                int startIndex = it->second.first;
-                bool& isJoined = it->second.second;
-
-                for (
-                    int chainedRowIndex = startIndex;
-                    chainedRowIndex >= 0;
-                    chainedRowIndex = chainedRows[chainedRowIndex].second)
-                {
-                    auto row = chainedRows[chainedRowIndex].first;
-                    auto joinedRow = intermediateBuffer->Allocate(selfColumns.size() + foreignColumns.size());
-
-                    for (size_t column = 0; column < selfColumns.size(); ++column) {
-                        joinedRow[column] = row[selfColumns[column]];
-                    }
-
-                    for (size_t column = 0; column < foreignColumns.size(); ++column) {
-                        joinedRow[column + selfColumns.size()] = foreignRow[foreignColumns[column]];
-                    }
-
-                    joinedRows.push_back(joinedRow);
-
-                    if (joinedRows.size() >= RowsetProcessingSize) {
-                        consumeJoinedRows();
-                    }
-                }
-                isJoined = true;
-            }
-
-            consumeJoinedRows();
-
-            foreignRows.clear();
-
-            if (!hasMoreData) {
-                break;
-            }
-
-            if (shouldWait) {
-                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
-                WaitFor(reader->GetReadyEvent())
-                    .ThrowOnError();
-            }
-        }
-
-        if (isLeft) {
-            for (auto lookup : joinLookup) {
-                int startIndex = lookup.second.first;
-                bool isJoined = lookup.second.second;
-
-                if (isJoined) {
-                    continue;
-                }
-
-                for (
-                    int chainedRowIndex = startIndex;
-                    chainedRowIndex >= 0;
-                    chainedRowIndex = chainedRows[chainedRowIndex].second)
-                {
-                    auto row = chainedRows[chainedRowIndex].first;
-                    auto joinedRow = intermediateBuffer->Allocate(selfColumns.size() + foreignColumns.size());
-
-                    for (size_t column = 0; column < selfColumns.size(); ++column) {
-                        joinedRow[column] = row[selfColumns[column]];
-                    }
-
-                    for (size_t column = 0; column < foreignColumns.size(); ++column) {
-                        joinedRow[column + selfColumns.size()] = MakeUnversionedSentinelValue(EValueType::Null);
-                    }
-
-                    joinedRows.push_back(joinedRow);
-                }
-
-                if (joinedRows.size() >= RowsetProcessingSize) {
-                    consumeJoinedRows();
-                }
-            }
-        }
-
-        consumeJoinedRows();
-
-        LOG_DEBUG("Joining finished");
+        executeCallback(subquery, dataSource, writer);
     };
+
+    return TJoinParameters{isOrdered, isLeft, selfColumns, foreignColumns, executeForeign, batchSize};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

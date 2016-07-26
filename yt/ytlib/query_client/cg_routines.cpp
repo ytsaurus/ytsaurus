@@ -12,6 +12,7 @@
 #include <yt/ytlib/table_client/schemaful_writer.h>
 #include <yt/ytlib/table_client/unordered_schemaful_reader.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/pipe.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -144,7 +145,6 @@ void ScanOpHelper(
 
 void InsertJoinRow(
     TExecutionContext* context,
-    TRowBuffer* buffer,
     TJoinClosure* closure,
     TMutableRow* keyPtr,
     TRow row)
@@ -152,7 +152,7 @@ void InsertJoinRow(
     CHECK_STACK();
 
     i64 chainIndex = closure->ChainedRows.size();
-    closure->ChainedRows.emplace_back(buffer->Capture(row), -1);
+    closure->ChainedRows.emplace_back(closure->Buffer->Capture(row), -1);
 
     if (chainIndex >= context->JoinRowLimit) {
         throw TInterruptedIncompleteException();
@@ -163,19 +163,24 @@ void InsertJoinRow(
     if (inserted.second) {
         closure->Keys.push_back(key);
         for (int index = 0; index < closure->KeySize; ++index) {
-            buffer->Capture(&key[index]);
+            closure->Buffer->Capture(&key[index]);
         }
-        *keyPtr = buffer->Allocate(closure->KeySize);
+        *keyPtr = closure->Buffer->Allocate(closure->KeySize);
     } else {
         auto& startIndex = inserted.first->second.first;
         closure->ChainedRows.back().second = startIndex;
         startIndex = chainIndex;
     }
+
+    if (closure->ChainedRows.size() >= closure->BatchSize) {
+        closure->ProcessJoinBatch();
+        *keyPtr = closure->Buffer->Allocate(closure->KeySize);
+    }
 }
 
 void JoinOpHelper(
     TExecutionContext* context,
-    TJoinEvaluator* joinEvaluator,
+    TJoinParameters* parameters,
     THasherFunction* lookupHasher,
     TComparerFunction* lookupEqComparer,
     TComparerFunction* lookupLessComparer,
@@ -188,42 +193,219 @@ void JoinOpHelper(
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size))
 {
-    TJoinClosure closure(lookupHasher, lookupEqComparer, keySize);
+    TJoinClosure closure(lookupHasher, lookupEqComparer, keySize, parameters->BatchSize);
 
-    auto buffer = New<TRowBuffer>(TPermanentBufferTag());
+    closure.ProcessJoinBatch = [&] () {
+        LOG_DEBUG("Sorting %v join keys",
+            closure.Keys.size());
+
+        std::sort(closure.Keys.begin(), closure.Keys.end(), lookupLessComparer);
+
+        LOG_DEBUG("Collected %v join keys from %v rows",
+            closure.Keys.size(),
+            closure.ChainedRows.size());
+
+        // Join rowsets.
+        // allRows have format (join key... , other columns...)
+
+        std::vector<TRow> joinedRows;
+        joinedRows.reserve(RowsetProcessingSize);
+        auto intermediateBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
+
+        auto consumeJoinedRows = [&] () {
+            // Consume joined rows.
+            consumeRows(consumeRowsClosure, intermediateBuffer.Get(), joinedRows.data(), joinedRows.size());
+            joinedRows.clear();
+            intermediateBuffer->Clear();
+        };
+
+        auto& joinLookup = closure.Lookup;
+        auto chainedRows = std::move(closure.ChainedRows);
+
+        auto isOrdered = parameters->IsOrdered;
+        auto isLeft = parameters->IsLeft;
+        auto selfColumns = parameters->SelfColumns;
+        auto foreignColumns = parameters->ForeignColumns;
+
+        auto joinRow = [&] (TRow row, TRow foreignRow) {
+            auto joinedRow = intermediateBuffer->Allocate(selfColumns.size() + foreignColumns.size());
+
+            for (size_t column = 0; column < selfColumns.size(); ++column) {
+                joinedRow[column] = row[selfColumns[column]];
+            }
+
+            for (size_t column = 0; column < foreignColumns.size(); ++column) {
+                joinedRow[column + selfColumns.size()] = foreignRow[foreignColumns[column]];
+            }
+
+            joinedRows.push_back(joinedRow);
+
+            if (joinedRows.size() >= RowsetProcessingSize) {
+                consumeJoinedRows();
+            }
+        };
+
+        auto joinRowNull = [&] (TRow row) {
+            auto joinedRow = intermediateBuffer->Allocate(selfColumns.size() + foreignColumns.size());
+
+            for (size_t column = 0; column < selfColumns.size(); ++column) {
+                joinedRow[column] = row[selfColumns[column]];
+            }
+
+            for (size_t column = 0; column < foreignColumns.size(); ++column) {
+                joinedRow[column + selfColumns.size()] = MakeUnversionedSentinelValue(EValueType::Null);
+            }
+
+            joinedRows.push_back(joinedRow);
+
+            if (joinedRows.size() >= RowsetProcessingSize) {
+                consumeJoinedRows();
+            }
+        };
+
+        if (!isOrdered) {
+            auto pipe = New<NTableClient::TSchemafulPipe>();
+
+            parameters->ExecuteForeign(
+                pipe->GetWriter(),
+                std::move(closure.Keys),
+                closure.Buffer,
+                context->ExecuteCallback);
+
+            LOG_DEBUG("Joining started");
+
+            std::vector<TRow> foreignRows;
+            foreignRows.reserve(RowsetProcessingSize);
+
+            auto reader = pipe->GetReader();
+
+            while (true) {
+                bool hasMoreData = reader->Read(&foreignRows);
+                bool shouldWait = foreignRows.empty();
+
+                for (auto foreignRow : foreignRows) {
+                    auto it = joinLookup.find(foreignRow);
+
+                    if (it == joinLookup.end()) {
+                        continue;
+                    }
+
+                    int startIndex = it->second.first;
+                    bool& isJoined = it->second.second;
+
+                    for (
+                        int chainedRowIndex = startIndex;
+                        chainedRowIndex >= 0;
+                        chainedRowIndex = chainedRows[chainedRowIndex].second)
+                    {
+                        joinRow(chainedRows[chainedRowIndex].first, foreignRow);
+                    }
+                    isJoined = true;
+                }
+
+                consumeJoinedRows();
+
+                foreignRows.clear();
+
+                if (!hasMoreData) {
+                    break;
+                }
+
+                if (shouldWait) {
+                    NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                    WaitFor(reader->GetReadyEvent())
+                        .ThrowOnError();
+                }
+            }
+
+            if (isLeft) {
+                for (auto lookup : joinLookup) {
+                    int startIndex = lookup.second.first;
+                    bool isJoined = lookup.second.second;
+
+                    if (isJoined) {
+                        continue;
+                    }
+
+                    for (
+                        int chainedRowIndex = startIndex;
+                        chainedRowIndex >= 0;
+                        chainedRowIndex = chainedRows[chainedRowIndex].second)
+                    {
+                        joinRowNull(chainedRows[chainedRowIndex].first);
+                    }
+                }
+            }
+
+            consumeJoinedRows();
+        } else {
+            NApi::IRowsetPtr rowset;
+
+            {
+                ISchemafulWriterPtr writer;
+                TFuture<NApi::IRowsetPtr> rowsetFuture;
+                // Any schema, it is not used.
+                std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter(TTableSchema());
+                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+
+                parameters->ExecuteForeign(
+                    writer,
+                    std::move(closure.Keys),
+                    closure.Buffer,
+                    context->ExecuteCallback);
+
+                rowset = WaitFor(rowsetFuture).ValueOrThrow();
+            }
+
+            const auto& foreignRows = rowset->Rows();
+
+            LOG_DEBUG("Got %v foreign rows", foreignRows.size());
+
+            TJoinLookupRows foreignLookup(
+                InitialGroupOpHashtableCapacity,
+                lookupHasher,
+                lookupEqComparer);
+
+            for (auto row : foreignRows) {
+                foreignLookup.insert(row);
+            }
+
+            LOG_DEBUG("Joining started");
+
+            for (const auto& item : chainedRows) {
+                auto row = item.first;
+                auto equalRange = foreignLookup.equal_range(row);
+                for (auto it = equalRange.first; it != equalRange.second; ++it) {
+                    joinRow(row, *it);
+                }
+
+                if (isLeft && equalRange.first == equalRange.second) {
+                    joinRowNull(row);
+                }
+            }
+
+            consumeJoinedRows();
+        }
+
+        LOG_DEBUG("Joining finished");
+
+        closure.Lookup.clear();
+        closure.Buffer->Clear();
+    };
 
     try {
         // Collect join ids.
-        collectRows(collectRowsClosure, &closure, buffer.Get());
+        collectRows(collectRowsClosure, &closure, closure.Buffer.Get());
     } catch (const TInterruptedIncompleteException&) {
         // Set incomplete and continue
         context->Statistics->IncompleteOutput = true;
     }
 
-    LOG_DEBUG("Sorting %v join keys",
-        closure.Keys.size());
-
-    std::sort(closure.Keys.begin(), closure.Keys.end(), lookupLessComparer);
-
-    LOG_DEBUG("Collected %v join keys from %v rows",
-        closure.Keys.size(),
-        closure.ChainedRows.size());
-
-    (*joinEvaluator)(
-        context,
-        lookupHasher,
-        lookupEqComparer,
-        closure.Lookup,
-        std::move(closure.Keys),
-        std::move(closure.ChainedRows),
-        buffer,
-        consumeRowsClosure,
-        consumeRows);
+    closure.ProcessJoinBatch();
 }
 
 const TRow* InsertGroupRow(
     TExecutionContext* context,
-    TRowBuffer* buffer,
     TGroupByClosure* closure,
     TMutableRow row)
 {
@@ -238,7 +420,7 @@ const TRow* InsertGroupRow(
 
         closure->GroupedRows.push_back(row);
         for (int index = 0; index < closure->KeySize; ++index) {
-            buffer->Capture(&row[index]);
+            closure->Buffer->Capture(&row[index]);
         }
 
         if (closure->CheckNulls) {
@@ -269,10 +451,8 @@ void GroupOpHelper(
 {
     TGroupByClosure closure(groupHasher, groupComparer, keySize, checkNulls);
 
-    auto buffer = New<TRowBuffer>(TPermanentBufferTag());
-
     try {
-        collectRows(collectRowsClosure, &closure, buffer.Get());
+        collectRows(collectRowsClosure, &closure, closure.Buffer.Get());
     } catch (const TInterruptedIncompleteException&) {
         // Set incomplete and continue
         context->Statistics->IncompleteOutput = true;
@@ -332,9 +512,6 @@ void WriteOpHelper(
     void (*collectRows)(void** closure, TWriteOpClosure* writeOpClosure))
 {
     TWriteOpClosure closure;
-
-    closure.OutputBuffer = New<TRowBuffer>(TOutputBufferTag());
-    closure.OutputRowsBatch.reserve(RowsetProcessingSize);
 
     try {
         collectRows(collectRowsClosure, &closure);

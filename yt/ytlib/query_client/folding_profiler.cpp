@@ -264,10 +264,20 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
                 std::move(codegenSource));
         }
 
-        int index = Variables_->AddObject<TJoinEvaluator>(GetJoinEvaluator(
+        size_t joinBatchSize = std::numeric_limits<size_t>::max();
+
+        if (query->IsOrdered()) {
+            joinBatchSize = query->Limit;
+        }
+
+        int index = Variables_->AddObject<TJoinParameters>(GetJoinEvaluator(
             *joinClause,
             ExtractPredicateForColumnSubset(query->WhereClause, joinClause->GetRenamedSchema()),
-            schema));
+            schema,
+            query->InputRowLimit,
+            query->OutputRowLimit,
+            joinBatchSize,
+            query->IsOrdered()));
 
         codegenSource = MakeCodegenJoinOp(
             index,

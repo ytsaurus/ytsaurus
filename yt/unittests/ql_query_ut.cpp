@@ -686,9 +686,12 @@ protected:
         i64 outputRowLimit,
         EFailureLocation failureLocation)
     {
+        yhash_map<TGuid, size_t> sourceGuids;
+        size_t index = 0;
         for (const auto& dataSplit : dataSplits) {
             EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath(dataSplit.first), _))
                 .WillOnce(Return(WrapInFuture(dataSplit.second)));
+            sourceGuids.emplace(NYT::FromProto<TGuid>(dataSplit.second.chunk_id()), index++);
         }
 
         auto fetchFunctions = [&] (const std::vector<Stroka>& names, const TTypeInferrerMapPtr& typeInferrers) {
@@ -701,14 +704,13 @@ protected:
             std::tie(primaryQuery, primaryDataSource) = PreparePlanFragment(
                 &PrepareMock_, query, fetchFunctions, inputRowLimit, outputRowLimit);
 
-            size_t foreignSplitIndex = 1;
             auto executeCallback = [&] (
                 const TQueryPtr& subquery,
                 TDataRanges dataRanges,
                 ISchemafulWriterPtr writer) mutable
             {
                 return MakeFuture(DoExecuteQuery(
-                    owningSources[foreignSplitIndex++],
+                    owningSources[sourceGuids[dataRanges.Id]],
                     FunctionProfilers_,
                     AggregateProfilers_,
                     failureLocation,
@@ -1725,7 +1727,7 @@ TEST_F(TQueryEvaluateTest, TestJoinEmpty)
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64},
         {"b", EValueType::Int64}
-    });
+    }, 0);
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -1739,7 +1741,7 @@ TEST_F(TQueryEvaluateTest, TestJoinEmpty)
     auto rightSplit = MakeSplit({
         {"b", EValueType::Int64},
         {"c", EValueType::Int64}
-    });
+    }, 1);
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -1769,7 +1771,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple2)
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
-    });
+    }, 0);
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -1779,7 +1781,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple2)
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
-    });
+    }, 1);
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -1809,7 +1811,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple3)
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
-    });
+    }, 0);
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -1819,7 +1821,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple3)
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
-    });
+    }, 1);
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -1848,7 +1850,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple4)
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
-    });
+    }, 0);
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -1858,7 +1860,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple4)
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
-    });
+    }, 1);
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -1887,7 +1889,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
-    });
+    }, 0);
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -1898,7 +1900,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
-    });
+    }, 1);
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -1935,7 +1937,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit)
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
-    });
+    }, 0);
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -1948,7 +1950,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit)
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
-    });
+    }, 1);
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -1986,7 +1988,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit2)
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
-    });
+    }, 0);
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -1996,7 +1998,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit2)
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
-    });
+    }, 1);
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -2027,6 +2029,70 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit2)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestJoinLimit3)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    }, 0);
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1",
+        "a=2",
+        "a=3",
+        "a=4",
+        "a=5",
+        "a=6",
+        "a=7"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    }, 1);
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "a=7",
+        "a=5",
+        "a=3",
+        "a=1"
+    });
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=3",
+        "x=1"
+    }, resultSplit);
+
+    Evaluate(
+        "a as x FROM [//left] join [//right] using a",
+        splits,
+        sources,
+        ResultMatcher(result),
+        std::numeric_limits<i64>::max(), 4);
+
+    result = BuildRows({
+        "x=1",
+        "x=3",
+        "x=5",
+        "x=7"
+    }, resultSplit);
+
+    Evaluate(
+        "a as x FROM [//left] join [//right] using a limit 4",
+        splits,
+        sources,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
 {
     std::map<Stroka, TDataSplit> splits;
@@ -2035,7 +2101,7 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
     auto leftSplit = MakeSplit({
         TColumnSchema("x", EValueType::String).SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("y", EValueType::String)
-    });
+    }, 0);
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -2047,7 +2113,7 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
     auto rightSplit = MakeSplit({
         TColumnSchema("a", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("x", EValueType::String)
-    });
+    }, 1);
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -2082,7 +2148,7 @@ TEST_F(TQueryEvaluateTest, TestJoinManySimple)
     splits["//a"] = MakeSplit({
         {"a", EValueType::Int64},
         {"c", EValueType::String}
-    });
+    }, 0);
     sources.push_back({
         "a=2;c=b",
         "a=3;c=c",
@@ -2093,7 +2159,7 @@ TEST_F(TQueryEvaluateTest, TestJoinManySimple)
         {"b", EValueType::Int64},
         {"c", EValueType::String},
         {"d", EValueType::String}
-    });
+    }, 1);
     sources.push_back({
         "b=100;c=a;d=X",
         "b=200;c=b;d=Y",
@@ -2106,7 +2172,7 @@ TEST_F(TQueryEvaluateTest, TestJoinManySimple)
     splits["//c"] = MakeSplit({
         {"d", EValueType::String},
         {"e", EValueType::Int64},
-    });
+    }, 2);
     sources.push_back({
         "d=X;e=1234",
         "d=Y;e=5678"
@@ -2147,7 +2213,7 @@ TEST_F(TQueryEvaluateTest, TestJoin)
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64},
         {"b", EValueType::Int64}
-    });
+    }, 0);
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -2165,7 +2231,7 @@ TEST_F(TQueryEvaluateTest, TestJoin)
     auto rightSplit = MakeSplit({
         {"b", EValueType::Int64},
         {"c", EValueType::Int64}
-    });
+    }, 1);
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -2205,7 +2271,7 @@ TEST_F(TQueryEvaluateTest, TestLeftJoin)
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64},
         {"b", EValueType::Int64}
-    });
+    }, 0);
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -2223,7 +2289,7 @@ TEST_F(TQueryEvaluateTest, TestLeftJoin)
     auto rightSplit = MakeSplit({
         {"b", EValueType::Int64},
         {"c", EValueType::Int64}
-    });
+    }, 1);
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -2308,7 +2374,7 @@ TEST_F(TQueryEvaluateTest, TestJoinMany)
     splits["//primary"] = MakeSplit({
         {"a", EValueType::Int64},
         {"b", EValueType::Int64}
-    });
+    }, 0);
     sources.push_back({
         "a=1;b=10",
         "a=2;b=20",
@@ -2324,7 +2390,7 @@ TEST_F(TQueryEvaluateTest, TestJoinMany)
     splits["//secondary"] = MakeSplit({
         {"b", EValueType::Int64},
         {"c", EValueType::Int64}
-    });
+    }, 1);
     sources.push_back({
         "c=1;b=10",
         "c=2;b=20",
@@ -2340,7 +2406,7 @@ TEST_F(TQueryEvaluateTest, TestJoinMany)
     splits["//tertiary"] = MakeSplit({
         {"c", EValueType::Int64},
         {"d", EValueType::Int64}
-    });
+    }, 2);
     sources.push_back({
         "c=1;d=10",
         "c=2;d=20",
