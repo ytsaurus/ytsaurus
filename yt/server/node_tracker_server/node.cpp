@@ -189,13 +189,13 @@ void TNode::Load(NCellMaster::TLoadContext& context)
 
 void TNode::ReserveStoredReplicas(int sizeHint)
 {
-    StoredReplicas_.resize(sizeHint);
+    StoredReplicas_.reserve(sizeHint);
     RandomReplicaIt_ = StoredReplicas_.end();
 }
 
 void TNode::ReserveCachedReplicas(int sizeHint)
 {
-    CachedReplicas_.resize(sizeHint);
+    CachedReplicas_.reserve(sizeHint);
 }
 
 bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)

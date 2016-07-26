@@ -1211,7 +1211,7 @@ public:
         // Check for duplicates.
         // Compute last commit timestamp.
         yhash_set<TChunk*> chunkSet;
-        chunkSet.resize(chunks.size());
+        chunkSet.reserve(chunks.size());
         auto lastCommitTimestamp = NTransactionClient::MinTimestamp;
         for (auto* chunk : chunks) {
             if (!chunkSet.insert(chunk).second) {

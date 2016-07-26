@@ -11,7 +11,6 @@ set(CHARSET_SRCS
 set(STRING_BASE ${CMAKE_SOURCE_DIR}/util/string)
 set(STRING_SRCS
   ${STRING_BASE}/ascii.cpp
-  ${STRING_BASE}/base64.cpp
   ${STRING_BASE}/builder.cpp
   ${STRING_BASE}/cast.cc
   ${STRING_BASE}/cgiparam.cpp
@@ -277,7 +276,6 @@ set( DRAFT_SRCS
 
 set(ROOT_BASE ${CMAKE_SOURCE_DIR}/util)
 set(ROOT_SRCS
-  ${ROOT_BASE}/cont_init.cpp
   ${ROOT_BASE}/str_stl.cpp
   ${ROOT_BASE}/ysafeptr.cpp
   ${ROOT_BASE}/ysaveload.cpp
