@@ -100,40 +100,40 @@ using TJoinLookupRows = std::unordered_multiset<
 
 struct TExecutionContext;
 
-using TJoinEvaluator = std::function<void(
-    TExecutionContext* executionContext,
-    THasherFunction* hasher,
-    TComparerFunction* comparer,
-    TJoinLookup& joinLookup,
-    std::vector<TRow> keys,
-    std::vector<std::pair<TRow, i64>> chainedRows,
-    TRowBufferPtr permanentBuffer,
-    void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size))>;
+struct TJoinParameters
+{
+    bool IsOrdered;
+    bool IsLeft;
+    std::vector<size_t> SelfColumns;
+    std::vector<size_t> ForeignColumns;
+
+    std::function<void(ISchemafulWriterPtr, std::vector<TRow>, TRowBufferPtr, TExecuteQueryCallback)>
+        ExecuteForeign;
+
+    size_t BatchSize;
+};
 
 struct TJoinClosure
 {
+    TRowBufferPtr Buffer;
     TJoinLookup Lookup;
     std::vector<TRow> Keys;
     std::vector<std::pair<TRow, i64>> ChainedRows;
     int KeySize;
 
+    size_t BatchSize;
+    std::function<void()> ProcessJoinBatch;
+
     TJoinClosure(
         THasherFunction* lookupHasher,
         TComparerFunction* lookupEqComparer,
-        int keySize)
-        : Lookup(
-            InitialGroupOpHashtableCapacity,
-            lookupHasher,
-            lookupEqComparer)
-        , KeySize(keySize)
-    {
-        Lookup.set_empty_key(TRow());
-    }
+        int keySize,
+        size_t batchSize);
 };
 
 struct TGroupByClosure
 {
+    TRowBufferPtr Buffer ;
     TLookupRows Lookup;
     std::vector<TRow> GroupedRows;
     int KeySize;
@@ -143,16 +143,7 @@ struct TGroupByClosure
         THasherFunction* groupHasher,
         TComparerFunction* groupComparer,
         int keySize,
-        bool checkNulls)
-        : Lookup(
-            InitialGroupOpHashtableCapacity,
-            groupHasher,
-            groupComparer)
-        , KeySize(keySize)
-        , CheckNulls(checkNulls)
-    {
-        Lookup.set_empty_key(TRow());
-    }
+        bool checkNulls);
 };
 
 struct TWriteOpClosure
@@ -161,6 +152,9 @@ struct TWriteOpClosure
 
     // Rows stored in OutputBuffer
     std::vector<TRow> OutputRowsBatch;
+
+    TWriteOpClosure();
+
 };
 
 typedef TRowBuffer TExpressionContext;
@@ -320,10 +314,14 @@ struct TCGAggregateCallbacks
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJoinEvaluator GetJoinEvaluator(
+TJoinParameters GetJoinEvaluator(
     const TJoinClause& joinClause,
     TConstExpressionPtr predicate,
-    const TTableSchema& selfTableSchema);
+    const TTableSchema& selfTableSchema,
+    i64 inputRowLimit,
+    i64 outputRowLimit,
+    size_t batchSize,
+    bool isOrdered);
 
 ////////////////////////////////////////////////////////////////////////////////
 

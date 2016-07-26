@@ -1037,7 +1037,6 @@ TCodegenSource MakeCodegenJoinOp(
             codegenSource(
                 builder,
                 [&] (TCGContext& builder, Value* row) {
-                    Value* bufferRef = builder->ViaClosure(buffer);
                     Value* keyPtrRef = builder->ViaClosure(keyPtr);
                     Value* keyRef = builder->CreateLoad(keyPtrRef);
 
@@ -1063,7 +1062,6 @@ TCodegenSource MakeCodegenJoinOp(
                         builder.Module->GetRoutine("InsertJoinRow"),
                         {
                             builder.GetExecutionContext(),
-                            bufferRef,
                             joinClosureRef,
                             keyPtrRef,
                             row
@@ -1369,7 +1367,6 @@ TCodegenSource MakeCodegenGroupOp(
                         builder.Module->GetRoutine("InsertGroupRow"),
                         {
                             builder.GetExecutionContext(),
-                            bufferRef,
                             groupByClosureRef,
                             newRowRef
                         });

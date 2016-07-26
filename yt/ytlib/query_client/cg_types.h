@@ -22,7 +22,7 @@ using NYT::NQueryClient::TLookupRows;
 using NYT::NQueryClient::TJoinLookup;
 using NYT::NQueryClient::TJoinLookupRows;
 using NYT::NQueryClient::TTopCollector;
-using NYT::NQueryClient::TJoinEvaluator;
+using NYT::NQueryClient::TJoinParameters;
 using NYT::NQueryClient::TJoinClosure;
 using NYT::NQueryClient::TGroupByClosure;
 using NYT::NQueryClient::TWriteOpClosure;
@@ -116,7 +116,7 @@ class TypeBuilder<TSharedRange<TRow>*, Cross>
 { };
 
 template <bool Cross>
-class TypeBuilder<TJoinEvaluator*, Cross>
+class TypeBuilder<TJoinParameters*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
 
