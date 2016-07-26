@@ -39,7 +39,7 @@ shift "$((OPTIND - 1))"
 arc="svn+ssh://arcadia.yandex.ru/arc/trunk/arcadia/yt"
 cmd="$1"
 if [[ ! "$cmd" =~ ^init|pull|push$ ]]; then
-    die "USAGE: $0: [-f] [-v VERSION] {init|pull|push}"
+    die "USAGE: $0: [-f] [-r] [-v VERSION] {init|pull|push}"
 fi
 
 _detect_abi() {

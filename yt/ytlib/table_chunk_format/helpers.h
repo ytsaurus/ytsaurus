@@ -26,13 +26,25 @@ GetValue(const NTableClient::TUnversionedValue& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NTableClient::TUnversionedValue& GetUnversionedValue(const NTableClient::TUnversionedRow row, int valueIndex)
+inline const NTableClient::TUnversionedValue& GetUnversionedValue(NTableClient::TUnversionedRow row, int valueIndex)
 {
     Y_ASSERT(valueIndex < row.GetCount());
     return row[valueIndex];
 }
 
-inline const NTableClient::TUnversionedValue& GetUnversionedValue(const NTableClient::TVersionedRow row, int valueIndex)
+inline const NTableClient::TUnversionedValue& GetUnversionedValue(NTableClient::TVersionedRow row, int valueIndex)
+{
+    Y_ASSERT(valueIndex < row.GetKeyCount());
+    return row.BeginKeys()[valueIndex];
+}
+
+inline NTableClient::TUnversionedValue& GetUnversionedValue(NTableClient::TMutableUnversionedRow row, int valueIndex)
+{
+    Y_ASSERT(valueIndex < row.GetCount());
+    return row[valueIndex];
+}
+
+inline NTableClient::TUnversionedValue& GetUnversionedValue(NTableClient::TMutableVersionedRow row, int valueIndex)
 {
     Y_ASSERT(valueIndex < row.GetKeyCount());
     return row.BeginKeys()[valueIndex];

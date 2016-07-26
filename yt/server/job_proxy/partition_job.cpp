@@ -75,6 +75,8 @@ public:
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
 
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
+        // We pass key column for partitioning through schema, but input stream is not sorted.
+        options->ValidateSorted = false;
 
         WriterFactory_ = [=] (TNameTablePtr nameTable) mutable {
             YCHECK(!Writer_);
@@ -82,7 +84,7 @@ public:
                 config->JobIO->TableWriter,
                 options,
                 nameTable,
-                keyColumns,
+                TTableSchema::FromKeyColumns(keyColumns),
                 Host_->GetClient(),
                 CellTagFromId(chunkListId),
                 transactionId,
@@ -107,6 +109,11 @@ private:
     virtual void CreateWriter() override
     {
         WriterFactory_(NameTable_);
+    }
+
+    virtual bool ShouldSendBoundaryKeys() const
+    {
+        return false;
     }
 
     std::unique_ptr<IPartitioner> GetPartitioner()

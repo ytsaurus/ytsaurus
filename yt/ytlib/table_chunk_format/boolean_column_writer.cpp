@@ -2,6 +2,7 @@
 
 #include "column_writer_detail.h"
 #include "compressed_integer_vector.h"
+#include "helpers.h"
 
 #include <yt/ytlib/table_client/versioned_row.h>
 
@@ -41,7 +42,9 @@ public:
         AddPendingValues(
             rows,
             [&] (const TVersionedValue& value) {
-                Values_.Append(value.Data.Boolean);
+                bool isNull = value.Type == EValueType::Null;
+                bool data = isNull ? false : value.Data.Boolean;
+                Values_.Append(data);
             });
     }
 
@@ -116,6 +119,11 @@ public:
         AddPendingValues(rows);
     }
 
+    virtual void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
+    {
+        AddPendingValues(rows);
+    }
+
     virtual i32 GetCurrentSegmentSize() const override
     {
         if (Values_.GetBitSize() > 0) {
@@ -157,14 +165,17 @@ private:
         TColumnWriterBase::DumpSegment(&segmentInfo);
     }
 
-    void AddPendingValues(const TRange<TVersionedRow> rows)
+    template <class TRow>
+    void AddPendingValues(const TRange<TRow> rows)
     {
         for (auto row : rows) {
             ++RowCount_;
 
-            const auto& value = row.BeginKeys()[ColumnIndex_];
-            NullBitmap_.Append(value.Type == EValueType::Null);
-            Values_.Append(value.Data.Boolean);
+            const auto& value = GetUnversionedValue(row, ColumnIndex_);
+            bool isNull = value.Type == EValueType::Null;
+            bool data = isNull ? false : value.Data.Boolean;
+            NullBitmap_.Append(isNull);
+            Values_.Append(data);
         }
     }
 };

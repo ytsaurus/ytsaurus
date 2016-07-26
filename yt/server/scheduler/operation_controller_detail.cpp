@@ -398,8 +398,10 @@ void TOperationControllerBase::TTask::ScheduleJob(
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
 
     auto estimatedResourceUsage = GetNeededResources(joblet);
-
     auto neededResources = ApplyMemoryReserve(estimatedResourceUsage);
+
+    joblet->EstimatedResourceUsage = estimatedResourceUsage;
+    joblet->ResourceLimits = neededResources;
 
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources)) {
@@ -463,8 +465,6 @@ void TOperationControllerBase::TTask::ScheduleJob(
     if (userJobSpec) {
         joblet->UserJobMemoryReserveFactor = Controller->GetUserJobMemoryDigest(GetJobType())->GetQuantile(Controller->Config->UserJobMemoryReserveQuantile);
     }
-    joblet->EstimatedResourceUsage = estimatedResourceUsage;
-    joblet->ResourceLimits = neededResources;
 
     LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
@@ -3204,7 +3204,8 @@ void TOperationControllerBase::BeginUploadOutputTables()
                     "erasure_codec",
                     "replication_factor",
                     "row_count",
-                    "vital"
+                    "vital",
+                    "optimize_for"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 SetTransactionId(req, OutputTransactionId);
@@ -3243,6 +3244,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 table.Options->ReplicationFactor = attributes->Get<int>("replication_factor");
                 table.Options->Account = attributes->Get<Stroka>("account");
                 table.Options->ChunksVital = attributes->Get<bool>("vital");
+                table.Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for");
 
                 table.EffectiveAcl = attributes->GetYson("effective_acl");
             }
@@ -3604,6 +3606,11 @@ void TOperationControllerBase::CollectTotals()
                         Y_UNREACHABLE();
                 }
             }
+
+            if (table.IsPrimary()) {
+                PrimaryInputDataSize_ += chunkSpec->GetUncompressedDataSize();
+            }
+
             TotalEstimatedInputDataSize += chunkSpec->GetUncompressedDataSize();
             TotalEstimatedInputRowCount += chunkSpec->GetRowCount();
             TotalEstimatedCompressedDataSize += chunkSpec->GetCompressedDataSize();
@@ -3935,7 +3942,7 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
         auto chunkSpec = slice->GetInputChunk();
         const auto& chunkId = chunkSpec->ChunkId();
 
-        // Insert an empty TInputChunkDescriptor(), if new chunkId encounted.
+        // Insert an empty TInputChunkDescriptor if a new chunkId is encountered.
         auto& chunkDescriptor = InputChunkMap[chunkId];
 
         if (InputChunkSpecs.insert(chunkSpec).second) {
@@ -4212,12 +4219,11 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
 void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* jobSpec,
-    TJobletPtr joblet,
-    i64 memoryReserve)
+    TJobletPtr joblet)
 {
     ToProto(jobSpec->mutable_async_scheduler_transaction_id(), AsyncSchedulerTransactionId);
 
-    jobSpec->set_memory_reserve(memoryReserve);
+    jobSpec->set_memory_reserve(joblet->EstimatedResourceUsage.GetUserJobMemory() * joblet->UserJobMemoryReserveFactor);
 
     jobSpec->add_environment(Format("YT_JOB_INDEX=%v", joblet->JobIndex));
     jobSpec->add_environment(Format("YT_JOB_ID=%v", joblet->JobId));
@@ -4488,6 +4494,212 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 TCodicilGuard TOperationControllerBase::MakeCodicilGuard() const
 {
     return Operation->MakeCodicilGuard();
+}
+
+////////////////////////////////////////////////////////////////////
+
+//! Ensures that operation controllers are being destroyed in a
+//! dedicated invoker.
+class TOperationControllerWrapper
+    : public IOperationController
+{
+public:
+    TOperationControllerWrapper(
+        const TOperationId& id,
+        IOperationControllerPtr underlying,
+        IInvokerPtr dtorInvoker)
+        : Id_(id)
+        , Underlying_(std::move(underlying))
+        , DtorInvoker_(std::move(dtorInvoker))
+    { }
+
+    virtual ~TOperationControllerWrapper()
+    {
+        DtorInvoker_->Invoke(BIND([underlying = std::move(Underlying_), id = Id_] () mutable {
+            auto Logger = OperationLogger;
+            Logger.AddTag("OperationId: %v", id);
+            LOG_INFO("Started destroying operation controller");
+            underlying.Reset();
+            LOG_INFO("Finished destroying operation controller");
+        }));
+    }
+
+    virtual void Initialize(bool cleanStart) override
+    {
+        Underlying_->Initialize(cleanStart);
+    }
+
+    virtual void Prepare() override
+    {
+        Underlying_->Prepare();
+    }
+
+    virtual void Materialize() override
+    {
+        Underlying_->Materialize();
+    }
+
+    virtual void Commit() override
+    {
+        Underlying_->Commit();
+    }
+
+    virtual void SaveSnapshot(TOutputStream* stream) override
+    {
+        Underlying_->SaveSnapshot(stream);
+    }
+
+    virtual void Revive(const TSharedRef& snapshot) override
+    {
+        Underlying_->Revive(snapshot);
+    }
+
+    virtual void Abort() override
+    {
+        Underlying_->Abort();
+    }
+
+    virtual void Complete() override
+    {
+        Underlying_->Complete();
+    }
+
+    virtual TCancelableContextPtr GetCancelableContext() const override
+    {
+        return Underlying_->GetCancelableContext();
+    }
+
+    virtual IInvokerPtr GetCancelableControlInvoker() const override
+    {
+        return Underlying_->GetCancelableControlInvoker();
+    }
+
+    virtual IInvokerPtr GetCancelableInvoker() const override
+    {
+        return Underlying_->GetCancelableInvoker();
+    }
+
+    virtual IInvokerPtr GetInvoker() const override
+    {
+        return Underlying_->GetInvoker();
+    }
+
+    virtual TFuture<void> Suspend() override
+    {
+        return Underlying_->Suspend();
+    }
+
+    virtual void Resume() override
+    {
+        Underlying_->Resume();
+    }
+
+    virtual bool GetCleanStart() const override
+    {
+        return Underlying_->GetCleanStart();
+    }
+
+    virtual int GetPendingJobCount() const override
+    {
+        return Underlying_->GetPendingJobCount();
+    }
+
+    virtual int GetTotalJobCount() const override
+    {
+        return Underlying_->GetTotalJobCount();
+    }
+
+    virtual TJobResources GetNeededResources() const override
+    {
+        return Underlying_->GetNeededResources();
+    }
+
+    virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) override
+    {
+        Underlying_->OnJobStarted(jobId, startTime);
+    }
+
+    virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override
+    {
+        Underlying_->OnJobCompleted(std::move(jobSummary));
+    }
+
+    virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) override
+    {
+        Underlying_->OnJobFailed(std::move(jobSummary));
+    }
+
+    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) override
+    {
+        Underlying_->OnJobAborted(std::move(jobSummary));
+    }
+
+    virtual TScheduleJobResultPtr ScheduleJob(
+        ISchedulingContextPtr context,
+        const TJobResources& jobLimits) override
+    {
+        return Underlying_->ScheduleJob(std::move(context), jobLimits);
+    }
+
+    virtual void UpdateConfig(TSchedulerConfigPtr config) override
+    {
+        Underlying_->UpdateConfig(std::move(config));
+    }
+
+    virtual bool HasProgress() const override
+    {
+        return Underlying_->HasProgress();
+    }
+
+    virtual void BuildProgress(IYsonConsumer* consumer) const override
+    {
+        Underlying_->BuildProgress(consumer);
+    }
+
+    virtual void BuildBriefProgress(IYsonConsumer* consumer) const override
+    {
+        Underlying_->BuildBriefProgress(consumer);
+    }
+
+    virtual Stroka GetLoggingProgress() const override
+    {
+        return Underlying_->GetLoggingProgress();
+    }
+
+    virtual void BuildResult(IYsonConsumer* consumer) const override
+    {
+        Underlying_->BuildResult(consumer);
+    }
+
+    virtual void BuildMemoryDigestStatistics(IYsonConsumer* consumer) const override
+    {
+        Underlying_->BuildMemoryDigestStatistics(consumer);
+    }
+
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    {
+        Underlying_->BuildBriefSpec(consumer);
+    }
+
+    virtual TFuture<TYsonString> BuildInputPathYson(const TJobId& jobId) const override
+    {
+        return Underlying_->BuildInputPathYson(jobId);
+    }
+
+private:
+    const TOperationId Id_;
+    const IOperationControllerPtr Underlying_;
+    const IInvokerPtr DtorInvoker_;
+};
+
+////////////////////////////////////////////////////////////////////
+
+IOperationControllerPtr CreateControllerWrapper(
+    const TOperationId& id,
+    const IOperationControllerPtr& controller,
+    const IInvokerPtr& dtorInvoker)
+{
+    return New<TOperationControllerWrapper>(id, controller, dtorInvoker);
 }
 
 ////////////////////////////////////////////////////////////////////

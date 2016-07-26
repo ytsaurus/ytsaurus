@@ -66,6 +66,7 @@ using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NObjectServer;
 using namespace NCellMaster;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -201,7 +202,7 @@ public:
             "NodeTracker.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        auto* profileManager = NProfiling::TProfileManager::Get();
+        auto* profileManager = TProfileManager::Get();
         Profiler.TagIds().push_back(profileManager->RegisterTag("cell_tag", Bootstrap_->GetCellTag()));
     }
 
@@ -516,7 +517,7 @@ public:
 
     TTotalNodeStatistics GetTotalNodeStatistics()
     {
-        auto now = NProfiling::GetCpuInstant();
+        auto now = GetCpuInstant();
         if (now < TotalNodeStatisticsUpdateDeadline_) {
             return TotalNodeStatistics_;
         }
@@ -536,7 +537,7 @@ public:
             TotalNodeStatistics_.FullNodeCount += statistics.full() ? 1 : 0;
             TotalNodeStatistics_.OnlineNodeCount += 1;
         }
-        TotalNodeStatisticsUpdateDeadline_ = now + NProfiling::DurationToCpuDuration(TotalNodeStatisticsUpdatePeriod);
+        TotalNodeStatisticsUpdateDeadline_ = now + DurationToCpuDuration(TotalNodeStatisticsUpdatePeriod);
         return TotalNodeStatistics_;
     }
 
@@ -553,7 +554,7 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-    NProfiling::TProfiler Profiler = NodeTrackerServerProfiler;
+    TProfiler Profiler = NodeTrackerServerProfiler;
 
     TIdGenerator NodeIdGenerator_;
     NHydra::TEntityMap<TNode> NodeMap_;
@@ -562,7 +563,7 @@ private:
     int AggregatedOnlineNodeCount_ = 0;
     int LocalRegisteredNodeCount_ = 0;
 
-    NProfiling::TCpuInstant TotalNodeStatisticsUpdateDeadline_ = 0;
+    TCpuInstant TotalNodeStatisticsUpdateDeadline_ = 0;
     TTotalNodeStatistics TotalNodeStatistics_;
 
     TRackSet UsedRackIndexes_;
@@ -1358,11 +1359,11 @@ private:
         }
 
         auto statistics = GetTotalNodeStatistics();
-        Profiler.Enqueue("/available_space", statistics.AvailableSpace);
-        Profiler.Enqueue("/used_space", statistics.UsedSpace);
-        Profiler.Enqueue("/chunk_replica_count", statistics.ChunkReplicaCount);
-        Profiler.Enqueue("/online_node_count", statistics.OnlineNodeCount);
-        Profiler.Enqueue("/full_node_count", statistics.FullNodeCount);
+        Profiler.Enqueue("/available_space", statistics.AvailableSpace, EMetricType::Gauge);
+        Profiler.Enqueue("/used_space", statistics.UsedSpace, EMetricType::Gauge);
+        Profiler.Enqueue("/chunk_replica_count", statistics.ChunkReplicaCount, EMetricType::Gauge);
+        Profiler.Enqueue("/online_node_count", statistics.OnlineNodeCount, EMetricType::Gauge);
+        Profiler.Enqueue("/full_node_count", statistics.FullNodeCount, EMetricType::Gauge);
     }
 };
 

@@ -114,8 +114,8 @@ DEFINE_REFCOUNTED_TYPE(TExternalCGInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const Stroka FunctionDescriptorAttribute = "function_descriptor";
-static const Stroka AggregateDescriptorAttribute = "aggregate_descriptor";
+static const Stroka FunctionDescriptorAttribute("function_descriptor");
+static const Stroka AggregateDescriptorAttribute("aggregate_descriptor");
 
 ////////////////////////////////////////////////////////////////////////////////
 

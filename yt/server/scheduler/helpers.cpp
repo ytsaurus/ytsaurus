@@ -66,6 +66,10 @@ void BuildJobAttributes(TJobPtr job, const TNullable<NYson::TYsonString>& inputP
         .Item("start_time").Value(job->GetStartTime())
         .Item("account").Value(TmpAccountName)
         .Item("progress").Value(job->GetProgress())
+        .DoIf(static_cast<bool>(job->GetBriefStatistics()), [=] (TFluentMap fluent) {
+            fluent.Item("brief_statistics").Value(*job->GetBriefStatistics());
+        })
+        .Item("suspicious").Value(job->GetSuspicious())
         .DoIf(job->GetFinishTime().HasValue(), [=] (TFluentMap fluent) {
             fluent.Item("finish_time").Value(job->GetFinishTime().Get());
         })
@@ -76,7 +80,7 @@ void BuildJobAttributes(TJobPtr job, const TNullable<NYson::TYsonString>& inputP
         .DoIf(static_cast<bool>(inputPaths), [=] (TFluentMap fluent) {
             fluent.Item("input_paths").Value(*inputPaths);
         });
-    // XXX(babenko): YT-4948
+        // XXX(babenko): YT-4948
         //.DoIf(job->Status() && job->Status()->has_statistics(), [=] (TFluentMap fluent) {
         //    fluent.Item("statistics").Value(NYson::TYsonString(job->Status()->statistics()));
         //});

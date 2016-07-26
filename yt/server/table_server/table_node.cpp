@@ -76,11 +76,6 @@ bool TTableNode::IsSorted() const
     return TableSchema_.IsSorted();
 }
 
-bool TTableNode::IsUniqueKeys() const
-{
-    return TableSchema_.IsUniqueKeys();
-}
-
 ETabletState TTableNode::GetTabletState() const
 {
     auto result = ETabletState::None;
@@ -137,7 +132,7 @@ void TTableNode::Load(TLoadContext& context)
     }
 
     // COMPAT(savrus)
-    if (context.GetVersion() >= 301) {
+    if (context.GetVersion() >= 350) {
         Load(context, PreserveSchemaOnWrite_);
     }
 
@@ -145,7 +140,7 @@ void TTableNode::Load(TLoadContext& context)
     Load(context, Atomicity_);
 
     // COMPAT(savrus)
-    if (context.GetVersion() < 301) {
+    if (context.GetVersion() < 350) {
         // Set PreserveSchemaOnWrite for dynamic tables.
         if (IsDynamic()) {
             PreserveSchemaOnWrite_ = true;
@@ -395,6 +390,10 @@ protected:
         ICypressNodeFactory* factory,
         ENodeCloneMode mode) override
     {
+        if (sourceNode->IsDynamic() && factory->GetTransaction()) {
+            THROW_ERROR_EXCEPTION("Operation cannot be performed in transaction");
+        }
+
         auto tabletManager = Bootstrap_->GetTabletManager();
 
         TBase::DoClone(sourceNode, clonedNode, factory, mode);

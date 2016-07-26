@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "chunk_meta_extensions.h"
+#include "columnar_chunk_reader_base.h"
 #include "schema.h"
 #include "unversioned_row.h"
 
@@ -21,18 +22,13 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachedVersionedChunkMeta
-    : public TIntrinsicRefCounted
+    : public TColumnarChunkMeta
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, ChunkId);
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MinKey);
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MaxKey);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TOwningKey>, BlockLastKeys);
-    DEFINE_BYREF_RO_PROPERTY(NProto::TBlockMetaExt, BlockMeta);
-    DEFINE_BYREF_RO_PROPERTY(NProto::TColumnMetaExt, ColumnMeta);
-    DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
-    DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnIdMapping>, SchemaIdMapping);
     DEFINE_BYVAL_RO_PROPERTY(int, ChunkKeyColumnCount);
     DEFINE_BYVAL_RO_PROPERTY(int, KeyColumnCount);

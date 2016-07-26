@@ -56,8 +56,8 @@ static_assert(
 struct TLockDescriptor
 {
     TTransaction* Transaction;
-    TTimestamp PrepareTimestamp;
-    TEditListHeader* WriteRevisionList;
+    std::atomic<TTimestamp> PrepareTimestamp;
+    std::atomic<TEditListHeader*> WriteRevisionList;
 };
 
 struct TSortedDynamicRowHeader

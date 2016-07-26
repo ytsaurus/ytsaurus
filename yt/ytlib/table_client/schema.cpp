@@ -71,7 +71,7 @@ TColumnSchema& TColumnSchema::SetAggregate(const TNullable<Stroka>& value)
 
 struct TSerializableColumnSchema
     : public TYsonSerializableLite
-        , public TColumnSchema
+    , public TColumnSchema
 {
     TSerializableColumnSchema()
     {
@@ -86,23 +86,34 @@ struct TSerializableColumnSchema
             .Default();
         RegisterParameter("sort_order", SortOrder)
             .Default();
+        RegisterParameter("group", Group)
+            .Default();
 
-        RegisterValidator(
-            [ & ]() {
-                // Name
-                if (Name.empty()) {
-                    THROW_ERROR_EXCEPTION("Column name cannot be empty");
+        RegisterValidator([&] () {
+            // Name
+            if (Name.empty()) {
+                THROW_ERROR_EXCEPTION("Column name cannot be empty");
+            }
+
+            try {
+               // Type
+                ValidateSchemaValueType(Type);
+
+                // Lock
+                if (Lock && Lock->empty()) {
+                    THROW_ERROR_EXCEPTION("Lock name cannot be empty");
                 }
 
-                // Type
-                try {
-                    ValidateSchemaValueType(Type);
-                } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Error validating column %Qv in table schema",
-                        Name)
-                            << ex;
+                // Group
+                if (Group && Group->empty()) {
+                    THROW_ERROR_EXCEPTION("Group name cannot be empty");
                 }
-            });
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error validating column %Qv in table schema",
+                    Name)
+                    << ex;
+            }
+        });
     }
 };
 
@@ -136,6 +147,9 @@ void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
     if (schema.SortOrder) {
         protoSchema->set_sort_order(static_cast<int>(*schema.SortOrder));
     }
+    if (schema.Group) {
+        protoSchema->set_group(*schema.Group);
+    }
 }
 
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
@@ -146,6 +160,7 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
     schema->Expression = protoSchema.has_expression() ? MakeNullable(protoSchema.expression()) : Null;
     schema->Aggregate = protoSchema.has_aggregate() ? MakeNullable(protoSchema.aggregate()) : Null;
     schema->SortOrder = protoSchema.has_sort_order() ? MakeNullable(ESortOrder(protoSchema.sort_order())) : Null;
+    schema->Group = protoSchema.has_group() ? MakeNullable(protoSchema.group()) : Null;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -431,8 +446,11 @@ void FromProto(
     for (int columnIndex = 0; columnIndex < protoKeyColumns.names_size(); ++columnIndex) {
         auto& columnSchema = columns[columnIndex];
         YCHECK(columnSchema.Name == protoKeyColumns.names(columnIndex));
-        YCHECK(!columnSchema.SortOrder);
         columnSchema.SortOrder = ESortOrder::Ascending;
+    }
+    for (int columnIndex = protoKeyColumns.names_size(); columnIndex < columns.size(); ++columnIndex) {
+        auto& columnSchema = columns[columnIndex];
+        YCHECK(!columnSchema.SortOrder);
     }
     *schema = TTableSchema(
         std::move(columns),
@@ -621,7 +639,7 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
         THROW_ERROR_EXCEPTION("\"strict\" cannot be \"false\" for a dynamic table");
     }
 
-    if (schema.IsSorted() && !schema.IsUniqueKeys()) {
+    if (schema.IsSorted() && !schema.GetUniqueKeys()) {
         THROW_ERROR_EXCEPTION("\"unique_keys\" cannot be \"false\" for a sorted dynamic table");
     }
 
@@ -884,6 +902,9 @@ void ValidateTableSchemaUpdate(
     }
     if (!oldSchema.GetStrict() && newSchema.GetStrict()) {
         THROW_ERROR_EXCEPTION("Changing \"strict\" from \"false\" to \"true\" is not allowed");
+    }
+    if (!oldSchema.GetUniqueKeys() && newSchema.GetUniqueKeys()) {
+        THROW_ERROR_EXCEPTION("Changing \"unique_keys\" from \"false\" to \"true\" is not allowed");
     }
 
     if (oldSchema.GetStrict() && !newSchema.GetStrict()) {

@@ -24,15 +24,16 @@ namespace NYT {
 namespace NDataNode {
 
 using namespace NConcurrency;
-using namespace NHydra;
 using namespace NCellNode;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NHydra;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
-static NProfiling::TSimpleCounter DiskJournalReadByteCounter("/disk_journal_read_bytes");
+static TSimpleCounter DiskJournalReadByteCounter("/disk_journal_read_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,7 +172,7 @@ void TJournalChunk::DoReadBlockRange(
             firstBlockIndex + blockCount - 1,
             Location_->GetId());
 
-        NProfiling::TScopedTimer timer;
+        TScopedTimer timer;
 
         auto asyncBlocks = changelog->Read(
             firstBlockIndex,
@@ -202,9 +203,9 @@ void TJournalChunk::DoReadBlockRange(
             bytesRead);
 
         auto& locationProfiler = Location_->GetProfiler();
-        locationProfiler.Enqueue("/journal_read_size", bytesRead);
-        locationProfiler.Enqueue("/journal_read_time", readTime.MicroSeconds());
-        locationProfiler.Enqueue("/journal_read_throughput", bytesRead * 1000000 / (1 + readTime.MicroSeconds()));
+        locationProfiler.Enqueue("/journal_read_size", bytesRead, EMetricType::Gauge);
+        locationProfiler.Enqueue("/journal_read_time", readTime.MicroSeconds(), EMetricType::Gauge);
+        locationProfiler.Enqueue("/journal_read_throughput", bytesRead * 1000000 / (1 + readTime.MicroSeconds()), EMetricType::Gauge);
         DataNodeProfiler.Increment(DiskJournalReadByteCounter, bytesRead);
 
         promise.Set(blocks);

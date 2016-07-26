@@ -178,6 +178,10 @@ protected:
     i64 TotalEstimatedInputRowCount = 0;
     i64 TotalEstimatedCompressedDataSize = 0;
 
+    // Total uncompressed data size for primary tables.
+    // Used only during preparation, not persisted.
+    i64 PrimaryInputDataSize_ = 0;
+
     int ChunkLocatedCallCount = 0;
     int UnavailableInputChunkCount = 0;
 
@@ -829,11 +833,6 @@ protected:
         const NChunkClient::TChunkTreeId& chunkTreeId,
         TOutputTable* outputTable);
 
-    void RegisterBoundaryKeys(
-        const NTableClient::TBoundaryKeys& boundaryKeys,
-        int key,
-        TOutputTable* outputTable);
-
     virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary);
 
     void RegisterOutput(
@@ -895,8 +894,7 @@ protected:
 
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
-        TJobletPtr joblet,
-        i64 memoryReserve);
+        TJobletPtr joblet);
 
     // Amount of memory reserved for output table writers in job proxy.
     i64 GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const;

@@ -140,7 +140,11 @@ Stroka GetRealPath(const Stroka& path)
     }
     parts.push_back(RealPath(curPath));
 
+#ifdef YT_IN_ARCADIA
+    Reverse(parts.begin(), parts.end());
+#else
     reverse(parts.begin(), parts.end());
+#endif
     return CombinePaths(parts);
 }
 

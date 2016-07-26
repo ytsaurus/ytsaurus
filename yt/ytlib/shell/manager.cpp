@@ -1,11 +1,12 @@
 #include "manager.h"
 #include "private.h"
+#include "config.h"
 
 #include <yt/ytlib/shell/shell.h>
 
-#include <yt/core/misc/fs.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/core/misc/fs.h>
 
 #include <util/string/hex.h>
 
@@ -48,67 +49,6 @@ static const char* Bashrc =
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TShellParameters
-    : public TYsonSerializableLite
-{
-    TShellId ShellId;
-    EShellOperation Operation;
-    TNullable<Stroka> Term;
-    Stroka Keys;
-    TNullable<ui64> InputOffset;
-    int Height;
-    int Width;
-
-    TShellParameters()
-    {
-        RegisterParameter("shell_id", ShellId)
-            .Default();
-        RegisterParameter("operation", Operation);
-        RegisterParameter("term", Term)
-            .Default();
-        RegisterParameter("keys", Keys)
-            .Default();
-        RegisterParameter("input_offset", InputOffset)
-            .Default();
-        RegisterParameter("height", Height)
-            .Default(0);
-        RegisterParameter("width", Width)
-            .Default(0);
-
-        RegisterValidator([&] () {
-            if (Operation != EShellOperation::Spawn && !ShellId) {
-                THROW_ERROR_EXCEPTION(
-                    "Malformed request: shell id is not specified for %Qlv operation",
-                    Operation);
-            }
-            if (Operation == EShellOperation::Update && !Keys.empty() && !InputOffset) {
-                THROW_ERROR_EXCEPTION(
-                    "Malformed request: input offset is not specified for %Qlv operation",
-                    Operation);
-            }
-        });
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TShellResult
-    : public TYsonSerializableLite
-{
-    TShellId ShellId;
-    TNullable<Stroka> Output;
-    TNullable<ui64> ConsumedOffset;
-
-    TShellResult()
-    {
-        RegisterParameter("shell_id", ShellId);
-        RegisterParameter("output", Output);
-        RegisterParameter("consumed_offset", ConsumedOffset);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TShellManager
     : public IShellManager
 {
@@ -126,6 +66,8 @@ public:
 
     virtual TYsonString PollJobShell(const TYsonString& serializedParameters) override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         TShellParameters parameters;
         TShellResult result;
         IShellPtr shell;
@@ -133,6 +75,9 @@ public:
         Deserialize(parameters, ConvertToNode(serializedParameters));
         if (parameters.Operation != EShellOperation::Spawn) {
             shell = GetShellOrThrow(parameters.ShellId);
+        }
+        if (Terminated_) {
+            THROW_ERROR_EXCEPTION("Cannot operate on shell: manager has already terminated");
         }
 
         switch (parameters.Operation) {
@@ -155,6 +100,7 @@ public:
                 options->WorkingDir = WorkingDir_;
                 options->Bashrc = Bashrc;
                 options->MessageOfTheDay = MessageOfTheDay_;
+                options->InactivityTimeout = parameters.InactivityTimeout;
 
                 shell = CreateShell(std::move(options));
                 Register(shell);
@@ -202,16 +148,28 @@ public:
         return ConvertToYsonString(result);
     }
 
-    virtual void CleanupProcesses() override
+    virtual void Terminate(const TError& error) override
     {
-        yhash_map<TShellId, IShellPtr> shells;
-        {
-            TGuard<TSpinLock> guard(IdToShellLock_);
-            std::swap(shells, IdToShell_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Shell manager is terminating");
+        Terminated_ = true;
+        for (auto& shell : IdToShell_) {
+            shell.second->Terminate(error);
         }
-        for (auto& shell : shells) {
-            shell.second->Terminate(TError("Job finished"));
+        IdToShell_.clear();
+    }
+
+    virtual TFuture<void> GracefulShutdown(const TError& error) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Shell manager is shutting down");
+        std::vector<TFuture<void>> futures;
+        for (auto& shell : IdToShell_) {
+            futures.push_back(shell.second->Shutdown(error));
         }
+        return CombineAll(futures).As<void>();
     }
 
 private:
@@ -222,14 +180,15 @@ private:
 
     std::vector<Stroka> Environment_;
     yhash_map<TShellId, IShellPtr> IdToShell_;
-    TSpinLock IdToShellLock_;
+    bool Terminated_ = false;
 
     const NLogging::TLogger Logger = ShellLogger;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
     void Register(IShellPtr shell)
     {
-        TGuard<TSpinLock> guard(IdToShellLock_);
         YCHECK(IdToShell_.insert(std::make_pair(shell->GetId(), shell)).second);
 
         LOG_DEBUG("Shell registered (ShellId: %v)",
@@ -238,7 +197,6 @@ private:
 
     IShellPtr Find(const TShellId& shellId)
     {
-        TGuard<TSpinLock> guard(IdToShellLock_);
         auto it = IdToShell_.find(shellId);
         return it == IdToShell_.end() ? nullptr : it->second;
     }

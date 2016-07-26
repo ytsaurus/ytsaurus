@@ -33,15 +33,13 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessChunkWriter)
 ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns,
+    const TTableSchema& schema,
     NChunkClient::IChunkWriterPtr chunkWriter,
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     NChunkClient::IChunkWriterPtr chunkWriter,
     IPartitioner* partitioner,
@@ -58,20 +56,16 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*!
- *  \param reorderValues - set to |true| if key columns may come out of order, or be absent.
- */
 ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns,
+    const TTableSchema& schema,
     NTableClient::TOwningKey lastKey,
     NApi::INativeClientPtr client,
     NObjectClient::TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,
-    bool reorderValues = false,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
@@ -79,7 +73,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns,
+    const TTableSchema& schema,
     NApi::INativeClientPtr client,
     NObjectClient::TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
@@ -99,12 +93,6 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
     NApi::ITransactionPtr transaction,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
-
-////////////////////////////////////////////////////////////////////////////////
-
-ISchemalessMultiChunkWriterPtr CreateSchemaValidatingWriter(
-    ISchemalessMultiChunkWriterPtr underlyingWriter,
-    const TTableSchema& tableSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

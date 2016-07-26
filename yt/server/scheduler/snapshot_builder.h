@@ -10,6 +10,8 @@
 
 #include <yt/core/pipes/pipe.h>
 
+#include <yt/core/profiling/profiler.h>
+
 #include <util/system/file.h>
 
 namespace NYT {
@@ -42,6 +44,7 @@ private:
 
     std::vector<TJob> Jobs_;
 
+    NProfiling::TProfiler Profiler;
 
     virtual TDuration GetTimeout() const override;
     virtual void RunParent() override;

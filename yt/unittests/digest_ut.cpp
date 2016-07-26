@@ -28,6 +28,8 @@ protected:
     std::unique_ptr<IDigest> LogDigest_;
 };
 
+#ifndef _darwin_
+
 TEST_F(TLogDigestTest, TestStrictFixture1)
 {
     CreateStandardLogDigest();
@@ -123,3 +125,5 @@ TEST_F(TLogDigestTest, TestCoincidingBounds)
     EXPECT_TRUE(LogNear(LogDigest_->GetQuantile(0.25), 1.0));
     EXPECT_TRUE(LogNear(LogDigest_->GetQuantile(0.0), 1.0));
 }
+
+#endif
