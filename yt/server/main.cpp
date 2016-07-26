@@ -237,6 +237,11 @@ EExitCode GuardedMain(int argc, const char* argv[])
         return EExitCode::OptionsError;
     }
 
+    // Setting parent death signal used by tests to prevent hanged up instances of ytserver on teamcity machines.
+    // Unfortunately setting pdeath_sig from preexec_fn in subprocess call is not working since ytserver binary has
+    // suid bit and pdeath_sig resetted to zero after exec() call.
+    // More details can be found in http://linux.die.net/man/2/prctl and
+    //  http://www.isec.pl/vulnerabilities/isec-0024-death-signal.txt
     auto parentDeathSignal = parser.ParentDeathSignal.getValue();
     if (parentDeathSignal) {
         YCHECK(prctl(PR_SET_PDEATHSIG, parentDeathSignal) == 0);
