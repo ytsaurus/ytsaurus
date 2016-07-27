@@ -255,15 +255,21 @@ public:
 
             // Profiling.
             for (const auto& pair : Pools) {
-                const auto& tag = pair.second->GetProfilingTag();
+                const auto& pool = pair.second;
+                const auto& tag = pool->GetProfilingTag();
                 Profiler.Enqueue(
                     "/pools/fair_share_ratio_x100000",
-                    static_cast<i64>(pair.second->Attributes().FairShareRatio * 1e5),
+                    static_cast<i64>(pool->Attributes().FairShareRatio * 1e5),
                     EMetricType::Gauge,
                     {tag});
                 Profiler.Enqueue(
                     "/pools/usage_ratio_x100000",
-                    static_cast<i64>(pair.second->GetResourceUsageRatio() * 1e5),
+                    static_cast<i64>(pool->GetResourceUsageRatio() * 1e5),
+                    EMetricType::Gauge,
+                    {tag});
+                Profiler.Enqueue(
+                    "/operation_count",
+                    pool->RunningOperationCount(),
                     EMetricType::Gauge,
                     {tag});
             }
