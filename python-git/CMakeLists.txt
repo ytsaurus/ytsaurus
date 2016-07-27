@@ -1,10 +1,12 @@
 cmake_minimum_required(VERSION 2.8)
 
 # This synchronizes different copies of CMake spawned by CLion.
-#file(
-#  LOCK ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/cmake.lock
-#  GUARD FILE
-#)
+if(NOT (${CMAKE_VERSION} VERSION_LESS 3.2.3))
+  file(
+    LOCK ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/cmake.lock
+    GUARD FILE
+  )
+endif()
 
 file(
   REMOVE_RECURSE ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/requests
