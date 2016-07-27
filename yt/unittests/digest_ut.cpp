@@ -3,7 +3,12 @@
 #include <yt/core/misc/digest.h>
 #include <yt/core/misc/config.h>
 
-using namespace NYT;
+#include <random>
+
+namespace NYT {
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TLogDigestTest
     : public ::testing::Test
@@ -126,4 +131,7 @@ TEST_F(TLogDigestTest, TestCoincidingBounds)
     EXPECT_TRUE(LogNear(LogDigest_->GetQuantile(0.0), 1.0));
 }
 
-#endif
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT

@@ -4,6 +4,8 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <array>
+
 namespace NYT {
 namespace NYTree {
 namespace {
