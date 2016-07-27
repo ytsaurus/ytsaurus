@@ -164,7 +164,7 @@ void TSlot::DoCleanSandbox(int pathIndex)
         auto sandboxFullPath = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), sandboxPath);
 
         auto removeMountPount = [] (const Stroka& path) {
-            RunTool<TRemoveDirAsRootTool>(path + "/*");
+            RunTool<TRemoveDirContentAsRootTool>(path);
             RunTool<TUmountAsRootTool>(path);
         };
 
