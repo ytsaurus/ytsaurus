@@ -16,7 +16,13 @@ template <class T>
 T IAttributeDictionary::Get(const Stroka& key) const
 {
     auto yson = GetYson(key);
-    return ConvertTo<T>(yson);
+    try {
+        return ConvertTo<T>(yson);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing attribute %Qv",
+            key)
+            << ex;
+    }
 }
 
 template <class T>
@@ -52,7 +58,13 @@ typename TNullableTraits<T>::TNullableType IAttributeDictionary::Find(const Stro
     if (!yson) {
         return typename TNullableTraits<T>::TNullableType();
     }
-    return ConvertTo<T>(*yson);
+    try {
+        return ConvertTo<T>(*yson);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing attribute %Qv",
+            key)
+            << ex;
+    }
 }
 
 template <class T>
