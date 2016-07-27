@@ -25,6 +25,9 @@ def add_task(*args, **kwargs):
 def add_tasks(*args, **kwargs):
     return _get_client().add_tasks(*args, **kwargs)
 
+def add_tasks_from_src_dst_pairs(*args, **kwargs):
+    return _get_client().add_tasks_from_src_dst_pairs(*args, **kwargs)
+
 def abort_task(*args, **kwargs):
     return _get_client().abort_task(*args, **kwargs)
 
