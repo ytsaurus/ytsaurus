@@ -120,7 +120,7 @@ struct TQueryExecutorBufferTag
 class TTabletSnapshotCache
 {
 public:
-    TTabletSnapshotCache(TSlotManagerPtr slotManager)
+    explicit TTabletSnapshotCache(TSlotManagerPtr slotManager)
         : SlotManager_(std::move(slotManager))
     { }
 
@@ -131,7 +131,7 @@ public:
     {
         auto tabletSnapshot = SlotManager_->GetTabletSnapshotOrThrow(tabletId);
 
-        tabletSnapshot->ValiateMountRevision(mountRevision);
+        tabletSnapshot->ValidateMountRevision(mountRevision);
 
         SlotManager_->ValidateTabletAccess(
             tabletSnapshot,

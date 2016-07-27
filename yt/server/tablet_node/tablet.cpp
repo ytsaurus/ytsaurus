@@ -88,7 +88,7 @@ std::vector<ISortedStorePtr> TTabletSnapshot::GetEdenStores()
     return stores;
 }
 
-void TTabletSnapshot::ValiateCellId(const TCellId& cellId)
+void TTabletSnapshot::ValidateCellId(const TCellId& cellId)
 {
     if (CellId != cellId) {
         THROW_ERROR_EXCEPTION("Wrong cell id: expected %v, got %v",
@@ -97,7 +97,7 @@ void TTabletSnapshot::ValiateCellId(const TCellId& cellId)
     }
 }
 
-void TTabletSnapshot::ValiateMountRevision(i64 mountRevision)
+void TTabletSnapshot::ValidateMountRevision(i64 mountRevision)
 {
     if (MountRevision != mountRevision) {
         THROW_ERROR_EXCEPTION(

@@ -147,7 +147,7 @@ private:
                     EPermission::Read,
                     timestamp);
 
-                tabletSnapshot->ValiateMountRevision(mountRevision);
+                tabletSnapshot->ValidateMountRevision(mountRevision);
 
                 TWireProtocolReader reader(requestData);
                 TWireProtocolWriter writer;
