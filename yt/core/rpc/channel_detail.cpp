@@ -77,8 +77,9 @@ void TClientRequestControlThunk::PropagateCancel(TGuard<TSpinLock>& guard)
 
     if (!UnderlyingCanceled_) {
         UnderlyingCanceled_ = true;
+        auto underlying = Underlying_;
         guard.Release();
-        Underlying_->Cancel();
+        underlying->Cancel();
     }
 }
 

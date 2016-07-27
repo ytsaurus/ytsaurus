@@ -235,6 +235,7 @@ private:
             }
 
             if (key == "resource_limits") {
+                RequireLeader();
                 BuildYsonFluently(consumer)
                     .Value(node->ResourceLimits());
                 return true;

@@ -1421,9 +1421,13 @@ private:
                 path);
             const auto& batchRsp = batchRspOrError.Value();
 
+<<<<<<< HEAD
             {
                 auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspBeginUpload>("begin_upload").Value();
                 auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+=======
+    auto objectIdPath = FromObjectId(ObjectId_);
+>>>>>>> prestable/18.4
 
                 TTransactionAttachOptions options;
                 options.AutoAbort = true;
@@ -1431,16 +1435,39 @@ private:
                 UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, options);
                 ListenTransaction(UploadTransaction_);
 
+<<<<<<< HEAD
                 LOG_INFO("Table upload started (UploadTransactionId: %v)",
                     uploadTransactionId);
             }
+=======
+        auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
+        SetTransactionId(req, Transaction_);
+        std::vector<Stroka> attributeKeys{
+            "replication_factor",
+            "compression_codec",
+            "erasure_codec",
+            "account",
+            "vital"
+        };
+        if (sorted) {
+            attributeKeys.push_back("row_count");
+            attributeKeys.push_back("sorted_by");
+>>>>>>> prestable/18.4
         }
 
+<<<<<<< HEAD
         {
             LOG_INFO("Requesting table upload parameters");
 
             auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, CellTag_);
             TObjectServiceProxy proxy(channel);
+=======
+        const auto& rsp = rspOrError.Value();
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+        if (append && sorted && attributes->Get<i64>("row_count") > 0) {
+            auto tableKeyColumns = attributes->Get<TKeyColumns>("sorted_by", TKeyColumns());
+>>>>>>> prestable/18.4
 
             auto req =  TTableYPathProxy::GetUploadParams(objectIdPath);
             if (append && sorted) {
@@ -1467,6 +1494,7 @@ private:
                      static_cast<bool>(LastKey_));
         }
 
+<<<<<<< HEAD
         UnderlyingWriter_ = CreateSchemalessMultiChunkWriter(
             Config_,
             Options_,
@@ -1482,6 +1510,13 @@ private:
 
         WaitFor(UnderlyingWriter_->Open())
             .ThrowOnError();
+=======
+        Options_->ReplicationFactor = attributes->Get<int>("replication_factor");
+        Options_->CompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
+        Options_->ErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec");
+        Options_->Account = attributes->Get<Stroka>("account");
+        Options_->ChunksVital = attributes->Get<bool>("vital");
+>>>>>>> prestable/18.4
 
         LOG_INFO("Table opened");
     }

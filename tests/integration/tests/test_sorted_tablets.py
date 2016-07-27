@@ -995,7 +995,7 @@ class TestSortedTablets(YTEnvSetup):
         self._create_simple_table("//tmp/t")
         with pytest.raises(YtError): set("//tmp/t/@key_columns", [])
 
-    def test_update_schema_fails(self):
+    def test_alter_table_fails(self):
         self.sync_create_cells(1, 1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
@@ -1034,6 +1034,14 @@ class TestSortedTablets(YTEnvSetup):
             {"name": "key2", "type": "int64", "expression": "key1 * 100 + 3", "sort_order": "ascending"},
             {"name": "key3", "type": "int64", "expression": "key1 * 100 + 3", "sort_order": "ascending"},
             {"name": "value", "type": "string"}])
+
+        create("table", "//tmp/t2", attributes={"schema": [
+            {"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        with pytest.raises(YtError): alter_table("//tmp/t2", dynamic=True)
+        alter_table("//tmp/t2", schema=[
+            {"name": "key", "type": "any", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}])
+        with pytest.raises(YtError): alter_table("//tmp/t2", dynamic=True)
 
     def _test_update_key_columns_success(self, optimize_for):
         self.sync_create_cells(1, 1)
@@ -1099,10 +1107,10 @@ class TestSortedTablets(YTEnvSetup):
         snapshots = ls("//sys/tablet_cells/" + cell_id + "/snapshots")
         assert len(snapshots) == 1
 
-        self.Env.kill_service("node")
+        self.Env.kill_nodes()
         # Wait to make sure all leases have expired
         time.sleep(3.0)
-        self.Env.start_nodes("node")
+        self.Env.start_nodes()
 
         self.wait_for_cells()
 

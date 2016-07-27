@@ -44,8 +44,10 @@ struct TSchedulableAttributes
     double DemandRatio = 0.0;
     double FairShareRatio = 0.0;
     double AdjustedMinShareRatio = 0.0;
+    double RecursiveMinShareRatio = 0.0;
     double MaxPossibleUsageRatio = 1.0;
     double BestAllocationRatio = 1.0;
+    double GuaranteedResourcesRatio = 0.0;
     i64 DominantLimit = 0;
 
     double AdjustedFairShareStarvationTolerance = 1.0;
@@ -100,6 +102,7 @@ struct ISchedulerElement
 
     virtual double GetWeight() const = 0;
     virtual double GetMinShareRatio() const = 0;
+    virtual TJobResources GetMinShareResources() const = 0;
     virtual double GetMaxShareRatio() const = 0;
 
     virtual double GetFairShareStarvationTolerance() const = 0;
@@ -385,6 +388,7 @@ public:
 
     virtual double GetWeight() const override;
     virtual double GetMinShareRatio() const override;
+    virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
 
     virtual ESchedulableStatus GetStatus() const override;
@@ -654,6 +658,7 @@ public:
 
     virtual double GetWeight() const override;
     virtual double GetMinShareRatio() const override;
+    virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
 
     virtual TNullable<Stroka> GetNodeTag() const override;
@@ -730,6 +735,7 @@ public:
 
     virtual double GetWeight() const override;
     virtual double GetMinShareRatio() const override;
+    virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
 
     virtual double GetFairShareStarvationTolerance() const override;

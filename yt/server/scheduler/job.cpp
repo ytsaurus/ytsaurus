@@ -108,9 +108,9 @@ TDuration TJob::GetDuration() const
     return *FinishTime_ - StartTime_;
 }
 
-TBriefJobStatisticsPtr TJob::BuildBriefStatistics() const
+TBriefJobStatisticsPtr TJob::BuildBriefStatistics(const TYsonString& statisticsYson) const
 {
-    auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(*StatisticsYson_);
+    auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(statisticsYson);
 
     auto getValue = [] (const TSummary& summary) {
         return summary.GetSum();
