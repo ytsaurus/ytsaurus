@@ -1132,7 +1132,6 @@ private:
 
         Profiler.Enqueue("/active_job_count", ActiveJobCount_, EMetricType::Gauge);
 
-        Profiler.Enqueue("/operation_count", IdToOperation_.size(), EMetricType::Gauge);
         Profiler.Enqueue("/exec_node_count", GetExecNodeCount(), EMetricType::Gauge);
         Profiler.Enqueue("/total_node_count", GetTotalNodeCount(), EMetricType::Gauge);
 
