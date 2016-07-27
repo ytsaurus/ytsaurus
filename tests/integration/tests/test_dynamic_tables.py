@@ -10,7 +10,7 @@ from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
-class TestTablets(YTEnvSetup):
+class TestDynamicTables(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 16
     NUM_SCHEDULERS = 0
@@ -409,7 +409,7 @@ class TestTablets(YTEnvSetup):
 
 ##################################################################
 
-class TestTabletsMulticell(TestTablets):
+class TestDynamicTablesMulticell(TestDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
 
     def test_cannot_make_external_table_dynamic(self):

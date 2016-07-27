@@ -11,7 +11,7 @@ from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
-class TestSortedTablets(YTEnvSetup):
+class TestSortedDynamicTables(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 16
     NUM_SCHEDULERS = 0
@@ -1625,7 +1625,7 @@ class TestSortedTablets(YTEnvSetup):
 
 ##################################################################
 
-class TestSortedTabletsMetadataCaching(YTEnvSetup):
+class TestSortedDynamicTablesMetadataCaching(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 16
     NUM_SCHEDULERS = 0
@@ -1704,9 +1704,9 @@ class TestSortedTabletsMetadataCaching(YTEnvSetup):
 
 ##################################################################
 
-class TestSortedTabletsMulticell(TestSortedTablets):
+class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
 
-class TestSortedTabletsMetadataCachingMulticell(TestSortedTabletsMetadataCaching):
+class TestSortedDynamicTablesMetadataCachingMetadataCachingMulticell(TestSortedDynamicTablesMetadataCaching):
     NUM_SECONDARY_MASTER_CELLS = 2
 
