@@ -526,7 +526,7 @@ void Umount(const Stroka& path)
         auto error = TError("Failed to umount %v", path)
             << TError::FromSystem();
         if (LastSystemError() == EBUSY) {
-            auto lsofOutput = TShellCommand("lsof")
+            auto lsofOutput = TShellCommand(Format("lsof %v", path))
                 .Run()
                 .Wait()
                 .GetOutput();

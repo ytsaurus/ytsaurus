@@ -18,6 +18,8 @@
 
 #include <util/system/info.h>
 #include <util/system/yield.h>
+#include <util/system/fstat.h>
+#include <util/folder/iterator.h>
 
 #ifdef _unix_
     #include <stdio.h>
@@ -148,6 +150,28 @@ void RemoveDirAsRoot(const Stroka& path)
 
     THROW_ERROR_EXCEPTION("Failed to remove directory %Qv: execl failed",
         path) << TError::FromSystem();
+}
+
+void RemoveDirContentAsRoot(const Stroka& path)
+{
+    SafeSetUid(0);
+
+    if (!TFileStat(path).IsDir()) {
+        THROW_ERROR_EXCEPTION("Path %Qv is not directory",
+            path);
+    }
+
+    TDirIterator dir(path);
+    for (TDirIterator::TIterator it = dir.Begin(); it != dir.End(); ++it) {
+        if (path.has_prefix(it->fts_path)) {
+            continue;
+        }
+        try {
+            NFS::RemoveRecursive(it->fts_path);
+        } catch (const std::exception&) {
+            // Ignores any error while remove.
+        }
+    }
 }
 
 void MountTmpfsAsRoot(TMountTmpfsConfigPtr config)
@@ -479,6 +503,11 @@ void RemoveDirAsRoot(const Stroka& /* path */)
     YUNIMPLEMENTED();
 }
 
+void RemoveDirContentAsRoot(const Stroka& /* path */)
+{
+    YUNIMPLEMENTED();
+}
+
 void MountTmpfsAsRoot(TMountTmpfsConfigPtr /* config */)
 {
     YUNIMPLEMENTED();
@@ -587,6 +616,15 @@ void TRemoveDirAsRootTool::operator()(const Stroka& arg) const
 }
 
 REGISTER_TOOL(TRemoveDirAsRootTool);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRemoveDirContentAsRootTool::operator()(const Stroka& arg) const
+{
+    RemoveDirContentAsRoot(arg);
+}
+
+REGISTER_TOOL(TRemoveDirContentAsRootTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
