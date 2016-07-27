@@ -171,12 +171,12 @@ class TransferManager(object):
 
     def add_task(self, source_cluster, source_table, destination_cluster, destination_table=None, **kwargs):
         src_dst_pairs = [(source_table, destination_table)]
-        return self._start_tasks(src_dst_pairs, source_cluster, destination_cluster, **kwargs)[0]
+        return self.add_tasks_from_src_dst_pairs(src_dst_pairs, source_cluster, destination_cluster, **kwargs)[0]
 
     def add_tasks(self, source_cluster, source_pattern, destination_cluster, destination_pattern, **kwargs):
         src_dst_pairs = self.match_src_dst_pattern(source_cluster, source_pattern,
                                                    destination_cluster, destination_pattern)
-        return self._start_tasks(src_dst_pairs, source_cluster, destination_cluster, **kwargs)
+        return self.add_tasks_from_src_dst_pairs(src_dst_pairs, source_cluster, destination_cluster, **kwargs)
 
     def abort_task(self, task_id):
         self._make_request(
@@ -289,8 +289,8 @@ class TransferManager(object):
                                   is_mutating=True,
                                   data=json.dumps(data)).content
 
-    def _start_tasks(self, src_dst_pairs, source_cluster, destination_cluster, params=None,
-                     sync=None, poll_period=None, attached=False, running_tasks_limit=None):
+    def add_tasks_from_src_dst_pairs(self, src_dst_pairs, source_cluster, destination_cluster, params=None,
+                                     sync=None, poll_period=None, attached=False, running_tasks_limit=None):
         poll_period = get_value(poll_period, 5)
         running_tasks_limit = get_value(running_tasks_limit, 10)
 
