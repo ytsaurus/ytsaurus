@@ -100,7 +100,7 @@ def make_compression_task(table, compression_codec=None, erasure_codec=None):
 
 def find(root):
     tables = []
-    ignore_nodes = ["//sys"]
+    ignore_nodes = ["//sys", "//home/qe"]
 
     requested_attributes = ["type", "opaque", "force_nightly_compress",
                             "uncompressed_data_size", "nightly_compression_settings"]
