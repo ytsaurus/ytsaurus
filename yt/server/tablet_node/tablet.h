@@ -101,7 +101,6 @@ struct TTabletSnapshot
     //! For sorted tablets only.
     //! This includes both regular and locked Eden stores.
     std::vector<ISortedStorePtr> GetEdenStores();
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)

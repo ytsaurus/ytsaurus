@@ -171,9 +171,9 @@ private:
             EPermission::Write,
             SyncLastCommittedTimestamp);
 
-        tabletSnapshot->ValiateCellId(Slot_->GetCellId());
+        tabletSnapshot->ValidateCellId(Slot_->GetCellId());
 
-        tabletSnapshot->ValiateMountRevision(mountRevision);
+        tabletSnapshot->ValidateMountRevision(mountRevision);
 
         return tabletSnapshot;
     }
