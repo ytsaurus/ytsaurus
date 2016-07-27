@@ -98,10 +98,13 @@ class Airflow(object):
         response = requests.post(self._url + "/submit", data=json.dumps(data), headers=self._headers)
         response.raise_for_status()
 
-        # XXX(asaitgalin): not using "id" instead of "_id" here because this requires
-        # web interface improvements. See YT-3415 for details.
         if self.message_queue is not None:
-            self.message_queue.put({"type": "operation_started", "operation": {"_id": task_id, "cluster_name": self._name}})
+            self.message_queue.put({
+                "type": "operation_started",
+                "operation": {
+                    "type": "airflow",
+                    "id": task_id,
+                    "cluster_name": self._name}})
 
         time.sleep(self._dag_registered_wait_time)
 

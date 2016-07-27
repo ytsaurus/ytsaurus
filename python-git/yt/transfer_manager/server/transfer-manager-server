@@ -848,13 +848,13 @@ class Application(object):
         clusters = self._clusters_configuration.clusters
 
         def do_abort(task_id, object_dict, abort_func, type_):
-            # NB: To avoid aborting Hadoop tasks.
-            # TODO(ignat): support aborting Hadoop task.
-            if "id" not in object_dict:
-                return
-
             cluster_name, object_id = object_dict["cluster_name"], object_dict["id"]
             if cluster_name not in clusters:
+                return
+
+            if clusters[cluster_name]._type == "hadoop":
+                # NB: To avoid aborting Hadoop tasks.
+                # TODO(ignat): support aborting Hadoop task.
                 return
 
             if clusters[cluster_name]._type != "yt":
