@@ -109,7 +109,6 @@ exports.that = function Middleware__YtLogRequest()
             profiler.inc("yt.http_proxy.request_count", tags, 1);
             profiler.inc("yt.http_proxy.request_bytes_in", tags, req._bytes_in);
             profiler.inc("yt.http_proxy.request_bytes_out", tags, req._bytes_out);
-            profiler.upd("yt.http_proxy.request_time", tags, request_time);
         };
 
         next();

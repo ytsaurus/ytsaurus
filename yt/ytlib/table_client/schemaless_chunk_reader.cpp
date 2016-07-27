@@ -903,7 +903,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 std::move(partitionTag));
 
         case ETableChunkFormat::Old: {
-            YCHECK(readRanges.size() == 0);
+            YCHECK(readRanges.size() <= 1);
             YCHECK(!partitionTag);
 
             return New<TLegacyTableChunkReader>(
@@ -1094,6 +1094,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
 template <class TBase>
 bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows)
 {
+    rows->clear();
     if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
         return true;
     }

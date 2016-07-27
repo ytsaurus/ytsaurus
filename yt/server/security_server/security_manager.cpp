@@ -635,11 +635,14 @@ public:
     }
 
 
-    void AddMember(TGroup* group, TSubject* member)
+    void AddMember(TGroup* group, TSubject* member, bool ignoreExisting)
     {
         ValidateMembershipUpdate(group, member);
 
         if (group->Members().find(member) != group->Members().end()) {
+            if (ignoreExisting) {
+                return;
+            }
             THROW_ERROR_EXCEPTION("Member %Qv is already present in group %Qv",
                 member->GetName(),
                 group->GetName());
@@ -657,11 +660,14 @@ public:
         DoAddMember(group, member);
     }
 
-    void RemoveMember(TGroup* group, TSubject* member)
+    void RemoveMember(TGroup* group, TSubject* member, bool force)
     {
         ValidateMembershipUpdate(group, member);
 
         if (group->Members().find(member) == group->Members().end()) {
+            if (force) {
+                return;
+            }
             THROW_ERROR_EXCEPTION("Member %Qv is not present in group %Qv",
                 member->GetName(),
                 group->GetName());
@@ -1773,15 +1779,11 @@ private:
         
         auto multicellManager = Bootstrap_->GetMulticellManager();
         auto replicateMembership = [&] (TSubject* subject) {
-            if (subject->IsBuiltin())
-                return;
-
             for (auto* group : subject->MemberOf()) {
-                if (!group->IsBuiltin()) {
-                    auto req = TGroupYPathProxy::AddMember(FromObjectId(group->GetId()));
-                    req->set_name(subject->GetName());
-                    multicellManager->PostToMaster(req, cellTag);
-                }
+                auto req = TGroupYPathProxy::AddMember(FromObjectId(group->GetId()));
+                req->set_name(subject->GetName());
+                req->set_ignore_existing(true);
+                multicellManager->PostToMaster(req, cellTag);
             }
         };
 
@@ -1793,7 +1795,6 @@ private:
             replicateMembership(group);
         }
     }
-
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, AccountMap_)
@@ -2021,14 +2022,14 @@ TSubject* TSecurityManager::GetSubjectByNameOrThrow(const Stroka& name)
     return Impl_->GetSubjectByNameOrThrow(name);
 }
 
-void TSecurityManager::AddMember(TGroup* group, TSubject* member)
+void TSecurityManager::AddMember(TGroup* group, TSubject* member, bool ignoreExisting)
 {
-    Impl_->AddMember(group, member);
+    Impl_->AddMember(group, member, ignoreExisting);
 }
 
-void TSecurityManager::RemoveMember(TGroup* group, TSubject* member)
+void TSecurityManager::RemoveMember(TGroup* group, TSubject* member, bool ignoreMissing)
 {
-    Impl_->RemoveMember(group, member);
+    Impl_->RemoveMember(group, member, ignoreMissing);
 }
 
 void TSecurityManager::RenameSubject(TSubject* subject, const Stroka& newName)

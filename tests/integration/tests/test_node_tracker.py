@@ -56,6 +56,10 @@ class TestNodeTracker(YTEnvSetup):
         assert "r" in get("//sys/nodes/{0}/@tags".format(node))
         remove("//sys/nodes/{0}/@rack".format(node))
         assert "r" not in get("//sys/nodes/{0}/@tags".format(node))
+
+    def test_create_cluster_node(self):
+        kwargs = {"type": "cluster_node"}
+        with pytest.raises(YtError): execute_command("create", kwargs)
         
 ##################################################################
 

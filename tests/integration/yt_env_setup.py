@@ -1,7 +1,7 @@
 import yt_commands
 
-from yt.environment import YTEnv
-from yt.common import makedirp
+from yt.environment import YTInstance
+from yt.common import makedirp, update
 import yt_driver_bindings
 
 import yt.yson as yson
@@ -53,7 +53,7 @@ def make_schema(columns, **attributes):
 
 def _pytest_finalize_func(environment, process_call_args):
     print >>sys.stderr, 'Process run by command "{0}" is dead!'.format(" ".join(process_call_args))
-    environment.clear_environment()
+    environment.stop()
 
     print >>sys.stderr, "Killing pytest process"
     os._exit(42)
@@ -81,7 +81,32 @@ class Checker(Thread):
         self._active = False
         self.join()
 
-class YTEnvSetup(YTEnv):
+class YTEnvSetup(object):
+    NUM_MASTERS = 3
+    NUM_NONVOTING_MASTERS = 0
+    NUM_SECONDARY_MASTER_CELLS = 0
+    START_SECONDARY_MASTER_CELLS = True
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 0
+
+    DELTA_DRIVER_CONFIG = {}
+    DELTA_MASTER_CONFIG = {}
+    DELTA_NODE_CONFIG = {}
+    DELTA_SCHEDULER_CONFIG = {}
+
+    # To be redefined in successors
+    @classmethod
+    def modify_master_config(cls, config):
+        pass
+
+    @classmethod
+    def modify_scheduler_config(cls, config):
+        pass
+
+    @classmethod
+    def modify_node_config(cls, config):
+        pass
+
     @classmethod
     def setup_class(cls, test_name=None):
         logging.basicConfig(level=logging.INFO)
@@ -98,19 +123,27 @@ class YTEnvSetup(YTEnv):
         # For running in parallel
         cls.run_id = "run_" + uuid.uuid4().hex[:8]
         cls.path_to_run = os.path.join(path_to_test, cls.run_id)
-        pids_filename = os.path.join(cls.path_to_run, "pids.txt")
 
-        cls.Env = cls()
-        cls.Env.start(cls.path_to_run, pids_filename, kill_child_processes=True,
-                      port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"), fqdn="localhost")
+        cls.Env = YTInstance(
+            cls.path_to_run,
+            master_count=cls.NUM_MASTERS,
+            nonvoting_master_count=cls.NUM_NONVOTING_MASTERS,
+            secondary_master_cell_count=cls.NUM_SECONDARY_MASTER_CELLS,
+            node_count=cls.NUM_NODES,
+            scheduler_count=cls.NUM_SCHEDULERS,
+            kill_child_processes=True,
+            port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
+            fqdn="localhost",
+            modify_configs_func=cls.apply_config_patches)
+        cls.Env.start(start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS)
 
         yt_commands.path_to_run_tests = cls.path_to_run
 
         if cls.Env.configs["driver"]:
             secondary_driver_configs = [cls.Env.configs["driver_secondary_{0}".format(i)]
-                                        for i in xrange(cls.Env.NUM_SECONDARY_MASTER_CELLS)]
+                                        for i in xrange(cls.NUM_SECONDARY_MASTER_CELLS)]
             yt_commands.init_driver(cls.Env.configs["driver"], secondary_driver_configs)
-            yt_commands.is_multicell = (cls.Env.NUM_SECONDARY_MASTER_CELLS > 0)
+            yt_commands.is_multicell = (cls.NUM_SECONDARY_MASTER_CELLS > 0)
             yt_driver_bindings.configure_logging(cls.Env.driver_logging_config)
 
         # To avoid strange hangups.
@@ -120,11 +153,26 @@ class YTEnvSetup(YTEnv):
             cls.liveness_checker.start()
 
     @classmethod
+    def apply_config_patches(cls, configs, ytserver_version):
+        for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
+            for config in configs["master"][tag]:
+                update(config, cls.DELTA_MASTER_CONFIG)
+                cls.modify_master_config(config)
+        for config in configs["scheduler"]:
+            update(config, cls.DELTA_SCHEDULER_CONFIG)
+            cls.modify_scheduler_config(config)
+        for config in configs["node"]:
+            update(config, cls.DELTA_NODE_CONFIG)
+            cls.modify_node_config(config)
+        for config in configs["driver"].values():
+            update(config, cls.DELTA_DRIVER_CONFIG)
+
+    @classmethod
     def teardown_class(cls):
         if cls.liveness_checker is not None:
             cls.liveness_checker.stop()
 
-        cls.Env.clear_environment()
+        cls.Env.stop()
         yt_commands.driver = None
         gc.collect()
 
@@ -145,14 +193,14 @@ class YTEnvSetup(YTEnv):
             shutil.move(cls.path_to_run, destination_path)
 
     def setup_method(self, method):
-        if self.Env.NUM_MASTERS > 0:
+        if self.NUM_MASTERS > 0:
             self.transactions_at_start = set(yt_commands.get_transactions())
             self.wait_for_nodes()
             self.wait_for_chunk_replicator()
 
     def teardown_method(self, method):
         self.Env.check_liveness(callback_func=_pytest_finalize_func)
-        if self.Env.NUM_MASTERS > 0:
+        if self.NUM_MASTERS > 0:
             for tx in yt_commands.ls("//sys/transactions", attributes=["title"]):
                 title = tx.attributes.get("title", "")
                 if "Scheduler lock" in title or "Lease for node" in title:

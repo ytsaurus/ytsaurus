@@ -53,10 +53,11 @@ YtStatistics.prototype.upd = function(metric, tags, value)
 {
     var gauge = this.getGauge(metric, tags);
     if (typeof(gauge.digest) === "undefined") {
-        gauge.digest = new TDigest();
+        gauge.digest = new TDigest(0.33, 15, 1.15);
     }
     if (typeof(value) === "object") {
         gauge.digest.push_centroid(value);
+        gauge.digest.compress();
     } else {
         gauge.digest.push(value);
     }
