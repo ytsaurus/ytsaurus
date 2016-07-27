@@ -312,7 +312,7 @@ class YsonParserBase(object):
 
     def _parse_binary_uint64(self):
         self._expect_char(_UINT64_MARKER)
-        result = self._read_varint()
+        result = yt.yson.yson_types.YsonUint64(self._read_varint())
         return result
 
     def _parse_binary_double(self):
