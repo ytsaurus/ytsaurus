@@ -13,6 +13,7 @@ def run_and_notify(func, self, *args, **kwargs):
         message_queue.put({
             "type": "operation_started",
             "operation": {
+                "type": "yt",
                 "id": operation.id,
                 "cluster_name": operation.client._name}})
     if sync:
