@@ -1977,6 +1977,15 @@ private:
         Profiler.Enqueue("/chunk_list_count", ChunkListMap_.GetSize(), EMetricType::Gauge);
         Profiler.Enqueue("/chunk_lists_created", ChunkListsCreated_, EMetricType::Counter);
         Profiler.Enqueue("/chunk_lists_destroyed", ChunkListsDestroyed_, EMetricType::Counter);
+
+        Profiler.Enqueue("/lost_chunk_count", LostChunks().size(), EMetricType::Gauge);
+        Profiler.Enqueue("/lost_vital_chunk_count", LostVitalChunks().size(), EMetricType::Gauge);
+        Profiler.Enqueue("/overreplicated_chunk_count", OverreplicatedChunks().size(), EMetricType::Gauge);
+        Profiler.Enqueue("/underreplicated_chunk_count", UnderreplicatedChunks().size(), EMetricType::Gauge);
+        Profiler.Enqueue("/data_missing_chunk_count", DataMissingChunks().size(), EMetricType::Gauge);
+        Profiler.Enqueue("/parity_missing_chunk_count", ParityMissingChunks().size(), EMetricType::Gauge);
+        Profiler.Enqueue("/quorum_missing_chunk_count", QuorumMissingChunks().size(), EMetricType::Gauge);
+        Profiler.Enqueue("/unsafely_placed_chunk_count", UnsafelyPlacedChunks().size(), EMetricType::Gauge);
     }
 
 };
