@@ -93,6 +93,8 @@ def list_entities(type, prefix, exact, jsonoutput):
             "access_time",
             "compression_codec",
             "replication_factor"]
+    else:
+        attributes = ["uncompressed_data_size"]
 
     # NB: it will be files in case of type == "file"
     tables = []
@@ -101,9 +103,15 @@ def list_entities(type, prefix, exact, jsonoutput):
             table_attributes = yt.get(prefix, attributes=attributes).attributes
             tables.append(yson.to_yson_type(prefix, attributes=table_attributes))
     else:
+        object_filter = None
+        if yt.config["yamr_mode"]["ignore_empty_tables_in_mapreduce_list"]:
+            object_filter = lambda obj: obj.attributes.get("uncompressed_data_size", 0) > 0
         request_prefix = prefix.rsplit("/", 1)[0]
         tables = yt.search(request_prefix, type,
-                           path_filter=lambda path: path.startswith(request_prefix), attributes=attributes)
+                           path_filter=lambda path: path.startswith(request_prefix),
+                           subtree_filter=lambda path, _: (str(path) == request_prefix) or path.startswith(prefix),
+                           object_filter=object_filter,
+                           attributes=attributes)
         tables = filter(lambda table: table.startswith(prefix), tables)
 
     if jsonoutput:

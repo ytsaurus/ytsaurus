@@ -196,13 +196,16 @@ default_config = {
         "abort_transactions_with_remove": False,
         "use_yamr_style_prefix": False,
         "create_tables_outside_of_transaction": False,
-    },
 
-    # Special option that enables 4Gb memory_limit, 4Gb data_size_per_job and default zlib_6 codec for
-    # newly created tables. These defaults are similar to defaults on Yamr-clusters, but look inappropriate
-    # for YT. Please do not use this option in new code. This option will be deleted after
-    # migration to YT from Yamr. More discussion can found in YT-5220.
-    "use_yamr_defaults": False,
+        # Special option that enables 4Gb memory_limit, 4Gb data_size_per_job and default zlib_6 codec for
+        # newly created tables. These defaults are similar to defaults on Yamr-clusters, but look inappropriate
+        # for YT. Please do not use this option in new code. This option will be deleted after
+        # migration to YT from Yamr. More discussion can found in YT-5220.
+        "use_yamr_defaults": False,
+
+        # Enables ignoring empty tables in mapreduce -list command.
+        "ignore_empty_tables_in_mapreduce_list": False,
+    },
 
     # Run sorted merge instead of sort if input tables are sorted by sort_by prefix.
     "run_merge_instead_of_sort_if_input_tables_are_sorted": True,

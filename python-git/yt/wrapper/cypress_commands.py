@@ -393,11 +393,11 @@ def search(root="", node_type=None,
             return
         if path in exclude or (depth_bound is not None and depth > depth_bound):
             return
+        if subtree_filter is not None and not subtree_filter(path, object):
+            return
         if is_opaque(object) and not ignore_opaque:
             for obj in walk(path, safe_get(path), depth, True):
                 yield obj
-            return
-        if subtree_filter is not None and not subtree_filter(path, object):
             return
 
         object_type = object.attributes["type"]

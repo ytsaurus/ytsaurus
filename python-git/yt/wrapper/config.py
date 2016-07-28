@@ -103,7 +103,8 @@ class Config(types.ModuleType, client_state.ClientState):
 
             "ARGCOMPLETE_VERBOSE": "argcomplete_verbose",
 
-            "USE_YAMR_DEFAULTS": "use_yamr_defaults"
+            "USE_YAMR_DEFAULTS": "yamr_mode/use_yamr_defaults",
+            "IGNORE_EMPTY_TABLES_IN_MAPREDUCE_LIST": "yamr_mode/ignore_empty_tables_in_mapreduce_list"
         }
 
         # Some shortcuts can't be backported one-to-one so they are processed manually
