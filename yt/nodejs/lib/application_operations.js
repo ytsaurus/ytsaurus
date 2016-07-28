@@ -437,6 +437,14 @@ function YtApplicationOperations$list(parameters)
             max_size, MAX_SIZE_LIMIT)).withCode(1);
     }
 
+    function makeErrorHandler(message) {
+        return function(error) {
+            var err = YtError.ensureWrapped(error);
+            logger.error(message, {error: err.toJson()});
+            return Q.reject(new YtError(message, err));
+        };
+    }
+
     // Okay, now fetch & merge data.
     var cypress_data = this.driver.executeSimple(
         "list",
@@ -455,9 +463,11 @@ function YtApplicationOperations$list(parameters)
         "get",
         {
             path: "{}/@".format(OPERATIONS_ARCHIVE_DIRECTORY)
-        }).then(function(attributes) {
-            return 0; //attributes["version"] || 0;
-        }, function (error) {console.log(error)});
+        })
+        .then(function(attributes) {
+            return attributes["version"] || 0;
+        })
+        .catch(makeErrorHandler("Failed to fetch archive version"));
 
     var archive_callbacks = version.then(getArchiveCallbacks.bind(
         this,
@@ -540,15 +550,6 @@ function YtApplicationOperations$list(parameters)
                 state_counts: state_counts,
                 type_counts: type_counts,
             }
-        };
-    }
-
-    function makeErrorHandler(message) {
-        return function(error) {
-            console.log(error);
-            var err = YtError.ensureWrapped(error);
-            logger.error(message, {error: err.toJson()});
-            return Q.reject(new YtError(message, err));
         };
     }
 
