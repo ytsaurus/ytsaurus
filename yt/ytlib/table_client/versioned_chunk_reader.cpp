@@ -1956,16 +1956,16 @@ private:
             const auto& uncompressedBlock = GetUncompressedBlock(index.first);
             const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(index.first);
 
-                TSimpleVersionedBlockReader blockReader(
-                    uncompressedBlock,
-                    blockMeta,
-                    ChunkMeta_->ChunkSchema(),
-                    ChunkMeta_->GetChunkKeyColumnCount(),
-                    ChunkMeta_->GetKeyColumnCount(),
-                    SchemaIdMapping_,
-                    KeyComparer_,
-                    Timestamp_,
-                    false);
+            TSimpleVersionedBlockReader blockReader(
+                uncompressedBlock,
+                blockMeta,
+                ChunkMeta_->ChunkSchema(),
+                ChunkMeta_->GetChunkKeyColumnCount(),
+                ChunkMeta_->GetKeyColumnCount(),
+                SchemaIdMapping_,
+                KeyComparer_,
+                Timestamp_,
+                false);
 
             YCHECK(blockReader.SkipToRowIndex(index.second));
 
