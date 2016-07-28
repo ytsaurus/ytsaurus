@@ -80,22 +80,24 @@ void TCachedVersionedChunkMeta::Init(
     const TTableSchema& schema)
 {
     ChunkId_ = chunkId;
-    ChunkMeta_ = chunkMeta;
 
     auto keyColumns = schema.GetKeyColumns();
     KeyColumnCount_ = keyColumns.size();
 
-    ValidateChunkMeta();
-    ValidateSchema(schema);
+    ChunkType_ = EChunkType(chunkMeta.type());
+    ChunkFormat_ = ETableChunkFormat(chunkMeta.version());
 
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
+    ValidateChunkMeta();
+    ValidateSchema(chunkMeta, schema);
+
+    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
     MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), GetKeyColumnCount());
     MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), GetKeyColumnCount());
 
-    Misc_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
-    BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
+    Misc_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+    BlockMeta_ = GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions());
 
-    auto columnMeta = FindProtoExtension<TColumnMetaExt>(ChunkMeta_.extensions());
+    auto columnMeta = FindProtoExtension<TColumnMetaExt>(chunkMeta.extensions());
     if (columnMeta) {
         ColumnMeta_.Swap(&*columnMeta);
     }
@@ -110,28 +112,28 @@ void TCachedVersionedChunkMeta::Init(
 
 void TCachedVersionedChunkMeta::ValidateChunkMeta()
 {
-    auto type = EChunkType(ChunkMeta_.type());
-    if (type != EChunkType::Table) {
+    if (ChunkType_ != EChunkType::Table) {
         THROW_ERROR_EXCEPTION("Incorrect chunk type: actual %Qlv, expected %Qlv",
-            type,
+            ChunkType_,
             EChunkType::Table);
     }
 
-    auto formatVersion = ETableChunkFormat(ChunkMeta_.version());
-    if (formatVersion != ETableChunkFormat::VersionedSimple &&
-        formatVersion != ETableChunkFormat::VersionedColumnar)
+    if (ChunkFormat_ != ETableChunkFormat::VersionedSimple &&
+        ChunkFormat_ != ETableChunkFormat::VersionedColumnar)
     {
         THROW_ERROR_EXCEPTION("Incorrect chunk format version: actual %Qlv, expected %Qlv or %Qlv",
-            formatVersion,
+            ChunkFormat_,
             ETableChunkFormat::VersionedSimple,
             ETableChunkFormat::VersionedColumnar);
     }
 }
 
-void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
+void TCachedVersionedChunkMeta::ValidateSchema(
+    const TChunkMeta& chunkMeta,
+    const TTableSchema& readerSchema)
 {
-    auto maybeKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
-    auto tableSchemaExt = GetProtoExtension<TTableSchemaExt>(ChunkMeta_.extensions());
+    auto maybeKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
+    auto tableSchemaExt = GetProtoExtension<TTableSchemaExt>(chunkMeta.extensions());
     if (maybeKeyColumnsExt) {
         FromProto(&ChunkSchema_, tableSchemaExt, *maybeKeyColumnsExt);
     } else {
