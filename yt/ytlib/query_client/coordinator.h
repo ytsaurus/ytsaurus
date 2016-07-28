@@ -22,24 +22,22 @@ TRowRanges GetPrunedRanges(
     TConstExpressionPtr predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
-    NObjectClient::TObjectId tableId,
+    const NObjectClient::TObjectId& tableId,
     TSharedRange<TRowRange> ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
-    ui64 rangeExpansionLimit,
-    bool verboseLogging,
+    const TQueryOptions& options,
     const NLogging::TLogger& Logger = QueryClientLogger);
 
 TRowRanges GetPrunedRanges(
     TConstQueryPtr query,
-    NObjectClient::TObjectId tableId,
+    const NObjectClient::TObjectId& tableId,
     TSharedRange<TRowRange> ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
-    ui64 rangeExpansionLimit,
-    bool verboseLogging);
+    const TQueryOptions& options);
 
 typedef std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> TEvaluateResult;
 

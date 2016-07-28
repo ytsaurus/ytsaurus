@@ -570,8 +570,8 @@ private:
         const TObjectId& tableId,
         const TSharedRange<TRowRange>& ranges,
         const TRowBufferPtr& rowBuffer,
-        const NLogging::TLogger& Logger,
-        bool verboseLogging)
+        const TQueryOptions& options,
+        const NLogging::TLogger& Logger)
     {
         YCHECK(TypeFromId(tableId) == EObjectType::Table);
 
@@ -583,7 +583,7 @@ private:
             ? SplitDynamicTable(tableId, ranges, rowBuffer, tableInfo)
             : SplitStaticTable(tableId, ranges, rowBuffer, tableInfo);
 
-        LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v",
+        LOG_DEBUG_IF(options.VerboseLogging, "Got %v sources for input %v",
             result.size(),
             tableId);
 
@@ -841,8 +841,7 @@ private:
     std::vector<std::pair<TDataRanges, Stroka>> InferRanges(
         TConstQueryPtr query,
         const TDataRanges& dataSource,
-        ui64 rangeExpansionLimit,
-        bool verboseLogging,
+        const TQueryOptions& options,
         TRowBufferPtr rowBuffer,
         const NLogging::TLogger& Logger)
     {
@@ -856,8 +855,7 @@ private:
             rowBuffer,
             Connection_->GetColumnEvaluatorCache(),
             BuiltinRangeExtractorMap,
-            rangeExpansionLimit,
-            verboseLogging);
+            options);
 
         LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
 
@@ -865,8 +863,8 @@ private:
             tableId,
             MakeSharedRange(std::move(prunedRanges), rowBuffer),
             std::move(rowBuffer),
-            Logger,
-            verboseLogging);
+            options,
+            Logger);
     }
 
     TQueryStatistics DoCoordinateAndExecute(
@@ -937,8 +935,7 @@ private:
         auto allSplits = InferRanges(
             query,
             dataSource,
-            options.RangeExpansionLimit,
-            options.VerboseLogging,
+            options,
             rowBuffer,
             Logger);
 
@@ -984,8 +981,7 @@ private:
         auto allSplits = InferRanges(
             query,
             dataSource,
-            options.RangeExpansionLimit,
-            options.VerboseLogging,
+            options,
             rowBuffer,
             Logger);
 

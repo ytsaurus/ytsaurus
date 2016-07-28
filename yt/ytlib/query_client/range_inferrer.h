@@ -23,8 +23,7 @@ TRangeInferrer CreateRangeInferrer(
     const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
-    ui64 rangeExpansionLimit,
-    bool verboseLogging);
+    const TQueryOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

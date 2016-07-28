@@ -21,6 +21,7 @@ namespace NQueryClient {
 
 using namespace NConcurrency;
 using namespace NTableClient;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,16 +139,15 @@ TRowRanges GetPrunedRanges(
     TConstExpressionPtr predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
-    NObjectClient::TObjectId tableId,
+    const TObjectId& tableId,
     TSharedRange<TRowRange> ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
-    ui64 rangeExpansionLimit,
-    bool verboseLogging,
+    const TQueryOptions& options,
     const NLogging::TLogger& Logger)
 {
-    LOG_DEBUG("Infering ranges from predicate");
+    LOG_DEBUG("Inferring ranges from predicate");
 
     auto rangeInferrer = CreateRangeInferrer(
         predicate,
@@ -155,8 +155,7 @@ TRowRanges GetPrunedRanges(
         keyColumns,
         evaluatorCache,
         rangeExtractors,
-        rangeExpansionLimit,
-        verboseLogging);
+        options);
 
     auto keyRangeFormatter = [] (const TRowRange& range) -> Stroka {
         return Format("[%v .. %v]",
@@ -172,7 +171,7 @@ TRowRanges GetPrunedRanges(
         result.insert(result.end(), inferred.begin(), inferred.end());
 
         for (const auto& range : inferred) {
-            LOG_DEBUG_IF(verboseLogging, "Narrowing source %v key range from %v to %v",
+            LOG_DEBUG_IF(options.VerboseLogging, "Narrowing source %v key range from %v to %v",
                 tableId,
                 keyRangeFormatter(originalRange),
                 keyRangeFormatter(range));
@@ -184,13 +183,12 @@ TRowRanges GetPrunedRanges(
 
 TRowRanges GetPrunedRanges(
     TConstQueryPtr query,
-    NObjectClient::TObjectId tableId,
+    const TObjectId& tableId,
     TSharedRange<TRowRange> ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
-    ui64 rangeExpansionLimit,
-    bool verboseLogging)
+    const TQueryOptions& options)
 {
     auto Logger = BuildLogger(query);
     return GetPrunedRanges(
@@ -202,8 +200,7 @@ TRowRanges GetPrunedRanges(
         rowBuffer,
         evaluatorCache,
         rangeExtractors,
-        rangeExpansionLimit,
-        verboseLogging,
+        options,
         Logger);
 }
 

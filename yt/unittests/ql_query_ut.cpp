@@ -260,15 +260,19 @@ protected:
         }
 
         auto rowBuffer = New<TRowBuffer>();
+
+        TQueryOptions options;
+        options.RangeExpansionLimit = 1000;
+        options.VerboseLogging = true;
+
         auto prunedRanges = GetPrunedRanges(
             query,
             MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe),
             MakeSharedRange(std::move(sources), buffer),
             rowBuffer,
             ColumnEvaluatorCache_,
-            RangeExtractorMap.Get(),
-            1000,
-            true);
+            RangeExtractorMap,
+            options);
 
         EXPECT_EQ(prunedRanges.size(), subqueriesCount);
     }
@@ -364,8 +368,7 @@ TOwningRow BuildRow(
 {
     auto tableSchema = GetTableSchemaFromDataSplit(dataSplit);
 
-    return NTableClient::BuildRow(
-            yson, tableSchema, treatMissingAsNull);
+    return NTableClient::BuildRow(yson, tableSchema, treatMissingAsNull);
 }
 
 TQueryStatistics DoExecuteQuery(
