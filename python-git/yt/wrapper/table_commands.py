@@ -348,7 +348,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
     memory_limit = get_value(memory_limit, get_config(client)["memory_limit"])
     if memory_limit is not None:
         memory_limit = int(memory_limit)
-    if memory_limit is None and get_config(client)["use_yamr_defaults"]:
+    if memory_limit is None and get_config(client)["yamr_mode"]["use_yamr_defaults"]:
         memory_limit = 4 * GB
     if get_config(client)["pickling"]["add_tmpfs_archive_size_to_memory_limit"]:
         if memory_limit is None:
@@ -363,7 +363,7 @@ def _configure_spec(spec, client):
     started_by = get_started_by()
     spec = update({"started_by": started_by}, spec)
     spec = update(deepcopy(get_config(client)["spec_defaults"]), spec)
-    if get_config(client)["use_yamr_defaults"]:
+    if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
         spec = update({"data_size_per_job": 4 * GB}, spec)
     return spec
 
@@ -486,7 +486,7 @@ def create_table(path, recursive=None, ignore_existing=False,
     if compression_codec is not None:
         attributes["compression_codec"] = compression_codec
     else:
-        if get_config(client)["use_yamr_defaults"]:
+        if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
             attributes["compression_codec"] = "zlib_6"
     create("table", table.name, recursive=recursive, ignore_existing=ignore_existing,
            attributes=attributes, client=client)

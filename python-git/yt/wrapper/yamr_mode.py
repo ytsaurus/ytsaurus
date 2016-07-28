@@ -8,7 +8,8 @@ def set_yamr_mode(client=None):
     """Configure global config to be yamr compatible"""
     config = get_config(client)
     for option in config["yamr_mode"]:
-        if option in ["abort_transactions_with_remove", "use_yamr_style_prefix"]:
+        if option in ["abort_transactions_with_remove", "use_yamr_style_prefix",
+                      "use_yamr_defaults", "ignore_empty_tables_in_mapreduce_list"]:
             continue
         config["yamr_mode"][option] = True
     if "MR_TABLE_PREFIX" in os.environ:

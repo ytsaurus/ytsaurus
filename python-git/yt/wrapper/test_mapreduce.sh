@@ -112,8 +112,9 @@ test_list()
 {
     ./mapreduce -write "ignat/test_dir/table1" <table_file
     ./mapreduce -write "ignat/test_dir/table2" <table_file
-    check "table1\ntable2\n" "`./mapreduce -list -prefix "${YT_PREFIX}ignat/test_dir/"`"
+    ./yt create table "ignat/test_dir/table3"
 
+    export YT_IGNORE_EMPTY_TABLES_IN_MAPREDUCE_LIST=1
     export YT_USE_YAMR_STYLE_PREFIX=1
 
     check "ignat/test_dir/table1\nignat/test_dir/table2\n" "`./mapreduce -list -prefix "ignat/test_dir"`"
@@ -130,7 +131,13 @@ test_list()
     check "ignat/test_dir/table2\n" "`./mapreduce -list -prefix "ignat/test_dir/table" -jsonoutput | python -c "import json, sys; print json.load(sys.stdin)[1]['name']"`"
     check "[]\n" "`./mapreduce -list -exact "ignat/test_dir/table" -jsonoutput`"
 
-    export YT_USE_YAMR_STYLE_PREFIX=0
+    unset YT_IGNORE_EMPTY_TABLES_IN_MAPREDUCE_LIST
+
+    check "ignat/test_dir/table1\nignat/test_dir/table2\nignat/test_dir/table3\n" "`./mapreduce -list -prefix "ignat/test_dir"`"
+
+    unset YT_USE_YAMR_STYLE_PREFIX
+
+    check "table1\ntable2\ntable3\n" "`./mapreduce -list -prefix "${YT_PREFIX}ignat/test_dir/"`"
 }
 
 test_codec()
@@ -696,11 +703,11 @@ test_archive_and_transform()
     export YT_CONFIG_PATH="$tempfile"
 
     echo -e "a\t1\nb\t2" | ./mapreduce -write ignat/input
-    
+
     ./mapreduce -archive ignat/input -erasurecodec none
     check '"zlib_9"' "`./mapreduce -get ignat/input/@compression_codec`"
     check '"none"' "`./mapreduce -get ignat/input/@erasure_codec`"
-    
+
     ./mapreduce -unarchive ignat/input
     # Check nothing
 
@@ -713,41 +720,41 @@ test_archive_and_transform()
 }
 
 prepare_table_files
-#test_base_functionality
-#test_list
-#test_codec
-#test_many_output_tables
-#test_sortby_reduceby
-#test_chunksize
-#test_mapreduce
-#test_input_output_format
-#test_transactions
-#test_range_map
-#test_uploaded_files
-#test_ignore_positional_arguments
-#test_stderr
-#test_spec
-#test_smart_format
-#test_drop
-#test_create_table
-#test_empty_destination
-#test_dsv_reduce
-#test_slow_write
-#test_many_dst_write
-#test_dstsorted
-#test_custom_fs_rs
-#test_write_with_tx
-#test_table_file
-#test_unexisting_input_tables
-#test_copy_files
-#test_write_lenval
-#test_force_drop
-#test_parallel_dstappend
-#test_many_to_many_copy_move
-#test_missing_prefix
-#test_table_record_index
-#test_opts
-#test_defrag
+test_base_functionality
+test_list
+test_codec
+test_many_output_tables
+test_sortby_reduceby
+test_chunksize
+test_mapreduce
+test_input_output_format
+test_transactions
+test_range_map
+test_uploaded_files
+test_ignore_positional_arguments
+test_stderr
+test_spec
+test_smart_format
+test_drop
+test_create_table
+test_empty_destination
+test_dsv_reduce
+test_slow_write
+test_many_dst_write
+test_dstsorted
+test_custom_fs_rs
+test_write_with_tx
+test_table_file
+test_unexisting_input_tables
+test_copy_files
+test_write_lenval
+test_force_drop
+test_parallel_dstappend
+test_many_to_many_copy_move
+test_missing_prefix
+test_table_record_index
+test_opts
+test_defrag
 test_archive_and_transform
 
 cleanup
