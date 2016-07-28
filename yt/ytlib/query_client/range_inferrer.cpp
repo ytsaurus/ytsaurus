@@ -733,8 +733,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
     const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
-    ui64 rangeExpansionLimit,
-    bool verboseLogging)
+    const TQueryOptions& options)
 {
     auto buffer = New<TRowBuffer>(TRangeInferrerBufferTag());
     auto keySize = schema.GetKeyColumnCount();
@@ -747,17 +746,17 @@ TRangeInferrer CreateHeavyRangeInferrer(
         rangeExtractors);
 
     LOG_DEBUG_IF(
-        verboseLogging,
+        options.VerboseLogging,
         "Predicate %Qv defines key constraints %Qv",
         InferName(predicate),
         keyTrie);
 
-    //TODO(savrus): this is a hotfix for YT-2836. Further discussion in YT-2842.
+    // TODO(savrus): this is a hotfix for YT-2836. Further discussion in YT-2842.
     auto rangeCountLimit = GetRangeCountLimit(
         *evaluator,
         schema.Columns(),
         keySize,
-        rangeExpansionLimit);
+        options.RangeExpansionLimit);
 
     auto ranges = GetRangesFromTrieWithinRange(
         TRowRange(buffer->Capture(MinKey()), buffer->Capture(MaxKey())),
@@ -767,12 +766,12 @@ TRangeInferrer CreateHeavyRangeInferrer(
         rangeCountLimit);
 
     LOG_DEBUG_IF(
-        verboseLogging,
+        options.VerboseLogging,
         "Got %v from key trie",
         ranges.size());
 
-    auto rangeExpansionLeft = rangeExpansionLimit > ranges.size()
-        ? rangeExpansionLimit - ranges.size()
+    auto rangeExpansionLeft = options.RangeExpansionLimit > ranges.size()
+        ? options.RangeExpansionLimit - ranges.size()
         : 0;
 
     std::vector<TMutableRowRange> enrichedRanges;
@@ -816,7 +815,7 @@ TRangeInferrer CreateLightRangeInferrer(
     TConstExpressionPtr predicate,
     const TKeyColumns& keyColumns,
     const TConstRangeExtractorMapPtr& rangeExtractors,
-    bool verboseLogging)
+    const TQueryOptions& options)
 {
     auto keyTrieBuffer = New<TRowBuffer>(TRangeInferrerBufferTag());
     auto keyTrie = ExtractMultipleConstraints(
@@ -826,7 +825,7 @@ TRangeInferrer CreateLightRangeInferrer(
         rangeExtractors);
 
     LOG_DEBUG_IF(
-        verboseLogging,
+        options.VerboseLogging,
         "Predicate %Qv defines key constraints %Qv",
         InferName(predicate),
         keyTrie);
@@ -851,8 +850,7 @@ TRangeInferrer CreateRangeInferrer(
     const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
-    ui64 rangeExpansionLimit,
-    bool verboseLogging)
+    const TQueryOptions& options)
 {
     return schema.HasComputedColumns()
         ? CreateHeavyRangeInferrer(
@@ -861,13 +859,12 @@ TRangeInferrer CreateRangeInferrer(
             keyColumns,
             evaluatorCache,
             rangeExtractors,
-            rangeExpansionLimit,
-            verboseLogging)
+            options)
         : CreateLightRangeInferrer(
             predicate,
             keyColumns,
             rangeExtractors,
-            verboseLogging);
+            options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

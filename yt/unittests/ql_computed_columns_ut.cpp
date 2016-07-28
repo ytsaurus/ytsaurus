@@ -38,7 +38,7 @@ protected:
         ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
     }
 
-    std::vector<TKeyRange> Coordinate(const Stroka& source, int rangeExpansionLimit = 1000)
+    std::vector<TKeyRange> Coordinate(const Stroka& source, ui64 rangeExpansionLimit = 1000)
     {
         TQueryPtr query;
         TDataRanges dataSource;
@@ -47,15 +47,19 @@ protected:
             source);
 
         auto rowBuffer = New<TRowBuffer>();
+
+        TQueryOptions options;
+        options.RangeExpansionLimit = rangeExpansionLimit;
+        options.VerboseLogging = true;
+
         auto prunedSplits = GetPrunedRanges(
             query,
             dataSource.Id,
             dataSource.Ranges,
             rowBuffer,
             ColumnEvaluatorCache_,
-            BuiltinRangeExtractorMap.Get(),
-            rangeExpansionLimit,
-            true);
+            BuiltinRangeExtractorMap,
+            options);
 
         return GetRangesFromSources(prunedSplits);
     }
@@ -75,6 +79,11 @@ protected:
             }};
 
         auto rowBuffer = New<TRowBuffer>();
+
+        TQueryOptions options;
+        options.RangeExpansionLimit = 1000;
+        options.VerboseLogging = true;
+
         auto prunedSplits = GetPrunedRanges(
             query->WhereClause,
             query->JoinClauses[0]->OriginalSchema,
@@ -83,9 +92,8 @@ protected:
             MakeSharedRange(foreignSplits),
             rowBuffer,
             ColumnEvaluatorCache_,
-            BuiltinRangeExtractorMap.Get(),
-            1000,
-            true);
+            BuiltinRangeExtractorMap,
+            options);
 
         return GetRangesFromSources(prunedSplits);
     }
