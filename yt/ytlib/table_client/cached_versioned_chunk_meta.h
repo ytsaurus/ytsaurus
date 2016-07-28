@@ -30,7 +30,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TOwningKey>, BlockLastKeys);
     DEFINE_BYREF_RO_PROPERTY(NProto::TBlockMetaExt, BlockMeta);
     DEFINE_BYREF_RO_PROPERTY(NProto::TColumnMetaExt, ColumnMeta);
-    DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::EChunkType, ChunkType);
+    DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableChunkFormat, ChunkFormat);
     DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnIdMapping>, SchemaIdMapping);
@@ -61,7 +62,9 @@ private:
         const TTableSchema& schema);
 
     void ValidateChunkMeta();
-    void ValidateSchema(const TTableSchema& readerSchema);
+    void ValidateSchema(
+        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const TTableSchema& readerSchema);
 
     DECLARE_NEW_FRIEND();
 };
