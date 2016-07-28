@@ -154,6 +154,7 @@ void RemoveDirAsRoot(const Stroka& path)
 
 void RemoveDirContentAsRoot(const Stroka& path)
 {
+    // Child process
     SafeSetUid(0);
 
     if (!TFileStat(path).IsDir()) {
@@ -165,7 +166,7 @@ void RemoveDirContentAsRoot(const Stroka& path)
     for (int attempt = 0; attempt < 5; ++attempt) {
         foundUnremovedItems = false;
         TDirIterator dir(path);
-        for (TDirIterator::TIterator it = dir.Begin(); it != dir.End(); ++it) {
+        for (auto it = dir.Begin(); it != dir.End(); ++it) {
             if (it->fts_info == FTS_DOT || it->fts_info == FTS_D) {
                 continue;
             }
@@ -175,8 +176,8 @@ void RemoveDirContentAsRoot(const Stroka& path)
 
             foundUnremovedItems = true;
             try {
-                NFS::RemoveRecursive(it->fts_path);
-            } catch (const std::exception&) {
+                ::remove(it->fts_path);
+            } catch (const std::exception& ex) {
                 // Ignores any error while remove.
             }
         }
@@ -189,7 +190,7 @@ void RemoveDirContentAsRoot(const Stroka& path)
     if (foundUnremovedItems) {
         std::vector<Stroka> unremovableItems;
         TDirIterator dir(path);
-        for (TDirIterator::TIterator it = dir.Begin(); it != dir.End(); ++it) {
+        for (auto it = dir.Begin(); it != dir.End(); ++it) {
             if (it->fts_info == FTS_DOT || it->fts_info == FTS_D) {
                 continue;
             }
