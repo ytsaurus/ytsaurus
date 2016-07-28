@@ -71,7 +71,8 @@ SCHEDULER_CONFIG_PATCH = {
             "spec_template": {
                 "partition_data_size": 512 * 1024 * 1024,
             }
-        }
+        },
+        "enable_tmpfs": False,
     },
     "snapshot_timeout": 300000,
 }
