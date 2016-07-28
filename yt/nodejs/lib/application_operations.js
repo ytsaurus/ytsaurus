@@ -17,6 +17,7 @@ var __DBG = require("./debug").that("V", "Operations");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+var OPERATIONS_ARCHIVE_DIRECTORY = "//sys/operations_archive";
 var OPERATIONS_ARCHIVE_PATH = "//sys/operations_archive/ordered_by_id";
 var OPERATIONS_ARCHIVE_INDEX_PATH = "//sys/operations_archive/ordered_by_start_time";
 var OPERATIONS_CYPRESS_PATH = "//sys/operations";
@@ -147,6 +148,10 @@ function tidyArchiveOperation(operation)
         "id_lo",
         "id_hash",
         "filter_factors",
+        "index.id_hi",
+        "index.id_lo",
+        "index.start_time",
+        "index.dummy"
     ];
 
     _.each(keys, function(key) {
@@ -273,6 +278,88 @@ function required(parameters, key, validator)
     }
 }
 
+function getArchiveCallbacks(driver, from_time, to_time, cursor_time, substr_filter, cursor_direction, state_filter, type_filter, user_filter, max_size, version)
+{
+    var start_time_name = version < 2 ? "index.start_time" : "start_time";
+    var counts_filter_conditions = [
+        "{} > {} AND {} <= {}".format(start_time_name, from_time, start_time_name, to_time)
+    ];
+
+    if (substr_filter) {
+        counts_filter_conditions.push(
+            "is_substr(\"{}\", filter_factors)".format(escapeC(substr_filter)));
+    }
+    var items_filter_conditions = counts_filter_conditions.slice();
+    var items_sort_direction;
+
+    if (cursor_direction === "past") {
+        items_filter_conditions.push("{} <= {}".format(start_time_name, cursor_time));
+        items_sort_direction = "DESC";
+    }
+
+    if (cursor_direction === "future") {
+        items_filter_conditions.push("{} > {}".format(start_time_name, cursor_time));
+        items_sort_direction = "ASC";
+    }
+
+    if (state_filter) {
+        items_filter_conditions.push("state = \"{}\"".format(escapeC(state_filter)));
+    }
+
+    if (type_filter) {
+        items_filter_conditions.push("operation_type = \"{}\"".format(escapeC(type_filter)));
+    }
+
+    if (user_filter) {
+        items_filter_conditions.push("authenticated_user = \"{}\"".format(escapeC(user_filter)));
+    }
+ 
+    var query_source = null;
+    if (version < 2) {
+        query_source = "[{}] index JOIN [{}] ON (index.id_hi, index.id_lo) = (id_hi, id_lo)"
+            .format(OPERATIONS_ARCHIVE_INDEX_PATH, OPERATIONS_ARCHIVE_PATH);
+    } else {
+        query_source = "[{}]"
+            .format(OPERATIONS_ARCHIVE_INDEX_PATH);
+    }
+   
+    var query_for_counts =
+        "user, state, type, sum(1) AS count FROM {}".format(query_source) +
+        " WHERE {}".format(counts_filter_conditions.join(" AND ")) +
+        " GROUP BY authenticated_user AS user, state AS state, operation_type AS type";
+
+    var query_for_items =
+        "{} FROM {}".format(version < 2 ? "*" : "id_hi, id_lo", query_source) +
+        " WHERE {}".format(items_filter_conditions.join(" AND ")) +
+        " ORDER BY start_time {}".format(items_sort_direction) +
+        " LIMIT {}".format(1 + max_size);
+
+    return {
+        getCounts: function() {
+            return driver.executeSimple(
+                "select_rows",
+                {query: query_for_counts});
+        },
+        getItems: function() {
+            if (version < 2) {
+                return driver.executeSimple(
+                    "select_rows",
+                    {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT});
+            } else {
+                return driver
+                    .executeSimple(
+                        "select_rows",
+                        {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT})
+                    .then(driver.executeSimple.bind(driver, "lookup_rows", {
+                        path: OPERATIONS_ARCHIVE_PATH,
+                        input_format: ANNOTATED_JSON_FORMAT,
+                        output_format: ANNOTATED_JSON_FORMAT}));
+            }
+        }
+    }
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtApplicationOperations(logger, driver)
@@ -364,77 +451,41 @@ function YtApplicationOperations$list(parameters)
             path: OPERATIONS_RUNTIME_PATH
         });
 
-    var counts_filter_conditions = [
-        "start_time > {} AND start_time <= {}".format(from_time, to_time)
-    ];
+    var version = this.driver.executeSimple(
+        "get",
+        {
+            path: "{}/@".format(OPERATIONS_ARCHIVE_DIRECTORY)
+        }).then(function(attributes) {
+            return 0; //attributes["version"] || 0;
+        }, function (error) {console.log(error)});
 
-    if (substr_filter) {
-        counts_filter_conditions.push(
-            "is_substr(\"{}\", filter_factors)".format(escapeC(substr_filter)));
-    }
-    var items_filter_conditions = counts_filter_conditions.slice();
-    var items_sort_direction;
-
-    if (cursor_direction === "past") {
-        items_filter_conditions.push("start_time <= {}".format(cursor_time));
-        items_sort_direction = "DESC";
-    }
-
-    if (cursor_direction === "future") {
-        items_filter_conditions.push("start_time > {}".format(cursor_time));
-        items_sort_direction = "ASC";
-    }
-
-    if (state_filter) {
-        items_filter_conditions.push("state = \"{}\"".format(escapeC(state_filter)));
-    }
-
-    if (type_filter) {
-        items_filter_conditions.push("operation_type = \"{}\"".format(escapeC(type_filter)));
-    }
-
-    if (user_filter) {
-        items_filter_conditions.push("authenticated_user = \"{}\"".format(escapeC(user_filter)));
-    }
-
-    var query_source = "[{}]"
-        .format(OPERATIONS_ARCHIVE_INDEX_PATH);
-    var query_for_counts =
-        "user, state, type, sum(1) AS count FROM {}".format(query_source) +
-        " WHERE {}".format(counts_filter_conditions.join(" AND ")) +
-        " GROUP BY authenticated_user AS user, state AS state, operation_type AS type";
-
-    var query_for_items =
-        "id_hi, id_lo FROM {}".format(query_source) +
-        " WHERE {}".format(items_filter_conditions.join(" AND ")) +
-        " ORDER BY start_time {}".format(items_sort_direction) +
-        " LIMIT {}".format(1 + max_size);
-
-    console.log(query_for_counts);
-
-    console.log(query_for_items);
-
+    var archive_callbacks = version.then(getArchiveCallbacks.bind(
+        this,
+        this.driver,
+        from_time,
+        to_time,
+        cursor_time,
+        substr_filter,
+        cursor_direction,
+        state_filter,
+        type_filter,
+        user_filter,
+        max_size));
 
     var archive_counts = null;
     if (include_archive && include_counters) {
-        archive_counts = this.driver.executeSimple(
-            "select_rows",
-            {query: query_for_counts});
+        archive_counts = archive_callbacks.then(function(callbacks) {
+            return callbacks.getCounts();
+        });
     } else {
         archive_counts = Q.resolve([]);
     }
 
     var archive_data = null;
     if (include_archive) {
-        var driver_ = this.driver;
-        archive_data = this.driver
-            .executeSimple(
-                "select_rows",
-                {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT})
-            .then(this.driver.executeSimple.bind(this.driver, "lookup_rows", {
-                path: OPERATIONS_ARCHIVE_PATH,
-                input_format: ANNOTATED_JSON_FORMAT,
-                output_format: ANNOTATED_JSON_FORMAT})); 
+        archive_data = archive_callbacks.then(function(callbacks) {
+            return callbacks.getItems();
+        });       
     } else {
         archive_data = Q.resolve([]);
     }
