@@ -393,7 +393,7 @@ class Operation(object):
         self._tmpdir = ""
         self._poll_frequency = 0.1
 
-    def ensure_jobs_running(self):
+    def ensure_jobs_running(self, timeout=10.0):
         print >>sys.stderr, "Ensure operation jobs are running %s" % self.id
 
         jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(self.id)
@@ -403,8 +403,9 @@ class Operation(object):
         self.jobs = []
         running_count = 0
         pending_count = 0
-        while running_count == 0 or pending_count > 0:
+        while (running_count == 0 or pending_count > 0) and timeout > 0:
             time.sleep(self._poll_frequency)
+            timeout -= self._poll_frequency
             try:
                 progress = get(progress_path + "/jobs", verbose=False)
                 running_count = progress["running"]
@@ -415,11 +416,18 @@ class Operation(object):
                     continue
                 raise
 
+        if timeout <= 0:
+            raise TimeoutError("Jobs didn't become running within timeout")
+
         self.jobs = list(frozenset(ls(jobs_path)) - self.resumed_jobs)
 
         # Wait till all jobs are actually running.
-        while not all([os.path.exists(os.path.join(self._tmpdir, "started_" + job)) for job in self.jobs]):
+        while not all([os.path.exists(os.path.join(self._tmpdir, "started_" + job)) for job in self.jobs]) and timeout > 0:
             time.sleep(self._poll_frequency)
+            timeout -= self._poll_frequency
+
+        if timeout <= 0:
+            raise TimeoutError("Jobs didn't actually started within timeout")
 
     def ensure_running(self, timeout=2.0):
         print >>sys.stderr, "Ensure operation is running %s" % self.id
