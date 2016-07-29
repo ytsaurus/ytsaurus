@@ -790,14 +790,14 @@ public:
         bool isThrottlingActive = false;
         if (ConcurrentHeartbeatCount_ > Config_->HardConcurrentHeartbeatLimit) {
             isThrottlingActive = true;
-            LOG_INFO("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v)",
+            LOG_DEBUG("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v)",
                 node->GetDefaultAddress(),
                 Config_->HardConcurrentHeartbeatLimit);
         } else if (ConcurrentHeartbeatCount_ > Config_->SoftConcurrentHeartbeatLimit &&
             node->GetLastSeenTime() + Config_->HeartbeatProcessBackoff > TInstant::Now())
         {
             isThrottlingActive = true;
-            LOG_INFO("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v)",
+            LOG_DEBUG("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v)",
                 node->GetDefaultAddress(),
                 Config_->SoftConcurrentHeartbeatLimit);
         }
