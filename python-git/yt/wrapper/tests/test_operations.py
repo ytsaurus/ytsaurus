@@ -148,6 +148,10 @@ class TestOperations(object):
         assert parse_bool(yt.get_attribute(res_table, "sorted"))
         check([{"x": 1}], yt.read_table(res_table))
 
+        yt.run_merge(yt.TablePath(tableX, columns=["y"]), res_table)
+        assert not parse_bool(yt.get_attribute(res_table, "sorted"))
+        check([{}], yt.read_table(res_table))
+
     def test_auto_merge(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
