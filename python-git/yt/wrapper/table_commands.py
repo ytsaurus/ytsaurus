@@ -1219,13 +1219,21 @@ def run_merge(source_table, destination_table, mode=None,
     destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor,
                                                            compression_codec, client=client))
 
+    def is_sorted(table):
+        sort_attributes = get(to_name(table) + "/@", attributes=["sorted", "sorted_by"], client=client)
+        if not parse_bool(sort_attributes["sorted"]):
+            return False
+        if "columns" in table.attributes and not is_prefix(sort_attributes["sorted_by"], table.attributes["columns"]):
+            return False
+        return True
+
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not source_table:
         _remove_tables([destination_table], client=client)
         return
 
     mode = get_value(mode, "auto")
     if mode == "auto":
-        mode = "sorted" if all(map(lambda t: is_sorted(t, client=client), source_table)) else "unordered"
+        mode = "sorted" if all(map(is_sorted, source_table)) else "unordered"
 
     table_writer = _prepare_table_writer(table_writer, client)
     spec = compose(
