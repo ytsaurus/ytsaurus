@@ -111,6 +111,16 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read_table("//tmp/t_out") == [{"a": 1}, {"a": 2}, {"a": 3}, {"a": 10}, {"a": 15}, {"a": 100}]
         assert get("//tmp/t_out/@chunk_count") == 1 # resulting number of chunks is always equal to 1 (as long they are small)
 
+    def test_sorted_column_filter(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"a": 1, "b" : 3}, {"a": 10, "b" : 2}, {"a": 100, "b" : 1}], sorted_by="a")
+
+        create("table", "//tmp/t_out")
+        with pytest.raises(YtError):
+            merge(mode="sorted",
+                  in_=["<columns=[b]>//tmp/t"],
+                  out="//tmp/t_out")
+
     def test_sorted_merge_result_is_sorted(self):
         create("table", "//tmp/t1")
 

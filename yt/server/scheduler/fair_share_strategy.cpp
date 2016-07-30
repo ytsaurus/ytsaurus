@@ -182,6 +182,10 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         BuildPoolsInformation(consumer);
+        BuildYsonMapFluently(consumer)
+            .Item("fair_share_info").BeginMap()
+                .Do(BIND(&TFairShareStrategy::BuildFairShareInfo, Unretained(this)))
+            .EndMap();
     }
 
     virtual Stroka GetOperationLoggingProgress(const TOperationId& operationId) override
@@ -195,6 +199,7 @@ public:
         return Format(
             "Scheduling = {Status: %v, DominantResource: %v, Demand: %.4lf, "
             "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lg, AdjustedMinShare: %.4lf, "
+            "GuaranteedResourcesRatio: %.4lf, "
             "MaxPossibleUsage: %.4lf,  BestAllocation: %.4lf, "
             "Starving: %v, Weight: %v, "
             "PreemptableRunningJobs: %v, "
@@ -206,6 +211,7 @@ public:
             attributes.FairShareRatio,
             dynamicAttributes.SatisfactionRatio,
             attributes.AdjustedMinShareRatio,
+            attributes.GuaranteedResourcesRatio,
             attributes.MaxPossibleUsageRatio,
             attributes.BestAllocationRatio,
             element->GetStarving(),
@@ -249,15 +255,21 @@ public:
 
             // Profiling.
             for (const auto& pair : Pools) {
-                const auto& tag = pair.second->GetProfilingTag();
+                const auto& pool = pair.second;
+                const auto& tag = pool->GetProfilingTag();
                 Profiler.Enqueue(
                     "/pools/fair_share_ratio_x100000",
-                    static_cast<i64>(pair.second->Attributes().FairShareRatio * 1e5),
+                    static_cast<i64>(pool->Attributes().FairShareRatio * 1e5),
                     EMetricType::Gauge,
                     {tag});
                 Profiler.Enqueue(
                     "/pools/usage_ratio_x100000",
-                    static_cast<i64>(pair.second->GetResourceUsageRatio() * 1e5),
+                    static_cast<i64>(pool->GetResourceUsageRatio() * 1e5),
+                    EMetricType::Gauge,
+                    {tag});
+                Profiler.Enqueue(
+                    "/operation_count",
+                    pool->RunningOperationCount(),
                     EMetricType::Gauge,
                     {tag});
             }
@@ -271,16 +283,9 @@ public:
 
         PROFILE_TIMING ("/fair_share_log_time") {
             // Log pools information.
+
             Host->LogEventFluently(ELogEventType::FairShareInfo, now)
-                .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, Unretained(this)))
-                .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
-                    const auto& operationId = pair.first;
-                    BuildYsonMapFluently(fluent)
-                        .Item(ToString(operationId))
-                        .BeginMap()
-                            .Do(BIND(&TFairShareStrategy::BuildOperationProgress, Unretained(this), operationId))
-                        .EndMap();
-                });
+                .Do(BIND(&TFairShareStrategy::BuildFairShareInfo, Unretained(this)));
 
             for (const auto& pair : OperationToElement) {
                 const auto& operationId = pair.first;
@@ -1033,10 +1038,25 @@ private:
             });
     }
 
+    void BuildFairShareInfo(IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, Unretained(this)))
+            .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
+                const auto& operationId = pair.first;
+                BuildYsonMapFluently(fluent)
+                    .Item(ToString(operationId)).BeginMap()
+                        .Do(BIND(&TFairShareStrategy::BuildOperationProgress, Unretained(this), operationId))
+                    .EndMap();
+            });
+    }
+
     void BuildElementYson(const ISchedulerElementPtr& element, IYsonConsumer* consumer)
     {
         const auto& attributes = element->Attributes();
         auto dynamicAttributes = GetGlobalDynamicAttributes(element);
+
+        auto guaranteedResources = Host->GetTotalResourceLimits() * attributes.GuaranteedResourcesRatio;
 
         BuildYsonMapFluently(consumer)
             .Item("scheduling_status").Value(element->GetStatus())
@@ -1055,6 +1075,8 @@ private:
             .Item("min_share_ratio").Value(element->GetMinShareRatio())
             .Item("max_share_ratio").Value(element->GetMaxShareRatio())
             .Item("adjusted_min_share_ratio").Value(attributes.AdjustedMinShareRatio)
+            .Item("guaranteed_resources_ratio").Value(attributes.GuaranteedResourcesRatio)
+            .Item("guaranteed_resources").Value(guaranteedResources)
             .Item("max_possible_usage_ratio").Value(attributes.MaxPossibleUsageRatio)
             .Item("usage_ratio").Value(element->GetResourceUsageRatio())
             .Item("demand_ratio").Value(attributes.DemandRatio)

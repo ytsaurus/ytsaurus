@@ -154,6 +154,7 @@ void RemoveDirAsRoot(const Stroka& path)
 
 void RemoveDirContentAsRoot(const Stroka& path)
 {
+    // Child process
     SafeSetUid(0);
 
     if (!TFileStat(path).IsDir()) {
@@ -161,16 +162,46 @@ void RemoveDirContentAsRoot(const Stroka& path)
             path);
     }
 
-    TDirIterator dir(path);
-    for (TDirIterator::TIterator it = dir.Begin(); it != dir.End(); ++it) {
-        if (path.has_prefix(it->fts_path)) {
-            continue;
+    bool foundUnremovedItems = false;
+    for (int attempt = 0; attempt < 5; ++attempt) {
+        foundUnremovedItems = false;
+        TDirIterator dir(path);
+        for (auto it = dir.Begin(); it != dir.End(); ++it) {
+            if (it->fts_info == FTS_DOT || it->fts_info == FTS_D) {
+                continue;
+            }
+            if (path.has_prefix(it->fts_path)) {
+                continue;
+            }
+
+            foundUnremovedItems = true;
+            try {
+                ::remove(it->fts_path);
+            } catch (const std::exception& ex) {
+                // Ignores any error while remove.
+            }
         }
-        try {
-            NFS::RemoveRecursive(it->fts_path);
-        } catch (const std::exception&) {
-            // Ignores any error while remove.
+
+        if (!foundUnremovedItems) {
+            break;
         }
+    }
+
+    if (foundUnremovedItems) {
+        std::vector<Stroka> unremovableItems;
+        TDirIterator dir(path);
+        for (auto it = dir.Begin(); it != dir.End(); ++it) {
+            if (it->fts_info == FTS_DOT || it->fts_info == FTS_D) {
+                continue;
+            }
+            if (path.has_prefix(it->fts_path)) {
+                continue;
+            }
+            unremovableItems.push_back(it->fts_path);
+        }
+        THROW_ERROR_EXCEPTION("Failed to remove items %Qv in the directory %Qv",
+            unremovableItems,
+            path);
     }
 }
 
