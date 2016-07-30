@@ -532,12 +532,12 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
 bool TLegacyTableChunkReader::Read(std::vector<TUnversionedRow> *rows)
 {
     YCHECK(rows->capacity() > 0);
+    MemoryPool_.Clear();
+    rows->clear();
+
     if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
         return true;
     }
-
-    MemoryPool_.Clear();
-    rows->clear();
 
     if (!ReadyEvent_.IsSet()) {
         return true;

@@ -13,24 +13,92 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRoamingRequestControlThunk
+class TRoamingRequestControl
     : public TClientRequestControlThunk
 {
 public:
-    explicit TRoamingRequestControlThunk(TClosure onCancel)
-        : OnCancel_(std::move(onCancel))
-    { }
+    TRoamingRequestControl(
+        TFuture<IChannelPtr> asyncChannel,
+        IClientRequestPtr request,
+        IClientResponseHandlerPtr responseHandler,
+        TNullable<TDuration> timeout,
+        bool requestAck)
+        : Request_(std::move(request))
+        , ResponseHandler_(std::move(responseHandler))
+        , Timeout_(timeout)
+        , RequestAck_(requestAck)
+        , StartTime_(TInstant::Now())
+    {
+        if (Timeout_) {
+            asyncChannel = asyncChannel.WithTimeout(*Timeout_);
+        }
+
+        asyncChannel.Subscribe(BIND(&TRoamingRequestControl::OnGotChannel, MakeStrong(this)));
+    }
 
     virtual void Cancel() override
     {
-        OnCancel_.Run();
-        TClientRequestControlThunk::Cancel();
+        if (!TryAcquireSemaphore()) {
+            TClientRequestControlThunk::Cancel();
+            return;
+        }
+
+        auto error = TError(NYT::EErrorCode::Canceled, "RPC request canceled")
+            << TErrorAttribute("request_id", Request_->GetRequestId())
+            << TErrorAttribute("service", Request_->GetService())
+            << TErrorAttribute("method", Request_->GetMethod());
+        ResponseHandler_->HandleError(error);
+
+        Request_.Reset();
+        ResponseHandler_.Reset();
     }
 
 private:
-    const TClosure OnCancel_;
+    IClientRequestPtr Request_;
+    IClientResponseHandlerPtr ResponseHandler_;
+    const TNullable<TDuration> Timeout_;
+    const bool RequestAck_;
+    const TInstant StartTime_;
 
+    std::atomic<bool> Semaphore_ = {false};
+
+
+    bool TryAcquireSemaphore()
+    {
+        bool expected = false;
+        return Semaphore_.compare_exchange_strong(expected, true);
+    }
+
+    void OnGotChannel(const TErrorOr<IChannelPtr>& result)
+    {
+        if (!TryAcquireSemaphore()) {
+            return;
+        }
+
+        if (!result.IsOK()) {
+            ResponseHandler_->HandleError(result);
+            return;
+        }
+
+        TNullable<TDuration> adjustedTimeout;
+        if (Timeout_) {
+            auto now = TInstant::Now();
+            auto deadline = StartTime_ + *Timeout_;
+            adjustedTimeout = now > deadline ? TDuration::Zero() : deadline - now;
+        }
+
+        const auto& channel = result.Value();
+        auto requestControl = channel->Send(
+            std::move(Request_),
+            std::move(ResponseHandler_),
+            adjustedTimeout,
+            RequestAck_);
+
+        SetUnderlying(std::move(requestControl));
+    }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TRoamingChannel
     : public IChannel
@@ -77,21 +145,12 @@ public:
             }
         }
 
-        auto requestControlThunk = New<TRoamingRequestControlThunk>(BIND([=] () mutable {
-            asyncChannel.Cancel();
-        }));
-
-        asyncChannel.Subscribe(
-            BIND(
-                &TRoamingChannel::OnGotChannel,
-                MakeStrong(this),
-                std::move(request),
-                std::move(responseHandler),
-                timeout,
-                requestAck,
-                requestControlThunk));
-
-        return requestControlThunk;
+        return New<TRoamingRequestControl>(
+            std::move(asyncChannel),
+            std::move(request),
+            std::move(responseHandler),
+            timeout,
+            requestAck);
     }
 
     virtual TFuture<void> Terminate(const TError& error) override
@@ -101,29 +160,6 @@ public:
 
 private:
     const IRoamingChannelProviderPtr Provider_;
-
-
-    void OnGotChannel(
-        IClientRequestPtr request,
-        IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck,
-        TClientRequestControlThunkPtr requestControlThunk,
-        const TErrorOr<IChannelPtr>& result)
-    {
-        if (!result.IsOK()) {
-            responseHandler->HandleError(result);
-            return;
-        }
-
-        const auto& channel = result.Value();
-        auto requestControl = channel->Send(
-            std::move(request),
-            std::move(responseHandler),
-            timeout,
-            requestAck);
-        requestControlThunk->SetUnderlying(std::move(requestControl));
-    }
 
 };
 

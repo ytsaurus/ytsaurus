@@ -392,7 +392,7 @@ public:
     int StatisticsAnalyzerThreadCount;
 
     //! Number of threads for building job specs.
-    int JobSpecBuilderThreadCount;
+    int HeartbeatResponseBuilderThreadCount;
 
     //! Number of parallel operation snapshot builders.
     int ParallelSnapshotBuilderCount;
@@ -573,7 +573,7 @@ public:
         RegisterParameter("statistics_analyzer_thread_count", StatisticsAnalyzerThreadCount)
             .Default(2)
             .GreaterThan(0);
-        RegisterParameter("job_spec_builder_thread_count", JobSpecBuilderThreadCount)
+        RegisterParameter("heartbeat_response_builder_thread_count", HeartbeatResponseBuilderThreadCount)
             .Default(8)
             .GreaterThan(0);
         RegisterParameter("parallel_snapshot_builder_count", ParallelSnapshotBuilderCount)

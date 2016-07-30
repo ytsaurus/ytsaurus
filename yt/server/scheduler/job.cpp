@@ -153,7 +153,7 @@ void TJob::AnalyzeBriefStatistics(
     bool wasSuspicious = Suspicious_;
     Suspicious_ = (!wasActive && TInstant::Now() - LastActivityTime_ > suspiciousInactivityTimeout);
     if (!wasSuspicious && Suspicious_) {
-        LOG_WARNING("Found a suspicious job (JobId: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v)",
+        LOG_DEBUG("Found a suspicious job (JobId: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v)",
             Id_,
             LastActivityTime_,
             suspiciousInactivityTimeout);
