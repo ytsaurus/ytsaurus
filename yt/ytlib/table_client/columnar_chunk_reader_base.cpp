@@ -23,21 +23,31 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnarChunkMeta::TColumnarChunkMeta(NChunkClient::NProto::TChunkMeta&& chunkMeta)
-    : ChunkMeta_(std::move(chunkMeta))
+TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
 { 
-    InitExtensions();
+    InitExtensions(chunkMeta);
 }
 
-void TColumnarChunkMeta::InitExtensions()
+void TColumnarChunkMeta::InitExtensions(const TChunkMeta& chunkMeta)
 {
-    Misc_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
-    BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
+    ChunkType_ = EChunkType(chunkMeta.type());
+    ChunkFormat_ = ETableChunkFormat(chunkMeta.version());
+
+    Misc_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+    BlockMeta_ = GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions());
 
     // This is for old horizontal versioned chunks, since TCachedVersionedChunkMeta use this call.
-    auto columnMeta = FindProtoExtension<TColumnMetaExt>(ChunkMeta_.extensions());
+    auto columnMeta = FindProtoExtension<TColumnMetaExt>(chunkMeta.extensions());
     if (columnMeta) {
         ColumnMeta_.Swap(&*columnMeta);
+    }
+
+    auto maybeKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
+    auto tableSchemaExt = GetProtoExtension<TTableSchemaExt>(chunkMeta.extensions());
+    if (maybeKeyColumnsExt) {
+        FromProto(&ChunkSchema_, tableSchemaExt, *maybeKeyColumnsExt);
+    } else {
+        FromProto(&ChunkSchema_, tableSchemaExt);
     }
 }
 

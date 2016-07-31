@@ -178,17 +178,11 @@ private:
                 Owner_->DiscoverRequestHook_.Run(req.Get());
             }
 
-            auto asyncResult = req->Invoke();
-
-            asyncResult.Subscribe(BIND(
+            req->Invoke().Subscribe(BIND(
                 &TDiscoverySession::OnResponse,
                 MakeStrong(this),
                 address,
                 channel));
-
-            Promise_.OnCanceled(BIND([=] () mutable {
-                asyncResult.Cancel();
-            }));
         }
 
         void OnResponse(
@@ -196,11 +190,6 @@ private:
             IChannelPtr channel,
             const TGenericProxy::TErrorOrRspDiscoverPtr& rspOrError)
         {
-            if (Promise_.IsCanceled()) {
-                TrySetResult(TError(NYT::EErrorCode::Canceled, "Discovery session has been canceled"));
-                return;
-            }
-
             OnPeerQueried(address);
 
             if (rspOrError.IsOK()) {

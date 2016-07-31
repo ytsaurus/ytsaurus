@@ -76,11 +76,9 @@ protected:
             }
 
             case EValueType::Double: {
-                // TODO(babenko): optimize
-                char buf[64];
-                char* begin = buf;
-                int length = sprintf(buf, "%lg", value.Data.Double);
-                BlobOutput_->Write(begin, length);
+                char buf[256];
+                auto str = TStringBuf(buf, FloatToString(value.Data.Double, buf, sizeof(buf)));
+                BlobOutput_->Write(str);
                 break;
             }
 

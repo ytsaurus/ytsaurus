@@ -113,6 +113,16 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
+    def test_sorted_column_filter(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"a": 1, "b" : 3}, {"a": 10, "b" : 2}, {"a": 100, "b" : 1}], sorted_by="a")
+
+        create("table", "//tmp/t_out")
+        with pytest.raises(YtError):
+            merge(mode="sorted",
+                  in_=["<columns=[b]>//tmp/t"],
+                  out="//tmp/t_out")
+
     def test_sorted_merge_result_is_sorted(self):
         create("table", "//tmp/t1")
 

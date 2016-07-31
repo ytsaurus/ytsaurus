@@ -130,7 +130,7 @@ void TChunkReaderBase::CheckBlockUpperLimits(
     }
 
     if (upperLimit.HasKey()) {
-        const auto key = FromProto<TOwningKey>(blockMeta.last_key());
+        auto key = FromProto<TOwningKey>(blockMeta.last_key());
         auto wideKey = WidenKey(key, keyColumnCount ? keyColumnCount.Get() : key.GetCount());
 
         auto upperKey = upperLimit.GetKey();

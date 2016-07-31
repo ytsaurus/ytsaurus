@@ -80,37 +80,34 @@ void TCachedVersionedChunkMeta::Init(
     const TTableSchema& schema)
 {
     ChunkId_ = chunkId;
-    ChunkMeta_ = chunkMeta;
 
     auto keyColumns = schema.GetKeyColumns();
     KeyColumnCount_ = keyColumns.size();
 
+    TColumnarChunkMeta::InitExtensions(chunkMeta);
+    TColumnarChunkMeta::InitBlockLastKeys(GetKeyColumnCount());
+
     ValidateChunkMeta();
     ValidateSchema(schema);
 
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
+    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
     MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), GetKeyColumnCount());
     MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), GetKeyColumnCount());
-
-    TColumnarChunkMeta::InitExtensions();
-    TColumnarChunkMeta::InitBlockLastKeys(GetKeyColumnCount());
 }
 
 void TCachedVersionedChunkMeta::ValidateChunkMeta()
 {
-    auto type = EChunkType(ChunkMeta_.type());
-    if (type != EChunkType::Table) {
+    if (ChunkType_ != EChunkType::Table) {
         THROW_ERROR_EXCEPTION("Incorrect chunk type: actual %Qlv, expected %Qlv",
-            type,
+            ChunkType_,
             EChunkType::Table);
     }
 
-    auto formatVersion = ETableChunkFormat(ChunkMeta_.version());
-    if (formatVersion != ETableChunkFormat::VersionedSimple &&
-        formatVersion != ETableChunkFormat::VersionedColumnar)
+    if (ChunkFormat_ != ETableChunkFormat::VersionedSimple &&
+        ChunkFormat_ != ETableChunkFormat::VersionedColumnar)
     {
         THROW_ERROR_EXCEPTION("Incorrect chunk format version: actual %Qlv, expected %Qlv or %Qlv",
-            formatVersion,
+            ChunkFormat_,
             ETableChunkFormat::VersionedSimple,
             ETableChunkFormat::VersionedColumnar);
     }
@@ -118,16 +115,7 @@ void TCachedVersionedChunkMeta::ValidateChunkMeta()
 
 void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 {
-    auto maybeKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
-    auto tableSchemaExt = GetProtoExtension<TTableSchemaExt>(ChunkMeta_.extensions());
-    if (maybeKeyColumnsExt) {
-        FromProto(&ChunkSchema_, tableSchemaExt, *maybeKeyColumnsExt);
-    } else {
-        FromProto(&ChunkSchema_, tableSchemaExt);
-    }
-
     ChunkKeyColumnCount_ = ChunkSchema_.GetKeyColumnCount();
-
     auto throwIncompatibleKeyColumns = [&] () {
         THROW_ERROR_EXCEPTION(
             "Reader key columns %v are incompatible with chunk key columns %v",

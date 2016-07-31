@@ -46,10 +46,10 @@
 #include <iostream>
 
 #ifdef _unix_
-    #include <sys/prctl.h>
     #include <sys/resource.h>
 #endif
 #ifdef _linux_
+    #include <sys/prctl.h>
     #include <grp.h>
 #endif
 
@@ -237,6 +237,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         return EExitCode::OptionsError;
     }
 
+#ifdef _linux_
     // Setting parent death signal used by tests to prevent hanged up instances of ytserver on teamcity machines.
     // Unfortunately setting pdeath_sig from preexec_fn in subprocess call is not working since ytserver binary has
     // suid bit and pdeath_sig resetted to zero after exec() call.
@@ -246,6 +247,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (parentDeathSignal) {
         YCHECK(prctl(PR_SET_PDEATHSIG, parentDeathSignal) == 0);
     }
+#endif
 
     if (!workingDirectory.empty()) {
         NFs::SetCurrentWorkingDirectory(workingDirectory);
@@ -494,7 +496,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
             THROW_ERROR_EXCEPTION("Error parsing job id")
                 << ex;
         }
-
 
         // NB: There are some cyclic references here:
         // JobProxy <-> Job

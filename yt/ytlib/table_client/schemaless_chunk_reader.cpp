@@ -805,12 +805,9 @@ private:
             THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
         }
 
-        auto schemaExt = GetProtoExtension<TTableSchemaExt>(ChunkMeta_->ChunkMeta().extensions());
-        auto schema = FromProto<TTableSchema>(schemaExt);
-
-        ValidateKeyColumns(KeyColumns_, schema.GetKeyColumns());
+        ValidateKeyColumns(KeyColumns_, ChunkMeta_->ChunkSchema().GetKeyColumns());
         if (sortedRead && KeyColumns_.empty()) {
-            KeyColumns_ = schema.GetKeyColumns();
+            KeyColumns_ = ChunkMeta_->ChunkSchema().GetKeyColumns();
         }
 
         if (UpperLimit_.HasKey() || LowerLimit_.HasKey()) {
@@ -820,13 +817,13 @@ private:
         // Define columns to read.
         std::vector<int> columnIndexes;
         if (ColumnFilter_.All) {
-            for (int index = 0; index < schema.Columns().size(); ++index) {
+            for (int index = 0; index < ChunkMeta_->ChunkSchema().Columns().size(); ++index) {
                 columnIndexes.push_back(index);
             }
         } else {
             auto filterIndexes = yhash_set<int>(ColumnFilter_.Indexes.begin(), ColumnFilter_.Indexes.end());
-            for (int index = 0; index < schema.Columns().size(); ++index) {
-                auto nameTableIndex = NameTable_->GetIdOrRegisterName(schema.Columns()[index].Name);
+            for (int index = 0; index < ChunkMeta_->ChunkSchema().Columns().size(); ++index) {
+                auto nameTableIndex = NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[index].Name);
                 if (filterIndexes.has(nameTableIndex)) {
                     columnIndexes.push_back(index);
                 } else if (index < KeyColumns_.size()) {
@@ -839,10 +836,10 @@ private:
         for (int valueIndex = 0; valueIndex < columnIndexes.size(); ++valueIndex) {
             auto columnIndex = columnIndexes[valueIndex];
             auto columnReader = CreateUnversionedColumnReader(
-                schema.Columns()[columnIndex],
+                ChunkMeta_->ChunkSchema().Columns()[columnIndex],
                 ChunkMeta_->ColumnMeta().columns(columnIndex),
                 columnIndex,
-                NameTable_->GetIdOrRegisterName(schema.Columns()[columnIndex].Name));
+                NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name));
 
             Columns_.emplace_back(columnReader.get(), columnIndex);
             ColumnReaders_.emplace_back(std::move(columnReader));
