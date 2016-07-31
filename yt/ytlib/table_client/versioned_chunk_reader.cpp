@@ -154,8 +154,8 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
     , PerformanceCounters_(std::move(performanceCounters))
 {
     YCHECK(ChunkMeta_->Misc().sorted());
-    YCHECK(EChunkType(ChunkMeta_->ChunkMeta().type()) == EChunkType::Table);
-    YCHECK(ETableChunkFormat(ChunkMeta_->ChunkMeta().version()) == ETableChunkFormat::VersionedSimple);
+    YCHECK(ChunkMeta_->GetChunkType() == EChunkType::Table);
+    YCHECK(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::VersionedSimple);
     YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.All);
     YCHECK(PerformanceCounters_);
 }
@@ -529,8 +529,8 @@ public:
         , PerformanceCounters_(std::move(performanceCounters))
     {
         YCHECK(VersionedChunkMeta_->Misc().sorted());
-        YCHECK(EChunkType(VersionedChunkMeta_->ChunkMeta().type()) == EChunkType::Table);
-        YCHECK(ETableChunkFormat(VersionedChunkMeta_->ChunkMeta().version()) == ETableChunkFormat::VersionedColumnar);
+        YCHECK(VersionedChunkMeta_->GetChunkType() == EChunkType::Table);
+        YCHECK(VersionedChunkMeta_->GetChunkFormat() == ETableChunkFormat::VersionedColumnar);
         YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.All);
         YCHECK(PerformanceCounters_);
 
@@ -1251,8 +1251,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
 {
-    auto formatVersion = ETableChunkFormat(chunkMeta->ChunkMeta().version());
-    switch (formatVersion) {
+    switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::VersionedSimple:
             return New<TSimpleVersionedRangeChunkReader>(
                 std::move(config),
@@ -1310,8 +1309,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     // Lookup doesn't support reading all values.
     YCHECK(timestamp != AllCommittedTimestamp);
 
-    auto formatVersion = ETableChunkFormat(chunkMeta->ChunkMeta().version());
-    switch (formatVersion) {
+    switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::VersionedSimple:
             return New<TSimpleVersionedLookupChunkReader>(
                 std::move(config),
@@ -1416,10 +1414,10 @@ TVersionedChunkLookupHashTablePtr CreateChunkLookupHashTable(
     TCachedVersionedChunkMetaPtr chunkMeta,
     TKeyComparer keyComparer)
 {
-    if (ETableChunkFormat(chunkMeta->ChunkMeta().version()) != ETableChunkFormat::VersionedSimple) {
+    if (chunkMeta->GetChunkFormat() != ETableChunkFormat::VersionedSimple) {
         LOG_INFO("Cannot create lookup hash table for %Qlv chunk format (ChunkId: %v)",
             chunkMeta->GetChunkId(),
-            ETableChunkFormat(chunkMeta->ChunkMeta().version()));
+            chunkMeta->GetChunkFormat());
         return nullptr;
     }
 
@@ -1700,16 +1698,16 @@ private:
             const auto& uncompressedBlock = GetUncompressedBlock(index.first);
             const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(index.first);
 
-                TSimpleVersionedBlockReader blockReader(
-                    uncompressedBlock,
-                    blockMeta,
-                    ChunkMeta_->ChunkSchema(),
-                    ChunkMeta_->GetChunkKeyColumnCount(),
-                    ChunkMeta_->GetKeyColumnCount(),
-                    SchemaIdMapping_,
-                    KeyComparer_,
-                    Timestamp_,
-                    false);
+            TSimpleVersionedBlockReader blockReader(
+                uncompressedBlock,
+                blockMeta,
+                ChunkMeta_->ChunkSchema(),
+                ChunkMeta_->GetChunkKeyColumnCount(),
+                ChunkMeta_->GetKeyColumnCount(),
+                SchemaIdMapping_,
+                KeyComparer_,
+                Timestamp_,
+                false);
 
             YCHECK(blockReader.SkipToRowIndex(index.second));
 
@@ -1761,7 +1759,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     TKeyComparer keyComparer,
     TTimestamp timestamp)
 {
-    switch (ETableChunkFormat(chunkMeta->ChunkMeta().version())) {
+    switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::VersionedSimple:
             return New<TCacheBasedSimpleVersionedLookupChunkReader>(
                 std::move(chunkMeta),
@@ -1895,7 +1893,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
 {
-    switch (ETableChunkFormat(chunkMeta->ChunkMeta().version())) {
+    switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::VersionedSimple:
             return New<TSimpleCacheBasedVersionedRangeChunkReader>(
                 std::move(chunkMeta),

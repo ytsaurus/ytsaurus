@@ -131,7 +131,7 @@ TUserWorkloadDescriptor::operator TWorkloadDescriptor() const
 }
 
 struct TSerializableUserWorkloadDescriptor
-    : public TYsonSerializable
+    : public TYsonSerializableLite
 {
     TUserWorkloadDescriptor Underlying;
 

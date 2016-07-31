@@ -104,8 +104,8 @@ public:
         , Bootstrap_(bootstrap)
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
-        , JobSpecBuilderThreadPool_(New<TThreadPool>(Config_->JobSpecBuilderThreadCount, "SpecBuilder"))
-        , StatisticsAnalyzerThreadPool_(New<TThreadPool>(Config_->StatisticsAnalyzerThreadCount, "StatisticsAnalyzer"))
+        , HeartbeatResponseBuilderThreadPool_(New<TThreadPool>(Config_->HeartbeatResponseBuilderThreadCount, "RspBuilder"))
+        , StatisticsAnalyzerThreadPool_(New<TThreadPool>(Config_->StatisticsAnalyzerThreadCount, "Statistics"))
         , MasterConnector_(new TMasterConnector(Config_, Bootstrap_))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
@@ -628,8 +628,9 @@ public:
     void ProcessHeartbeatJobs(
         TExecNodePtr node,
         NJobTrackerClient::NProto::TReqHeartbeat* request,
-        NJobTrackerClient::NProto::TRspHeartbeat* response,
         std::vector<TJobPtr>* runningJobs,
+        std::vector<TJobId>* jobsToRemove,
+        std::vector<TJobId>* jobsToAbort,
         bool* hasWaitingJobs,
         yhash_set<TOperationPtr>* operationsToLog)
     {
@@ -663,11 +664,11 @@ public:
 
             auto job = ProcessJobHeartbeat(
                 node,
-                request,
-                response,
                 New<TRefCountedJobStatus>(std::move(jobStatus)),
                 forceJobsLogging,
-                updateRunningJobs);
+                updateRunningJobs,
+                jobsToRemove,
+                jobsToAbort);
             if (job) {
                 job->SetFoundOnNode(true);
                 switch (job->GetState()) {
@@ -707,14 +708,51 @@ public:
                 job->GetOperationId());
             OnJobAborted(job, JobStatusFromError(TError("Job vanished")));
         }
+
     }
 
-    TFuture<void> ProcessScheduledJobs(
-        const ISchedulingContextPtr& schedulingContext,
-        NJobTrackerClient::NProto::TRspHeartbeat* response,
-        yhash_set<TOperationPtr>* operationsToLog)
+    void FillJobStartResponse(
+        const TJobId& jobId,
+        const TOperationId& operationId,
+        const TJobResources& jobResources,
+        TJobSpecBuilder specBuilder,
+        TCtxHeartbeatPtr context)
     {
-        std::vector<TFuture<void>> asyncResults;
+        auto* response = &context->Response();
+        auto* startInfo = response->add_jobs_to_start();
+        ToProto(startInfo->mutable_job_id(), jobId);
+        ToProto(startInfo->mutable_operation_id(), operationId);
+        *startInfo->mutable_resource_limits() = jobResources.ToNodeResources();
+        specBuilder.Run(startInfo->mutable_spec());
+    }
+
+    void FillHeartbeatResponse(
+        const std::vector<TJobId>& jobsToRemove,
+        const std::vector<TJobId>& jobsToAbort,
+        std::vector<TCallback<void(TCtxHeartbeatPtr context)>> buildJobToStart,
+        TCtxHeartbeatPtr context)
+    {
+        auto* response = &context->Response();
+        for (const auto& jobId : jobsToRemove) {
+            ToProto(response->add_jobs_to_remove(), jobId);
+        }
+        for (const auto& jobId : jobsToAbort) {
+            ToProto(response->add_jobs_to_abort(), jobId);
+        }
+        for (const auto& action : buildJobToStart) {
+            action.Run(context);
+        }
+    }
+
+
+    TFuture<void> BuildHeartbeatResult(
+        const ISchedulingContextPtr& schedulingContext,
+        std::vector<TJobId> jobsToRemove,
+        std::vector<TJobId> jobsToAbort,
+        yhash_set<TOperationPtr>* operationsToLog,
+        TCtxHeartbeatPtr context)
+    {
+        std::vector<TCallback<void(TCtxHeartbeatPtr context)>> buildJobToStartActions;
 
         for (const auto& job : schedulingContext->StartedJobs()) {
             auto operation = FindOperation(job->GetOperationId());
@@ -735,16 +773,12 @@ public:
                 job->GetId(),
                 job->GetStartTime()));
 
-            auto* startInfo = response->add_jobs_to_start();
-            ToProto(startInfo->mutable_job_id(), job->GetId());
-            ToProto(startInfo->mutable_operation_id(), operation->GetId());
-            *startInfo->mutable_resource_limits() = job->ResourceUsage().ToNodeResources();
-
-            // Build spec asynchronously.
-            asyncResults.push_back(
-                BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
-                    .AsyncVia(JobSpecBuilderThreadPool_->GetInvoker())
-                    .Run());
+            buildJobToStartActions.push_back(BIND(&TScheduler::TImpl::FillJobStartResponse,
+                MakeStrong(this),
+                job->GetId(),
+                operation->GetId(),
+                job->ResourceUsage(),
+                job->GetSpecBuilder()));
 
             // Release to avoid circular references.
             job->SetSpecBuilder(TJobSpecBuilder());
@@ -759,10 +793,19 @@ public:
                 continue;
             }
             PreemptJob(job);
-            ToProto(response->add_jobs_to_abort(), job->GetId());
+            jobsToAbort.push_back(job->GetId());
         }
 
-        return Combine(asyncResults);
+        auto fillResponseFuture = BIND(&TScheduler::TImpl::FillHeartbeatResponse,
+            MakeStrong(this),
+            std::move(jobsToRemove),
+            std::move(jobsToAbort),
+            std::move(buildJobToStartActions),
+            context)
+                .AsyncVia(HeartbeatResponseBuilderThreadPool_->GetInvoker())
+                .Run();
+
+        return fillResponseFuture;
     }
 
     void ProcessHeartbeat(TCtxHeartbeatPtr context)
@@ -790,14 +833,14 @@ public:
         bool isThrottlingActive = false;
         if (ConcurrentHeartbeatCount_ > Config_->HardConcurrentHeartbeatLimit) {
             isThrottlingActive = true;
-            LOG_INFO("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v)",
+            LOG_DEBUG("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v)",
                 node->GetDefaultAddress(),
                 Config_->HardConcurrentHeartbeatLimit);
         } else if (ConcurrentHeartbeatCount_ > Config_->SoftConcurrentHeartbeatLimit &&
             node->GetLastSeenTime() + Config_->HeartbeatProcessBackoff > TInstant::Now())
         {
             isThrottlingActive = true;
-            LOG_INFO("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v)",
+            LOG_DEBUG("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v)",
                 node->GetDefaultAddress(),
                 Config_->SoftConcurrentHeartbeatLimit);
         }
@@ -814,13 +857,16 @@ public:
             // NB: No exception must leave this try/catch block.
             try {
                 std::vector<TJobPtr> runningJobs;
+                std::vector<TJobId> jobsToRemove;
+                std::vector<TJobId> jobsToAbort;
                 bool hasWaitingJobs = false;
                 PROFILE_TIMING ("/analysis_time") {
                     ProcessHeartbeatJobs(
                         node,
                         request,
-                        response,
                         &runningJobs,
+                        &jobsToRemove,
+                        &jobsToAbort,
                         &hasWaitingJobs,
                         &operationsToLog);
                 }
@@ -851,10 +897,12 @@ public:
                     node->SetResourceUsage(schedulingContext->ResourceUsage());
                     TotalResourceUsage_ += node->GetResourceUsage();
 
-                    scheduleJobsAsyncResult = ProcessScheduledJobs(
+                    scheduleJobsAsyncResult = BuildHeartbeatResult(
                         schedulingContext,
-                        response,
-                        &operationsToLog);
+                        std::move(jobsToRemove),
+                        std::move(jobsToAbort),
+                        &operationsToLog,
+                        context);
 
                     response->set_scheduling_skipped(false);
                 }
@@ -1013,7 +1061,7 @@ private:
 
     TActionQueuePtr SnapshotIOQueue_;
     TThreadPoolPtr ControllerThreadPool_;
-    TThreadPoolPtr JobSpecBuilderThreadPool_;
+    TThreadPoolPtr HeartbeatResponseBuilderThreadPool_;
     TThreadPoolPtr StatisticsAnalyzerThreadPool_;
 
     std::unique_ptr<TMasterConnector> MasterConnector_;
@@ -1132,7 +1180,6 @@ private:
 
         Profiler.Enqueue("/active_job_count", ActiveJobCount_, EMetricType::Gauge);
 
-        Profiler.Enqueue("/operation_count", IdToOperation_.size(), EMetricType::Gauge);
         Profiler.Enqueue("/exec_node_count", GetExecNodeCount(), EMetricType::Gauge);
         Profiler.Enqueue("/total_node_count", GetTotalNodeCount(), EMetricType::Gauge);
 
@@ -2896,11 +2943,11 @@ private:
 
     TJobPtr ProcessJobHeartbeat(
         TExecNodePtr node,
-        NJobTrackerClient::NProto::TReqHeartbeat* request,
-        NJobTrackerClient::NProto::TRspHeartbeat* response,
         TRefCountedJobStatusPtr jobStatus,
         bool forceJobsLogging,
-        bool updateRunningJobs)
+        bool updateRunningJobs,
+        std::vector<TJobId>* jobsToRemove,
+        std::vector<TJobId>* jobsToAbort)
     {
         auto jobId = FromProto<TJobId>(jobStatus->job_id());
         auto state = EJobState(jobStatus->state());
@@ -2915,27 +2962,27 @@ private:
             switch (state) {
                 case EJobState::Completed:
                     LOG_DEBUG("Unknown job has completed, removal scheduled");
-                    ToProto(response->add_jobs_to_remove(), jobId);
+                    jobsToRemove->push_back(jobId);
                     break;
 
                 case EJobState::Failed:
                     LOG_DEBUG("Unknown job has failed, removal scheduled");
-                    ToProto(response->add_jobs_to_remove(), jobId);
+                    jobsToRemove->push_back(jobId);
                     break;
 
                 case EJobState::Aborted:
                     LOG_DEBUG(FromProto<TError>(jobStatus->result().error()), "Job aborted, removal scheduled");
-                    ToProto(response->add_jobs_to_remove(), jobId);
+                    jobsToRemove->push_back(jobId);
                     break;
 
                 case EJobState::Running:
                     LOG_DEBUG("Unknown job is running, abort scheduled");
-                    ToProto(response->add_jobs_to_abort(), jobId);
+                    jobsToAbort->push_back(jobId);
                     break;
 
                 case EJobState::Waiting:
                     LOG_DEBUG("Unknown job is waiting, abort scheduled");
-                    ToProto(response->add_jobs_to_abort(), jobId);
+                    jobsToAbort->push_back(jobId);
                     break;
 
                 case EJobState::Aborting:
@@ -2964,11 +3011,11 @@ private:
             if (state == EJobState::Aborting) {
                 // Do nothing, job is already terminating.
             } else if (state == EJobState::Completed || state == EJobState::Failed || state == EJobState::Aborted) {
-                ToProto(response->add_jobs_to_remove(), jobId);
+                jobsToRemove->push_back(jobId);
                 LOG_WARNING("Job status report was expected from %v, removal scheduled",
                     expectedAddress);
             } else {
-                ToProto(response->add_jobs_to_abort(), jobId);
+                jobsToAbort->push_back(jobId);
                 LOG_WARNING("Job status report was expected from %v, abort scheduled",
                     expectedAddress);
             }
@@ -2980,7 +3027,7 @@ private:
             case EJobState::Completed: {
                 LOG_DEBUG("Job completed, removal scheduled");
                 OnJobCompleted(job, std::move(jobStatus));
-                ToProto(response->add_jobs_to_remove(), jobId);
+                jobsToRemove->push_back(jobId);
                 break;
             }
 
@@ -2988,7 +3035,7 @@ private:
                 auto error = FromProto<TError>(jobStatus->result().error());
                 LOG_DEBUG(error, "Job failed, removal scheduled");
                 OnJobFailed(job, std::move(jobStatus));
-                ToProto(response->add_jobs_to_remove(), jobId);
+                jobsToRemove->push_back(jobId);
                 break;
             }
 
@@ -3002,7 +3049,7 @@ private:
                 } else {
                     OnJobAborted(job, std::move(jobStatus));
                 }
-                ToProto(response->add_jobs_to_remove(), jobId);
+                jobsToRemove->push_back(jobId);
                 break;
             }
 
@@ -3010,7 +3057,7 @@ private:
             case EJobState::Waiting:
                 if (job->GetState() == EJobState::Aborted) {
                     LOG_DEBUG("Aborting job");
-                    ToProto(response->add_jobs_to_abort(), jobId);
+                    jobsToAbort->push_back(jobId);
                 } else {
                     LOG_DEBUG_IF(shouldLogJob, "Job is %lv", state);
                     SetJobState(job, state);

@@ -20,6 +20,7 @@ using namespace NTableClient;
 using namespace NTableClient::NProto;
 
 using NProto::TSizeOverrideExt;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -202,8 +203,7 @@ public:
             IndexKeys_.reserve(blockMetaExt.blocks_size() + 0);
             for (int i = 0; i < blockMetaExt.blocks_size(); ++i) {
                 YCHECK(i == blockMetaExt.blocks(i).block_index());
-                TOwningKey indexKey;
-                FromProto(&indexKey, blockMetaExt.blocks(i).last_key());
+                auto indexKey = FromProto<TOwningKey>(blockMetaExt.blocks(i).last_key());
                 IndexKeys_.push_back({
                     indexKey,
                     blockMetaExt.blocks(i).row_count(),

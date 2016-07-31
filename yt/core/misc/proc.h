@@ -24,6 +24,7 @@ std::vector<Stroka> GetProcessCommandLine(int pid);
 TError StatusToError(int status);
 
 void RemoveDirAsRoot(const Stroka& path);
+void RemoveDirContentAsRoot(const Stroka& path);
 
 bool TryClose(int fd, bool ignoreBadFD = true);
 void SafeClose(int fd, bool ignoreBadFD = true);
@@ -66,6 +67,13 @@ DEFINE_ENUM(EProcessErrorCode,
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRemoveDirAsRootTool
+{
+    void operator()(const Stroka& arg) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRemoveDirContentAsRootTool
 {
     void operator()(const Stroka& arg) const;
 };

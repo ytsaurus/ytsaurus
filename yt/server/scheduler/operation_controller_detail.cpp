@@ -3743,22 +3743,42 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
         }
     }
 
+    auto validateColumnFilter = [] (const TInputTable& table, const TKeyColumns& keyColumns) {
+        for (const auto& keyColumn : keyColumns) {
+            if (!table.Path.GetChannel().Contains(keyColumn)) {
+                THROW_ERROR_EXCEPTION("Columm filter for input table %v doesn't include key column %Qv",
+                    table.Path.GetPath(),
+                    keyColumn);
+            }
+        }
+        
+    };
+
     if (!keyColumns.empty()) {
         for (const auto& table : InputTables) {
-            if (inputTableFilter(table) && !CheckKeyColumnsCompatible(table.KeyColumns, keyColumns)) {
+            if (!inputTableFilter(table)) {
+                continue;
+            }
+
+            if (!CheckKeyColumnsCompatible(table.KeyColumns, keyColumns)) {
                 THROW_ERROR_EXCEPTION("Input table %v is sorted by columns %v that are not compatible "
                     "with the requested columns %v",
                     table.Path.GetPath(),
                     table.KeyColumns,
                     keyColumns);
             }
+            validateColumnFilter(table, keyColumns);
         }
         return keyColumns;
     } else {
         for (const auto& referenceTable : InputTables) {
             if (inputTableFilter(referenceTable)) {
                 for (const auto& table : InputTables) {
-                    if (inputTableFilter(table) && table.KeyColumns != referenceTable.KeyColumns) {
+                    if (!inputTableFilter(table)) {
+                        continue;
+                    }
+
+                    if (table.KeyColumns != referenceTable.KeyColumns) {
                         THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by columns %v "
                             "while input table %v is sorted by columns %v",
                             table.Path.GetPath(),
@@ -3766,6 +3786,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
                             referenceTable.Path.GetPath(),
                             referenceTable.KeyColumns);
                     }
+                    validateColumnFilter(table, referenceTable.KeyColumns);
                 }
                 return referenceTable.KeyColumns;
             }
