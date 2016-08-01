@@ -1917,7 +1917,7 @@ private:
             std::move(resultRows));
     }
 
-    std::pair<IRowsetPtr, TQueryStatistics> DoSelectRows(
+    TSelectRowsResult DoSelectRows(
         const Stroka& queryString,
         const TSelectRowsOptions& options)
     {
@@ -1926,7 +1926,7 @@ private:
         });
     }
 
-    std::pair<IRowsetPtr, TQueryStatistics> DoSelectRowsOnce(
+    TSelectRowsResult DoSelectRowsOnce(
         const Stroka& queryString,
         const TSelectRowsOptions& options)
     {
@@ -1995,7 +1995,7 @@ private:
             }
         }
 
-        return std::make_pair(rowset, statistics);
+        return TSelectRowsResult{rowset, statistics};
     }
 
     void DoMountTable(

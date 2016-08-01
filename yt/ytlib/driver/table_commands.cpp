@@ -208,13 +208,11 @@ void TAlterTableCommand::Execute(ICommandContextPtr context)
 void TSelectRowsCommand::Execute(ICommandContextPtr context)
 {
     auto clientBase = GetClientBase(context);
-    auto asyncResult = clientBase->SelectRows(Query, Options);
-
-    IRowsetPtr rowset;
-    TQueryStatistics statistics;
-
-    std::tie(rowset, statistics) = WaitFor(asyncResult)
+    auto result = WaitFor(clientBase->SelectRows(Query, Options))
         .ValueOrThrow();
+
+    const auto& rowset = result.Rowset;
+    const auto& statistics = result.Statistics;
 
     auto format = context->GetOutputFormat();
     auto output = context->Request().OutputStream;
