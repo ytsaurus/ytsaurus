@@ -135,7 +135,7 @@ void TBootstrap::DoRun()
         Config_->BusServer->BindRetryCount,
         Config_->BusServer->BindRetryBackoff));
 
-    ClusterDirectory_ = New<TClusterDirectory>(MasterClient_->GetNativeConnection());
+    ClusterDirectory_ = New<TClusterDirectory>();
 
     Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
 

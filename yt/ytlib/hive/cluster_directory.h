@@ -19,8 +19,6 @@ class TClusterDirectory
     : public virtual TRefCounted
 {
 public:
-    explicit TClusterDirectory(NApi::INativeConnectionPtr directoryConnection);
-
     //! Returns the connection to cluster with a given #cellTag.
     //! Only applies to native connections. Returns |nullptr| if no connection is found.
     NApi::INativeConnectionPtr FindConnection(NObjectClient::TCellTag cellTag) const;
@@ -44,8 +42,6 @@ public:
     void UpdateCluster(const Stroka& name, NYTree::INodePtr config);
 
 private:
-    const NApi::INativeClientPtr DirectoryClient_;
-
     struct TCluster
     {
         NYTree::INodePtr Config;
