@@ -2,7 +2,7 @@
 #include "private.h"
 #include "folding_profiler.h"
 #include "key_trie.h"
-#include "plan_helpers.h"
+#include "query_helpers.h"
 
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/schema.h>

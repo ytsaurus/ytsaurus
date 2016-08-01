@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "plan_fragment_common.h"
+#include "query_common.h"
 
 #include <yt/ytlib/ypath/rich.h>
 

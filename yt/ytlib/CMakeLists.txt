@@ -200,10 +200,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_client/key_trie.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/lexer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/parser.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/plan_fragment.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/plan_fragment.proto
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/plan_fragment_common.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/plan_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/query.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/query.proto
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/query_common.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/query_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/query_preparer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/query_service.proto

@@ -34,8 +34,8 @@
 #include <yt/ytlib/query_client/coordinator.h>
 #include <yt/ytlib/query_client/evaluator.h>
 #include <yt/ytlib/query_client/helpers.h>
-#include <yt/ytlib/query_client/plan_fragment.h>
-#include <yt/ytlib/query_client/plan_helpers.h>
+#include <yt/ytlib/query_client/query.h>
+#include <yt/ytlib/query_client/query_helpers.h>
 #include <yt/ytlib/query_client/private.h> // XXX(sandello): refactor BuildLogger
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/query_service_proxy.h>

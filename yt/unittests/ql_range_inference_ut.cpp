@@ -1,7 +1,7 @@
 #include "framework.h"
 #include "ql_helpers.h"
 
-#include <yt/ytlib/query_client/plan_helpers.h>
+#include <yt/ytlib/query_client/query_helpers.h>
 #include <yt/ytlib/query_client/query_preparer.h>
 
 // Tests:

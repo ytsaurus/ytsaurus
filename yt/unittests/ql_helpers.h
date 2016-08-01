@@ -9,7 +9,7 @@
 
 #include <yt/ytlib/query_client/callbacks.h>
 #include <yt/ytlib/query_client/helpers.h>
-#include <yt/ytlib/query_client/plan_fragment.h>
+#include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/public.h>
 

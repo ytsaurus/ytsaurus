@@ -5,7 +5,7 @@
 #include "helpers.h"
 #include "lexer.h"
 #include "parser.hpp"
-#include "plan_helpers.h"
+#include "query_helpers.h"
 
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 

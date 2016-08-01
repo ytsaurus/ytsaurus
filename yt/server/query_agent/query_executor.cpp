@@ -40,8 +40,8 @@
 #include <yt/ytlib/query_client/evaluator.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 #include <yt/ytlib/query_client/helpers.h>
-#include <yt/ytlib/query_client/plan_fragment.h>
-#include <yt/ytlib/query_client/plan_helpers.h>
+#include <yt/ytlib/query_client/query.h>
+#include <yt/ytlib/query_client/query_helpers.h>
 #include <yt/ytlib/query_client/private.h>
 #include <yt/ytlib/query_client/query_statistics.h>
 

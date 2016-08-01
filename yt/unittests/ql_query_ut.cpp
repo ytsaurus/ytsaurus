@@ -12,8 +12,8 @@
 #include <yt/ytlib/query_client/evaluator.h>
 #include <yt/ytlib/query_client/folding_profiler.h>
 #include <yt/ytlib/query_client/helpers.h>
-#include <yt/ytlib/query_client/plan_fragment.h>
-#include <yt/ytlib/query_client/plan_fragment.pb.h>
+#include <yt/ytlib/query_client/query.h>
+#include <yt/ytlib/query_client/query.pb.h>
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/functions.h>
 #include <yt/ytlib/query_client/functions_cg.h>

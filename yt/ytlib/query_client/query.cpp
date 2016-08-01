@@ -1,8 +1,8 @@
-#include "plan_fragment.h"
+#include "query.h"
 
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
-#include <yt/ytlib/query_client/plan_fragment.pb.h>
+#include <yt/ytlib/query_client/query.pb.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schema.h>

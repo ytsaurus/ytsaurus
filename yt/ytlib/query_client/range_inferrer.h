@@ -3,7 +3,7 @@
 #include "public.h"
 #include "callbacks.h"
 #include "column_evaluator.h"
-#include "plan_fragment.h"
+#include "query.h"
 #include "query_statistics.h"
 
 #include <functional>

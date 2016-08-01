@@ -1,5 +1,5 @@
 #include "private.h"
-#include "plan_fragment.h"
+#include "query.h"
 
 namespace NYT {
 namespace NQueryClient {

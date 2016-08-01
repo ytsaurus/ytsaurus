@@ -4,7 +4,7 @@
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/config.h>
 #include <yt/ytlib/query_client/folding_profiler.h>
-#include <yt/ytlib/query_client/plan_helpers.h>
+#include <yt/ytlib/query_client/query_helpers.h>
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/query_statistics.h>
 #include <yt/ytlib/query_client/functions.h>

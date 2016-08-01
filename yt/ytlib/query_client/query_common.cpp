@@ -1,4 +1,4 @@
-#include "plan_fragment_common.h"
+#include "query_common.h"
 
 namespace NYT {
 namespace NQueryClient {

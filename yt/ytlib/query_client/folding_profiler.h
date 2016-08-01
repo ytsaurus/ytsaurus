@@ -1,7 +1,7 @@
 #pragma once
 
 #include "evaluation_helpers.h"
-#include "plan_fragment.h"
+#include "query.h"
 
 #include <util/generic/hash_set.h>
 #include <util/generic/noncopyable.h>

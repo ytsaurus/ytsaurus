@@ -15,7 +15,7 @@
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/query_client/callbacks.h>
-#include <yt/ytlib/query_client/plan_fragment.h>
+#include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/ytlib/query_client/query_statistics.h>
 #include <yt/ytlib/query_client/functions_cache.h>
