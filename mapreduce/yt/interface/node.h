@@ -3,6 +3,8 @@
 #include <util/generic/hash.h>
 #include <util/generic/vector.h>
 #include <util/generic/yexception.h>
+#include <util/generic/bt_exception.h>
+
 #include <util/string/printf.h>
 
 #include <util/memory/pool.h>
@@ -15,7 +17,7 @@ class TNode
 {
 public:
     class TTypeError
-        : public yexception
+        : public TWithBackTrace<yexception>
     { };
 
     enum EType {
@@ -604,7 +606,8 @@ inline bool GetBool(const TNode& node)
     } else if (node.IsString()) {
         return node.AsString() == "true";
     } else {
-        ythrow yexception() << "GetBool(): not a boolean or string type";
+        ythrow TNode::TTypeError()
+            << "GetBool(): not a boolean or string type";
     }
 }
 

@@ -202,7 +202,7 @@ int RunMapJob(size_t outputTableCount, TInputStream& jobStateStream)
         e.BackTrace()->PrintTo(Cerr);
         return 1;
 
-    } catch (std::exception& e) {
+    } catch (const std::exception& e) {
         Cerr << "Exception caught: " << e.what() << Endl;
         return 1;
     }
