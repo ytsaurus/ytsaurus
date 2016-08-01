@@ -22,7 +22,7 @@
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/query_client/evaluator.h>
-#include <yt/ytlib/query_client/plan_fragment.h>
+#include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/public.h>
 #include <yt/ytlib/query_client/query_statistics.h>
 #include <yt/ytlib/query_client/functions_cache.h>

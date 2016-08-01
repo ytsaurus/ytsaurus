@@ -1,7 +1,7 @@
 #include "functions.h"
 #include "functions_cg.h"
 #include "cg_fragment_compiler.h"
-#include "plan_fragment.h"
+#include "query.h"
 #include "helpers.h"
 #include "functions_builder.h"
 

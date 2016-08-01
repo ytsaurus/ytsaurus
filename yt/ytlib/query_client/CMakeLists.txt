@@ -2,7 +2,7 @@ bison( ${CMAKE_CURRENT_LIST_DIR}/parser.yy YT_SOURCE_FILES )
 ragel( ${CMAKE_CURRENT_LIST_DIR}/lexer.rl YT_SOURCE_FILES )
 
 protoc( ${CMAKE_CURRENT_LIST_DIR}/query_statistics.proto YT_SOURCE_FILES )
-protoc( ${CMAKE_CURRENT_LIST_DIR}/plan_fragment.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/query.proto YT_SOURCE_FILES )
 protoc( ${CMAKE_CURRENT_LIST_DIR}/functions_cache.proto YT_SOURCE_FILES )
 protoc( ${CMAKE_CURRENT_LIST_DIR}/query_service.proto YT_SOURCE_FILES )
 

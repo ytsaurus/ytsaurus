@@ -4,7 +4,7 @@
 #include "evaluation_helpers.h"
 #include "folding_profiler.h"
 #include "helpers.h"
-#include "plan_fragment.h"
+#include "query.h"
 #include "query_statistics.h"
 
 #include <yt/ytlib/table_client/schemaful_writer.h>

@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include "callbacks.h"
-#include "plan_fragment.h"
+#include "query.h"
 #include "query_statistics.h"
 
 #include <yt/core/logging/log.h>

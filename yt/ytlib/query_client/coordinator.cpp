@@ -1,8 +1,8 @@
 #include "coordinator.h"
 #include "private.h"
 #include "helpers.h"
-#include "plan_fragment.h"
-#include "plan_helpers.h"
+#include "query.h"
+#include "query_helpers.h"
 #include "range_inferrer.h"
 
 #include <yt/ytlib/table_client/schema.h>

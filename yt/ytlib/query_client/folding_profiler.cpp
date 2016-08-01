@@ -2,7 +2,7 @@
 #include "cg_fragment_compiler.h"
 #include "functions.h"
 #include "functions_cg.h"
-#include "plan_helpers.h"
+#include "query_helpers.h"
 
 namespace NYT {
 namespace NQueryClient {

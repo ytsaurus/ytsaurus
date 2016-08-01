@@ -1,9 +1,9 @@
-#include "plan_helpers.h"
+#include "query_helpers.h"
 #include "private.h"
 #include "functions.h"
 #include "helpers.h"
 #include "key_trie.h"
-#include "plan_fragment.h"
+#include "query.h"
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schema.h>

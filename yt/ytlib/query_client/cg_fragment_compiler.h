@@ -3,7 +3,7 @@
 #include "cg_helpers.h"
 #include "cg_ir_builder.h"
 #include "cg_types.h"
-#include "plan_fragment_common.h"
+#include "query_common.h"
 
 namespace NYT {
 namespace NQueryClient {
