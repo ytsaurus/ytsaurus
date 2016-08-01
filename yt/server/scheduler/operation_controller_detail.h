@@ -995,7 +995,7 @@ private:
 
     NApi::IClientPtr CreateClient();
 
-    static const NProto::TUserJobResult* FindUserJobResult(const TRefCountedJobResultPtr& result);
+    static const NProto::TUserJobResult* FindUserJobResult(const TJobResult& result);
 
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
 

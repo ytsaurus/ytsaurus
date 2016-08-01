@@ -69,11 +69,8 @@ DECLARE_REFCOUNTED_STRUCT(IOperationController);
 
 class TMasterConnector;
 
-using TRefCountedJobResult = TRefCountedProto<NJobTrackerClient::NProto::TJobResult>;
-DECLARE_REFCOUNTED_TYPE(TRefCountedJobResult);
-
-using TRefCountedJobStatus = TRefCountedProto<NJobTrackerClient::NProto::TJobStatus>;
-DECLARE_REFCOUNTED_TYPE(TRefCountedJobStatus);
+using NJobTrackerClient::NProto::TJobResult;
+using NJobTrackerClient::NProto::TJobStatus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
