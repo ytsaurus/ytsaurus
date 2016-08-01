@@ -260,7 +260,7 @@ void TBootstrap::DoRun()
 
     MasterConnector->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
 
-    ClusterDirectory = New<TClusterDirectory>(MasterConnection);
+    ClusterDirectory = New<TClusterDirectory>();
 
     ClusterDirectorySynchronizer = New<TClusterDirectorySynchronizer>(
         Config->ClusterDirectorySynchronizer,

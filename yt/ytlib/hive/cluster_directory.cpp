@@ -18,10 +18,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterDirectory::TClusterDirectory(INativeConnectionPtr directoryConnection)
-    : DirectoryClient_(directoryConnection->CreateNativeClient(TClientOptions(RootUserName)))
-{ }
-
 INativeConnectionPtr TClusterDirectory::FindConnection(TCellTag cellTag) const
 {
     TGuard<TSpinLock> guard(Lock_);
