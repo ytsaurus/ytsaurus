@@ -433,6 +433,9 @@ public:
     //! not more often then this period.
     TDuration RunningJobsUpdatePeriod;
 
+    //! Missing jobs are checked not more often then this period.
+    TDuration CheckMissingJobsPeriod;
+
     //! Maximum allowed running time of operation. Null value is interpreted as infinity.
     TNullable<TDuration> OperationTimeLimit;
 
@@ -616,6 +619,9 @@ public:
             .Default(TDuration::Seconds(30));
 
         RegisterParameter("running_jobs_update_period", RunningJobsUpdatePeriod)
+            .Default(TDuration::Seconds(10));
+
+        RegisterParameter("check_missing_jobs_period", CheckMissingJobsPeriod)
             .Default(TDuration::Seconds(10));
 
         RegisterParameter("operation_time_limit", OperationTimeLimit)

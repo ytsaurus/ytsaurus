@@ -164,11 +164,13 @@ void TJob::AnalyzeBriefStatistics(
     }
 }
 
-void TJob::SetStatus(TRefCountedJobStatusPtr status)
+void TJob::SetStatus(TJobStatus* status)
 {
-    Status_ = std::move(status);
-    if (Status_->has_statistics()) {
-        StatisticsYson_ = TYsonString(Status_->statistics());
+    if (status) {
+        Status_.Swap(status);
+    }
+    if (Status_.has_statistics()) {
+        StatisticsYson_ = TYsonString(Status_.statistics());
     }
 }
 
@@ -182,19 +184,19 @@ const Stroka& TJob::GetStatisticsSuffix() const
 ////////////////////////////////////////////////////////////////////
 
 TJobSummary::TJobSummary(const TJobPtr& job)
-    : Result(New<TRefCountedJobResult>(job->Status()->result()))
+    : Result(job->Status().result())
     , Id(job->GetId())
     , StatisticsSuffix(job->GetStatisticsSuffix())
     , FinishTime(*job->GetFinishTime())
     , ShouldLog(true)
 {
     const auto& status = job->Status();
-    if (status->has_prepare_duration()) {
-        PrepareDuration = FromProto<TDuration>(status->prepare_duration());
+    if (status.has_prepare_duration()) {
+        PrepareDuration = FromProto<TDuration>(status.prepare_duration());
     }
-    if (status->has_exec_duration()) {
+    if (status.has_exec_duration()) {
         ExecDuration.Emplace();
-        FromProto(ExecDuration.GetPtr(), status->exec_duration());
+        FromProto(ExecDuration.GetPtr(), status.exec_duration());
     }
     StatisticsYson = job->StatisticsYson();
 }
@@ -229,15 +231,15 @@ TAbortedJobSummary::TAbortedJobSummary(const TJobId& id, EAbortReason abortReaso
 
 TAbortedJobSummary::TAbortedJobSummary(const TJobPtr& job)
     : TJobSummary(job)
-    , AbortReason(GetAbortReason(job->Status()->result()))
+    , AbortReason(GetAbortReason(job->Status().result()))
 { }
 
 ////////////////////////////////////////////////////////////////////
 
-TRefCountedJobStatusPtr JobStatusFromError(const TError& error)
+TJobStatus JobStatusFromError(const TError& error)
 {
-    auto status = New<TRefCountedJobStatus>();
-    ToProto(status->mutable_result()->mutable_error(), error);
+    auto status = TJobStatus();
+    ToProto(status.mutable_result()->mutable_error(), error);
     return status;
 }
 
