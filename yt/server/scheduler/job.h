@@ -44,7 +44,7 @@ void Serialize(const TBriefJobStatistics& briefJobStatistics, NYson::IYsonConsum
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJob
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
     DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
 
@@ -66,7 +66,7 @@ class TJob
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
 
     //! Job status returned by node.
-    DEFINE_BYREF_RO_PROPERTY(TRefCountedJobStatusPtr, Status);
+    DEFINE_BYREF_RO_PROPERTY(TJobStatus, Status);
 
     //! Yson containing statistics produced by the job.
     DEFINE_BYREF_RO_PROPERTY(TNullable<NYson::TYsonString>, StatisticsYson);
@@ -121,7 +121,7 @@ public:
 
     TBriefJobStatisticsPtr BuildBriefStatistics(const NYson::TYsonString& statisticsYson) const;
 
-    void SetStatus(TRefCountedJobStatusPtr status);
+    void SetStatus(TJobStatus* status);
 
     const Stroka& GetStatisticsSuffix() const;
 };
@@ -137,7 +137,7 @@ struct TJobSummary
 
     void ParseStatistics();
 
-    const TRefCountedJobResultPtr Result;
+    const TJobResult Result;
     const TJobId Id;
     const Stroka StatisticsSuffix;
     const TInstant FinishTime;
@@ -172,7 +172,7 @@ struct TAbortedJobSummary
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRefCountedJobStatusPtr JobStatusFromError(const TError& error);
+TJobStatus JobStatusFromError(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 

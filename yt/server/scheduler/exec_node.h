@@ -24,7 +24,7 @@ namespace NScheduler {
  *  Thread affinity: ControlThread (unless noted otherwise)
  */
 class TExecNode
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
 private:
     typedef yhash_map<TJobId, TJobPtr> TJobMap;
@@ -46,6 +46,9 @@ public:
 
     //! Last time when statistics and resource usage from running jobs was updated.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, LastRunningJobsUpdateTime);
+
+    //! Last time when missing jobs were checked on this node.
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, LastCheckMissingJobsTime);
 
     //! Last time when heartbeat from node was processed.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
