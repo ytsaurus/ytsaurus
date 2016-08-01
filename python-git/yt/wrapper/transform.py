@@ -96,7 +96,9 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
         spec)
 
     logger.debug("Transform from '%s' to '%s' (spec: '%s')", src, dst, spec)
-    # NB: Not passing client with kwarg here because Transfer Manager
-    # patches run_* methods in YT client to track task progress.
-    client.run_merge(src, dst, spec=spec)
-
+    if client is not None:
+        # NB: Not passing client with kwarg here because Transfer Manager
+        # patches run_* methods in YT client to track task progress.
+        client.run_merge(src, dst, spec=spec)
+    else:
+        run_merge(src, dst, spec=spec)
