@@ -1019,7 +1019,8 @@ class Application(object):
                 ids.append(self._create_task(params=task_params, token=token, user=user, dry_run=dry_run, make_precheck=False))
             return ids
         else:
-            return self._create_task(params=params, token=token, user=user, dry_run=dry_run, make_precheck=True)
+            enable_early_precheck = self._config.get("enable_early_precheck", True)
+            return self._create_task(params=params, token=token, user=user, dry_run=dry_run, make_precheck=enable_early_precheck)
 
     def abort_task(self, id):
         if id not in self._tasks:

@@ -559,7 +559,8 @@ test_abort_operations_on_startup() {
     "destination_table": "//tmp/test_table1",
     "destination_cluster": "banach",
     "copy_method": "proxy",
-    "destination_erasure_codec": "lrc_12_2_2"
+    "destination_erasure_codec": "lrc_12_2_2",
+    "force_copy_with_operation": true
 }
 EOF
 )
