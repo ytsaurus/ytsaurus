@@ -82,6 +82,9 @@ public:
     //! Cell directory synchronization.
     NHiveServer::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
 
+    //! Cluster directory synchronization.
+    NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
+
     //! Data node configuration part.
     NDataNode::TDataNodeConfigPtr DataNode;
 
@@ -119,6 +122,8 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("cluster_connection", ClusterConnection);
         RegisterParameter("cell_directory_synchronizer", CellDirectorySynchronizer)
+            .DefaultNew();
+        RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
             .DefaultNew();
         RegisterParameter("data_node", DataNode)
             .DefaultNew();

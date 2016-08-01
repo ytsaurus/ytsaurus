@@ -38,6 +38,7 @@
 #include <yt/core/ytree/public.h>
 
 #include <yt/core/misc/public.h>
+#include <yt/ytlib/hive/config.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -75,6 +76,7 @@ public:
     NDataNode::TBlobReaderCachePtr GetBlobReaderCache() const;
     NDataNode::TJournalDispatcherPtr GetJournalDispatcher() const;
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
+    NHiveClient::TClusterDirectoryPtr GetClusterDirectory();
     NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() const;
     NQueryClient::ISubexecutorPtr GetQueryExecutor() const;
 
@@ -131,6 +133,8 @@ private:
     NDataNode::TBlobReaderCachePtr BlobReaderCache;
     NDataNode::TJournalDispatcherPtr JournalDispatcher;
     NDataNode::TMasterConnectorPtr MasterConnector;
+    NHiveClient::TClusterDirectoryPtr ClusterDirectory;
+    NHiveClient::TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer;
 
     NConcurrency::IThroughputThrottlerPtr TotalInThrottler;
     NConcurrency::IThroughputThrottlerPtr TotalOutThrottler;

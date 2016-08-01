@@ -62,6 +62,9 @@
 
 #include <yt/ytlib/hydra/peer_channel.h>
 
+#include <yt/ytlib/hive/cluster_directory.h>
+#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
+
 #include <yt/ytlib/misc/workload.h>
 
 #include <yt/ytlib/monitoring/http_integration.h>
@@ -124,6 +127,7 @@ using namespace NTabletNode;
 using namespace NQueryAgent;
 using namespace NApi;
 using namespace NTransactionServer;
+using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NObjectClient;
 
@@ -255,6 +259,14 @@ void TBootstrap::DoRun()
         this);
 
     MasterConnector->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
+
+    ClusterDirectory = New<TClusterDirectory>(MasterConnection);
+
+    ClusterDirectorySynchronizer = New<TClusterDirectorySynchronizer>(
+        Config->ClusterDirectorySynchronizer,
+        MasterConnection,
+        ClusterDirectory);
+    ClusterDirectorySynchronizer->Start();
 
     ChunkStore = New<NDataNode::TChunkStore>(Config->DataNode, this);
 
@@ -617,6 +629,11 @@ TJournalDispatcherPtr TBootstrap::GetJournalDispatcher() const
 NDataNode::TMasterConnectorPtr TBootstrap::GetMasterConnector() const
 {
     return MasterConnector;
+}
+
+TClusterDirectoryPtr TBootstrap::GetClusterDirectory()
+{
+    return ClusterDirectory;
 }
 
 NQueryClient::ISubexecutorPtr TBootstrap::GetQueryExecutor() const
