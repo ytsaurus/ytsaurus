@@ -2253,7 +2253,7 @@ private:
             job->GetState() == EJobState::None)
         {
             SetJobState(job, EJobState::Completed);
-            job->SetStatus(std::move(status));
+            job->SetStatus(status);
 
             OnJobFinished(job);
 
