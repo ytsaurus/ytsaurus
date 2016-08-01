@@ -253,7 +253,7 @@ private:
             JoinToString(TabletIndexes_));
         auto result = WaitFor(client->SelectRows(query))
             .ValueOrThrow();
-        const auto& rowset = result.first;
+        const auto& rowset = result.Rowset;
         const auto& schema = rowset->Schema();
         auto tabletIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::TabletIndexColumnName);
         auto rowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
@@ -398,7 +398,7 @@ private:
             rowLimit);
         auto result = WaitFor(Client_->SelectRows(query))
             .ValueOrThrow();
-        const auto& rowset = result.first;
+        const auto& rowset = result.Rowset;
         const auto& rows = rowset->Rows();
         const auto& schema = rowset->Schema();
 
@@ -590,7 +590,7 @@ private:
                     batch.EndRowIndex - 1);
                 auto result = WaitFor(transaction->SelectRows(query))
                     .ValueOrThrow();
-                const auto& rowset = result.first;
+                const auto& rowset = result.Rowset;
                 const auto& rows = rowset->Rows();
                 const auto& schema = rowset->Schema();
                 if (!rows.empty()) {
@@ -620,7 +620,7 @@ private:
                     TStateTable::RowIndexColumnName);
                 auto result = WaitFor(transaction->SelectRows(query))
                     .ValueOrThrow();
-                const auto& rowset = result.first;
+                const auto& rowset = result.Rowset;
                 const auto& rows = rowset->Rows();
                 const auto& schema = rowset->Schema();
                 if (!rows.empty()) {

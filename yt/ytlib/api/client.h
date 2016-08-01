@@ -12,6 +12,7 @@
 #include <yt/ytlib/object_client/public.h>
 
 #include <yt/ytlib/query_client/public.h>
+#include <yt/ytlib/query_client/query_statistics.h>
 
 #include <yt/ytlib/scheduler/public.h>
 
@@ -463,7 +464,11 @@ struct TAbortJobOptions
     : public TTimeoutOptions
 { };
 
-typedef std::pair<IRowsetPtr, NQueryClient::TQueryStatistics> TSelectRowsResult;
+struct TSelectRowsResult
+{
+    IRowsetPtr Rowset;
+    NQueryClient::TQueryStatistics Statistics;
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 
