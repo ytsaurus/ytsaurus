@@ -1807,7 +1807,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
 
     UpdateJobStatistics(*jobSummary);
 
-    const auto& schedulerResultExt = result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
     // Populate node directory by adding additional nodes returned from the job.
     // NB: Job's output may become some other job's input.
@@ -1856,7 +1856,7 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
     const auto& jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;
 
-    auto error = FromProto<TError>(result->error());
+    auto error = FromProto<TError>(result.error());
 
     JobCounter.Failed(1);
 
@@ -1918,7 +1918,7 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
 
     if (abortReason == EAbortReason::FailedChunks) {
         const auto& result = jobSummary->Result;
-        const auto& schedulerResultExt = result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
         for (const auto& chunkId : schedulerResultExt.failed_chunk_ids()) {
             OnChunkFailed(FromProto<TChunkId>(chunkId));
         }
@@ -3915,7 +3915,7 @@ void TOperationControllerBase::RegisterOutput(
     const TCompletedJobSummary& jobSummary)
 {
     const auto& result = jobSummary.Result;
-    const auto& schedulerResultExt = result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
     for (int tableIndex = 0; tableIndex < OutputTables.size(); ++tableIndex) {
         auto& table = OutputTables[tableIndex];

@@ -74,7 +74,7 @@ void BuildJobAttributes(TJobPtr job, const TNullable<NYson::TYsonString>& inputP
             fluent.Item("finish_time").Value(job->GetFinishTime().Get());
         })
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
-            auto error = FromProto<TError>(job->Status()->result().error());
+            auto error = FromProto<TError>(job->Status().result().error());
             fluent.Item("error").Value(error);
         })
         .DoIf(static_cast<bool>(inputPaths), [=] (TFluentMap fluent) {

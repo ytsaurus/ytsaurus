@@ -3,6 +3,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/logging/log.h>
 
@@ -353,7 +354,7 @@ class TAddressResolver::TImpl
 public:
     void Shutdown();
 
-    TFuture<TNetworkAddress> Resolve(const Stroka& address);
+    TFuture<TNetworkAddress> Resolve(const Stroka& hostName);
 
     Stroka GetLocalHostName();
     bool IsLocalHostNameOK();
@@ -367,8 +368,14 @@ public:
 private:
     TAddressResolverConfigPtr Config_ = New<TAddressResolverConfig>();
 
-    TSpinLock CacheLock_;
-    yhash_map<Stroka, TNetworkAddress> Cache_;
+    struct TCacheEntry
+    {
+        TNetworkAddress Address;
+        TInstant Instant;
+    };
+
+    TReaderWriterSpinLock CacheLock_;
+    yhash_map<Stroka, TCacheEntry> Cache_;
 
     std::atomic<bool> HasCachedLocalAddresses_ = {false};
     std::vector<TNetworkAddress> CachedLocalAddresses_;
@@ -398,34 +405,45 @@ void TAddressResolver::TImpl::Shutdown()
     Queue_->Shutdown();
 }
 
-TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const Stroka& address)
+TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const Stroka& hostName)
 {
     // Check if |address| parses into a valid IPv4 or IPv6 address.
     {
-        auto result = TNetworkAddress::TryParse(address);
+        auto result = TNetworkAddress::TryParse(hostName);
         if (result.IsOK()) {
             return MakeFuture(result);
         }
     }
 
+    auto runAsyncResolve = [&] () {
+        return BIND(&TAddressResolver::TImpl::DoResolve, MakeStrong(this), hostName)
+            .AsyncVia(Queue_->GetInvoker())
+            .Run();
+    };
+
     // Lookup cache.
     {
-        TGuard<TSpinLock> guard(CacheLock_);
-        auto it = Cache_.find(address);
+        TReaderGuard guard(CacheLock_);
+        auto it = Cache_.find(hostName);
         if (it != Cache_.end()) {
-            auto result = it->second;
+            auto entry = it->second;
             guard.Release();
+
             LOG_DEBUG("Address cache hit: %v -> %v",
-                address,
-                result);
-            return MakeFuture(result);
+                hostName,
+                entry.Address);
+
+            // Re-run resolve for expired entries.
+            if (entry.Instant + Config_->AddressExpirationTime > TInstant::Now()) {
+                runAsyncResolve();
+            }
+
+            return MakeFuture(entry.Address);
         }
     }
 
     // Run async resolution.
-    return BIND(&TAddressResolver::TImpl::DoResolve, MakeStrong(this), address)
-        .AsyncVia(Queue_->GetInvoker())
-        .Run();
+    return runAsyncResolve();
 }
 
 TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName_)
@@ -496,8 +514,10 @@ TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName_)
         if (result) {
             // Put result into the cache.
             {
-                TGuard<TSpinLock> guard(CacheLock_);
-                Cache_[hostName] = *result;
+                TWriterGuard guard(CacheLock_);
+                auto& entry = Cache_[hostName];
+                entry.Address = *result;
+                entry.Instant = TInstant::Now();
             }
             LOG_DEBUG("Host resolved: %v -> %v",
                 hostName,
@@ -602,7 +622,7 @@ const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
     }
 
     {
-        TGuard<TSpinLock> guard(CacheLock_);
+        TWriterGuard guard(CacheLock_);
         // NB: Only update CachedLocalAddresses_ once.
         if (!HasCachedLocalAddresses_) {
             CachedLocalAddresses_ = std::move(localAddresses);
@@ -679,7 +699,7 @@ void TAddressResolver::TImpl::CheckLocalHostResolution()
 void TAddressResolver::TImpl::PurgeCache()
 {
     {
-        TGuard<TSpinLock> guard(CacheLock_);
+        TWriterGuard guard(CacheLock_);
         Cache_.clear();
     }
     LOG_INFO("Address cache purged");
