@@ -97,7 +97,7 @@ Stroka FormatResourceUsage(
     const TJobResources& limits)
 {
     return Format(
-        "UserSlots: %v/%v, Cpu: %v/%v, Memory: %v/%v, Network: %v/%v",
+        "{UserSlots: %v/%v, Cpu: %v/%v, Memory: %v/%v, Network: %v/%v}",
         // User slots
         usage.GetUserSlots(),
         limits.GetUserSlots(),
