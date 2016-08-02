@@ -50,6 +50,8 @@ def run_main(main_func):
             print >>sys.stderr, format_operation_stderrs(stderrs)
         die()
     except YtError as error:
+        if "YT_PRINT_BACKTRACE" in os.environ:
+            traceback.print_exc(file=sys.stderr)
         die(str(error), error.code)
     except Exception:
         traceback.print_exc(file=sys.stderr)
