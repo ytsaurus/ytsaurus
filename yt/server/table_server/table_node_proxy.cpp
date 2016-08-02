@@ -100,7 +100,7 @@ private:
         descriptors->push_back("atomicity");
         descriptors->push_back(TAttributeDescriptor("optimize_for")
             .SetCustom(true));
-        descriptors->push_back(TAttributeDescriptor("preserve_schema_on_write"));
+        descriptors->push_back(TAttributeDescriptor("schema_mode"));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -140,9 +140,9 @@ private:
             return true;
         }
 
-        if (key == "preserve_schema_on_write") {
+        if (key == "schema_mode") {
             BuildYsonFluently(consumer)
-                .Value(table->GetPreserveSchemaOnWrite());
+                .Value(table->GetSchemaMode());
             return true;
         }
 
@@ -233,7 +233,7 @@ private:
 
         if (newSchema) {
             table->TableSchema() = schema;
-            table->SetPreserveSchemaOnWrite(true);
+            table->SetSchemaMode(ETableSchemaMode::Strong);
         }
 
         if (newDynamic) {

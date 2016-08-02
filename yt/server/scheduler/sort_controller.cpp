@@ -1852,7 +1852,7 @@ private:
         table.UpdateMode = EUpdateMode::Overwrite;
         table.LockMode = ELockMode::Exclusive;
 
-        if (!table.PreserveSchemaOnWrite) {
+        if (table.SchemaMode == ETableSchemaMode::Weak) {
             table.Schema = TTableSchema::FromKeyColumns(Spec->SortBy);
         } else if (!CheckKeyColumnsCompatible(Spec->SortBy, table.Schema.GetKeyColumns())) {
             THROW_ERROR_EXCEPTION("Table %v is expected to be sorted by columns [%v], but sort operation key columns are [%v]",

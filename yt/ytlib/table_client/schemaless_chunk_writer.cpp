@@ -1269,7 +1269,7 @@ private:
     const IBlockCachePtr BlockCache_;
 
     TTableSchema TableSchema_;
-    bool PreserveSchemaOnWrite_;
+    ETableSchemaMode SchemaMode_;
 
     TTransactionId TransactionId_;
 
@@ -1325,7 +1325,7 @@ private:
                 "account",
                 "compression_codec",
                 "erasure_codec",
-                "preserve_schema_on_write",
+                "schema_mode",
                 "replication_factor",
                 "row_count",
                 "schema",
@@ -1344,9 +1344,9 @@ private:
             auto node = ConvertToNode(TYsonString(rsp->value()));
             const auto& attributes = node->Attributes();
             auto schema = attributes.Get<TTableSchema>("schema");
-            PreserveSchemaOnWrite_ = attributes.Get<bool>("preserve_schema_on_write");
+            SchemaMode_ = attributes.Get<ETableSchemaMode>("schema_mode");
 
-            if (PreserveSchemaOnWrite_) {
+            if (SchemaMode_ == ETableSchemaMode::Strong) {
                 TableSchema_ = schema;
                 keyColumns = schema.GetKeyColumns();
                 sorted = !keyColumns.empty();
@@ -1506,7 +1506,7 @@ private:
             auto req = TTableYPathProxy::EndUpload(objectIdPath);
             *req->mutable_statistics() = UnderlyingWriter_->GetDataStatistics();
             ToProto(req->mutable_table_schema(), TableSchema_);
-            req->set_preserve_schema_on_write(PreserveSchemaOnWrite_);
+            req->set_schema_mode(static_cast<int>(SchemaMode_));
             SetTransactionId(req, UploadTransaction_);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "end_upload");

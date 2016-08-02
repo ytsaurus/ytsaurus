@@ -317,7 +317,7 @@ private:
     virtual void PrepareOutputTables() override
     {
         if (InputTables.size() == 1) {
-            OutputTables[0].PreserveSchemaOnWrite = InputTables[0].PreserveSchemaOnWrite;
+            OutputTables[0].SchemaMode = InputTables[0].SchemaMode;
             OutputTables[0].Schema = InputTables[0].Schema;
         }
 

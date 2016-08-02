@@ -157,7 +157,7 @@ class TestTables(YTEnvSetup):
                     unique_keys=True)
             })
 
-        assert get("//tmp/table/@preserve_schema_on_write")
+        assert get("//tmp/table/@schema_mode") == "strong"
 
         write_table("//tmp/table", [{"key": 0}, {"key": 1}])
 
@@ -169,7 +169,7 @@ class TestTables(YTEnvSetup):
 
         write_table("<append=true>//tmp/table", [{"key": 2}])
 
-        assert get("//tmp/table/@preserve_schema_on_write")
+        assert get("//tmp/table/@schema_mode") == "strong"
         assert get("//tmp/table/@schema/@unique_keys")
         assert read_table("//tmp/table") == [{"key": i} for i in xrange(3)]
 
@@ -850,7 +850,7 @@ class TestTables(YTEnvSetup):
             init_table("//tmp/t", schema)
             write_table("<append=%true>//tmp/t", rows)
             assert read_table("//tmp/t") == rows
-            assert get("//tmp/t/@preserve_schema_on_write")
+            assert get("//tmp/t/@schema_mode") == "strong"
             assert get("//tmp/t/@schema") == schema
 
         def test_negative(schema, rows):

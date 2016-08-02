@@ -397,7 +397,7 @@ print "x={0}\ty={1}".format(x, y)
             mapper_command="cat",
             reducer_command="cat")
 
-        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
         assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
 

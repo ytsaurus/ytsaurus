@@ -90,7 +90,7 @@ void TOperationControllerBase::TInputTable::Persist(TPersistenceContext& context
     Persist(context, Chunks);
     Persist(context, KeyColumns);
     Persist(context, Schema);
-    Persist(context, PreserveSchemaOnWrite);
+    Persist(context, SchemaMode);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -116,7 +116,7 @@ void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& contex
     Persist(context, LockMode);
     Persist(context, Options);
     Persist(context, Schema);
-    Persist(context, PreserveSchemaOnWrite);
+    Persist(context, SchemaMode);
     Persist(context, ChunkPropertiesUpdateNeeded);
     Persist(context, UploadTransactionId);
     Persist(context, OutputChunkListId);
@@ -1722,7 +1722,7 @@ void TOperationControllerBase::EndUploadOutputTables()
             *req->mutable_statistics() = table.DataStatistics;
             req->set_chunk_properties_update_needed(table.ChunkPropertiesUpdateNeeded);
             ToProto(req->mutable_table_schema(), table.Schema);
-            req->set_preserve_schema_on_write(table.PreserveSchemaOnWrite);
+            req->set_schema_mode(static_cast<int>(table.SchemaMode));
             SetTransactionId(req, table.UploadTransactionId);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "end_upload");
@@ -3012,7 +3012,7 @@ void TOperationControllerBase::LockInputTables()
                 std::vector<Stroka> attributeKeys{
                     "dynamic",
                     "chunk_count",
-                    "preserve_schema_on_write",
+                    "schema_mode",
                     "schema"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
@@ -3040,7 +3040,7 @@ void TOperationControllerBase::LockInputTables()
                 }
 
                 table.Schema = attributes->Get<TTableSchema>("schema");
-                table.PreserveSchemaOnWrite = attributes->Get<bool>("preserve_schema_on_write");
+                table.SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
                 table.KeyColumns = table.Schema.GetKeyColumns();
 
                 table.ChunkCount = attributes->Get<int>("chunk_count");
@@ -3067,7 +3067,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
             {
                 auto req = TTableYPathProxy::Get(objectIdPath + "/@");
                 std::vector<Stroka> attributeKeys{
-                    "preserve_schema_on_write",
+                    "schema_mode",
                     "schema"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
@@ -3088,9 +3088,9 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 const auto& rsp = getOutAttributesRspsOrError[index].Value();
                 auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-                table.PreserveSchemaOnWrite = attributes->Get<bool>("preserve_schema_on_write");
+                table.SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
 
-                if (table.PreserveSchemaOnWrite) {
+                if (table.SchemaMode == ETableSchemaMode::Strong) {
                     table.Schema = attributes->Get<TTableSchema>("schema");
                 } else {
                     table.Schema = TTableSchema::FromKeyColumns(path.GetSortedBy());
