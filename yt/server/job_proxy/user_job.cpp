@@ -98,7 +98,8 @@ using NScheduler::NProto::TUserJobSpec;
 #ifdef _unix_
 
 static const int JobStatisticsFD = 5;
-static const char* CGroupPrefix = "user_jobs/yt-job-";
+static Stroka CGroupBase = "user_jobs";
+static Stroka CGroupPrefix = CGroupBase + "/yt-job-";
 
 static const size_t BufferSize = (size_t) 1024 * 1024;
 
@@ -324,7 +325,7 @@ private:
         ShellManager_ = CreateShellManager(
             NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Home]),
             Config_->UserId,
-            TNullable<Stroka>(Config_->EnableCGroups, Freezer_.GetFullPath()),
+            TNullable<Stroka>(Config_->EnableCGroups, CGroupBase),
             Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))));
     }
 
