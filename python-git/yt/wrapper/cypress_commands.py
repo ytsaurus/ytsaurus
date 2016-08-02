@@ -449,6 +449,12 @@ def remove_with_empty_dirs(path, force=True, client=None):
             else:
                 raise
         path = os.path.dirname(path)
-        if path == "//" or not exists(path, client=client) or list(path, client=client) or get(path + "/@acl", client=client):
-            break
+        try:
+            if path == "//" or not exists(path, client=client) or list(path, client=client) or get(path + "/@acl", client=client):
+                break
+        except YtResponseError as err:
+            if err.is_resolve_error():
+                break
+            else:
+                raise
 
