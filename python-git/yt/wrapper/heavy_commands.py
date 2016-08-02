@@ -11,6 +11,7 @@ from transaction_commands import _make_transactional_request
 from http import get_retriable_errors
 from response_stream import ResponseStream
 from lock import lock
+from format import YtFormatReadError
 
 import time
 import random
@@ -109,7 +110,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                 client=client)
 
 def make_read_request(command_name, path, params, process_response_action, retriable_state_class, client):
-    retriable_errors = tuple(list(get_retriable_errors()) + [YtResponseError])
+    retriable_errors = tuple(list(get_retriable_errors()) + [YtResponseError, YtFormatReadError])
 
     def execute_with_retries(func):
         for attempt in xrange(config.get_request_retry_count(client)):

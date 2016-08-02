@@ -29,6 +29,10 @@ class YtFormatError(YtError):
     """Wrong format"""
     pass
 
+class YtFormatReadError(YtFormatError):
+    """Problem with parsing that can be caused by network problems"""
+    pass
+
 class Format(object):
     """ YT data representations.
 
@@ -323,13 +327,13 @@ class YsonFormat(Format):
         super(YsonFormat, self).__init__("yson", all_attributes, raw)
         self.process_table_index = process_table_index
         if control_attributes_mode not in ["row_fields", "iterator", "none"]:
-            raise YtError("Incorrect control_attributes_mode")
+            raise YtFormatError("Incorrect control_attributes_mode")
         self.control_attributes_mode = control_attributes_mode
         self.table_index_column = table_index_column
 
     def _check_bindings(self):
         if yson.TYPE != "BINARY":
-            raise YtError("Yson bindings required")
+            raise YtFormatError("Yson bindings required")
 
     def load_row(self, stream, raw=None):
         """Not supported"""
@@ -579,12 +583,12 @@ class YamrFormat(Format):
                     field = stream.read(4)
                     return (length, struct.unpack("i", field)[0])
             except struct.error:
-                raise YtError("Incomplete record in yamr lenval")
+                raise YtFormatError("Incomplete record in yamr lenval")
 
             field = stream.read(length)
             if len(field) != length:
-                 raise YtError("Incorrect length field in yamr lenval,\
-                                expected {0}, received {1}".format(length, len(field)))
+                 raise YtFormatReadError("Incorrect length field in yamr lenval,\
+                                          expected {0}, received {1}".format(length, len(field)))
             fields.append(field)
         if unparsed:
             return ''.join(fields)
@@ -662,7 +666,7 @@ class JsonFormat(Format):
         for row in rows:
             if "$value" in row:
                 if row["$value"] is not None:
-                    raise YtError("Incorrect $value of table switch in JSON format")
+                    raise YtFormatError("Incorrect $value of table switch in JSON format")
                 if "table_index" in row["$attributes"]:
                     table_index = row["$attributes"]["table_index"]
                 # TODO(ignat): support row_index and other attributes.
