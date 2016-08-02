@@ -501,7 +501,14 @@ private:
 
         auto arg = New<TJobSignalerArg>();
         arg->Pids = GetPidsFromFreezer();
-        arg->Pids.erase(std::find(arg->Pids.begin(), arg->Pids.end(), Process_->GetProcessId()));
+        auto it = std::find(arg->Pids.begin(), arg->Pids.end(), Process_->GetProcessId());
+        if (it != arg->Pids.end()) {
+            arg->Pids.erase(it);
+        }
+        if (arg->Pids.empty()) {
+            THROW_ERROR_EXCEPTION("No processes in the job to send signal");
+        }
+
         arg->SignalName = signalName;
         LOG_INFO("Sending signal %v to pids %v",
             arg->SignalName,
