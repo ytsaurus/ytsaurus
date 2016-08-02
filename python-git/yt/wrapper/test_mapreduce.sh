@@ -108,6 +108,19 @@ test_base_functionality()
     check 2 `./mapreduce -read "ignat/temp" | wc -l`
 }
 
+test_copy_move()
+{
+
+    ./mapreduce -write "ignat/table" <table_file
+    check "4\t5\t6\n1\t2\t3\n" "`./mapreduce -read "ignat/table"`"
+    ./mapreduce -copy -src "ignat/unexisting_table" -dstappend "ignat/table"
+    check "4\t5\t6\n1\t2\t3\n" "`./mapreduce -read "ignat/table"`"
+    ./mapreduce -move -src "ignat/unexisting_table" -dstappend "ignat/table"
+    check "4\t5\t6\n1\t2\t3\n" "`./mapreduce -read "ignat/table"`"
+    ./mapreduce -copy -src "ignat/unexisting_table" -dst "ignat/table"
+    check "" "`./mapreduce -read "ignat/table"`"
+}
+
 test_list()
 {
     ./mapreduce -write "ignat/test_dir/table1" <table_file
@@ -721,6 +734,7 @@ test_archive_and_transform()
 
 prepare_table_files
 test_base_functionality
+test_copy_move
 test_list
 test_codec
 test_many_output_tables
