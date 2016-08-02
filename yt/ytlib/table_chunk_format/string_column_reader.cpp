@@ -51,7 +51,7 @@ protected:
         value->Type = ValueType;
 
         if (ValueType == EValueType::Any && UnpackValue) {
-            *value = NTableClient::MakeUnversionedValue(TStringBuf(value->Data.String, value->Length), 0, Lexer_);
+            *value = NTableClient::MakeUnversionedValue(TStringBuf(value->Data.String, value->Length), value->Id, Lexer_);
         }
     }
 };

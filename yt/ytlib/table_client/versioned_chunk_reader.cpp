@@ -924,7 +924,7 @@ public:
 
         if (!Initialized_) {
             ResetExhaustedColumns();
-            Initialize(KeyColumnReaders_);
+            Initialize(MakeRange(KeyColumnReaders_.data(), KeyColumnReaders_.size()));
             Initialized_ = true;
             RowIndex_ = LowerRowIndex_;
         }

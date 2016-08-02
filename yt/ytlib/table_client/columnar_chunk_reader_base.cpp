@@ -214,7 +214,7 @@ void TColumnarRangeChunkReaderBase::InitUpperRowIndex()
     }
 }
 
-void TColumnarRangeChunkReaderBase::Initialize(std::vector<std::unique_ptr<IUnversionedColumnReader>>& keyReaders)
+void TColumnarRangeChunkReaderBase::Initialize(TRange<std::unique_ptr<IUnversionedColumnReader>> keyReaders)
 {
     for (auto& column : Columns_) {
         column.ColumnReader->SkipToRowIndex(LowerRowIndex_);
@@ -224,9 +224,11 @@ void TColumnarRangeChunkReaderBase::Initialize(std::vector<std::unique_ptr<IUnve
         return;
     }
 
+    YCHECK(keyReaders.Size() > 0);
+
     i64 lowerRowIndex = keyReaders[0]->GetCurrentRowIndex();
     i64 upperRowIndex = keyReaders[0]->GetBlockUpperRowIndex();
-    int count = std::min(LowerLimit_.GetKey().GetCount(), static_cast<int>(keyReaders.size()));
+    int count = std::min(LowerLimit_.GetKey().GetCount(), static_cast<int>(keyReaders.Size()));
     for (int i = 0; i < count; ++i) {
         std::tie(lowerRowIndex, upperRowIndex) = keyReaders[i]->GetEqualRange(
             LowerLimit_.GetKey().Begin()[i],

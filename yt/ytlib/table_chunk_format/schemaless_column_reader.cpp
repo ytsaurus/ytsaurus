@@ -162,7 +162,7 @@ public:
 private:
     std::unique_ptr<TSchemalessSegmentReader> SegmentReader_;
 
-    const std::vector<TColumnIdMapping>& IdMapping_; 
+    std::vector<TColumnIdMapping> IdMapping_;
     const int SchemaColumnCount_;
 
     virtual void ResetSegmentReader() override

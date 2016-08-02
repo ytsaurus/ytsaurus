@@ -7,12 +7,18 @@
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/functions.h>
 
+#include <yt/core/yson/string.h>
+#include <yt/core/ytree/convert.h>
+
 // Tests:
 // TComputedColumnTest
 
 namespace NYT {
 namespace NQueryClient {
 namespace {
+
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -110,7 +110,7 @@ protected:
     void InitLowerRowIndex();
     void InitUpperRowIndex();
 
-    void Initialize(std::vector<std::unique_ptr<NTableChunkFormat::IUnversionedColumnReader>>& keyReaders);
+    void Initialize(TRange<std::unique_ptr<NTableChunkFormat::IUnversionedColumnReader>> keyReaders);
 
     void InitBlockFetcher();
     TFuture<void> RequestFirstBlocks();

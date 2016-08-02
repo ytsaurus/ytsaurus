@@ -719,6 +719,8 @@ TUnversionedOwningRow BuildRow(
     const TTableSchema& tableSchema,
     bool treatMissingAsNull = true);
 
+TUnversionedOwningRow BuildKey(const Stroka& yson);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

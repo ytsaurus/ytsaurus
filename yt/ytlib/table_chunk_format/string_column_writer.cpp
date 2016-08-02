@@ -586,7 +586,6 @@ private:
         for (auto row : rows) {
             const auto& unversionedValue = GetUnversionedValue(row, ColumnIndex_);
                 if (unversionedValue.Type != EValueType::Null) {
-                    Y_ASSERT(unversionedValue.Type == EValueType::String);
                     if (ValueType == EValueType::String) {
                         cumulativeSize += unversionedValue.Length;
                     } else {
