@@ -60,16 +60,9 @@ public:
             ui32 offset = GetOffset(SegmentRowIndex_ + rowIndex);
             const char* ptr = Data_ + offset;
 
-            int insertIndex = SchemaColumnCount_;
             for (int index = 0; index < ValueCountReader_[SegmentRowIndex_ + rowIndex]; ++index) {
                 TUnversionedValue value;
                 ptr += ReadValue(ptr, &value);
-
-                if (IdMapping_[value.Id].ReaderSchemaIndex >= 0) {
-                    value.Id = IdMapping_[value.Id].ReaderSchemaIndex;
-                    rows[rowIndex][insertIndex] = value;
-                    ++insertIndex;
-                }
 
                 if (value.Type == EValueType::Any) {
                     value = MakeUnversionedValue(
@@ -77,9 +70,13 @@ public:
                         value.Id,
                         Lexer_);
                 }
-            } 
-            YCHECK(insertIndex <= rows[rowIndex].GetCount());
-            rows[rowIndex].SetCount(insertIndex);
+
+                if (IdMapping_[value.Id].ReaderSchemaIndex >= 0) {
+                    value.Id = IdMapping_[value.Id].ReaderSchemaIndex;
+                    *rows[rowIndex].End() = value;
+                    rows[rowIndex].SetCount(rows[rowIndex].GetCount() + 1);
+                }
+            }
         }
         SegmentRowIndex_ += rows.Size();
         return rows.Size();

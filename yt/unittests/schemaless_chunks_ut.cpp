@@ -233,11 +233,27 @@ protected:
             upperRowIndex = readRange.UpperLimit().GetRowIndex();
         }
 
+        auto fulfillLowerKeyLimit = [&] (TUnversionedRow row) {
+            return !readRange.LowerLimit().HasKey() ||
+                CompareRows(
+                    row.Begin(),
+                    row.Begin() + keyColumnCount,
+                    readRange.LowerLimit().GetKey().Begin(),
+                    readRange.LowerLimit().GetKey().End()) >= 0;
+        };
+
+        auto fulfillUpperKeyLimit = [&] (TUnversionedRow row) {
+            return !readRange.UpperLimit().HasKey() ||
+               CompareRows(
+                   row.Begin(),
+                   row.Begin() + keyColumnCount,
+                   readRange.UpperLimit().GetKey().Begin(),
+                   readRange.UpperLimit().GetKey().End()) < 0;
+        };
+
         for (int rowIndex = lowerRowIndex; rowIndex < upperRowIndex; ++rowIndex) {
             auto initialRow = initial[rowIndex];
-            if ((!readRange.LowerLimit().HasKey() || CompareRows(initialRow, readRange.LowerLimit().GetKey(), keyColumnCount) >= 0) &&
-                (!readRange.UpperLimit().HasKey() || CompareRows(initialRow, readRange.UpperLimit().GetKey(), keyColumnCount)< 0))
-            {
+            if (fulfillLowerKeyLimit(initialRow) && fulfillUpperKeyLimit(initialRow)) {
                 auto row = TMutableUnversionedRow::Allocate(&Pool_, initialRow.GetCount());
                 int count = 0;
                 for (const auto* it = initialRow.Begin(); it != initialRow.End(); ++it) {
@@ -334,7 +350,7 @@ INSTANTIATE_TEST_CASE_P(Sorted,
         ::testing::Values(
             TReadRange(),
             TReadRange(TReadLimit().SetKey(BuildKey("<type=null>#")), TReadLimit().SetKey(BuildKey("<type=null>#"))),
-            TReadRange(TReadLimit().SetKey(BuildKey("1; -1; 1; <type=null>#")), TReadLimit().SetKey(BuildKey("1; 1; 1; \"Z\""))))));
+            TReadRange(TReadLimit().SetKey(BuildKey("-65537; -1; 1u; <type=null>#")), TReadLimit().SetKey(BuildKey("350000.1; 1; 1; \"Z\""))))));
 
 // ToDo(psushin):
 //  1. Test sampling.

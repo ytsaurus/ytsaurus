@@ -602,15 +602,15 @@ bool THorizontalSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
             auto row = BlockReader_->GetRow(&MemoryPool_);
             if (Options_->EnableRangeIndex) {
                 *row.End() = MakeUnversionedInt64Value(ChunkSpec_.range_index(), RangeIndexId_);
-                ++row.GetHeader()->Count;
+                row.SetCount(row.GetCount() + 1);
             }
             if (Options_->EnableTableIndex) {
                 *row.End() = MakeUnversionedInt64Value(ChunkSpec_.table_index(), TableIndexId_);
-                ++row.GetHeader()->Count;
+                row.SetCount(row.GetCount() + 1);
             }
             if (Options_->EnableRowIndex) {
                 *row.End() = MakeUnversionedInt64Value(GetTableRowIndex(), RowIndexId_);
-                ++row.GetHeader()->Count;
+                row.SetCount(row.GetCount() + 1);
             }
 
             rows->push_back(row);
@@ -702,6 +702,7 @@ public:
                 auto row = TMutableUnversionedRow::Allocate(
                     &Pool_,
                     SchemaColumnReaders_.size() + schemalessColumnCount[index] + SystemColumnCount_);
+                row.SetCount(SchemaColumnReaders_.size());
                 rows->push_back(row);
             }
 
@@ -713,8 +714,38 @@ public:
             for (auto& columnReader : SchemaColumnReaders_) {
                 columnReader->ReadValues(range);
             }
+
             if (SchemalessReader_) {
                 SchemalessReader_->ReadValues(range);
+            }
+
+            if (!LowerKeyLimitReached_) {
+                // Since LowerKey can be wider than chunk key in schemaless read,
+                // we need to do additional check.
+                i64 deltaIndex = 0;
+                for (; deltaIndex < rowLimit; ++deltaIndex) {
+                    if (CompareRows(
+                        range[deltaIndex].Begin(),
+                        range[deltaIndex].Begin() + KeyColumns_.size(),
+                        LowerLimit_.GetKey().Begin(),
+                        LowerLimit_.GetKey().End()) >= 0)
+                    {
+                        break;
+                    }
+                }
+                if (deltaIndex > 0) {
+                    rowLimit -= deltaIndex;
+                    RowIndex_ += deltaIndex;
+
+                    for (i64 index = 0; index < rowLimit; ++index) {
+                        range[index] = range[index + deltaIndex];
+                    }
+                    range = range.Slice(range.Begin(), range.Begin() + rowLimit);
+                    rows->resize(rows->size() - deltaIndex);
+                }
+                if (!range.Empty()) {
+                    LowerKeyLimitReached_ = true;
+                }
             }
 
             // Append system columns.
@@ -722,24 +753,29 @@ public:
                 auto row = range[index];
                 if (Options_->EnableRangeIndex) {
                     *row.End() = MakeUnversionedInt64Value(ChunkSpec_.range_index(), RangeIndexId_);
-                    ++row.GetHeader()->Count;
+                    row.SetCount(row.GetCount() + 1);
                 }
                 if (Options_->EnableTableIndex) {
                     *row.End() = MakeUnversionedInt64Value(ChunkSpec_.table_index(), TableIndexId_);
-                    ++row.GetHeader()->Count;
+                    row.SetCount(row.GetCount() + 1);
                 }
                 if (Options_->EnableRowIndex) {
                     *row.End() = MakeUnversionedInt64Value(
                         GetTableRowIndex() + index,
                         RowIndexId_);
-                    ++row.GetHeader()->Count;
+                    row.SetCount(row.GetCount() + 1);
                 }
             }
 
             if (RowIndex_ + rowLimit > SafeUpperRowIndex_) {
                 i64 index = std::max(SafeUpperRowIndex_ - RowIndex_, i64(0));
                 for (; index < rowLimit; ++index) {
-                    if (range[index] >= UpperLimit_.GetKey()) {
+                    if (CompareRows(
+                        range[index].Begin(),
+                        range[index].Begin() + KeyColumns_.size(),
+                        UpperLimit_.GetKey().Begin(),
+                        UpperLimit_.GetKey().End()) >= 0)
+                    {
                         Completed_ = true;
                         range = range.Slice(range.Begin(), range.Begin() + index);
                         rows->resize(rows->size() - rowLimit + index);
@@ -787,6 +823,7 @@ private:
     std::unique_ptr<ISchemalessColumnReader> SchemalessReader_ = nullptr;
 
     bool Completed_ = false;
+    bool LowerKeyLimitReached_ = false;
 
     TChunkedMemoryPool Pool_;
 
@@ -910,6 +947,7 @@ private:
             ResetExhaustedColumns();
             Initialize(MakeRange(SchemaColumnReaders_.data(), KeyColumns_.size()));
             RowIndex_ = LowerRowIndex_;
+            LowerKeyLimitReached_ = !LowerLimit_.HasKey();
 
             if (RowIndex_ >= HardUpperRowIndex_) {
                 Completed_ = true;
