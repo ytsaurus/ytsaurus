@@ -7,12 +7,24 @@
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
+#include <yt/core/yson/consumer.h>
+
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/core/concurrency/periodic_executor.h>
+
+#include <yt/core/profiling/profile_manager.h>
 
 namespace NYT {
 namespace NJobAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EJobOrigin,
+    ((Master)    (0))
+    ((Scheduler) (1))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,19 +52,19 @@ public:
         TJobFactory factory);
 
     //! Finds the job by its id, returns |nullptr| if no job is found.
-    IJobPtr FindJob(const TJobId& jobId);
+    IJobPtr FindJob(const TJobId& jobId) const;
 
     //! Finds the job by its id, throws if no job is found.
-    IJobPtr GetJobOrThrow(const TJobId& jobId);
+    IJobPtr GetJobOrThrow(const TJobId& jobId) const;
 
     //! Returns the list of all currently known jobs.
-    std::vector<IJobPtr> GetJobs();
+    std::vector<IJobPtr> GetJobs() const;
 
     //! Returns the maximum allowed resource usage.
-    NNodeTrackerClient::NProto::TNodeResources GetResourceLimits();
+    NNodeTrackerClient::NProto::TNodeResources GetResourceLimits() const;
 
     //! Return the current resource usage.
-    NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(bool includeWaiting = true);
+    NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(bool includeWaiting = true) const;
 
     //! Prepares a heartbeat request.
     void PrepareHeartbeatRequest(
@@ -62,6 +74,9 @@ public:
 
     //! Handles heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
     void ProcessHeartbeatResponse(NJobTrackerClient::NProto::TRspHeartbeat* response);
+
+    //! Orchid server.
+    NYTree::IYPathServicePtr GetOrchidService();
 
 private:
     const TJobControllerConfigPtr Config_;
@@ -73,6 +88,12 @@ private:
     bool StartScheduled_ = false;
 
     NConcurrency::IThroughputThrottlerPtr StatisticsThrottler_;
+
+    NProfiling::TProfiler ResourceLimitsProfiler_;
+    NProfiling::TProfiler ResourceUsageProfiler_;
+    TEnumIndexedVector<NProfiling::TTagId, EJobOrigin> JobOriginToTag_;
+
+    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
     //! Starts a new job.
     IJobPtr CreateJob(
@@ -93,12 +114,12 @@ private:
      */
     void RemoveJob(IJobPtr job);
 
-    TJobFactory GetFactory(EJobType type);
+    TJobFactory GetFactory(EJobType type) const;
 
     void ScheduleStart();
 
     void OnResourcesUpdated(
-        TWeakPtr<IJob> job, 
+        TWeakPtr<IJob> job,
         const NNodeTrackerClient::NProto::TNodeResources& resourceDelta);
 
     void StartWaitingJobs();
@@ -114,6 +135,11 @@ private:
         const NNodeTrackerClient::NProto::TNodeResources& jobResources,
         const NNodeTrackerClient::NProto::TNodeResources& usedResources);
 
+    void BuildOrchid(NYson::IYsonConsumer* consumer) const;
+
+    void OnProfiling();
+
+    TEnumIndexedVector<int, EJobOrigin> GetJobCountByOrigin() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobController)
