@@ -44,12 +44,10 @@ struct IStoreManager
     virtual void StopEpoch() = 0;
 
     virtual void ExecuteAtomicWrite(
-        TTablet* tablet,
         TTransaction* transaction,
         NTabletClient::TWireProtocolReader* reader,
         bool prelock) = 0;
     virtual void ExecuteNonAtomicWrite(
-        TTablet* tablet,
         const TTransactionId& transactionId,
         NTabletClient::TWireProtocolReader* reader) = 0;
 

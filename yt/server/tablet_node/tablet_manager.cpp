@@ -525,7 +525,7 @@ private:
                 TWireProtocolReader reader(record.Data);
                 const auto& storeManager = tablet->GetStoreManager();
                 while (!reader.IsFinished()) {
-                    storeManager->ExecuteAtomicWrite(tablet, transaction, &reader, false);
+                    storeManager->ExecuteAtomicWrite(transaction, &reader, false);
                     ++rowCount;
                 }
             }
@@ -950,7 +950,7 @@ private:
         int rowCount = 0;
         const auto& storeManager = tablet->GetStoreManager();
         while (!reader.IsFinished()) {
-            storeManager->ExecuteNonAtomicWrite(tablet, transactionId, &reader);
+            storeManager->ExecuteNonAtomicWrite(transactionId, &reader);
             ++rowCount;
         }
 
@@ -1002,7 +1002,7 @@ private:
                     false);
 
                 while (!reader.IsFinished()) {
-                    storeManager->ExecuteAtomicWrite(tablet, transaction, &reader, false);
+                    storeManager->ExecuteAtomicWrite(transaction, &reader, false);
                     ++rowCount;
                 }
 
@@ -1012,10 +1012,7 @@ private:
 
             case EAtomicity::None: {
                 while (!reader.IsFinished()) {
-                    storeManager->ExecuteNonAtomicWrite(
-                        tablet,
-                        transactionId,
-                        &reader);
+                    storeManager->ExecuteNonAtomicWrite(transactionId, &reader);
                     ++rowCount;
                 }
                 break;
@@ -1677,7 +1674,7 @@ private:
                 reader->SetCurrent(readerCheckpoint);
             };
             try {
-                storeManager->ExecuteAtomicWrite(tablet, transaction, reader, true);
+                storeManager->ExecuteAtomicWrite(transaction, reader, true);
             } catch (const TRowBlockedException& ex) {
                 rewindReader();
                 rowBlockedEx = ex;
