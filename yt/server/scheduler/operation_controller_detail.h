@@ -218,7 +218,7 @@ protected:
         std::vector<NChunkClient::TInputChunkPtr> Chunks;
         NTableClient::TKeyColumns KeyColumns;
         NTableClient::TTableSchema Schema;
-        bool PreserveSchemaOnWrite;
+        NTableClient::ETableSchemaMode SchemaMode;
 
         bool IsForeign() const
         {
@@ -255,7 +255,7 @@ protected:
         NCypressClient::ELockMode LockMode = NCypressClient::ELockMode::Exclusive;
         NTableClient::TTableWriterOptionsPtr Options = New<NTableClient::TTableWriterOptions>();
         NTableClient::TTableSchema Schema;
-        bool PreserveSchemaOnWrite;
+        NTableClient::ETableSchemaMode SchemaMode;
         bool ChunkPropertiesUpdateNeeded = false;
 
         // Server-side upload transaction.

@@ -40,7 +40,7 @@ static const auto& Logger = TableServerLogger;
 
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
-    , PreserveSchemaOnWrite_(false)
+    , SchemaMode_(ETableSchemaMode::Weak)
     , Atomicity_(NTransactionClient::EAtomicity::Full)
 { }
 
@@ -62,11 +62,11 @@ void TTableNode::BeginUpload(EUpdateMode mode)
 void TTableNode::EndUpload(
     const TDataStatistics* statistics,
     const TTableSchema& schema,
-    bool preserveSchemaOnWrite)
+    ETableSchemaMode schemaMode)
 {
-    PreserveSchemaOnWrite_ = preserveSchemaOnWrite;
+    SchemaMode_ = schemaMode;
     TableSchema_ = schema;
-    TChunkOwnerBase::EndUpload(statistics, schema, preserveSchemaOnWrite);
+    TChunkOwnerBase::EndUpload(statistics, schema, schemaMode);
 }
 
 bool TTableNode::IsSorted() const
@@ -84,7 +84,7 @@ void TTableNode::Save(TSaveContext& context) const
 
     using NYT::Save;
     Save(context, TableSchema_);
-    Save(context, PreserveSchemaOnWrite_);
+    Save(context, SchemaMode_);
     Save(context, Tablets_);
     Save(context, Atomicity_);
 }
@@ -115,7 +115,7 @@ void TTableNode::Load(TLoadContext& context)
 
     // COMPAT(savrus)
     if (context.GetVersion() >= 350) {
-        Load(context, PreserveSchemaOnWrite_);
+        Load(context, SchemaMode_);
     }
 
     Load(context, Tablets_);
@@ -123,9 +123,9 @@ void TTableNode::Load(TLoadContext& context)
 
     // COMPAT(savrus)
     if (context.GetVersion() < 350) {
-        // Set PreserveSchemaOnWrite for dynamic tables.
+        // Set SchemaMode for dynamic tables.
         if (IsDynamic()) {
-            PreserveSchemaOnWrite_ = true;
+            SchemaMode_ = ETableSchemaMode::Strong;
         }
     }
 
@@ -318,7 +318,7 @@ protected:
         try {
             if (maybeSchema) {
                 node->TableSchema() = *maybeSchema;
-                node->SetPreserveSchemaOnWrite(true);
+                node->SetSchemaMode(ETableSchemaMode::Strong);
             }
 
             if (dynamic) {
@@ -349,7 +349,7 @@ protected:
         ELockMode mode) override
     {
         branchedNode->TableSchema() = originatingNode->TableSchema();
-        branchedNode->SetPreserveSchemaOnWrite(originatingNode->GetPreserveSchemaOnWrite());
+        branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
 
         TBase::DoBranch(originatingNode, branchedNode, mode);
     }
@@ -359,7 +359,7 @@ protected:
         TTableNode* branchedNode) override
     {
         originatingNode->TableSchema() = branchedNode->TableSchema();
-        originatingNode->SetPreserveSchemaOnWrite(branchedNode->GetPreserveSchemaOnWrite());
+        originatingNode->SetSchemaMode(branchedNode->GetSchemaMode());
 
         TBase::DoMerge(originatingNode, branchedNode);
     }
@@ -393,7 +393,7 @@ protected:
         TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
         clonedNode->TableSchema() = sourceNode->TableSchema();
-        clonedNode->SetPreserveSchemaOnWrite(sourceNode->GetPreserveSchemaOnWrite());
+        clonedNode->SetSchemaMode(sourceNode->GetSchemaMode());
 
         if (sourceNode->IsDynamic()) {
             auto tablets = std::move(sourceNode->Tablets());

@@ -1044,7 +1044,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     auto schema = request->has_table_schema()
         ? FromProto<TTableSchema>(request->table_schema())
         : TTableSchema();
-    bool preserveSchemaOnWrite = request->preserve_schema_on_write();
+    auto schemaMode = ETableSchemaMode(request->schema_mode());
     const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
     bool chunkPropertiesUpdateNeeded = request->chunk_properties_update_needed();
 
@@ -1059,7 +1059,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         PostToMaster(context, node->GetExternalCellTag());
     }
 
-    node->EndUpload(statistics, schema, preserveSchemaOnWrite);
+    node->EndUpload(statistics, schema, schemaMode);
 
     node->SetChunkPropertiesUpdateNeeded(chunkPropertiesUpdateNeeded);
 

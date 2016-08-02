@@ -573,7 +573,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         merge(in_="//tmp/input",
             out="//tmp/output")
 
-        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
         assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
 
@@ -598,7 +598,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             in_="//tmp/input",
             out="//tmp/output")
 
-        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
         assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in xrange(10)]
 
@@ -626,7 +626,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             in_="//tmp/input",
             out="//tmp/output")
 
-        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
         assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in xrange(10)]
 

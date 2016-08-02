@@ -904,7 +904,7 @@ private:
         auto& outputTable = OutputTables[0];
         auto& inputTable = InputTables[0];
 
-        if (!outputTable.PreserveSchemaOnWrite) {
+        if (outputTable.SchemaMode == ETableSchemaMode::Weak) {
             outputTable.Schema = inputTable.Schema;
         } else {
             ValidateTableSchemaCompatibility(inputTable.Schema, outputTable.Schema)
@@ -1500,7 +1500,7 @@ private:
 
         auto& table = OutputTables[0];
 
-        if (!table.PreserveSchemaOnWrite) {
+        if (table.SchemaMode == ETableSchemaMode::Weak) {
             table.Schema = TTableSchema::FromKeyColumns(SortKeyColumns);
         } else if (!CheckKeyColumnsCompatible(SortKeyColumns, table.Schema.GetKeyColumns())) {
             THROW_ERROR_EXCEPTION("Table %v is expected to be sorted by columns [%v], but merge operation key columns are [%v]",

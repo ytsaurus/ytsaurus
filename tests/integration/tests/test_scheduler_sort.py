@@ -304,7 +304,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             out="//tmp/output",
             sort_by="key")
 
-        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
         assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in xrange(1,11)]
 

@@ -261,21 +261,21 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
                 {"name": "b", "type": "string"}],
                 unique_keys=True)
             })
-        assert get("//tmp/t1/@preserve_schema_on_write", driver=self.remote_driver)
+        assert get("//tmp/t1/@schema_mode", driver=self.remote_driver) == "strong"
 
         create("table", "//tmp/t2")
 
         rows = [{"a": "x", "b": "v"}, {"a": "y", "b": "v"}]
         write_table("//tmp/t1", rows, driver=self.remote_driver)
 
-        assert get("//tmp/t1/@preserve_schema_on_write", driver=self.remote_driver)
+        assert get("//tmp/t1/@schema_mode", driver=self.remote_driver) == "strong"
 
         remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
         assert read_table("//tmp/t2") == rows
         assert get("//tmp/t2/@schema/@strict")
         assert get("//tmp/t2/@schema/@unique_keys")
-        assert get("//tmp/t2/@preserve_schema_on_write")
+        assert get("//tmp/t2/@schema_mode") == "strong"
 
 class TestSchedulerRemoteCopyNetworks(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
