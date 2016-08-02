@@ -214,7 +214,7 @@ void TColumnarRangeChunkReaderBase::InitUpperRowIndex()
     }
 }
 
-void TColumnarRangeChunkReaderBase::Initialize(TRange<std::unique_ptr<IUnversionedColumnReader>> keyReaders)
+void TColumnarRangeChunkReaderBase::Initialize(NYT::TRange<std::unique_ptr<IUnversionedColumnReader>> keyReaders)
 {
     for (auto& column : Columns_) {
         column.ColumnReader->SkipToRowIndex(LowerRowIndex_);
