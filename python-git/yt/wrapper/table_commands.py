@@ -847,12 +847,12 @@ def move_table(source_table, destination_table, replace=True, client=None):
     if get_config(client)["yamr_mode"]["replace_tables_on_copy_and_move"]:
         replace = True
     source_tables = _prepare_source_tables(source_table, client=client)
+    destination_table = to_table(destination_table, client=client)
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and \
             _are_default_empty_table(source_tables) and \
             not parse_bool(destination_table.attributes.get("append", "%false")):
         remove(to_table(destination_table).name, client=client, force=True)
         return
-    destination_table = to_table(destination_table, client=client)
     if _are_valid_nodes(source_tables, destination_table):
         if source_tables[0] == destination_table:
             return
