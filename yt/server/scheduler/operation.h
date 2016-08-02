@@ -25,7 +25,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperation
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, Id);

@@ -475,7 +475,8 @@ protected:
 
             Controller->PartitionJobCounter.Completed(1);
 
-            auto* resultExt = jobSummary.Result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+            auto& result = const_cast<TJobResult&>(jobSummary.Result);
+            auto* resultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunks());
 
             RegisterIntermediate(
@@ -775,7 +776,8 @@ protected:
 
                 // Sort outputs in large partitions are queued for further merge.
                 // Construct a stripe consisting of sorted chunks and put it into the pool.
-                auto* resultExt = jobSummary.Result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+                auto& result = const_cast<TJobResult&>(jobSummary.Result);
+                auto* resultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
                 auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunks());
 
                 RegisterIntermediate(

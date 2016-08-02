@@ -608,11 +608,11 @@ public:
             .Run();
     }
 
-    void IncreaseProfilingCounter(TJobPtr job, i64 value)
+    void IncreaseProfilingCounter(const TJobPtr& job, i64 value)
     {
         TJobCounter* counter = &JobCounter_;
         if (job->GetState() == EJobState::Aborted) {
-            counter = &AbortedJobCounter_[GetAbortReason(job->Status()->result())];
+            counter = &AbortedJobCounter_[GetAbortReason(job->Status().result())];
         }
         (*counter)[job->GetState()][job->GetType()] += value;
     }
@@ -650,9 +650,18 @@ public:
             node->SetLastRunningJobsUpdateTime(now);
         }
 
+        bool checkMissingJobs = false;
+        auto lastCheckMissingJobsTime = node->GetLastCheckMissingJobsTime();
+        if (!lastCheckMissingJobsTime || now > lastCheckMissingJobsTime.Get() + Config_->CheckMissingJobsPeriod) {
+            checkMissingJobs = true;
+            node->SetLastCheckMissingJobsTime(now);
+        }
+
         // Verify that all flags are in initial state.
-        for (const auto& job : node->Jobs()) {
-            YCHECK(!job->GetFoundOnNode());
+        if (checkMissingJobs) {
+            for (const auto& job : node->Jobs()) {
+                YCHECK(!job->GetFoundOnNode());
+            }
         }
 
         for (auto& jobStatus : *request->mutable_jobs()) {
@@ -664,13 +673,15 @@ public:
 
             auto job = ProcessJobHeartbeat(
                 node,
-                New<TRefCountedJobStatus>(std::move(jobStatus)),
+                &jobStatus,
                 forceJobsLogging,
                 updateRunningJobs,
                 jobsToRemove,
                 jobsToAbort);
             if (job) {
-                job->SetFoundOnNode(true);
+                if (checkMissingJobs) {
+                    job->SetFoundOnNode(true);
+                }
                 switch (job->GetState()) {
                     case EJobState::Completed:
                     case EJobState::Failed:
@@ -692,23 +703,25 @@ public:
         }
 
         // Check for missing jobs.
-        std::vector<TJobPtr> missingJobs;
-        for (const auto& job : node->Jobs()) {
-            if (!job->GetFoundOnNode()) {
-                missingJobs.push_back(job);
-            } else {
-                job->SetFoundOnNode(false);
+        if (checkMissingJobs) {
+            std::vector<TJobPtr> missingJobs;
+            for (const auto& job : node->Jobs()) {
+                if (!job->GetFoundOnNode()) {
+                    missingJobs.push_back(job);
+                } else {
+                    job->SetFoundOnNode(false);
+                }
+            }
+
+            for (const auto& job : missingJobs) {
+                LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
+                    node->GetDefaultAddress(),
+                    job->GetId(),
+                    job->GetOperationId());
+                auto status = JobStatusFromError(TError("Job vanished"));
+                OnJobAborted(job, &status);
             }
         }
-
-        for (const auto& job : missingJobs) {
-            LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
-                node->GetDefaultAddress(),
-                job->GetId(),
-                job->GetOperationId());
-            OnJobAborted(job, JobStatusFromError(TError("Job vanished")));
-        }
-
     }
 
     void FillJobStartResponse(
@@ -1810,7 +1823,8 @@ private:
                 address,
                 job->GetId(),
                 job->GetOperationId());
-            OnJobAborted(job, JobStatusFromError(TError("Node offline")));
+            auto status = JobStatusFromError(TError("Node offline"));
+            OnJobAborted(job, &status);
         }
     }
 
@@ -1987,9 +2001,8 @@ private:
     {
         auto jobs = operation->Jobs();
         for (const auto& job : jobs) {
-            OnJobAborted(
-                job,
-                JobStatusFromError(TError("Operation is in %Qlv state", operation->GetState())));
+            auto status = JobStatusFromError(TError("Operation is in %Qlv state", operation->GetState()));
+            OnJobAborted(job, &status);
         }
 
         for (const auto& job : operation->Jobs()) {
@@ -2101,7 +2114,7 @@ private:
     }
 
 
-    void RegisterJob(TJobPtr job)
+    void RegisterJob(const TJobPtr& job)
     {
         auto operation = GetOperation(job->GetOperationId());
 
@@ -2118,7 +2131,7 @@ private:
             operation->GetId());
     }
 
-    void UnregisterJob(TJobPtr job)
+    void UnregisterJob(const TJobPtr& job)
     {
         auto node = job->GetNode();
 
@@ -2129,7 +2142,7 @@ private:
         }
     }
 
-    void DoUnregisterJob(TJobPtr job)
+    void DoUnregisterJob(const TJobPtr& job)
     {
         auto operation = FindOperation(job->GetOperationId());
         auto node = job->GetNode();
@@ -2190,7 +2203,7 @@ private:
         return job;
     }
 
-    void PreemptJob(TJobPtr job)
+    void PreemptJob(const TJobPtr& job)
     {
         YCHECK(FindOperation(job->GetOperationId()));
 
@@ -2202,7 +2215,7 @@ private:
     }
 
 
-    void OnJobRunning(TJobPtr job, TRefCountedJobStatusPtr status)
+    void OnJobRunning(const TJobPtr& job, TJobStatus* status)
     {
         auto delta = status->resource_usage() - job->ResourceUsage();
         JobUpdated_.Fire(job, delta);
@@ -2210,7 +2223,7 @@ private:
         if (job->GetState() == EJobState::Running ||
             job->GetState() == EJobState::Waiting)
         {
-            job->SetStatus(std::move(status));
+            job->SetStatus(status);
 
             if (job->StatisticsYson()) {
                 auto asyncResult = BIND(&TJob::BuildBriefStatistics, job, *job->StatisticsYson())
@@ -2233,14 +2246,14 @@ private:
         // Do nothing.
     }
 
-    void OnJobCompleted(TJobPtr job, TRefCountedJobStatusPtr status, bool abandoned = false)
+    void OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned = false)
     {
         if (job->GetState() == EJobState::Running ||
             job->GetState() == EJobState::Waiting ||
             job->GetState() == EJobState::None)
         {
             SetJobState(job, EJobState::Completed);
-            job->SetStatus(std::move(status));
+            job->SetStatus(status);
 
             OnJobFinished(job);
 
@@ -2260,14 +2273,14 @@ private:
         UnregisterJob(job);
     }
 
-    void OnJobFailed(TJobPtr job, TRefCountedJobStatusPtr status)
+    void OnJobFailed(const TJobPtr& job, TJobStatus* status)
     {
         if (job->GetState() == EJobState::Running ||
             job->GetState() == EJobState::Waiting ||
             job->GetState() == EJobState::None)
         {
             SetJobState(job, EJobState::Failed);
-            job->SetStatus(std::move(status));
+            job->SetStatus(status);
 
             OnJobFinished(job);
 
@@ -2287,7 +2300,7 @@ private:
         UnregisterJob(job);
     }
 
-    void OnJobAborted(TJobPtr job, TRefCountedJobStatusPtr status)
+    void OnJobAborted(const TJobPtr& job, TJobStatus* status)
     {
         // Only update the status for the first time.
         // Typically the scheduler decides to abort the job on its own.
@@ -2297,7 +2310,7 @@ private:
             job->GetState() == EJobState::Waiting ||
             job->GetState() == EJobState::None)
         {
-            job->SetStatus(std::move(status));
+            job->SetStatus(status);
             // We should set status before to correctly consider AbortReason.
             SetJobState(job, EJobState::Aborted);
 
@@ -2306,7 +2319,7 @@ private:
             auto operation = GetOperation(job->GetOperationId());
 
             // Check if job was aborted due to signal.
-            if (GetAbortReason(job->Status()->result()) == EAbortReason::UserRequest) {
+            if (GetAbortReason(job->Status().result()) == EAbortReason::UserRequest) {
                 ProcessFinishedJobResult(job);
             }
 
@@ -2322,7 +2335,7 @@ private:
         UnregisterJob(job);
     }
 
-    void OnJobFinished(TJobPtr job)
+    void OnJobFinished(const TJobPtr& job)
     {
         job->SetFinishTime(TInstant::Now());
         auto duration = job->GetDuration();
@@ -2342,10 +2355,10 @@ private:
         }
     }
 
-    void ProcessFinishedJobResult(TJobPtr job)
+    void ProcessFinishedJobResult(const TJobPtr& job)
     {
         auto jobFailedOrAborted = job->GetState() == EJobState::Failed || job->GetState() == EJobState::Aborted;
-        const auto& schedulerResultExt = job->Status()->result().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        const auto& schedulerResultExt = job->Status().result().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
         auto stderrChunkId = FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id());
         auto failContextChunkId = FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id());
@@ -2381,7 +2394,7 @@ private:
         }
     }
 
-    void ReleaseStderrChunk(TJobPtr job, const TChunkId& chunkId)
+    void ReleaseStderrChunk(const TJobPtr& job, const TChunkId& chunkId)
     {
         auto operation = GetOperation(job->GetOperationId());
         auto transaction = operation->GetAsyncSchedulerTransaction();
@@ -2617,8 +2630,7 @@ private:
                 jobId);
         }
 
-        auto status = New<TRefCountedJobStatus>();
-        OnJobCompleted(job, std::move(status), /* abandoned */ true);
+        OnJobCompleted(job, nullptr /* jobStatus */, true /* abandoned */);
     }
 
     TYsonString DoPollJobShell(const TJobId& jobId, const TYsonString& parameters, const Stroka& user)
@@ -2671,7 +2683,7 @@ private:
         auto status = JobStatusFromError(TError("Job aborted by user request")
             << TErrorAttribute("abort_reason", EAbortReason::UserRequest)
             << TErrorAttribute("user", user));
-        OnJobAborted(job, std::move(status));
+        OnJobAborted(job, &status);
     }
 
     void DoCompleteOperation(TOperationPtr operation)
@@ -2908,7 +2920,7 @@ private:
                 .Item("running_jobs").BeginAttributes()
                     .Item("opaque").Value("true")
                 .EndAttributes()
-                .DoMapFor(operation->Jobs(), [=] (TFluentMap fluent, TJobPtr job) {
+                .DoMapFor(operation->Jobs(), [=] (TFluentMap fluent, const TJobPtr& job) {
                     BuildJobYson(job, fluent);
                 })
                 .Do(BIND([=] (IYsonConsumer* consumer) {
@@ -2920,7 +2932,7 @@ private:
             .EndMap();
     }
 
-    void BuildJobYson(TJobPtr job, IYsonConsumer* consumer)
+    void BuildJobYson(const TJobPtr& job, IYsonConsumer* consumer)
     {
         BuildYsonMapFluently(consumer)
             .Item(ToString(job->GetId())).BeginMap()
@@ -2940,10 +2952,9 @@ private:
             .EndMap();
     }
 
-
     TJobPtr ProcessJobHeartbeat(
         TExecNodePtr node,
-        TRefCountedJobStatusPtr jobStatus,
+        TJobStatus* jobStatus,
         bool forceJobsLogging,
         bool updateRunningJobs,
         std::vector<TJobId>* jobsToRemove,
@@ -2953,9 +2964,10 @@ private:
         auto state = EJobState(jobStatus->state());
 
         NLogging::TLogger Logger(SchedulerLogger);
-        Logger.AddTag("Address: %v, JobId: %v",
+        Logger.AddTag("Address: %v, JobId: %v, State: %v",
             node->GetDefaultAddress(),
-            jobId);
+            jobId,
+            state);
 
         auto job = FindJob(jobId, node);
         if (!job) {
@@ -2999,9 +3011,8 @@ private:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        Logger.AddTag("JobType: %v, State: %v, OperationId: %v",
+        Logger.AddTag("Type: %v, OperationId: %v",
             job->GetType(),
-            state,
             operation->GetId());
 
         // Check if the job is running on a proper node.
@@ -3026,7 +3037,7 @@ private:
         switch (state) {
             case EJobState::Completed: {
                 LOG_DEBUG("Job completed, removal scheduled");
-                OnJobCompleted(job, std::move(jobStatus));
+                OnJobCompleted(job, jobStatus);
                 jobsToRemove->push_back(jobId);
                 break;
             }
@@ -3034,7 +3045,7 @@ private:
             case EJobState::Failed: {
                 auto error = FromProto<TError>(jobStatus->result().error());
                 LOG_DEBUG(error, "Job failed, removal scheduled");
-                OnJobFailed(job, std::move(jobStatus));
+                OnJobFailed(job, jobStatus);
                 jobsToRemove->push_back(jobId);
                 break;
             }
@@ -3045,9 +3056,10 @@ private:
                 if (job->GetPreempted() && error.GetCode() == NExecAgent::EErrorCode::AbortByScheduler) {
                     auto error = TError("Job preempted")
                         << TErrorAttribute("abort_reason", EAbortReason::Preemption);
-                    OnJobAborted(job, JobStatusFromError(error));
+                    auto status = JobStatusFromError(error);
+                    OnJobAborted(job, &status);
                 } else {
-                    OnJobAborted(job, std::move(jobStatus));
+                    OnJobAborted(job, jobStatus);
                 }
                 jobsToRemove->push_back(jobId);
                 break;
@@ -3065,7 +3077,7 @@ private:
                         case EJobState::Running:
                             job->SetProgress(jobStatus->progress());
                             if (updateRunningJobs) {
-                                OnJobRunning(job, std::move(jobStatus));
+                                OnJobRunning(job, jobStatus);
                             }
                             break;
 
