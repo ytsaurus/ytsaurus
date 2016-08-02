@@ -3,13 +3,13 @@
 #include "box.h"
 #include "config.h"
 #include "native_connection.h"
+#include "native_transaction.h"
 #include "file_reader.h"
 #include "file_writer.h"
 #include "journal_reader.h"
 #include "journal_writer.h"
 #include "rowset.h"
 #include "table_reader.h"
-#include "transaction.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_replica.h>
@@ -1215,13 +1215,26 @@ public:
     }
 
 
-    virtual TFuture<ITransactionPtr> StartTransaction(
+    virtual TFuture<INativeTransactionPtr> StartNativeTransaction(
         ETransactionType type,
         const TTransactionStartOptions& options) override;
+    virtual INativeTransactionPtr AttachNativeTransaction(
+        const TTransactionId& transactionId,
+        const TTransactionAttachOptions& options) override;
+
+    virtual TFuture<ITransactionPtr> StartTransaction(
+        ETransactionType type,
+        const TTransactionStartOptions& options) override
+    {
+        return StartNativeTransaction(type, options).As<ITransactionPtr>();
+    }
 
     virtual ITransactionPtr AttachTransaction(
         const TTransactionId& transactionId,
-        const TTransactionAttachOptions& options) override;
+        const TTransactionAttachOptions& options) override
+    {
+        return AttachNativeTransaction(transactionId, options);
+    }
 
 #define DROP_BRACES(...) __VA_ARGS__
 #define IMPLEMENT_OVERLOADED_METHOD(returnType, method, doMethod, signature, args) \
@@ -1457,7 +1470,7 @@ public:
 #undef IMPLEMENT_METHOD
 
 private:
-    friend class TTransaction;
+    friend class TNativeTransaction;
 
     const INativeConnectionPtr Connection_;
     const TClientOptions Options_;
@@ -2929,11 +2942,19 @@ INativeClientPtr CreateNativeClient(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransaction
-    : public ITransaction
+DEFINE_ENUM(ETransactionState,
+    (Active)
+    (Commit)
+    (Abort)
+    (Flush)
+    (Detach)
+);
+
+class TNativeTransaction
+    : public INativeTransaction
 {
 public:
-    TTransaction(
+    TNativeTransaction(
         TNativeClientPtr client,
         NTransactionClient::TTransactionPtr transaction)
         : Client_(std::move(client))
@@ -2992,35 +3013,72 @@ public:
 
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options) override
     {
-        {
-            auto guard = Guard(SpinLock_);
-            if (!Active_) {
-                return MakeFuture<void>(TError("Transaction %v is not active", GetId()));
-            }
-            Active_ = false;
+    	auto guard = Guard(SpinLock_);
+
+        auto result = ValidateActiveAsync<void>();
+        if (result) {
+            return result;
         }
 
-        return BIND(&TTransaction::DoCommit, MakeStrong(this))
+        State_ = ETransactionState::Commit;
+        return BIND(&TNativeTransaction::DoCommit, MakeStrong(this))
             .AsyncVia(CommitInvoker_)
             .Run(options);
     }
 
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options) override
     {
-        {
-            auto guard = Guard(SpinLock_);
-            if (!Active_) {
-                return MakeFuture<void>(TError("Transaction %v is not active", GetId()));
-            }
-            Active_ = false;
+    	auto guard = Guard(SpinLock_);
+
+        if (State_ == ETransactionState::Abort) {
+            return AbortResult_;
         }
 
-        return Transaction_->Abort(options);
+        auto result = ValidateActiveAsync<void>();
+        if (result) {
+            return result;
+        }
+
+        State_ = ETransactionState::Abort;
+        AbortResult_ = Transaction_->Abort(options);
+        return AbortResult_;
     }
 
     virtual void Detach() override
     {
+    	auto guard = Guard(SpinLock_);
+        State_ = ETransactionState::Detach;
         Transaction_->Detach();
+    }
+
+    virtual TFuture<TTransactionFlushResult> Flush() override
+    {
+    	auto guard = Guard(SpinLock_);
+
+        auto result = ValidateActiveAsync<TTransactionFlushResult>();
+        if (result) {
+            return result;
+        }
+
+        State_ = ETransactionState::Flush;
+        return BIND(&TNativeTransaction::DoFlush, MakeStrong(this))
+            .AsyncVia(CommitInvoker_)
+            .Run();
+    }
+
+
+    virtual TFuture<ITransactionPtr> StartSlaveTransaction(
+        IClientPtr client,
+        const TTransactionStartOptions& options_) override
+    {
+        auto options = options_;
+        options.Id = GetId();
+
+        return client->StartTransaction(GetType(), options)
+            .Apply(BIND([this, this_ = MakeStrong(this)] (const ITransactionPtr& transaction) {
+                RegisterSlaveTransaction(transaction);
+                return transaction;
+            }));
     }
 
 
@@ -3046,16 +3104,24 @@ public:
     }
 
 
-    virtual TFuture<ITransactionPtr> StartTransaction(
+    virtual TFuture<INativeTransactionPtr> StartNativeTransaction(
         ETransactionType type,
         const TTransactionStartOptions& options) override
     {
         auto adjustedOptions = options;
         adjustedOptions.ParentId = GetId();
-        return Client_->StartTransaction(
+        return Client_->StartNativeTransaction(
             type,
             adjustedOptions);
     }
+
+    virtual TFuture<ITransactionPtr> StartTransaction(
+        ETransactionType type,
+        const TTransactionStartOptions& options) override
+    {
+        return StartNativeTransaction(type, options).As<ITransactionPtr>();
+    }
+
 
     virtual void WriteRows(
         const TYPath& path,
@@ -3063,12 +3129,11 @@ public:
         TSharedRange<TUnversionedRow> rows,
         const TWriteRowsOptions& options) override
     {
-        ValidateTabletTransaction();
+    	auto guard = Guard(SpinLock_);
 
-        auto guard = Guard(SpinLock_);
-        if (!Active_) {
-            THROW_ERROR_EXCEPTION("Transaction %v is not active", GetId());
-        }
+        ValidateTabletTransaction();
+    	ValidateActive();
+
         auto rowCount = rows.Size();
         Requests_.push_back(std::make_unique<TWriteRequest>(
             this,
@@ -3086,12 +3151,11 @@ public:
         TSharedRange<TUnversionedRow> keys,
         const TDeleteRowsOptions& options) override
     {
-        ValidateTabletTransaction();
-
         auto guard = Guard(SpinLock_);
-        if (!Active_) {
-            THROW_ERROR_EXCEPTION("Transaction %v is not active", GetId());
-        }
+
+        ValidateTabletTransaction();
+    	ValidateActive();
+
         auto keyCount = keys.Size();
         Requests_.push_back(std::make_unique<TDeleteRequest>(
             this,
@@ -3238,14 +3302,17 @@ private:
     const IInvokerPtr CommitInvoker_;
     const NLogging::TLogger Logger;
 
-    struct TTransactionBufferTag
+    struct TNativeTransactionBufferTag
     { };
 
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TTransactionBufferTag());
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TNativeTransactionBufferTag());
 
     TSpinLock SpinLock_;
-    bool Active_ = true;
+    ETransactionState State_ = ETransactionState::Active;
+    TFuture<void> AbortResult_;
 
+    TSpinLock SlaveTransactionsLock_;
+    std::vector<ITransactionPtr> SlaveTransactions_;
 
 
     class TRequestBase
@@ -3260,7 +3327,7 @@ private:
         }
 
     protected:
-        TTransaction* const Transaction_;
+        TNativeTransaction* const Transaction_;
         const INativeConnectionPtr Connection_;
 		const TYPath Path_;
         const TNameTablePtr NameTable_;
@@ -3269,7 +3336,7 @@ private:
         TTableMountInfoPtr TableInfo_;
 
         explicit TRequestBase(
-            TTransaction* transaction,
+            TNativeTransaction* transaction,
             INativeConnectionPtr connection,
             const TYPath& path,
             TNameTablePtr nameTable)
@@ -3296,7 +3363,7 @@ private:
         using TRowValidator = void(TUnversionedRow, const TTableSchema&, const TNameTableToSchemaIdMapping&);
 
         TModifyRequest(
-            TTransaction* transaction,
+            TNativeTransaction* transaction,
             INativeConnectionPtr connection,
             const TYPath& path,
             TNameTablePtr nameTable)
@@ -3355,7 +3422,7 @@ private:
     {
     public:
         TWriteRequest(
-            TTransaction* transaction,
+            TNativeTransaction* transaction,
             INativeConnectionPtr connection,
             const TYPath& path,
             TNameTablePtr nameTable,
@@ -3390,7 +3457,7 @@ private:
     {
     public:
         TDeleteRequest(
-            TTransaction* transaction,
+            TNativeTransaction* transaction,
             INativeConnectionPtr connection,
             const TYPath& path,
             TNameTablePtr nameTable,
@@ -3427,7 +3494,7 @@ private:
     {
     public:
         TTabletCommitSession(
-            TTransactionPtr owner,
+            TNativeTransactionPtr owner,
             TTabletInfoPtr tabletInfo,
             TTableMountInfoPtr tableInfo,
             TColumnEvaluatorPtr columnEvauator)
@@ -3499,7 +3566,7 @@ private:
         }
 
     private:
-        const TWeakPtr<TTransaction> Owner_;
+        const TWeakPtr<TNativeTransaction> Owner_;
         const TTableMountInfoPtr TableInfo_;
         const TTabletInfoPtr TabletInfo_;
         const TNativeConnectionConfigPtr Config_;
@@ -3748,29 +3815,53 @@ private:
         return it->second.Get();
     }
 
+    TFuture<void> SendRequests()
+    {
+        for (const auto& request : Requests_) {
+            request->Run();
+        }
+
+        for (const auto& pair : TabletIdToSession_) {
+            const auto& session = pair.second;
+            const auto& cellId = session->GetCellId();
+            int requestCount = session->Prepare();
+            RegisterCellRequests(cellId, requestCount);
+        }
+
+        std::vector<TFuture<void>> asyncResults;
+        for (const auto& pair : TabletIdToSession_) {
+            const auto& session = pair.second;
+            const auto& cellId = session->GetCellId();
+            auto channel = Client_->GetTabletChannelOrThrow(cellId);
+            asyncResults.push_back(session->Invoke(std::move(channel)));
+        }
+
+        return Combine(asyncResults);
+    }
+
     void DoCommit(const TTransactionCommitOptions& options)
     {
         try {
-            for (const auto& request : Requests_) {
-                request->Run();
+            std::vector<TFuture<void>> asyncRequestResults{
+                SendRequests()
+            };
+
+            std::vector<TFuture<TTransactionFlushResult>> asyncFlushResults;
+            for (const auto& slave : GetSlaveTransactions()) {
+                asyncFlushResults.push_back(slave->Flush());
             }
 
-            for (const auto& pair : TabletIdToSession_) {
-                const auto& session = pair.second;
-                const auto& cellId = session->GetCellId();
-                int requestCount = session->Prepare();
-                RegisterCellRequests(cellId, requestCount);
+            auto flushResults = WaitFor(Combine(asyncFlushResults))
+                .ValueOrThrow();
+
+            for (const auto& flushResult : flushResults) {
+                asyncRequestResults.push_back(flushResult.AsyncResult);
+                for (const auto& cellId : flushResult.ParticipantCellIds) {
+                    Transaction_->AddTabletParticipant(cellId);
+                }
             }
 
-            std::vector<TFuture<void>> asyncResults;
-            for (const auto& pair : TabletIdToSession_) {
-                const auto& session = pair.second;
-                const auto& cellId = session->GetCellId();
-                auto channel = Client_->GetTabletChannelOrThrow(cellId);
-                asyncResults.push_back(session->Invoke(std::move(channel)));
-            }
-
-            WaitFor(Combine(asyncResults))
+            WaitFor(Combine(asyncRequestResults))
                 .ThrowOnError();
         } catch (const std::exception& ex) {
             // Fire and forget.
@@ -3780,6 +3871,14 @@ private:
 
         WaitFor(Transaction_->Commit(options))
             .ThrowOnError();
+    }
+
+    TTransactionFlushResult DoFlush()
+    {
+        TTransactionFlushResult result;
+        result.AsyncResult = SendRequests();
+        result.ParticipantCellIds = GetKeys(CellIdToSession_);
+        return result;
     }
 
 
@@ -3821,23 +3920,54 @@ private:
         }
     }
 
-    void ValidateTabletTransaction()
+    void ValidateTableTNativeTransaction()
     {
         if (TypeFromId(GetId()) == EObjectType::NestedTransaction) {
             THROW_ERROR_EXCEPTION("Nested master transactions cannot be used for updating dynamic tables");
         }
     }
+
+    void ValidateActive()
+    {
+        if (State_ != ETransactionState::Active) {
+            THROW_ERROR_EXCEPTION("Transaction is already in %Qlv state",
+                State_);
+        }
+    }
+
+    template <class T>
+    TFuture<T> ValidateActiveAsync()
+    {
+        if (State_ != ETransactionState::Active) {
+            return MakeFuture<T>(TError("Transaction is already in %Qlv state",
+                State_));
+        }
+        return TFuture<T>();
+    }
+
+
+    void RegisterSlaveTransaction(ITransactionPtr transaction)
+    {
+        auto guard = Guard(SlaveTransactionsLock_);
+        SlaveTransactions_.emplace_back(std::move(transaction));
+    }
+
+    std::vector<ITransactionPtr> GetSlaveTransactions()
+    {
+        auto guard = Guard(SlaveTransactionsLock_);
+        return SlaveTransactions_;
+    }
 };
 
-DEFINE_REFCOUNTED_TYPE(TTransaction)
+DEFINE_REFCOUNTED_TYPE(TNativeTransaction)
 
-TFuture<ITransactionPtr> TNativeClient::StartTransaction(
+TFuture<INativeTransactionPtr> TNativeClient::StartNativeTransaction(
     ETransactionType type,
     const TTransactionStartOptions& options)
 {
     return TransactionManager_->Start(type, options).Apply(
-        BIND([=, this_ = MakeStrong(this)] (NTransactionClient::TTransactionPtr nativeTranasction) -> ITransactionPtr {
-            auto transaction = New<TTransaction>(this_, nativeTranasction);
+        BIND([=, this_ = MakeStrong(this)] (const NTransactionClient::TTransactionPtr& nativeTranasction) -> INativeTransactionPtr {
+            auto transaction = New<TNativeTransaction>(this_, nativeTranasction);
             if (options.Sticky) {
                 Connection_->RegisterStickyTransaction(transaction);
             }
@@ -3845,7 +3975,7 @@ TFuture<ITransactionPtr> TNativeClient::StartTransaction(
         }));
 }
 
-ITransactionPtr TNativeClient::AttachTransaction(
+INativeTransactionPtr TNativeClient::AttachNativeTransaction(
     const TTransactionId& transactionId,
     const TTransactionAttachOptions& options)
 {
@@ -3853,7 +3983,7 @@ ITransactionPtr TNativeClient::AttachTransaction(
         return Connection_->GetStickyTransaction(transactionId);
     } else {
         auto nativeTransaction = TransactionManager_->Attach(transactionId, options);
-        return New<TTransaction>(this, std::move(nativeTransaction));
+        return New<TNativeTransaction>(this, std::move(nativeTransaction));
     }
 }
 

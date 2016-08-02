@@ -11,6 +11,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/api/native_admin.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/native_connection.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/native_client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/native_transaction_participant.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/file_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/file_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/journal_reader.cpp
@@ -135,6 +136,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/hive/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_supervisor_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_participant_service.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/hydra/hydra_manager.proto
   ${CMAKE_CURRENT_LIST_DIR}/hydra/hydra_service.proto

@@ -3,7 +3,8 @@
 #include "native_connection.h"
 #include "native_client.h"
 #include "native_admin.h"
-#include "transaction.h"
+#include "native_transaction_participant.h"
+#include "native_transaction.h"
 #include "private.h"
 
 #include <yt/ytlib/chunk_client/client_block_cache.h>
@@ -262,7 +263,17 @@ public:
         return NApi::CreateNativeClient(this, options);
     }
 
-    virtual ITransactionPtr RegisterStickyTransaction(ITransactionPtr transaction) override
+    virtual NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
+        const TCellId& cellId,
+        const TTransactionParticipantOptions& options) override
+    {
+        return NApi::CreateNativeTransactionParticipant(
+            CellDirectory_,
+            cellId,
+            options);
+    }
+
+    virtual INativeTransactionPtr RegisterStickyTransaction(INativeTransactionPtr transaction) override
     {
         const auto& transactionId = transaction->GetId();
         TStickyTransactionEntry entry{
@@ -286,9 +297,9 @@ public:
         return transaction;
     }
 
-    virtual ITransactionPtr GetStickyTransaction(const TTransactionId& transactionId) override
+    virtual INativeTransactionPtr GetStickyTransaction(const TTransactionId& transactionId) override
     {
-        ITransactionPtr transaction;
+        INativeTransactionPtr transaction;
         TLease lease;
         {
             TReaderGuard guard(StickyTransactionLock_);
@@ -332,7 +343,7 @@ private:
 
     struct TStickyTransactionEntry
     {
-        ITransactionPtr Transaction;
+        INativeTransactionPtr Transaction;
         TLease Lease;
     };
 
@@ -365,7 +376,7 @@ private:
 
     void OnStickyTransactionLeaseExpired(const TTransactionId& transactionId)
     {
-        ITransactionPtr transaction;
+        INativeTransactionPtr transaction;
         {
             TWriterGuard guard(StickyTransactionLock_);
             auto it = IdToStickyTransactionEntry_.find(transactionId);

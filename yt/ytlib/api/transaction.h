@@ -23,6 +23,12 @@ struct TWriteRowsOptions
 struct TDeleteRowsOptions
 { };
 
+struct TTransactionFlushResult
+{
+    TFuture<void> AsyncResult;
+    std::vector<NElection::TCellId> ParticipantCellIds;
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 
 //! Represents a client-controlled transaction.
@@ -36,7 +42,7 @@ struct TDeleteRowsOptions
  *  Thread affinity: any
  */
 struct ITransaction
-    : public IClientBase
+    : public virtual IClientBase
 {
     virtual IClientPtr GetClient() const = 0;
     virtual NTransactionClient::ETransactionType GetType() const = 0;
@@ -50,6 +56,7 @@ struct ITransaction
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions()) = 0;
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions()) = 0;
     virtual void Detach() = 0;
+    virtual TFuture<TTransactionFlushResult> Flush() = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(), Committed);
     DECLARE_INTERFACE_SIGNAL(void(), Aborted);

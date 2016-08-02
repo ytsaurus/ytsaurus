@@ -25,13 +25,14 @@ public:
         NHydra::TCompositeAutomatonPtr automaton,
         NRpc::TResponseKeeperPtr responseKeeper,
         ITransactionManagerPtr transactionManager,
-        NHiveClient::TCellDirectoryPtr cellDirectory,
         const TCellId& selfCellId,
         NTransactionClient::ITimestampProviderPtr timestampProvider);
 
     ~TTransactionSupervisor();
 
     std::vector<NRpc::IServicePtr> GetRpcServices();
+
+    void RegisterParticipantProvider(ITransactionParticipantProviderPtr provider);
 
     TFuture<void> CommitTransaction(
         const TTransactionId& transactionId,

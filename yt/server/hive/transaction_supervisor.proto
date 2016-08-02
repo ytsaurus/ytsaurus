@@ -4,32 +4,32 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqCoordinatorCommitSimpleTransaction
+message TReqCommitSimpleTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     optional NYT.NProto.TGuid mutation_id = 2;
     required uint64 commit_timestamp = 3;
 }
 
-message TReqCoordinatorCommitDistributedTransactionPhaseOne
+message TReqCommitDistributedTransactionPhaseOne
 {
     required NYT.NProto.TGuid transaction_id = 1;
     optional NYT.NProto.TGuid mutation_id = 2;
     repeated NYT.NProto.TGuid participant_cell_ids = 3;
 }
 
-message TReqCoordinatorCommitDistributedTransactionPhaseTwo
+message TReqCommitDistributedTransactionPhaseTwo
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required uint64 commit_timestamp = 2;
 }
 
-message TReqCoordinatorFinishDistributedTransaction
+message TReqFinishDistributedTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
 }
 
-message TReqCoordinatorAbortTransaction
+message TReqAbortTransaction
 {
     optional NYT.NProto.TGuid mutation_id = 1;
     required NYT.NProto.TGuid transaction_id = 2;

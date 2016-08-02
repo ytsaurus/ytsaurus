@@ -10,11 +10,11 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
+#include <yt/ytlib/hive/public.h>
+
 #include <yt/core/actions/callback.h>
 
 #include <yt/core/rpc/public.h>
-
-#include <yt/ytlib/object_client/public.h>
 
 namespace NYT {
 namespace NApi {
@@ -31,6 +31,11 @@ struct TClientOptions
     { }
 
     Stroka User;
+};
+
+struct TTransactionParticipantOptions
+{
+    TDuration RpcTimeout = TDuration::Seconds(5);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,6 +59,9 @@ struct IConnection
 
     virtual IAdminPtr CreateAdmin(const TAdminOptions& options = TAdminOptions()) = 0;
     virtual IClientPtr CreateClient(const TClientOptions& options = TClientOptions()) = 0;
+    virtual NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
+        const NHiveClient::TCellId& cellId,
+        const TTransactionParticipantOptions& options = TTransactionParticipantOptions()) = 0;
 
     virtual void ClearMetadataCaches() = 0;
 };
