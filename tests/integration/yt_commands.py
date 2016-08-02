@@ -253,13 +253,15 @@ def select_rows(query, **kwargs):
     kwargs["verbose_logging"] = True
     return execute_command_with_output_format("select_rows", kwargs)
 
-def _prepare_rows_stream(data):
+def _prepare_rows_stream(data, is_raw=False):
     # remove surrounding [ ]
-    return StringIO(yson.dumps(data, boolean_as_string=False)[1:-1])
+    if not is_raw:
+        data = yson.dumps(data, boolean_as_string=False, yson_type="list_fragment")
+    return StringIO(data)
 
 def insert_rows(path, data, is_raw=False, **kwargs):
     kwargs["path"] = path
-    return execute_command("insert_rows", kwargs, input_stream=_prepare_rows_stream(data))
+    return execute_command("insert_rows", kwargs, input_stream=_prepare_rows_stream(data, is_raw))
 
 def delete_rows(path, data, **kwargs):
     kwargs["path"] = path
