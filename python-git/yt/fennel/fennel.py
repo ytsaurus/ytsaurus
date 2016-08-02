@@ -122,8 +122,7 @@ class EventLog(object):
                 self.log.error("Table index is less then 0: %d. Use archive table", begin)
                 archive_row_count = self.get_archive_row_count()
                 archive_begin = archive_row_count + begin
-                result.extend(misc.read_table(
-                    self.yt,
+                result.extend(self.yt.read_table(
                     table.TablePath(
                         self._archive_table_name,
                         start_index=archive_begin,
@@ -133,8 +132,7 @@ class EventLog(object):
                 self._table_name,
                 begin,
                 count)
-            result.extend(misc.read_table(
-                self.yt,
+            result.extend(self.yt.read_table(
                 table.TablePath(
                     self._table_name,
                     start_index=begin,
@@ -335,7 +333,7 @@ class LogBroker(object):
 
         self._last_chunk_ts = self._get_timestamp_for(data)
 
-        serialized_data = misc.serialize_chunk(self._chunk_id, seqno, 0, data)
+        serialized_data = misc.serialize_chunk(self._chunk_id, seqno, data)
         self._chunk_id += 1
         if len(serialized_data) > self.MAX_CHUNK_SIZE:
             self.log.debug("Unable to save chunk %d with seqno %d. Its size equals to %d > %d",

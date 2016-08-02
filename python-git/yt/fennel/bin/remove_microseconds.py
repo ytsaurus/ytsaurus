@@ -19,7 +19,7 @@ class FilterAndRemoveMicroseconds(object):
         moscow_dt = dt + datetime.timedelta(hours=3)
         if moscow_dt.date() == self._date:
             if self._remove_microseconds:
-                iso, microseconds = fennel.normalize_timestamp(timestamp)
+                iso, microseconds = fennel._normalize_timestamp(timestamp)
                 item["timestamp"] = fennel.revert_timestamp(iso, 0)
             yield item
 
