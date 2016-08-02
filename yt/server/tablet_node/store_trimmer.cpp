@@ -61,7 +61,7 @@ private:
             return;
         }
 
-        if (tablet->IsSorted()) {
+        if (tablet->IsPhysicallySorted()) {
             return;
         }
 

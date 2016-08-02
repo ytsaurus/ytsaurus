@@ -5,6 +5,12 @@ namespace NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const Stroka TReplicationLogTable::ChangeTypeColumnName("change_type");
+const Stroka TReplicationLogTable::KeyColumnNamePrefix("key:");
+const Stroka TReplicationLogTable::ValueColumnNamePrefix("value:");
+
+////////////////////////////////////////////////////////////////////////////////
+
 const TTabletCellId NullTabletCellId;
 const TTabletId NullTabletId;
 const TStoreId NullStoreId;

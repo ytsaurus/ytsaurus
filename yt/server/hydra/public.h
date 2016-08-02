@@ -55,6 +55,15 @@ DECLARE_REFCOUNTED_CLASS(TDistributedHydraManagerConfig)
 //! A special value representing an invalid snapshot (or changelog) id.
 const int InvalidSegmentId = -1;
 
+template <class TValue>
+struct TDefaultEntityMapTraits;
+
+template <
+    class TValue,
+    class TTraits = TDefaultEntityMapTraits<TValue>
+>
+class TEntityMap;
+
 #define DECLARE_ENTITY_TYPE(entityType, keyType, hashType) \
     class entityType; \
     \

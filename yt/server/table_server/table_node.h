@@ -64,6 +64,10 @@ public:
 
     bool IsDynamic() const;
     bool IsEmpty() const;
+    bool IsUniqueKeys() const;
+    bool IsReplicated() const;
+    bool IsPhysicallySorted() const;
+
     NTabletClient::ETabletState GetTabletState() const;
 };
 

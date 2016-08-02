@@ -4,6 +4,8 @@
 
 #include <yt/server/hydra/public.h>
 
+#include <yt/server/tablet_server/public.h>
+
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/election/public.h>
@@ -74,6 +76,9 @@ using NTableClient::TTableSchema;
 using NTableClient::TColumnSchema;
 using NTableClient::TChunkReaderPerformanceCounters;
 
+using NTabletServer::TTableReplicaId;
+using NTabletServer::ETableReplicaState;
+
 using NHiveServer::ETransactionState;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,6 +113,7 @@ DEFINE_ENUM(ETabletState,
     ((FreezeFirst)              (6))
     ((FreezeLast)              (10))
 );
+
 
 DEFINE_ENUM(EStoreType,
     (SortedDynamic)

@@ -127,11 +127,15 @@ public:
 
         REGISTER(TWriteTableCommand,           "write_table",             Tabular,    Null,       true,  true );
         REGISTER(TReadTableCommand,            "read_table",              Null,       Tabular,    false, true );
+
         REGISTER(TInsertRowsCommand,           "insert_rows",             Tabular,    Null,       true,  true );
         REGISTER(TDeleteRowsCommand,           "delete_rows",             Tabular,    Null,       true,  true);
         REGISTER(TTrimRowsCommand,             "trim_rows",               Null,       Null,       true,  true);
         REGISTER(TSelectRowsCommand,           "select_rows",             Null,       Tabular,    false, true );
         REGISTER(TLookupRowsCommand,           "lookup_rows",             Tabular,    Tabular,    false, true );
+
+        REGISTER(TEnableTableReplicaCommand,   "enable_table_replica",    Null,       Null,       true,  false);
+        REGISTER(TDisableTableReplicaCommand,  "disable_table_replica",   Null,       Null,       true,  false);
 
         REGISTER(TMountTableCommand,           "mount_table",             Null,       Null,       true,  false);
         REGISTER(TUnmountTableCommand,         "unmount_table",           Null,       Null,       true,  false);

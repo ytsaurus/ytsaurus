@@ -169,7 +169,7 @@ private:
         data->ChunkMeta = TCachedVersionedChunkMeta::Create(
             chunkId,
             chunkMeta,
-            tabletSnapshot->TableSchema);
+            tabletSnapshot->PhysicalSchema);
 
         if (tabletSnapshot->HashTableSize > 0) {
             data->LookupHashTable = CreateChunkLookupHashTable(

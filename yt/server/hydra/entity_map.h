@@ -124,10 +124,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <
-    class TValue,
-    class TTraits = TDefaultEntityMapTraits<TValue>
->
+template <class TValue, class TTraits>
 class TEntityMap
     : public TReadOnlyEntityMap<TValue>
 {

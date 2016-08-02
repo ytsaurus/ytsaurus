@@ -1,6 +1,8 @@
 #include "replicated_table_node.h"
 #include "table_node_type_handler_detail.h"
 
+#include <yt/server/tablet_server/table_replica.h>
+
 namespace NYT {
 namespace NTableServer {
 
@@ -24,6 +26,7 @@ void TReplicatedTableNode::Save(TSaveContext& context) const
     TTableNode::Save(context);
 
     using NYT::Save;
+    Save(context, Replicas_);
 }
 
 void TReplicatedTableNode::Load(TLoadContext& context)
@@ -31,13 +34,7 @@ void TReplicatedTableNode::Load(TLoadContext& context)
     TTableNode::Load(context);
 
     using NYT::Load;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-INodeTypeHandlerPtr CreateReplicatedTableTypeHandler(TBootstrap* bootstrap)
-{
-    return New<TReplicatedTableNodeTypeHandler>(bootstrap);
+    Load(context, Replicas_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

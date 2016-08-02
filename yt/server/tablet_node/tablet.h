@@ -52,12 +52,8 @@ struct TTabletSnapshot
     TTabletWriterOptionsPtr WriterOptions;
     TOwningKey PivotKey;
     TOwningKey NextPivotKey;
-    //! This is just a copy of the table's schema.
-    //! Can be both sorted and not sorted (ordered).
     NTableClient::TTableSchema TableSchema;
-    //! This schema is always sorted.
-    //! For sorted tablets, this is same as #TableSchema.
-    //! For ordered tablets, this is the extended ordered schema.
+    NTableClient::TTableSchema PhysicalSchema;
     NTableClient::TTableSchema QuerySchema;
     NTransactionClient::EAtomicity Atomicity;
     int HashTableSize = 0;
@@ -138,6 +134,23 @@ struct ITabletContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTableReplica
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(TTableReplicaId, Id);
+    DEFINE_BYVAL_RW_PROPERTY(Stroka, ClusterName);
+    DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, ReplicaPath);
+
+public:
+    TTableReplica();
+    explicit TTableReplica(const TTableReplicaId& id);
+
+    void Save(TSaveContext& context) const;
+    void Load(TLoadContext& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTablet
     : public TObjectBase
     , public TRefTracked<TTablet>
@@ -146,7 +159,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(i64, MountRevision);
     DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
 
-    DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, Schema);
+    DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, TableSchema);
+    DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, PhysicalSchema);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<int>, ColumnIndexToLockIndex);
     DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, LockIndexToName);
@@ -170,6 +184,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(IDynamicStorePtr, ActiveStore);
 
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, LastCommitTimestamp);
+
+    using TReplicaMap = yhash_map<TTableReplicaId, TTableReplica>;
+    DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
 public:
     TTablet(
@@ -225,11 +242,10 @@ public:
     TCallback<void(TSaveContext&)> AsyncSave();
     void AsyncLoad(TLoadContext& context);
 
-    bool IsSorted() const;
-    bool IsOrdered() const;
+    bool IsPhysicallySorted() const;
+    bool IsPhysicallyOrdered() const;
+    bool IsReplicated() const;
 
-    int GetSchemaColumnCount() const;
-    int GetKeyColumnCount() const;
     int GetColumnLockCount() const;
 
     // Only applicable to ordered tablets.

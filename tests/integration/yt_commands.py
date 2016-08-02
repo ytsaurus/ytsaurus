@@ -722,6 +722,18 @@ def remove_tablet_cell(id):
     remove("//sys/tablet_cells/" + id)
     gc_collect()
 
+def create_table_replica(table_path, cluster_name, replica_path, **kwargs):
+    kwargs["type"] = "table_replica"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["table_path"] = table_path
+    kwargs["attributes"]["cluster_name"] = cluster_name
+    kwargs["attributes"]["replica_path"] = replica_path
+    return yson.loads(execute_command("create", kwargs))
+
+def remove_table_replica(replica_id):
+    remove("#{0}".format(replica_id))
+
 def create_rack(name, **kwargs):
     kwargs["type"] = "rack"
     if "attributes" not in kwargs:

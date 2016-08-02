@@ -19,7 +19,7 @@ NCypressServer::ICypressNodeProxyPtr CreateReplicatedTableNodeProxy(
     NCellMaster::TBootstrap* bootstrap,
     NObjectServer::TObjectTypeMetadata* metadata,
     NTransactionServer::TTransaction* transaction,
-    TTableNode* trunkNode);
+    TReplicatedTableNode* trunkNode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -220,10 +220,10 @@ void TOrderedDynamicStore::PrepareRow(TTransaction* /*transaction*/, TOrderedDyn
 
 void TOrderedDynamicStore::CommitRow(TTransaction* transaction, TOrderedDynamicRow row)
 {
-    DoCommitRow(row);
     if (TimestampColumnId_) {
         row[*TimestampColumnId_] = MakeUnversionedUint64Value(transaction->GetCommitTimestamp(), *TimestampColumnId_);
     }
+    DoCommitRow(row);
     Unlock();
 }
 

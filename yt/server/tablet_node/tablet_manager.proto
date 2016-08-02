@@ -21,6 +21,13 @@ message TRemoveStoreDescriptor
     required NYT.NProto.TGuid store_id = 1;
 }
 
+message TTableReplicaDescriptor
+{
+    required NYT.NProto.TGuid replica_id = 1;
+    required string cluster_name = 2;
+    required string replica_path = 3;
+}
+
 message TReqMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
@@ -35,6 +42,7 @@ message TReqMountTablet
     required int64 mount_revision = 11;
     required int64 trimmed_row_count = 12;
     required bool freeze = 13;
+    repeated TTableReplicaDescriptor replicas = 14;
 }
 
 message TReqUnmountTablet
@@ -134,6 +142,18 @@ message TReqUpdatePartitionSampleKeys
     // COMPAT(babenko)
     repeated bytes legacy_sample_keys = 3;
     optional bytes sample_keys = 6; // wire-format encoded
+}
+
+message TReqAddTableReplica
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required TTableReplicaDescriptor replica = 2;
+}
+
+message TReqRemoveTableReplica
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid replica_id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

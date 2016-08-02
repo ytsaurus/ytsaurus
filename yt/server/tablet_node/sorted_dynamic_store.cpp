@@ -251,7 +251,7 @@ protected:
         // Prepare values.
         VersionedValues_.clear();
 
-        const auto& schemaColumns = TabletSnapshot_->TableSchema.Columns();
+        const auto& schemaColumns = TabletSnapshot_->PhysicalSchema.Columns();
 
         auto fillValue = [&] (int index) {
             // NB: Inserting a new item into value list and adding a new write revision cannot
@@ -738,7 +738,7 @@ TSortedDynamicStore::TSortedDynamicStore(
         LookupHashTable_ = std::make_unique<TLookupHashTable>(
             Tablet_->GetHashTableSize(),
             RowKeyComparer_,
-            Tablet_->GetKeyColumnCount());
+            Tablet_->PhysicalSchema().GetKeyColumnCount());
     }
 
     LOG_DEBUG("Sorted dynamic store created (LookupHashTable: %v)",

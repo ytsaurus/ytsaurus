@@ -1,6 +1,7 @@
 #include "table_node_proxy_detail.h"
 #include "private.h"
 #include "table_node.h"
+#include "replicated_table_node.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 
@@ -11,7 +12,10 @@
 
 #include <yt/server/tablet_server/tablet.h>
 #include <yt/server/tablet_server/tablet_cell.h>
+#include <yt/server/tablet_server/table_replica.h>
 #include <yt/server/tablet_server/tablet_manager.h>
+
+#include <yt/server/object_server/object_manager.h>
 
 #include <yt/ytlib/chunk_client/read_limit.h>
 
@@ -28,6 +32,9 @@
 
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/tree_builder.h>
+#include <yt/core/ytree/fluent.h>
+
+#include <yt/core/yson/async_consumer.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -238,6 +245,10 @@ void TTableNodeProxy::AlterTable(
     const TNullable<bool>& newDynamic)
 {
     auto* table = LockThisImpl();
+
+    if (table->IsReplicated()) {
+        THROW_ERROR_EXCEPTION("Cannot alter a replicated table");
+    }
 
     if (newDynamic) {
         ValidateNoTransaction();
@@ -612,7 +623,7 @@ TReplicatedTableNodeProxy::TReplicatedTableNodeProxy(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
     TTransaction* transaction,
-    TTableNode* trunkNode)
+    TReplicatedTableNode* trunkNode)
     : TTableNodeProxy(
         bootstrap,
         metadata,
@@ -623,10 +634,31 @@ TReplicatedTableNodeProxy::TReplicatedTableNodeProxy(
 void TReplicatedTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
     TTableNodeProxy::ListSystemAttributes(descriptors);
+
+    descriptors->push_back("replicas");
 }
 
 bool TReplicatedTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
+    const auto* table = GetThisImpl<TReplicatedTableNode>();
+
+    if (key == "replicas") {
+        auto objectManager = Bootstrap_->GetObjectManager();
+        BuildYsonFluently(consumer)
+            .DoMapFor(table->Replicas(), [&] (TFluentMap fluent, TTableReplica* replica) {
+                auto replicaProxy = objectManager->GetProxy(replica);
+                fluent
+                    .Item(ToString(replica->GetId()))
+                    .BeginMap()
+                        .Do(BIND([&] (IYsonConsumer* consumer) {
+                            TAsyncYsonConsumerAdapter asyncConsumer(consumer);
+                            replicaProxy->WriteAttributes(&asyncConsumer, Null, false);
+                        }))
+                    .EndMap();
+            });
+        return true;
+    }
+
     return TTableNodeProxy::GetBuiltinAttribute(key, consumer);
 }
 

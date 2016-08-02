@@ -49,6 +49,20 @@ static const int MaxPeerCount = 10;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TReplicationLogTable
+{
+    static const Stroka ChangeTypeColumnName;
+    static const Stroka KeyColumnNamePrefix;
+    static const Stroka ValueColumnNamePrefix;
+};
+
+DEFINE_ENUM(EReplicationLogChangeType,
+    ((Write) (0))
+    ((Delete)(1))
+);
+
+///////////////////////////////////////////////////////////////////////////////
+
 //! Signatures enable checking tablet transaction integrity.
 /*!
  *  When a transaction is created, its signature is #InitialTransactionSignature.
@@ -74,6 +88,8 @@ extern const TPartitionId NullPartitionId;
 
 using TTabletCellBundleId = NObjectClient::TObjectId;
 extern const TTabletCellBundleId NullTabletCellBundleId;
+
+using TTableReplicaId = NObjectClient::TObjectId;
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -3,11 +3,13 @@
 #include "config.h"
 #include "cypress_integration.h"
 #include "tablet.h"
+#include "tablet_type_handler.h"
 #include "tablet_cell.h"
-#include "tablet_cell_proxy.h"
+#include "tablet_cell_type_handler.h"
 #include "tablet_cell_bundle.h"
-#include "tablet_cell_bundle_proxy.h"
-#include "tablet_proxy.h"
+#include "tablet_cell_bundle_type_handler.h"
+#include "table_replica.h"
+#include "table_replica_type_handler.h"
 #include "tablet_tracker.h"
 
 #include <yt/server/cell_master/config.h>
@@ -27,13 +29,13 @@
 #include <yt/server/node_tracker_server/node_tracker.h>
 
 #include <yt/server/object_server/object_manager.h>
-#include <yt/server/object_server/type_handler_detail.h>
 
 #include <yt/server/security_server/security_manager.h>
 #include <yt/server/security_server/group.h>
 #include <yt/server/security_server/subject.h>
 
 #include <yt/server/table_server/table_node.h>
+#include <yt/server/table_server/replicated_table_node.h>
 
 #include <yt/server/tablet_node/config.h>
 #include <yt/server/tablet_node/tablet_manager.pb.h>
@@ -106,135 +108,6 @@ static const auto CleanupPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletManager::TTabletCellBundleTypeHandler
-    : public TObjectTypeHandlerWithMapBase<TTabletCellBundle>
-{
-public:
-    explicit TTabletCellBundleTypeHandler(TImpl* owner);
-
-    virtual EObjectType GetType() const override
-    {
-        return EObjectType::TabletCellBundle;
-    }
-
-    virtual ETypeFlags GetFlags() const override
-    {
-        return
-            ETypeFlags::ReplicateCreate |
-            ETypeFlags::ReplicateDestroy |
-            ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable;
-    }
-
-    virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
-        IAttributeDictionary* attributes) override;
-
-private:
-    TImpl* const Owner_;
-
-    virtual TCellTagList DoGetReplicationCellTags(const TTabletCellBundle* /*cellBundle*/) override
-    {
-        return AllSecondaryCellTags();
-    }
-
-    virtual Stroka DoGetName(const TTabletCellBundle* cellBundle) override
-    {
-        return Format("tablet cell bundle %Qv", cellBundle->GetName());
-    }
-
-    virtual TAccessControlDescriptor* DoFindAcd(TTabletCellBundle* cellBundle) override
-    {
-        return &cellBundle->Acd();
-    }
-
-    virtual IObjectProxyPtr DoGetProxy(TTabletCellBundle* cellBundle, TTransaction* /*transaction*/) override
-    {
-        return CreateTabletCellBundleProxy(Bootstrap_, &Metadata_, cellBundle);
-    }
-
-    virtual void DoDestroyObject(TTabletCellBundle* cellBundle) override;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTabletManager::TTabletCellTypeHandler
-    : public TObjectTypeHandlerWithMapBase<TTabletCell>
-{
-public:
-    explicit TTabletCellTypeHandler(TImpl* owner);
-
-    virtual ETypeFlags GetFlags() const override
-    {
-        return
-            ETypeFlags::ReplicateCreate |
-            ETypeFlags::ReplicateDestroy |
-            ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable;
-    }
-
-    virtual EObjectType GetType() const override
-    {
-        return EObjectType::TabletCell;
-    }
-
-    virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
-        IAttributeDictionary* attributes) override;
-
-private:
-    TImpl* const Owner_;
-
-    virtual TCellTagList DoGetReplicationCellTags(const TTabletCell* /*cell*/) override
-    {
-        return AllSecondaryCellTags();
-    }
-
-    virtual Stroka DoGetName(const TTabletCell* cell) override
-    {
-        return Format("tablet cell %v", cell->GetId());
-    }
-
-    virtual IObjectProxyPtr DoGetProxy(TTabletCell* cell, TTransaction* /*transaction*/) override
-    {
-        return CreateTabletCellProxy(Bootstrap_, &Metadata_, cell);
-    }
-
-    virtual void DoZombifyObject(TTabletCell* cell) override;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTabletManager::TTabletTypeHandler
-    : public TObjectTypeHandlerWithMapBase<TTablet>
-{
-public:
-    explicit TTabletTypeHandler(TImpl* owner);
-
-    virtual EObjectType GetType() const override
-    {
-        return EObjectType::Tablet;
-    }
-
-private:
-    TImpl* const Owner_;
-
-    virtual Stroka DoGetName(const TTablet* object) override
-    {
-        return Format("tablet %v", object->GetId());
-    }
-
-    virtual IObjectProxyPtr DoGetProxy(TTablet* tablet, TTransaction* /*transaction*/) override
-    {
-        return CreateTabletProxy(Bootstrap_, &Metadata_, tablet);
-    }
-
-    virtual void DoDestroyObject(TTablet* tablet) override;
-
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletManager::TImpl
@@ -290,9 +163,10 @@ public:
     void Initialize()
     {
         auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RegisterHandler(New<TTabletCellBundleTypeHandler>(this));
-        objectManager->RegisterHandler(New<TTabletCellTypeHandler>(this));
-        objectManager->RegisterHandler(New<TTabletTypeHandler>(this));
+        objectManager->RegisterHandler(CreateTabletCellBundleTypeHandler(Bootstrap_, &TabletCellBundleMap_));
+        objectManager->RegisterHandler(CreateTabletCellTypeHandler(Bootstrap_, &TabletCellMap_));
+        objectManager->RegisterHandler(CreateTabletTypeHandler(Bootstrap_, &TabletMap_));
+        objectManager->RegisterHandler(CreateTableReplicaTypeHandler(Bootstrap_, &TableReplicaMap_));
 
         auto transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
@@ -477,6 +351,109 @@ public:
     }
 
 
+    TTableReplica* CreateTableReplica(
+        TReplicatedTableNode* table,
+        const Stroka& clusterName,
+        const TYPath& replicaPath)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::TableReplica, NullObjectId);
+        auto replicaHolder = std::make_unique<TTableReplica>(id);
+        replicaHolder->SetTable(table);
+        replicaHolder->SetClusterName(clusterName);
+        replicaHolder->SetReplicaPath(replicaPath);
+        replicaHolder->SetState(ETableReplicaState::Disabled);
+
+        auto* replica = TableReplicaMap_.Insert(id, std::move(replicaHolder));
+        objectManager->RefObject(replica);
+
+        YCHECK(table->Replicas().insert(replica).second);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v)",
+            table->GetId(),
+            replica->GetId());
+
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        for (auto* tablet : table->Tablets()) {
+            auto state = tablet->GetState();
+            if (state == ETabletState::Mounting ||
+                state == ETabletState::Mounted ||
+                state == ETabletState::Freezing ||
+                state == ETabletState::Frozen ||
+                state == ETabletState::Unfreezing)
+            {
+                auto* cell = tablet->GetCell();
+                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                TReqAddTableReplica req;
+                ToProto(req.mutable_tablet_id(), tablet->GetId());
+                PopulateTableReplicaDescriptor(req.mutable_replica(), replica);
+                hiveManager->PostMessage(mailbox, req);
+            }
+        }
+
+        return replica;
+
+    }
+
+    void DestroyTableReplica(TTableReplica* replica)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto* table = replica->GetTable();
+        if (table) {
+            YCHECK(table->Replicas().erase(replica) == 1);
+
+            auto hiveManager = Bootstrap_->GetHiveManager();
+            for (auto* tablet : table->Tablets()) {
+                auto state = tablet->GetState();
+                if (state == ETabletState::Mounting ||
+                    state == ETabletState::Mounted ||
+                    state == ETabletState::Freezing ||
+                    state == ETabletState::Frozen ||
+                    state == ETabletState::Unfreezing)
+                {
+                    auto* cell = tablet->GetCell();
+                    auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                    TReqRemoveTableReplica req;
+                    ToProto(req.mutable_tablet_id(), tablet->GetId());
+                    ToProto(req.mutable_replica_id(), replica->GetId());
+                    hiveManager->PostMessage(mailbox, req);
+                }
+            }
+        }
+    }
+
+    void EnableTableReplica(TTableReplica* replica)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto state = replica->GetState();
+        if (state != ETableReplicaState::Disabled) {
+            replica->ThrowInvalidState();
+        }
+
+        // XXX(babenko)
+    }
+
+    void DisableTableReplica(TTableReplica* replica)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto state = replica->GetState();
+        if (state == ETableReplicaState::Disabled || state == ETableReplicaState::Disabling) {
+            return;
+        }
+
+        if (state != ETableReplicaState::Enabled) {
+            replica->ThrowInvalidState();
+        }
+
+        // XXX(babenko)
+    }
+
+
     int GetAssignedTabletCellCount(const Stroka& address) const
     {
         auto range = AddressToCell_.equal_range(address);
@@ -622,6 +599,12 @@ public:
             req.set_writer_options(serializedWriterOptions.Data());
             req.set_atomicity(static_cast<int>(table->GetAtomicity()));
             req.set_freeze(freeze);
+            if (table->IsReplicated()) {
+                auto* replicatedTable = static_cast<TReplicatedTableNode*>(table);
+                for (auto* replica : replicatedTable->Replicas()) {
+                    PopulateTableReplicaDescriptor(req.add_replicas(), replica);
+                }
+            }
 
             auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
             auto chunks = EnumerateChunksInChunkTree(chunkList);
@@ -863,6 +846,16 @@ public:
 
             table->Tablets().clear();
         }
+
+        if (table->GetType() == EObjectType::ReplicatedTable) {
+            auto* replicatedTable = static_cast<TReplicatedTableNode*>(table);
+            auto objectManager = Bootstrap_->GetObjectManager();
+            for (auto* replica : replicatedTable->Replicas()) {
+                replica->SetTable(nullptr);
+                objectManager->UnrefObject(replica);
+            }
+            replicatedTable->Replicas().clear();
+        }
     }
 
     void ReshardTable(
@@ -879,6 +872,10 @@ public:
             THROW_ERROR_EXCEPTION("Cannot reshard a static table");
         }
 
+        if (table->IsReplicated()) {
+            THROW_ERROR_EXCEPTION("Cannot reshard a replicated table");
+        }
+
         auto objectManager = Bootstrap_->GetObjectManager();
         auto chunkManager = Bootstrap_->GetChunkManager();
 
@@ -893,7 +890,7 @@ public:
                 MaxTabletCount);
         }
 
-        if (table->IsSorted()) {
+        if (table->IsPhysicallySorted()) {
             if (pivotKeys.empty()) {
                 THROW_ERROR_EXCEPTION("Table is sorted; must provide pivot keys");
             }
@@ -952,7 +949,7 @@ public:
         for (int index = 0; index < newTabletCount; ++index) {
             auto* newTablet = CreateTablet(table);
             auto* oldTablet = index < oldTabletCount ? tablets[index + firstTabletIndex] : nullptr;
-            if (table->IsSorted()) {
+            if (table->IsPhysicallySorted()) {
                 newTablet->SetPivotKey(pivotKeys[index]);
             } else if (oldTablet) {
                 newTablet->SetTrimmedRowCount(oldTablet->GetTrimmedRowCount());
@@ -993,7 +990,7 @@ public:
             oldTabletChunkTrees.data(),
             oldTabletChunkTrees.data() + firstTabletIndex);
         for (int index = 0; index < newTabletCount; ++index) {
-            auto* tabletChunkList = chunkManager->CreateChunkList(!table->IsSorted());
+            auto* tabletChunkList = chunkManager->CreateChunkList(!table->IsPhysicallySorted());
             chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
         }
         chunkManager->AttachToChunkList(
@@ -1009,7 +1006,7 @@ public:
             return chunks;
         };
 
-        if (table->IsSorted()) {
+        if (table->IsPhysicallySorted()) {
             // Move chunks from the resharded tablets to appropriate chunk lists.
             auto chunks = enumerateChunks(firstTabletIndex, lastTabletIndex);
             std::sort(chunks.begin(), chunks.end(), TObjectRefComparer::Compare);
@@ -1064,6 +1061,10 @@ public:
         YCHECK(clonedTable->Tablets().empty());
 
         try {
+            if (sourceTable->IsReplicated()) {
+                THROW_ERROR_EXCEPTION("Cannot clone a replicated table");
+            }
+
             auto tabletState = sourceTable->GetTabletState();
             switch (mode) {
                 case ENodeCloneMode::Copy:
@@ -1239,7 +1240,7 @@ public:
         }
         table->Tablets().push_back(tablet);
 
-        auto* tabletChunkList = chunkManager->CreateChunkList(!table->IsSorted());
+        auto* tabletChunkList = chunkManager->CreateChunkList(!table->IsPhysicallySorted());
         chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
 
         std::vector<TChunkTree*> chunkTrees(chunks.begin(), chunks.end());
@@ -1261,8 +1262,12 @@ public:
             return;
         }
 
+        if (table->IsReplicated()) {
+            THROW_ERROR_EXCEPTION("Cannot switch replicated table to static mode");
+        }
+
         if (table->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Cannot switch sorted static table to dynamic mode");
+            THROW_ERROR_EXCEPTION("Cannot switch sorted dynamic table to static mode");
         }
 
         if (table->GetTabletState() != ETabletState::Unmounted) {
@@ -1377,12 +1382,6 @@ public:
         table->SetTabletCellBundle(cellBundle);
     }
 
-    void ResetTabletCellBundle(TTableNode* table)
-    {
-        YCHECK(table->IsTrunk());
-
-    }
-
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell);
@@ -1390,8 +1389,6 @@ public:
 
 private:
     friend class TTabletCellBundleTypeHandler;
-    friend class TTabletCellTypeHandler;
-    friend class TTabletTypeHandler;
 
     const TTabletManagerConfigPtr Config_;
 
@@ -1400,6 +1397,7 @@ private:
     TEntityMap<TTabletCellBundle> TabletCellBundleMap_;
     TEntityMap<TTabletCell> TabletCellMap_;
     TEntityMap<TTablet> TabletMap_;
+    TEntityMap<TTableReplica> TableReplicaMap_;
 
     yhash_map<Stroka, TTabletCellBundle*> NameToTabletCellBundleMap_;
 
@@ -1422,6 +1420,7 @@ private:
         TabletCellBundleMap_.SaveKeys(context);
         TabletCellMap_.SaveKeys(context);
         TabletMap_.SaveKeys(context);
+        TableReplicaMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
@@ -1429,6 +1428,7 @@ private:
         TabletCellBundleMap_.SaveValues(context);
         TabletCellMap_.SaveValues(context);
         TabletMap_.SaveValues(context);
+        TableReplicaMap_.SaveValues(context);
     }
 
 
@@ -1441,6 +1441,10 @@ private:
         }
         TabletCellMap_.LoadKeys(context);
         TabletMap_.LoadKeys(context);
+        // COMPAT(babenko)
+        if (context.GetVersion() >= 500) {
+            TableReplicaMap_.LoadKeys(context);
+        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1453,6 +1457,11 @@ private:
         }
         TabletCellMap_.LoadValues(context);
         TabletMap_.LoadValues(context);
+        // COMPAT(babenko)
+        if (context.GetVersion() >= 500) {
+            TableReplicaMap_.LoadValues(context);
+        }
+
         // COMPAT(babenko)
         InitializeCellBundles_ = (context.GetVersion() < 400);
         // COMPAT(babenko)
@@ -1539,6 +1548,7 @@ private:
         TabletCellBundleMap_.Clear();
         TabletCellMap_.Clear();
         TabletMap_.Clear();
+        TableReplicaMap_.Clear();
         NameToTabletCellBundleMap_.clear();
         AddressToCell_.clear();
         TransactionToCellMap_.clear();
@@ -2048,7 +2058,7 @@ private:
 
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* tabletChunkList = chunkLists[index]->AsChunkList();
-                auto* newTabletChunkList = chunkManager->CreateChunkList(!table->IsSorted());
+                auto* newTabletChunkList = chunkManager->CreateChunkList(!table->IsPhysicallySorted());
                 chunkManager->AttachToChunkList(newTabletChunkList, tabletChunkList->Children());
                 chunkManager->AttachToChunkList(newRootChunkList, newTabletChunkList);
             }
@@ -2071,7 +2081,7 @@ private:
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* tabletChunkList = chunkLists[index]->AsChunkList();
                 if (tabletChunkList->GetObjectRefCounter() > 1) {
-                    auto* newTabletChunkList = chunkManager->CreateChunkList(!table->IsSorted());
+                    auto* newTabletChunkList = chunkManager->CreateChunkList(!table->IsPhysicallySorted());
                     chunkManager->AttachToChunkList(newTabletChunkList, tabletChunkList->Children());
                     chunkLists[index] = newTabletChunkList;
 
@@ -2125,7 +2135,7 @@ private:
                     state);
             }
 
-            if (!table->IsSorted()) {
+            if (!table->IsPhysicallySorted()) {
                 auto* rootChunkList = table->GetChunkList();
                 auto* tabletChunkList = rootChunkList->Children()[tablet->GetIndex()]->AsChunkList();
 
@@ -2223,7 +2233,7 @@ private:
                 chunkManager->UnstageChunk(chunk->AsChunk());
             }
 
-            if (!table->IsSorted()) {
+            if (!table->IsPhysicallySorted()) {
                 tablet->SetFlushedRowCount(tablet->GetFlushedRowCount() + attachedRowCount);
                 tablet->SetTrimmedStoresRowCount(tablet->GetTrimmedStoresRowCount() + detachedRowCount);
             }
@@ -2816,71 +2826,19 @@ private:
             THROW_ERROR_EXCEPTION("Tablet cell bundle name cannot be empty");
         }
     }
+
+
+    void PopulateTableReplicaDescriptor(TTableReplicaDescriptor* descriptor, TTableReplica* replica)
+    {
+        ToProto(descriptor->mutable_replica_id(), replica->GetId());
+        descriptor->set_cluster_name(replica->GetClusterName());
+        descriptor->set_replica_path(replica->GetReplicaPath());
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCellBundle, TTabletCellBundle, TabletCellBundleMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCell, TTabletCell, TabletCellMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TabletMap_)
-
-///////////////////////////////////////////////////////////////////////////////
-
-TTabletManager::TTabletCellBundleTypeHandler::TTabletCellBundleTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->TabletCellBundleMap_)
-    , Owner_(owner)
-{ }
-
-TObjectBase* TTabletManager::TTabletCellBundleTypeHandler::CreateObject(
-    const TObjectId& hintId,
-    IAttributeDictionary* attributes)
-{
-    auto name = attributes->GetAndRemove<Stroka>("name");
-
-    return Owner_->CreateTabletCellBundle(name, hintId);
-}
-
-void TTabletManager::TTabletCellBundleTypeHandler::DoDestroyObject(TTabletCellBundle* cellBundle)
-{
-    TObjectTypeHandlerWithMapBase::DoDestroyObject(cellBundle);
-    Owner_->DestroyTabletCellBundle(cellBundle);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
-TTabletManager::TTabletCellTypeHandler::TTabletCellTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->TabletCellMap_)
-    , Owner_(owner)
-{ }
-
-TObjectBase* TTabletManager::TTabletCellTypeHandler::CreateObject(
-    const TObjectId& hintId,
-    IAttributeDictionary* attributes)
-{
-    auto cellBundleName = attributes->GetAndRemove("tablet_cell_bundle", DefaultTabletCellBundleName);
-    auto* cellBundle = Owner_->GetTabletCellBundleByNameOrThrow(cellBundleName);
-
-    return Owner_->CreateTabletCell(cellBundle, hintId);
-}
-
-void TTabletManager::TTabletCellTypeHandler::DoZombifyObject(TTabletCell* cell)
-{
-    TObjectTypeHandlerWithMapBase::DoZombifyObject(cell);
-    // NB: Destroy the cell right away and do not wait for GC to prevent
-    // dangling links from occurring in //sys/tablet_cells.
-    Owner_->DestroyTabletCell(cell);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
-TTabletManager::TTabletTypeHandler::TTabletTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->TabletMap_)
-    , Owner_(owner)
-{ }
-
-void TTabletManager::TTabletTypeHandler::DoDestroyObject(TTablet* tablet)
-{
-    TObjectTypeHandlerWithMapBase::DoDestroyObject(tablet);
-    Owner_->DestroyTablet(tablet);
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -3059,6 +3017,57 @@ TTabletCellBundle* TTabletManager::GetDefaultTabletCellBundle()
 void TTabletManager::SetTabletCellBundle(TTableNode* table, TTabletCellBundle* cellBundle)
 {
     Impl_->SetTabletCellBundle(table, cellBundle);
+}
+
+void TTabletManager::DestroyTablet(TTablet* tablet)
+{
+    Impl_->DestroyTablet(tablet);
+}
+
+TTabletCell* TTabletManager::CreateTabletCell(TTabletCellBundle* cellBundle, const TObjectId& hintId)
+{
+    return Impl_->CreateTabletCell(cellBundle, hintId);
+}
+
+void TTabletManager::DestroyTabletCell(TTabletCell* cell)
+{
+    Impl_->DestroyTabletCell(cell);
+}
+
+TTabletCellBundle* TTabletManager::CreateTabletCellBundle(const Stroka& name, const TObjectId& hintId)
+{
+    return Impl_->CreateTabletCellBundle(name, hintId);
+}
+
+void TTabletManager::DestroyTabletCellBundle(TTabletCellBundle* cellBundle)
+{
+    Impl_->DestroyTabletCellBundle(cellBundle);
+}
+
+TTableReplica* TTabletManager::CreateTableReplica(
+    TReplicatedTableNode* table,
+    const Stroka& clusterName,
+    const TYPath& replicaPath)
+{
+    return Impl_->CreateTableReplica(
+        table,
+        clusterName,
+        replicaPath);
+}
+
+void TTabletManager::DestroyTableReplica(TTableReplica* replica)
+{
+    Impl_->DestroyTableReplica(replica);
+}
+
+void TTabletManager::EnableTableReplica(TTableReplica* replica)
+{
+    Impl_->EnableTableReplica(replica);
+}
+
+void TTabletManager::DisableTableReplica(TTableReplica* replica)
+{
+    Impl_->DisableTableReplica(replica);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCellBundle, TTabletCellBundle, *Impl_)

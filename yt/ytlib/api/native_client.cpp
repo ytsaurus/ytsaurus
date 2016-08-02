@@ -56,6 +56,7 @@
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 #include <yt/ytlib/tablet_client/wire_protocol.pb.h>
+#include <yt/ytlib/tablet_client/table_replica_ypath.h>
 
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/transaction_manager.h>
@@ -115,7 +116,7 @@ using NNodeTrackerClient::CreateNodeChannelFactory;
 
 DECLARE_REFCOUNTED_CLASS(TQueryHelper)
 DECLARE_REFCOUNTED_CLASS(TNativeClient)
-DECLARE_REFCOUNTED_CLASS(TTransaction)
+DECLARE_REFCOUNTED_CLASS(TNativeTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -545,6 +546,8 @@ private:
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path.GetPath()))
             .ValueOrThrow();
 
+        tableInfo->ValidateNotReplicated();
+
         TDataSplit result;
         SetObjectId(&result, tableInfo->TableId);
         SetTableSchema(&result, GetTableSchema(path, tableInfo));
@@ -573,8 +576,6 @@ private:
         const TQueryOptions& options,
         const NLogging::TLogger& Logger)
     {
-        YCHECK(TypeFromId(tableId) == EObjectType::Table);
-
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
@@ -1298,6 +1299,14 @@ public:
         i64 trimmedRowCount,
         const TTrimTableOptions& options),
         (path, tabletIndex, trimmedRowCount, options))
+    IMPLEMENT_METHOD(void, EnableTableReplica, (
+        const TTableReplicaId& replicaId,
+        const TEnableTableReplicaOptions& options),
+        (replicaId, options))
+    IMPLEMENT_METHOD(void, DisableTableReplica, (
+        const TTableReplicaId& replicaId,
+        const TDisableTableReplicaOptions& options),
+        (replicaId, options))
 
 
     IMPLEMENT_METHOD(TYsonString, GetNode, (
@@ -1847,10 +1856,9 @@ private:
         TLookupRowsOptions options)
     {
         auto tableInfo = SyncGetTableInfo(path);
-        if (!tableInfo->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Cannot lookup rows in a non-sorted table %v",
-                path);
-        }
+        tableInfo->ValidateDynamic();
+        tableInfo->ValidateSorted();
+        tableInfo->ValidateNotReplicated();
 
         const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
         auto idMapping = BuildColumnIdMapping(schema, nameTable);
@@ -2206,6 +2214,9 @@ private:
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
             .ValueOrThrow();
 
+        tableInfo->ValidateDynamic();
+        tableInfo->ValidateOrdered();
+
         if (tabletIndex < 0 || tabletIndex >= tableInfo->Tablets.size()) {
             THROW_ERROR_EXCEPTION("Invalid tablet index: expected in range [0,%v], got %v",
                 tableInfo->Tablets.size(),
@@ -2226,6 +2237,26 @@ private:
 
         WaitFor(req->Invoke())
             .ValueOrThrow();
+    }
+
+    void DoEnableTableReplica(
+        const TTableReplicaId& replicaId,
+        const TEnableTableReplicaOptions& options)
+    {
+        auto req = TTableReplicaYPathProxy::Enable(FromObjectId(replicaId));
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+        WaitFor(proxy->Execute(req))
+            .ThrowOnError();
+    }
+
+    void DoDisableTableReplica(
+        const TTableReplicaId& replicaId,
+        const TDisableTableReplicaOptions& options)
+    {
+        auto req = TTableReplicaYPathProxy::Disable(FromObjectId(replicaId));
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+        WaitFor(proxy->Execute(req))
+            .ThrowOnError();
     }
 
     TYsonString DoGetNode(

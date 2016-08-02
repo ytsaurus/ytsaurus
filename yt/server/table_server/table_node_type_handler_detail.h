@@ -11,11 +11,48 @@ namespace NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableNodeTypeHandler
-    : public NChunkServer::TChunkOwnerTypeHandler<TTableNode>
+template <class TImpl>
+class TTableNodeTypeHandlerBase
+    : public NChunkServer::TChunkOwnerTypeHandler<TImpl>
 {
 public:
-    typedef NChunkServer::TChunkOwnerTypeHandler<TTableNode> TBase;
+    typedef NChunkServer::TChunkOwnerTypeHandler<TImpl> TBase;
+
+    explicit TTableNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
+
+protected:
+    virtual std::unique_ptr<TImpl> DoCreate(
+        const NCypressServer::TVersionedNodeId& id,
+        NObjectClient::TCellTag cellTag,
+        NTransactionServer::TTransaction* transaction,
+        NYTree::IAttributeDictionary* attributes) override;
+
+    virtual void DoDestroy(TImpl* table) override;
+
+    virtual void DoBranch(
+        const TImpl* originatingNode,
+        TImpl* branchedNode,
+        NCypressClient::ELockMode mode) override;
+    virtual void DoMerge(
+        TImpl* originatingNode,
+        TImpl* branchedNode) override;
+    virtual void DoClone(
+        TImpl* sourceNode,
+        TImpl* clonedNode,
+        NCypressServer::ICypressNodeFactory* factory,
+        NCypressServer::ENodeCloneMode mode) override;
+
+    virtual int GetDefaultReplicationFactor() const override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableNodeTypeHandler
+    : public TTableNodeTypeHandlerBase<TTableNode>
+{
+public:
+    typedef TTableNodeTypeHandlerBase<TTableNode> TBase;
 
     explicit TTableNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
@@ -27,53 +64,24 @@ protected:
         TTableNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
 
-    virtual std::unique_ptr<TTableNode> DoCreate(
-        const NCypressServer::TVersionedNodeId& id,
-        NObjectClient::TCellTag cellTag,
-        NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes) override;
-
-    virtual void DoDestroy(TTableNode* table) override;
-
-    virtual void DoBranch(
-        const TTableNode* originatingNode,
-        TTableNode* branchedNode,
-        NCypressClient::ELockMode mode) override;
-    virtual void DoMerge(
-        TTableNode* originatingNode,
-        TTableNode* branchedNode) override;
-    virtual void DoClone(
-        TTableNode* sourceNode,
-        TTableNode* clonedNode,
-        NCypressServer::ICypressNodeFactory* factory,
-        NCypressServer::ENodeCloneMode mode) override;
-
-    virtual int GetDefaultReplicationFactor() const override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicatedTableNodeTypeHandler
-    : public TTableNodeTypeHandler
+    : public TTableNodeTypeHandlerBase<TReplicatedTableNode>
 {
 public:
+    typedef TTableNodeTypeHandlerBase<TReplicatedTableNode> TBase;
+
     explicit TReplicatedTableNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
     virtual NObjectClient::EObjectType GetObjectType() const override;
 
 protected:
     virtual NCypressServer::ICypressNodeProxyPtr DoGetProxy(
-        TTableNode* trunkNode,
+        TReplicatedTableNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
-
-    virtual std::unique_ptr<TTableNode> DoCreate(
-        const NCypressServer::TVersionedNodeId& id,
-        NObjectClient::TCellTag cellTag,
-        NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes) override;
-
-    virtual void DoDestroy(TTableNode* table) override;
 
 };
 

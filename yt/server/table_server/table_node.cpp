@@ -59,6 +59,21 @@ bool TTableNode::IsSorted() const
     return TableSchema_.IsSorted();
 }
 
+bool TTableNode::IsUniqueKeys() const
+{
+    return TableSchema_.IsUniqueKeys();
+}
+
+bool TTableNode::IsReplicated() const
+{
+    return GetObjectType() == EObjectType::ReplicatedTable;
+}
+
+bool TTableNode::IsPhysicallySorted() const
+{
+    return IsSorted() && !IsReplicated();
+}
+
 ETabletState TTableNode::GetTabletState() const
 {
     auto result = ETabletState::None;

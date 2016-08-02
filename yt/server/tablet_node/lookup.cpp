@@ -52,8 +52,8 @@ public:
         , Timestamp_(timestamp)
         , Reader_(reader)
         , Writer_(writer)
-        , KeyColumnCount_ (TabletSnapshot_->TableSchema.GetKeyColumnCount())
-        , SchemaColumnCount_(TabletSnapshot_->TableSchema.Columns().size())
+        , KeyColumnCount_ (TabletSnapshot_->PhysicalSchema.GetKeyColumnCount())
+        , SchemaColumnCount_(TabletSnapshot_->PhysicalSchema.Columns().size())
         , WorkloadDescriptor_(workloadDescriptor)
     { }
 
@@ -68,10 +68,10 @@ public:
             columnFilter.Indexes = FromProto<SmallVector<int, TypicalColumnCount>>(req.column_filter().indexes());
         }
 
-        ValidateColumnFilter(columnFilter, TabletSnapshot_->TableSchema.Columns().size());
+        ValidateColumnFilter(columnFilter, TabletSnapshot_->PhysicalSchema.Columns().size());
         ColumnFilter_ = std::move(columnFilter);
 
-        auto schemaData = TWireProtocolReader::GetSchemaData(TabletSnapshot_->TableSchema);
+        auto schemaData = TWireProtocolReader::GetSchemaData(TabletSnapshot_->PhysicalSchema);
         LookupKeys_ = Reader_->ReadSchemafulRowset(schemaData);
 
         LOG_DEBUG("Tablet lookup started (TabletId: %v, CellId: %v, KeyCount: %v)",
@@ -93,7 +93,7 @@ public:
         for (int index = 0; index < LookupKeys_.Size(); ++index) {
             Y_ASSERT(index == 0 || LookupKeys_[index] >= LookupKeys_[index - 1]);
             auto key = LookupKeys_[index];
-            ValidateServerKey(key, TabletSnapshot_->TableSchema);
+            ValidateServerKey(key, TabletSnapshot_->PhysicalSchema);
             auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);
             if (partitionSnapshot != currentPartitionSnapshot) {
                 LookupInPartition(

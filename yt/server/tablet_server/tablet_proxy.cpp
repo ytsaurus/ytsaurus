@@ -49,9 +49,9 @@ private:
         descriptors->push_back("state");
         descriptors->push_back("statistics");
         descriptors->push_back(TAttributeDescriptor("trimmed_row_count")
-            .SetPresent(!table->IsSorted()));
+            .SetPresent(!table->IsPhysicallySorted()));
         descriptors->push_back(TAttributeDescriptor("flushed_row_count")
-            .SetPresent(!table->IsSorted()));
+            .SetPresent(!table->IsPhysicallySorted()));
         descriptors->push_back(TAttributeDescriptor("performance_counters")
             .SetPresent(tablet->GetCell()));
         descriptors->push_back(TAttributeDescriptor("mount_revision")
@@ -59,7 +59,7 @@ private:
         descriptors->push_back("index");
         descriptors->push_back("table_id");
         descriptors->push_back(TAttributeDescriptor("pivot_key")
-            .SetPresent(table->IsSorted()));
+            .SetPresent(table->IsPhysicallySorted()));
         descriptors->push_back("chunk_list_id");
         descriptors->push_back("in_memory_mode");
         descriptors->push_back(TAttributeDescriptor("cell_id")
@@ -123,7 +123,7 @@ private:
             return true;
         }
 
-        if (key == "pivot_key" && table->IsSorted()) {
+        if (key == "pivot_key" && table->IsPhysicallySorted()) {
             BuildYsonFluently(consumer)
                 .Value(tablet->GetPivotKey());
             return true;

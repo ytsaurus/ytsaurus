@@ -642,7 +642,7 @@ private:
     {
         YCHECK(lowerBound <= upperBound);
 
-        if (!tabletSnapshot->TableSchema.IsSorted()) {
+        if (!tabletSnapshot->PhysicalSchema.IsSorted()) {
             return std::make_pair(0, 1);
         }
 
@@ -705,7 +705,7 @@ private:
         int totalSampleCount,
         int cappedSampleCount)
     {
-        if (!tabletSnapshot->TableSchema.IsSorted()) {
+        if (!tabletSnapshot->PhysicalSchema.IsSorted()) {
             return {TOwningKey(lowerBound)};
         }
 

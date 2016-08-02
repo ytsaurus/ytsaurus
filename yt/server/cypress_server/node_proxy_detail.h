@@ -231,21 +231,24 @@ public:
     { }
 
 protected:
-    TImpl* GetThisImpl()
+    template <class TActualImpl = TImpl>
+    TActualImpl* GetThisImpl()
     {
-        return TNontemplateCypressNodeProxyBase::GetThisImpl<TImpl>();
+        return TNontemplateCypressNodeProxyBase::GetThisImpl<TActualImpl>();
     }
 
-    const TImpl* GetThisImpl() const
+    template <class TActualImpl = TImpl>
+    const TActualImpl* GetThisImpl() const
     {
-        return TNontemplateCypressNodeProxyBase::GetThisImpl<TImpl>();
+        return TNontemplateCypressNodeProxyBase::GetThisImpl<TActualImpl>();
     }
 
-    TImpl* LockThisImpl(
+    template <class TActualImpl = TImpl>
+    TActualImpl* LockThisImpl(
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false)
     {
-        return TNontemplateCypressNodeProxyBase::LockThisImpl<TImpl>(request, recursive);
+        return TNontemplateCypressNodeProxyBase::LockThisImpl<TActualImpl>(request, recursive);
     }
 };
 

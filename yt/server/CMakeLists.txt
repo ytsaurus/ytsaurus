@@ -285,6 +285,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_server/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_server/table_node.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_server/table_node_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_server/replicated_table_node_type_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_server/replicated_table_node.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_server/table_node_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_server/replicated_table_node_proxy.cpp
@@ -325,6 +326,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/tablet_slot.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/transaction.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/transaction_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/replicated_sorted_store_manager.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/private.cpp
@@ -333,11 +335,17 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell_bundle.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell_bundle_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell_bundle_type_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell_type_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_manager.proto
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_type_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/table_replica.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/table_replica_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/table_replica_type_handler.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/transaction_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_server/private.cpp
