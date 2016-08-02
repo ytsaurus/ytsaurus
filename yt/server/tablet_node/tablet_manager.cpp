@@ -1136,7 +1136,7 @@ private:
         if (commitRequest->has_transaction_id()) {
             auto transactionId = FromProto<TTransactionId>(commitRequest->transaction_id());
 
-            TReqCoordinatorAbortTransaction masterRequest;
+            TReqAbortTransaction masterRequest;
             ToProto(masterRequest.mutable_transaction_id(), transactionId);
 
             hiveManager->PostMessage(masterMailbox, masterRequest);

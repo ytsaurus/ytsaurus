@@ -45,6 +45,7 @@ using TTransactionCommitActionHandlerDescriptor = TTransactionActionHandlerDescr
 using TTransactionAbortActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionAbortActionHandler>;
 
 DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
+DECLARE_REFCOUNTED_STRUCT(ITransactionParticipantProvider)
 
 DECLARE_REFCOUNTED_CLASS(TTransactionSupervisor)
 DECLARE_REFCOUNTED_CLASS(TTransactionLeaseTracker)

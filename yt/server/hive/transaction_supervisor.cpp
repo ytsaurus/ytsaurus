@@ -2,7 +2,7 @@
 #include "commit.h"
 #include "config.h"
 #include "transaction_manager.h"
-#include "transaction_participant_service.h"
+#include "transaction_participant_provider.h"
 #include "private.h"
 
 #include <yt/server/hive/transaction_supervisor.pb.h>
@@ -15,8 +15,12 @@
 
 #include <yt/ytlib/hive/transaction_supervisor_service_proxy.h>
 #include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/transaction_participant.h>
+#include <yt/ytlib/hive/transaction_participant_service_proxy.h>
 
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
+
+#include <yt/ytlib/api/connection.h>
 
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -37,6 +41,7 @@ using namespace NRpc::NProto;
 using namespace NHydra;
 using namespace NHiveClient;
 using namespace NTransactionClient;
+using namespace NApi;
 using namespace NYTree;
 using namespace NConcurrency;
 
@@ -58,7 +63,6 @@ public:
         TCompositeAutomatonPtr automaton,
         TResponseKeeperPtr responseKeeper,
         ITransactionManagerPtr transactionManager,
-        TCellDirectoryPtr cellDirectory,
         const TCellId& selfCellId,
         ITimestampProviderPtr timestampProvider)
         : TCompositeAutomatonPart(
@@ -70,7 +74,6 @@ public:
         , HydraManager_(hydraManager)
         , ResponseKeeper_(responseKeeper)
         , TransactionManager_(transactionManager)
-        , CellDirectory_(cellDirectory)
         , SelfCellId_(selfCellId)
         , TimestampProvider_(timestampProvider)
         , Logger(NLogging::TLogger(HiveServerLogger)
@@ -118,6 +121,11 @@ public:
         };
     }
 
+    void RegisterParticipantProvider(ITransactionParticipantProviderPtr provider)
+    {
+        ParticipantProviders_.push_back(provider);
+    }
+
     TFuture<void> CommitTransaction(
         const TTransactionId& transactionId,
         const std::vector<TCellId>& participantCellIds)
@@ -146,7 +154,6 @@ private:
     const IHydraManagerPtr HydraManager_;
     const TResponseKeeperPtr ResponseKeeper_;
     const ITransactionManagerPtr TransactionManager_;
-    const TCellDirectoryPtr CellDirectory_;
     const TCellId SelfCellId_;
     const ITimestampProviderPtr TimestampProvider_;
 
@@ -155,21 +162,23 @@ private:
     TEntityMap<TCommit> TransientCommitMap_;
     TEntityMap<TCommit> PersistentCommitMap_;
 
-
-
-    class TParticipant
+    class TWrappedParticipant
         : public TRefCounted
     {
     public:
-        TParticipant(const TCellId& cellId, TImplPtr owner)
+        TWrappedParticipant(
+            const TCellId& cellId,
+            TTransactionSupervisorConfigPtr config,
+            const std::vector<ITransactionParticipantProviderPtr>& providers,
+            const NLogging::TLogger logger)
             : CellId_(cellId)
-            , CellDirectory_(owner->CellDirectory_)
-            , Config_(owner->Config_)
+            , Config_(std::move(config))
+            , Providers_(providers)
             , ProbationExecutor_(New<TPeriodicExecutor>(
                 NRpc::TDispatcher::Get()->GetLightInvoker(),
-                BIND(&TParticipant::OnProbation, MakeWeak(this)),
+                BIND(&TWrappedParticipant::OnProbation, MakeWeak(this)),
                 Config_->ParticipantProbationPeriod))
-            , Logger(NLogging::TLogger(owner->Logger)
+            , Logger(NLogging::TLogger(logger)
                 .AddTag("ParticipantCellId: %v", CellId_))
         {
             ProbationExecutor_->Start();
@@ -180,35 +189,32 @@ private:
             return CellId_;
         }
 
+        bool IsValid() const
+        {
+            auto guard = Guard(SpinLock_);
+            return !Underlying_ || Underlying_->IsValid();
+        }
+
         TFuture<void> PrepareTransaction(const TTransactionId& transactionId)
         {
-            return EnqueueRequest<TTransactionParticipantServiceProxy::TReqPrepareTransaction>(
-                [=] (TTransactionParticipantServiceProxy* proxy) {
-                    auto req = proxy->PrepareTransaction();
-                    ToProto(req->mutable_transaction_id(), transactionId);
-                    return req;
-                });
+            return EnqueueRequest(
+                &ITransactionParticipant::PrepareTransaction,
+                transactionId);
         }
 
         TFuture<void> CommitTransaction(const TTransactionId& transactionId, TTimestamp commitTimestamp)
         {
-            return EnqueueRequest<TTransactionParticipantServiceProxy::TReqCommitTransaction>(
-                [=] (TTransactionParticipantServiceProxy* proxy) {
-                    auto req = proxy->CommitTransaction();
-                    ToProto(req->mutable_transaction_id(), transactionId);
-                    req->set_commit_timestamp(commitTimestamp);
-                    return req;
-                });
+            return EnqueueRequest(
+                &ITransactionParticipant::CommitTransaction,
+                transactionId,
+                commitTimestamp);
         }
 
         TFuture<void> AbortTransaction(const TTransactionId& transactionId)
         {
-            return  EnqueueRequest<TTransactionParticipantServiceProxy::TReqAbortTransaction>(
-                [=] (TTransactionParticipantServiceProxy* proxy) {
-                    auto req = proxy->AbortTransaction();
-                    ToProto(req->mutable_transaction_id(), transactionId);
-                    return req;
-                });
+            return EnqueueRequest(
+                &ITransactionParticipant::AbortTransaction,
+                transactionId);
         }
 
         void SetUp()
@@ -216,11 +222,6 @@ private:
             auto guard = Guard(SpinLock_);
 
             if (Up_) {
-                return;
-            }
-
-            auto proxy = TryMakeProxy();
-            if (!proxy) {
                 return;
             }
 
@@ -233,7 +234,7 @@ private:
             LOG_DEBUG("Participant cell is up");
 
             for (const auto& sender : PendingSenders_) {
-                sender.Run(proxy.get());
+                sender.Run();
             }
         }
 
@@ -247,69 +248,72 @@ private:
 
             Up_ = false;
 
-            LOG_DEBUG(error, "Participant cell is down due to RPC error");
+            LOG_DEBUG(error, "Participant cell is down");
         }
 
     private:
         const TCellId CellId_;
-        const TCellDirectoryPtr CellDirectory_;
         const TTransactionSupervisorConfigPtr Config_;
+        const std::vector<ITransactionParticipantProviderPtr> Providers_;
         const TPeriodicExecutorPtr ProbationExecutor_;
         const NLogging::TLogger Logger;
 
         TSpinLock SpinLock_;
-        std::vector<TCallback<void(TTransactionParticipantServiceProxy*)>> PendingSenders_;
+        ITransactionParticipantPtr Underlying_;
+        std::vector<TClosure> PendingSenders_;
         bool Up_ = true;
 
 
-        template <class TRequest>
-        TFuture<void> EnqueueRequest(std::function<TIntrusivePtr<TRequest>(TTransactionParticipantServiceProxy*)> builder)
+        ITransactionParticipantPtr TryCreateUnderlying()
+        {
+            TTransactionParticipantOptions options;
+            options.RpcTimeout = Config_->RpcTimeout;
+
+            for (const auto& provider : Providers_) {
+                auto participant = provider->TryCreate(CellId_, options);
+                if (participant) {
+                    return participant;
+                }
+            }
+            return nullptr;
+        }
+
+        template <class TMethod, class... TArgs>
+        TFuture<void> EnqueueRequest(TMethod method, TArgs... args)
         {
             auto promise = NewPromise<void>();
-            auto sender = BIND([=] (TTransactionParticipantServiceProxy* proxy) mutable {
-                auto req = builder(proxy);
-                promise.SetFrom(req->Invoke().template As<void>());
-            });
 
             auto guard = Guard(SpinLock_);
+
+            if (!Underlying_) {
+                Underlying_ = TryCreateUnderlying();
+                if (!Underlying_) {
+                    return MakeFuture(TError(
+                        NRpc::EErrorCode::Unavailable,
+                        "No connection info is available for participant cell %v",
+                        CellId_));
+                }
+            }
+
+            auto sender = BIND([=, underlying = Underlying_] () mutable {
+                promise.SetFrom((underlying.Get()->*method)(args...));
+            });
             if (!TrySendRequestImmediately(sender, &guard)) {
                 PendingSenders_.emplace_back(std::move(sender));
             }
+
             return promise;
         }
 
-        bool TrySendRequestImmediately(
-            const TCallback<void(TTransactionParticipantServiceProxy*)>& sender,
-            TGuard<TSpinLock>* guard)
+        bool TrySendRequestImmediately(const TClosure& sender, TGuard<TSpinLock>* guard)
         {
             if (!Up_) {
                 return false;
             }
 
-            auto proxy = TryMakeProxy();
-            if (!proxy) {
-                Up_ = false;
-                LOG_DEBUG("Participant cell is down since no connection info is available (ParticipantCellId: %v)",
-                    CellId_);
-                return false;
-            }
-
             guard->Release();
-            sender.Run(proxy.get());
+            sender.Run();
             return true;
-        }
-
-        std::unique_ptr<TTransactionParticipantServiceProxy> TryMakeProxy()
-        {
-            auto channel = CellDirectory_->FindChannel(CellId_);
-            if (!channel) {
-                // Let's register a dummy descriptor so as to ask about it during the next sync.
-                CellDirectory_->RegisterCell(CellId_);
-                return nullptr;
-            }
-            auto proxy = std::make_unique<TTransactionParticipantServiceProxy>(channel);
-            proxy->SetDefaultTimeout(Config_->RpcTimeout);
-            return proxy;
         }
 
         void OnProbation()
@@ -320,24 +324,23 @@ private:
                 return;
             }
 
-            auto proxy = TryMakeProxy();
-            if (!proxy) {
-                return;
-            }
-
             auto sender = PendingSenders_.back();
             PendingSenders_.pop_back();
 
             guard.Release();
 
-            sender.Run(proxy.get());
+            sender.Run();
         }
     };
 
-    using TParticipantPtr = TIntrusivePtr<TParticipant>;
+    using TWrappedParticipantPtr = TIntrusivePtr<TWrappedParticipant>;
+    using TWrappedParticipantWeakPtr = TWeakPtr<TWrappedParticipant>;
 
-    yhash_map<TCellId, TParticipantPtr> ParticipantMap_;
+    std::vector<ITransactionParticipantProviderPtr> ParticipantProviders_;
+    yhash_map<TCellId, TWrappedParticipantPtr> StrongParticipantMap_;
+    yhash_map<TCellId, TWrappedParticipantWeakPtr> WeakParticipantMap_;
     TPeriodicExecutorPtr ParticipantCleanupExecutor_;
+
 
 
     class TOwnedServiceBase
@@ -394,7 +397,7 @@ private:
         }
 
     private:
-        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, CommitTransaction)
+        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionSupervisor, CommitTransaction)
         {
             ValidatePeer(EPeerKind::Leader);
 
@@ -418,7 +421,7 @@ private:
             context->ReplyFrom(asyncResponseMessage);
         }
 
-        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, AbortTransaction)
+        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionSupervisor, AbortTransaction)
         {
             ValidatePeer(EPeerKind::Leader);
 
@@ -442,7 +445,7 @@ private:
             context->ReplyFrom(asyncResponseMessage);
         }
 
-        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, PingTransaction)
+        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionSupervisor, PingTransaction)
         {
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             bool pingAncestors = request->ping_ancestors();
@@ -479,7 +482,7 @@ private:
         }
 
     private:
-        DECLARE_RPC_SERVICE_METHOD(NHiveServer::NProto, PrepareTransaction)
+        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionParticipant, PrepareTransaction)
         {
             ValidatePeer(EPeerKind::Leader);
 
@@ -494,7 +497,7 @@ private:
                 ->CommitAndReply(context);
         }
 
-        DECLARE_RPC_SERVICE_METHOD(NHiveServer::NProto, CommitTransaction)
+        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionParticipant, CommitTransaction)
         {
             ValidatePeer(EPeerKind::Leader);
 
@@ -511,7 +514,7 @@ private:
                 ->CommitAndReply(context);
         }
 
-        DECLARE_RPC_SERVICE_METHOD(NHiveServer::NProto, AbortTransaction)
+        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionParticipant, AbortTransaction)
         {
             ValidatePeer(EPeerKind::Leader);
 
@@ -589,7 +592,7 @@ private:
     {
         YCHECK(!commit->GetPersistent());
 
-        NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseOne request;
+        NHiveServer::NProto::TReqCommitDistributedTransactionPhaseOne request;
         ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
         ToProto(request.mutable_mutation_id(), commit->GetMutationId());
         ToProto(request.mutable_participant_cell_ids(), commit->ParticipantCellIds());
@@ -618,7 +621,7 @@ private:
             return MakeFuture(responseMessage);
         }
 
-        NHiveServer::NProto::TReqCoordinatorAbortTransaction request;
+        NHiveServer::NProto::TReqAbortTransaction request;
         ToProto(request.mutable_transaction_id(), transactionId);
         ToProto(request.mutable_mutation_id(), mutationId);
         request.set_force(force);
@@ -647,7 +650,7 @@ private:
 
     // Hydra handlers.
 
-    void HydraCoordinatorCommitSimpleTransaction(NHiveServer::NProto::TReqCoordinatorCommitSimpleTransaction* request)
+    void HydraCoordinatorCommitSimpleTransaction(NHiveServer::NProto::TReqCommitSimpleTransaction* request)
     {
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -683,7 +686,7 @@ private:
         RemoveTransientCommit(commit);
     }
 
-    void HydraCoordinatorCommitDistributedTransactionPhaseOne(NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseOne* request)
+    void HydraCoordinatorCommitDistributedTransactionPhaseOne(NHiveServer::NProto::TReqCommitDistributedTransactionPhaseOne* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
@@ -723,7 +726,7 @@ private:
         ChangeCommitTransientState(commit, ECommitState::Prepare);
     }
 
-    void HydraCoordinatorCommitDistributedTransactionPhaseTwo(NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseTwo* request)
+    void HydraCoordinatorCommitDistributedTransactionPhaseTwo(NHiveServer::NProto::TReqCommitDistributedTransactionPhaseTwo* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamp = request->commit_timestamp();
@@ -773,7 +776,7 @@ private:
             ECommitState::Commit);
     }
 
-    void HydraCoorindatorAbortTransaction(NHiveServer::NProto::TReqCoordinatorAbortTransaction* request)
+    void HydraCoorindatorAbortTransaction(NHiveServer::NProto::TReqAbortTransaction* request)
     {
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -808,7 +811,7 @@ private:
         }
 
         {
-            NHiveClient::NProto::TRspAbortTransaction response;
+            NHiveClient::NProto::NTransactionSupervisor::TRspAbortTransaction response;
             auto responseMessage = CreateResponseMessage(response);
 
             auto* mutationContext = GetCurrentMutationContext();
@@ -820,7 +823,7 @@ private:
         }
     }
 
-    void HydraCoordinatorFinishDistributedTransaction(NHiveServer::NProto::TReqCoordinatorFinishDistributedTransaction* request)
+    void HydraCoordinatorFinishDistributedTransaction(NHiveServer::NProto::TReqFinishDistributedTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto* commit = FindPersistentCommit(transactionId);
@@ -836,7 +839,7 @@ private:
             transactionId);
     }
 
-    void HydraParticipantPrepareTransaction(NHiveServer::NProto::TReqPrepareTransaction* request)
+    void HydraParticipantPrepareTransaction(NHiveClient::NProto::NTransactionParticipant::TReqPrepareTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
@@ -855,7 +858,7 @@ private:
             ECommitState::Prepare);
     }
 
-    void HydraParticipantCommitTransaction(NHiveServer::NProto::TReqCommitTransaction* request)
+    void HydraParticipantCommitTransaction(NHiveClient::NProto::NTransactionParticipant::TReqCommitTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamp = request->commit_timestamp();
@@ -875,7 +878,7 @@ private:
             ECommitState::Commit);
     }
 
-    void HydraParticipantAbortTransaction(NHiveServer::NProto::TReqAbortTransaction* request)
+    void HydraParticipantAbortTransaction(NHiveClient::NProto::NTransactionParticipant::TReqAbortTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
@@ -965,7 +968,7 @@ private:
             commit->GetTransactionId(),
             commit->GetCommitTimestamp());
 
-        NHiveClient::NProto::TRspCommitTransaction response;
+        NHiveClient::NProto::NTransactionSupervisor::TRspCommitTransaction response;
         response.set_commit_timestamp(commit->GetCommitTimestamp());
 
         auto responseMessage = CreateResponseMessage(response);
@@ -1017,13 +1020,13 @@ private:
             timestamp);
 
         if (commit->IsDistributed()) {
-            NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseTwo request;
+            NHiveServer::NProto::TReqCommitDistributedTransactionPhaseTwo request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_commit_timestamp(timestamp);
             CreateMutation(HydraManager_, request)
                 ->CommitAndLog(Logger);
         } else {
-            NHiveServer::NProto::TReqCoordinatorCommitSimpleTransaction request;
+            NHiveServer::NProto::TReqCommitSimpleTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             ToProto(request.mutable_mutation_id(), commit->GetMutationId());
             request.set_commit_timestamp(timestamp);
@@ -1033,34 +1036,48 @@ private:
     }
 
 
-    TParticipantPtr GetParticipant(const TCellId& cellId)
+    TWrappedParticipantPtr GetParticipant(const TCellId& cellId)
     {
-        auto it = ParticipantMap_.find(cellId);
-        if (it != ParticipantMap_.end()) {
-            return it->second;
+        auto it = WeakParticipantMap_.find(cellId);
+        if (it != WeakParticipantMap_.end()) {
+            auto participant = it->second.Lock();
+            if (participant) {
+                return participant;
+            }
+            WeakParticipantMap_.erase(it);
         }
 
-        auto participant = New<TParticipant>(cellId, this);
-        YCHECK(ParticipantMap_.emplace(cellId, participant).second);
+        auto wrappedParticipant = New<TWrappedParticipant>(
+            cellId,
+            Config_,
+            ParticipantProviders_,
+            Logger);
+
+        YCHECK(StrongParticipantMap_.emplace(cellId, wrappedParticipant).second);
+        YCHECK(WeakParticipantMap_.emplace(cellId, wrappedParticipant).second);
+
         LOG_DEBUG("Participant cell registered (ParticipantCellId: %v)",
             cellId);
-        return participant;
+
+        return wrappedParticipant;
     }
 
     void OnParticipantCleanup()
     {
-        std::vector<TCellId> idsToRemove;
-        for (const auto& pair : ParticipantMap_) {
-            const auto& id = pair.first;
-            if (CellDirectory_->IsCellUnregistered(id)) {
-                idsToRemove.push_back(id);
+        for (auto it = StrongParticipantMap_.begin(); it != StrongParticipantMap_.end(); ) {
+            auto jt = it++;
+            if (!jt->second->IsValid()) {
+                LOG_DEBUG("Participant cell unregistered (ParticipantCellId: %v)",
+                    jt->first);
+                StrongParticipantMap_.erase(jt);
             }
         }
 
-        for (const auto& id : idsToRemove) {
-            YCHECK(ParticipantMap_.erase(id) == 1);
-            LOG_DEBUG("Participant cell unregistered (ParticipantCellId: %v)",
-                id);
+        for (auto it = WeakParticipantMap_.begin(); it != WeakParticipantMap_.end(); ) {
+            auto jt = it++;
+            if (jt->second.IsExpired()) {
+                WeakParticipantMap_.erase(jt);
+            }
         }
     }
 
@@ -1092,7 +1109,7 @@ private:
             }
 
             case ECommitState::Finish: {
-                NHiveServer::NProto::TReqCoordinatorFinishDistributedTransaction request;
+                NHiveServer::NProto::TReqFinishDistributedTransaction request;
                 ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
                 CreateMutation(HydraManager_, request)
                     ->CommitAndLog(Logger);
@@ -1124,6 +1141,7 @@ private:
     void SendParticipantRequest(TCommit* commit, const TCellId& cellId)
     {
         auto participant = GetParticipant(cellId);
+
         TFuture<void> response;
         switch (commit->GetTransientState()) {
             case ECommitState::Prepare:
@@ -1148,7 +1166,7 @@ private:
 
     bool IsParticipantResponseSuccessful(
         TCommit* commit,
-        const TParticipantPtr& participant,
+        const TWrappedParticipantPtr& participant,
         const TError& error)
     {
         if (error.IsOK()) {
@@ -1184,7 +1202,7 @@ private:
 
     void OnParticipantResponse(
         const TTransactionId& transactionId,
-        const TParticipantPtr& participant,
+        const TWrappedParticipantPtr& participant,
         const TError& error)
     {
         const auto& participantCellId = participant->GetCellId();
@@ -1207,7 +1225,7 @@ private:
         if (!IsParticipantResponseSuccessful(commit, participant, error)) {
             switch (state) {
                 case ECommitState::Prepare:
-                    LOG_DEBUG("Coordinator observes participant failure; will abort "
+                    LOG_DEBUG(error, "Coordinator observes participant failure; will abort "
                         "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
                         commit->GetTransactionId(),
                         participantCellId,
@@ -1217,7 +1235,7 @@ private:
 
                 case ECommitState::Commit:
                 case ECommitState::Abort:
-                    LOG_DEBUG("Coordinator observes participant failure; will retry "
+                    LOG_DEBUG(error, "Coordinator observes participant failure; will retry "
                         "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
                         commit->GetTransactionId(),
                         participantCellId,
@@ -1226,7 +1244,7 @@ private:
                     break;
 
                 default:
-                    LOG_DEBUG("Coordinator observes participant failure observed; ignored "
+                    LOG_DEBUG(error, "Coordinator observes participant failure observed; ignored "
                         "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
                         commit->GetTransactionId(),
                         participantCellId,
@@ -1308,7 +1326,8 @@ private:
         ParticipantCleanupExecutor_.Reset();
 
         TransientCommitMap_.Clear();
-        ParticipantMap_.clear();
+        StrongParticipantMap_.clear();
+        WeakParticipantMap_.clear();
     }
 
 
@@ -1351,7 +1370,6 @@ TTransactionSupervisor::TTransactionSupervisor(
     TCompositeAutomatonPtr automaton,
     TResponseKeeperPtr responseKeeper,
     ITransactionManagerPtr transactionManager,
-    TCellDirectoryPtr cellDirectory,
     const TCellId& selfCellId,
     ITimestampProviderPtr timestampProvider)
     : Impl_(New<TImpl>(
@@ -1362,7 +1380,6 @@ TTransactionSupervisor::TTransactionSupervisor(
         automaton,
         responseKeeper,
         transactionManager,
-        cellDirectory,
         selfCellId,
         timestampProvider))
 { }
@@ -1372,6 +1389,11 @@ TTransactionSupervisor::~TTransactionSupervisor() = default;
 std::vector<NRpc::IServicePtr> TTransactionSupervisor::GetRpcServices()
 {
     return Impl_->GetRpcServices();
+}
+
+void TTransactionSupervisor::RegisterParticipantProvider(ITransactionParticipantProviderPtr provider)
+{
+    return Impl_->RegisterParticipantProvider(std::move(provider));
 }
 
 TFuture<void> TTransactionSupervisor::CommitTransaction(

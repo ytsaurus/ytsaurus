@@ -5,7 +5,6 @@
 namespace NYT {
 namespace NHiveServer {
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 NHiveClient::NProto::TEncapsulatedMessage SerializeMessage(const ::google::protobuf::MessageLite& message)

@@ -140,8 +140,13 @@ public:
 
         switch (Atomicity_) {
             case EAtomicity::Full:
-                return Owner_->TimestampProvider_->GenerateTimestamps()
-                    .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
+                if (options.Id) {
+                    auto startTimestamp = TimestampFromTransactionId(options.Id);
+                    OnGotStartTimestamp(options, startTimestamp);
+                } else {
+                    return Owner_->TimestampProvider_->GenerateTimestamps()
+                        .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
+                }
 
             case EAtomicity::None:
                 return StartNonAtomicTabletTransaction();
@@ -463,6 +468,9 @@ private:
 
     static void ValidateMasterStartOptions(const TTransactionStartOptions& options)
     {
+        if (options.Id) {
+            THROW_ERROR_EXCEPTION("Cannot use externally provided id for master transactions");
+        }
         if (options.Atomicity != EAtomicity::Full) {
             THROW_ERROR_EXCEPTION("Atomicity must be %Qlv for master transactions",
                 EAtomicity::Full);
@@ -477,6 +485,13 @@ private:
     {
         if (options.ParentId) {
             THROW_ERROR_EXCEPTION("Tablet transaction cannot have a parent");
+        }
+        if (options.Id) {
+            auto type = TypeFromId(options.Id);
+            if (type != EObjectType::AtomicTabletTransaction) {
+                THROW_ERROR_EXCEPTION("Externally provided transaction id %v has invalid type",
+                    options.Id);
+            }
         }
         if (!options.Ping) {
             THROW_ERROR_EXCEPTION("Cannot switch off pings for a tablet transaction");
@@ -540,7 +555,7 @@ private:
             case ETransactionType::Master:
                 return StartMasterTransaction(options);
             case ETransactionType::Tablet:
-                return StartAtomicTabletTransaction();
+                return StartAtomicTabletTransaction(options);
             default:
                 Y_UNREACHABLE();
         }
@@ -591,16 +606,18 @@ private:
         }
     }
 
-    TFuture<void> StartAtomicTabletTransaction()
+    TFuture<void> StartAtomicTabletTransaction(const TTransactionStartOptions& options)
     {
         YCHECK(Atomicity_ == EAtomicity::Full);
         YCHECK(Durability_ == EDurability::Sync);
 
-        Id_ = MakeTabletTransactionId(
-            Atomicity_,
-            CellTagFromId(Owner_->CellId_),
-            StartTimestamp_,
-            TabletTransactionHashCounter++);
+        Id_ = options.Id
+            ? options.Id
+            : MakeTabletTransactionId(
+                Atomicity_,
+                CellTagFromId(Owner_->CellId_),
+                StartTimestamp_,
+                TabletTransactionHashCounter++);
 
         State_ = ETransactionState::Active;
 

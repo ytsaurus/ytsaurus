@@ -7,8 +7,19 @@ namespace NApi {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct INativeClientBase
+    : public virtual IClientBase
+{
+    virtual TFuture<INativeTransactionPtr> StartNativeTransaction(
+        NTransactionClient::ETransactionType type,
+        const TTransactionStartOptions& options = TTransactionStartOptions()) = 0;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
 struct INativeClient
-    : public IClient
+    : public INativeClientBase
+    , public IClient
 {
     virtual INativeConnectionPtr GetNativeConnection() = 0;
 
@@ -19,6 +30,10 @@ struct INativeClient
     virtual NNodeTrackerClient::INodeChannelFactoryPtr GetLightChannelFactory() = 0;
     virtual NNodeTrackerClient::INodeChannelFactoryPtr GetHeavyChannelFactory() = 0;
     virtual NQueryClient::IExecutorPtr GetQueryExecutor() = 0;
+
+    virtual INativeTransactionPtr AttachNativeTransaction(
+        const NTransactionClient::TTransactionId& transactionId,
+        const TTransactionAttachOptions& options = TTransactionAttachOptions()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INativeClient)

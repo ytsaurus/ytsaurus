@@ -203,11 +203,13 @@ struct TTransactionStartOptions
     , public TPrerequisiteOptions
 {
     TNullable<TDuration> Timeout;
+    //! If not null then the transaction must use this externally provided id.
+    //! Only applicable to tablet trasactions.
+    NTransactionClient::TTransactionId Id;
     NTransactionClient::TTransactionId ParentId;
     bool AutoAbort = true;
     bool Sticky = false;
     TNullable<TDuration> PingPeriod;
-    // XXX(lukyan): What about these defaults?
     bool Ping = true;
     bool PingAncestors = true;
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;

@@ -115,6 +115,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/file_server/public.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory_synchronizer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_participant_provider.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/commit.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/hive_manager.cpp
@@ -126,7 +127,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_lease_tracker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_supervisor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_supervisor.proto
-  ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_participant_service.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/hydra/changelog.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hydra/changelog_discovery.cpp

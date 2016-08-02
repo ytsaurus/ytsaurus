@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <yt/server/hive/transaction_participant_service.pb.h>
+#include <yt/ytlib/hive/transaction_participant_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 
 namespace NYT {
-namespace NHiveServer {
+namespace NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,13 +29,13 @@ public:
         : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
     { }
 
-    DEFINE_RPC_PROXY_METHOD(NProto, PrepareTransaction);
-    DEFINE_RPC_PROXY_METHOD(NProto, CommitTransaction);
-    DEFINE_RPC_PROXY_METHOD(NProto, AbortTransaction);
+    DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, PrepareTransaction);
+    DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, CommitTransaction);
+    DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, AbortTransaction);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
+} // namespace NHiveClient
 } // namespace NYT

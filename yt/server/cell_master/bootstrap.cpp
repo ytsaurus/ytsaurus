@@ -18,6 +18,7 @@
 #include <yt/server/hive/hive_manager.h>
 #include <yt/server/hive/transaction_manager.h>
 #include <yt/server/hive/transaction_supervisor.h>
+#include <yt/server/hive/transaction_participant_provider.h>
 #include <yt/server/hive/cell_directory_synchronizer.h>
 
 #include <yt/server/hydra/changelog.h>
@@ -506,9 +507,11 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetAutomaton(),
         HydraFacade_->GetResponseKeeper(),
         TransactionManager_,
-        CellDirectory_,
         CellId_,
         timestampProvider);
+    TransactionSupervisor_->RegisterParticipantProvider(CreateTransactionParticipantProvider(
+        PrimaryCellTag_,
+        CellDirectory_));
 
     fileSnapshotStore->Initialize();
     ObjectManager_->Initialize();

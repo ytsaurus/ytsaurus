@@ -35,6 +35,8 @@ DECLARE_REFCOUNTED_CLASS(TClusterDirectorySynchronizer)
 DECLARE_REFCOUNTED_CLASS(TCellDirectoryConfig)
 DECLARE_REFCOUNTED_CLASS(TClusterDirectorySynchronizerConfig)
 
+DECLARE_REFCOUNTED_STRUCT(ITransactionParticipant)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using NHydra::TCellId;

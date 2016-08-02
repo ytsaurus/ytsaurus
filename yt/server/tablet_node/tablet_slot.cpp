@@ -38,6 +38,7 @@
 #include <yt/server/hive/hive_manager.h>
 #include <yt/server/hive/mailbox.h>
 #include <yt/server/hive/transaction_supervisor.h>
+#include <yt/server/hive/transaction_participant_provider.h>
 
 #include <yt/server/cell_node/bootstrap.h>
 
@@ -553,9 +554,10 @@ public:
                 Automaton_,
                 GetResponseKeeper(),
                 TransactionManager_,
-                connection->GetCellDirectory(),
                 GetCellId(),
                 connection->GetTimestampProvider());
+            TransactionSupervisor_->RegisterParticipantProvider(
+                CreateTransactionParticipantProvider(connection));
 
             TabletService_ = CreateTabletService(
                 Owner_,

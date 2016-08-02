@@ -75,6 +75,7 @@ class TTransactionSupervisorConfig
 public:
     TDuration ParticipantProbationPeriod;
     TDuration RpcTimeout;
+    TDuration ParticipantBackoffTime;
 
     TTransactionSupervisorConfig()
     {
@@ -82,8 +83,10 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("rpc_timeout", RpcTimeout)
             .Default(TDuration::Seconds(5));
+        RegisterParameter("participant_backoff_time", ParticipantBackoffTime)
+            .Default(TDuration::Seconds(5));
     }
-};
+};;
 
 DEFINE_REFCOUNTED_TYPE(TTransactionSupervisorConfig)
 
