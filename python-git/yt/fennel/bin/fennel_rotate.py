@@ -130,8 +130,9 @@ def erase_archived_prefix():
             raise
         yt.run_erase(yt.TablePath("event_log", start_index=0, end_index=archived_row_count))
         yt.set("event_log/@archived_row_count", 0)
-        if yt.exists("event_log/@processed_row_count"):
+        if yt.exists("event_log/@processed_row_count") and yt.exists("event_log/@table_start_row_index"):
             yt.set("event_log/@processed_row_count", processed_row_count - archived_row_count)
+            yt.set("event_log/@table_start_row_index", yt.get("event_log/@table_start_row_index") + archived_row_count)
         return True
 
 def rotate_archives(archive_size_limit, min_portion_to_archive):

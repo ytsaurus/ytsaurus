@@ -1,0 +1,17 @@
+#!/bin/bash -eux
+
+echo -e "key=1\nkey=2\nkey=3\nkey=4\nkey=5" | yt2 write //tmp/fennel_test --format dsv --proxy hahn
+
+random_suffix="$(cat /dev/urandom | tr -cd 'a-f0-9' | head -c 4)"
+
+bin/new_fennel.py push-to-logbroker \
+    --table-path //tmp/fennel_test \
+    --yt-proxy hahn \
+    --yt-config "{token=$(cat ~/.yt/token)}" \
+    --logbroker-url logbroker.yandex.net \
+    --logbroker-source-id "test_fennel_$random_suffix" \
+    --logbroker-log-type "test_fennel" \
+    --session-count 2 \
+    --range-row-count 2
+
+# TODO(ignat): read from logbroker and check data

@@ -25,6 +25,9 @@ class ConvertFrom(object):
 
 
 if __name__ == "__main__":
+    #TODO(ignat): reanimate or remove
+    sys.exit(0)
+
     if len(sys.argv) < 4:
         sys.stderr.write("Usage: {0} table_input table_output cluster_name\n".format(sys.argv[0]));
         sys.exit(1)
