@@ -11,6 +11,9 @@
 #include <yt/ytlib/query_client/functions_cg.h>
 #include <yt/ytlib/query_client/coordinator.h>
 
+#include <yt/core/yson/string.h>
+#include <yt/core/ytree/convert.h>
+
 // Tests:
 // TCompareExpressionTest
 // TEliminateLookupPredicateTest
@@ -24,6 +27,9 @@
 namespace NYT {
 namespace NQueryClient {
 namespace {
+
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,6 +2,7 @@
 set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/address_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/any_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/any_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/async_rw_lock_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/async_yson_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/attributes_ut.cpp
@@ -94,6 +95,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/subprocess_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sync_file_changelog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_consumer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_schema_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/timestamp_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/thread_affinity_ut.cpp

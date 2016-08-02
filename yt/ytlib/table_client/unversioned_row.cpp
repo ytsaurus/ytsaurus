@@ -1530,6 +1530,51 @@ TUnversionedOwningRow BuildRow(
     return rowBuilder.FinishRow();
 }
 
+TUnversionedOwningRow BuildKey(const Stroka& yson)
+{
+    TUnversionedOwningRowBuilder keyBuilder;
+    auto keyParts = ConvertTo<std::vector<INodePtr>>(
+        TYsonString(yson, EYsonType::ListFragment));
+
+    for (int id = 0; id < keyParts.size(); ++id) {
+        const auto& keyPart = keyParts[id];
+        switch (keyPart->GetType()) {
+            case ENodeType::Int64:
+                keyBuilder.AddValue(MakeUnversionedInt64Value(
+                    keyPart->GetValue<i64>(),
+                    id));
+                break;
+            case ENodeType::Uint64:
+                keyBuilder.AddValue(MakeUnversionedUint64Value(
+                    keyPart->GetValue<ui64>(),
+                    id));
+                break;
+            case ENodeType::Double:
+                keyBuilder.AddValue(MakeUnversionedDoubleValue(
+                    keyPart->GetValue<double>(),
+                    id));
+                break;
+            case ENodeType::String:
+                keyBuilder.AddValue(MakeUnversionedStringValue(
+                    keyPart->GetValue<Stroka>(),
+                    id));
+                break;
+            case ENodeType::Entity:
+                keyBuilder.AddValue(MakeUnversionedSentinelValue(
+                    keyPart->Attributes().Get<EValueType>("type"),
+                    id));
+                break;
+            default:
+                keyBuilder.AddValue(MakeUnversionedAnyValue(
+                    ConvertToYsonString(keyPart).Data(),
+                    id));
+                break;
+        }
+    }
+
+    return keyBuilder.FinishRow();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

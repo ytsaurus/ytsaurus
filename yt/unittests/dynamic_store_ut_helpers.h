@@ -1,5 +1,4 @@
 #include "framework.h"
-#include "versioned_table_client_ut.h"
 
 #include <yt/server/tablet_node/config.h>
 #include <yt/server/tablet_node/sorted_dynamic_store.h>

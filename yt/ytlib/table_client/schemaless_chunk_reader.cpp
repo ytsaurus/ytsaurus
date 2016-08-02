@@ -702,7 +702,6 @@ public:
                 auto row = TMutableUnversionedRow::Allocate(
                     &Pool_,
                     SchemaColumnReaders_.size() + schemalessColumnCount[index] + SystemColumnCount_);
-                row.SetCount(SchemaColumnReaders_.size());
                 rows->push_back(row);
             }
 
@@ -812,6 +811,9 @@ private:
         auto chunkMeta = WaitFor(asynChunkMeta)
             .ValueOrThrow();
 
+        auto chunkNameTable = FromProto<TNameTablePtr>(GetProtoExtension<TNameTableExt>(
+            chunkMeta.extensions()));
+
         ChunkMeta_ = New<TColumnarChunkMeta>(std::move(chunkMeta));
 
         bool sortedRead = UpperLimit_.HasKey() ||
@@ -830,9 +832,6 @@ private:
         if (UpperLimit_.HasKey() || LowerLimit_.HasKey()) {
             ChunkMeta_->InitBlockLastKeys(KeyColumns_.size());
         }
-
-        auto chunkNameTable = FromProto<TNameTablePtr>(GetProtoExtension<TNameTableExt>(
-            ChunkMeta_->ChunkMeta().extensions()));
 
         // Define columns to read.
         std::vector<TColumnIdMapping> schemalessIdMapping;
@@ -860,7 +859,7 @@ private:
             for (int chunkColumnId = 0; chunkColumnId < chunkNameTable->GetSize(); ++chunkColumnId) {
                 auto nameTableIndex = NameTable_->GetIdOrRegisterName(chunkNameTable->GetName(chunkColumnId));
                 if (filterIndexes.has(nameTableIndex)) {
-                    if (chunkColumnId < schema.Columns().size()) {
+                    if (chunkColumnId < ChunkMeta_->ChunkSchema().Columns().size()) {
                         schemaColumnIndexes.push_back(chunkColumnId);
                     } else {
                         readSchemalessColumns = true;
@@ -880,7 +879,7 @@ private:
             auto columnReader = CreateUnversionedColumnReader(
                 ChunkMeta_->ChunkSchema().Columns()[columnIndex],
                 ChunkMeta_->ColumnMeta().columns(columnIndex),
-                columnIndex,
+                valueIndex,
                 NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name));
 
             Columns_.emplace_back(columnReader.get(), columnIndex);
@@ -889,19 +888,19 @@ private:
 
         if (readSchemalessColumns) {
             SchemalessReader_ = CreateSchemalessColumnReader(
-                ChunkMeta_->ColumnMeta().columns(schema.Columns().size()),
+                ChunkMeta_->ColumnMeta().columns(ChunkMeta_->ChunkSchema().Columns().size()),
                 schemalessIdMapping,
-                schema.Columns().size());
+                SchemaColumnReaders_.size());
 
             Columns_.emplace_back(
                 SchemalessReader_.get(),
-                schema.Columns().size());
+                ChunkMeta_->ChunkSchema().Columns().size());
         }
 
         InitLowerRowIndex();
         InitUpperRowIndex();
 
-        if (LowerRowIndex_ < ChunkMeta_->Misc().row_count()) {
+        if (LowerRowIndex_ < HardUpperRowIndex_) {
             // We must continue initialization and set RowIndex_ before
             // ReadyEvent is set for the first time.
             InitBlockFetcher();
@@ -909,8 +908,12 @@ private:
                 .ThrowOnError();
 
             ResetExhaustedColumns();
-            Initialize(SchemaColumnReaders_);
+            Initialize(MakeRange(SchemaColumnReaders_.data(), KeyColumns_.size()));
             RowIndex_ = LowerRowIndex_;
+
+            if (RowIndex_ >= HardUpperRowIndex_) {
+                Completed_ = true;
+            }
         } else {
             Completed_ = true;
         }

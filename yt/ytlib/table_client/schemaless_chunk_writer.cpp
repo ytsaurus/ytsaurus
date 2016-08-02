@@ -95,11 +95,7 @@ public:
               Logger))
           , RandomGenerator_(RandomNumber<ui64>())
           , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
-    {
-        for (const auto& columnSchema : Schema_.Columns()) {
-            ChunkNameTable_->GetIdOrRegisterName(columnSchema.Name);
-        }
-    }
+    { }
 
     virtual TFuture<void> Open() override
     {

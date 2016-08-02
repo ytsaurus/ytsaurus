@@ -1,9 +1,22 @@
 #include "ql_helpers.h"
 
+#include <yt/core/yson/public.h>
+#include <yt/core/yson/string.h>
+
+#include <yt/core/ytree/convert.h>
+
 namespace NYT {
 namespace NTableClient {
 
+using namespace NYson;
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+Stroka KeyToYson(TKey key)
+{
+    return ConvertToYsonString(key, EYsonFormat::Text).Data();
+}
 
 void PrintTo(const TOwningKey& key, ::std::ostream* os)
 {
