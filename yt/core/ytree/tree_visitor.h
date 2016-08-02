@@ -13,15 +13,13 @@ void VisitTree(
     INodePtr root,
     NYson::IYsonConsumer* consumer,
     const TNullable<std::vector<Stroka>>& attributeKeys = Null,
-    bool sortKeys = false,
-    bool ignoreOpaque = false);
+    bool sortKeys = false);
 
 void VisitTree(
     INodePtr root,
     NYson::IAsyncYsonConsumer* consumer,
     const TNullable<std::vector<Stroka>>& attributeKeys = Null,
-    bool sortKeys = false,
-    bool ignoreOpaque = false);
+    bool sortKeys = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
