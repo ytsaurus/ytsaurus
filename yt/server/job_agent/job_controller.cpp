@@ -15,6 +15,8 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/core/ytree/fluent.h>
+
 #include <yt/core/misc/fs.h>
 
 namespace NYT {
@@ -24,12 +26,16 @@ using namespace NObjectClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
+using namespace NYson;
 using namespace NYTree;
 using namespace NCellNode;
+using namespace NConcurrency;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = JobTrackerServerLogger;
+static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,9 +45,21 @@ TJobController::TJobController(
     : Config_(config)
     , Bootstrap_(bootstrap)
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(Config_->StatisticsThrottler))
+    , ResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/resource_limits")
+    , ResourceUsageProfiler_(Profiler.GetPathPrefix() + "/resource_usage")
 {
     YCHECK(config);
     YCHECK(bootstrap);
+
+    for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
+        JobOriginToTag_[origin] = TProfileManager::Get()->RegisterTag("origin", Format("%lv", origin));
+    }
+
+    ProfilingExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetControlInvoker(),
+        BIND(&TJobController::OnProfiling, MakeWeak(this)),
+        ProfilingPeriod);
+    ProfilingExecutor_->Start();
 }
 
 void TJobController::RegisterFactory(EJobType type, TJobFactory factory)
@@ -49,20 +67,20 @@ void TJobController::RegisterFactory(EJobType type, TJobFactory factory)
     YCHECK(Factories_.insert(std::make_pair(type, factory)).second);
 }
 
-TJobFactory TJobController::GetFactory(EJobType type)
+TJobFactory TJobController::GetFactory(EJobType type) const
 {
     auto it = Factories_.find(type);
     YCHECK(it != Factories_.end());
     return it->second;
 }
 
-IJobPtr TJobController::FindJob(const TJobId& jobId)
+IJobPtr TJobController::FindJob(const TJobId& jobId) const
 {
     auto it = Jobs_.find(jobId);
     return it == Jobs_.end() ? nullptr : it->second;
 }
 
-IJobPtr TJobController::GetJobOrThrow(const TJobId& jobId)
+IJobPtr TJobController::GetJobOrThrow(const TJobId& jobId) const
 {
     auto job = FindJob(jobId);
     if (!job) {
@@ -71,7 +89,7 @@ IJobPtr TJobController::GetJobOrThrow(const TJobId& jobId)
     return job;
 }
 
-std::vector<IJobPtr> TJobController::GetJobs()
+std::vector<IJobPtr> TJobController::GetJobs() const
 {
     std::vector<IJobPtr> result;
     for (const auto& pair : Jobs_) {
@@ -80,7 +98,7 @@ std::vector<IJobPtr> TJobController::GetJobs()
     return result;
 }
 
-TNodeResources TJobController::GetResourceLimits()
+TNodeResources TJobController::GetResourceLimits() const
 {
     TNodeResources result;
 
@@ -103,7 +121,7 @@ TNodeResources TJobController::GetResourceLimits()
     return result;
 }
 
-TNodeResources TJobController::GetResourceUsage(bool includeWaiting)
+TNodeResources TJobController::GetResourceUsage(bool includeWaiting) const
 {
     auto result = ZeroNodeResources();
     for (const auto& pair : Jobs_) {
@@ -233,7 +251,7 @@ void TJobController::OnResourcesUpdated(TWeakPtr<IJob> job, const TNodeResources
         if (job_) {
             job_->Abort(TError(
                 NExecAgent::EErrorCode::ResourceOverdraft,
-                "Failed to increase resource usage") 
+                "Failed to increase resource usage")
                 << TErrorAttribute("resource_delta", FormatResources(resourceDelta)));
         }
         return;
@@ -253,7 +271,7 @@ bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
 
     #define XX(name, Name) if (delta.name() > 0 && nodeLimits.name() < newUsage.name()) { return false; }
     ITERATE_NODE_RESOURCES(XX)
-    #undef XX 
+    #undef XX
 
     if (delta.memory() > 0) {
         auto* tracker = Bootstrap_->GetMemoryUsageTracker();
@@ -293,7 +311,7 @@ void TJobController::PrepareHeartbeatRequest(
     *request->mutable_resource_usage() = GetResourceUsage();
 
     // A container for all jobs that are candidate to send statistics. This set contains
-    // only the runnning jobs since all completed/aborted/failed jobs always send 
+    // only the runnning jobs since all completed/aborted/failed jobs always send
     // their statistics.
     std::vector<std::pair<IJobPtr, TJobStatus*>> runningJobs;
 
@@ -336,14 +354,14 @@ void TJobController::PrepareHeartbeatRequest(
                 break;
         }
     }
-    
+
     std::sort(
-        runningJobs.begin(), 
+        runningJobs.begin(),
         runningJobs.end(),
         [] (const auto& lhs, const auto& rhs) {
-            return lhs.first->GetStatisticsLastSendTime() < rhs.first->GetStatisticsLastSendTime(); 
+            return lhs.first->GetStatisticsLastSendTime() < rhs.first->GetStatisticsLastSendTime();
         });
-    
+
     for (const auto& pair : runningJobs) {
         const auto& job = pair.first;
         auto* jobStatus = pair.second;
@@ -389,6 +407,55 @@ void TJobController::ProcessHeartbeatResponse(TRspHeartbeat* response)
         auto& spec = *info.mutable_spec();
         CreateJob(jobId, operationId, resourceLimits, std::move(spec));
     }
+}
+
+TEnumIndexedVector<int, EJobOrigin> TJobController::GetJobCountByOrigin() const
+{
+    auto jobCount = GetJobCountByOrigin();
+    for (const auto& pair : Jobs_) {
+        switch (TypeFromId(pair.first)) {
+            case EObjectType::MasterJob:
+                ++jobCount[EJobOrigin::Master];
+                break;
+            case EObjectType::SchedulerJob:
+                ++jobCount[EJobOrigin::Scheduler];
+                break;
+            default:
+                YUNREACHABLE();
+        }
+    }
+    return jobCount;
+}
+
+void TJobController::BuildOrchid(IYsonConsumer* consumer) const
+{
+    auto jobCount = GetJobCountByOrigin();
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("resource_limits").Value(GetResourceLimits())
+            .Item("resource_usage").Value(GetResourceUsage())
+            .Item("active_job_count").DoMapFor(
+                TEnumTraits<EJobOrigin>::GetDomainValues(),
+                [&] (TFluentMap fluent, const EJobOrigin origin) {
+                    fluent.Item(Format("%lv", origin)).Value(jobCount[origin]);
+                })
+        .EndMap();
+}
+
+IYPathServicePtr TJobController::GetOrchidService()
+{
+    auto producer = BIND(&TJobController::BuildOrchid, MakeStrong(this));
+    return IYPathService::FromProducer(producer);
+}
+
+void TJobController::OnProfiling()
+{
+    auto jobCount = GetJobCountByOrigin();
+    for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
+        Profiler.Enqueue("/active_job_count", jobCount[origin], EMetricType::Gauge, {JobOriginToTag_[origin]});
+    }
+    ProfileResources(ResourceUsageProfiler_, GetResourceUsage(false /* includeWaiting */));
+    ProfileResources(ResourceLimitsProfiler_, GetResourceLimits());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
