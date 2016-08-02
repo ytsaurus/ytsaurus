@@ -81,7 +81,9 @@ TEST(TSchemalessColumnTest, Simple)
     TChunkedMemoryPool pool;
     std::vector<TMutableUnversionedRow> actual;
     for (int valueCount : valueCounts) {
-        actual.push_back(TMutableUnversionedRow::Allocate(&pool, valueCount));
+        auto row = TMutableUnversionedRow::Allocate(&pool, valueCount);
+        row.SetCount(0);
+        actual.push_back(row);
     }
 
     reader->ReadValues(TMutableRange<TMutableUnversionedRow>(actual.data(), actual.size()));
