@@ -30,12 +30,10 @@ public:
 
     // IStoreManager overrides.
     virtual void ExecuteAtomicWrite(
-        TTablet* tablet,
         TTransaction* transaction,
         NTabletClient::TWireProtocolReader* reader,
         bool prelock) override;
     virtual void ExecuteNonAtomicWrite(
-        TTablet* tablet,
         const TTransactionId& transactionId,
         NTabletClient::TWireProtocolReader* reader) override;
 

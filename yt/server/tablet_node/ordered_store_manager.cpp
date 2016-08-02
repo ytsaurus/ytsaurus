@@ -61,7 +61,6 @@ TOrderedStoreManager::TOrderedStoreManager(
 }
 
 void TOrderedStoreManager::ExecuteAtomicWrite(
-    TTablet* tablet,
     TTransaction* transaction,
     TWireProtocolReader* reader,
     bool prelock)
@@ -86,7 +85,6 @@ void TOrderedStoreManager::ExecuteAtomicWrite(
 }
 
 void TOrderedStoreManager::ExecuteNonAtomicWrite(
-    TTablet* /*tablet*/,
     const TTransactionId& /*transactionId*/,
     TWireProtocolReader* /*reader*/)
 {
