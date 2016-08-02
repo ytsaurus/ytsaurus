@@ -10,13 +10,13 @@ pytestmark = pytest.mark.skipif("sys.version_info < (2,7)", reason="requires pyt
 
 def test_compression_external():
     p = subprocess.Popen(["gzip", "-d"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdoutdata, stderrdata = p.communicate(misc.gzip_compress("Hello"))
+    stdoutdata, stderrdata = p.communicate(misc._gzip_compress("Hello"))
     assert stdoutdata == "Hello"
     assert not stderrdata
 
 
 def test_compression_internal():
-    assert misc.gzip_decompress(misc.gzip_compress("Hello")) == "Hello"
+    assert misc._gzip_decompress(misc._gzip_compress("Hello")) == "Hello"
 
 
 def test_event_log_timestamp_parse():
@@ -30,11 +30,11 @@ def test_event_log_timestamp_parse():
 
 
 def test_normalize_timestamp():
-    assert misc.normalize_timestamp("2014-10-02T15:31:24.887386Z")[0] == "2014-10-02 15:31:24"
-    assert misc.normalize_timestamp("2014-10-10T14:07:22.295882Z")[0] == "2014-10-10 14:07:22"
+    assert misc._normalize_timestamp("2014-10-02T15:31:24.887386Z")[0] == "2014-10-02 15:31:24"
+    assert misc._normalize_timestamp("2014-10-10T14:07:22.295882Z")[0] == "2014-10-10 14:07:22"
 
 def test_normalize_revert():
-    assert misc.revert_timestamp(*misc.normalize_timestamp("2014-10-02T15:31:24.887386Z")) == "2014-10-02T15:31:24.887386Z"
+    assert misc._revert_timestamp(*misc._normalize_timestamp("2014-10-02T15:31:24.887386Z")) == "2014-10-02T15:31:24.887386Z"
 
 
 def compare_types(left, right):
@@ -62,6 +62,6 @@ def test_convert_to_from():
 #        dict(key="{}")
     ]
     for data in dataset:
-        data_after = misc.convert_from_logbroker_format(misc.convert_to_logbroker_format(data))
+        data_after = misc._convert_from_logbroker_format(misc._convert_to_logbroker_format(data))
         compare(data, data_after)
 
