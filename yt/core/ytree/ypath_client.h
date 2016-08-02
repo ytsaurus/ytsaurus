@@ -196,15 +196,13 @@ Stroka SyncYPathGetKey(
 TFuture<NYson::TYsonString> AsyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<Stroka>>& attributeKeys = Null,
-    bool ignoreOpaque = false);
+    const TNullable<std::vector<Stroka>>& attributeKeys = Null);
 
 //! Synchronously executes |Get| verb. Throws if an error has occurred.
 NYson::TYsonString SyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<Stroka>>& attributeKeys = Null,
-    bool ignoreOpaque = false);
+    const TNullable<std::vector<Stroka>>& attributeKeys = Null);
 
 //! Asynchronously executes |Exists| verb.
 TFuture<bool> AsyncYPathExists(

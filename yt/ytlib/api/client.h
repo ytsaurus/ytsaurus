@@ -252,7 +252,6 @@ struct TGetNodeOptions
     std::shared_ptr<const NYTree::IAttributeDictionary> Options;
     TNullable<std::vector<Stroka>> Attributes;
     TNullable<i64> MaxSize;
-    bool IgnoreOpaque = false;
 };
 
 struct TSetNodeOptions
