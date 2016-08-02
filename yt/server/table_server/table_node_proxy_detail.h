@@ -72,7 +72,7 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         NObjectServer::TObjectTypeMetadata* metadata,
         NTransactionServer::TTransaction* transaction,
-        TTableNode* trunkNode);
+        TReplicatedTableNode* trunkNode);
 
 protected:
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;

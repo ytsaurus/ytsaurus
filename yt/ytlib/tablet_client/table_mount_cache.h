@@ -66,6 +66,7 @@ struct TTableMountInfo
     TEnumIndexedVector<NTableClient::TTableSchema, ETableSchemaKind> Schemas;
 
     bool Dynamic;
+    bool Replicated;
     bool NeedKeyEvaluation;
 
     std::vector<TTabletInfoPtr> Tablets;
@@ -77,11 +78,15 @@ struct TTableMountInfo
     NTableClient::TOwningKey UpperCapBound;
 
     bool IsSorted() const;
+    bool IsOrdered() const;
 
     TTabletInfoPtr GetTabletForRow(NTableClient::TUnversionedRow row) const;
     TTabletInfoPtr GetRandomMountedTablet() const;
 
     void ValidateDynamic() const;
+    void ValidateSorted() const;
+    void ValidateOrdered() const;
+    void ValidateNotReplicated() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountInfo)

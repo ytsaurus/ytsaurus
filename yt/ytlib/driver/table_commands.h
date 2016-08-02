@@ -326,6 +326,38 @@ public:
 
 };
 
+class TEnableTableReplicaCommand
+    : public TTypedCommand<NApi::TEnableTableReplicaOptions>
+{
+private:
+    NTabletClient::TTableReplicaId ReplicaId;
+
+public:
+    TEnableTableReplicaCommand()
+    {
+        RegisterParameter("replica_id", ReplicaId);
+    }
+
+    void Execute(ICommandContextPtr context);
+
+};
+
+class TDisableTableReplicaCommand
+    : public TTypedCommand<NApi::TDisableTableReplicaOptions>
+{
+private:
+    NTabletClient::TTableReplicaId ReplicaId;
+
+public:
+    TDisableTableReplicaCommand()
+    {
+        RegisterParameter("replica_id", ReplicaId);
+    }
+
+    void Execute(ICommandContextPtr context);
+
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDriver

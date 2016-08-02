@@ -12,6 +12,12 @@ const int MaxTabletCount = 10000;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNode;
+class TReplicatedTableNode;
+
+template <class TImpl>
+class TTableNodeTypeHandlerBase;
+class TTableNodeTypeHandler;
+class TReplicatedTableNodeTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

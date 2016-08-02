@@ -3,6 +3,7 @@
 #include "public.h"
 #include "tablet_cell.h"
 #include "tablet_cell_bundle.h"
+#include "table_replica.h"
 
 #include <yt/server/cell_master/public.h>
 
@@ -18,6 +19,7 @@
 #include <yt/server/tablet_server/tablet_manager.pb.h>
 
 #include <yt/ytlib/table_client/public.h>
+#include <yt/server/table_server/table_node.h>
 
 namespace NYT {
 namespace NTabletServer {
@@ -68,9 +70,6 @@ public:
         int firstTabletIndex = -1,
         int lastTabletIndex = -1);
 
-    void DestroyTable(
-        NTableServer::TTableNode* table);
-
     void ReshardTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex,
@@ -104,6 +103,8 @@ public:
     void MakeTableDynamic(NTableServer::TTableNode* table);
     void MakeTableStatic(NTableServer::TTableNode* table);
 
+    void EnableTableReplica(TTableReplica* replica);
+    void DisableTableReplica(TTableReplica* replica);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
     TTabletCellBundle* FindTabletCellBundleByName(const Stroka& name);
@@ -118,10 +119,29 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
 
 private:
-    class TTabletCellBundleTypeHandler;
-    class TTabletCellTypeHandler;
-    class TTabletTypeHandler;
+    template <class TImpl>
+    friend class NTableServer::TTableNodeTypeHandlerBase;
+    friend class TTabletTypeHandler;
+    friend class TTabletCellTypeHandler;
+    friend class TTabletCellBundleTypeHandler;
+    friend class TTableReplicaTypeHandler;
     class TImpl;
+
+    void DestroyTable(NTableServer::TTableNode* table);
+
+    void DestroyTablet(TTablet* tablet);
+
+    TTabletCell* CreateTabletCell(TTabletCellBundle* cellBundle, const NObjectClient::TObjectId& hintId);
+    void DestroyTabletCell(TTabletCell* cell);
+
+    TTabletCellBundle* CreateTabletCellBundle(const Stroka& name, const NObjectClient::TObjectId& hintId);
+    void DestroyTabletCellBundle(TTabletCellBundle* cellBundle);
+
+    TTableReplica* CreateTableReplica(
+        NTableServer::TReplicatedTableNode* table,
+        const Stroka& clusterName,
+        const NYPath::TYPath& replicaPath);
+    void DestroyTableReplica(TTableReplica* replica);
 
     const TIntrusivePtr<TImpl> Impl_;
 

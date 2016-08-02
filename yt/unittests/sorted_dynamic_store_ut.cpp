@@ -125,8 +125,8 @@ protected:
             Store_->GetMinTimestamp(),
             Store_->GetMaxTimestamp());
 
-        int keyColumnCount = Tablet_->GetKeyColumnCount();
-        int schemaColumnCount = Tablet_->GetSchemaColumnCount();
+        int keyColumnCount = Tablet_->PhysicalSchema().GetKeyColumnCount();
+        int schemaColumnCount = Tablet_->PhysicalSchema().GetColumnCount();
         int columnLockCount = Tablet_->GetColumnLockCount();
         for (auto row : Store_->GetAllRows()) {
             builder.AppendChar('[');
@@ -204,7 +204,7 @@ private:
     {
         TUnversionedValue value;
         value.Id = index;
-        value.Type = Tablet_->Schema().Columns()[index].Type;
+        value.Type = Tablet_->PhysicalSchema().Columns()[index].Type;
         if (IsStringLikeType(value.Type)) {
             value.Length = data.String->Length;
             value.Data.String = data.String->Data;

@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/table_client/chunk_meta.pb.h>
 
+#include <yt/ytlib/tablet_client/public.h>
+
 #include <yt/ytlib/chunk_client/schema.h>
 
 // TODO(sandello,lukyan): Refine these dependencies.
@@ -22,6 +24,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NQueryClient;
 using namespace NChunkClient;
+using namespace NTabletClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -285,6 +288,11 @@ TKeyColumns TTableSchema::GetKeyColumns() const
     return keyColumns;
 }
 
+int TTableSchema::GetColumnCount() const
+{
+    return static_cast<int>(Columns_.size());
+}
+
 int TTableSchema::GetKeyColumnCount() const
 {
     return KeyColumnCount_;
@@ -358,7 +366,7 @@ TTableSchema TTableSchema::ToDelete() const
 
 TTableSchema TTableSchema::ToKeys() const
 {
-    auto columns = std::vector<TColumnSchema>(Columns_.begin(), Columns_.begin() + KeyColumnCount_);
+    std::vector<TColumnSchema> columns(Columns_.begin(), Columns_.begin() + KeyColumnCount_);
     return TTableSchema(std::move(columns), Strict_, UniqueKeys_);
 }
 
@@ -373,6 +381,7 @@ TTableSchema TTableSchema::ToUniqueKeys() const
     return TTableSchema(Columns_, Strict_, true);
 }
 
+<<<<<<< 8244c18316e5d22aebc7082a43a4d521933fb8b4
 TTableSchema TTableSchema::ToStrippedColumnAttributes() const
 {
     std::vector<TColumnSchema> strippedColumns;
@@ -420,6 +429,20 @@ TTableSchema TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
     }
 
     return TTableSchema(columns, Strict_, UniqueKeys_);
+}
+
+TTableSchema TTableSchema::ToReplicationLog() const
+{
+    YCHECK(IsSorted());
+    std::vector<TColumnSchema> columns;
+    columns.push_back(TColumnSchema(TReplicationLogTable::ChangeTypeColumnName, EValueType::Int64));
+    for (const auto& column : Columns_) {
+        const auto& prefix = column.SortOrder
+            ? TReplicationLogTable::KeyColumnNamePrefix
+            : TReplicationLogTable::ValueColumnNamePrefix;
+        columns.push_back(TColumnSchema(prefix + column.Name, column.Type));
+    }
+    return TTableSchema(std::move(columns), true, false);
 }
 
 void TTableSchema::Save(TStreamSaveContext& context) const

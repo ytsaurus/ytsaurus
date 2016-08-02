@@ -108,7 +108,7 @@ private:
             return;
         }
 
-        if (!tablet->IsSorted()) {
+        if (!tablet->IsPhysicallySorted()) {
             return;
         }
 
@@ -375,7 +375,7 @@ private:
         auto mountRevision = tablet->GetMountRevision();
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
-        auto schema = tablet->Schema();
+        auto schema = tablet->PhysicalSchema();
         auto mountConfig = tablet->GetConfig();
 
         YCHECK(tabletPivotKey == pivotKeys[0]);

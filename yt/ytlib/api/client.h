@@ -169,6 +169,14 @@ struct TTrimTableOptions
     : public TTimeoutOptions
 { };
 
+struct TEnableTableReplicaOptions
+    : public TTimeoutOptions
+{ };
+
+struct TDisableTableReplicaOptions
+    : public TTimeoutOptions
+{ };
+
 struct TAddMemberOptions
     : public TTimeoutOptions
     , public TMutatingOptions
@@ -627,10 +635,9 @@ DEFINE_REFCOUNTED_TYPE(IClientBase)
  *
  *  Most methods accept |TransactionId| as a part of their options.
  *  A similar effect can be achieved by issuing requests via ITransaction.
- *
  */
 struct IClient
-    : public IClientBase
+    : public virtual IClientBase
 {
     //! Terminates all channels.
     //! Aborts all pending uncommitted transactions.
@@ -684,6 +691,14 @@ struct IClient
         int tabletIndex,
         i64 trimmedRowCount,
         const TTrimTableOptions& options = TTrimTableOptions()) = 0;
+
+    virtual TFuture<void> EnableTableReplica(
+        const NTabletClient::TTableReplicaId& replicaId,
+        const TEnableTableReplicaOptions& options = TEnableTableReplicaOptions()) = 0;
+
+    virtual TFuture<void> DisableTableReplica(
+        const NTabletClient::TTableReplicaId& replicaId,
+        const TDisableTableReplicaOptions& options = TDisableTableReplicaOptions()) = 0;
 
     // Security
     virtual TFuture<void> AddMember(

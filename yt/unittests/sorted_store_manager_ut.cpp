@@ -134,7 +134,7 @@ protected:
 
         {
             TWireProtocolReader reader(response);
-            auto schemaData = TWireProtocolReader::GetSchemaData(Tablet_->Schema(), TColumnFilter());
+            auto schemaData = TWireProtocolReader::GetSchemaData(Tablet_->PhysicalSchema(), TColumnFilter());
             auto row = reader.ReadSchemafulRow(schemaData);
             return TUnversionedOwningRow(row);
         }

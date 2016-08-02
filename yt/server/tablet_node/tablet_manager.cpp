@@ -6,6 +6,7 @@
 #include "config.h"
 #include "sorted_dynamic_store.h"
 #include "ordered_dynamic_store.h"
+#include "replicated_sorted_store_manager.h"
 #include "in_memory_manager.h"
 #include "lookup.h"
 #include "partition.h"
@@ -150,6 +151,8 @@ public:
         RegisterMethod(BIND(&TImpl::HydraSplitPartition, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraMergePartitions, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdatePartitionSampleKeys, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraAddTableReplica, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraRemoveTableReplica, Unretained(this)));
     }
 
     void Initialize()
@@ -466,10 +469,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // COMPAT(babenko)
-        if (context.GetVersion() < 18) {
-            Load<TTimestamp>(context);
-        }
         TabletMap_.LoadValues(context);
 
         for (const auto& pair : TabletMap_) {
@@ -634,6 +633,7 @@ private:
         auto atomicity = EAtomicity(request->atomicity());
         auto storeDescriptors = FromProto<std::vector<TAddStoreDescriptor>>(request->stores());
         bool freeze = request->freeze();
+        auto replicaDescriptors = FromProto<std::vector<TTableReplicaDescriptor>>(request->replicas());
 
         auto tabletHolder = std::make_unique<TTablet>(
             mountConfig,
@@ -648,7 +648,7 @@ private:
             atomicity);
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
-        if (!tablet->IsSorted()) {
+        if (!tablet->IsPhysicallySorted()) {
             tablet->SetTrimmedRowCount(request->trimmed_row_count());
         }
 
@@ -658,6 +658,23 @@ private:
         storeManager->Mount(storeDescriptors);
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %x, TableId: %v, Keys: %v .. %v, "
+            "StoreCount: %v, PartitionCount: %v, TrimmedRowCount: %v, Atomicity: %v, Frozen: %v)",
+            tabletId,
+            mountRevision,
+            tableId,
+            pivotKey,
+            nextPivotKey,
+            request->stores_size(),
+            tablet->IsPhysicallySorted() ? MakeNullable(tablet->PartitionList().size()) : Null,
+            tablet->IsPhysicallySorted() ? Null : MakeNullable(tablet->GetTrimmedRowCount()),
+            tablet->GetAtomicity(),
+            freeze);
+
+        for (const auto& descriptor : request->replicas()) {
+            AddTableReplica(tablet, descriptor);
+        }
 
         {
             TRspMountTablet response;
@@ -669,19 +686,6 @@ private:
         if (!IsRecovery()) {
             StartTabletEpoch(tablet);
         }
-
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %x, TableId: %v, Keys: %v .. %v, "
-            "StoreCount: %v, PartitionCount: %v, TrimmedRowCount: %v, Atomicity: %v, Frozen: %v)",
-            tabletId,
-            mountRevision,
-            tableId,
-            pivotKey,
-            nextPivotKey,
-            request->stores_size(),
-            tablet->IsSorted() ? MakeNullable(tablet->PartitionList().size()) : Null,
-            tablet->IsSorted() ? Null : MakeNullable(tablet->GetTrimmedRowCount()),
-            tablet->GetAtomicity(),
-            freeze);
     }
 
     void HydraUnmountTablet(TReqUnmountTablet* request)
@@ -1273,7 +1277,7 @@ private:
             return;
         }
 
-        YCHECK(tablet->IsSorted());
+        YCHECK(tablet->IsPhysicallySorted());
 
         auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
@@ -1321,7 +1325,7 @@ private:
             return;
         }
 
-        YCHECK(tablet->IsSorted());
+        YCHECK(tablet->IsPhysicallySorted());
 
         auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
@@ -1370,7 +1374,7 @@ private:
             return;
         }
 
-        YCHECK(tablet->IsSorted());
+        YCHECK(tablet->IsPhysicallySorted());
 
         auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
@@ -1406,6 +1410,29 @@ private:
             tabletId,
             partition->GetId(),
             sampleKeys.Size());
+    }
+
+    void HydraAddTableReplica(TReqAddTableReplica* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        AddTableReplica(tablet, request->replica());
+    }
+
+    void HydraRemoveTableReplica(TReqRemoveTableReplica* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
+        RemoveTableReplica(tablet, replicaId);
     }
 
 
@@ -1886,7 +1913,8 @@ private:
             .BeginMap()
                 .Item("table_id").Value(tablet->GetTableId())
                 .Item("state").Value(tablet->GetState())
-                .DoIf(tablet->IsSorted(), [&] (TFluentMap fluent) {
+                .DoIf(
+                    tablet->IsPhysicallySorted(), [&] (TFluentMap fluent) {
                     fluent
                         .Item("pivot_key").Value(tablet->GetPivotKey())
                         .Item("next_pivot_key").Value(tablet->GetNextPivotKey())
@@ -1898,7 +1926,7 @@ private:
                                     .Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
                             });
                 })
-                .DoIf(!tablet->IsSorted(), [&] (TFluentMap fluent) {
+                .DoIf(!tablet->IsPhysicallySorted(), [&] (TFluentMap fluent) {
                     fluent
                         .Item("stores").DoMapFor(
                             tablet->StoreIdMap(),
@@ -2079,24 +2107,33 @@ private:
 
     IStoreManagerPtr CreateStoreManager(TTablet* tablet)
     {
-        if (tablet->IsSorted()) {
-            return New<TSortedStoreManager>(
-                Config_,
-                tablet,
-                &TabletContext_,
-                Slot_->GetHydraManager(),
-                Bootstrap_->GetInMemoryManager(),
-                Bootstrap_->GetMasterClient());
+        if (tablet->IsReplicated()) {
+            if (tablet->TableSchema().IsSorted()) {
+                return DoCreateStoreManager<TReplicatedSortedStoreManager>(tablet);
+            } else {
+                Y_UNREACHABLE();
+            }
         } else {
-            return New<TOrderedStoreManager>(
-                Config_,
-                tablet,
-                &TabletContext_,
-                Slot_->GetHydraManager(),
-                Bootstrap_->GetInMemoryManager(),
-                Bootstrap_->GetMasterClient());
+            if (tablet->IsPhysicallySorted()) {
+                return DoCreateStoreManager<TSortedStoreManager>(tablet);
+            } else {
+                return DoCreateStoreManager<TOrderedStoreManager>(tablet);
+            }
         }
     }
+
+    template <class TImpl>
+    IStoreManagerPtr DoCreateStoreManager(TTablet* tablet)
+    {
+        return New<TImpl>(
+            Config_,
+            tablet,
+            &TabletContext_,
+            Slot_->GetHydraManager(),
+            Bootstrap_->GetInMemoryManager(),
+            Bootstrap_->GetMasterClient());
+    }
+
 
     IStorePtr CreateStore(
         TTablet* tablet,
@@ -2161,6 +2198,49 @@ private:
         }
     }
 
+
+    void AddTableReplica(TTablet* tablet, const TTableReplicaDescriptor& descriptor)
+    {
+        auto replicaId = FromProto<TTableReplicaId>(descriptor.replica_id());
+        auto& replicas = tablet->Replicas();
+        if (replicas.find(replicaId) != replicas.end()) {
+            LOG_WARNING_UNLESS(IsRecovery(), "Requested to add an already existing table replica (TabletId: %v, ReplicaId: %v)",
+                tablet->GetId(),
+                replicaId);
+            return;
+        }
+
+        auto pair = replicas.emplace(replicaId, TTableReplica(replicaId));
+        YCHECK(pair.second);
+        auto& replica = pair.first->second;
+
+        replica.SetClusterName(descriptor.cluster_name());
+        replica.SetReplicaPath(descriptor.replica_path());
+
+        LOG_INFO_UNLESS(IsRecovery(), "Table replica added (TabletId: %v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v)",
+            tablet->GetId(),
+            replicaId,
+            replica.GetClusterName(),
+            replica.GetReplicaPath());
+    }
+
+    void RemoveTableReplica(TTablet* tablet, const TTableReplicaId& replicaId)
+    {
+        auto& replicas = tablet->Replicas();
+        auto it = replicas.find(replicaId);
+        if (it == replicas.end()) {
+            LOG_WARNING_UNLESS(IsRecovery(), "Requested to remove a non-existing table replica (TabletId: %v, ReplicaId: %v)",
+                tablet->GetId(),
+                replicaId);
+            return;
+        }
+
+        replicas.erase(it);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Table replica removed (TabletId: %v, ReplicaId: %v)",
+            tablet->GetId(),
+            replicaId);
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TabletMap_)

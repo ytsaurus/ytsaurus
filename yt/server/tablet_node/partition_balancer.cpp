@@ -86,7 +86,7 @@ private:
             return;
         }
 
-        if (!tablet->IsSorted()) {
+        if (!tablet->IsPhysicallySorted()) {
             return;
         }
 
@@ -369,7 +369,7 @@ private:
         auto samplesFetcher = New<TSamplesFetcher>(
             Config_->SamplesFetcher,
             maxSampleCount,
-            tablet->Schema().GetKeyColumns(),
+            tablet->PhysicalSchema().GetKeyColumns(),
             NTableClient::MaxSampleSize,
             nodeDirectory,
             GetCurrentInvoker(),

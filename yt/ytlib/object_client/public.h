@@ -163,6 +163,7 @@ DEFINE_ENUM(EObjectType,
     ((TabletPartition)            (705))
     ((TabletCellBundle)           (706))
     ((TabletCellBundleMap)        (707))
+    ((TableReplica)               (709))
 
     // Node Tracker stuff
     ((Rack)                       (800))

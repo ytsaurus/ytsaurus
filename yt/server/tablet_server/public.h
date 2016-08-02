@@ -27,6 +27,7 @@ using NTabletClient::NullTabletId;
 using NTabletClient::TStoreId;
 using NTabletClient::ETabletState;
 using NTabletClient::TypicalPeerCount;
+using NTabletClient::TTableReplicaId;
 
 using NTabletClient::TTabletCellConfig;
 using NTabletClient::TTabletCellConfigPtr;
@@ -42,15 +43,27 @@ DEFINE_ENUM(ETabletCellHealth,
     (Failed)
 );
 
+DEFINE_ENUM(ETableReplicaState,
+    ((Disabling)                (0))
+    ((Disabled)                 (1))
+    ((Enabling)                 (2))
+    ((Enabled)                  (3))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTabletManager)
 
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 
+class TTableReplica;
+
+using TTableReplicaId = NObjectClient::TObjectId;
+
 DECLARE_ENTITY_TYPE(TTabletCellBundle, TTabletCellBundleId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTabletCell, TTabletCellId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TTableReplica, TTableReplicaId, NObjectClient::TDirectObjectIdHash)
 
 struct TTabletStatistics;
 struct TTabletPerformanceCounter;

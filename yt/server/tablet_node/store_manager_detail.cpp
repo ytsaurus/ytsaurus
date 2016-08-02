@@ -36,9 +36,6 @@ TStoreManagerBase::TStoreManagerBase(
     , Client_(std::move(client))
     , Logger(TabletNodeLogger)
 {
-    YCHECK(Config_);
-    YCHECK(Tablet_);
-
     Logger.AddTag("TabletId: %v, CellId: %v",
         Tablet_->GetId(),
         TabletContext_->GetCellId());

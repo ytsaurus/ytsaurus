@@ -229,7 +229,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTimestamp timestamp,
     const TWorkloadDescriptor& workloadDescriptor)
 {
-    if (tabletSnapshot->TableSchema.IsSorted()) {
+    if (tabletSnapshot->PhysicalSchema.IsSorted()) {
         return CreateSchemafulSortedTabletReader(
             std::move(tabletSnapshot),
             columnFilter,
@@ -324,7 +324,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 {
     YCHECK(!rowBuffer || concurrency == 1);
 
-    if (!tabletSnapshot->TableSchema.IsSorted()) {
+    if (!tabletSnapshot->PhysicalSchema.IsSorted()) {
         THROW_ERROR_EXCEPTION("Table %v is not sorted",
             tabletSnapshot->TableId);
     }
@@ -389,7 +389,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     TTimestamp majorTimestamp,
     const TWorkloadDescriptor& workloadDescriptor)
 {
-    if (!tabletSnapshot->TableSchema.IsSorted()) {
+    if (!tabletSnapshot->PhysicalSchema.IsSorted()) {
         THROW_ERROR_EXCEPTION("Table %v is not sorted",
             tabletSnapshot->TableId);
     }

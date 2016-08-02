@@ -321,6 +321,7 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());
     auto tableInfo = WaitFor(asyncTableInfo)
         .ValueOrThrow();
+
     tableInfo->ValidateDynamic();
 
     auto config = UpdateYsonSerializable(
@@ -389,6 +390,7 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
     auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());
     auto tableInfo = WaitFor(asyncTableInfo)
         .ValueOrThrow();
+
     tableInfo->ValidateDynamic();
 
     struct TDeleteRowsBufferTag
@@ -428,7 +430,32 @@ void TTrimRowsCommand::Execute(ICommandContextPtr context)
     auto asyncResult = client->TrimTable(
         Path.GetPath(),
         TabletIndex,
-        TrimmedRowCount);
+        TrimmedRowCount,
+        Options);
+    WaitFor(asyncResult)
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TEnableTableReplicaCommand::Execute(ICommandContextPtr context)
+{
+    auto client = context->GetClient();
+    auto asyncResult = client->EnableTableReplica(
+        ReplicaId,
+        Options);
+    WaitFor(asyncResult)
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDisableTableReplicaCommand::Execute(ICommandContextPtr context)
+{
+    auto client = context->GetClient();
+    auto asyncResult = client->DisableTableReplica(
+        ReplicaId,
+        Options);
     WaitFor(asyncResult)
         .ThrowOnError();
 }

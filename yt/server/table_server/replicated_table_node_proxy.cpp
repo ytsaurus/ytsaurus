@@ -14,7 +14,7 @@ ICypressNodeProxyPtr CreateReplicatedTableNodeProxy(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
     TTransaction* transaction,
-    TTableNode* trunkNode)
+    TReplicatedTableNode* trunkNode)
 {
     return New<TReplicatedTableNodeProxy>(
         bootstrap,

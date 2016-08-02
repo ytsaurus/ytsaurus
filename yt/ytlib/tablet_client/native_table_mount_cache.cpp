@@ -9,6 +9,7 @@
 #include <yt/ytlib/hive/cell_directory.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/query_client/query_statistics.h>
 
@@ -124,6 +125,11 @@ bool TTableMountInfo::IsSorted() const
     return Schemas[ETableSchemaKind::Primary].IsSorted();
 }
 
+bool TTableMountInfo::IsOrdered() const
+{
+    return !IsSorted();
+}
+
 TTabletInfoPtr TTableMountInfo::GetTabletForRow(TUnversionedRow row) const
 {
     ValidateDynamic();
@@ -155,6 +161,27 @@ void TTableMountInfo::ValidateDynamic() const
 {
     if (!Dynamic) {
         THROW_ERROR_EXCEPTION("Table %v is not dynamic", Path);
+    }
+}
+
+void TTableMountInfo::ValidateSorted() const
+{
+    if (!IsSorted()) {
+        THROW_ERROR_EXCEPTION("Table %v is not sorted", Path);
+    }
+}
+
+void TTableMountInfo::ValidateOrdered() const
+{
+    if (!IsOrdered()) {
+        THROW_ERROR_EXCEPTION("Table %v is not ordered", Path);
+    }
+}
+
+void TTableMountInfo::ValidateNotReplicated() const
+{
+    if (Replicated) {
+        THROW_ERROR_EXCEPTION("Table %v is replicated", Path);
     }
 }
 
@@ -228,14 +255,22 @@ private:
                 }
 
                 const auto& rsp = rspOrError.Value();
+
                 auto tableInfo = New<TTableMountInfo>();
                 tableInfo->Path = path;
                 tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
+
                 tableInfo->Schemas[ETableSchemaKind::Primary] = FromProto<TTableSchema>(rsp->schema());
                 tableInfo->Schemas[ETableSchemaKind::Write] = tableInfo->Schemas[ETableSchemaKind::Primary].ToWrite();
-                tableInfo->Schemas[ETableSchemaKind::Query] = tableInfo->Schemas[ETableSchemaKind::Primary].ToQuery();
                 tableInfo->Schemas[ETableSchemaKind::Delete] = tableInfo->Schemas[ETableSchemaKind::Primary].ToDelete();
-                tableInfo->Schemas[ETableSchemaKind::Lookup] = tableInfo->Schemas[ETableSchemaKind::Primary].ToLookup();
+
+                auto physicalSchema = tableInfo->Replicated
+                    ? tableInfo->Schemas[ETableSchemaKind::Primary].ToReplicationLog()
+                    : tableInfo->Schemas[ETableSchemaKind::Primary];
+                tableInfo->Schemas[ETableSchemaKind::Query] = physicalSchema.ToQuery();
+                tableInfo->Schemas[ETableSchemaKind::Lookup] = physicalSchema.ToLookup();
+
+                tableInfo->Replicated = TypeFromId(tableInfo->TableId) == EObjectType::ReplicatedTable;
                 tableInfo->Dynamic = rsp->dynamic();
                 tableInfo->NeedKeyEvaluation = tableInfo->Schemas[ETableSchemaKind::Primary].HasComputedColumns();
 

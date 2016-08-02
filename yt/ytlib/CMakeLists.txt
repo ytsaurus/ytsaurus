@@ -313,6 +313,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tablet_client/tablet_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/tablet_client/wire_protocol.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_client/wire_protocol.proto
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_client/table_replica_ypath.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/private.cpp

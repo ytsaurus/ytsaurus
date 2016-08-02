@@ -96,7 +96,7 @@ protected:
             Store_->GetRowCount(),
             Store_->GetValueCount());
 
-        int schemaColumnCount = Tablet_->GetSchemaColumnCount();
+        int schemaColumnCount = Tablet_->PhysicalSchema().GetColumnCount();
         for (auto row : Store_->GetAllRows()) {
             builder.AppendChar('[');
             for (int i = 0; i < schemaColumnCount; ++i) {

@@ -66,7 +66,7 @@ TSortedStoreManager::TSortedStoreManager(
         std::move(hydraManager),
         std::move(inMemoryManager),
         std::move(client))
-    , KeyColumnCount_(Tablet_->GetKeyColumnCount())
+    , KeyColumnCount_(Tablet_->PhysicalSchema().GetKeyColumnCount())
 {
     for (const auto& pair : Tablet_->StoreIdMap()) {
         auto store = pair.second->AsSorted();
@@ -300,7 +300,7 @@ void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDes
 
     std::vector<std::tuple<TOwningKey, int, int>> chunkBoundaries;
     int descriptorIndex = 0;
-    const auto& schema = Tablet_->Schema();
+    const auto& schema = Tablet_->PhysicalSchema();
     for (const auto& descriptor : storeDescriptors) {
         const auto& extensions = descriptor.chunk_meta().extensions();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
@@ -542,7 +542,7 @@ void TSortedStoreManager::ValidateOnWrite(
     TUnversionedRow row)
 {
     try {
-        ValidateServerDataRow(row, Tablet_->Schema());
+        ValidateServerDataRow(row, Tablet_->PhysicalSchema());
         if (row.GetCount() == KeyColumnCount_) {
             THROW_ERROR_EXCEPTION("Empty writes are not allowed");
         }
@@ -560,7 +560,7 @@ void TSortedStoreManager::ValidateOnDelete(
     TKey key)
 {
     try {
-        ValidateServerKey(key, Tablet_->Schema());
+        ValidateServerKey(key, Tablet_->PhysicalSchema());
     } catch (TErrorException& ex) {
         auto& errorAttributes = ex.Error().Attributes();
         errorAttributes.Set("transaction_id", transactionId);
@@ -681,14 +681,14 @@ void TSortedStoreManager::WaitOnBlockedRow(
     TSortedDynamicRow row,
     int lockIndex)
 {
-    const auto& lock = row.BeginLocks(Tablet_->GetKeyColumnCount())[lockIndex];
+    const auto& lock = row.BeginLocks(Tablet_->PhysicalSchema().GetKeyColumnCount())[lockIndex];
     const auto* transaction = lock.Transaction;
     if (!transaction) {
         return;
     }
 
     LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v)",
-        RowToKey(Tablet_->Schema(), row),
+        RowToKey(Tablet_->PhysicalSchema(), row),
         lockIndex,
         transaction->GetId());
 

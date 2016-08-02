@@ -81,6 +81,8 @@ function YtDriverFacadeV2(logger, driver)
     delete descriptors.unmount_table;
     delete descriptors.remount_table;
     delete descriptors.reshard_table;
+    delete descriptors.enable_table_replica;
+    delete descriptors.disable_table_replica;
 
     delete descriptors.delete_rows;
     delete descriptors.insert_rows;

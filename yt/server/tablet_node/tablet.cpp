@@ -15,6 +15,8 @@
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/core/concurrency/delayed_executor.h>
 
 #include <yt/core/misc/collection_helpers.h>
@@ -112,6 +114,31 @@ void TTabletSnapshot::ValidateMountRevision(i64 mountRevision)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableReplica::TTableReplica()
+{ }
+
+TTableReplica::TTableReplica(const TTableReplicaId& id)
+    : Id_(id)
+{ }
+
+void TTableReplica::Save(TSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, Id_);
+    Save(context, ClusterName_);
+    Save(context, ReplicaPath_);
+}
+
+void TTableReplica::Load(TLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, Id_);
+    Load(context, ClusterName_);
+    Load(context, ReplicaPath_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTablet::TTablet(
     const TTabletId& tabletId,
     ITabletContext* context)
@@ -135,7 +162,7 @@ TTablet::TTablet(
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
-    , Schema_(schema)
+    , TableSchema_(schema)
     , PivotKey_(std::move(pivotKey))
     , NextPivotKey_(std::move(nextPivotKey))
     , State_(ETabletState::Mounted)
@@ -213,11 +240,12 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, TableId_);
     Save(context, MountRevision_);
     Save(context, GetPersistentState());
-    Save(context, Schema_);
+    Save(context, TableSchema_);
     Save(context, Atomicity_);
     Save(context, HashTableSize_);
     Save(context, RuntimeData_->TrimmedRowCount);
     Save(context, LastCommitTimestamp_);
+    Save(context, Replicas_);
 
     TSizeSerializer::Save(context, StoreIdMap_.size());
     // NB: This is not stable.
@@ -250,21 +278,12 @@ void TTablet::Load(TLoadContext& context)
     Load(context, TableId_);
     Load(context, MountRevision_);
     Load(context, State_);
-    Load(context, Schema_);
-    // COMPAT(babenko)
-    if (context.GetVersion() < 14) {
-        Load<TKeyColumns>(context);
-    }
+    Load(context, TableSchema_);
     Load(context, Atomicity_);
     Load(context, HashTableSize_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 17) {
-        Load(context, RuntimeData_->TrimmedRowCount);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >=  18) {
-        Load(context, LastCommitTimestamp_);
-    }
+    Load(context, RuntimeData_->TrimmedRowCount);
+    Load(context, LastCommitTimestamp_);
+    Load(context, Replicas_);
 
     // NB: Stores that we're about to create may request some tablet properties (e.g. column lock count)
     // during construction. Initialize() will take care of this.
@@ -282,7 +301,7 @@ void TTablet::Load(TLoadContext& context)
         }
     }
 
-    if (IsOrdered()) {
+    if (IsPhysicallyOrdered()) {
         for (const auto& pair : StoreIdMap_) {
             auto orderedStore = pair.second->AsOrdered();
             YCHECK(StoreRowIndexMap_.insert(std::make_pair(orderedStore->GetStartingRowIndex(), orderedStore)).second);
@@ -404,19 +423,19 @@ void TTablet::AsyncLoad(TLoadContext& context)
 
 const std::vector<std::unique_ptr<TPartition>>& TTablet::PartitionList() const
 {
-    YCHECK(IsSorted());
+    YCHECK(IsPhysicallySorted());
     return PartitionList_;
 }
 
 TPartition* TTablet::GetEden() const
 {
-    YCHECK(IsSorted());
+    YCHECK(IsPhysicallySorted());
     return Eden_.get();
 }
 
 void TTablet::CreateInitialPartition()
 {
-    YCHECK(IsSorted());
+    YCHECK(IsPhysicallySorted());
     YCHECK(PartitionList_.empty());
     auto partition = std::make_unique<TPartition>(
         this,
@@ -430,14 +449,14 @@ void TTablet::CreateInitialPartition()
 
 TPartition* TTablet::FindPartition(const TPartitionId& partitionId)
 {
-    YCHECK(IsSorted());
+    YCHECK(IsPhysicallySorted());
     const auto& it = PartitionMap_.find(partitionId);
     return it == PartitionMap_.end() ? nullptr : it->second;
 }
 
 TPartition* TTablet::GetPartition(const TPartitionId& partitionId)
 {
-    YCHECK(IsSorted());
+    YCHECK(IsPhysicallySorted());
     auto* partition = FindPartition(partitionId);
     YCHECK(partition);
     return partition;
@@ -445,7 +464,7 @@ TPartition* TTablet::GetPartition(const TPartitionId& partitionId)
 
 void TTablet::MergePartitions(int firstIndex, int lastIndex)
 {
-    YCHECK(IsSorted());
+    YCHECK(IsPhysicallySorted());
 
     for (int i = lastIndex + 1; i < static_cast<int>(PartitionList_.size()); ++i) {
         PartitionList_[i]->SetIndex(i - (lastIndex - firstIndex));
@@ -494,7 +513,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
 
 void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys)
 {
-    YCHECK(IsSorted());
+    YCHECK(IsPhysicallySorted());
 
     auto existingPartition = std::move(PartitionList_[index]);
     YCHECK(existingPartition->GetPivotKey() == pivotKeys[0]);
@@ -560,7 +579,7 @@ TPartition* TTablet::GetContainingPartition(
     const TOwningKey& minKey,
     const TOwningKey& maxKey)
 {
-    YCHECK(IsSorted());
+    YCHECK(IsPhysicallySorted());
 
     auto it = std::upper_bound(
         PartitionList_.begin(),
@@ -592,14 +611,14 @@ const yhash_map<TStoreId, IStorePtr>& TTablet::StoreIdMap() const
 
 const std::map<i64, IOrderedStorePtr>& TTablet::StoreRowIndexMap() const
 {
-    YCHECK(IsOrdered());
+    YCHECK(IsPhysicallyOrdered());
     return StoreRowIndexMap_;
 }
 
 void TTablet::AddStore(IStorePtr store)
 {
     YCHECK(StoreIdMap_.insert(std::make_pair(store->GetId(), store)).second);
-    if (IsSorted()) {
+    if (IsPhysicallySorted()) {
         auto sortedStore = store->AsSorted();
         auto* partition = GetContainingPartition(sortedStore);
         YCHECK(partition->Stores().insert(sortedStore).second);
@@ -614,7 +633,7 @@ void TTablet::AddStore(IStorePtr store)
 void TTablet::RemoveStore(IStorePtr store)
 {
     YCHECK(StoreIdMap_.erase(store->GetId()) == 1);
-    if (IsSorted()) {
+    if (IsPhysicallySorted()) {
         auto sortedStore = store->AsSorted();
         auto* partition = sortedStore->GetPartition();
         YCHECK(partition->Stores().erase(sortedStore) == 1);
@@ -639,24 +658,19 @@ IStorePtr TTablet::GetStore(const TStoreId& id)
     return store;
 }
 
-bool TTablet::IsSorted() const
+bool TTablet::IsPhysicallySorted() const
 {
-    return Schema_.GetKeyColumnCount() > 0;
+    return PhysicalSchema_.GetKeyColumnCount() > 0;
 }
 
-bool TTablet::IsOrdered() const
+bool TTablet::IsPhysicallyOrdered() const
 {
-    return Schema_.GetKeyColumnCount() == 0;
+    return PhysicalSchema_.GetKeyColumnCount() == 0;
 }
 
-int TTablet::GetSchemaColumnCount() const
+bool TTablet::IsReplicated() const
 {
-    return static_cast<int>(Schema_.Columns().size());
-}
-
-int TTablet::GetKeyColumnCount() const
-{
-    return Schema_.GetKeyColumnCount();
+    return TypeFromId(TableId_) == EObjectType::ReplicatedTable;
 }
 
 int TTablet::GetColumnLockCount() const
@@ -740,8 +754,9 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->WriterOptions = WriterOptions_;
     snapshot->PivotKey = PivotKey_;
     snapshot->NextPivotKey = NextPivotKey_;
-    snapshot->TableSchema = Schema_;
-    snapshot->QuerySchema = Schema_.ToQuery();
+    snapshot->TableSchema = TableSchema_;
+    snapshot->PhysicalSchema = PhysicalSchema_;
+    snapshot->QuerySchema = PhysicalSchema_.ToQuery();
     snapshot->Atomicity = Atomicity_;
     snapshot->HashTableSize = HashTableSize_;
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
@@ -772,7 +787,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
         }
     }
 
-    if (IsOrdered()) {
+    if (IsPhysicallyOrdered()) {
         // TODO(babenko): optimize
         snapshot->OrderedStores.reserve(StoreRowIndexMap_.size());
         for (const auto& pair : StoreRowIndexMap_) {
@@ -799,22 +814,26 @@ void TTablet::Initialize()
 {
     PerformanceCounters_ = New<TTabletPerformanceCounters>();
 
-    RowKeyComparer_ = TSortedDynamicRowKeyComparer::Create(
-        GetKeyColumnCount(),
-        Schema_);
+    PhysicalSchema_ = IsReplicated() ? TableSchema_.ToReplicationLog() : TableSchema_;
 
-    ColumnIndexToLockIndex_.resize(Schema_.Columns().size());
+    int keyColumnCount = PhysicalSchema_.GetKeyColumnCount();
+
+    RowKeyComparer_ = TSortedDynamicRowKeyComparer::Create(
+        keyColumnCount,
+        PhysicalSchema_);
+
+    ColumnIndexToLockIndex_.resize(PhysicalSchema_.Columns().size());
     LockIndexToName_.push_back(PrimaryLockName);
 
     // Assign dummy lock indexes to key components.
-    for (int index = 0; index < GetKeyColumnCount(); ++index) {
+    for (int index = 0; index < keyColumnCount; ++index) {
         ColumnIndexToLockIndex_[index] = -1;
     }
 
     // Assign lock indexes to data components.
     yhash_map<Stroka, int> groupToIndex;
-    for (int index = GetKeyColumnCount(); index < Schema_.Columns().size(); ++index) {
-        const auto& columnSchema = Schema_.Columns()[index];
+    for (int index = keyColumnCount; index < PhysicalSchema_.Columns().size(); ++index) {
+        const auto& columnSchema = PhysicalSchema_.Columns()[index];
         int lockIndex = TSortedDynamicRow::PrimaryLockIndex;
         // No locking supported for non-atomic tablets, however we still need the primary
         // lock descriptor to maintain last commit timestamps.
@@ -835,7 +854,7 @@ void TTablet::Initialize()
 
     ColumnLockCount_ = groupToIndex.size() + 1;
 
-    ColumnEvaluator_ = Context_->GetColumnEvaluatorCache()->Find(Schema_);
+    ColumnEvaluator_ = Context_->GetColumnEvaluatorCache()->Find(PhysicalSchema_);
 }
 
 TPartition* TTablet::GetContainingPartition(const ISortedStorePtr& store)

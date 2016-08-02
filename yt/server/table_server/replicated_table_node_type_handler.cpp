@@ -9,7 +9,7 @@ using namespace NCypressServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodeTypeHandlerPtr CreateTableTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateReplicatedTableTypeHandler(TBootstrap* bootstrap)
 {
     return New<TReplicatedTableNodeTypeHandler>(bootstrap);
 }

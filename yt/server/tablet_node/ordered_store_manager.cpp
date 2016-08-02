@@ -228,8 +228,8 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         auto writer = CreateSchemalessMultiChunkWriter(
             Config_->ChunkWriter,
             tabletSnapshot->WriterOptions,
-            TNameTable::FromSchema(tabletSnapshot->TableSchema),
-            tabletSnapshot->TableSchema,
+            TNameTable::FromSchema(tabletSnapshot->PhysicalSchema),
+            tabletSnapshot->PhysicalSchema,
             TOwningKey(),
             Client_,
             Client_->GetNativeConnection()->GetPrimaryMasterCellTag(),
@@ -277,7 +277,7 @@ void TOrderedStoreManager::ValidateOnWrite(
     TUnversionedRow row)
 {
     try {
-        ValidateServerDataRow(row, Tablet_->Schema());
+        ValidateServerDataRow(row, Tablet_->PhysicalSchema());
     } catch (TErrorException& ex) {
         auto& errorAttributes = ex.Error().Attributes();
         errorAttributes.Set("transaction_id", transactionId);

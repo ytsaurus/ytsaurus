@@ -61,8 +61,9 @@ protected:
 
         TUnversionedOwningRowBuilder builder;
 
-        int keyCount = Tablet_->GetKeyColumnCount();
-        int schemaColumnCount = Tablet_->GetSchemaColumnCount();
+        const auto schema = Tablet_->PhysicalSchema();
+        int keyCount = schema.GetKeyColumnCount();
+        int schemaColumnCount = schema.GetColumnCount();
 
         // Keys
         const auto* keys = row.BeginKeys();
@@ -83,9 +84,11 @@ protected:
         return builder.FinishRow();
     }
 
-    const TLockDescriptor& GetLock(TSortedDynamicRow row, int index = TSortedDynamicRow::PrimaryLockIndex)
+    const TLockDescriptor& GetLock(
+        TSortedDynamicRow row,
+        int index = TSortedDynamicRow::PrimaryLockIndex)
     {
-        return row.BeginLocks(Tablet_->GetKeyColumnCount())[index];
+        return row.BeginLocks(Tablet_->PhysicalSchema().GetKeyColumnCount())[index];
     }
 };
 
