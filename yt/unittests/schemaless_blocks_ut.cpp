@@ -78,7 +78,7 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
 
     auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 2);
     row[0] = MakeUnversionedDoubleValue(1.5, 0);
-    row[1] = MakeVersionedInt64Value(7, 1);
+    row[1] = MakeUnversionedInt64Value(7, 1);
 
     std::vector<TUnversionedRow> rows;
     rows.push_back(row);
