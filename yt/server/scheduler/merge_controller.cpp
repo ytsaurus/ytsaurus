@@ -1678,20 +1678,12 @@ protected:
             if (!CurrentTaskMinForeignKey ||
                 CompareRows(CurrentTaskMinForeignKey, chunkSlice->LowerLimit().GetKey(), ForeignKeyColumnCount) > 0)
             {
-                if (ForeignKeyColumnCount == static_cast<int>(SortKeyColumns.size())) {
-                    CurrentTaskMinForeignKey = chunkSlice->LowerLimit().GetKey();
-                } else {
-                    CurrentTaskMinForeignKey = GetKeyPrefix(chunkSlice->LowerLimit().GetKey(), ForeignKeyColumnCount);
-                }
+                CurrentTaskMinForeignKey = GetKeyPrefix(chunkSlice->LowerLimit().GetKey(), ForeignKeyColumnCount);
             }
             if (!CurrentTaskMaxForeignKey ||
                 CompareRows(CurrentTaskMaxForeignKey, chunkSlice->UpperLimit().GetKey(), ForeignKeyColumnCount) < 0)
             {
-                if (ForeignKeyColumnCount == static_cast<int>(SortKeyColumns.size())) {
-                    CurrentTaskMaxForeignKey = chunkSlice->UpperLimit().GetKey();
-                } else {
-                    CurrentTaskMaxForeignKey = GetKeyPrefixSuccessor(chunkSlice->UpperLimit().GetKey(), ForeignKeyColumnCount);
-                }
+                CurrentTaskMaxForeignKey = GetKeyPrefixSuccessor(chunkSlice->UpperLimit().GetKey(), ForeignKeyColumnCount);
             }
         }
 
