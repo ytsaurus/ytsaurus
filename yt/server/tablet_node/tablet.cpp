@@ -168,7 +168,6 @@ TTablet::TTablet(
     , State_(ETabletState::Mounted)
     , Atomicity_(atomicity)
     , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
-    , LastCommitTimestamp_(MinTimestamp)
     , Config_(config)
     , WriterOptions_(writerOptions)
     , Eden_(std::make_unique<TPartition>(
@@ -244,7 +243,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Atomicity_);
     Save(context, HashTableSize_);
     Save(context, RuntimeData_->TrimmedRowCount);
-    Save(context, LastCommitTimestamp_);
+    Save(context, RuntimeData_->LastCommitTimestamp);
     Save(context, Replicas_);
 
     TSizeSerializer::Save(context, StoreIdMap_.size());
@@ -282,7 +281,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, Atomicity_);
     Load(context, HashTableSize_);
     Load(context, RuntimeData_->TrimmedRowCount);
-    Load(context, LastCommitTimestamp_);
+    Load(context, RuntimeData_->LastCommitTimestamp);
     Load(context, Replicas_);
 
     // NB: Stores that we're about to create may request some tablet properties (e.g. column lock count)
@@ -695,6 +694,16 @@ i64 TTablet::GetTrimmedRowCount() const
 void TTablet::SetTrimmedRowCount(i64 value)
 {
     RuntimeData_->TrimmedRowCount = value;
+}
+
+TTimestamp TTablet::GetLastCommitTimestamp() const
+{
+    return RuntimeData_->LastCommitTimestamp;
+}
+
+void TTablet::SetLastCommitTimestamp(TTimestamp value)
+{
+    RuntimeData_->LastCommitTimestamp = value;
 }
 
 void TTablet::StartEpoch(TTabletSlotPtr slot)
