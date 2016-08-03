@@ -493,9 +493,7 @@ public:
     virtual void Invoke(const TClosure& callback) override
     {
         Queue_.Enqueue(callback);
-        if (!Suspended_) {
-            ScheduleMore();
-        }
+        ScheduleMore();
     }
 
     TFuture<void> Suspend() override
@@ -523,6 +521,7 @@ public:
 
 private:
     std::atomic<bool> Suspended_ = {false};
+    std::atomic<bool> SchedulingMore_ = {false};
     std::atomic<int> ActiveInvocationCount_ = {0};
 
     TSpinLock SpinLock_;
@@ -593,6 +592,10 @@ private:
 
     void ScheduleMore()
     {
+        if (Suspended_ || SchedulingMore_.exchange(true)) {
+            return;
+        }
+
         while (!Suspended_) {
             ++ActiveInvocationCount_;
             TInvocationGuard guard(this);
@@ -607,6 +610,11 @@ private:
                MakeStrong(this),
                Passed(std::move(callback)),
                Passed(std::move(guard))));
+        }
+
+        SchedulingMore_ = false;
+        if (!Queue_.IsEmpty()) {
+            ScheduleMore();
         }
     }
 };
