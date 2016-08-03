@@ -50,7 +50,7 @@ private:
     virtual void RunParent() override;
     virtual void RunChild() override;
 
-    TFuture<void> UploadSnapshots();
+    TFuture<std::vector<TError>> UploadSnapshots();
     void UploadSnapshot(const TJob& job);
 
 };
