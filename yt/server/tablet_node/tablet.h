@@ -33,6 +33,7 @@ struct TRuntimeTabletData
     : public TIntrinsicRefCounted
 {
     std::atomic<i64> TrimmedRowCount = {0};
+    std::atomic<TTimestamp> LastCommitTimestamp = {NTransactionClient::MinTimestamp};
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
@@ -183,8 +184,6 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(IDynamicStorePtr, ActiveStore);
 
-    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, LastCommitTimestamp);
-
     using TReplicaMap = yhash_map<TTableReplicaId, TTableReplica>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
@@ -254,6 +253,9 @@ public:
     // Only applicable to ordered tablets.
     i64 GetTrimmedRowCount() const;
     void SetTrimmedRowCount(i64 value);
+
+    TTimestamp GetLastCommitTimestamp() const;
+    void SetLastCommitTimestamp(TTimestamp value);
 
     void StartEpoch(TTabletSlotPtr slot);
     void StopEpoch();
