@@ -120,7 +120,7 @@ EOF
 }
 
 YANDEX_YT_LOCAL_VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
-YANDEX_YT_PYTHON_VERSION="0.7.9-0"
+YANDEX_YT_PYTHON_VERSION="0.7.16-0"
 
 if [ "$UBUNTU_CODENAME" = "precise" ]; then
     YANDEX_YT_VERSIONS="0.17.5-stable-without-yt~8971~c508a19 18.4.20227-stable~44af695"
