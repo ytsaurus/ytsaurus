@@ -7,7 +7,6 @@ TEST_SRCS(
 )
 
 DATA(
-    arcadia/kikimr/ci
     arcadia/kikimr/yql/ci/stuff
     arcadia/devtools/swag
 )
