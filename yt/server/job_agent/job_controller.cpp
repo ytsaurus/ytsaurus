@@ -516,7 +516,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(TRspHeartbeat* response)
 
 TEnumIndexedVector<int, EJobOrigin> TJobController::TImpl::GetJobCountByOrigin() const
 {
-    auto jobCount = GetJobCountByOrigin();
+    auto jobCount = TEnumIndexedVector<int, EJobOrigin>();
     for (const auto& pair : Jobs_) {
         switch (TypeFromId(pair.first)) {
             case EObjectType::MasterJob:
@@ -555,7 +555,7 @@ IYPathServicePtr TJobController::TImpl::GetOrchidService()
 
 void TJobController::TImpl::OnProfiling()
 {
-    TEnumIndexedVector<int, EJobOrigin> jobCount;
+    auto jobCount = GetJobCountByOrigin();
     for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
         Profiler.Enqueue("/active_job_count", jobCount[origin], EMetricType::Gauge, {JobOriginToTag_[origin]});
     }
