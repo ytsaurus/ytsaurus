@@ -39,7 +39,107 @@ static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobController::TJobController(
+class TJobController::TImpl
+    : public TRefCounted
+{
+public:
+    DEFINE_SIGNAL(void(), ResourcesUpdated);
+
+public:
+    TImpl(
+        TJobControllerConfigPtr config,
+        TBootstrap* bootstrap);
+
+    void RegisterFactory(
+        EJobType type,
+        TJobFactory factory);
+
+    IJobPtr FindJob(const TJobId& jobId) const;
+    IJobPtr GetJobOrThrow(const TJobId& jobId) const;
+    std::vector<IJobPtr> GetJobs() const;
+
+    TNodeResources GetResourceLimits() const;
+    TNodeResources GetResourceUsage(bool includeWaiting = true) const;
+    void SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits);
+
+    void PrepareHeartbeatRequest(
+        TCellTag cellTag,
+        EObjectType jobObjectType,
+        TReqHeartbeat* request);
+
+    void ProcessHeartbeatResponse(TRspHeartbeat* response);
+
+    NYTree::IYPathServicePtr GetOrchidService();
+
+private:
+    const TJobControllerConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
+
+    yhash_map<EJobType, TJobFactory> Factories_;
+    yhash_map<TJobId, IJobPtr> Jobs_;
+
+    bool StartScheduled_ = false;
+
+    IThroughputThrottlerPtr StatisticsThrottler_;
+
+    TNodeResourceLimitsOverrides ResourceLimitsOverrides_;
+
+    TProfiler ResourceLimitsProfiler_;
+    TProfiler ResourceUsageProfiler_;
+    TEnumIndexedVector<TTagId, EJobOrigin> JobOriginToTag_;
+
+    TPeriodicExecutorPtr ProfilingExecutor_;
+
+    //! Starts a new job.
+    IJobPtr CreateJob(
+        const TJobId& jobId,
+        const TOperationId& operationId,
+        const TNodeResources& resourceLimits,
+        TJobSpec&& jobSpec);
+
+    //! Stops a job.
+    /*!
+     *  If the job is running, aborts it.
+     */
+    void AbortJob(IJobPtr job);
+
+    //! Removes the job from the map.
+    /*!
+     *  It is illegal to call #Remove before the job is stopped.
+     */
+    void RemoveJob(IJobPtr job);
+
+    TJobFactory GetFactory(EJobType type) const;
+
+    void ScheduleStart();
+
+    void OnResourcesUpdated(
+        TWeakPtr<IJob> job,
+        const TNodeResources& resourceDelta);
+
+    void StartWaitingJobs();
+
+    //! Compares new usage with resource limits. Detects resource overdraft.
+    bool CheckResourceUsageDelta(const TNodeResources& delta);
+
+    //! Returns |true| if a job with given #jobResources can be started.
+    //! Takes special care with ReplicationDataSize and RepairDataSize enabling
+    // an arbitrary large overdraft for the
+    //! first job.
+    bool HasEnoughResources(
+        const TNodeResources& jobResources,
+        const TNodeResources& usedResources);
+
+    void BuildOrchid(IYsonConsumer* consumer) const;
+
+    void OnProfiling();
+
+    TEnumIndexedVector<int, EJobOrigin> GetJobCountByOrigin() const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobController::TImpl::TImpl(
     TJobControllerConfigPtr config,
     TBootstrap* bootstrap)
     : Config_(config)
@@ -57,30 +157,30 @@ TJobController::TJobController(
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
-        BIND(&TJobController::OnProfiling, MakeWeak(this)),
+        BIND(&TImpl::OnProfiling, MakeWeak(this)),
         ProfilingPeriod);
     ProfilingExecutor_->Start();
 }
 
-void TJobController::RegisterFactory(EJobType type, TJobFactory factory)
+void TJobController::TImpl::RegisterFactory(EJobType type, TJobFactory factory)
 {
     YCHECK(Factories_.insert(std::make_pair(type, factory)).second);
 }
 
-TJobFactory TJobController::GetFactory(EJobType type) const
+TJobFactory TJobController::TImpl::GetFactory(EJobType type) const
 {
     auto it = Factories_.find(type);
     YCHECK(it != Factories_.end());
     return it->second;
 }
 
-IJobPtr TJobController::FindJob(const TJobId& jobId) const
+IJobPtr TJobController::TImpl::FindJob(const TJobId& jobId) const
 {
     auto it = Jobs_.find(jobId);
     return it == Jobs_.end() ? nullptr : it->second;
 }
 
-IJobPtr TJobController::GetJobOrThrow(const TJobId& jobId) const
+IJobPtr TJobController::TImpl::GetJobOrThrow(const TJobId& jobId) const
 {
     auto job = FindJob(jobId);
     if (!job) {
@@ -89,7 +189,7 @@ IJobPtr TJobController::GetJobOrThrow(const TJobId& jobId) const
     return job;
 }
 
-std::vector<IJobPtr> TJobController::GetJobs() const
+std::vector<IJobPtr> TJobController::TImpl::GetJobs() const
 {
     std::vector<IJobPtr> result;
     for (const auto& pair : Jobs_) {
@@ -98,7 +198,7 @@ std::vector<IJobPtr> TJobController::GetJobs() const
     return result;
 }
 
-TNodeResources TJobController::GetResourceLimits() const
+TNodeResources TJobController::TImpl::GetResourceLimits() const
 {
     TNodeResources result;
 
@@ -121,7 +221,7 @@ TNodeResources TJobController::GetResourceLimits() const
     return result;
 }
 
-TNodeResources TJobController::GetResourceUsage(bool includeWaiting) const
+TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) const
 {
     auto result = ZeroNodeResources();
     for (const auto& pair : Jobs_) {
@@ -133,7 +233,12 @@ TNodeResources TJobController::GetResourceUsage(bool includeWaiting) const
     return result;
 }
 
-void TJobController::StartWaitingJobs()
+void TJobController::TImpl::SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits)
+{
+    ResourceLimitsOverrides_ = resourceLimits;
+}
+
+void TJobController::TImpl::StartWaitingJobs()
 {
     auto* tracker = Bootstrap_->GetMemoryUsageTracker();
 
@@ -175,7 +280,7 @@ void TJobController::StartWaitingJobs()
         LOG_INFO("Starting job (JobId: %v)", job->GetId());
 
         job->SubscribeResourcesUpdated(
-            BIND(&TJobController::OnResourcesUpdated, MakeWeak(this), MakeWeak(job))
+            BIND(&TImpl::OnResourcesUpdated, MakeWeak(this), MakeWeak(job))
                 .Via(Bootstrap_->GetControlInvoker()));
 
         job->Start();
@@ -190,7 +295,7 @@ void TJobController::StartWaitingJobs()
     StartScheduled_ = false;
 }
 
-IJobPtr TJobController::CreateJob(
+IJobPtr TJobController::TImpl::CreateJob(
     const TJobId& jobId,
     const TOperationId& operationId,
     const TNodeResources& resourceLimits,
@@ -217,17 +322,17 @@ IJobPtr TJobController::CreateJob(
     return job;
 }
 
-void TJobController::ScheduleStart()
+void TJobController::TImpl::ScheduleStart()
 {
     if (!StartScheduled_) {
         Bootstrap_->GetControlInvoker()->Invoke(BIND(
-            &TJobController::StartWaitingJobs,
+            &TImpl::StartWaitingJobs,
             MakeWeak(this)));
         StartScheduled_ = true;
     }
 }
 
-void TJobController::AbortJob(IJobPtr job)
+void TJobController::TImpl::AbortJob(IJobPtr job)
 {
     LOG_INFO("Job abort requested (JobId: %v)",
         job->GetId());
@@ -235,7 +340,7 @@ void TJobController::AbortJob(IJobPtr job)
     job->Abort(TError(NExecAgent::EErrorCode::AbortByScheduler, "Job aborted by scheduler"));
 }
 
-void TJobController::RemoveJob(IJobPtr job)
+void TJobController::TImpl::RemoveJob(IJobPtr job)
 {
     LOG_INFO("Job removed (JobId: %v)", job->GetId());
 
@@ -244,7 +349,7 @@ void TJobController::RemoveJob(IJobPtr job)
     YCHECK(Jobs_.erase(job->GetId()) == 1);
 }
 
-void TJobController::OnResourcesUpdated(TWeakPtr<IJob> job, const TNodeResources& resourceDelta)
+void TJobController::TImpl::OnResourcesUpdated(TWeakPtr<IJob> job, const TNodeResources& resourceDelta)
 {
     if (!CheckResourceUsageDelta(resourceDelta)) {
         auto job_ = job.Lock();
@@ -263,7 +368,7 @@ void TJobController::OnResourcesUpdated(TWeakPtr<IJob> job, const TNodeResources
     }
 }
 
-bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
+bool TJobController::TImpl::CheckResourceUsageDelta(const TNodeResources& delta)
 {
     // Nonincreasing resources cannot lead to overdraft.
     auto nodeLimits = GetResourceLimits();
@@ -284,7 +389,7 @@ bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
     return true;
 }
 
-bool TJobController::HasEnoughResources(
+bool TJobController::TImpl::HasEnoughResources(
     const TNodeResources& jobResources,
     const TNodeResources& usedResources)
 {
@@ -299,7 +404,7 @@ bool TJobController::HasEnoughResources(
     return Dominates(spareResources, jobResources);
 }
 
-void TJobController::PrepareHeartbeatRequest(
+void TJobController::TImpl::PrepareHeartbeatRequest(
     TCellTag cellTag,
     EObjectType jobObjectType,
     TReqHeartbeat* request)
@@ -376,7 +481,7 @@ void TJobController::PrepareHeartbeatRequest(
     LOG_DEBUG("Total size of statistics to send is %v bytes", totalStatisticsSize);
 }
 
-void TJobController::ProcessHeartbeatResponse(TRspHeartbeat* response)
+void TJobController::TImpl::ProcessHeartbeatResponse(TRspHeartbeat* response)
 {
     for (const auto& protoJobId : response->jobs_to_remove()) {
         auto jobId = FromProto<TJobId>(protoJobId);
@@ -409,7 +514,7 @@ void TJobController::ProcessHeartbeatResponse(TRspHeartbeat* response)
     }
 }
 
-TEnumIndexedVector<int, EJobOrigin> TJobController::GetJobCountByOrigin() const
+TEnumIndexedVector<int, EJobOrigin> TJobController::TImpl::GetJobCountByOrigin() const
 {
     auto jobCount = GetJobCountByOrigin();
     for (const auto& pair : Jobs_) {
@@ -427,7 +532,7 @@ TEnumIndexedVector<int, EJobOrigin> TJobController::GetJobCountByOrigin() const
     return jobCount;
 }
 
-void TJobController::BuildOrchid(IYsonConsumer* consumer) const
+void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
 {
     auto jobCount = GetJobCountByOrigin();
     BuildYsonFluently(consumer)
@@ -442,15 +547,15 @@ void TJobController::BuildOrchid(IYsonConsumer* consumer) const
         .EndMap();
 }
 
-IYPathServicePtr TJobController::GetOrchidService()
+IYPathServicePtr TJobController::TImpl::GetOrchidService()
 {
-    auto producer = BIND(&TJobController::BuildOrchid, MakeStrong(this));
+    auto producer = BIND(&TImpl::BuildOrchid, MakeStrong(this));
     return IYPathService::FromProducer(producer);
 }
 
-void TJobController::OnProfiling()
+void TJobController::TImpl::OnProfiling()
 {
-    auto jobCount = GetJobCountByOrigin();
+    TEnumIndexedVector<int, EJobOrigin> jobCount;
     for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
         Profiler.Enqueue("/active_job_count", jobCount[origin], EMetricType::Gauge, {JobOriginToTag_[origin]});
     }
@@ -460,5 +565,73 @@ void TJobController::OnProfiling()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+TJobController::TJobController(
+    TJobControllerConfigPtr config,
+    TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(
+        config,
+        bootstrap
+    ))
+{ }
+
+void TJobController::RegisterFactory(
+    EJobType type,
+    TJobFactory factory)
+{
+    Impl_->RegisterFactory(type, factory);
+}
+
+IJobPtr TJobController::FindJob(const TJobId& jobId) const
+{
+    return Impl_->FindJob(jobId);
+}
+
+IJobPtr TJobController::GetJobOrThrow(const TJobId& jobId) const
+{
+    return Impl_->GetJobOrThrow(jobId);
+}
+
+std::vector<IJobPtr> TJobController::GetJobs() const
+{
+    return Impl_->GetJobs();
+}
+
+TNodeResources TJobController::GetResourceLimits() const
+{
+    return Impl_->GetResourceLimits();
+}
+
+TNodeResources TJobController::GetResourceUsage(bool includeWaiting) const
+{
+    return Impl_->GetResourceUsage(includeWaiting);
+}
+
+void TJobController::SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits)
+{
+    Impl_->SetResourceLimitsOverrides(resourceLimits);
+}
+
+void TJobController::PrepareHeartbeatRequest(
+    TCellTag cellTag,
+    EObjectType jobObjectType,
+    TReqHeartbeat* request)
+{
+    Impl_->PrepareHeartbeatRequest(cellTag, jobObjectType, request);
+}
+
+void TJobController::ProcessHeartbeatResponse(TRspHeartbeat* response)
+{
+    Impl_->ProcessHeartbeatResponse(response);
+}
+
+IYPathServicePtr TJobController::GetOrchidService()
+{
+    return Impl_->GetOrchidService();
+}
+
+DELEGATE_SIGNAL(TJobController, void(), ResourcesUpdated, *Impl_)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NJobAgent
+} // namespace NYT
