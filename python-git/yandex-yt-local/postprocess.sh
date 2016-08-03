@@ -1,6 +1,8 @@
 #!/bin/bash -ex
 # Upload archive with all necessary stuff to Locke and Sandbox.
 
+set -o pipefail
+
 export YT_PROXY=locke.yt.yandex.net
 
 # Tokens belong to teamcity@ user

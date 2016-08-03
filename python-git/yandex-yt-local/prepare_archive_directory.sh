@@ -1,5 +1,7 @@
 #!/bin/bash -ex
 
+set -o pipefail
+
 download_and_extract() {
     local package="$1"
     if [ -n "$2" ]; then
@@ -22,7 +24,7 @@ prepare_archive_directory() {
 
     local tmp_dir="$(mktemp -d /tmp/$(basename $0).XXXXXX)"
     local archive_dir="$(mktemp -d /tmp/yt_local_archive.XXXXXX)"
-    trap "rm -rf \"$tmp_dir\" \"$archive_dir\"" cleanup EXIT
+    trap "rm -rf \"$tmp_dir\" \"$archive_dir\"" EXIT
 
     find "$(pwd)/.." -name 'yandex-yt-local_*.deb' -exec cp -r {} $tmp_dir \;
     cd "$tmp_dir"
