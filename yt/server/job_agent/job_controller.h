@@ -38,10 +38,8 @@ class TJobController
     : public TRefCounted
 {
 public:
-    DEFINE_SIGNAL(void(), ResourcesUpdated);
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides, ResourceLimitsOverrides);
+    DECLARE_SIGNAL(void(), ResourcesUpdated)
 
-public:
     TJobController(
         TJobControllerConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
@@ -66,6 +64,9 @@ public:
     //! Return the current resource usage.
     NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(bool includeWaiting = true) const;
 
+    //! Set resource limits overrides.
+    void SetResourceLimitsOverrides(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimits);
+
     //! Prepares a heartbeat request.
     void PrepareHeartbeatRequest(
         NObjectClient::TCellTag cellTag,
@@ -79,67 +80,8 @@ public:
     NYTree::IYPathServicePtr GetOrchidService();
 
 private:
-    const TJobControllerConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
-
-    yhash_map<EJobType, TJobFactory> Factories_;
-    yhash_map<TJobId, IJobPtr> Jobs_;
-
-    bool StartScheduled_ = false;
-
-    NConcurrency::IThroughputThrottlerPtr StatisticsThrottler_;
-
-    NProfiling::TProfiler ResourceLimitsProfiler_;
-    NProfiling::TProfiler ResourceUsageProfiler_;
-    TEnumIndexedVector<NProfiling::TTagId, EJobOrigin> JobOriginToTag_;
-
-    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
-
-    //! Starts a new job.
-    IJobPtr CreateJob(
-        const TJobId& jobId,
-        const TOperationId& operationId,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-        NJobTrackerClient::NProto::TJobSpec&& jobSpec);
-
-    //! Stops a job.
-    /*!
-     *  If the job is running, aborts it.
-     */
-    void AbortJob(IJobPtr job);
-
-    //! Removes the job from the map.
-    /*!
-     *  It is illegal to call #Remove before the job is stopped.
-     */
-    void RemoveJob(IJobPtr job);
-
-    TJobFactory GetFactory(EJobType type) const;
-
-    void ScheduleStart();
-
-    void OnResourcesUpdated(
-        TWeakPtr<IJob> job,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceDelta);
-
-    void StartWaitingJobs();
-
-    //! Compares new usage with resource limits. Detects resource overdraft.
-    bool CheckResourceUsageDelta(const NNodeTrackerClient::NProto::TNodeResources& delta);
-
-    //! Returns |true| if a job with given #jobResources can be started.
-    //! Takes special care with ReplicationDataSize and RepairDataSize enabling
-    // an arbitrary large overdraft for the
-    //! first job.
-    bool HasEnoughResources(
-        const NNodeTrackerClient::NProto::TNodeResources& jobResources,
-        const NNodeTrackerClient::NProto::TNodeResources& usedResources);
-
-    void BuildOrchid(NYson::IYsonConsumer* consumer) const;
-
-    void OnProfiling();
-
-    TEnumIndexedVector<int, EJobOrigin> GetJobCountByOrigin() const;
+    class TImpl;
+    const TIntrusivePtr<TImpl> Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobController)
