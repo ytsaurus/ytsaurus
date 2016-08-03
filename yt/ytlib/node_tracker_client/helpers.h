@@ -56,6 +56,8 @@ DEFINE_ENUM(EResourceType,
 Stroka FormatResourceUsage(const NProto::TNodeResources& usage, const NProto::TNodeResources& limits);
 Stroka FormatResources(const NProto::TNodeResources& resources);
 
+void ProfileResources(NProfiling::TProfiler& profiler, const NProto::TNodeResources& resources);
+
 const NProto::TNodeResources& ZeroNodeResources();
 const NProto::TNodeResources& InfiniteNodeResources();
 

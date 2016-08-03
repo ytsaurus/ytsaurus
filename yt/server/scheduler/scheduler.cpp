@@ -1823,7 +1823,9 @@ private:
                 address,
                 job->GetId(),
                 job->GetOperationId());
-            auto status = JobStatusFromError(TError("Node offline"));
+            auto status = JobStatusFromError(
+                TError("Node offline")
+                << TErrorAttribute("abort_reason", EAbortReason::NodeOffline));
             OnJobAborted(job, &status);
         }
     }

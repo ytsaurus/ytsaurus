@@ -51,6 +51,7 @@ public:
     bool EnableIPv4;
     bool EnableIPv6;
     TNullable<Stroka> LocalHostFqdn;
+    TDuration AddressExpirationTime;
 
     TAddressResolverConfig()
     {
@@ -60,6 +61,8 @@ public:
             .Default(true);
         RegisterParameter("localhost_fqdn", LocalHostFqdn)
             .Default();
+        RegisterParameter("address_expiration_time", AddressExpirationTime)
+            .Default(TDuration::Minutes(1));
     }
 };
 
