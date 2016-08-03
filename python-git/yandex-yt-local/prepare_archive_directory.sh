@@ -10,7 +10,7 @@ download_and_extract() {
     apt-get download "$package$version_suffix" -qq 1>&2
     dpkg -x ${package}_*.deb $package 1>&2
 }
-
+    
 prepare_archive_directory() {
     local yt_version="$1" && shift
     local yt_python_version="$1" && shift
@@ -22,10 +22,7 @@ prepare_archive_directory() {
 
     local tmp_dir="$(mktemp -d /tmp/$(basename $0).XXXXXX)"
     local archive_dir="$(mktemp -d /tmp/yt_local_archive.XXXXXX)"
-    cleanup {
-        rm -rf "$tmp_dir" "$archive_dir"
-    }
-    trap cleanup EXIT
+    trap "rm -rf \"$tmp_dir\" \"$archive_dir\"" cleanup EXIT
 
     find "$(pwd)/.." -name 'yandex-yt-local_*.deb' -exec cp -r {} $tmp_dir \;
     cd "$tmp_dir"
