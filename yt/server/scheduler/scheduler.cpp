@@ -2969,7 +2969,7 @@ private:
 
         NLogging::TLogger Logger(SchedulerLogger);
         Logger.AddTag("Address: %v, JobId: %v, State: %v",
-            node->GetDefaultAddress(),
+            address,
             jobId,
             state);
 
