@@ -108,15 +108,16 @@ TFuture<void> TSnapshotBuilder::Run()
     }
 
     auto uploadFuture = UploadSnapshots()
-        .Apply(BIND([operationIds, this] (const std::vector<TError>& errors) {
-            for (size_t i = 0; i < errors.size(); ++i) {
-                const auto& error = errors[i];
-                if (!error.IsOK()) {
-                    LOG_INFO(error, "Failed to build snapshot for operation (OperationId: %v)",
-                        operationIds[i]);
+        .Apply(
+            BIND([operationIds, this, this_ = MakeStrong(this)] (const std::vector<TError>& errors) {
+                for (size_t i = 0; i < errors.size(); ++i) {
+                    const auto& error = errors[i];
+                    if (!error.IsOK()) {
+                        LOG_INFO(error, "Failed to build snapshot for operation (OperationId: %v)",
+                            operationIds[i]);
+                    }
                 }
-            }
-        }));
+            }));
     return Combine(std::vector<TFuture<void>>{forkFuture, uploadFuture});
 }
 
