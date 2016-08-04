@@ -66,6 +66,7 @@ TFuture<void> TSnapshotBuilder::Run()
     LOG_INFO("Snapshot builder started");
 
     std::vector<TFuture<void>> operationSuspendFutures;
+    std::vector<TOperationId> operationIds;
 
     // Capture everything needed in Build.
     for (auto operation : Scheduler_->GetOperations()) {
@@ -80,6 +81,7 @@ TFuture<void> TSnapshotBuilder::Run()
         Jobs_.push_back(std::move(job));
 
         operationSuspendFutures.push_back(operation->GetController()->Suspend());
+        operationIds.push_back(operation->GetId());
 
         LOG_INFO("Snapshot job registered (OperationId: %v)",
             operation->GetId());
@@ -105,7 +107,17 @@ TFuture<void> TSnapshotBuilder::Run()
         job.Operation->GetController()->Resume();
     }
 
-    auto uploadFuture = UploadSnapshots();
+    auto uploadFuture = UploadSnapshots()
+        .Apply(
+            BIND([operationIds, this, this_ = MakeStrong(this)] (const std::vector<TError>& errors) {
+                for (size_t i = 0; i < errors.size(); ++i) {
+                    const auto& error = errors[i];
+                    if (!error.IsOK()) {
+                        LOG_INFO(error, "Failed to build snapshot for operation (OperationId: %v)",
+                            operationIds[i]);
+                    }
+                }
+            }));
     return Combine(std::vector<TFuture<void>>{forkFuture, uploadFuture});
 }
 
@@ -169,7 +181,7 @@ void TSnapshotBuilder::RunChild()
     }
 }
 
-TFuture<void> TSnapshotBuilder::UploadSnapshots()
+TFuture<std::vector<TError>> TSnapshotBuilder::UploadSnapshots()
 {
     std::vector<TFuture<void>> snapshotUploadFutures;
     for (auto& job : Jobs_) {
@@ -184,7 +196,7 @@ TFuture<void> TSnapshotBuilder::UploadSnapshots()
                 .Run();
         snapshotUploadFutures.push_back(std::move(uploadFuture));
     }
-    return Combine(snapshotUploadFutures);
+    return CombineAll(snapshotUploadFutures);
 }
 
 void TSnapshotBuilder::UploadSnapshot(const TJob& job)

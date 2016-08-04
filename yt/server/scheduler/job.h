@@ -29,6 +29,7 @@ struct TBriefJobStatistics
     i64 ProcessedInputDataSize = 0;
     i64 ProcessedOutputRowCount = 0;
     i64 ProcessedOutputDataSize = 0;
+    TNullable<i64> UserJobBlockIORead = Null;
     TNullable<i64> UserJobCpuUsage = Null;
 };
 
@@ -116,7 +117,8 @@ public:
 
     void AnalyzeBriefStatistics(
         TDuration suspiciousInactivityTimeout,
-        i64 suspiciousCpuUsageThreshold,
+        i64 suspiciousUserJobCpuUsageThreshold,
+        i64 suspiciousUserJobIOReadThreshold,
         const TBriefJobStatisticsPtr& briefStatistics);
 
     TBriefJobStatisticsPtr BuildBriefStatistics(const NYson::TYsonString& statisticsYson) const;

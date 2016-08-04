@@ -98,7 +98,8 @@ using NScheduler::NProto::TUserJobSpec;
 #ifdef _unix_
 
 static const int JobStatisticsFD = 5;
-static const char* CGroupPrefix = "user_jobs/yt-job-";
+static Stroka CGroupBase = "user_jobs";
+static Stroka CGroupPrefix = CGroupBase + "/yt-job-";
 
 static const size_t BufferSize = (size_t) 1024 * 1024;
 
@@ -324,7 +325,7 @@ private:
         ShellManager_ = CreateShellManager(
             NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Home]),
             Config_->UserId,
-            TNullable<Stroka>(Config_->EnableCGroups, Freezer_.GetFullPath()),
+            TNullable<Stroka>(Config_->EnableCGroups, CGroupBase),
             Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))));
     }
 
@@ -500,7 +501,14 @@ private:
 
         auto arg = New<TJobSignalerArg>();
         arg->Pids = GetPidsFromFreezer();
-        arg->Pids.erase(std::find(arg->Pids.begin(), arg->Pids.end(), Process_->GetProcessId()));
+        auto it = std::find(arg->Pids.begin(), arg->Pids.end(), Process_->GetProcessId());
+        if (it != arg->Pids.end()) {
+            arg->Pids.erase(it);
+        }
+        if (arg->Pids.empty()) {
+            THROW_ERROR_EXCEPTION("No processes in the job to send signal");
+        }
+
         arg->SignalName = signalName;
         LOG_INFO("Sending signal %v to pids %v",
             arg->SignalName,

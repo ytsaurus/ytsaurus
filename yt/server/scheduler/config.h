@@ -567,6 +567,8 @@ public:
 
     // User job cpu usage delta that is considered insignificant when checking if job is suspicious.
     i64 SuspiciousUserJobCpuUsageThreshold;
+    // User job block IO read value that is considered insignificant when checking if job is suspicious.
+    i64 SuspiciousUserJobBlockIOReadThreshold;
 
     TSchedulerConfig()
     {
@@ -779,6 +781,8 @@ public:
             .Default(TDuration::Minutes(1));
         RegisterParameter("suspicious_user_job_cpu_usage_threshold", SuspiciousUserJobCpuUsageThreshold)
             .Default(10);
+        RegisterParameter("suspicious_user_job_block_io_read_threshold", SuspiciousUserJobBlockIOReadThreshold)
+            .Default(20);
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

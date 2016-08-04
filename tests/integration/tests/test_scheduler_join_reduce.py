@@ -651,3 +651,37 @@ echo {v = 2} >&7
 
         op.track()
         assert len(read_table("//tmp/out")) == 6
+
+    @unix_only
+    def test_join_reduce_short_range(self):
+        count = 300
+
+        create("table", "//tmp/in1")
+        write_table(
+            "<append=true>//tmp/in1",
+            [ {"key": "%05d" % num, "subkey" : "", "value": num} for num in xrange(count) ],
+            sorted_by = ["key", "subkey"],
+            table_writer = {"block_size": 1024})
+
+        create("table", "//tmp/in2")
+        write_table(
+            "<append=true>//tmp/in2",
+            [ {"key": "%05d" % num, "subkey" : "", "value": num} for num in xrange(count) ],
+            sorted_by = ["key", "subkey"],
+            table_writer = {"block_size": 1024})
+
+        create("table", "//tmp/out")
+        op = join_reduce(
+            in_=['//tmp/in1["00100":"00200"]', "<foreign=true>//tmp/in2"],
+            out="//tmp/out",
+            command="cat",
+            join_by=["key", "subkey"],
+            spec={
+                "reducer": {
+                    "format": "dsv"
+                },
+                "data_size_per_job": 512,
+                "max_failed_job_count": 1
+            })
+
+        assert get("//tmp/out/@row_count") > 200
