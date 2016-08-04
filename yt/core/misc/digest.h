@@ -7,8 +7,8 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! This class holds a compact representation of a set of samples.
-//! Method `GetQuantile(alpha)` returns a lower bound `X` such that the amount
-//! of samples lower than X is no less than `alpha`.
+//! #IDigest::GetQuantile|(alpha)| returns a lower bound |X| such that the number
+//! of samples less than |X| is no less than |alpha|.
 // TODO(max42): add methods GetCDF(X) -> alpha (inverse to GetQuantile).
 // TODO(max42): add support for serialization/deserialization.
 // TODO(max42): implement Q-Digest (https://github.com/addthis/stream-lib/blob/master/src/main/java/com/clearspring/analytics/stream/quantile/QDigest.java)
@@ -20,7 +20,7 @@ struct IDigest
 
     virtual double GetQuantile(double alpha) const = 0;
 
-    virtual void Persist(NPhoenix::TPersistenceContext& context) = 0;
+    virtual void Persist(const NPhoenix::TPersistenceContext& context) = 0;
 };
 
 std::unique_ptr<IDigest> CreateLogDigest(TLogDigestConfigPtr config);
