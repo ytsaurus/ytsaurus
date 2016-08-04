@@ -542,7 +542,8 @@ protected:
             for (int index = 0; index < InputTables.size(); ++index) {
                 IsInputTableTeleportable[index] = ValidateTableSchemaCompatibility(
                     InputTables[index].Schema,
-                    OutputTables[*tableIndex].Schema).IsOK();
+                    OutputTables[*tableIndex].TableUploadOptions.TableSchema,
+                    false).IsOK();
             }
         }
     }
@@ -770,6 +771,37 @@ private:
 
     TOrderedMergeOperationSpecPtr Spec;
 
+    virtual void PrepareOutputTables() override
+    {
+        auto& table = OutputTables[0];
+
+        switch (Spec->SchemaInferenceMode) {
+            case ESchemaInferenceMode::Auto:
+                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                    InferSchemaFromInputOrdered();
+                } else {
+                    ValidateOutputSchemaOrdered();
+
+                    ValidateTableSchemaCompatibility(
+                        InputTables[0].Schema,
+                        table.TableUploadOptions.TableSchema,
+                        /* ignoreSortOrder */ true)
+                        .ThrowOnError();
+                }
+                break;
+
+            case ESchemaInferenceMode::FromInput:
+                InferSchemaFromInputOrdered();
+                break;
+
+            case ESchemaInferenceMode::FromOutput:
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
@@ -901,20 +933,33 @@ private:
 
     virtual void PrepareOutputTables() override
     {
-        auto& outputTable = OutputTables[0];
-        auto& inputTable = InputTables[0];
+        auto& table = OutputTables[0];
+        table.TableUploadOptions.UpdateMode = EUpdateMode::Overwrite;
+        table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
-        if (outputTable.SchemaMode == ETableSchemaMode::Weak) {
-            outputTable.Schema = inputTable.Schema;
-        } else {
-            ValidateTableSchemaCompatibility(inputTable.Schema, outputTable.Schema)
-                .ThrowOnError();
+        switch (Spec->SchemaInferenceMode) {
+            case ESchemaInferenceMode::Auto:
+                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                    InferSchemaFromInputOrdered();
+                } else {
+                    ValidateTableSchemaCompatibility(
+                        InputTables[0].Schema,
+                        table.TableUploadOptions.TableSchema,
+                        /* ignoreSortOrder */ false)
+                        .ThrowOnError();
+                }
+                break;
+
+            case ESchemaInferenceMode::FromInput:
+                InferSchemaFromInputOrdered();
+                break;
+
+            case ESchemaInferenceMode::FromOutput:
+                break;
+
+            default:
+                YUNREACHABLE();
         }
-
-        // Output table must be cleared (regardless of requested "append" attribute).
-        outputTable.UpdateMode = EUpdateMode::Overwrite;
-        outputTable.LockMode = ELockMode::Exclusive;
-        outputTable.AppendRequested = false;
     }
 
     virtual void InitJobSpecTemplate() override
@@ -930,8 +975,8 @@ private:
         // If the input is sorted then the output must also be sorted.
         // To produce sorted output a job needs key columns.
         const auto& table = InputTables[0];
-        if (!table.KeyColumns.empty()) {
-            ToProto(jobSpecExt->mutable_key_columns(), table.KeyColumns);
+        if (table.Schema.IsSorted()) {
+            ToProto(jobSpecExt->mutable_key_columns(), table.Schema.GetKeyColumns());
         }
     }
 
@@ -1496,21 +1541,53 @@ private:
 
     virtual void PrepareOutputTables() override
     {
+        // Check that all input tables are sorted by the same key columns.
         TSortedMergeControllerBase::PrepareOutputTables();
 
         auto& table = OutputTables[0];
+        table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
-        if (table.SchemaMode == ETableSchemaMode::Weak) {
-            table.Schema = TTableSchema::FromKeyColumns(SortKeyColumns);
-        } else if (!CheckKeyColumnsCompatible(SortKeyColumns, table.Schema.GetKeyColumns())) {
-            THROW_ERROR_EXCEPTION("Table %v is expected to be sorted by columns [%v], but merge operation key columns are [%v]",
-                table.Path,
-                JoinToString(table.Schema.GetKeyColumns()),
-                JoinToString(SortKeyColumns));
+        auto validateOutputKeyColumns = [&] () {
+            if (table.TableUploadOptions.TableSchema.GetKeyColumns() != SortKeyColumns) {
+                THROW_ERROR_EXCEPTION("Merge key columns do not match output table schema in \"strong\" schema mode")
+                        << TErrorAttribute("output_schema", table.TableUploadOptions.TableSchema)
+                        << TErrorAttribute("merge_by", SortKeyColumns)
+                        << TErrorAttribute("schema_inference_mode", Spec->SchemaInferenceMode);
+            }
+        };
+
+        switch (Spec->SchemaInferenceMode) {
+            case ESchemaInferenceMode::Auto:
+                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                    InferSchemaFromInputSorted(SortKeyColumns);
+                } else {
+                    validateOutputKeyColumns();
+
+                    for (const auto& inputTable : InputTables) {
+                        ValidateTableSchemaCompatibility(
+                            inputTable.Schema,
+                            table.TableUploadOptions.TableSchema,
+                            /* ignoreSortOrder */ true)
+                            .ThrowOnError();
+                    }
+                }
+                break;
+
+            case ESchemaInferenceMode::FromInput:
+                InferSchemaFromInputSorted(SortKeyColumns);
+                break;
+
+            case ESchemaInferenceMode::FromOutput:
+                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                    table.TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(SortKeyColumns);
+                } else {
+                    validateOutputKeyColumns();
+                }
+                break;
+
+            default:
+                YUNREACHABLE();
         }
-
-        table.UpdateMode = EUpdateMode::Overwrite;
-        table.LockMode = ELockMode::Exclusive;
     }
 
     virtual void InitJobSpecTemplate() override

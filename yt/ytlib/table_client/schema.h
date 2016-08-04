@@ -124,12 +124,20 @@ public:
     //! Returns the schema with UniqueKeys set to true.
     TTableSchema ToUniqueKeys() const;
 
+    //! Returns the schema with all column attributes unset (expect Name and Type).
+    TTableSchema ToStrippedColumnAttributes() const;
+
+    //! Returns (possibly reordered) schema sorted by column names.
+    TTableSchema ToCanonical() const;
+
+    //! Returns (possibly reordered) schema with set key columns.
+    TTableSchema ToSorted(const TKeyColumns& keyColumns) const;
+
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 
 private:
     int KeyColumnCount_ = 0;
-
 };
 
 Stroka ToString(const TTableSchema& schema);
@@ -173,7 +181,7 @@ void ValidateReadSchema(const TTableSchema& readSchema, const TTableSchema& tabl
 
 TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool discardKeyColumns);
 
-TError ValidateTableSchemaCompatibility(const TTableSchema& inputSchema, const TTableSchema& outputSchema);
+TError ValidateTableSchemaCompatibility(const TTableSchema& inputSchema, const TTableSchema& outputSchema, bool ignoreSortOrder);
 
 ////////////////////////////////////////////////////////////////////////////////
 

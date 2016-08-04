@@ -378,6 +378,55 @@ TTableSchema TTableSchema::ToUniqueKeys() const
     return TTableSchema(Columns_, Strict_, true);
 }
 
+TTableSchema TTableSchema::ToStrippedColumnAttributes() const
+{
+    std::vector<TColumnSchema> strippedColumns;
+    for (auto& column : Columns_) {
+        strippedColumns.emplace_back(column.Name, column.Type);
+    }
+    return TTableSchema(strippedColumns, Strict_, UniqueKeys_);
+}
+
+TTableSchema TTableSchema::ToCanonical() const
+{
+    auto columns = Columns();
+    std::sort(
+        columns.begin() + KeyColumnCount_,
+        columns.end(),
+        [] (const TColumnSchema& lhs, const TColumnSchema& rhs) {
+            return lhs.Name < rhs.Name;
+        });
+    return TTableSchema(columns, Strict_, UniqueKeys_);
+}
+
+TTableSchema TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
+{
+    auto columns = Columns();
+    for (int index = 0; index < keyColumns.size(); ++index) {
+        auto it = std::find_if(
+            columns.begin() + index,
+            columns.end(),
+            [&] (const TColumnSchema& column) {
+                return column.Name == keyColumns[index];
+            });
+
+        if (it == columns.end()) {
+            THROW_ERROR_EXCEPTION("Column %Qv is not found in schema", keyColumns[index])
+                << TErrorAttribute("schema", *this)
+                << TErrorAttribute("key_columns", keyColumns);
+        }
+
+        std::swap(columns[index], *it);
+        columns[index].SetSortOrder(ESortOrder::Ascending);
+    }
+
+    for (auto it = columns.begin() + keyColumns.size(); it != columns.end(); ++it) {
+        it->SetSortOrder(Null);
+    }
+
+    return TTableSchema(columns, Strict_, UniqueKeys_);
+}
+
 void TTableSchema::Save(TStreamSaveContext& context) const
 {
     using NYT::Save;
@@ -1107,7 +1156,8 @@ void ValidateReadSchema(const TTableSchema& readSchema, const TTableSchema& tabl
 
 TError ValidateTableSchemaCompatibility(
     const TTableSchema& inputSchema,
-    const TTableSchema& outputSchema)
+    const TTableSchema& outputSchema,
+    bool ignoreSortOrder)
 {
     auto addAttributes = [&] (TError error) {
         return error
@@ -1137,6 +1187,10 @@ TError ValidateTableSchemaCompatibility(
                     inputColumn->Name));
             }
         }
+    }
+
+    if (ignoreSortOrder) {
+        return TError();
     }
 
     // Check that output key columns form a proper prefix of input key columns.

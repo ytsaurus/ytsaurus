@@ -357,11 +357,13 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
-    def test_sorted_unique_simple(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_sorted_unique_simple(self, optimize_for):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         create("table", "//tmp/t3")
         create("table", "//tmp/t_out", attributes={
+            "optimize_for" : optimize_for,
             "schema": make_schema([
                 {"name": "a", "type": "int64", "sort_order": "ascending"},
                 {"name": "b", "type": "int64"}],
@@ -380,12 +382,14 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             merge(mode="sorted",
                   in_="//tmp/t3",
                   out="//tmp/t_out",
-                  merge_by="a")
+                  merge_by="a",
+                  spec={"schema_inference_mode" : "from_output"})
 
         merge(mode="sorted",
               in_=["//tmp/t1", "//tmp/t2"],
               out="//tmp/t_out",
-              merge_by="a")
+              merge_by="a",
+              spec={"schema_inference_mode" : "from_output"})
 
         result = read_table("//tmp/t_out")
         assert result == [a1, a2, a3]
@@ -394,9 +398,11 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
         assert get("//tmp/t_out/@schema/@unique_keys")
 
-    def test_sorted_unique_with_wider_key_columns(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_sorted_unique_with_wider_key_columns(self, optimize_for):
         create("table", "//tmp/t1")
         create("table", "//tmp/t_out", attributes={
+            "optimize_for" : optimize_for,
             "schema": make_schema([
                 {"name": "key1", "type": "int64", "sort_order": "ascending"},
                 {"name": "key2", "type": "int64", "sort_order": "ascending"}],
@@ -412,12 +418,14 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             merge(mode="sorted",
                 in_="//tmp/t1",
                 out="//tmp/t_out",
-                merge_by="key1")
+                merge_by="key1",
+                spec={"schema_inference_mode" : "from_output"})
 
         merge(mode="sorted",
             in_="//tmp/t1",
             out="//tmp/t_out",
-            merge_by=["key1", "key2"])
+            merge_by=["key1", "key2"],
+            spec={"schema_inference_mode" : "from_output"})
 
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") == ["key1", "key2"]
@@ -559,9 +567,53 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a": i} for i in xrange(1, 3)]
 
-    def test_schema_validation_unordered(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_auto_schema_inference_unordered(self, optimize_for):
+        loose_schema = make_schema([{"name" : "key", "type" : "int64"}], strict=False)
+        strict_schema = make_schema([{"name" : "key", "type" : "int64"}])
+
+        create("table", "//tmp/input_loose", attributes={"schema" : loose_schema})
+        create("table", "//tmp/input_weak")
+        create("table", "//tmp/output_weak", attributes={"optimize_for" : optimize_for})
+        create("table", "//tmp/output_loose", 
+            attributes={"optimize_for" : optimize_for, "schema" : loose_schema})
+        create("table", "//tmp/output_strict", 
+            attributes={"optimize_for" : optimize_for, "schema" : strict_schema})
+
+        assert get("//tmp/input_loose/@schema_mode") == "strong"
+        assert get("//tmp/output_weak/@schema_mode") == "weak"
+        assert get("//tmp/output_loose/@schema_mode") == "strong"
+
+        write_table("<append=true>//tmp/input_loose", {"key": 1, "value": "foo"})
+        write_table("<append=true>//tmp/input_weak", {"key": 1, "value": "foo"})
+
+        merge(in_="//tmp/input_loose", out="//tmp/output_weak")
+
+        assert get("//tmp/output_weak/@schema_mode") == "strong"
+        assert not get("//tmp/output_weak/@schema/@strict")
+
+        merge(in_="//tmp/input_loose", out="//tmp/output_loose")
+        assert get("//tmp/output_loose/@schema_mode") == "strong"
+        assert not get("//tmp/output_loose/@schema/@strict")
+
+        with pytest.raises(YtError):
+            # changing from strict schema to nonstrict is not allowed 
+            merge(in_="//tmp/input_loose", out="//tmp/output_strict")
+
+        # schema validation must pass
+        merge(in_="//tmp/input_weak", out="//tmp/output_loose")
+        assert get("//tmp/output_loose/@schema_mode") == "strong"
+        assert not get("//tmp/output_loose/@schema/@strict")
+
+        with pytest.raises(YtError):
+            # schema validation must fail
+            merge(in_="//tmp/input_weak", out="//tmp/output_strong")
+
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_schema_validation_unordered(self, optimize_for):
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={
+            "optimize_for" : optimize_for,
             "schema": make_schema([
                 {"name": "key", "type": "int64"},
                 {"name": "value", "type": "string"}])
@@ -571,7 +623,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             write_table("<append=true>//tmp/input", {"key": i, "value": "foo"})
 
         merge(in_="//tmp/input",
-            out="//tmp/output")
+            out="//tmp/output",
+            spec={"schema_inference_mode" : "from_output"})
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
@@ -581,11 +634,14 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         with pytest.raises(YtError):
             merge(in_="//tmp/input",
-                out="//tmp/output")
+                out="//tmp/output",
+                spec={"schema_inference_mode" : "from_output"})
 
-    def test_schema_validation_ordered(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_schema_validation_ordered(self, optimize_for):
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={
+            "optimize_for" : optimize_for,
             "schema": make_schema([
                 {"name": "key", "type": "int64"},
                 {"name": "value", "type": "string"}])
@@ -596,7 +652,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         merge(mode="ordered",
             in_="//tmp/input",
-            out="//tmp/output")
+            out="//tmp/output",
+            spec={"schema_inference_mode" : "from_output"})
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
@@ -607,11 +664,14 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         with pytest.raises(YtError):
             merge(mode="ordered",
                 in_="//tmp/input",
-                out="//tmp/output")
+                out="//tmp/output",
+                spec={"schema_inference_mode" : "from_output"})
 
-    def test_schema_validation_sorted(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_schema_validation_sorted(self, optimize_for):
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={
+            "optimize_for" : optimize_for,
             "schema": make_schema([
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "string"}])
@@ -624,7 +684,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         merge(mode="sorted",
             in_="//tmp/input",
-            out="//tmp/output")
+            out="//tmp/output",
+            spec={"schema_inference_mode" : "from_output"})
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
@@ -636,7 +697,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         with pytest.raises(YtError):
             merge(mode="sorted",
                 in_="//tmp/input",
-                out="//tmp/output")
+                out="//tmp/output",
+                spec={"schema_inference_mode" : "from_output"})
 
 ##################################################################
 
@@ -808,3 +870,4 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
                 "1": {"ref_counter": 1, "vital": True, "replication_factor": 3},
                 "2": {"ref_counter": 1, "vital": True, "replication_factor": 3}
             })
+

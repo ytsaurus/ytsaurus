@@ -1849,16 +1849,41 @@ private:
     virtual void PrepareOutputTables() override
     {
         auto& table = OutputTables[0];
-        table.UpdateMode = EUpdateMode::Overwrite;
-        table.LockMode = ELockMode::Exclusive;
+        table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
-        if (table.SchemaMode == ETableSchemaMode::Weak) {
-            table.Schema = TTableSchema::FromKeyColumns(Spec->SortBy);
-        } else if (!CheckKeyColumnsCompatible(Spec->SortBy, table.Schema.GetKeyColumns())) {
-            THROW_ERROR_EXCEPTION("Table %v is expected to be sorted by columns [%v], but sort operation key columns are [%v]",
-                table.Path,
-                JoinToString(table.Schema.GetKeyColumns()),
-                JoinToString(Spec->SortBy));
+        switch (Spec->SchemaInferenceMode) {
+            case ESchemaInferenceMode::Auto:
+                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                    InferSchemaFromInputSorted(Spec->SortBy);
+                } else {
+                    table.TableUploadOptions.TableSchema =
+                        table.TableUploadOptions.TableSchema.ToSorted(Spec->SortBy);
+
+                    for (const auto& inputTable : InputTables) {
+                        ValidateTableSchemaCompatibility(
+                            inputTable.Schema,
+                            table.TableUploadOptions.TableSchema,
+                            /* ignoreSortOrder */ true)
+                        .ThrowOnError();
+                    }
+                }
+                break;
+
+            case ESchemaInferenceMode::FromInput:
+                InferSchemaFromInputSorted(Spec->SortBy);
+                break;
+
+            case ESchemaInferenceMode::FromOutput:
+                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                    table.TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(Spec->SortBy);
+                } else {
+                    table.TableUploadOptions.TableSchema =
+                        table.TableUploadOptions.TableSchema.ToSorted(Spec->SortBy);
+                }
+                break;
+
+            default:
+                YUNREACHABLE();
         }
     }
 

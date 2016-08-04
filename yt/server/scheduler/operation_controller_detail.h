@@ -216,7 +216,6 @@ protected:
         //! Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
         std::vector<NChunkClient::TInputChunkPtr> Chunks;
-        NTableClient::TKeyColumns KeyColumns;
         NTableClient::TTableSchema Schema;
         NTableClient::ETableSchemaMode SchemaMode;
 
@@ -250,12 +249,8 @@ protected:
         : public NChunkClient::TUserObject
         , public TLivePreviewTableBase
     {
-        bool AppendRequested = false;
-        NChunkClient::EUpdateMode UpdateMode = NChunkClient::EUpdateMode::Overwrite;
-        NCypressClient::ELockMode LockMode = NCypressClient::ELockMode::Exclusive;
         NTableClient::TTableWriterOptionsPtr Options = New<NTableClient::TTableWriterOptions>();
-        NTableClient::TTableSchema Schema;
-        NTableClient::ETableSchemaMode SchemaMode;
+        NTableClient::TTableUploadOptions TableUploadOptions;
         bool ChunkPropertiesUpdateNeeded = false;
 
         // Server-side upload transaction.
@@ -922,6 +917,11 @@ protected:
     const IDigest* GetJobProxyMemoryDigest(EJobType jobType) const;
 
     i64 ComputeUserJobMemoryReserve(EJobType jobType, TUserJobSpecPtr jobSpec) const;
+
+    void InferSchemaFromInputUnordered();
+    void InferSchemaFromInputOrdered();
+    void InferSchemaFromInputSorted(const NTableClient::TKeyColumns& keyColumns);
+    void ValidateOutputSchemaOrdered() const;
 
 private:
     typedef TOperationControllerBase TThis;
