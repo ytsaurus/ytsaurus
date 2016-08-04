@@ -1651,7 +1651,7 @@ protected:
     {
         YCHECK(ForeignKeyColumnCount > 0);
         YCHECK(ForeignKeyColumnCount <= static_cast<int>(SortKeyColumns.size()));
-        YCHECK(ForeignKeyColumnCount == foreignMinKey.GetCount());
+        YCHECK(foreignMinKey.GetCount() <= ForeignKeyColumnCount);
 
         for (auto& tableChunks : ForeignInputChunks) {
             auto firstUsed = tableChunks.cbegin();
