@@ -460,6 +460,7 @@ public:
     NYPath::TRichYPath OutputTablePath;
     bool CombineChunks;
     bool ForceTransform;
+    ESchemaInferenceMode SchemaInferenceMode;
 
     TUnorderedMergeOperationSpec()
     {
@@ -468,6 +469,8 @@ public:
             .Default(false);
         RegisterParameter("force_transform", ForceTransform)
             .Default(false);
+        RegisterParameter("schema_inference_mode", SchemaInferenceMode)
+            .Default(ESchemaInferenceMode::Auto);
     }
 
     virtual void OnLoaded() override
@@ -497,6 +500,8 @@ public:
     bool ForceTransform;
     NTableClient::TKeyColumns MergeBy;
 
+    ESchemaInferenceMode SchemaInferenceMode;
+
     TMergeOperationSpec()
     {
         RegisterParameter("input_table_paths", InputTablePaths)
@@ -510,6 +515,8 @@ public:
             .Default(false);
         RegisterParameter("merge_by", MergeBy)
             .Default();
+        RegisterParameter("schema_inference_mode", SchemaInferenceMode)
+            .Default(ESchemaInferenceMode::Auto);
     }
 
     virtual void OnLoaded() override
@@ -538,12 +545,15 @@ class TEraseOperationSpec
 public:
     NYPath::TRichYPath TablePath;
     bool CombineChunks;
+    ESchemaInferenceMode SchemaInferenceMode;
 
     TEraseOperationSpec()
     {
         RegisterParameter("table_path", TablePath);
         RegisterParameter("combine_chunks", CombineChunks)
             .Default(false);
+        RegisterParameter("schema_inference_mode", SchemaInferenceMode)
+            .Default(ESchemaInferenceMode::Auto);
     }
 
     virtual void OnLoaded() override
@@ -778,6 +788,8 @@ public:
     // For sorted_merge and unordered_merge jobs.
     TLogDigestConfigPtr MergeJobProxyMemoryDigest;
 
+    ESchemaInferenceMode SchemaInferenceMode;
+
     TSortOperationSpec()
     {
         RegisterParameter("output_table_path", OutputTablePath);
@@ -809,6 +821,8 @@ public:
 
         RegisterParameter("merge_job_proxy_memory_digest", MergeJobProxyMemoryDigest)
             .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
+        RegisterParameter("schema_inference_mode", SchemaInferenceMode)
+            .Default(ESchemaInferenceMode::Auto);
 
         RegisterInitializer([&] () {
             PartitionJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
@@ -967,6 +981,8 @@ public:
     bool CopyAttributes;
     TNullable<std::vector<Stroka>> AttributeKeys;
 
+    ESchemaInferenceMode SchemaInferenceMode;
+
     // For remote_copy jobs.
     TLogDigestConfigPtr JobProxyMemoryDigest;
 
@@ -997,6 +1013,8 @@ public:
             .Default();
         RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
             .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
+        RegisterParameter("schema_inference_mode", SchemaInferenceMode)
+            .Default(ESchemaInferenceMode::Auto);
     }
 
     virtual void OnLoaded() override

@@ -289,11 +289,67 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/t/@sorted")
         assert read_table("//tmp/t") == [{"key" : "a"}, {"key" : "b"}]
 
-    def _test_schema_validation(self, sort_order):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_auto_schema_inference(self, optimize_for):
+        loose_schema = make_schema([{"name" : "key", "type" : "int64"}], strict=False)
+        strict_schema = make_schema([{"name" : "key", "type" : "int64"}])
+
+        create("table", "//tmp/input_loose", attributes={"schema" : loose_schema})
+        create("table", "//tmp/input_weak")
+        create("table", "//tmp/output_weak", attributes={"optimize_for" : optimize_for})
+        create("table", "//tmp/output_loose", 
+            attributes={"optimize_for" : optimize_for, "schema" : loose_schema})
+        create("table", "//tmp/output_strict", 
+            attributes={"optimize_for" : optimize_for, "schema" : strict_schema})
+
+        write_table("<append=true>//tmp/input_loose", {"key": 1, "value": "foo"})
+        write_table("<append=true>//tmp/input_weak", {"key": 1, "value": "foo"})
+
+        # input weak
+        sort(in_="//tmp/input_weak",
+            out="//tmp/output_loose",
+            sort_by="key")
+
+        assert get("//tmp/output_loose/@schema_mode") == "strong"
+        assert get("//tmp/output_loose/@sorted")
+
+        sort(in_="//tmp/input_weak",
+            out="//tmp/output_weak",
+            sort_by="key")
+
+        assert get("//tmp/output_weak/@schema_mode") == "weak"
+        assert get("//tmp/output_weak/@sorted")
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/input_weak",
+                out="//tmp/output_strict",
+                sort_by="key")
+
+        # input loose
+        sort(in_="//tmp/input_loose",
+            out="//tmp/output_loose",
+            sort_by="key")
+
+        assert get("//tmp/output_loose/@schema_mode") == "strong"
+        assert get("//tmp/output_loose/@sorted")
+
+        sort(in_="//tmp/input_loose",
+            out="//tmp/output_weak",
+            sort_by="key")
+
+        assert get("//tmp/output_weak/@schema_mode") == "strong"
+        assert get("//tmp/output_weak/@sorted")
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/input_loose",
+                out="//tmp/output_strict",
+                sort_by="key")
+
+    def test_schema_validation(self):
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={"schema":
             make_schema([
-                {"name": "key", "type": "int64", "sort_order": sort_order},
+                {"name": "key", "type": "int64"},
                 {"name": "value", "type": "string"}])
             })
 
@@ -302,7 +358,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         sort(in_="//tmp/input",
             out="//tmp/output",
-            sort_by="key")
+            sort_by="key",
+            spec={"schema_inference_mode" : "from_output"})
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
@@ -314,13 +371,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
         with pytest.raises(YtError):
             sort(in_="//tmp/input",
                 out="//tmp/output",
-                sort_by="key")
-
-    def test_schema_validation(self):
-        self._test_schema_validation(None)
-
-    def test_schema_validation_sorted(self):
-        self._test_schema_validation("ascending")
+                sort_by="key",
+                spec={"schema_inference_mode" : "from_output"})
 
     def test_unique_keys_validation(self):
         create("table", "//tmp/input")
@@ -336,7 +388,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         sort(in_="//tmp/input",
             out="//tmp/output",
-            sort_by="key")
+            sort_by="key",
+            spec={"schema_inference_mode" : "from_output"})
 
         assert get("//tmp/output/@schema/@strict")
         assert get("//tmp/output/@schema/@unique_keys")
@@ -347,7 +400,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
         with pytest.raises(YtError):
             sort(in_="//tmp/input",
                 out="//tmp/output",
-                sort_by="key")
+                sort_by="key",
+                spec={"schema_inference_mode" : "from_output"})
 
         erase("//tmp/input")
 
@@ -357,7 +411,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
         with pytest.raises(YtError):
             sort(in_="//tmp/input",
                 out="//tmp/output",
-                sort_by="key")
+                sort_by="key",
+                spec={"schema_inference_mode" : "from_output"})
 
 ##################################################################
 

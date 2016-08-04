@@ -532,7 +532,8 @@ private:
         bool isSchemaCompatible =
         	ValidateTableSchemaCompatibility(
             	InputTables[chunkSpec->GetTableIndex()].Schema,
-            	OutputTables[0].Schema)
+            	OutputTables[0].TableUploadOptions.TableSchema,
+                false)
             .IsOK();
 
         if (Spec->ForceTransform || chunkSpec->Channel() || !isSchemaCompatible) {
@@ -542,6 +543,40 @@ private:
         return Spec->CombineChunks
             ? chunkSpec->IsLargeCompleteChunk(Spec->JobIO->TableWriter->DesiredChunkSize)
             : chunkSpec->IsCompleteChunk();
+    }
+
+    virtual void PrepareOutputTables() override
+    {
+        auto& table = OutputTables[0];
+
+        switch (Spec->SchemaInferenceMode) {
+            case ESchemaInferenceMode::Auto:
+                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                    InferSchemaFromInputUnordered();
+                } else {
+                    if (table.TableUploadOptions.TableSchema.IsSorted()) {
+                        THROW_ERROR_EXCEPTION("Cannot perform unordered merge into a sorted table in a \"strong\" schema mode")
+                            << TErrorAttribute("schema", table.TableUploadOptions.TableSchema);
+                    }
+
+                    ValidateTableSchemaCompatibility(
+                        InputTables[0].Schema,
+                        table.TableUploadOptions.TableSchema,
+                        /* ignoreSortOrder */ true)
+                        .ThrowOnError();
+                }
+                break;
+
+            case ESchemaInferenceMode::FromInput:
+                InferSchemaFromInputUnordered();
+                break;
+
+            case ESchemaInferenceMode::FromOutput:
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
     }
 };
 

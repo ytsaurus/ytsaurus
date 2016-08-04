@@ -53,6 +53,12 @@ DEFINE_ENUM(EUnavailableChunkAction,
     (Wait)
 );
 
+DEFINE_ENUM(ESchemaInferenceMode,
+    (Auto)
+    (FromInput)
+    (FromOutput)
+);
+
 DEFINE_ENUM(EAbortReason,
     (Scheduler)
     (FailedChunks)

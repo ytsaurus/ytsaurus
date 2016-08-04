@@ -100,7 +100,7 @@ private:
         descriptors->push_back("atomicity");
         descriptors->push_back(TAttributeDescriptor("optimize_for")
             .SetCustom(true));
-        descriptors->push_back(TAttributeDescriptor("schema_mode"));
+        descriptors->push_back("schema_mode");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
