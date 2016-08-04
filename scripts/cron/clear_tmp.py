@@ -34,6 +34,7 @@ def main():
     parser.add_argument("--max-node-count", type=int, default=50000)
     parser.add_argument("--safe-age", type=int, default=10, help="Objects that younger than safe-age minutes will not be removed")
     parser.add_argument("--max-age", type=int, default=7, help="Objects that older than max-age days will be removed")
+    parser.add_argument("--do-not-remove-objects-with-other-account", action="store_true", default=False, help="By default all objects in directory will be removed")
     args = parser.parse_args()
 
     safe_age = timedelta(minutes=args.safe_age)
@@ -59,8 +60,10 @@ def main():
     objects = []
     for obj in yt.search(args.directory,
                          node_type=["table", "file", "link"],
-                         attributes=["access_time", "modification_time", "locks", "hash", "resource_usage"]):
+                         attributes=["access_time", "modification_time", "locks", "hash", "resource_usage", "account"]):
         if is_locked(obj):
+            continue
+        if args.do_not_remove_objects_with_other_account and obj.attributes.get("account") != args.account:
             continue
         objects.append((get_age(obj), obj))
     objects.sort()
