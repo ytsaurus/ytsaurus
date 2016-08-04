@@ -239,38 +239,6 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
-                "//sys/empty_yamr_table",
-                transactionId,
-                EObjectType::Table,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("external").Value(false)
-                        .Item("schema")
-                            .BeginAttributes()
-                                .Item("strict").Value(true)
-                            .EndAttributes()
-                            .BeginList()
-                                .Item()
-                                    .BeginMap()
-                                        .Item("name").Value("key")
-                                        .Item("type").Value("string")
-                                        .Item("sort_order").Value("ascending")
-                                    .EndMap()
-                                .Item()
-                                    .BeginMap()
-                                        .Item("name").Value("subkey")
-                                        .Item("type").Value("string")
-                                        .Item("sort_order").Value("ascending")
-                                    .EndMap()
-                                .Item()
-                                    .BeginMap()
-                                        .Item("name").Value("value")
-                                        .Item("type").Value("string")
-                                    .EndMap() 
-                            .EndList()
-                    .EndMap());
-
-            ScheduleCreateNode(
                 "//sys/scheduler/instances",
                 transactionId,
                 EObjectType::MapNode,
