@@ -7,8 +7,6 @@ var YtApplicationOperations = require("../lib/application_operations").that;
 var YtError = require("../lib/error").that;
 var utils = require("../lib/utils");
 
-var util = require('util');
-
 ////////////////////////////////////////////////////////////////////////////////
 
 function clone(obj)
@@ -72,7 +70,7 @@ function testApplicationOperations(version)
     }
 
     function mockArchiveItemsForList(mock, result) {
-        if ("version" in version && version["version"] >= 2) {
+        if (typeof version !== "undefined" && version >= 2) {
             mock
                 .expects("executeSimple")
                 .once()
@@ -148,8 +146,8 @@ function testApplicationOperations(version)
         mock
             .expects("executeSimple")
             .once()
-            .withExactArgs("get", sinon.match({path: "//sys/operations_archive/@" }))
-            .returns(Q.resolve(version));
+            .withExactArgs("get", sinon.match({path: "//sys/operations_archive/@version" }))
+            .returns(typeof version === "undefined" ? Q.reject(new YtError("No attribute").withCode(500)) : Q.resolve(version));
     }
 
     function mockForList(mock, cypress_result, runtime_result, archive_items_result, archive_counters_result)
@@ -777,14 +775,14 @@ function testApplicationOperations(version)
 }
 
 describe("YtApplicationOperations - list, get operations and scheduling info (version undefined)", function() {
-   testApplicationOperations({});
+   testApplicationOperations(undefined);
 });
 
 describe("YtApplicationOperations - list, get operations and scheduling info (version 1)", function() {
-   testApplicationOperations({version: 1});
+   testApplicationOperations(1);
 });
 
 describe("YtApplicationOperations - list, get operations and scheduling info (version 2)", function() {
-   testApplicationOperations({version: 2});
+   testApplicationOperations(2);
 });
 

@@ -18,8 +18,8 @@ var __DBG = require("./debug").that("V", "Operations");
 ////////////////////////////////////////////////////////////////////////////////
 
 var OPERATIONS_ARCHIVE_DIRECTORY = "//sys/operations_archive";
-var OPERATIONS_ARCHIVE_PATH = "//sys/operations_archive/ordered_by_id";
-var OPERATIONS_ARCHIVE_INDEX_PATH = "//sys/operations_archive/ordered_by_start_time";
+var OPERATIONS_ARCHIVE_PATH = "{}/ordered_by_id".format(OPERATIONS_ARCHIVE_DIRECTORY);
+var OPERATIONS_ARCHIVE_INDEX_PATH = "{}/ordered_by_start_time".format(OPERATIONS_ARCHIVE_DIRECTORY);
 var OPERATIONS_CYPRESS_PATH = "//sys/operations";
 var OPERATIONS_RUNTIME_PATH = "//sys/scheduler/orchid/scheduler/operations";
 var SCHEDULING_INFO_PATH = "//sys/scheduler/orchid/scheduler";
@@ -278,7 +278,7 @@ function required(parameters, key, validator)
     }
 }
 
-function getArchiveCallbacks(driver, from_time, to_time, cursor_time, substr_filter, cursor_direction, state_filter, type_filter, user_filter, max_size, version)
+function getArchiveCallbacks(timings, from_time, to_time, cursor_time, substr_filter, cursor_direction, state_filter, type_filter, user_filter, max_size, version)
 {
     var start_time_name = version < 2 ? "index.start_time" : "start_time";
     var counts_filter_conditions = [
@@ -334,26 +334,62 @@ function getArchiveCallbacks(driver, from_time, to_time, cursor_time, substr_fil
         " ORDER BY start_time {}".format(items_sort_direction) +
         " LIMIT {}".format(1 + max_size);
 
+    var logger = this.logger;
+    var driver = this.driver;
     return {
         getCounts: function() {
+            var timing_start = new Date();
             return driver.executeSimple(
                 "select_rows",
-                {query: query_for_counts});
+                {query: query_for_counts})
+                .finally(function() {
+                    var dt = timings.archive_counts = new Date() - timing_start;
+                    if (dt > SLOW_QUERY_TIMEOUT) {
+                        logger.debug("Slow query", {query: query_for_counts, time: dt});
+                    }
+                });
         },
         getItems: function() {
+            var timing_start = new Date();
             if (version < 2) {
                 return driver.executeSimple(
                     "select_rows",
-                    {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT});
+                    {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT})
+                    .finally(function() {
+                        var dt = timings.archive_items = new Date() - timing_start;
+                        if (dt > SLOW_QUERY_TIMEOUT) {
+                            logger.debug("Slow query", {query: query_for_items, time: dt});
+                        }
+                    });
             } else {
-                return driver
+                var timing_archive_items_start;
+                var archive_item_ids = driver
                     .executeSimple(
                         "select_rows",
                         {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT})
-                    .then(driver.executeSimple.bind(driver, "lookup_rows", {
+                    .then(function(value) {
+                        timing_archive_items_start = new Date();
+                        return value;
+                    })
+                    .finally(function() {
+                        var dt = timings.archive_item_ids = new Date() - timing_start;
+                        if (dt > SLOW_QUERY_TIMEOUT) {
+                            logger.debug("Slow query", {query: query_for_items, time: dt});
+                        }
+                    });
+
+                var archive_items = archive_item_ids.then(driver.executeSimple.bind(driver, "lookup_rows", {
                         path: OPERATIONS_ARCHIVE_PATH,
                         input_format: ANNOTATED_JSON_FORMAT,
-                        output_format: ANNOTATED_JSON_FORMAT}));
+                        output_format: ANNOTATED_JSON_FORMAT}))
+                    .finally(function() {
+                        var dt = timings.archive_items_lookup = new Date() - timing_archive_items_start;
+                        if (dt > SLOW_QUERY_TIMEOUT) {
+                            logger.debug("Slow lookup", {time: dt});
+                        }
+                    });
+
+                return archive_items;
             }
         }
     }
@@ -445,33 +481,50 @@ function YtApplicationOperations$list(parameters)
         };
     }
 
+    var timings = {};
+
     // Okay, now fetch & merge data.
+    var timings_start = new Date();
     var cypress_data = this.driver.executeSimple(
         "list",
         {
             path: OPERATIONS_CYPRESS_PATH, 
             attributes: OPERATION_ATTRIBUTES
+        })
+        .catch(makeErrorHandler("Failed to fetch operations from Cypress"))
+        .finally(function() {
+            timings.cypress_data = new Date() - timings_start;
         });
 
     var runtime_data = this.driver.executeSimple(
         "get",
         {
             path: OPERATIONS_RUNTIME_PATH
+        })
+        .catch(makeErrorHandler("Failed to fetch operations from scheduler"))
+        .finally(function() {
+            timings.runtime_data = new Date() - timings_start;
         });
 
     var version = this.driver.executeSimple(
         "get",
         {
-            path: "{}/@".format(OPERATIONS_ARCHIVE_DIRECTORY)
+            path: "{}/@version".format(OPERATIONS_ARCHIVE_DIRECTORY)
         })
-        .then(function(attributes) {
-            return attributes["version"] || 0;
+        .catch(function(error) {
+            var err = YtError.ensureWrapped(error);
+            return err.getCode() === 500;
+        }, function(error) {
+            return 0;
         })
-        .catch(makeErrorHandler("Failed to fetch archive version"));
+        .catch(makeErrorHandler("Failed to fetch archive version"))
+        .finally(function() {
+            timings.version = new Date() - timings_start;
+        });
 
     var archive_callbacks = version.then(getArchiveCallbacks.bind(
         this,
-        this.driver,
+        timings,
         from_time,
         to_time,
         cursor_time,
@@ -495,14 +548,10 @@ function YtApplicationOperations$list(parameters)
     if (include_archive) {
         archive_data = archive_callbacks.then(function(callbacks) {
             return callbacks.getItems();
-        });       
+        });
     } else {
         archive_data = Q.resolve([]);
     }
-
-    var timings = {
-        start: new Date(),
-    };
 
     var logger = this.logger;
 
@@ -553,40 +602,14 @@ function YtApplicationOperations$list(parameters)
         };
     }
 
-    cypress_data = cypress_data
-        .catch(makeErrorHandler("Failed to fetch operations from Cypress"))
-        .finally(function() {
-            timings.cypress_data = new Date();
-        });
-
-    runtime_data = runtime_data
-        .catch(makeErrorHandler("Failed to fetch operations from scheduler"))
-        .finally(function() {
-            timings.runtime_data = new Date();
-        });
-
     if (include_archive && include_counters) {
         archive_counts = archive_counts
-            .catch(makeErrorHandler("Failed to fetch operation counts from archive"))
-            .finally(function() {
-                timings.archive_counts = new Date();
-                var dt = timings.archive_counts - timings.start;
-                if ((timings.archive_counts - timings.start) > SLOW_QUERY_TIMEOUT) {
-                    logger.debug("Slow query", {query: query_for_counts, time: dt});
-                }
-            });
+            .catch(makeErrorHandler("Failed to fetch operation counts from archive"));
     }
 
     if (include_archive) {
         archive_data = archive_data
-            .catch(makeErrorHandler("Failed to fetch operation items from archive"))
-            .finally(function() {
-                timings.archive_items = new Date();
-                var dt = timings.archive_items - timings.start;
-                if ((timings.archive_items - timings.start) > SLOW_QUERY_TIMEOUT) {
-                    logger.debug("Slow query", {query: query_for_items, time: dt});
-                }
-            });
+            .catch(makeErrorHandler("Failed to fetch operation items from archive"));
     }
 
     return Q.settle([cypress_data, runtime_data, archive_data, archive_counts])
@@ -757,16 +780,8 @@ function YtApplicationOperations$list(parameters)
 
         var result = {
             operations: merged_data,
-            timings: {},
+            timings: timings,
         };
-
-        _.each(
-            ["cypress_data", "runtime_data", "archive_counts", "archive_items", "total"],
-            function(timer) {
-                if (timings[timer]) {
-                    result.timings[timer] = timings[timer] - timings.start;
-                }
-            });
 
         if (include_counters) {
             result.user_counts = register.result.user_counts;
