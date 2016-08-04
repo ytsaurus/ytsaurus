@@ -116,16 +116,12 @@ class JobShell(object):
         if type(err) is HTTPError and hasattr(err, "response") and err.response:
             if "X-Yt-Error" in err.response.headers:
                 error = json.loads(err.response.headers["X-Yt-Error"])
-                while "inner_errors" in error and len(error["inner_errors"]):
-                    error = error["inner_errors"][0]
-                code = error["code"] if "code" in error else 0
-                if code == 1:
-                    print("Shell exited")
-                elif code == 100 or code == 1500:
-                    print("\nJob finished")
-                else:
-                    message = error["message"] if "message" in error else "unknown"
-                    print("\nDisconnected with code {} ({})".format(code, message))
+                code = 1
+                while code == 1 and error is not None:
+                    code = error["code"] if "code" in error else 1
+                    message = error["message"] if "message" in error else "Unknown error"
+                    error = error["inner_errors"][0] if "inner_errors" in error and len(error["inner_errors"]) else None
+                print("\n{0}: {1}".format(code, message))
         else:
             print("Error:", err)
 
