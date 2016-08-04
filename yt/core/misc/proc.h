@@ -109,9 +109,27 @@ struct TMountTmpfsAsRootTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUmountConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    Stroka Path;
+    bool Detach;
+
+    TUmountConfig()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("detach", Detach);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TUmountConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TUmountAsRootTool
 {
-    void operator()(const Stroka& arg) const;
+    void operator()(TUmountConfigPtr config) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
