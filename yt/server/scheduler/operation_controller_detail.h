@@ -29,6 +29,7 @@
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/value_consumer.h>
+#include <yt/ytlib/table_client/row_buffer.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
@@ -76,11 +77,10 @@ DEFINE_ENUM(EControllerState,
     (Finished)
 );
 
-
 class TOperationControllerBase
     : public IOperationController
     , public TEventLogHostBase
-    , public NPhoenix::IPersistent
+    , public IPersistent
     , public NPhoenix::TFactoryTag<NPhoenix::TNullFactory>
 {
 public:
@@ -135,7 +135,7 @@ public:
 
     TFuture<NYson::TYsonString> BuildInputPathYson(const TJobId& jobId) const override;
 
-    virtual void Persist(TPersistenceContext& context) override;
+    virtual void Persist(const TPersistenceContext& context) override;
 
 protected:
     // Forward declarations.
@@ -202,12 +202,16 @@ protected:
     NObjectClient::TTransactionId InputTransactionId;
     NObjectClient::TTransactionId OutputTransactionId;
 
+    struct TRowBufferTag { };
+    const NTableClient::TRowBufferPtr RowBuffer = New<NTableClient::TRowBuffer>(TRowBufferTag());
+
+
     struct TLivePreviewTableBase
     {
         // Live preview table id.
         NCypressClient::TNodeId LivePreviewTableId;
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
     };
 
     struct TInputTable
@@ -228,7 +232,7 @@ protected:
             return !IsForeign();
         }
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
     };
 
     std::vector<TInputTable> InputTables;
@@ -240,7 +244,7 @@ protected:
         NTableClient::TOwningKey MaxKey;
         int ChunkTreeKey;
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
 
     };
 
@@ -273,7 +277,7 @@ protected:
 
         NYson::TYsonString EffectiveAcl;
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
     };
 
     std::vector<TOutputTable> OutputTables;
@@ -282,7 +286,7 @@ protected:
     struct TIntermediateTable
         : public TLivePreviewTableBase
     {
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
     };
 
     TIntermediateTable IntermediateTable;
@@ -298,7 +302,7 @@ protected:
         bool Executable = false;
         NYson::TYsonString Format;
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
     };
 
     std::vector<TUserFile> Files;
@@ -347,7 +351,7 @@ protected:
         TInstant StartTime;
         TInstant FinishTime;
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
     };
 
     struct TCompletedJob
@@ -390,13 +394,13 @@ protected:
 
         TExecNodeDescriptor NodeDescriptor;
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
 
     };
 
     class TTask
         : public TRefCounted
-        , public NPhoenix::IPersistent
+        , public IPersistent
     {
     public:
         //! For persistence only.
@@ -470,7 +474,7 @@ protected:
         virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
         virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
 
-        virtual void Persist(TPersistenceContext& context) override;
+        virtual void Persist(const TPersistenceContext& context) override;
 
     private:
         TOperationControllerBase* Controller;
@@ -588,7 +592,7 @@ protected:
             MinNeededResources.SetUserSlots(1);
         }
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
 
     };
 
@@ -732,7 +736,7 @@ protected:
             : Cookie(IChunkPoolInput::NullCookie)
         { }
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
 
     };
 
@@ -747,7 +751,7 @@ protected:
             : State(EInputChunkState::Active)
         { }
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
 
     };
 

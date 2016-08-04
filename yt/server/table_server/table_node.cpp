@@ -19,7 +19,6 @@ namespace NYT {
 namespace NTableServer {
 
 using namespace NTableClient;
-using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NYTree;
 using namespace NYson;
@@ -71,7 +70,7 @@ bool TTableNode::IsSorted() const
     return TableSchema_.IsSorted();
 }
 
-void TTableNode::Save(TSaveContext& context) const
+void TTableNode::Save(NCellMaster::TSaveContext& context) const
 {
     if (IsDynamic() && !TableSchema_.GetStrict()) {
         LOG_ERROR("Dynamic table %v schema is not strict", GetId());
@@ -85,7 +84,7 @@ void TTableNode::Save(TSaveContext& context) const
     Save(context, Atomicity_);
 }
 
-void TTableNode::Load(TLoadContext& context)
+void TTableNode::Load(NCellMaster::TLoadContext& context)
 {
     // Brief history of changes.
     // In 205 we removed KeyColumns from the snapshot and introduced TableSchema.
@@ -230,7 +229,7 @@ class TTableNodeTypeHandler
 public:
     typedef TChunkOwnerTypeHandler<TTableNode> TBase;
 
-    explicit TTableNodeTypeHandler(TBootstrap* bootstrap)
+    explicit TTableNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
         : TBase(bootstrap)
     { }
 
@@ -389,7 +388,7 @@ protected:
     }
 };
 
-INodeTypeHandlerPtr CreateTableTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateTableTypeHandler(NCellMaster::TBootstrap* bootstrap)
 {
     return New<TTableNodeTypeHandler>(bootstrap);
 }
