@@ -38,13 +38,23 @@ std::vector<Stroka> ColumnNames = {"c0", "c1", "c2", "c3", "c4", "c5", "c6"};
 class TSchemalessChunksTest
     : public ::testing::TestWithParam<std::tuple<EOptimizeFor, TTableSchema, TColumnFilter, TReadRange>>
 {
+public:
+    static void SetUpTestCase()
+    {
+        auto nameTable = New<TNameTable>();
+        InitNameTable(nameTable);
+        Rows_ = CreateRows(nameTable);
+    }
+
 protected:
-    TChunkedMemoryPool Pool_;
     IChunkReaderPtr MemoryReader_;
     TNameTablePtr WriteNameTable_;
     TChunkSpec Spec_;
 
-    TUnversionedValue CreateC0(int rowIndex, TNameTablePtr nameTable)
+    static TChunkedMemoryPool Pool_;
+    static std::vector<TUnversionedRow> Rows_;
+
+    static TUnversionedValue CreateC0(int rowIndex, TNameTablePtr nameTable)
     {
         // Key part 0, Any.
         int id = nameTable->GetId("c0");
@@ -66,7 +76,7 @@ protected:
         } 
     }
 
-    TUnversionedValue CreateC1(int rowIndex, TNameTablePtr nameTable)
+    static TUnversionedValue CreateC1(int rowIndex, TNameTablePtr nameTable)
     {
         //  Key part 1, Int64.
         int id = nameTable->GetId("c1");
@@ -79,7 +89,7 @@ protected:
         }
     }
 
-    TUnversionedValue CreateC2(int rowIndex, TNameTablePtr nameTable)
+    static TUnversionedValue CreateC2(int rowIndex, TNameTablePtr nameTable)
     {
         //  Key part 2, Uint64.
         int id = nameTable->GetId("c2");
@@ -92,7 +102,7 @@ protected:
         }
     }
 
-    TUnversionedValue CreateC3(int rowIndex, TNameTablePtr nameTable)
+    static TUnversionedValue CreateC3(int rowIndex, TNameTablePtr nameTable)
     {
         // Key part 3, String.
         int id = nameTable->GetId("c3");
@@ -105,7 +115,7 @@ protected:
         }
     }
 
-    TUnversionedValue CreateC4(int rowIndex, TNameTablePtr nameTable)
+    static TUnversionedValue CreateC4(int rowIndex, TNameTablePtr nameTable)
     {
         // Key part 4, Boolean.
         int id = nameTable->GetId("c4");
@@ -118,7 +128,7 @@ protected:
         }
     }
 
-    TUnversionedValue CreateC5(int rowIndex, TNameTablePtr nameTable)
+    static TUnversionedValue CreateC5(int rowIndex, TNameTablePtr nameTable)
     {
         // Key part 5, Double.
         int id = nameTable->GetId("c5");
@@ -131,7 +141,7 @@ protected:
         }
     }
 
-    TUnversionedValue CreateC6(int rowIndex, TNameTablePtr nameTable)
+    static TUnversionedValue CreateC6(int rowIndex, TNameTablePtr nameTable)
     {
         // Not key, Any.
         int id = nameTable->GetId("c6");
@@ -157,7 +167,7 @@ protected:
         }
     }
 
-    std::vector<TUnversionedRow> CreateRows(TNameTablePtr nameTable)
+    static std::vector<TUnversionedRow> CreateRows(TNameTablePtr nameTable)
     {
         std::vector<TUnversionedRow> rows;
         for (int rowIndex = 0; rowIndex < RowCount; ++rowIndex) {
@@ -193,7 +203,7 @@ protected:
         InitNameTable(WriteNameTable_);
 
         EXPECT_TRUE(chunkWriter->Open().Get().IsOK());
-        chunkWriter->Write(CreateRows(WriteNameTable_));
+        chunkWriter->Write(Rows_);
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
 
         MemoryReader_ = CreateMemoryReader(
@@ -273,8 +283,10 @@ protected:
 
         return rows;
     }
-
 };
+
+TChunkedMemoryPool TSchemalessChunksTest::Pool_;
+std::vector<TUnversionedRow> TSchemalessChunksTest::Rows_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -285,7 +297,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
 
     auto columnFilter = std::get<2>(GetParam());
     auto expected = CreateExpected(
-        CreateRows(WriteNameTable_),
+        Rows_,
         WriteNameTable_,
         readNameTable,
         columnFilter,
