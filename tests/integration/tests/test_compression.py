@@ -6,7 +6,6 @@ import yt.logger as logger
 import os
 import subprocess
 import sys
-import tempfile
 
 class TestCompression(object):
     codecs = [

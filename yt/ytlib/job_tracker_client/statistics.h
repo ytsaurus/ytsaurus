@@ -69,6 +69,10 @@ public:
 
     void Persist(NPhoenix::TPersistenceContext& context);
 
+    bool ContainsPrefix(const Stroka& prefix) const;
+
+    i64 GetNumericValue(const Stroka& path) const;
+
 private:
     TSummary& GetSummary(const NYPath::TYPath& path);
 
@@ -77,8 +81,8 @@ private:
 
 template <class T>
 T GetValues(
-    const TStatistics& statistics, 
-    const NYPath::TYPath& path, 
+    const TStatistics& statistics,
+    const NYPath::TYPath& path,
     std::function<i64(const TSummary&)> getValue);
 
 ////////////////////////////////////////////////////////////////////
@@ -113,7 +117,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NJobTrackerClient 
+} // namespace NJobTrackerClient
 } // namespace NYT
 
 #define STATISTICS_INL_H_

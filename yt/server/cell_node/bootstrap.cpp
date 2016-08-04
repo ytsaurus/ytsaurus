@@ -460,6 +460,11 @@ void TBootstrap::DoRun()
         OrchidRoot,
         "/tablet_cells",
         CreateVirtualNode(TabletSlotManager->GetOrchidService()));
+    SetNodeByYPath(
+        OrchidRoot,
+        "/job_controller",
+        CreateVirtualNode(JobController->GetOrchidService()
+            ->Via(GetControlInvoker())));
     SetBuildAttributes(OrchidRoot, "node");
 
     HttpServer->Register(
