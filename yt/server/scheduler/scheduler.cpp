@@ -2237,7 +2237,8 @@ private:
                     &TJob::AnalyzeBriefStatistics,
                     job,
                     Config_->SuspiciousInactivityTimeout,
-                    Config_->SuspiciousUserJobCpuUsageThreshold)
+                    Config_->SuspiciousUserJobCpuUsageThreshold,
+                    Config_->SuspiciousUserJobBlockIOReadThreshold)
                     .Via(GetControlInvoker()));
             }
         }
