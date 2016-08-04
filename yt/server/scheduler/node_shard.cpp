@@ -1438,7 +1438,7 @@ TJobPtr TNodeShard::GetJobOrThrow(const TJobId& jobId)
 {
     auto job = FindJob(jobId);
     if (!job) {
-        THROW_ERROR_EXCEPTION("No such job %v", jobId);
+        THROW_ERROR_EXCEPTION(EErrorCode::NoSuchJob, "No such job %v", jobId);
     }
     return job;
 }

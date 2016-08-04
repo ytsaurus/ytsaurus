@@ -438,7 +438,9 @@ public:
 
         const auto& result = resultOrError.Value();
         if (result.Action == ESecurityAction::Deny) {
-            THROW_ERROR_EXCEPTION("User %Qv has been denied access to operation %v",
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AuthorizationError,
+                "User %Qv has been denied access to operation %v",
                 user,
                 operationId);
         }

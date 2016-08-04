@@ -364,6 +364,14 @@ public:
         ToProto(req->mutable_job_id(), Id_);
         ToProto(req->mutable_parameters(), parameters.Data());
         auto rspOrError = WaitFor(req->Invoke());
+        // The following code changes error code for more user-friendly
+        // diagnostics in interactive shell.
+        if (rspOrError.FindMatching(NRpc::EErrorCode::TransportError)) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                rspOrError,
+                NExecAgent::EErrorCode::JobProxyConnectionFailed,
+                "No connection to job proxy");
+        }
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error polling job shell");
         const auto& rsp = rspOrError.Value();
 

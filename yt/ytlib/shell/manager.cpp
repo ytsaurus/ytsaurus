@@ -8,6 +8,8 @@
 
 #include <yt/core/misc/fs.h>
 
+#include <yt/core/pipes/public.h>
+
 #include <util/string/hex.h>
 
 #include <util/system/execpath.h>
@@ -77,7 +79,9 @@ public:
             shell = GetShellOrThrow(parameters.ShellId);
         }
         if (Terminated_) {
-            THROW_ERROR_EXCEPTION("Cannot operate on shell: manager has already terminated");
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::ShellManagerShutDown,
+                "Shell manager was shut down");
         }
 
         switch (parameters.Operation) {
@@ -120,13 +124,21 @@ public:
 
             case EShellOperation::Poll: {
                 auto pollResult = WaitFor(shell->Poll());
-                if (pollResult.GetCode() == NYT::EErrorCode::Timeout) {
+                if (pollResult.FindMatching(NYT::EErrorCode::Timeout)) {
                     result.Output = "";
                     break;
                 }
-                THROW_ERROR_EXCEPTION_IF_FAILED(pollResult, "Failed to poll shell %v", shell->GetId());
-                if (pollResult.Value().Empty()) {
-                    THROW_ERROR_EXCEPTION("Shell %v disconnected", shell->GetId());
+                if (pollResult.FindMatching(NPipes::EErrorCode::Aborted)) {
+                    THROW_ERROR_EXCEPTION(
+                        EErrorCode::ShellManagerShutDown,
+                        "Shell manager was shut down")
+                        << TErrorAttribute("shell_id", parameters.ShellId)
+                        << pollResult;
+                }
+                if (!pollResult.IsOK() || pollResult.Value().Empty()) {
+                    THROW_ERROR_EXCEPTION(EErrorCode::ShellExited, "Shell exited")
+                        << TErrorAttribute("shell_id", parameters.ShellId)
+                        << pollResult;
                 }
                 result.Output = ToString(pollResult.Value());
                 break;
@@ -229,7 +241,7 @@ IShellManagerPtr CreateShellManager(
     TNullable<int> userId,
     TNullable<Stroka> freezerFullPath)
 {
-    THROW_ERROR_EXCEPTION("Streaming jobs are supported only under Unix");
+    THROW_ERROR_EXCEPTION("Shell manager is supported only under Unix");
 }
 
 #endif
