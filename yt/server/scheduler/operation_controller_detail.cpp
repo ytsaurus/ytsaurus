@@ -1760,12 +1760,10 @@ void TOperationControllerBase::OnJobStarted(const TJobId& jobId, TInstant startT
 void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistics statistics)
 {
     auto jobType = joblet->JobType;
-    auto getValue = [] (const TSummary& summary) {
-        return summary.GetSum();
-    };
     bool taskUpdateNeeded = false;
+
     if (statistics.Data().find("/user_job/max_memory") != statistics.Data().end()) {
-        i64 userJobMaxMemoryUsage = GetValues<i64>(statistics, "/user_job/max_memory", getValue);
+        i64 userJobMaxMemoryUsage = statistics.GetNumericValue("/user_job/max_memory");
         auto* digest = GetUserJobMemoryDigest(jobType);
         double actualFactor = static_cast<double>(userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
         LOG_TRACE("Adding sample to the job proxy memory digest (JobType: %v, Sample: %v, JobId: %v)",
@@ -1775,8 +1773,9 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistic
         digest->AddSample(actualFactor);
         taskUpdateNeeded = true;
     }
+
     if (statistics.Data().find("/job_proxy/max_memory") != statistics.Data().end()) {
-        i64 jobProxyMaxMemoryUsage = GetValues<i64>(statistics, "/job_proxy/max_memory", getValue);
+        i64 jobProxyMaxMemoryUsage = statistics.GetNumericValue("/job_proxy/max_memory");
         auto* digest = GetJobProxyMemoryDigest(jobType);
         double actualFactor = static_cast<double>(jobProxyMaxMemoryUsage) /
             (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
@@ -1787,6 +1786,7 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistic
         digest->AddSample(actualFactor);
         taskUpdateNeeded = true;
     }
+
     if (taskUpdateNeeded) {
         UpdateAllTasksIfNeeded();
     }
@@ -1839,11 +1839,8 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
             case EJobType::OrderedMap:
             case EJobType::SortedReduce:
             case EJobType::PartitionReduce:
-                auto getValue = [] (const TSummary& summary) {
-                    return summary.GetSum();
-                };
                 auto path = Format("/data/output/%d/row_count%s", *RowCountLimitTableIndex, jobSummary->StatisticsSuffix);
-                i64 count = GetValues<i64>(JobStatistics, path, getValue);
+                i64 count = JobStatistics.GetNumericValue(path);
                 if (count >= RowCountLimit) {
                     OnOperationCompleted(true /* interrupted */);
                 }
@@ -3688,7 +3685,6 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
                     keyColumn);
             }
         }
-        
     };
 
     if (!keyColumns.empty()) {

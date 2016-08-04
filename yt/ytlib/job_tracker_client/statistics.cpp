@@ -167,6 +167,12 @@ void TStatistics::Persist(NPhoenix::TPersistenceContext& context)
     Persist(context, Data_);
 }
 
+bool TStatistics::ContainsPrefix(const Stroka& prefix) const
+{
+    auto iterator = Data_.lower_bound(prefix);
+    return (iterator != Data_.end() && HasPrefix(iterator->first, prefix));
+}
+
 void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     auto root = GetEphemeralNodeFactory()->CreateMap();
@@ -177,6 +183,17 @@ void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
     }
 
     Serialize(*root, consumer);
+}
+
+// Helper function for GetNumericValue.
+i64 GetSum(const TSummary& summary)
+{
+    return summary.GetSum();
+}
+
+i64 TStatistics::GetNumericValue(const Stroka& path) const
+{
+    return GetValues<i64>(*this, path, GetSum);
 }
 
 ////////////////////////////////////////////////////////////////////
