@@ -4,6 +4,8 @@ import yt.wrapper as yt
 import yt.logger as logger
 from yt.common import get_value
 
+TB = 1024 ** 4
+
 def create(type_, name, client):
     try:
         client.create(type_, attributes={"name": name})
@@ -80,6 +82,10 @@ def initialize_world(client=None):
     if not client.exists("//sys/empty_yamr_table"):
         client.create("table", "//sys/empty_yamr_table")
         client.run_sort("//sys/empty_yamr_table", sort_by=["key", "subkey"])
+
+    client.create("account", attributes={"name": "tmp_files",
+                                         "acl": [{"action": "allow", "subjects": ["users"], "permissions": ["use"]}],
+                                         "resource_limits": {"disk_space": 10 * TB, "node_count": 200000, "chunk_count": 1000000}})
 
 def main():
     initialize_world()
