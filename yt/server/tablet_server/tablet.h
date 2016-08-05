@@ -10,7 +10,7 @@
 
 #include <yt/server/tablet_node/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/ytlib/tablet_client/heartbeat.pb.h>
 
 #include <yt/ytlib/table_client/unversioned_row.h>
 
@@ -92,7 +92,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TOwningKey, PivotKey);
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TTabletStatistics, NodeStatistics);
+    DEFINE_BYREF_RW_PROPERTY(NTabletClient::NProto::TTabletStatistics, NodeStatistics);
     DEFINE_BYREF_RW_PROPERTY(TTabletPerformanceCounters, PerformanceCounters);
     //! Only makes sense for mounted tablets.
     DEFINE_BYVAL_RW_PROPERTY(NTabletNode::EInMemoryMode, InMemoryMode);

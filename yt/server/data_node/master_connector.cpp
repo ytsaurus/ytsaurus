@@ -59,13 +59,15 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
+using namespace NTabletClient::NProto;
 using namespace NTabletNode;
 using namespace NHydra;
 using namespace NHiveClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NApi;
-using namespace NChunkClient;
 using namespace NCellNode;
 
 using NNodeTrackerClient::TAddressMap;

@@ -33,7 +33,7 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 using namespace NNodeTrackerClient;
-using namespace NNodeTrackerClient::NProto;
+using namespace NTabletClient::NProto;
 using namespace NDataNode;
 using namespace NHydra;
 
