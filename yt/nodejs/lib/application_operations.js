@@ -362,12 +362,6 @@ function YtApplicationOperations$list(parameters)
             attributes: OPERATION_ATTRIBUTES
         });
 
-    var runtime_data = this.driver.executeSimple(
-        "get",
-        {
-            path: OPERATIONS_RUNTIME_PATH
-        });
-
     var counts_filter_conditions = [
         "index.start_time > {} AND index.start_time <= {}".format(from_time, to_time)
     ];
@@ -499,12 +493,6 @@ function YtApplicationOperations$list(parameters)
             timings.cypress_data = new Date();
         });
 
-    runtime_data = runtime_data
-        .catch(makeErrorHandler("Failed to fetch operations from scheduler"))
-        .finally(function() {
-            timings.runtime_data = new Date();
-        });
-
     if (include_archive && include_counters) {
         archive_counts = archive_counts
             .catch(makeErrorHandler("Failed to fetch operation counts from archive"))
@@ -529,18 +517,12 @@ function YtApplicationOperations$list(parameters)
             });
     }
 
-    return Q.settle([cypress_data, runtime_data, archive_data, archive_counts])
-    .spread(function(cypress_data, runtime_data, archive_data, archive_counts) {
+    return Q.settle([cypress_data, archive_data, archive_counts])
+    .spread(function(cypress_data, archive_data, archive_counts) {
         if (cypress_data.isRejected()) {
             return Q.reject(cypress_data.error());
         } else {
             cypress_data = cypress_data.value();
-        }
-
-        if (runtime_data.isRejected()) {
-            runtime_data = {};
-        } else {
-            runtime_data = runtime_data.value();
         }
 
         if (archive_data.isRejected() || archive_counts.isRejected()) {
@@ -589,12 +571,6 @@ function YtApplicationOperations$list(parameters)
 
             // Map runtime progress into brief_progress (see YT-1986) if operation is in progress.
             var mapped_state = mapState(state);
-            if (mapped_state === "running") {
-                var runtime_attributes = runtime_data[value];
-                if (runtime_attributes) {
-                    utils.merge(attributes.brief_progress, runtime_attributes.progress);
-                }
-            }
 
             // Apply text filter.
             var text_factor = extractTextFactorForCypressItem(value, attributes);
@@ -701,7 +677,7 @@ function YtApplicationOperations$list(parameters)
         };
 
         _.each(
-            ["cypress_data", "runtime_data", "archive_counts", "archive_items", "total"],
+            ["cypress_data", "archive_counts", "archive_items", "total"],
             function(timer) {
                 if (timings[timer]) {
                     result.timings[timer] = timings[timer] - timings.start;

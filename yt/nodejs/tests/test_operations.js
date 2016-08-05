@@ -60,14 +60,6 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
             .returns(result);
     }
 
-    function mockRuntimeForList(mock, result) {
-        mock
-            .expects("executeSimple")
-            .once()
-            .withExactArgs("get", sinon.match({path: "//sys/scheduler/orchid/scheduler/operations" }))
-            .returns(result);
-    }
-
     function mockArchiveItemsForList(mock, result) {
         mock
             .expects("executeSimple")
@@ -125,10 +117,9 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
             .returns(result);
     }
 
-    function mockForList(mock, cypress_result, runtime_result, archive_items_result, archive_counters_result)
+    function mockForList(mock, cypress_result, archive_items_result, archive_counters_result)
     {
         mockCypressForList(mock, cypress_result);
-        mockRuntimeForList(mock, runtime_result);
         if (archive_items_result) {
             mockArchiveItemsForList(mock, archive_items_result);
         }
@@ -146,7 +137,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should fail when cypress is not available", function(done) {
         var mock = sinon.mock(this.driver);
-        mockForList(mock, Q.reject(), Q.resolve({}));
+        mockForList(mock, Q.reject());
         this.application_operations.list({}).then(
             function() { throw new Error("This should fail."); },
             function(err) {
@@ -211,7 +202,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should list operations from cypress without filters", function(done) {
         var mock = sinon.mock(this.driver);
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject());
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -234,7 +225,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should list operations from cypress with from_time & to_time filter", function(done) {
         var mock = sinon.mock(this.driver);
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject());
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
         this.application_operations.list({
             from_time: "2016-03-02T00:00:00Z",
             to_time: "2016-03-02T12:00:00Z",
@@ -253,7 +244,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should list operations from cypress with cursor_time/past filter", function(done) {
         var mock = sinon.mock(this.driver);
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject());
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -277,7 +268,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should list operations from cypress with cursor_time/future filter", function(done) {
         var mock = sinon.mock(this.driver);
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject());
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -301,7 +292,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should list operations from cypress with type filter", function(done) {
         var mock = sinon.mock(this.driver);
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject());
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -321,7 +312,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should list operations from cypress with state filter", function(done) {
         var mock = sinon.mock(this.driver);
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject());
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -341,7 +332,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should list operations from cypress with user filter", function(done) {
         var mock = sinon.mock(this.driver);
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject());
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -361,7 +352,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should list operations from cypress with text filter", function(done) {
         var mock = sinon.mock(this.driver);
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject());
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -381,7 +372,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should list operations from cypress with failed jobs filter", function(done) {
         var mock = sinon.mock(this.driver);
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject());
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -401,7 +392,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should list operations from cypress without counters", function(done) {
         var mock = sinon.mock(this.driver);
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject());
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -416,7 +407,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should list operations w.r.t. max_size parameter (incomplete result)", function(done) {
         var mock = sinon.mock(this.driver);
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject());
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -431,7 +422,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should list operations w.r.t. max_size parameter (complete result)", function(done) {
         var mock = sinon.mock(this.driver);
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject());
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -445,7 +436,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should override progress with runtime information", function(done) {
         var mock = sinon.mock(this.driver);
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.resolve(RUNTIME_OPERATIONS));
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -459,7 +450,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
                 "1dee545-fe4c4006-cd95617-54f87a31",
                 "19b5c14-c41a6620-7fa0d708-29a241d2",
             ]);
-            expect(result.operations[1].$attributes.brief_progress.jobs.completed).to.eql(9725);
+            expect(result.operations[1].$attributes.brief_progress.jobs.completed).to.eql(9618);
             expect(result.operations[1].$attributes.start_time).to.eql("2016-03-02T05:43:43.104532Z");
             mock.verify();
         })
@@ -470,7 +461,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
         var mock = sinon.mock(this.driver);
         var archive_items = clone(ARCHIVE_ITEMS);
         var archive_counts = clone(ARCHIVE_COUNTS);
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.resolve(archive_items), Q.resolve(archive_counts));
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.resolve(archive_items), Q.resolve(archive_counts));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -488,7 +479,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
                 "12ad62b-6bc1ed2f-ed7b018e-8633b5cd", // archived
                 "12a7385-20d240f6-78421110-8a351d84", // archived
             ]);
-            expect(result.operations[1].$attributes.brief_progress.jobs.completed).to.eql(9725);
+            expect(result.operations[1].$attributes.brief_progress.jobs.completed).to.eql(9618);
             expect(result.operations[1].$attributes.start_time).to.eql("2016-03-02T05:43:43.104532Z");
             expect(result.operations[3].$attributes.start_time).to.eql("2016-01-28T13:31:03.127478Z");
             expect(result.operations[3].$attributes.finish_time).to.eql("2016-01-28T13:36:19.059799Z");
@@ -511,7 +502,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
         archive_items[0].id_hash = null;
         archive_items[0].id_hi.$value = "3000032674122356488";
         archive_items[0].id_lo.$value = "14130719068480298004";
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.resolve(archive_items), Q.resolve(archive_counts));
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.resolve(archive_items), Q.resolve(archive_counts));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -538,7 +529,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
 
     it("should not hide intermediate states in list", function(done) {
         var mock = sinon.mock(this.driver);
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject());
+        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
         this.application_operations.list({
             from_time: "2016-04-11T00:00:00Z",
             to_time: "2016-04-12T00:00:00Z",
@@ -570,7 +561,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
         var self = this;
 
         function iterate(cursor_time, expected) {
-            mockForList(mock, Q.resolve(CYPRESS_OPERATIONS_FROM_QUINE), Q.reject());
+            mockForList(mock, Q.resolve(CYPRESS_OPERATIONS_FROM_QUINE));
             return self.application_operations.list({
                 from_time: "2016-04-15T00:00:00.000000Z",
                 to_time: "2016-04-16T00:00:00.000000Z",
@@ -604,7 +595,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
         var self = this;
 
         function iterate(cursor_time, expected) {
-            mockForList(mock, Q.resolve(CYPRESS_OPERATIONS_FROM_QUINE), Q.reject());
+            mockForList(mock, Q.resolve(CYPRESS_OPERATIONS_FROM_QUINE));
             return self.application_operations.list({
                 from_time: "2016-04-15T00:00:00.000000Z",
                 to_time: "2016-04-16T00:00:00.000000Z",
