@@ -11,7 +11,7 @@
 
 #include <yt/ytlib/hydra/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/ytlib/tablet_client/heartbeat.pb.h>
 
 #include <yt/ytlib/object_client/public.h>
 
@@ -73,9 +73,9 @@ public:
 
     NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() const;
 
-    void Initialize(const NNodeTrackerClient::NProto::TCreateTabletSlotInfo& createInfo);
+    void Initialize(const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo);
     bool CanConfigure() const;
-    void Configure(const NNodeTrackerClient::NProto::TConfigureTabletSlotInfo& configureInfo);
+    void Configure(const NTabletClient::NProto::TConfigureTabletSlotInfo& configureInfo);
     TFuture<void> Finalize();
 
     NYTree::IYPathServicePtr GetOrchidService();

@@ -6,7 +6,7 @@
 
 #include <yt/server/hydra/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/ytlib/tablet_client/heartbeat.pb.h>
 
 #include <yt/ytlib/table_client/unversioned_row.h>
 
@@ -42,8 +42,8 @@ public:
 
     const std::vector<TTabletSlotPtr>& Slots() const;
     TTabletSlotPtr FindSlot(const NHydra::TCellId& id);
-    void CreateSlot(const NNodeTrackerClient::NProto::TCreateTabletSlotInfo& createInfo);
-    void ConfigureSlot(TTabletSlotPtr slot, const NNodeTrackerClient::NProto::TConfigureTabletSlotInfo& configureInfo);
+    void CreateSlot(const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo);
+    void ConfigureSlot(TTabletSlotPtr slot, const NTabletClient::NProto::TConfigureTabletSlotInfo& configureInfo);
     void RemoveSlot(TTabletSlotPtr slot);
 
 

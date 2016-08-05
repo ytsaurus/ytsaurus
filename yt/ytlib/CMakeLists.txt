@@ -73,6 +73,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/schema.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/block_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/throttler_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/heartbeat.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/cypress_client/cypress_ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/cypress_client/public.cpp
@@ -314,6 +315,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tablet_client/wire_protocol.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_client/wire_protocol.proto
   ${CMAKE_CURRENT_LIST_DIR}/tablet_client/table_replica_ypath.proto
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_client/heartbeat.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/private.cpp

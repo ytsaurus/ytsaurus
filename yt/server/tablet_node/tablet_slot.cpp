@@ -79,7 +79,7 @@ using namespace NElection;
 using namespace NHydra;
 using namespace NHiveClient;
 using namespace NHiveServer;
-using namespace NNodeTrackerClient::NProto;
+using namespace NTabletClient::NProto;
 using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NApi;

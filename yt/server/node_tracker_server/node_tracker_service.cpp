@@ -25,9 +25,7 @@ using namespace NHydra;
 using namespace NCellMaster;
 using namespace NNodeTrackerClient;
 using namespace NChunkServer;
-
-using NNodeTrackerClient::NProto::TChunkAddInfo;
-using NNodeTrackerClient::NProto::TChunkRemoveInfo;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

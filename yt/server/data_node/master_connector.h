@@ -200,10 +200,10 @@ private:
     void StartHeartbeats();
 
     //! Constructs a protobuf info for an added chunk.
-    NNodeTrackerClient::NProto::TChunkAddInfo BuildAddChunkInfo(IChunkPtr chunk);
+    NChunkClient::NProto::TChunkAddInfo BuildAddChunkInfo(IChunkPtr chunk);
 
     //! Constructs a protobuf info for a removed chunk.
-    static NNodeTrackerClient::NProto::TChunkRemoveInfo BuildRemoveChunkInfo(IChunkPtr chunk);
+    static NChunkClient::NProto::TChunkRemoveInfo BuildRemoveChunkInfo(IChunkPtr chunk);
 
     //! Resets connection state.
     void Reset();
