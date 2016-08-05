@@ -2225,10 +2225,8 @@ private:
         if (job->GetState() == EJobState::Running ||
             job->GetState() == EJobState::Waiting)
         {
-            job->SetStatus(status);
-
-            if (job->StatisticsYson()) {
-                auto asyncResult = BIND(&TJob::BuildBriefStatistics, job, *job->StatisticsYson())
+            if (status->has_statistics()) {
+                auto asyncResult = BIND(&TJob::BuildBriefStatistics, job, TYsonString(status->statistics()))
                     .AsyncVia(StatisticsAnalyzerThreadPool_->GetInvoker())
                     .Run();
 
@@ -2241,6 +2239,8 @@ private:
                     Config_->SuspiciousUserJobBlockIOReadThreshold)
                     .Via(GetControlInvoker()));
             }
+
+            job->SetStatus(status);
         }
     }
 
