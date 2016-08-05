@@ -122,7 +122,7 @@ TBriefJobStatisticsPtr TJob::BuildBriefStatistics(const TYsonString& statisticsY
     briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, "/data/input/row_count");
     briefStatistics->ProcessedInputDataSize = GetNumericValue(statistics, "/data/input/uncompressed_data_size");
     briefStatistics->UserJobCpuUsage = FindNumericValue(statistics, "/user_job/cpu/user");
-    briefStatistics->UserJobBlockIORead = FindNumericValue(statistics, "/user_job/blkio/io_read");
+    briefStatistics->UserJobBlockIORead = FindNumericValue(statistics, "/user_job/block_io/io_read");
 
     auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
     briefStatistics->ProcessedOutputDataSize = outputDataStatistics.uncompressed_data_size();
