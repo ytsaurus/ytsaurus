@@ -52,7 +52,9 @@ struct TConfig
         // Each mode implies the ones preceding it
         OG_STANDARD,          // standard Map-Reduce
         OG_TESTABLE,          // values are taken into account for resolving ties (sorting by KSV)
-        OG_STRICTLY_TESTABLE, // sorted merge and write operations expect KSV-sorted input, may require preparing external tables
+        // keeps invariant: all KS-sorted in OG_STANDARD tables are KSV-sorted in this mode.
+        // may require preparing external tables
+        OG_STRICTLY_TESTABLE,
     };
     EOrderGuarantees OrderGuarantees;
 
