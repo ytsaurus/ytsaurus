@@ -134,11 +134,6 @@ function testApplicationOperations(version)
             .returns(result);
     }
 
-<<<<<<< HEAD
-    function mockForList(mock, cypress_result, archive_items_result, archive_counters_result)
-    {
-        mockCypressForList(mock, cypress_result);
-=======
     function mockVersion(mock) {
         mock
             .expects("executeSimple")
@@ -147,12 +142,10 @@ function testApplicationOperations(version)
             .returns(typeof version === "undefined" ? Q.reject(new YtError("No attribute").withCode(500)) : Q.resolve(version));
     }
 
-    function mockForList(mock, cypress_result, runtime_result, archive_items_result, archive_counters_result)
+    function mockForList(mock, cypress_result, archive_items_result, archive_counters_result)
     {
         mockCypressForList(mock, cypress_result);
-        mockRuntimeForList(mock, runtime_result);
         mockVersion(mock);
->>>>>>> prestable/18.4
         if (archive_items_result) {
             mockArchiveItemsForList(mock, archive_items_result);
         }
@@ -235,11 +228,7 @@ function testApplicationOperations(version)
 
     it("should list operations from cypress without filters", function(done) {
         var mock = sinon.mock(this.driver);
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.reject());
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -262,11 +251,7 @@ function testApplicationOperations(version)
 
     it("should list operations from cypress with from_time & to_time filter", function(done) {
         var mock = sinon.mock(this.driver);
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.reject());
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
         this.application_operations.list({
             from_time: "2016-03-02T00:00:00Z",
             to_time: "2016-03-02T12:00:00Z",
@@ -285,11 +270,7 @@ function testApplicationOperations(version)
 
     it("should list operations from cypress with cursor_time/past filter", function(done) {
         var mock = sinon.mock(this.driver);
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.reject());
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -313,11 +294,7 @@ function testApplicationOperations(version)
 
     it("should list operations from cypress with cursor_time/future filter", function(done) {
         var mock = sinon.mock(this.driver);
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.reject());
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -341,11 +318,7 @@ function testApplicationOperations(version)
 
     it("should list operations from cypress with type filter", function(done) {
         var mock = sinon.mock(this.driver);
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.reject());
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -365,11 +338,7 @@ function testApplicationOperations(version)
 
     it("should list operations from cypress with state filter", function(done) {
         var mock = sinon.mock(this.driver);
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.reject());
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -389,11 +358,7 @@ function testApplicationOperations(version)
 
     it("should list operations from cypress with user filter", function(done) {
         var mock = sinon.mock(this.driver);
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.reject());
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -413,11 +378,7 @@ function testApplicationOperations(version)
 
     it("should list operations from cypress with text filter", function(done) {
         var mock = sinon.mock(this.driver);
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.reject());
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -437,11 +398,7 @@ function testApplicationOperations(version)
 
     it("should list operations from cypress with failed jobs filter", function(done) {
         var mock = sinon.mock(this.driver);
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.reject());
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -461,11 +418,7 @@ function testApplicationOperations(version)
 
     it("should list operations from cypress without counters", function(done) {
         var mock = sinon.mock(this.driver);
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.reject());
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -480,11 +433,7 @@ function testApplicationOperations(version)
 
     it("should list operations w.r.t. max_size parameter (incomplete result)", function(done) {
         var mock = sinon.mock(this.driver);
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.reject());
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -499,11 +448,7 @@ function testApplicationOperations(version)
 
     it("should list operations w.r.t. max_size parameter (complete result)", function(done) {
         var mock = sinon.mock(this.driver);
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.reject());
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -517,11 +462,7 @@ function testApplicationOperations(version)
 
     it("should override progress with runtime information", function(done) {
         var mock = sinon.mock(this.driver);
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.resolve(clone(RUNTIME_OPERATIONS)));
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -546,11 +487,7 @@ function testApplicationOperations(version)
         var mock = sinon.mock(this.driver);
         var archive_items = clone(ARCHIVE_ITEMS);
         var archive_counts = clone(ARCHIVE_COUNTS);
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.resolve(archive_items), Q.resolve(archive_counts));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.reject(), Q.resolve(archive_items), Q.resolve(archive_counts));
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.resolve(archive_items), Q.resolve(archive_counts));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -591,11 +528,7 @@ function testApplicationOperations(version)
         archive_items[0].id_hash = null;
         archive_items[0].id_hi.$value = "3000032674122356488";
         archive_items[0].id_lo.$value = "14130719068480298004";
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.resolve(archive_items), Q.resolve(archive_counts));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.reject(), Q.resolve(archive_items), Q.resolve(archive_counts));
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.resolve(archive_items), Q.resolve(archive_counts));
         this.application_operations.list({
             from_time: "2016-02-25T00:00:00Z",
             to_time: "2016-03-04T00:00:00Z",
@@ -622,11 +555,7 @@ function testApplicationOperations(version)
 
     it("should not hide intermediate states in list", function(done) {
         var mock = sinon.mock(this.driver);
-<<<<<<< HEAD
-        mockForList(mock, Q.resolve(CYPRESS_OPERATIONS));
-=======
-        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)), Q.reject());
->>>>>>> prestable/18.4
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
         this.application_operations.list({
             from_time: "2016-04-11T00:00:00Z",
             to_time: "2016-04-12T00:00:00Z",
@@ -658,11 +587,7 @@ function testApplicationOperations(version)
         var self = this;
 
         function iterate(cursor_time, expected) {
-<<<<<<< HEAD
-            mockForList(mock, Q.resolve(CYPRESS_OPERATIONS_FROM_QUINE));
-=======
-            mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS_FROM_QUINE)), Q.reject());
->>>>>>> prestable/18.4
+            mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS_FROM_QUINE)));
             return self.application_operations.list({
                 from_time: "2016-04-15T00:00:00.000000Z",
                 to_time: "2016-04-16T00:00:00.000000Z",
@@ -696,11 +621,7 @@ function testApplicationOperations(version)
         var self = this;
 
         function iterate(cursor_time, expected) {
-<<<<<<< HEAD
-            mockForList(mock, Q.resolve(CYPRESS_OPERATIONS_FROM_QUINE));
-=======
-            mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS_FROM_QUINE)), Q.reject());
->>>>>>> prestable/18.4
+            mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS_FROM_QUINE)));
             return self.application_operations.list({
                 from_time: "2016-04-15T00:00:00.000000Z",
                 to_time: "2016-04-16T00:00:00.000000Z",

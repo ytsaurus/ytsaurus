@@ -496,47 +496,6 @@ function YtApplicationOperations$list(parameters)
             timings.cypress_data = new Date() - timings_start;
         });
 
-<<<<<<< HEAD
-    var counts_filter_conditions = [
-        "index.start_time > {} AND index.start_time <= {}".format(from_time, to_time)
-    ];
-
-    if (substr_filter) {
-        counts_filter_conditions.push(
-            "is_substr(\"{}\", filter_factors)".format(escapeC(substr_filter)));
-    }
-
-    var items_filter_conditions = counts_filter_conditions.slice();
-    var items_sort_direction;
-
-    if (cursor_direction === "past") {
-        items_filter_conditions.push("index.start_time <= {}".format(cursor_time));
-        items_sort_direction = "DESC";
-    }
-
-    if (cursor_direction === "future") {
-        items_filter_conditions.push("index.start_time > {}".format(cursor_time));
-        items_sort_direction = "ASC";
-    }
-
-    if (state_filter) {
-        items_filter_conditions.push("state = \"{}\"".format(escapeC(state_filter)));
-    }
-
-    if (type_filter) {
-        items_filter_conditions.push("operation_type = \"{}\"".format(escapeC(type_filter)));
-    }
-=======
-    var runtime_data = this.driver.executeSimple(
-        "get",
-        {
-            path: OPERATIONS_RUNTIME_PATH
-        })
-        .catch(makeErrorHandler("Failed to fetch operations from scheduler"))
-        .finally(function() {
-            timings.runtime_data = new Date() - timings_start;
-        });
-
     var version = this.driver.executeSimple(
         "get",
         {
@@ -552,7 +511,6 @@ function YtApplicationOperations$list(parameters)
         .finally(function() {
             timings.version = new Date() - timings_start;
         });
->>>>>>> prestable/18.4
 
     var archive_callbacks = version.then(getArchiveCallbacks.bind(
         this,
@@ -634,23 +592,6 @@ function YtApplicationOperations$list(parameters)
         };
     }
 
-<<<<<<< HEAD
-    function makeErrorHandler(message) {
-        return function(error) {
-            var err = YtError.ensureWrapped(error);
-            logger.error(message, {error: err.toJson()});
-            return Q.reject(new YtError(message, err));
-        };
-    }
-
-    cypress_data = cypress_data
-        .catch(makeErrorHandler("Failed to fetch operations from Cypress"))
-        .finally(function() {
-            timings.cypress_data = new Date();
-        });
-
-=======
->>>>>>> prestable/18.4
     if (include_archive && include_counters) {
         archive_counts = archive_counts
             .catch(makeErrorHandler("Failed to fetch operation counts from archive"));
@@ -820,17 +761,6 @@ function YtApplicationOperations$list(parameters)
             timings: timings,
         };
 
-<<<<<<< HEAD
-        _.each(
-            ["cypress_data", "archive_counts", "archive_items", "total"],
-            function(timer) {
-                if (timings[timer]) {
-                    result.timings[timer] = timings[timer] - timings.start;
-                }
-            });
-
-=======
->>>>>>> prestable/18.4
         if (include_counters) {
             result.user_counts = register.result.user_counts;
             result.state_counts = register.result.state_counts;
