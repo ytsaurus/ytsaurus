@@ -241,7 +241,6 @@ CXXFLAGS(
   -Wno-unused-parameter
   -Wno-unused-value
   -Wno-c++14-extensions
-  -DZSTD_STATIC_LINKING_ONLY
   -DYT_IN_ARCADIA
 )
 
@@ -256,6 +255,7 @@ PEERDIR(
   contrib/libs/snappy
   contrib/libs/brotli/dec
   contrib/libs/brotli/enc
+  contrib/libs/zstd07
   yt/${YT_ABI}/yt/build
   yt/${YT_ABI}/yt/contrib
 )
@@ -265,8 +265,6 @@ END()
 ################################################################################
 ELSE()
 ################################################################################
-
-add_definitions(-DZSTD_STATIC_LINKING_ONLY)
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 add_library(ytcore STATIC ${YT_SRCS_RESOLVED})
