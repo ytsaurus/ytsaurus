@@ -595,6 +595,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
             protoStatistics->set_preload_pending_store_count(snapshot->PreloadPendingStoreCount);
             protoStatistics->set_preload_completed_store_count(snapshot->PreloadCompletedStoreCount);
             protoStatistics->set_preload_failed_store_count(snapshot->PreloadFailedStoreCount);
+            protoStatistics->set_last_commit_timestamp(snapshot->RuntimeData->LastCommitTimestamp);
 
             auto* protoPerformanceCounters = protoTabletInfo->mutable_performance_counters();
             auto performanceCounters = snapshot->PerformanceCounters;
