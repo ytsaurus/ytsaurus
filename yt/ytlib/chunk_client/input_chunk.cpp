@@ -114,19 +114,8 @@ void TInputChunkBase::CheckOffsets()
     static_assert(offsetof(TInputChunkBase, RowCount_) == 112, "invalid offset");
     static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 120, "invalid offset");
     static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 128, "invalid offset");
-<<<<<<< HEAD
     static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 136, "invalid offset");
     static_assert(sizeof(TInputChunkBase) == 144, "invalid sizeof");
-    NYT::TRangeSerializer::Save(context, TRef(reinterpret_cast<const void*>(this), sizeof(*this)));
-}
-
-void TInputChunkBase::Load(NPhoenix::TLoadContext& context)
-{
-    auto ref = TMutableRef(reinterpret_cast<void*>(this), sizeof(*this));
-    NYT::TRangeSerializer::Load(context, ref);
-=======
-    static_assert(sizeof(TInputChunkBase) == 136, "invalid sizeof");
->>>>>>> prestable/18.4
 }
 
 ////////////////////////////////////////////////////////////////////////////////
