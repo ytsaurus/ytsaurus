@@ -302,10 +302,10 @@ target_link_libraries(ytext-arcadia-util
   deps-arcadia-contrib-libs-minilzo
   deps-arcadia-contrib-libs-snappy
   deps-arcadia-contrib-libs-zlib
+  deps-arcadia-contrib-libs-zstd07
   deps-yt-contrib-lz4
   deps-yt-contrib-fastlz
   deps-yt-contrib-quicklz
-  deps-yt-contrib-zstd
   deps-yt-contrib-zstd-legacy
 )
 
