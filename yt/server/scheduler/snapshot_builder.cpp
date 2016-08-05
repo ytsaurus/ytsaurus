@@ -107,6 +107,8 @@ TFuture<void> TSnapshotBuilder::Run()
         job.Operation->GetController()->Resume();
     }
 
+    LOG_INFO("Controllers resumed");
+
     auto uploadFuture = UploadSnapshots()
         .Apply(
             BIND([operationIds, this, this_ = MakeStrong(this)] (const std::vector<TError>& errors) {
