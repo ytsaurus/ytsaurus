@@ -104,7 +104,7 @@ struct TUserObject
     NObjectClient::TCellTag CellTag;
     NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
 
-    void Persist(NPhoenix::TPersistenceContext& context);
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 template <class T>

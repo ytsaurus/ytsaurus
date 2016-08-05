@@ -11,7 +11,7 @@ def prepare_tables(proxy):
     yt.config["proxy"]["header_format"] = "yson"
 
     operations_archive.create_ordered_by_id_table(operations_archive.BY_ID_ARCHIVE)
-    operations_archive.create_ordered_by_start_time_table(operations_archive.BY_START_TIME_ARCHIVE)
+    operations_archive.create_ordered_by_start_time_table_v1(operations_archive.BY_START_TIME_ARCHIVE)
 
 def main():
     parser = argparse.ArgumentParser(description="Prepare dynamic tables for operations archive")

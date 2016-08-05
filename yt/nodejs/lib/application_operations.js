@@ -17,8 +17,9 @@ var __DBG = require("./debug").that("V", "Operations");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-var OPERATIONS_ARCHIVE_PATH = "//sys/operations_archive/ordered_by_id";
-var OPERATIONS_ARCHIVE_INDEX_PATH = "//sys/operations_archive/ordered_by_start_time";
+var OPERATIONS_ARCHIVE_DIRECTORY = "//sys/operations_archive";
+var OPERATIONS_ARCHIVE_PATH = "{}/ordered_by_id".format(OPERATIONS_ARCHIVE_DIRECTORY);
+var OPERATIONS_ARCHIVE_INDEX_PATH = "{}/ordered_by_start_time".format(OPERATIONS_ARCHIVE_DIRECTORY);
 var OPERATIONS_CYPRESS_PATH = "//sys/operations";
 var OPERATIONS_RUNTIME_PATH = "//sys/scheduler/orchid/scheduler/operations";
 var SCHEDULING_INFO_PATH = "//sys/scheduler/orchid/scheduler";
@@ -184,7 +185,7 @@ function idUint64ToString(id_hi, id_lo)
 
 function idStringToUint64(id)
 {
-    var hi, log, parts;
+    var hi, lo, parts;
     parts = id.split("-");
     hi = UI64(parts[3], 16).shiftLeft(32).or(UI64(parts[2], 16));
     lo = UI64(parts[1], 16).shiftLeft(32).or(UI64(parts[0], 16));
@@ -277,6 +278,124 @@ function required(parameters, key, validator)
     }
 }
 
+function getArchiveCallbacks(timings, from_time, to_time, cursor_time, substr_filter, cursor_direction, state_filter, type_filter, user_filter, max_size, version)
+{
+    var start_time_name = version < 2 ? "index.start_time" : "start_time";
+    var counts_filter_conditions = [
+        "{} > {} AND {} <= {}".format(start_time_name, from_time, start_time_name, to_time)
+    ];
+
+    if (substr_filter) {
+        counts_filter_conditions.push(
+            "is_substr(\"{}\", filter_factors)".format(escapeC(substr_filter)));
+    }
+    var items_filter_conditions = counts_filter_conditions.slice();
+    var items_sort_direction;
+
+    if (cursor_direction === "past") {
+        items_filter_conditions.push("{} <= {}".format(start_time_name, cursor_time));
+        items_sort_direction = "DESC";
+    }
+
+    if (cursor_direction === "future") {
+        items_filter_conditions.push("{} > {}".format(start_time_name, cursor_time));
+        items_sort_direction = "ASC";
+    }
+
+    if (state_filter) {
+        items_filter_conditions.push("state = \"{}\"".format(escapeC(state_filter)));
+    }
+
+    if (type_filter) {
+        items_filter_conditions.push("operation_type = \"{}\"".format(escapeC(type_filter)));
+    }
+
+    if (user_filter) {
+        items_filter_conditions.push("authenticated_user = \"{}\"".format(escapeC(user_filter)));
+    }
+ 
+    var query_source = null;
+    if (version < 2) {
+        query_source = "[{}] index JOIN [{}] ON (index.id_hi, index.id_lo) = (id_hi, id_lo)"
+            .format(OPERATIONS_ARCHIVE_INDEX_PATH, OPERATIONS_ARCHIVE_PATH);
+    } else {
+        query_source = "[{}]"
+            .format(OPERATIONS_ARCHIVE_INDEX_PATH);
+    }
+   
+    var query_for_counts =
+        "user, state, type, sum(1) AS count FROM {}".format(query_source) +
+        " WHERE {}".format(counts_filter_conditions.join(" AND ")) +
+        " GROUP BY authenticated_user AS user, state AS state, operation_type AS type";
+
+    var query_for_items =
+        "{} FROM {}".format(version < 2 ? "*" : "id_hi, id_lo", query_source) +
+        " WHERE {}".format(items_filter_conditions.join(" AND ")) +
+        " ORDER BY start_time {}".format(items_sort_direction) +
+        " LIMIT {}".format(1 + max_size);
+
+    var logger = this.logger;
+    var driver = this.driver;
+    return {
+        getCounts: function() {
+            var timing_start = new Date();
+            return driver.executeSimple(
+                "select_rows",
+                {query: query_for_counts})
+                .finally(function() {
+                    var dt = timings.archive_counts = new Date() - timing_start;
+                    if (dt > SLOW_QUERY_TIMEOUT) {
+                        logger.debug("Slow query", {query: query_for_counts, time: dt});
+                    }
+                });
+        },
+        getItems: function() {
+            var timing_start = new Date();
+            if (version < 2) {
+                return driver.executeSimple(
+                    "select_rows",
+                    {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT})
+                    .finally(function() {
+                        var dt = timings.archive_items = new Date() - timing_start;
+                        if (dt > SLOW_QUERY_TIMEOUT) {
+                            logger.debug("Slow query", {query: query_for_items, time: dt});
+                        }
+                    });
+            } else {
+                var timing_archive_items_start;
+                var archive_item_ids = driver
+                    .executeSimple(
+                        "select_rows",
+                        {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT})
+                    .then(function(value) {
+                        timing_archive_items_start = new Date();
+                        return value;
+                    })
+                    .finally(function() {
+                        var dt = timings.archive_item_ids = new Date() - timing_start;
+                        if (dt > SLOW_QUERY_TIMEOUT) {
+                            logger.debug("Slow query", {query: query_for_items, time: dt});
+                        }
+                    });
+
+                var archive_items = archive_item_ids.then(driver.executeSimple.bind(driver, "lookup_rows", {
+                        path: OPERATIONS_ARCHIVE_PATH,
+                        input_format: ANNOTATED_JSON_FORMAT,
+                        output_format: ANNOTATED_JSON_FORMAT}))
+                    .finally(function() {
+                        var dt = timings.archive_items_lookup = new Date() - timing_archive_items_start;
+                        if (dt > SLOW_QUERY_TIMEOUT) {
+                            logger.debug("Slow lookup", {time: dt});
+                        }
+                    });
+
+                return archive_items;
+            }
+        }
+    }
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtApplicationOperations(logger, driver)
@@ -354,14 +473,30 @@ function YtApplicationOperations$list(parameters)
             max_size, MAX_SIZE_LIMIT)).withCode(1);
     }
 
+    function makeErrorHandler(message) {
+        return function(error) {
+            var err = YtError.ensureWrapped(error);
+            logger.error(message, {error: err.toJson()});
+            return Q.reject(new YtError(message, err));
+        };
+    }
+
+    var timings = {};
+
     // Okay, now fetch & merge data.
+    var timings_start = new Date();
     var cypress_data = this.driver.executeSimple(
         "list",
         {
             path: OPERATIONS_CYPRESS_PATH, 
             attributes: OPERATION_ATTRIBUTES
+        })
+        .catch(makeErrorHandler("Failed to fetch operations from Cypress"))
+        .finally(function() {
+            timings.cypress_data = new Date() - timings_start;
         });
 
+<<<<<<< HEAD
     var counts_filter_conditions = [
         "index.start_time > {} AND index.start_time <= {}".format(from_time, to_time)
     ];
@@ -391,44 +526,64 @@ function YtApplicationOperations$list(parameters)
     if (type_filter) {
         items_filter_conditions.push("operation_type = \"{}\"".format(escapeC(type_filter)));
     }
+=======
+    var runtime_data = this.driver.executeSimple(
+        "get",
+        {
+            path: OPERATIONS_RUNTIME_PATH
+        })
+        .catch(makeErrorHandler("Failed to fetch operations from scheduler"))
+        .finally(function() {
+            timings.runtime_data = new Date() - timings_start;
+        });
 
-    if (user_filter) {
-        items_filter_conditions.push("authenticated_user = \"{}\"".format(escapeC(user_filter)));
-    }
+    var version = this.driver.executeSimple(
+        "get",
+        {
+            path: "{}/@version".format(OPERATIONS_ARCHIVE_DIRECTORY)
+        })
+        .catch(function(error) {
+            var err = YtError.ensureWrapped(error);
+            return err.getCode() === 500;
+        }, function(error) {
+            return 0;
+        })
+        .catch(makeErrorHandler("Failed to fetch archive version"))
+        .finally(function() {
+            timings.version = new Date() - timings_start;
+        });
+>>>>>>> prestable/18.4
 
-    var query_source = "[{}] index JOIN [{}] ON (index.id_hi, index.id_lo) = (id_hi, id_lo)"
-        .format(OPERATIONS_ARCHIVE_INDEX_PATH, OPERATIONS_ARCHIVE_PATH);
-    var query_for_counts =
-        "user, state, type, sum(1) AS count FROM {}".format(query_source) +
-        " WHERE {}".format(counts_filter_conditions.join(" AND ")) +
-        " GROUP BY authenticated_user AS user, state AS state, operation_type AS type";
-    var query_for_items =
-        "* FROM {}".format(query_source) +
-        " WHERE {}".format(items_filter_conditions.join(" AND ")) +
-        " ORDER BY start_time {}".format(items_sort_direction) +
-        " LIMIT {}".format(1 + max_size);
+    var archive_callbacks = version.then(getArchiveCallbacks.bind(
+        this,
+        timings,
+        from_time,
+        to_time,
+        cursor_time,
+        substr_filter,
+        cursor_direction,
+        state_filter,
+        type_filter,
+        user_filter,
+        max_size));
 
     var archive_counts = null;
     if (include_archive && include_counters) {
-        archive_counts = this.driver.executeSimple(
-            "select_rows",
-            {query: query_for_counts});
+        archive_counts = archive_callbacks.then(function(callbacks) {
+            return callbacks.getCounts();
+        });
     } else {
         archive_counts = Q.resolve([]);
     }
 
     var archive_data = null;
     if (include_archive) {
-        archive_data = this.driver.executeSimple(
-            "select_rows",
-            {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT});
+        archive_data = archive_callbacks.then(function(callbacks) {
+            return callbacks.getItems();
+        });
     } else {
         archive_data = Q.resolve([]);
     }
-
-    var timings = {
-        start: new Date(),
-    };
 
     var logger = this.logger;
 
@@ -479,6 +634,7 @@ function YtApplicationOperations$list(parameters)
         };
     }
 
+<<<<<<< HEAD
     function makeErrorHandler(message) {
         return function(error) {
             var err = YtError.ensureWrapped(error);
@@ -493,28 +649,16 @@ function YtApplicationOperations$list(parameters)
             timings.cypress_data = new Date();
         });
 
+=======
+>>>>>>> prestable/18.4
     if (include_archive && include_counters) {
         archive_counts = archive_counts
-            .catch(makeErrorHandler("Failed to fetch operation counts from archive"))
-            .finally(function() {
-                timings.archive_counts = new Date();
-                var dt = timings.archive_counts - timings.start;
-                if ((timings.archive_counts - timings.start) > SLOW_QUERY_TIMEOUT) {
-                    logger.debug("Slow query", {query: query_for_counts, time: dt});
-                }
-            });
+            .catch(makeErrorHandler("Failed to fetch operation counts from archive"));
     }
 
     if (include_archive) {
         archive_data = archive_data
-            .catch(makeErrorHandler("Failed to fetch operation items from archive"))
-            .finally(function() {
-                timings.archive_items = new Date();
-                var dt = timings.archive_items - timings.start;
-                if ((timings.archive_items - timings.start) > SLOW_QUERY_TIMEOUT) {
-                    logger.debug("Slow query", {query: query_for_items, time: dt});
-                }
-            });
+            .catch(makeErrorHandler("Failed to fetch operation items from archive"));
     }
 
     return Q.settle([cypress_data, archive_data, archive_counts])
@@ -673,9 +817,10 @@ function YtApplicationOperations$list(parameters)
 
         var result = {
             operations: merged_data,
-            timings: {},
+            timings: timings,
         };
 
+<<<<<<< HEAD
         _.each(
             ["cypress_data", "archive_counts", "archive_items", "total"],
             function(timer) {
@@ -684,6 +829,8 @@ function YtApplicationOperations$list(parameters)
                 }
             });
 
+=======
+>>>>>>> prestable/18.4
         if (include_counters) {
             result.user_counts = register.result.user_counts;
             result.state_counts = register.result.state_counts;

@@ -235,7 +235,7 @@ public:
         return SaveContext_ != nullptr;
     }
 
-    TSaveContext& SaveContext()
+    TSaveContext& SaveContext() const
     {
         Y_ASSERT(SaveContext_);
         return *SaveContext_;
@@ -246,10 +246,16 @@ public:
         return LoadContext_ != nullptr;
     }
 
-    TLoadContext& LoadContext()
+    TLoadContext& LoadContext() const
     {
         Y_ASSERT(LoadContext_);
         return *LoadContext_;
+    }
+
+    template <class TOtherContext>
+    operator TOtherContext() const
+    {
+        return IsSave() ? TOtherContext(*SaveContext_) : TOtherContext(*LoadContext_);
     }
 
 private:
@@ -301,7 +307,7 @@ T LoadSuspended(C& context)
 }
 
 template <class S, class T, class C>
-void Persist(C& context, T& value)
+void Persist(const C& context, T& value)
 {
     if (context.IsSave()) {
         S::Save(context.SaveContext(), value);
@@ -315,7 +321,7 @@ void Persist(C& context, T& value)
 struct TDefaultSerializer;
 
 template <class T, class C>
-void Persist(C& context, T& value)
+void Persist(const C& context, T& value)
 {
     Persist<TDefaultSerializer, T, C>(context, value);
 }
@@ -1246,6 +1252,35 @@ struct TSerializerTraits
 {
     typedef TValueBoundSerializer TSerializer;
     typedef TValueBoundComparer TComparer;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TUnderlyingSerializer = TDefaultSerializer>
+struct TUniquePtrSerializer
+{
+    template <class T, class C>
+    static void Save(C& context, const std::unique_ptr<T>& ptr)
+    {
+        using NYT::Save;
+        if (ptr) {
+            Save(context, true);
+            TUnderlyingSerializer::Save(context, *ptr);
+        } else {
+            Save(context, false);
+        }
+    }
+
+    template <class T, class C>
+    static void Load(C& context, std::unique_ptr<T>& ptr)
+    {
+        if (LoadSuspended<bool>(context)) {
+            ptr = std::make_unique<T>();
+            TUnderlyingSerializer::Load(context, *ptr);
+        } else {
+            ptr.reset();
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -119,7 +119,7 @@ std::vector<TMountPoint> GetMountPoints(const Stroka& mountsFile = "/proc/mounts
 void MountTmpfs(const Stroka& path, int userId, i64 size);
 
 //! Unmount given path.
-void Umount(const Stroka& path);
+void Umount(const Stroka& path, bool detach);
 
 //! Wraps a given #func in with try/catch; makes sure that only IO-related
 //! exceptions are being thrown. For all other exceptions, immediately terminates

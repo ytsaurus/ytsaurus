@@ -74,7 +74,7 @@ using NTableClient::TTableReaderOptions;
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TLivePreviewTableBase::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TLivePreviewTableBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, LivePreviewTableId);
@@ -82,7 +82,7 @@ void TOperationControllerBase::TLivePreviewTableBase::Persist(TPersistenceContex
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TInputTable::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TInputTable::Persist(const TPersistenceContext& context)
 {
     TUserObject::Persist(context);
 
@@ -95,7 +95,7 @@ void TOperationControllerBase::TInputTable::Persist(TPersistenceContext& context
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TJobBoundaryKeys::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TJobBoundaryKeys::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, MinKey);
@@ -105,7 +105,7 @@ void TOperationControllerBase::TJobBoundaryKeys::Persist(TPersistenceContext& co
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TOutputTable::Persist(const TPersistenceContext& context)
 {
     TUserObject::Persist(context);
     TLivePreviewTableBase::Persist(context);
@@ -131,14 +131,14 @@ void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& contex
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TIntermediateTable::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TIntermediateTable::Persist(const TPersistenceContext& context)
 {
     TLivePreviewTableBase::Persist(context);
 }
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TUserFile::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TUserFile::Persist(const TPersistenceContext& context)
 {
     TUserObject::Persist(context);
 
@@ -154,7 +154,7 @@ void TOperationControllerBase::TUserFile::Persist(TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TCompletedJob::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TCompletedJob::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Lost);
@@ -169,7 +169,7 @@ void TOperationControllerBase::TCompletedJob::Persist(TPersistenceContext& conte
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TJoblet::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TJoblet::Persist(const TPersistenceContext& context)
 {
     // NB: Every joblet is aborted after snapshot is loaded.
     // Here we only serialize a subset of members required for ReinstallJob to work
@@ -183,7 +183,7 @@ void TOperationControllerBase::TJoblet::Persist(TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TTaskGroup::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TTaskGroup::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, MinNeededResources);
@@ -222,7 +222,7 @@ void TOperationControllerBase::TTaskGroup::Persist(TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TStripeDescriptor::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TStripeDescriptor::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Stripe);
@@ -232,7 +232,7 @@ void TOperationControllerBase::TStripeDescriptor::Persist(TPersistenceContext& c
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TInputChunkDescriptor::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TInputChunkDescriptor::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, InputStripes);
@@ -531,7 +531,7 @@ i64 TOperationControllerBase::TTask::GetPendingDataSize() const
     return GetChunkPoolOutput()->GetPendingDataSize();
 }
 
-void TOperationControllerBase::TTask::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TTask::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -1518,6 +1518,7 @@ void TOperationControllerBase::DoLoadSnapshot(TSharedRef snapshot)
 
     TLoadContext context;
     context.SetInput(&input);
+    context.SetRowBuffer(RowBuffer);
 
     NPhoenix::TSerializer::InplaceLoad(context, this);
 
@@ -1751,10 +1752,10 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistic
     auto jobType = joblet->JobType;
     bool taskUpdateNeeded = false;
 
-    if (statistics.Data().find("/user_job/max_memory") != statistics.Data().end()) {
-        i64 userJobMaxMemoryUsage = statistics.GetNumericValue("/user_job/max_memory");
+    auto userJobMaxMemoryUsage = FindNumericValue(statistics, "/user_job/max_memory");
+    if (userJobMaxMemoryUsage) {
         auto* digest = GetUserJobMemoryDigest(jobType);
-        double actualFactor = static_cast<double>(userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
+        double actualFactor = static_cast<double>(*userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
         LOG_TRACE("Adding sample to the job proxy memory digest (JobType: %v, Sample: %v, JobId: %v)",
             jobType,
             actualFactor,
@@ -1763,10 +1764,10 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistic
         taskUpdateNeeded = true;
     }
 
-    if (statistics.Data().find("/job_proxy/max_memory") != statistics.Data().end()) {
-        i64 jobProxyMaxMemoryUsage = statistics.GetNumericValue("/job_proxy/max_memory");
+    auto jobProxyMaxMemoryUsage = FindNumericValue(statistics, "/job_proxy/max_memory");
+    if (jobProxyMaxMemoryUsage) {
         auto* digest = GetJobProxyMemoryDigest(jobType);
-        double actualFactor = static_cast<double>(jobProxyMaxMemoryUsage) /
+        double actualFactor = static_cast<double>(*jobProxyMaxMemoryUsage) /
             (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
         LOG_TRACE("Adding sample to the user job memory digest (JobType: %v, Sample: %v, JobId: %v)",
             jobType,
@@ -1829,7 +1830,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
             case EJobType::SortedReduce:
             case EJobType::PartitionReduce:
                 auto path = Format("/data/output/%d/row_count%s", *RowCountLimitTableIndex, jobSummary->StatisticsSuffix);
-                i64 count = JobStatistics.GetNumericValue(path);
+                i64 count = GetNumericValue(JobStatistics, path);
                 if (count >= RowCountLimit) {
                     OnOperationCompleted(true /* interrupted */);
                 }
@@ -4457,7 +4458,7 @@ const IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobTyp
     return iter->second.get();
 }
 
-void TOperationControllerBase::Persist(TPersistenceContext& context)
+void TOperationControllerBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 

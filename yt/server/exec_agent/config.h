@@ -81,6 +81,10 @@ public:
     //! Thread pool for job startup initialization.
     int PoolSize;
 
+    //! Use MNT_DETACH when tmpfs umount called. When option enabled the "Device is busy" error is impossible,
+    //! because actual umount will be performed by Linux core asynchronously.
+    bool DetachedTmpfsUmount;
+
     //! CPU share in cpu cgroup dedicated for slots.
     double CGroupCpuShare;
 
@@ -98,6 +102,9 @@ public:
         RegisterParameter("pool_size", PoolSize)
             .GreaterThanOrEqual(1)
             .Default(3);
+
+        RegisterParameter("detached_tmpfs_umount", DetachedTmpfsUmount)
+            .Default(true);
 
         // NB: Default value is minimum possible share in cgroup.
         // http://git.kernel.org/cgit/linux/kernel/git/tip/tip.git/tree/kernel/sched/sched.h#n279

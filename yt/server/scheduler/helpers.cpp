@@ -91,17 +91,17 @@ void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer)
         .Item("resource_limits").Value(node->GetResourceLimits());
 }
 
-static void BuildReadLimit(const TInputSlicePtr& slice, const TReadLimit& limit, NYson::IYsonConsumer* consumer)
+static void BuildReadLimit(const TInputSlicePtr& slice, const TInputSliceLimit& limit, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .DoIf(limit.HasRowIndex(), [&] (TFluentMap fluent) {
+            .DoIf(limit.RowIndex.operator bool(), [&] (TFluentMap fluent) {
                 fluent
-                    .Item("row_index").Value(limit.GetRowIndex() + slice->GetInputChunk()->GetTableRowIndex());
+                    .Item("row_index").Value(*limit.RowIndex + slice->GetInputChunk()->GetTableRowIndex());
             })
-            .DoIf(limit.HasKey(), [&] (TFluentMap fluent) {
+            .DoIf(limit.Key.operator bool(), [&] (TFluentMap fluent) {
                 fluent
-                    .Item("key").Value(limit.GetKey());
+                    .Item("key").Value(limit.Key);
             })
         .EndMap();
 }
@@ -151,10 +151,8 @@ TYsonString BuildInputPaths(
                                 fluent
                                     .Item()
                                     .BeginMap()
-                                        .Item("lower_limit")
-                                        .Do(BIND(&BuildReadLimit, range.first, range.first->LowerLimit()))
-                                        .Item("upper_limit")
-                                        .Do(BIND(&BuildReadLimit, range.second, range.second->UpperLimit()))
+                                        .Item("lower_limit").Do(BIND(&BuildReadLimit, range.first, range.first->LowerLimit()))
+                                        .Item("upper_limit").Do(BIND(&BuildReadLimit, range.second, range.second->UpperLimit()))
                                     .EndMap();
                             })
                         .EndAttributes()
