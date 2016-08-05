@@ -516,10 +516,14 @@ void MountTmpfs(const Stroka& path, int userId, i64 size)
 #endif
 }
 
-void Umount(const Stroka& path)
+void Umount(const Stroka& path, bool detach)
 {
 #ifdef _linux_
-    int result = ::umount(~path);
+    int flags = 0;
+    if (detach) {
+        flags |= MNT_DETACH;
+    }
+    int result = ::umount2(~path, flags);
     // EINVAL for ::umount means that nothing mounted at this point.
     // ENOENT means 'No such file or directory'.
     if (result < 0 && LastSystemError() != EINVAL && LastSystemError() != ENOENT) {

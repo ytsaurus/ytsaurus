@@ -163,9 +163,13 @@ void TSlot::DoCleanSandbox(int pathIndex)
         const auto& sandboxPath = SandboxPaths_[pathIndex][sandboxKind];
         auto sandboxFullPath = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), sandboxPath);
 
-        auto removeMountPount = [] (const Stroka& path) {
+        auto removeMountPount = [this, this_ = MakeStrong(this)] (const Stroka& path) {
+            auto config = New<TUmountConfig>();
+            config->Path = path;
+            config->Detach = Config_->DetachedTmpfsUmount;
+
             RunTool<TRemoveDirContentAsRootTool>(path);
-            RunTool<TUmountAsRootTool>(path);
+            RunTool<TUmountAsRootTool>(config);
         };
 
         // NB: iterating over /proc/mounts is not reliable,

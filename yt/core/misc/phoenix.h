@@ -245,7 +245,7 @@ template <class C>
 struct ICustomPersistent
     : public virtual TDynamicTag
 {
-    virtual void Persist(C& context) = 0;
+    virtual void Persist(const C& context) = 0;
 };
 
 typedef TCustomPersistenceContext<TSaveContext, TLoadContext> TPersistenceContext;
@@ -253,8 +253,8 @@ typedef ICustomPersistent<TPersistenceContext> IPersistent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
 } // namespace NPhoenix
+} // namespace NYT
 
 #define PHOENIX_INL_H_
 #include "phoenix-inl.h"

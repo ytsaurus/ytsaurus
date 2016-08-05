@@ -45,6 +45,8 @@ namespace NYT {
 
 static const NLogging::TLogger Logger("Proc");
 
+const int RemoveAsRootAttemptCount = 5;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<int> GetPidsByUid(int uid)
@@ -163,7 +165,7 @@ void RemoveDirContentAsRoot(const Stroka& path)
     }
 
     bool foundUnremovedItems = false;
-    for (int attempt = 0; attempt < 5; ++attempt) {
+    for (int attempt = 0; attempt < RemoveAsRootAttemptCount; ++attempt) {
         foundUnremovedItems = false;
         TDirIterator dir(path);
         for (auto it = dir.Begin(); it != dir.End(); ++it) {
@@ -211,10 +213,10 @@ void MountTmpfsAsRoot(TMountTmpfsConfigPtr config)
     NFS::MountTmpfs(config->Path, config->UserId, config->Size);
 }
 
-void UmountAsRoot(const Stroka& path)
+void UmountAsRoot(TUmountConfigPtr config)
 {
     SafeSetUid(0);
-    NFS::Umount(path);
+    NFS::Umount(config->Path, config->Detach);
 }
 
 TError StatusToError(int status)
@@ -544,7 +546,7 @@ void MountTmpfsAsRoot(TMountTmpfsConfigPtr /* config */)
     YUNIMPLEMENTED();
 }
 
-void UmountAsRoot(const Stroka& /* path */)
+void UmountAsRoot(TUmountConfigPtr /* config */)
 {
     YUNIMPLEMENTED();
 }
@@ -668,7 +670,7 @@ REGISTER_TOOL(TMountTmpfsAsRootTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUmountAsRootTool::operator()(const Stroka& arg) const
+void TUmountAsRootTool::operator()(TUmountConfigPtr arg) const
 {
     UmountAsRoot(arg);
 }

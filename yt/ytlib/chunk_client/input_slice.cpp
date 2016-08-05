@@ -2,15 +2,10 @@
 #include "private.h"
 #include "chunk_meta_extensions.h"
 #include "schema.h"
-#include "input_chunk.h"
-
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/core/erasure/codec.h>
 
-#include <yt/core/logging/log.h>
-
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/ytlib/table_client/serialize.h>
 
 #include <cmath>
 
@@ -20,94 +15,206 @@ namespace NChunkClient {
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 
-using NProto::TSizeOverrideExt;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-const int DefaultPartIndex = -1;
+TInputSliceLimit::TInputSliceLimit(const TReadLimit& other)
+{
+    YCHECK(!other.HasChunkIndex());
+    YCHECK(!other.HasOffset());
+    if (other.HasRowIndex()) {
+        RowIndex = other.GetRowIndex();
+    }
+    if (other.HasKey()) {
+        Key = other.GetKey();
+    }
+}
+
+TInputSliceLimit::TInputSliceLimit(const NProto::TReadLimit& other, const TRowBufferPtr& rowBuffer)
+{
+    YCHECK(!other.has_chunk_index());
+    YCHECK(!other.has_offset());
+    if (other.has_row_index()) {
+        RowIndex = other.row_index();
+    }
+    if (other.has_key()) {
+        NTableClient::FromProto(&Key, other.key(), rowBuffer);
+    }
+}
+
+void TInputSliceLimit::MergeLowerRowIndex(i64 rowIndex)
+{
+    if (!RowIndex || *RowIndex < rowIndex) {
+        RowIndex = rowIndex;
+    }
+}
+
+void TInputSliceLimit::MergeUpperRowIndex(i64 rowIndex)
+{
+    if (!RowIndex || *RowIndex > rowIndex) {
+        RowIndex = rowIndex;
+    }
+}
+
+void TInputSliceLimit::MergeLowerKey(NTableClient::TKey key)
+{
+    if (!Key || Key < key) {
+        Key = key;
+    }
+}
+
+void TInputSliceLimit::MergeUpperKey(NTableClient::TKey key)
+{
+    if (!Key || Key > key) {
+        Key = key;
+    }
+}
+
+void TInputSliceLimit::MergeLowerLimit(const TInputSliceLimit& limit)
+{
+    if (limit.RowIndex) {
+        MergeLowerRowIndex(*limit.RowIndex);
+    }
+    if (limit.Key) {
+        MergeLowerKey(limit.Key);
+    }
+}
+
+void TInputSliceLimit::MergeUpperLimit(const TInputSliceLimit& limit)
+{
+    if (limit.RowIndex) {
+        MergeUpperRowIndex(*limit.RowIndex);
+    }
+    if (limit.Key) {
+        MergeUpperKey(limit.Key);
+    }
+}
+
+void TInputSliceLimit::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, RowIndex);
+    Persist(context, Key);
+}
+
+void FormatValue(TStringBuilder* builder, const TInputSliceLimit& limit, const TStringBuf& /*format*/)
+{
+    builder->AppendFormat("{RowIndex: %v, Key: %v}",
+        limit.RowIndex,
+        limit.Key);
+}
+
+bool IsTrivial(const TInputSliceLimit& limit)
+{
+    return !limit.RowIndex && !limit.Key;
+}
+
+void ToProto(NProto::TReadLimit* protoLimit, const TInputSliceLimit& limit)
+{
+    if (limit.RowIndex) {
+        protoLimit->set_row_index(*limit.RowIndex);
+    } else {
+        protoLimit->clear_row_index();
+    }
+
+    if (limit.Key) {
+        ToProto(protoLimit->mutable_key(), limit.Key);
+    } else {
+        protoLimit->clear_key();
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TInputSlice::TInputSlice(
-    TInputChunkPtr inputChunk,
-    const TNullable<NTableClient::TOwningKey>& lowerKey,
-    const TNullable<NTableClient::TOwningKey>& upperKey)
+    const TInputChunkPtr& inputChunk,
+    TKey lowerKey,
+    TKey upperKey)
     : InputChunk_(inputChunk)
-    , LowerLimit_(inputChunk->LowerLimit())
-    , UpperLimit_(inputChunk->UpperLimit())
     , DataSize_(inputChunk->GetUncompressedDataSize())
     , RowCount_(inputChunk->GetRowCount())
 {
+    if (inputChunk->LowerLimit()) {
+        LowerLimit_ = TInputSliceLimit(*inputChunk->LowerLimit());
+    }
     if (lowerKey) {
-        LowerLimit_.MergeLowerKey(*lowerKey);
+        LowerLimit_.MergeLowerKey(lowerKey);
     }
 
+    if (inputChunk->UpperLimit()) {
+        UpperLimit_ = TInputSliceLimit(*inputChunk->UpperLimit());
+    }
     if (upperKey) {
-        UpperLimit_.MergeUpperKey(*upperKey);
+        UpperLimit_.MergeUpperKey(upperKey);
     }
 }
 
 TInputSlice::TInputSlice(
-    const TIntrusivePtr<const TInputSlice>& chunkSlice,
-    const TNullable<NTableClient::TOwningKey>& lowerKey,
-    const TNullable<NTableClient::TOwningKey>& upperKey)
-    : InputChunk_(chunkSlice->GetInputChunk())
-    , LowerLimit_(chunkSlice->LowerLimit())
-    , UpperLimit_(chunkSlice->UpperLimit())
-    , PartIndex_(chunkSlice->GetPartIndex())
-    , SizeOverridden_(chunkSlice->GetSizeOverridden())
-    , DataSize_(chunkSlice->GetDataSize())
-    , RowCount_(chunkSlice->GetRowCount())
+    const TInputSlice& inputSlice,
+    TKey lowerKey,
+    TKey upperKey)
+    : InputChunk_(inputSlice.GetInputChunk())
+    , LowerLimit_(inputSlice.LowerLimit())
+    , UpperLimit_(inputSlice.UpperLimit())
+    , PartIndex_(inputSlice.GetPartIndex())
+    , SizeOverridden_(inputSlice.GetSizeOverridden())
+    , DataSize_(inputSlice.GetDataSize())
+    , RowCount_(inputSlice.GetRowCount())
 {
     if (lowerKey) {
-        LowerLimit_.MergeLowerKey(*lowerKey);
+        LowerLimit_.MergeLowerKey(lowerKey);
     }
-
     if (upperKey) {
-        UpperLimit_.MergeUpperKey(*upperKey);
+        UpperLimit_.MergeUpperKey(upperKey);
     }
 }
 
 TInputSlice::TInputSlice(
-    const TIntrusivePtr<const TInputSlice>& chunkSlice,
+    const TInputSlice& chunkSlice,
     i64 lowerRowIndex,
     i64 upperRowIndex,
     i64 dataSize)
-    : InputChunk_(chunkSlice->GetInputChunk())
-    , LowerLimit_(chunkSlice->LowerLimit())
-    , UpperLimit_(chunkSlice->UpperLimit())
+    : InputChunk_(chunkSlice.GetInputChunk())
+    , LowerLimit_(chunkSlice.LowerLimit())
+    , UpperLimit_(chunkSlice.UpperLimit())
 {
-    LowerLimit_.SetRowIndex(lowerRowIndex);
-    UpperLimit_.SetRowIndex(upperRowIndex);
+    LowerLimit_.RowIndex = lowerRowIndex;
+    UpperLimit_.RowIndex = upperRowIndex;
     SetRowCount(upperRowIndex - lowerRowIndex);
     SetDataSize(dataSize);
 }
 
 TInputSlice::TInputSlice(
-    TInputChunkPtr inputChunk,
+    const TInputChunkPtr& inputChunk,
     int partIndex,
     i64 lowerRowIndex,
     i64 upperRowIndex,
     i64 dataSize)
     : InputChunk_(inputChunk)
-    , LowerLimit_(inputChunk->LowerLimit())
-    , UpperLimit_(inputChunk->UpperLimit())
     , PartIndex_(partIndex)
 {
+    if (inputChunk->LowerLimit()) {
+        LowerLimit_ = TInputSliceLimit(*inputChunk->LowerLimit());
+    }
     LowerLimit_.MergeLowerRowIndex(lowerRowIndex);
+
+    if (inputChunk->UpperLimit()) {
+        UpperLimit_ = TInputSliceLimit(*inputChunk->UpperLimit());
+    }
     UpperLimit_.MergeUpperRowIndex(upperRowIndex);
 
-    SetRowCount(UpperLimit_.GetRowIndex() - LowerLimit_.GetRowIndex());
+    SetRowCount(*UpperLimit_.RowIndex - *LowerLimit_.RowIndex);
     SetDataSize(dataSize);
 }
 
 TInputSlice::TInputSlice(
-    TInputChunkPtr inputChunk,
+    const TInputChunkPtr& inputChunk,
+    const TRowBufferPtr& rowBuffer,
     const NProto::TChunkSlice& protoChunkSlice)
-    : TInputSlice(inputChunk, Null, Null)
+    : TInputSlice(inputChunk)
 {
-    LowerLimit_.MergeLowerLimit(protoChunkSlice.lower_limit());
-    UpperLimit_.MergeUpperLimit(protoChunkSlice.upper_limit());
+    LowerLimit_.MergeLowerLimit(TInputSliceLimit(protoChunkSlice.lower_limit(), rowBuffer));
+    UpperLimit_.MergeUpperLimit(TInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer));
     PartIndex_ = DefaultPartIndex;
 
     if (protoChunkSlice.has_size_override_ext()) {
@@ -118,31 +225,29 @@ TInputSlice::TInputSlice(
 
 std::vector<TInputSlicePtr> TInputSlice::SliceEvenly(i64 sliceDataSize) const
 {
-    std::vector<TInputSlicePtr> result;
-
     YCHECK(sliceDataSize > 0);
 
     i64 rowCount = GetRowCount();
 
-    i64 lowerRowIndex = LowerLimit_.HasRowIndex() ? LowerLimit_.GetRowIndex() : 0;
-    i64 upperRowIndex = UpperLimit_.HasRowIndex() ? UpperLimit_.GetRowIndex() : rowCount;
+    i64 lowerRowIndex = LowerLimit_.RowIndex.Get(0);
+    i64 upperRowIndex = UpperLimit_.RowIndex.Get(rowCount);
 
     rowCount = upperRowIndex - lowerRowIndex;
-    int count = std::max(std::min(GetDataSize() / sliceDataSize, rowCount), i64(1));
+    
+    int count = std::max(std::min(GetDataSize() / sliceDataSize, rowCount), static_cast<i64>(1));
 
+    std::vector<TInputSlicePtr> result;
     for (int i = 0; i < count; ++i) {
         i64 sliceLowerRowIndex = lowerRowIndex + rowCount * i / count;
         i64 sliceUpperRowIndex = lowerRowIndex + rowCount * (i + 1) / count;
         if (sliceLowerRowIndex < sliceUpperRowIndex) {
-            auto chunkSlice = New<TInputSlice>(
-                this,
+            result.push_back(New<TInputSlice>(
+                *this,
                 sliceLowerRowIndex,
                 sliceUpperRowIndex,
-                (GetDataSize() + count - 1) / count);
-            result.emplace_back(std::move(chunkSlice));
+                (GetDataSize() + count - 1) / count));
         }
     }
-
     return result;
 }
 
@@ -203,7 +308,7 @@ void TInputSlice::SetRowCount(i64 rowCount)
     SizeOverridden_ = true;
 }
 
-void TInputSlice::Persist(NPhoenix::TPersistenceContext& context)
+void TInputSlice::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, InputChunk_);
@@ -216,13 +321,6 @@ void TInputSlice::Persist(NPhoenix::TPersistenceContext& context)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-size_t SpaceUsed(const TInputSlicePtr& slice)
-{
-    return sizeof(*slice) +
-           slice->LowerLimit_.SpaceUsed() - sizeof(slice->LowerLimit_) +
-           slice->UpperLimit_.SpaceUsed() - sizeof(slice->UpperLimit_);
-}
 
 Stroka ToString(const TInputSlicePtr& slice)
 {
@@ -240,12 +338,13 @@ bool CompareSlicesByLowerLimit(const TInputSlicePtr& slice1, const TInputSlicePt
     const auto& limit1 = slice1->LowerLimit();
     const auto& limit2 = slice2->LowerLimit();
 
-    if (limit1.HasRowIndex() && limit2.HasRowIndex()) {
-        return limit1.GetRowIndex() + slice1->GetInputChunk()->GetTableRowIndex() <
-            limit2.GetRowIndex() + slice2->GetInputChunk()->GetTableRowIndex();
+    if (limit1.RowIndex && limit2.RowIndex) {
+        return
+            *limit1.RowIndex + slice1->GetInputChunk()->GetTableRowIndex() <
+            *limit2.RowIndex + slice2->GetInputChunk()->GetTableRowIndex();
     }
-    if (limit1.HasKey() && limit2.HasKey()) {
-        return limit1.GetKey() < limit2.GetKey();
+    if (limit1.Key && limit2.Key) {
+        return limit1.Key < limit2.Key;
     }
     return false;
 }
@@ -255,17 +354,17 @@ bool CanMergeSlices(const TInputSlicePtr& slice1, const TInputSlicePtr& slice2)
     const auto& limit1 = slice1->UpperLimit();
     const auto& limit2 = slice2->LowerLimit();
 
-    if ((limit1.HasRowIndex() || limit1.HasKey()) &&
-        limit1.HasRowIndex() == limit2.HasRowIndex() &&
-        limit1.HasKey() == limit2.HasKey())
+    if ((limit1.RowIndex || limit1.Key) &&
+        limit1.RowIndex.operator bool() == limit2.RowIndex.operator bool() &&
+        limit1.Key.operator bool() == limit2.Key.operator bool())
     {
-        if (limit1.HasRowIndex() &&
-            limit1.GetRowIndex() + slice1->GetInputChunk()->GetTableRowIndex() !=
-            limit2.GetRowIndex() + slice2->GetInputChunk()->GetTableRowIndex())
+        if (limit1.RowIndex &&
+            *limit1.RowIndex + slice1->GetInputChunk()->GetTableRowIndex() !=
+            *limit2.RowIndex + slice2->GetInputChunk()->GetTableRowIndex())
         {
             return false;
         }
-        if (limit1.HasKey() && limit1.GetKey() != limit2.GetKey()) {
+        if (limit1.Key && limit1.Key != limit2.Key) {
             return false;
         }
         return true;
@@ -276,30 +375,31 @@ bool CanMergeSlices(const TInputSlicePtr& slice1, const TInputSlicePtr& slice2)
 ////////////////////////////////////////////////////////////////////////////////
 
 TInputSlicePtr CreateInputSlice(
-    TInputChunkPtr inputChunk,
-    const TNullable<NTableClient::TOwningKey>& lowerKey,
-    const TNullable<NTableClient::TOwningKey>& upperKey)
+    const TInputChunkPtr& inputChunk,
+    TKey lowerKey,
+    TKey upperKey)
 {
     return New<TInputSlice>(inputChunk, lowerKey, upperKey);
 }
 
 TInputSlicePtr CreateInputSlice(
-    TInputSlicePtr inputSlice,
-    const TNullable<NTableClient::TOwningKey>& lowerKey,
-    const TNullable<NTableClient::TOwningKey>& upperKey)
+    const TInputSlice& inputSlice,
+    TKey lowerKey,
+    TKey upperKey)
 {
     return New<TInputSlice>(inputSlice, lowerKey, upperKey);
 }
 
 TInputSlicePtr CreateInputSlice(
-    TInputChunkPtr inputChunk,
+    const TInputChunkPtr& inputChunk,
+    const TRowBufferPtr& rowBuffer,
     const NProto::TChunkSlice& protoChunkSlice)
 {
-    return New<TInputSlice>(inputChunk, protoChunkSlice);
+    return New<TInputSlice>(inputChunk, rowBuffer, protoChunkSlice);
 }
 
 std::vector<TInputSlicePtr> CreateErasureInputSlices(
-    TInputChunkPtr inputChunk,
+    const TInputChunkPtr& inputChunk,
     NErasure::ECodec codecId)
 {
     std::vector<TInputSlicePtr> slices;
@@ -327,16 +427,14 @@ std::vector<TInputSlicePtr> CreateErasureInputSlices(
     return slices;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<TInputSlicePtr> SliceChunkByRowIndexes(TInputChunkPtr inputChunk, i64 sliceDataSize)
+std::vector<TInputSlicePtr> SliceChunkByRowIndexes(
+    const TInputChunkPtr& inputChunk,
+    i64 sliceDataSize)
 {
     return CreateInputSlice(inputChunk)->SliceEvenly(sliceDataSize);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void ToProto(NProto::TChunkSpec* chunkSpec, TInputSlicePtr inputSlice)
+void ToProto(NProto::TChunkSpec* chunkSpec, const TInputSlicePtr& inputSlice)
 {
     // The chunk spec in the slice has arrived from master, so it can't possibly contain any extensions
     // except misc and boundary keys (in sorted merge or reduce). Jobs request boundary keys
@@ -345,22 +443,22 @@ void ToProto(NProto::TChunkSpec* chunkSpec, TInputSlicePtr inputSlice)
 
     ToProto(chunkSpec, inputSlice->GetInputChunk());
 
-    if (IsNontrivial(inputSlice->LowerLimit())) {
+    if (!IsTrivial(inputSlice->LowerLimit())) {
         ToProto(chunkSpec->mutable_lower_limit(), inputSlice->LowerLimit());
     }
 
-    if (IsNontrivial(inputSlice->UpperLimit())) {
+    if (!IsTrivial(inputSlice->UpperLimit())) {
         ToProto(chunkSpec->mutable_upper_limit(), inputSlice->UpperLimit());
     }
 
     // Since we don't serialize MiscExt into proto, we always create SizeOverrideExt to track progress.
     if (inputSlice->GetSizeOverridden()) {
-        TSizeOverrideExt sizeOverrideExt;
+        NProto::TSizeOverrideExt sizeOverrideExt;
         sizeOverrideExt.set_uncompressed_data_size(inputSlice->GetDataSize());
         sizeOverrideExt.set_row_count(inputSlice->GetRowCount());
         SetProtoExtension(chunkSpec->mutable_chunk_meta()->mutable_extensions(), sizeOverrideExt);
     } else {
-        TSizeOverrideExt sizeOverrideExt;
+        NProto::TSizeOverrideExt sizeOverrideExt;
         sizeOverrideExt.set_uncompressed_data_size(inputSlice->GetInputChunk()->GetUncompressedDataSize());
         sizeOverrideExt.set_row_count(inputSlice->GetInputChunk()->GetRowCount());
         SetProtoExtension(chunkSpec->mutable_chunk_meta()->mutable_extensions(), sizeOverrideExt);

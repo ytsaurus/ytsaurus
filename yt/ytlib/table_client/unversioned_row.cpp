@@ -1,5 +1,6 @@
 #include "unversioned_row.h"
 #include "unversioned_value.h"
+#include "serialize.h"
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/row_buffer.h>
@@ -768,6 +769,106 @@ void ValidateClientRow(
 
 } // namespace
 
+////////////////////////////////////////////////////////////////////////////////
+
+Stroka SerializeToString(TUnversionedRow row)
+{
+    return row
+        ? SerializeToString(row.Begin(), row.End())
+        : SerializedNullRow;
+}
+
+Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end)
+{
+    int size = 2 * MaxVarUint32Size; // header size
+    for (auto* it = begin; it != end; ++it) {
+        size += GetByteSize(*it);
+    }
+
+    Stroka buffer;
+    buffer.resize(size);
+
+    char* current = const_cast<char*>(buffer.data());
+    current += WriteVarUint32(current, 0); // format version
+    current += WriteVarUint32(current, static_cast<ui32>(std::distance(begin, end)));
+
+    for (auto* it = begin; it != end; ++it) {
+        current += WriteValue(current, *it);
+    }
+
+    buffer.resize(current - buffer.data());
+
+    return buffer;
+}
+
+TUnversionedOwningRow DeserializeFromString(const Stroka& data)
+{
+    if (data == SerializedNullRow) {
+        return TUnversionedOwningRow();
+    }
+
+    const char* current = data.data();
+
+    ui32 version;
+    current += ReadVarUint32(current, &version);
+    YCHECK(version == 0);
+
+    ui32 valueCount;
+    current += ReadVarUint32(current, &valueCount);
+
+    size_t fixedSize = GetUnversionedRowByteSize(valueCount);
+    auto rowData = TSharedMutableRef::Allocate<TOwningRowTag>(fixedSize, false);
+    auto* header = reinterpret_cast<TUnversionedRowHeader*>(rowData.Begin());
+
+    header->Count = static_cast<i32>(valueCount);
+
+    auto* values = reinterpret_cast<TUnversionedValue*>(header + 1);
+    for (int index = 0; index < valueCount; ++index) {
+        auto* value = values + index;
+        current += ReadValue(current, value);
+    }
+
+    return TUnversionedOwningRow(std::move(rowData), data);
+}
+
+TUnversionedRow DeserializeFromString(const Stroka& data, const TRowBufferPtr& rowBuffer)
+{
+    if (data == SerializedNullRow) {
+        return TUnversionedRow();
+    }
+
+    const char* current = data.data();
+
+    ui32 version;
+    current += ReadVarUint32(current, &version);
+    YCHECK(version == 0);
+
+    ui32 valueCount;
+    current += ReadVarUint32(current, &valueCount);
+
+    auto row = rowBuffer->Allocate(valueCount);
+
+    auto* values = row.begin();
+    for (int index = 0; index < valueCount; ++index) {
+        auto* value = values + index;
+        current += ReadValue(current, value);
+    }
+
+    return row;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUnversionedRow::Save(TSaveContext& context) const
+{
+    NYT::Save(context, SerializeToString(*this));
+}
+
+void TUnversionedRow::Load(TLoadContext& context)
+{
+    *this = DeserializeFromString(NYT::Load<Stroka>(context), context.GetRowBuffer());
+}
+
 void ValidateValueType(
     const TUnversionedValue& value,
     const TTableSchema& schema,
@@ -914,12 +1015,32 @@ TOwningKey GetKeySuccessorImpl(TKey key, int prefixLength, EValueType sentinelTy
     return builder.FinishRow();
 }
 
+TKey GetKeySuccessorImpl(TKey key, int prefixLength, EValueType sentinelType, const TRowBufferPtr& rowBuffer)
+{
+    auto length = std::min(prefixLength, key.GetCount());
+    auto result = rowBuffer->Allocate(length + 1);
+    for (int index = 0; index < length; ++index) {
+        result[index] = rowBuffer->Capture(key[index]);
+    }
+    result[length] = MakeUnversionedSentinelValue(sentinelType);
+    return result;
+}
+
 TOwningKey GetKeySuccessor(TKey key)
 {
     return GetKeySuccessorImpl(
         key,
         key.GetCount(),
         EValueType::Min);
+}
+
+TKey GetKeySuccessor(TKey key, const TRowBufferPtr& rowBuffer)
+{
+    return GetKeySuccessorImpl(
+        key,
+        key.GetCount(),
+        EValueType::Min,
+        rowBuffer);
 }
 
 TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength)
@@ -930,11 +1051,27 @@ TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength)
         EValueType::Max);
 }
 
+TKey GetKeyPrefixSuccessor(TKey key, int prefixLength, const TRowBufferPtr& rowBuffer)
+{
+    return GetKeySuccessorImpl(
+        key,
+        prefixLength,
+        EValueType::Max,
+        rowBuffer);
+}
+
 TOwningKey GetKeyPrefix(TKey key, int prefixLength)
 {
     return TOwningKey(
         key.Begin(),
         key.Begin() + std::min(key.GetCount(), prefixLength));
+}
+
+TKey GetKeyPrefix(TKey key, int prefixLength, const TRowBufferPtr& rowBuffer)
+{
+    return rowBuffer->Capture(
+        key.Begin(),
+        std::min(key.GetCount(), prefixLength));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -982,68 +1119,6 @@ const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b)
 {
     int result = CompareRows(a, b);
     return result >= 0 ? a : b;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end)
-{
-    int size = 2 * MaxVarUint32Size; // header size
-    for (auto* it = begin; it != end; ++it) {
-        size += GetByteSize(*it);
-    }
-
-    Stroka buffer;
-    buffer.resize(size);
-
-    char* current = const_cast<char*>(buffer.data());
-    current += WriteVarUint32(current, 0); // format version
-    current += WriteVarUint32(current, static_cast<ui32>(std::distance(begin, end)));
-
-    for (auto* it = begin; it != end; ++it) {
-        current += WriteValue(current, *it);
-    }
-
-    buffer.resize(current - buffer.data());
-
-    return buffer;
-}
-
-Stroka SerializeToString(TUnversionedRow row)
-{
-    return row
-        ? SerializeToString(row.Begin(), row.End())
-        : SerializedNullRow;
-}
-
-TUnversionedOwningRow DeserializeFromString(const Stroka& data)
-{
-    if (data == SerializedNullRow) {
-        return TUnversionedOwningRow();
-    }
-
-    const char* current = data.data();
-
-    ui32 version;
-    current += ReadVarUint32(current, &version);
-    YCHECK(version == 0);
-
-    ui32 valueCount;
-    current += ReadVarUint32(current, &valueCount);
-
-    size_t fixedSize = GetUnversionedRowByteSize(valueCount);
-    auto rowData = TSharedMutableRef::Allocate<TOwningRowTag>(fixedSize, false);
-    auto* header = reinterpret_cast<TUnversionedRowHeader*>(rowData.Begin());
-
-    header->Count = static_cast<i32>(valueCount);
-
-    auto* values = reinterpret_cast<TUnversionedValue*>(header + 1);
-    for (int index = 0; index < valueCount; ++index) {
-        TUnversionedValue* value = values + index;
-        current += ReadValue(current, value);
-    }
-
-    return TUnversionedOwningRow(std::move(rowData), data);
 }
 
 void ToProto(TProtoStringType* protoRow, TUnversionedRow row)
@@ -1271,9 +1346,7 @@ void TUnversionedOwningRow::Save(TStreamSaveContext& context) const
 
 void TUnversionedOwningRow::Load(TStreamLoadContext& context)
 {
-    Stroka data;
-    NYT::Load(context, data);
-    *this = DeserializeFromString(data);
+    *this = DeserializeFromString(NYT::Load<Stroka>(context));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

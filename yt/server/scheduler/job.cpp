@@ -119,22 +119,15 @@ TBriefJobStatisticsPtr TJob::BuildBriefStatistics(const TYsonString& statisticsY
     auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(statisticsYson);
 
     auto briefStatistics = New<TBriefJobStatistics>();
-
-    briefStatistics->ProcessedInputRowCount = statistics.GetNumericValue("/data/input/row_count");
-    briefStatistics->ProcessedInputDataSize = statistics.GetNumericValue("/data/input/uncompressed_data_size");
-
-    if (statistics.ContainsPrefix("/user_job/cpu")) {
-        briefStatistics->UserJobCpuUsage = statistics.GetNumericValue("/user_job/cpu/user");
-    }
-
-    if (statistics.ContainsPrefix("/user_job/blkio")) {
-        briefStatistics->UserJobBlockIORead = statistics.GetNumericValue("/user_job/blkio/io_read");
-    }
+    briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, "/data/input/row_count");
+    briefStatistics->ProcessedInputDataSize = GetNumericValue(statistics, "/data/input/uncompressed_data_size");
+    briefStatistics->UserJobCpuUsage = FindNumericValue(statistics, "/user_job/cpu/user");
+    briefStatistics->UserJobBlockIORead = FindNumericValue(statistics, "/user_job/block_io/io_read");
 
     auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
-
     briefStatistics->ProcessedOutputDataSize = outputDataStatistics.uncompressed_data_size();
     briefStatistics->ProcessedOutputRowCount = outputDataStatistics.row_count();
+
     return briefStatistics;
 }
 
