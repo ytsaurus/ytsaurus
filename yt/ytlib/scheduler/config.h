@@ -275,7 +275,8 @@ public:
         RegisterParameter("cpu_limit", CpuLimit)
             .Default(1);
         RegisterParameter("memory_limit", MemoryLimit)
-            .Default((i64) 512 * 1024 * 1024);
+            .Default((i64) 512 * 1024 * 1024)
+            .GreaterThan(0);
         RegisterParameter("memory_reserve_factor", MemoryReserveFactor)
             .Default(0.5)
             .GreaterThan(0.)
