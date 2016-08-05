@@ -1777,13 +1777,20 @@ private:
         for (auto& tabletInfo : request->tablets()) {
             auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
             auto* tablet = FindTablet(tabletId);
-            if (!tablet || tablet->GetState() != ETabletState::Mounted)
+            if (!IsObjectAlive(tablet) || tablet->GetState() != ETabletState::Mounted)
                 continue;
 
             auto* cell = tablet->GetCell();
             cell->TotalStatistics() -= GetTabletStatistics(tablet);
             tablet->NodeStatistics() = tabletInfo.statistics();
             cell->TotalStatistics() += GetTabletStatistics(tablet);
+
+            auto* table = tablet->GetTable();
+            if (table) {
+                table->SetLastCommitTimestamp(std::max(
+                    table->GetLastCommitTimestamp(),
+                    tablet->NodeStatistics().last_commit_timestamp()));
+            }
 
             auto updatePerformanceCounter = [&] (TTabletPerformanceCounter* counter, i64 curValue) {
                 i64 prevValue = counter->Count;
