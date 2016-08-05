@@ -761,36 +761,6 @@ function YtApplicationOperations$get(parameters)
     });
 });
 
-YtApplicationOperations.prototype.getSchedulingInformation = Q.method(
-function YtApplicationOperations$getSchedulingInformation(parameters)
-{
-    return this.driver.executeSimple(
-        "get", {
-            path: SCHEDULING_INFO_PATH
-        })
-    .then(function(scheduler) {
-        var cell = scheduler.cell,
-            pools = scheduler.pools,
-            operations = scheduler.operations;
-
-        var refinedPools = {};
-        Object.keys(pools).forEach(function(id) {
-            refinedPools[id] = utils.pick(pools[id], POOL_FIELDS);
-        });
-
-        return {
-            cell: cell,
-            pools: refinedPools, 
-            operations: operations
-        };
-    })
-    .catch(function(err) {
-        return Q.reject(new YtError(
-            "Failed to get scheduling information",
-            err));
-    });
-});
-
 ////////////////////////////////////////////////////////////////////////////////
 
 exports.that = YtApplicationOperations;
