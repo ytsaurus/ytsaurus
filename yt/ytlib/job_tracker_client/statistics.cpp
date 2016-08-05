@@ -167,12 +167,6 @@ void TStatistics::Persist(NPhoenix::TPersistenceContext& context)
     Persist(context, Data_);
 }
 
-bool TStatistics::ContainsPrefix(const Stroka& prefix) const
-{
-    auto iterator = Data_.lower_bound(prefix);
-    return (iterator != Data_.end() && HasPrefix(iterator->first, prefix));
-}
-
 void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     auto root = GetEphemeralNodeFactory()->CreateMap();
@@ -191,10 +185,31 @@ i64 GetSum(const TSummary& summary)
     return summary.GetSum();
 }
 
-i64 TStatistics::GetNumericValue(const Stroka& path) const
+i64 GetNumericValue(const TStatistics& statistics, const Stroka& path)
 {
-    return GetValues<i64>(*this, path, GetSum);
+    auto value = FindNumericValue(statistics, path);
+    if (!value) {
+        THROW_ERROR_EXCEPTION("Statistics %v is not present",
+            path);
+    } else {
+        return *value;
+    }
 }
+
+TNullable<i64> FindNumericValue(const TStatistics& statistics, const Stroka& path)
+{
+    const auto& data = statistics.Data();
+    auto iterator = data.lower_bound(path);
+    if (iterator != data.end() && iterator->first != path && HasPrefix(iterator->first, path)) {
+        THROW_ERROR_EXCEPTION("Invalid statistics type: can't get numeric value of %v since it is a map",
+            path);
+    } else if (iterator == data.end() || iterator->first != path) {
+        return Null;
+    } else {
+        return iterator->second.GetSum();
+    }
+}
+
 
 ////////////////////////////////////////////////////////////////////
 
