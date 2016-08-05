@@ -89,13 +89,18 @@ void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer)
         .Item("resource_limits").Value(node->GetResourceLimits());
 }
 
-static void BuildReadLimit(const TInputSlicePtr& slice, const TInputSliceLimit& limit, NYson::IYsonConsumer* consumer)
+static void BuildInputSliceLimit(
+    const TInputSlicePtr& slice,
+    const TInputSliceLimit& limit,
+    TNullable<i64> rowIndex,
+    NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .DoIf(limit.RowIndex.operator bool(), [&] (TFluentMap fluent) {
+            .DoIf(limit.RowIndex.operator bool() || rowIndex, [&] (TFluentMap fluent) {
                 fluent
-                    .Item("row_index").Value(*limit.RowIndex + slice->GetInputChunk()->GetTableRowIndex());
+                    .Item("row_index").Value(
+                        limit.RowIndex.Get(rowIndex.Get(0)) + slice->GetInputChunk()->GetTableRowIndex());
             })
             .DoIf(limit.Key.operator bool(), [&] (TFluentMap fluent) {
                 fluent
@@ -106,14 +111,17 @@ static void BuildReadLimit(const TInputSlicePtr& slice, const TInputSliceLimit& 
 
 TNullable<TYsonString> BuildInputPaths(
     const std::vector<TRichYPath>& inputPaths,
-    const TChunkStripeListPtr& inputStripeList)
+    const TChunkStripeListPtr& inputStripeList,
+    EOperationType operationType,
+    EJobType jobType)
 {
     bool hasSlices = false;
     std::vector<std::vector<TInputSlicePtr>> slicesByTable(inputPaths.size());
     for (const auto& stripe : inputStripeList->Stripes) {
         for (const auto& slice : stripe->ChunkSlices) {
-            if (slice->GetInputChunk()->GetTableIndex() >= 0) {
-                slicesByTable[slice->GetInputChunk()->GetTableIndex()].push_back(slice);
+            auto tableIndex = slice->GetInputChunk()->GetTableIndex();
+            if (tableIndex >= 0) {
+                slicesByTable[tableIndex].push_back(slice);
                 hasSlices = true;
             }
         }
@@ -122,7 +130,17 @@ TNullable<TYsonString> BuildInputPaths(
         return Null;
     }
 
+    std::vector<char> isForeignTable(inputPaths.size());
+    std::transform(
+        inputPaths.begin(),
+        inputPaths.end(),
+        isForeignTable.begin(),
+        [](const TRichYPath& path) { return path.GetForeign(); });
+
     std::vector<std::vector<std::pair<TInputSlicePtr, TInputSlicePtr>>> rangesByTable(inputPaths.size());
+    bool mergeByRows = !(
+        operationType == EOperationType::Reduce ||
+        (operationType == EOperationType::Merge && jobType == EJobType::SortedMerge));
     for (int tableIndex = 0; tableIndex < static_cast<int>(slicesByTable.size()); ++tableIndex) {
         auto& tableSlices = slicesByTable[tableIndex];
 
@@ -132,7 +150,9 @@ TNullable<TYsonString> BuildInputPaths(
         while (firstSlice < static_cast<int>(tableSlices.size())) {
             int lastSlice = firstSlice + 1;
             while (lastSlice < static_cast<int>(tableSlices.size())) {
-                if (!CanMergeSlices(tableSlices[lastSlice - 1], tableSlices[lastSlice])) {
+                if (mergeByRows && !isForeignTable[tableIndex] &&
+                    !CanMergeSlices(tableSlices[lastSlice - 1], tableSlices[lastSlice]))
+                {
                     break;
                 }
                 ++lastSlice;
@@ -146,20 +166,35 @@ TNullable<TYsonString> BuildInputPaths(
         .DoListFor(rangesByTable, [&] (TFluentList fluent, const std::vector<std::pair<TInputSlicePtr, TInputSlicePtr>>& tableRanges) {
             fluent
                 .DoIf(!tableRanges.empty(), [&] (TFluentList fluent) {
+                    int tableIndex = tableRanges[0].first->GetInputChunk()->GetTableIndex();
                     fluent
                         .Item()
                         .BeginAttributes()
+                            .DoIf(isForeignTable[tableIndex], [&] (TFluentAttributes fluent) {
+                                fluent
+                                    .Item("foreign").Value(true);
+                            })
                             .Item("ranges")
                             .DoListFor(tableRanges, [&] (TFluentList fluent, const std::pair<TInputSlicePtr, TInputSlicePtr>& range) {
                                 fluent
                                     .Item()
                                     .BeginMap()
-                                        .Item("lower_limit").Do(BIND(&BuildReadLimit, range.first, range.first->LowerLimit()))
-                                        .Item("upper_limit").Do(BIND(&BuildReadLimit, range.second, range.second->UpperLimit()))
+                                        .Item("lower_limit")
+                                        .Do(BIND(
+                                            &BuildInputSliceLimit,
+                                            range.first,
+                                            range.first->LowerLimit(),
+                                            TNullable<i64>(mergeByRows && !isForeignTable[tableIndex], 0)))
+                                        .Item("upper_limit")
+                                        .Do(BIND(
+                                            &BuildInputSliceLimit,
+                                            range.second,
+                                            range.second->UpperLimit(),
+                                            TNullable<i64>(mergeByRows && !isForeignTable[tableIndex], range.second->GetInputChunk()->GetRowCount())))
                                     .EndMap();
                             })
                         .EndAttributes()
-                        .Value(inputPaths[tableRanges[0].first->GetInputChunk()->GetTableIndex()].GetPath());
+                        .Value(inputPaths[tableIndex].GetPath());
                 });
         });
 }

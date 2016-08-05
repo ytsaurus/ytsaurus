@@ -1715,6 +1715,51 @@ print row + table_index
                 command=command,
                 spec={"job_count": 1})
 
+    @unix_only
+    def test_map_input_paths_attr(self):
+        create("table", "//tmp/in1")
+        for i in xrange(0, 5, 2):
+            write_table(
+                "<append=true>//tmp/in1",
+                [{"key": "%05d" % (i+j), "value": "foo"} for j in xrange(2)],
+                sorted_by = ["key"])
+
+        create("table", "//tmp/in2")
+        for i in xrange(3, 24, 2):
+            write_table(
+                "<append=true>//tmp/in2",
+                [{"key": "%05d" % ((i+j) / 4), "value": "bar"} for j in xrange(2)],
+                sorted_by = ["key", "value"])
+
+        create("table", "//tmp/out")
+        in2 = '//tmp/in2["00001":"00004","00005":"00006"]'
+        op = map(
+            dont_track=True,
+            in_=["//tmp/in1", in2],
+            out="//tmp/out",
+            command="exit 1",
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "job_count": 1,
+                "max_failed_job_count": 1
+            })
+        with pytest.raises(YtError):
+            op.track();
+
+        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+        job_ids = ls(jobs_path)
+        assert len(job_ids) == 1
+        expected = yson.loads('''[
+            <ranges=[{lower_limit={row_index=0};upper_limit={row_index=6}}]>"//tmp/in1";
+            <ranges=[
+                {lower_limit={row_index=0;key=["00001"]};upper_limit={row_index=14;key=["00004"]}};
+                {lower_limit={row_index=16;key=["00005"]};upper_limit={row_index=22;key=["00006"]}}
+            ]>"//tmp/in2"]''')
+        actual = get("{0}/{1}/@input_paths".format(jobs_path, job_ids[0]))
+        assert expected == actual
+
 class TestSchedulerControllerThrottling(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5

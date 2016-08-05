@@ -4151,9 +4151,12 @@ TNullable<TYsonString> TOperationControllerBase::BuildInputPathYson(const TJobId
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    auto joblet = GetJobletOrThrow(jobId);
     return BuildInputPaths(
         GetInputTablePaths(),
-        GetJobletOrThrow(jobId)->InputStripeList);
+        joblet->InputStripeList,
+        Operation->GetType(),
+        joblet->JobType);
 }
 
 std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetFilePaths() const

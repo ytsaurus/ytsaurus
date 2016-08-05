@@ -338,19 +338,27 @@ bool CompareSlicesByLowerLimit(const TInputSlicePtr& slice1, const TInputSlicePt
     const auto& limit1 = slice1->LowerLimit();
     const auto& limit2 = slice2->LowerLimit();
 
-    if (limit1.RowIndex && limit2.RowIndex) {
-        return
-            *limit1.RowIndex + slice1->GetInputChunk()->GetTableRowIndex() <
-            *limit2.RowIndex + slice2->GetInputChunk()->GetTableRowIndex();
+    i64 diff = slice1->GetInputChunk()->GetRangeIndex() - slice2->GetInputChunk()->GetRangeIndex();
+    if (diff != 0) {
+        return diff < 0;
     }
-    if (limit1.Key && limit2.Key) {
-        return limit1.Key < limit2.Key;
+
+    diff = (limit1.RowIndex.Get(0) + slice1->GetInputChunk()->GetTableRowIndex()) -
+        (limit2.RowIndex.Get(0) + slice2->GetInputChunk()->GetTableRowIndex());
+    if (diff != 0) {
+        return diff < 0;
     }
-    return false;
+
+    diff = CompareRows(limit1.Key, limit2.Key);
+    return diff < 0;
 }
 
 bool CanMergeSlices(const TInputSlicePtr& slice1, const TInputSlicePtr& slice2)
 {
+    if (slice1->GetInputChunk()->GetRangeIndex() != slice2->GetInputChunk()->GetRangeIndex()) {
+        return false;
+    }
+
     const auto& limit1 = slice1->UpperLimit();
     const auto& limit2 = slice2->LowerLimit();
 
@@ -364,7 +372,7 @@ bool CanMergeSlices(const TInputSlicePtr& slice1, const TInputSlicePtr& slice2)
         {
             return false;
         }
-        if (limit1.Key && limit1.Key != limit2.Key) {
+        if (limit1.Key && limit1.Key < limit2.Key) {
             return false;
         }
         return true;
