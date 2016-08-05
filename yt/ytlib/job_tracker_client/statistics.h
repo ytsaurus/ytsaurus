@@ -69,10 +69,6 @@ public:
 
     void Persist(NPhoenix::TPersistenceContext& context);
 
-    bool ContainsPrefix(const Stroka& prefix) const;
-
-    i64 GetNumericValue(const Stroka& path) const;
-
 private:
     TSummary& GetSummary(const NYPath::TYPath& path);
 
@@ -84,6 +80,10 @@ T GetValues(
     const TStatistics& statistics,
     const NYPath::TYPath& path,
     std::function<i64(const TSummary&)> getValue);
+
+i64 GetNumericValue(const TStatistics& statistics, const Stroka& path);
+
+TNullable<i64> FindNumericValue(const TStatistics& statistics, const Stroka& path);
 
 ////////////////////////////////////////////////////////////////////
 

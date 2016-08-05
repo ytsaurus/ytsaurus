@@ -1763,10 +1763,10 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistic
     auto jobType = joblet->JobType;
     bool taskUpdateNeeded = false;
 
-    if (statistics.Data().find("/user_job/max_memory") != statistics.Data().end()) {
-        i64 userJobMaxMemoryUsage = statistics.GetNumericValue("/user_job/max_memory");
+    auto userJobMaxMemoryUsage = FindNumericValue(statistics, "/user_job/max_memory");
+    if (userJobMaxMemoryUsage) {
         auto* digest = GetUserJobMemoryDigest(jobType);
-        double actualFactor = static_cast<double>(userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
+        double actualFactor = static_cast<double>(*userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
         LOG_TRACE("Adding sample to the job proxy memory digest (JobType: %v, Sample: %v, JobId: %v)",
             jobType,
             actualFactor,
@@ -1775,10 +1775,10 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistic
         taskUpdateNeeded = true;
     }
 
-    if (statistics.Data().find("/job_proxy/max_memory") != statistics.Data().end()) {
-        i64 jobProxyMaxMemoryUsage = statistics.GetNumericValue("/job_proxy/max_memory");
+    auto jobProxyMaxMemoryUsage = FindNumericValue(statistics, "/job_proxy/max_memory");
+    if (jobProxyMaxMemoryUsage) {
         auto* digest = GetJobProxyMemoryDigest(jobType);
-        double actualFactor = static_cast<double>(jobProxyMaxMemoryUsage) /
+        double actualFactor = static_cast<double>(*jobProxyMaxMemoryUsage) /
             (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
         LOG_TRACE("Adding sample to the user job memory digest (JobType: %v, Sample: %v, JobId: %v)",
             jobType,
@@ -1841,7 +1841,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
             case EJobType::SortedReduce:
             case EJobType::PartitionReduce:
                 auto path = Format("/data/output/%d/row_count%s", *RowCountLimitTableIndex, jobSummary->StatisticsSuffix);
-                i64 count = JobStatistics.GetNumericValue(path);
+                i64 count = GetNumericValue(JobStatistics, path);
                 if (count >= RowCountLimit) {
                     OnOperationCompleted(true /* interrupted */);
                 }
