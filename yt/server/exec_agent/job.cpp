@@ -193,7 +193,7 @@ public:
         }
     }
 
-    virtual TNullable<TDuration> GetExecDuration() const override 
+    virtual TNullable<TDuration> GetExecDuration() const override
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (!ExecTime_) {
@@ -204,7 +204,7 @@ public:
             return *FinishTime_ - *ExecTime_;
         }
     }
-    
+
     virtual EJobPhase GetPhase() const override
     {
         return JobPhase_;
@@ -264,7 +264,7 @@ public:
         TGuard<TSpinLock> guard(SpinLock);
         return Statistics_;
     }
-    
+
     virtual TInstant GetStatisticsLastSendTime() const override
     {
         return StatisticsLastSendTime_;
@@ -281,11 +281,6 @@ public:
         if (JobState_ == EJobState::Running) {
             Statistics_ = statistics;
         }
-    }
-
-    virtual bool ShouldSendStatistics() const override 
-    {
-        return true;
     }
 
     virtual std::vector<TChunkId> DumpInputContext() override
@@ -370,7 +365,7 @@ private:
 
     TYsonString Statistics_;
     TInstant StatisticsLastSendTime_ = TInstant::Now();
-    
+
     bool Signaled_ = false;
 
     TNullable<TJobResult> JobResult_;
