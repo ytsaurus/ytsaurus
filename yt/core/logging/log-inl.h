@@ -3,6 +3,8 @@
 #endif
 #undef LOG_INL_H_
 
+#include <yt/core/profiling/timing.h>
+
 namespace NYT {
 namespace NLogging {
 
@@ -50,7 +52,7 @@ void LogEventImpl(
     const Stroka& message)
 {
     TLogEvent event;
-    event.DateTime = TInstant::Now();
+    event.Instant = NProfiling::GetCpuInstant();
     event.Category = logger.GetCategory();
     event.Level = level;
     event.Message = message;

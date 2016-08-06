@@ -42,8 +42,8 @@ TLogConfigPtr TLogConfig::CreateDefault()
     config->WriterConfigs.insert(std::make_pair(DefaultStderrWriterName, stderrWriterConfig));
 
     config->MinDiskSpace = 0;
-    config->HighBacklogWatermark = 0;
-    config->LowBacklogWatermark = 0;
+    config->HighBacklogWatermark = 100000;
+    config->LowBacklogWatermark = 100000;
 
     return config;
 }

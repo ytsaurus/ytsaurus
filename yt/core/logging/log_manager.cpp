@@ -56,6 +56,8 @@ using namespace NProfiling;
 static TLogger Logger(SystemLoggingCategory);
 static const auto& Profiler = LoggingProfiler;
 
+static const auto ProfilingPeriod = TDuration::Seconds(1);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNotificationHandle
@@ -232,15 +234,18 @@ public:
             false,
             false))
         , LoggingThread_(New<TThread>(this))
-        , EnqueuedEventCounter_("/enqueued_events")
-        , WrittenEventCounter_("/written_events")
-        , BacklogEventCounter_("/backlog_events")
     {
         SystemWriters_.push_back(New<TStderrLogWriter>());
         UpdateConfig(TLogConfig::CreateDefault(), false);
 
         LoggingThread_->Start();
         EventQueue_->SetThreadId(LoggingThread_->GetId());
+
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            EventQueue_,
+            BIND(&TImpl::OnProfiling, MakeStrong(this)),
+            ProfilingPeriod);
+        ProfilingExecutor_->Start();
     }
 
     void Configure(INodePtr node, const TYPath& path = "")
@@ -303,6 +308,10 @@ public:
 
     void Enqueue(TLogEvent&& event)
     {
+        auto enqueuedEvents = ++EnqueuedEvents_;
+        auto writtenEvents = WrittenEvents_.load();
+        auto backlogEvents = enqueuedEvents - writtenEvents;
+
         if (event.Level == ELogLevel::Fatal) {
             bool shutdown = false;
             if (!ShutdownRequested_.compare_exchange_strong(shutdown, true)) {
@@ -311,15 +320,14 @@ public:
             }
 
             // Add fatal message to log and notify event log queue.
-            Profiler.Increment(EnqueuedEventCounter_);
             PushLogEvent(std::move(event));
 
             if (LoggingThread_->GetId() != ::TThread::CurrentThreadId()) {
                 // Waiting for output of all previous messages.
                 // Waiting no more than 1 second to prevent hanging.
                 auto now = TInstant::Now();
-                auto enqueuedEvents = EnqueuedLogEvents_.load();
-                while (enqueuedEvents > DequeuedLogEvents_.load() &&
+                auto enqueuedEvents = EnqueuedEvents_.load();
+                while (enqueuedEvents > WrittenEvents_.load() &&
                     TInstant::Now() - now < Config_->ShutdownGraceTimeout)
                 {
                     EventCount_->NotifyOne();
@@ -355,12 +363,10 @@ public:
             return;
         }
 
-        if (Suspended_) {
+        if (Suspended_ && event.Category != SystemLoggingCategory) {
             return;
         }
 
-        int backlogSize = Profiler.Increment(BacklogEventCounter_);
-        Profiler.Increment(EnqueuedEventCounter_);
         PushLogEvent(std::move(event));
 
         bool expected = false;
@@ -368,10 +374,10 @@ public:
             EventCount_->NotifyOne();
         }
         
-        if (!Suspended_ && backlogSize == Config_->HighBacklogWatermark) {
-            LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",
-                Config_->HighBacklogWatermark);
+        if (!Suspended_ && backlogEvents >= HighBacklogWatermark_) {
             Suspended_ = true;
+            LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",
+                HighBacklogWatermark_);
         }
     }
 
@@ -445,15 +451,15 @@ private:
         bool empty = true;
 
         Notified_ = false;
-        while (LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& eventOrConfig) {
+        while (LoggerQueue_.DequeueAll(true, [&] (const TLoggerQueueItem& item) {
                 if (empty) {
                     EventCount_->CancelWait();
                     empty = false;
                 }
 
-                if (const auto* configPtr = eventOrConfig.TryAs<TLogConfigPtr>()) {
+                if (const auto* configPtr = item.TryAs<TLogConfigPtr>()) {
                     UpdateConfig(*configPtr);
-                } else if (const auto* eventPtr = eventOrConfig.TryAs<TLogEvent>()) {
+                } else if (const auto* eventPtr = item.TryAs<TLogEvent>()) {
                     if (ReopenRequested_) {
                         ReopenRequested_ = false;
                         ReloadWriters();
@@ -467,18 +473,20 @@ private:
             }))
         { }
 
-        int backlogSize = Profiler.Increment(BacklogEventCounter_, -eventsWritten);
-        if (Suspended_ && backlogSize < Config_->LowBacklogWatermark) {
+        auto enqueuedEvents = EnqueuedEvents_.load();
+        auto writtenEvents = WrittenEvents_.load();
+        auto backlogSize = enqueuedEvents - writtenEvents;
+        if (Suspended_ && backlogSize < LowBacklogWatermark_) {
             Suspended_ = false;
             LOG_INFO("Backlog size has dropped below low watermark %v, logging resumed",
-                Config_->LowBacklogWatermark);
+                LowBacklogWatermark_);
         }
 
         if (eventsWritten > 0 && !Config_->FlushPeriod) {
             FlushWriters();
         }
 
-        DequeuedLogEvents_ += eventsWritten;
+        WrittenEvents_ += eventsWritten;
 
         return empty ? EBeginExecuteResult::QueueEmpty : EBeginExecuteResult::Success;
     }
@@ -490,45 +498,45 @@ private:
         EventQueue_->EndExecute(&CurrentAction_);
     }
 
-    std::vector<ILogWriterPtr> GetWriters(const TLogEvent& event)
+    const std::vector<ILogWriterPtr>& GetWriters(const TLogEvent& event)
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
         if (event.Category == SystemLoggingCategory) {
             return SystemWriters_;
-        } else {
-            std::vector<ILogWriterPtr> writers;
-
-            std::pair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
-            auto it = CachedWriters_.find(cacheKey);
-            if (it != CachedWriters_.end())
-                return it->second;
-
-            yhash_set<Stroka> writerIds;
-            for (const auto& rule : Config_->Rules) {
-                if (rule->IsApplicable(event.Category, event.Level)) {
-                    writerIds.insert(rule->Writers.begin(), rule->Writers.end());
-                }
-            }
-
-            for (const Stroka& writerId : writerIds) {
-                auto writerIt = Writers_.find(writerId);
-                YCHECK(writerIt != Writers_.end());
-                writers.push_back(writerIt->second);
-            }
-
-            YCHECK(CachedWriters_.insert(std::make_pair(cacheKey, writers)).second);
-
-            return writers;
         }
+        
+        std::pair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
+        auto it = CachedWriters_.find(cacheKey);
+        if (it != CachedWriters_.end()) {
+            return it->second;
+        }
+
+        yhash_set<Stroka> writerIds;
+        for (const auto& rule : Config_->Rules) {
+            if (rule->IsApplicable(event.Category, event.Level)) {
+                writerIds.insert(rule->Writers.begin(), rule->Writers.end());
+            }
+        }
+
+        std::vector<ILogWriterPtr> writers;
+        for (const auto& writerId : writerIds) {
+            auto writerIt = Writers_.find(writerId);
+            YCHECK(writerIt != Writers_.end());
+            writers.push_back(writerIt->second);
+        }
+
+        auto pair = CachedWriters_.insert(std::make_pair(cacheKey, writers));
+        YCHECK(pair.second);
+
+        return pair.first->second;
     }
 
     void Write(const TLogEvent& event)
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
-        for (auto& writer : GetWriters(event)) {
-            Profiler.Increment(WrittenEventCounter_);
+        for (const auto& writer : GetWriters(event)) {
             writer->Write(event);
         }
     }
@@ -566,6 +574,8 @@ private:
             Writers_.swap(writers);
             CachedWriters_.swap(cachedWriters);
             Config_ = config;
+            HighBacklogWatermark_ = Config_->HighBacklogWatermark;
+            LowBacklogWatermark_ = Config_->LowBacklogWatermark;
 
             guard.Release();
 
@@ -634,7 +644,7 @@ private:
             WatchExecutor_ = New<TPeriodicExecutor>(
                 EventQueue_,
                 BIND(&TImpl::WatchWriters, MakeStrong(this)),
-                TDuration::MilliSeconds(1000));
+                *watchPeriod);
             WatchExecutor_->Start();
         }
 
@@ -705,9 +715,19 @@ private:
 
     void PushLogEvent(TLogEvent&& event)
     {
-        EnqueuedLogEvents_++;
         LoggerQueue_.Enqueue(std::move(event));
     }
+
+    void OnProfiling()
+    {
+        auto enqueuedEvents = EnqueuedEvents_.load();
+        auto writtenEvents = WrittenEvents_.load();
+
+        Profiler.Enqueue("/enqueued_events", enqueuedEvents, EMetricType::Counter);
+        Profiler.Enqueue("/written_events", writtenEvents, EMetricType::Counter);
+        Profiler.Enqueue("/backlog_events", std::max(static_cast<ui64>(0), enqueuedEvents - writtenEvents), EMetricType::Counter);
+    }
+
 
     const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
     std::atomic<bool> Notified_ = {false};
@@ -725,16 +745,17 @@ private:
     std::atomic<int> Version_ = {-1};
     TLogConfigPtr Config_;
 
-    NProfiling::TSimpleCounter EnqueuedEventCounter_;
-    NProfiling::TSimpleCounter WrittenEventCounter_;
-    NProfiling::TSimpleCounter BacklogEventCounter_;
+    // These are just copies from _Config.
+    // The values are being read from arbitrary threads but stale values are fine.
+    int HighBacklogWatermark_ = -1;
+    int LowBacklogWatermark_ = -1;
 
     bool Suspended_ = false;
 
     TMultipleProducerSingleConsumerLockFreeStack<TLoggerQueueItem> LoggerQueue_;
 
-    std::atomic<ui64> EnqueuedLogEvents_ = {0};
-    std::atomic<ui64> DequeuedLogEvents_ = {0};
+    std::atomic<ui64> EnqueuedEvents_ = {0};
+    std::atomic<ui64> WrittenEvents_ = {0};
 
     yhash_map<Stroka, ILogWriterPtr> Writers_;
     yhash_map<std::pair<Stroka, ELogLevel>, std::vector<ILogWriterPtr>> CachedWriters_;
@@ -746,6 +767,7 @@ private:
     TPeriodicExecutorPtr FlushExecutor_;
     TPeriodicExecutorPtr WatchExecutor_;
     TPeriodicExecutorPtr CheckSpaceExecutor_;
+    TPeriodicExecutorPtr ProfilingExecutor_;
 
     std::unique_ptr<TNotificationHandle> NotificationHandle_;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches_;
