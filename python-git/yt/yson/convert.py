@@ -2,7 +2,7 @@ from yt.yson.yson_types import *
 
 from common import YsonError
 
-def to_yson_type(value, attributes = None):
+def to_yson_type(value, attributes=None):
     """ Wrap value with YSON type """
     if isinstance(value, unicode):
         result = YsonString(str(bytearray(value, 'utf-8')))
