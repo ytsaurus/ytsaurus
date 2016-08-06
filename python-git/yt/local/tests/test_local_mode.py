@@ -27,11 +27,13 @@ def _is_exists(environment):
 
 @contextlib.contextmanager
 def local_yt(*args, **kwargs):
+    environment = None
     try:
         environment = start(*args, **kwargs)
         yield environment
     finally:
-        stop(environment.id)
+        if environment is not None:
+            stop(environment.id)
 
 class YtLocalBinary(object):
     def __init__(self, root_path, port_locks_path):
