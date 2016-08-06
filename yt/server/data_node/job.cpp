@@ -185,7 +185,7 @@ public:
     {
         YUNREACHABLE();
     }
-   
+
     virtual TNullable<TDuration> GetPrepareDuration() const override
     {
         return Null;
@@ -194,12 +194,6 @@ public:
     virtual TNullable<TDuration> GetExecDuration() const override
     {
         return Null;
-    }
-
-    virtual bool ShouldSendStatistics() const override
-    {
-        // Chunk jobs should not send statistics.
-        return false;
     }
 
     virtual TInstant GetStatisticsLastSendTime() const override
@@ -695,7 +689,7 @@ private:
 
             WaitFor(changelog->Flush())
                 .ThrowOnError();
-        
+
             LOG_INFO("Finished downloading missing journal chunk rows");
         }
 

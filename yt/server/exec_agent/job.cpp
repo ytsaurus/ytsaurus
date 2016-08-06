@@ -285,11 +285,6 @@ public:
         }
     }
 
-    virtual bool ShouldSendStatistics() const override
-    {
-        return true;
-    }
-
     virtual std::vector<TChunkId> DumpInputContext() override
     {
         ValidateJobRunning();

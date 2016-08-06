@@ -40,8 +40,6 @@ TConnectionConfig::TConnectionConfig()
         .Default();
     RegisterParameter("enable_read_from_followers", EnableReadFromFollowers)
         .Default(true);
-    RegisterParameter("force_read_from_followers", ForceReadFromFollowers)
-        .Default(false);
     RegisterParameter("timestamp_provider", TimestampProvider)
         .Default();
     RegisterParameter("cell_directory", CellDirectory)

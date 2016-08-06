@@ -35,7 +35,7 @@ void GetUserObjectBasicAttributes(
 
     LOG_INFO("Getting basic attributes of user objects");
 
-    auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::LeaderOrFollower);
+    auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower);
     NObjectClient::TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();

@@ -44,7 +44,6 @@ struct TClientOptions
 DEFINE_ENUM(EMasterChannelKind,
     (Leader)
     (Follower)
-    (LeaderOrFollower)
     (Cache)
 );
 
