@@ -9,6 +9,8 @@
 
 #include <yt/core/tracing/trace_context.h>
 
+#include <yt/core/profiling/public.h>
+
 #include <util/system/thread.h>
 
 namespace NYT {
@@ -23,7 +25,7 @@ struct TLogEvent
     const char* Category = nullptr;
     ELogLevel Level;
     Stroka Message;
-    TInstant DateTime;
+    NProfiling::TCpuInstant Instant;
     const char* FileName = nullptr;
     int Line = InvalidLine;
     NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
