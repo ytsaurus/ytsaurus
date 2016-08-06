@@ -134,7 +134,7 @@ private:
         if (!isEmptyRead) {
             LOG_INFO("Fetching file chunks");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, cellTag);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
             TObjectServiceProxy proxy(channel);
 
             auto req = TFileYPathProxy::Fetch(objectIdPath);

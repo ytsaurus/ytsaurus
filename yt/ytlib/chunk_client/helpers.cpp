@@ -128,7 +128,7 @@ void ProcessFetchResponse(
         auto foreignCellTag = pair.first;
         auto& foreignChunkSpecs = pair.second;
 
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, foreignCellTag);
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, foreignCellTag);
         TChunkServiceProxy proxy(channel);
 
         for (int beginIndex = 0; beginIndex < foreignChunkSpecs.size(); beginIndex += maxChunksPerLocateRequest) {
@@ -381,7 +381,7 @@ IChunkReaderPtr CreateRemoteReader(
     IBlockCachePtr blockCache,
     NConcurrency::IThroughputThrottlerPtr throttler)
 {
-    auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::LeaderOrFollower);
+    auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower);
     TChunkServiceProxy proxy(channel);
 
     auto req = proxy.LocateChunks();

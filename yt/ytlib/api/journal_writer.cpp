@@ -358,7 +358,7 @@ private:
             {
                 LOG_INFO("Requesting extended journal attributes");
 
-                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
                 TObjectServiceProxy proxy(channel);
 
                 auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
@@ -444,7 +444,7 @@ private:
             {
                 LOG_INFO("Requesting journal upload parameters");
 
-                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, cellTag);
+                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
                 TObjectServiceProxy proxy(channel);
 
                 auto req = TJournalYPathProxy::GetUploadParams(objectIdPath);

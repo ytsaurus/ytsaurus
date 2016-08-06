@@ -950,7 +950,7 @@ void TSchemalessTableWriter::DoOpen()
     {
         LOG_INFO("Requesting extended table attributes");
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
 
         auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
@@ -1056,7 +1056,7 @@ void TSchemalessTableWriter::DoOpen()
     {
         LOG_INFO("Requesting table upload parameters");
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, CellTag_);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, CellTag_);
         TObjectServiceProxy proxy(channel);
 
         auto req =  TTableYPathProxy::GetUploadParams(objectIdPath);

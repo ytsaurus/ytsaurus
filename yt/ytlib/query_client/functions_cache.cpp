@@ -145,7 +145,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
         FunctionDescriptorAttribute,
         AggregateDescriptorAttribute};
 
-    TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower));
+    TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& functionName : functionNames) {
@@ -205,7 +205,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     for (const auto& infoByCellTag : infoByCellTags) {
         const auto& cellTag = infoByCellTag.first;
 
-        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, cellTag));
+        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag));
         auto fetchBatchReq = proxy.ExecuteBatch();
 
         for (auto resultIndex : infoByCellTag.second) {

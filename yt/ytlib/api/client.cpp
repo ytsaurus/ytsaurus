@@ -1111,7 +1111,7 @@ public:
 
         QueryHelper_ = New<TQueryHelper>(
             Connection_,
-            GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower),
+            GetMasterChannelOrThrow(EMasterChannelKind::Follower),
             HeavyChannelFactory_,
             CreateFunctionImplCache(
                 Connection_->GetConfig()->FunctionImplCache,
