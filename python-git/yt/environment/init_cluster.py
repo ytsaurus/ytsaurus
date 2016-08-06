@@ -80,8 +80,9 @@ def initialize_world(client=None):
         ])
 
     if not client.exists("//sys/empty_yamr_table"):
-        client.create("table", "//sys/empty_yamr_table")
-        client.run_sort("//sys/empty_yamr_table", sort_by=["key", "subkey"])
+        client.create("table", "//sys/empty_yamr_table", attributes={
+                          "schema": [{"name": name, "type": "any", "sort_order": "ascending"} for name in ["key", "subkey"]]
+                     })
 
     client.create("account", attributes={"name": "tmp_files",
                                          "acl": [{"action": "allow", "subjects": ["users"], "permissions": ["use"]}],
