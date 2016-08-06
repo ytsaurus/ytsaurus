@@ -238,7 +238,6 @@ private:
         auto initMasterChannels = [&] (const TMasterConnectionConfigPtr& config) {
             initMasterChannel(EMasterChannelKind::Leader, config, leaderPeerKind);
             initMasterChannel(EMasterChannelKind::Follower, config, followerPeerKind);
-            initMasterChannel(EMasterChannelKind::LeaderOrFollower, config, leaderOrFollowerPeerKind);
         };
 
         initMasterChannels(Config_->PrimaryMaster);

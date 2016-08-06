@@ -342,7 +342,7 @@ private:
         {
             // XXX(babenko): multicell
             auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
-                NApi::EMasterChannelKind::LeaderOrFollower);
+                NApi::EMasterChannelKind::Follower);
             TChunkServiceProxy proxy(channel);
 
             auto req = proxy.LocateChunks();
