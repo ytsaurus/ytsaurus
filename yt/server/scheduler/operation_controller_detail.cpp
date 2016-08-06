@@ -2900,7 +2900,8 @@ void TOperationControllerBase::FetchInputTables()
             ranges.size());
 
         auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(
-            EMasterChannelKind::LeaderOrFollower, table.CellTag);
+            EMasterChannelKind::Follower,
+            table.CellTag);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
@@ -2994,7 +2995,7 @@ void TOperationControllerBase::LockInputTables()
     LOG_INFO("Getting input tables attributes");
 
     {
-        auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+        auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
@@ -3051,7 +3052,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
     LOG_INFO("Getting output tables schema");
 
     {
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
@@ -3149,7 +3150,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
     LOG_INFO("Getting output tables attributes");
 
     {
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
@@ -3233,7 +3234,7 @@ void TOperationControllerBase::GetOutputTablesUploadParams()
         LOG_INFO("Getting output tables upload parameters (CellTag: %v)", cellTag);
 
         auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(
-            EMasterChannelKind::LeaderOrFollower,
+            EMasterChannelKind::Follower,
             cellTag);
         TObjectServiceProxy proxy(channel);
 
@@ -3281,7 +3282,7 @@ void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
             path);
 
         auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(
-            EMasterChannelKind::LeaderOrFollower,
+            EMasterChannelKind::Follower,
             file.CellTag);
         TObjectServiceProxy proxy(channel);
 
@@ -3358,7 +3359,7 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
     LOG_INFO("Getting user files attributes");
 
     {
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 

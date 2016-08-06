@@ -420,7 +420,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
     // their statistics.
     std::vector<std::pair<IJobPtr, TJobStatus*>> runningJobs;
 
-    i64 totalStatisticsSize = 0;
+    i64 completedJobsStatisticsSize = 0;
 
     for (const auto& pair : Jobs_) {
         const auto& jobId = pair.first;
@@ -435,7 +435,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
         switch (job->GetState()) {
             case EJobState::Running:
                 *jobStatus->mutable_resource_usage() = job->GetResourceUsage();
-                if (job->ShouldSendStatistics()) {
+                if (job->GetStatistics()) {
                     runningJobs.emplace_back(job, jobStatus);
                 }
                 break;
@@ -444,14 +444,10 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
             case EJobState::Aborted:
             case EJobState::Failed:
                 *jobStatus->mutable_result() = job->GetResult();
-                if (job->ShouldSendStatistics()) {
-                    auto statistics = job->GetStatistics();
-                    if (statistics) {
-                        StatisticsThrottler_->Acquire(statistics->Data().size());
-                        totalStatisticsSize += statistics->Data().size();
-                        job->ResetStatisticsLastSendTime();
-                        jobStatus->set_statistics((*statistics).Data());
-                    }
+                if (auto statistics = job->GetStatistics()) {
+                    completedJobsStatisticsSize += statistics->Data().size();
+                    job->ResetStatisticsLastSendTime();
+                    jobStatus->set_statistics((*statistics).Data());
                 }
                 break;
 
@@ -467,18 +463,23 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
             return lhs.first->GetStatisticsLastSendTime() < rhs.first->GetStatisticsLastSendTime();
         });
 
+    i64 runningJobsStatisticsSize = 0;
+
     for (const auto& pair : runningJobs) {
         const auto& job = pair.first;
         auto* jobStatus = pair.second;
         auto statistics = job->GetStatistics();
         if (statistics && StatisticsThrottler_->TryAcquire(statistics->Data().size())) {
-            totalStatisticsSize += statistics->Data().size();
+            runningJobsStatisticsSize += statistics->Data().size();
             job->ResetStatisticsLastSendTime();
             jobStatus->set_statistics((*statistics).Data());
         }
     }
 
-    LOG_DEBUG("Total size of statistics to send is %v bytes", totalStatisticsSize);
+    LOG_DEBUG("Total size of statistics to send is %v bytes (RunningJobsStatisticsSize: %v, CompletedJobsStatisticsSize: %v)",
+        runningJobsStatisticsSize + completedJobsStatisticsSize,
+        runningJobsStatisticsSize,
+        completedJobsStatisticsSize);
 }
 
 void TJobController::TImpl::ProcessHeartbeatResponse(TRspHeartbeat* response)

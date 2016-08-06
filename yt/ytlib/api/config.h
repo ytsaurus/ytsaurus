@@ -59,7 +59,6 @@ public:
     std::vector<TMasterConnectionConfigPtr> SecondaryMasters;
     TMasterConnectionConfigPtr MasterCache;
     bool EnableReadFromFollowers;
-    bool ForceReadFromFollowers;
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
     NHive::TCellDirectoryConfigPtr CellDirectory;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;

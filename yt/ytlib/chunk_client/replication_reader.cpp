@@ -253,7 +253,7 @@ private:
 
         try {
             auto channel = Client_->GetMasterChannelOrThrow(
-                EMasterChannelKind::LeaderOrFollower, 
+                EMasterChannelKind::Follower,
                 CellTagFromId(ChunkId_));
 
             TChunkServiceProxy proxy(channel);

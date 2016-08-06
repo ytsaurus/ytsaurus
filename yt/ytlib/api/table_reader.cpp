@@ -168,7 +168,7 @@ void TSchemalessTableReader::DoOpen()
     {
         LOG_INFO("Requesting table schema");
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
 
         auto req = TYPathProxy::Get(objectIdPath + "/@");
@@ -203,7 +203,7 @@ void TSchemalessTableReader::DoOpen()
     {
         LOG_INFO("Fetching table chunks");
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, tableCellTag);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, tableCellTag);
         TObjectServiceProxy proxy(channel);
 
         auto req = TTableYPathProxy::Fetch(objectIdPath);

@@ -58,8 +58,6 @@ struct IJob
     virtual TNullable<TDuration> GetPrepareDuration() const = 0;
     virtual TNullable<TDuration> GetExecDuration() const = 0;
 
-    virtual bool ShouldSendStatistics() const = 0;
-    
     // The following two methods will be called from the single thread.
     virtual TInstant GetStatisticsLastSendTime() const = 0;
     virtual void ResetStatisticsLastSendTime() = 0;
