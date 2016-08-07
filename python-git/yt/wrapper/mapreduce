@@ -628,7 +628,6 @@ Examples:
         config["detached"] = bool(args.detached)
 
     attributes = {}
-
     replication_factor = args.replicationfactor
     if replication_factor is not None:
         replication_factor = int(args.replicationfactor)
@@ -636,6 +635,8 @@ Examples:
 
     if args.codec is not None:
         attributes["compression_codec"] = args.codec
+
+    config["create_table_attributes"] = attributes
 
     if args.tablewriter is not None:
         args.tablewriter = yson.json_to_yson(json.loads(args.tablewriter))
@@ -656,7 +657,7 @@ Examples:
                     raw=True),
                 16 * MB))
     if args.createtable is not None:
-        yt.create_table(args.createtable, attributes=attributes)
+        yt.create_table(args.createtable)
     if args.write is not None:
         if isinstance(args.write, MissingValue):
             write_tables = dst
@@ -664,9 +665,7 @@ Examples:
             write_tables = [yt.TablePath(args.write, append=args.append)]
         if len(write_tables) == 1:
             yt.write_table(write_tables[0], sys.stdin, format=outputformat, raw=True,
-                           table_writer=args.tablewriter,
-                           replication_factor=replication_factor,
-                           compression_codec=args.codec)
+                           table_writer=args.tablewriter)
         else:
             with yt.Transaction(attributes={"title": "Python wrapper: mapreduce-yt writes multiple tables"}):
                 visited = set()
@@ -677,15 +676,11 @@ Examples:
                     visited.add(key)
 
                     yt.write_table(table, records, format=outputformat, raw=False,
-                                   table_writer=args.tablewriter,
-                                   replication_factor=replication_factor,
-                                   compression_codec=args.codec)
+                                   table_writer=args.tablewriter)
 
     if args.writesorted is not None:
         table = yt.TablePath(args.writesorted, append=args.append, sorted_by=["key", "subkey"])
-        yt.write_table(table, sys.stdin, format=outputformat, raw=True,
-                       replication_factor=replication_factor,
-                       compression_codec=args.codec)
+        yt.write_table(table, sys.stdin, format=outputformat, raw=True)
     if mapreduce_case:
         map_input_format = inputformat
         map_output_format = reduce_input_format = reduce_output_format = outputformat
@@ -695,15 +690,11 @@ Examples:
                           map_input_format=map_input_format, map_output_format=map_output_format,
                           reduce_input_format=reduce_input_format, reduce_output_format=reduce_output_format,
                           sort_by=args.sortby, reduce_by=args.reduceby,
-                          replication_factor=replication_factor,
-                          compression_codec=args.codec,
                           job_io=job_io,
                           spec=spec)
     elif args.map is not None:
         yt.run_map(args.map, args.src, dst, files=map_files, file_paths=args.ytfile,
                    input_format=inputformat, output_format=outputformat,
-                   replication_factor=replication_factor,
-                   compression_codec=args.codec,
                    job_count=args.jobcount,
                    job_io=job_io,
                    spec=spec)
@@ -715,8 +706,6 @@ Examples:
                       input_format=inputformat, output_format=outputformat,
                       reduce_by=args.reduceby,
                       sort_by=args.sortby,
-                      replication_factor=replication_factor,
-                      compression_codec=args.codec,
                       job_count=args.jobcount,
                       job_io=job_io,
                       spec=spec)
@@ -748,14 +737,10 @@ Examples:
             args.sortby = inputformat.attributes.get("key_column_names", []) + \
                           inputformat.attributes.get("subkey_column_names", [])
         yt.run_sort(args.src, unlist_destination_tables(dst), sort_by=args.sortby,
-                    replication_factor=replication_factor,
-                    compression_codec=args.codec,
                     job_io=job_io,
                     spec=spec)
     if args.merge:
         yt.run_merge(args.src, unlist_destination_tables(dst), mode=get_value(args.mode, "sorted"),
-                     replication_factor=replication_factor,
-                     compression_codec=args.codec,
                      job_count=args.jobcount,
                      job_io=job_io,
                      spec=spec)

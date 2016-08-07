@@ -205,12 +205,17 @@ default_config = {
 
         # Enables ignoring empty tables in mapreduce -list command.
         "ignore_empty_tables_in_mapreduce_list": False,
+
+        "check_codec_and_replication_factor": False,
     },
 
     # Run sorted merge instead of sort if input tables are sorted by sort_by prefix.
     "run_merge_instead_of_sort_if_input_tables_are_sorted": True,
 
     "tabular_data_format": None,
+
+    # Attributes of automatically created tables.
+    "create_table_attributes": None,
 
     # Remove temporary files after creation.
     "clear_local_temp_files": True,
