@@ -111,14 +111,6 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
 
   install(
     FILES
-      ${CMAKE_SOURCE_DIR}/python/yt_yson_bindings/__init__.py
-    DESTINATION
-      lib/pyshared-${PYTHON_KIND_DASHED}/yt_yson_bindings
-      COMPONENT ${TARGET_NAME_PREFIX}yson
-  )
-
-  install(
-    FILES
       ${CMAKE_SOURCE_DIR}/python/yt_driver_bindings/__init__.py
       ${CMAKE_SOURCE_DIR}/python/yt_driver_bindings/driver.py
     DESTINATION
