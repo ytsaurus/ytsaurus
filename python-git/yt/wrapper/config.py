@@ -176,6 +176,20 @@ class Config(types.ModuleType, client_state.ClientState):
             except ValueError:
                 raise self.common_module.YtError("Incorrect value of option '{0}': failed to apply type '{1}' to '{2}'".format(key, type, value))
 
+        if "YT_CONFIG_PATCHES" in os.environ:
+            try:
+                patches = self.yson_module.loads(os.environ["YT_CONFIG_PATCHES"], yson_type="list_fragment")
+            except self.yson_module.YsonError:
+                print >>sys.stderr, "Failed to parse YT config patches from 'YT_CONFIG_PATCHES' environment variable"
+                raise
+
+            try:
+                for patch in reversed(list(patches)):
+                    self.update_config(patch)
+            except:
+                print >>sys.stderr, "Failed to apply config from 'YT_CONFIG_PATCHES' environment variable"
+                raise
+
         # These options should be processed before reading config file
         for opt_name in ["YT_CONFIG_PATH", "YT_CONFIG_FORMAT"]:
             if opt_name in os.environ:
