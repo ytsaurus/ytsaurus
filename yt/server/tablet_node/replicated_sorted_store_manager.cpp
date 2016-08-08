@@ -305,12 +305,14 @@ TUnversionedRow TReplicatedSortedStoreManager::BuildLogRow(
     TUnversionedRow row,
     EReplicationLogChangeType changeType)
 {
-    LogRow_[0] = MakeUnversionedInt64Value(static_cast<int>(changeType));
+    Y_ASSERT(row.GetCount() + 2 == LogRow_.GetCount());
+    LogRow_[0] = MakeUnversionedSentinelValue(EValueType::Null, 0);
+    LogRow_[1] = MakeUnversionedInt64Value(static_cast<int>(changeType), 1);
     for (int index = 0; index < row.GetCount(); ++index) {
         const auto& srcValue = row[index];
-        auto& dstValue = LogRow_[index + 1];
+        auto& dstValue = LogRow_[index + 2];
         dstValue = srcValue;
-        dstValue.Id = index + 1;
+        dstValue.Id = index + 2;
     }
     LogRow_.SetCount(row.GetCount() + 1);
     return LogRow_;
