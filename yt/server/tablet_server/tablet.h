@@ -81,6 +81,19 @@ void Serialize(const TTabletPerformanceCounters& counters, NYson::IYsonConsumer*
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTableReplicaInfo
+{
+public:
+    DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State);
+
+public:
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTablet
     : public NObjectServer::TNonversionedObjectBase
     , public TRefTracked<TTablet>
@@ -103,6 +116,9 @@ public:
     //! Only used for ordered tablets. Only counts whole trimmed stores.
     DEFINE_BYVAL_RW_PROPERTY(i64, TrimmedStoresRowCount);
 
+    using TReplicaMap = yhash_map<TTableReplica*, TTableReplicaInfo>;
+    DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
+
 public:
     explicit TTablet(const TTabletId& id);
 
@@ -112,6 +128,10 @@ public:
     void CopyFrom(const TTablet& other);
 
     void ValidateMountRevision(i64 mountRevision);
+
+    TTableReplicaInfo& GetReplicaInfo(TTableReplica* replica);
+
+    bool IsActive() const;
 
 };
 

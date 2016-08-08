@@ -323,6 +323,12 @@ class YTEnvSetup(object):
             except:
                 pass
 
+    def sync_disable_table_replica(self, replica_id):
+        yt_commands.disable_table_replica(replica_id)
+
+        print "Waiting for replica to become disabled..."
+        wait(lambda: yt_commands.get("#{0}/@state".format(replica_id)) == "disabled")
+
     def _reset_nodes(self):
         nodes = yt_commands.ls("//sys/nodes", attributes=["banned", "resource_limits_overrides", "user_tags"])
         for node in nodes:

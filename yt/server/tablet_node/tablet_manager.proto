@@ -156,5 +156,17 @@ message TReqRemoveTableReplica
     required NYT.NProto.TGuid replica_id = 2;
 }
 
+message TReqEnableTableReplica
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid replica_id = 2;
+}
+
+message TReqDisableTableReplica
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid replica_id = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 

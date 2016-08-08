@@ -153,6 +153,8 @@ public:
         RegisterMethod(BIND(&TImpl::HydraUpdatePartitionSampleKeys, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraAddTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemoveTableReplica, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraEnableTableReplica, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraDisableTableReplica, Unretained(this)));
     }
 
     void Initialize()
@@ -1432,6 +1434,40 @@ private:
         RemoveTableReplica(tablet, replicaId);
     }
 
+    void HydraEnableTableReplica(TReqEnableTableReplica* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
+        auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
+        if (!replicaInfo) {
+            return;
+        }
+
+        EnableTableReplica(tablet, replicaInfo);
+    }
+
+    void HydraDisableTableReplica(TReqDisableTableReplica* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
+        auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
+        if (!replicaInfo) {
+            return;
+        }
+
+        DisableTableReplica(tablet, replicaInfo);
+    }
+
 
     template <class TRef>
     void HandleRowOnTransactionPrepare(TTransaction* transaction, const TRef& rowRef)
@@ -2207,18 +2243,19 @@ private:
             return;
         }
 
-        auto pair = replicas.emplace(replicaId, TTableReplica(replicaId));
+        auto pair = replicas.emplace(replicaId, TTableReplicaInfo(replicaId));
         YCHECK(pair.second);
-        auto& replica = pair.first->second;
+        auto& replicaInfo = pair.first->second;
 
-        replica.SetClusterName(descriptor.cluster_name());
-        replica.SetReplicaPath(descriptor.replica_path());
+        replicaInfo.SetClusterName(descriptor.cluster_name());
+        replicaInfo.SetReplicaPath(descriptor.replica_path());
+        replicaInfo.SetState(ETableReplicaState::Disabled);
 
         LOG_INFO_UNLESS(IsRecovery(), "Table replica added (TabletId: %v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v)",
             tablet->GetId(),
             replicaId,
-            replica.GetClusterName(),
-            replica.GetReplicaPath());
+            replicaInfo.GetClusterName(),
+            replicaInfo.GetReplicaPath());
     }
 
     void RemoveTableReplica(TTablet* tablet, const TTableReplicaId& replicaId)
@@ -2237,6 +2274,33 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "Table replica removed (TabletId: %v, ReplicaId: %v)",
             tablet->GetId(),
             replicaId);
+    }
+
+
+    void EnableTableReplica(TTablet* tablet, TTableReplicaInfo* replicaInfo)
+    {
+        LOG_INFO_UNLESS(IsRecovery(), "Table replica state enabled (TabletId: %v, ReplicaId: %v)",
+            tablet->GetId(),
+            replicaInfo->GetId());
+
+        replicaInfo->SetState(ETableReplicaState::Enabled);
+    }
+
+    void DisableTableReplica(TTablet* tablet, TTableReplicaInfo* replicaInfo)
+    {
+        LOG_INFO_UNLESS(IsRecovery(), "Table replica disabled (TabletId: %v, ReplicaId)",
+            tablet->GetId(),
+            replicaInfo->GetId());
+
+        replicaInfo->SetState(ETableReplicaState::Disabled);
+
+        {
+            TRspDisableTableReplica response;
+            ToProto(response.mutable_tablet_id(), tablet->GetId());
+            ToProto(response.mutable_replica_id(), replicaInfo->GetId());
+            response.set_mount_revision(tablet->GetMountRevision());
+            PostMasterMutation(response);
+        }
     }
 };
 

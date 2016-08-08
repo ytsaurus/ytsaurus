@@ -1,4 +1,5 @@
 #include "table_replica.h"
+#include "tablet.h"
 
 #include <yt/server/table_server/replicated_table_node.h>
 
@@ -24,6 +25,7 @@ void TTableReplica::Save(NCellMaster::TSaveContext& context) const
     Save(context, ClusterName_);
     Save(context, ReplicaPath_);
     Save(context, Table_);
+    Save(context, DisablingTablets_);
 }
 
 void TTableReplica::Load(NCellMaster::TLoadContext& context)
@@ -34,6 +36,7 @@ void TTableReplica::Load(NCellMaster::TLoadContext& context)
     Load(context, ClusterName_);
     Load(context, ReplicaPath_);
     Load(context, Table_);
+    Load(context, DisablingTablets_);
 }
 
 void TTableReplica::ThrowInvalidState()
