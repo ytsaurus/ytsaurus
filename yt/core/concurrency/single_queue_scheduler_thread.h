@@ -23,7 +23,8 @@ public:
         const Stroka& threadName,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
-        bool enableProfiling);
+        bool enableProfiling,
+        int index = 0);
 
     ~TSingleQueueSchedulerThread();
 
@@ -33,6 +34,7 @@ protected:
     TInvokerQueuePtr Queue;
 
     TEnqueuedAction CurrentAction;
+    int Index;
 
     virtual EBeginExecuteResult BeginExecute() override;
     virtual void EndExecute() override;
