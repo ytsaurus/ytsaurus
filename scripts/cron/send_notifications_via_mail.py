@@ -20,7 +20,7 @@ def send_notification(cluster, notification_id, notification, recipients):
         # Seems like the author of description forgot about html-format, let's 
         # fix newlines for him.
         description = description.replace("\n", "<br />") 
-    mail_subject = "{0}: Notification: {1}".format(cluster, notification.get("title", "(no subject)"))
+    mail_subject = "**{0}**: {1}".format(cluster, notification.get("title", "(no subject)"))
     mail_body = """<html>
     <head></head>
     <body>
@@ -39,7 +39,7 @@ def send_notification(cluster, notification_id, notification, recipients):
         notification.get("author", "(N/A)"))
     msg = MIMEText(mail_body, "html", "utf-8")
     msg["Subject"] = mail_subject
-    msg["From"] = notification.get("author", "unknown_yt_parrot") + "@yandex-team.ru"
+    msg["From"] = notification.get("author", "devnull") + "@yandex-team.ru"
     msg["To"] = ", ".join(recipients)
     logger.debug("Sending the following mail: %s", msg.as_string())
     p = Popen(["/usr/sbin/sendmail", "-t", "-oi"], stdin=PIPE)
