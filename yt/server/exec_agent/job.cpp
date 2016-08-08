@@ -761,11 +761,17 @@ private:
 
             if (copyFiles) {
                 try {
-                    Slot_->MakeCopy(
+                    // Do copying in a separate thread.
+                    WaitFor(BIND(
+                        &TSlot::MakeCopy, 
+                        Slot_, 
                         sandboxKind,
                         chunk->GetFileName(),
                         info.Name,
-                        info.IsExecutable);
+                        info.IsExecutable)
+                    .AsyncVia(Bootstrap_->GetExecSlotManager()->GetBackgroundInvoker())
+                    .Run())
+                    .ThrowOnError();
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION(
                         "Failed to create a copy of user file %Qv",

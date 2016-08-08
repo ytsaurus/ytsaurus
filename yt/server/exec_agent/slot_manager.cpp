@@ -84,7 +84,7 @@ void TSlotManager::Initialize(int slotCount)
                 Config_,
                 std::move(slotPaths),
                 Format("yt-node-%v", nodeRpcPort),
-                ActionQueue_->GetInvoker(),
+                SlotsQueue_->GetInvoker(),
                 slotId,
                 userId);
             slot->Initialize();
@@ -137,6 +137,11 @@ void TSlotManager::ReleaseSlot(TSlotPtr slot)
 int TSlotManager::GetSlotCount() const
 {
     return IsEnabled_ ? static_cast<int>(Slots_.size()) : 0;
+}
+
+IInvokerPtr TSlotManager::GetBackgroundInvoker() const
+{
+    return BackgroundQueue_->GetInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
