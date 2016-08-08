@@ -701,16 +701,11 @@ class ConfigsProvider_18_4(ConfigsProvider_18_3_18_4):
 
 class ConfigsProvider_18_5(ConfigsProvider_18):
     def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator):
-        configs = super(ConfigsProvider_18_6, self)._build_node_configs(
+        configs = super(ConfigsProvider_18_5, self)._build_node_configs(
                 provision, node_dirs, master_connection_configs, ports_generator)
 
         current_user = 10000
         for i, config in enumerate(configs):
-            config["addresses"] = [
-                ("interconnect", provision["fqdn"]),
-                ("default", provision["fqdn"])
-            ]
-
             # TODO(psushin): This is a very dirty hack to ensure that different parallel
             # test and yt_node instances do not share same uids range for user jobs.
             start_uid = current_user + config["rpc_port"]
@@ -724,4 +719,14 @@ class ConfigsProvider_18_5(ConfigsProvider_18):
         return configs
 
 class ConfigsProvider_18_6(ConfigsProvider_18_5):
-    pass
+    def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator):
+        configs = super(ConfigsProvider_18_6, self)._build_node_configs(
+                provision, node_dirs, master_connection_configs, ports_generator)
+
+        for i, config in enumerate(configs):
+            config["addresses"] = [
+                ("interconnect", provision["fqdn"]),
+                ("default", provision["fqdn"])
+            ]
+
+        return configs
