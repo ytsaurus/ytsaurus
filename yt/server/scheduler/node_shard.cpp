@@ -742,7 +742,7 @@ void TNodeShard::ProcessHeartbeatJobs(
             switch (job->GetState()) {
                 case EJobState::Completed:
                 case EJobState::Failed:
-                case EJobState::Aborted: 
+                case EJobState::Aborted:
                     operationsToLog->insert(job->GetOperationId());
                     break;
                 case EJobState::Running:
@@ -1120,10 +1120,8 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     if (job->GetState() == EJobState::Running ||
         job->GetState() == EJobState::Waiting)
     {
-        job->SetStatus(status);
-
-        if (job->StatisticsYson()) {
-            auto asyncResult = BIND(&TJob::BuildBriefStatistics, job, *job->StatisticsYson())
+        if (status->has_statistics()) {
+            auto asyncResult = BIND(&TJob::BuildBriefStatistics, job, TYsonString(status->statistics()))
                 .AsyncVia(Host_->GetStatisticsAnalyzerInvoker())
                 .Run();
 
@@ -1136,6 +1134,8 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
                 Config_->SuspiciousUserJobBlockIOReadThreshold)
                 .Via(GetInvoker()));
         }
+
+        job->SetStatus(status);
     }
 }
 
