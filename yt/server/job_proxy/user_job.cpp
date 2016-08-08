@@ -655,9 +655,10 @@ private:
                 executorResult.ThrowOnError();
                 WaitFor(ControlPipeReader_->Abort())
                   .ThrowOnError();
-            } catch (std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Start action failed")
-                    << ex;
+            } catch (const std::exception& ex) {
+                auto error = TError("Start action failed") << ex;
+                LOG_ERROR(error);
+                THROW_ERROR error;
             }
         }));
     }
