@@ -302,7 +302,7 @@ public:
     TNode& Add()
     {
         AssureList();
-        List_->push_back();
+        List_->emplace_back();
         return List_->back();
     }
 
