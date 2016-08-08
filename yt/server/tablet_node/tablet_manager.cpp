@@ -2253,12 +2253,16 @@ private:
         replicaInfo.SetClusterName(descriptor.cluster_name());
         replicaInfo.SetReplicaPath(descriptor.replica_path());
         replicaInfo.SetState(ETableReplicaState::Disabled);
+        PopulateTableReplicaInfoFromStatistics(&replicaInfo, descriptor.statistics());
 
-        LOG_INFO_UNLESS(IsRecovery(), "Table replica added (TabletId: %v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Table replica added (TabletId: %v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v, "
+            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %v)",
             tablet->GetId(),
             replicaId,
             replicaInfo.GetClusterName(),
-            replicaInfo.GetReplicaPath());
+            replicaInfo.GetReplicaPath(),
+            replicaInfo.GetCurrentReplicationRowIndex(),
+            replicaInfo.GetCurrentReplicationTimestamp());
     }
 
     void RemoveTableReplica(TTablet* tablet, const TTableReplicaId& replicaId)
@@ -2291,9 +2295,12 @@ private:
 
     void DisableTableReplica(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
-        LOG_INFO_UNLESS(IsRecovery(), "Table replica disabled (TabletId: %v, ReplicaId)",
+        LOG_INFO_UNLESS(IsRecovery(), "Table replica disabled (TabletId: %v, ReplicaId, "
+            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %v)",
             tablet->GetId(),
-            replicaInfo->GetId());
+            replicaInfo->GetId(),
+            replicaInfo->GetCurrentReplicationRowIndex(),
+            replicaInfo->GetCurrentReplicationTimestamp());
 
         replicaInfo->SetState(ETableReplicaState::Disabled);
 
@@ -2302,8 +2309,22 @@ private:
             ToProto(response.mutable_tablet_id(), tablet->GetId());
             ToProto(response.mutable_replica_id(), replicaInfo->GetId());
             response.set_mount_revision(tablet->GetMountRevision());
+            PopulateTableReplicaStatisticsFromInfo(response.mutable_statistics(), *replicaInfo);
             PostMasterMutation(response);
         }
+    }
+
+
+    static void PopulateTableReplicaStatisticsFromInfo(TTableReplicaStatistics* statistics, const TTableReplicaInfo& info)
+    {
+        statistics->set_current_replication_row_index(info.GetCurrentReplicationRowIndex());
+        statistics->set_current_replication_timestamp(info.GetCurrentReplicationTimestamp());
+    }
+
+    static void PopulateTableReplicaInfoFromStatistics(TTableReplicaInfo* info, const TTableReplicaStatistics& statistics)
+    {
+        info->SetCurrentReplicationRowIndex(statistics.current_replication_row_index());
+        info->SetCurrentReplicationTimestamp(statistics.current_replication_timestamp());
     }
 };
 

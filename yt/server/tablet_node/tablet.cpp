@@ -128,6 +128,9 @@ void TTableReplicaInfo::Save(TSaveContext& context) const
     Save(context, ClusterName_);
     Save(context, ReplicaPath_);
     Save(context, State_);
+    Save(context, CurrentReplicationRowIndex_);
+    Save(context, PreparedReplicationRowIndex_);
+    Save(context, CurrentReplicationTimestamp_);
 }
 
 void TTableReplicaInfo::Load(TLoadContext& context)
@@ -137,6 +140,9 @@ void TTableReplicaInfo::Load(TLoadContext& context)
     Load(context, ClusterName_);
     Load(context, ReplicaPath_);
     Load(context, State_);
+    Load(context, CurrentReplicationRowIndex_);
+    Load(context, PreparedReplicationRowIndex_);
+    Load(context, CurrentReplicationTimestamp_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

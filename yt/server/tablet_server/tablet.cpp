@@ -122,6 +122,8 @@ void TTableReplicaInfo::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
 
     Save(context, State_);
+    Save(context, CurrentReplicationRowIndex_);
+    Save(context, CurrentReplicationTimestamp_);
 }
 
 void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
@@ -129,6 +131,8 @@ void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     Load(context, State_);
+    Load(context, CurrentReplicationRowIndex_);
+    Load(context, CurrentReplicationTimestamp_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -393,7 +393,7 @@ public:
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
             TReqAddTableReplica req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
-            PopulateTableReplicaDescriptor(req.mutable_replica(), replica);
+            PopulateTableReplicaDescriptor(req.mutable_replica(), replica, replicaInfo);
             hiveManager->PostMessage(mailbox, req);
         }
 
@@ -670,7 +670,8 @@ public:
                 if (table->IsReplicated()) {
                     auto* replicatedTable = static_cast<TReplicatedTableNode*>(table);
                     for (auto* replica : replicatedTable->Replicas()) {
-                        PopulateTableReplicaDescriptor(req.add_replicas(), replica);
+                        const auto& replicaInfo = tablet->GetReplicaInfo(replica);
+                        PopulateTableReplicaDescriptor(req.add_replicas(), replica, replicaInfo);
                     }
                 }
 
@@ -2137,6 +2138,15 @@ private:
         }
 
         replicaInfo.SetState(ETableReplicaState::Disabled);
+        PopulateTableReplicaInfoFromStatistics(&replicaInfo, response->statistics());
+
+        LOG_DEBUG("Table replica tablet disabled (TabletId: %v, ReplicaId: %v, "
+            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %v)",
+            tabletId,
+            replicaId,
+            replicaInfo.GetCurrentReplicationRowIndex(),
+            replicaInfo.GetCurrentReplicationTimestamp());
+
         YCHECK(replica->DisablingTablets().erase(tablet) == 1);
         CheckForReplicaDisabled(replica);
     }
@@ -2981,11 +2991,24 @@ private:
     }
 
 
-    void PopulateTableReplicaDescriptor(TTableReplicaDescriptor* descriptor, TTableReplica* replica)
+    static void PopulateTableReplicaDescriptor(TTableReplicaDescriptor* descriptor, const TTableReplica* replica, const TTableReplicaInfo& info)
     {
         ToProto(descriptor->mutable_replica_id(), replica->GetId());
         descriptor->set_cluster_name(replica->GetClusterName());
         descriptor->set_replica_path(replica->GetReplicaPath());
+        PopulateTableReplicaStatisticsFromInfo(descriptor->mutable_statistics(), info);
+    }
+
+    static void PopulateTableReplicaStatisticsFromInfo(TTableReplicaStatistics* statistics, const TTableReplicaInfo& info)
+    {
+        statistics->set_current_replication_row_index(info.GetCurrentReplicationRowIndex());
+        statistics->set_current_replication_timestamp(info.GetCurrentReplicationTimestamp());
+    }
+
+    static void PopulateTableReplicaInfoFromStatistics(TTableReplicaInfo* info, const TTableReplicaStatistics& statistics)
+    {
+        info->SetCurrentReplicationRowIndex(statistics.current_replication_row_index());
+        info->SetCurrentReplicationTimestamp(statistics.current_replication_timestamp());
     }
 };
 
