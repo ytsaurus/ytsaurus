@@ -163,7 +163,7 @@ void TSlot::DoCleanSandbox(int pathIndex)
         const auto& sandboxPath = SandboxPaths_[pathIndex][sandboxKind];
         auto sandboxFullPath = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), sandboxPath);
 
-        auto removeMountPount = [this, this_ = MakeStrong(this)] (const Stroka& path) {
+        auto removeMountPoint = [this, this_ = MakeStrong(this)] (const Stroka& path) {
             auto config = New<TUmountConfig>();
             config->Path = path;
             config->Detach = Config_->DetachedTmpfsUmount;
@@ -182,7 +182,7 @@ void TSlot::DoCleanSandbox(int pathIndex)
             for (const auto& mountPoint : mountPoints) {
                 if (sandboxFullPath.is_prefix(mountPoint.Path)) {
                     // '/*' added since we need to remove only content.
-                    removeMountPount(mountPoint.Path);
+                    removeMointPount(mountPoint.Path);
                 }
             }
         }
