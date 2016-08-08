@@ -1,5 +1,6 @@
 #include "tablet.h"
 #include "tablet_cell.h"
+#include "table_replica.h"
 
 #include <yt/server/cell_master/serialize.h>
 
@@ -116,6 +117,22 @@ void Serialize(const TTabletPerformanceCounters& counters, NYson::IYsonConsumer*
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTableReplicaInfo::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, State_);
+}
+
+void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, State_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTablet::TTablet(const TTabletId& id)
     : TNonversionedObjectBase(id)
     , Index_(-1)
@@ -139,6 +156,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, FlushedRowCount_);
     Save(context, TrimmedStoresRowCount_);
     Save(context, TrimmedRowCount_);
+    Save(context, Replicas_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -159,6 +177,10 @@ void TTablet::Load(TLoadContext& context)
         Load(context, FlushedRowCount_);
         Load(context, TrimmedStoresRowCount_);
         Load(context, TrimmedRowCount_);
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 500) {
+        Load(context, Replicas_);
     }
 }
 
@@ -186,6 +208,23 @@ void TTablet::ValidateMountRevision(i64 mountRevision)
             MountRevision_,
             mountRevision);
     }
+}
+
+TTableReplicaInfo& TTablet::GetReplicaInfo(TTableReplica* replica)
+{
+    auto it = Replicas_.find(replica);
+    YCHECK(it != Replicas_.end());
+    return it->second;
+}
+
+bool TTablet::IsActive() const
+{
+    return
+        State_ == ETabletState::Mounting ||
+        State_ == ETabletState::Mounted ||
+        State_ == ETabletState::Freezing ||
+        State_ == ETabletState::Frozen ||
+        State_ == ETabletState::Unfreezing;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

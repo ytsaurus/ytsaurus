@@ -46,13 +46,16 @@ private:
         attributes->push_back("replica_path");
         attributes->push_back("table_path");
         attributes->push_back("state");
+        attributes->push_back(TAttributeDescriptor("tablets")
+            .SetOpaque(true));
 
         TBase::ListSystemAttributes(attributes);
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        const auto* replica = GetThisImpl();
+        auto* replica = GetThisImpl();
+        auto* table = replica->GetTable();
 
         if (key == "cluster_name") {
             BuildYsonFluently(consumer)
@@ -77,6 +80,19 @@ private:
         if (key == "state") {
             BuildYsonFluently(consumer)
                 .Value(replica->GetState());
+            return true;
+        }
+
+        if (key == "tablets") {
+            BuildYsonFluently(consumer)
+                .DoMapFor(table->Tablets(), [=] (TFluentMap fluent, TTablet* tablet) {
+                    const auto& replicaInfo = tablet->GetReplicaInfo(replica);
+                    fluent
+                        .Item(ToString(tablet->GetId()))
+                        .BeginMap()
+                            .Item("state").Value(replicaInfo.GetState())
+                        .EndMap();
+                });
             return true;
         }
 

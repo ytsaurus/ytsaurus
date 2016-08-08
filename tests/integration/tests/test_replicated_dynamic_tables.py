@@ -50,6 +50,41 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         remove_table_replica(replica_id)
         assert not exists("#{0}/@".format(replica_id))
 
+    def test_enable_disable_replica_unmounted(self):
+        self._create_simple_replicated_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        replica_id = create_table_replica("//tmp/t", "slave1", "//tmp/r")
+        attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
+        assert attributes["state"] == "disabled"
+        assert len(attributes["tablets"]) == 1
+        assert attributes["tablets"][tablet_id]["state"] == "none"
+
+        enable_table_replica(replica_id)
+        attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
+        assert attributes["state"] == "enabled"
+        assert len(attributes["tablets"]) == 1
+        assert attributes["tablets"][tablet_id]["state"] == "none"
+
+        disable_table_replica(replica_id)
+        attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
+        assert attributes["state"] == "disabled"
+        assert len(attributes["tablets"]) == 1
+        assert attributes["tablets"][tablet_id]["state"] == "none"
+
+    def test_enable_disable_replica_mounted(self):
+        self.sync_create_cells(1)
+        self._create_simple_replicated_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        replica_id = create_table_replica("//tmp/t", "slave1", "//tmp/r")
+        assert get("#{0}/@state".format(replica_id)) == "disabled"
+
+        enable_table_replica(replica_id)
+        assert get("#{0}/@state".format(replica_id)) == "enabled"
+
+        self.sync_disable_table_replica(replica_id)
+        assert get("#{0}/@state".format(replica_id)) == "disabled"
+
 ##################################################################
 
 class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):

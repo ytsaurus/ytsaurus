@@ -44,9 +44,9 @@ DEFINE_ENUM(ETabletCellHealth,
 );
 
 DEFINE_ENUM(ETableReplicaState,
-    ((Disabling)                (0))
-    ((Disabled)                 (1))
-    ((Enabling)                 (2))
+    ((None)                     (0))
+    ((Disabling)                (1))
+    ((Disabled)                 (2))
     ((Enabled)                  (3))
 );
 

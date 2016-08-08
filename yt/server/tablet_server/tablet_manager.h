@@ -117,6 +117,7 @@ public:
     TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
+    DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
 
 private:
     template <class TImpl>

@@ -149,6 +149,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletFrozen, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnfrozen, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnTableReplicaDisabled, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletStores, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletTrimmedRowCount, Unretained(this)));
 
@@ -377,20 +378,23 @@ public:
 
         auto hiveManager = Bootstrap_->GetHiveManager();
         for (auto* tablet : table->Tablets()) {
-            auto state = tablet->GetState();
-            if (state == ETabletState::Mounting ||
-                state == ETabletState::Mounted ||
-                state == ETabletState::Freezing ||
-                state == ETabletState::Frozen ||
-                state == ETabletState::Unfreezing)
-            {
-                auto* cell = tablet->GetCell();
-                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-                TReqAddTableReplica req;
-                ToProto(req.mutable_tablet_id(), tablet->GetId());
-                PopulateTableReplicaDescriptor(req.mutable_replica(), replica);
-                hiveManager->PostMessage(mailbox, req);
+            auto pair = tablet->Replicas().emplace(replica, TTableReplicaInfo());
+            YCHECK(pair.second);
+            auto& replicaInfo = pair.first->second;
+
+            if (!tablet->IsActive()) {
+                replicaInfo.SetState(ETableReplicaState::None);
+                continue;
             }
+
+            replicaInfo.SetState(ETableReplicaState::Disabled);
+
+            auto* cell = tablet->GetCell();
+            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            TReqAddTableReplica req;
+            ToProto(req.mutable_tablet_id(), tablet->GetId());
+            PopulateTableReplicaDescriptor(req.mutable_replica(), replica);
+            hiveManager->PostMessage(mailbox, req);
         }
 
         return replica;
@@ -407,20 +411,18 @@ public:
 
             auto hiveManager = Bootstrap_->GetHiveManager();
             for (auto* tablet : table->Tablets()) {
-                auto state = tablet->GetState();
-                if (state == ETabletState::Mounting ||
-                    state == ETabletState::Mounted ||
-                    state == ETabletState::Freezing ||
-                    state == ETabletState::Frozen ||
-                    state == ETabletState::Unfreezing)
-                {
-                    auto* cell = tablet->GetCell();
-                    auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-                    TReqRemoveTableReplica req;
-                    ToProto(req.mutable_tablet_id(), tablet->GetId());
-                    ToProto(req.mutable_replica_id(), replica->GetId());
-                    hiveManager->PostMessage(mailbox, req);
+                YCHECK(tablet->Replicas().erase(replica) == 1);
+
+                if (!tablet->IsActive()) {
+                    continue;
                 }
+
+                auto* cell = tablet->GetCell();
+                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                TReqRemoveTableReplica req;
+                ToProto(req.mutable_tablet_id(), tablet->GetId());
+                ToProto(req.mutable_replica_id(), replica->GetId());
+                hiveManager->PostMessage(mailbox, req);
             }
         }
     }
@@ -430,11 +432,37 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto state = replica->GetState();
+        if (state == ETableReplicaState::Enabled) {
+            return;
+        }
+
         if (state != ETableReplicaState::Disabled) {
             replica->ThrowInvalidState();
         }
+        auto* table = replica->GetTable();
 
-        // XXX(babenko)
+        LOG_DEBUG("Table replica enabled (TableId: %v, ReplicaId: %v)",
+            table->GetId(),
+            replica->GetId());
+
+        replica->SetState(ETableReplicaState::Enabled);
+
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        for (auto* tablet : table->Tablets()) {
+            if (!tablet->IsActive()) {
+                continue;
+            }
+
+            auto& replicaInfo = tablet->GetReplicaInfo(replica);
+            replicaInfo.SetState(ETableReplicaState::Enabled);
+
+            auto* cell = tablet->GetCell();
+            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            TReqEnableTableReplica req;
+            ToProto(req.mutable_tablet_id(), tablet->GetId());
+            ToProto(req.mutable_replica_id(), replica->GetId());
+            hiveManager->PostMessage(mailbox, req);
+        }
     }
 
     void DisableTableReplica(TTableReplica* replica)
@@ -450,7 +478,42 @@ public:
             replica->ThrowInvalidState();
         }
 
-        // XXX(babenko)
+        auto* table = replica->GetTable();
+
+        for (auto* tablet : table->Tablets()) {
+            if (tablet->GetState() == ETabletState::Unmounting) {
+                THROW_ERROR_EXCEPTION("Cannot disable replica since tablet %v is in %Qlv state",
+                    tablet->GetId(),
+                    tablet->GetState());
+            }
+        }
+
+        LOG_DEBUG("Disabling table replica (TableId: %v, ReplicaId: %v)",
+            table->GetId(),
+            replica->GetId());
+
+        replica->SetState(ETableReplicaState::Disabling);
+
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        for (auto* tablet : table->Tablets()) {
+            if (!tablet->IsActive()) {
+                continue;
+            }
+
+            auto& replicaInfo = tablet->GetReplicaInfo(replica);
+            replicaInfo.SetState(ETableReplicaState::Disabling);
+
+            YCHECK(replica->DisablingTablets().insert(tablet).second);
+
+            auto* cell = tablet->GetCell();
+            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            TReqDisableTableReplica req;
+            ToProto(req.mutable_tablet_id(), tablet->GetId());
+            ToProto(req.mutable_replica_id(), replica->GetId());
+            hiveManager->PostMessage(mailbox, req);
+        }
+
+        CheckForReplicaDisabled(replica);
     }
 
 
@@ -582,55 +645,74 @@ public:
             const auto* context = GetCurrentMutationContext();
             tablet->SetMountRevision(context->GetVersion().ToRevision());
 
-            TReqMountTablet req;
-            ToProto(req.mutable_tablet_id(), tablet->GetId());
-            req.set_mount_revision(tablet->GetMountRevision());
-            ToProto(req.mutable_table_id(), table->GetId());
-            ToProto(req.mutable_schema(), table->TableSchema());
-            if (table->IsSorted()) {
-                ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
-                ToProto(req.mutable_next_pivot_key(), tablet->GetIndex() + 1 == allTablets.size()
-                    ? MaxKey()
-                    : allTablets[tabletIndex + 1]->GetPivotKey());
-            } else {
-                req.set_trimmed_row_count(tablet->GetTrimmedRowCount());
-            }
-            req.set_mount_config(serializedMountConfig.Data());
-            req.set_writer_options(serializedWriterOptions.Data());
-            req.set_atomicity(static_cast<int>(table->GetAtomicity()));
-            req.set_freeze(freeze);
-            if (table->IsReplicated()) {
-                auto* replicatedTable = static_cast<TReplicatedTableNode*>(table);
-                for (auto* replica : replicatedTable->Replicas()) {
-                    PopulateTableReplicaDescriptor(req.add_replicas(), replica);
-                }
-            }
-
-            auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
-            auto chunks = EnumerateChunksInChunkTree(chunkList);
-            auto storeType = table->IsSorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
-            i64 startingRowIndex = tablet->GetTrimmedStoresRowCount();
-            for (const auto* chunk : chunks) {
-                auto* descriptor = req.add_stores();
-                descriptor->set_store_type(static_cast<int>(storeType));
-                ToProto(descriptor->mutable_store_id(), chunk->GetId());
-                descriptor->mutable_chunk_meta()->CopyFrom(chunk->ChunkMeta());
-                descriptor->set_starting_row_index(startingRowIndex);
-                startingRowIndex += chunk->MiscExt().row_count();
-            }
-
             auto hiveManager = Bootstrap_->GetHiveManager();
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-            hiveManager->PostMessage(mailbox, req);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
-                "Atomicity: %v, Freeze: %v)",
-                table->GetId(),
-                tablet->GetId(),
-                cell->GetId(),
-                chunks.size(),
-                table->GetAtomicity(),
-                freeze);
+            {
+                TReqMountTablet req;
+                ToProto(req.mutable_tablet_id(), tablet->GetId());
+                req.set_mount_revision(tablet->GetMountRevision());
+                ToProto(req.mutable_table_id(), table->GetId());
+                ToProto(req.mutable_schema(), table->TableSchema());
+                if (table->IsSorted()) {
+                    ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
+                    ToProto(req.mutable_next_pivot_key(), tablet->GetIndex() + 1 == allTablets.size()
+                        ? MaxKey()
+                        : allTablets[tabletIndex + 1]->GetPivotKey());
+                } else {
+                    req.set_trimmed_row_count(tablet->GetTrimmedRowCount());
+                }
+                req.set_mount_config(serializedMountConfig.Data());
+                req.set_writer_options(serializedWriterOptions.Data());
+                req.set_atomicity(static_cast<int>(table->GetAtomicity()));
+                req.set_freeze(freeze);
+                if (table->IsReplicated()) {
+                    auto* replicatedTable = static_cast<TReplicatedTableNode*>(table);
+                    for (auto* replica : replicatedTable->Replicas()) {
+                        PopulateTableReplicaDescriptor(req.add_replicas(), replica);
+                    }
+                }
+
+                auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
+                auto chunks = EnumerateChunksInChunkTree(chunkList);
+                auto storeType = table->IsSorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
+                i64 startingRowIndex = tablet->GetTrimmedStoresRowCount();
+                for (const auto* chunk : chunks) {
+                    auto* descriptor = req.add_stores();
+                    descriptor->set_store_type(static_cast<int>(storeType));
+                    ToProto(descriptor->mutable_store_id(), chunk->GetId());
+                    descriptor->mutable_chunk_meta()->CopyFrom(chunk->ChunkMeta());
+                    descriptor->set_starting_row_index(startingRowIndex);
+                    startingRowIndex += chunk->MiscExt().row_count();
+                }
+
+                LOG_INFO_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
+                    "Atomicity: %v, Freeze: %v)",
+                    table->GetId(),
+                    tablet->GetId(),
+                    cell->GetId(),
+                    chunks.size(),
+                    table->GetAtomicity(),
+                    freeze);
+
+                hiveManager->PostMessage(mailbox, req);
+            }
+
+            for (auto& pair  : tablet->Replicas()) {
+                auto* replica = pair.first;
+                auto& replicaInfo = pair.second;
+                if (replica->GetState() != ETableReplicaState::Enabled) {
+                    replicaInfo.SetState(ETableReplicaState::Disabled);
+                    continue;
+                }
+
+                TReqEnableTableReplica req;
+                ToProto(req.mutable_tablet_id(), tablet->GetId());
+                ToProto(req.mutable_replica_id(), replica->GetId());
+                hiveManager->PostMessage(mailbox, req);
+
+                replicaInfo.SetState(ETableReplicaState::Enabled);
+            }
         }
     }
 
@@ -852,6 +934,7 @@ public:
             auto objectManager = Bootstrap_->GetObjectManager();
             for (auto* replica : replicatedTable->Replicas()) {
                 replica->SetTable(nullptr);
+                replica->DisablingTablets().clear();
                 objectManager->UnrefObject(replica);
             }
             replicatedTable->Replicas().clear();
@@ -1386,6 +1469,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell);
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
+    DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
 
 private:
     friend class TTabletCellBundleTypeHandler;
@@ -1958,7 +2042,7 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Unmounting) {
-            LOG_INFO_UNLESS(IsRecovery(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            LOG_WARNING_UNLESS(IsRecovery(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
@@ -1980,7 +2064,7 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Freezing) {
-            LOG_INFO_UNLESS(IsRecovery(), "Frozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            LOG_WARNING_UNLESS(IsRecovery(), "Frozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
@@ -2007,7 +2091,7 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Unfreezing) {
-            LOG_INFO_UNLESS(IsRecovery(), "Unfrozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            LOG_WARNING_UNLESS(IsRecovery(), "Unfrozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
@@ -2020,6 +2104,56 @@ private:
 
         tablet->SetState(ETabletState::Mounted);
     }
+
+    void HydraOnTableReplicaDisabled(TRspDisableTableReplica* response)
+    {
+        auto tabletId = FromProto<TTabletId>(response->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        auto replicaId = FromProto<TTableReplicaId>(response->replica_id());
+        auto* replica = FindTableReplica(replicaId);
+        if (!IsObjectAlive(replica)) {
+            return;
+        }
+
+        auto mountRevision = response->mount_revision();
+        if (tablet->GetMountRevision() != mountRevision) {
+            return;
+        }
+
+        auto& replicaInfo = tablet->GetReplicaInfo(replica);
+        if (replicaInfo.GetState() != ETableReplicaState::Disabling) {
+            LOG_WARNING_UNLESS(IsRecovery(), "Disabled replica notification received for a replica in %Qlv state, "
+                "ignored (TabletId: %v, ReplicaId: %v)",
+                replicaInfo.GetState(),
+                tabletId,
+                replicaId);
+            return;
+        }
+
+        replicaInfo.SetState(ETableReplicaState::Disabled);
+        YCHECK(replica->DisablingTablets().erase(tablet) == 1);
+        CheckForReplicaDisabled(replica);
+    }
+
+    void CheckForReplicaDisabled(TTableReplica* replica)
+    {
+        if (!replica->DisablingTablets().empty()) {
+            return;
+        }
+
+        auto* table = replica->GetTable();
+
+        LOG_DEBUG("Table replica disabled (TableId: %v, ReplicaId: %v)",
+            table->GetId(),
+            replica->GetId());
+
+        replica->SetState(ETableReplicaState::Disabled);
+    }
+
 
     void DoTabletUnmounted(TTablet* tablet)
     {
@@ -2614,6 +2748,16 @@ private:
             }
 
             if (force && tablet->GetState() != ETabletState::Unmounted) {
+                for (auto& pair : tablet->Replicas()) {
+                    auto replica = pair.first;
+                    auto& replicaInfo = pair.second;
+                    if (replicaInfo.GetState() != ETableReplicaState::Disabling) {
+                        continue;
+                    }
+                    replicaInfo.SetState(ETableReplicaState::Disabled);
+                    CheckForReplicaDisabled(replica);
+                }
+
                 DoTabletUnmounted(tablet);
             }
         }
@@ -2846,6 +2990,7 @@ private:
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCellBundle, TTabletCellBundle, TabletCellBundleMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCell, TTabletCell, TabletCellMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TabletMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TableReplica, TTableReplica, TableReplicaMap_)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -3080,6 +3225,7 @@ void TTabletManager::DisableTableReplica(TTableReplica* replica)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCellBundle, TTabletCellBundle, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCell, TTabletCell, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TableReplica, TTableReplica, *Impl_)
 
 ///////////////////////////////////////////////////////////////////////////////
 

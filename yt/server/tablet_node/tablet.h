@@ -135,16 +135,18 @@ struct ITabletContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableReplica
+class TTableReplicaInfo
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TTableReplicaId, Id);
     DEFINE_BYVAL_RW_PROPERTY(Stroka, ClusterName);
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, ReplicaPath);
 
+    DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State);
+
 public:
-    TTableReplica();
-    explicit TTableReplica(const TTableReplicaId& id);
+    TTableReplicaInfo();
+    explicit TTableReplicaInfo(const TTableReplicaId& id);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
@@ -184,7 +186,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(IDynamicStorePtr, ActiveStore);
 
-    using TReplicaMap = yhash_map<TTableReplicaId, TTableReplica>;
+    using TReplicaMap = yhash_map<TTableReplicaId, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
 public:
@@ -234,6 +236,8 @@ public:
     void RemoveStore(IStorePtr store);
     IStorePtr FindStore(const TStoreId& id);
     IStorePtr GetStore(const TStoreId& id);
+
+    TTableReplicaInfo* FindReplicaInfo(const TTableReplicaId& id);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);

@@ -114,27 +114,29 @@ void TTabletSnapshot::ValidateMountRevision(i64 mountRevision)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableReplica::TTableReplica()
+TTableReplicaInfo::TTableReplicaInfo()
 { }
 
-TTableReplica::TTableReplica(const TTableReplicaId& id)
+TTableReplicaInfo::TTableReplicaInfo(const TTableReplicaId& id)
     : Id_(id)
 { }
 
-void TTableReplica::Save(TSaveContext& context) const
+void TTableReplicaInfo::Save(TSaveContext& context) const
 {
     using NYT::Save;
     Save(context, Id_);
     Save(context, ClusterName_);
     Save(context, ReplicaPath_);
+    Save(context, State_);
 }
 
-void TTableReplica::Load(TLoadContext& context)
+void TTableReplicaInfo::Load(TLoadContext& context)
 {
     using NYT::Load;
     Load(context, Id_);
     Load(context, ClusterName_);
     Load(context, ReplicaPath_);
+    Load(context, State_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -655,6 +657,12 @@ IStorePtr TTablet::GetStore(const TStoreId& id)
     auto store = FindStore(id);
     YCHECK(store);
     return store;
+}
+
+TTableReplicaInfo* TTablet::FindReplicaInfo(const TTableReplicaId& id)
+{
+    auto it = Replicas_.find(id);
+    return it == Replicas_.end() ? nullptr : &it->second;
 }
 
 bool TTablet::IsPhysicallySorted() const
