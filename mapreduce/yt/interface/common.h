@@ -96,6 +96,16 @@ struct TKeyBase
         Add(std::forward<TArgs>(args)...);
     }
 
+    TKeyBase(yvector<T>&& args)
+    {
+        Parts_ = std::move(args);
+    }
+
+    TKeyBase(const yvector<T>& args)
+    {
+        Parts_ = args;
+    }
+
     bool operator==(const TKeyBase& rhs) const {
         return Parts_ == rhs.Parts_;
     }
