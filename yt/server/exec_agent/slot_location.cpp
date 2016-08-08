@@ -35,10 +35,12 @@ TSlotLocation::TSlotLocation(
     const TSlotLocationConfigPtr& config,
     const NCellNode::TBootstrap* bootstrap,
     const Stroka& id,
-    IInvokerPtr invoker)
+    IInvokerPtr invoker,
+    bool detachedTmpfsUmount)
     : TDiskLocation(config, id, ExecAgentLogger)
     , Config_(config)
     , Bootstrap_(bootstrap)
+    , DetachedTmpfsUmount_(detachedTmpfsUmount)
     , HasRootPermissions_(HasRootPermissions())
     , Invoker_(std::move(invoker))
 {
@@ -281,6 +283,15 @@ void TSlotLocation::CleanSandboxes(int slotIndex)
         BIND([=, this_ = MakeStrong(this)] () {
             ValidateEnabled();
 
+            auto removeMountPoint = [this, this_ = MakeStrong(this)] (const Stroka& path) {
+                auto config = New<TUmountConfig>();
+                config->Path = path;
+                config->Detach = DetachedTmpfsUmount_;
+
+                RunTool<TRemoveDirContentAsRootTool>(path);
+                RunTool<TUmountAsRootTool>(config);
+            };
+
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                 const auto& sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
                 try {
@@ -296,8 +307,7 @@ void TSlotLocation::CleanSandboxes(int slotIndex)
 
                     for (const auto& path : tmpfsPaths) {
                         TmpfsPaths_.erase(path);
-                        RunTool<TRemoveDirAsRootTool>(path + "/*");
-                        RunTool<TUmountAsRootTool>(path);
+                        removeMountPoint(path);
                     }
 
                     // Unmount unknown tmpfs, e.g. left from previous node run.

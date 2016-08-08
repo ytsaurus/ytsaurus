@@ -53,7 +53,8 @@ void TSlotManager::Initialize(int slotCount)
             std::move(locationConfig),
             Bootstrap_,
             Format("slots%v", locationIndex),
-            LocationQueue_->GetInvoker()));
+            LocationQueue_->GetInvoker(),
+            Config_->DetachedTmpfsUmount));
 
         if (Locations_.back()->IsEnabled()) {
             AliveLocations_.push_back(Locations_.back());
