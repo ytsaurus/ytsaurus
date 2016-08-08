@@ -12,15 +12,6 @@ namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TCallback>
-struct TTransactionActionHandlerDescriptor
-{
-    Stroka Type;
-    TCallback Handler;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TTransaction>
 class TTransactionManagerBase
     : public virtual NHydra::TCompositeAutomatonPart

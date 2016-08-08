@@ -27,6 +27,7 @@
 
 #include <yt/server/hive/hive_manager.h>
 #include <yt/server/hive/transaction_supervisor.pb.h>
+#include <yt/server/hive/helpers.h>
 
 #include <yt/server/hydra/hydra_manager.h>
 #include <yt/server/hydra/mutation.h>
@@ -160,10 +161,15 @@ public:
     void Initialize()
     {
         auto transactionManager = Slot_->GetTransactionManager();
+
         transactionManager->SubscribeTransactionPrepared(BIND(&TImpl::OnTransactionPrepared, MakeStrong(this)));
         transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionCommitted, MakeStrong(this)));
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionAborted, MakeStrong(this)));
         transactionManager->SubscribeTransactionTransientReset(BIND(&TImpl::OnTransactionTransientReset, MakeStrong(this)));
+
+        transactionManager->RegisterPrepareActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareReplicateRows, MakeStrong(this))));
+        transactionManager->RegisterCommitActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitReplicateRows, MakeStrong(this))));
+        transactionManager->RegisterAbortActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortReplicateRows, MakeStrong(this))));
     }
 
 
@@ -1471,6 +1477,99 @@ private:
         DisableTableReplica(tablet, replicaInfo);
     }
 
+    void HydraPrepareReplicateRows(TReqReplicateRows* request, bool persistent)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
+        auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
+        if (!replicaInfo) {
+            return;
+        }
+
+        if (replicaInfo->GetPreparedReplicationRowIndex() != -1) {
+            THROW_ERROR_EXCEPTION("Cannot prepare %v rows for replica %v of tablet %v since it already has %v rows prepared",
+                request->new_replication_row_index(),
+                replicaId,
+                tabletId,
+                replicaInfo->GetPreparedReplicationRowIndex());
+        }
+
+        YCHECK(replicaInfo->GetPreparedReplicationRowIndex() <= request->new_replication_row_index());
+        replicaInfo->SetPreparedReplicationRowIndex(request->new_replication_row_index());
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows aborted (TabletId: %v, ReplicaId: %v, "
+            "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v)",
+            tabletId,
+            replicaId,
+            replicaInfo->GetCurrentReplicationRowIndex(),
+            request->new_replication_row_index(),
+            replicaInfo->GetCurrentReplicationTimestamp(),
+            request->new_replication_timestamp());
+
+    }
+
+    void HydraCommitReplicateRows(TReqReplicateRows* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
+        auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
+        if (!replicaInfo) {
+            return;
+        }
+
+        YCHECK(replicaInfo->GetPreparedReplicationRowIndex() == request->new_replication_row_index());
+        replicaInfo->SetPreparedReplicationRowIndex(-1);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows committed (TabletId: %v, ReplicaId: %v, "
+            "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v)",
+            tabletId,
+            replicaId,
+            replicaInfo->GetCurrentReplicationRowIndex(),
+            request->new_replication_row_index(),
+            replicaInfo->GetCurrentReplicationTimestamp(),
+            request->new_replication_timestamp());
+
+        replicaInfo->SetCurrentReplicationRowIndex(request->new_replication_row_index());
+        replicaInfo->SetCurrentReplicationTimestamp(request->new_replication_timestamp());
+    }
+
+    void HydraAbortReplicateRows(TReqReplicateRows* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
+        auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
+        if (!replicaInfo) {
+            return;
+        }
+
+        YCHECK(replicaInfo->GetPreparedReplicationRowIndex() == request->new_replication_row_index());
+        replicaInfo->SetPreparedReplicationRowIndex(-1);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows aborted (TabletId: %v, ReplicaId: %v, "
+            "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v)",
+            tabletId,
+            replicaId,
+            replicaInfo->GetCurrentReplicationRowIndex(),
+            request->new_replication_row_index(),
+            replicaInfo->GetCurrentReplicationTimestamp(),
+            request->new_replication_timestamp());
+    }
+
 
     template <class TRef>
     void HandleRowOnTransactionPrepare(TTransaction* transaction, const TRef& rowRef)
@@ -2256,7 +2355,7 @@ private:
         PopulateTableReplicaInfoFromStatistics(&replicaInfo, descriptor.statistics());
 
         LOG_INFO_UNLESS(IsRecovery(), "Table replica added (TabletId: %v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v, "
-            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %v)",
+            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
             tablet->GetId(),
             replicaId,
             replicaInfo.GetClusterName(),

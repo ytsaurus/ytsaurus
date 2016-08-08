@@ -12,10 +12,19 @@ namespace NHiveServer {
 NHiveClient::NProto::TEncapsulatedMessage SerializeMessage(
     const ::google::protobuf::MessageLite& message);
 
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TCallback>
+struct TTransactionActionHandlerDescriptor
+{
+    Stroka Type;
+    TCallback Handler;
+};
+
 template <class TProto, class... TArgs>
 TTransactionActionHandlerDescriptor<TCallback<void(const Stroka&, TArgs...)>>
 MakeTransactionActionHandlerDescriptor(
-    TCallback<void(const TProto&, TArgs...)> handler);
+    TCallback<void(TProto*, TArgs...)> handler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -176,5 +176,13 @@ message TReqDisableTableReplica
     required NYT.NProto.TGuid replica_id = 2;
 }
 
+message TReqReplicateRows
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid replica_id = 2;
+    required int64 new_replication_row_index = 3;
+    required uint64 new_replication_timestamp = 4;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
