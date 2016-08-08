@@ -204,6 +204,9 @@ YtCommand.prototype.dispatch = function(req, rsp) {
         })
         .then(self._execute.bind(self))
         .catch(function(err) {
+            if (!(err instanceof YtError)) {
+                self.rsp.statusCode = 500;
+            }
             var error = YtError.ensureWrapped(
                 err,
                 "Unhandled error in the command pipeline");
@@ -446,6 +449,12 @@ YtCommand.prototype._redirectHeavyRequests = function() {
     this.__DBG("_redirectHeavyRequests");
 
     if (this.descriptor.is_heavy && this.coordinator.getSelf().role === "control") {
+        if (this.descriptor.input_type_as_integer !== binding.EDataType_Null) {
+            this.rsp.statusCode = 503;
+            this.rsp.setHeader("Retry-After", "60");
+            throw new YtError(
+                "Control proxy may not serve heavy requests with input data");
+        }
         var target = this.coordinator.allocateProxy("data");
         if (target) {
             var is_ssl;
