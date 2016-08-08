@@ -41,10 +41,10 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
 
     spec = get_value(spec, {})
 
-    src = to_name(source_table)
+    src = to_name(source_table, client=client)
     dst = None
     if destination_table is not None:
-        dst = to_name(destination_table)
+        dst = to_name(destination_table, client=client)
 
     if desired_chunk_size is None:
         desired_chunk_size = get_config(client)["transform_options"]["desired_chunk_size"]
