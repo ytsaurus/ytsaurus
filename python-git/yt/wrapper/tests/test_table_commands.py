@@ -83,12 +83,9 @@ class TestTableCommands(object):
         with pytest.raises(yt.YtError):
             yt.row_count(table)
 
-        yt.create_table(table, recursive=True, replication_factor=3)
+        yt.create_table(table, recursive=True)
         assert yt.row_count(table) == 0
         check([], yt.read_table(table, format=yt.DsvFormat()))
-
-        yt.create_table(TEST_DIR + "/compressed", compression_codec="zlib9")
-        assert yt.row_count(TEST_DIR + "/compressed") == 0
 
         yt.run_erase(table)
         assert yt.row_count(table) == 0
