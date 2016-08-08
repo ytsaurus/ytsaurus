@@ -104,6 +104,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("tablet_cell_bundle")
         .SetPresent(table->GetTabletCellBundle() != nullptr));
     descriptors->push_back("atomicity");
+    descriptors->push_back("serializability");
     descriptors->push_back(TAttributeDescriptor("optimize_for")
         .SetCustom(true));
     descriptors->push_back(TAttributeDescriptor("schema_mode"));
@@ -237,6 +238,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
         return true;
     }
 
+    if (key == "serializability") {
+        BuildYsonFluently(consumer)
+            .Value(trunkTable->GetSerializability());
+        return true;
+    }
+
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
@@ -317,6 +324,23 @@ bool TTableNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& 
 
         auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);
         table->SetAtomicity(atomicity);
+        return true;
+    }
+
+    if (key == "serializability") {
+        ValidateNoTransaction();
+
+        auto* table = LockThisImpl();
+        if (table->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Cannot change table serializability mode for sorted table");
+        }
+        if (table->GetTabletState() != ETabletState::Unmounted) {
+            THROW_ERROR_EXCEPTION("Cannot change table serializability mode since not all of its tablets are in %Qlv state",
+                ETabletState::Unmounted);
+        }
+
+        auto serializability = ConvertTo<NTransactionClient::ESerializability>(value);
+        table->SetSerializability(serializability);
         return true;
     }
 

@@ -39,7 +39,6 @@ message TReqMountTablet
     required string mount_config = 7;
     required string writer_options = 8;
     required int32 atomicity = 10; // EAtomicity
-    required int32 serializability = 15; // ESerializability
     required int64 mount_revision = 11;
     required int64 trimmed_row_count = 12;
     required bool freeze = 13;
@@ -140,9 +139,8 @@ message TReqUpdatePartitionSampleKeys
     required NYT.NProto.TGuid tablet_id = 1;
     required int64 mount_revision = 5;
     required NYT.NProto.TGuid partition_id = 4;
-    // COMPAT(babenko)
-    repeated bytes legacy_sample_keys = 3;
-    optional bytes sample_keys = 6; // wire-format encoded
+    required bytes pivot_key = 2;
+    repeated bytes sample_keys = 3;
 }
 
 message TReqAddTableReplica

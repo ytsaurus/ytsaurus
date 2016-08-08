@@ -117,7 +117,8 @@ protected:
             schema,
             sorted ? MinKey() : TOwningKey(),
             sorted ? MaxKey() : TOwningKey(),
-            GetAtomicity());
+            GetAtomicity(),
+            GetSerializability());
 
         auto storeManager = CreateStoreManager(Tablet_.get());
         Tablet_->SetStoreManager(storeManager);
@@ -140,6 +141,11 @@ protected:
     virtual EAtomicity GetAtomicity() const
     {
         return EAtomicity::Full;
+    }
+
+    virtual ESerializability GetSerializability() const
+    {
+        return ESerializability::Full; 
     }
 
 

@@ -25,6 +25,12 @@ DEFINE_ENUM(EDurability,
     ((Async)           (1)) // Reply as soon as the request is enqueued to Hydra
 );
 
+//! Only applies to ordered tables.
+DEFINE_ENUM(ESerializability,
+    ((None)            (0)) // Rows are appended to tablet in order of participant commits
+    ((Full)            (1)) // Rows are appended to tablet in order of timestamps
+);
+
 DEFINE_ENUM(EErrorCode,
     ((NoSuchTransaction)  (11000))
 );

@@ -40,6 +40,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTabletServer::TTabletCellBundle*, TabletCellBundle);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ESerializability, Serializability);
 
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);

@@ -633,6 +633,7 @@ private:
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
         auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request->writer_options()), tabletId);
         auto atomicity = EAtomicity(request->atomicity());
+        auto serializability = ESerializability(request->serializability());
         auto storeDescriptors = FromProto<std::vector<TAddStoreDescriptor>>(request->stores());
         bool freeze = request->freeze();
         auto replicaDescriptors = FromProto<std::vector<TTableReplicaDescriptor>>(request->replicas());
@@ -647,7 +648,8 @@ private:
             schema,
             pivotKey,
             nextPivotKey,
-            atomicity);
+            atomicity,
+            serializability);
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
         if (!tablet->IsPhysicallySorted()) {
@@ -662,7 +664,7 @@ private:
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %x, TableId: %v, Keys: %v .. %v, "
-            "StoreCount: %v, PartitionCount: %v, TrimmedRowCount: %v, Atomicity: %v, Frozen: %v)",
+            "StoreCount: %v, PartitionCount: %v, TrimmedRowCount: %v, Atomicity: %v, Serializability: %v, Frozen: %v)",
             tabletId,
             mountRevision,
             tableId,
@@ -672,6 +674,7 @@ private:
             tablet->IsPhysicallySorted() ? MakeNullable(tablet->PartitionList().size()) : Null,
             tablet->IsPhysicallySorted() ? Null : MakeNullable(tablet->GetTrimmedRowCount()),
             tablet->GetAtomicity(),
+            tablet->GetSerializability(),
             freeze);
 
         for (const auto& descriptor : request->replicas()) {

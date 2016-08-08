@@ -420,6 +420,18 @@ class TestOrderedDynamicTables(YTEnvSetup):
         self.sync_unfreeze_table("//tmp/t")
         self.sync_unmount_table("//tmp/t")
 
+    def test_change_serializability(self):
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@serializability", "none")
+        set("//tmp/t/@serializability", "full")
+        with pytest.raises(YtError): set("//tmp/t/@serializability", "cool")
+
+    def test_no_serializability_change_for_mounted(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        with pytest.raises(YtError): set("//tmp/t/@serializability", "none")
+
 ##################################################################
 
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):
