@@ -2,15 +2,28 @@
 
 #include "public.h"
 
-#include <yt/core/logging/log.h>
-
-#include <yt/core/profiling/profiler.h>
-
 namespace NYT {
 namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTableReplicator
+    : public TRefCounted
+{
+public:
+    TTableReplicator();
+    ~TTableReplicator();
+
+    void Enable();
+    void Disable();
+
+private:
+    class TImpl;
+    const TIntrusivePtr<TImpl> Impl_;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TTableReplicator)
 
 ////////////////////////////////////////////////////////////////////////////////
 

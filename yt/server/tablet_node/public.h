@@ -114,7 +114,6 @@ DEFINE_ENUM(ETabletState,
     ((FreezeLast)              (10))
 );
 
-
 DEFINE_ENUM(EStoreType,
     (SortedDynamic)
     (SortedChunk)
@@ -227,6 +226,8 @@ DECLARE_REFCOUNTED_CLASS(TSecurityManager)
 
 DECLARE_REFCOUNTED_STRUCT(TInMemoryChunkData)
 DECLARE_REFCOUNTED_CLASS(TInMemoryManager)
+
+DECLARE_REFCOUNTED_CLASS(TTableReplicator)
 
 struct TSortedDynamicRowHeader;
 class TSortedDynamicRow;
