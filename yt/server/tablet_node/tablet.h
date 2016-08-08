@@ -143,6 +143,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, ReplicaPath);
 
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State);
+    DEFINE_BYVAL_RW_PROPERTY(i64, CurrentReplicationRowIndex, 0);
+    DEFINE_BYVAL_RW_PROPERTY(i64, PreparedReplicationRowIndex, 0);
+    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CurrentReplicationTimestamp, NullTimestamp);
 
 public:
     TTableReplicaInfo();

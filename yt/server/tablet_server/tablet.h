@@ -84,7 +84,9 @@ void Serialize(const TTabletPerformanceCounters& counters, NYson::IYsonConsumer*
 class TTableReplicaInfo
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State);
+    DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
+    DEFINE_BYVAL_RW_PROPERTY(i64, CurrentReplicationRowIndex, 0);
+    DEFINE_BYVAL_RW_PROPERTY(i64, CurrentReplicationTimestamp, NTransactionClient::NullTimestamp);
 
 public:
     void Save(NCellMaster::TSaveContext& context) const;
