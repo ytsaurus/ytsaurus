@@ -13,14 +13,14 @@ namespace NHiveServer {
 
 template <class TProto, class... TArgs>
 TTransactionActionHandlerDescriptor<TCallback<void(const Stroka&, TArgs...)>> MakeTransactionActionHandlerDescriptor(
-    TCallback<void(const TProto&, TArgs...)> handler)
+    TCallback<void(TProto*, TArgs...)> handler)
 {
     return {
         TProto::default_instance().GetTypeName(),
         BIND([=] (const Stroka& value, TArgs... args) {
             TProto typedValue;
             DeserializeFromProto(&typedValue, TRef::FromString(value));
-            handler.Run(typedValue, args...);
+            handler.Run(&typedValue, args...);
         })
     };
 }
