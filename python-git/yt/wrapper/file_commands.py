@@ -183,23 +183,27 @@ def upload_file_to_cache(filename, hash=None, client=None):
 
     attributes = None
     try:
-        attributes = get(destination + "&/@")
+        attributes = get(destination + "&/@", client=client)
     except YtResponseError as rsp:
         if not rsp.is_resolve_error():
             raise
 
-    link_exists = attributes is not None and attributes["type"] == "link_node"
-    if link_exists and parse_bool(attributes["broken"]):
-        logger.debug("Link '%s' of file '%s' is broken", destination, filename)
-        remove(destination, client=client)
-        link_exists = False
+    link_exists = False
+    if attributes is not None:
+        if attributes["type"] == "link_node":
+            if parse_bool(attributes["broken"]):
+                remove(destination + "&", client=client)
+            else:
+                link_exists = True
+        else:
+            remove(destination + "&", client=client)
 
     if link_exists:
-        logger.debug("Link '%s' of file '%s' exists, skipping upload and set /@touched attribute", destination, filename)
+        logger.debug("Link %s of file %s exists, skipping upload and set /@touched attribute", destination, filename)
         set(destination + "/@touched", "true", client=client)
         set(destination + "&/@touched", "true", client=client)
     else:
-        logger.debug("Link '%s' of file '%s' missing, uploading file", destination, filename)
+        logger.debug("Link %s of file %s missing, uploading file", destination, filename)
         prefix = ypath_join(get_config(client)["remote_temp_files_directory"], os.path.basename(filename))
         real_destination = find_free_subpath(prefix, client=client)
         create("file", real_destination, recursive=True, attributes={"hash": hash, "touched": bool_to_string(True)})
