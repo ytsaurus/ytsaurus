@@ -435,6 +435,7 @@ TTableSchema TTableSchema::ToReplicationLog() const
 {
     YCHECK(IsSorted());
     std::vector<TColumnSchema> columns;
+    columns.push_back(TColumnSchema(TimestampColumnName, EValueType::Uint64));
     columns.push_back(TColumnSchema(TReplicationLogTable::ChangeTypeColumnName, EValueType::Int64));
     for (const auto& column : Columns_) {
         const auto& prefix = column.SortOrder
