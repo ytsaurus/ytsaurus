@@ -699,10 +699,7 @@ class ConfigsProvider_18_3(ConfigsProvider_18_3_18_4):
 class ConfigsProvider_18_4(ConfigsProvider_18_3_18_4):
     pass
 
-class ConfigsProvider_18_5(ConfigsProvider_18_4):
-    pass
-
-class ConfigsProvider_18_6(ConfigsProvider_18):
+class ConfigsProvider_18_5(ConfigsProvider_18):
     def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator):
         configs = super(ConfigsProvider_18_6, self)._build_node_configs(
                 provision, node_dirs, master_connection_configs, ports_generator)
@@ -725,3 +722,6 @@ class ConfigsProvider_18_6(ConfigsProvider_18):
             config["exec_agent"]["slot_manager"]["locations"] = [{"path" : os.path.join(node_dirs[i], "slots")}]
 
         return configs
+
+class ConfigsProvider_18_6(ConfigsProvider_18_5):
+    pass
