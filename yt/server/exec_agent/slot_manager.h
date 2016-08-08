@@ -4,6 +4,7 @@
 
 #include <yt/server/cell_node/public.h>
 
+#include <yt/core/actions/public.h>
 #include <yt/core/concurrency/public.h>
 
 namespace NYT {
@@ -31,6 +32,9 @@ public:
 
     int GetSlotCount() const;
 
+    //! Invoker used for heavy job preparation.
+    IInvokerPtr GetBackgroundInvoker() const;
+
 private:
     const TSlotManagerConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
@@ -38,7 +42,8 @@ private:
     std::vector<TSlotPtr> Slots_;
     std::vector<int> SlotPathCounters_;
 
-    NConcurrency::TActionQueuePtr ActionQueue_ = New<NConcurrency::TActionQueue>("ExecSlots");
+    NConcurrency::TActionQueuePtr SlotsQueue_ = New<NConcurrency::TActionQueue>("Slots");
+    NConcurrency::TActionQueuePtr BackgroundQueue_ = New<NConcurrency::TActionQueue>("SlotsBackground");
 
     bool IsEnabled_ = true;
 

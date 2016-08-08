@@ -182,7 +182,7 @@ void TSlot::DoCleanSandbox(int pathIndex)
             for (const auto& mountPoint : mountPoints) {
                 if (sandboxFullPath.is_prefix(mountPoint.Path)) {
                     // '/*' added since we need to remove only content.
-                    removeMointPount(mountPoint.Path);
+                    removeMountPoint(mountPoint.Path);
                 }
             }
         }
