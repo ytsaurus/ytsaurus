@@ -7,7 +7,7 @@ from errors import YtError, YtResponseError
 from http import get_api_version
 from heavy_commands import make_write_request, make_read_request
 from cypress_commands import remove, exists, set_attribute, mkdir, find_free_subpath, \
-                             create, link, get_attribute, set, ypath_join
+                             create, link, get, set, ypath_join
 from table import to_table
 
 from yt.yson import to_yson_type
@@ -96,7 +96,7 @@ def download_file(path, file_reader=None, offset=None, length=None, client=None)
     return read_file(path=path, file_reader=file_reader,
                      offset=offset, length=length, client=client)
 
-def write_file(destination, stream, file_writer=None, is_stream_compressed=False, client=None):
+def write_file(destination, stream, file_writer=None, is_stream_compressed=False, force_create=None, client=None):
     """Upload file to destination path from stream on local machine.
 
     :param destination: (string or `TablePath`) destination path in Cypress
@@ -105,7 +105,16 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
     :param is_stream_compressed: (bool) expect stream to contain compressed data. \
     This data can be passed directly to proxy without recompression. Be careful! this option \
     disables write retries.
+    :param force_create: (bool) unconditionally create file and ignores exsting file.
     """
+
+    if force_create is None:
+        force_create = True
+
+    def prepare_file(path):
+        if not force_create:
+            return
+        create("file", path, ignore_existing=True, client=client)
 
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
 
@@ -149,7 +158,7 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
         stream,
         destination,
         params,
-        lambda path: create("file", path, ignore_existing=True, client=client),
+        prepare_file,
         enable_retries,
         is_stream_compressed=is_stream_compressed,
         client=client)
@@ -161,6 +170,44 @@ def upload_file(stream, destination, file_writer=None, client=None):
     Be careful renaming upload_file to write_file!
     """
     write_file(destination=destination, stream=stream, file_writer=file_writer, client=client)
+
+def is_executable(filename, client=None):
+    return os.access(filename, os.X_OK) or get_config(client)["yamr_mode"]["always_set_executable_flag_on_files"]
+
+def upload_file_to_cache(filename, hash=None, client=None):
+    if hash is None:
+        hash = md5sum(filename)
+
+    hash_path = ypath_join(get_config(client)["remote_temp_files_directory"], "hash")
+    destination = ypath_join(hash_path, hash)
+
+    attributes = None
+    try:
+        attributes = get(destination + "&/@")
+    except YtResponseError as rsp:
+        if not rsp.is_resolve_error():
+            raise
+
+    link_exists = attributes is not None and attributes["type"] == "link_node"
+    if link_exists and parse_bool(attributes["broken"]):
+        logger.debug("Link '%s' of file '%s' is broken", destination, filename)
+        remove(destination, client=client)
+        link_exists = False
+
+    if link_exists:
+        logger.debug("Link '%s' of file '%s' exists, skipping upload and set /@touched attribute", destination, filename)
+        set(destination + "/@touched", "true", client=client)
+        set(destination + "&/@touched", "true", client=client)
+    else:
+        logger.debug("Link '%s' of file '%s' missing, uploading file", destination, filename)
+        prefix = ypath_join(get_config(client)["remote_temp_files_directory"], os.path.basename(filename))
+        real_destination = find_free_subpath(prefix, client=client)
+        create("file", real_destination, recursive=True, attributes={"hash": hash, "touched": bool_to_string(True)})
+        write_file(real_destination, open(filename, "rb"), client=client)
+        link(real_destination, destination, recursive=True, ignore_existing=True,
+             attributes={"touched": bool_to_string(True)}, client=client)
+
+    return destination
 
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None,
                       ignore_set_attributes_error=True, hash=None, client=None):
@@ -200,86 +247,36 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     require(placement_strategy in ["replace", "ignore", "random", "hash"],
             lambda: YtError("Incorrect file placement strategy " + placement_strategy))
 
-    if destination is None:
-        # create file storage dir and hash subdir
-        mkdir(ypath_join(get_config(client)["remote_temp_files_directory"], "hash"), recursive=True, client=client)
-        prefix = ypath_join(get_config(client)["remote_temp_files_directory"], os.path.basename(filename))
-        destination = prefix
-        if placement_strategy == "random":
-            destination = find_free_subpath(prefix, client=client)
-        if placement_strategy == "ignore" and exists(destination, client=client):
-            return
-        if yt_filename is None:
-            yt_filename = os.path.basename(filename)
-    else:
-        if placement_strategy in ["hash", "random"]:
-            raise YtError("Destination should not be specified if strategy is hash or random")
-        mkdir(os.path.dirname(destination), recursive=True, client=client)
-        if yt_filename is None:
-            yt_filename = os.path.basename(destination)
-
-    if placement_strategy == "replace":
-        remove(destination, force=True, client=client)
-
-    logger.debug("Uploading file '%s' with strategy '%s'", filename, placement_strategy)
-
     if placement_strategy == "hash":
-        if hash is None:
-            hash = md5sum(filename)
-        hash_path = ypath_join(get_config(client)["remote_temp_files_directory"], "hash")
-        destination = ypath_join(hash_path, hash)
-
-        destination_is_file = False
-        try:
-            link_exists = exists(destination + "&", client=client)
-        except YtResponseError as rsp:
-            # XXX(asaitgalin): destination can be file instead of link and
-            # in this case exists() will fail with 'Unexpected "ampersand" token "&"'
-            if not rsp.is_resolve_error():
-                raise
-
-            destination_type = get_attribute(destination, "type")
-            if destination_type != "file":
-                raise YtError("Path {0} should contain only files or links, found {1}: {2}"
-                              .format(hash_path, destination_type, destination))
-
-            link_exists = True
-            destination_is_file = True
-
-        # COMPAT(ignat): old versions of 0.14 have not support attribute broken
-        try:
-            broken = parse_bool(get_attribute(destination + "&", "broken", client=client))
-        except YtResponseError as rsp:
-            if not rsp.is_resolve_error():
-                raise
-            broken = False
-
-        if link_exists:
-            if broken:
-                logger.debug("Link '%s' of file '%s' exists but is broken", destination, filename)
-                remove(destination, client=client)
-                link_exists = False
-            else:
-                # Touch file and link to update modification time
-                try:
-                    set(destination + "/@touched", "true", client=client)
-                    if not destination_is_file:
-                        set(destination + "&/@touched", "true", client=client)
-                except YtResponseError as err:
-                    # FIXME(asaitgalin): Remove when st/YT-5055 is done.
-                    if not err.is_concurrent_transaction_lock_conflict():
-                        raise
-        if not link_exists:
-            real_destination = find_free_subpath(prefix, client=client)
-            upload_with_check(real_destination)
-            link(real_destination, destination, ignore_existing=True, client=client)
-            set_attribute(real_destination, "hash", hash, client=client)
-        else:
-            if not destination_is_file:
-                logger.debug("Link '%s' of file '%s' exists, skipping upload", destination, filename)
-            else:
-                logger.debug("Node '%s' exists but it is a file, skipping upload", destination)
+        if destination is not None:
+            raise YtError("Option 'destination' can not be specified if strategy is 'hash'")
+        if yt_filename is not None:
+            raise YtError("Option 'yt_filename' can not be specified if strategy is 'hash'")
+        yt_filename = os.path.basename(filename)
+        destination = upload_file_to_cache(filename, hash, client=client)
     else:
+        if destination is None:
+            # create file storage dir and hash subdir
+            mkdir(ypath_join(get_config(client)["remote_temp_files_directory"], "hash"), recursive=True, client=client)
+            prefix = ypath_join(get_config(client)["remote_temp_files_directory"], os.path.basename(filename))
+            destination = prefix
+            if placement_strategy == "random":
+                destination = find_free_subpath(prefix, client=client)
+            if placement_strategy == "ignore" and exists(destination, client=client):
+                return
+            if yt_filename is None:
+                yt_filename = os.path.basename(filename)
+        else:
+            if placement_strategy in ["hash", "random"]:
+                raise YtError("Destination should not be specified if strategy is hash or random")
+            mkdir(os.path.dirname(destination), recursive=True, client=client)
+            if yt_filename is None:
+                yt_filename = os.path.basename(destination)
+
+        if placement_strategy == "replace":
+            remove(destination, force=True, client=client)
+
+        logger.debug("Uploading file '%s' with strategy '%s'", filename, placement_strategy)
         upload_with_check(destination)
 
     executable = os.access(filename, os.X_OK) or get_config(client)["yamr_mode"]["always_set_executable_flag_on_files"]

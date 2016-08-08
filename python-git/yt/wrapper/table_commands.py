@@ -54,7 +54,7 @@ from table import TablePath, to_table, to_name, prepare_path
 from cypress_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
                              move, mkdir, find_free_subpath, create, get, get_type, \
                              _make_formatted_transactional_request, has_attribute, ypath_join
-from file_commands import smart_upload_file
+from file_commands import upload_file_to_cache, is_executable
 from operation_commands import Operation
 from transaction_commands import _make_transactional_request, abort_transaction
 from transaction import Transaction, null_transaction_id
@@ -180,10 +180,16 @@ def _reliably_upload_files(files, client=None):
     with Transaction(transaction_id=null_transaction_id, attributes={"title": "Python wrapper: upload operation files"}, client=client):
         for file in flatten(files):
             if isinstance(file, basestring):
-                path = smart_upload_file(file, client=client)
+                file_params = {"filename": file}
             else:
-                path = smart_upload_file(client=client, **file)
-            file_paths.append(path)
+                file_params = file
+            filename = file_params["filename"]
+
+            path = upload_file_to_cache(client=client, **file_params)
+            file_paths.append(yson.to_yson_type(path, attributes={
+                "executable": is_executable(filename, client=client),
+                "file_name": os.path.basename(filename),
+            }))
     return file_paths
 
 def _is_python_function(binary):
@@ -524,7 +530,7 @@ def create_temp_table(path=None, prefix=None, client=None):
     return name
 
 def write_table(table, input_stream, format=None, table_writer=None, replication_factor=None,
-                compression_codec=None, is_stream_compressed=False, raw=None,
+                compression_codec=None, is_stream_compressed=False, force_create=None, raw=None,
                 client=None):
     """Write rows from input_stream to table.
 
@@ -539,6 +545,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     :param is_stream_compressed: (bool) expect stream to contain compressed table data. \
     This data can be passed directly to proxy without recompression. Be careful! this option \
     disables write retries.
+    :param force_create: (bool) unconditionally creates table and ignores existing table.
 
     Python Wrapper try to split input stream to portions of fixed size and write its with retries.
     If splitting fails, stream is written as is through HTTP.
@@ -549,6 +556,9 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
+
+    if force_create is None:
+        force_create = True
 
     if is_stream_compressed and not raw:
         raise YtError("Compressed stream is only supported for raw tabular data")
@@ -563,6 +573,8 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
         params["table_writer"] = table_writer
 
     def prepare_table(path):
+        if not force_create:
+            return
         if get_config(client)["yamr_mode"]["check_codec_and_replication_factor"] and exists(path, client=client):
             create_table_attributes = get_config(client)["create_table_attributes"]
             replication_factor_actual = get_value(
