@@ -179,6 +179,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::deque<TStoreId>, PreloadStoreIds);
 
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
+    DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::ESerializability, Serializability);
 
     DEFINE_BYVAL_RO_PROPERTY(int, HashTableSize);
 
@@ -203,7 +204,8 @@ public:
         const NTableClient::TTableSchema& schema,
         TOwningKey pivotKey,
         TOwningKey nextPivotKey,
-        NTransactionClient::EAtomicity atomicity);
+        NTransactionClient::EAtomicity atomicity,
+        NTransactionClient::ESerializability serializability);
 
     ETabletState GetPersistentState() const;
 

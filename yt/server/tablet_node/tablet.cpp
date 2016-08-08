@@ -160,7 +160,8 @@ TTablet::TTablet(
     const TTableSchema& schema,
     TOwningKey pivotKey,
     TOwningKey nextPivotKey,
-    EAtomicity atomicity)
+    EAtomicity atomicity,
+    ESerializability serializability)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
@@ -169,6 +170,7 @@ TTablet::TTablet(
     , NextPivotKey_(std::move(nextPivotKey))
     , State_(ETabletState::Mounted)
     , Atomicity_(atomicity)
+    , Serializability_(serializability)
     , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
     , Config_(config)
     , WriterOptions_(writerOptions)
@@ -243,6 +245,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, GetPersistentState());
     Save(context, TableSchema_);
     Save(context, Atomicity_);
+    Save(context, Serializability_);
     Save(context, HashTableSize_);
     Save(context, RuntimeData_->TrimmedRowCount);
     Save(context, RuntimeData_->LastCommitTimestamp);
@@ -281,6 +284,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, State_);
     Load(context, TableSchema_);
     Load(context, Atomicity_);
+    Load(context, Serializability_);
     Load(context, HashTableSize_);
     Load(context, RuntimeData_->TrimmedRowCount);
     Load(context, RuntimeData_->LastCommitTimestamp);

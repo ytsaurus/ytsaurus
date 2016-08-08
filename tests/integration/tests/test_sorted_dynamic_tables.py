@@ -1623,6 +1623,11 @@ class TestSortedDynamicTables(YTEnvSetup):
         self._test_mount_static_table("uncompressed", True)
 
 
+    def test_cannot_change_serializability(self):
+        self._create_simple_table("//tmp/t")
+        assert get("//tmp/t/@serializability") == "full"
+        with pytest.raises(YtError): set("//tmp/t/@serializability", "none")
+
 ##################################################################
 
 class TestSortedDynamicTablesMetadataCaching(YTEnvSetup):
