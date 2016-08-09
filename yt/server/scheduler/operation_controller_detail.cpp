@@ -2955,10 +2955,11 @@ void TOperationControllerBase::FetchInputTables()
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
+        std::vector<int> rangeIndices;
 
-        for (const auto& range : ranges) {
+        for (int rangeIndex = 0; rangeIndex < static_cast<int>(ranges.size()); ++rangeIndex) {
             for (i64 index = 0; index * Config->MaxChunksPerFetch < table.ChunkCount; ++index) {
-                auto adjustedRange = range;
+                auto adjustedRange = ranges[rangeIndex];
                 auto chunkCountLowerLimit = index * Config->MaxChunksPerFetch;
                 if (adjustedRange.LowerLimit().HasChunkIndex()) {
                     chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
@@ -2983,6 +2984,7 @@ void TOperationControllerBase::FetchInputTables()
                 req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
                 SetTransactionId(req, InputTransaction->GetId());
                 batchReq->AddRequest(req, "fetch");
+                rangeIndices.push_back(rangeIndex);
             }
         }
 
@@ -2992,8 +2994,8 @@ void TOperationControllerBase::FetchInputTables()
         const auto& batchRsp = batchRspOrError.Value();
 
         auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch");
-        for (const auto& rspOrError : rspsOrError) {
-            const auto& rsp = rspOrError.Value();
+        for (int resultIndex = 0; resultIndex < static_cast<int>(rspsOrError.size()); ++resultIndex) {
+            const auto& rsp = rspsOrError[resultIndex].Value();
             std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
             ProcessFetchResponse(
                 AuthenticatedInputMasterClient,
@@ -3001,6 +3003,7 @@ void TOperationControllerBase::FetchInputTables()
                 table.CellTag,
                 InputNodeDirectory,
                 Config->MaxChunksPerLocateRequest,
+                rangeIndices[resultIndex],
                 Logger,
                 &chunkSpecs);
 
@@ -3371,6 +3374,7 @@ void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
                 file.CellTag,
                 AuxNodeDirectory,
                 Config->MaxChunksPerLocateRequest,
+                Null,
                 Logger,
                 &file.ChunkSpecs);
         }
