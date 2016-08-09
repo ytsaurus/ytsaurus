@@ -564,7 +564,7 @@ private:
             const auto& networks = Client_->GetConnection()->GetConfig()->Networks;
             for (const auto& target : targets) {
                 auto address = target.GetAddress(networks);
-                auto lightChannel = Client_->GetNodeChannelFactory()->CreateChannel(address);
+                auto lightChannel = Client_->GetLightChannelFactory()->CreateChannel(address);
                 auto heavyChannel = CreateRetryingChannel(
                     Config_->NodeChannel,
                     Client_->GetHeavyChannelFactory()->CreateChannel(address),

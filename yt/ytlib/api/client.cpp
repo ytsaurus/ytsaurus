@@ -1158,7 +1158,7 @@ public:
         return SchedulerChannel_;
     }
 
-    virtual INodeChannelFactoryPtr GetNodeChannelFactory() override
+    virtual INodeChannelFactoryPtr GetLightChannelFactory() override
     {
         return LightChannelFactory_;
     }
