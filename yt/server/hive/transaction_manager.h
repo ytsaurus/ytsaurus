@@ -15,18 +15,6 @@ namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTransactionActionData
-{
-    //! Protobuf message type.
-    Stroka Type;
-    //! Protobuf-encoded value.
-    Stroka Value;
-
-    void Persist(TStreamPersistenceContext& context);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct ITransactionManager
     : public virtual TRefCounted
 {

@@ -21,6 +21,7 @@ using NObjectClient::NullTransactionId;
 
 using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
+using NTransactionClient::TTransactionActionData;
 
 using NHiveServer::ETransactionState;
 

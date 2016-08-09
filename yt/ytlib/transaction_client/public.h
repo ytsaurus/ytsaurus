@@ -10,6 +10,14 @@ namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TTransactionActionData;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ETransactionType,
     ((Master)          (0)) // Accepted by both masters and tablets
     ((Tablet)          (1)) // Accepted by tablets only
@@ -35,6 +43,7 @@ DEFINE_ENUM(EErrorCode,
     ((NoSuchTransaction)  (11000))
 );
 
+struct TTransactionActionData;
 DECLARE_REFCOUNTED_CLASS(TTransaction)
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 

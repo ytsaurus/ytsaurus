@@ -3,9 +3,11 @@
 #include "config.h"
 #include "helpers.h"
 #include "timestamp_provider.h"
+#include "action.h"
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/transaction_supervisor_service_proxy.h>
+#include <yt/ytlib/hive/transaction_participant_service_proxy.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
@@ -33,6 +35,9 @@ using namespace NRpc;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTabletClient;
+
+using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,7 +80,7 @@ private:
     yhash_set<TTransaction::TImpl*> AliveTransactions_;
 
 
-    TTransactionSupervisorServiceProxy MakeSupervisorProxy(IChannelPtr channel, bool retry = true)
+    TTransactionSupervisorServiceProxy MakeSupervisorProxy(IChannelPtr channel, bool retry)
     {
         if (retry) {
             channel = CreateRetryingChannel(Config_, std::move(channel));
@@ -85,9 +90,9 @@ private:
         return proxy;
     }
 
-    TTabletServiceProxy MakeTabletProxy(IChannelPtr channel)
+    TTransactionParticipantServiceProxy MakeParticipantProxy(IChannelPtr channel)
     {
-        TTabletServiceProxy proxy(std::move(channel));
+        TTransactionParticipantServiceProxy proxy(std::move(channel));
         proxy.SetDefaultTimeout(Config_->RpcTimeout);
         return proxy;
     }
@@ -171,11 +176,14 @@ public:
         PingAncestors_ = options.PingAncestors;
         State_ = ETransactionState::Active;
 
-        YCHECK(ParticiapantCellIds_.insert(Owner_->CellId_).second);
+        {
+            auto guard = Guard(SpinLock_);
+            FindOrAddParticipant(Owner_->CellId_);
+        }
 
         Register();
 
-        LOG_INFO("Master transaction attached (TransactionId: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
+        LOG_DEBUG("Master transaction attached (TransactionId: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
             Id_,
             AutoAbort_,
             Ping_,
@@ -189,9 +197,8 @@ public:
     TFuture<void> Commit(const TTransactionCommitOptions& options)
     {
         try {
-
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
                 Error_.ThrowOnError();
                 switch (State_) {
                     case ETransactionState::Committing:
@@ -213,39 +220,11 @@ public:
             }
 
             switch (Atomicity_) {
-                case EAtomicity::Full: {
-                    auto participantIds = GetParticipantIds();
-                    if (participantIds.empty()) {
-                        SetTransactionCommitted();
-                        return VoidFuture;
-                    }
-
-                    auto coordinatorCellId = Type_ == ETransactionType::Master
-                        ? Owner_->CellId_
-                        : participantIds[RandomNumber(participantIds.size())];
-
-                    LOG_INFO("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
-                        Id_,
-                        coordinatorCellId);
-
-                    auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
-                    auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel));
-                    auto req = proxy.CommitTransaction();
-                    ToProto(req->mutable_transaction_id(), Id_);
-                    for (const auto& cellId : participantIds) {
-                        if (cellId != coordinatorCellId) {
-                            ToProto(req->add_participant_cell_ids(), cellId);
-                        }
-                    }
-                    SetOrGenerateMutationId(req, options.MutationId, options.Retry);
-
-                    return req->Invoke().Apply(
-                        BIND(&TImpl::OnAtomicTransactionCommitted, MakeStrong(this), coordinatorCellId));
-                }
+                case EAtomicity::Full:
+                    return DoCommitAtomic(options);
 
                 case EAtomicity::None:
-                    SetTransactionCommitted();
-                    return VoidFuture;
+                    return DoCommitNonAtomic();
 
                 default:
                     Y_UNREACHABLE();
@@ -298,7 +277,7 @@ public:
         YCHECK(Atomicity_ == EAtomicity::Full);
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             switch (State_) {
                 case ETransactionState::Committed:
                     THROW_ERROR_EXCEPTION("Transaction %v is already committed", Id_);
@@ -320,7 +299,7 @@ public:
             }
         }
 
-        LOG_INFO("Transaction detached (TransactionId: %v)",
+        LOG_DEBUG("Transaction detached (TransactionId: %v)",
             Id_);
     }
 
@@ -348,7 +327,7 @@ public:
 
     ETransactionState GetState()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         return State_;
     }
 
@@ -368,7 +347,7 @@ public:
     }
 
 
-    void AddTabletParticipant(const TCellId& cellId)
+    void AddParticipant(const TCellId& cellId)
     {
         YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
 
@@ -378,20 +357,41 @@ public:
         }
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
 
             if (State_ != ETransactionState::Active) {
                 return;
             }
 
-            if (!ParticiapantCellIds_.insert(cellId).second) {
-                return;
-            }
+            FindOrAddParticipant(cellId);
+        }
+    }
+
+    void AddAction(const TCellId& cellId, const TTransactionActionData& data)
+    {
+        YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
+
+
+        if (Atomicity_ != EAtomicity::Full) {
+            THROW_ERROR_EXCEPTION("Atomicity must be %Qlv for custom actions",
+                EAtomicity::Full);
         }
 
-        LOG_DEBUG("Transaction tablet participant added (TransactionId: %v, CellId: %v)",
+        {
+            auto guard = Guard(SpinLock_);
+
+            if (State_ != ETransactionState::Active) {
+                return;
+            }
+
+            auto* info = FindOrAddParticipant(cellId);
+            info->Actions.push_back(data);
+        }
+
+        LOG_DEBUG("Transaction action added (TransactionId: %v, CellId: %v, ActionType: %v)",
             Id_,
-            cellId);
+            cellId,
+            data.Type);
     }
 
 
@@ -427,7 +427,7 @@ public:
 private:
     friend class TTransactionManager::TImpl;
 
-    TIntrusivePtr<TTransactionManager::TImpl> Owner_;
+    const TIntrusivePtr<TTransactionManager::TImpl> Owner_;
     ETransactionType Type_;
     bool AutoAbort_ = false;
     bool Sticky_ = false;
@@ -439,10 +439,18 @@ private:
     EDurability Durability_ = EDurability::Sync;
 
     TSpinLock SpinLock_;
+
     ETransactionState State_ = ETransactionState::Initializing;
+
     TSingleShotCallbackList<void()> Committed_;
     TSingleShotCallbackList<void()> Aborted_;
-    yhash_set<TCellId> ParticiapantCellIds_;
+
+    struct TParticipantInfo
+    {
+        std::vector<TTransactionActionData> Actions;
+    };
+    yhash_map<TCellId, TParticipantInfo> ParticiapantMap_;
+
     TError Error_;
 
     TTimestamp StartTimestamp_ = NullTimestamp;
@@ -547,7 +555,7 @@ private:
 
         Register();
 
-        LOG_INFO("Starting transaction (StartTimestamp: %v, Type: %v)",
+        LOG_DEBUG("Starting transaction (StartTimestamp: %v, Type: %v)",
             StartTimestamp_,
             Type_);
 
@@ -592,9 +600,12 @@ private:
         const auto& rsp = rspOrError.Value();
         Id_ = FromProto<TTransactionId>(rsp->object_id());
 
-        YCHECK(ParticiapantCellIds_.insert(Owner_->CellId_).second);
+        {
+            auto guard = Guard(SpinLock_);
+            FindOrAddParticipant(Owner_->CellId_);
+        }
 
-        LOG_INFO("Master transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
+        LOG_DEBUG("Master transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
             Id_,
             StartTimestamp_,
             AutoAbort_,
@@ -621,7 +632,7 @@ private:
 
         State_ = ETransactionState::Active;
 
-        LOG_INFO("Atomic tablet transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v)",
+        LOG_DEBUG("Atomic tablet transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v)",
             Id_,
             StartTimestamp_,
             AutoAbort_);
@@ -648,7 +659,7 @@ private:
 
         State_ = ETransactionState::Active;
 
-        LOG_INFO("Non-atomic tablet transaction started (TransactionId: %v, Durability: %v)",
+        LOG_DEBUG("Non-atomic tablet transaction started (TransactionId: %v, Durability: %v)",
             Id_,
             Durability_);
 
@@ -663,7 +674,7 @@ private:
     void SetTransactionCommitted()
     {
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             if (State_ != ETransactionState::Committing) {
                 THROW_ERROR Error_;
             }
@@ -672,8 +683,77 @@ private:
 
         FireCommitted();
 
-        LOG_INFO("Transaction committed (TransactionId: %v)",
+        LOG_DEBUG("Transaction committed (TransactionId: %v)",
             Id_);
+    }
+
+    TFuture<void> DoCommitAtomic(const TTransactionCommitOptions& options)
+    {
+        if (ParticiapantMap_.empty()) {
+            SetTransactionCommitted();
+            return VoidFuture;
+        }
+
+        std::vector<TFuture<void>> registerActionsAsyncResults;
+        for (const auto& pair : ParticiapantMap_) {
+            const auto& cellId = pair.first;
+            const auto& participant = pair.second;
+            if (participant.Actions.empty()) {
+                continue;
+            }
+
+            auto channel = Owner_->CellDirectory_->GetChannelOrThrow(cellId);
+            auto proxy = Owner_->MakeParticipantProxy(std::move(channel));
+            auto req = proxy.RegisterTransactionActions();
+            ToProto(req->mutable_transaction_id(), Id_);
+            ToProto(req->mutable_actions(), participant.Actions);
+
+            LOG_DEBUG("Registering transaction actions (TransactionId: %v, CellId: %v, ActionCount: %v)",
+                Id_,
+                cellId,
+                participant.Actions.size());
+
+            registerActionsAsyncResults.push_back(req->Invoke().As<void>());
+        }
+
+        auto registerActionsAsyncResult = Combine(registerActionsAsyncResults);
+        return registerActionsAsyncResult.Apply(BIND(
+            &TImpl::OnTransactionActionsRegistered,
+            MakeStrong(this),
+            options));
+    }
+
+    TFuture<void> DoCommitNonAtomic()
+    {
+        SetTransactionCommitted();
+        return VoidFuture;
+    }
+
+    TFuture<void> OnTransactionActionsRegistered(const TTransactionCommitOptions& options)
+    {
+        auto participantCellIds = GetKeys(ParticiapantMap_);
+        auto coordinatorCellId = Type_ == ETransactionType::Master
+            ? Owner_->CellId_
+            : participantCellIds[RandomNumber(participantCellIds.size())];
+
+        LOG_DEBUG("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
+            Id_,
+            coordinatorCellId);
+
+        auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
+        auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), true);
+        auto req = proxy.CommitTransaction();
+        ToProto(req->mutable_transaction_id(), Id_);
+        for (const auto& pair : ParticiapantMap_) {
+            const auto& cellId = pair.first;
+            if (cellId != coordinatorCellId) {
+                ToProto(req->add_participant_cell_ids(), cellId);
+            }
+        }
+        SetOrGenerateMutationId(req, options.MutationId, options.Retry);
+
+        return req->Invoke().Apply(
+            BIND(&TImpl::OnAtomicTransactionCommitted, MakeStrong(this), coordinatorCellId));
     }
 
     void OnAtomicTransactionCommitted(
@@ -794,7 +874,7 @@ private:
                 continue;
             }
 
-            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel));
+            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), true);
             auto req = proxy.AbortTransaction();
             ToProto(req->mutable_transaction_id(), Id_);
             req->set_force(options.Force);
@@ -839,9 +919,10 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
-            if (State_ == ETransactionState::Aborted)
+            auto guard = Guard(SpinLock_);
+            if (State_ == ETransactionState::Aborted) {
                 return;
+            }
             State_ = ETransactionState::Aborted;
             Error_ = error;
         }
@@ -850,10 +931,28 @@ private:
     }
 
 
+    TParticipantInfo* FindOrAddParticipant(const TCellId& cellId)
+    {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
+        auto it = ParticiapantMap_.find(cellId);
+        if (it != ParticiapantMap_.end()) {
+            auto pair = ParticiapantMap_.emplace(cellId, TParticipantInfo());
+            YCHECK(pair.second);
+            it = pair.first;
+
+            LOG_DEBUG("Transaction participant added (TransactionId: %v, CellId: %v)",
+                Id_,
+                cellId);
+        }
+
+        return &it->second;
+    }
+
     std::vector<TCellId> GetParticipantIds()
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        return std::vector<TCellId>(ParticiapantCellIds_.begin(), ParticiapantCellIds_.end());
+        return GetKeys(ParticiapantMap_);
     }
 };
 
@@ -983,9 +1082,14 @@ TDuration TTransaction::GetTimeout() const
     return Impl_->GetTimeout();
 }
 
-void TTransaction::AddTabletParticipant(const TCellId& cellId)
+void TTransaction::AddParticipant(const TCellId& cellId)
 {
-    Impl_->AddTabletParticipant(cellId);
+    Impl_->AddParticipant(cellId);
+}
+
+void TTransaction::AddAction(const TCellId& cellId, const TTransactionActionData& data)
+{
+    Impl_->AddAction(cellId, data);
 }
 
 DELEGATE_SIGNAL(TTransaction, void(), Committed, *Impl_);
