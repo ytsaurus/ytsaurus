@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import traceback_helpers
 from task_types import Task
 from logger import TaskIdLogger
@@ -237,7 +235,7 @@ def run_executor(config_path):
     if executor_path.endswith(".pyc"):
         executor_path = executor_path[:-1]
 
-    return subprocess.Popen([executor_path, "--config-path", config_path],
+    return subprocess.Popen(["/usr/bin/env", "python", executor_path, "--config-path", config_path],
                             stdout=subprocess.PIPE, stdin=subprocess.PIPE,
                             preexec_fn=lambda: prctl.set_pdeathsig(signal.SIGINT), close_fds=True)
 
