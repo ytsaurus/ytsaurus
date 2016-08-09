@@ -69,13 +69,13 @@ YtApplicationHosts.prototype._dispatchBasic = function(req, rsp, suffix, role)
 
         var origin = req.headers.origin;
         if (typeof(origin) === "string") {
-            if (/\yandex-team\.ru$/.test(origin)) {
+            if (/yandex-team\.ru$/.test(origin)) {
                 need_to_rewrite = true;
             }
         }
         var host = req.headers.host;
         if (typeof(host) === "string") {
-            if (/\yandex-team\.ru/.test(host)) {
+            if (/yandex-team\.ru/.test(host)) {
                 need_to_rewrite = true;
             }
         }

@@ -457,13 +457,18 @@ YtCommand.prototype._redirectHeavyRequests = function() {
         }
         var target = this.coordinator.allocateProxy("data");
         if (target) {
-            var is_ssl;
-            is_ssl = this.req.connection.getCipher && this.req.connection.getCipher();
-            is_ssl = !!is_ssl;
-            var url =
-                (is_ssl ? "https://" : "http://") +
-                target.host +
-                this.req.originalUrl;
+            var proto = "http://";
+            if (this.req.connection.getCipher && this.req.connection.getCipher()) {
+                proto = "https://";
+            }
+            var target_host = target.host;
+            var source_host = this.req.headers.host;
+            if (typeof(source_host) === "string") {
+                if (/yandex-team\.ru$/.test(source_host)) {
+                    target_host = target_host.replace("yandex.net", "yandex-team.ru");
+                }
+            }
+            var url = proto + target_host + this.req.originalUrl;
             utils.redirectTo(this.rsp, url, 307);
             throw new YtError();
         } else {

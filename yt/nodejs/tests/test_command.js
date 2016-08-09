@@ -1477,5 +1477,18 @@ describe("YtCommand - specific behaviour", function() {
             rsp.statusCode.should.eql(503);
         }, done).end();
     });
+
+    it("should redirect yandex-team.ru requests to yandex-team.ru domain", function(done) {
+        sinon.stub(this.coordinator, "getSelf").returns({role: "control"});
+        var mock = sinon.mock(this.coordinator);
+        mock
+            .expects("allocateProxy").once().withExactArgs("data")
+            .returns({host: "proxy.yt.yandex.net"});
+        ask("GET", V + "/read?path=//t", {"Host": "proxy.yt.yandex-team.ru"}, function(rsp) {
+            rsp.statusCode.should.eql(307);
+            rsp.headers.location.should.eql("http://proxy.yt.yandex-team.ru/v2/read?path=//t");
+            mock.verify();
+        }, done).end();
+    });
 });
 
