@@ -153,6 +153,11 @@ class IJob
     : public TThrRefBase
 {
 public:
+    enum class EType {
+        Mapper,
+        Reducer
+    };
+
     virtual void Save(TOutputStream& stream) const
     {
         Y_UNUSED(stream);
@@ -174,6 +179,7 @@ class IMapper
     : public IJob
 {
 public:
+    static const EType JobType = EType::Mapper;
     using TReader = TR;
     using TWriter = TW;
 
@@ -195,6 +201,7 @@ class IReducer
     : public IJob
 {
 public:
+    static const EType JobType = EType::Reducer;
     using TReader = TR;
     using TWriter = TW;
 
