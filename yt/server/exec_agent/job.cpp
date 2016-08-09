@@ -119,10 +119,10 @@ public:
         auto slotManager = Bootstrap_->GetExecSlotManager();
         Slot_ = slotManager->AcquireSlot();
 
-        auto invoker = CancelableContext_->CreateInvoker(Slot_->GetInvoker());
+        CancellableInvoker_ = CancelableContext_->CreateInvoker(Slot_->GetInvoker());
 
         BIND(&TJob::Run, MakeWeak(this))
-            .AsyncVia(invoker)
+            .AsyncVia(CancellableInvoker_)
             .Run();
     }
 
@@ -358,6 +358,7 @@ private:
     EJobPhase JobPhase_ = EJobPhase::Created;
 
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
+    IInvokerPtr CancellableInvoker_;
 
     TFuture<void> PrepareResult_ = VoidFuture;
 
@@ -449,7 +450,7 @@ private:
     {
         try {
             auto prepareResult = BIND(&TJob::DoPrepare, MakeWeak(this))
-                .AsyncVia(GetCurrentInvoker())
+                .AsyncVia(Slot_->GetInvoker())
                 .Run();
 
             {
@@ -761,17 +762,11 @@ private:
 
             if (copyFiles) {
                 try {
-                    // Do copying in a separate thread.
-                    WaitFor(BIND(
-                        &TSlot::MakeCopy, 
-                        Slot_, 
+                    Slot_->MakeCopy( 
                         sandboxKind,
                         chunk->GetFileName(),
                         info.Name,
-                        info.IsExecutable)
-                    .AsyncVia(Bootstrap_->GetExecSlotManager()->GetBackgroundInvoker())
-                    .Run())
-                    .ThrowOnError();
+                        info.IsExecutable);
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION(
                         "Failed to create a copy of user file %Qv",

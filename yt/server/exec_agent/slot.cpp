@@ -36,14 +36,13 @@ TSlot::TSlot(
     TSlotManagerConfigPtr config,
     std::vector<Stroka> paths,
     const Stroka& nodeId,
-    IInvokerPtr invoker,
     int slotIndex,
     TNullable<int> userId)
     : Paths_(std::move(paths))
     , NodeId_(nodeId)
     , SlotIndex_(slotIndex)
     , UserId_(userId)
-    , Invoker_(std::move(invoker))
+    , ActionQueue_(New<TActionQueue>(Format("ExecSlot%v", slotIndex)))
     , ProcessGroup_("freezer", GetSlotProcessGroup(slotIndex))
     , NullCGroup_()
     , Logger(ExecAgentLogger)
@@ -387,7 +386,7 @@ const Stroka& TSlot::GetWorkingDirectory() const
 
 IInvokerPtr TSlot::GetInvoker()
 {
-    return Invoker_;
+    return ActionQueue_->GetInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

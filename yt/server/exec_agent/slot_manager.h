@@ -33,7 +33,7 @@ public:
     int GetSlotCount() const;
 
     //! Invoker used for heavy job preparation.
-    IInvokerPtr GetBackgroundInvoker() const;
+    IInvokerPtr GetBackgroundInvoker(int slotIndex) const;
 
 private:
     const TSlotManagerConfigPtr Config_;
@@ -42,11 +42,7 @@ private:
     std::vector<TSlotPtr> Slots_;
     std::vector<int> SlotPathCounters_;
 
-    NConcurrency::TActionQueuePtr SlotsQueue_ = New<NConcurrency::TActionQueue>("Slots");
-    NConcurrency::TActionQueuePtr BackgroundQueue_ = New<NConcurrency::TActionQueue>("SlotsBackground");
-
     bool IsEnabled_ = true;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotManager)
