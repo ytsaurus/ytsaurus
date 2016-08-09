@@ -586,54 +586,25 @@ void Chmod(const Stroka& path, int mode)
 #endif
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TCopyDescriptor
-    : public TIntrinsicRefCounted
-{
-public:
-    TCopyDescriptor(const Stroka& existingPath, const Stroka& newPath, i64 chunkSize)
-        : Source_(existingPath)
-        , Destination(TFile(newPath, CreateAlways | WrOnly | Seq))
-        , Buffer(TChunkedCopyTag(), chunkSize, false)
-    { }
-
-    //! Returns true if there is more data to copy.
-    bool CopyNextChunk()
-    {
-        auto size = Source_.Load(Buffer.Begin(), Buffer.Size());
-        Destination.Write(Buffer.Begin(), size);
-
-        return size == Buffer.Size();
-    }
-
-private:
-    struct TChunkedCopyTag {};
-
-    TFileInput Source_;
-    TFileOutput Destination;
-    TBlob Buffer;
-};
-
-DECLARE_REFCOUNTED_CLASS(TCopyDescriptor)
-DEFINE_REFCOUNTED_TYPE(TCopyDescriptor)
-
 void ChunkedCopy(
     const Stroka& existingPath, 
     const Stroka& newPath, 
-    i64 chunkSize, 
-    IInvokerPtr invoker) 
+    i64 chunkSize) 
 {
-    auto descriptor = New<TCopyDescriptor>(existingPath, newPath, chunkSize);
-    while (true) {
-        auto hasMore = NConcurrency::WaitFor(BIND(&TCopyDescriptor::CopyNextChunk, descriptor)
-            .AsyncVia(invoker)
-            .Run())
-            .ValueOrThrow();
+    struct TChunkedCopyTag { };
 
-        if (!hasMore) {
+    TFileInput src(existingPath);
+    TFileOutput dst(TFile(newPath, CreateAlways | WrOnly | Seq));
+    TBlob buffer(TChunkedCopyTag(), chunkSize, false);
+
+    while (true) {
+        auto size = src.Load(buffer.Begin(), buffer.Size());
+        dst.Write(buffer.Begin(), size);
+
+        if (size < buffer.Size()) {
             break;
         }
+        NConcurrency::Yield();
     }
 }
 

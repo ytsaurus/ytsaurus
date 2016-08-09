@@ -369,7 +369,15 @@ void TSlot::MakeCopy(
         file.Flock(LOCK_EX);
     }
 
-    NFS::ChunkedCopy(sourcePath, destinationPath, Config_->FileCopyChunkSize, BackgroundInvoker_);
+    WaitFor(BIND(
+        NFS::ChunkedCopy, 
+        sourcePath, 
+        destinationPath, 
+        Config_->FileCopyChunkSize)
+    .AsyncVia(BackgroundInvoker_)
+    .Run())
+    .ThrowOnError();
+    
     NFS::SetExecutableMode(destinationPath, isExecutable);
 }
 
