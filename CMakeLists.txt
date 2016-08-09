@@ -292,9 +292,7 @@ if(YT_CAN_BUILD_PACKAGE)
   hook_for_debian(yandex-yt-perl perl-module)
   hook_for_debian(yandex-yt-perl-${YT_ABI_VERSION} perl-abi)
   hook_for_debian(yandex-yt-python-2-7-driver yt-python-2-7-driver)
-  hook_for_debian(yandex-yt-python-2-7-yson yt-python-2-7-yson)
   hook_for_debian(yandex-yt-python-skynet-driver yt-python-skynet-driver)
-  hook_for_debian(yandex-yt-python-skynet-yson yt-python-skynet-yson)
 else()
   add_custom_target(package touch package-stamp
     COMMAND ${CMAKE_COMMAND} -E echo -- PACKAGE BUILD IS DISABLED -- SEE CMAKE OUTPUT && exit 100
