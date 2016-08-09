@@ -39,6 +39,7 @@ def prepare(options):
         cwd=options.checkout_directory)
 
     options.build_enable_nodejs = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_NODEJS", "YES"))
+    options.build_enable_python_2_6 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_2_6", "YES"))
     options.build_enable_python_2_7 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_2_7", "YES"))
     options.build_enable_python_skynet = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_SKYNET", "YES"))
     options.build_enable_perl = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PERL", "YES"))
@@ -51,6 +52,11 @@ def prepare(options):
 
     if codename not in ["lucid", "precise", "trusty"]:
         raise RuntimeError("Unknown LSB distribution code name: {0}".format(codename))
+
+    if codename == "lucid":
+        options.build_enable_python = options.build_enable_python_2_6
+    elif codename in ["precise", "trusty"]:
+        options.build_enable_python = options.build_enable_python_2_7
 
     options.codename = codename
     options.repositories = ["yt-" + codename]
@@ -240,7 +246,7 @@ def run_javascript_tests(options):
 
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
-    if not options.build_enable_python_2_7:
+    if not options.build_enable_python:
         return
 
     if pytest_args is None:
