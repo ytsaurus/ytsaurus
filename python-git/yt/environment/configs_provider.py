@@ -715,18 +715,14 @@ class ConfigsProvider_18_5(ConfigsProvider_18):
                 "start_uid" : start_uid,
             }
             config["exec_agent"]["slot_manager"]["locations"] = [{"path" : os.path.join(node_dirs[i], "slots")}]
+            config["exec_agent"]["slot_manager"]["paths"] = [os.path.join(node_dirs[i], "slots")]
 
-        return configs
-
-class ConfigsProvider_18_6(ConfigsProvider_18_5):
-    def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator):
-        configs = super(ConfigsProvider_18_6, self)._build_node_configs(
-                provision, node_dirs, master_connection_configs, ports_generator)
-
-        for i, config in enumerate(configs):
             config["addresses"] = [
                 ("interconnect", provision["fqdn"]),
                 ("default", provision["fqdn"])
             ]
 
         return configs
+
+class ConfigsProvider_18_6(ConfigsProvider_18_5):
+    pass
