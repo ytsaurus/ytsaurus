@@ -106,7 +106,7 @@ ISlotPtr TSlotManager::AcquireSlot()
 
     if (AliveLocations_.empty()) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::AllLocationsDisabled, 
+            EErrorCode::AllLocationsDisabled,
             "Cannot acquire slot: all slot locations are disabled");
     }
 
@@ -136,8 +136,8 @@ int TSlotManager::GetSlotCount() const
 
 bool TSlotManager::IsEnabled() const
 {
-    return SlotCount_ > 0 && 
-        !AliveLocations_.empty() && 
+    return SlotCount_ > 0 &&
+        !AliveLocations_.empty() &&
         JobEnviroment_->IsEnabled();
 }
 

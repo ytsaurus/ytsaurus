@@ -85,7 +85,7 @@ void TSlotLocation::CreateSandboxDirectories(int slotIndex)
                      NFS::ForcePath(sandboxPath, 0777);
                  }
              } catch (const std::exception& ex) {
-                 auto error = TError("Failed to create sandbox directories for slot %v", slotPath) 
+                 auto error = TError("Failed to create sandbox directories for slot %v", slotPath)
                     << ex;
                  Disable(error);
                  THROW_ERROR error;
@@ -111,7 +111,7 @@ void TSlotLocation::MakeSandboxCopy(
             auto destinationPath = NFS::CombinePaths(sandboxPath, destinationName);
 
             LOG_DEBUG("Making sandbox copy (SourcePath: %v, DestinationName: %v)", sourcePath, destinationName);
-            
+
             try {
                 // This validations do not disable slot.
                 ValidateNotExists(destinationPath);
@@ -125,12 +125,12 @@ void TSlotLocation::MakeSandboxCopy(
                 NFS::SetExecutableMode(destinationPath, executable);
             } catch (const std::exception& ex) {
                 try {
-                    // If tmpfs does not have enough space, this is a user error, not location error. 
+                    // If tmpfs does not have enough space, this is a user error, not location error.
                     // Let's check it first, before disabling location.
 
                     const auto& systemError = dynamic_cast<const TSystemError&>(ex);
                     if (IsInsideTmpfs(destinationPath) && systemError.Status() == ENOSPC) {
-                        THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v: tmpfs is too small", destinationName, sandboxPath) 
+                        THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v: tmpfs is too small", destinationName, sandboxPath)
                             << ex;
                     }
                 } catch (const std::bad_cast& badCast) {
@@ -167,7 +167,7 @@ void TSlotLocation::MakeSandboxLink(
                 // This validations do not disable slot.
                 ValidateNotExists(linkPath);
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath) 
+                THROW_ERROR_EXCEPTION("Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
                     << ex;
             }
 
@@ -176,7 +176,7 @@ void TSlotLocation::MakeSandboxLink(
                 NFS::SetExecutableMode(targetPath, executable);
                 NFS::MakeSymbolicLink(targetPath, linkPath);
             } catch (const std::exception& ex) {
-                auto error = TError("Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath) 
+                auto error = TError("Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
                     << ex;
                 Disable(error);
                 THROW_ERROR error;
@@ -242,7 +242,7 @@ Stroka TSlotLocation::MakeSandboxTmpfs(
                 TmpfsPaths_.insert(tmpfsPath);
                 return tmpfsPath;
             } catch (const std::exception& ex) {
-                auto error = TError("Failed to mount tmpfs %v into sandbox %v", path, sandboxPath) 
+                auto error = TError("Failed to mount tmpfs %v into sandbox %v", path, sandboxPath)
                     << ex;
                 Disable(error);
                 THROW_ERROR error;
