@@ -135,8 +135,7 @@ void Chmod(const Stroka& path, int mode);
 void ChunkedCopy(
     const Stroka& existingPath, 
     const Stroka& newPath, 
-    i64 chunkSize, 
-    IInvokerPtr invoker);
+    i64 chunkSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 
