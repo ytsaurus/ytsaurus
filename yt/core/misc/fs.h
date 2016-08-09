@@ -131,7 +131,7 @@ void ExpectIOErrors(std::function<void()> func);
 //! Sets a given mode on the path.
 void Chmod(const Stroka& path, int mode);
 
-//! Copies file chunk after chunk. Actual copying is done in #invoker.
+//! Copies file chunk after chunk, releasing thread between chunks.
 void ChunkedCopy(
     const Stroka& existingPath, 
     const Stroka& newPath, 
