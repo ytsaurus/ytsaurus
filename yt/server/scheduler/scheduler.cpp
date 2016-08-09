@@ -835,7 +835,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto factory = Bootstrap_->GetMasterClient()->GetNodeChannelFactory();
+        auto factory = Bootstrap_->GetMasterClient()->GetLightChannelFactory();
         auto channel = factory->CreateChannel(address);
 
         TJobProberServiceProxy proxy(channel);
