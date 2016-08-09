@@ -12,6 +12,10 @@ struct INativeTransaction
     : public INativeClientBase
     , public ITransaction
 {
+    virtual void AddAction(
+        const NElection::TCellId& cellId,
+        const NTransactionClient::TTransactionActionData& data) = 0;
+
     virtual TFuture<ITransactionPtr> StartSlaveTransaction(
         IClientPtr client,
         const TTransactionStartOptions& options = TTransactionStartOptions()) = 0;

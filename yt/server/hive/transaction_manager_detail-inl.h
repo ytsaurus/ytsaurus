@@ -32,7 +32,9 @@ TTransaction* TTransactionManagerBase<TTransaction>::GetPersistentTransactionOrT
 }
 
 template <class TTransaction>
-void TTransactionManagerBase<TTransaction>::RegisterAction(const TTransactionId& transactionId, const TTransactionActionData& data)
+void TTransactionManagerBase<TTransaction>::RegisterAction(
+    const TTransactionId& transactionId,
+    const TTransactionActionData& data)
 {
     auto* transaction = GetPersistentTransactionOrThrow(transactionId);
     auto state = transaction->GetPersistentState();

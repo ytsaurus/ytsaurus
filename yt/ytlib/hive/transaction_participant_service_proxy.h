@@ -29,6 +29,7 @@ public:
         : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
     { }
 
+    DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, RegisterTransactionActions);
     DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, PrepareTransaction);
     DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, CommitTransaction);
     DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, AbortTransaction);

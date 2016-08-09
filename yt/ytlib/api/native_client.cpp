@@ -3093,6 +3093,12 @@ public:
             .Run();
     }
 
+    virtual void AddAction(
+        const TCellId& cellId,
+        const TTransactionActionData& data) override
+    {
+        Transaction_->AddAction(cellId, data);
+    }
 
     virtual TFuture<ITransactionPtr> StartSlaveTransaction(
         IClientPtr client,
@@ -3784,7 +3790,7 @@ private:
             }
 
             LOG_DEBUG("Batch sent successfully");
-            owner->Transaction_->AddTabletParticipant(TabletInfo_->CellId);
+            owner->Transaction_->AddParticipant(TabletInfo_->CellId);
             ++InvokeBatchIndex_;
             InvokeNextBatch();
         }
@@ -3884,7 +3890,7 @@ private:
             for (const auto& flushResult : flushResults) {
                 asyncRequestResults.push_back(flushResult.AsyncResult);
                 for (const auto& cellId : flushResult.ParticipantCellIds) {
-                    Transaction_->AddTabletParticipant(cellId);
+                    Transaction_->AddParticipant(cellId);
                 }
             }
 

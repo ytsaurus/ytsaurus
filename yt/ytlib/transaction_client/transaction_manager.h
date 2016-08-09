@@ -77,9 +77,12 @@ public:
     TDuration GetTimeout() const;
 
 
-    //! Called to mark a given cell as a transaction participant.
+    //! Marks a given cell as a transaction participant.
     //! The transaction must have already been started at the participant.
-    void AddTabletParticipant(const NElection::TCellId& cellId);
+    void AddParticipant(const NElection::TCellId& cellId);
+
+    //! Attaches an action data to a given #cellId. This makes this cell a participant.
+    void AddAction(const NElection::TCellId& cellId, const TTransactionActionData& data);
 
 
     //! Raised when the transaction is committed.

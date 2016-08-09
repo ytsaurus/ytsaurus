@@ -19,6 +19,7 @@
 #include <yt/ytlib/hive/transaction_participant_service_proxy.h>
 
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/transaction_client/action.h>
 
 #include <yt/ytlib/api/connection.h>
 
@@ -92,6 +93,7 @@ public:
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorCommitDistributedTransactionPhaseTwo, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoorindatorAbortTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorFinishDistributedTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraParticipantRegisterTransactionActions, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraParticipantPrepareTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraParticipantCommitTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraParticipantAbortTransaction, Unretained(this)));
@@ -476,12 +478,29 @@ private:
                 TTransactionParticipantServiceProxy::GetServiceName(),
                 TTransactionParticipantServiceProxy::GetProtocolVersion())
         {
+            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PrepareTransaction));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
         }
 
     private:
+        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionParticipant, RegisterTransactionActions)
+        {
+            ValidatePeer(EPeerKind::Leader);
+
+            auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+            context->SetRequestInfo("TransactionId: %v, ActionCount: %v",
+                transactionId,
+                request->actions_size());
+
+            auto owner = GetOwnerOrThrow();
+
+            CreateMutation(owner->HydraManager_, context)
+                ->CommitAndReply(context);
+        }
+
         DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionParticipant, PrepareTransaction)
         {
             ValidatePeer(EPeerKind::Leader);
@@ -837,6 +856,23 @@ private:
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Distributed transaction commit finished (TransactionId: %v)",
             transactionId);
+    }
+
+    void HydraParticipantRegisterTransactionActions(NHiveClient::NProto::NTransactionParticipant::TReqRegisterTransactionActions* request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto actions = FromProto<std::vector<TTransactionActionData>>(request->actions());
+
+        try {
+            for (const auto& data : actions) {
+                // Any exception thrown here is caught below.
+                TransactionManager_->RegisterAction(transactionId, data);
+            }
+        } catch (const std::exception& ex) {
+            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error registering transaction action (TransactionId: %v)",
+                transactionId);
+            throw;
+        }
     }
 
     void HydraParticipantPrepareTransaction(NHiveClient::NProto::NTransactionParticipant::TReqPrepareTransaction* request)

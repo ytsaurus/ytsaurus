@@ -317,6 +317,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tablet_client/table_replica_ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/tablet_client/heartbeat.proto
 
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_client/action.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_client/action.proto
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/remote_timestamp_provider.cpp

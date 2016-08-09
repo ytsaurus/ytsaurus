@@ -21,6 +21,7 @@ using NElection::TCellId;
 
 using NTransactionClient::TTransactionId;
 using NTransactionClient::TTimestamp;
+using NTransactionClient::TTransactionActionData;
 
 using NHiveClient::TMessageId;
 
@@ -31,8 +32,6 @@ DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizer)
 
 DECLARE_ENTITY_TYPE(TMailbox, TCellId, ::THash<TCellId>)
 DECLARE_ENTITY_TYPE(TCommit, TTransactionId, ::THash<TTransactionId>)
-
-struct TTransactionActionData;
 
 using TTransactionPrepareActionHandler = TCallback<void(const Stroka&, bool persistent)>;
 using TTransactionCommitActionHandler = TCallback<void(const Stroka&)>;

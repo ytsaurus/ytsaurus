@@ -96,7 +96,7 @@ private:
         bool pingAncestors) override;
     virtual void RegisterAction(
         const TTransactionId& transactionId,
-        const NHiveServer::TTransactionActionData& data) override;
+        const TTransactionActionData& data) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionManager)

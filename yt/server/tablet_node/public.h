@@ -61,6 +61,7 @@ using NTransactionClient::NullTimestamp;
 using NTransactionClient::SyncLastCommittedTimestamp;
 using NTransactionClient::AsyncLastCommittedTimestamp;
 using NTransactionClient::AllCommittedTimestamp;
+using NTransactionClient::TTransactionActionData;
 
 using NTableClient::EValueType;
 using NTableClient::TKey;
