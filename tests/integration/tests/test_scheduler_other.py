@@ -1394,16 +1394,23 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    # This is a mix of options for 18.4 and 18.5
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "scheduler_connector": {
-                "heartbeat_period": 100 # 100 msec
-            },
-            "enable_cgroups" : True,
-            "supported_cgroups" : [ "cpuacct", "blkio", "memory", "cpu" ],
-            "slot_manager" : {
-                "enforce_job_control"    : True,
-                "memory_watchdog_period" : 100
+            "enable_cgroups": True,                                       # <= 18.4
+            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],   # <= 18.4
+            "slot_manager": {
+                "enforce_job_control": True,                              # <= 18.4
+                "memory_watchdog_period" : 100,                           # <= 18.4
+                "job_environment" : {
+                    "type" : "cgroups",                                   # >= 18.5
+                    "memory_watchdog_period" : 100,                       # >= 18.5
+                    "supported_cgroups": [                                # >= 18.5
+                        "cpuacct", 
+                        "blkio", 
+                        "memory", 
+                        "cpu"],
+                },
             }
         }
     }
