@@ -34,9 +34,9 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
                     "type" : "cgroups",                                   # >= 18.5
                     "memory_watchdog_period" : 100,                       # >= 18.5
                     "supported_cgroups": [                                # >= 18.5
-                        "cpuacct", 
-                        "blkio", 
-                        "memory", 
+                        "cpuacct",
+                        "blkio",
+                        "memory",
                         "cpu"],
                 },
             }
@@ -102,9 +102,9 @@ class TestMemoryReserveFactor(YTEnvSetup):
                     "type" : "cgroups",                                   # >= 18.5
                     "memory_watchdog_period" : 100,                       # >= 18.5
                     "supported_cgroups": [                                # >= 18.5
-                        "cpuacct", 
-                        "blkio", 
-                        "memory", 
+                        "cpuacct",
+                        "blkio",
+                        "memory",
                         "cpu"],
                 },
             }
@@ -152,7 +152,7 @@ while len(a) * 100000 < 7e7:
             command="python mapper.py",
             file="//tmp/mapper.py",
             spec={ "resource_limits" : {"cpu" : 1},
-                   "job_count" : job_count, 
+                   "job_count" : job_count,
                    "mapper" : {"memory_limit": 10**8}})
 
         time.sleep(1)

@@ -737,7 +737,7 @@ class TestSchedulingTags(YTEnvSetup):
         set("//sys/pools{0}/@acl/0/action".format(acl_path), "deny")
         with pytest.raises(YtError):
             _run_op()
-    
+
     def test_global_pool_acl(self):
         self._test_pool_acl_prologue()
         # TODO(babenko): use make_ace after merging into 18.5
@@ -1406,9 +1406,9 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
                     "type" : "cgroups",                                   # >= 18.5
                     "memory_watchdog_period" : 100,                       # >= 18.5
                     "supported_cgroups": [                                # >= 18.5
-                        "cpuacct", 
-                        "blkio", 
-                        "memory", 
+                        "cpuacct",
+                        "blkio",
+                        "memory",
                         "cpu"],
                 },
             }
@@ -1426,13 +1426,13 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t", [{"foo": i} for i in xrange(10)])
-        
+
         op1 = map(
             dont_track=True,
             command='echo -ne "x = 1\nwhile True:\n    x = (x * x + 1) % 424243" | python',
             in_="//tmp/t",
             out="//tmp/t1")
-        
+
         op2 = map(
             dont_track=True,
             command='sleep 1000',
@@ -1447,10 +1447,10 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
                 time.sleep(1)
             else:
                 break
-        
+
         job1_id = running_jobs1.keys()[0]
         job2_id = running_jobs2.keys()[0]
-       
+
         for i in xrange(200):
             suspicious1 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/suspicious".format(op1.id, job1_id))
             suspicious2 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/suspicious".format(op2.id, job2_id))
@@ -1466,6 +1466,6 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         suspicious_jobs = get("//sys/scheduler/orchid/scheduler/suspicious_jobs")
         assert len(suspicious_jobs) == 1
         assert job2_id in suspicious_jobs
-        
+
         op1.abort()
         op2.abort()

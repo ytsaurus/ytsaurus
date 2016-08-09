@@ -33,7 +33,7 @@ struct ISlot
 
     virtual TFuture<void> RunJobProxy(
         NJobProxy::TJobProxyConfigPtr config,
-        const TJobId& jobId, 
+        const TJobId& jobId,
         const TOperationId& operationId) = 0;
 
     virtual void MakeLink(
