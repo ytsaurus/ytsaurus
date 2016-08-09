@@ -29,7 +29,6 @@ public:
         TSlotManagerConfigPtr config,
         std::vector<Stroka> paths,
         const Stroka& nodeId,
-        IInvokerPtr invoker,
         int slotIndex,
         TNullable<int> userId);
 
@@ -83,7 +82,8 @@ private:
     const Stroka NodeId_;
     const int SlotIndex_;
     const TNullable<int> UserId_;
-    const IInvokerPtr Invoker_;
+
+    NConcurrency::TActionQueuePtr ActionQueue_;
 
     std::vector<TEnumIndexedVector<Stroka, ESandboxKind>> SandboxPaths_;
 
