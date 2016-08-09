@@ -37,12 +37,15 @@ TSlot::TSlot(
     std::vector<Stroka> paths,
     const Stroka& nodeId,
     int slotIndex,
-    TNullable<int> userId)
+    TNullable<int> userId,
+    IInvokerPtr slotsInvoker,
+    IInvokerPtr backgroundInvoker)
     : Paths_(std::move(paths))
     , NodeId_(nodeId)
     , SlotIndex_(slotIndex)
     , UserId_(userId)
-    , ActionQueue_(New<TActionQueue>(Format("ExecSlot%v", slotIndex)))
+    , SlotsInvoker_(slotsInvoker)
+    , BackgroundInvoker_(backgroundInvoker)
     , ProcessGroup_("freezer", GetSlotProcessGroup(slotIndex))
     , NullCGroup_()
     , Logger(ExecAgentLogger)
@@ -366,10 +369,9 @@ void TSlot::MakeCopy(
         file.Flock(LOCK_EX);
     }
 
-    NFs::Copy(sourcePath, destinationPath);
+    NFS::ChunkedCopy(sourcePath, destinationPath, Config_->FileCopyChunkSize, BackgroundInvoker_);
     NFS::SetExecutableMode(destinationPath, isExecutable);
 }
-
 
 void TSlot::LogErrorAndExit(const TError& error)
 {
@@ -386,7 +388,7 @@ const Stroka& TSlot::GetWorkingDirectory() const
 
 IInvokerPtr TSlot::GetInvoker()
 {
-    return ActionQueue_->GetInvoker();
+    return SlotsInvoker_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

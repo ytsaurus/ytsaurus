@@ -2,6 +2,7 @@
 #include "finally.h"
 
 #include <yt/core/logging/log.h>
+#include <yt/core/misc/ref_counted.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/proc.h>
@@ -583,6 +584,57 @@ void Chmod(const Stroka& path, int mode)
 #else
     ThrowNotSupported();
 #endif
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCopyDescriptor
+    : public TIntrinsicRefCounted
+{
+public:
+    TCopyDescriptor(const Stroka& existingPath, const Stroka& newPath, i64 chunkSize)
+        : Source_(existingPath)
+        , Destination(TFile(newPath, CreateAlways | WrOnly | Seq))
+        , Buffer(TChunkedCopyTag(), chunkSize, false)
+    { }
+
+    //! Returns true if there is more data to copy.
+    bool CopyNextChunk()
+    {
+        auto size = Source_.Load(Buffer.Begin(), Buffer.Size());
+        Destination.Write(Buffer.Begin(), size);
+
+        return size == Buffer.Size();
+    }
+
+private:
+    struct TChunkedCopyTag {};
+
+    TFileInput Source_;
+    TFileOutput Destination;
+    TBlob Buffer;
+};
+
+DECLARE_REFCOUNTED_CLASS(TCopyDescriptor)
+DEFINE_REFCOUNTED_TYPE(TCopyDescriptor)
+
+void ChunkedCopy(
+    const Stroka& existingPath, 
+    const Stroka& newPath, 
+    i64 chunkSize, 
+    IInvokerPtr invoker) 
+{
+    auto descriptor = New<TCopyDescriptor>(existingPath, newPath, chunkSize);
+    while (true) {
+        auto hasMore = NConcurrency::WaitFor(BIND(&TCopyDescriptor::CopyNextChunk, descriptor)
+            .AsyncVia(invoker)
+            .Run())
+            .ValueOrThrow();
+
+        if (!hasMore) {
+            break;
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
