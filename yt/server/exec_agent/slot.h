@@ -30,7 +30,9 @@ public:
         std::vector<Stroka> paths,
         const Stroka& nodeId,
         int slotIndex,
-        TNullable<int> userId);
+        TNullable<int> userId,
+        IInvokerPtr slotsInvoker,
+        IInvokerPtr backgroundInvoker);
 
     void Initialize();
 
@@ -83,7 +85,8 @@ private:
     const int SlotIndex_;
     const TNullable<int> UserId_;
 
-    NConcurrency::TActionQueuePtr ActionQueue_;
+    IInvokerPtr SlotsInvoker_;
+    IInvokerPtr BackgroundInvoker_;
 
     std::vector<TEnumIndexedVector<Stroka, ESandboxKind>> SandboxPaths_;
 

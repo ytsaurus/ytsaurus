@@ -85,7 +85,9 @@ void TSlotManager::Initialize(int slotCount)
                 std::move(slotPaths),
                 Format("yt-node-%v", nodeRpcPort),
                 slotId,
-                userId);
+                userId,
+                SlotsQueue_->GetInvoker(),
+                BackgroundQueue_->GetInvoker());
             slot->Initialize();
             Slots_.push_back(slot);
         }

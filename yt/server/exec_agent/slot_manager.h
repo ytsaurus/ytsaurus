@@ -42,6 +42,9 @@ private:
     std::vector<TSlotPtr> Slots_;
     std::vector<int> SlotPathCounters_;
 
+    NConcurrency::TActionQueuePtr SlotsQueue_ = New<NConcurrency::TActionQueue>("Slots");
+    NConcurrency::TActionQueuePtr BackgroundQueue_ = New<NConcurrency::TActionQueue>("SlotsBackground");
+
     bool IsEnabled_ = true;
 };
 
