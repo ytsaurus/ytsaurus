@@ -129,6 +129,7 @@ def configure(options):
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
         "-DYT_BUILD_GIT_DEPTH={0}".format(options.build_git_depth),
         "-DYT_BUILD_ENABLE_NODEJS={0}".format(format_yes_no(options.build_enable_nodejs)),
+        "-DYT_BUILD_ENABLE_PYTHON_2_6={0}".format(format_yes_no(options.build_enable_python_2_6)),
         "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(format_yes_no(options.build_enable_python_2_7)),
         "-DYT_BUILD_ENABLE_PYTHON_SKYNET={0}".format(format_yes_no(options.build_enable_python_skynet)),
         "-DYT_BUILD_ENABLE_PERL={0}".format(format_yes_no(options.build_enable_perl)),
