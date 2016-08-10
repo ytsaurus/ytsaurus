@@ -73,6 +73,8 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
     ((Brotli8)                   (10))
 );
 
+const int MaxBlockSize = 1 << 30;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCompression

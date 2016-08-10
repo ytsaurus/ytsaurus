@@ -124,6 +124,9 @@ public:
     //! Fail node if some error occured during slot cleanup.
     bool SlotInitializationFailureIsFatal;
 
+    //! Chunk size used for copying chunks if #copy_chunks is set to %true in operation spec.
+    i64 FileCopyChunkSize;
+
     TSlotManagerConfig()
     {
         RegisterParameter("locations", Locations);
@@ -134,6 +137,10 @@ public:
             .Default(ConvertToNode(New<TSimpleJobEnvironmentConfig>()));
         RegisterParameter("slot_initialization_failure_is_fatal", SlotInitializationFailureIsFatal)
             .Default(false);
+
+        RegisterParameter("file_copy_chunk_size", FileCopyChunkSize)
+            .GreaterThanOrEqual(1024)
+            .Default((i64)10 * 1024 * 1024);
     }
 };
 

@@ -43,6 +43,7 @@ message TRspAbortOperation
 message TReqSuspendOperation
 {
     required NYT.NProto.TGuid operation_id = 1;
+    optional bool abort_running_jobs = 2;
 }
 
 message TRspSuspendOperation

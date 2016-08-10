@@ -7,6 +7,8 @@
 
 #include "common.h"
 
+#include <yt/core/actions/public.h>
+
 namespace NYT {
 namespace NFS {
 
@@ -128,6 +130,12 @@ void ExpectIOErrors(std::function<void()> func);
 
 //! Sets a given mode on the path.
 void Chmod(const Stroka& path, int mode);
+
+//! Copies file chunk after chunk, releasing thread between chunks.
+void ChunkedCopy(
+    const Stroka& existingPath, 
+    const Stroka& newPath, 
+    i64 chunkSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 

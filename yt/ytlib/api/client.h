@@ -416,7 +416,9 @@ struct TAbortOperationOptions
 
 struct TSuspendOperationOptions
     : public TTimeoutOptions
-{ };
+{
+    bool AbortRunningJobs = false;
+};
 
 struct TResumeOperationOptions
     : public TTimeoutOptions

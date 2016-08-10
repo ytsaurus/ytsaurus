@@ -49,6 +49,9 @@ ELSE()
 
 set(PYTHON_LINK_FLAGS "-static-libstdc++")
 
+execute_process(COMMAND lsb_release --codename --short
+                OUTPUT_VARIABLE LSB_RELEASE)
+
 if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   set(
     PYTHON_LINK_FLAGS
@@ -72,6 +75,21 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
   string(TOLOWER ${PYTHON_KIND} PYTHON_KIND_LOWER)
   string(REPLACE "_" "-" PYTHON_KIND_DASHED ${PYTHON_KIND_LOWER})
   set(TARGET_NAME_PREFIX "yt-python-${PYTHON_KIND_DASHED}-")
+
+  set(IS_NATIVE_SYSTEM_PYTHON False)
+  if(${PYTHON_KIND} MATCHES "^2_7$")
+    if(${LSB_RELEASE} MATCHES "precise")
+      set(IS_NATIVE_SYSTEM_PYTHON True)
+    endif()
+    if(${LSB_RELEASE} MATCHES "trusty")
+      set(IS_NATIVE_SYSTEM_PYTHON True)
+    endif()
+  endif()
+  if(${PYTHON_KIND} MATCHES "^2_6$")
+    if(${LSB_RELEASE} MATCHES "lucid")
+      set(IS_NATIVE_SYSTEM_PYTHON True)
+    endif()
+  endif()
 
   add_library(${TARGET_NAME_PREFIX}pycxx STATIC ${PYCXX_SRCS})
   target_include_directories(${TARGET_NAME_PREFIX}pycxx PUBLIC ${PYCXX_BASE} ${PYTHON_${PYTHON_KIND}_INCLUDE_DIR})
@@ -100,7 +118,7 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
       COMPONENT ${TARGET_NAME}
     )
 
-    if(${PYTHON_KIND} MATCHES "^2_7$")
+    if(${IS_NATIVE_SYSTEM_PYTHON})
       exec_program(
         ${CMAKE_COMMAND} ARGS -E create_symlink
         ${LIBRARY_OUTPUT_PATH}/pyshared-${PYTHON_KIND_DASHED}/${COMPONENT}_lib${CMAKE_SHARED_MODULE_SUFFIX}

@@ -55,7 +55,7 @@ public:
         const Stroka& user);
 
     TFuture<void> AbortOperation(TOperationPtr operation, const TError& error, const Stroka& user);
-    TFuture<void> SuspendOperation(TOperationPtr operation, const Stroka& user);
+    TFuture<void> SuspendOperation(TOperationPtr operation, const Stroka& user, bool abortRunningJobs);
     TFuture<void> ResumeOperation(TOperationPtr operation, const Stroka& user);
     TFuture<void> CompleteOperation(
         TOperationPtr operation,

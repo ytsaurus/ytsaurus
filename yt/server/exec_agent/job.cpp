@@ -745,6 +745,10 @@ private:
             return EAbortReason::ResourceOverdraft;
         }
 
+        if (resultError.FindMatching(NExecAgent::EErrorCode::WaitingJobTimeout)) {
+            return EAbortReason::WaitingTimeout;
+        }
+
         if (resultError.FindMatching(NExecAgent::EErrorCode::AbortByScheduler)) {
             return EAbortReason::Scheduler;
         }
