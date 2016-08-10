@@ -4,8 +4,6 @@
 # -lock
 # -unlock
 #
-# -archive
-# -unarchive
 # -repair
 #
 # -profileformat
@@ -25,7 +23,7 @@ from yt.wrapper.cli_helpers import write_silently, run_main, die
 from yt.wrapper.table_commands import copy_table, move_table, _remove_locks, _get_format_from_tables
 from yt.wrapper.cypress_commands import remove_with_empty_dirs
 
-from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, GB, chunk_iter_stream, date_string_to_timestamp
+from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, GB, chunk_iter_stream, date_string_to_timestamp, update
 import yt.wrapper.config as config
 import yt.yson as yson
 import yt.json as json
@@ -529,15 +527,45 @@ Examples:
     if ordered_map:
         spec["ordered"] = True
 
+    opt_items = []
+    opt_items += os.environ.get("MR_OPT", "").split(",")
     for option in get_value(args.opt, []):
+        opt_items += option.split(",")
+
+    for option in opt_items:
+        if not option:
+            continue
         name, value = option.split("=", 1)
         if name == "jobcount" and args.jobcount is None:
             try:
                 args.jobcount = int(value)
             except ValueError:
                 pass
-        if name == "cpu.intensive.mode" and int(value):
-            spec["data_size_per_job"] = 1
+        elif name == "cpu.intensive.mode":
+            if int(value):
+                spec["data_size_per_job"] = 1
+            else:
+                if "data_size_per_job" in spec:
+                    del spec["data_size_per_job"]
+        elif name == "use.ordered.map":
+            ordered_map = True
+        elif name == "jobcount.throttle":
+            spec = update(spec, {"resource_limits": {"user_slots": int(value)}})
+        elif name == "job.memory.limit":
+            config["memory_limit"] = int(value) * MB
+        elif name == "job.memory.limit.map":
+            spec = update(spec, {"mapper": {"memory_limit": int(value) * MB}})
+        elif name == "job.memory.limit.reduce":
+            spec = update(spec, {"reducer": {"memory_limit": int(value) * MB}})
+        elif name == "failonemptysrctable":
+            config["yamr_mode"]["treat_unexisting_as_empty"] = False
+        elif name == "use.hash.reduce":
+            pass
+        elif name == "use.reduce.without.sort":
+            pass
+        elif name == "stderrlevel":
+            pass
+
 
     job_io = None
     if args.tablerecordindex:
