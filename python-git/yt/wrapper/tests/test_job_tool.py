@@ -8,6 +8,7 @@ import yt.wrapper as yt
 import os
 import subprocess
 import tempfile
+import shutil
 import pytest
 
 class TestJobRunner(object):
@@ -112,7 +113,12 @@ class TestJobTool(object):
         assert "RuntimeError" in proc.stderr.read()
         assert "RuntimeError" in open(os.path.join(job_path, "output", "2")).read()
 
+        shutil.rmtree(job_path)
+
     def test_job_tool(self, yt_env):
+        if yt.config["api_version"] != "v3":
+            pytest.skip()
+
         def failing_mapper(rec):
             raise RuntimeError("error")
         def failing_reducer(key, recs):
