@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import with_statement
+
 import yt.wrapper as yt
 
 from helpers import TEST_DIR, set_config_option

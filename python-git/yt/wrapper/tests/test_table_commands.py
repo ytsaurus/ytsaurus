@@ -1,3 +1,5 @@
+from __future__ import with_statement
+
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.client import Yt

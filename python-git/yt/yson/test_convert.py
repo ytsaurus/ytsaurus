@@ -55,4 +55,4 @@ def test_convert_yson_to_json():
     assert x["d"] == {"$value": {"key": [1, 2]}, "$attributes": {"attr": 4, "$$xxx": "yyy", "other_attr": 10, u"ключ": None}}
     assert x["e"] == {"$value": None, "$attributes": {"x": "y"}}
     assert x["f"] == {"$value": "abacaba", "$attributes": {"attr": 4}}
-    assert set(x.keys()) == {"a", "b", "c", "d", "e", "f"}
+    assert set(x.keys()) == set(["a", "b", "c", "d", "e", "f"])
