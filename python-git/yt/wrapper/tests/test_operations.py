@@ -117,6 +117,9 @@ class TestOperations(object):
     def setup(self):
         yt.config["tabular_data_format"] = yt.format.JsonFormat()
 
+    def teardown(self):
+        yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
+
     def random_string(self, length):
         char_set = string.ascii_lowercase + string.digits + string.ascii_uppercase
         return "".join(random.sample(char_set, length))
