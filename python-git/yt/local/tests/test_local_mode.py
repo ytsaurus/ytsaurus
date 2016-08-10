@@ -9,8 +9,8 @@ import yt.json as json
 import os
 import pytest
 import tempfile
-import subprocess
 import contextlib
+import subprocess32 as subprocess
 
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", os.path.join(TESTS_LOCATION, "sandbox"))
