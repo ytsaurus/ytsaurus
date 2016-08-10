@@ -32,7 +32,7 @@ yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildMap(
         const auto* mapNode = static_cast<const TMapNode*>(node);
         const auto& keyToChild = mapNode->KeyToChild();
         if (mapNode == trunkNode) {
-            result.resize(keyToChild.size());
+            result.reserve(keyToChild.size());
         }
         for (const auto& pair : keyToChild) {
             if (!pair.second) {
