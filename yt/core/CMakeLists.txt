@@ -177,7 +177,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tracing/trace_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tracing/trace_service.proto
 
-  ${CMAKE_CURRENT_LIST_DIR}/utilex/lzop.cpp
   ${CMAKE_CURRENT_LIST_DIR}/utilex/random.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/ypath/token.cpp
@@ -242,6 +241,7 @@ CXXFLAGS(
   -Wno-unused-parameter
   -Wno-unused-value
   -Wno-c++14-extensions
+  -DZSTD_STATIC_LINKING_ONLY
   -DYT_IN_ARCADIA
 )
 
@@ -265,6 +265,8 @@ END()
 ################################################################################
 ELSE()
 ################################################################################
+
+add_definitions(-DZSTD_STATIC_LINKING_ONLY)
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 add_library(ytcore STATIC ${YT_SRCS_RESOLVED})
