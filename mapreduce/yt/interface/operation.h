@@ -153,7 +153,7 @@ class IJob
     : public TThrRefBase
 {
 public:
-    enum class EType {
+    enum EType {
         Mapper,
         Reducer
     };
