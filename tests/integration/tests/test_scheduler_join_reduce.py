@@ -488,23 +488,23 @@ echo {v = 2} >&7
 
         write_table(
             "<append=true>//tmp/in1",
-            [ {"key": "%05d"%(10000+num/2), "val1": num} for num in xrange(count) ],
+            [ {"key": "%05d" % (10000 + num / 2), "val1": num} for num in xrange(count) ],
             sorted_by = ["key"],
             table_writer = {"block_size": 1024})
         write_table(
             "<append=true>//tmp/in1",
-            [ {"key": "%05d"%(10000+num/2), "val1": num} for num in xrange(count,2*count) ],
+            [ {"key": "%05d" % (10000 + num / 2), "val1": num} for num in xrange(count, 2 * count) ],
             sorted_by = ["key"],
             table_writer = {"block_size": 1024})
 
         write_table(
             "<append=true>//tmp/in2",
-            [ {"key": "%05d"%(10000+num/2), "val2": num} for num in xrange(count) ],
+            [ {"key": "%05d" % (10000 + num / 2), "val2": num} for num in xrange(count) ],
             sorted_by = ["key"],
             table_writer = {"block_size": 1024})
         write_table(
             "<append=true>//tmp/in2",
-            [ {"key": "%05d"%(10000+num/2), "val2": num} for num in xrange(count,2*count) ],
+            [ {"key": "%05d" % (10000 + num / 2), "val2": num} for num in xrange(count, 2 * count) ],
             sorted_by = ["key"],
             table_writer = {"block_size": 1024})
 
@@ -556,7 +556,7 @@ echo {v = 2} >&7
             spec = {
                 "reducer": {
                     "format": yson.loads("<enable_table_index=true>dsv")},
-                "job_count": 2 })
+                "job_count": 2})
 
         assert sorted(read_table("//tmp/out")) == \
             sorted([
@@ -616,14 +616,14 @@ echo {v = 2} >&7
         for i in xrange(5):
             write_table(
                 "<append=true>//tmp/in1",
-                [{"key": "%05d"%i, "value": "foo"}],
+                [{"key": "%05d" % i, "value": "foo"}],
                 sorted_by = ["key"])
 
         create("table", "//tmp/in2")
         for i in xrange(5):
             write_table(
                 "<append=true>//tmp/in2",
-                [{"key": "%05d"%i, "value": "bar"}],
+                [{"key": "%05d" % i, "value": "bar"}],
                 sorted_by = ["key"])
 
         create("table", "//tmp/out")
@@ -667,7 +667,7 @@ echo {v = 2} >&7
             table_writer = {"block_size": 1024})
 
         create("table", "//tmp/out")
-        op = join_reduce(
+        join_reduce(
             in_=['//tmp/in1["00100":"00200"]', "<foreign=true>//tmp/in2"],
             out="//tmp/out",
             command="cat",
