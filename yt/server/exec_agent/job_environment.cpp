@@ -294,6 +294,9 @@ IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, const TBootstrap* b
                 cgroupConfig,
                 bootstrap);
         }
+
+        default:
+            YUNREACHABLE();
     }
 }
 
