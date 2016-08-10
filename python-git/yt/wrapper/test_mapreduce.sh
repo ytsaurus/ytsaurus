@@ -694,6 +694,10 @@ test_opts()
     check "2" "$(./mapreduce -get tmp/output/@chunk_count)"
     ./mapreduce -map "cat" -src "tmp/input" -dst "tmp/output" -opt "cpu.intensive.mode=1"
     check "2" "$(./mapreduce -get tmp/output/@chunk_count)"
+    MR_OPT="cpu.intensive.mode=1" ./mapreduce -map "cat" -src "tmp/input" -dst "tmp/output"
+    check "2" "$(./mapreduce -get tmp/output/@chunk_count)"
+    MR_OPT="cpu.intensive.mode=1" ./mapreduce -map "cat" -src "tmp/input" -dst "tmp/output" -opt "cpu.intensive.mode=0"
+    check "1" "$(./mapreduce -get tmp/output/@chunk_count)"
 }
 
 test_defrag()
