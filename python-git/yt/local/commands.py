@@ -152,9 +152,9 @@ def _safe_kill(pid):
             # (EINVAL, EPERM, ESRCH)
             raise
 
-def _initialize_world(client):
+def _initialize_world(client, cluster_connection):
     initialize_world(client)
-    # Create tablet cell
+    # Create tablet cell.
     attributes = {
         "changelog_replication_factor": 1,
         "changelog_read_quorum": 1,
@@ -163,6 +163,8 @@ def _initialize_world(client):
     client.create("tablet_cell", attributes=attributes)
     # Used to automatically determine local mode from python wrapper.
     client.set("//sys/@local_mode_fqdn", socket.getfqdn())
+    # Cluster connection.
+    client.set("//sys/@cluster_connection", cluster_connection)
 
 def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None,
@@ -234,7 +236,7 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
         if not environment._load_existing_environment:
             client = environment.create_client()
 
-            _initialize_world(client)
+            _initialize_world(client, environment.configs["driver"])
             if local_cypress_dir is not None:
                 _synchronize_cypress_with_local_dir(local_cypress_dir, client)
 
