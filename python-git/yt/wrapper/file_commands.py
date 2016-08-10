@@ -206,7 +206,11 @@ def upload_file_to_cache(filename, hash=None, client=None):
         logger.debug("Link %s of file %s missing, uploading file", destination, filename)
         prefix = ypath_join(get_config(client)["remote_temp_files_directory"], os.path.basename(filename))
         real_destination = find_free_subpath(prefix, client=client)
-        create("file", real_destination, recursive=True, attributes={"hash": hash, "touched": bool_to_string(True)})
+        create("file",
+               real_destination,
+               recursive=True,
+               attributes={"hash": hash, "touched": bool_to_string(True)},
+               client=client)
         write_file(real_destination, open(filename, "rb"), client=client)
         link(real_destination, destination, recursive=True, ignore_existing=True,
              attributes={"touched": bool_to_string(True)}, client=client)
