@@ -879,6 +879,10 @@ protected:
     std::vector<TChunkStripePtr> SliceInputChunks(
         i64 maxSliceDataSize,
         int* jobCount);
+    
+    int GetMaxJobCount(
+        TNullable<int> userMaxJobCount,
+        int maxJobCount);
 
     int SuggestJobCount(
         i64 totalDataSize,

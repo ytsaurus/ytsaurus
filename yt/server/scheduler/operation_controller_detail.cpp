@@ -4095,6 +4095,16 @@ bool TOperationControllerBase::IsRowCountPreserved() const
     return false;
 }
 
+int TOperationControllerBase::GetMaxJobCount(
+    TNullable<int> userMaxJobCount,
+    int maxJobCount)
+{
+    if (userMaxJobCount) {
+        maxJobCount = std::min(maxJobCount, *userMaxJobCount);
+    }
+    return maxJobCount;
+}
+
 int TOperationControllerBase::SuggestJobCount(
     i64 totalDataSize,
     i64 dataSizePerJob,

@@ -365,6 +365,7 @@ public:
     i64 DataSizePerJob;
 
     TNullable<int> JobCount;
+    TNullable<int> MaxJobCount;
 
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
@@ -379,6 +380,9 @@ public:
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("job_count", JobCount)
+            .Default()
+            .GreaterThan(0);
+        RegisterParameter("max_job_count", MaxJobCount)
             .Default()
             .GreaterThan(0);
         RegisterParameter("locality_timeout", LocalityTimeout)
@@ -976,6 +980,7 @@ public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;
     TNullable<int> JobCount;
+    TNullable<int> MaxJobCount;
     i64 DataSizePerJob;
     TJobIOConfigPtr JobIO;
     int MaxChunkCountPerJob;
@@ -995,6 +1000,9 @@ public:
             .NonEmpty();
         RegisterParameter("output_table_path", OutputTablePath);
         RegisterParameter("job_count", JobCount)
+            .Default()
+            .GreaterThan(0);
+        RegisterParameter("max_job_count", MaxJobCount)
             .Default()
             .GreaterThan(0);
         RegisterParameter("data_size_per_job", DataSizePerJob)
