@@ -119,11 +119,14 @@ public:
         auto slotManager = Bootstrap_->GetExecSlotManager();
         Slot_ = slotManager->AcquireSlot();
 
-        CancellableInvoker_ = CancelableContext_->CreateInvoker(Slot_->GetInvoker());
-
-        BIND(&TJob::Run, MakeWeak(this))
-            .AsyncVia(CancellableInvoker_)
+        // Uncancelable part of preparation.
+        PrepareResult_ = BIND(&TJob::DoPrepare, MakeWeak(this))
+            .AsyncVia(Slot_->GetInvoker())
             .Run();
+
+        auto cancelableInvoker = CancelableContext_->CreateInvoker(Slot_->GetInvoker());
+        PrepareResult_.Subscribe(BIND(&TJob::Run, MakeWeak(this))
+            .Via(cancelableInvoker));
     }
 
     virtual void Abort(const TError& error) override
@@ -358,7 +361,6 @@ private:
     EJobPhase JobPhase_ = EJobPhase::Created;
 
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
-    IInvokerPtr CancellableInvoker_;
 
     TFuture<void> PrepareResult_ = VoidFuture;
 
@@ -434,34 +436,19 @@ private:
         YCHECK(JobPhase_ == EJobPhase::PreparingFiles);
     }
 
-    void DoRun()
-    {
-        JobPhase_ = EJobPhase::Running;
-
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            ExecTime_ = TInstant::Now();
-        }
-
-        RunJobProxy();
-    }
-
-    void Run()
+    void Run(const TError& prepareError)
     {
         try {
-            auto prepareResult = BIND(&TJob::DoPrepare, MakeWeak(this))
-                .AsyncVia(Slot_->GetInvoker())
-                .Run();
+            prepareError.ThrowOnError();
+            
+            JobPhase_ = EJobPhase::Running;
 
             {
                 TGuard<TSpinLock> guard(SpinLock);
-                PrepareResult_ = prepareResult;
+                ExecTime_ = TInstant::Now();
             }
 
-            WaitFor(prepareResult)
-                .ThrowOnError();
-
-            DoRun();
+            RunJobProxy();
         } catch (const std::exception& ex) {
             {
                 TGuard<TSpinLock> guard(SpinLock);
