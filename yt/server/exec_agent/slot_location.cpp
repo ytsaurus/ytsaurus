@@ -35,21 +35,20 @@ TSlotLocation::TSlotLocation(
     const TSlotLocationConfigPtr& config,
     const NCellNode::TBootstrap* bootstrap,
     const Stroka& id,
-    IInvokerPtr invoker,
     bool detachedTmpfsUmount)
     : TDiskLocation(config, id, ExecAgentLogger)
     , Config_(config)
     , Bootstrap_(bootstrap)
     , DetachedTmpfsUmount_(detachedTmpfsUmount)
+    , LocationQueue_(New<TActionQueue>(id))
     , HasRootPermissions_(HasRootPermissions())
-    , Invoker_(std::move(invoker))
 {
     Enabled_ = true;
 
     HealthChecker_ = New<TDiskHealthChecker>(
         bootstrap->GetConfig()->DataNode->DiskHealthChecker,
         Config_->Path,
-        Invoker_,
+        LocationQueue_->GetInvoker(),
         Logger);
 
     try {
@@ -64,7 +63,7 @@ TSlotLocation::TSlotLocation(
     }
 
     HealthChecker_->SubscribeFailed(BIND(&TSlotLocation::Disable, MakeWeak(this))
-        .Via(Invoker_));
+        .Via(LocationQueue_->GetInvoker()));
     HealthChecker_->Start();
 }
 
@@ -91,7 +90,7 @@ void TSlotLocation::CreateSandboxDirectories(int slotIndex)
                  THROW_ERROR error;
              }
         })
-        .AsyncVia(Invoker_)
+        .AsyncVia(LocationQueue_->GetInvoker())
         .Run())
     .ThrowOnError();
 }
@@ -142,7 +141,7 @@ void TSlotLocation::MakeSandboxCopy(
                 THROW_ERROR error;
             }
         })
-        .AsyncVia(Invoker_)
+        .AsyncVia(LocationQueue_->GetInvoker())
         .Run())
     .ThrowOnError();
 }
@@ -182,7 +181,7 @@ void TSlotLocation::MakeSandboxLink(
                 THROW_ERROR error;
             }
         })
-        .AsyncVia(Invoker_)
+        .AsyncVia(LocationQueue_->GetInvoker())
         .Run())
     .ThrowOnError();
 }
@@ -248,7 +247,7 @@ Stroka TSlotLocation::MakeSandboxTmpfs(
                 THROW_ERROR error;
             }
         })
-        .AsyncVia(Invoker_)
+        .AsyncVia(LocationQueue_->GetInvoker())
         .Run())
     .ValueOrThrow();
 }
@@ -272,7 +271,7 @@ void TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
                 THROW_ERROR error;
             }
         })
-        .AsyncVia(Invoker_)
+        .AsyncVia(LocationQueue_->GetInvoker())
         .Run())
     .ThrowOnError();
 }
@@ -343,7 +342,7 @@ void TSlotLocation::CleanSandboxes(int slotIndex)
                 }
             }
         })
-        .AsyncVia(Invoker_)
+        .AsyncVia(LocationQueue_->GetInvoker())
         .Run())
     .ThrowOnError();
 }

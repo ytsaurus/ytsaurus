@@ -25,7 +25,6 @@ public:
         const TSlotLocationConfigPtr& config,
         const NCellNode::TBootstrap* bootstrap,
         const Stroka& id,
-        IInvokerPtr invoker,
         bool detachedTmpfsUmount);
 
     void CreateSandboxDirectories(int slotIndex);
@@ -64,10 +63,11 @@ private:
     const TSlotLocationConfigPtr Config_;
     const NCellNode::TBootstrap* Bootstrap_;
 
+    NConcurrency::TActionQueuePtr LocationQueue_;
+
     const bool DetachedTmpfsUmount_;
 
     bool HasRootPermissions_;
-    IInvokerPtr Invoker_;
 
     yhash_set<Stroka> TmpfsPaths_;
 

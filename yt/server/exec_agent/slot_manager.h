@@ -37,7 +37,6 @@ private:
     const NCellNode::TBootstrap* Bootstrap_;
     const Stroka NodeTag_;
 
-    NConcurrency::TActionQueuePtr LocationQueue_;
     std::vector<TSlotLocationPtr> Locations_;
     std::vector<TSlotLocationPtr> AliveLocations_;
 
