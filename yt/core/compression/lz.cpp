@@ -126,9 +126,6 @@ void Lz4Decompress(StreamSource* source, TBlob* output)
             startHeader.InputSize = header.InputSize;
             startHeader.OutputSize = header.Signature;
         } else {
-            if (header.InputSize < 0) {
-                THROW_ERROR_EXCEPTION("Invalid block (see https://st.yandex-team.ru/YT-5247)");
-            }
             output->Reserve(header.InputSize);
         }
     }
