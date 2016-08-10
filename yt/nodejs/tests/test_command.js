@@ -31,19 +31,17 @@ function spawnServer(driver, coordinator, watcher, done) {
 // This stub provides a coordinator mock.
 function stubCoordinator()
 {
+    var options = {
+        host: "localhost",
+        role: "data",
+        banned: false,
+        liveness: {},
+        randomness: 0.0,
+        fitness: 0.0,
+    };
     return {
-        getControlProxy: function() { return "localhost"; },
-        getDataProxy: function() { return "localhost"; },
-        getSelf: function() {
-            return {
-                host: "localhost",
-                role: "data",
-                banned: false,
-                liveness: {},
-                randomness: 0.0,
-                fitness: 0.0
-            };
-        }
+        getSelf: function() { return options; },
+        allocateProxy: function() { return null; },
     };
 }
 
@@ -1456,6 +1454,39 @@ describe("YtCommand - specific behaviour", function() {
         ask("GET", V + "/get?path=/", {}, function(rsp) {
             rsp.statusCode.should.eql(503);
             stub.should.have.been.calledOnce;
+        }, done).end();
+    });
+
+    it("should redirect read commands from control proxy", function(done) {
+        sinon.stub(this.coordinator, "getSelf").returns({role: "control"});
+        var mock = sinon.mock(this.coordinator);
+        mock
+            .expects("allocateProxy").once().withExactArgs("data")
+            .returns({host: "plausible.proxy"});
+        ask("GET", V + "/read?path=//t", {}, function(rsp) {
+            rsp.statusCode.should.eql(307);
+            rsp.headers.location.should.eql("http://plausible.proxy/v2/read?path=//t");
+            mock.verify();
+        }, done).end();
+    });
+
+    it("should not redirect write commands from control proxy", function(done) {
+        sinon.stub(this.coordinator, "getSelf").returns({role: "control"});
+        ask("PUT", V + "/write?path=//t", {}, function(rsp) {
+            rsp.statusCode.should.eql(503);
+        }, done).end();
+    });
+
+    it("should redirect yandex-team.ru requests to yandex-team.ru domain", function(done) {
+        sinon.stub(this.coordinator, "getSelf").returns({role: "control"});
+        var mock = sinon.mock(this.coordinator);
+        mock
+            .expects("allocateProxy").once().withExactArgs("data")
+            .returns({host: "proxy.yt.yandex.net"});
+        ask("GET", V + "/read?path=//t", {"Host": "proxy.yt.yandex-team.ru"}, function(rsp) {
+            rsp.statusCode.should.eql(307);
+            rsp.headers.location.should.eql("http://proxy.yt.yandex-team.ru/v2/read?path=//t");
+            mock.verify();
         }, done).end();
     });
 });

@@ -39,8 +39,8 @@ TSlotLocation::TSlotLocation(
     : TDiskLocation(config, id, ExecAgentLogger)
     , Config_(config)
     , Bootstrap_(bootstrap)
-    , DetachedTmpfsUmount_(detachedTmpfsUmount)
     , LocationQueue_(New<TActionQueue>(id))
+    , DetachedTmpfsUmount_(detachedTmpfsUmount)
     , HasRootPermissions_(HasRootPermissions())
 {
     Enabled_ = true;
@@ -120,13 +120,15 @@ void TSlotLocation::MakeSandboxCopy(
 
             try {
                 EnsureNotInUse(sourcePath);
-                NFs::Copy(sourcePath, destinationPath);
+                NFS::ChunkedCopy(
+                    sourcePath, 
+                    destinationPath, 
+                    Bootstrap_->GetConfig()->ExecAgent->SlotManager->FileCopyChunkSize);
                 NFS::SetExecutableMode(destinationPath, executable);
             } catch (const std::exception& ex) {
                 try {
                     // If tmpfs does not have enough space, this is a user error, not location error.
                     // Let's check it first, before disabling location.
-
                     const auto& systemError = dynamic_cast<const TSystemError&>(ex);
                     if (IsInsideTmpfs(destinationPath) && systemError.Status() == ENOSPC) {
                         THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v: tmpfs is too small", destinationName, sandboxPath)

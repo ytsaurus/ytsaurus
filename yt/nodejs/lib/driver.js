@@ -221,14 +221,9 @@ YtDriver.prototype.execute = function YtDriver$execute(
     process.nextTick(function() { pause.unpause(); });
 
     return Q
-        .settle([driver_promise, input_pipe_promise, output_pipe_promise])
+        .all([driver_promise, input_pipe_promise, output_pipe_promise])
         .spread(function spread(result, ir, or) {
-            debug("execute -> settle barrier");
-            if (result.isRejected()) {
-                return Q.reject(result.error());
-            } else {
-                return Q.resolve(result.value());
-            }
+            return result;
         });
 };
 

@@ -69,6 +69,7 @@ DEFINE_ENUM(EAbortReason,
     (SchedulingResourceOvercommit)
     (UserRequest)
     (NodeOffline)
+    (WaitingTimeout)
 );
 
 DEFINE_ENUM(EJobFinalState,

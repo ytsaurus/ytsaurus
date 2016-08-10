@@ -44,6 +44,10 @@ protected:
         ByteArraySource input(ref.Begin(), ref.Size());
         // TRACE_ANNOTATION("input_size", ref.Size());
 
+        if (ref.Size() > MaxBlockSize) {
+            THROW_ERROR_EXCEPTION("Too large block for compression");
+        }
+
         auto blobCookie = compress
              ? GetRefCountedTypeCookie<TCompressedBlockTag<TCodec>>()
              : GetRefCountedTypeCookie<TDecompressedBlockTag<TCodec>>();
@@ -78,6 +82,10 @@ protected:
             totalInputSize += ref.Size();
         }
         // TRACE_ANNOTATION("input_size", totalInputSize);
+
+        if (totalInputSize > MaxBlockSize) {
+            THROW_ERROR_EXCEPTION("Too large block for compression");
+        }
 
         auto blobCookie = compress
               ? GetRefCountedTypeCookie<TCompressedBlockTag<TCodec>>()

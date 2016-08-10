@@ -2,6 +2,7 @@
 #include "finally.h"
 
 #include <yt/core/logging/log.h>
+#include <yt/core/misc/ref_counted.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/proc.h>
@@ -583,6 +584,28 @@ void Chmod(const Stroka& path, int mode)
 #else
     ThrowNotSupported();
 #endif
+}
+
+void ChunkedCopy(
+    const Stroka& existingPath, 
+    const Stroka& newPath, 
+    i64 chunkSize) 
+{
+    struct TChunkedCopyTag { };
+
+    TFileInput src(existingPath);
+    TFileOutput dst(TFile(newPath, CreateAlways | WrOnly | Seq));
+    TBlob buffer(TChunkedCopyTag(), chunkSize, false);
+
+    while (true) {
+        auto size = src.Load(buffer.Begin(), buffer.Size());
+        dst.Write(buffer.Begin(), size);
+
+        if (size < buffer.Size()) {
+            break;
+        }
+        NConcurrency::Yield();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

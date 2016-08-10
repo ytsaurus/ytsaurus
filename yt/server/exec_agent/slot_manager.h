@@ -4,6 +4,7 @@
 
 #include <yt/server/cell_node/public.h>
 
+#include <yt/core/actions/public.h>
 #include <yt/core/concurrency/public.h>
 
 namespace NYT {

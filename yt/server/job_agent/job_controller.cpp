@@ -114,6 +114,8 @@ private:
 
     void ScheduleStart();
 
+    void OnWaitingJobTimeout(TWeakPtr<IJob> weakJob);
+
     void OnResourcesUpdated(
         TWeakPtr<IJob> job,
         const TNodeResources& resourceDelta);
@@ -323,7 +325,25 @@ IJobPtr TJobController::TImpl::CreateJob(
     YCHECK(Jobs_.insert(std::make_pair(jobId, job)).second);
     ScheduleStart();
 
+    // Use #Apply instead of #Subscribe to match #OnWaitingJobTimeout signature.
+    TDelayedExecutor::MakeDelayed(Config_->WaitingJobsTimeout)
+        .Apply(BIND(&TImpl::OnWaitingJobTimeout, MakeWeak(this), MakeWeak(job))
+        .Via(Bootstrap_->GetControlInvoker()));
+
     return job;
+}
+
+void TJobController::TImpl::OnWaitingJobTimeout(TWeakPtr<IJob> weakJob)
+{
+    auto strongJob = weakJob.Lock();
+    if (!strongJob) {
+        return;
+    }
+
+    if (strongJob->GetState() == EJobState::Waiting) {
+        strongJob->Abort(TError(NExecAgent::EErrorCode::WaitingJobTimeout, "Job waiting has timed out") 
+            << TErrorAttribute("timeout", Config_->WaitingJobsTimeout));
+    }
 }
 
 void TJobController::TImpl::ScheduleStart()

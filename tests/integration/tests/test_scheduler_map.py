@@ -421,7 +421,7 @@ class TestJobProber(YTEnvSetup):
         op.track()
 
     def get_job_count_profiling(self):
-        time.sleep(1)
+        time.sleep(1.2)
         profiling_info = {}
         for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/job_count", verbose=False)):
             key = tuple(sorted(value["tags"].items()))
