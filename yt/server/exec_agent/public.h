@@ -27,6 +27,7 @@ DEFINE_ENUM(EErrorCode,
     ((ConfigCreationFailed)  (1100))
     ((AbortByScheduler)      (1101))
     ((ResourceOverdraft)     (1102))
+    ((WaitingJobTimeout)     (1103))
 );
 
 DEFINE_ENUM(ESandboxKind,
