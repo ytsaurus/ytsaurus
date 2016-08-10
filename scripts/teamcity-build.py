@@ -24,6 +24,7 @@ import socket
 import tempfile
 import shutil
 import xml.etree.ElementTree as etree
+import xml.parsers.expat
 
 @build_step
 def prepare(options):
@@ -296,6 +297,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
             # Lucid case.
             ParseError = TypeError
 
+
         try:
             result = etree.parse(handle)
             for node in (result.iter() if hasattr(result, "iter") else result.getiterator()):
@@ -310,7 +312,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
             with open("{0}/junit_python_{1}.xml".format(options.working_directory, suite_name), "w+b") as handle:
                 result.write(handle, encoding="utf-8")
 
-        except (UnicodeDecodeError, ParseError):
+        except (UnicodeDecodeError, ParseError, xml.parsers.expat.ExpatError):
             failed = True
             teamcity_message("Failed to parse pytest output:\n" + open(handle.name).read())
 
