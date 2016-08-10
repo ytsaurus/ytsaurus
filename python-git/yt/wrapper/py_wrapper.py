@@ -102,22 +102,29 @@ def is_local_mode(client):
     return fqdn == socket.getfqdn()
 
 class TempfilesManager(object):
-    def __init__(self, remove_temp_files):
+    def __init__(self, remove_temp_files, directory):
         self._remove_temp_files = remove_temp_files
         self._tempfiles_pool = []
+        self._root_directory = directory
 
     def __enter__(self):
+        self._tmp_dir = tempfile.mkdtemp(prefix="yt_python_tmp_files", dir=self._root_directory)
         return self
 
     def __exit__(self, type, value, traceback):
         if self._remove_temp_files:
             for file in self._tempfiles_pool:
                 os.remove(file)
+            shutil.rmtree(self._root_directory)
 
-    def create_tempfile(self, *args, **kwargs):
+    def create_tempfile(self, suffix="", prefix="", dir=None):
         """Use syntax tempfile.mkstemp"""
-        fd, filepath = tempfile.mkstemp(*args, **kwargs)
-        os.close(fd)
+        if dir == self._root_directory:
+            filepath = os.path.join(self._tmp_dir, prefix + suffix)
+            open(filepath, "a").close()
+        else:
+            fd, filepath = tempfile.mkstemp(suffix, prefix, dir)
+            os.close(fd)
         # NB: files should be accesible from jobs in local mode.
         os.chmod(filepath, 0o755)
         self._tempfiles_pool.append(filepath)
@@ -339,7 +346,7 @@ def wrap(tempfiles_manager, client, **kwargs):
     remove_temp_files = get_config(client)["clear_local_temp_files"] and not local_mode
 
     if tempfiles_manager is None:
-        with TempfilesManager(remove_temp_files) as new_tempfiles_manager:
+        with TempfilesManager(remove_temp_files, get_config(client)["local_temp_directory"]) as new_tempfiles_manager:
             return do_wrap(tempfiles_manager=new_tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
     else:
         return do_wrap(tempfiles_manager=tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
@@ -348,7 +355,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     assert operation_type in ["mapper", "reducer", "reduce_combiner"]
     local_temp_directory = get_config(client)["local_temp_directory"]
     function_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
-                                                          prefix=get_function_name(function) + ".")
+                                                          prefix=get_function_name(function) + ".pickle")
 
     pickler = Pickler(get_config(client)["pickling"]["framework"])
 
@@ -398,7 +405,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
             info["filename"] = os.path.basename(info["filename"])
 
     modules_info_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
-                                                              prefix="_modules")
+                                                              prefix="_modules_info")
     with open(modules_info_filename, "wb") as fout:
         standard_pickle.dump(modules_info, fout)
 

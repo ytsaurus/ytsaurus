@@ -400,6 +400,23 @@ class TestOperations(object):
         check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
     @add_failed_operation_stderrs_to_error_message
+    def test_python_operations_and_file_cache(self):
+        def func(row):
+            yield row
+
+        input = TEST_DIR + "/input"
+        output = TEST_DIR + "/output"
+        yt.write_table(input, [{"x": 1}, {"y": 2}])
+
+        yt.run_map(func, input, output)
+        files_in_cache = yt.list("//tmp/yt_wrapper/file_storage")
+        assert len(files_in_cache) > 0
+
+        yt.run_map(func, input, output)
+        files_in_cache_again = yt.list("//tmp/yt_wrapper/file_storage")
+        assert files_in_cache == files_in_cache_again
+
+    @add_failed_operation_stderrs_to_error_message
     def test_python_operations_in_local_mode(self):
         old_value = yt.config["pickling"]["local_mode"]
         yt.config["pickling"]["local_mode"] = True

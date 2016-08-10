@@ -190,7 +190,7 @@ def upload_file_to_cache(filename, hash=None, client=None):
 
     link_exists = False
     if attributes is not None:
-        if attributes["type"] == "link_node":
+        if attributes["type"] == "link":
             if parse_bool(attributes["broken"]):
                 remove(destination + "&", client=client)
             else:

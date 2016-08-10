@@ -9,6 +9,7 @@ from helpers import TESTS_LOCATION, TEST_DIR, TESTS_SANDBOX, ENABLE_JOB_CONTROL
 
 import os
 import re
+import sys
 import uuid
 from copy import deepcopy
 import shutil
@@ -113,6 +114,10 @@ class YtTestEnvironment(object):
         update(yt.config.config, self.config)
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
+
+        # Resolve indeterminacy in sys.modules due to presence of lazy imported modules.
+        for module in sys.modules.values():
+            hasattr(module, "__file__")
 
     def cleanup(self):
         self.env.stop()
