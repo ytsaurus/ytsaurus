@@ -735,3 +735,8 @@ def get_last_profiling_values(orchid_path, metrics):
     for metric in metrics:
         values[metric] = get(orchid_path + "/" + metric, verbose=False)[-1]["value"]
     return values
+
+#########################################
+
+def total_seconds(td):
+    return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6) / 10 ** 6
