@@ -331,24 +331,6 @@ void SafeSetCloexec(int fd)
     }
 }
 
-void SafeUnsetCloexec(int fd)
-{
-    int getResult = ::fcntl(fd, F_GETFD);
-    if (getResult == -1) {
-        THROW_ERROR_EXCEPTION("Error unsetting pipe: fcntl failed to get descriptor flags")
-            << TError::FromSystem()
-            << TErrorAttribute("fd", fd);
-    }
-
-    getResult &= ~FD_CLOEXEC;
-    int setResult = ::fcntl(fd, F_SETFD, getResult);
-    if (setResult == -1) {
-        THROW_ERROR_EXCEPTION("Error unsetting pipe: fcntl failed to set descriptor flags")
-            << TError::FromSystem()
-            << TErrorAttribute("fd", fd);
-    }
-}
-
 void SetPermissions(const Stroka& path, int permissions)
 {
 #ifdef _linux_

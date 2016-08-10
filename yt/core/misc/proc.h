@@ -33,7 +33,6 @@ bool TryDup2(int oldFD, int newFD);
 void SafeDup2(int oldFD, int newFD);
 
 void SafeSetCloexec(int fd);
-void SafeUnsetCloexec(int fd);
 
 bool TryExecve(const char* path, const char* const* argv, const char* const* env);
 

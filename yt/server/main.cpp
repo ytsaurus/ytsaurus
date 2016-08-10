@@ -280,9 +280,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     if (isExecutor || isShell) {
         // Don't start any other singleton or parse config in executor mode.
-        // Executor changes stderr stream, so do not start logger
-        if (!isExecutor)
-            NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
+        // Explicitly shut down log manager to ensure it doesn't spoil dup-ed descriptors.
+        NLogging::TLogManager::StaticShutdown();
     } else if (!printConfigTemplate) {
         if (configFileName.empty()) {
             THROW_ERROR_EXCEPTION("Missing --config option");
@@ -351,49 +350,53 @@ EExitCode GuardedMain(int argc, const char* argv[])
 #endif
 
 #ifdef _unix_
+    TError executorError;
     if (isExecutor) {
         TThread::CurrentThreadSetName("ExecutorMain");
         if (parser.Command.getValue().empty()) {
             THROW_ERROR_EXCEPTION("Missing or empty --command option");
         }
-    }
 
-    TError executorError;
-    if (isExecutor) {
         try {
             const int permissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
-
             for (auto pipeYson : parser.PreparePipes.getValue()) {
                 auto pipeConfig = ConvertTo<NPipes::TNamedPipeConfig>(TYsonString(pipeYson));
                 const int streamFd = pipeConfig.FD;
                 const auto& path = pipeConfig.Path;
 
-                // Behaviour of named pipe:
-                // reader blocks on open if no writer and O_NONBLOCK is not set,
-                // writer blocks on open if no reader and O_NONBLOCK is not set.
-                const int flags = (pipeConfig.Write) ? O_WRONLY : O_RDONLY;
-                auto fd = HandleEintr(::open, path.c_str(), flags | O_CLOEXEC);
-                if (fd == -1) {
-                    THROW_ERROR_EXCEPTION("Failed to open named pipe %v", path)
-                        << TError::FromSystem();
-                }
-
-                if (streamFd != fd) {
-                    SafeDup2(fd, streamFd);
-                    try {
-                        SafeClose(fd, false);
-                    } catch (const std::exception& ex) {
-                        THROW_ERROR_EXCEPTION("Failed to close origin fd %v", fd)
-                            << ex;
+                try {
+                    // Behaviour of named pipe:
+                    // reader blocks on open if no writer and O_NONBLOCK is not set,
+                    // writer blocks on open if no reader and O_NONBLOCK is not set.
+                    const int flags = (pipeConfig.Write) ? O_WRONLY : O_RDONLY;
+                    auto fd = HandleEintr(::open, path.c_str(), flags);
+                    if (fd == -1) {
+                        THROW_ERROR_EXCEPTION("Failed to open named pipe")
+                            << TErrorAttribute("path", path)
+                            << TError::FromSystem();
                     }
-                } else {
-                    SafeUnsetCloexec(fd);
+
+                    if (streamFd != fd) {
+                        SafeDup2(fd, streamFd);
+                        SafeClose(fd, false);
+                    }
+                    SetPermissions(streamFd, permissions);
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Failed to prepare named pipe")
+                        << TErrorAttribute("path", path)
+                        << TErrorAttribute("fd", streamFd)
+                        << ex;
                 }
-                SetPermissions(streamFd, permissions);
             }
 
             const auto& controlPipePath = parser.ControlPipe.getValue();
-            SetPermissions(controlPipePath, permissions);
+            try {
+                SetPermissions(controlPipePath, permissions);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Failed to prepare control pipe")
+                    << TErrorAttribute("path", controlPipePath)
+                    << ex;
+            }
 
             if (!parser.EnableCoreDump.getValue()) {
                 // Disable core dump for user jobs when option is not present.
@@ -409,6 +412,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
             executorError = ex;
         }
     }
+
     if (isShell) {
         TThread::CurrentThreadSetName("ShellMain");
         auto pty = parser.Shell.getValue();
@@ -460,16 +464,21 @@ EExitCode GuardedMain(int argc, const char* argv[])
         if (isExecutor) {
             int fd = HandleEintr(::open, controlPipePath.c_str(), O_WRONLY | O_CLOEXEC);
             if (fd == -1) {
+                // Logging is explicitly disabled, try to dump as much diagnostics as possible.
+                fprintf(stderr, "Failed to open control pipe\n%s\n%s", ~ToString(TError::FromSystem()), ~ysonData);
                 YUNREACHABLE();
             }
             if (HandleEintr(::write, fd, ysonData.c_str(), ysonData.size()) != ysonData.size()) {
+                // Logging is explicitly disabled, try dump as much diagnostics as possible.
+                fprintf(stderr, "Failed to write to control pipe\n%s\n%s", ~ToString(TError::FromSystem()), ~ysonData);
                 YUNREACHABLE();
             }
         }
+
         if (!executorError.IsOK()) {
             return EExitCode::ExecutorError;
         }
-
+ 
         TryExecve(
             "/bin/bash",
             args.data(),
