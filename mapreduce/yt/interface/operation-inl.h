@@ -278,10 +278,8 @@ public:
     template <class TMapper>
     void RegisterMapper(const char* name)
     {
-        if (TMapper::JobType != IJob::EType::Mapper) {
-            ythrow yexception() <<
-                "REGISTER_MAPPER is not compatible with job class " << name;
-        }
+        static_assert(TMapper::JobType == IJob::EType::Mapper,
+            "REGISTER_MAPPER is not compatible with this job class");
 
         const auto* typeInfoPtr = &typeid(TMapper);
         CheckNotRegistered(typeInfoPtr, name);
@@ -292,10 +290,8 @@ public:
     template <class TReducer>
     void RegisterReducer(const char* name)
     {
-        if (TReducer::JobType != IJob::EType::Reducer) {
-            ythrow yexception() <<
-                "REGISTER_REDUCER is not compatible with job class " << name;
-        }
+        static_assert(TReducer::JobType == IJob::EType::Reducer,
+            "REGISTER_REDUCER is not compatible with this job class");
 
         const auto* typeInfoPtr = &typeid(TReducer);
         CheckNotRegistered(typeInfoPtr, name);
