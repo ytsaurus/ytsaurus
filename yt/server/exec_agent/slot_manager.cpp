@@ -32,7 +32,6 @@ TSlotManager::TSlotManager(
     : Config_(config)
     , Bootstrap_(bootstrap)
     , NodeTag_(Format("yt-node-%v", bootstrap->GetConfig()->RpcPort))
-    , LocationQueue_(New<TActionQueue>("SlotLocations"))
 { }
 
 void TSlotManager::Initialize(int slotCount)
@@ -53,7 +52,6 @@ void TSlotManager::Initialize(int slotCount)
             std::move(locationConfig),
             Bootstrap_,
             Format("slots%v", locationIndex),
-            LocationQueue_->GetInvoker(),
             Config_->DetachedTmpfsUmount));
 
         if (Locations_.back()->IsEnabled()) {
