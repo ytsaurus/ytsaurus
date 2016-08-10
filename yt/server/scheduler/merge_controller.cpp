@@ -418,7 +418,7 @@ protected:
             TotalEstimatedInputDataSize,
             Spec->DataSizePerJob,
             Spec->JobCount,
-            Options->MaxJobCount);
+            GetMaxJobCount(Spec->MaxJobCount, Options->MaxJobCount));
 
         MaxDataSizePerJob = (PrimaryInputDataSize_ + jobCount - 1) / jobCount;
         ChunkSliceSize = static_cast<int>(Clamp(MaxDataSizePerJob, 1, Options->JobMaxSliceDataSize));

@@ -367,7 +367,7 @@ private:
             TotalEstimatedInputDataSize,
             Spec_->DataSizePerJob,
             Spec_->JobCount,
-            Options_->MaxJobCount);
+            GetMaxJobCount(Spec_->MaxJobCount, Options_->MaxJobCount));
         jobCount = std::min(jobCount, static_cast<int>(stripes.size()));
 
         if (stripes.size() > Spec_->MaxChunkCountPerJob * jobCount) {

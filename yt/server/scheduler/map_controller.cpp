@@ -250,7 +250,7 @@ protected:
                     totalDataSize,
                     Spec->DataSizePerJob,
                     Spec->JobCount,
-                    Options->MaxJobCount);
+                    GetMaxJobCount(Spec->MaxJobCount, Options->MaxJobCount));
                 auto stripes = SliceChunks(mergedChunks, Options->JobMaxSliceDataSize, &jobCount);
 
                 UnorderedTask = New<TUnorderedTask>(this, jobCount);
