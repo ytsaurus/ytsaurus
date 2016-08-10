@@ -472,7 +472,6 @@ private:
     }
 
     // Finalization.
-
     void Cleanup()
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -481,12 +480,15 @@ private:
         }
 
         JobPhase_ = EJobPhase::Cleanup;
-        try {
-            Slot_->Cleanup();
-            Bootstrap_->GetExecSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
-        } catch (const std::exception& ex) {
-            // Errors during cleanup phase do not affert job outcome.
-            LOG_ERROR(ex, "Failed to clean up slot %v", Slot_->GetSlotIndex());
+
+        if (Slot_) {
+            try {
+                Slot_->Cleanup();
+                Bootstrap_->GetExecSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
+            } catch (const std::exception& ex) {
+                // Errors during cleanup phase do not affert job outcome.
+                LOG_ERROR(ex, "Failed to clean up slot %v", Slot_->GetSlotIndex());
+            }
         }
 
         FinalizeJob();
@@ -499,9 +501,11 @@ private:
         VERIFY_THREAD_AFFINITY(ControllerThread);
         YCHECK(JobResult_);
 
-        auto resourceDelta = ZeroNodeResources() - ResourceUsage_;
-        ResourceUsage_ = ZeroNodeResources();
-        ResourcesUpdated_.Fire(resourceDelta);
+        if (JobState_ == EJobState::Running) {
+            auto resourceDelta = ZeroNodeResources() - ResourceUsage_;
+            ResourceUsage_ = ZeroNodeResources();
+            ResourcesUpdated_.Fire(resourceDelta);
+        }
 
         auto error = FromProto<TError>(JobResult_->error());
 
