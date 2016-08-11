@@ -1,5 +1,6 @@
-set( BASE ${CMAKE_SOURCE_DIR}/library/http )
-set( SRCS
+set(NAME deps-arcadia-library-http)
+set(BASE ${CMAKE_SOURCE_DIR}/library/http)
+set(SRCS
   ${BASE}/server/conn.cpp
   ${BASE}/server/http.cpp
   ${BASE}/server/http_ex.cpp
@@ -11,15 +12,8 @@ set( SRCS
   ${BASE}/io/chunk.cpp
 )
 
-include_directories(
-  ${BASE}
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-)
+include_directories(${CMAKE_SOURCE_DIR})
 
-add_library( ytext-arcadia-library-http STATIC ${SRCS} )
+add_library(${NAME} STATIC ${SRCS})
 
-target_link_libraries( ytext-arcadia-library-http
-  ytext-arcadia-util
-)
-
+target_link_libraries(${NAME} deps-arcadia-util)

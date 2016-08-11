@@ -267,44 +267,42 @@ ELSE()
 ################################################################################
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
-add_library(ytcore STATIC ${YT_SRCS_RESOLVED})
+add_library(yt-core STATIC ${YT_SRCS_RESOLVED})
 
 llvm_map_components_to_libraries(
   REQUIRED_LLVM_LIBRARIES
   mcjit ipo x86 mcdisassembler linker asmparser irreader instrumentation
 )
 
+# We link statically with zlib, and LLVM (sometimes) tries to bring its own
+# dependency.
 list(REMOVE_ITEM REQUIRED_LLVM_LIBRARIES "-lz")
 
-target_link_libraries(ytcore
+target_link_libraries(yt-core
+  deps-arcadia-contrib-libs-snappy
+  deps-arcadia-contrib-libs-zstd07
+  deps-arcadia-library-http
+  deps-arcadia-library-streams-lz
+  deps-arcadia-util
+  deps-contrib-libs-brotli
+  deps-yt-contrib-farmhash
+  deps-yt-contrib-quicklz
+  deps-yt-contrib-zstd-legacy
+  protobuf
   yt-build
-  ytext-arcadia-util
-  ytext-arcadia-library-streams-lz
   yt-contrib-jerasure
   yt-contrib-libev
-  deps-yt-contrib-farmhash
-  deps-contrib-libs-brotli
-  ytext-arcadia-library-http
-  deps-arcadia-contrib-libs-yajl
-  protobuf
   ${REQUIRED_LLVM_LIBRARIES}
+  deps-arcadia-contrib-libs-zlib # duplicate zlib dependency here, because LLVM depends on zlib
 )
 
-if (CMAKE_COMPILER_IS_CLANG AND NOT APPLE)
-  target_link_libraries ( ytcore
-    -latomic -ldl
-  )
+if(CMAKE_COMPILER_IS_CLANG AND NOT APPLE)
+  target_link_libraries(yt-core -latomic -ldl)
 endif()
 
-if (NOT APPLE)
-  target_link_libraries ( ytcore
-    -lutil
-  )
+if(NOT APPLE)
+  target_link_libraries(yt-core -lutil)
 endif()
-
-include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}
-)
 
 ################################################################################
 ENDIF()

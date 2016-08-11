@@ -169,7 +169,7 @@ add_executable(unittester
 )
 
 target_link_libraries(unittester
-  ytlib
-  ytserver_lib
-  ytext-arcadia-library-lfalloc
+  yt-library-client
+  yt-library-server
+  deps-arcadia-library-lfalloc
 )
