@@ -70,6 +70,7 @@ DEFINE_ENUM(EAbortReason,
     (UserRequest)
     (NodeOffline)
     (WaitingTimeout)
+    (Unknown)
 );
 
 DEFINE_ENUM(EJobFinalState,

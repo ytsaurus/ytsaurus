@@ -17,6 +17,8 @@
 namespace NYT {
 namespace NScheduler {
 
+////////////////////////////////////////////////////////////////////
+
 using namespace NYTree;
 using namespace NYPath;
 using namespace NYson;
@@ -25,6 +27,10 @@ using namespace NTransactionClient;
 using namespace NConcurrency;
 using namespace NSecurityClient;
 using namespace NChunkClient;
+
+////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -184,7 +190,13 @@ Stroka TrimCommandForBriefSpec(const Stroka& command)
 EAbortReason GetAbortReason(const NJobTrackerClient::NProto::TJobResult& result)
 {
     auto error = FromProto<TError>(result.error());
-    return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
+    try {
+        return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
+    } catch (const std::exception& ex) {
+        // Process unknown abort reason from node.
+        LOG_WARNING(ex, "Found unknown abort_reason in job result");
+        return EAbortReason::Unknown;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////
