@@ -1,5 +1,6 @@
-set( BASE ${CMAKE_SOURCE_DIR}/library/lwtrace )
-set( SRCS
+set(NAME deps-arcadia-library-lwtrace)
+set(BASE ${CMAKE_SOURCE_DIR}/library/lwtrace)
+set(SRCS
   ${BASE}/check.cpp
   ${BASE}/kill_action.cpp
   ${BASE}/sleep_action.cpp
@@ -8,16 +9,13 @@ set( SRCS
   ${BASE}/trace.cpp
 )
 
-protoc( ${BASE}/lwtrace.proto SRCS )
+protoc(${BASE}/lwtrace.proto SRCS)
 
 include_directories(
-  ${BASE}
   ${CMAKE_BINARY_DIR}
   ${CMAKE_SOURCE_DIR}
-  ${CMAKE_BINARY_DIR}/include
 )
 
-add_library( ytext-arcadia-library-lwtrace STATIC ${SRCS} )
+add_library(${NAME} STATIC ${SRCS})
 
-target_link_libraries( ytext-arcadia-library-lwtrace ytext-arcadia-util )
-
+target_link_libraries(${NAME} deps-arcadia-util)

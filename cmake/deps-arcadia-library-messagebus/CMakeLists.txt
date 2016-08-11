@@ -1,5 +1,6 @@
-set( BASE ${CMAKE_SOURCE_DIR}/library/messagebus )
-set( SRCS
+set(NAME deps-arcadia-library-messagebus)
+set(BASE ${CMAKE_SOURCE_DIR}/library/messagebus)
+set(SRCS
   ${BASE}/acceptor.cpp
   ${BASE}/acceptor_status.cpp
   ${BASE}/connection.cpp
@@ -47,22 +48,20 @@ set( SRCS
 
   ${BASE}/scheduler/scheduler.cpp
 
-  ${BASE}/protobuf/ybusbuf.cpp  
+  ${BASE}/protobuf/ybusbuf.cpp
 )
 
 include_directories(
-  ${BASE}
   ${CMAKE_BINARY_DIR}
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 
-add_library( ytext-arcadia-library-messagebus STATIC ${SRCS} )
+add_library(${NAME} STATIC ${SRCS})
 
-target_link_libraries( ytext-arcadia-library-messagebus
-  ytext-arcadia-util
-  ytext-arcadia-library-blockcodecs
-  ytext-arcadia-library-lwtrace
+target_link_libraries(${NAME}
+  deps-arcadia-library-blockcodecs
+  deps-arcadia-library-lwtrace
   deps-arcadia-library-getopt
+  deps-arcadia-util
 )
-
