@@ -1373,12 +1373,8 @@ private:
         }
 
         store->SetStoreState(EStoreState::Orphaned);
-
-        if (store->GetType() != EStoreType::SortedDynamic) {
-            return;
-        }
         
-        auto dynamicStore = store->AsSortedDynamic();
+        auto dynamicStore = store->AsDynamic();
         auto lockCount = dynamicStore->GetLockCount();
         if (lockCount > 0) {
             YCHECK(OrphanedStores_.insert(dynamicStore).second);
