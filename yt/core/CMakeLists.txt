@@ -287,7 +287,7 @@ target_link_libraries(ytcore
   deps-yt-contrib-farmhash
   deps-contrib-libs-brotli
   ytext-arcadia-library-http
-  ytext-yajl
+  deps-arcadia-contrib-libs-yajl
   protobuf
   ${REQUIRED_LLVM_LIBRARIES}
 )

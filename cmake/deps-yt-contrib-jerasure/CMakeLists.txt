@@ -13,6 +13,6 @@ set_source_files_properties(${SRCS} PROPERTIES LANGUAGE C)
 add_library(${NAME} STATIC ${SRCS})
 
 if(CMAKE_COMPILER_IS_GNUCXX)
-  set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS -Wno-unused-variable)
+  set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS -w)
 endif()
 
