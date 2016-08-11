@@ -71,6 +71,7 @@ class TJobControllerConfig
 public:
     TResourceLimitsConfigPtr ResourceLimits;
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
+    TDuration WaitingJobsTimeout;
 
     TJobControllerConfig()
     {
@@ -78,6 +79,8 @@ public:
             .DefaultNew();
         RegisterParameter("statistics_throttler", StatisticsThrottler)
             .DefaultNew();
+        RegisterParameter("waiting_jobs_timeout", WaitingJobsTimeout)
+            .Default(TDuration::Seconds(15));
 
         RegisterInitializer([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to
