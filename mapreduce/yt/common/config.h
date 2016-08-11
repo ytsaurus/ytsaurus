@@ -27,6 +27,7 @@ struct TConfig
     bool UseHosts;
 
     TNode Spec;
+    TNode TableWriter;
 
     TDuration ConnectTimeout;
     TDuration SocketTimeout;
@@ -60,7 +61,6 @@ struct TConfig
 
     bool DisableClientSubTransactions;
     bool CreateTablesUnderTransaction;
-
 
     static Stroka GetEnv(const char* var, const char* defaultValue = "");
     static bool GetBool(const char* var, bool defaultValue = false);

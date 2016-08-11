@@ -52,9 +52,9 @@ Stroka NodeListToYsonString(const TNode::TList& nodes)
     return stream.Str();
 }
 
-Stroka YPathToYsonString(const TRichYPath& path)
+TNode NodeFromYPath(const TRichYPath& path)
 {
-    return BuildYsonStringFluently().BeginMap()
+    return BuildYsonNodeFluently().BeginMap()
         .Item("path").Value(path)
     .EndMap();
 }

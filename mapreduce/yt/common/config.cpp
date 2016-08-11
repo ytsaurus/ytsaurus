@@ -130,6 +130,9 @@ void TConfig::LoadSpec()
 {
     Stroka strSpec = GetEnv("YT_SPEC", "{}");
     Spec = LoadJsonSpec(strSpec);
+
+    strSpec = GetEnv("YT_TABLE_WRITER", "{}");
+    TableWriter = LoadJsonSpec(strSpec);
 }
 
 void TConfig::LoadTimings()

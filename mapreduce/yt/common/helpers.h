@@ -17,7 +17,7 @@ Stroka NodeToYsonString(const TNode& node, EYsonFormat format = YF_TEXT);
 
 Stroka NodeListToYsonString(const TNode::TList& nodes);
 
-Stroka YPathToYsonString(const TRichYPath& path);
+TNode NodeFromYPath(const TRichYPath& path);
 
 Stroka AttributesToYsonString(const TNode& attributes);
 
