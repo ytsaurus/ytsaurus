@@ -362,21 +362,21 @@ void TSlot::MakeCopy(
     const auto& sandboxPath = SandboxPaths_[PathIndex_][sandboxKind];
     auto destinationPath = NFS::CombinePaths(sandboxPath, destinationName);
 
+    WaitFor(BIND(
+            NFS::ChunkedCopy, 
+            sourcePath, 
+            destinationPath, 
+            Config_->FileCopyChunkSize)
+        .AsyncVia(BackgroundInvoker_)
+        .Run())
+        .ThrowOnError();
+
     {
         // Take exclusive lock in blocking fashion to ensure that no
-        // forked process is holding an open descriptor to the source file.
-        TFile file(sourcePath, RdOnly | CloseOnExec);
+        // forked process is holding an open write descriptor to the destination file.
+        TFile file(destinationPath, RdOnly | CloseOnExec);
         file.Flock(LOCK_EX);
     }
-
-    WaitFor(BIND(
-        NFS::ChunkedCopy, 
-        sourcePath, 
-        destinationPath, 
-        Config_->FileCopyChunkSize)
-    .AsyncVia(BackgroundInvoker_)
-    .Run())
-    .ThrowOnError();
     
     NFS::SetExecutableMode(destinationPath, isExecutable);
 }
