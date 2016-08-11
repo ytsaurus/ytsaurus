@@ -119,11 +119,11 @@ void TSlotLocation::MakeSandboxCopy(
             }
 
             try {
-                EnsureNotInUse(sourcePath);
                 NFS::ChunkedCopy(
                     sourcePath, 
                     destinationPath, 
                     Bootstrap_->GetConfig()->ExecAgent->SlotManager->FileCopyChunkSize);
+                EnsureNotInUse(destinationPath);
                 NFS::SetExecutableMode(destinationPath, executable);
             } catch (const std::exception& ex) {
                 try {
