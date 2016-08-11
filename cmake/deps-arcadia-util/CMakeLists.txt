@@ -11,7 +11,6 @@ set(CHARSET_SRCS
 set(STRING_BASE ${CMAKE_SOURCE_DIR}/util/string)
 set(STRING_SRCS
   ${STRING_BASE}/ascii.cpp
-  ${STRING_BASE}/base64.cpp
   ${STRING_BASE}/builder.cpp
   ${STRING_BASE}/cast.cc
   ${STRING_BASE}/cgiparam.cpp
@@ -277,13 +276,12 @@ set( DRAFT_SRCS
 
 set(ROOT_BASE ${CMAKE_SOURCE_DIR}/util)
 set(ROOT_SRCS
-  ${ROOT_BASE}/cont_init.cpp
   ${ROOT_BASE}/str_stl.cpp
   ${ROOT_BASE}/ysafeptr.cpp
   ${ROOT_BASE}/ysaveload.cpp
 )
 
-add_library(ytext-arcadia-util STATIC
+add_library(deps-arcadia-util STATIC
   ${CHARSET_SRCS}
   ${STRING_SRCS}
   ${GENERIC_SRCS}
@@ -300,30 +298,23 @@ add_library(ytext-arcadia-util STATIC
   ${ROOT_SRCS}
 )
 
-target_link_libraries(ytext-arcadia-util
-  deps-arcadia-contrib-libs-minilzo
-  deps-arcadia-contrib-libs-snappy
+target_link_libraries(deps-arcadia-util
   deps-arcadia-contrib-libs-zlib
-  deps-yt-contrib-lz4
-  deps-yt-contrib-fastlz
-  deps-yt-contrib-quicklz
-  deps-yt-contrib-zstd
-  deps-yt-contrib-zstd-legacy
 )
 
 if(CMAKE_COMPILER_IS_GNUCXX)
-  target_link_libraries(ytext-arcadia-util -ldl)
+  target_link_libraries(deps-arcadia-util -ldl)
   if(NOT APPLE)
-    target_link_libraries(ytext-arcadia-util -lrt)
+    target_link_libraries(deps-arcadia-util -lrt)
   endif()
 endif()
 
 include_directories(${CMAKE_SOURCE_DIR})
 
 if(CMAKE_COMPILER_IS_GNUCXX)
-  set_target_properties(ytext-arcadia-util PROPERTIES COMPILE_FLAGS "-fPIC")
+  set_target_properties(deps-arcadia-util PROPERTIES COMPILE_FLAGS "-fPIC")
 endif()
 
 if(APPLE)
-  set_target_properties(ytext-arcadia-util PROPERTIES COMPILE_DEFINITIONS "_REENTRANT;_XOPEN_SOURCE")
+  set_target_properties(deps-arcadia-util PROPERTIES COMPILE_DEFINITIONS "_REENTRANT;_XOPEN_SOURCE")
 endif()

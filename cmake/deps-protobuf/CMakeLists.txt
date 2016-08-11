@@ -104,7 +104,7 @@ add_library( protobuf STATIC
 )
 
 target_link_libraries( protobuf
-  ytext-arcadia-util
+  deps-arcadia-util
 )
 
 add_executable( protoc

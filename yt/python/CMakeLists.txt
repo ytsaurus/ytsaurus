@@ -47,10 +47,10 @@ END()
 ELSE()
 ################################################################################
 
-set(PYTHON_LINK_FLAGS "-static-libstdc++")
-
 execute_process(COMMAND lsb_release --codename --short
                 OUTPUT_VARIABLE LSB_RELEASE)
+
+set(PYTHON_LINK_FLAGS "-static-libstdc++")
 
 if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   set(
@@ -95,7 +95,7 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
   target_include_directories(${TARGET_NAME_PREFIX}pycxx PUBLIC ${PYCXX_BASE} ${PYTHON_${PYTHON_KIND}_INCLUDE_DIR})
 
   add_library(${TARGET_NAME_PREFIX}common STATIC ${YT_SRCS})
-  target_link_libraries(${TARGET_NAME_PREFIX}common ytlib ${TARGET_NAME_PREFIX}pycxx)
+  target_link_libraries(${TARGET_NAME_PREFIX}common yt-library-client ${TARGET_NAME_PREFIX}pycxx)
 
   foreach(COMPONENT "yson" "driver")
     set(TARGET_NAME "${TARGET_NAME_PREFIX}${COMPONENT}")
