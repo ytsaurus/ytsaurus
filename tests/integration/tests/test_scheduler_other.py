@@ -1466,3 +1466,54 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
         op1.abort()
         op2.abort()
+
+class TestSchedulerAlerts(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "alerts_update_period": 100,
+            "watchers_update_period": 100,
+            "fair_share_update_period": 100,
+        }
+    }
+
+    def test_pools(self):
+        assert get("//sys/scheduler/@alerts") == []
+
+        # Incorrect pool configuration.
+        create("map_node", "//sys/pools/poolA", attributes={"min_share_ratio": 2.0})
+
+        time.sleep(0.5)
+        assert len(get("//sys/scheduler/@alerts")) == 1
+
+        set("//sys/pools/poolA/@min_share_ratio", 0.8)
+
+        time.sleep(0.5)
+        assert get("//sys/scheduler/@alerts") == []
+
+        # Total min_share_ratio > 1.
+        create("map_node", "//sys/pools/poolB", attributes={"min_share_ratio": 0.8})
+
+        time.sleep(0.5)
+        assert len(get("//sys/scheduler/@alerts")) == 1
+
+        set("//sys/pools/poolA/@min_share_ratio", 0.1)
+
+        time.sleep(0.5)
+        assert get("//sys/scheduler/@alerts") == []
+    
+    def test_config(self):
+        assert get("//sys/scheduler/@alerts") == []
+
+        set("//sys/scheduler/config", {"fair_share_update_period": -100})
+        
+        time.sleep(0.5)
+        assert len(get("//sys/scheduler/@alerts")) == 1
+        
+        set("//sys/scheduler/config", {})
+        
+        time.sleep(0.5)
+        assert get("//sys/scheduler/@alerts") == []

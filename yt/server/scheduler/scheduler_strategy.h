@@ -35,6 +35,9 @@ struct ISchedulerStrategyHost
         const NYPath::TYPath& path,
         const Stroka& user,
         NYTree::EPermission permission) = 0;
+
+    virtual void RegisterAlert(EAlertType alertType, const TError& alert) = 0;
+    virtual void UnregisterAlert(EAlertType alertType) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

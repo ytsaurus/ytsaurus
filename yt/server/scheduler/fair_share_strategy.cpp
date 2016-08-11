@@ -245,6 +245,8 @@ public:
 
         auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&ScheduleJobsLock)).Value();
 
+        std::vector<TError> errors;
+
         try {
             // Build the set of potential orphans.
             yhash_set<Stroka> orphanPoolIds;
@@ -264,7 +266,8 @@ public:
                         const auto& childNode = pair.second;
                         auto childPath = childNode->GetPath();
                         if (!poolIdToPath.insert(std::make_pair(childId, childPath)).second) {
-                            LOG_ERROR("Pool %Qv is defined both at %v and %v; skipping second occurrence",
+                            errors.emplace_back(
+                                "Pool %Qv is defined both at %v and %v; skipping second occurrence",
                                 childId,
                                 poolIdToPath[childId],
                                 childPath);
@@ -277,8 +280,11 @@ public:
                         try {
                             config = ConvertTo<TPoolConfigPtr>(configNode);
                         } catch (const std::exception& ex) {
-                            LOG_ERROR(ex, "Error parsing configuration of pool %Qv; using defaults",
-                                childPath);
+                            errors.emplace_back(
+                                TError(
+                                    "Error parsing configuration of pool %Qv; using defaults",
+                                    childPath)
+                                << ex);
                             config = New<TPoolConfig>();
                         }
 
@@ -320,10 +326,20 @@ public:
                 TWriterGuard guard(RootElementSnapshotLock);
                 RootElementSnapshot = rootElementSnapshot;
             }
-
-            LOG_INFO("Pools updated");
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error updating pools");
+            auto error = TError("Error updating pools")
+                << ex;
+            Host->RegisterAlert(EAlertType::UpdatePools, error);
+            return;
+        }
+
+        if (!errors.empty()) {
+            auto combinedError = TError("Found pool configuration issues");
+            combinedError.InnerErrors() = std::move(errors);
+            Host->RegisterAlert(EAlertType::UpdatePools, combinedError);
+        } else {
+            Host->UnregisterAlert(EAlertType::UpdatePools);
+            LOG_INFO("Pools updated");
         }
     }
 
@@ -464,6 +480,22 @@ public:
         PROFILE_TIMING ("/fair_share_update_time") {
             // The root element gets the whole cluster.
             RootElement->Update(GlobalDynamicAttributes_);
+
+            // Collect alerts after update.
+            std::vector<TError> alerts;
+            for (const auto& pair : Pools) {
+                const auto& poolAlerts = pair.second->UpdateFairShareAlerts();
+                alerts.insert(alerts.end(), poolAlerts.begin(), poolAlerts.end());
+            }
+            const auto& rootElementAlerts = RootElement->UpdateFairShareAlerts();
+            alerts.insert(alerts.end(), rootElementAlerts.begin(), rootElementAlerts.end());
+            if (alerts.empty()) {
+                Host->UnregisterAlert(EAlertType::UpdateFairShare);
+            } else {
+                auto error = TError("Found pool configuration issues during fair share update");
+                error.InnerErrors() = std::move(alerts);
+                Host->RegisterAlert(EAlertType::UpdateFairShare, error);
+            }
 
             // Update starvation flags for all operations.
             for (const auto& pair : OperationIdToElement) {
