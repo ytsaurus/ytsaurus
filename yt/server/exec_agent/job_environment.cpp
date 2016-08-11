@@ -68,7 +68,11 @@ public:
 
             AddArguments(jobProxy, slotIndex);
 
-            LOG_INFO("Spawning a job proxy (SlotIndex: %v)", slotIndex);
+            LOG_INFO("Spawning a job proxy (SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v)", 
+                slotIndex, 
+                jobId,
+                operationId,
+                workingDirectory);
 
             // Make forks outside controller thread.
             auto result = BIND([=] () {
