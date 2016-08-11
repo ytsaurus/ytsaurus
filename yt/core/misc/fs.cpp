@@ -595,7 +595,7 @@ void ChunkedCopy(
 
     TFileInput src(existingPath);
 
-    auto dstFile = TFile(newPath, CreateAlways | WrOnly | Seq);
+    auto dstFile = TFile(newPath, CreateAlways | WrOnly | Seq | CloseOnExec);
     dstFile.Flock(LOCK_EX);
 
     TFileOutput dst(dstFile);
