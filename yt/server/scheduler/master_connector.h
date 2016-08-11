@@ -17,6 +17,8 @@
 namespace NYT {
 namespace NScheduler {
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCreateJobNodeRequest
 {
     TOperationId OperationId;
@@ -64,6 +66,9 @@ public:
     TFuture<void> RemoveSnapshot(const TOperationId& operationId);
 
     void CreateJobNode(const TCreateJobNodeRequest& createJobNodeRequest);
+
+    void RegisterAlert(EAlertType alertType, const TError& alert);
+    void UnregisterAlert(EAlertType alertType);
 
     void AttachJobContext(
         const NYPath::TYPath& path,

@@ -404,6 +404,8 @@ public:
 
     TDuration WatchersUpdatePeriod;
 
+    TDuration AlertsUpdatePeriod;
+
     TDuration ClusterDirectoryUpdatePeriod;
 
     TDuration ResourceDemandSanityCheckPeriod;
@@ -594,6 +596,8 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("watchers_update_period", WatchersUpdatePeriod)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
+            .Default(TDuration::Seconds(1));
         RegisterParameter("cluster_directory_update_period", ClusterDirectoryUpdatePeriod)
             .Default(TDuration::Seconds(3));
         RegisterParameter("resource_demand_sanity_check_period", ResourceDemandSanityCheckPeriod)

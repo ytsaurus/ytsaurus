@@ -294,6 +294,7 @@ protected:
 
     DEFINE_BYREF_RW_PROPERTY(int, RunningOperationCount);
     DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TError>, UpdateFairShareAlerts);
 
     DEFINE_BYREF_RO_PROPERTY(double, AdjustedFairShareStarvationToleranceLimit);
     DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedMinSharePreemptionTimeoutLimit);
@@ -720,7 +721,6 @@ class TRootElementFixedState
 {
 protected:
     DEFINE_BYVAL_RO_PROPERTY(int, TreeSize);
-
 };
 
 class TRootElement

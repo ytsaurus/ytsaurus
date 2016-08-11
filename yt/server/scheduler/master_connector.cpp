@@ -214,6 +214,20 @@ public:
         list->JobRequests.push_back(createJobNodeRequest);
     }
 
+    void RegisterAlert(EAlertType alertType, const TError& alert)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        Alerts[alertType] = alert;
+    }
+
+    void UnregisterAlert(EAlertType alertType)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        Alerts[alertType] = TError();
+    }
+
     TFuture<void> AttachToLivePreview(
         TOperationPtr operation,
         const TNodeId& tableId,
@@ -311,10 +325,13 @@ private:
     TPeriodicExecutorPtr OperationNodesUpdateExecutor;
     TPeriodicExecutorPtr WatchersExecutor;
     TPeriodicExecutorPtr SnapshotExecutor;
+    TPeriodicExecutorPtr AlertsExecutor;
     TPeriodicExecutorPtr ClusterDirectoryUpdateExecutor;
 
     std::vector<TWatcherRequester> GlobalWatcherRequesters;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
+
+    TEnumIndexedVector<TError, EAlertType> Alerts;
 
     struct TLivePreviewRequest
     {
@@ -798,6 +815,13 @@ private:
             Config->SnapshotPeriod,
             EPeriodicExecutorMode::Automatic);
         SnapshotExecutor->Start();
+
+        AlertsExecutor = New<TPeriodicExecutor>(
+            CancelableControlInvoker,
+            BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
+            Config->AlertsUpdatePeriod,
+            EPeriodicExecutorMode::Automatic);
+        AlertsExecutor->Start();
     }
 
     void StopPeriodicActivities()
@@ -825,6 +849,11 @@ private:
         if (SnapshotExecutor) {
             SnapshotExecutor->Stop();
             SnapshotExecutor.Reset();
+        }
+
+        if (AlertsExecutor) {
+            AlertsExecutor->Stop();
+            AlertsExecutor.Reset();
         }
     }
 
@@ -1803,6 +1832,24 @@ private:
             operation->GetId());
     }
 
+    void UpdateAlerts()
+    {
+        std::vector<TError> alerts;
+        for (auto alertType : TEnumTraits<EAlertType>::GetDomainValues()) {
+            const auto& alert = Alerts[alertType];
+            if (!alert.IsOK()) {
+                alerts.push_back(alert);
+            }
+        }
+
+        TObjectServiceProxy proxy(Bootstrap
+            ->GetMasterClient()
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
+        auto req = TYPathProxy::Set("//sys/scheduler/@alerts");
+        req->set_value(ConvertToYsonString(alerts).Data());
+        WaitFor(proxy.Execute(req))
+            .ThrowOnError();
+    }
 
     void BuildSnapshot()
     {
@@ -1944,6 +1991,16 @@ TFuture<void> TMasterConnector::RemoveSnapshot(const TOperationId& operationId)
 void TMasterConnector::CreateJobNode(const TCreateJobNodeRequest& createJobNodeRequest)
 {
     return Impl->CreateJobNode(createJobNodeRequest);
+}
+
+void TMasterConnector::RegisterAlert(EAlertType alertType, const TError& alert)
+{
+    Impl->RegisterAlert(alertType, alert);
+}
+
+void TMasterConnector::UnregisterAlert(EAlertType alertType)
+{
+    Impl->UnregisterAlert(alertType);
 }
 
 void TMasterConnector::AttachJobContext(

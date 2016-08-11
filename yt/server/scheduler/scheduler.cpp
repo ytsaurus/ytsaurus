@@ -340,6 +340,22 @@ public:
         return result;
     }
 
+    virtual void RegisterAlert(EAlertType alertType, const TError& alert) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_WARNING(alert, "Registering alert");
+
+        GetMasterConnector()->RegisterAlert(alertType, alert);
+    }
+
+    virtual void UnregisterAlert(EAlertType alertType) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        GetMasterConnector()->UnregisterAlert(alertType);
+    }
+
     virtual TFuture<void> CheckPoolPermission(
         const TYPath& path,
         const Stroka& user,
@@ -1253,13 +1269,18 @@ private:
             return;
         }
 
+        const auto& rsp = rspOrError.Value();
+        INodePtr poolsNode;
         try {
-            const auto& rsp = rspOrError.Value();
-            auto poolsNode = ConvertToNode(TYsonString(rsp->value()));
-            Strategy_->UpdatePools(poolsNode);
+            poolsNode = ConvertToNode(TYsonString(rsp->value()));
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error parsing pools configuration");
+            auto error = TError("Error parsing pools configuration")
+                << ex;
+            RegisterAlert(EAlertType::UpdatePools, error);
+            return;
         }
+
+        Strategy_->UpdatePools(poolsNode);
     }
 
     void RequestNodesAttributes(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
@@ -1353,6 +1374,7 @@ private:
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
         if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             // No config in Cypress, just ignore.
+            UnregisterAlert(EAlertType::UpdateConfig);
             return;
         }
         if (!rspOrError.IsOK()) {
@@ -1362,6 +1384,7 @@ private:
 
         auto oldConfig = ConvertToNode(Config_);
 
+        bool errorFound = false;
         try {
             const auto& rsp = rspOrError.Value();
             auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
@@ -1370,11 +1393,21 @@ private:
             try {
                 Config_->Load(mergedConfig, /* validate */ true, /* setDefaults */ true);
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Error updating cell scheduler configuration");
+                errorFound = true;
+                auto error = TError("Error updating cell scheduler configuration")
+                    << ex;
+                RegisterAlert(EAlertType::UpdateConfig, error);
                 Config_->Load(oldConfig, /* validate */ true, /* setDefaults */ true);
             }
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error parsing updated scheduler configuration");
+            errorFound = true;
+            auto error = TError("Error parsing updated scheduler configuration")
+                << ex;
+            RegisterAlert(EAlertType::UpdateConfig, error);
+        }
+
+        if (!errorFound) {
+            UnregisterAlert(EAlertType::UpdateConfig);
         }
 
         auto newConfig = ConvertToNode(Config_);

@@ -814,6 +814,8 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
 {
     YCHECK(!Cloned_);
 
+    UpdateFairShareAlerts_.clear();
+
     // Compute min shares sum and min weight.
     double minShareRatioSum = 0.0;
     double minWeight = 1.0;
@@ -824,7 +826,8 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
         childAttributes.RecursiveMinShareRatio = Attributes_.RecursiveMinShareRatio * minShareRatio;
 
         if (minShareRatio > 0 && Attributes_.RecursiveMinShareRatio == 0) {
-            LOG_ERROR("Min share ratio setting for %Qv has no effect "
+            UpdateFairShareAlerts_.emplace_back(
+                "Min share ratio setting for %Qv has no effect "
                 "because min share ratio of parent pool %Qv is zero",
                 child->GetId(),
                 GetId());
@@ -837,7 +840,8 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
 
     // If min share sum is larger than one, adjust all children min shares to sum up to one.
     if (minShareRatioSum > 1.0) {
-        LOG_ERROR("Total min share ratio of children of %Qv is too large: %v > 1",
+        UpdateFairShareAlerts_.emplace_back(
+            "Total min share ratio of children of %Qv is too large: %v > 1",
             GetId(),
             minShareRatioSum);
 
@@ -858,7 +862,8 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
     }
 
     if (minShareRatioSum > Attributes_.GuaranteedResourcesRatio) {
-        LOG_ERROR("Impossible to satisfy resources guarantees for children of %Qv, ",
+        UpdateFairShareAlerts_.emplace_back(
+            "Impossible to satisfy resources guarantees for children of %Qv, ",
             "given out resources share is greater than guaranteed resources share: %v > %v",
             GetId(),
             minShareRatioSum,
