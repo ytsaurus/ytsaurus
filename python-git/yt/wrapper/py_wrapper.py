@@ -115,7 +115,7 @@ class TempfilesManager(object):
         if self._remove_temp_files:
             for file in self._tempfiles_pool:
                 os.remove(file)
-            shutil.rmtree(self._root_directory)
+            shutil.rmtree(self._tmp_dir)
 
     def create_tempfile(self, suffix="", prefix="", dir=None):
         """Use syntax tempfile.mkstemp"""
