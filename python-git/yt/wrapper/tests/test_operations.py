@@ -718,11 +718,11 @@ print op.id
                 lambda tempfiles_manager: create_modules_archive_default(tempfiles_manager, None)
             yt.run_map(foo, table, table)
 
-            with TempfilesManager(remove_temp_files=True) as tempfiles_manager:
+            with TempfilesManager(remove_temp_files=True, directory=yt.config["local_temp_directory"]) as tempfiles_manager:
                 yt.config["pickling"]["create_modules_archive_function"] = lambda: create_modules_archive_default(tempfiles_manager, None)
                 yt.run_map(foo, table, table)
 
-            with TempfilesManager(remove_temp_files=True) as tempfiles_manager:
+            with TempfilesManager(remove_temp_files=True, directory=yt.config["local_temp_directory"]) as tempfiles_manager:
                 yt.config["pickling"]["create_modules_archive_function"] = lambda: create_modules_archive_default(tempfiles_manager, None)[0]["filename"]
                 yt.run_map(foo, table, table)
 

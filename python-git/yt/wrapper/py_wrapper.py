@@ -109,6 +109,8 @@ class TempfilesManager(object):
 
     def __enter__(self):
         self._tmp_dir = tempfile.mkdtemp(prefix="yt_python_tmp_files", dir=self._root_directory)
+        # NB: directory should be accesible from jobs in local mode.
+        os.chmod(self._tmp_dir, 0o755)
         return self
 
     def __exit__(self, type, value, traceback):
