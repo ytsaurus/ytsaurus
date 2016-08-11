@@ -13,6 +13,7 @@ import tempfile
 import gzip
 import shutil
 import time
+import contextlib
 from StringIO import StringIO
 from itertools import imap
 
@@ -503,7 +504,7 @@ class TestTableCommands(object):
         with gzip.GzipFile(filename, "w", 5) as fout:
             fout.write("x=1\nx=2\nx=3\n")
 
-        with open(filename) as f, set_config_option("proxy/content_encoding", "gzip"):
+        with contextlib.nested(open(filename), set_config_option("proxy/content_encoding", "gzip")) as (f, _):
             if yt.config["backend"] == "native":
                 with pytest.raises(yt.YtError):  # not supported for native backend
                     yt.write_table(TEST_DIR + "/table", f, format="dsv", is_stream_compressed=True, raw=True)
