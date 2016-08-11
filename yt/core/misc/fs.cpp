@@ -594,7 +594,11 @@ void ChunkedCopy(
     struct TChunkedCopyTag { };
 
     TFileInput src(existingPath);
-    TFileOutput dst(TFile(newPath, CreateAlways | WrOnly | Seq));
+
+    auto dstFile = TFile(newPath, CreateAlways | WrOnly | Seq);
+    dstFile.Flock(LOCK_EX);
+
+    TFileOutput dst(dstFile);
     TBlob buffer(TChunkedCopyTag(), chunkSize, false);
 
     while (true) {

@@ -363,7 +363,7 @@ private:
                 TObjectServiceProxy proxy(channel);
 
                 auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
-                SetTransactionId(req, UploadTransaction_);
+                SetTransactionId(req, Transaction_);
                 std::vector<Stroka> attributeKeys{
                     "type",
                     "replication_factor",
