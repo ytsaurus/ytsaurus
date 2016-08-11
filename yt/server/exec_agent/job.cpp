@@ -501,9 +501,10 @@ private:
         VERIFY_THREAD_AFFINITY(ControllerThread);
         YCHECK(JobResult_);
 
+        auto resourceDelta = ZeroNodeResources() - ResourceUsage_;
+        ResourceUsage_ = ZeroNodeResources();
+
         if (JobState_ == EJobState::Running) {
-            auto resourceDelta = ZeroNodeResources() - ResourceUsage_;
-            ResourceUsage_ = ZeroNodeResources();
             ResourcesUpdated_.Fire(resourceDelta);
         }
 
