@@ -2,6 +2,7 @@
 
 #include <mapreduce/yt/interface/io.h>
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/config.h>
 
 namespace NYT {
 
@@ -36,12 +37,26 @@ Stroka FormIORequestParameters(
     const TRichYPath& path,
     const TOptions& options)
 {
-    if (!options.Config_) {
-        return YPathToYsonString(path);
+    auto params = NodeFromYPath(path);
+    if (options.Config_) {
+        params[TIOOptionsTraits<TOptions>::ConfigName] = *options.Config_;
     }
+    return NodeToYsonString(params);
+}
 
-    auto params = NodeFromYsonString(YPathToYsonString(path));
-    params[TIOOptionsTraits<TOptions>::ConfigName] = *options.Config_;
+template <>
+inline Stroka FormIORequestParameters<TTableWriterOptions>(
+    const TRichYPath& path,
+    const TTableWriterOptions& options)
+{
+    auto params = NodeFromYPath(path);
+    auto tableWriter = TConfig::Get()->TableWriter;
+    if (options.Config_) {
+        MergeNodes(tableWriter, *options.Config_);
+    }
+    if (!tableWriter.Empty()) {
+        params[TIOOptionsTraits<TTableWriterOptions>::ConfigName] = std::move(tableWriter);
+    }
     return NodeToYsonString(params);
 }
 

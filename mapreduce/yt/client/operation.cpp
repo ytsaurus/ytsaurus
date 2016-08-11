@@ -682,6 +682,9 @@ TOperationId ExecuteMap(
             .Item("control_attributes").BeginMap()
                 .Item("enable_row_index").Value(true)
             .EndMap()
+            .DoIf(!TConfig::Get()->TableWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
+            })
         .EndMap()
         .DoIf(spec.Ordered_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("ordered").Value(spec.Ordered_.GetRef());
@@ -750,6 +753,9 @@ TOperationId ExecuteReduce(
                 .Item("enable_key_switch").Value(true)
                 .Item("enable_row_index").Value(true)
             .EndMap()
+            .DoIf(!TConfig::Get()->TableWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
+            })
         .EndMap()
         .Do(BuildCommonOperationPart)
     .EndMap().EndMap();
@@ -811,6 +817,9 @@ TOperationId ExecuteJoinReduce(
                 .Item("enable_key_switch").Value(true)
                 .Item("enable_row_index").Value(true)
             .EndMap()
+            .DoIf(!TConfig::Get()->TableWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
+            })
         .EndMap()
         .Do(BuildCommonOperationPart)
     .EndMap().EndMap();
@@ -939,16 +948,25 @@ TOperationId ExecuteMapReduce(
             .Item("control_attributes").BeginMap()
                 .Item("enable_row_index").Value(true)
             .EndMap()
+            .DoIf(!TConfig::Get()->TableWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
+            })
         .EndMap()
         .Item("sort_job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_key_switch").Value(true)
             .EndMap()
+            .DoIf(!TConfig::Get()->TableWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
+            })
         .EndMap()
         .Item("reduce_job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_key_switch").Value(true)
             .EndMap()
+            .DoIf(!TConfig::Get()->TableWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
+            })
         .EndMap()
         .Do(BuildCommonOperationPart)
     .EndMap().EndMap();
