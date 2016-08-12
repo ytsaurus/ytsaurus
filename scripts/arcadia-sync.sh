@@ -77,7 +77,14 @@ _ensure_up_to_date() {
 }
 
 _fetch_svn_remote() {
-    git svn --svn-remote "$arc_remote" fetch --log-window-size 100000
+    local lws=100000
+    git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 0:174921
+    git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 174921:174922
+    git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 174922:907136
+    git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 907136:907137
+    git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 907137:2359112
+    git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 2359112:2359113
+    git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 2359113:HEAD
 }
 
 do_init() {
