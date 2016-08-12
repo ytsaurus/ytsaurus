@@ -773,7 +773,6 @@ private:
         operation->SetAsyncSchedulerTransaction(asyncTransaction);
         operation->SetInputTransaction(inputTransaction);
         operation->SetOutputTransaction(outputTransaction);
-        operation->SetHasActiveTransactions(true);
 
         return operation;
     }
