@@ -424,7 +424,7 @@ void FormatValueViaHelper(TStringBuilder* builder, TValue value, const TStringBu
     }
 }
 
-#define XX(valueType, castType, converter, genericSpec) \
+#define XX(valueType, castType, genericSpec) \
     inline void FormatValue(TStringBuilder* builder, valueType value, const TStringBuf& format) \
     { \
         FormatValueViaHelper(builder, static_cast<castType>(value), format, genericSpec); \
