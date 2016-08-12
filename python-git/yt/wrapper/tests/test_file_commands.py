@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 
+import yt.zip as zip
 import yt.wrapper as yt
 
 from helpers import TEST_DIR, set_config_option
 
 import os
 import pytest
-import gzip
 import tempfile
 import contextlib
 
@@ -68,7 +68,7 @@ class TestFileCommands(object):
         fd, filename = tempfile.mkstemp()
         os.close(fd)
 
-        with gzip.GzipFile(filename, "w", 5) as fout:
+        with zip.GzipFile(filename, "w", 5) as fout:
             fout.write("test write compressed file data")
 
         with contextlib.nested(open(filename), set_config_option("proxy/content_encoding", "gzip")) as (f, _):
