@@ -16,6 +16,10 @@ public:
     //! Interval between consequent |Ping| requests to remote Hive Manager.
     TDuration PingPeriod;
 
+    //! Interval between consequent idle (i.e. not carrying any payload) |PostMessages|
+    //! requests to remote Hive Manager.
+    TDuration IdlePostPeriod;
+
     //! Timeout for all RPC requests exchanged by Hive Managers.
     TDuration RpcTimeout;
 

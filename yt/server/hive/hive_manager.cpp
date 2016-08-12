@@ -247,6 +247,7 @@ private:
     IYPathServicePtr OrchidService_;
 
     TEntityMap<TMailbox> MailboxMap_;
+    yhash_map<TCellId, TMessageId> CellIdToNextTransientIncomingMessageId_;
     
 
     // RPC handlers.
@@ -263,12 +264,14 @@ private:
 
         auto* mailbox = FindMailbox(srcCellId);
         auto lastOutcomingMessageId = mailbox
-            ? mailbox->GetFirstOutcomingMessageId() + static_cast<int>(mailbox->OutcomingMessages().size()) - 1
-            : -1;
+            ? MakeNullable(mailbox->GetFirstOutcomingMessageId() + static_cast<int>(mailbox->OutcomingMessages().size()) - 1)
+            : Null;
 
-        response->set_last_outcoming_message_id(lastOutcomingMessageId);
+        if (lastOutcomingMessageId) {
+            response->set_last_outcoming_message_id(*lastOutcomingMessageId);
+        }
 
-        context->SetResponseInfo("LastOutcomingMessageId: %v",
+        context->SetResponseInfo("NextTransientIncomingMessageId: %v",
             lastOutcomingMessageId);
 
         context->Reply();
@@ -341,29 +344,59 @@ private:
     {
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         auto firstMessageId = request->first_message_id();
+        int messageCount = request->messages_size();
 
         context->SetRequestInfo("SrcCellId: %v, DstCellId: %v, MessageIds: %v-%v",
             srcCellId,
             SelfCellId_,
             firstMessageId,
-            firstMessageId + request->messages_size() - 1);
+            firstMessageId + messageCount - 1);
 
         ValidatePeer(EPeerKind::Leader);
 
-        CreatePostMessagesMutation(context)
-            ->CommitAndReply(context);
+        auto* nextTransientIncomingMessageId = GetNextTransientIncomingMessageIdPtr(srcCellId);
+        if (*nextTransientIncomingMessageId == firstMessageId && messageCount > 0) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Committing reliable incoming messages (SrcCellId: %v, DstCellId: %v, "
+                "MessageIds: %v-%v)",
+                srcCellId,
+                SelfCellId_,
+                firstMessageId,
+                firstMessageId + messageCount - 1);
+
+            *nextTransientIncomingMessageId += messageCount;
+            CreatePostMessagesMutation(*request)
+                ->CommitAndLog(Logger);
+        }
+        response->set_next_transient_incoming_message_id(*nextTransientIncomingMessageId);
+
+        auto nextPersistentIncomingMessageId = GetNextPersistentIncomingMessageId(srcCellId);
+        if (nextPersistentIncomingMessageId) {
+            response->set_next_persistent_incoming_message_id(*nextPersistentIncomingMessageId);
+        }
+
+        context->SetResponseInfo("NextPersistentIncomingMessageId: %v, NextTransientIncomingMessageId: %v",
+            nextPersistentIncomingMessageId,
+            *nextTransientIncomingMessageId);
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, SendMessages)
     {
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
+        int messageCount = request->messages_size();
 
         context->SetRequestInfo("SrcCellId: %v, DstCellId: %v, MessageCount: %v",
             srcCellId,
             SelfCellId_,
-            request->messages_size());
+            messageCount);
 
         ValidatePeer(EPeerKind::Leader);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Committing unreliable incoming messages (SrcCellId: %v, DstCellId: %v, "
+            "MessageCount: %v)",
+            srcCellId,
+            SelfCellId_,
+            messageCount);
 
         CreateSendMessagesMutation(context)
             ->CommitAndReply(context);
@@ -376,71 +409,62 @@ private:
     {
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto* mailbox = FindMailbox(cellId);
-        if (!mailbox)
+        if (!mailbox) {
             return;
+        }
 
-        mailbox->SetPostMessagesInFlight(false);
+        mailbox->SetAcknowledgeInProgress(false);
 
-        auto lastAcknowledgedMessageId = request->last_acknowledged_message_id();
-        auto acknowledgeCount = lastAcknowledgedMessageId - mailbox->GetFirstOutcomingMessageId() + 1;
+        auto nextPersistentIncomingMessageId = request->next_persistent_incoming_message_id();
+        auto acknowledgeCount = nextPersistentIncomingMessageId - mailbox->GetFirstOutcomingMessageId();
         if (acknowledgeCount <= 0) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "No messages acknowledged (SrcCellId: %v, DstCellId: %v, FirstOutcomingMessageId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "No messages acknowledged (SrcCellId: %v, DstCellId: %v, "
+                "NextPersistentIncomingMessageId: %v, FirstOutcomingMessageId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
+                nextPersistentIncomingMessageId,
                 mailbox->GetFirstOutcomingMessageId());
             return;
         }
 
         auto& outcomingMessages = mailbox->OutcomingMessages();
         if (acknowledgeCount > outcomingMessages.size()) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Requested to acknowledge too many messages "
-                "(SrcCellId: %v, DstCellId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v, LastAcknowledgedMessageId: %v)",
+            LOG_ERROR_UNLESS(IsRecovery(), "Requested to acknowledge too many messages (SrcCellId: %v, DstCellId: %v, "
+                "NextPersistentIncomingMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
+                nextPersistentIncomingMessageId,
                 mailbox->GetFirstOutcomingMessageId(),
-                outcomingMessages.size(),
-                lastAcknowledgedMessageId);
+                outcomingMessages.size());
             return;
         }
 
         outcomingMessages.erase(outcomingMessages.begin(), outcomingMessages.begin() + acknowledgeCount);
-
         mailbox->SetFirstOutcomingMessageId(mailbox->GetFirstOutcomingMessageId() + acknowledgeCount);
-        LOG_DEBUG_UNLESS(IsRecovery(), "Messages acknowledged (SrcCellId: %v, DstCellId: %v, FirstOutcomingMessageId: %v)",
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Messages acknowledged (SrcCellId: %v, DstCellId: %v, "
+            "FirstOutcomingMessageId: %v)",
             SelfCellId_,
             mailbox->GetCellId(),
             mailbox->GetFirstOutcomingMessageId());
-
-        if (IsLeader()) {
-            MaybePostOutcomingMessages(mailbox);
-        }
     }
 
-    void HydraPostMessages(
-        TCtxPostMessagesPtr context,
-        NHiveClient::NProto::TReqPostMessages* request,
-        NHiveClient::NProto::TRspPostMessages* response)
+    void HydraPostMessages(NHiveClient::NProto::TReqPostMessages* request)
     {
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         auto firstMessageId = request->first_message_id();
         auto* mailbox = FindMailbox(srcCellId);
         if (!mailbox) {
             if (firstMessageId != 0) {
-                THROW_ERROR_EXCEPTION("Mailbox does not exist; expecting message 0 but got %v",
+                LOG_ERROR_UNLESS(IsRecovery(), "Mailbox %v does not exist; expecting message 0 but got %v",
+                    srcCellId,
                     firstMessageId);
+                return;
             }
             mailbox = CreateMailbox(srcCellId);
         }
 
-        HandleReliableIncomingMessages(mailbox, request);
-
-        auto lastAcknowledgedMessageId = mailbox->GetLastIncomingMessageId();
-        response->set_last_acknowledged_message_id(lastAcknowledgedMessageId);
-
-        if (context) {
-            context->SetResponseInfo("LastAcknowledgedMessageId: %v",
-                lastAcknowledgedMessageId);
-        }
+        ApplyReliableIncomingMessages(mailbox, request);
     }
 
     void HydraSendMessages(
@@ -449,12 +473,8 @@ private:
         NHiveClient::NProto::TRspSendMessages* /*response*/)
     {
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
-        auto* mailbox = FindMailbox(srcCellId);
-        if (!mailbox) {
-            THROW_ERROR_EXCEPTION("Mailbox %v does not exist", srcCellId);
-        }
-
-        HandleUnreliableIncomingMessages(mailbox, request);
+        auto* mailbox = GetMailboxOrThrow(srcCellId);
+        ApplyUnreliableIncomingMessages(mailbox, request);
     }
 
     void HydraUnregisterMailbox(NHiveServer::NProto::TReqUnregisterMailbox* request)
@@ -547,12 +567,14 @@ private:
 
     void SetMailboxConnected(TMailbox* mailbox)
     {
-        if (mailbox->GetConnected())
+        if (mailbox->GetConnected()) {
             return;
+        }
 
         mailbox->SetConnected(true);
         YCHECK(mailbox->SyncRequests().empty());
-        YCHECK(!mailbox->GetPostMessagesInFlight());
+        mailbox->SetFirstInFlightOutcomingMessageId(mailbox->GetFirstOutcomingMessageId());
+        YCHECK(mailbox->GetInFlightOutcomingMessageCount() == 0);
 
         LOG_INFO("Mailbox connected (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
@@ -565,24 +587,57 @@ private:
 
     void SetMailboxDisconnected(TMailbox* mailbox)
     {
-        if (!mailbox->GetConnected())
+        if (!mailbox->GetConnected()) {
             return;
+        }
 
         mailbox->SetConnected(false);
+        mailbox->SetPostInProgress(false);
         mailbox->SyncRequests().clear();
-        mailbox->SetPostMessagesInFlight(false);
+        mailbox->SetFirstInFlightOutcomingMessageId(mailbox->GetFirstOutcomingMessageId());
+        mailbox->SetInFlightOutcomingMessageCount(0);
+        TDelayedExecutor::CancelAndClear(mailbox->IdlePostCookie());
 
         LOG_INFO("Mailbox disconnected (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             mailbox->GetCellId());
     }
 
-    void SetMailboxesDisconnected()
+    void ResetMailboxes()
     {
         for (const auto& pair : MailboxMap_) {
             auto* mailbox = pair.second;
             SetMailboxDisconnected(mailbox);
+            mailbox->SetAcknowledgeInProgress(false);
         }
+        CellIdToNextTransientIncomingMessageId_.clear();
+    }
+
+
+    TMessageId* GetNextTransientIncomingMessageIdPtr(const TCellId& cellId)
+    {
+        auto it = CellIdToNextTransientIncomingMessageId_.find(cellId);
+        if (it != CellIdToNextTransientIncomingMessageId_.end()) {
+            return &it->second;
+        }
+
+        return &CellIdToNextTransientIncomingMessageId_.emplace(
+            cellId,
+            GetNextPersistentIncomingMessageId(cellId).Get(0)).first->second;
+    }
+
+    TMessageId GetNextTransientIncomingMessageId(TMailbox* mailbox)
+    {
+        auto it = CellIdToNextTransientIncomingMessageId_.find(mailbox->GetCellId());
+        return it == CellIdToNextTransientIncomingMessageId_.end()
+            ? mailbox->GetNextIncomingMessageId()
+            : it->second;
+    }
+
+    TNullable<TMessageId> GetNextPersistentIncomingMessageId(const TCellId& cellId)
+    {
+        auto* mailbox = FindMailbox(cellId);
+        return mailbox ? MakeNullable(mailbox->GetNextIncomingMessageId()) : Null;
     }
 
 
@@ -606,8 +661,9 @@ private:
     void OnPeriodicPingTick(const TCellId& cellId)
     {
         auto* mailbox = FindMailbox(cellId);
-        if (!mailbox)
+        if (!mailbox) {
             return;
+        }
 
         SendPeriodicPing(mailbox);
     }
@@ -653,8 +709,9 @@ private:
     void OnPeriodicPingResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
     {
         auto* mailbox = FindMailbox(cellId);
-        if (!mailbox)
+        if (!mailbox) {
             return;
+        }
 
         SchedulePeriodicPing(mailbox);
 
@@ -666,7 +723,9 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        auto lastOutcomingMessageId = rsp->last_outcoming_message_id();
+        auto lastOutcomingMessageId = rsp->has_last_outcoming_message_id()
+            ? MakeNullable(rsp->last_outcoming_message_id())
+            : Null;
 
         LOG_DEBUG("Periodic ping succeeded (SrcCellId: %v, DstCellId: %v, LastOutcomingMessageId: %v)",
             SelfCellId_,
@@ -696,22 +755,30 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        auto messageId = rsp->last_outcoming_message_id();
-
-        if (messageId <= mailbox->GetLastIncomingMessageId()) {
-            LOG_DEBUG("Already synchronized with another instance (SrcCellId: %v, DstCellId: %v, NeededMessageId: %v, CurrentMessageId: %v)",
+        if (!rsp->has_last_outcoming_message_id()) {
+            LOG_DEBUG("Remote instance has no mailbox; no synchronization needed (SrcCellId: %v, DstCellId: %v)",
                 cellId,
-                SelfCellId_,
-                messageId,
-                mailbox->GetLastIncomingMessageId());
+                SelfCellId_);
             return VoidFuture;
         }
 
-        LOG_DEBUG("Waiting for synchronization with another instance (SrcCellId: %v, DstCellId: %v, NeededMessageId: %v, CurrentMessageId: %v)",
+        auto messageId = rsp->last_outcoming_message_id();
+        if (messageId < mailbox->GetNextIncomingMessageId()) {
+            LOG_DEBUG("Already synchronized with remote instance (SrcCellId: %v, DstCellId: %v, "
+                "SyncMessageId: %v, NextPersistentIncomingMessageId: %v)",
+                cellId,
+                SelfCellId_,
+                messageId,
+                mailbox->GetNextIncomingMessageId());
+            return VoidFuture;
+        }
+
+        LOG_DEBUG("Waiting for synchronization with remote instance (SrcCellId: %v, DstCellId: %v, "
+            "SyncMessageId: %v, NextPersistentIncomingMessageId: %v)",
             cellId,
             SelfCellId_,
             messageId,
-            mailbox->GetLastIncomingMessageId());
+            mailbox->GetNextIncomingMessageId());
 
         return RegisterSyncRequest(mailbox, messageId);
     }
@@ -740,8 +807,9 @@ private:
         while (!syncRequests.empty()) {
             auto it = syncRequests.begin();
             auto messageId = it->first;
-            if (messageId > mailbox->GetLastIncomingMessageId())
+            if (messageId >= mailbox->GetNextIncomingMessageId()) {
                 break;
+            }
 
             auto& request = it->second;
 
@@ -755,27 +823,47 @@ private:
         }
     }
 
+    void OnIdlePostOutcomingMessages(const TCellId& cellId)
+    {
+        auto* mailbox = FindMailbox(cellId);
+        if (!mailbox) {
+            return;
+        }
+        MaybePostOutcomingMessages(mailbox);
+    }
 
     void MaybePostOutcomingMessages(TMailbox* mailbox)
     {
-        if (!IsLeader())
+        if (!IsLeader()) {
             return;
+        }
 
-        if (!mailbox->GetConnected())
+        if (!mailbox->GetConnected()) {
             return;
+        }
 
-        if (mailbox->GetPostMessagesInFlight())
+        if (mailbox->GetInFlightOutcomingMessageCount() > 0) {
             return;
+        }
 
-        if (mailbox->OutcomingMessages().empty())
+        auto firstMessageId = mailbox->GetFirstInFlightOutcomingMessageId();
+        const auto& outcomingMessages = mailbox->OutcomingMessages();
+        YCHECK(firstMessageId >= mailbox->GetFirstOutcomingMessageId());
+        YCHECK(firstMessageId <= mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size());
+
+        TDelayedExecutor::CancelAndClear(mailbox->IdlePostCookie());
+        if (firstMessageId == mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size()) {
+            mailbox->IdlePostCookie() = TDelayedExecutor::Submit(
+                BIND(&TImpl::OnIdlePostOutcomingMessages, MakeWeak(this), mailbox->GetCellId())
+                    .Via(EpochAutomatonInvoker_),
+                Config_->IdlePostPeriod);
             return;
+        }
 
         auto proxy = FindHiveProxy(mailbox);
-        if (!proxy)
+        if (!proxy) {
             return;
-
-        auto firstMessageId = mailbox->GetFirstOutcomingMessageId();
-        const auto& outcomingMessages = mailbox->OutcomingMessages();
+        }
 
         auto req = proxy->PostMessages();
         req->SetTimeout(Config_->PostRpcTimeout);
@@ -784,17 +872,18 @@ private:
 
         int messagesToPost = 0;
         i64 bytesToPost = 0;
-        while (messagesToPost < outcomingMessages.size() &&
+        while (firstMessageId + messagesToPost < mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size() &&
                messagesToPost < Config_->MaxMessagesPerPost &&
                bytesToPost < Config_->MaxBytesPerPost)
         {
-            const auto& message = outcomingMessages[messagesToPost];
+            const auto& message = outcomingMessages[firstMessageId + messagesToPost - mailbox->GetFirstOutcomingMessageId()];
             *req->add_messages() = message;
             messagesToPost += 1;
             bytesToPost += message.ByteSize();
         }
 
-        mailbox->SetPostMessagesInFlight(true);
+        mailbox->SetInFlightOutcomingMessageCount(messagesToPost);
+        mailbox->SetPostInProgress(true);
 
         LOG_DEBUG("Posting reliable outcoming messages (SrcCellId: %v, DstCellId: %v, MessageIds: %v-%v)",
             SelfCellId_,
@@ -810,8 +899,16 @@ private:
     void OnPostMessagesResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
     {
         auto* mailbox = FindMailbox(cellId);
-        if (!mailbox)
+        if (!mailbox) {
             return;
+        }
+
+        if (!mailbox->GetPostInProgress()) {
+            return;
+        }
+
+        mailbox->SetInFlightOutcomingMessageCount(0);
+        mailbox->SetPostInProgress(false);
 
         if (!rspOrError.IsOK()) {
             LOG_DEBUG(rspOrError, "Failed to post reliable outcoming messages (SrcCellId: %v, DstCellId: %v)",
@@ -822,20 +919,29 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        auto lastAcknowledgedMessageId = rsp->last_acknowledged_message_id();
-        LOG_DEBUG("Outcoming reliable messages posted successfully (SrcCellId: %v, DstCellId: %v, LastAcknowledgedMessageId: %v)",
+        auto nextPersistentIncomingMessageId = rsp->has_next_persistent_incoming_message_id()
+            ? MakeNullable(rsp->next_persistent_incoming_message_id())
+            : Null;
+        auto nextTransientIncomingMessageId = rsp->next_transient_incoming_message_id();
+        LOG_DEBUG("Outcoming reliable messages posted (SrcCellId: %v, DstCellId: %v, "
+            "NextPersistentIncomingMessageId: %v, NextTransientIncomingMessageId: %v)",
             SelfCellId_,
             mailbox->GetCellId(),
-            lastAcknowledgedMessageId);
+            nextPersistentIncomingMessageId,
+            nextTransientIncomingMessageId);
 
-        HandleAcknowledgedMessages(mailbox, lastAcknowledgedMessageId);
+        if (nextPersistentIncomingMessageId) {
+            HandlePersistentIncomingMessages(mailbox, *nextPersistentIncomingMessageId);
+        }
+        HandleTransientIncomingMessages(mailbox, nextTransientIncomingMessageId);
     }
 
     void OnSendMessagesResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspSendMessagesPtr& rspOrError)
     {
         auto* mailbox = FindMailbox(cellId);
-        if (!mailbox)
+        if (!mailbox) {
             return;
+        }
 
         if (!rspOrError.IsOK()) {
             LOG_DEBUG(rspOrError, "Failed to send unreliable outcoming messages (SrcCellId: %v, DstCellId: %v)",
@@ -860,11 +966,11 @@ private:
             this);
     }
 
-    TMutationPtr CreatePostMessagesMutation(TCtxPostMessagesPtr context)
+    TMutationPtr CreatePostMessagesMutation(const NHiveClient::NProto::TReqPostMessages& request)
     {
         return CreateMutation(
             HydraManager_,
-            std::move(context),
+            request,
             &TImpl::HydraPostMessages,
             this);
     }
@@ -888,90 +994,119 @@ private:
     }
 
 
-    void HandleAcknowledgedMessages(TMailbox* mailbox, TMessageId lastAcknowledgedMessageId)
+    void HandlePersistentIncomingMessages(TMailbox* mailbox, TMessageId nextPersistentIncomingMessageId)
     {
+        if (mailbox->GetAcknowledgeInProgress()) {
+            return;
+        }
+
+        YCHECK(nextPersistentIncomingMessageId >= mailbox->GetFirstOutcomingMessageId());
+        YCHECK(nextPersistentIncomingMessageId <= mailbox->GetFirstOutcomingMessageId() + mailbox->OutcomingMessages().size());
+
+        if (nextPersistentIncomingMessageId == mailbox->GetFirstOutcomingMessageId()) {
+            return;
+        }
+
         NHiveServer::NProto::TReqAcknowledgeMessages req;
         ToProto(req.mutable_cell_id(), mailbox->GetCellId());
-        req.set_last_acknowledged_message_id(lastAcknowledgedMessageId);
+        req.set_next_persistent_incoming_message_id(nextPersistentIncomingMessageId);
+
+        mailbox->SetAcknowledgeInProgress(true);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Committing reliable messages acknowledgement (SrcCellId: %v, DstCellId: %v, "
+            "MessageIds: %v-%v)",
+            SelfCellId_,
+            mailbox->GetCellId(),
+            mailbox->GetFirstOutcomingMessageId(),
+            nextPersistentIncomingMessageId - 1);
 
         CreateAcknowledgeMessagesMutation(req)
             ->CommitAndLog(Logger);
     }
 
-    void HandleReliableIncomingMessages(TMailbox* mailbox, const NHiveClient::NProto::TReqPostMessages* req)
+    void HandleTransientIncomingMessages(TMailbox* mailbox, TMessageId nextTransientIncomingMessageId)
+    {
+        if (nextTransientIncomingMessageId < mailbox->GetFirstOutcomingMessageId()) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: requested to receive already truncated messages (SrcCellId: %v, DstCellId: %v, "
+                "NextTransientIncomingMessageId: %v, FirstOutcomingMessageId: %v)",
+                SelfCellId_,
+                mailbox->GetCellId(),
+                nextTransientIncomingMessageId,
+                mailbox->GetFirstOutcomingMessageId());
+            // NB: This is not likely to help.
+            mailbox->SetFirstInFlightOutcomingMessageId(mailbox->GetFirstOutcomingMessageId());
+            return;
+        }
+
+        if (nextTransientIncomingMessageId > mailbox->GetFirstOutcomingMessageId() + mailbox->OutcomingMessages().size()) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: requested to receive nonexisting messages (SrcCellId: %v, DstCellId: %v, "
+                "NextTransientIncomingMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
+                SelfCellId_,
+                mailbox->GetCellId(),
+                nextTransientIncomingMessageId,
+                mailbox->GetFirstOutcomingMessageId(),
+                mailbox->OutcomingMessages().size());
+            // NB: This is not likely to help.
+            mailbox->SetFirstInFlightOutcomingMessageId(mailbox->GetFirstOutcomingMessageId());
+            return;
+        }
+
+        mailbox->SetFirstInFlightOutcomingMessageId(nextTransientIncomingMessageId);
+
+        if (IsLeader()) {
+            MaybePostOutcomingMessages(mailbox);
+        }
+    }
+
+    
+    void ApplyReliableIncomingMessages(TMailbox* mailbox, const NHiveClient::NProto::TReqPostMessages* req)
     {
         for (int index = 0; index < req->messages_size(); ++index) {
             auto messageId = req->first_message_id() + index;
-            HandleReliableIncomingMessage(mailbox, messageId, req->messages(index));
+            ApplyReliableIncomingMessage(mailbox, messageId, req->messages(index));
         }
     }
 
-    void HandleReliableIncomingMessage(TMailbox* mailbox, TMessageId messageId, const TEncapsulatedMessage& incomingMessage)
+    void ApplyReliableIncomingMessage(TMailbox* mailbox, TMessageId messageId, const TEncapsulatedMessage& message)
     {
-        if (messageId <= mailbox->GetLastIncomingMessageId()) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Dropping obsolete incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
+        if (messageId != mailbox->GetNextIncomingMessageId()) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: attempt to apply an out-of-order message (SrcCellId: %v, DstCellId: %v, "
+                "ExpectedMessageId: %v, ActualMessageId: %v, MutationType: %v)",
                 mailbox->GetCellId(),
                 SelfCellId_,
-                messageId);
+                mailbox->GetNextIncomingMessageId(),
+                messageId,
+                message.type());
             return;
         }
 
-        auto& incomingMessages = mailbox->IncomingMessages();
-        if (!incomingMessages.insert(std::make_pair(messageId, incomingMessage)).second) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Dropping duplicate incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
-                mailbox->GetCellId(),
-                SelfCellId_,
-                messageId);
-            return;
-        }
+        LOG_DEBUG_UNLESS(IsRecovery(), "Applying reliable incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
+            mailbox->GetCellId(),
+            SelfCellId_,
+            messageId,
+            message.type());
 
-        bool consumed = false;
-        while (!incomingMessages.empty()) {
-            const auto& frontPair = *incomingMessages.begin();
-            auto frontMessageId = frontPair.first;
-            const auto& frontMessage = frontPair.second;
-            if (frontMessageId != mailbox->GetLastIncomingMessageId() + 1)
-                break;
+        ApplyMessage(message);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Consuming reliable incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
-                mailbox->GetCellId(),
-                SelfCellId_,
-                frontMessageId,
-                frontMessage.type());
+        mailbox->SetNextIncomingMessageId(messageId + 1);
 
-            TMutationRequest request;
-            request.Type = frontMessage.type();
-            request.Data = TSharedRef::FromString(frontMessage.data());
-
-            auto traceContext = GetTraceContext(frontMessage);
-            TTraceContextGuard traceContextGuard(traceContext);
-
-            ApplyMessage(frontMessage);
-
-            YCHECK(incomingMessages.erase(frontMessageId) == 1);
-            mailbox->SetLastIncomingMessageId(frontMessageId);
-            consumed = true;
-
-            FlushSyncRequests(mailbox);
-        }
-
-        if (!consumed) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Keeping an out-of-order incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
-                mailbox->GetCellId(),
-                SelfCellId_,
-                messageId);
-        }
+        FlushSyncRequests(mailbox);
     }
 
-    void HandleUnreliableIncomingMessages(TMailbox* mailbox, const NHiveClient::NProto::TReqSendMessages* req)
+    void ApplyUnreliableIncomingMessages(TMailbox* mailbox, const NHiveClient::NProto::TReqSendMessages* req)
     {
         for (const auto& message : req->messages()) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Consuming unreliable incoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
-                mailbox->GetCellId(),
-                SelfCellId_,
-                message.type());
-            ApplyMessage(message);
+            ApplyUnreliableIncomingMessage(mailbox, message);
         }
+    }
+
+    void ApplyUnreliableIncomingMessage(TMailbox* mailbox, const TEncapsulatedMessage& message)
+    {
+        LOG_DEBUG_UNLESS(IsRecovery(), "Applying unreliable incoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
+            mailbox->GetCellId(),
+            SelfCellId_,
+            message.type());
+        ApplyMessage(message);
     }
 
     void ApplyMessage(const TEncapsulatedMessage& message)
@@ -1052,7 +1187,7 @@ private:
     virtual void OnStopLeading() override
     {
         TCompositeAutomatonPart::OnStopLeading();
-        SetMailboxesDisconnected();
+        ResetMailboxes();
     }
 
     virtual void OnFollowerRecoveryComplete() override
@@ -1064,18 +1199,20 @@ private:
     virtual void OnStopFollowing() override
     {
         TCompositeAutomatonPart::OnStopFollowing();
-        SetMailboxesDisconnected();
+        ResetMailboxes();
     }
 
 
     virtual bool ValidateSnapshotVersion(int version) override
     {
-        return version == 2;
+        return
+            version == 2 ||
+            version == 3;
     }
 
     virtual int GetCurrentSnapshotVersion() override
     {
-        return 2;
+        return 3;
     }
 
 
@@ -1122,16 +1259,15 @@ private:
                     auto* mailbox = pair.second;
                     fluent
                         .Item(ToString(mailbox->GetCellId())).BeginMap()
-                            .Item("outcoming_message_count").Value(mailbox->OutcomingMessages().size())
+                            .Item("connected").Value(mailbox->GetConnected())
+                            .Item("acknowledge_in_progress").Value(mailbox->GetAcknowledgeInProgress())
+                            .Item("post_in_progress").Value(mailbox->GetPostInProgress())
                             .Item("first_outcoming_message_id").Value(mailbox->GetFirstOutcomingMessageId())
-                            .Item("last_incoming_message_id").Value(mailbox->GetLastIncomingMessageId())
-                            .Item("incoming_message_ids").BeginList()
-                                .DoFor(mailbox->IncomingMessages(), [&] (TFluentList fluent, const TMailbox::TIncomingMessageMap::value_type& pair) {
-                                    fluent
-                                        .Item().Value(pair.first);
-                                })
-                            .EndList()
-                            .Item("post_messages_in_flight").Value(mailbox->GetPostMessagesInFlight())
+                            .Item("outcoming_message_count").Value(mailbox->OutcomingMessages().size())
+                            .Item("next_persistent_incoming_message_id").Value(mailbox->GetNextIncomingMessageId())
+                            .Item("next_transient_incoming_message_id").Value(GetNextTransientIncomingMessageId(mailbox))
+                            .Item("first_in_flight_outcoming_message_id").Value(mailbox->GetFirstInFlightOutcomingMessageId())
+                            .Item("in_flight_outcoming_message_count").Value(mailbox->GetInFlightOutcomingMessageCount())
                         .EndMap();
                 })
             .EndMap();

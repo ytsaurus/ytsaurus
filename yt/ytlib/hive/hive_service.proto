@@ -24,7 +24,7 @@ message TReqPing
 
 message TRspPing
 {
-    required int64 last_outcoming_message_id = 2;
+    optional int64 last_outcoming_message_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,7 +61,8 @@ message TReqPostMessages
 
 message TRspPostMessages
 {
-    required int64 last_acknowledged_message_id = 1;
+    optional int64 next_persistent_incoming_message_id = 1;
+    required int64 next_transient_incoming_message_id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

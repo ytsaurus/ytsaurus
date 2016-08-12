@@ -30,17 +30,28 @@ public:
     // Persistent state.
     DEFINE_BYVAL_RO_PROPERTY(TCellId, CellId);
 
+    //! The id of the first message in |OutcomingMessages|.
     DEFINE_BYVAL_RW_PROPERTY(TMessageId, FirstOutcomingMessageId);
-    DEFINE_BYVAL_RW_PROPERTY(TMessageId, LastIncomingMessageId);
-    DEFINE_BYVAL_RW_PROPERTY(bool, PostMessagesInFlight)
-
+    //! Messages enqueued for the destination cell, ordered by id.
     DEFINE_BYREF_RW_PROPERTY(std::vector<NHiveClient::NProto::TEncapsulatedMessage>, OutcomingMessages);
-    
-    typedef std::map<TMessageId, NHiveClient::NProto::TEncapsulatedMessage> TIncomingMessageMap;
-    DEFINE_BYREF_RW_PROPERTY(TIncomingMessageMap, IncomingMessages);
+
+    //! The id of the next incoming message to be handled by Hydra.
+    DEFINE_BYVAL_RW_PROPERTY(TMessageId, NextIncomingMessageId);
 
     // Transient state.
     DEFINE_BYVAL_RW_PROPERTY(bool, Connected);
+    DEFINE_BYVAL_RW_PROPERTY(bool, AcknowledgeInProgress);
+    DEFINE_BYVAL_RW_PROPERTY(bool, PostInProgress);
+
+    //! The id of the first message for which |PostMessages| request to the destination
+    //! cell is still in progress. If no request is in progress then this is
+    //! just the id of the first message to be sent.
+    DEFINE_BYVAL_RW_PROPERTY(TMessageId, FirstInFlightOutcomingMessageId);
+    //! The number of messages in the above request.
+    //! If this value is zero then there is no in-flight request.
+    DEFINE_BYVAL_RW_PROPERTY(int, InFlightOutcomingMessageCount);
+
+    DEFINE_BYREF_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, IdlePostCookie);
 
     struct TSyncRequest
     {

@@ -16,10 +16,6 @@ using namespace NHydra;
 
 TMailbox::TMailbox(const TCellId& cellId)
     : CellId_(cellId)
-    , FirstOutcomingMessageId_(0)
-    , LastIncomingMessageId_(-1)
-    , PostMessagesInFlight_(false)
-    , Connected_(false)
 { }
 
 void TMailbox::Save(TSaveContext& context) const
@@ -27,19 +23,27 @@ void TMailbox::Save(TSaveContext& context) const
     using NYT::Save;
 
     Save(context, FirstOutcomingMessageId_);
-    Save(context, LastIncomingMessageId_);
     Save(context, OutcomingMessages_);
-    Save(context, IncomingMessages_);
+    Save(context, NextIncomingMessageId_);
 }
 
 void TMailbox::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, FirstOutcomingMessageId_);
-    Load(context, LastIncomingMessageId_);
-    Load(context, OutcomingMessages_);
-    Load(context, IncomingMessages_);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 3) {
+        Load(context, FirstOutcomingMessageId_);
+        // LastIncomingMessage_ differs from NextIncomingMessageId_ by 1.
+        NextIncomingMessageId_ = Load<TMessageId>(context) + 1;
+        Load(context, OutcomingMessages_);
+        // IncomingMessages_ must be empty.
+        YCHECK(TSizeSerializer::Load(context) == 0);
+    } else {
+        Load(context, FirstOutcomingMessageId_);
+        Load(context, OutcomingMessages_);
+        Load(context, NextIncomingMessageId_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
