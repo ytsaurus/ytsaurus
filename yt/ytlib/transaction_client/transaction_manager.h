@@ -26,6 +26,9 @@ using TTransactionAbortOptions = NApi::TTransactionAbortOptions;
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Represents a transaction within a client.
+/*!
+ *  /note Thread affinity: any
+ */
 class TTransaction
     : public TRefCounted
 {
@@ -35,88 +38,56 @@ public:
     //! Commits the transaction asynchronously.
     /*!
      *  Should not be called more than once.
-     *
-     *  \note Thread affinity: ClientThread
      */
     TFuture<void> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions());
 
     //! Aborts the transaction asynchronously.
-    /*!
-     *  \note Thread affinity: any
-     */
     TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions());
 
     //! Detaches the transaction, i.e. stops pings.
     /*!
      *  This call does not block and does not throw.
      *  Safe to call multiple times.
-     *
-     *  \note Thread affinity: ClientThread
      */
     void Detach();
 
     //! Sends an asynchronous ping.
-    /*!
-     *  \note Thread affinity: any
-     */
     TFuture<void> Ping();
 
 
     //! Returns the transaction type.
-    /*!
-     *  \note Thread affinity: any
-     */
     ETransactionType GetType() const;
 
     //! Returns the transaction id.
-    /*!
-     *  \note Thread affinity: any
-     */
     const TTransactionId& GetId() const;
 
     //! Returns the transaction start timestamp.
     /*!
      *  For non-atomic transactions this timestamp is client-generated (i.e. approximate).
-     *  \note Thread affinity: any
      */
     TTimestamp GetStartTimestamp() const;
 
     //! Returns the transaction atomicity mode.
-    /*!
-     *  \note Thread affinity: any
-     */
     EAtomicity GetAtomicity() const;
 
     //! Returns the transaction durability mode.
-    /*!
-     *  \note Thread affinity: any
-     */
     EDurability GetDurability() const;
 
 
     //! Called to mark a given cell as a transaction participant.
     //! Starts the corresponding transaction and returns the async result.
-    /*!
-     *  \note Thread affinity: ClientThread
-     */
     TFuture<void> AddTabletParticipant(const NElection::TCellId& cellId);
 
 
     //! Raised when the transaction is committed.
-    /*!
-     *  \note Thread affinity: any
-     */
     DECLARE_SIGNAL(void(), Committed);
 
     //! Raised when the transaction is aborted.
-    /*!
-     *  \note Thread affinity: any
-     */
     DECLARE_SIGNAL(void(), Aborted);
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
     friend class TTransactionManager;
     DECLARE_NEW_FRIEND();
@@ -135,7 +106,7 @@ DEFINE_REFCOUNTED_TYPE(TTransaction)
  *  Provides a factory for all client-side transactions.
  *  Keeps track of all active transactions and sends pings to master servers periodically.
  *
- * /note Thread affinity: any
+ *  /note Thread affinity: any
  */
 class TTransactionManager
     : public TRefCounted
