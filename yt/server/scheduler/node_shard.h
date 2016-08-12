@@ -113,6 +113,8 @@ public:
 
     void HandleNodesAttributes(const std::vector<std::pair<Stroka, NYTree::INodePtr>>& nodeMaps);
 
+    void AbortAllJobs(const TError& error);
+
     void AbortOperationJobs(const TOperationId& operationId, const TError& abortReason);
 
     NYson::TYsonString StraceJob(const TJobId& jobId, const Stroka& user);

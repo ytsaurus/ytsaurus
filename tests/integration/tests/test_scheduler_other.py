@@ -67,7 +67,6 @@ class TestSchedulerOther(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
-    @pytest.mark.skipif("True")
     def test_disconnect_during_revive(self):
         op_count = 20
 
@@ -80,7 +79,7 @@ class TestSchedulerOther(YTEnvSetup):
         for i in xrange(1, op_count):
             ops.append(
                 map(dont_track=True,
-                    command="cat",
+                    command="sleep 2; cat",
                     in_=["//tmp/t_in"],
                     out="//tmp/t_out" + str(i)))
 
@@ -98,8 +97,6 @@ class TestSchedulerOther(YTEnvSetup):
 
         for i in xrange(1, op_count):
             assert read_table("//tmp/t_out" + str(i)) == [ {"foo" : "bar"} ]
-
-
 
     @pytest.mark.skipif("True")
     def test_aborting(self):
