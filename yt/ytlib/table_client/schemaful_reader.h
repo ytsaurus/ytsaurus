@@ -9,7 +9,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Reads a non-versioned, fixed-width, strictly typed rowset with given a schema.
+//! Reads a non-versioned, fixed-width, strictly typed rowset with a given schema.
 /*!
  *  The contract is mostly same as in IVersionedReader.
  *
