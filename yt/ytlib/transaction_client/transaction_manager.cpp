@@ -185,8 +185,6 @@ public:
 
     TFuture<void> Commit(const TTransactionCommitOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(ClientThread);
-
         try {
 
             {
@@ -285,8 +283,6 @@ public:
 
     void Detach()
     {
-        VERIFY_THREAD_AFFINITY(ClientThread);
-
         if (Type_ != ETransactionType::Master) {
             THROW_ERROR_EXCEPTION("Cannot detach a %Qlv transaction",
                 Type_);
@@ -362,7 +358,6 @@ public:
 
     TFuture<void> AddTabletParticipant(const TCellId& cellId)
     {
-        VERIFY_THREAD_AFFINITY(ClientThread);
         YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
 
         try {
@@ -467,8 +462,6 @@ private:
 
     TTimestamp StartTimestamp_ = NullTimestamp;
     TTransactionId Id_;
-
-    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 
 
 
