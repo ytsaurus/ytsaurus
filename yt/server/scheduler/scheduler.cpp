@@ -1140,6 +1140,20 @@ private:
         LogEventFluently(ELogEventType::MasterDisconnected)
             .Item("address").Value(ServiceAddress_);
 
+        auto error = TError("Master disconnected");
+
+        {
+            std::vector<TFuture<void>> abortFutures;
+            for (auto& nodeShard : NodeShards_) {
+                abortFutures.push_back(BIND(&TNodeShard::AbortAllJobs, nodeShard)
+                    .AsyncVia(nodeShard->GetInvoker())
+                    .Run(error));
+            }
+            Combine(abortFutures)
+                .Get()
+                .ThrowOnError();
+        }
+
         auto operations = IdToOperation_;
         for (const auto& pair : operations) {
             auto operation = pair.second;
@@ -1149,7 +1163,7 @@ private:
                 SetOperationFinalState(
                     operation,
                     EOperationState::Aborted,
-                    TError("Master disconnected"));
+                    error);
             }
             FinishOperation(operation);
         }

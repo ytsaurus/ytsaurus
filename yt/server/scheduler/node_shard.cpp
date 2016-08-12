@@ -300,6 +300,21 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<Stroka, INode
     }
 }
 
+void TNodeShard::AbortAllJobs(const TError& abortReason)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    for (auto& pair : OperationStates_) {
+        auto& state = pair.second;
+        state.JobsAborted = true;
+        auto jobs = state.Jobs;
+        for (const auto& job : jobs) {
+            auto status = JobStatusFromError(abortReason);
+            OnJobAborted(job.second, &status);
+        }
+    }
+}
+
 void TNodeShard::AbortOperationJobs(const TOperationId& operationId, const TError& abortReason)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
