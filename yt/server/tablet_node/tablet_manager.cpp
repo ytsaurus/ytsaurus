@@ -1373,6 +1373,10 @@ private:
         }
 
         store->SetStoreState(EStoreState::Orphaned);
+
+        if (!store->IsDynamic()) {
+            return;
+        }
         
         auto dynamicStore = store->AsDynamic();
         auto lockCount = dynamicStore->GetLockCount();
