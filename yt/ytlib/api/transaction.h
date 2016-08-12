@@ -33,8 +33,7 @@ struct TDeleteRowsOptions
  *  buffers all modifications and flushes them during #Commit. This, in
  *  particular, explains why these methods return |void|.
  *  
- *  Thread affinity: single
- *  
+ *  Thread affinity: any
  */
 struct ITransaction
     : public IClientBase
