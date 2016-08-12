@@ -136,6 +136,7 @@ public:
             CoordinatorCommitTransaction(
                 transactionId,
                 participantCellIds,
+                false,
                 NullMutationId));
     }
 
@@ -405,10 +406,12 @@ private:
 
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
+            auto force2PC = request->force_2pc();
 
-            context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v",
+            context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, Force2PC: %v",
                 transactionId,
-                participantCellIds);
+                participantCellIds,
+                force2PC);
 
             auto owner = GetOwnerOrThrow();
 
@@ -419,6 +422,7 @@ private:
             auto asyncResponseMessage = owner->CoordinatorCommitTransaction(
                 transactionId,
                 participantCellIds,
+                force2PC,
                 GetMutationId(context));
             context->ReplyFrom(asyncResponseMessage);
         }
@@ -557,6 +561,7 @@ private:
     TFuture<TSharedRefArray> CoordinatorCommitTransaction(
         const TTransactionId& transactionId,
         const std::vector<TCellId>& participantCellIds,
+        bool force2PC,
         const TMutationId& mutationId)
     {
         Y_ASSERT(!HasMutationContext());
@@ -576,7 +581,7 @@ private:
         // Commit instance may die below.
         auto asyncResponseMessage = commit->GetAsyncResponseMessage();
 
-        if (participantCellIds.empty()) {
+        if (participantCellIds.empty() && !force2PC) {
             CommitSimpleTransaction(commit);
         } else {
             CommitDistributedTransaction(commit);
@@ -1132,17 +1137,15 @@ private:
         commit->RespondedCellIds().clear();
 
         switch (state) {
-            case ECommitState::GenerateCommitTimestamp: {
+            case ECommitState::GenerateCommitTimestamp:
                 GenerateCommitTimestamp(commit);
                 break;
-            }
 
             case ECommitState::Prepare:
             case ECommitState::Commit:
-            case ECommitState::Abort: {
+            case ECommitState::Abort:
                 SendParticipantRequests(commit);
                 break;
-            }
 
             case ECommitState::Finish: {
                 NHiveServer::NProto::TReqFinishDistributedTransaction request;
@@ -1172,6 +1175,7 @@ private:
         for (const auto& cellId : commit->ParticipantCellIds()) {
             SendParticipantRequest(commit, cellId);
         }
+        CheckAllParticipantsResponded(commit);
     }
 
     void SendParticipantRequest(TCommit* commit, const TCellId& cellId)
@@ -1298,7 +1302,11 @@ private:
 
         // NB: Duplicates are fine.
         commit->RespondedCellIds().insert(participantCellId);
+        CheckAllParticipantsResponded(commit);
+    }
 
+    void CheckAllParticipantsResponded(TCommit* commit)
+    {
         if (commit->RespondedCellIds().size() == commit->ParticipantCellIds().size()) {
             ChangeCommitTransientState(commit, GetNewCommitState(commit->GetTransientState()));
         }

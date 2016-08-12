@@ -8,6 +8,7 @@ message TReqCommitTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     repeated NYT.NProto.TGuid participant_cell_ids = 2;
+    required bool force_2pc = 3;
 }
 
 message TRspCommitTransaction

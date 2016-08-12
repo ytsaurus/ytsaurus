@@ -729,31 +729,51 @@ private:
         return VoidFuture;
     }
 
+    TCellId ChooseCoordinator(const TTransactionCommitOptions& options)
+    {
+        if (Type_ == ETransactionType::Master) {
+            return Owner_->CellId_;
+        }
+
+        if (options.CoordinatorCellId) {
+            if (ParticiapantMap_.find(options.CoordinatorCellId) == ParticiapantMap_.end()) {
+                THROW_ERROR_EXCEPTION("Cell %v is not a participant",
+                    options.CoordinatorCellId);
+            }
+            return options.CoordinatorCellId;
+        }
+
+        auto participantCellIds = GetKeys(ParticiapantMap_);
+        return participantCellIds[RandomNumber(participantCellIds.size())];
+    }
+
     TFuture<void> OnTransactionActionsRegistered(const TTransactionCommitOptions& options)
     {
-        auto participantCellIds = GetKeys(ParticiapantMap_);
-        auto coordinatorCellId = Type_ == ETransactionType::Master
-            ? Owner_->CellId_
-            : participantCellIds[RandomNumber(participantCellIds.size())];
+        try {
+            auto coordinatorCellId = ChooseCoordinator(options);
 
-        LOG_DEBUG("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
-            Id_,
-            coordinatorCellId);
+            LOG_DEBUG("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
+                Id_,
+                coordinatorCellId);
 
-        auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
-        auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), true);
-        auto req = proxy.CommitTransaction();
-        ToProto(req->mutable_transaction_id(), Id_);
-        for (const auto& pair : ParticiapantMap_) {
-            const auto& cellId = pair.first;
-            if (cellId != coordinatorCellId) {
-                ToProto(req->add_participant_cell_ids(), cellId);
+            auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
+            auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), true);
+            auto req = proxy.CommitTransaction();
+            ToProto(req->mutable_transaction_id(), Id_);
+            for (const auto& pair : ParticiapantMap_) {
+                const auto& cellId = pair.first;
+                if (cellId != coordinatorCellId) {
+                    ToProto(req->add_participant_cell_ids(), cellId);
+                }
             }
-        }
-        SetOrGenerateMutationId(req, options.MutationId, options.Retry);
+            req->set_force_2pc(options.Force2PC);
+            SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
-        return req->Invoke().Apply(
-            BIND(&TImpl::OnAtomicTransactionCommitted, MakeStrong(this), coordinatorCellId));
+            return req->Invoke().Apply(
+                BIND(&TImpl::OnAtomicTransactionCommitted, MakeStrong(this), coordinatorCellId));
+        } catch (const std::exception& ex) {
+            return MakeFuture(TError(ex));
+        }
     }
 
     void OnAtomicTransactionCommitted(
