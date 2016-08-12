@@ -24,7 +24,7 @@ TSchemalessRowReorderer::TSchemalessRowReorderer(
     }
 }
 
-TUnversionedRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row, TChunkedMemoryPool* memoryPool)
+TMutableUnversionedRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row, TChunkedMemoryPool* memoryPool)
 {
     int valueCount = KeyColumns_.size() + row.GetCount();
     auto result = TMutableUnversionedRow::Allocate(memoryPool, valueCount);
@@ -51,7 +51,7 @@ TUnversionedRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row, TChunke
     return result;
 }
 
-TUnversionedRow TSchemalessRowReorderer::ReorderKey(TUnversionedRow row, TChunkedMemoryPool* memoryPool)
+TMutableUnversionedRow TSchemalessRowReorderer::ReorderKey(TUnversionedRow row, TChunkedMemoryPool* memoryPool)
 {
     auto result = TMutableUnversionedRow::Allocate(memoryPool, KeyColumns_.size());
     // Initialize with empty key.
