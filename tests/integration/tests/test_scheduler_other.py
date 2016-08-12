@@ -79,6 +79,7 @@ class TestSchedulerOther(YTEnvSetup):
         for i in xrange(1, op_count):
             ops.append(
                 map(dont_track=True,
+                    # Sleep is necessary since we not support revive for completing operations.
                     command="sleep 2; cat",
                     in_=["//tmp/t_in"],
                     out="//tmp/t_out" + str(i)))

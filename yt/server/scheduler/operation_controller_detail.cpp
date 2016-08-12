@@ -1239,7 +1239,7 @@ void TOperationControllerBase::CheckTransactions()
             if (!transaction) {
                 if (required) {
                     CleanStart = true;
-                    LOG_INFO("Operation is missing required transaction, will use clean start");
+                    LOG_INFO("Operation transaction is missing, will use clean start");
                 }
                 return;
             }
@@ -1286,8 +1286,7 @@ void TOperationControllerBase::CheckTransactions()
         }
 
         if (CleanStart) {
-            LOG_INFO("Aborting operation transactions (OperationId: %v)",
-                Operation->GetId());
+            LOG_INFO("Aborting operation transactions");
 
             Operation->SetHasActiveTransactions(false);
 
@@ -1301,8 +1300,7 @@ void TOperationControllerBase::CheckTransactions()
             scheduleAbort(Operation->GetOutputTransaction());
             Operation->SetOutputTransaction(nullptr);
         } else {
-            LOG_INFO("Reusing operation transactions (OperationId: %v)",
-                Operation->GetId());
+            LOG_INFO("Reusing operation transactions");
         }
 
         WaitFor(Combine(asyncResults))
