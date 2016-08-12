@@ -69,6 +69,7 @@ public:
     int MaxCompactionStoreCount;
     i64 CompactionDataSizeBase;
     double CompactionDataSizeRatio;
+    i64 MaxCompactionDataSize;
 
     int SamplesPerPartition;
 
@@ -146,6 +147,9 @@ public:
         RegisterParameter("compaction_data_size_ratio", CompactionDataSizeRatio)
             .Default(2.0)
             .GreaterThan(1.0);
+        RegisterParameter("max_compaction_data_size", MaxCompactionDataSize)
+            .Default((i64) 320 * 1024 * 1024)
+            .GreaterThan(0);
 
         RegisterParameter("samples_per_partition", SamplesPerPartition)
             .Default(100)
