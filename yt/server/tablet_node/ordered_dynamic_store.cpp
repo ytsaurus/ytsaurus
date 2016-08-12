@@ -353,7 +353,7 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
                 std::vector<TReadRange>{TReadRange()});
         };
 
-        // TODO(babenko): replace with native schemaful writer
+        // TODO(babenko): replace with native schemaful reader
         auto tableReader = CreateSchemafulReaderAdapter(readerFactory, Schema_);
 
         std::vector<TUnversionedRow> rows;
