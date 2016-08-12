@@ -46,7 +46,6 @@ class YtStuff(object):
         self.logger = logging.getLogger()
 
     def _log(self, *args, **kwargs):
-        #print >>sys.stderr, message
         self.logger.debug(*args, **kwargs)
 
     def _timing(method):
@@ -144,9 +143,6 @@ class YtStuff(object):
         self.yt_wrapper.config["pickling"]["python_binary"] = yatest.common.python_path()
 
     def _start_local_yt(self):
-        if self.yt_proxy_port is None:
-            self.yt_proxy_port = devtools.swag.ports.find_free_port() if self.config.proxy_port is None else self.config.proxy_port
-
         self._log("Try to start local YT with id=%s", self.yt_id)
         try:
             # Prepare arguments.
@@ -155,9 +151,12 @@ class YtStuff(object):
                 "--sync",
                 "--id", self.yt_id,
                 "--path", self.yt_work_dir,
-                "--proxy-port", str(self.yt_proxy_port),
                 "--fqdn", self.config.fqdn
             ]
+
+            if self.config.proxy_port is not None:
+                self.yt_proxy_port = self.config.proxy_port
+                args += ["--proxy-port", str(self.config.proxy_port)]
 
             enable_debug_log = yatest.common.get_param("yt_enable_debug_logging")
             # Temporary hack: we want to analyse problems mr_apps tests.
@@ -182,6 +181,7 @@ class YtStuff(object):
             if os.path.lexists(special_file):
                 # It may be start after suspend
                 os.remove(special_file)
+
             yt_daemon = devtools.swag.daemon.run_daemon(
                 cmd,
                 env=self.env,
@@ -200,6 +200,12 @@ class YtStuff(object):
                 yt_daemon.stop()
                 self._log("Can't find 'started' file for %d seconds.", MAX_WAIT_TIME)
                 return False
+            if self.config.proxy_port is None:
+                info_yson_file = os.path.join(self.yt_work_dir, self.yt_id, "info.yson")
+                import yt.yson
+                with open(info_yson_file) as f:
+                    info = yt.yson.load(f)
+                self.yt_proxy_port = int(info["proxy"]["address"].split(":")[1])
         except Exception, e:
             self._log("Failed to start local YT:\n%s", str(e))
             return False
