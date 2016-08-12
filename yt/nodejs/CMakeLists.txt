@@ -1,6 +1,6 @@
 function(NODE target)
   add_library(${target} MODULE ${ARGN})
-  target_link_libraries(${target} yt-library-client)
+  target_link_libraries(${target} yt-library-client deps-arcadia-library-streams-lzop)
 
   set(_node_compile_definitions "_GNU_SOURCE;_LARGEFILE_SOURCE;_FILE_OFFSET_BITS=64")
   set(_node_compile_flags "-fno-omit-frame-pointer")
