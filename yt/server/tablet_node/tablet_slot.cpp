@@ -322,11 +322,6 @@ public:
         return GuardedAutomatonInvokers_[queue];
     }
 
-    IInvokerPtr GetSnapshotInvoker() const
-    {
-        return SnapshotQueue_->GetInvoker();
-    }
-
     THiveManagerPtr GetHiveManager() const
     {
         return HiveManager_;
@@ -471,7 +466,7 @@ public:
 
             Automaton_ = New<TTabletAutomaton>(
                 Owner_,
-                GetSnapshotInvoker());
+                SnapshotQueue_->GetInvoker());
 
             auto rpcServer = Bootstrap_->GetRpcServer();
 
@@ -867,11 +862,6 @@ IInvokerPtr TTabletSlot::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) c
 IInvokerPtr TTabletSlot::GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
 {
     return Impl_->GetGuardedAutomatonInvoker(queue);
-}
-
-IInvokerPtr TTabletSlot::GetSnapshotInvoker() const
-{
-    return Impl_->GetSnapshotInvoker();
 }
 
 THiveManagerPtr TTabletSlot::GetHiveManager() const

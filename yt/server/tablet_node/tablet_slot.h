@@ -59,7 +59,6 @@ public:
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
-    IInvokerPtr GetSnapshotInvoker() const;
 
     NHiveServer::THiveManagerPtr GetHiveManager() const;
     NHiveServer::TMailbox* GetMasterMailbox();
