@@ -2857,18 +2857,30 @@ public:
 
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options) override
     {
-        if (!Outcome_) {
-            return BIND(&TTransaction::DoCommit, MakeStrong(this))
-                .AsyncVia(Client_->GetConnection()->GetLightInvoker())
-                .Run(options);
+        {
+            auto guard = Guard(SpinLock_);
+            if (!Active_) {
+                return MakeFuture<void>(TError("Transaction %v is not active", GetId()));
+            }
+            Active_ = false;
         }
-        return Outcome_;
+
+        return BIND(&TTransaction::DoCommit, MakeStrong(this))
+            .AsyncVia(Client_->GetConnection()->GetLightInvoker())
+            .Run(options);
     }
 
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options) override
     {
-        Outcome_ = Transaction_->Abort(options);
-        return Outcome_;
+        {
+            auto guard = Guard(SpinLock_);
+            if (!Active_) {
+                return MakeFuture<void>(TError("Transaction %v is not active", GetId()));
+            }
+            Active_ = false;
+        }
+
+        return Transaction_->Abort(options);
     }
 
     virtual void Detach() override
@@ -2916,6 +2928,10 @@ public:
         TSharedRange<TUnversionedRow> rows,
         const TWriteRowsOptions& options) override
     {
+        auto guard = Guard(SpinLock_);
+        if (!Active_) {
+            THROW_ERROR_EXCEPTION("Transaction %v is not active", GetId());
+        }
         auto rowCount = rows.Size();
         Requests_.push_back(std::make_unique<TWriteRequest>(
             this,
@@ -2932,6 +2948,10 @@ public:
         TSharedRange<TUnversionedRow> keys,
         const TDeleteRowsOptions& options) override
     {
+        auto guard = Guard(SpinLock_);
+        if (!Active_) {
+            THROW_ERROR_EXCEPTION("Transaction %v is not active", GetId());
+        }
         auto keyCount = keys.Size();
         Requests_.push_back(std::make_unique<TDeleteRequest>(
             this,
@@ -3085,7 +3105,8 @@ private:
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TTransactionBufferTag());
 
-    TFuture<void> Outcome_;
+    TSpinLock SpinLock_;
+    bool Active_ = true;
 
     NLogging::TLogger Logger;
 
