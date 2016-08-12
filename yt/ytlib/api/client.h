@@ -238,7 +238,13 @@ struct TTransactionCommitOptions
     : public TMutatingOptions
     , public TPrerequisiteOptions
     , public TTransactionalOptions
-{ };
+{
+    //! If none, then a random participant is chosen as a coordinator.
+    NElection::TCellId CoordinatorCellId;
+
+    //! If |true| then two-phase-commit procotol is executed regardless of the number of participants.
+    bool Force2PC;
+};
 
 struct TTransactionAbortOptions
     : public TMutatingOptions
