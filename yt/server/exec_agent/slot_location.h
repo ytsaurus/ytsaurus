@@ -29,21 +29,21 @@ public:
 
     void CreateSandboxDirectories(int slotIndex);
 
-    void MakeSandboxCopy(
+    TFuture<void> MakeSandboxCopy(
         int slotIndex,
         ESandboxKind kind,
         const Stroka& sourcePath,
         const Stroka& destinationName,
         bool executable);
 
-    void MakeSandboxLink(
+    TFuture<void> MakeSandboxLink(
         int slotIndex,
         ESandboxKind kind,
         const Stroka& targetPath,
         const Stroka& linkName,
         bool executable);
 
-    Stroka MakeSandboxTmpfs(
+    TFuture<Stroka> MakeSandboxTmpfs(
         int slotIndex,
         ESandboxKind kind,
         i64 size,

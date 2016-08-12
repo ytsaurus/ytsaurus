@@ -226,6 +226,11 @@ public:
         THROW_ERROR_EXCEPTION("Job shell is not supported");
     }
 
+    virtual void OnJobPrepared() override
+    {
+        YUNREACHABLE();
+    }
+
 protected:
     const TJobId JobId_;
     const TJobSpec JobSpec_;

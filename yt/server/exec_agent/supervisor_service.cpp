@@ -35,6 +35,8 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobFinished));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobProgress)
         .SetOneWay(true));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobPrepared)
+        .SetOneWay(true));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateResourceUsage)
         .SetOneWay(true));
 }
@@ -95,6 +97,18 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
 
     job->SetProgress(progress);
     job->SetStatistics(statistics);
+}
+
+DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobPrepared)
+{
+    auto jobId = FromProto<TJobId>(request->job_id());
+
+    context->SetRequestInfo("JobId: %v", jobId);
+
+    auto jobController = Bootstrap->GetJobController();
+    auto job = jobController->GetJobOrThrow(jobId);
+
+    job->OnJobPrepared();
 }
 
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)

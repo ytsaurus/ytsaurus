@@ -95,163 +95,157 @@ void TSlotLocation::CreateSandboxDirectories(int slotIndex)
     .ThrowOnError();
 }
 
-void TSlotLocation::MakeSandboxCopy(
+TFuture<void> TSlotLocation::MakeSandboxCopy(
     int slotIndex,
     ESandboxKind kind,
     const Stroka& sourcePath,
     const Stroka& destinationName,
     bool executable)
 {
-    WaitFor(
-        BIND([=, this_ = MakeStrong(this)] () {
-            ValidateEnabled();
+    return BIND([=, this_ = MakeStrong(this)] () {
+        ValidateEnabled();
 
-            auto sandboxPath = GetSandboxPath(slotIndex, kind);
-            auto destinationPath = NFS::CombinePaths(sandboxPath, destinationName);
+        auto sandboxPath = GetSandboxPath(slotIndex, kind);
+        auto destinationPath = NFS::CombinePaths(sandboxPath, destinationName);
 
-            LOG_DEBUG("Making sandbox copy (SourcePath: %v, DestinationName: %v)", sourcePath, destinationName);
+        LOG_DEBUG("Making sandbox copy (SourcePath: %v, DestinationName: %v)", sourcePath, destinationName);
 
+        try {
+            // This validations do not disable slot.
+            ValidateNotExists(destinationPath);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v", destinationName, sandboxPath) << ex;
+        }
+
+        try {
+            NFS::ChunkedCopy(
+                sourcePath, 
+                destinationPath, 
+                Bootstrap_->GetConfig()->ExecAgent->SlotManager->FileCopyChunkSize);
+            EnsureNotInUse(destinationPath);
+            NFS::SetExecutableMode(destinationPath, executable);
+        } catch (const std::exception& ex) {
             try {
-                // This validations do not disable slot.
-                ValidateNotExists(destinationPath);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v", destinationName, sandboxPath) << ex;
-            }
-
-            try {
-                NFS::ChunkedCopy(
-                    sourcePath, 
-                    destinationPath, 
-                    Bootstrap_->GetConfig()->ExecAgent->SlotManager->FileCopyChunkSize);
-                EnsureNotInUse(destinationPath);
-                NFS::SetExecutableMode(destinationPath, executable);
-            } catch (const std::exception& ex) {
-                try {
-                    // If tmpfs does not have enough space, this is a user error, not location error.
-                    // Let's check it first, before disabling location.
-                    const auto& systemError = dynamic_cast<const TSystemError&>(ex);
-                    if (IsInsideTmpfs(destinationPath) && systemError.Status() == ENOSPC) {
-                        THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v: tmpfs is too small", destinationName, sandboxPath)
-                            << ex;
-                    }
-                } catch (const std::bad_cast& badCast) {
-                    // Just do nothing, this is not a TSystemError.
+                // If tmpfs does not have enough space, this is a user error, not location error.
+                // Let's check it first, before disabling location.
+                const auto& systemError = dynamic_cast<const TSystemError&>(ex);
+                if (IsInsideTmpfs(destinationPath) && systemError.Status() == ENOSPC) {
+                    THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v: tmpfs is too small", destinationName, sandboxPath)
+                        << ex;
                 }
-
-                auto error = TError("Failed to make a copy for file %Qv into sandbox %v", destinationName, sandboxPath) << ex;
-                Disable(error);
-                THROW_ERROR error;
+            } catch (const std::bad_cast& badCast) {
+                // Just do nothing, this is not a TSystemError.
             }
-        })
-        .AsyncVia(LocationQueue_->GetInvoker())
-        .Run())
-    .ThrowOnError();
+
+            auto error = TError("Failed to make a copy for file %Qv into sandbox %v", destinationName, sandboxPath) << ex;
+            Disable(error);
+            THROW_ERROR error;
+        }
+    })
+    .AsyncVia(LocationQueue_->GetInvoker())
+    .Run();
 }
 
-void TSlotLocation::MakeSandboxLink(
+TFuture<void> TSlotLocation::MakeSandboxLink(
     int slotIndex,
     ESandboxKind kind,
     const Stroka& targetPath,
     const Stroka& linkName,
     bool executable)
 {
-    WaitFor(
-        BIND([=, this_ = MakeStrong(this)] () {
-            ValidateEnabled();
+    return BIND([=, this_ = MakeStrong(this)] () {
+        ValidateEnabled();
 
-            auto sandboxPath = GetSandboxPath(slotIndex, kind);
-            auto linkPath = NFS::CombinePaths(sandboxPath, linkName);
+        auto sandboxPath = GetSandboxPath(slotIndex, kind);
+        auto linkPath = NFS::CombinePaths(sandboxPath, linkName);
 
-            LOG_DEBUG("Making sandbox symlink (TargetPath: %v, LinkName: %v)", targetPath, linkName);
+        LOG_DEBUG("Making sandbox symlink (TargetPath: %v, LinkName: %v)", targetPath, linkName);
 
-            try {
-                // This validations do not disable slot.
-                ValidateNotExists(linkPath);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
-                    << ex;
-            }
+        try {
+            // This validations do not disable slot.
+            ValidateNotExists(linkPath);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
+                << ex;
+        }
 
-            try {
-                EnsureNotInUse(targetPath);
-                NFS::SetExecutableMode(targetPath, executable);
-                NFS::MakeSymbolicLink(targetPath, linkPath);
-            } catch (const std::exception& ex) {
-                auto error = TError("Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
-                    << ex;
-                Disable(error);
-                THROW_ERROR error;
-            }
-        })
-        .AsyncVia(LocationQueue_->GetInvoker())
-        .Run())
-    .ThrowOnError();
+        try {
+            EnsureNotInUse(targetPath);
+            NFS::SetExecutableMode(targetPath, executable);
+            NFS::MakeSymbolicLink(targetPath, linkPath);
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
+                << ex;
+            Disable(error);
+            THROW_ERROR error;
+        }
+    })
+    .AsyncVia(LocationQueue_->GetInvoker())
+    .Run();
 }
 
-Stroka TSlotLocation::MakeSandboxTmpfs(
+TFuture<Stroka> TSlotLocation::MakeSandboxTmpfs(
     int slotIndex,
     ESandboxKind kind,
     i64 size,
     int userId,
     const Stroka& path)
 {
-    return WaitFor(
-        BIND([=, this_ = MakeStrong(this)] () {
-            ValidateEnabled();
-            auto sandboxPath = GetSandboxPath(slotIndex, kind);
-            auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, path));
-            auto isSandbox = tmpfsPath == sandboxPath;
+    return BIND([=, this_ = MakeStrong(this)] () {
+        ValidateEnabled();
+        auto sandboxPath = GetSandboxPath(slotIndex, kind);
+        auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, path));
+        auto isSandbox = tmpfsPath == sandboxPath;
 
-            try {
-                // This validations do not disable slot.
-                if (!HasRootPermissions_) {
-                    THROW_ERROR_EXCEPTION("Sandbox tmpfs in disabled since node doesn't have root permissions");
-                }
-
-                if (!sandboxPath.is_prefix(tmpfsPath)) {
-                    THROW_ERROR_EXCEPTION("Path of the tmpfs mount point must be inside the sandbox directory")
-                        << TErrorAttribute("sandbox_path", sandboxPath)
-                        << TErrorAttribute("tmpfs_path", tmpfsPath);
-                }
-
-                if (!isSandbox) {
-                    // If we mount directory inside sandbox, it should not exist.
-                    ValidateNotExists(tmpfsPath);
-                }
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to mount tmpfs %v into sandbox %v", path, sandboxPath)
-                    << ex;
+        try {
+            // This validations do not disable slot.
+            if (!HasRootPermissions_) {
+                THROW_ERROR_EXCEPTION("Sandbox tmpfs in disabled since node doesn't have root permissions");
             }
 
-            try {
-                auto config = New<TMountTmpfsConfig>();
-                config->Path = tmpfsPath;
-                config->Size = size;
-
-                // If we mount the whole sandbox, we use current process uid instead of slot one.
-                config->UserId = isSandbox ? ::geteuid() : userId;
-
-                LOG_DEBUG("Mounting tmpfs %v", ConvertToYsonString(config, EYsonFormat::Text));
-
-                NFS::ForcePath(tmpfsPath);
-                RunTool<TMountTmpfsAsRootTool>(config);
-                if (isSandbox) {
-                    // We must give user full access to his sandbox.
-                    NFS::Chmod(tmpfsPath, 0777);
-                }
-
-                TmpfsPaths_.insert(tmpfsPath);
-                return tmpfsPath;
-            } catch (const std::exception& ex) {
-                auto error = TError("Failed to mount tmpfs %v into sandbox %v", path, sandboxPath)
-                    << ex;
-                Disable(error);
-                THROW_ERROR error;
+            if (!sandboxPath.is_prefix(tmpfsPath)) {
+                THROW_ERROR_EXCEPTION("Path of the tmpfs mount point must be inside the sandbox directory")
+                    << TErrorAttribute("sandbox_path", sandboxPath)
+                    << TErrorAttribute("tmpfs_path", tmpfsPath);
             }
-        })
-        .AsyncVia(LocationQueue_->GetInvoker())
-        .Run())
-    .ValueOrThrow();
+
+            if (!isSandbox) {
+                // If we mount directory inside sandbox, it should not exist.
+                ValidateNotExists(tmpfsPath);
+            }
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to mount tmpfs %v into sandbox %v", path, sandboxPath)
+                << ex;
+        }
+
+        try {
+            auto config = New<TMountTmpfsConfig>();
+            config->Path = tmpfsPath;
+            config->Size = size;
+
+            // If we mount the whole sandbox, we use current process uid instead of slot one.
+            config->UserId = isSandbox ? ::geteuid() : userId;
+
+            LOG_DEBUG("Mounting tmpfs %v", ConvertToYsonString(config, EYsonFormat::Text));
+
+            NFS::ForcePath(tmpfsPath);
+            RunTool<TMountTmpfsAsRootTool>(config);
+            if (isSandbox) {
+                // We must give user full access to his sandbox.
+                NFS::Chmod(tmpfsPath, 0777);
+            }
+
+            TmpfsPaths_.insert(tmpfsPath);
+            return tmpfsPath;
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to mount tmpfs %v into sandbox %v", path, sandboxPath)
+                << ex;
+            Disable(error);
+            THROW_ERROR error;
+        }
+    })
+    .AsyncVia(LocationQueue_->GetInvoker())
+    .Run(); 
 }
 
 void TSlotLocation::MakeConfig(int slotIndex, INodePtr config)

@@ -122,6 +122,8 @@ private:
 
     virtual void ReleaseNetwork() override;
 
+    virtual void OnPrepared() override;
+
     virtual NApi::IClientPtr GetClient() const override;
 
     virtual NChunkClient::IBlockCachePtr GetBlockCache() const override;

@@ -41,9 +41,6 @@ struct IJob
 
     virtual NNodeTrackerClient::NProto::TNodeResources GetResourceUsage() const = 0;
 
-    /*!
-     *  New usage should not exceed the previous one.
-     */
     virtual void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& newUsage) = 0;
 
     virtual NJobTrackerClient::NProto::TJobResult GetResult() const = 0;
@@ -55,10 +52,11 @@ struct IJob
     virtual TNullable<NYson::TYsonString> GetStatistics() const = 0;
     virtual void SetStatistics(const NYson::TYsonString& statistics) = 0;
 
+    virtual void OnJobPrepared() = 0;
+
     virtual TNullable<TDuration> GetPrepareDuration() const = 0;
     virtual TNullable<TDuration> GetExecDuration() const = 0;
 
-    // The following two methods will be called from the single thread.
     virtual TInstant GetStatisticsLastSendTime() const = 0;
     virtual void ResetStatisticsLastSendTime() = 0;
 
