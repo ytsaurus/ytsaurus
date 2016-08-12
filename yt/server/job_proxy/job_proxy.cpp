@@ -469,6 +469,15 @@ void TJobProxy::ReleaseNetwork()
     UpdateResourceUsage();
 }
 
+void TJobProxy::OnPrepared()
+{
+    LOG_DEBUG("Job prepared");
+
+    auto req = SupervisorProxy_->OnJobPrepared();
+    ToProto(req->mutable_job_id(), JobId_);
+    req->Invoke();
+}
+
 NApi::IClientPtr TJobProxy::GetClient() const
 {
     return Client_;

@@ -37,6 +37,8 @@ struct IJobHost
 
     virtual void ReleaseNetwork() = 0;
 
+    virtual void OnPrepared() = 0;
+
     virtual NApi::IClientPtr GetClient() const = 0;
 
     virtual NChunkClient::IBlockCachePtr GetBlockCache() const = 0;

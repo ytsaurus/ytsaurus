@@ -58,6 +58,15 @@ public:
         Location_->DecreaseSessionCount();
     }
 
+    virtual void CancelPreparation() override
+    {
+        PreparationCanceled_ = true;
+
+        for (auto future : PreparationFutures_) {
+            future.Cancel();
+        }
+    }
+
     virtual TFuture<void> RunJobProxy(
         NJobProxy::TJobProxyConfigPtr config,
         const TJobId& jobId,
@@ -76,35 +85,53 @@ public:
             operationId);
     }
 
-    virtual void MakeLink(
+    virtual TFuture<void> MakeLink(
         ESandboxKind sandboxKind,
         const Stroka& targetPath,
         const Stroka& linkName,
         bool executable) override
     {
-        Location_->MakeSandboxLink(SlotIndex_, sandboxKind, targetPath, linkName, executable);
+        return RunPrepareAction<void>([&] () {
+            return Location_->MakeSandboxLink(
+                SlotIndex_, 
+                sandboxKind, 
+                targetPath, 
+                linkName, 
+                executable);
+        });
     }
 
-    virtual void MakeCopy(
+    virtual TFuture<void> MakeCopy(
         ESandboxKind sandboxKind,
         const Stroka& sourcePath,
         const Stroka& destinationName,
         bool executable) override
     {
-        Location_->MakeSandboxCopy(SlotIndex_, sandboxKind, sourcePath, destinationName, executable);
+        return RunPrepareAction<void>([&] () {
+            return Location_->MakeSandboxCopy(
+                SlotIndex_, 
+                sandboxKind, 
+                sourcePath, 
+                destinationName, 
+                executable);
+        });
     }
 
-    virtual Stroka PrepareTmpfs(
+    virtual TFuture<Stroka> PrepareTmpfs(
         ESandboxKind sandboxKind,
         i64 size,
         Stroka path) override
     {
-        return Location_->MakeSandboxTmpfs(
-            SlotIndex_,
-            sandboxKind,
-            size,
-            JobEnvironment_->GetUserId(SlotIndex_),
-            path);
+        return RunPrepareAction<Stroka>([&] () {
+            return Location_->MakeSandboxTmpfs(
+                SlotIndex_,
+                sandboxKind,
+                size,
+                JobEnvironment_->GetUserId(SlotIndex_),
+                path);
+        }, 
+        // Tmpfs mounting is uncancelable since it includes tool invokation in separate process.
+        true);
     }
 
     virtual TJobProberServiceProxy GetJobProberProxy() override
@@ -145,11 +172,30 @@ private:
 
     TNullable<TJobProberServiceProxy> JobProberProxy_;
 
+    std::vector<TFuture<void>> PreparationFutures_;
+    bool PreparationCanceled_ = false;
+
 
     TTcpBusClientConfigPtr GetRpcClientConfig() const
     {
         auto unixDomainName = Format("%v-job-proxy-%v", NodeTag_, SlotIndex_);
         return TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
+    }
+
+    template <class T>
+    TFuture<T> RunPrepareAction(std::function<TFuture<T>()> action, bool uncancelable = false)
+    {
+        if (PreparationCanceled_) {
+            return MakeFuture<T>(TError("Slot preparation canceled") 
+                << TErrorAttribute("slot_index", SlotIndex_));
+        } else {
+            auto future = action();
+            auto preparationFuture = future.template As<void>();
+            PreparationFutures_.push_back(uncancelable 
+                ? preparationFuture.ToUncancelable() 
+                : preparationFuture);
+            return future;
+        }
     }
 };
 

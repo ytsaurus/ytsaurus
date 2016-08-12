@@ -74,15 +74,15 @@ DEFINE_ENUM(EJobState,
 
 DEFINE_ENUM(EJobPhase,
     ((Created)               (  0))
-    ((DownloadingArtifacts)  (  1))
-    ((PreparingConfig)       (  4))
-    ((PreparingProxy)        (  7))
-    ((PreparingSandbox)      ( 10))
+    ((DownloadingArtifacts)  ( 10))
     ((PreparingTmpfs)        ( 15))
     ((PreparingArtifacts)    ( 20))
-    ((Running)               ( 50))
-    ((Cleanup)               ( 80))
-    ((Finished)              (100))
+    ((PreparingProxy)        ( 30))
+    ((Running)               ( 40))
+    ((FinalizingProxy)       ( 50))
+    ((WaitingAbort)          ( 60))
+    ((Cleanup)               ( 70))
+    ((Finished)              ( 80))
 );
 
 ///////////////////////////////////////////////////////////////////////////////

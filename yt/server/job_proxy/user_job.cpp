@@ -676,6 +676,9 @@ private:
                 executorResult.ThrowOnError();
                 WaitFor(ControlPipeReader_->Abort())
                   .ThrowOnError();
+
+                // Notify node process that user job is fully prepared and running.
+                Host_->OnPrepared();
             } catch (const std::exception& ex) {
                 auto error = TError("Start action failed") << ex;
                 LOG_ERROR(error);

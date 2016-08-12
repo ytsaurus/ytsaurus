@@ -114,7 +114,6 @@ public:
     //! Root path for slot directories.
     std::vector<TSlotLocationConfigPtr> Locations;
 
-
     //! Use MNT_DETACH when tmpfs umount called. When option enabled the "Device is busy" error is impossible,
     //! because actual umount will be performed by Linux core asynchronously.
     bool DetachedTmpfsUmount;

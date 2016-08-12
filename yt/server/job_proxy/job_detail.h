@@ -37,12 +37,9 @@ public:
     virtual void SignalJob(const Stroka& signalName) override;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
 
-
-
 protected:
     const IJobHostPtr Host_;
     const TInstant StartTime_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,7 +72,6 @@ protected:
     NTableClient::TSchemalessWriterFactory WriterFactory_;
 
     i64 TotalRowCount_ = 0;
-
 
     virtual void CreateReader() = 0;
     virtual void CreateWriter() = 0;
