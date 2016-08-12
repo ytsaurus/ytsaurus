@@ -294,11 +294,11 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             switch (State_) {
                 case ETransactionState::Committed:
-                    THROW_ERROR_EXCEPTION("Transaction is already committed (TransactionId: %v)", Id_);
+                    THROW_ERROR_EXCEPTION("Transaction %v is already committed", Id_);
                     break;
 
                 case ETransactionState::Aborted:
-                    THROW_ERROR_EXCEPTION("Transaction is already aborted (TransactionId: %v)", Id_);
+                    THROW_ERROR_EXCEPTION("Transaction %v is already aborted", Id_);
                     break;
 
                 case ETransactionState::Active:
@@ -374,7 +374,7 @@ public:
                 TGuard<TSpinLock> guard(SpinLock_);
 
                 if (State_ != ETransactionState::Active) {
-                    THROW_ERROR_EXCEPTION("Transaction is not active");
+                    THROW_ERROR_EXCEPTION("Transaction %v is not active", Id_);
                 }
 
                 if (!Error_.IsOK()) {
