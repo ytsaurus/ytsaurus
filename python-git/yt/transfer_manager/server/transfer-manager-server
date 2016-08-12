@@ -973,7 +973,8 @@ class Application(object):
         with self._mutex:
             for id_ in ids:
                 task = self._tasks.get(id_)
-                if task is None or task.state not in ["aborted", "failed", "completed", "skipped"]:
+                is_running = id_ in self._task_processes
+                if task is None or task.state not in ["aborted", "failed", "completed", "skipped"] or is_running:
                     failed_ids.append(id_)
                     continue
 
