@@ -369,7 +369,7 @@ class Operation(object):
         self._tmpdir = ""
         self._poll_frequency = 0.1
 
-    def ensure_jobs_running(self, timeout=10.0):
+    def ensure_jobs_running(self, timeout=20.0):
         print >>sys.stderr, "Ensure operation jobs are running %s" % self.id
 
         jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(self.id)
