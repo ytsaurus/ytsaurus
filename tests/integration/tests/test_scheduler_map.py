@@ -1976,7 +1976,7 @@ class TestSandboxTmpfs(YTEnvSetup):
             out="//tmp/t_output",
             spec={
                 "mapper": {
-                    "tmpfs_size": 1024 * 1024 + 1000,
+                    "tmpfs_size": 1024 * 1024 + 10000,
                     "tmpfs_path": ".",
                     "file_paths": ["//tmp/test_file"],
                     "copy_files": True,
