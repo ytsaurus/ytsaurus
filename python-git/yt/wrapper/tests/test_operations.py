@@ -414,7 +414,7 @@ class TestOperations(object):
 
         yt.run_map(func, input, output)
         files_in_cache_again = yt.list("//tmp/yt_wrapper/file_storage")
-        assert files_in_cache == files_in_cache_again
+        assert sorted(files_in_cache) == sorted(files_in_cache_again)
 
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations_in_local_mode(self):

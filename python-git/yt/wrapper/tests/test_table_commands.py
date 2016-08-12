@@ -1,5 +1,6 @@
 from __future__ import with_statement
 
+import yt.zip as zip
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.client import Yt
@@ -10,7 +11,6 @@ from helpers import TEST_DIR, check, set_config_option
 import os
 import pytest
 import tempfile
-import gzip
 import shutil
 import time
 import contextlib
@@ -501,7 +501,7 @@ class TestTableCommands(object):
         fd, filename = tempfile.mkstemp()
         os.close(fd)
 
-        with gzip.GzipFile(filename, "w", 5) as fout:
+        with zip.GzipFile(filename, "w", 5) as fout:
             fout.write("x=1\nx=2\nx=3\n")
 
         with contextlib.nested(open(filename), set_config_option("proxy/content_encoding", "gzip")) as (f, _):
