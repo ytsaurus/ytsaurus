@@ -1011,8 +1011,8 @@ private:
             transaction->GetId(),
             GetObjectId(transaction->GetParent()),
             transaction->GetTimeout(),
-                BIND(&TImpl::OnTransactionExpired, MakeStrong(this))
-                    .Via(hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor)));
+            BIND(&TImpl::OnTransactionExpired, MakeStrong(this))
+                .Via(hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor)));
     }
 
     void CloseLease(TTransaction* transaction)
