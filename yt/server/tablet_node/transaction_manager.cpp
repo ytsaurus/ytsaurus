@@ -410,9 +410,6 @@ private:
             return;
         }
 
-        LOG_DEBUG("Transaction lease expired (TransactionId: %v)",
-            id);
-
         auto transactionSupervisor = Slot_->GetTransactionSupervisor();
         transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
