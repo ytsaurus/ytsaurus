@@ -266,7 +266,7 @@ void TJobController::TImpl::StartWaitingJobs()
             LOG_DEBUG("Not enough resources to start waiting job (JobId: %v, JobResources: %v, UsedResources: %v)",
                 job->GetId(),
                 FormatResources(jobResources),
-                FormatResources(usedResources));
+                FormatResourceUsage(usedResources, GetResourceLimits()));
             continue;
         }
 
