@@ -383,6 +383,11 @@ TJobResult TJobProxy::DoRun()
 
 void TJobProxy::ReportResult(const TJobResult& result, const TNullable<TYsonString>& statistics)
 {
+    if (!SupervisorProxy_) {
+        LOG_ERROR("Supervisor channel is not available");
+        Exit(EJobProxyExitCode::ResultReportFailed);
+    }
+
     auto req = SupervisorProxy_->OnJobFinished();
     ToProto(req->mutable_job_id(), JobId_);
     *req->mutable_result() = result;
