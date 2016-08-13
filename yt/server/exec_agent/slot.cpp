@@ -163,7 +163,7 @@ void TSlot::DoCleanSandbox(int pathIndex)
 {
     for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
         const auto& sandboxPath = SandboxPaths_[pathIndex][sandboxKind];
-        auto sandboxFullPath = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), sandboxPath);
+        auto sandboxFullPath = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), sandboxPath);
 
         auto removeMountPoint = [this, this_ = MakeStrong(this)] (const Stroka& path) {
             auto config = New<TUmountConfig>();
