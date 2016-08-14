@@ -314,7 +314,7 @@ TUnversionedRow TReplicatedSortedStoreManager::BuildLogRow(
         dstValue = srcValue;
         dstValue.Id = index + 2;
     }
-    LogRow_.SetCount(row.GetCount() + 1);
+    LogRow_.SetCount(row.GetCount() + 2);
     return LogRow_;
 }
 
