@@ -382,7 +382,6 @@ public:
     virtual TFuture<TMutationResponse> CommitMutation(const TMutationRequest& request) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(!HasMutationContext());
 
         if (ReadOnly_) {
             return MakeFuture<TMutationResponse>(TError(
