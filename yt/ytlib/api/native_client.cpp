@@ -3121,6 +3121,10 @@ public:
         IClientPtr client,
         const TTransactionStartOptions& options_) override
     {
+        if (client->GetConnection()->GetCellTag() == GetConnection()->GetCellTag()) {
+            return MakeFuture<ITransactionPtr>(this);
+        }
+
         auto options = options_;
         options.Id = GetId();
 

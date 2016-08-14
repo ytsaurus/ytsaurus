@@ -147,7 +147,7 @@ public:
             case EAtomicity::Full:
                 if (options.Id) {
                     auto startTimestamp = TimestampFromTransactionId(options.Id);
-                    OnGotStartTimestamp(options, startTimestamp);
+                    return OnGotStartTimestamp(options, startTimestamp);
                 } else {
                     return Owner_->TimestampProvider_->GenerateTimestamps()
                         .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
