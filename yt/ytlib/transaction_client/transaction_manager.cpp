@@ -175,11 +175,7 @@ public:
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
         State_ = ETransactionState::Active;
-
-        {
-            auto guard = Guard(SpinLock_);
-            FindOrAddParticipant(Owner_->CellId_);
-        }
+        YCHECK(ParticiapantCellIds_.insert(Owner_->CellId_).second);
 
         Register();
 
@@ -363,35 +359,12 @@ public:
                 return;
             }
 
-            FindOrAddParticipant(cellId);
-        }
-    }
-
-    void AddAction(const TCellId& cellId, const TTransactionActionData& data)
-    {
-        YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
-
-
-        if (Atomicity_ != EAtomicity::Full) {
-            THROW_ERROR_EXCEPTION("Atomicity must be %Qlv for custom actions",
-                EAtomicity::Full);
-        }
-
-        {
-            auto guard = Guard(SpinLock_);
-
-            if (State_ != ETransactionState::Active) {
-                return;
+            if (ParticiapantCellIds_.insert(cellId).second) {
+                LOG_DEBUG("Transaction participant added (TransactionId: %v, CellId: %v)",
+                    Id_,
+                    cellId);
             }
-
-            auto* info = FindOrAddParticipant(cellId);
-            info->Actions.push_back(data);
         }
-
-        LOG_DEBUG("Transaction action added (TransactionId: %v, CellId: %v, ActionType: %v)",
-            Id_,
-            cellId,
-            data.Type);
     }
 
 
@@ -445,11 +418,7 @@ private:
     TSingleShotCallbackList<void()> Committed_;
     TSingleShotCallbackList<void()> Aborted_;
 
-    struct TParticipantInfo
-    {
-        std::vector<TTransactionActionData> Actions;
-    };
-    yhash_map<TCellId, TParticipantInfo> ParticiapantMap_;
+    yhash_set<TCellId> ParticiapantCellIds_;
 
     TError Error_;
 
@@ -528,7 +497,7 @@ private:
     void Register()
     {
         if (AutoAbort_) {
-            TGuard<TSpinLock> guard(Owner_->SpinLock_);
+            auto guard = Guard(Owner_->SpinLock_);
             YCHECK(Owner_->AliveTransactions_.insert(this).second);
         }
     }
@@ -537,7 +506,7 @@ private:
     {
         if (AutoAbort_) {
             {
-                TGuard<TSpinLock> guard(Owner_->SpinLock_);
+                auto guard = Guard(Owner_->SpinLock_);
                 // NB: Instance is not necessarily registered.
                 Owner_->AliveTransactions_.erase(this);
             }
@@ -596,14 +565,10 @@ private:
         }
 
         State_ = ETransactionState::Active;
+        YCHECK(ParticiapantCellIds_.insert(Owner_->CellId_).second);
 
         const auto& rsp = rspOrError.Value();
         Id_ = FromProto<TTransactionId>(rsp->object_id());
-
-        {
-            auto guard = Guard(SpinLock_);
-            FindOrAddParticipant(Owner_->CellId_);
-        }
 
         LOG_DEBUG("Master transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
             Id_,
@@ -689,38 +654,35 @@ private:
 
     TFuture<void> DoCommitAtomic(const TTransactionCommitOptions& options)
     {
-        if (ParticiapantMap_.empty()) {
+        if (ParticiapantCellIds_.empty()) {
             SetTransactionCommitted();
             return VoidFuture;
         }
 
-        std::vector<TFuture<void>> registerActionsAsyncResults;
-        for (const auto& pair : ParticiapantMap_) {
-            const auto& cellId = pair.first;
-            const auto& participant = pair.second;
-            if (participant.Actions.empty()) {
-                continue;
-            }
+        try {
+            auto coordinatorCellId = ChooseCoordinator(options);
 
-            auto channel = Owner_->CellDirectory_->GetChannelOrThrow(cellId);
-            auto proxy = Owner_->MakeParticipantProxy(std::move(channel));
-            auto req = proxy.RegisterTransactionActions();
-            ToProto(req->mutable_transaction_id(), Id_);
-            ToProto(req->mutable_actions(), participant.Actions);
-
-            LOG_DEBUG("Registering transaction actions (TransactionId: %v, CellId: %v, ActionCount: %v)",
+            LOG_DEBUG("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
                 Id_,
-                cellId,
-                participant.Actions.size());
+                coordinatorCellId);
 
-            registerActionsAsyncResults.push_back(req->Invoke().As<void>());
+            auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
+            auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), true);
+            auto req = proxy.CommitTransaction();
+            ToProto(req->mutable_transaction_id(), Id_);
+            for (const auto& cellId : ParticiapantCellIds_) {
+                if (cellId != coordinatorCellId) {
+                    ToProto(req->add_participant_cell_ids(), cellId);
+                }
+            }
+            req->set_force_2pc(options.Force2PC);
+            SetOrGenerateMutationId(req, options.MutationId, options.Retry);
+
+            return req->Invoke().Apply(
+                BIND(&TImpl::OnAtomicTransactionCommitted, MakeStrong(this), coordinatorCellId));
+        } catch (const std::exception& ex) {
+            return MakeFuture(TError(ex));
         }
-
-        auto registerActionsAsyncResult = Combine(registerActionsAsyncResults);
-        return registerActionsAsyncResult.Apply(BIND(
-            &TImpl::OnTransactionActionsRegistered,
-            MakeStrong(this),
-            options));
     }
 
     TFuture<void> DoCommitNonAtomic()
@@ -736,44 +698,15 @@ private:
         }
 
         if (options.CoordinatorCellId) {
-            if (ParticiapantMap_.find(options.CoordinatorCellId) == ParticiapantMap_.end()) {
+            if (ParticiapantCellIds_.find(options.CoordinatorCellId) == ParticiapantCellIds_.end()) {
                 THROW_ERROR_EXCEPTION("Cell %v is not a participant",
                     options.CoordinatorCellId);
             }
             return options.CoordinatorCellId;
         }
 
-        auto participantCellIds = GetKeys(ParticiapantMap_);
+        auto participantCellIds = GetParticipantCellIds();
         return participantCellIds[RandomNumber(participantCellIds.size())];
-    }
-
-    TFuture<void> OnTransactionActionsRegistered(const TTransactionCommitOptions& options)
-    {
-        try {
-            auto coordinatorCellId = ChooseCoordinator(options);
-
-            LOG_DEBUG("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
-                Id_,
-                coordinatorCellId);
-
-            auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
-            auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), true);
-            auto req = proxy.CommitTransaction();
-            ToProto(req->mutable_transaction_id(), Id_);
-            for (const auto& pair : ParticiapantMap_) {
-                const auto& cellId = pair.first;
-                if (cellId != coordinatorCellId) {
-                    ToProto(req->add_participant_cell_ids(), cellId);
-                }
-            }
-            req->set_force_2pc(options.Force2PC);
-            SetOrGenerateMutationId(req, options.MutationId, options.Retry);
-
-            return req->Invoke().Apply(
-                BIND(&TImpl::OnAtomicTransactionCommitted, MakeStrong(this), coordinatorCellId));
-        } catch (const std::exception& ex) {
-            return MakeFuture(TError(ex));
-        }
     }
 
     void OnAtomicTransactionCommitted(
@@ -796,7 +729,7 @@ private:
     TFuture<void> SendPing()
     {
         std::vector<TFuture<void>> asyncResults;
-        auto participantIds = GetParticipantIds();
+        auto participantIds = GetParticipantCellIds();
         for (const auto& cellId : participantIds) {
             LOG_DEBUG("Pinging transaction (TransactionId: %v, CellId: %v)",
                 Id_,
@@ -883,7 +816,7 @@ private:
     TFuture<void> SendAbort(const TTransactionAbortOptions& options = TTransactionAbortOptions())
     {
         std::vector<TFuture<void>> asyncResults;
-        auto participantIds = GetParticipantIds();
+        auto participantIds = GetParticipantCellIds();
         for (const auto& cellId : participantIds) {
             LOG_DEBUG("Aborting transaction (TransactionId: %v, CellId: %v)",
                 Id_,
@@ -950,29 +883,10 @@ private:
         FireAborted();
     }
 
-
-    TParticipantInfo* FindOrAddParticipant(const TCellId& cellId)
+    std::vector<TCellId> GetParticipantCellIds()
     {
-        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-
-        auto it = ParticiapantMap_.find(cellId);
-        if (it != ParticiapantMap_.end()) {
-            auto pair = ParticiapantMap_.emplace(cellId, TParticipantInfo());
-            YCHECK(pair.second);
-            it = pair.first;
-
-            LOG_DEBUG("Transaction participant added (TransactionId: %v, CellId: %v)",
-                Id_,
-                cellId);
-        }
-
-        return &it->second;
-    }
-
-    std::vector<TCellId> GetParticipantIds()
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        return GetKeys(ParticiapantMap_);
+        auto guard = Guard(SpinLock_);
+        return std::vector<TCellId>(ParticiapantCellIds_.begin(), ParticiapantCellIds_.end());
     }
 };
 
@@ -1025,7 +939,7 @@ void TTransactionManager::TImpl::AbortAll()
 
     std::vector<TIntrusivePtr<TTransaction::TImpl>> transactions;
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         for (auto* rawTransaction : AliveTransactions_) {
             auto transaction = TRefCounted::DangerousGetPtr(rawTransaction);
             if (transaction) {
@@ -1105,11 +1019,6 @@ TDuration TTransaction::GetTimeout() const
 void TTransaction::AddParticipant(const TCellId& cellId)
 {
     Impl_->AddParticipant(cellId);
-}
-
-void TTransaction::AddAction(const TCellId& cellId, const TTransactionActionData& data)
-{
-    Impl_->AddAction(cellId, data);
 }
 
 DELEGATE_SIGNAL(TTransaction, void(), Committed, *Impl_);

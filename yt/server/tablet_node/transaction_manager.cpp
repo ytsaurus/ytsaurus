@@ -17,6 +17,7 @@
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/transaction_client/action.h>
 
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/native_client.h>
@@ -98,11 +99,18 @@ public:
             "TransactionManager.Async",
             BIND(&TImpl::SaveAsync, Unretained(this)));
 
+        RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActions, Unretained(this)));
+
         OrchidService_ = IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeStrong(this)))
             ->Via(Slot_->GetGuardedAutomatonInvoker())
             ->Cached(TDuration::Seconds(1));
     }
 
+    TMutationPtr CreateRegisterTransactionActionsMutation(
+        TCtxRegisterTransactionActionsPtr context)
+    {
+        return CreateMutation(HydraManager_, std::move(context));
+    }
 
     TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
     {
@@ -575,6 +583,37 @@ private:
         TransientTransactionMap_.Clear();
         PersistentTransactionMap_.Clear();
     }
+
+
+    void HydraRegisterTransactionActions(NTabletClient::NProto::TReqRegisterTransactionActions* request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto transactionStartTimestamp = request->transaction_start_timestamp();
+        auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
+        auto signature = request->signature();
+
+        auto* transaction = GetOrCreateTransaction(
+            transactionId,
+            transactionStartTimestamp,
+            transactionTimeout,
+            false);
+
+        auto state = transaction->GetPersistentState();
+        if (state != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
+
+        for (const auto& protoData : request->actions()) {
+            auto data = FromProto<TTransactionActionData>(protoData);
+            transaction->Actions().push_back(data);
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
+                transactionId,
+                data.Type);
+        }
+
+        transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -590,6 +629,12 @@ TTransactionManager::TTransactionManager(
 { }
 
 TTransactionManager::~TTransactionManager() = default;
+
+TMutationPtr TTransactionManager::CreateRegisterTransactionActionsMutation(
+    TCtxRegisterTransactionActionsPtr context)
+{
+    return Impl_->CreateRegisterTransactionActionsMutation(std::move(context));
+}
 
 IYPathServicePtr TTransactionManager::GetOrchidService()
 {
@@ -659,11 +704,6 @@ void TTransactionManager::AbortTransaction(const TTransactionId& transactionId, 
 void TTransactionManager::PingTransaction(const TTransactionId& transactionId, bool pingAncestors)
 {
     Impl_->PingTransaction(transactionId, pingAncestors);
-}
-
-void TTransactionManager::RegisterAction(const TTransactionId& transactionId, const TTransactionActionData& data)
-{
-    Impl_->RegisterAction(transactionId, data);
 }
 
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);

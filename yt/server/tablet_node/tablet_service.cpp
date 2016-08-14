@@ -60,6 +60,7 @@ public:
         YCHECK(Bootstrap_);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Write));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Trim));
     }
 
@@ -133,6 +134,29 @@ private:
         } else {
             context->Reply();
         }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, RegisterTransactionActions)
+    {
+        ValidatePeer(EPeerKind::Leader);
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto transactionStartTimestamp = request->transaction_start_timestamp();
+        auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
+        auto signature = request->signature();
+
+        context->SetRequestInfo("TransactionId: %v, TransactionStartTimestamp: %v, TransactionTimeout: %v, "
+            "ActionCount: %v, Signature: %x",
+            transactionId,
+            transactionStartTimestamp,
+            transactionTimeout,
+            request->actions_size(),
+            signature);
+
+        auto transactionManager = Slot_->GetTransactionManager();
+        transactionManager
+            ->CreateRegisterTransactionActionsMutation(context)
+            ->CommitAndReply(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Trim)

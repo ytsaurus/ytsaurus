@@ -60,6 +60,7 @@
 
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/transaction_manager.h>
+#include <yt/ytlib/transaction_client/action.h>
 
 #include <yt/core/compression/helpers.h>
 
@@ -1836,7 +1837,7 @@ private:
 
     };
 
-    typedef TIntrusivePtr<TTabletCellLookupSession> TTabletCellLookupSessionPtr;
+    using TTabletCellLookupSessionPtr = TIntrusivePtr<TTabletCellLookupSession>;
 
     IRowsetPtr DoLookupRows(
         const TYPath& path,
@@ -3093,12 +3094,28 @@ public:
             .Run();
     }
 
-    virtual void AddAction(
-        const TCellId& cellId,
-        const TTransactionActionData& data) override
+    virtual void AddAction(const TCellId& cellId, const TTransactionActionData& data) override
     {
-        Transaction_->AddAction(cellId, data);
+        YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
+
+        ValidateActiveSync();
+
+        if (GetAtomicity() != EAtomicity::Full) {
+            THROW_ERROR_EXCEPTION("Atomicity must be %Qlv for custom actions",
+                EAtomicity::Full);
+        }
+
+        Transaction_->AddParticipant(cellId);
+
+        auto session = GetOrCreateCellCommitSession(cellId);
+        session->RegisterAction(data);
+
+        LOG_DEBUG("Transaction action added (TransactionId: %v, CellId: %v, ActionType: %v)",
+            GetId(),
+            cellId,
+            data.Type);
     }
+
 
     virtual TFuture<ITransactionPtr> StartSlaveTransaction(
         IClientPtr client,
@@ -3165,7 +3182,7 @@ public:
     	auto guard = Guard(SpinLock_);
 
         ValidateTabletTransaction();
-    	ValidateActive();
+    	ValidateActiveSync();
 
         auto rowCount = rows.Size();
         Requests_.push_back(std::make_unique<TWriteRequest>(
@@ -3187,7 +3204,7 @@ public:
         auto guard = Guard(SpinLock_);
 
         ValidateTabletTransaction();
-    	ValidateActive();
+    	ValidateActiveSync();
 
         auto keyCount = keys.Size();
         Requests_.push_back(std::make_unique<TDeleteRequest>(
@@ -3360,6 +3377,8 @@ private:
         }
 
     protected:
+        using TRowValidator = void(TUnversionedRow, const TTableSchema&, const TNameTableToSchemaIdMapping&);
+
         TNativeTransaction* const Transaction_;
         const INativeConnectionPtr Connection_;
 		const TYPath Path_;
@@ -3386,26 +3405,6 @@ private:
         }
 
         virtual void DoRun() = 0;
-
-    };
-
-    class TModifyRequest
-        : public TRequestBase
-    {
-    protected:
-        using TRowValidator = void(TUnversionedRow, const TTableSchema&, const TNameTableToSchemaIdMapping&);
-
-        TModifyRequest(
-            TNativeTransaction* transaction,
-            INativeConnectionPtr connection,
-            const TYPath& path,
-            TNameTablePtr nameTable)
-            : TRequestBase(
-                transaction,
-                std::move(connection),
-                path,
-                std::move(nameTable))
-        { }
 
         void WriteRequests(
             const TSharedRange<TUnversionedRow>& rows,
@@ -3451,7 +3450,7 @@ private:
     };
 
     class TWriteRequest
-        : public TModifyRequest
+        : public TRequestBase
     {
     public:
         TWriteRequest(
@@ -3461,7 +3460,7 @@ private:
             TNameTablePtr nameTable,
             TSharedRange<TUnversionedRow> rows,
             const TWriteRowsOptions& options)
-            : TModifyRequest(
+            : TRequestBase(
                 transaction,
                 std::move(connection),
                 path,
@@ -3486,7 +3485,7 @@ private:
     };
 
     class TDeleteRequest
-        : public TModifyRequest
+        : public TRequestBase
     {
     public:
         TDeleteRequest(
@@ -3496,7 +3495,7 @@ private:
             TNameTablePtr nameTable,
             TSharedRange<TKey> keys,
             const TDeleteRowsOptions& /*options*/)
-            : TModifyRequest(
+            : TRequestBase(
                 transaction,
                 std::move(connection),
                 path,
@@ -3749,6 +3748,8 @@ private:
                 return;
             }
 
+            auto cellSession = owner->GetCommitSession(GetCellId());
+
             TTabletServiceProxy proxy(InvokeChannel_);
             proxy.SetDefaultTimeout(Config_->WriteTimeout);
             proxy.SetDefaultRequestAck(false);
@@ -3757,12 +3758,12 @@ private:
             ToProto(req->mutable_transaction_id(), owner->GetId());
             if (owner->GetAtomicity() == EAtomicity::Full) {
                 req->set_transaction_start_timestamp(owner->GetStartTimestamp());
-                req->set_transaction_timeout(ToProto(owner->Transaction_->GetTimeout()));
+                req->set_transaction_timeout(ToProto(owner->GetTimeout()));
             }
             ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
             req->set_mount_revision(TabletInfo_->MountRevision);
             req->set_durability(static_cast<int>(owner->GetDurability()));
-            req->set_signature(owner->AllocateRequestSignature(GetCellId()));
+            req->set_signature(cellSession->AllocateRequestSignature());
             req->Attachments() = std::move(batch->RequestData);
 
             LOG_DEBUG("Sending batch (BatchIndex: %v/%v, RowCount: %v, Signature: %x)",
@@ -3796,19 +3797,78 @@ private:
         }
     };
 
-    typedef TIntrusivePtr<TTabletCommitSession> TTabletSessionPtr;
+    using TTabletCommitSessionPtr = TIntrusivePtr<TTabletCommitSession>;
 
     //! Maintains per-tablet commit info.
-    yhash_map<TTabletId, TTabletSessionPtr> TabletIdToSession_;
+    yhash_map<TTabletId, TTabletCommitSessionPtr> TabletIdToSession_;
 
-    struct TCellCommitSession
+    class TCellCommitSession
+        : public TIntrinsicRefCounted
     {
-        TTransactionSignature CurrentSignature;
-        int RequestsRemaining;
+    public:
+        explicit TCellCommitSession(TNativeTransactionPtr owner)
+            : Owner_(std::move(owner))
+        { }
+
+        void RegisterRequests(int count)
+        {
+            RequestsRemaining_ += count;
+        }
+
+        TTransactionSignature AllocateRequestSignature()
+        {
+            YCHECK(--RequestsRemaining_ >= 0);
+            if (RequestsRemaining_ == 0) {
+                return FinalTransactionSignature - CurrentSignature_;
+            } else {
+                ++CurrentSignature_;
+                return 1;
+            }
+        }
+
+        void RegisterAction(const TTransactionActionData& data)
+        {
+            if (Actions_.empty()) {
+                RegisterRequests(1);
+            }
+            Actions_.push_back(data);
+        }
+
+        TFuture<void> Invoke(IChannelPtr channel)
+        {
+            if (Actions_.empty()) {
+                return VoidFuture;
+            }
+
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return VoidFuture;
+            }
+
+            TTabletServiceProxy proxy(channel);
+            auto req = proxy.RegisterTransactionActions();
+            ToProto(req->mutable_transaction_id(), owner->GetId());
+            req->set_transaction_start_timestamp(owner->GetStartTimestamp());
+            req->set_transaction_timeout(ToProto(owner->GetTimeout()));
+            req->set_signature(AllocateRequestSignature());
+            ToProto(req->mutable_actions(), Actions_);
+            return req->Invoke().As<void>();
+        }
+
+    private:
+        const TWeakPtr<TNativeTransaction> Owner_;
+
+        std::vector<TTransactionActionData> Actions_;
+        TTransactionSignature CurrentSignature_ = InitialTransactionSignature;
+        int RequestsRemaining_ = 0;
+
     };
 
+    using TCellCommitSessionPtr = TIntrusivePtr<TCellCommitSession>;
+
+
     //! Maintains per-cell commit info.
-    yhash_map<TCellId, TCellCommitSession> CellIdToSession_;
+    yhash_map<TCellId, TCellCommitSessionPtr> CellIdToSession_;
 
     //! Caches mappings from name table ids to schema ids.
     yhash_map<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
@@ -3855,16 +3915,25 @@ private:
         }
 
         for (const auto& pair : TabletIdToSession_) {
-            const auto& session = pair.second;
-            const auto& cellId = session->GetCellId();
-            int requestCount = session->Prepare();
-            RegisterCellRequests(cellId, requestCount);
+            const auto& tabletSession = pair.second;
+            const auto& cellId = tabletSession->GetCellId();
+            int requestCount = tabletSession->Prepare();
+            auto cellSession = GetOrCreateCellCommitSession(cellId);
+            cellSession->RegisterRequests(requestCount);
         }
 
         std::vector<TFuture<void>> asyncResults;
+
         for (const auto& pair : TabletIdToSession_) {
             const auto& session = pair.second;
             const auto& cellId = session->GetCellId();
+            auto channel = Client_->GetTabletChannelOrThrow(cellId);
+            asyncResults.push_back(session->Invoke(std::move(channel)));
+        }
+
+        for (auto& pair : CellIdToSession_) {
+            const auto& cellId = pair.first;
+            const auto& session = pair.second;
             auto channel = Client_->GetTabletChannelOrThrow(cellId);
             asyncResults.push_back(session->Invoke(std::move(channel)));
         }
@@ -3915,28 +3984,20 @@ private:
     }
 
 
-    void RegisterCellRequests(const TCellId& cellId, int count)
+    TCellCommitSessionPtr GetOrCreateCellCommitSession(const TCellId& cellId)
     {
         auto it = CellIdToSession_.find(cellId);
         if (it == CellIdToSession_.end()) {
-            it = CellIdToSession_.emplace(cellId, TCellCommitSession{InitialTransactionSignature, 0}).first;
+            it = CellIdToSession_.emplace(cellId, New<TCellCommitSession>(this)).first;
         }
-        auto& session = it->second;
-        session.RequestsRemaining += count;
+        return it->second;
     }
 
-    TTransactionSignature AllocateRequestSignature(const TCellId& cellId)
+    TCellCommitSessionPtr GetCommitSession(const TCellId& cellId)
     {
         auto it = CellIdToSession_.find(cellId);
         YCHECK(it != CellIdToSession_.end());
-        auto& session = it->second;
-        YCHECK(--session.RequestsRemaining >= 0);
-        if (session.RequestsRemaining == 0) {
-            return FinalTransactionSignature - session.CurrentSignature;
-        } else {
-            ++session.CurrentSignature;
-            return 1;
-        }
+        return it->second;
     }
 
 
@@ -3953,14 +4014,14 @@ private:
         }
     }
 
-    void ValidateTableTNativeTransaction()
+    void ValidateTabletTransaction()
     {
         if (TypeFromId(GetId()) == EObjectType::NestedTransaction) {
             THROW_ERROR_EXCEPTION("Nested master transactions cannot be used for updating dynamic tables");
         }
     }
 
-    void ValidateActive()
+    void ValidateActiveSync()
     {
         if (State_ != ETransactionState::Active) {
             THROW_ERROR_EXCEPTION("Transaction is already in %Qlv state",

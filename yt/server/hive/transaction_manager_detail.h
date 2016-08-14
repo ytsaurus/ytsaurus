@@ -22,7 +22,11 @@ public:
     TTransaction* GetPersistentTransaction(const TTransactionId& transactionId);
     TTransaction* GetPersistentTransactionOrThrow(const TTransactionId& transactionId);
 
-    void RegisterAction(const TTransactionId& transactionId, const TTransactionActionData& data);
+    void RegisterAction(
+        const TTransactionId& transactionId,
+        TTimestamp transactionStartTimestamp,
+        TDuration transactionTimeout,
+        const TTransactionActionData& data);
     void RegisterPrepareActionHandler(const TTransactionPrepareActionHandlerDescriptor& descriptor);
     void RegisterCommitActionHandler(const TTransactionCommitActionHandlerDescriptor& descriptor);
     void RegisterAbortActionHandler(const TTransactionAbortActionHandlerDescriptor& descriptor);
@@ -43,7 +47,6 @@ protected:
     void RunPrepareTransactionActions(TTransaction* transaction, bool persistent);
     void RunCommitTransactionActions(TTransaction* transaction);
     void RunAbortTransactionActions(TTransaction* transaction);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

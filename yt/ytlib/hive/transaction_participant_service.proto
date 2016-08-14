@@ -1,18 +1,6 @@
 package NYT.NHiveClient.NProto.NTransactionParticipant;
 
 import "yt/core/misc/guid.proto";
-import "yt/ytlib/transaction_client/action.proto";
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqRegisterTransactionActions
-{
-    required NYT.NProto.TGuid transaction_id = 1;
-    repeated NYT.NTransactionClient.NProto.TTransactionActionData actions = 2;
-}
-
-message TRspRegisterTransactionActions
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

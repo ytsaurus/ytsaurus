@@ -34,19 +34,10 @@ TTransaction* TTransactionManagerBase<TTransaction>::GetPersistentTransactionOrT
 template <class TTransaction>
 void TTransactionManagerBase<TTransaction>::RegisterAction(
     const TTransactionId& transactionId,
+    TTimestamp transactionStartTimestamp,
+    TDuration transactionTimeout,
     const TTransactionActionData& data)
 {
-    auto* transaction = GetPersistentTransactionOrThrow(transactionId);
-    auto state = transaction->GetPersistentState();
-    if (state != ETransactionState::Active) {
-        transaction->ThrowInvalidState();
-    }
-
-    transaction->Actions().push_back(data);
-
-    LOG_DEBUG_UNLESS(IsRecovery(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
-        transactionId,
-        data.Type);
 }
 
 template <class TTransaction>

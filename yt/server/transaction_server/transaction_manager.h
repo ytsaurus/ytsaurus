@@ -127,10 +127,6 @@ private:
     virtual void PingTransaction(
         const TTransactionId& transactionId,
         bool pingAncestors) override;
-    virtual void RegisterAction(
-        const TTransactionId& transactionId,
-        const TTransactionActionData& data) override;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionManager)
