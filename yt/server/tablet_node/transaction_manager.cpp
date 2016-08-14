@@ -22,6 +22,8 @@
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/native_client.h>
 
+#include <yt/ytlib/tablet_client/tablet_service.pb.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/logging/log.h>

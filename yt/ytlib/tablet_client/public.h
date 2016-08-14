@@ -17,6 +17,8 @@ class TColumnFilter;
 class TReqLookupRows;
 class TReqWriteRow;
 class TReqDeleteRow;
+class TReqRegisterTransactionActions;
+class TRspRegisterTransactionActions;
 
 } // namespace NProto
 

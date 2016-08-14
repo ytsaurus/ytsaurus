@@ -9,12 +9,9 @@
 #include <yt/server/hydra/composite_automaton.h>
 #include <yt/server/hydra/entity_map.h>
 
-#include <yt/ytlib/tablet_client/tablet_service.pb.h>
-
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/ytree/public.h>
-#include <yt/server/hive/helpers.h>
 
 namespace NYT {
 namespace NTabletNode {
