@@ -184,10 +184,14 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
         }
     }
 
-    // Take row trimming into account.
     i64 trimmedRowCount = tabletSnapshot->RuntimeData->TrimmedRowCount;
     if (lowerRowIndex < trimmedRowCount) {
         lowerRowIndex = trimmedRowCount;
+    }
+
+    i64 totalRowCount = tabletSnapshot->RuntimeData->TotalRowCount;
+    if (upperRowIndex > totalRowCount) {
+        upperRowIndex = totalRowCount;
     }
 
     std::vector<ISchemafulReaderPtr> readers;
