@@ -28,6 +28,9 @@ public:
         NApi::INativeClientPtr client = nullptr);
 
     // IStoreManager overrides.
+    virtual void Mount(
+        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
+
     virtual void ExecuteAtomicWrite(
         TTransaction* transaction,
         NTabletClient::TWireProtocolReader* reader,
