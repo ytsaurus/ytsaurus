@@ -35,6 +35,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, TransactionId);
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, ParticipantCellIds);
+    DEFINE_BYVAL_RO_PROPERTY(bool, Distributed);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Persistent);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp);
@@ -47,7 +48,8 @@ public:
     TCommit(
         const TTransactionId& transactionId,
         const NRpc::TMutationId& mutationId,
-        const std::vector<TCellId>& participantCellIds);
+        const std::vector<TCellId>& participantCellIds,
+        bool distributed);
 
     TFuture<TSharedRefArray> GetAsyncResponseMessage();
     void SetResponseMessage(TSharedRefArray message);

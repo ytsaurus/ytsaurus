@@ -557,16 +557,17 @@ private:
         auto commitHolder = std::make_unique<TCommit>(
             transactionId,
             mutationId,
-            participantCellIds);
+            participantCellIds,
+            force2PC || !participantCellIds.empty());
         commit = TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
 
         // Commit instance may die below.
         auto asyncResponseMessage = commit->GetAsyncResponseMessage();
 
-        if (participantCellIds.empty() && !force2PC) {
-            CommitSimpleTransaction(commit);
-        } else {
+        if (commit->GetDistributed()) {
             CommitDistributedTransaction(commit);
+        } else {
+            CommitSimpleTransaction(commit);
         }
 
         return asyncResponseMessage;
@@ -683,7 +684,8 @@ private:
             auto commitHolder = std::make_unique<TCommit>(
                 transactionId,
                 mutationId,
-                std::vector<TCellId>());
+                std::vector<TCellId>(),
+                false);
             commit = TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
             commit->SetCommitTimestamp(commitTimestamp);
         }
@@ -702,7 +704,8 @@ private:
         auto* commit = GetOrCreatePersistentCommit(
             transactionId,
             mutationId,
-            participantCellIds);
+            participantCellIds,
+            true);
 
         LOG_DEBUG_UNLESS(IsRecovery(),
             "Distributed commit phase one started "
@@ -751,7 +754,7 @@ private:
             commit->ParticipantCellIds(),
             commitTimestamp);
 
-        YCHECK(commit->IsDistributed());
+        YCHECK(commit->GetDistributed());
         YCHECK(commit->GetPersistent());
 
         if (commit->GetPersistentState() != ECommitState::Prepare) {
@@ -928,7 +931,8 @@ private:
     TCommit* GetOrCreatePersistentCommit(
         const TTransactionId& transactionId,
         const TMutationId& mutationId,
-        const std::vector<TCellId>& participantCellIds)
+        const std::vector<TCellId>& participantCellIds,
+        bool distributed)
     {
         auto* commit = FindCommit(transactionId);
         std::unique_ptr<TCommit> commitHolder;
@@ -939,7 +943,8 @@ private:
             commitHolder = std::make_unique<TCommit>(
                 transactionId,
                 mutationId,
-                participantCellIds);
+                participantCellIds,
+                distributed);
         }
         commitHolder->SetPersistent(true);
         return PersistentCommitMap_.Insert(transactionId, std::move(commitHolder));
@@ -1025,7 +1030,7 @@ private:
             transactionId,
             timestamp);
 
-        if (commit->IsDistributed()) {
+        if (commit->GetDistributed()) {
             NHiveServer::NProto::TReqCommitDistributedTransactionPhaseTwo request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_commit_timestamp(timestamp);

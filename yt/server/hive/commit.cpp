@@ -20,10 +20,12 @@ TCommit::TCommit(const TTransactionId& transationId)
 TCommit::TCommit(
     const TTransactionId& transationId,
     const TMutationId& mutationId,
-    const std::vector<TCellId>& participantCellIds)
+    const std::vector<TCellId>& participantCellIds,
+    bool distributed)
     : TransactionId_(transationId)
     , MutationId_(mutationId)
     , ParticipantCellIds_(participantCellIds)
+    , Distributed_(distributed)
     , Persistent_(false)
     , CommitTimestamp_(NTransactionClient::NullTimestamp)
     , TransientState_(ECommitState::Start)
@@ -53,6 +55,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, TransactionId_);
     Save(context, MutationId_);
     Save(context, ParticipantCellIds_);
+    Save(context, Distributed_);
     Save(context, CommitTimestamp_);
     Save(context, PersistentState_);
 }
@@ -65,6 +68,7 @@ void TCommit::Load(TLoadContext& context)
     Load(context, TransactionId_);
     Load(context, MutationId_);
     Load(context, ParticipantCellIds_);
+    Load(context, Distributed_);
     Load(context, CommitTimestamp_);
     Load(context, PersistentState_);
 }
