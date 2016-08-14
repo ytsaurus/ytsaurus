@@ -253,6 +253,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Atomicity_);
     Save(context, Serializability_);
     Save(context, HashTableSize_);
+    Save(context, RuntimeData_->TotalRowCount);
     Save(context, RuntimeData_->TrimmedRowCount);
     Save(context, RuntimeData_->LastCommitTimestamp);
     Save(context, Replicas_);
@@ -292,6 +293,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, Atomicity_);
     Load(context, Serializability_);
     Load(context, HashTableSize_);
+    Load(context, RuntimeData_->TotalRowCount);
     Load(context, RuntimeData_->TrimmedRowCount);
     Load(context, RuntimeData_->LastCommitTimestamp);
     Load(context, Replicas_);
@@ -697,11 +699,12 @@ int TTablet::GetColumnLockCount() const
 
 i64 TTablet::GetTotalRowCount() const
 {
-    if (StoreRowIndexMap_.empty()) {
-        return 0;
-    }
-    auto lastStore = (--StoreRowIndexMap_.end())->second;
-    return lastStore->GetStartingRowIndex() + lastStore->GetRowCount();
+    return RuntimeData_->TotalRowCount;
+}
+
+void TTablet::SetTotalRowCount(i64 value)
+{
+    RuntimeData_->TotalRowCount = value;
 }
 
 i64 TTablet::GetTrimmedRowCount() const

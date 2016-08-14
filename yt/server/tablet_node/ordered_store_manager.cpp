@@ -60,6 +60,19 @@ TOrderedStoreManager::TOrderedStoreManager(
     }
 }
 
+void TOrderedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDescriptors)
+{
+    TStoreManagerBase::Mount(storeDescriptors);
+
+    // Compute total row row.
+    if (Tablet_->StoreRowIndexMap().empty()) {
+        Tablet_->SetTotalRowCount(0);
+    } else {
+        auto lastStore = (--Tablet_->StoreRowIndexMap().end())->second;
+        Tablet_->SetTotalRowCount(lastStore->GetStartingRowIndex() + lastStore->GetRowCount());
+    }
+}
+
 void TOrderedStoreManager::ExecuteAtomicWrite(
     TTransaction* transaction,
     TWireProtocolReader* reader,
@@ -140,6 +153,7 @@ void TOrderedStoreManager::CommitRow(TTransaction* transaction, const TOrderedDy
         CheckForUnlockedStore(rowRef.Store);
         ActiveStore_->CommitRow(transaction, migratedRow);
     }
+    Tablet_->SetTotalRowCount(Tablet_->GetTotalRowCount() + 1);
     UpdateLastCommitTimestamp(transaction->GetCommitTimestamp());
 }
 

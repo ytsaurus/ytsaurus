@@ -32,6 +32,7 @@ namespace NTabletNode {
 struct TRuntimeTabletData
     : public TIntrinsicRefCounted
 {
+    std::atomic<i64> TotalRowCount = {0};
     std::atomic<i64> TrimmedRowCount = {0};
     std::atomic<TTimestamp> LastCommitTimestamp = {NTransactionClient::MinTimestamp};
 };
@@ -258,6 +259,7 @@ public:
 
     // Only applicable to ordered tablets.
     i64 GetTotalRowCount() const;
+    void SetTotalRowCount(i64 value);
 
     // Only applicable to ordered tablets.
     i64 GetTrimmedRowCount() const;

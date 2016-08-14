@@ -670,7 +670,7 @@ private:
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %x, TableId: %v, Keys: %v .. %v, "
-            "StoreCount: %v, PartitionCount: %v, TrimmedRowCount: %v, Atomicity: %v, Serializability: %v, Frozen: %v)",
+            "StoreCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, Serializability: %v, Frozen: %v)",
             tabletId,
             mountRevision,
             tableId,
@@ -678,6 +678,7 @@ private:
             nextPivotKey,
             request->stores_size(),
             tablet->IsPhysicallySorted() ? MakeNullable(tablet->PartitionList().size()) : Null,
+            tablet->IsPhysicallySorted() ? Null : MakeNullable(tablet->GetTotalRowCount()),
             tablet->IsPhysicallySorted() ? Null : MakeNullable(tablet->GetTrimmedRowCount()),
             tablet->GetAtomicity(),
             tablet->GetSerializability(),
