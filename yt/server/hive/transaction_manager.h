@@ -38,11 +38,6 @@ struct ITransactionManager
     virtual void PingTransaction(
         const TTransactionId& transactionId,
         bool pingAncestors) = 0;
-
-    virtual void RegisterAction(
-        const TTransactionId& transactionId,
-        const TTransactionActionData& data) = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManager)

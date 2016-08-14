@@ -13,7 +13,7 @@ template <class TProto>
 TTransactionActionData MakeTransactionActionData(const TProto& message)
 {
     return TTransactionActionData{
-        message.GetType(),
+        message.GetTypeName(),
         ToString(SerializeToProto(message))
     };
 }

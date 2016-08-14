@@ -1206,13 +1206,6 @@ void TTransactionManager::PingTransaction(
     Impl_->PingTransaction(transactionId, pingAncestors);
 }
 
-void TTransactionManager::RegisterAction(
-    const TTransactionId& transactionId,
-    const NHiveServer::TTransactionActionData& data)
-{
-    Y_UNREACHABLE();
-}
-
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);

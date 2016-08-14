@@ -47,8 +47,13 @@ public:
         TTransactionManagerConfigPtr config,
         TTabletSlotPtr slot,
         NCellNode::TBootstrap* bootstrap);
-
     ~TTransactionManager();
+
+    using TCtxRegisterTransactionActions = NRpc::TTypedServiceContext<
+        NTabletClient::NProto::TReqRegisterTransactionActions,
+        NTabletClient::NProto::TRspRegisterTransactionActions>;
+    using TCtxRegisterTransactionActionsPtr = TIntrusivePtr<TCtxRegisterTransactionActions>;
+    NHydra::TMutationPtr CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context);
 
     //! Finds transaction by id.
     //! If it does not exist then creates a new transaction
@@ -94,9 +99,6 @@ private:
     virtual void PingTransaction(
         const TTransactionId& transactionId,
         bool pingAncestors) override;
-    virtual void RegisterAction(
-        const TTransactionId& transactionId,
-        const TTransactionActionData& data) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionManager)
