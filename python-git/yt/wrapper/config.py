@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import common
 import default_config
 import client_state
@@ -180,14 +182,14 @@ class Config(types.ModuleType, client_state.ClientState):
             try:
                 patches = self.yson_module.loads(os.environ["YT_CONFIG_PATCHES"], yson_type="list_fragment")
             except self.yson_module.YsonError:
-                print >>sys.stderr, "Failed to parse YT config patches from 'YT_CONFIG_PATCHES' environment variable"
+                print("Failed to parse YT config patches from 'YT_CONFIG_PATCHES' environment variable", file=sys.stderr)
                 raise
 
             try:
                 for patch in reversed(list(patches)):
                     self.update_config(patch)
             except:
-                print >>sys.stderr, "Failed to apply config from 'YT_CONFIG_PATCHES' environment variable"
+                print("Failed to apply config from 'YT_CONFIG_PATCHES' environment variable", file=sys.stderr)
                 raise
 
         # These options should be processed before reading config file
@@ -225,7 +227,7 @@ class Config(types.ModuleType, client_state.ClientState):
             try:
                 self.update_config(load_func(open(config_path, "r")))
             except Exception:
-                print >>sys.stderr, "Failed to parse YT config from " + config_path
+                print("Failed to parse YT config from " + config_path, file=sys.stderr)
                 raise
 
         old_options = sorted(list(self.shortcuts))

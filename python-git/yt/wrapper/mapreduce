@@ -19,11 +19,14 @@
 #
 # -srcserver
 
+from __future__ import print_function
+
 from yt.wrapper.cli_helpers import write_silently, run_main, die
 from yt.wrapper.table_commands import copy_table, move_table, _remove_locks, _get_format_from_tables
 from yt.wrapper.cypress_commands import remove_with_empty_dirs
 
-from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, GB, chunk_iter_stream, date_string_to_timestamp, update
+from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, GB, \
+                              chunk_iter_stream, date_string_to_timestamp, update
 import yt.wrapper.config as config
 import yt.yson as yson
 import yt.json as json
@@ -805,7 +808,7 @@ Examples:
             write_silently(chunk_iter_stream(yt.read_file(args.download), 16 * MB))
 
     if args.exists is not None:
-        print bool_to_string(yt.exists(args.exists))
+        print(bool_to_string(yt.exists(args.exists)))
 
     if args.get is not None:
         sys.stdout.write(yt.get(args.get, format=yt.create_format("<format=pretty>json")))
@@ -815,7 +818,7 @@ Examples:
         yt.set(args.set, yson.json_to_yson(json.loads(args.value)))
 
     if args.starttx:
-        print yt.start_transaction()
+        print(yt.start_transaction())
     if args.committx is not None:
         yt.commit_transaction(args.committx)
     if args.aborttx is not None:
@@ -824,7 +827,7 @@ Examples:
         yt.ping_transaction(args.renewtx)
 
     if args.ytlock is not None:
-        print yt.lock(args.ytlock, mode=args.mode, waitable=args.waitable, wait_for=args.waitfor)
+        print(yt.lock(args.ytlock, mode=args.mode, waitable=args.waitable, wait_for=args.waitfor))
 
     if args.track is not None:
         config["detached"] = True

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 from yt.transfer_manager.client import TransferManager
 from yt.wrapper.client import Yt
 import yt.wrapper as yt
@@ -25,7 +27,7 @@ def waiting_thread(client, token, queue, semaphore):
         for task, destination in running_tasks.iteritems():
             state = client.get_task_info(task)["state"]
             if state in ["aborted", "failed", "completed"]:
-                print >>sys.stderr, "Task {0} {1}".format(task, state)
+                print("Task {0} {1}".format(task, state), file=sys.stderr)
                 tasks_to_remove.append(task)
                 dst_client.remove(destination, force=True)
                 semaphore.release()
@@ -57,7 +59,7 @@ def run_tasks(client, task_limit):
     thread.daemon = True
     thread.start()
 
-    print >>sys.stderr, "Starting tasks creation. Task limit: {0}".format(task_limit)
+    print("Starting tasks creation. Task limit: {0}".format(task_limit), file=sys.stderr)
     while True:
         semaphore.acquire()
         destination = dst_yt_client.create_temp_table(path=DST_TEST_TABLES_PATH)
