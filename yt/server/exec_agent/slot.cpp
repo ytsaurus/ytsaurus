@@ -156,9 +156,12 @@ public:
         return TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
     }
 
-    void Initialize()
+    virtual TFuture<void> CreateSandboxDirectories()
     {
-        Location_->CreateSandboxDirectories(SlotIndex_);
+        return RunPrepareAction<void>([&] () {
+            return Location_->CreateSandboxDirectories(SlotIndex_)
+                .ToUncancelable();
+        });
     }
 
 private:
@@ -213,7 +216,6 @@ ISlotPtr CreateSlot(
         std::move(environment),
         nodeTag);
 
-    slot->Initialize();
     return slot;
 }
 

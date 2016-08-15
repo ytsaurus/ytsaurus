@@ -75,7 +75,7 @@ DEFINE_ENUM(EJobState,
 DEFINE_ENUM(EJobPhase,
     ((Created)               (  0))
     ((DownloadingArtifacts)  ( 10))
-    ((PreparingTmpfs)        ( 15))
+    ((PreparingDirectories)  ( 15))
     ((PreparingArtifacts)    ( 20))
     ((PreparingProxy)        ( 30))
     ((Running)               ( 40))

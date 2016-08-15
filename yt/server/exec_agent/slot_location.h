@@ -27,7 +27,7 @@ public:
         const Stroka& id,
         bool detachedTmpfsUmount);
 
-    void CreateSandboxDirectories(int slotIndex);
+    TFuture<void> CreateSandboxDirectories(int slotIndex);
 
     TFuture<void> MakeSandboxCopy(
         int slotIndex,
