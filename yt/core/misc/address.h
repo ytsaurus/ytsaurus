@@ -131,8 +131,8 @@ public:
     //! Return |true| if the local host FQDN can be properly determined.
     bool IsLocalHostNameOK();
 
-    //! Return |true| if the address matches one of local host addresses.
-    bool IsLocalServiceAddress(const Stroka& address);
+    //! Returns |true| if #address matches one of local host addresses.
+    bool IsLocalAddress(const TNetworkAddress& address);
 
     //! Removes all cached resolutions.
     void PurgeCache();

@@ -48,7 +48,7 @@ TTcpConnection::TTcpConnection(
     TTcpBusConfigPtr config,
     TTcpDispatcherThreadPtr dispatcherThread,
     EConnectionType connectionType,
-    ETcpInterfaceType interfaceType,
+    TNullable<ETcpInterfaceType> interfaceType,
     const TConnectionId& id,
     int socket,
     const Stroka& endpointDescription,
@@ -60,7 +60,6 @@ TTcpConnection::TTcpConnection(
     : Config_(std::move(config))
     , DispatcherThread_(std::move(dispatcherThread))
     , ConnectionType_(connectionType)
-    , InterfaceType_(interfaceType)
     , Id_(id)
     , Socket_(socket)
     , EndpointDescription_(endpointDescription)
@@ -75,7 +74,7 @@ TTcpConnection::TTcpConnection(
         .AddTag("ConnectionId: %v, RemoteAddress: %v",
             Id_,
             EndpointDescription_))
-    , Statistics_(DispatcherThread_->GetStatistics(InterfaceType_))
+    , InterfaceType_(interfaceType)
     , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueuedThunk, MakeWeak(this)))
     , Decoder_(Logger)
     , ReadStallTimeout_(NProfiling::DurationToCpuDuration(Config_->ReadStallTimeout))
@@ -93,15 +92,15 @@ TTcpConnection::TTcpConnection(
             break;
 
         case EConnectionType::Server:
+            YCHECK(interfaceType);
             YCHECK(Socket_ != INVALID_SOCKET);
             State_ = EState::Opening;
+            OnInterfaceTypeEstablished(*interfaceType);
             break;
 
         default:
             YUNREACHABLE();
     }
-
-    UpdateConnectionCount(+1);
 }
 
 TTcpConnection::~TTcpConnection()
@@ -251,8 +250,12 @@ void TTcpConnection::SyncResolve()
     VERIFY_THREAD_AFFINITY(EventLoop);
 
     if (UnixDomainName_) {
-        auto address = GetUnixDomainAddress(*UnixDomainName_);
-        OnAddressResolved(address);
+        if (!IsLocalBusTransportEnabled()) {
+            SyncClose(TError(NRpc::EErrorCode::TransportError, "Local bus transport is not available"));
+            return;
+        }
+        OnInterfaceTypeEstablished(ETcpInterfaceType::Local);
+        OnAddressResolved(GetUnixDomainAddress(*UnixDomainName_));
         return;
     }
 
@@ -264,18 +267,12 @@ void TTcpConnection::SyncResolve()
         return;
     }
 
-    if (InterfaceType_ == ETcpInterfaceType::Local) {
-        LOG_DEBUG("Server address is local");
-        auto address = GetLocalBusAddress(Port_);
-        OnAddressResolved(address);
-    } else {
-        TAddressResolver::Get()->Resolve(Stroka(hostName)).Subscribe(
-            BIND(&TTcpConnection::OnAddressResolutionFinished, MakeStrong(this))
-                .Via(DispatcherThread_->GetInvoker()));
-    }
+    TAddressResolver::Get()->Resolve(Stroka(hostName)).Subscribe(
+        BIND(&TTcpConnection::OnAddressResolutionFinished, MakeStrong(this))
+            .Via(DispatcherThread_->GetInvoker()));
 }
 
-void TTcpConnection::OnAddressResolutionFinished(TErrorOr<TNetworkAddress> result)
+void TTcpConnection::OnAddressResolutionFinished(const TErrorOr<TNetworkAddress>& result)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
@@ -284,16 +281,21 @@ void TTcpConnection::OnAddressResolutionFinished(TErrorOr<TNetworkAddress> resul
         return;
     }
 
-    LOG_DEBUG("Address resolved, connecting");
+    TNetworkAddress address(result.Value(), Port_);
+    if (!InterfaceType_ && IsLocalBusTransportEnabled() && TAddressResolver::Get()->IsLocalAddress(address)) {
+        address = GetLocalBusAddress(Port_);
+        OnInterfaceTypeEstablished(ETcpInterfaceType::Local);
+    } else {
+        OnInterfaceTypeEstablished(ETcpInterfaceType::Remote);
+    }
 
-    TNetworkAddress netAddress(result.Value(), Port_);
-    OnAddressResolved(netAddress);
+    OnAddressResolved(address);
 }
 
-void TTcpConnection::OnAddressResolved(const TNetworkAddress& netAddress)
+void TTcpConnection::OnAddressResolved(TNetworkAddress address)
 {
     try {
-        ConnectSocket(netAddress);
+        ConnectSocket(address);
     } catch (const std::exception& ex) {
         SyncClose(TError(ex).SetCode(NRpc::EErrorCode::TransportError));
         return;
@@ -302,6 +304,21 @@ void TTcpConnection::OnAddressResolved(const TNetworkAddress& netAddress)
     InitSocketWatcher();
 
     State_ = EState::Opening;
+}
+
+void TTcpConnection::OnInterfaceTypeEstablished(ETcpInterfaceType interfaceType)
+{
+    YCHECK(!InterfaceType_ || *InterfaceType_ == interfaceType);
+    YCHECK(!Statistics_);
+
+    LOG_DEBUG("Using %Qlv interface", interfaceType);
+
+    Statistics_ = DispatcherThread_->GetStatistics(interfaceType);
+
+    EnableChecksums_ = (interfaceType == ETcpInterfaceType::Remote);
+
+    UpdateConnectionCount(+1);
+    ConnectionCounterUpdated_ = true;
 }
 
 void TTcpConnection::SyncClose(const TError& error)
@@ -340,7 +357,9 @@ void TTcpConnection::SyncClose(const TError& error)
     // Invoke user callbacks.
     Terminated_.Fire(detailedError);
 
-    UpdateConnectionCount(-1);
+    if (ConnectionCounterUpdated_) {
+        UpdateConnectionCount(-1);
+    }
 
     DispatcherThread_->AsyncUnregister(this);
 }
@@ -990,7 +1009,7 @@ bool TTcpConnection::MaybeEncodeFragments()
         bool encodeResult = Encoder_.Start(
             packet->Type,
             packet->Flags,
-            InterfaceType_ == ETcpInterfaceType::Remote,
+            EnableChecksums_,
             packet->PacketId,
             packet->Message);
         if (!encodeResult) {
