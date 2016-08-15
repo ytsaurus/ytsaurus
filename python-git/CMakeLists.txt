@@ -106,3 +106,12 @@ file(
   COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-singledispatch/singledispatch_helpers.py
   DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages
 )
+
+file(
+  REMOVE ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/decorator.py
+)
+
+file(
+  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-decorator/src/decorator.py
+  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages
+)
