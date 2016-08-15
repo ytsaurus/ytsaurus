@@ -98,9 +98,9 @@ def find(root):
     tables = []
     ignore_nodes = ["//sys", "//home/qe"]
 
-    requested_attributes = ["type", "opaque", "force_nightly_compress",
-                            "uncompressed_data_size", "nightly_compression_settings",
-                            "nightly_compressed", "compression_statistics", "erasure_statistics"]
+    requested_attributes = ["type", "opaque", "force_nightly_compress", "uncompressed_data_size",
+                            "nightly_compression_settings", "nightly_compressed", "compression_statistics",
+                            "erasure_statistics", "chunk_count"]
 
     def walk(path, object, compression_settings=None):
         if path in ignore_nodes:
