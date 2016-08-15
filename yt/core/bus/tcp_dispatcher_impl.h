@@ -23,7 +23,7 @@ namespace NBus {
 
 TNetworkAddress GetUnixDomainAddress(const Stroka& name);
 TNetworkAddress GetLocalBusAddress(int port);
-bool IsLocalServiceAddress(const Stroka& address);
+bool IsLocalBusTransportEnabled();
 
 ////////////////////////////////////////////////////////////////////////////////
 

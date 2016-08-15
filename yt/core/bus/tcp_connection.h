@@ -46,7 +46,7 @@ public:
         TTcpBusConfigPtr config,
         TTcpDispatcherThreadPtr dispatcherThread,
         EConnectionType connectionType,
-        ETcpInterfaceType interfaceType,
+        TNullable<ETcpInterfaceType> interfaceType,
         const TConnectionId& id,
         int socket,
         const Stroka& endpointDescription,
@@ -79,8 +79,7 @@ private:
 
     struct TQueuedMessage
     {
-        TQueuedMessage()
-        { }
+        TQueuedMessage() = default;
 
         TQueuedMessage(TSharedRefArray message, EDeliveryTrackingLevel level)
             : Promise(level != EDeliveryTrackingLevel::None ? NewPromise<void>() : Null)
@@ -134,7 +133,6 @@ private:
     const TTcpBusConfigPtr Config_;
     const TTcpDispatcherThreadPtr DispatcherThread_;
     const EConnectionType ConnectionType_;
-    const ETcpInterfaceType InterfaceType_;
     const TConnectionId Id_;
     int Socket_;
     const Stroka EndpointDescription_;
@@ -150,7 +148,10 @@ private:
 
     int FD_ = INVALID_SOCKET;
 
-    TTcpDispatcherStatistics* const Statistics_;
+    TNullable<ETcpInterfaceType> InterfaceType_;
+    TTcpDispatcherStatistics* Statistics_ = nullptr;
+    bool EnableChecksums_ = true;
+    bool ConnectionCounterUpdated_ = false;
 
     // Only used by client sockets.
     int Port_ = 0;
@@ -206,8 +207,9 @@ private:
     void ConnectSocket(const TNetworkAddress& netAddress);
     void CloseSocket();
 
-    void OnAddressResolutionFinished(TErrorOr<TNetworkAddress> result);
-    void OnAddressResolved(const TNetworkAddress& netAddress);
+    void OnAddressResolutionFinished(const TErrorOr<TNetworkAddress>& result);
+    void OnAddressResolved(TNetworkAddress address);
+    void OnInterfaceTypeEstablished(ETcpInterfaceType interfaceType);
 
     void OnSocket(ev::io&, int revents);
 

@@ -359,7 +359,7 @@ public:
     Stroka GetLocalHostName();
     bool IsLocalHostNameOK();
 
-    bool IsLocalServiceAddress(const Stroka& address);
+    bool IsLocalAddress(const TNetworkAddress& address);
 
     void PurgeCache();
 
@@ -587,10 +587,10 @@ bool TAddressResolver::TImpl::IsLocalHostNameOK()
     return !GetLocalHostNameFailed_;
 }
 
-bool TAddressResolver::TImpl::IsLocalServiceAddress(const Stroka& address)
+bool TAddressResolver::TImpl::IsLocalAddress(const TNetworkAddress& address)
 {
     const auto& localAddresses = GetLocalAddresses();
-    return std::find(localAddresses.begin(), localAddresses.end(), DoResolve(address)) != localAddresses.end();
+    return std::find(localAddresses.begin(), localAddresses.end(), address) != localAddresses.end();
 }
 
 const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
@@ -755,9 +755,9 @@ bool TAddressResolver::IsLocalHostNameOK()
     return Impl_->IsLocalHostNameOK();
 }
 
-bool TAddressResolver::IsLocalServiceAddress(const Stroka& address)
+bool TAddressResolver::IsLocalAddress(const TNetworkAddress& address)
 {
-    return Impl_->IsLocalServiceAddress(address);
+    return Impl_->IsLocalAddress(address);
 }
 
 void TAddressResolver::PurgeCache()
