@@ -54,7 +54,8 @@ public:
         JobEnvironment_->CleanProcesses(SlotIndex_);
 
         // After that clean the filesystem.
-        Location_->CleanSandboxes(SlotIndex_);
+        WaitFor(Location_->CleanSandboxes(SlotIndex_))
+            .ThrowOnError();
         Location_->DecreaseSessionCount();
     }
 
@@ -72,17 +73,16 @@ public:
         const TJobId& jobId,
         const TOperationId& operationId) override
     {
-        try {
-            Location_->MakeConfig(SlotIndex_, ConvertToNode(config));
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to create job proxy config") << ex;
-        }
+        return RunPrepareAction<void>([&] () {
+            auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config")
 
-        return JobEnvironment_->RunJobProxy(
-            SlotIndex_,
-            Location_->GetSlotPath(SlotIndex_),
-            jobId,
-            operationId);
+            return JobEnvironment_->RunJobProxy(
+                SlotIndex_,
+                Location_->GetSlotPath(SlotIndex_),
+                jobId,
+                operationId);
+        });
     }
 
     virtual TFuture<void> MakeLink(

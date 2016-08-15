@@ -169,10 +169,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        if (HandleFinishingPhase()) {
-            return;
-        }
-
         GuardedAction([&] () {
             ValidateJobPhase(EJobPhase::PreparingProxy);
             JobPhase_ = EJobPhase::Running;
@@ -182,10 +178,6 @@ public:
     virtual void SetResult(const TJobResult& jobResult) override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
-
-        if (HandleFinishingPhase()) {
-            return;
-        }
 
         GuardedAction([&] () {
             JobPhase_ = EJobPhase::FinalizingProxy;
@@ -493,10 +485,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        if (HandleFinishingPhase()) {
-            return;
-        }
-
         GuardedAction([&] () {
             ValidateJobPhase(EJobPhase::DownloadingArtifacts);
             THROW_ERROR_EXCEPTION_IF_FAILED(errorOrArtifacts, "Failed to download artifacts")
@@ -521,10 +509,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        if (HandleFinishingPhase()) {
-            return;
-        }
-
         GuardedAction([&] () {
             ValidateJobPhase(EJobPhase::PreparingDirectories);
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare sandbox directories");
@@ -544,10 +528,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        if (HandleFinishingPhase()) {
-            return;
-        }
-
         GuardedAction([&] () {
             ValidateJobPhase(EJobPhase::PreparingArtifacts);
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare artifacts");
@@ -555,10 +535,14 @@ private:
             ExecTime_ = TInstant::Now();
             JobPhase_ = EJobPhase::PreparingProxy;
 
-            Slot_->RunJobProxy(
+            BIND(
+                &ISlot::RunJobProxy, 
+                Slot_, 
                 CreateConfig(),
                 Id_,
                 OperationId_)
+            .AsyncVia(Invoker_)
+            .Run()
             .Subscribe(BIND(
                 &TJob::OnJobProxyFinished, 
                 MakeWeak(this))
@@ -570,10 +554,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        if (HandleFinishingPhase()) {
-            return;
-        }
-
         GuardedAction([&] () {
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Job proxy failed");
             Cleanup();
@@ -582,6 +562,10 @@ private:
 
     void GuardedAction(std::function<void()> action)
     {
+        if (HandleFinishingPhase()) {
+            return;
+        }
+
         try {
             TContextSwitchedGuard contextSwitchGuard(BIND([] { YUNREACHABLE(); }));
             action();
