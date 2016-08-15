@@ -33,11 +33,6 @@ using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// FIXME(savrus): Remove after YT-5031 investigation.
-static const auto& Logger = TableServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
     , PreserveSchemaOnWrite_(false)
@@ -92,10 +87,6 @@ ETabletState TTableNode::GetTabletState() const
 
 void TTableNode::Save(TSaveContext& context) const
 {
-    if (IsDynamic() && !TableSchema_.GetStrict()) {
-        LOG_ERROR("Dynamic table %v schema is not strict", GetId());
-    }
-
     TChunkOwnerBase::Save(context);
 
     using NYT::Save;
@@ -217,7 +208,6 @@ void TTableNode::Load(TLoadContext& context)
     // COMPAT(savrus) See YT-5031
     if (context.GetVersion() < 301) {
         if (IsDynamic() && !TableSchema_.GetStrict()) {
-            LOG_ERROR("Dynamic table %v schema was made strict during load from snapshot", GetId());
             TableSchema_ = TTableSchema(TableSchema_.Columns(), true /* strict */);
         }
     }
