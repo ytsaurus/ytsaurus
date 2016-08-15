@@ -583,6 +583,7 @@ private:
     void GuardedAction(std::function<void()> action)
     {
         try {
+            TContextSwitchedGuard contextSwitchGuard(BIND([] { YUNREACHABLE(); }));
             action();
         } catch (const std::exception& ex) {
             DoSetResult(ex);

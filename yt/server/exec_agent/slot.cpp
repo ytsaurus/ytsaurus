@@ -159,8 +159,7 @@ public:
     virtual TFuture<void> CreateSandboxDirectories()
     {
         return RunPrepareAction<void>([&] () {
-            return Location_->CreateSandboxDirectories(SlotIndex_)
-                .ToUncancelable();
+            return Location_->CreateSandboxDirectories(SlotIndex_);
         });
     }
 
