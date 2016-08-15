@@ -116,7 +116,7 @@ class TempfilesManager(object):
     def __exit__(self, type, value, traceback):
         if self._remove_temp_files:
             for file in self._tempfiles_pool:
-                os.remove(file)
+                shutil.rmtree(file, ignore_errors=True)
             shutil.rmtree(self._tmp_dir)
 
     def create_tempfile(self, suffix="", prefix="", dir=None):
