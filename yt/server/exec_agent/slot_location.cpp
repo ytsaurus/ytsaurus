@@ -311,9 +311,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                     auto mountPoints = NFS::GetMountPoints();
                     for (const auto& mountPoint : mountPoints) {
                         if (sandboxFullPath.is_prefix(mountPoint.Path)) {
-                            // '/*' added since we need to remove only content.
-                            RunTool<TRemoveDirAsRootTool>(mountPoint.Path + "/*");
-                            RunTool<TUmountAsRootTool>(mountPoint.Path);
+                            removeMountPoint();
                         }
                     }
                 }
