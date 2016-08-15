@@ -172,7 +172,7 @@ def concatenate(source_paths, destination_path, client=None):
     type = get(source_paths[0] + "/@type", client=client)
     if type not in ["file", "table"]:
         raise YtError("Type of '{0}' is not table or file".format(source_paths[0]))
-    create(type, destination_path, ignore_existing=True)
+    create(type, destination_path, ignore_existing=True, client=client)
     params = {"source_paths": source_paths,
               "destination_path": destination_path}
     _make_transactional_request("concatenate", params, client=client)
