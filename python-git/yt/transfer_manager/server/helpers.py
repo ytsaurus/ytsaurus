@@ -112,7 +112,7 @@ def get_cluster_version(cluster_client):
     if cluster_client._type == "yt":
         try:
             return cluster_client.get("//sys/@protocol_version")
-        except yt.YtError as err:
+        except yt.YtResponseError as err:
             if not err.is_resolve_error():
                 raise
 
