@@ -67,32 +67,30 @@ TSlotLocation::TSlotLocation(
     HealthChecker_->Start();
 }
 
-void TSlotLocation::CreateSandboxDirectories(int slotIndex)
+TFuture<void> TSlotLocation::CreateSandboxDirectories(int slotIndex)
 {
-    WaitFor(
-        BIND([=, this_ = MakeStrong(this)] () {
-             ValidateEnabled();
+    return BIND([=, this_ = MakeStrong(this)] () {
+         ValidateEnabled();
 
-             LOG_DEBUG("Making sandbox directiories (SlotIndex: %v)", slotIndex);
+         LOG_DEBUG("Making sandbox directiories (SlotIndex: %v)", slotIndex);
 
-             auto slotPath = GetSlotPath(slotIndex);
-             try {
-                 NFS::ForcePath(slotPath, 0755);
+         auto slotPath = GetSlotPath(slotIndex);
+         try {
+             NFS::ForcePath(slotPath, 0755);
 
-                 for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
-                     auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
-                     NFS::ForcePath(sandboxPath, 0777);
-                 }
-             } catch (const std::exception& ex) {
-                 auto error = TError("Failed to create sandbox directories for slot %v", slotPath)
-                    << ex;
-                 Disable(error);
-                 THROW_ERROR error;
+             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
+                 auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
+                 NFS::ForcePath(sandboxPath, 0777);
              }
-        })
-        .AsyncVia(LocationQueue_->GetInvoker())
-        .Run())
-    .ThrowOnError();
+         } catch (const std::exception& ex) {
+             auto error = TError("Failed to create sandbox directories for slot %v", slotPath)
+                << ex;
+             Disable(error);
+             THROW_ERROR error;
+         }
+    })
+    .AsyncVia(LocationQueue_->GetInvoker())
+    .Run();
 }
 
 TFuture<void> TSlotLocation::MakeSandboxCopy(

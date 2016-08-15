@@ -38,6 +38,8 @@ struct ISlot
         const TJobId& jobId,
         const TOperationId& operationId) = 0;
 
+    virtual TFuture<void> CreateSandboxDirectories() = 0;
+
     virtual TFuture<void> MakeLink(
         ESandboxKind sandboxKind,
         const Stroka& targetPath,

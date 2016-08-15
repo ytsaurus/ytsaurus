@@ -150,8 +150,8 @@ public:
                 Cleanup();
                 break;
 
+            case EJobPhase::PreparingDirectories:
             case EJobPhase::PreparingArtifacts:
-            case EJobPhase::PreparingTmpfs:
             case EJobPhase::PreparingProxy:
                 // Wait for the next event handler to complete the abortion.
                 JobPhase_ = EJobPhase::WaitingAbort;
@@ -169,7 +169,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        if (!CheckPhase()) {
+        if (HandleFinishingPhase()) {
             return;
         }
 
@@ -183,7 +183,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        if (!CheckPhase()) {
+        if (HandleFinishingPhase()) {
             return;
         }
 
@@ -461,19 +461,20 @@ private:
         FinishTime_ = TInstant::Now();
     }
 
-    bool CheckPhase()
+    bool HandleFinishingPhase()
     {
         switch (JobPhase_) {
             case EJobPhase::WaitingAbort:
                 Cleanup();
-                return false;
+                return true;
 
             case EJobPhase::Cleanup:
             case EJobPhase::Finished:
-                return false;
+                return true;
 
             default:
-                return true;
+                YCHECK(JobState_ == EJobState::Running);
+                return false;
         }
     }
 
@@ -492,7 +493,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        if (!CheckPhase()) {
+        if (HandleFinishingPhase()) {
             return;
         }
 
@@ -505,53 +506,45 @@ private:
                 Artifacts_[index].Chunk = chunks[index];
             }
 
-            JobPhase_ = EJobPhase::PreparingTmpfs;
-            auto tmpfsFuture = PrepareTmpfs();
-            if (tmpfsFuture) {
-                tmpfsFuture.Subscribe(BIND(
-                    &TJob::OnTmpfsPrepared, 
+            JobPhase_ = EJobPhase::PreparingDirectories;
+            BIND(&TJob::PrepareDirectories, MakeStrong(this))
+                .AsyncVia(Invoker_)
+                .Run()
+                .Subscribe(BIND(
+                    &TJob::OnDirectoriesPrepared, 
                     MakeWeak(this))
                 .Via(Invoker_));
-            } else {
-                // No tmpfs requested.
-                DoPrepareArtifacts();
-            }
         });
     }
 
-    void OnTmpfsPrepared(const TErrorOr<Stroka>& errorOrPath)
+    void OnDirectoriesPrepared(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        if (!CheckPhase()) {
+        if (HandleFinishingPhase()) {
             return;
         }
 
         GuardedAction([&] () {
-            ValidateJobPhase(EJobPhase::PreparingTmpfs);
-            THROW_ERROR_EXCEPTION_IF_FAILED(errorOrPath, "Failed to prepare tmpfs");
-            TmpfsPath_ = errorOrPath.Value();
-            DoPrepareArtifacts();
-        });
-    }
+            ValidateJobPhase(EJobPhase::PreparingDirectories);
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare sandbox directories");
 
-    void DoPrepareArtifacts()
-    {
-        JobPhase_ = EJobPhase::PreparingArtifacts;
-        BIND(&TJob::PrepareArtifacts, MakeWeak(this))
-            .AsyncVia(Invoker_)
-            .Run()
-            .Subscribe(BIND(
-                &TJob::OnArtifactsPrepared, 
-                MakeWeak(this))
-            .Via(Invoker_));
+            JobPhase_ = EJobPhase::PreparingArtifacts;
+            BIND(&TJob::PrepareArtifacts, MakeWeak(this))
+                .AsyncVia(Invoker_)
+                .Run()
+                .Subscribe(BIND(
+                    &TJob::OnArtifactsPrepared, 
+                    MakeWeak(this))
+                .Via(Invoker_));
+        });
     }
 
     void OnArtifactsPrepared(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        if (!CheckPhase()) {
+        if (HandleFinishingPhase()) {
             return;
         }
 
@@ -577,7 +570,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        if (!CheckPhase()) {
+        if (HandleFinishingPhase()) {
             return;
         }
 
@@ -619,8 +612,8 @@ private:
             }
         }
 
-        FinalizeJob();
         JobPhase_ = EJobPhase::Finished;
+        FinalizeJob();
     }
 
     void FinalizeJob()
@@ -662,20 +655,6 @@ private:
 
     // Preparation.
 
-    void Prepare()
-    {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
-
-        // We prepare tmpfs before user files, since files may be linked/copied into tmpfs.
-        JobPhase_ = EJobPhase::PreparingTmpfs;
-        PrepareTmpfs();
-        YCHECK(JobPhase_ == EJobPhase::PreparingTmpfs);
-
-        JobPhase_ = EJobPhase::PreparingArtifacts;
-        PrepareArtifacts();
-        YCHECK(JobPhase_ == EJobPhase::PreparingArtifacts);
-    }
-
     TJobProxyConfigPtr CreateConfig()
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -705,19 +684,24 @@ private:
         return proxyConfig;
     }
 
-    TFuture<Stroka> PrepareTmpfs()
+    void PrepareDirectories()
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        WaitFor(Slot_->CreateSandboxDirectories())
+            .ThrowOnError();
+
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             if (userJobSpec.has_tmpfs_path()) {
-                return Slot_->PrepareTmpfs(ESandboxKind::User, userJobSpec.tmpfs_size(), userJobSpec.tmpfs_path());
+                TmpfsPath_ = WaitFor(Slot_->PrepareTmpfs(
+                    ESandboxKind::User, 
+                    userJobSpec.tmpfs_size(), 
+                    userJobSpec.tmpfs_path()))
+                .ValueOrThrow();
             }
         }
-
-        // Null future.
-        return TFuture<Stroka>();
     }
 
     void InitializeArtifacts()
