@@ -50,9 +50,9 @@ public:
         int userId,
         const Stroka& path);
 
-    void MakeConfig(int slotIndex, NYTree::INodePtr config);
+    TFuture<void> MakeConfig(int slotIndex, NYTree::INodePtr config);
 
-    void CleanSandboxes(int slotIndex);
+    TFuture<void> CleanSandboxes(int slotIndex);
 
     Stroka GetSlotPath(int slotIndex) const;
 

@@ -246,99 +246,95 @@ TFuture<Stroka> TSlotLocation::MakeSandboxTmpfs(
     .Run(); 
 }
 
-void TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
+TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
 {
-    WaitFor(
-        BIND([=, this_ = MakeStrong(this)] () {
-            ValidateEnabled();
-            auto proxyConfigPath = GetConfigPath(slotIndex);
+    return BIND([=, this_ = MakeStrong(this)] () {
+        ValidateEnabled();
+        auto proxyConfigPath = GetConfigPath(slotIndex);
 
+        try {
+            TFile file(proxyConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+            TFileOutput output(file);
+            TYsonWriter writer(&output, EYsonFormat::Pretty);
+            Serialize(config, &writer);
+            writer.Flush();
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to write job proxy config into %v", proxyConfigPath) << ex;
+            Disable(error);
+            THROW_ERROR error;
+        }
+    })
+    .AsyncVia(LocationQueue_->GetInvoker())
+    .Run();
+}
+
+TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
+{
+    return BIND([=, this_ = MakeStrong(this)] () {
+        ValidateEnabled();
+
+        auto removeMountPoint = [this, this_ = MakeStrong(this)] (const Stroka& path) {
+            auto config = New<TUmountConfig>();
+            config->Path = path;
+            config->Detach = DetachedTmpfsUmount_;
+
+            RunTool<TRemoveDirContentAsRootTool>(path);
+            RunTool<TUmountAsRootTool>(config);
+        };
+
+        for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
+            const auto& sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
             try {
-                TFile file(proxyConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-                TFileOutput output(file);
-                TYsonWriter writer(&output, EYsonFormat::Pretty);
-                Serialize(config, &writer);
-                writer.Flush();
+                auto sandboxFullPath = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), sandboxPath);
+
+                // Unmount all known tmpfs.
+                std::vector<Stroka> tmpfsPaths;
+                for (const auto& tmpfsPath : TmpfsPaths_) {
+                    if (sandboxFullPath.is_prefix(tmpfsPath)) {
+                        tmpfsPaths.push_back(tmpfsPath);
+                    }
+                }
+
+                for (const auto& path : tmpfsPaths) {
+                    TmpfsPaths_.erase(path);
+                    removeMountPoint(path);
+                }
+
+                // Unmount unknown tmpfs, e.g. left from previous node run.
+
+                // NB: iterating over /proc/mounts is not reliable,
+                // see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=593516.
+                // To avoid problems with undeleting tmpfs ordered by user in sandbox
+                // we always try to remove it several times.
+                for (int attempt = 0; attempt < TmpfsRemoveAttemptCount; ++attempt) {
+                    // Look mount points inside sandbox and unmount it.
+                    auto mountPoints = NFS::GetMountPoints();
+                    for (const auto& mountPoint : mountPoints) {
+                        if (sandboxFullPath.is_prefix(mountPoint.Path)) {
+                            // '/*' added since we need to remove only content.
+                            RunTool<TRemoveDirAsRootTool>(mountPoint.Path + "/*");
+                            RunTool<TUmountAsRootTool>(mountPoint.Path);
+                        }
+                    }
+                }
+
+                if (NFS::Exists(sandboxPath)) {
+                    LOG_DEBUG("Cleaning sandbox directory (Path: %v)", sandboxPath);
+                    if (HasRootPermissions_) {
+                        RunTool<TRemoveDirAsRootTool>(sandboxPath);
+                    } else {
+                        NFS::RemoveRecursive(sandboxPath);
+                    }
+                }
             } catch (const std::exception& ex) {
-                auto error = TError("Failed to write job proxy config into %v", proxyConfigPath) << ex;
+                auto error = TError("Failed to clean sandbox directory %v", sandboxPath) << ex;
                 Disable(error);
                 THROW_ERROR error;
             }
-        })
-        .AsyncVia(LocationQueue_->GetInvoker())
-        .Run())
-    .ThrowOnError();
-}
-
-void TSlotLocation::CleanSandboxes(int slotIndex)
-{
-    WaitFor(
-        BIND([=, this_ = MakeStrong(this)] () {
-            ValidateEnabled();
-
-            auto removeMountPoint = [this, this_ = MakeStrong(this)] (const Stroka& path) {
-                auto config = New<TUmountConfig>();
-                config->Path = path;
-                config->Detach = DetachedTmpfsUmount_;
-
-                RunTool<TRemoveDirContentAsRootTool>(path);
-                RunTool<TUmountAsRootTool>(config);
-            };
-
-            for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
-                const auto& sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
-                try {
-                    auto sandboxFullPath = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), sandboxPath);
-
-                    // Unmount all known tmpfs.
-                    std::vector<Stroka> tmpfsPaths;
-                    for (const auto& tmpfsPath : TmpfsPaths_) {
-                        if (sandboxFullPath.is_prefix(tmpfsPath)) {
-                            tmpfsPaths.push_back(tmpfsPath);
-                        }
-                    }
-
-                    for (const auto& path : tmpfsPaths) {
-                        TmpfsPaths_.erase(path);
-                        removeMountPoint(path);
-                    }
-
-                    // Unmount unknown tmpfs, e.g. left from previous node run.
-
-                    // NB: iterating over /proc/mounts is not reliable,
-                    // see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=593516.
-                    // To avoid problems with undeleting tmpfs ordered by user in sandbox
-                    // we always try to remove it several times.
-                    for (int attempt = 0; attempt < TmpfsRemoveAttemptCount; ++attempt) {
-                        // Look mount points inside sandbox and unmount it.
-                        auto mountPoints = NFS::GetMountPoints();
-                        for (const auto& mountPoint : mountPoints) {
-                            if (sandboxFullPath.is_prefix(mountPoint.Path)) {
-                                // '/*' added since we need to remove only content.
-                                RunTool<TRemoveDirAsRootTool>(mountPoint.Path + "/*");
-                                RunTool<TUmountAsRootTool>(mountPoint.Path);
-                            }
-                        }
-                    }
-
-                    if (NFS::Exists(sandboxPath)) {
-                        LOG_DEBUG("Cleaning sandbox directory (Path: %v)", sandboxPath);
-                        if (HasRootPermissions_) {
-                            RunTool<TRemoveDirAsRootTool>(sandboxPath);
-                        } else {
-                            NFS::RemoveRecursive(sandboxPath);
-                        }
-                    }
-                } catch (const std::exception& ex) {
-                    auto error = TError("Failed to clean sandbox directory %v", sandboxPath) << ex;
-                    Disable(error);
-                    THROW_ERROR error;
-                }
-            }
-        })
-        .AsyncVia(LocationQueue_->GetInvoker())
-        .Run())
-    .ThrowOnError();
+        }
+    })
+    .AsyncVia(LocationQueue_->GetInvoker())
+    .Run();
 }
 
 void TSlotLocation::IncreaseSessionCount()
