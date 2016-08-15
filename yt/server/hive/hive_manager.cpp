@@ -527,7 +527,7 @@ private:
         AnnotateWithTraceContext(&message);
         mailbox->OutcomingMessages().push_back(std::move(message));
 
-        MaybePostOutcomingMessages(mailbox);
+        MaybePostOutcomingMessages(mailbox, false);
     }
 
     void UnreliablePostMessage(TMailbox* mailbox, TEncapsulatedMessage message)
@@ -580,9 +580,7 @@ private:
             SelfCellId_,
             mailbox->GetCellId());
 
-        if (IsLeader()) {
-            MaybePostOutcomingMessages(mailbox);
-        }
+        MaybePostOutcomingMessages(mailbox, true);
     }
 
     void SetMailboxDisconnected(TMailbox* mailbox)
@@ -829,10 +827,10 @@ private:
         if (!mailbox) {
             return;
         }
-        MaybePostOutcomingMessages(mailbox);
+        MaybePostOutcomingMessages(mailbox, true);
     }
 
-    void MaybePostOutcomingMessages(TMailbox* mailbox)
+    void MaybePostOutcomingMessages(TMailbox* mailbox, bool allowIdle)
     {
         if (!IsLeader()) {
             return;
@@ -852,7 +850,7 @@ private:
         YCHECK(firstMessageId <= mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size());
 
         TDelayedExecutor::CancelAndClear(mailbox->IdlePostCookie());
-        if (firstMessageId == mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size()) {
+        if (!allowIdle && firstMessageId == mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size()) {
             mailbox->IdlePostCookie() = TDelayedExecutor::Submit(
                 BIND(&TImpl::OnIdlePostOutcomingMessages, MakeWeak(this), mailbox->GetCellId())
                     .Via(EpochAutomatonInvoker_),
@@ -885,11 +883,17 @@ private:
         mailbox->SetInFlightOutcomingMessageCount(messagesToPost);
         mailbox->SetPostInProgress(true);
 
-        LOG_DEBUG("Posting reliable outcoming messages (SrcCellId: %v, DstCellId: %v, MessageIds: %v-%v)",
-            SelfCellId_,
-            mailbox->GetCellId(),
-            firstMessageId,
-            firstMessageId + messagesToPost - 1);
+        if (messagesToPost == 0) {
+            LOG_DEBUG("Checking mailbox synchronization (SrcCellId: %v, DstCellId: %v)",
+                SelfCellId_,
+                mailbox->GetCellId());
+        } else {
+            LOG_DEBUG("Posting reliable outcoming messages (SrcCellId: %v, DstCellId: %v, MessageIds: %v-%v)",
+                SelfCellId_,
+                mailbox->GetCellId(),
+                firstMessageId,
+                firstMessageId + messagesToPost - 1);
+        }
 
         req->Invoke().Subscribe(
             BIND(&TImpl::OnPostMessagesResponse, MakeStrong(this), mailbox->GetCellId())
@@ -934,6 +938,8 @@ private:
             HandlePersistentIncomingMessages(mailbox, *nextPersistentIncomingMessageId);
         }
         HandleTransientIncomingMessages(mailbox, nextTransientIncomingMessageId);
+
+        MaybePostOutcomingMessages(mailbox, false);
     }
 
     void OnSendMessagesResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspSendMessagesPtr& rspOrError)
@@ -1052,10 +1058,6 @@ private:
         }
 
         mailbox->SetFirstInFlightOutcomingMessageId(nextTransientIncomingMessageId);
-
-        if (IsLeader()) {
-            MaybePostOutcomingMessages(mailbox);
-        }
     }
 
     
