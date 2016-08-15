@@ -137,14 +137,11 @@ public:
 
         LOG_INFO(error, "Job abort requested");
 
-        if (JobState_ < EJobState::Aborting) {
-            JobState_ = EJobState::Aborting;
-        }
-
         switch (JobPhase_) {
             case EJobPhase::Created:
             case EJobPhase::DownloadingArtifacts:
             case EJobPhase::Running:
+                JobState_ = EJobState::Aborting;
                 ArtifactsFuture_.Cancel();
                 DoSetResult(error);
                 Cleanup();
@@ -154,6 +151,7 @@ public:
             case EJobPhase::PreparingArtifacts:
             case EJobPhase::PreparingProxy:
                 // Wait for the next event handler to complete the abortion.
+                JobState_ = EJobState::Aborting;
                 JobPhase_ = EJobPhase::WaitingAbort;
                 DoSetResult(error);
                 Slot_->CancelPreparation();
@@ -464,6 +462,10 @@ private:
             case EJobPhase::Finished:
                 return true;
 
+            case EJobPhase::Created:
+                YCHECK(JobState_ == EJobState::Waiting);
+                return false;
+
             default:
                 YCHECK(JobState_ == EJobState::Running);
                 return false;
@@ -554,10 +556,15 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        GuardedAction([&] () {
-            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Job proxy failed");
-            Cleanup();
-        });
+        if (HandleFinishingPhase()) {
+            return;
+        }
+        
+        if (!error.IsOK()) {
+            DoSetResult(TError("Job proxy failed") << error);
+        }
+
+        Cleanup();
     }
 
     void GuardedAction(std::function<void()> action)
