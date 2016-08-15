@@ -3,7 +3,7 @@
 #include "public.h"
 #include "client.h"
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
 #include <yt/ytlib/tablet_client/public.h>
 
@@ -16,7 +16,7 @@ namespace NApi {
 
 struct TWriteRowsOptions
 {
-    // Use inserted aggregate column values as delta for aggregation.
+    //! Use inserted aggregate column values as delta for aggregation.
     bool Aggregate = false;
 };
 
@@ -28,6 +28,20 @@ struct TTransactionFlushResult
     TFuture<void> AsyncResult;
     std::vector<NElection::TCellId> ParticipantCellIds;
 };
+
+//! Either a write or delete.
+struct TRowModification
+{
+    //! Discriminates between writes and deletes.
+    ERowModificationType Type;
+    //! Either a row (for write) or a key (for delete).
+    NTableClient::TUnversionedRow Row;
+    //! Cf. #TWriteRowOptions::Aggregate; only makes sense for writes.
+    bool Aggregate = false;
+};
+
+struct TModifyRowsOptions
+{ };
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -69,12 +83,17 @@ struct ITransaction
         TSharedRange<NTableClient::TUnversionedRow> rows,
         const TWriteRowsOptions& options = TWriteRowsOptions()) = 0;
 
-
     virtual void DeleteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TKey> keys,
         const TDeleteRowsOptions& options = TDeleteRowsOptions()) = 0;
+
+    virtual void ModifyRows(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        TSharedRange<TRowModification> modifications,
+        const TModifyRowsOptions& options = TModifyRowsOptions()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransaction)

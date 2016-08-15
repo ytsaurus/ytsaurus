@@ -3183,20 +3183,21 @@ public:
         TSharedRange<TUnversionedRow> rows,
         const TWriteRowsOptions& options) override
     {
-    	auto guard = Guard(SpinLock_);
+        std::vector<TRowModification> modifications;
+        modifications.reserve(rows.Size());
 
-        ValidateTabletTransaction();
-    	ValidateActiveSync();
+        for (auto row : rows) {
+            TRowModification modification;
+            modification.Type = ERowModificationType::Write;
+            modification.Row = row;
+            modification.Aggregate = options.Aggregate;
+            modifications.push_back(modification);
+        }
 
-        auto rowCount = rows.Size();
-        Requests_.push_back(std::make_unique<TWriteRequest>(
-            this,
-            Client_->GetNativeConnection(),
+        ModifyRows(
             path,
             std::move(nameTable),
-            std::move(rows),
-            options));
-        LOG_DEBUG("Row writes buffered (RowCount: %v)", rowCount);
+            MakeSharedRange(std::move(modifications), std::move(rows)));
     }
 
     virtual void DeleteRows(
@@ -3205,20 +3206,42 @@ public:
         TSharedRange<TUnversionedRow> keys,
         const TDeleteRowsOptions& options) override
     {
-        auto guard = Guard(SpinLock_);
+        std::vector<TRowModification> modifications;
+        modifications.reserve(keys.Size());
 
+        for (auto key : keys) {
+            TRowModification modification;
+            modification.Type = ERowModificationType::Delete;
+            modification.Row = key;
+            modifications.push_back(modification);
+        }
+
+        ModifyRows(
+            path,
+            std::move(nameTable),
+            MakeSharedRange(std::move(modifications), std::move(keys)));
+    }
+
+    virtual void ModifyRows(
+        const TYPath& path,
+        TNameTablePtr nameTable,
+        TSharedRange<TRowModification> modifications,
+        const TModifyRowsOptions& options = TModifyRowsOptions()) override
+    {
+    	auto guard = Guard(SpinLock_);
+    
         ValidateTabletTransaction();
     	ValidateActiveSync();
 
-        auto keyCount = keys.Size();
-        Requests_.push_back(std::make_unique<TDeleteRequest>(
+        Requests_.push_back(std::make_unique<TModificationRequest>(
             this,
             Client_->GetNativeConnection(),
             path,
             std::move(nameTable),
-            std::move(keys),
+            std::move(modifications),
             options));
-        LOG_DEBUG("Row deletes buffered (KeyCount: %v)", keyCount);
+
+        LOG_DEBUG("Row modifications buffered (Count: %v)", modifications.Size());
     }
 
 
@@ -3369,161 +3392,115 @@ private:
     std::vector<ITransactionPtr> SlaveTransactions_;
 
 
-    class TRequestBase
+    class TModificationRequest
     {
     public:
-        virtual ~TRequestBase() = default;
-
-        void Run()
-        {
-            DoPrepare();
-            DoRun();
-        }
-
-    protected:
-        using TRowValidator = void(TUnversionedRow, const TTableSchema&, const TNameTableToSchemaIdMapping&);
-
-        TNativeTransaction* const Transaction_;
-        const INativeConnectionPtr Connection_;
-		const TYPath Path_;
-        const TNameTablePtr NameTable_;
-        const TNullable<int> TabletIndexColumnId_;
-
-        TTableMountInfoPtr TableInfo_;
-
-        explicit TRequestBase(
+        TModificationRequest(
             TNativeTransaction* transaction,
             INativeConnectionPtr connection,
             const TYPath& path,
-            TNameTablePtr nameTable)
+            TNameTablePtr nameTable,
+            TSharedRange<TRowModification> modifications,
+            const TModifyRowsOptions& options)
             : Transaction_(transaction)
             , Connection_(std::move(connection))
             , Path_(path)
             , NameTable_(std::move(nameTable))
             , TabletIndexColumnId_(NameTable_->FindId(TabletIndexColumnName))
+            , Modifications_(std::move(modifications))
+            , Options_(options)
         { }
 
-        void DoPrepare()
+        void Run()
         {
-            TableInfo_ = Transaction_->Client_->SyncGetTableInfo(Path_);
-        }
-
-        virtual void DoRun() = 0;
-
-        void WriteRequests(
-            const TSharedRange<TUnversionedRow>& rows,
-            EWireProtocolCommand command,
-            TRowValidator validateRow,
-            const TWriteRowsOptions& writeOptions = TWriteRowsOptions())
-        {
-            const auto& primarySchema = TableInfo_->Schemas[ETableSchemaKind::Primary];
-            const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_, ETableSchemaKind::Primary);
-            const auto& writeSchema = TableInfo_->Schemas[ETableSchemaKind::Write];
-            const auto& writeIdMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_, ETableSchemaKind::Write);
+            auto tableInfo = Transaction_->Client_->SyncGetTableInfo(Path_);
+            const auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
+            const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Primary);
+            const auto& writeSchema = tableInfo->Schemas[ETableSchemaKind::Write];
+            const auto& writeIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Write);
             const auto& rowBuffer = Transaction_->RowBuffer_;
             auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
-            auto evaluator = TableInfo_->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
-            auto randomTabletInfo = TableInfo_->GetRandomMountedTablet();
+            auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
+            auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
 
-            for (auto row : rows) {
-                validateRow(row, writeSchema, writeIdMapping);
+            for (const auto& modification : Modifications_) {
+                ValidateModification(modification, tableInfo, writeSchema, writeIdMapping);
 
-                auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, primarySchema, primaryIdMapping);
+                auto capturedRow = rowBuffer->CaptureAndPermuteRow(modification.Row, primarySchema, primaryIdMapping);
 
                 TTabletInfoPtr tabletInfo;
-                if (TableInfo_->IsSorted()) {
+                if (tableInfo->IsSorted()) {
                     for (int index = primarySchema.GetKeyColumnCount(); index < capturedRow.GetCount(); ++index) {
                         auto& value = capturedRow[index];
                         const auto& columnSchema = primarySchema.Columns()[value.Id];
-                        value.Aggregate = columnSchema.Aggregate ? writeOptions.Aggregate : false;
+                        value.Aggregate = columnSchema.Aggregate ? modification.Aggregate : false;
                     }
 
                     if (evaluator) {
                         evaluator->EvaluateKeys(capturedRow, rowBuffer);
                     }
 
-                    tabletInfo = GetSortedTabletForRow(TableInfo_, capturedRow);
+                    tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow);
                 } else {
-                    tabletInfo = GetOrderedTabletForRow(TableInfo_, randomTabletInfo, TabletIndexColumnId_, row);
+                    tabletInfo = GetOrderedTabletForRow(tableInfo, randomTabletInfo, TabletIndexColumnId_, modification.Row);
                 }
 
-                auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
+                auto* session = Transaction_->GetTabletSession(tabletInfo, tableInfo);
+                auto command = GetCommand(modification);
                 session->SubmitRow(command, capturedRow);
             }
         }
-    };
 
-    class TWriteRequest
-        : public TRequestBase
-    {
-    public:
-        TWriteRequest(
-            TNativeTransaction* transaction,
-            INativeConnectionPtr connection,
-            const TYPath& path,
-            TNameTablePtr nameTable,
-            TSharedRange<TUnversionedRow> rows,
-            const TWriteRowsOptions& options)
-            : TRequestBase(
-                transaction,
-                std::move(connection),
-                path,
-                std::move(nameTable))
-            , Rows_(std::move(rows))
-            , Options_(options)
-        { }
+    protected:
+        TNativeTransaction* const Transaction_;
+        const INativeConnectionPtr Connection_;
+		const TYPath Path_;
+        const TNameTablePtr NameTable_;
+        const TNullable<int> TabletIndexColumnId_;
+        const TSharedRange<TRowModification> Modifications_;
+        const TModifyRowsOptions Options_;
 
-    private:
-        const TSharedRange<TUnversionedRow> Rows_;
 
-        virtual void DoRun() override
+        void ValidateModification(
+            const TRowModification& modification,
+            const TTableMountInfoPtr& tableInfo,
+            const TTableSchema& schema,
+            const TNameTableToSchemaIdMapping& idMapping)
         {
-            WriteRequests(
-                Rows_,
-                EWireProtocolCommand::WriteRow,
-                ValidateClientDataRow,
-                Options_);
-        }
+            switch (modification.Type) {
+                case ERowModificationType::Write:
+                    ValidateClientDataRow(modification.Row, schema, idMapping);
+                    break;
 
-        TWriteRowsOptions Options_;
-    };
+                case ERowModificationType::Delete:
+                    if (!tableInfo->IsSorted()) {
+                        THROW_ERROR_EXCEPTION("Cannot delete rows from a non-sorted table %v",
+                            tableInfo->Path);
+                    }
+                    ValidateClientKey(modification.Row);
+                    break;
 
-    class TDeleteRequest
-        : public TRequestBase
-    {
-    public:
-        TDeleteRequest(
-            TNativeTransaction* transaction,
-            INativeConnectionPtr connection,
-            const TYPath& path,
-            TNameTablePtr nameTable,
-            TSharedRange<TKey> keys,
-            const TDeleteRowsOptions& /*options*/)
-            : TRequestBase(
-                transaction,
-                std::move(connection),
-                path,
-                std::move(nameTable))
-            , Keys_(std::move(keys))
-        { }
-
-    private:
-        const TSharedRange<TKey> Keys_;
-
-        virtual void DoRun() override
-        {
-            if (!TableInfo_->IsSorted()) {
-                THROW_ERROR_EXCEPTION("Cannot delete rows from a non-sorted table %v",
-                    TableInfo_->Path);
+                default:
+                    Y_UNREACHABLE();
             }
-            WriteRequests(
-                Keys_,
-                EWireProtocolCommand::DeleteRow,
-                ValidateClientKey);
+        }
+
+        static EWireProtocolCommand GetCommand(const TRowModification& modification)
+        {
+            switch (modification.Type) {
+                case ERowModificationType::Write:
+                    return EWireProtocolCommand::WriteRow;
+
+                case ERowModificationType::Delete:
+                    return EWireProtocolCommand::DeleteRow;
+
+                default:
+                    Y_UNREACHABLE();
+            }
         }
     };
 
-    std::vector<std::unique_ptr<TRequestBase>> Requests_;
+    std::vector<std::unique_ptr<TModificationRequest>> Requests_;
 
     class TTabletCommitSession
         : public TIntrinsicRefCounted
