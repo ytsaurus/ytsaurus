@@ -42,6 +42,8 @@ public:
     {
         RegisterParameter("ping_period", PingPeriod)
             .Default(TDuration::Seconds(15));
+        RegisterParameter("idle_post_period", IdlePostPeriod)
+            .Default(TDuration::Seconds(15));
         RegisterParameter("ping_rpc_timeout", PingRpcTimeout)
             .Default(TDuration::Seconds(15));
         RegisterParameter("send_rpc_timeout", SendRpcTimeout)
