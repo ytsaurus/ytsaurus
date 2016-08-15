@@ -1846,8 +1846,11 @@ private:
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
         auto req = TYPathProxy::Set("//sys/scheduler/@alerts");
         req->set_value(ConvertToYsonString(alerts).Data());
-        WaitFor(proxy.Execute(req))
-            .ThrowOnError();
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        if (!rspOrError.IsOK()) {
+            LOG_WARNING(rspOrError, "Error updating scheduler alerts");
+        }
     }
 
     void BuildSnapshot()
