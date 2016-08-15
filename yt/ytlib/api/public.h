@@ -26,6 +26,11 @@ DEFINE_ENUM(EErrorCode,
     ((TooManyConcurrentRequests)                         (1800))
 );
 
+DEFINE_ENUM(ERowModificationType,
+    ((Write) (0))
+    ((Delete)(1))
+);
+
 ///////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(IRowset)
