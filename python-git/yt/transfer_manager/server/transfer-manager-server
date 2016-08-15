@@ -380,7 +380,7 @@ class Application(object):
                         time.sleep(self._lock_timeout)
                         continue
                     log_yt_exception(logger)
-                    return
+                    raise
 
             logger.info("Lock acquired under transaction %s", tx.transaction_id)
 
