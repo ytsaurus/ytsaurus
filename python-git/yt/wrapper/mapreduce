@@ -61,7 +61,7 @@ def remove_prefix(table):
         return table[len(config["prefix"]):]
     return table
 
-def list_entities(type, prefix, exact, jsonoutput):
+def list_entities(type, prefix, exact, jsonoutput, user):
     if config["prefix"] is None:
         die("You should specify PREFIX for list command")
     if exact is not None and prefix is not None and config["yamr_mode"]["use_yamr_style_prefix"]:
@@ -92,7 +92,9 @@ def list_entities(type, prefix, exact, jsonoutput):
             "compression_codec",
             "replication_factor"]
     else:
-        attributes = ["uncompressed_data_size"]
+        attributes = [
+            "uncompressed_data_size",
+            "account"]
 
     # NB: it will be files in case of type == "file"
     tables = []
@@ -101,9 +103,12 @@ def list_entities(type, prefix, exact, jsonoutput):
             table_attributes = yt.get(prefix, attributes=attributes).attributes
             tables.append(yson.to_yson_type(prefix, attributes=table_attributes))
     else:
-        object_filter = None
-        if yt.config["yamr_mode"]["ignore_empty_tables_in_mapreduce_list"]:
-            object_filter = lambda obj: obj.attributes.get("uncompressed_data_size", 0) > 0
+        def object_filter(obj):
+            if yt.config["yamr_mode"]["ignore_empty_tables_in_mapreduce_list"] and obj.attributes.get("uncompressed_data_size", 0) == 0:
+                return False
+            if user is not None and obj.attributes.get("account") != user:
+                return False
+            return True
         request_prefix = prefix.rsplit("/", 1)[0]
         tables = yt.search(request_prefix, type,
                            path_filter=lambda path: path.startswith(request_prefix),
@@ -286,7 +291,7 @@ Examples:
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec", "erasurecodec",
                                             "format", "inputformat", "outputformat", "tx", "value",
                                             "replicationfactor", "memlimit", "timeout", "title", "fs", "rs",
-                                            "mode", "tablereader", "tablewriter", "compress", "exact"])
+                                            "mode", "tablereader", "tablewriter", "compress", "exact", "user"])
     add_multiple_args(parser, ["src", "file", "mapfile", "file-map", "reducefile", "file-reduce", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
     add_multiple_args_to_one_dest(parser, ["dst", "dstappend", "dstsorted"], "dst")
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached", "waitfor", "stderrlevel", "maxjobfails", "count"])
@@ -452,6 +457,8 @@ Examples:
              "NEW! upload given file to destination"),
             ("upperkey",
              "specifies upperkey for the range in the read operation"),
+            ("user",
+             "specifies user for list command"),
             ("value",
              "specifies value for set operation"),
             ("version",
@@ -673,9 +680,9 @@ Examples:
 
 
     if args.list:
-        write_silently(imap(add_eoln, list_entities(type="table", prefix=args.prefix, exact=args.exact, jsonoutput=args.jsonoutput)))
+        write_silently(imap(add_eoln, list_entities(type="table", prefix=args.prefix, exact=args.exact, jsonoutput=args.jsonoutput, user=args.user)))
     if args.listfiles:
-        write_silently(imap(add_eoln, list_entities(type="file", prefix=args.prefix, exact=args.exact, jsonoutput=args.jsonoutput)))
+        write_silently(imap(add_eoln, list_entities(type="file", prefix=args.prefix, exact=args.exact, jsonoutput=args.jsonoutput, user=args.user)))
     if args.read is not None:
         write_silently(
             chunk_iter_stream(
