@@ -270,7 +270,7 @@ void TJobController::TImpl::StartWaitingJobs()
             LOG_DEBUG("Not enough resources to start waiting job (JobId: %v, JobResources: %v, UsedResources: %v)",
                 job->GetId(),
                 FormatResources(jobResources),
-                FormatResources(usedResources));
+                FormatResourceUsage(usedResources, GetResourceLimits()));
             continue;
         }
 
@@ -419,12 +419,9 @@ bool TJobController::TImpl::HasEnoughResources(
 {
     auto totalResources = GetResourceLimits();
     auto spareResources = MakeNonnegative(totalResources - usedResources);
-    if (usedResources.replication_slots() == 0) {
-        spareResources.set_replication_data_size(InfiniteNodeResources().replication_data_size());
-    }
-    if (usedResources.repair_slots() == 0) {
-        spareResources.set_repair_data_size(InfiniteNodeResources().repair_data_size());
-    }
+    // Allow replication/repair data size overcommit.
+    spareResources.set_replication_data_size(InfiniteNodeResources().replication_data_size());
+    spareResources.set_repair_data_size(InfiniteNodeResources().repair_data_size());
     return Dominates(spareResources, jobResources);
 }
 

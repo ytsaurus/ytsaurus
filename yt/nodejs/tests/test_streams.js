@@ -1,6 +1,7 @@
 var zlib = require("zlib");
 
 var buffertools = require("buffertools");
+var bluebird = require("bluebird");
 
 var binding = require("../lib/ytnode");
 
@@ -380,7 +381,9 @@ describe("output stream interface", function() {
 
                 self.stream.on_flowing = function() {
                     while (true) {
-                        var pulled_chunks = self.stream.Pull().filter(function(x) { return !!x; })
+                        var pulled_chunks;
+                        pulled_chunks = self.stream.Pull();
+                        pulled_chunks = pulled_chunks.filter(function(x) { return !!x; })
                         GC();
                         if (pulled_chunks.length) {
                             chunks = chunks.concat(pulled_chunks);
@@ -434,6 +437,86 @@ describe("high-level interoperation", function() {
                     expect(error.code).to.eql(0);
                     expect(length).to.be.equal(11);
                     expect(buffer).to.be.equal("hello dolly");
+                    done();
+                });
+            });
+        });
+    });
+
+    [
+        ["gzip",    binding.ECompression_Gzip],
+        ["deflate", binding.ECompression_Deflate],
+        ["lzop",    binding.ECompression_LZOP],
+        ["lzo",     binding.ECompression_LZO],
+        ["lzf",     binding.ECompression_LZF],
+        ["snappy",  binding.ECompression_Snappy],
+    ].forEach(function(test_settings) {
+        [
+            [ "empty string",  ""                              ],
+            [ "tiny string",   "hello"                         ],
+            [ "small string",  GenerateString(8 * 1024)        ],
+            [ "medium string", GenerateString(8 * 1024 * 8)    ],
+            [ "large string",  GenerateString(8 * 1024 * 1024) ],
+        ].forEach(function(test_case) {
+            var codec_name = test_settings[0];
+            var codec_id = test_settings[1];
+            var case_name = test_case[0];
+            var case_data = test_case[1];
+
+            it("should play nice with " + codec_name + " and " + case_name, function(done) {
+                var readable = new binding.TInputStreamWrap(1, 1000000000);
+                readable.on_drain = sinon.spy();
+
+                var reader = new binding.TInputStreamStub();
+                reader.Reset(readable);
+
+                var writable = new binding.TOutputStreamWrap(1000000);
+                writable.on_flowing = sinon.spy();
+
+                var writer = new binding.TOutputStreamStub();
+                writer.Reset(writable);
+
+                reader.AddCompression(codec_id);
+                writer.AddCompression(codec_id);
+
+                var p = new bluebird(function(resolve, reject) {
+                    writable.on_flowing = function() {
+                        var i = 1, n, chunk, result;
+
+                        while (i > 0) {
+                            result = writable.Pull();
+                            for (i = 0, n = result.length; i < n; ++i) {
+                                chunk = result[i];
+                                if (!chunk) {
+                                    break;
+                                } else {
+                                    readable.Push(chunk, 0, chunk.length);
+                                }
+                            }
+                        }
+
+                        if (writable.Drain()) {
+                            resolve();
+                        }
+                    };
+                    writer.WriteSynchronously(case_data);
+                    writer.Close();
+                });
+
+                p.then(function() {
+                    readable.End();
+
+                    var received = "";
+                    while (true) {
+                        var part = reader.ReadSynchronously(1024);
+                        if (part.length === 0) {
+                            break;
+                        }
+                        received += part;
+                    }
+
+                    received.length.should.eql(case_data.length);
+                    received.should.be.equal(case_data);
                     done();
                 });
             });

@@ -263,7 +263,7 @@ private:
 
         // Don't compact partitions (excluding Eden) whose data size exceeds the limit.
         // Let Partition Balancer do its job.
-        if (!partition->IsEden() && partition->GetUncompressedDataSize() > config->MaxPartitionDataSize) {
+        if (!partition->IsEden() && partition->GetUncompressedDataSize() > config->MaxCompactionDataSize) {
             return std::vector<TSortedChunkStorePtr>();
         }
 
