@@ -1352,7 +1352,7 @@ private:
             Options_->ChunksVital = attributes.Get<bool>("vital");
             Options_->ValidateSorted = TableUploadOptions_.TableSchema.IsSorted();
             Options_->ValidateUniqueKeys = TableUploadOptions_.TableSchema.GetUniqueKeys();
-            Options_->OptimizeFor = attributes.Get<EOptimizeFor>("optimize_for");
+            Options_->OptimizeFor = attributes.Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
 
             LOG_INFO("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",
                 Options_->Account,

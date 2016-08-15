@@ -3206,7 +3206,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 table.Options->ReplicationFactor = attributes->Get<int>("replication_factor");
                 table.Options->Account = attributes->Get<Stroka>("account");
                 table.Options->ChunksVital = attributes->Get<bool>("vital");
-                table.Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for");
+                table.Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
 
                 table.EffectiveAcl = attributes->GetYson("effective_acl");
             }
