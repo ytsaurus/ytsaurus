@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import sys
 from itertools import imap
 from functools import partial
@@ -18,9 +20,9 @@ def line_to_record(line):
 
 if __name__ == "__main__":
     lines = sys.stdin.readlines()
-    print >>sys.stderr, lines
+    print(lines, file=sys.stderr)
     recs = map(partial(line_to_record), lines)
-    print >>sys.stderr, recs
+    print(recs, file=sys.stderr)
 
     res = []
 
@@ -40,5 +42,3 @@ if __name__ == "__main__":
         res.append({"a": curA, "c": sum})
 
     sys.stdout.writelines(imap(partial(record_to_line), res))
-    
-

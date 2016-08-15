@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import yt.transfer_manager.client as tm
 from yt.transfer_manager.client.global_client import init_client
 
@@ -43,7 +45,7 @@ def add_task_func(**kwargs):
     kwargs["destination_table"] = kwargs.pop("dst_table")
 
     params = get_value(kwargs.pop("params", None), "{}")
-    print tm.add_task(params=json.loads(params), **kwargs)
+    print(tm.add_task(params=json.loads(params), **kwargs))
 
 def add_tasks_func(**kwargs):
     # Replace short names with long names
@@ -54,7 +56,7 @@ def add_tasks_func(**kwargs):
 
     params = get_value(kwargs.pop("params", None), "{}")
     for task in tm.add_tasks(params=json.loads(params), **kwargs):
-        print task
+        print(task)
 
 def _add_new_task_parameters(parser):
     parser.add_argument("--src-cluster", required=True, help="source cluster name, e.g. plato")
@@ -90,7 +92,7 @@ def add_restart_task_subparser(subparsers):
     parser.add_argument("task_id", help="task id")
 
 def get_task_info_func(**kwargs):
-    print json.dumps(tm.get_task_info(**kwargs), indent=4)
+    print(json.dumps(tm.get_task_info(**kwargs), indent=4))
 
 def add_get_task_info_subparser(subparsers):
     parser = subparsers.add_parser("get-task-info", help="print task info in json format")
@@ -106,7 +108,7 @@ def get_tasks_func(**kwargs):
     tasks = tm.get_tasks(fields=field, **kwargs)
 
     if json_output:
-        print json.dumps(tasks, indent=4)
+        print(json.dumps(tasks, indent=4))
     else:
         fields = ["id", "source_table", "source_cluster", "destination_table", "destination_cluster",
                   "user", "state"]
@@ -115,7 +117,7 @@ def get_tasks_func(**kwargs):
 
         for task in tasks:
             info = map(partial(safe_get, task), fields)
-            print "task {0}: {1} ({2}) -> {3} ({4})\tuser: {5}\tstate: {6}".format(*info)
+            print("task {0}: {1} ({2}) -> {3} ({4})\tuser: {5}\tstate: {6}".format(*info))
 
 def add_get_tasks_subparser(subparsers):
     parser = subparsers.add_parser("get-tasks", help="get all existing tasks")
@@ -125,7 +127,7 @@ def add_get_tasks_subparser(subparsers):
                                                    "Can be used multiple times and only with --json-output option.")
 
 def get_config_func(**kwargs):
-    print json.dumps(tm.get_backend_config(**kwargs), indent=4)
+    print(json.dumps(tm.get_backend_config(**kwargs), indent=4))
 
 def add_get_config_subparser(subparsers):
     subparsers.add_parser("get-config", help="get actual backend config")

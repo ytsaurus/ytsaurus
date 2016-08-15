@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
@@ -328,7 +330,7 @@ def test_wrapped_streams():
     import yt.wrapper.py_runner_helpers as runner_helpers
     with pytest.raises(yt.YtError):
         with runner_helpers.WrappedStreams():
-            print "test"
+            print("test")
     with pytest.raises(yt.YtError):
         with runner_helpers.WrappedStreams():
             sys.stdout.write("test")
@@ -339,7 +341,7 @@ def test_wrapped_streams():
         with runner_helpers.WrappedStreams():
             sys.stdin.read()
     with runner_helpers.WrappedStreams(wrap_stdout=False):
-        print "",
+        print("")
         sys.stdout.write("")
 
 def test_keyboard_interrupts_catcher():

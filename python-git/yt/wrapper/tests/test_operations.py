@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
 
 from yt.common import which, makedirp
@@ -23,8 +25,8 @@ try:
     import subprocess32 as subprocess
 except ImportError:
     if sys.version_info[:2] <= (2, 6):
-        print >>sys.stderr, "Script may not work properly on python of version <= 2.6 " \
-                            "because subprocess32 library is not installed."
+        print("Script may not work properly on python of version <= 2.6 "
+              "because subprocess32 library is not installed.", file=sys.stderr)
     import subprocess
 
 class AggregateMapper(object):
@@ -475,7 +477,7 @@ class TestOperations(object):
         yt.write_table(table, [{"x": 1}, {"y": 2}])
 
         def print_(rec):
-            print 'message'
+            print('message')
 
         @yt.raw
         def write(rec):
@@ -533,6 +535,8 @@ class TestOperations(object):
 
     def test_attached_mode_op_aborted(self, yt_env):
         script = """
+from __future__ import print_function
+
 import yt.wrapper as yt
 import sys
 
@@ -541,7 +545,7 @@ yt.config["proxy"]["request_retry_timeout"] = 2000
 yt.config["proxy"]["request_retry_count"] = 1
 yt.config["detached"] = False
 op = yt.run_map("sleep 100", input, output, format="json", spec={"mapper": {"environment": {"PYTHONPATH": pythonpath}}}, sync=False)
-print op.id
+print(op.id)
 
 """
         dir_ = yt_env.env.path
@@ -817,6 +821,8 @@ print op.id
 
     def test_disable_yt_accesses_from_job(self, yt_env):
         first_script = """\
+from __future__ import print_function
+
 import yt.wrapper as yt
 
 def mapper(rec):
@@ -824,9 +830,11 @@ def mapper(rec):
 
 yt.config["proxy"]["url"] = "{0}"
 yt.config["pickling"]["enable_tmpfs_archive"] = False
-print yt.run_map(mapper, "{1}", "{2}", spec={3}, sync=False).id
+print(yt.run_map(mapper, "{1}", "{2}", spec={3}, sync=False).id)
 """
         second_script = """\
+from __future__ import print_function
+
 import yt.wrapper as yt
 
 def mapper(rec):
@@ -836,7 +844,7 @@ def mapper(rec):
 if __name__ == "__main__":
     yt.config["proxy"]["url"] = "{0}"
     yt.config["pickling"]["enable_tmpfs_archive"] = False
-    print yt.run_map(mapper, "{1}", "{2}", spec={3}, sync=False).id
+    print(yt.run_map(mapper, "{1}", "{2}", spec={3}, sync=False).id)
 """
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
@@ -907,6 +915,8 @@ if __name__ == "__main__":
     @add_failed_operation_stderrs_to_error_message
     def test_eggs_file_usage_from_operation(self, yt_env):
         script = """\
+from __future__ import print_function
+
 import yt.wrapper as yt
 from module_in_egg import hello_provider
 
@@ -916,7 +926,7 @@ def mapper(rec):
 if __name__ == "__main__":
     yt.config["proxy"]["url"] = "{0}"
     yt.config["pickling"]["enable_tmpfs_archive"] = False
-    print yt.run_map(mapper, "{1}", "{2}", spec={3}, sync=False).id
+    print(yt.run_map(mapper, "{1}", "{2}", spec={3}, sync=False).id)
 """
         yt.write_table(TEST_DIR + "/table", [{"x": 1, "y": 1}])
 

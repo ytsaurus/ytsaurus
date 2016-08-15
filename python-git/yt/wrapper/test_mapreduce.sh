@@ -140,8 +140,8 @@ test_list()
     check "" "`./mapreduce -list -exact "ignat/test_dir"`"
     check_failed './mapreduce -list -exact "ignat/test_dir/" -prefix "ignat"'
 
-    check "ignat/test_dir/table1\n" "`./mapreduce -list -prefix "ignat/test_dir/table" -jsonoutput | python -c "import json, sys; print json.load(sys.stdin)[0]['name']"`"
-    check "ignat/test_dir/table2\n" "`./mapreduce -list -prefix "ignat/test_dir/table" -jsonoutput | python -c "import json, sys; print json.load(sys.stdin)[1]['name']"`"
+    check "ignat/test_dir/table1\n" "`./mapreduce -list -prefix "ignat/test_dir/table" -jsonoutput | python2 -c "import json, sys; print json.load(sys.stdin)[0]['name']"`"
+    check "ignat/test_dir/table2\n" "`./mapreduce -list -prefix "ignat/test_dir/table" -jsonoutput | python2 -c "import json, sys; print json.load(sys.stdin)[1]['name']"`"
     check "[]\n" "`./mapreduce -list -exact "ignat/test_dir/table" -jsonoutput`"
 
     unset YT_IGNORE_EMPTY_TABLES_IN_MAPREDUCE_LIST
@@ -311,7 +311,7 @@ test_spec()
 
     op_id="`./mapreduce -read "ignat/output" | tr -d '[[:space:]]'`"
     check "10" "`./mapreduce -get "//sys/operations/${op_id}/@spec/opt1"`"
-    check "0.5" "`./mapreduce -get "//sys/operations/${op_id}/@spec/opt2" | python -c 'import sys, json; print json.loads(sys.stdin.read())["$value"]'`"
+    check "0.5" "`./mapreduce -get "//sys/operations/${op_id}/@spec/opt2" | python2 -c 'import sys, json; print json.loads(sys.stdin.read())["$value"]'`"
 
     YT_SPEC='{"opt3": "hello", "opt4": {"$attributes": {}, "$value": null}}' ./mapreduce \
         -map 'cat >/dev/null; echo -e "${YT_OPERATION_ID}\t"' \
@@ -423,6 +423,7 @@ test_sortby_reduceby()
 {
     # It calculates sum of c2 grouped by c2
     echo -e "#!/usr/bin/env python
+from __future__ import print_function
 import sys
 from itertools import groupby, starmap
 
@@ -439,16 +440,17 @@ def aggregate(key, recs):
 if __name__ == '__main__':
     recs = map(parse, sys.stdin.readlines())
     for key, num in starmap(aggregate, groupby(recs, lambda rec: rec[0])):
-        print 'c3=%s	c2=%d' % (key, num)
+        print('c3=%s	c2=%d' % (key, num))
     " >my_reducer.py
     chmod +x my_reducer.py
 
     echo -e "#!/usr/bin/env python
+from __future__ import print_function
 import sys
 
 if __name__ == '__main__':
     for line in sys.stdin:
-        print '\t'.join(k + '=' + v for k, v in sorted(x.split('=') for x in line.split()))
+        print('\t'.join(k + '=' + v for k, v in sorted(x.split('=') for x in line.split())))
     " >order.py
     chmod +x order.py
 

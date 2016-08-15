@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from configs_provider import init_logging, get_default_provision, create_configs_provider
 from helpers import versions_cmp, read_config, write_config, \
                     is_dead_or_zombie, get_open_port, get_lsof_diagnostic
@@ -27,8 +29,8 @@ try:
     import subprocess32 as subprocess
 except ImportError:
     if sys.version_info[:2] <= (2, 6):
-        print >>sys.stderr, "Environment may not work properly on python of version <= 2.6 " \
-                            "because subprocess32 library is not installed."
+        print("Environment may not work properly on python of version <= 2.6 "
+              "because subprocess32 library is not installed.", file=sys.stderr)
     import subprocess
 
 logger = logging.getLogger("Yt.local")

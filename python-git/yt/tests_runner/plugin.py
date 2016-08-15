@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import executor
 import scheduling
 
@@ -112,9 +114,8 @@ class YtParallelTestsRunnerPlugin(object):
                 self._log_to_terminal("Executor {0} was successfully restarted".format(process_index))
                 self.failures_count += 1
             else:
-                print >>sys.stderr, "Executor failures count limit exceeded ({0} > {1}). " \
-                                    "Test session was terminated." \
-                                    .format(self.failures_count, PROCESS_FAILURES_LIMIT)
+                print("Executor failures count limit exceeded ({0} > {1}). Test session was terminated."
+                      .format(self.failures_count, PROCESS_FAILURES_LIMIT), file=sys.stderr)
                 os._exit(66)
 
         else:

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import yt.wrapper as yt
 
 import os
@@ -13,10 +15,10 @@ def get_admins():
     return set(yt.get("//sys/groups/admins/@members") + yt.get("//sys/groups/devs/@members") + ["root"])
 
 def ok(message):
-    print message, "-", colored("OK", "green")
+    print(message, "-", colored("OK", "green"))
 
 def error(message):
-    print message, "-", colored("Error", "red")
+    print(message, "-", colored("Error", "red"))
 
 def check_tokens_acl():
     is_ok = True

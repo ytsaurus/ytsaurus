@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from errors import IncorrectTokenError
 
 import yt.wrapper as yt
@@ -26,13 +28,13 @@ class SafeThread(Thread):
             try:
                 target(*args, **kwargs)
             except KeyboardInterrupt:
-                print >>sys.stderr, "Interrupting main from child thread:", current_thread()
+                print("Interrupting main from child thread:", current_thread(), file=sys.stderr)
                 thread.interrupt_main()
                 time.sleep(0.5)
                 os.kill(self._parent_pid, signal.SIGTERM)
             except:
-                print >>sys.stderr, "Unknown exception"
-                print >>sys.stderr, traceback.format_exc()
+                print("Unknown exception", file=sys.stderr)
+                print(traceback.format_exc(), file=sys.stderr)
                 logger.exception("Unknown exception")
                 os.kill(self._parent_pid, signal.SIGINT)
                 time.sleep(0.5)

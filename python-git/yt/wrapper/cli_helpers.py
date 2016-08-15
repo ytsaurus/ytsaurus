@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import yt.logger as logger
 from yt.wrapper.errors import YtOperationFailedError, YtError
 from yt.wrapper.operation_commands import format_operation_stderrs
@@ -27,7 +29,7 @@ def write_silently(strings):
 
 def die(message=None, return_code=1):
     if message is not None:
-        print >>sys.stderr, message
+        print(message, file=sys.stderr)
     if "YT_LOG_EXIT_CODE" in os.environ:
         logger.error("Exiting with code %d", return_code)
     sys.exit(return_code)
@@ -43,11 +45,10 @@ def run_main(main_func):
             stderrs = error.attributes["stderrs"]
             del error.attributes["stderrs"]
 
-        print >>sys.stderr, str(error)
+        print(str(error), file=sys.stderr)
         if stderrs is not None:
-            print >>sys.stderr
-            print >>sys.stderr, "Stderrs of failed jobs:"
-            print >>sys.stderr, format_operation_stderrs(stderrs)
+            print("\nStderrs of failed jobs:", file=sys.stderr)
+            print(format_operation_stderrs(stderrs), file=sys.stderr)
         die()
     except YtError as error:
         if "YT_PRINT_BACKTRACE" in os.environ:

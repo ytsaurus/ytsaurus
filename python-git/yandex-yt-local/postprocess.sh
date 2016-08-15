@@ -96,7 +96,7 @@ EOF
 )
     task_id=$(echo -ne "$task" | \
               sandbox_request "POST" "task" -d @- | \
-              python -c 'import sys, json; print json.load(sys.stdin)["id"]')
+              python2 -c 'import sys, json; print json.load(sys.stdin)["id"]')
 
     echo "Created sandbox task: $task_id"
 

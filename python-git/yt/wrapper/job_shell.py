@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import yson
 import json
 from common import generate_uuid, get_version, YtError
@@ -118,14 +120,14 @@ class JobShell(object):
                     error = error["inner_errors"][0]
                 code = error["code"] if "code" in error else 0
                 if code == 1:
-                    print "Shell exited"
+                    print("Shell exited")
                 elif code == 100 or code == 1500:
-                    print "\nJob finished"
+                    print("\nJob finished")
                 else:
                     message = error["message"] if "message" in error else "unknown"
-                    print "\nDisconnected with code {} ({})".format(code, message)
+                    print("\nDisconnected with code {} ({})".format(code, message))
         else:
-            print "Error:", err
+            print("Error:", err)
 
         if self.interactive:
             IOLoop.current().stop()
@@ -218,7 +220,7 @@ class JobShell(object):
         if not self.shell_id:
             return
 
-        print "Use ^F to terminate shell."
+        print("Use ^F to terminate shell.")
         sys.stdout.flush()
         try:
             tty.setraw(sys.stdin)

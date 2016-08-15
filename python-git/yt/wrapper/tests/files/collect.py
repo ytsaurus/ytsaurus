@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import sys
 
 def output(word, value):
@@ -17,8 +19,8 @@ if __name__ == "__main__":
         key, subkey, value = line.strip("\n\r").split("\t")
         if key != current_word:
             if subkey != "":
-                print >> sys.stderr, line
-                print >> sys.stderr, "Incorrect input"
+                print(line, file=sys.stderr)
+                print("Incorrect input", file=sys.stderr)
                 exit(1)
             output(current_word, count)
             current_word = key
