@@ -121,8 +121,8 @@ class TempfilesManager(object):
 
     def create_tempfile(self, suffix="", prefix="", dir=None):
         """Use syntax tempfile.mkstemp"""
-        if dir == self._root_directory:
-            filepath = os.path.join(self._tmp_dir, prefix + suffix)
+        filepath = os.path.join(self._tmp_dir, prefix + suffix)
+        if dir == self._root_directory and not os.path.exists(filepath):
             open(filepath, "a").close()
         else:
             fd, filepath = tempfile.mkstemp(suffix, prefix, dir)
