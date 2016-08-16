@@ -186,10 +186,6 @@ def get_node_config(enable_debug_logging=True):
         register_retry_period = 100;
     };
 
-    resource_limits = {
-        memory = 8000000000;
-    };
-
     exec_agent = {
         slot_manager = {
             slot_initialization_failure_is_fatal = %true;
@@ -199,13 +195,6 @@ def get_node_config(enable_debug_logging=True):
             failed_heartbeat_backoff_time = 50;
             unsuccess_heartbeat_backoff_time = 50;
             heartbeat_period = 200;
-        };
-
-        job_controller = {
-            resource_limits = {
-                memory = 4000000000;
-                user_slots = 1;
-            };
         };
 
         job_proxy_logging = {

@@ -1,4 +1,4 @@
-from cluster_configuration import modify_cluster_configuration
+from cluster_configuration import modify_cluster_configuration, NODE_MEMORY_LIMIT_ADDITION
 
 from yt.environment import YTInstance
 from yt.environment.init_cluster import initialize_world
@@ -203,7 +203,9 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
                              # XXX(asaitgalin): For parallel testing purposes.
                              port_locks_path=os.environ.get("YT_LOCAL_PORT_LOCKS_PATH"),
                              preserve_working_dir=True,
-                             operations_memory_limit=operations_memory_limit,
+                             node_jobs_memory_limit=operations_memory_limit,
+                             node_user_slots=10,
+                             node_memory_limit_addition=NODE_MEMORY_LIMIT_ADDITION,
                              tmpfs_path=sandbox_tmpfs_path,
                              modify_configs_func=modify_configs_func)
 

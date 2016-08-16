@@ -1,6 +1,6 @@
 import default_configs
 
-from yt.wrapper.common import MB
+from yt.wrapper.common import GB
 from yt.wrapper.mappings import VerifiedDict
 from yt.common import YtError, unlist, update, get_value
 from yt.yson import YsonString
@@ -86,7 +86,12 @@ _default_provision = {
     },
     "node": {
         "count": 1,
-        "operations_memory_limit": None
+        "jobs_resource_limits": {
+            "user_slots": 1,
+            "cpu": 1,
+            "memory": 4 * GB
+        },
+        "memory_limit_addition": None
     },
     "proxy": {
         "enable": False,
@@ -245,19 +250,21 @@ def _get_rpc_config():
         "rpc_timeout": 5000
     }
 
-def _set_memory_limit_options(config, operations_memory_limit):
-    if operations_memory_limit is None:
-        return
+def _get_node_resource_limits_config(provision):
+    FOOTPRINT_MEMORY = 1 * GB
+    CHUNK_META_CACHE_MEMORY = 1 * GB
+    BLOB_SESSIONS_MEMORY = 2 * GB
 
-    set_at(config, "exec_agent/job_controller/resource_limits/memory", operations_memory_limit)
+    memory = 0
+    memory += provision["node"]["jobs_resource_limits"]["memory"]
+    if provision["node"]["memory_limit_addition"] is not None:
+        memory += provision["node"]["memory_limit_addition"]
 
-    resource_limits = config.get("resource_limits", {})
-    resource_limits.setdefault("memory", 0)
+    memory += FOOTPRINT_MEMORY
+    memory += CHUNK_META_CACHE_MEMORY
+    memory += BLOB_SESSIONS_MEMORY
 
-    resource_limits["memory"] = max(resource_limits["memory"],
-                                    int(1.1 * 1024 * MB) + operations_memory_limit)
-
-    update(config, {"resource_limits": resource_limits})
+    return {"memory": memory}
 
 class ConfigsProvider_17(ConfigsProvider):
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator):
@@ -412,8 +419,11 @@ class ConfigsProvider_17(ConfigsProvider):
                 "exec_agent/job_proxy_logging",
                 init_logging(job_proxy_logging, node_dirs[i], log_name, provision["enable_debug_logging"]))
 
+            set_at(config, "exec_agent/job_controller/resource_limits",
+                   deepcopy(provision["node"]["jobs_resource_limits"]), merge=True)
+            set_at(config, "resource_limits", _get_node_resource_limits_config(provision), merge=True)
+
             _set_bind_retry_options(config)
-            _set_memory_limit_options(config, provision["node"]["operations_memory_limit"])
 
             configs.append(config)
 
@@ -651,8 +661,12 @@ class ConfigsProvider_18(ConfigsProvider):
 
             set_at(config, "tablet_node/hydra_manager", _get_hydra_manager_config(), merge=True)
             set_at(config, "tablet_node/hydra_manager/restart_backoff_time", 100)
+
+            set_at(config, "exec_agent/job_controller/resource_limits",
+                   deepcopy(provision["node"]["jobs_resource_limits"]), merge=True)
+            set_at(config, "resource_limits", _get_node_resource_limits_config(provision), merge=True)
+
             _set_bind_retry_options(config)
-            _set_memory_limit_options(config, provision["node"]["operations_memory_limit"])
 
             configs.append(config)
 
