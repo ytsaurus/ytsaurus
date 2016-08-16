@@ -93,7 +93,7 @@ const std::vector<TSample>& TSamplesFetcher::GetSamples() const
 
 TFuture<void> TSamplesFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
 {
-    return BIND(&TSamplesFetcher::DoFetchFromNode, MakeWeak(this), nodeId, Passed(std::move(chunkIndexes)))
+    return BIND(&TSamplesFetcher::DoFetchFromNode, MakeStrong(this), nodeId, Passed(std::move(chunkIndexes)))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
@@ -151,8 +151,6 @@ void TSamplesFetcher::OnResponse(
     const std::vector<int>& requestedChunkIndexes,
     const TDataNodeServiceProxy::TErrorOrRspGetTableSamplesPtr& rspOrError)
 {
-    auto guard = Guard(SpinLock_);
-
     if (!rspOrError.IsOK()) {
         LOG_WARNING("Failed to get samples from node (Address: %v, NodeId: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
