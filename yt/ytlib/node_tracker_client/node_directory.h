@@ -38,7 +38,7 @@ public:
     const Stroka& GetAddress(const Stroka& name) const;
     TNullable<Stroka> FindAddress(const Stroka& name) const;
 
-    void Persist(const TStreamPersistenceContext& context);
+    void Persist(TStreamPersistenceContext& context);
 };
 
 bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs);
@@ -93,7 +93,7 @@ public:
     const TNodeDescriptor* FindDescriptor(const Stroka& address);
     const TNodeDescriptor& GetDescriptor(const Stroka& address);
 
-    void Persist(const TStreamPersistenceContext& context);
+    void Persist(TStreamPersistenceContext& context);
 
 private:
     TSpinLock SpinLock_;

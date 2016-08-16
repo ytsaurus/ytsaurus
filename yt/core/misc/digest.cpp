@@ -54,7 +54,7 @@ public:
         return UpperBound_;
     }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    virtual void Persist(TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, Step_);

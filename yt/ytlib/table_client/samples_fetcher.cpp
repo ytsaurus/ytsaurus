@@ -95,7 +95,7 @@ const std::vector<TSample>& TSamplesFetcher::GetSamples() const
 TFuture<void> TSamplesFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
 {
     return BIND(&TSamplesFetcher::DoFetchFromNode, MakeWeak(this), nodeId, Passed(std::move(chunkIndexes)))
-        .AsyncVia(Invoker_)
+        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
 
@@ -115,7 +115,7 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
 
     std::vector<int> requestedChunkIndexes;
 
-    for (int index : chunkIndexes) {
+    for (auto index : chunkIndexes) {
         const auto& chunk = Chunks_[index];
 
         currentSize += chunk->GetUncompressedDataSize();
@@ -128,11 +128,11 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
             auto* sampleRequest = req->add_sample_requests();
             ToProto(sampleRequest->mutable_chunk_id(), chunkId);
             sampleRequest->set_sample_count(sampleCount - currentSampleCount);
-            if (chunk->LowerLimit() && chunk->LowerLimit()->HasKey()) {
-                ToProto(sampleRequest->mutable_lower_key(), chunk->LowerLimit()->GetKey());
+            if (chunk->LowerLimit() && chunk->LowerLimit()->has_key()) {
+                sampleRequest->set_lower_key(chunk->LowerLimit()->key());
             }
-            if (chunk->UpperLimit() && chunk->UpperLimit()->HasKey()) {
-                ToProto(sampleRequest->mutable_upper_key(), chunk->UpperLimit()->GetKey());
+            if (chunk->UpperLimit() && chunk->UpperLimit()->has_key()) {
+                sampleRequest->set_upper_key(chunk->UpperLimit()->key());
             }
             currentSampleCount = sampleCount;
         }
@@ -166,7 +166,7 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
             requestedChunkIndexes[index]);
 
         for (const auto& protoSample : sampleResponse.samples()) {
-            TSample sample{
+            TSample sample = {
                 FromProto<TOwningKey>(protoSample.key()),
                 protoSample.incomplete(),
                 protoSample.weight()

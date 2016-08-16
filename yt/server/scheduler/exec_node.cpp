@@ -106,7 +106,7 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     , ResourceLimits(resourceLimits)
 { }
 
-void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
+void TExecNodeDescriptor::Persist(TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 

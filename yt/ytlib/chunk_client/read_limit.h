@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/table_client/unversioned_row.h>
 
+#include <yt/core/misc/phoenix.h>
+
 #include <yt/core/yson/consumer.h>
 
 #include <yt/core/ytree/public.h>
@@ -59,7 +61,10 @@ public:
     void MergeLowerRowIndex(i64 rowIndex);
     void MergeUpperRowIndex(i64 rowIndex);
 
-    void Persist(const TStreamPersistenceContext& context);
+    void MergeLowerLimit(const NProto::TReadLimit& readLimit);
+    void MergeUpperLimit(const NProto::TReadLimit& readLimit);
+
+    void Persist(NPhoenix::TPersistenceContext& context);
 
     size_t SpaceUsed() const;
 
@@ -79,6 +84,9 @@ Stroka ToString(const TReadLimit& limit);
 
 bool IsTrivial(const TReadLimit& limit);
 bool IsTrivial(const NProto::TReadLimit& limit);
+
+bool IsNontrivial(const TReadLimit& limit);
+bool IsNontrivial(const NProto::TReadLimit& limit);
 
 void ToProto(NProto::TReadLimit* protoReadLimit, const TReadLimit& readLimit);
 void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit);

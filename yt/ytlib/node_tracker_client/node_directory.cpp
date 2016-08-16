@@ -99,7 +99,7 @@ const Stroka& TNodeDescriptor::GetAddress(const Stroka& name) const
     return it->second;
 }
 
-void TNodeDescriptor::Persist(const TStreamPersistenceContext& context)
+void TNodeDescriptor::Persist(TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Addresses_);
@@ -289,7 +289,7 @@ const TNodeDescriptor& TNodeDirectory::GetDescriptor(const Stroka& address)
     return *result;
 }
 
-void TNodeDirectory::Persist(const TStreamPersistenceContext& context)
+void TNodeDirectory::Persist(TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, IdToDescriptor_);
