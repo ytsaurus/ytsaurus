@@ -1,3 +1,4 @@
+from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.common import update, unlist, parse_bool, dict_depth, bool_to_string, \
                               is_prefix, prefix, first_not_none, chunk_iter_blobs, \
                               datetime_to_string, date_string_to_timestamp
@@ -5,6 +6,7 @@ import yt.wrapper as yt
 
 from datetime import datetime
 
+import cPickle as pickle
 import pytest
 
 def test_update():
@@ -81,4 +83,13 @@ def test_time_functions():
     tm1 = date_string_to_timestamp(str1)
     tm2 = date_string_to_timestamp(str2)
     assert abs(tm1 - tm2) < 10
+
+def test_error_pickling():
+    error = yt.YtError("error", code=100, attributes={"attr": 10})
+    pickled_error = pickle.dumps(error)
+    assert pickle.loads(pickled_error).message == error.message
+
+    error = YtHttpResponseError({"code": 10, "message": "error"}, url="http://aaa.bbb", headers={}, params={})
+    pickled_error = pickle.dumps(error)
+    assert pickle.loads(pickled_error).message == error.message
 
