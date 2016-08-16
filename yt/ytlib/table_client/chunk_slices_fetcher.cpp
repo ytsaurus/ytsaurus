@@ -3,7 +3,6 @@
 
 #include <yt/ytlib/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/input_slice.h>
@@ -71,11 +70,11 @@ std::vector<TInputSlicePtr> TChunkSliceFetcher::GetChunkSlices()
 TFuture<void> TChunkSliceFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
 {
     return BIND(&TChunkSliceFetcher::DoFetchFromNode, MakeWeak(this), nodeId, Passed(std::move(chunkIndexes)))
-        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+        .AsyncVia(Invoker_)
         .Run();
 }
 
-void TChunkSliceFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int> chunkIndexes)
+TFuture<void> TChunkSliceFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>& chunkIndexes)
 {
     TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
@@ -129,11 +128,20 @@ void TChunkSliceFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int> 
         }
     }
 
-    if (req->slice_requests_size() == 0)
-        return;
+    if (req->slice_requests_size() == 0) {
+        return VoidFuture;
+    }
 
-    auto rspOrError = WaitFor(req->Invoke());
+    return req->Invoke().Apply(
+        BIND(&TChunkSliceFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(requestedChunkIndexes)))
+            .AsyncVia(Invoker_));
+}
 
+void TChunkSliceFetcher::OnResponse(
+    TNodeId nodeId,
+    const std::vector<int>& requestedChunkIndexes,
+    const TDataNodeServiceProxy::TErrorOrRspGetChunkSlicesPtr& rspOrError)
+{
     if (!rspOrError.IsOK()) {
         LOG_WARNING("Failed to get chunk slices from node (Address: %v, NodeId: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),

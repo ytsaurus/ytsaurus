@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <yt/ytlib/chunk_client/fetcher_base.h>
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -44,14 +44,18 @@ private:
     //! Number of slices in SlicesByChunkIndex_.
     i64 SliceCount_ = 0;
 
-
     virtual TFuture<void> FetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
         std::vector<int> chunkIndexes) override;
 
-    void DoFetchFromNode(
+    TFuture<void> DoFetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
-        std::vector<int> chunkIndexes);
+        const std::vector<int>& chunkIndexes);
+
+    void OnResponse(
+        NNodeTrackerClient::TNodeId nodeId,
+        const std::vector<int>& requestedChunkIndexes,
+        const NChunkClient::TDataNodeServiceProxy::TErrorOrRspGetChunkSlicesPtr& rspOrError);
 
 };
 
