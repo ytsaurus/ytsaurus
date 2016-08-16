@@ -296,6 +296,12 @@ class TestCypressCommands(object):
         assert read_table(new_client) == [{"x": 2}]
 
         with pytest.raises(yt.YtError):
+            yt.ping_transaction("incorrect")
+        
+        with pytest.raises(yt.YtError):
+            yt.ping_transaction("1-1-1-1")
+
+        with pytest.raises(yt.YtError):
             with yt.Transaction(timeout=2000, ping=False):
                 yt.write_table(table, [{"x": 3}])
                 time.sleep(3)
