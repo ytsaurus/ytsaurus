@@ -3990,11 +3990,26 @@ void TOperationControllerBase::RegisterJoblet(TJobletPtr joblet)
     YCHECK(JobletMap.insert(std::make_pair(joblet->JobId, joblet)).second);
 }
 
-TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJoblet(const TJobId& jobId) const
+TOperationControllerBase::TJobletPtr TOperationControllerBase::FindJoblet(const TJobId& jobId) const
 {
     auto it = JobletMap.find(jobId);
-    YCHECK(it != JobletMap.end());
-    return it->second;
+    return it == JobletMap.end() ? nullptr : it->second;
+}
+
+TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJoblet(const TJobId& jobId) const
+{
+    auto joblet = FindJoblet(jobId);
+    YCHECK(joblet);
+    return joblet;
+}
+
+TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJobletOrThrow(const TJobId& jobId) const
+{
+    auto joblet = FindJoblet(jobId);
+    if (!joblet) {
+        THROW_ERROR_EXCEPTION("No such job %v", jobId);
+    }
+    return joblet;
 }
 
 void TOperationControllerBase::RemoveJoblet(const TJobId& jobId)
@@ -4080,7 +4095,7 @@ TYsonString TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) co
 
     return BuildInputPaths(
         GetInputTablePaths(),
-        GetJoblet(jobId)->InputStripeList);
+        GetJobletOrThrow(jobId)->InputStripeList);
 }
 
 std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetFilePaths() const

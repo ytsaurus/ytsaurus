@@ -49,13 +49,13 @@ void LogEventImpl(
     int line,
     const char* function,
     ELogLevel level,
-    const Stroka& message)
+    Stroka message)
 {
     TLogEvent event;
     event.Instant = NProfiling::GetCpuInstant();
     event.Category = logger.GetCategory();
     event.Level = level;
-    event.Message = message;
+    event.Message = std::move(message);
     event.FileName = fileName;
     event.Line = line;
     event.ThreadId = TThread::CurrentThreadId();

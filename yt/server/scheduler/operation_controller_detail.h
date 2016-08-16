@@ -648,7 +648,9 @@ protected:
 
     // Jobs in progress management.
     void RegisterJoblet(TJobletPtr joblet);
+    TJobletPtr FindJoblet(const TJobId& jobId) const;
     TJobletPtr GetJoblet(const TJobId& jobId) const;
+    TJobletPtr GetJobletOrThrow(const TJobId& jobId) const;
     void RemoveJoblet(const TJobId& jobId);
 
 
