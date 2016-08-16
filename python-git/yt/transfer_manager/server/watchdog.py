@@ -58,7 +58,12 @@ def main():
 
         transaction_id = locks[0]["transaction_id"]
 
-        subprocess.check_call(["sv", "force-stop", "transfer_manager"])
+        try:
+            subprocess.check_call(["sv", "force-stop", "transfer_manager"])
+        except subprocess.CalledProcessError as err:
+            logger.warning("Force stop exited with non-zero status %d and message: %s",
+                           err.returncode, err.output)
+
         logger.info("Killed Transfer Manager process")
         time.sleep(SLEEP_TIME_BEFORE_START)
 
