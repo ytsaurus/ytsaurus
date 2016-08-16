@@ -86,11 +86,11 @@ TExecNodeDescriptor::TExecNodeDescriptor()
 { }
 
 TExecNodeDescriptor::TExecNodeDescriptor(
-    NNodeTrackerClient::TNodeId id,
-    Stroka address,
+    const NNodeTrackerClient::TNodeId& id,
+    const Stroka& address,
     double ioWeight,
-    TJobResources resourceLimits,
-    yhash_set<Stroka> tags)
+    const TJobResources& resourceLimits,
+    const yhash_set<Stroka>& tags)
     : Id(id)
     , Address(address)
     , IOWeight(ioWeight)

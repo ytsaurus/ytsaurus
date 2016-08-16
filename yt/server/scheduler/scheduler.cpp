@@ -346,6 +346,7 @@ public:
             {
                 return it->second.second;
             }
+            it->second.first = now;
         }
 
         std::vector<TExecNodeDescriptor> result;
