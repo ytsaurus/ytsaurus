@@ -190,14 +190,12 @@ private:
         FDWatcher_.set(FD_, ev::WRITE);
         FDWatcher_.set(TIODispatcher::Get()->GetEventLoop());
         FDWatcher_.set<TAsyncWriterImpl, &TAsyncWriterImpl::OnWrite>(this);
-        FDWatcher_.start();
     }
 
     void OnWrite(ev::io&, int eventType)
     {
         VERIFY_THREAD_AFFINITY(EventLoop);
         YCHECK((eventType & ev::WRITE) == ev::WRITE);
-
         YCHECK(State_ == EWriterState::Active);
 
         if (Position_ < Buffer_.Size()) {
