@@ -428,9 +428,10 @@ void TProcess::AsyncPeriodicTryWait()
     WaitidOrDie(P_PID, ProcessId_, &processInfo, WEXITED | WNOHANG);
 
     Finished_ = true;
-    LOG_DEBUG("Process finished (Pid: %v)", ProcessId_);
+    auto error = ProcessInfoToError(processInfo);
+    LOG_DEBUG("Process finished (Pid: %v, Error: %v)", ProcessId_, error);
 
-    FinishedPromise_.Set(ProcessInfoToError(processInfo));
+    FinishedPromise_.Set(error);
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
