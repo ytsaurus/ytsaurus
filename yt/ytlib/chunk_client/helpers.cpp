@@ -412,7 +412,7 @@ IChunkReaderPtr CreateRemoteReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUserObject::Persist(const TStreamPersistenceContext& context)
+void TUserObject::Persist(NPhoenix::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Path);
