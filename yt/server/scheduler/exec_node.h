@@ -132,12 +132,16 @@ struct TExecNodeDescriptor
         NNodeTrackerClient::TNodeId id,
         Stroka address,
         double ioWeight,
-        TJobResources resourceLimits);
+        TJobResources resourceLimits,
+        yhash_set<Stroka> tags);
+
+    bool CanSchedule(const TNullable<Stroka>& tag) const;
 
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
     Stroka Address;
     double IOWeight = 0.0;
     TJobResources ResourceLimits;
+    yhash_set<Stroka> Tags;
 
     void Persist(TStreamPersistenceContext& context);
 };
