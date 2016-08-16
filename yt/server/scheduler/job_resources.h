@@ -29,7 +29,7 @@ public:
 
     i64 GetMemory() const;
 
-    void Persist(const TStreamPersistenceContext& context);
+    void Persist(TStreamPersistenceContext& context);
 };
 
 class TJobResources
@@ -47,7 +47,7 @@ public:
 
     NNodeTrackerClient::NProto::TNodeResources ToNodeResources() const;
 
-    void Persist(const TStreamPersistenceContext& context);
+    void Persist(TStreamPersistenceContext& context);
 };
 
 #define ITERATE_JOB_RESOURCES(XX) \

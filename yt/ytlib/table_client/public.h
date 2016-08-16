@@ -253,10 +253,6 @@ DECLARE_REFCOUNTED_CLASS(TVersionedChunkLookupHashTable);
 
 struct TBoundaryKeys;
 
-class TSaveContext;
-class TLoadContext;
-using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext>;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

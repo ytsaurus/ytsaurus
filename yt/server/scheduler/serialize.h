@@ -4,19 +4,15 @@
 
 #include <yt/core/misc/phoenix.h>
 
-#include <yt/ytlib/table_client/serialize.h>
-
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NTableClient::TSaveContext;
-using NTableClient::TLoadContext;
-using NTableClient::TPersistenceContext;
-using IPersistent = NPhoenix::ICustomPersistent<TPersistenceContext>;
-
-////////////////////////////////////////////////////////////////////////////////
+typedef NPhoenix::TSaveContext TSaveContext;
+typedef NPhoenix::TLoadContext TLoadContext;
+typedef NPhoenix::TPersistenceContext TPersistenceContext;
+typedef NPhoenix::IPersistent IPersistent;
 
 int GetCurrentSnapshotVersion();
 bool ValidateSnapshotVersion(int version);
