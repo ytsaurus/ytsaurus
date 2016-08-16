@@ -110,7 +110,9 @@ void TNodeShard::UnregisterOperation(const TOperationId& operationId)
 
     auto it = OperationStates_.find(operationId);
     YCHECK(it != OperationStates_.end());
-    YCHECK(it->second.Jobs.empty());
+    for (const auto& job : it->second.Jobs) {
+        YCHECK(job.second->GetHasPendingUnregistration());
+    }
     OperationStates_.erase(it);
 }
 
