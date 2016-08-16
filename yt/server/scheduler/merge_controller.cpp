@@ -827,6 +827,12 @@ private:
         return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
     }
 
+    virtual bool IsBoundaryKeysFetchEnabled() const override
+    {
+        // Required for chunk teleporting in case of sorted output.
+        return OutputTables[0].TableUploadOptions.TableSchema.IsSorted();
+    }
+
     virtual bool IsRowCountPreserved() const override
     {
         return Spec->InputQuery ? false : TMergeControllerBase::IsRowCountPreserved();
@@ -904,6 +910,12 @@ private:
     virtual bool IsTeleportChunk(const TInputChunkPtr& chunkSpec) const override
     {
         return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
+    }
+
+    virtual bool IsBoundaryKeysFetchEnabled() const override
+    {
+        // Required for chunk teleporting in case of sorted output.
+        return OutputTables[0].TableUploadOptions.TableSchema.IsSorted();
     }
 
     virtual void DoInitialize() override
