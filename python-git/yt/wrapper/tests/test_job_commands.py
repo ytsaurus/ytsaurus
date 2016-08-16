@@ -5,6 +5,7 @@ from yt.wrapper.http import get_api_commands
 from helpers import ENABLE_JOB_CONTROL, TEST_DIR, TESTS_SANDBOX
 
 import os
+import sys
 import stat
 import pytest
 import re

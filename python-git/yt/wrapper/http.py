@@ -1,7 +1,8 @@
 from config import get_config, get_option, set_option, get_backend_type
 from common import require, get_backoff, get_value, total_seconds, generate_uuid
 from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError, \
-                   YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut, YtRetriableError, hide_token
+                   YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut, YtRetriableError, YtNoSuchTransaction, \
+                   hide_token
 from command import parse_commands
 
 import yt.logger as logger
@@ -146,6 +147,8 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
     retriable_errors = list(get_retriable_errors())
     if not retry_unavailable_proxy:
         retriable_errors.remove(YtProxyUnavailable)
+    if is_ping:
+        retriable_errors.append(YtNoSuchTransaction)
 
     headers = get_value(kwargs.get("headers", {}), {})
     headers["X-YT-Correlation-Id"] = generate_uuid(get_option("_random_generator", client))
@@ -210,9 +213,8 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                 logger.warning("New retry (%d) ...", attempt + 2)
             else:
                 raise
-        except YtHttpResponseError as err:
-            if not is_ping or err.is_no_such_transaction():
-                raise
+
+    assert False, "Unknown error: this point should not be reachable"
 
 def make_get_request_with_retries(url, **kwargs):
     response = make_request_with_retries("get", url, **kwargs)
