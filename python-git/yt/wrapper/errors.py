@@ -62,6 +62,9 @@ class YtHttpResponseError(YtResponseError):
                        "Params: {2}"\
             .format(url, dumps(self.headers), dumps(self.params))
 
+    def __reduce__(self):
+        return (YtHttpResponseError, (self.error, self.url, self.headers, self.params))
+
 class YtRequestRateLimitExceeded(YtHttpResponseError):
     """ Request rate limit exceeded error. """
     """ It is used in retries. """
