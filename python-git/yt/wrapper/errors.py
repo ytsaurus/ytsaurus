@@ -44,6 +44,8 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtConcurrentOperationsLimitExceeded
         if self.is_request_timed_out():
             self.__class__ = YtRequestTimedOut
+        if self.is_no_such_transaction():
+            self.__class__ = YtNoSuchTransaction
 
 class YtHttpResponseError(YtResponseError):
     def __init__(self, error, url, headers, params):
@@ -77,6 +79,11 @@ class YtConcurrentOperationsLimitExceeded(YtHttpResponseError):
 
 class YtRequestTimedOut(YtHttpResponseError):
     """ Request timed out. """
+    """ It is used in retries. """
+    pass
+
+class YtNoSuchTransaction(YtHttpResponseError):
+    """ No such transaction error """
     """ It is used in retries. """
     pass
 
