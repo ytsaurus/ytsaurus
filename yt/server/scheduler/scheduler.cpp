@@ -221,6 +221,12 @@ public:
             BIND(&TImpl::OnPendingEventLogRowsFlush, MakeWeak(this)),
             Config_->PendingEventLogRowsFlushPeriod);
         PendingEventLogRowsFlushExecutor_->Start();
+
+        UpdateExecNodeDescriptorsExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
+            BIND(&TImpl::UpdateExecNodeDescriptors, MakeWeak(this)),
+            Config_->UpdateExecNodeDescriptorsPeriod);
+        UpdateExecNodeDescriptorsExecutor_->Start();
     }
 
     ISchedulerStrategyPtr GetStrategy()
@@ -323,20 +329,42 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        std::vector<TFuture<std::vector<TExecNodeDescriptor>>> shardDescriptorsFutures;
-        for (auto& nodeShard : NodeShards_) {
-            shardDescriptorsFutures.push_back(BIND(&TNodeShard::GetExecNodeDescriptors, nodeShard)
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run(tag));
+        if (!tag) {
+            TReaderGuard guard(ExecNodeDescriptorsLock_);
+
+            return CachedExecNodeDescriptors_;
         }
 
-        auto shardDescriptors = WaitFor(Combine(shardDescriptorsFutures))
-            .ValueOrThrow();
+        auto now = TInstant::Now();
+
+        {
+            TReaderGuard guard(ExecNodeDescriptorsByTagLock_);
+
+            auto it = CachedExecNodeDescriptorsByTag_.find(*tag);
+            if (it != CachedExecNodeDescriptorsByTag_.end() && 
+                now <= it->second.first + Config_->UpdateExecNodeDescriptorsPeriod)
+            {
+                return it->second.second;
+            }
+        }
 
         std::vector<TExecNodeDescriptor> result;
-        for (const auto& descriptors : shardDescriptors) {
-            result.insert(result.end(), descriptors.begin(), descriptors.end());
+
+        {
+            TReaderGuard guard(ExecNodeDescriptorsLock_);
+
+            for (const auto& descriptor : CachedExecNodeDescriptors_) {
+                if (descriptor.CanSchedule(tag)) {
+                    result.push_back(descriptor);
+                }
+            }
         }
+
+        {
+            TWriterGuard guard(ExecNodeDescriptorsByTagLock_);
+            CachedExecNodeDescriptorsByTag_[*tag] = std::make_pair(now, result);
+        }
+
         return result;
     }
 
@@ -882,6 +910,13 @@ private:
     typedef yhash_map<TOperationId, TOperationPtr> TOperationIdMap;
     TOperationIdMap IdToOperation_;
 
+    typedef std::vector<TExecNodeDescriptor> TExecNodeDescriptors;
+    NConcurrency::TReaderWriterSpinLock ExecNodeDescriptorsLock_;
+    TExecNodeDescriptors CachedExecNodeDescriptors_;
+
+    NConcurrency::TReaderWriterSpinLock ExecNodeDescriptorsByTagLock_;
+    mutable yhash_map<Stroka, std::pair<TInstant, TExecNodeDescriptors>> CachedExecNodeDescriptorsByTag_;
+
     TProfiler TotalResourceLimitsProfiler_;
     TProfiler TotalResourceUsageProfiler_;
 
@@ -896,6 +931,7 @@ private:
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr LoggingExecutor_;
     TPeriodicExecutorPtr PendingEventLogRowsFlushExecutor_;
+    TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
 
     Stroka ServiceAddress_;
 
@@ -1430,6 +1466,31 @@ private:
         }
     }
 
+    void UpdateExecNodeDescriptors()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        std::vector<TFuture<std::vector<TExecNodeDescriptor>>> shardDescriptorsFutures;
+        for (auto& nodeShard : NodeShards_) {
+            shardDescriptorsFutures.push_back(BIND(&TNodeShard::GetExecNodeDescriptors, nodeShard)
+                .AsyncVia(nodeShard->GetInvoker())
+                .Run());
+        }
+
+        auto shardDescriptors = WaitFor(Combine(shardDescriptorsFutures))
+            .ValueOrThrow();
+
+        std::vector<TExecNodeDescriptor> result;
+        for (const auto& descriptors : shardDescriptors) {
+            result.insert(result.end(), descriptors.begin(), descriptors.end());
+        }
+
+        {
+            TWriterGuard guard(ExecNodeDescriptorsLock_);
+
+            CachedExecNodeDescriptors_ = result;
+        }
+    }
 
     void DoStartOperation(TOperationPtr operation)
     {
