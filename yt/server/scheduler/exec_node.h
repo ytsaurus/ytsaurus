@@ -144,7 +144,7 @@ struct TExecNodeDescriptor
     double IOWeight = 0.0;
     TJobResources ResourceLimits;
 
-    void Persist(const TStreamPersistenceContext& context);
+    void Persist(TStreamPersistenceContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

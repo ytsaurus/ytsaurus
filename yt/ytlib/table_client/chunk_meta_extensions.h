@@ -6,6 +6,7 @@
 #include <yt/ytlib/table_client/chunk_meta.pb.h>
 #include <yt/ytlib/table_client/legacy_chunk_meta.pb.h>
 
+#include <yt/core/misc/phoenix.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
@@ -34,11 +35,12 @@ DECLARE_PROTO_EXTENSION(NTableClient::NProto::TOldBoundaryKeysExt, 13)
 namespace NTableClient {
 
 struct TBoundaryKeys
+    : public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
     TOwningKey MinKey;
     TOwningKey MaxKey;
 
-    void Persist(const TStreamPersistenceContext& context);
+    void Persist(NPhoenix::TPersistenceContext& context);
 
     size_t SpaceUsed() const;
 };
