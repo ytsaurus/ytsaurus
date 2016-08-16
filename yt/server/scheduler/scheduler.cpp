@@ -372,7 +372,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_WARNING(alert, "Registering alert");
+        LOG_WARNING(alert, "Registering %v alert", alertType);
 
         GetMasterConnector()->RegisterAlert(alertType, alert);
     }

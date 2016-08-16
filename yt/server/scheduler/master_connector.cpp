@@ -1833,6 +1833,9 @@ private:
 
     void UpdateAlerts()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+
         std::vector<TError> alerts;
         for (auto alertType : TEnumTraits<EAlertType>::GetDomainValues()) {
             const auto& alert = Alerts[alertType];
