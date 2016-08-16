@@ -344,9 +344,9 @@ public:
             if (it != CachedExecNodeDescriptorsByTag_.end() && 
                 now <= it->second.first + Config_->UpdateExecNodeDescriptorsPeriod)
             {
+                it->second.first = now;
                 return it->second.second;
             }
-            it->second.first = now;
         }
 
         std::vector<TExecNodeDescriptor> result;
