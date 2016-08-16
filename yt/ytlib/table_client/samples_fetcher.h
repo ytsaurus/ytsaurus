@@ -71,7 +71,7 @@ private:
 
     TFuture<void> DoFetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
-        std::vector<int> chunkIndexes);
+        const std::vector<int>& chunkIndexes);
 
     void OnResponse(
         NNodeTrackerClient::TNodeId nodeId,
