@@ -275,8 +275,9 @@ class YTInstance(object):
     def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0,
                  node_count=1, scheduler_count=1, has_proxy=False, cell_tag=0, proxy_port=None,
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
-                 port_locks_path=None, port_range_start=None, fqdn=None, operations_memory_limit=None,
-                 modify_configs_func=None, kill_child_processes=False):
+                 port_locks_path=None, port_range_start=None, fqdn=None, node_jobs_memory_limit=None,
+                 node_user_slots=None, node_memory_limit_addition=None, modify_configs_func=None,
+                 kill_child_processes=False):
         _configure_logger()
 
         self._lock = RLock()
@@ -333,7 +334,8 @@ class YTInstance(object):
         self._kill_child_processes = kill_child_processes
         self._started = False
 
-        self._prepare_environment(operations_memory_limit, port_range_start, proxy_port, modify_configs_func)
+        self._prepare_environment(node_jobs_memory_limit, node_user_slots, node_memory_limit_addition,
+                                  port_range_start, proxy_port, modify_configs_func)
 
     def _get_ports_generator(self, port_range_start):
         def random_port_generator():
@@ -372,7 +374,8 @@ class YTInstance(object):
 
         return master_dirs, master_tmpfs_dirs, scheduler_dirs, node_dirs, proxy_dir
 
-    def _prepare_environment(self, operations_memory_limit, port_range_start, proxy_port, modify_configs_func):
+    def _prepare_environment(self, node_jobs_memory_limit, node_user_slots, node_memory_limit_addition,
+                             port_range_start, proxy_port, modify_configs_func):
         if self.secondary_master_cell_count > 0 and versions_cmp(self._ytserver_version, "0.18") < 0:
             raise YtError("Multicell is not supported for ytserver version < 0.18")
 
@@ -400,7 +403,9 @@ class YTInstance(object):
         provision["master"]["cell_nonvoting_master_count"] = self.nonvoting_master_count
         provision["scheduler"]["count"] = self.scheduler_count
         provision["node"]["count"] = self.node_count
-        provision["node"]["operations_memory_limit"] = operations_memory_limit
+        provision["node"]["jobs_resource_limits"]["memory"] = node_jobs_memory_limit
+        provision["node"]["jobs_resource_limits"]["user_slots"] = node_user_slots
+        provision["node"]["memory_limit_addition"] = node_memory_limit_addition
         provision["proxy"]["enable"] = self.has_proxy
         provision["proxy"]["http_port"] = proxy_port
         provision["fqdn"] = self._hostname

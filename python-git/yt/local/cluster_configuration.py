@@ -1,4 +1,5 @@
-from yt.common import update, get_value
+from yt.wrapper.common import MB, GB
+from yt.common import update
 from yt.environment.helpers import versions_cmp
 
 # Local mode config patches (for all versions)
@@ -63,13 +64,13 @@ SCHEDULER_CONFIG_PATCH = {
         "max_running_operation_count_per_pool": 1,
         "sort_operation_options": {
             "spec_template": {
-                "partition_data_size": 512 * 1024 * 1024,
+                "partition_data_size": 512 * MB
             }
         },
 
         "map_reduce_operation_options": {
             "spec_template": {
-                "partition_data_size": 512 * 1024 * 1024,
+                "partition_data_size": 512 * MB
             }
         },
         "enable_tmpfs": False,
@@ -115,14 +116,14 @@ NODE_CONFIG_PATCHES = [
             "scheduler": None
         },
         "data_node": {
-            "max_bytes_per_read": 10 * 1024 * 1024 * 1024,
+            "max_bytes_per_read": 10 * GB,
             "multiplexed_changelog": None,
             "block_cache": {
                 "compressed_data": {
-                    "capacity": 209715200  # 200 MB
+                    "capacity": 200 * MB
                 },
                 "uncompressed_data": {
-                    "capacity": 524288000  # 500 MB
+                    "capacity": 500 * MB
                 }
             },
             "incremental_heartbeat_period": 300,
@@ -141,7 +142,7 @@ NODE_CONFIG_PATCHES = [
         "tablet_node": {
             "resource_limits": {
                 "slots": 1,
-                "tablet_dynamic_memory": 524288000,  # 500 MB
+                "tablet_dynamic_memory": 500 * MB,
                 "tablet_static_memory": 0
             }
         },
@@ -153,6 +154,8 @@ NODE_CONFIG_PATCHES = [
         }
     }
 ]
+
+NODE_MEMORY_LIMIT_ADDITION = 500 * MB + 200 * MB + 500 * MB  # block_cache + tablet_node, see above
 
 NODE_18_PATCH = {
     "cell_directory_synchronizer": None,
@@ -200,18 +203,6 @@ def _remove_none_fields(node):
 
     traverse(node)
 
-def _tune_memory_limits(config):
-    memory = config["resource_limits"]["memory"]
-    # Add tablet resource limits
-    tablet_resource_limits = get_value(config.get("tablet_node"), {}).get("resource_limits", {})
-    memory += tablet_resource_limits.get("tablet_dynamic_memory", 0)
-
-    block_cache = config.get("data_node", {}).get("block_cache", {})
-    memory += block_cache.get("compressed_data", {}).get("capacity", 0)
-    memory += block_cache.get("uncompressed_data", {}).get("capacity", 0)
-
-    config["resource_limits"]["memory"] = memory
-
 def modify_cluster_configuration(cluster_configuration, ytserver_version, master_config_patch=None,
                                  node_config_patch=None, scheduler_config_patch=None, proxy_config_patch=None):
     master = cluster_configuration["master"]
@@ -246,8 +237,6 @@ def modify_cluster_configuration(cluster_configuration, ytserver_version, master
                 update(config, NODE_18_PATCH)
             else:
                 update(config, NODE_17_PATCH)
-
-            _tune_memory_limits(config)
 
     if proxy_config_patch:
         update(cluster_configuration["proxy"], proxy_config_patch)
