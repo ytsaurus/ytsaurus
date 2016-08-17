@@ -848,8 +848,7 @@ class YTInstance(object):
     def _prepare_console_driver(self):
         config = {}
         config["driver"] = self.configs["driver"]
-        config["logging"] = init_logging(config["logging"], self.path, "console_driver",
-                                         self._enable_debug_logging)
+        config["logging"] = init_logging(None, self.path, "console_driver", self._enable_debug_logging)
 
         config_path = os.path.join(self.path, "console_driver_config.yson")
 
