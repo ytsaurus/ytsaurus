@@ -561,7 +561,7 @@ protected:
             }
 
             if (Controller->Spec->EnablePartitionedDataBalancing) {
-                auto nodeDescriptors = Controller->Host->GetExecNodeDescriptors(Controller->Operation->GetSchedulingTag());
+                auto nodeDescriptors = Controller->GetExecNodeDescriptors();
                 yhash_map<TNodeId, TExecNodeDescriptor> idToNodeDescriptor;
                 for (const auto& descriptor : nodeDescriptors) {
                     YCHECK(idToNodeDescriptor.insert(std::make_pair(descriptor.Id, descriptor)).second);
