@@ -139,6 +139,8 @@ struct IChunkPoolOutput
     virtual void Aborted(TCookie cookie) = 0;
     virtual void Lost(TCookie cookie) = 0;
 
+    virtual void SetDataSizePerJob(i64 dataSizePerJob) = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,7 +153,7 @@ struct IChunkPool
 std::unique_ptr<IChunkPool> CreateAtomicChunkPool();
 
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
-    int jobCount,
+    i64 dataSizePerJob,
     int maxChunkStripesPerJob);
 
 ////////////////////////////////////////////////////////////////////////////////

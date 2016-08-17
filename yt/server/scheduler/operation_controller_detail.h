@@ -9,6 +9,7 @@
 #include "job_resources.h"
 #include "operation_controller.h"
 #include "serialize.h"
+#include "helpers.h"
 
 #include <yt/server/chunk_server/public.h>
 
@@ -885,21 +886,15 @@ protected:
     std::vector<TChunkStripePtr> SliceChunks(
         const std::vector<NChunkClient::TInputChunkPtr>& chunkSpecs,
         i64 maxSliceDataSize,
-        int* jobCount);
+        TJobSizeLimits* jobSizeLimits);
 
     std::vector<TChunkStripePtr> SliceInputChunks(
         i64 maxSliceDataSize,
-        int* jobCount);
+        TJobSizeLimits* jobSizeLimits);
 
     int GetMaxJobCount(
         TNullable<int> userMaxJobCount,
         int maxJobCount);
-
-    int SuggestJobCount(
-        i64 totalDataSize,
-        i64 dataSizePerJob,
-        TNullable<int> configJobCount,
-        int maxJobCount) const;
 
     void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,

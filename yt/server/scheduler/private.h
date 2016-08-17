@@ -31,6 +31,7 @@ DECLARE_REFCOUNTED_CLASS(TSnapshotDownloader)
 class TOperationControllerBase;
 
 extern const double ApproximateSizesBoostFactor;
+extern const double JobSizeBoostFactor;
 
 extern const Stroka RootPoolName;
 

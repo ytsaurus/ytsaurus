@@ -19,6 +19,10 @@ void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, IJobPtr job
     if (prepareDuration) {
         jobStatus->set_prepare_duration(ToProto(*prepareDuration));
     }
+    auto downloadDuration = job->GetDownloadDuration();
+    if (downloadDuration) {
+        jobStatus->set_download_duration(ToProto(*downloadDuration));
+    }
     auto execDuration = job->GetExecDuration();
     if (execDuration) {
         jobStatus->set_exec_duration(ToProto(*execDuration));

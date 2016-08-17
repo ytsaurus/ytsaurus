@@ -144,6 +144,7 @@ struct TJobSummary
     const Stroka StatisticsSuffix;
     const TInstant FinishTime;
     TNullable<TDuration> PrepareDuration;
+    TNullable<TDuration> DownloadDuration;
     TNullable<TDuration> ExecDuration;
 
     // NB: The Statistics field will be set inside the controller in ParseStatistics().
