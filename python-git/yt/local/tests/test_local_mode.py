@@ -42,7 +42,7 @@ class YtLocalBinary(object):
 
     def __call__(self, *args, **kwargs):
         args_str = " ".join(args)
-        kwargs_str = " ".join("--{0} {1}".format(key.replace("_", "-"), value) for key, value in kwargs.iteritems())
+        kwargs_str = " ".join("--{0} {1}".format(key.replace("_", "-"), value) for key, value in kwargs.items())
         command = "{0} {1} {2}".format(YT_LOCAL_BINARY, args_str, kwargs_str)
         env = {
             "YT_LOCAL_ROOT_PATH": self.root_path,

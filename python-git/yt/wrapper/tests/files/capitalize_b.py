@@ -13,7 +13,7 @@ def capitalizeB(rec):
 
 """ Methods for records convertion """
 def record_to_line(rec, eoln=True):
-    body = "\t".join("=".join(map(str, item)) for item in rec.iteritems())
+    body = "\t".join("=".join(map(str, item)) for item in rec.items())
     return "%s%s" % (body, "\n" if eoln else "")
 
 def line_to_record(line):

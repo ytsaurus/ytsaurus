@@ -5,13 +5,14 @@ from http import get_proxy_url, get_retriable_errors
 from exceptions_catcher import ExceptionCatcher
 from cypress_commands import exists, get, list, ypath_join
 from file_commands import read_file
+import yson
 
 import yt.logger as logger
-import yt.packages.dateutil.parser as dateutil_parser
-from yt.packages.decorator import decorator
 from yt.common import format_error
 
-import yson
+import yt.packages.dateutil.parser as dateutil_parser
+from yt.packages.decorator import decorator
+from yt.packages.six import iteritems
 
 import logging
 from datetime import datetime
@@ -156,7 +157,7 @@ def order_progress(progress):
     for key in keys:
         if key in progress:
             result.append((key, progress[key]))
-    for key, value in progress.iteritems():
+    for key, value in iteritems(progress):
         if key not in keys:
             result.append((key, value))
     return result
@@ -516,7 +517,7 @@ class OperationsTracker(object):
             while self._operations:
                 operations_to_remove = []
 
-                for id_, operation in self._operations.iteritems():
+                for id_, operation in iteritems(self._operations):
                     state = operation.get_state()
 
                     if print_progress:
@@ -541,7 +542,7 @@ class OperationsTracker(object):
     def abort_all(self):
         """Aborts all added operations."""
         logger.info("Aborting %d operations", len(self._operations))
-        for id_, operation in self._operations.iteritems():
+        for id_, operation in iteritems(self._operations):
             state = operation.get_state()
 
             if state.is_finished():

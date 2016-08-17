@@ -3,14 +3,16 @@
 # NOTE: uppercase to distinguish the global one
 import yt.wrapper as yt_module
 import yt.yson as yson
+from yt.common import YtError
+from yt.wrapper.common import run_with_retries, update
+from yt.wrapper.client import Yt
+
+from yt.packages.six import itervalues, iteritems
+
 import sys
 import time
 import logging
 import itertools
-
-from yt.common import YtError
-from yt.wrapper.common import run_with_retries
-from yt.wrapper.client import Yt
 from random import shuffle
 
 # XXXX/TODO: global stuff. Find a way to avoid this.
@@ -173,7 +175,7 @@ class DynamicTablesClient(object):
         self.set_options(**options)
 
     def set_options(self, **options):
-        for name, val in options.items():
+        for name, val in iteritems(options):
             if not hasattr(self, name):
                 raise Exception("Unknown option: %s" % (name,))
             if val is None:
@@ -194,9 +196,7 @@ class DynamicTablesClient(object):
         return self.token or yt_module.config["token"]
 
     def make_proxy_yt_client(self, **kwargs):
-        kwargs["config"] = dict(
-            self.default_client_config.items() +
-            (kwargs.get("config") or {}).items())
+        kwargs["config"] = update(self.default_client_config, kwargs.get("config", {}))
         kwargs.setdefault("proxy", self.overridable_proxy)
         kwargs.setdefault("token", self.overridable_token)
         return Yt(**kwargs)
@@ -250,7 +250,7 @@ class DynamicTablesClient(object):
         def state_checker():
             tablets = {tablet["tablet_id"]: tablet["state"] for tablet in self.yt.get_attribute(table, "tablets", default=[])}
             logging.info("Table %s tablets: %s" % (table, str(tablets)))
-            return all(state in possible_states for state in tablets.itervalues())
+            return all(state in possible_states for state in itervalues(tablets))
         return state_checker
 
     def _wait_for_table_consistency(self, table, timeout, pause):

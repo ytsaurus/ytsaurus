@@ -4,7 +4,7 @@ _test_scheduling_func = None
 
 def split_test_suites(suites, process_count):
     suites_per_process = len(suites) / process_count
-    suites_keys = suites.keys()
+    suites_keys = list(suites)
 
     slaves_tasks = []
 

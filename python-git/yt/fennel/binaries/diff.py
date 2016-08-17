@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+from yt.packages.six import iteritems
+
 import yt.wrapper as yt
 
 import sys
@@ -8,7 +10,7 @@ import sys
 def transform_row(row):
     if isinstance(row, dict):
         result = []
-        for key, value in sorted(row.iteritems()):
+        for key, value in sorted(iteritems(row)):
             result.append((key, transform_row(value)))
         return ("map", tuple(result))
     elif isinstance(row, list):

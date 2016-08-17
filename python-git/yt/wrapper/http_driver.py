@@ -6,10 +6,11 @@ from errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurren
 from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, parse_error_from_headers, get_header_format
 from response_stream import ResponseStream
 
-from yt.packages.requests.auth import AuthBase
-
 import yt.logger as logger
 import yt.json as json
+
+from yt.packages.requests.auth import AuthBase
+from yt.packages.six import iteritems
 
 import random
 from copy import deepcopy
@@ -39,7 +40,7 @@ def escape_utf8(obj):
     elif isinstance(obj, list):
         obj = map(escape_utf8, obj)
     elif isinstance(obj, dict):
-        obj = dict((escape_str(k), escape_utf8(v)) for k, v in obj.iteritems())
+        obj = dict((escape_str(k), escape_utf8(v)) for k, v in iteritems(obj))
     return obj
 
 def get_hosts(client=None):
@@ -51,7 +52,7 @@ def get_heavy_proxy(client):
     banned_hosts = get_option("_banned_proxies", client)
 
     now = datetime.now()
-    for host in banned_hosts.keys():
+    for host in list(banned_hosts):
         time = banned_hosts[host]
         if total_seconds(now - time) * 1000 > get_config(client)["proxy"]["proxy_ban_timeout"]:
             logger.info("Host %s unbanned", host)

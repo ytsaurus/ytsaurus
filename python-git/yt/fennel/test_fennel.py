@@ -9,7 +9,6 @@ import pytest
 import functools
 import logging
 import uuid
-import sys
 
 pytestmark = pytest.mark.skipif("sys.version_info < (2,7)", reason="requires python2.7")
 
@@ -84,7 +83,7 @@ class FakeIOStream(object):
 
     def _compare_dicts(self, expected, actual):
         assert len(expected) == len(actual)
-        for key, value in expected.iteritems():
+        for key, value in expected.items():
             if value != FakeIOStream.IGNORE:
                 assert key in actual
                 assert value == actual[key]

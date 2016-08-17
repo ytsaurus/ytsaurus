@@ -6,6 +6,8 @@ from config import get_config
 from yt.yson import YsonString
 import yt.yson as yson
 
+from yt.packages.six import iteritems
+
 from contextlib import contextmanager
 
 def check_prefix(prefix):
@@ -72,7 +74,7 @@ class TablePath(object):
         self._append = append
         if simplify:
             self.name = parse_ypath(name, client=client)
-            for key, value in self.name.attributes.items():
+            for key, value in iteritems(self.name.attributes):
                 if "-" in key:
                     self.name.attributes[key.replace("-", "_")] = value
                     del self.name.attributes[key]

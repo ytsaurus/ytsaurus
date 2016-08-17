@@ -1,16 +1,16 @@
 from __future__ import print_function
 
-from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
+from helpers import TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, \
+                    build_python_egg, TESTS_SANDBOX
 
+from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
 from yt.common import which, makedirp
 from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.table import TablePath
-import yt.wrapper as yt
 import yt.logger as logger
 
-from helpers import TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, \
-                    build_python_egg, TESTS_SANDBOX
+import yt.wrapper as yt
 
 import os
 import imp
@@ -306,7 +306,7 @@ class TestOperations(object):
             yt.write_table("<sorted_by=[x]>" + table2, [{"x": 1}])
 
             def func(key, rows):
-                assert key.keys() == ["x"]
+                assert list(key) == ["x"]
                 for row in rows:
                     del row["@table_index"]
                     yield row
@@ -397,7 +397,7 @@ class TestOperations(object):
         yt.write_table(table, [{"x": 1}, {"y": 2}])
         op = yt.run_map(write_statistics, table, table, format=None, sync=False)
         op.wait()
-        assert sorted(op.get_job_statistics()["custom"].keys()) == sorted(["row_count", "python_job_preparation_time"])
+        assert sorted(list(op.get_job_statistics()["custom"])) == sorted(["row_count", "python_job_preparation_time"])
         assert op.get_job_statistics()["custom"]["row_count"] == {"$": {"completed": {"map": {"count": 2, "max": 1, "sum": 2, "min": 1}}}}
         check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 

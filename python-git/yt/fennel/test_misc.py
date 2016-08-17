@@ -47,8 +47,8 @@ def compare_types(left, right):
 def compare(left, right):
     compare_types(left, right)
     if isinstance(left, dict):
-        assert len(left.keys()) == len(right.keys())
-        for k in left.keys():
+        assert len(list(left)) == len(list(right))
+        for k in list(left):
             compare(left[k], right[k])
     else:
         assert left == right

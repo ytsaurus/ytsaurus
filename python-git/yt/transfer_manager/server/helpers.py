@@ -2,8 +2,11 @@ from __future__ import print_function
 
 from errors import IncorrectTokenError
 
-import yt.wrapper as yt
 import yt.logger as logger
+
+from yt.packages.six import iteritems
+
+import yt.wrapper as yt
 
 import os
 import sys
@@ -61,7 +64,7 @@ def _get_token(authorization_header):
 
 def get_token_and_user(request, client):
     headers = {}
-    for key, value in request.headers.iteritems():
+    for key, value in iteritems(request.headers):
         headers[key] = value
 
     # Some headers should not be passed.
@@ -99,7 +102,7 @@ def remove_unsigned(obj):
         return result
     elif isinstance(obj, dict):
         result = {}
-        for key, value in obj.iteritems():
+        for key, value in iteritems(obj):
             new_value = remove_unsigned(value)
             if not is_uint(new_value):
                 result[key] = new_value

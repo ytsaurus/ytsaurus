@@ -13,6 +13,8 @@ import yson
 import yt.logger as logger
 import yt.json as json
 
+from yt.packages.six import iteritems
+
 from abc import ABCMeta, abstractmethod
 import copy
 import struct
@@ -89,13 +91,13 @@ class Format(object):
     @staticmethod
     def _escape(string, escape_dict):
         string = string.replace("\\", "\\\\")
-        for sym, escaped in escape_dict.items():
+        for sym, escaped in iteritems(escape_dict):
             string = string.replace(sym, escaped)
         return string
 
     @staticmethod
     def _unescape(string, escape_dict):
-        for sym, unescaped in escape_dict.items():
+        for sym, unescaped in iteritems(escape_dict):
             string = string.replace(sym, unescaped)
         return string.replace("\\", "")
 
@@ -245,7 +247,7 @@ class DsvFormat(Format):
             stream.write("\n")
         else:
             length = len(row)
-            for i, item in enumerate(row.iteritems()):
+            for i, item in enumerate(iteritems(row)):
                 stream.write(escape_key(str(item[0])))
                 stream.write("=")
                 stream.write(escape_value(str(item[1])))
@@ -595,7 +597,7 @@ class YamrFormat(Format):
         return fields
 
     def _dump_row(self, row, stream):
-        fields = row.items()
+        fields = list(iteritems(row))
 
         if self.lenval:
             for field in fields:

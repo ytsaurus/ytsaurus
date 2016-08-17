@@ -2,12 +2,13 @@ from helpers import TEST_DIR
 
 from yt.wrapper.cypress_fuse import CachedYtClient, Cypress
 from yt.wrapper.http import get_proxy_url
-import yt.wrapper as yt
 
 from yt.packages.fuse import fuse_file_info, FuseOSError
+from yt.packages.six import iterkeys
+
+import yt.wrapper as yt
 
 import pytest
-
 import random
 import json
 
@@ -37,11 +38,11 @@ class TestCachedYtClient(object):
 
         real_attributes = yt.get("//home/@")
         # TODO(acid): Replace this with single get when YT-3522 is ready.
-        for attribute in real_attributes.keys():
+        for attribute in list(real_attributes):
             if isinstance(real_attributes[attribute], yt.yson.YsonEntity):
                 real_attributes[attribute] = yt.get("//home/@" + attribute)
 
-        cached_attributes = client.get_attributes("//home", real_attributes.keys())
+        cached_attributes = client.get_attributes("//home", list(real_attributes))
 
         ephemeral_attributes = ["access_time", "access_counter", "weak_ref_counter"]
         # TODO(acid): This attribute is asynchronous and is not accessible through list command.
@@ -54,9 +55,9 @@ class TestCachedYtClient(object):
                 attributes.pop(attribute, None)
         assert real_attributes == cached_attributes
 
-        sample_names = random.sample(real_attributes.keys(), len(real_attributes) / 2)
+        sample_names = random.sample(list(real_attributes), len(real_attributes) / 2)
         cached_attributes = client.get_attributes("//home", sample_names)
-        assert sorted(cached_attributes.keys()) == sorted(sample_names)
+        assert sorted(iterkeys(cached_attributes)) == sorted(sample_names)
 
         for name in sample_names:
             assert real_attributes[name] == cached_attributes[name]

@@ -1,7 +1,6 @@
-import yt.wrapper as yt
 from yt.common import update
 
-from helpers import set_config_option
+import yt.wrapper as yt
 
 import os
 import pytest

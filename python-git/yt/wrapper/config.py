@@ -7,6 +7,8 @@ import client_state
 import yt.yson as yson
 import yt.json as json
 
+import yt.packages.six as six
+
 import os
 import sys
 import types
@@ -145,6 +147,7 @@ class Config(types.ModuleType, client_state.ClientState):
         self.json_module = json
         self.yson_module = yson
         self.client_state_module = client_state
+        self.six_module = six
 
         self._init()
         self._update_from_env()
@@ -233,7 +236,7 @@ class Config(types.ModuleType, client_state.ClientState):
         old_options = sorted(list(self.shortcuts))
         old_options_short = [value.split(".")[-1] for value in old_options]
 
-        for key, value in os.environ.iteritems():
+        for key, value in self.six_module.iteritems(os.environ):
             prefix = "YT_"
             if not key.startswith(prefix):
                 continue

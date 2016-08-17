@@ -1,10 +1,10 @@
 from yt.wrapper.string_iter_io import StringIterIO
 import yt.yson as yson
-import yt.wrapper as yt
 from yt.wrapper.format import extract_key, create_format
 
-from cStringIO import StringIO
+import yt.wrapper as yt
 
+from cStringIO import StringIO
 import pytest
 
 def test_string_iter_io_read():

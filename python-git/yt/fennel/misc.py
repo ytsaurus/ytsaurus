@@ -1,5 +1,7 @@
 from yt.wrapper import format
 
+from yt.packages.six import iteritems
+
 import datetime
 import gzip
 import StringIO
@@ -53,7 +55,7 @@ def read_table(client, table_path):
 
 def convert_to_tskved_json(row):
     result = {}
-    for key, value in row.iteritems():
+    for key, value in iteritems(row):
         if isinstance(value, basestring):
             pass
         else:
@@ -67,7 +69,7 @@ def convert_to_tskved_json(row):
 
 def convert_from_tskved_json(converted_row):
     result = dict()
-    for key, value in converted_row.iteritems():
+    for key, value in iteritems(converted_row):
         new_value = value
         try:
             if isinstance(new_value, basestring):

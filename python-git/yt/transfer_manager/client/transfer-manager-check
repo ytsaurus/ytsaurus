@@ -7,6 +7,9 @@ from yt.common import YtError, get_value, remove_file
 from yt.tools.yamr import Yamr
 from yt.transfer_manager.client import TransferManager
 import yt.json as json
+
+from yt.packages.six import itervalues, iteritems
+
 import yt.wrapper as yt
 
 import os
@@ -118,7 +121,7 @@ class FilesCache(dict):
         atexit.register(self.cleanup)
 
     def cleanup(self):
-        for path in self.itervalues():
+        for path in itervalues(self):
             remove_file(path, force=True)
 
 def get_yamr_binary(options, active_tm_server_address):
@@ -155,7 +158,7 @@ def create_clusters_clients(backend_config, token):
     active_tm_server_address = get_active_transfer_manager_server_address(backend_config)
 
     result = {}
-    for name, configuration in clusters.iteritems():
+    for name, configuration in iteritems(clusters):
         logger.info("Preparing client for cluster %s", name)
         type_ = configuration["type"]
         options = configuration.get("options", {})

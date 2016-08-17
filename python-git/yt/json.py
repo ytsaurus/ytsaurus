@@ -1,3 +1,5 @@
+from yt.packages.six import iteritems
+
 try:
     from simplejson import *
 except ImportError:
@@ -7,7 +9,7 @@ except ImportError:
 def loads_as_bytes(*args, **kwargs):
     def encode(value):
         if isinstance(value, dict):
-            return dict([(encode(k), encode(v)) for k, v in value.iteritems()])
+            return dict([(encode(k), encode(v)) for k, v in iteritems(value)])
         elif isinstance(value, list):
             return [encode(item) for item in value]
         elif isinstance(value, unicode):

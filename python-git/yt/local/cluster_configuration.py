@@ -2,6 +2,8 @@ from yt.wrapper.common import MB, GB
 from yt.common import update
 from yt.environment.helpers import versions_cmp
 
+from yt.packages.six import iteritems, itervalues
+
 # Local mode config patches (for all versions)
 # None values mean config subtree removal (see _remove_none_fields function below)
 # For more detailed info about how configs are generated see environment/configs_provider.py
@@ -191,7 +193,7 @@ def _remove_none_fields(node):
         keys_to_remove = []
 
         if isinstance(node, dict):
-            for key, value in node.iteritems():
+            for key, value in iteritems(node):
                 process(key, value, keys_to_remove)
         elif isinstance(node, list):
             for i, value in enumerate(node):
@@ -218,7 +220,7 @@ def modify_cluster_configuration(cluster_configuration, ytserver_version, master
             if versions_cmp(ytserver_version, "0.18") >= 0:
                 update(config, MASTER_18_PATCH)
 
-    for config in cluster_configuration["driver"].values():
+    for config in itervalues(cluster_configuration["driver"]):
         update(config, DRIVER_CONFIG_PATCH)
 
     for config in cluster_configuration["scheduler"]:

@@ -13,6 +13,8 @@ except ImportError:
 
 from yt.fennel import misc
 
+from yt.packages.six import itervalues
+
 import tornado
 assert tornado.version_info > (4,)
 
@@ -409,12 +411,12 @@ class LogBroker(object):
             is_exception = issubclass(type(future_value), Exception)
             if is_exception:
                 self.log.debug("Set all futures to exception %r", future_value)
-                for key, value in self._save_chunk_futures.iteritems():
+                for value in itervalues(self._save_chunk_futures):
                     value.set_exception(future_value)
 
                 self._save_chunk_futures.clear()
             else:
-                seqnos = self._save_chunk_futures.keys()
+                seqnos = list(self._save_chunk_futures)
                 for seqno in seqnos:
                     if seqno <= future_value:
                         f = self._save_chunk_futures.pop(seqno)

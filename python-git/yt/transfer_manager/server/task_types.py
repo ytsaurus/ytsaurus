@@ -1,4 +1,7 @@
 from yt.common import get_value
+
+from yt.packages.six import iteritems
+
 import yt.wrapper as yt
 
 from copy import deepcopy
@@ -91,13 +94,13 @@ class Task(object):
                 del result[key]
         if result["_subtasks"] is not None:
             result["subtasks"] = [subtask.dict() for subtask in result["_subtasks"]]
-        for key in result.keys():
+        for key in list(result):
             if result[key] is None or (fields is not None and key not in fields) or key.startswith("_"):
                 del result[key]
         return result
 
     def copy(self):
-        return Task(**dict((key, value) for key, value in self.__dict__.items() if not key.startswith("_")))
+        return Task(**dict((key, value) for key, value in iteritems(self.__dict__) if not key.startswith("_")))
 
     # Returns pair: active client, that run copy operation and passive client.
     def get_active_and_passive_clients(self, clusters_configuration):
@@ -128,6 +131,6 @@ class Subtask(object):
 
     def dict(self):
         result = self.__dict__.copy()
-        for key in result.keys():
+        for key in list(result):
             if result[key] is None:
                 del result[key]

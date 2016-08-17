@@ -3,6 +3,8 @@ from datetime import datetime
 import yt.wrapper.common as yt_common
 import yt.tools.dynamic_tables as dt_module
 
+from yt.packages.six import iteritems
+
 # Attribute prefix
 ATTRIBUTE_PREFIX = "_yt_dump_restore_"
 
@@ -23,7 +25,7 @@ def _drop_sort_order(schema):
 
 def save_attributes(dst, yt, **attributes):
     """ Save table properties to simple attributes """
-    for attr, value in attributes.iteritems():
+    for attr, value in iteritems(attributes):
         yt.set(dst + "/@" + ATTRIBUTE_PREFIX + attr, value)
 
 
