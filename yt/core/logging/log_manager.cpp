@@ -363,6 +363,7 @@ public:
             return;
         }
 
+        // NB: Always allow system messages to pass through. 
         if (Suspended_ && event.Category != SystemLoggingCategory) {
             return;
         }
@@ -373,11 +374,20 @@ public:
         if (Notified_.compare_exchange_strong(expected, true)) {
             EventCount_->NotifyOne();
         }
-        
-        if (!Suspended_ && backlogEvents >= HighBacklogWatermark_) {
-            Suspended_ = true;
-            LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",
-                HighBacklogWatermark_);
+
+        // NB: This is somewhat racy but should work fine as long as more messages keep coming.
+        if (Suspended_) {
+            if (backlogEvents < LowBacklogWatermark_) {
+                Suspended_ = false;
+                LOG_INFO("Backlog size has dropped below low watermark %v, logging resumed",
+                    LowBacklogWatermark_);
+            }
+        } else {
+            if (backlogEvents >= HighBacklogWatermark_) {
+                Suspended_ = true;
+                LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",
+                    HighBacklogWatermark_);
+            }
         }
     }
 
@@ -472,15 +482,6 @@ private:
                 }
             }))
         { }
-
-        auto enqueuedEvents = EnqueuedEvents_.load();
-        auto writtenEvents = WrittenEvents_.load();
-        auto backlogSize = enqueuedEvents - writtenEvents;
-        if (Suspended_ && backlogSize < LowBacklogWatermark_) {
-            Suspended_ = false;
-            LOG_INFO("Backlog size has dropped below low watermark %v, logging resumed",
-                LowBacklogWatermark_);
-        }
 
         if (eventsWritten > 0 && !Config_->FlushPeriod) {
             FlushWriters();
