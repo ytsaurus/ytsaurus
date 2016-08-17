@@ -846,10 +846,7 @@ class YTInstance(object):
             self.path, "driver", self._enable_debug_logging)
 
     def _prepare_console_driver(self):
-        from default_configs import get_console_driver_config
-
-        config = get_console_driver_config()
-
+        config = {}
         config["driver"] = self.configs["driver"]
         config["logging"] = init_logging(config["logging"], self.path, "console_driver",
                                          self._enable_debug_logging)

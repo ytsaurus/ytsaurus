@@ -332,16 +332,6 @@ def get_driver_config():
 }
 """)
 
-def get_console_driver_config():
-    return yson.loads(
-"""
-{
-    driver = { };
-    logging = { };
-    tracing = { };
-}
-""")
-
 def get_proxy_config():
     return json.loads(
 """

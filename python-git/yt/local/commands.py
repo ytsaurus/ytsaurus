@@ -188,6 +188,9 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
         node_config_patch=_load_config(node_config),
         proxy_config_patch=_load_config(proxy_config, is_proxy_config=True))
 
+    # Enable capturing stderrs to file
+    os.environ["YT_CAPTURE_STDERR_TO_FILE"] = "1"
+
     environment = YTInstance(sandbox_path,
                              master_count=master_count,
                              node_count=node_count,
@@ -205,9 +208,6 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
                              modify_configs_func=modify_configs_func)
 
     environment.id = sandbox_id
-
-    # Enable capturing stderrs to file
-    os.environ["YT_CAPTURE_STDERR_TO_FILE"] = "1"
 
     use_proxy_from_yt_source = use_proxy_from_yt_source or \
             _get_bool_from_env("YT_LOCAL_USE_PROXY_FROM_SOURCE")
