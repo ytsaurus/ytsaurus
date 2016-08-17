@@ -354,17 +354,17 @@ private:
             stripes.push_back(New<TChunkStripe>(CreateInputSlice(chunkSpec)));
         }
 
-        auto jobCount = SuggestJobCount(
+        TJobSizeLimits jobSizeLimits(
             TotalEstimatedInputDataSize,
-            Spec_->DataSizePerJob,
+            Spec_->DataSizePerJob.Get(Options_->DataSizePerJob),
             Spec_->JobCount,
             GetMaxJobCount(Spec_->MaxJobCount, Options_->MaxJobCount));
-        jobCount = std::min(jobCount, static_cast<int>(stripes.size()));
+        jobSizeLimits.SetJobCount(std::min(jobSizeLimits.GetJobCount(), static_cast<int>(stripes.size())));
 
-        if (stripes.size() > Spec_->MaxChunkCountPerJob * jobCount) {
+        if (stripes.size() > Spec_->MaxChunkCountPerJob * jobSizeLimits.GetJobCount()) {
             THROW_ERROR_EXCEPTION("Too many chunks per job: actual %v, limit %v; "
                 "please merge input tables before starting Remote Copy",
-                stripes.size() / jobCount,
+                stripes.size() / jobSizeLimits.GetJobCount(),
                 Spec_->MaxChunkCountPerJob);
         }
 
@@ -435,11 +435,12 @@ private:
         };
 
         i64 currentDataSize = 0;
+        i64 dataSizePerJob = Spec_->DataSizePerJob.Get(Options_->DataSizePerJob);
         std::vector<TChunkStripePtr> currentStripes;
         for (auto stripe : stripes) {
             currentStripes.push_back(stripe);
             currentDataSize += stripe->GetStatistics().DataSize;
-            if (currentDataSize >= Spec_->DataSizePerJob || currentStripes.size() == Config->MaxChunkStripesPerJob) {
+            if (currentDataSize >= dataSizePerJob || currentStripes.size() == Config->MaxChunkStripesPerJob) {
                 addTask(currentStripes, Tasks.size());
                 currentStripes.clear();
                 currentDataSize = 0;

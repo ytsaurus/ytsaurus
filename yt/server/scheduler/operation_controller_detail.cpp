@@ -3705,7 +3705,7 @@ std::vector<std::deque<TInputChunkPtr>> TOperationControllerBase::CollectForeign
 std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
     const std::vector<TInputChunkPtr>& chunkSpecs,
     i64 maxSliceDataSize,
-    int* jobCount)
+    TJobSizeLimits* jobSizeLimits)
 {
     std::vector<TChunkStripePtr> result;
     auto appendStripes = [&] (const std::vector<TInputSlicePtr>& slices) {
@@ -3720,9 +3720,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
     if (TotalEstimatedInputDataSize < maxSliceDataSize) {
         multiplier = 1.0;
     }
-    i64 sliceDataSize = std::min(
-        maxSliceDataSize,
-        (i64)std::max(multiplier * TotalEstimatedInputDataSize / *jobCount, 1.0));
+    i64 sliceDataSize = Clamp(static_cast<i64>(jobSizeLimits->GetDataSizePerJob() * multiplier), 1, maxSliceDataSize); 
 
     for (const auto& chunkSpec : chunkSpecs) {
         int oldSize = result.size();
@@ -3745,19 +3743,18 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
             result.size() - oldSize);
     }
 
-    *jobCount = std::min(*jobCount, static_cast<int>(result.size()));
-    if (!result.empty()) {
-        *jobCount = std::max(*jobCount, 1 + (static_cast<int>(result.size()) - 1) / Config->MaxChunkStripesPerJob);
-    }
-
+    i64 stripeCount = result.size();
+    i64 minJobCount = DivCeil(stripeCount, Config->MaxChunkStripesPerJob);
+    i64 jobCount = Clamp(jobSizeLimits->GetJobCount(), minJobCount, stripeCount);
+    jobSizeLimits->SetJobCount(jobCount);
     return result;
 }
 
 std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(
     i64 maxSliceDataSize,
-    int* jobCount)
+    TJobSizeLimits* jobSizeLimits)
 {
-    return SliceChunks(CollectPrimaryInputChunks(), maxSliceDataSize, jobCount);
+    return SliceChunks(CollectPrimaryInputChunks(), maxSliceDataSize, jobSizeLimits);
 }
 
 TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
@@ -4167,20 +4164,6 @@ int TOperationControllerBase::GetMaxJobCount(
         maxJobCount = std::min(maxJobCount, *userMaxJobCount);
     }
     return maxJobCount;
-}
-
-int TOperationControllerBase::SuggestJobCount(
-    i64 totalDataSize,
-    i64 dataSizePerJob,
-    TNullable<int> configJobCount,
-    int maxJobCount) const
-{
-    i64 suggestionBySize = (totalDataSize + dataSizePerJob - 1) / dataSizePerJob;
-    // Job count must fit into int.
-    suggestionBySize = Clamp(suggestionBySize, 1, maxJobCount);
-
-    int jobCount = configJobCount.Get(suggestionBySize);
-    return Clamp(jobCount, 1, maxJobCount);
 }
 
 void TOperationControllerBase::InitUserJobSpecTemplate(

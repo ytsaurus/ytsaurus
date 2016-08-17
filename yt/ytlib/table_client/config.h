@@ -156,7 +156,7 @@ public:
     TChunkReaderConfig()
     {
         RegisterParameter("max_data_size_per_read", MaxDataSizePerRead)
-            .GreaterThan((i64) 1024 * 1024)
+            .GreaterThanOrEqual((i64) 1024 * 1024)
             .Default((i64) 16 * 1024 * 1024);
 
         RegisterParameter("sampling_rate", SamplingRate)
