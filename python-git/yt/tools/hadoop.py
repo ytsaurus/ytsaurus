@@ -1,8 +1,10 @@
 from yt.wrapper.common import generate_uuid, run_with_retries
 from yt.wrapper.http import get_retriable_errors
-import yt.packages.requests as requests
 import yt.logger as logger
 from yt.json import loads_as_bytes
+
+import yt.packages.requests as requests
+from yt.packages.six import itervalues
 
 import os
 import json
@@ -120,7 +122,7 @@ class Airflow(object):
             raise AirflowError("Task {0} not found".format(task_id))
 
         info = loads_as_bytes(response.content)
-        return info.values()[0] if info else {}
+        return list(itervalues(info))[0] if info else {}
 
     def get_task_log(self, task_id):
         info = self.get_task_info(task_id)

@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 
-import yt.zip as zip
-import yt.wrapper as yt
-
 from helpers import TEST_DIR, set_config_option
+
+import yt.zip as zip
+
+import yt.wrapper as yt
 
 import os
 import pytest

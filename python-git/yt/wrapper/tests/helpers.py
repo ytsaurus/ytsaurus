@@ -1,3 +1,5 @@
+from yt.packages.six import iteritems
+
 import yt.wrapper as yt
 
 import os
@@ -38,7 +40,7 @@ def check(rowsA, rowsB, ordered=True):
             return obj
         def process_row(row):
             if isinstance(row, dict):
-                return dict([(fix_unicode(key), fix_unicode(value)) for key, value in row.iteritems()])
+                return dict([(fix_unicode(key), fix_unicode(value)) for key, value in iteritems(row)])
             return row
 
         rows = map(process_row, rows)

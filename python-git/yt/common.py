@@ -1,3 +1,5 @@
+from yt.packages.six import iteritems
+
 from itertools import chain
 from collections import Mapping
 import os
@@ -155,7 +157,7 @@ def _pretty_format(error, attribute_length_limit=None, indent=0):
     if all(key in attributes for key in location_keys):
         lines.append(format_attribute("location", "%s:%d" % (attributes["file"], attributes["line"])))
 
-    for key, value in attributes.items():
+    for key, value in iteritems(attributes):
         if key in origin_keys or key in location_keys or key in origin_cpp_keys:
             continue
         lines.append(format_attribute(key, value))
@@ -194,7 +196,7 @@ def require(condition, exception_func):
 
 def update(object, patch):
     if isinstance(patch, Mapping) and isinstance(object, Mapping):
-        for key, value in patch.iteritems():
+        for key, value in iteritems(patch):
             if key in object:
                 object[key] = update(object[key], value)
             else:
@@ -217,7 +219,7 @@ def flatten(obj, list_types=(list, tuple, set, types.GeneratorType)):
 
 def update_from_env(variables):
     """ Update variables dict from environment. """
-    for key, value in os.environ.iteritems():
+    for key, value in iteritems(os.environ):
         prefix = "YT_"
         if not key.startswith(prefix):
             continue
@@ -246,7 +248,7 @@ def get_value(value, default):
         return value
 
 def filter_dict(predicate, dictionary):
-    return dict([(k, v) for (k, v) in dictionary.iteritems() if predicate(k, v)])
+    return dict([(k, v) for (k, v) in iteritems(dictionary) if predicate(k, v)])
 
 def set_pdeathsig():
     if sys.platform.startswith("linux"):
@@ -282,4 +284,3 @@ def datetime_to_string(date, is_local=False):
 def make_non_blocking(fd):
     flags = fcntl.fcntl(fd, fcntl.F_GETFL)
     fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-

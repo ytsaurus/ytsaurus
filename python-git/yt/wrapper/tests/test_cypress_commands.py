@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 
+from helpers import TEST_DIR
+
 from yt.wrapper.client import Yt
 from yt.wrapper.common import parse_bool
 import yt.json as json
 import yt.yson as yson
-import yt.wrapper as yt
 
-from helpers import TEST_DIR
+import yt.wrapper as yt
 
 import time
 import pytest

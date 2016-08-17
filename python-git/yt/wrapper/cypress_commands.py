@@ -9,6 +9,8 @@ from format import create_format
 
 import yt.logger as logger
 
+from yt.packages.six import iteritems
+
 import os
 import string
 from copy import deepcopy
@@ -407,7 +409,7 @@ def search(root="", node_type=None,
            (object_filter is None or object_filter(object)) and \
            (path_filter is None or path_filter(path)):
             yson_path = yson.YsonString(path)
-            yson_path.attributes = dict(filter(lambda item: item[0] in attributes, object.attributes.iteritems()))
+            yson_path.attributes = dict(filter(lambda item: item[0] in attributes, iteritems(object.attributes)))
             yield yson_path
 
         if object_type in ["account_map", "tablet_cell"]:
@@ -415,10 +417,10 @@ def search(root="", node_type=None,
 
         if isinstance(object, dict):
             if map_node_order is not None:
-                iteritems = ((key, object[key]) for key in map_node_order(path, object))
+                items_iter = ((key, object[key]) for key in map_node_order(path, object))
             else:
-                iteritems = object.iteritems()
-            for key, value in iteritems:
+                items_iter = iteritems(object)
+            for key, value in items_iter:
                 for obj in walk("{0}/{1}".format(path, escape_ypath_literal(key)), value, depth + 1):
                     yield obj
 

@@ -10,6 +10,8 @@ from yt.wrapper.client import Yt
 from yt.wrapper.errors import YtResponseError
 import yt.yson as yson
 
+from yt.packages.six import itervalues
+
 import logging
 import os
 import re
@@ -184,14 +186,14 @@ class YTEnv(object):
         self.instances[instance_id] = instance
 
     def clear_environment(self):
-        for instance in self.instances.values():
+        for instance in itervalues(self.instances):
             instance.stop()
 
     def check_liveness(self, callback_func):
         def callback(environment, process_call_args):
            callback_func(self, process_call_args)
 
-        for instance in self.instances.values():
+        for instance in itervalues(self.instances):
             instance.check_liveness(callback)
 
     def _get_master_name_parts(self, master_name):
@@ -259,7 +261,7 @@ class YTEnv(object):
             update(config, self.DELTA_NODE_CONFIG)
             self.modify_node_config(config)
 
-        for config in cluster_configuration["driver"].values():
+        for config in itervalues(cluster_configuration["driver"]):
             update(config, self.DELTA_DRIVER_CONFIG)
 
     def modify_master_config(self, config):
@@ -516,7 +518,7 @@ class YTInstance(object):
 
     def check_liveness(self, callback_func):
         with self._lock:
-            for pid, info in self._all_processes.iteritems():
+            for info in itervalues(self._all_processes):
                 proc, args = info
                 proc.poll()
                 if proc.returncode is not None:
@@ -781,7 +783,7 @@ class YTInstance(object):
                 if active_scheduler_orchid_path is None:
                     return False
 
-                nodes = client.get(active_scheduler_orchid_path + "/nodes").values()
+                nodes = list(itervalues(client.get(active_scheduler_orchid_path + "/nodes")))
                 return len(nodes) == self.node_count and all(node["state"] == "online" for node in nodes)
             except YtResponseError as err:
                 # Orchid connection refused

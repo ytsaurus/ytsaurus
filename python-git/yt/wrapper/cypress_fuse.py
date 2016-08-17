@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
 """mount-cypress -- mount a Cypress, an YT cluster metainformation tree.
 
 Usage:
@@ -14,11 +15,13 @@ Options:
   -h, --help    Show this help.
 
 """
+
 import yt.wrapper.client
 
 from yt.packages.expiringdict import ExpiringDict
 import yt.packages.fuse as fuse
 import yt.packages.requests as requests
+from yt.packages.six import itervalues, iteritems, iterkeys
 
 import stat
 import errno
@@ -53,7 +56,7 @@ class Statistics(object):
 
     def report(self):
         self._logger.debug("Statistics:")
-        for name in self._timings.keys():
+        for name in iterkeys(self._timings):
             duration = self._timings[name]
             calls = self._calls[name]
             self._logger.debug("{0}: {1}, {2}".format(name, duration, calls))
@@ -216,7 +219,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
                 self._cache[path] = CachedYtClient.CacheEntry(exists=False, error=error)
             raise
         cache_entry.attributes.update(
-            (a, (True, v)) for a, v in all_attributes.iteritems()
+            (a, (True, v)) for a, v in iteritems(all_attributes)
         )
 
         requested_attributes = {}
@@ -562,7 +565,7 @@ class Cypress(fuse.Operations):
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def getattr(self, path, fi):
         ypath = self._to_ypath(path)
-        for opened_file in self._opened_files.itervalues():
+        for opened_file in itervalues(self._opened_files):
             if opened_file.ypath == ypath:
                 attributes = opened_file.attributes
                 break
@@ -716,7 +719,7 @@ class Cypress(fuse.Operations):
     def truncate(self, path, length, fh=None):
         self._validate_write_access()
         ypath = self._to_ypath(path)
-        for file_fh, opened_file in self._opened_files.iteritems():
+        for file_fh, opened_file in iteritems(self._opened_files):
             if opened_file.ypath == ypath:
                 fh = file_fh
                 break

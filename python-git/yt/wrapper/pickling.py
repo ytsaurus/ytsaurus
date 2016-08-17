@@ -14,8 +14,8 @@ frameworks = {
 
 def import_framework_module(framework):
     if framework not in frameworks:
-        raise yt.YtError("Cannot find pickling framework {}. Available frameworks: {}.".format(
-            framework, frameworks.keys()))
+        raise yt.YtError("Cannot find pickling framework {0}. Available frameworks: {1}."
+                         .format(framework, list(frameworks)))
     return import_module(frameworks[framework])
 
 

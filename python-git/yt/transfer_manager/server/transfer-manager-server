@@ -22,9 +22,10 @@ from yt.wrapper.common import generate_uuid, get_value, update, parse_bool
 from yt.wrapper.client import Yt
 import yt.logger as logger
 import yt.json as json
+
 from yt.packages.expiringdict import ExpiringDict
 from yt.packages.cherrypy import wsgiserver
-
+from yt.packages.six import iteritems, PY3
 import yt.packages.pympler.muppy as pympler_muppy
 import yt.packages.pympler.summary as pympler_summary
 
@@ -460,7 +461,7 @@ class Application(object):
 
         running_tasks = []
 
-        for id, options in self._yt.get(tasks_path).iteritems():
+        for id, options in iteritems(self._yt.get(tasks_path)):
             try:
                 task = Task(**options)
                 task._last_ping_time = time.time()
@@ -694,7 +695,7 @@ class Application(object):
                         logger.info("Lease of task %s has expired", id)
                         self._abort_task(id)
 
-                for id, (process, message_queue) in self._task_processes.items():
+                for id, (process, message_queue) in list(iteritems(self._task_processes)):
                     logger.info("Task %s %s", id, self._tasks[id].state)
 
                     error = None
@@ -1064,7 +1065,7 @@ class Application(object):
                 "start_time": self._tasks[id].start_time,
                 "finish_time": self._tasks[id].finish_time
             }
-            for bad_key in [key for key, value in history_element.iteritems() if value is None]:
+            for bad_key in [key for key, value in iteritems(history_element) if value is None]:
                 del history_element[bad_key]
 
             self._tasks[id].history.append(history_element)
@@ -1139,8 +1140,13 @@ class Application(object):
                     logger.info("Get tasks responded from cache")
                     return Response(self._cache_tasks_response, mimetype="application/json")
 
-        # Thread safe method to save copies of dict and list shared among threads .
-        tasks = dict(self._tasks.items())
+        # Thread safe method to save copies of dict and list shared among threads.
+        # In Python 3 this method does not return list so mutex should be taken.
+        if not PY3:
+            tasks = dict(self._tasks.items())
+        else:
+            with self._mutex:
+                tasks = deepcopy(self._tasks)
         pending_tasks = self._pending_tasks[:]
 
         copy_finished_time = time.time()
@@ -1153,10 +1159,10 @@ class Application(object):
             tasks_direction_indexes[id] = queue_sizes[direction_id]
 
         if user is not None:
-            tasks = dict([(id, task) for id, task in tasks.iteritems() if task.user == user])
+            tasks = dict([(id, task) for id, task in iteritems(tasks) if task.user == user])
 
         tasks_descriptions = []
-        for id, task in tasks.iteritems():
+        for id, task in iteritems(tasks):
             description = task.dict(hide_token=True, fields=fields)
             if id in tasks_direction_indexes:
                 description["direction_index"] = tasks_direction_indexes[id]
@@ -1231,7 +1237,7 @@ class Application(object):
         elif info == "gc_info":
             return json.dumps({"garbage_size": len(gc.garbage), "counts": gc.get_count()}), 200
         elif info == "application_field_sizes":
-            return json.dumps(dict([(key, len(value)) for key, value in self.__dict__.iteritems()
+            return json.dumps(dict([(key, len(value)) for key, value in iteritems(self.__dict__)
                                     if isinstance(value, list) or isinstance(value, dict)])), 200
         else:
             return "Unknown value of info option", 200
@@ -1293,7 +1299,7 @@ class Application(object):
                     **queue_kwarg(queue)))
                 total_count[key] += profiling[type_ + "_task_count"][key]
 
-        for (queue, user, src_cluster, dst_cluster), count in total_count.iteritems():
+        for (queue, user, src_cluster, dst_cluster), count in iteritems(total_count):
             sensors.append(make_solomon_sensor(
                 "total_count",
                 count,

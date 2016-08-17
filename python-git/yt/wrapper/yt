@@ -279,7 +279,7 @@ def find(**args):
     result = yt.search(args["path"],
                        node_type=args["type"],
                        path_filter=path_filter,
-                       attributes=attributes.keys(),
+                       attributes=list(attributes),
                        object_filter=object_filter,
                        depth_bound=args["depth"])
 

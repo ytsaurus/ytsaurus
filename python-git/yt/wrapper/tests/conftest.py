@@ -1,11 +1,14 @@
+from helpers import TESTS_LOCATION, TEST_DIR, TESTS_SANDBOX, ENABLE_JOB_CONTROL
+
 from yt.environment import YTInstance
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update
 import yt.logger as logger
-import yt.wrapper as yt
 import yt.tests_runner as tests_runner
 
-from helpers import TESTS_LOCATION, TEST_DIR, TESTS_SANDBOX, ENABLE_JOB_CONTROL
+from yt.packages.six import itervalues
+
+import yt.wrapper as yt
 
 import os
 import re
@@ -116,7 +119,7 @@ class YtTestEnvironment(object):
         os.environ["PATH"] = ".:" + os.environ["PATH"]
 
         # Resolve indeterminacy in sys.modules due to presence of lazy imported modules.
-        for module in sys.modules.values():
+        for module in list(itervalues(sys.modules)):
             hasattr(module, "__file__")
 
     def cleanup(self):

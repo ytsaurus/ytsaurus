@@ -1,3 +1,5 @@
+from yt.packages.six import iteritems
+
 import collections
 
 class VerifiedDict(collections.MutableMapping):
@@ -54,12 +56,12 @@ class FrozenDict(collections.Mapping):
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash(tuple(sorted(self._store.iteritems())))
+            self._hash = hash(tuple(sorted(iteritems(self._store))))
         return self._hash
 
     def __repr__(self):
         cls = self.__class__.__name__
-        items = ", ".join(map(repr, self._store.iteritems()))
+        items = ", ".join(map(repr, iteritems(self._store)))
         return "{0}({1})".format(cls, items)
 
     def pop(self, key, default=None):

@@ -4,6 +4,9 @@ from __future__ import print_function
 
 from yt.transfer_manager.client import TransferManager
 from yt.wrapper.client import Yt
+
+from yt.packages.six import iteritems
+
 import yt.wrapper as yt
 
 import sys
@@ -24,7 +27,7 @@ def waiting_thread(client, token, queue, semaphore):
     running_tasks = {}
     while True:
         tasks_to_remove = []
-        for task, destination in running_tasks.iteritems():
+        for task, destination in iteritems(running_tasks):
             state = client.get_task_info(task)["state"]
             if state in ["aborted", "failed", "completed"]:
                 print("Task {0} {1}".format(task, state), file=sys.stderr)

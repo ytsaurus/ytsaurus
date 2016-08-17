@@ -10,7 +10,7 @@ PYTHONPATH = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file
 
 def mapper(row):
     assert len(sys.argv) == 3
-    yield dict(row.iteritems())
+    yield row
 
 def main():
     yt.enable_python_job_processing_for_standalone_binary()

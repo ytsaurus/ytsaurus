@@ -29,7 +29,7 @@ def parse_size(size):
     """ Parse human-writable size """
     scale = {"kb": 2**10, "mb": 2**20, "gb": 2**30}
     try:
-        if size[-2:].lower() in scale.keys():
+        if size[-2:].lower() in list(scale):
             value, scale_name = size[:-2], size[-2:].lower()
             return int(float(value) * scale[scale_name])
         else:
@@ -37,7 +37,7 @@ def parse_size(size):
     except Exception:
         raise ValueError(
             "Invalid size: '%s'. Valid suffixes are: %s." %
-            (size, ", ".join(["'%s'" % key for key in scale.keys()])))
+            (size, ", ".join(["'%s'" % key for key in list(scale)])))
 
 
 def common_preprocess(options):

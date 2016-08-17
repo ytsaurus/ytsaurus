@@ -1,6 +1,8 @@
 import yt.json as json
 import yt.yson as yson
 
+from yt.packages.six import iteritems
+
 import socket
 import os
 import fcntl
@@ -139,7 +141,7 @@ def versions_cmp(version1, version2):
 
 def _fix_yson_booleans(obj):
     if isinstance(obj, dict):
-        for key, value in obj.items():
+        for key, value in list(iteritems(obj)):
             _fix_yson_booleans(value)
             if isinstance(value, yson.YsonBoolean):
                 obj[key] = True if value else False

@@ -2,6 +2,9 @@
 
 from yt.wrapper.cli_helpers import die
 import yt.json as json
+
+from yt.packages.six import iteritems
+
 import yt.wrapper as yt
 
 import os
@@ -14,7 +17,7 @@ def md5(obj):
     h = hashlib.md5()
 
     if isinstance(obj, dict):
-        for key, value in sorted(obj.items()):
+        for key, value in sorted(iteritems(obj)):
             h.update(key)
             h.update(md5(value))
     elif isinstance(obj, list):

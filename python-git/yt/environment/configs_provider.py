@@ -5,6 +5,8 @@ from yt.wrapper.mappings import VerifiedDict
 from yt.common import YtError, unlist, update, get_value
 from yt.yson import YsonString
 
+from yt.packages.six import iteritems
+
 import socket
 import abc
 import os
@@ -175,7 +177,7 @@ def init_logging(node, path, name, enable_debug_logging):
 
     def traverse(node):
         if isinstance(node, dict):
-            for key, value in node.iteritems():
+            for key, value in iteritems(node):
                 process(node, key, value)
         elif isinstance(node, list):
             for i, value in enumerate(node):

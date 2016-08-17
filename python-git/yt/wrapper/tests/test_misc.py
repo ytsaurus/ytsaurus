@@ -1,5 +1,8 @@
 from __future__ import print_function
 
+from helpers import TEST_DIR, TESTS_SANDBOX, TESTS_LOCATION, \
+                    get_environment_for_binary_test, check
+
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
@@ -8,10 +11,10 @@ from yt.common import makedirp
 from yt.yson import to_yson_type
 import yt.yson as yson
 import yt.json as json
-import yt.wrapper as yt
 
-from helpers import TEST_DIR, TESTS_SANDBOX, TESTS_LOCATION, \
-                    get_environment_for_binary_test, check
+from yt.packages.six import iterkeys, itervalues, iteritems, PY3
+
+import yt.wrapper as yt
 
 import inspect
 import random
@@ -186,7 +189,7 @@ class TestRetries(object):
             rsp.close()
 
             rsp = yt.read_table(table, raw=False)
-            assert [("x", 1), ("y", 3)] == sorted([x.items()[0] for x in rsp])
+            assert [("x", 1), ("y", 3)] == sorted([list(iteritems(x))[0] for x in rsp])
 
             response_parameters = {}
             rsp = yt.read_table(table, response_parameters=response_parameters, format=yt.JsonFormat(), raw=True)
@@ -412,15 +415,16 @@ def test_frozen_dict():
     assert fdict.get("c", 100) == 100
 
     s = 0
-    for k, v in fdict.iteritems():
+    for k, v in iteritems(fdict):
         s += v
         assert k in ["a", "b"]
     assert s == 3
 
     assert sorted(fdict.values()) == [1, 2]
     assert sorted(fdict.keys()) == ["a", "b"]
-    assert sorted(fdict.itervalues()) == [1, 2]
-    assert sorted(fdict.iterkeys()) == ["a", "b"]
+    if not PY3:
+        assert sorted(itervalues(fdict)) == [1, 2]
+        assert sorted(iterkeys(fdict)) == ["a", "b"]
 
     assert fdict == {"a": 1, "b": 2}
     assert fdict == FrozenDict({"a": 1, "b": 2})

@@ -1,5 +1,7 @@
 from yt.wrapper.client import Yt
 
+from yt.packages.six import iteritems
+
 import types
 
 def run_and_notify(func, self, *args, **kwargs):
@@ -34,7 +36,7 @@ def start_transaction_and_notify(func, self, *args, **kwargs):
 class AddNotificationForRunMethods(type):
     def __new__(meta, name, bases, dict):
         cls = type.__new__(meta, name, bases, dict)
-        for key, obj in cls.wrapped_base.__dict__.iteritems():
+        for key, obj in iteritems(cls.wrapped_base.__dict__):
             if key.startswith("run_") and isinstance(obj, types.FunctionType):
                 setattr(cls, key, (lambda func=obj: lambda *args, **kwargs: run_and_notify(func, *args, **kwargs))())
             if key.startswith("Transaction") and isinstance(obj, types.FunctionType):

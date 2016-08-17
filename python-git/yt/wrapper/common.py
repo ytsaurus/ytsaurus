@@ -3,7 +3,9 @@
 from yt.common import require, flatten, update, which, YtError, update_from_env, \
                       unlist, get_value, filter_dict, date_string_to_timestamp, datetime_to_string
 import yt.yson as yson
+
 from yt.packages.decorator import decorator
+from yt.packages.six import iteritems, itervalues
 
 import os
 import sys
@@ -77,13 +79,13 @@ def dict_depth(obj):
     if not isinstance(obj, dict):
         return 0
     else:
-        return 1 + max(map(dict_depth, obj.values()))
+        return 1 + max(map(dict_depth, itervalues(obj)))
 
 def first_not_none(iter):
     return ifilter(None, iter).next()
 
 def merge_dicts(*dicts):
-    return dict(chain(*[d.iteritems() for d in dicts]))
+    return dict(chain(*[iteritems(d) for d in dicts]))
 
 def chunk_iter_blobs(lines, chunk_size):
     """ Unite lines into large chunks """

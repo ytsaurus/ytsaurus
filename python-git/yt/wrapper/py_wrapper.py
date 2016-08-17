@@ -6,13 +6,15 @@ from common import get_python_version, YtError, chunk_iter_stream, chunk_iter_st
 from errors import YtResponseError
 from py_runner_helpers import process_rows
 
+from yt.zip import ZipFile
+import yt.logger as logger
+
 try:
     from importlib import import_module
 except ImportError:
     from yt.packages.importlib import import_module
 
-from yt.zip import ZipFile
-import yt.logger as logger
+from yt.packages.six import itervalues, iteritems
 
 import re
 import imp
@@ -244,7 +246,7 @@ def create_modules_archive_default(tempfiles_manager, client):
 
     files_to_compress = {}
     module_filter = get_config(client)["pickling"]["module_filter"]
-    for module in sys.modules.values():
+    for module in itervalues(sys.modules):
         if module_filter is not None and not module_filter(module):
             continue
         if hasattr(module, "__file__"):
@@ -289,7 +291,7 @@ def create_modules_archive_default(tempfiles_manager, client):
     now = time.time()
     with Zip(prefix="modules", tempfiles_manager=tempfiles_manager, client=client) as zip:
         with Zip(prefix="fresh_modules", tempfiles_manager=tempfiles_manager, client=client) as fresh_zip:
-            for relpath, filepath in sorted(files_to_compress.items()):
+            for relpath, filepath in sorted(iteritems(files_to_compress)):
                 age = now - os.path.getmtime(filepath)
                 if age > get_config(client)["pickling"]["fresh_files_threshold"]:
                     zip.append(filepath, relpath)

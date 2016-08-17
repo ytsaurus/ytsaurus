@@ -5,6 +5,9 @@ from yt.tools.hadoop import Airflow, Hdfs, Hive, HBase
 from yt.tools.remote_copy_tools import Kiwi
 
 from yt.wrapper.common import update
+
+from yt.packages.six import iteritems
+
 import yt.wrapper as yt
 
 from copy import deepcopy
@@ -26,7 +29,7 @@ def filter_out_keys(dict_, keys):
 def get_clusters_configuration_from_config(config):
     config = deepcopy(config)
     clusters = {}
-    for name, cluster_description in config["clusters"].iteritems():
+    for name, cluster_description in iteritems(config["clusters"]):
         type = cluster_description["type"]
         options = cluster_description.get("options", {})
 

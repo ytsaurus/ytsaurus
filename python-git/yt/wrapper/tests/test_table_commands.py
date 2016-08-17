@@ -1,12 +1,13 @@
 from __future__ import with_statement
 
+from helpers import TEST_DIR, check, set_config_option
+
 import yt.zip as zip
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.client import Yt
-import yt.wrapper as yt
 
-from helpers import TEST_DIR, check, set_config_option
+import yt.wrapper as yt
 
 import os
 import pytest
