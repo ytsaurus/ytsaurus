@@ -225,6 +225,18 @@ public:
         }
     }
 
+    virtual TNullable<TDuration> GetDownloadDuration() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        if (!PrepareTime_) {
+            return Null;
+        } else if (!CopyTime_) {
+            return TInstant::Now() - *PrepareTime_;
+        } else {
+            return *CopyTime_ - *PrepareTime_;
+        }
+    }
+
     virtual TNullable<TDuration> GetExecDuration() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -415,6 +427,7 @@ private:
     TNullable<TJobResult> JobResult_;
 
     TNullable<TInstant> PrepareTime_;
+    TNullable<TInstant> CopyTime_;
     TNullable<TInstant> ExecTime_;
     TNullable<TInstant> FinishTime_;
 
@@ -513,13 +526,14 @@ private:
 
         GuardedAction([&] () {
             ValidateJobPhase(EJobPhase::DownloadingArtifacts);
-            THROW_ERROR_EXCEPTION_IF_FAILED(errorOrArtifacts, "Failed to download artifacts")
+            THROW_ERROR_EXCEPTION_IF_FAILED(errorOrArtifacts, "Failed to download artifacts");
             const auto& chunks = errorOrArtifacts.Value();
 
             for (size_t index = 0; index < Artifacts_.size(); ++index) {
                 Artifacts_[index].Chunk = chunks[index];
             }
 
+            CopyTime_ = TInstant::Now();
             JobPhase_ = EJobPhase::PreparingDirectories;
             BIND(&TJob::PrepareDirectories, MakeStrong(this))
                 .AsyncVia(Invoker_)

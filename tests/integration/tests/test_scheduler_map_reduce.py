@@ -444,6 +444,31 @@ print "x={0}\ty={1}".format(x, y)
                 assert job["job_type"] == "partition_reduce"
                 assert "input_paths" not in job
 
+    def test_map_reduce_job_size_manager_boost(self):
+        create("table", "//tmp/t_input")
+        # original_data should have at least 1Mb of data
+        original_data = [{"index": "%05d" % i, "foo": "a"*35000} for i in xrange(31)]
+        for row in original_data:
+            write_table("<append=true>//tmp/t_input", row, verbose=False)
+
+        create("table", "//tmp/t_output")
+
+        op = map_reduce(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            sort_by="lines",
+            mapper_command="echo lines=`wc -l`",
+            reducer_command="cat",
+            spec={
+                "mapper": {"format": "dsv"},
+                "map_job_io": {"table_writer": {"block_size": 1024}},
+                "resource_limits": {"user_slots": 1}
+            })
+
+        expected = [{"lines": str(2**i)} for i in xrange(5)]
+        actual = read_table("//tmp/t_output")
+        assert_items_equal(actual, expected)
+
 ##################################################################
 
 class TestSchedulerMapReduceCommandsMulticell(TestSchedulerMapReduceCommands):

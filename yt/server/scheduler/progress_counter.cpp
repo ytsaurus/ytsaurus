@@ -164,6 +164,10 @@ void TProgressCounter::Persist(const TStreamPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////
 
+const TProgressCounter NullProgressCounter;
+
+////////////////////////////////////////////////////////////////////
+
 Stroka ToString(const TProgressCounter& counter)
 {
     return counter.IsTotalEnabled()
