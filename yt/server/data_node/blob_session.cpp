@@ -114,12 +114,26 @@ TFuture<void> TBlobSession::DoPutBlocks(
         return VoidFuture;
     }
 
+    // Make all acquisitions in advance to ensure that this error is retriable.
+    auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+    std::vector<TNodeMemoryTrackerGuard> memoryTrackerGuards;
+    for (const auto& block : blocks) {
+        auto guardOrError = TNodeMemoryTrackerGuard::TryAcquire(
+            tracker,
+            EMemoryCategory::BlobSession,
+            block.Size());
+        if (!guardOrError.IsOK()) {
+            return MakeFuture(TError(guardOrError).SetCode(NChunkClient::EErrorCode::WriteThrottlingActive));
+        }
+        memoryTrackerGuards.emplace_back(std::move(guardOrError.Value()));
+    }
+
     auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
 
-    int blockIndex = startBlockIndex;
-    i64 requestSize = 0;
     std::vector<int> receivedBlockIndexes;
-    for (const auto& block : blocks) {
+    for (int localIndex = 0; localIndex < static_cast<int>(blocks.size()); ++localIndex) {
+        int blockIndex = startBlockIndex = localIndex;
+        const auto& block = blocks[localIndex];
         TBlockId blockId(ChunkId_, blockIndex);
         ValidateBlockIsInWindow(blockIndex);
 
@@ -127,15 +141,6 @@ TFuture<void> TBlobSession::DoPutBlocks(
             return MakeFuture(TError(
                 NChunkClient::EErrorCode::NoLocationAvailable,
                 "No enough space left on location"));
-        }
-
-        auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        auto guardOrError = TNodeMemoryTrackerGuard::TryAcquire(
-            tracker,
-            EMemoryCategory::BlobSession,
-            block.Size());
-        if (!guardOrError.IsOK()) {
-            return MakeFuture(TError(guardOrError));
         }
 
         auto& slot = GetSlot(blockIndex);
@@ -157,21 +162,22 @@ TFuture<void> TBlobSession::DoPutBlocks(
 
         slot.State = ESlotState::Received;
         slot.Block = block;
-        slot.MemoryTrackerGuard = std::move(guardOrError.Value());
+        slot.MemoryTrackerGuard = std::move(memoryTrackerGuards[localIndex]);
 
         if (enableCaching) {
             chunkBlockManager->PutCachedBlock(blockId, block, Null);
         }
 
         Location_->UpdateUsedSpace(block.Size());
-        Size_ += block.Size();
-        requestSize += block.Size();
         receivedBlockIndexes.push_back(blockIndex);
-        ++blockIndex;
     }
 
-    LOG_DEBUG_UNLESS(receivedBlockIndexes.empty(), "Blocks received (Blocks: %v)",
-        receivedBlockIndexes);
+    auto totalSize = GetByteSize(blocks);
+    Size_ += totalSize;
+
+    LOG_DEBUG_UNLESS(receivedBlockIndexes.empty(), "Blocks received (Blocks: %v, TotalSize: %v)",
+        receivedBlockIndexes,
+        totalSize);
 
     auto sessionManager = Bootstrap_->GetSessionManager();
     while (WindowIndex_ < Window_.size()) {
@@ -200,7 +206,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
     }
 
     auto throttler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
-    return throttler->Throttle(requestSize);
+    return throttler->Throttle(totalSize);
 }
 
 TFuture<void> TBlobSession::DoSendBlocks(
