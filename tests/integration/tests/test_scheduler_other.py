@@ -676,17 +676,19 @@ class TestSchedulingTags(YTEnvSetup):
     def test_failed_cases(self):
         self._prepare()
 
-        map(command="cat", in_="//tmp/t_in", out="//tmp/t_out")
-        with pytest.raises(YtError):
-            map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagC"})
+        # TODO(acid): Enable this when scheduling tag prechecks will be added on operation start
+        # map(command="cat", in_="//tmp/t_in", out="//tmp/t_out")
+        # with pytest.raises(YtError):
+            # map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagC"})
 
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
-        set("//sys/nodes/{0}/@user_tags".format(self.node), [])
-        time.sleep(1.0)
-        with pytest.raises(YtError):
-            map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
+        # TODO(acid): Enable this when scheduling tag prechecks will be added on operation start
+        # set("//sys/nodes/{0}/@user_tags".format(self.node), [])
+        # time.sleep(1.0)
+        # with pytest.raises(YtError):
+            # map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
 
 
     def test_pools(self):
