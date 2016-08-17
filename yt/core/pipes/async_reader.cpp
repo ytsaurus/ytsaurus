@@ -146,7 +146,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(EventLoop);
         YCHECK((eventType & ev::READ) == ev::READ);
-
         YCHECK(State_ == EReaderState::Active);
 
         while (!ReadResultPromise_.IsSet()) {
@@ -225,7 +224,6 @@ private:
         FDWatcher_.set(FD_, ev::READ);
         FDWatcher_.set(TIODispatcher::Get()->GetEventLoop());
         FDWatcher_.set<TAsyncReaderImpl, &TAsyncReaderImpl::OnRead>(this);
-        FDWatcher_.start();
     }
 
     void Close()

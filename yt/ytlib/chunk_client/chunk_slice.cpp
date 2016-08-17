@@ -418,10 +418,10 @@ std::vector<TChunkSlice> SliceChunk(
 
 void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice)
 {
-    if (!IsTrivial(chunkSlice.LowerLimit())) {
+    if (IsNontrivial(chunkSlice.LowerLimit())) {
         ToProto(protoChunkSlice->mutable_lower_limit(), chunkSlice.LowerLimit());
     }
-    if (!IsTrivial(chunkSlice.UpperLimit())) {
+    if (IsNontrivial(chunkSlice.UpperLimit())) {
         ToProto(protoChunkSlice->mutable_upper_limit(), chunkSlice.UpperLimit());
     }
     if (chunkSlice.GetSizeOverridden()) {

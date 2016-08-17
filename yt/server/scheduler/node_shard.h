@@ -109,7 +109,7 @@ public:
 
     yhash_set<TOperationId> ProcessHeartbeat(TScheduler::TCtxHeartbeatPtr context);
 
-    std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& tag);
+    std::vector<TExecNodeDescriptor> GetExecNodeDescriptors();
 
     void HandleNodesAttributes(const std::vector<std::pair<Stroka, NYTree::INodePtr>>& nodeMaps);
 

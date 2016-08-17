@@ -420,6 +420,8 @@ public:
 
     TDuration PendingEventLogRowsFlushPeriod;
 
+    TDuration UpdateExecNodeDescriptorsPeriod;
+
     TDuration OperationTimeLimitCheckPeriod;
 
     TDuration TaskUpdatePeriod;
@@ -617,6 +619,10 @@ public:
 
         RegisterParameter("pending_event_log_rows_flush_period", PendingEventLogRowsFlushPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("update_exec_node_descriptors_period", UpdateExecNodeDescriptorsPeriod)
+            .Default(TDuration::Seconds(1));
+
 
         RegisterParameter("operation_time_limit_check_period", OperationTimeLimitCheckPeriod)
             .Default(TDuration::Seconds(1));

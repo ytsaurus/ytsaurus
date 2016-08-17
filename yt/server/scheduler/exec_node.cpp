@@ -41,7 +41,8 @@ TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
         Id_,
         GetDefaultAddress(),
         IOWeight_,
-        ResourceLimits_
+        ResourceLimits_,
+        Tags_
     };
 }
 
@@ -85,17 +86,24 @@ TExecNodeDescriptor::TExecNodeDescriptor()
 { }
 
 TExecNodeDescriptor::TExecNodeDescriptor(
-    NNodeTrackerClient::TNodeId id,
-    Stroka address,
+    const NNodeTrackerClient::TNodeId& id,
+    const Stroka& address,
     double ioWeight,
-    TJobResources resourceLimits)
+    const TJobResources& resourceLimits,
+    const yhash_set<Stroka>& tags)
     : Id(id)
     , Address(address)
     , IOWeight(ioWeight)
     , ResourceLimits(resourceLimits)
+    , Tags(tags)
 { }
 
-void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
+bool TExecNodeDescriptor::CanSchedule(const TNullable<Stroka>& tag) const
+{
+    return !tag || Tags.find(*tag) != Tags.end();
+}
+
+void TExecNodeDescriptor::Persist(TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -103,6 +111,7 @@ void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
     Persist(context, Address);
     Persist(context, IOWeight);
     Persist(context, ResourceLimits);
+    Persist(context, Tags);
 }
 
 ////////////////////////////////////////////////////////////////////

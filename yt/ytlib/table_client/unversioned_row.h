@@ -304,9 +304,6 @@ public:
         return End();
     }
 
-    void Save(TSaveContext& context) const;
-    void Load(TLoadContext& context);
-
 private:
     const TUnversionedRowHeader* Header_;
 
@@ -404,17 +401,13 @@ void ValidateReadTimestamp(TTimestamp timestamp);
 //! Returns the successor of |key|, i.e. the key obtained from |key|
 //! by appending a |EValueType::Min| sentinel.
 TOwningKey GetKeySuccessor(TKey key);
-TKey GetKeySuccessor(TKey key, const TRowBuffer& rowBuffer);
 
 //! Returns the successor of |key| trimmed to a given length, i.e. the key
 //! obtained by trimming |key| to |prefixLength| and appending
 //! a |EValueType::Max| sentinel.
 TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength);
-TKey GetKeyPrefixSuccessor(TKey key, int prefixLength, const TRowBufferPtr& rowBuffer);
 
-//! If #key has more than #prefixLength values then trims it this limit.
 TOwningKey GetKeyPrefix(TKey key, int prefixLength);
-TKey GetKeyPrefix(TKey key, int prefixLength, const TRowBufferPtr& rowBuffer);
 
 //! Makes a new, wider key padded with null values.
 TOwningKey WidenKey(const TOwningKey& key, int keyColumnCount);
@@ -654,6 +647,7 @@ private:
     {
         return RowData_ ? reinterpret_cast<const TUnversionedRowHeader*>(RowData_.Begin()) : nullptr;
     }
+
 };
 
 // For TKeyComparer.
