@@ -1,7 +1,6 @@
 #include "samples_fetcher.h"
 
 #include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/input_chunk.h>
 
@@ -94,12 +93,12 @@ const std::vector<TSample>& TSamplesFetcher::GetSamples() const
 
 TFuture<void> TSamplesFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
 {
-    return BIND(&TSamplesFetcher::DoFetchFromNode, MakeWeak(this), nodeId, Passed(std::move(chunkIndexes)))
-        .AsyncVia(Invoker_)
+    return BIND(&TSamplesFetcher::DoFetchFromNode, MakeStrong(this), nodeId, Passed(std::move(chunkIndexes)))
+        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
 
-void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
+TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>& chunkIndexes)
 {
     TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
@@ -115,7 +114,7 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
 
     std::vector<int> requestedChunkIndexes;
 
-    for (int index : chunkIndexes) {
+    for (auto index : chunkIndexes) {
         const auto& chunk = Chunks_[index];
 
         currentSize += chunk->GetUncompressedDataSize();
@@ -128,21 +127,30 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
             auto* sampleRequest = req->add_sample_requests();
             ToProto(sampleRequest->mutable_chunk_id(), chunkId);
             sampleRequest->set_sample_count(sampleCount - currentSampleCount);
-            if (chunk->LowerLimit() && chunk->LowerLimit()->HasKey()) {
-                ToProto(sampleRequest->mutable_lower_key(), chunk->LowerLimit()->GetKey());
+            if (chunk->LowerLimit() && chunk->LowerLimit()->has_key()) {
+                sampleRequest->set_lower_key(chunk->LowerLimit()->key());
             }
-            if (chunk->UpperLimit() && chunk->UpperLimit()->HasKey()) {
-                ToProto(sampleRequest->mutable_upper_key(), chunk->UpperLimit()->GetKey());
+            if (chunk->UpperLimit() && chunk->UpperLimit()->has_key()) {
+                sampleRequest->set_upper_key(chunk->UpperLimit()->key());
             }
             currentSampleCount = sampleCount;
         }
     }
 
-    if (req->sample_requests_size() == 0)
-        return;
+    if (req->sample_requests_size() == 0) {
+        return VoidFuture;
+    }
 
-    auto rspOrError = WaitFor(req->Invoke());
+    return req->Invoke().Apply(
+        BIND(&TSamplesFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(requestedChunkIndexes)))
+            .AsyncVia(Invoker_));
+}
 
+void TSamplesFetcher::OnResponse(
+    TNodeId nodeId,
+    const std::vector<int>& requestedChunkIndexes,
+    const TDataNodeServiceProxy::TErrorOrRspGetTableSamplesPtr& rspOrError)
+{
     if (!rspOrError.IsOK()) {
         LOG_WARNING("Failed to get samples from node (Address: %v, NodeId: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
@@ -166,7 +174,7 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
             requestedChunkIndexes[index]);
 
         for (const auto& protoSample : sampleResponse.samples()) {
-            TSample sample{
+            TSample sample = {
                 FromProto<TOwningKey>(protoSample.key()),
                 protoSample.incomplete(),
                 protoSample.weight()

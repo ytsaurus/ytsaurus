@@ -1893,10 +1893,9 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
                 jobId,
                 OperationId_);
 
-            const auto& controller = Operation_->GetController();
-            controller->GetCancelableInvoker()->Invoke(BIND(
+            Controller_->GetCancelableInvoker()->Invoke(BIND(
                 &IOperationController::OnJobAborted,
-                controller,
+                Controller_,
                 Passed(std::make_unique<TAbortedJobSummary>(
                     jobId,
                     EAbortReason::SchedulingResourceOvercommit))));

@@ -110,7 +110,9 @@ void TNodeShard::UnregisterOperation(const TOperationId& operationId)
 
     auto it = OperationStates_.find(operationId);
     YCHECK(it != OperationStates_.end());
-    YCHECK(it->second.Jobs.empty());
+    for (const auto& job : it->second.Jobs) {
+        YCHECK(job.second->GetHasPendingUnregistration());
+    }
     OperationStates_.erase(it);
 }
 
@@ -237,7 +239,7 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(TScheduler::TCtxHeartbeatPt
     return operationsToLog;
 }
 
-std::vector<TExecNodeDescriptor> TNodeShard::GetExecNodeDescriptors(const TNullable<Stroka>& tag)
+std::vector<TExecNodeDescriptor> TNodeShard::GetExecNodeDescriptors()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -245,8 +247,7 @@ std::vector<TExecNodeDescriptor> TNodeShard::GetExecNodeDescriptors(const TNulla
     result.reserve(IdToNode_.size());
     for (const auto& pair : IdToNode_) {
         const auto& node = pair.second;
-        if (node->GetMasterState() == ENodeState::Online &&
-            node->CanSchedule(tag))
+        if (node->GetMasterState() == ENodeState::Online)
         {
             result.push_back(node->BuildExecDescriptor());
         }

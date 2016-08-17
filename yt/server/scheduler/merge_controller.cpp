@@ -33,7 +33,6 @@ using namespace NTableClient;
 
 using NChunkClient::TReadRange;
 using NChunkClient::TReadLimit;
-using NTableClient::TKey;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -65,7 +64,7 @@ public:
 
     // Persistence.
 
-    virtual void Persist(const TPersistenceContext& context) override
+    virtual void Persist(TPersistenceContext& context) override
     {
         TOperationControllerBase::Persist(context);
 
@@ -186,7 +185,7 @@ protected:
             return ChunkPool.get();
         }
 
-        virtual void Persist(const TPersistenceContext& context) override
+        virtual void Persist(TPersistenceContext& context) override
         {
             TTask::Persist(context);
 
@@ -423,10 +422,7 @@ protected:
         MaxDataSizePerJob = (PrimaryInputDataSize_ + jobCount - 1) / jobCount;
         ChunkSliceSize = static_cast<int>(Clamp(MaxDataSizePerJob, 1, Options->JobMaxSliceDataSize));
 
-        LOG_DEBUG("Calculated operation parameters (JobCount: %v, MaxDataSizePerJob: %v, ChunkSliceSize: %v)",
-            jobCount,
-            MaxDataSizePerJob,
-            ChunkSliceSize);
+        LOG_DEBUG("Calculated operation parameters (JobCount: %v, MaxDataSizePerJob: %v, ChunkSliceSize: %v)", jobCount, MaxDataSizePerJob, ChunkSliceSize);
     }
 
     void ProcessInputs()
@@ -618,7 +614,7 @@ public:
     }
 
     // Persistence.
-    virtual void Persist(const TPersistenceContext& context) override
+    virtual void Persist(TPersistenceContext& context) override
     {
         TOrderedMergeControllerBase::Persist(context);
 
@@ -827,6 +823,12 @@ private:
         return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
     }
 
+    virtual bool IsBoundaryKeysFetchEnabled() const override
+    {
+        // Required for chunk teleporting in case of sorted output.
+        return OutputTables[0].TableUploadOptions.TableSchema.IsSorted();
+    }
+
     virtual bool IsRowCountPreserved() const override
     {
         return Spec->InputQuery ? false : TMergeControllerBase::IsRowCountPreserved();
@@ -904,6 +906,12 @@ private:
     virtual bool IsTeleportChunk(const TInputChunkPtr& chunkSpec) const override
     {
         return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
+    }
+
+    virtual bool IsBoundaryKeysFetchEnabled() const override
+    {
+        // Required for chunk teleporting in case of sorted output.
+        return OutputTables[0].TableUploadOptions.TableSchema.IsSorted();
     }
 
     virtual void DoInitialize() override
@@ -1023,7 +1031,7 @@ public:
     { }
 
     // Persistence.
-    virtual void Persist(const TPersistenceContext& context) override
+    virtual void Persist(TPersistenceContext& context) override
     {
         TMergeControllerBase::Persist(context);
 
@@ -1051,7 +1059,7 @@ protected:
             , Controller(controller)
         { }
 
-        virtual void Persist(const TPersistenceContext& context) override
+        virtual void Persist(TPersistenceContext& context) override
         {
             TMergeTask::Persist(context);
 
@@ -1072,31 +1080,33 @@ protected:
 
     };
 
+public:
     struct TKeyEndpoint
     {
         EEndpointType Type;
         TInputSlicePtr ChunkSlice;
-        TKey MinBoundaryKey;
-        TKey MaxBoundaryKey;
-        bool Teleport;
+        TOwningKey MinBoundaryKey;
+        TOwningKey MaxBoundaryKey;
+        bool IsTeleport;
 
-        void Persist(const TPersistenceContext& context)
+        void Persist(TPersistenceContext& context)
         {
             using NYT::Persist;
             Persist(context, Type);
             Persist(context, ChunkSlice);
             Persist(context, MinBoundaryKey);
             Persist(context, MaxBoundaryKey);
-            Persist(context, Teleport);
+            Persist(context, IsTeleport);
         }
 
-        TKey GetKey() const
+        const TOwningKey& GetKey() const
         {
             return Type == EEndpointType::Left
                 ? MinBoundaryKey
                 : MaxBoundaryKey;
         }
     };
+protected:
 
     std::vector<TKeyEndpoint> Endpoints;
 
@@ -1154,7 +1164,6 @@ protected:
             GetCancelableInvoker(),
             scraperCallback,
             Host->GetMasterClient(),
-            RowBuffer,
             Logger);
 
         ProcessInputs();
@@ -1194,13 +1203,15 @@ protected:
 
     void CollectEndpoints()
     {
-        auto slices = ChunkSliceFetcher->GetChunkSlices();
+        const auto& slices = ChunkSliceFetcher->GetChunkSlices();
         for (const auto& slice : slices) {
             TKeyEndpoint leftEndpoint;
             leftEndpoint.Type = EEndpointType::Left;
             leftEndpoint.ChunkSlice = slice;
-            leftEndpoint.MinBoundaryKey = slice->LowerLimit().Key;
-            leftEndpoint.MaxBoundaryKey = slice->UpperLimit().Key;
+            YCHECK(slice->LowerLimit().HasKey());
+            leftEndpoint.MinBoundaryKey = slice->LowerLimit().GetKey();
+            YCHECK(slice->UpperLimit().HasKey());
+            leftEndpoint.MaxBoundaryKey = slice->UpperLimit().GetKey();
 
             try {
                 ValidateClientKey(leftEndpoint.MinBoundaryKey);
@@ -1212,7 +1223,7 @@ protected:
                     << ex;
             }
 
-            leftEndpoint.Teleport = false;
+            leftEndpoint.IsTeleport = false;
             Endpoints.push_back(leftEndpoint);
 
             TKeyEndpoint rightEndpoint = leftEndpoint;
@@ -1224,8 +1235,8 @@ protected:
     virtual bool IsTeleportCandidate(TInputChunkPtr chunkSpec) const
     {
         return
-            !(chunkSpec->LowerLimit() && chunkSpec->LowerLimit()->HasRowIndex()) &&
-            !(chunkSpec->UpperLimit() && chunkSpec->UpperLimit()->HasRowIndex()) &&
+            !(chunkSpec->LowerLimit() && chunkSpec->LowerLimit()->has_row_index()) &&
+            !(chunkSpec->UpperLimit() && chunkSpec->UpperLimit()->has_row_index()) &&
             !chunkSpec->Channel();
     }
 
@@ -1350,7 +1361,7 @@ private:
                         if (IsLargeEnoughToTeleport(completeChunk) &&
                             (openedSlicesCount == 0 || isManiacTeleport)) {
                             for (int j = startTeleportIndex; j <= i; ++j) {
-                                Endpoints[j].Teleport = true;
+                                Endpoints[j].IsTeleport = true;
                             }
                         }
                     }
@@ -1381,11 +1392,11 @@ private:
         const int prefixLength = static_cast<int>(SortKeyColumns.size());
 
         yhash_set<TInputSlicePtr> globalOpenedSlices;
-        TKey lastBreakpoint;
+        TOwningKey lastBreakpoint;
 
         int startIndex = 0;
         while (startIndex < static_cast<int>(Endpoints.size())) {
-            auto key = Endpoints[startIndex].GetKey();
+            auto& key = Endpoints[startIndex].GetKey();
 
             std::vector<TInputChunkPtr> teleportChunks;
             yhash_set<TInputSlicePtr> localOpenedSlices;
@@ -1396,19 +1407,19 @@ private:
             int currentIndex = startIndex;
             while (currentIndex < static_cast<int>(Endpoints.size())) {
                 // Iterate over endpoints with equal keys.
-                const auto& endpoint = Endpoints[currentIndex];
-                auto currentKey = endpoint.GetKey();
+                auto& endpoint = Endpoints[currentIndex];
+                auto& currentKey = endpoint.GetKey();
 
                 if (CompareRows(key, currentKey, prefixLength) != 0) {
                     // This key is over.
                     break;
                 }
 
-                if (endpoint.Teleport) {
+                if (endpoint.IsTeleport) {
                     auto chunkSpec = endpoint.ChunkSlice->GetInputChunk();
                     teleportChunks.push_back(chunkSpec);
                     while (currentIndex < static_cast<int>(Endpoints.size()) &&
-                        Endpoints[currentIndex].Teleport &&
+                        Endpoints[currentIndex].IsTeleport &&
                         Endpoints[currentIndex].ChunkSlice->GetInputChunk() == chunkSpec)
                     {
                         ++currentIndex;
@@ -1426,7 +1437,7 @@ private:
                 {
                     auto it = globalOpenedSlices.find(endpoint.ChunkSlice);
                     if (it != globalOpenedSlices.end()) {
-                        AddPendingChunkSlice(CreateInputSlice(**it, lastBreakpoint));
+                        AddPendingChunkSlice(CreateInputSlice(*it, lastBreakpoint));
                         globalOpenedSlices.erase(it);
                         ++currentIndex;
                         continue;
@@ -1452,13 +1463,13 @@ private:
                     return;
                 }
 
-                auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength, RowBuffer);
+                auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength);
                 LOG_TRACE("Finish current task, flushing %v chunks at key %v",
                     globalOpenedSlices.size(),
                     nextBreakpoint);
 
                 for (const auto& chunkSlice : globalOpenedSlices) {
-                    AddPendingChunkSlice(CreateInputSlice(*chunkSlice, lastBreakpoint, nextBreakpoint));
+                    AddPendingChunkSlice(CreateInputSlice(chunkSlice, lastBreakpoint, nextBreakpoint));
                 }
                 lastBreakpoint = nextBreakpoint;
 
@@ -1491,7 +1502,7 @@ private:
                 endTask();
 
                 TOwningKey previousMaxKey;
-                for (const auto& chunkSpec : teleportChunks) {
+                for (auto& chunkSpec : teleportChunks) {
                     // Ensure sorted order of teleported chunks.
                     YCHECK(chunkSpec->BoundaryKeys());
                     const auto& minKey = chunkSpec->BoundaryKeys()->MinKey;
@@ -1678,7 +1689,7 @@ public:
     }
 
     // Persistence.
-    virtual void Persist(const TPersistenceContext& context) override
+    virtual void Persist(TPersistenceContext& context) override
     {
         TSortedMergeControllerBase::Persist(context);
 
@@ -1712,9 +1723,9 @@ protected:
     std::vector<std::deque<TInputChunkPtr>> ForeignInputChunks;
 
     //! Not serialized.
-    TKey CurrentTaskMinForeignKey;
+    TOwningKey CurrentTaskMinForeignKey;
     //! Not serialized.
-    TKey CurrentTaskMaxForeignKey;
+    TOwningKey CurrentTaskMaxForeignKey;
 
     virtual void DoInitialize() override
     {
@@ -1746,7 +1757,9 @@ protected:
         ForeignInputChunks = CollectForeignInputChunks();
     }
 
-    void AddForeignTablesToTask(TKey foreignMinKey, TKey foreignMaxKey)
+    void AddForeignTablesToTask(
+        const TOwningKey& foreignMinKey,
+        const TOwningKey& foreignMaxKey)
     {
         YCHECK(ForeignKeyColumnCount > 0);
         YCHECK(ForeignKeyColumnCount <= static_cast<int>(SortKeyColumns.size()));
@@ -1775,14 +1788,14 @@ protected:
     {
         if (ForeignKeyColumnCount > 0) {
             if (!CurrentTaskMinForeignKey ||
-                CompareRows(CurrentTaskMinForeignKey, chunkSlice->LowerLimit().Key, ForeignKeyColumnCount) > 0)
+                CompareRows(CurrentTaskMinForeignKey, chunkSlice->LowerLimit().GetKey(), ForeignKeyColumnCount) > 0)
             {
-                CurrentTaskMinForeignKey = GetKeyPrefix(chunkSlice->LowerLimit().Key, ForeignKeyColumnCount, RowBuffer);
+                CurrentTaskMinForeignKey = GetKeyPrefix(chunkSlice->LowerLimit().GetKey(), ForeignKeyColumnCount);
             }
             if (!CurrentTaskMaxForeignKey ||
-                CompareRows(CurrentTaskMaxForeignKey, chunkSlice->UpperLimit().Key, ForeignKeyColumnCount) < 0)
+                CompareRows(CurrentTaskMaxForeignKey, chunkSlice->UpperLimit().GetKey(), ForeignKeyColumnCount) < 0)
             {
-                CurrentTaskMaxForeignKey = GetKeyPrefixSuccessor(chunkSlice->UpperLimit().Key, ForeignKeyColumnCount, RowBuffer);
+                CurrentTaskMaxForeignKey = GetKeyPrefixSuccessor(chunkSlice->UpperLimit().GetKey(), ForeignKeyColumnCount);
             }
         }
 
@@ -1800,8 +1813,8 @@ protected:
             AddForeignTablesToTask(CurrentTaskMinForeignKey, CurrentTaskMaxForeignKey);
         }
 
-        CurrentTaskMinForeignKey = TKey();
-        CurrentTaskMaxForeignKey = TKey();
+        CurrentTaskMinForeignKey = TOwningKey();
+        CurrentTaskMaxForeignKey = TOwningKey();
 
         TSortedMergeControllerBase::EndTaskIfActive();
     }
@@ -1916,7 +1929,7 @@ public:
     { }
 
     // Persistence.
-    virtual void Persist(const TPersistenceContext& context) override
+    virtual void Persist(TPersistenceContext& context) override
     {
         TReduceControllerBase::Persist(context);
     }
@@ -2033,11 +2046,11 @@ private:
         int startTeleportIndex = -1;
 
         int openedSlicesCount = 0;
-        auto previousKey = EmptyKey().Get();
+        auto previousKey = EmptyKey();
 
         for (int i = 0; i < static_cast<int>(Endpoints.size()); ++i) {
-            const auto& endpoint = Endpoints[i];
-            auto key = endpoint.GetKey();
+            auto& endpoint = Endpoints[i];
+            auto& key = endpoint.GetKey();
 
             openedSlicesCount += endpoint.Type == EEndpointType::Left ? 1 : -1;
 
@@ -2055,7 +2068,7 @@ private:
             }
 
             if (currentChunkSpec) {
-                const auto& previousEndpoint = Endpoints[i - 1];
+                auto& previousEndpoint = Endpoints[i - 1];
                 const auto& chunkSpec = previousEndpoint.ChunkSlice->GetInputChunk();
 
                 YCHECK(chunkSpec->BoundaryKeys());
@@ -2064,7 +2077,7 @@ private:
                     CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0)
                 {
                     for (int j = startTeleportIndex; j < i; ++j) {
-                        Endpoints[j].Teleport = true;
+                        Endpoints[j].IsTeleport = true;
                     }
                 }
             }
@@ -2096,7 +2109,7 @@ private:
             const auto& maxKey = chunkSpec->BoundaryKeys()->MaxKey;
             if (CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0) {
                 for (int j = startTeleportIndex; j < static_cast<int>(Endpoints.size()); ++j) {
-                    Endpoints[j].Teleport = true;
+                    Endpoints[j].IsTeleport = true;
                 }
             }
         }
@@ -2107,7 +2120,7 @@ private:
         const int prefixLength = ReduceKeyColumnCount;
 
         yhash_set<TInputSlicePtr> openedSlices;
-        TKey lastBreakpoint;
+        TOwningKey lastBreakpoint;
 
         auto hasLargeActiveTask = [&] () {
             return HasLargeActiveTask() ||
@@ -2116,20 +2129,20 @@ private:
 
         int startIndex = 0;
         while (startIndex < static_cast<int>(Endpoints.size())) {
-            auto key = Endpoints[startIndex].GetKey();
+            auto& key = Endpoints[startIndex].GetKey();
 
             int currentIndex = startIndex;
             while (currentIndex < static_cast<int>(Endpoints.size())) {
                 // Iterate over endpoints with equal keys.
-                const auto& endpoint = Endpoints[currentIndex];
-                auto currentKey = endpoint.GetKey();
+                auto& endpoint = Endpoints[currentIndex];
+                auto& currentKey = endpoint.GetKey();
 
                 if (CompareRows(key, currentKey, prefixLength) != 0) {
                     // This key is over.
                     break;
                 }
 
-                if (endpoint.Teleport) {
+                if (endpoint.IsTeleport) {
                     YCHECK(openedSlices.empty());
                     EndTaskIfActive();
 
@@ -2137,7 +2150,7 @@ private:
                     AddTeleportChunk(chunkSpec);
 
                     while (currentIndex < static_cast<int>(Endpoints.size()) &&
-                        Endpoints[currentIndex].Teleport &&
+                        Endpoints[currentIndex].IsTeleport &&
                         Endpoints[currentIndex].ChunkSlice->GetInputChunk() == chunkSpec)
                     {
                         ++currentIndex;
@@ -2156,7 +2169,7 @@ private:
 
                 auto it = openedSlices.find(endpoint.ChunkSlice);
                 YCHECK(it != openedSlices.end());
-                AddPendingChunkSlice(CreateInputSlice(**it, lastBreakpoint));
+                AddPendingChunkSlice(CreateInputSlice(*it, lastBreakpoint));
                 openedSlices.erase(it);
                 ++currentIndex;
             }
@@ -2164,16 +2177,14 @@ private:
             if (hasLargeActiveTask()) {
                 YCHECK(!lastBreakpoint || CompareRows(key, lastBreakpoint, prefixLength) != 0);
 
-                auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength, RowBuffer);
-
-                LOG_TRACE("Current task finished, flushing %v chunks at key %v",
+                auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength);
+                LOG_TRACE("Finish current task, flushing %v chunks at key %v",
                     openedSlices.size(),
                     nextBreakpoint);
 
                 for (const auto& chunkSlice : openedSlices) {
-                    AddPendingChunkSlice(CreateInputSlice(*chunkSlice, lastBreakpoint, nextBreakpoint));
+                    AddPendingChunkSlice(CreateInputSlice(chunkSlice, lastBreakpoint, nextBreakpoint));
                 }
-
                 lastBreakpoint = nextBreakpoint;
 
                 EndTaskIfActive();
@@ -2219,7 +2230,7 @@ public:
     { }
 
     // Persistence.
-    virtual void Persist(const TPersistenceContext& context) override
+    virtual void Persist(TPersistenceContext& context) override
     {
         TReduceControllerBase::Persist(context);
     }
@@ -2292,9 +2303,14 @@ private:
         const auto& slices = ChunkSliceFetcher->GetChunkSlices();
 
         for (const auto& slice : slices) {
+            YCHECK(slice->LowerLimit().HasKey());
+            const auto& primaryMinKey = slice->LowerLimit().GetKey();
+            YCHECK(slice->UpperLimit().HasKey());
+            const auto& primaryMaxKey = slice->UpperLimit().GetKey();
+
             try {
-                ValidateClientKey(slice->LowerLimit().Key);
-                ValidateClientKey(slice->UpperLimit().Key);
+                ValidateClientKey(primaryMinKey);
+                ValidateClientKey(primaryMaxKey);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(
                     "Error validating sample key in input table %v",

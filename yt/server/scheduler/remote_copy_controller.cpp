@@ -77,7 +77,7 @@ public:
 
     // Persistence.
 
-    virtual void Persist(const TPersistenceContext& context) override
+    virtual void Persist(TPersistenceContext& context) override
     {
         TOperationControllerBase::Persist(context);
 
@@ -145,7 +145,7 @@ private:
             return ChunkPool_.get();
         }
 
-        virtual void Persist(const TPersistenceContext& context) override
+        virtual void Persist(TPersistenceContext& context) override
         {
             TTask::Persist(context);
 
