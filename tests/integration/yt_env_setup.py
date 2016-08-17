@@ -236,14 +236,9 @@ class YTEnvSetup(object):
 
     def set_node_banned(self, address, flag):
         yt_commands.set("//sys/nodes/%s/@banned" % address, flag)
-        # Give it enough time to register or unregister the node
-        sleep(1.0)
-        if flag:
-            assert yt_commands.get("//sys/nodes/%s/@state" % address) == "offline"
-            print "Node %s is banned" % address
-        else:
-            assert yt_commands.get("//sys/nodes/%s/@state" % address) == "online"
-            print "Node %s is unbanned" % address
+        ban, state = ("banned", "offline") if flag else ("unbanned", "online")
+        print "Waiting for node %s to become %s..." % (address, ban)
+        wait(lambda: yt_commands.get("//sys/nodes/%s/@state" % address) == state)
 
     def wait_for_nodes(self):
         print "Waiting for nodes to become online..."
