@@ -95,7 +95,7 @@ const std::vector<TSample>& TSamplesFetcher::GetSamples() const
 TFuture<void> TSamplesFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
 {
     return BIND(&TSamplesFetcher::DoFetchFromNode, MakeWeak(this), nodeId, Passed(std::move(chunkIndexes)))
-        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+        .AsyncVia(Invoker_)
         .Run();
 }
 

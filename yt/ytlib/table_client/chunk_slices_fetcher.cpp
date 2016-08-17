@@ -71,7 +71,7 @@ std::vector<TInputSlicePtr> TChunkSliceFetcher::GetChunkSlices()
 TFuture<void> TChunkSliceFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
 {
     return BIND(&TChunkSliceFetcher::DoFetchFromNode, MakeWeak(this), nodeId, Passed(std::move(chunkIndexes)))
-        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+        .AsyncVia(Invoker_)
         .Run();
 }
 
