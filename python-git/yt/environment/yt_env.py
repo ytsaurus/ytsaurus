@@ -1,8 +1,8 @@
 from __future__ import print_function
 
-from configs_provider import init_logging, get_default_provision, create_configs_provider
-from helpers import versions_cmp, read_config, write_config, \
-                    is_dead_or_zombie, get_open_port, get_lsof_diagnostic
+from .configs_provider import init_logging, get_default_provision, create_configs_provider
+from .helpers import versions_cmp, read_config, write_config, \
+                     is_dead_or_zombie, get_open_port, get_lsof_diagnostic
 
 from yt.common import update, YtError, remove_file, makedirp, set_pdeathsig, \
                       which

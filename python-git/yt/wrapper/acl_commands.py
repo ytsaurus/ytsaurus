@@ -1,7 +1,7 @@
 """Permissions commands"""
 
-from driver import make_request
-from transaction_commands import _make_formatted_transactional_request
+from .driver import make_request
+from .transaction_commands import _make_formatted_transactional_request
 
 def check_permission(user, permission, path, format=None, client=None):
     """Check permission for Cypress node

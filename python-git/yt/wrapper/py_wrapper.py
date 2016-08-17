@@ -1,12 +1,12 @@
 from __future__ import print_function
 
-import config
-from config import get_config
-from pickling import Pickler
-from cypress_commands import get
-from common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value, which
-from errors import YtResponseError
-from py_runner_helpers import process_rows
+from . import config
+from .config import get_config
+from .pickling import Pickler
+from .cypress_commands import get
+from .common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value, which
+from .errors import YtResponseError
+from .py_runner_helpers import process_rows
 
 from yt.zip import ZipFile
 import yt.logger as logger
@@ -452,7 +452,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
         shutil.copy(function_source_filename, main_filename)
 
     files = map(os.path.abspath, [
-        os.path.join(LOCATION, "_py_runner.py"),
+        os.path.join(LOCATION, "bin", "_py_runner.py"),
         function_filename,
         config_filename,
         modules_info_filename,

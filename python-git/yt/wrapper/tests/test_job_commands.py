@@ -1,4 +1,4 @@
-from helpers import ENABLE_JOB_CONTROL, TEST_DIR, TESTS_SANDBOX
+from .helpers import ENABLE_JOB_CONTROL, TEST_DIR, TESTS_SANDBOX
 
 from yt.wrapper.job_shell import JobShell
 from yt.wrapper.http import get_api_commands
@@ -116,7 +116,7 @@ class TestJobCommands(object):
         else:
             assert int(ids.group(1)) == os.getuid()
 
-        rsp = shell.make_request("terminate")
+        shell.make_request("terminate")
         with pytest.raises(yt.YtError):
             output = self._poll_until_prompt(shell)
 

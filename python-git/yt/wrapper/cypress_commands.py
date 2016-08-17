@@ -1,11 +1,11 @@
-import yson
-from config import get_config, get_option
-from common import parse_bool, flatten, get_value, bool_to_string, YtError
-from errors import YtResponseError
-from transaction_commands import _make_transactional_request, \
-                                 _make_formatted_transactional_request
-from table import prepare_path, to_name
-from format import create_format
+from . import yson
+from .config import get_config, get_option
+from .common import parse_bool, flatten, get_value, bool_to_string, YtError
+from .errors import YtResponseError
+from .transaction_commands import _make_transactional_request, \
+                                  _make_formatted_transactional_request
+from .table import prepare_path, to_name
+from .format import create_format
 
 import yt.logger as logger
 

@@ -1,4 +1,4 @@
-import misc
+from . import misc
 
 import pytest
 

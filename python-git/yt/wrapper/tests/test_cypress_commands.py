@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from helpers import TEST_DIR
+from .helpers import TEST_DIR
 
 from yt.wrapper.client import Yt
 from yt.wrapper.common import parse_bool
@@ -298,7 +298,7 @@ class TestCypressCommands(object):
 
         with pytest.raises(yt.YtError):
             yt.ping_transaction("incorrect")
-        
+
         with pytest.raises(yt.YtError):
             yt.ping_transaction("1-1-1-1")
 

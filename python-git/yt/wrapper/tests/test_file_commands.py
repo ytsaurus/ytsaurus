@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from helpers import TEST_DIR, set_config_option
+from .helpers import TEST_DIR, set_config_option
 
 import yt.zip as zip
 

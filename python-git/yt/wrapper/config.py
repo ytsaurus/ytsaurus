@@ -1,8 +1,8 @@
 from __future__ import print_function
 
-import common
-import default_config
-import client_state
+from . import common
+from . import default_config
+from . import client_state
 
 import yt.yson as yson
 import yt.json as json

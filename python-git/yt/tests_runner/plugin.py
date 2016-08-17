@@ -1,7 +1,7 @@
 from __future__ import print_function
 
-import executor
-import scheduling
+from . import executor
+from . import scheduling
 
 import os
 import sys

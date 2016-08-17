@@ -1,4 +1,4 @@
-from client import TransferManager
+from .client import TransferManager
 
 import os
 

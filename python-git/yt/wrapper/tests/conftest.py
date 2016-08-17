@@ -1,4 +1,4 @@
-from helpers import TESTS_LOCATION, TEST_DIR, TESTS_SANDBOX, ENABLE_JOB_CONTROL
+from .helpers import TESTS_LOCATION, TEST_DIR, TESTS_SANDBOX, ENABLE_JOB_CONTROL
 
 from yt.environment import YTInstance
 from yt.wrapper.default_config import get_default_config

@@ -21,7 +21,7 @@ def main():
     if sys.version_info[:2] <= (2, 6):
         requires.append("argparse")
 
-    scripts, data_files = prepare_files(["yt/local/yt_local"])
+    scripts, data_files = prepare_files(["yt/local/bin/yt_local"])
 
     setup(
         name = "yandex-yt-local",

@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from errors import IncorrectTokenError
+from .errors import IncorrectTokenError
 
 import yt.logger as logger
 

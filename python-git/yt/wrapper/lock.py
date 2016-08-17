@@ -1,7 +1,7 @@
-from common import bool_to_string, get_value, YtError
-from table import prepare_path
-from cypress_commands import get
-from transaction_commands import _make_formatted_transactional_request
+from .common import bool_to_string, get_value, YtError
+from .table import prepare_path
+from .cypress_commands import get
+from .transaction_commands import _make_formatted_transactional_request
 
 import time
 from datetime import timedelta, datetime

@@ -1,9 +1,9 @@
 """YT requests misc"""
-import http_driver
-import native_driver
-from common import bool_to_string, YtError
-from config import get_option, get_config, get_backend_type
-from format import create_format
+from . import http_driver
+from . import native_driver
+from .common import bool_to_string, YtError
+from .config import get_option, get_config, get_backend_type
+from .format import create_format
 
 import yt.logger as logger
 import yt.yson as yson

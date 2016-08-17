@@ -1,4 +1,4 @@
-import fennel
+from . import fennel
 
 from tornado import iostream
 from tornado import testing

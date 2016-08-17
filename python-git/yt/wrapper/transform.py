@@ -1,9 +1,9 @@
-from common import get_value, update
-from errors import YtResponseError
-from config import get_config
-from cypress_commands import get, set, list, exists, create
-from table_commands import run_merge
-from table import TablePath, TempTable, to_name
+from .common import get_value, update
+from .errors import YtResponseError
+from .config import get_config
+from .cypress_commands import get, set, list, exists, create
+from .table_commands import run_merge
+from .table import TablePath, TempTable, to_name
 
 import yt.logger as logger
 

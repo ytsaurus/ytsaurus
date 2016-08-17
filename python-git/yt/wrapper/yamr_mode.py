@@ -1,6 +1,6 @@
-from config import get_config
-from common import get_value
-from format import YamrFormat
+from .config import get_config
+from .common import get_value
+from .format import YamrFormat
 
 import os
 

@@ -1,7 +1,7 @@
 from __future__ import print_function
 
-from helpers import TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, \
-                    build_python_egg, TESTS_SANDBOX, subprocess
+from .helpers import TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, \
+                     build_python_egg, TESTS_SANDBOX, subprocess
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
 from yt.common import which, makedirp

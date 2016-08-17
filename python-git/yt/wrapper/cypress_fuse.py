@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 """mount-cypress -- mount a Cypress, an YT cluster metainformation tree.

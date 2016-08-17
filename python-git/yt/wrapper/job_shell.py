@@ -1,10 +1,9 @@
 from __future__ import print_function
 
-import yson
-import json
-from common import generate_uuid, get_version, YtError
-from config import get_backend_type
-from http import get_proxy_url, get_api_version, get_token
+from . import yson
+from .common import generate_uuid, get_version, YtError
+from .config import get_backend_type
+from .http import get_proxy_url, get_api_version, get_token
 
 # yt.packages is imported here just to set sys.path for further loading of local tornado module
 from yt.packages import PackagesImporter
@@ -18,6 +17,7 @@ with PackagesImporter():
 from copy import deepcopy
 import sys
 import os
+import json
 import tty
 import termios
 import fcntl

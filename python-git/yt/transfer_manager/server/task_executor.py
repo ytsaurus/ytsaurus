@@ -1,10 +1,10 @@
-import traceback_helpers
-from task_types import Task
-from logger import TaskIdLogger
-from helpers import log_yt_exception, configure_logging
-from message_queue import MessageWriter
-from precheck import perform_precheck
-from clusters_configuration import get_clusters_configuration_from_config
+from . import traceback_helpers
+from .task_types import Task
+from .logger import TaskIdLogger
+from .helpers import log_yt_exception, configure_logging
+from .message_queue import MessageWriter
+from .precheck import perform_precheck
+from .clusters_configuration import get_clusters_configuration_from_config
 
 from yt.tools.yamr import YamrError
 from yt.tools.remote_copy_tools import \
