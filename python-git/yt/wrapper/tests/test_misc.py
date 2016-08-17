@@ -1,7 +1,7 @@
 from __future__ import print_function
 
-from helpers import TEST_DIR, TESTS_SANDBOX, TESTS_LOCATION, \
-                    get_environment_for_binary_test, check, subprocess
+from .helpers import TEST_DIR, TESTS_SANDBOX, TESTS_LOCATION, \
+                     get_environment_for_binary_test, check, subprocess
 
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
@@ -68,10 +68,11 @@ def test_yt_binary():
         env["TRUE"] = '%true'
 
     sandbox_dir = os.path.join(TESTS_SANDBOX, "TestYtBinary_" + uuid.uuid4().hex[:8])
+    binaries_dir = os.path.join(os.path.dirname(TESTS_LOCATION), "bin")
     makedirp(sandbox_dir)
     try:
-        test_binary = os.path.join(TESTS_LOCATION, "../test_yt.sh")
-        proc = subprocess.Popen([test_binary, sandbox_dir], env=env)
+        test_binary = os.path.join(TESTS_LOCATION, "test_yt.sh")
+        proc = subprocess.Popen([test_binary, sandbox_dir], env=env, cwd=binaries_dir)
         proc.communicate()
         assert proc.returncode == 0
     finally:

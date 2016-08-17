@@ -1,7 +1,7 @@
-from common import update
-from default_config import get_default_config
-from client_state import ClientState
-import client_api
+from .common import update
+from .default_config import get_default_config
+from .client_state import ClientState
+from . import client_api
 
 from yt.packages.decorator import FunctionMaker
 

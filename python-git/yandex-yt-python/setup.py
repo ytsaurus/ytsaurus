@@ -37,11 +37,11 @@ def main():
         requires.append("argparse")
 
     scripts, data_files = prepare_files([
-        "yt/wrapper/mapreduce-yt",
-        "yt/wrapper/yt2",
-        "yt/wrapper/yt-fuse",
-        "yt/wrapper/yt-admin",
-        "yt/wrapper/yt-job-tool"])
+        "yt/wrapper/bin/mapreduce-yt",
+        "yt/wrapper/bin/yt2",
+        "yt/wrapper/bin/yt-fuse",
+        "yt/wrapper/bin/yt-admin",
+        "yt/wrapper/bin/yt-job-tool"])
     if "DEB" in os.environ:
         if not os.path.exists("docs"):
             subprocess.check_call("PYTHONPATH=$(pwd) sphinx-apidoc -F -o docs yt", shell=True)
@@ -50,7 +50,7 @@ def main():
         data_files += [("/etc/bash_completion.d/", ["yandex-yt-python/yt_completion"])]
     else:
         # We cannot create link in the egg, so we must put yt binary.
-        scripts.append("yt/wrapper/yt")
+        scripts.append("yt/wrapper/bin/yt")
 
     version = get_version()
     with open("yt/wrapper/version.py", "w") as version_output:

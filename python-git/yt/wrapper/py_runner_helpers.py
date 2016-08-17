@@ -1,4 +1,4 @@
-from common import EMPTY_GENERATOR, YtError
+from .common import EMPTY_GENERATOR, YtError
 
 import inspect
 import os

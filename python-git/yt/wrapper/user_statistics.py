@@ -1,4 +1,4 @@
-import yson
+from . import yson
 
 import os
 import sys

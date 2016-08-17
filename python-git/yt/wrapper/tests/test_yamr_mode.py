@@ -1,4 +1,5 @@
-from helpers import TEST_DIR, TESTS_SANDBOX, get_test_file_path, get_environment_for_binary_test, set_config_option, subprocess
+from .helpers import TEST_DIR, TESTS_LOCATION, TESTS_SANDBOX, get_test_file_path, \
+                     get_environment_for_binary_test, set_config_option, subprocess
 
 from yt.wrapper.table_commands import copy_table, move_table
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
@@ -107,11 +108,9 @@ class TestYamrMode(object):
             env["FALSE"] = "false"
             env["TRUE"] = "true"
 
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        proc = subprocess.Popen(
-            os.path.join(current_dir, "../test_mapreduce.sh"),
-            shell=True,
-            env=env)
+        test_binary = os.path.join(TESTS_LOCATION, "test_mapreduce.sh")
+        binaries_dir = os.path.join(os.path.dirname(TESTS_LOCATION), "bin")
+        proc = subprocess.Popen([test_binary], env=env, cwd=binaries_dir)
         proc.communicate()
         assert proc.returncode == 0
 

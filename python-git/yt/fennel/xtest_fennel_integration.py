@@ -1,5 +1,5 @@
-import fennel
-import misc
+from . import fennel
+from . import misc
 
 from tornado import testing
 from tornado import gen

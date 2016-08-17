@@ -42,25 +42,25 @@ data of operation
 Operation run under self-pinged transaction, if `yt.wrapper.get_config(client)["detached"]` is `False`.
 """
 
-from config import get_config
-import py_wrapper
-from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
-                   compose, bool_to_string, chunk_iter_stream, get_started_by, MB, GB, EMPTY_GENERATOR, \
-                   run_with_retries, forbidden_inside_job
-from errors import YtIncorrectResponse, YtError, YtOperationFailedError, YtConcurrentOperationsLimitExceeded
-from driver import make_request
-from exceptions_catcher import KeyboardInterruptsCatcher
-from table import TablePath, to_table, to_name, prepare_path
-from cypress_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
-                             move, mkdir, find_free_subpath, create, get, get_type, \
-                             _make_formatted_transactional_request, has_attribute, ypath_join
-from file_commands import upload_file_to_cache, is_executable
-from operation_commands import Operation
-from transaction_commands import _make_transactional_request, abort_transaction
-from transaction import Transaction, null_transaction_id
-from format import create_format, YsonFormat, YamrFormat
-from heavy_commands import make_write_request, make_read_request
-from http import get_api_version
+from . import py_wrapper
+from .config import get_config
+from .common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
+                    compose, bool_to_string, chunk_iter_stream, get_started_by, MB, GB, EMPTY_GENERATOR, \
+                    run_with_retries, forbidden_inside_job
+from .errors import YtIncorrectResponse, YtError, YtOperationFailedError, YtConcurrentOperationsLimitExceeded
+from .driver import make_request
+from .exceptions_catcher import KeyboardInterruptsCatcher
+from .table import TablePath, to_table, to_name, prepare_path
+from .cypress_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
+                              move, mkdir, find_free_subpath, create, get, get_type, \
+                              _make_formatted_transactional_request, has_attribute, ypath_join
+from .file_commands import upload_file_to_cache, is_executable
+from .operation_commands import Operation
+from .transaction_commands import _make_transactional_request, abort_transaction
+from .transaction import Transaction, null_transaction_id
+from .format import create_format, YsonFormat, YamrFormat
+from .heavy_commands import make_write_request, make_read_request
+from .http import get_api_version
 
 import yt.logger as logger
 import yt.json as json

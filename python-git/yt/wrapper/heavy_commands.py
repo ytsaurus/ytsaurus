@@ -1,17 +1,17 @@
 """heavy command"""
 
 import yt.logger as logger
-import config
-from config import get_option, get_config, get_total_request_timeout, get_request_retry_count
-from common import get_backoff, chunk_iter_blobs, YtError
-from errors import YtResponseError, YtRetriableError
-from table import to_table, to_name
-from transaction import Transaction
-from transaction_commands import _make_transactional_request
-from http import get_retriable_errors
-from response_stream import ResponseStream
-from lock import lock
-from format import YtFormatReadError
+from . import config
+from .config import get_option, get_config, get_total_request_timeout, get_request_retry_count
+from .common import get_backoff, chunk_iter_blobs, YtError
+from .errors import YtResponseError, YtRetriableError
+from .table import to_table, to_name
+from .transaction import Transaction
+from .transaction_commands import _make_transactional_request
+from .http import get_retriable_errors
+from .response_stream import ResponseStream
+from .lock import lock
+from .format import YtFormatReadError
 
 import time
 import random

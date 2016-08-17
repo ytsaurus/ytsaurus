@@ -1,4 +1,4 @@
-from system_random import SystemRandom
+from .system_random import SystemRandom
 
 class ClientState(object):
     def __init__(self):

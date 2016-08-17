@@ -1,9 +1,9 @@
-from config import get_config, get_option, set_option, get_backend_type
-from common import require, get_backoff, get_value, total_seconds, generate_uuid
-from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError, \
-                   YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut, YtRetriableError, YtNoSuchTransaction, \
-                   hide_token
-from command import parse_commands
+from .config import get_config, get_option, set_option, get_backend_type
+from .common import require, get_backoff, get_value, total_seconds, generate_uuid
+from .errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError, \
+                    YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut, \
+                    YtRetriableError, YtNoSuchTransaction, hide_token
+from .command import parse_commands
 
 import yt.logger as logger
 import yt.yson as yson

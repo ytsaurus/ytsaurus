@@ -1,4 +1,4 @@
-from helpers import TEST_DIR, set_config_option
+from .helpers import TEST_DIR, set_config_option
 
 from yt.wrapper.client import Yt
 from yt.wrapper.table import TablePath

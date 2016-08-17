@@ -1,4 +1,4 @@
-import logger_config
+from . import logger_config
 
 import logging
 

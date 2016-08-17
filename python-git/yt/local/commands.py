@@ -1,4 +1,4 @@
-from cluster_configuration import modify_cluster_configuration, NODE_MEMORY_LIMIT_ADDITION
+from .cluster_configuration import modify_cluster_configuration, NODE_MEMORY_LIMIT_ADDITION
 
 from yt.environment import YTInstance
 from yt.environment.init_cluster import initialize_world

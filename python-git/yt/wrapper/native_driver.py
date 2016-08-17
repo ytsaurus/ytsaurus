@@ -1,8 +1,8 @@
-from config import get_config, get_option, set_option
-from common import require, generate_int64
-from errors import YtResponseError, YtError
-from string_iter_io import StringIterIO
-from response_stream import ResponseStream
+from .config import get_config, get_option, set_option
+from .common import require, generate_int64
+from .errors import YtResponseError, YtError
+from .string_iter_io import StringIterIO
+from .response_stream import ResponseStream
 
 import yt.logger as logger
 import yt.yson as yson

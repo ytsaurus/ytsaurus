@@ -14,7 +14,7 @@ import subprocess32 as subprocess
 
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", os.path.join(TESTS_LOCATION, "sandbox"))
-YT_LOCAL_BINARY = os.path.join(os.path.dirname(TESTS_LOCATION), "yt_local")
+YT_LOCAL_BINARY = os.path.join(os.path.dirname(TESTS_LOCATION), "bin", "yt_local")
 
 def _read_pids_file(environment):
     if not os.path.exists(environment.pids_filename):

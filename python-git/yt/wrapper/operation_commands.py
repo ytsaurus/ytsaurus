@@ -1,11 +1,11 @@
-from config import get_config
-from errors import YtError, YtOperationFailedError, YtTimeoutError, YtResponseError
-from driver import make_request
-from http import get_proxy_url, get_retriable_errors
-from exceptions_catcher import ExceptionCatcher
-from cypress_commands import exists, get, list, ypath_join
-from file_commands import read_file
-import yson
+from .config import get_config
+from .errors import YtError, YtOperationFailedError, YtTimeoutError, YtResponseError
+from .driver import make_request
+from .http import get_proxy_url, get_retriable_errors
+from .exceptions_catcher import ExceptionCatcher
+from .cypress_commands import exists, get, list, ypath_join
+from .file_commands import read_file
+from . import yson
 
 import yt.logger as logger
 from yt.common import format_error

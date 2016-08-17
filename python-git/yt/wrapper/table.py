@@ -1,7 +1,7 @@
-from common import flatten, require, bool_to_string, parse_bool, update
-from errors import YtError
-from etc_commands import parse_ypath
-from config import get_config
+from .common import flatten, require, bool_to_string, parse_bool, update
+from .errors import YtError
+from .etc_commands import parse_ypath
+from .config import get_config
 
 from yt.yson import YsonString
 import yt.yson as yson
@@ -215,8 +215,8 @@ def TempTable(path=None, prefix=None, client=None):
     """Create temporary table in given path with given prefix on scope enter and remove it on scope exit.
        .. seealso:: :py:func:`yt.wrapper.table_commands.create_temp_table`
     """
-    from cypress_commands import remove
-    from table_commands import create_temp_table
+    from .cypress_commands import remove
+    from .table_commands import create_temp_table
 
     table = create_temp_table(path, prefix, client=client)
     try:

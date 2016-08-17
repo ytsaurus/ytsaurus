@@ -1,7 +1,5 @@
 #!/bin/bash -eux
 
-cd $(dirname "${BASH_SOURCE[0]}")
-
 set +u
 if [ -z "$1" ]; then
     echo "Tests sandbox path should be specified" && exit 1

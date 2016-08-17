@@ -1,4 +1,4 @@
-import default_configs
+from . import default_configs
 
 from yt.wrapper.common import MB, GB
 from yt.wrapper.mappings import VerifiedDict

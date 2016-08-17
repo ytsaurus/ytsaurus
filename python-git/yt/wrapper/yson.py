@@ -1,4 +1,4 @@
-from http import get_api_version
+from .http import get_api_version
 
 import yt.yson
 from yt.yson import *

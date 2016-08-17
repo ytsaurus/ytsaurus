@@ -1,7 +1,5 @@
 #!/bin/bash -eux
 
-cd $(dirname "${BASH_SOURCE[0]}")
-
 export YT_PREFIX="//home/wrapper_tests/"
 
 timeout() {

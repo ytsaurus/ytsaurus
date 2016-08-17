@@ -1,12 +1,12 @@
-from helpers import TESTS_SANDBOX, TEST_DIR, TESTS_LOCATION, subprocess
+from .helpers import TESTS_SANDBOX, TEST_DIR, TESTS_LOCATION, subprocess
 
-import yt.wrapper.job_runner as job_runner
 import yt.yson as yson
 from yt.common import makedirp
 
 import yt.wrapper as yt
 
 import os
+import sys
 import tempfile
 import shutil
 import pytest
@@ -19,12 +19,9 @@ class TestJobRunner(object):
     def _start_job_runner(self, config):
         with tempfile.NamedTemporaryFile(dir=TESTS_SANDBOX, prefix="job_runner", delete=False) as fout:
             yson.dump(config, fout, yson_format="pretty")
-
-        runner_path = job_runner.__file__
-        if runner_path.endswith(".pyc"):
-            runner_path = runner_path[:-1]
-
-        return subprocess.Popen([runner_path, "--config-path", fout.name], stderr=subprocess.PIPE)
+        return subprocess.Popen(
+            [sys.executable, "-m", "yt.wrapper.job_runner", "--config-path", fout.name],
+            stderr=subprocess.PIPE)
 
     @pytest.mark.parametrize("use_yamr_descriptors", [True, False])
     def test_job_runner(self, use_yamr_descriptors):
@@ -82,7 +79,7 @@ for line in sys.stdin:
 
 @pytest.mark.usefixtures("yt_env")
 class TestJobTool(object):
-    JOB_TOOL_BINARY = os.path.join(TESTS_LOCATION, "../yt-job-tool")
+    JOB_TOOL_BINARY = os.path.join(os.path.dirname(TESTS_LOCATION), "bin", "yt-job-tool")
 
     def _check(self, operation_id, yt_env):
         jobs = yt.list("//sys/operations/{0}/jobs".format(operation_id))

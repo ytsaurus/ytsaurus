@@ -1,4 +1,4 @@
-from yamr import _check_output
+from .yamr import _check_output
 
 from yt.wrapper.common import generate_uuid, bool_to_string, MB, GB
 from yt.tools.conversion_tools import transform

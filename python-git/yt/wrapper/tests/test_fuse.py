@@ -1,4 +1,4 @@
-from helpers import TEST_DIR
+from .helpers import TEST_DIR
 
 from yt.wrapper.cypress_fuse import CachedYtClient, Cypress
 from yt.wrapper.http import get_proxy_url
