@@ -1505,16 +1505,36 @@ class TestSchedulerAlerts(YTEnvSetup):
 
         time.sleep(0.5)
         assert get("//sys/scheduler/@alerts") == []
-    
+
     def test_config(self):
         assert get("//sys/scheduler/@alerts") == []
 
         set("//sys/scheduler/config", {"fair_share_update_period": -100})
-        
+
         time.sleep(0.5)
         assert len(get("//sys/scheduler/@alerts")) == 1
-        
+
         set("//sys/scheduler/config", {})
-        
+
         time.sleep(0.5)
         assert get("//sys/scheduler/@alerts") == []
+
+class TestSchedulerCaching(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "get_exec_nodes_information_delay": 3000,
+        }
+    }
+
+    def test_exec_node_descriptors_caching(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", [{"foo": i} for i in xrange(10)])
+
+        op = map(dont_track=True, command='cat', in_="//tmp/t_in", out="//tmp/t_out")
+        op.track()
