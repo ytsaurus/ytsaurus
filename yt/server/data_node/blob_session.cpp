@@ -132,7 +132,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
 
     std::vector<int> receivedBlockIndexes;
     for (int localIndex = 0; localIndex < static_cast<int>(blocks.size()); ++localIndex) {
-        int blockIndex = startBlockIndex = localIndex;
+        int blockIndex = startBlockIndex + localIndex;
         const auto& block = blocks[localIndex];
         TBlockId blockId(ChunkId_, blockIndex);
         ValidateBlockIsInWindow(blockIndex);
