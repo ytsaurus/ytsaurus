@@ -403,8 +403,10 @@ class YTInstance(object):
         provision["master"]["cell_nonvoting_master_count"] = self.nonvoting_master_count
         provision["scheduler"]["count"] = self.scheduler_count
         provision["node"]["count"] = self.node_count
-        provision["node"]["jobs_resource_limits"]["memory"] = node_jobs_memory_limit
-        provision["node"]["jobs_resource_limits"]["user_slots"] = node_user_slots
+        if node_jobs_memory_limit is not None:
+            provision["node"]["jobs_resource_limits"]["memory"] = node_jobs_memory_limit
+        if node_user_slots is not None:
+            provision["node"]["jobs_resource_limits"]["user_slots"] = node_user_slots
         provision["node"]["memory_limit_addition"] = node_memory_limit_addition
         provision["proxy"]["enable"] = self.has_proxy
         provision["proxy"]["http_port"] = proxy_port
