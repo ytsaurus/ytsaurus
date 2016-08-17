@@ -46,7 +46,6 @@ def get_master_config():
     return yson.loads(
 """
 {
-    address_resolver = { };
     enable_provision_lock = %false;
 
     timestamp_provider = {
@@ -58,14 +57,10 @@ def get_master_config():
         flush_period = 10;
     };
 
-    snapshots = { };
-
     cell_directory = {
         soft_backoff_time = 100;
         hard_backoff_time = 100;
     };
-
-    hydra_manager = { };
 
     transaction_manager = {
         default_transaction_timeout = 300000;
@@ -100,10 +95,6 @@ def get_master_config():
         idle_post_period = 1000;
         rpc_timeout = 1000;
     };
-
-    logging = { };
-
-    tracing = { };
 }
 """)
 
@@ -112,8 +103,6 @@ def get_scheduler_config():
     return yson.loads(
 """
 {
-    address_resolver = { };
-
     orchid_cache_update_period = 0;
 
     cluster_connection = {
@@ -123,8 +112,6 @@ def get_scheduler_config():
             soft_backoff_time = 100;
             hard_backoff_time = 100;
         };
-
-        transaction_manager = { };
     };
 
     response_keeper = {
@@ -156,13 +143,6 @@ def get_scheduler_config():
         enable_snapshot_loading = %true;
         snapshot_timeout = 1000;
     };
-
-    transaction_manager = { };
-
-    logging = { };
-
-    tracing = { };
-
 }
 """)
 
@@ -170,8 +150,6 @@ def get_node_config(enable_debug_logging=True):
     config = yson.loads(
 """
 {
-    address_resolver = { };
-
     orchid_cache_update_period = 0;
 
     cluster_connection = {
@@ -200,10 +178,8 @@ def get_node_config(enable_debug_logging=True):
     };
 
     data_node = {
-        store_locations = [];
         multiplexed_changelog = {
             flush_period = 10;
-            path = "";
         };
 
         incremental_heartbeat_period = 100;
@@ -254,19 +230,11 @@ def get_node_config(enable_debug_logging=True):
                 };
             }
         };
-
-        job_proxy_tracing = { };
     };
 
     tablet_node = {
-        hydra_manager = { };
-
         slot_scan_period = 100;
     };
-
-    query_agent = { };
-
-    tracing = { };
 
     logging = {
         rules = [
@@ -310,8 +278,6 @@ def get_driver_config():
         soft_backoff_time = 100;
         hard_backoff_time = 100;
     };
-
-    transaction_manager = { };
 
     table_mount_cache = {
         success_expiration_time = 1000;
@@ -360,12 +326,6 @@ def get_proxy_config():
     },
 
     "show_ports" : true,
-
-    "proxy" : {
-        "driver" : { },
-        "logging" : { },
-        "tracing" : { }
-    },
 
     "static": []
 }

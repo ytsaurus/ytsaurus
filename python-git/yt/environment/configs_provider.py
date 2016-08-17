@@ -181,20 +181,41 @@ def init_logging(node, path, name, enable_debug_logging):
 
 DEFAULT_TRANSACTION_PING_PERIOD = 500
 
+def set_at(config, path, value, merge=False):
+    """Sets value in config by path creating intermediate dict nodes."""
+    parts = path.split("/")
+    for index, part in enumerate(parts):
+        if index != len(parts) - 1:
+            config = config.setdefault(part, {})
+        else:
+            if merge:
+                config[part] = update(config.get(part, {}), value)
+            else:
+                config[part] = value
+
+def get_at(config, path, default_value=None):
+    for part in path.split("/"):
+        if not isinstance(config, dict):
+            raise ValueError("Path should not contain non-dict intermediate values")
+        if part not in config:
+            return default_value
+        config = config[part]
+    return config
+
 def _set_bind_retry_options(config):
-    if "bus_server" not in config:
-        config["bus_server"] = {}
-    config["bus_server"]["bind_retry_count"] = 10
-    config["bus_server"]["bind_retry_backoff"] = 3000
+    set_at(config, "bus_server/bind_retry_count", 10)
+    set_at(config, "bus_server/bind_retry_backoff", 3000)
 
 def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, fqdn, ports_generator):
     proxy_config = default_configs.get_proxy_config()
-    proxy_config["proxy"]["logging"] = init_logging(proxy_config["proxy"]["logging"], proxy_dir, "http_proxy",
-                                                    enable_debug_logging)
     proxy_config["port"] = proxy_port if proxy_port else next(ports_generator)
     proxy_config["fqdn"] = "{0}:{1}".format(fqdn, proxy_config["port"])
     proxy_config["static"].append(["/ui", os.path.join(proxy_dir, "ui")])
-    proxy_config["logging"]["filename"] = os.path.join(proxy_dir, "http_application.log")
+
+    logging_config = get_at(proxy_config, "proxy/logging")
+    set_at(proxy_config, "proxy/logging",
+           init_logging(logging_config, proxy_dir, "http_proxy", enable_debug_logging))
+    set_at(proxy_config, "logging/filename", os.path.join(proxy_dir, "http_application.log"))
 
     _set_bind_retry_options(proxy_config)
 
@@ -228,7 +249,7 @@ def _set_memory_limit_options(config, operations_memory_limit):
     if operations_memory_limit is None:
         return
 
-    config["exec_agent"]["job_controller"]["resource_limits"]["memory"] = operations_memory_limit
+    set_at(config, "exec_agent/job_controller/resource_limits/memory", operations_memory_limit)
 
     resource_limits = config.get("resource_limits", {})
     resource_limits.setdefault("memory", 0)
@@ -268,21 +289,21 @@ class ConfigsProvider_17(ConfigsProvider):
 
             config["rpc_port"] = ports[2 * i]
             config["monitoring_port"] = ports[2 * i + 1]
-            config["address_resolver"]["localhost_fqdn"] = provision["fqdn"]
+            set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
 
             config["master"] = connection_configs[cell_tag]
-            config["timestamp_provider"]["addresses"] = addresses
+            set_at(config, "timestamp_provider/addresses", addresses)
 
             if master_tmpfs_dirs is None:
-                config["changelogs"]["path"] = os.path.join(master_dirs[i], "changelogs")
+                set_at(config, "changelogs/path", os.path.join(master_dirs[i], "changelogs"))
             else:
-                config["changelogs"]["path"] = os.path.join(master_tmpfs_dirs[i], "changelogs")
+                set_at(config, "changelogs/path", os.path.join(master_tmpfs_dirs[i], "changelogs"))
 
-            config["snapshots"]["path"] = os.path.join(master_dirs[i], "snapshots")
-            config["logging"] = init_logging(config["logging"], master_dirs[i], "master-" + str(i),
+            set_at(config, "snapshots/path", os.path.join(master_dirs[i], "snapshots"))
+            config["logging"] = init_logging(config.get("logging"), master_dirs[i], "master-" + str(i),
                                              provision["enable_debug_logging"])
 
-            config["node_tracker"]["online_node_timeout"] = 1000
+            set_at(config, "node_tracker/online_node_timeout", 1000)
             _set_bind_retry_options(config)
 
             config["hydra_manager"] = _get_hydra_manager_config()
@@ -325,15 +346,15 @@ class ConfigsProvider_17(ConfigsProvider):
         for i in xrange(provision["scheduler"]["count"]):
             config = default_configs.get_scheduler_config()
 
-            config["address_resolver"]["localhost_fqdn"] = provision["fqdn"]
+            set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
             update(config["cluster_connection"],
                    self._build_cluster_connection_config(master_connection_configs))
 
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
-            config["scheduler"]["snapshot_temp_path"] = os.path.join(scheduler_dirs[i], "snapshots")
+            set_at(config, "scheduler/snapshot_temp_path", os.path.join(scheduler_dirs[i], "snapshots"))
 
-            config["logging"] = init_logging(config["logging"], scheduler_dirs[i], "scheduler-" + str(i),
+            config["logging"] = init_logging(config.get("logging"), scheduler_dirs[i], "scheduler-" + str(i),
                                              provision["enable_debug_logging"])
             _set_bind_retry_options(config)
 
@@ -349,7 +370,7 @@ class ConfigsProvider_17(ConfigsProvider):
         for i in xrange(provision["node"]["count"]):
             config = default_configs.get_node_config(provision["enable_debug_logging"])
 
-            config["address_resolver"]["localhost_fqdn"] = provision["fqdn"]
+            set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
 
             config["addresses"] = {
                 "default": provision["fqdn"],
@@ -362,30 +383,35 @@ class ConfigsProvider_17(ConfigsProvider):
             update(config["cluster_connection"],
                    self._build_cluster_connection_config(master_connection_configs, enable_master_cache=True))
 
+            set_at(config, "data_node/store_locations", [])
             config["data_node"]["store_locations"].append({
                 "path": os.path.join(node_dirs[i], "chunk_store"),
                 "low_watermark": 0,
                 "high_watermark": 0
             })
 
-            config["data_node"]["cache_locations"] = [{
+            set_at(config, "data_node/cache_locations", [{
                 "path": os.path.join(node_dirs[i], "chunk_cache")
-            }]
+            }])
 
-            config["exec_agent"]["slot_manager"]["start_uid"] = current_user
-            config["exec_agent"]["slot_manager"]["paths"] = [os.path.join(node_dirs[i], "slots")]
+            set_at(config, "exec_agent/slot_manager/start_uid", current_user)
+            set_at(config, "exec_agent/slot_manager/paths", [os.path.join(node_dirs[i], "slots")])
 
             current_user += config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] + 1
 
-            config["logging"] = init_logging(config["logging"], node_dirs[i], "node-{0}".format(i),
+            config["logging"] = init_logging(config.get("logging"), node_dirs[i], "node-{0}".format(i),
                                              provision["enable_debug_logging"])
 
-            config["exec_agent"]["enable_cgroups"] = False
-            config["exec_agent"]["environment_manager"] = {"environments": {"default": {"type": "unsafe"}}}
+            set_at(config, "exec_agent/enable_cgroups", False)
+            set_at(config, "exec_agent/environment_manager", {"environments": {"default": {"type": "unsafe"}}})
 
-            config["exec_agent"]["job_proxy_logging"] = init_logging(config["exec_agent"]["job_proxy_logging"],
-                                                                     node_dirs[i], "job_proxy-{0}".format(i),
-                                                                     provision["enable_debug_logging"])
+            job_proxy_logging = get_at(config, "exec_agent/job_proxy_logging")
+            log_name = "job_proxy-{0}".format(i)
+            set_at(
+                config,
+                "exec_agent/job_proxy_logging",
+                init_logging(job_proxy_logging, node_dirs[i], log_name, provision["enable_debug_logging"]))
+
             _set_bind_retry_options(config)
             _set_memory_limit_options(config, provision["node"]["operations_memory_limit"])
 
@@ -400,7 +426,7 @@ class ConfigsProvider_17(ConfigsProvider):
         proxy_config = _generate_common_proxy_config(proxy_dir, provision["proxy"]["http_port"],
                                                      provision["enable_debug_logging"], provision["fqdn"],
                                                      ports_generator)
-        proxy_config["proxy"]["driver"] = driver_config
+        set_at(proxy_config, "proxy/driver", driver_config)
 
         return proxy_config
 
@@ -464,14 +490,13 @@ class ConfigsProvider_18(ConfigsProvider):
             for master_index in xrange(provision["master"]["cell_size"]):
                 config = default_configs.get_master_config()
 
-                config["address_resolver"]["localhost_fqdn"] = provision["fqdn"]
+                set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
 
                 config["hydra_manager"] = _get_hydra_manager_config()
 
-                config["security_manager"]["user_statistics_gossip_period"] = 80
-                config["security_manager"]["account_statistics_gossip_period"] = 80
-
-                config["node_tracker"]["node_states_gossip_period"] = 80
+                set_at(config, "security_manager/user_statistics_gossip_period", 80)
+                set_at(config, "security_manager/account_statistics_gossip_period", 80)
+                set_at(config, "node_tracker/node_states_gossip_period", 80)
 
                 config["rpc_port"], config["monitoring_port"] = ports[cell_index][master_index]
 
@@ -479,15 +504,18 @@ class ConfigsProvider_18(ConfigsProvider):
                 config["secondary_masters"] = [connection_configs[tag]
                                                for tag in connection_configs["secondary_cell_tags"]]
 
-                config["timestamp_provider"]["addresses"] = connection_configs[cell_tags[0]]["addresses"]
-                config["snapshots"]["path"] = os.path.join(master_dirs[cell_index][master_index], "snapshots")
+                set_at(config, "timestamp_provider/addresses", connection_configs[cell_tags[0]]["addresses"])
+                set_at(config, "snapshots/path",
+                       os.path.join(master_dirs[cell_index][master_index], "snapshots"))
 
                 if master_tmpfs_dirs is None:
-                    config["changelogs"]["path"] = os.path.join(master_dirs[cell_index][master_index], "changelogs")
+                    set_at(config, "changelogs/path",
+                           os.path.join(master_dirs[cell_index][master_index], "changelogs"))
                 else:
-                    config["changelogs"]["path"] = os.path.join(master_tmpfs_dirs[cell_index][master_index], "changelogs")
+                    set_at(config, "changelogs/path",
+                           os.path.join(master_tmpfs_dirs[cell_index][master_index], "changelogs"))
 
-                config["logging"] = init_logging(config["logging"], master_dirs[cell_index][master_index],
+                config["logging"] = init_logging(config.get("logging"), master_dirs[cell_index][master_index],
                                                  "master-" + str(master_index), provision["enable_debug_logging"])
 
                 update(config, {
@@ -547,15 +575,15 @@ class ConfigsProvider_18(ConfigsProvider):
         for i in xrange(provision["scheduler"]["count"]):
             config = default_configs.get_scheduler_config()
 
-            config["address_resolver"]["localhost_fqdn"] = provision["fqdn"]
+            set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
             update(config["cluster_connection"],
                    self._build_cluster_connection_config(master_connection_configs))
 
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
-            config["scheduler"]["snapshot_temp_path"] = os.path.join(scheduler_dirs[i], "snapshots")
+            set_at(config, "scheduler/snapshot_temp_path", os.path.join(scheduler_dirs[i], "snapshots"))
 
-            config["logging"] = init_logging(config["logging"], scheduler_dirs[i], "scheduler-" + str(i),
+            config["logging"] = init_logging(config.get("logging"), scheduler_dirs[i], "scheduler-" + str(i),
                                              provision["enable_debug_logging"])
             _set_bind_retry_options(config)
 
@@ -580,7 +608,7 @@ class ConfigsProvider_18(ConfigsProvider):
         for i in xrange(provision["node"]["count"]):
             config = default_configs.get_node_config(provision["enable_debug_logging"])
 
-            config["address_resolver"]["localhost_fqdn"] = provision["fqdn"]
+            set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
 
             config["addresses"] = {
                 "default": provision["fqdn"],
@@ -596,28 +624,33 @@ class ConfigsProvider_18(ConfigsProvider):
             update(config["cluster_connection"],
                    self._build_cluster_connection_config(master_connection_configs, enable_master_cache=True))
 
-            config["data_node"]["read_thread_count"] = 2
-            config["data_node"]["write_thread_count"] = 2
+            set_at(config, "data_node/read_thread_count", 2)
+            set_at(config, "data_node/write_thread_count", 2)
 
-            config["data_node"]["multiplexed_changelog"] = {}
-            config["data_node"]["multiplexed_changelog"]["path"] = os.path.join(node_dirs[i], "multiplexed")
+            set_at(config, "data_node/multiplexed_changelog/path", os.path.join(node_dirs[i], "multiplexed"))
 
-            config["data_node"]["cache_locations"] = []
+            set_at(config, "data_node/cache_locations", [])
             config["data_node"]["cache_locations"].append({"path": os.path.join(node_dirs[i], "chunk_cache")})
 
+            set_at(config, "data_node/store_locations", [])
             config["data_node"]["store_locations"].append({
                 "path": os.path.join(node_dirs[i], "chunk_store"),
                 "low_watermark": 0,
                 "high_watermark": 0
             })
 
-            config["logging"] = init_logging(config["logging"], node_dirs[i], "node-{0}".format(i),
+            config["logging"] = init_logging(config.get("logging"), node_dirs[i], "node-{0}".format(i),
                                              provision["enable_debug_logging"])
-            config["exec_agent"]["job_proxy_logging"] = init_logging(config["exec_agent"]["job_proxy_logging"],
-                                                                     node_dirs[i], "job_proxy-{0}".format(i),
-                                                                     provision["enable_debug_logging"])
-            config["tablet_node"]["hydra_manager"] = _get_hydra_manager_config()
-            config["tablet_node"]["hydra_manager"]["restart_backoff_time"] = 100
+
+            job_proxy_logging = get_at(config, "exec_agent/job_proxy_logging")
+            log_name = "job_proxy-{0}".format(i)
+            set_at(
+                config,
+                "exec_agent/job_proxy_logging",
+                init_logging(job_proxy_logging, node_dirs[i], log_name, provision["enable_debug_logging"]))
+
+            set_at(config, "tablet_node/hydra_manager", _get_hydra_manager_config(), merge=True)
+            set_at(config, "tablet_node/hydra_manager/restart_backoff_time", 100)
             _set_bind_retry_options(config)
             _set_memory_limit_options(config, provision["node"]["operations_memory_limit"])
 
@@ -683,11 +716,11 @@ class ConfigsProvider_18_3_18_4(ConfigsProvider_18):
         current_user = 10000
 
         for i, config in enumerate(configs):
-            config["exec_agent"]["slot_manager"]["start_uid"] = current_user
-            config["exec_agent"]["slot_manager"]["paths"] = [os.path.join(node_dirs[i], "slots")]
+            set_at(config, "exec_agent/slot_manager/start_uid", current_user)
+            set_at(config, "exec_agent/slot_manager/paths", [os.path.join(node_dirs[i], "slots")])
 
-            config["exec_agent"]["enable_cgroups"] = False
-            config["exec_agent"]["environment_manager"] = {"environments": {"default": {"type": "unsafe"}}}
+            set_at(config, "exec_agent/enable_cgroups", False)
+            set_at(config, "exec_agent/environment_manager", {"environments": {"default": {"type": "unsafe"}}})
 
             current_user += config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] + 1
 
@@ -710,12 +743,11 @@ class ConfigsProvider_18_5(ConfigsProvider_18):
             # test and yt_node instances do not share same uids range for user jobs.
             start_uid = current_user + config["rpc_port"]
 
-            config["exec_agent"]["slot_manager"]["job_environment"] = {
+            set_at(config, "exec_agent/slot_manager/job_environment", {
                 "type": "simple",
                 "start_uid" : start_uid,
-            }
-            config["exec_agent"]["slot_manager"]["locations"] = [{"path" : os.path.join(node_dirs[i], "slots")}]
-            config["exec_agent"]["slot_manager"]["paths"] = [os.path.join(node_dirs[i], "slots")]
+            })
+            set_at(config, "exec_agent/slot_manager/locations", [{"path" : os.path.join(node_dirs[i], "slots")}])
 
             config["addresses"] = [
                 ("interconnect", provision["fqdn"]),
