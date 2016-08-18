@@ -1348,7 +1348,7 @@ private:
 
     void OnProfiling()
     {
-        if (!IsLeader()) {
+        if (!Bootstrap_->IsPrimaryMaster() || !IsLeader()) {
             return;
         }
 
