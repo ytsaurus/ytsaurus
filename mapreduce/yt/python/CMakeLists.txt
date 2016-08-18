@@ -14,11 +14,11 @@ FILES(
 
 # See https://sandbox.yandex-team.ru/resource/RESOURCE_ID/view for details.
 IF (YT_PRECISE_17_5)
-    FROM_SANDBOX(FILE 151482518 OUT yt.tar)
+    FROM_SANDBOX(FILE 155264043 OUT yt.tar)
 ELSEIF (YT_PRECISE_18_4)
-    FROM_SANDBOX(FILE 151482675 OUT yt.tar)
+    FROM_SANDBOX(FILE 155264326 OUT yt.tar)
 ELSE () # Latest version
-    FROM_SANDBOX(FILE 151482675 OUT yt.tar)
+    FROM_SANDBOX(FILE 155264326 OUT yt.tar)
 ENDIF()
 
 PEERDIR(
