@@ -308,10 +308,6 @@ public:
 
     void Enqueue(TLogEvent&& event)
     {
-        auto enqueuedEvents = ++EnqueuedEvents_;
-        auto writtenEvents = WrittenEvents_.load();
-        auto backlogEvents = enqueuedEvents - writtenEvents;
-
         if (event.Level == ELogLevel::Fatal) {
             bool shutdown = false;
             if (!ShutdownRequested_.compare_exchange_strong(shutdown, true)) {
@@ -363,17 +359,9 @@ public:
             return;
         }
 
-        // NB: Always allow system messages to pass through. 
-        if (Suspended_ && event.Category != SystemLoggingCategory) {
-            return;
-        }
-
-        PushLogEvent(std::move(event));
-
-        bool expected = false;
-        if (Notified_.compare_exchange_strong(expected, true)) {
-            EventCount_->NotifyOne();
-        }
+        auto enqueuedEvents = EnqueuedEvents_.load();
+        auto writtenEvents = WrittenEvents_.load();
+        auto backlogEvents = enqueuedEvents - writtenEvents;
 
         // NB: This is somewhat racy but should work fine as long as more messages keep coming.
         if (Suspended_) {
@@ -389,6 +377,20 @@ public:
                     HighBacklogWatermark_);
             }
         }
+
+        // NB: Always allow system messages to pass through. 
+        if (Suspended_ && event.Category != SystemLoggingCategory) {
+            return;
+        }
+
+        PushLogEvent(std::move(event));
+        ++EnqueuedEvents_;
+
+        bool expected = false;
+        if (Notified_.compare_exchange_strong(expected, true)) {
+            EventCount_->NotifyOne();
+        }
+
     }
 
     void Reopen()
