@@ -308,10 +308,6 @@ public:
 
     void Enqueue(TLogEvent&& event)
     {
-        auto enqueuedEvents = ++EnqueuedEvents_;
-        auto writtenEvents = WrittenEvents_.load();
-        auto backlogEvents = enqueuedEvents - writtenEvents;
-
         if (event.Level == ELogLevel::Fatal) {
             bool shutdown = false;
             if (!ShutdownRequested_.compare_exchange_strong(shutdown, true)) {
@@ -363,22 +359,38 @@ public:
             return;
         }
 
+        auto enqueuedEvents = EnqueuedEvents_.load();
+        auto writtenEvents = WrittenEvents_.load();
+        auto backlogEvents = enqueuedEvents - writtenEvents;
+
+        // NB: This is somewhat racy but should work fine as long as more messages keep coming.
+        if (Suspended_) {
+            if (backlogEvents < LowBacklogWatermark_) {
+                Suspended_ = false;
+                LOG_INFO("Backlog size has dropped below low watermark %v, logging resumed",
+                    LowBacklogWatermark_);
+            }
+        } else {
+            if (backlogEvents >= HighBacklogWatermark_) {
+                Suspended_ = true;
+                LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",
+                    HighBacklogWatermark_);
+            }
+        }
+
+        // NB: Always allow system messages to pass through. 
         if (Suspended_ && event.Category != SystemLoggingCategory) {
             return;
         }
 
         PushLogEvent(std::move(event));
+        ++EnqueuedEvents_;
 
         bool expected = false;
         if (Notified_.compare_exchange_strong(expected, true)) {
             EventCount_->NotifyOne();
         }
-        
-        if (!Suspended_ && backlogEvents >= HighBacklogWatermark_) {
-            Suspended_ = true;
-            LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",
-                HighBacklogWatermark_);
-        }
+
     }
 
     void Reopen()
@@ -472,15 +484,6 @@ private:
                 }
             }))
         { }
-
-        auto enqueuedEvents = EnqueuedEvents_.load();
-        auto writtenEvents = WrittenEvents_.load();
-        auto backlogSize = enqueuedEvents - writtenEvents;
-        if (Suspended_ && backlogSize < LowBacklogWatermark_) {
-            Suspended_ = false;
-            LOG_INFO("Backlog size has dropped below low watermark %v, logging resumed",
-                LowBacklogWatermark_);
-        }
 
         if (eventsWritten > 0 && !Config_->FlushPeriod) {
             FlushWriters();
