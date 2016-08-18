@@ -404,7 +404,7 @@ class ConfigsProvider_17(ConfigsProvider):
             set_at(config, "exec_agent/slot_manager/start_uid", current_user)
             set_at(config, "exec_agent/slot_manager/paths", [os.path.join(node_dirs[i], "slots")])
 
-            current_user += config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] + 1
+            current_user += provision["node"]["jobs_resource_limits"]["user_slots"] + 1
 
             config["logging"] = init_logging(config.get("logging"), node_dirs[i], "node-{0}".format(i),
                                              provision["enable_debug_logging"])
@@ -736,7 +736,7 @@ class ConfigsProvider_18_3_18_4(ConfigsProvider_18):
             set_at(config, "exec_agent/enable_cgroups", False)
             set_at(config, "exec_agent/environment_manager", {"environments": {"default": {"type": "unsafe"}}})
 
-            current_user += config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] + 1
+            current_user += provision["node"]["jobs_resource_limits"]["user_slots"] + 1
 
         return configs
 
