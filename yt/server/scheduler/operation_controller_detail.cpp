@@ -452,7 +452,8 @@ void TOperationControllerBase::TTask::ScheduleJob(
         jobType,
         neededResources,
         restarted,
-        jobSpecBuilder);
+        jobSpecBuilder,
+        Controller->Spec->JobNodeAccount);
 
     joblet->JobType = jobType;
     joblet->NodeDescriptor = context->GetNodeDescriptor();

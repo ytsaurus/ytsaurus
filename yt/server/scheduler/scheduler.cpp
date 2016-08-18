@@ -1034,7 +1034,6 @@ private:
             request.StderrChunkId = stderrChunkId;
             request.FailContextChunkId = failContextChunkId;
             request.InputPathsFuture = inputPathsFuture;
-            request.Account = operation->GetJobNodeAccount();
 
             MasterConnector_->CreateJobNode(request);
 

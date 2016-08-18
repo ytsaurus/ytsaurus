@@ -619,7 +619,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t1") == [{"foo": "bar"}, {"foo": "bar"}]
 
-    # check that stderr is captured for successfull job
     @unix_only
     def test_stderr_ok(self):
         create("table", "//tmp/t1")
@@ -633,7 +632,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table("//tmp/t2") == [{"operation" : op.id}, {"job_index" : 0}]
         check_all_stderrs(op, "stderr\n", 1)
 
-    # check that stderr is captured for failed jobs
     @unix_only
     def test_stderr_failed(self):
         create("table", "//tmp/t1")
@@ -650,7 +648,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         check_all_stderrs(op, "stderr\n", 10)
 
-    # check max_stderr_count
     @unix_only
     def test_stderr_limit(self):
         create("table", "//tmp/t1")
@@ -669,6 +666,28 @@ class TestSchedulerMapCommands(YTEnvSetup):
             op.track()
 
         check_all_stderrs(op, "stderr\n", 5)
+
+    @unix_only
+    def test_stderr_max_size(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat > /dev/null; python -c 'print \"0\" * 10000000; print \"1\" * 10000000' >&2;",
+            spec={"max_failed_job_count": 1, "mapper": {"max_stderr_size": 1000000}})
+
+        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+        assert get(jobs_path + "/@count") == 1
+        stderr_path = "{0}/{1}/stderr".format(jobs_path, ls(jobs_path)[0])
+        stderr = read_file(stderr_path, verbose=False).strip()
+
+        # Stderr buffer size is equal to 1000000, we should add it to limit
+        assert len(stderr) <= 4000000
+        assert stderr[:1000] == "0" * 1000
+        assert stderr[-1000:] == "1" * 1000
 
     @unix_only
     def test_stderr_of_failed_jobs(self):
@@ -712,13 +731,21 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"} for i in xrange(5)])
-        
+
         op = map(
             in_="//tmp/t1",
             out="//tmp/t2",
             command="cat > /dev/null; echo 'stderr' >&2;",
             spec={"max_failed_job_count": 1, "job_node_account": "test_account"})
         check_all_stderrs(op, "stderr\n", 1)
+
+        resource_usage = get("//sys/accounts/test_account/@resource_usage")
+        assert resource_usage["node_count"] >= 2
+        assert resource_usage["chunk_count"] >= 1
+        assert resource_usage["disk_space"] > 0
+
+        jobs = ls("//sys/operations/{0}/jobs".format(op.id))
+        assert get("//sys/operations/{0}/jobs/{1}/@recursive_resource_usage".format(op.id, jobs[0])) == resource_usage
 
         set("//sys/accounts/test_account/@resource_limits/chunk_count", 0)
         set("//sys/accounts/test_account/@resource_limits/node_count", 0)

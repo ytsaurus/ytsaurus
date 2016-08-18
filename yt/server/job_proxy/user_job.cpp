@@ -3,6 +3,7 @@
 #include "config.h"
 #include "job_detail.h"
 #include "stracer.h"
+#include "stderr_writer.h"
 #include "table_output.h"
 #include "user_job_io.h"
 
@@ -415,11 +416,11 @@ private:
         return StatisticsOutput_.get();
     }
 
-    TMultiChunkWriterOptionsPtr CreateFileOptions(const Stroka& account)
+    TMultiChunkWriterOptionsPtr CreateFileOptions()
     {
         auto options = New<TMultiChunkWriterOptions>();
-        options->Account = account
-            ? account
+        options->Account = UserJobSpec_.has_file_account()
+            ? UserJobSpec_.file_account()
             : NSecurityClient::TmpAccountName;
         options->ReplicationFactor = 1;
         options->ChunksVital = false;
@@ -428,9 +429,9 @@ private:
 
     TOutputStream* CreateErrorOutput()
     {
-        ErrorOutput_.reset(new TFileChunkOutput(
+        ErrorOutput_.reset(new TStderrWriter(
             Config_->JobIO->ErrorFileWriter,
-            CreateFileOptions(UserJobSpec_.file_account()),
+            CreateFileOptions(),
             Host_->GetClient(),
             FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()),
             UserJobSpec_.max_stderr_size()));
@@ -490,7 +491,7 @@ private:
         for (int index = 0; index < contexts.size(); ++index) {
             TFileChunkOutput contextOutput(
                 Config_->JobIO->ErrorFileWriter,
-                CreateFileOptions(UserJobSpec_.file_account()),
+                CreateFileOptions(),
                 Host_->GetClient(),
                 transactionId);
 
@@ -645,7 +646,7 @@ private:
         }));
     }
 
-    TAsyncReaderPtr PrepareOutputPipe(const std::vector<int>& jobDescriptors, TOutputStream* output, bool isStderrPipe = false)
+    TAsyncReaderPtr PrepareOutputPipe(const std::vector<int>& jobDescriptors, TOutputStream* output)
     {
         auto pipe = TNamedPipe::Create(CreateNamedPipePath());
 
@@ -838,7 +839,7 @@ private:
         CreateControlPipe();
 
         // Configure stderr pipe.
-        StderrPipeReader_ = PrepareOutputPipe({STDERR_FILENO}, CreateErrorOutput(), true /*isStderrPipe*/);
+        StderrPipeReader_ = PrepareOutputPipe({STDERR_FILENO}, CreateErrorOutput());
 
         PrepareOutputTablePipes();
 
