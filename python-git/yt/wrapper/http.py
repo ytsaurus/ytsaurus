@@ -289,7 +289,8 @@ def get_token(client=None):
         if token_path is None:
             token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
         if os.path.isfile(token_path):
-            token = open(token_path, "rb").read().strip()
+            with open(token_path, "rb") as token_file:
+                token = token_file.read().strip()
             logger.debug("Token got from %s", token_path)
     else:
         logger.debug("Token got from environment variable or config")
