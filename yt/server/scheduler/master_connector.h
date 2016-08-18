@@ -27,6 +27,7 @@ struct TCreateJobNodeRequest
     NChunkClient::TChunkId StderrChunkId;
     NChunkClient::TChunkId FailContextChunkId;
     TFuture<NYson::TYsonString> InputPathsFuture;
+    Stroka Account;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

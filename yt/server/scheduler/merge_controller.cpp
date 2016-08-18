@@ -712,7 +712,8 @@ private:
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec->Mapper,
-            Files);
+            Files,
+            Spec->JobNodeAccount);
     }
 
     virtual void CustomizeJoblet(TJobletPtr joblet) override
@@ -1873,7 +1874,8 @@ protected:
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec->Reducer,
-            Files);
+            Files,
+            Spec->JobNodeAccount);
 
         auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         ToProto(reduceJobSpecExt->mutable_key_columns(), SortKeyColumns);

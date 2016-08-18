@@ -124,7 +124,7 @@ public:
             JobPhase_ = EJobPhase::DownloadingArtifacts;
             auto artifactsFuture = DownloadArtifacts();
             artifactsFuture.Subscribe(BIND(
-                &TJob::OnArtifactsDownloaded, 
+                &TJob::OnArtifactsDownloaded,
                 MakeWeak(this))
             .Via(Invoker_));
             ArtifactsFuture_ = artifactsFuture.As<void>();
@@ -501,7 +501,7 @@ private:
                 .AsyncVia(Invoker_)
                 .Run()
                 .Subscribe(BIND(
-                    &TJob::OnDirectoriesPrepared, 
+                    &TJob::OnDirectoriesPrepared,
                     MakeWeak(this))
                 .Via(Invoker_));
         });
@@ -520,7 +520,7 @@ private:
                 .AsyncVia(Invoker_)
                 .Run()
                 .Subscribe(BIND(
-                    &TJob::OnArtifactsPrepared, 
+                    &TJob::OnArtifactsPrepared,
                     MakeWeak(this))
                 .Via(Invoker_));
         });
@@ -538,15 +538,15 @@ private:
             JobPhase_ = EJobPhase::PreparingProxy;
 
             BIND(
-                &ISlot::RunJobProxy, 
-                Slot_, 
+                &ISlot::RunJobProxy,
+                Slot_,
                 CreateConfig(),
                 Id_,
                 OperationId_)
             .AsyncVia(Invoker_)
             .Run()
             .Subscribe(BIND(
-                &TJob::OnJobProxyFinished, 
+                &TJob::OnJobProxyFinished,
                 MakeWeak(this))
             .Via(Invoker_));
         });
@@ -559,7 +559,7 @@ private:
         if (HandleFinishingPhase()) {
             return;
         }
-        
+
         if (!error.IsOK()) {
             DoSetResult(TError("Job proxy failed") << error);
         }
@@ -688,8 +688,8 @@ private:
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             if (userJobSpec.has_tmpfs_path() && Bootstrap_->GetConfig()->ExecAgent->SlotManager->EnableTmpfs) {
                 TmpfsPath_ = WaitFor(Slot_->PrepareTmpfs(
-                    ESandboxKind::User, 
-                    userJobSpec.tmpfs_size(), 
+                    ESandboxKind::User,
+                    userJobSpec.tmpfs_size(),
                     userJobSpec.tmpfs_path()))
                 .ValueOrThrow();
             }
@@ -739,8 +739,8 @@ private:
 
         std::vector<TFuture<IChunkPtr>> asyncChunks;
         for (const auto& artifact : Artifacts_) {
-            LOG_INFO("Downloading user file (FileName: %v, SandboxKind: %v)", 
-                artifact.Name, 
+            LOG_INFO("Downloading user file (FileName: %v, SandboxKind: %v)",
+                artifact.Name,
                 artifact.SandboxKind);
 
             auto asyncChunk = chunkCache->PrepareArtifact(artifact.Key, AuxNodeDirectory_)
