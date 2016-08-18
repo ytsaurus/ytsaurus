@@ -1,4 +1,5 @@
 #pragma once
+#pragma once
 
 #if !defined(INCLUDE_COMPRESSED_INTEGER_VECTOR_INL_H)
 #error "you should never include compressed_integer_vector-inl.h directly"
