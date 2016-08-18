@@ -1,4 +1,5 @@
 #pragma once
+#pragma once
 
 #ifndef GUID_INL_H_
 #error "Direct inclusion of this file is not allowed, include guid.h"

@@ -1,3 +1,4 @@
+#pragma once
 #include <yt/core/misc/mpl.h>
 #include <yt/core/misc/ref.h>
 

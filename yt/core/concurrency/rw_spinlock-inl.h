@@ -1,3 +1,4 @@
+#pragma once
 #ifndef RW_SPINLOCK_INL_H_
 #error "Direct inclusion of this file is not allowed, include rw_spinlock.h"
 #endif
