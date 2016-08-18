@@ -10,6 +10,8 @@
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/helpers.h>
 
+#include <yt/ytlib/security_client/public.h>
+
 #include <yt/ytlib/ypath/rich.h>
 
 #include <yt/core/rpc/config.h>
@@ -103,6 +105,9 @@ public:
     //! Acl used for intermediate tables and stderrs.
     NYTree::INodePtr IntermediateDataAcl;
 
+    //! Account for job nodes and operation files (stderrs and input contexts of failed jobs).
+    Stroka JobNodeAccount;
+
     //! What to do during initialization if some chunks are unavailable.
     EUnavailableChunkAction UnavailableChunkStrategy;
 
@@ -156,6 +161,9 @@ public:
                         .EndList()
                     .EndMap()
                 .EndList());
+
+        RegisterParameter("job_node_account", JobNodeAccount)
+            .Default(NSecurityClient::TmpAccountName);
 
         RegisterParameter("unavailable_chunk_strategy", UnavailableChunkStrategy)
             .Default(EUnavailableChunkAction::Wait);

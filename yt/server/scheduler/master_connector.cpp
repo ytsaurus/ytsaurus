@@ -204,11 +204,12 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v)",
+        LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v, Account: %v)",
             createJobNodeRequest.OperationId,
             createJobNodeRequest.JobId,
             createJobNodeRequest.StderrChunkId,
-            createJobNodeRequest.FailContextChunkId);
+            createJobNodeRequest.FailContextChunkId,
+            createJobNodeRequest.Account);
 
         auto* list = GetUpdateList(createJobNodeRequest.OperationId);
         list->JobRequests.push_back(createJobNodeRequest);
@@ -292,7 +293,8 @@ public:
                 jobId,
                 path,
                 chunkId,
-                "input_context"
+                "input_context",
+                TmpAccountName
             };
             SaveJobFiles(operationId, { file });
         } catch (const std::exception& ex) {
@@ -1281,6 +1283,7 @@ private:
         TYPath Path;
         TChunkId ChunkId;
         Stroka DescriptionType;
+        Stroka Account;
     };
 
     void SaveJobFiles(const TOperationId& operationId, const std::vector<TJobFile>& files)
@@ -1627,7 +1630,8 @@ private:
                         request.JobId,
                         GetStderrPath(operation->GetId(), request.JobId),
                         request.StderrChunkId,
-                        "stderr"
+                        "stderr",
+
                     });
                 }
                 if (request.FailContextChunkId) {

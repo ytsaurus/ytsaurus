@@ -47,9 +47,9 @@ cgroups_delta_node_config = {
             "job_environment" : {
                 "type" : "cgroups",                                   # >= 18.5
                 "supported_cgroups": [                                # >= 18.5
-                    "cpuacct", 
-                    "blkio", 
-                    "memory", 
+                    "cpuacct",
+                    "blkio",
+                    "memory",
                     "cpu"],
             },
         }
@@ -704,6 +704,30 @@ class TestSchedulerMapCommands(YTEnvSetup):
         # The default number of stderr is 100. We check that we have 101-st stderr of failed job,
         # that is last one.
         check_all_stderrs(op, "stderr\n", 101)
+
+    @unix_only
+    def test_stderr_with_missing_tmp_quota(self):
+        create_account("test_account")
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"} for i in xrange(5)])
+        
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat > /dev/null; echo 'stderr' >&2;",
+            spec={"max_failed_job_count": 1, "job_node_account": "test_account"})
+        check_all_stderrs(op, "stderr\n", 1)
+
+        set("//sys/accounts/test_account/@resource_limits/chunk_count", 0)
+        set("//sys/accounts/test_account/@resource_limits/node_count", 0)
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat > /dev/null; echo 'stderr' >&2;",
+            spec={"max_failed_job_count": 1, "job_node_account": "test_account"})
+        check_all_stderrs(op, "stderr\n", 0)
 
     def test_job_progress(self):
         create("table", "//tmp/t1")

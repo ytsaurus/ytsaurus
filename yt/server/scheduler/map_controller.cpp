@@ -449,7 +449,8 @@ private:
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec->Mapper,
-            Files);
+            Files,
+            Spec->JobNodeAccount);
     }
 
     virtual void CustomizeJoblet(TJobletPtr joblet) override
