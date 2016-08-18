@@ -303,7 +303,7 @@ class YTInstance(object):
         makedirp(self._stderrs_path)
         self._stderr_paths = defaultdict(list)
 
-        self._tmpfs_path = tmpfs_path
+        self._tmpfs_path = os.path.abspath(tmpfs_path)
         self.port_locks_path = port_locks_path
         if self.port_locks_path is not None:
             makedirp(self.port_locks_path)
