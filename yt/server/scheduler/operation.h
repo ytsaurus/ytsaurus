@@ -80,10 +80,6 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(Stroka, AuthenticatedUser);
     DEFINE_BYVAL_RO_PROPERTY(std::vector<Stroka>, Owners);
 
-    //! Number of stderrs generated so far.
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, JobNodeAccount);
-
-    //! Timing of operation.
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
 

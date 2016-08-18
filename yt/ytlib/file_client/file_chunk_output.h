@@ -39,7 +39,7 @@ public:
     NChunkClient::TChunkId GetChunkId() const;
     i64 GetSize() const;
 
-private:
+protected:
     //! Adds another portion of data.
     /*!
      *  This portion does not necessary makes up a block. The writer maintains an internal buffer
@@ -49,6 +49,8 @@ private:
 
     //! Closes the writer.
     virtual void DoFinish() override;
+
+private:
     void FlushBlock();
 
     const NApi::TFileWriterConfigPtr Config_;
@@ -62,6 +64,7 @@ private:
 
     const i64 SizeLimit_;
 
+protected:
     NLogging::TLogger Logger;
 };
 

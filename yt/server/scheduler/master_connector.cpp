@@ -204,12 +204,11 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v, Account: %v)",
+        LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v)",
             createJobNodeRequest.OperationId,
             createJobNodeRequest.JobId,
             createJobNodeRequest.StderrChunkId,
-            createJobNodeRequest.FailContextChunkId,
-            createJobNodeRequest.Account);
+            createJobNodeRequest.FailContextChunkId);
 
         auto* list = GetUpdateList(createJobNodeRequest.OperationId);
         list->JobRequests.push_back(createJobNodeRequest);
@@ -293,8 +292,7 @@ public:
                 jobId,
                 path,
                 chunkId,
-                "input_context",
-                TmpAccountName
+                "input_context"
             };
             SaveJobFiles(operationId, { file });
         } catch (const std::exception& ex) {
@@ -1283,7 +1281,6 @@ private:
         TYPath Path;
         TChunkId ChunkId;
         Stroka DescriptionType;
-        Stroka Account;
     };
 
     void SaveJobFiles(const TOperationId& operationId, const std::vector<TJobFile>& files)
@@ -1343,7 +1340,6 @@ private:
                         }
                         attributes->Set("vital", false);
                         attributes->Set("replication_factor", 1);
-                        attributes->Set("account", TmpAccountName);
                         attributes->Set(
                             "description", BuildYsonStringFluently()
                                 .BeginMap()
@@ -1617,9 +1613,15 @@ private:
         try {
             CreateJobNodes(operation, jobRequests);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error creating job nodes for operation %v",
+            auto error = TError("Error creating job nodes for operation %v",
                 operation->GetId())
                 << ex;
+            if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
+                LOG_DEBUG(error);
+                return;
+            } else {
+                THROW_ERROR error;
+            }
         }
 
         try {
@@ -1630,8 +1632,7 @@ private:
                         request.JobId,
                         GetStderrPath(operation->GetId(), request.JobId),
                         request.StderrChunkId,
-                        "stderr",
-
+                        "stderr"
                     });
                 }
                 if (request.FailContextChunkId) {
