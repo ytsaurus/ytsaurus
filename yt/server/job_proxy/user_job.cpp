@@ -653,8 +653,8 @@ private:
                 auto input = CreateSyncAdapter(asyncInput);
                 PipeInputToOutput(input.get(), output, BufferSize);
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Output action failed (Pipes: [%v])", JoinToString(jobDescriptors));
-                throw ex;
+                LOG_ERROR(ex, "Output action failed (Pipes: %v)", jobDescriptors);
+                throw;
             }
         }));
 
