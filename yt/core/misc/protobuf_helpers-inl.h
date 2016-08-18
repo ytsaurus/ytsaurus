@@ -1,3 +1,4 @@
+#pragma once
 #ifndef PROTOBUF_HELPERS_INL_H_
 #error "Direct inclusion of this file is not allowed, include protobuf_helpers.h"
 #endif

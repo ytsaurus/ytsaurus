@@ -1,3 +1,4 @@
+#pragma once
 #ifndef LOCATION_INL_H_
 #error "Direct inclusion of this file is not allowed, include location.h"
 #endif

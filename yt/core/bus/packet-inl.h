@@ -1,3 +1,4 @@
+#pragma once
 #ifndef PACKET_INL_H_
 #error "Direct inclusion of this file is not allowed, include packet.h"
 #endif
