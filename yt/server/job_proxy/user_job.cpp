@@ -273,6 +273,7 @@ private:
 
     std::atomic<bool> Prepared_ = {false};
     std::atomic<bool> IsWoodpecker_ = {false};
+    std::atomic<bool> JobStarted_ = {false};
 
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
 
@@ -293,6 +294,7 @@ private:
     std::vector<TAsyncWriterPtr> TablePipeWriters_;
     TAsyncReaderPtr ControlPipeReader_;
     TAsyncReaderPtr StatisticsPipeReader_;
+    TAsyncReaderPtr StdErrPipeReader_;
 
     std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
 
@@ -647,8 +649,13 @@ private:
         auto asyncInput = pipe->CreateAsyncReader();
 
         OutputActions_.push_back(BIND([=] () {
-            auto input = CreateSyncAdapter(asyncInput);
-            PipeInputToOutput(input.get(), output, BufferSize);
+            try {
+                auto input = CreateSyncAdapter(asyncInput);
+                PipeInputToOutput(input.get(), output, BufferSize);
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Output action failed (Pipes: [%v])", JoinToString(jobDescriptors));
+                throw ex;
+            }
         }));
 
         return asyncInput;
@@ -679,6 +686,7 @@ private:
 
                 // Notify node process that user job is fully prepared and running.
                 Host_->OnPrepared();
+                JobStarted_ = true;
             } catch (const std::exception& ex) {
                 auto error = TError("Start action failed") << ex;
                 LOG_ERROR(error);
@@ -827,7 +835,7 @@ private:
         CreateControlPipe();
 
         // Configure stderr pipe.
-        PrepareOutputPipe(STDERR_FILENO, CreateErrorOutput());
+        StdErrPipeReader_ = PrepareOutputPipe(STDERR_FILENO, CreateErrorOutput());
 
         PrepareOutputTablePipes();
 
@@ -984,6 +992,12 @@ private:
         if (StatisticsPipeReader_) {
             StatisticsPipeReader_->Abort();
         }
+
+        if (!JobStarted_) {
+            // If start action didn't finish successfully, stderr could have stayed closed,
+            // and output action may hang.
+            StdErrPipeReader_->Abort();
+        }
     }
 
     void DoJobIO()
@@ -1020,12 +1034,15 @@ private:
         ProcessFinished_.Subscribe(onProcessFinished);
 
         WaitFor(CombineAll(startFutures));
+        LOG_INFO("Start actions finished");
+
         auto inputFutures = runActions(InputActions_, onIOError);
         auto outputFutures = runActions(OutputActions_, onIOError);
 
         // First, wait for all job output pipes.
         // If job successfully completes or dies prematurely, they close automatically.
         WaitFor(CombineAll(outputFutures));
+        LOG_INFO("Output actions finished");
 
         // Then, wait for job process to finish.
         // Theoretically, process could have explicitely closed its output pipes
@@ -1043,6 +1060,7 @@ private:
 
         // Now make sure that input pipes are also completed.
         WaitFor(CombineAll(inputFutures));
+        LOG_INFO("Input actions finished");
     }
 
     void FinalizeJobIO()
