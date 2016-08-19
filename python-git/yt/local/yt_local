@@ -12,6 +12,7 @@ from yt.wrapper.common import GB
 import argparse
 import logging
 import time
+import sys
 
 DESCRIPTION = """Command-line utility to work with local YT instances."""
 
@@ -83,6 +84,7 @@ def start_func(**kwargs):
             logger.info("Stopping environment...")
             checking_thread.stop()
             environment.stop()
+            sys.exit(0)
 
         with KeyboardInterruptsCatcher(interrupt_action):
             while True:
