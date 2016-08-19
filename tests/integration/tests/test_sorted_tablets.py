@@ -195,6 +195,20 @@ class TestSortedTablets(YTEnvSetup):
         sleep(1)
         assert self._find_tablet_orchid(address, tablet_id) is None
 
+    def test_lookup_repeated_keys(self):
+        self.sync_create_cells(1, 1)
+
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+
+        keys = [{"key": i % 2} for i in xrange(10)]
+        expected = [{"key": i % 2, "value": str(i % 2)} for i in xrange(10)]
+
+        assert lookup_rows("//tmp/t", keys) == expected
+
     def test_read_invalid_limits(self):
         self.sync_create_cells(1, 1)
 

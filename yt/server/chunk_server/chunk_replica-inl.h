@@ -1,4 +1,5 @@
 #pragma once
+#pragma once
 
 #ifndef CHUNK_REPLICA_INL_H_
 #error "Direct inclusion of this file is not allowed, include chunk_replica.h"

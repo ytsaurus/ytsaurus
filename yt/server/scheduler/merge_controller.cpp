@@ -231,7 +231,7 @@ protected:
                     Controller->Spec->JobIO,
                     UpdateChunkStripeStatistics(statistics)));
             AddFootprintAndUserJobResources(result);
-           return result;
+            return result;
         }
 
         TChunkStripeStatisticsVector UpdateChunkStripeStatistics(
