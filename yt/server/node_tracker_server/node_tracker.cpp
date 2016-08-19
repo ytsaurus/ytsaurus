@@ -515,14 +515,15 @@ public:
         TotalNodeStatistics_ = TTotalNodeStatistics();
         for (const auto& pair : NodeMap_) {
             const auto* node = pair.second;
+            TotalNodeStatistics_.BannedNodeCount += node->GetBanned();
+            TotalNodeStatistics_.DecommissinedNodeCount += node->GetDecommissioned();
+            TotalNodeStatistics_.WithAlertsNodeCount += !node->Alerts().empty();
+
             if (node->GetAggregatedState() != ENodeState::Online) {
                 ++TotalNodeStatistics_.OfflineNodeCount;
                 continue;
             }
             TotalNodeStatistics_.OnlineNodeCount += 1;
-            TotalNodeStatistics_.BannedNodeCount += node->GetBanned();
-            TotalNodeStatistics_.DecommissinedNodeCount += node->GetDecommissioned();
-            TotalNodeStatistics_.WithAlertsNodeCount += !node->Alerts().empty();
 
             const auto& statistics = node->Statistics();
             if (!node->GetDecommissioned()) {
@@ -1348,7 +1349,7 @@ private:
 
     void OnProfiling()
     {
-        if (!IsLeader()) {
+        if (!Bootstrap_->IsPrimaryMaster() || !IsLeader()) {
             return;
         }
 

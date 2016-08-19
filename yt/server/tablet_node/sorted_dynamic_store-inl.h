@@ -1,3 +1,4 @@
+#pragma once
 #ifndef SORTED_DYNAMIC_STORE_INL_H_
 #error "Direct inclusion of this file is not allowed, include sorted_dynamic_store.h"
 #endif

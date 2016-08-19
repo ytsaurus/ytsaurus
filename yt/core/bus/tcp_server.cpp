@@ -249,6 +249,8 @@ protected:
                 }
             }
 
+            auto connectionId = TConnectionId::Create();
+
             auto connectionCount = TTcpDispatcher::TImpl::Get()->GetServerConnectionCount(InterfaceType_);
             auto connectionLimit = Config_->MaxSimultaneousConnections;
             if (connectionCount >= connectionLimit) {
@@ -259,7 +261,8 @@ protected:
                 close(clientSocket);
                 continue;
             } else {
-                LOG_DEBUG("Connection accepted (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
+                LOG_DEBUG("Connection accepted (ConnectionId: %v, Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
+                    connectionId,
                     ToString(clientAddress, false),
                     connectionCount,
                     connectionLimit);
@@ -282,7 +285,7 @@ protected:
                 dispatcherThread,
                 EConnectionType::Server,
                 InterfaceType_,
-                TConnectionId::Create(),
+                connectionId,
                 clientSocket,
                 endpointDescription,
                 *endpointAttributes,

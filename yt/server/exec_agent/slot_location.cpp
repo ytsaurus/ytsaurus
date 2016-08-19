@@ -115,6 +115,14 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
             THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v", destinationName, sandboxPath) << ex;
         }
 
+        auto logErrorAndDisableLocation = [&] (const std::exception& ex) {
+            auto error = TError("Failed to make a copy for file %Qv into sandbox %v", 
+                destinationName, 
+                sandboxPath) << ex;
+            Disable(error);
+            THROW_ERROR error;
+        };
+
         try {
             NFS::ChunkedCopy(
                 sourcePath, 
@@ -122,22 +130,16 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 Bootstrap_->GetConfig()->ExecAgent->SlotManager->FileCopyChunkSize);
             EnsureNotInUse(destinationPath);
             NFS::SetExecutableMode(destinationPath, executable);
-        } catch (const std::exception& ex) {
-            try {
-                // If tmpfs does not have enough space, this is a user error, not location error.
-                // Let's check it first, before disabling location.
-                const auto& systemError = dynamic_cast<const TSystemError&>(ex);
-                if (IsInsideTmpfs(destinationPath) && systemError.Status() == ENOSPC) {
-                    THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v: tmpfs is too small", destinationName, sandboxPath)
-                        << ex;
-                }
-            } catch (const std::bad_cast& badCast) {
-                // Just do nothing, this is not a TSystemError.
+        } catch (const TSystemError& systemError) {
+            if (IsInsideTmpfs(destinationPath) && systemError.Status() == ENOSPC) {
+                THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v: tmpfs is too small", 
+                    destinationName, 
+                    sandboxPath) << TError(systemError);
+            } else {
+                logErrorAndDisableLocation(systemError);
             }
-
-            auto error = TError("Failed to make a copy for file %Qv into sandbox %v", destinationName, sandboxPath) << ex;
-            Disable(error);
-            THROW_ERROR error;
+        } catch (const std::exception& ex) {
+            logErrorAndDisableLocation(ex);
         }
     })
     .AsyncVia(LocationQueue_->GetInvoker())

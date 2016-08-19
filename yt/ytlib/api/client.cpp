@@ -1847,27 +1847,32 @@ private:
         }
 
         std::sort(sortedKeys.begin(), sortedKeys.end());
+        std::vector<int> keyIndexToResultIndex(keys.Size());
+        int currentResultIndex = -1;
 
         yhash_map<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
 
-        for (const auto& pair : sortedKeys) {
-            int index = pair.second;
-            auto key = pair.first;
-            auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
-            const auto& cellId = tabletInfo->CellId;
-            auto it = cellIdToSession.find(cellId);
-            if (it == cellIdToSession.end()) {
-                it = cellIdToSession.insert(std::make_pair(
-                    cellId,
-                    New<TTabletCellLookupSession>(
-                        Connection_->GetConfig(),
+        for (int index = 0; index < sortedKeys.size(); ++index) {
+            if (index == 0 || sortedKeys[index].first != sortedKeys[index - 1].first) {
+                auto key = sortedKeys[index].first;
+                auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
+                const auto& cellId = tabletInfo->CellId;
+                auto it = cellIdToSession.find(cellId);
+                if (it == cellIdToSession.end()) {
+                    it = cellIdToSession.insert(std::make_pair(
                         cellId,
-                        options,
-                        tableInfo)))
-                    .first;
+                        New<TTabletCellLookupSession>(
+                            Connection_->GetConfig(),
+                            cellId,
+                            options,
+                            tableInfo)))
+                        .first;
+                }
+                const auto& session = it->second;
+                session->AddKey(++currentResultIndex, std::move(tabletInfo), key);
             }
-            const auto& session = it->second;
-            session->AddKey(index, std::move(tabletInfo), key);
+
+            keyIndexToResultIndex[sortedKeys[index].second] = currentResultIndex;
         }
 
         std::vector<TFuture<void>> asyncResults;
@@ -1881,14 +1886,21 @@ private:
         WaitFor(Combine(asyncResults))
             .ThrowOnError();
 
-        std::vector<TUnversionedRow> resultRows;
-        resultRows.resize(keys.Size());
+        std::vector<TUnversionedRow> uniqueResultRows;
+        uniqueResultRows.resize(currentResultIndex + 1);
 
         std::vector<std::unique_ptr<TWireProtocolReader>> readers;
 
         for (const auto& pair : cellIdToSession) {
             const auto& session = pair.second;
-            session->ParseResponse(&resultRows, &readers);
+            session->ParseResponse(&uniqueResultRows, &readers);
+        }
+
+        std::vector<TUnversionedRow> resultRows;
+        resultRows.resize(keys.Size());
+
+        for (int index = 0; index < keys.Size(); ++index) {
+            resultRows[index] = uniqueResultRows[keyIndexToResultIndex[index]];
         }
 
         if (!options.KeepMissingRows) {

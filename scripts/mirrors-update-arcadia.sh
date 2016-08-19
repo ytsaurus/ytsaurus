@@ -22,7 +22,9 @@ sync() {
     (cd $repo && git svn fetch --log-window-size $SVN_LWS --revision 174921:174922)
     (cd $repo && git svn fetch --log-window-size $SVN_LWS --revision 174922:907136)
     (cd $repo && git svn fetch --log-window-size $SVN_LWS --revision 907136:907137)
-    (cd $repo && git svn fetch --log-window-size $SVN_LWS --revision 907137:HEAD)
+    (cd $repo && git svn fetch --log-window-size $SVN_LWS --revision 907137:2359112)
+    (cd $repo && git svn fetch --log-window-size $SVN_LWS --revision 2359112:2359113)
+    (cd $repo && git svn fetch --log-window-size $SVN_LWS --revision 2359113:HEAD)
     (cd $repo && git branch -f master $(git show-ref -s refs/remotes/git-svn))
     (cd $repo && git push origin)
 }
