@@ -1,5 +1,5 @@
 from config import get_config
-from driver import make_request
+from driver import make_request, make_formatted_request
 from format import YsonFormat
 
 try:
@@ -26,4 +26,5 @@ def parse_ypath(path, client=None):
 
     return result
 
-
+def execute_batch(requests, client=None):
+    return make_formatted_request("execute_batch", params={"requests": requests}, format=None, client=client)

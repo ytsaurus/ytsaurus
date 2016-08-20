@@ -22,4 +22,6 @@ from transform import transform
 
 from job_commands import run_job_shell
 
+from etc_commands import execute_batch
+
 all_names = [key for key in locals().keys() if not key.startswith("_")]
