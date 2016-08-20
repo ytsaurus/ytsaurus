@@ -126,6 +126,16 @@ class Config(types.ModuleType, client_state.ClientState):
         else:
             self.__package__ = None
 
+        def shortcut_getter(obj_self, key):
+            import sys
+            print("Shortcut config option getter (config.%s) is deprecated" % key, file=sys.stderr)
+            return self._get(self.shortcuts[key])
+
+        def shortcut_setter(obj_self, value, key):
+            import sys
+            print("Shortcut config option setter (config.%s) is deprecated" % key, file=sys.stderr)
+            self._set(self.shortcuts[key], value)
+
         for key in self.shortcuts:
             obj = self
             cls = Config
@@ -137,8 +147,8 @@ class Config(types.ModuleType, client_state.ClientState):
                 cls = getattr(cls, part)
                 obj = getattr(obj, part)
             setattr(cls, parts[-1],
-                property(lambda obj_self, key=key: self._get(self.shortcuts[key]))
-                    .setter(lambda obj_self, value, key=key: self._set(self.shortcuts[key], value)))
+                property(lambda obj_self, key=key: shortcut_getter(obj_self, key))
+                    .setter(lambda obj_self, value, key=key: shortcut_setter(obj_self, value, key)))
         # MERGE_INSTEAD_WARNING shortcut is processed manually
         self._process_merge_instead_warning_shortcut()
 
@@ -337,8 +347,17 @@ class Config(types.ModuleType, client_state.ClientState):
 
     def _process_merge_instead_warning_shortcut(self):
         modern_path = "auto_merge_output/action"
-        getter = lambda obj_self: self._get(modern_path) == "merge"
-        setter = lambda obj_self, value: self._set(modern_path, "merge" if value else "log")
+
+        def getter(obj_self):
+            import sys
+            print("Shortcut config option getter (config.MERGE_INSTEAD_WARNING) is deprecated", file=sys.stderr)
+            return self._get(modern_path) == "merge"
+
+        def setter(obj_self, value):
+            import sys
+            print("Shortcut config option setter (config.MERGE_INSTEAD_WARNING) is deprecated", file=sys.stderr)
+            self._set(modern_path, "merge" if value else "log")
+
         setattr(self.cls, "MERGE_INSTEAD_WARNING", property(getter, setter))
 
 # Process reload correctly
