@@ -1,6 +1,6 @@
 import default_configs
 
-from yt.wrapper.common import GB
+from yt.wrapper.common import MB, GB
 from yt.wrapper.mappings import VerifiedDict
 from yt.common import YtError, unlist, update, get_value
 from yt.yson import YsonString
@@ -400,7 +400,8 @@ class ConfigsProvider_17(ConfigsProvider):
             })
 
             set_at(config, "data_node/cache_locations", [{
-                "path": os.path.join(node_dirs[i], "chunk_cache")
+                "path": os.path.join(node_dirs[i], "chunk_cache"),
+                "quota": 256 * MB,
             }])
 
             set_at(config, "exec_agent/slot_manager/start_uid", current_user)
@@ -642,7 +643,10 @@ class ConfigsProvider_18(ConfigsProvider):
             set_at(config, "data_node/multiplexed_changelog/path", os.path.join(node_dirs[i], "multiplexed"))
 
             set_at(config, "data_node/cache_locations", [])
-            config["data_node"]["cache_locations"].append({"path": os.path.join(node_dirs[i], "chunk_cache")})
+            config["data_node"]["cache_locations"].append({
+                "path": os.path.join(node_dirs[i], "chunk_cache"),
+                "quota": 256 * MB,
+            })
 
             set_at(config, "data_node/store_locations", [])
             config["data_node"]["store_locations"].append({
