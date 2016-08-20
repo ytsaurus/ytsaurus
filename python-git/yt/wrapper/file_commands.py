@@ -178,8 +178,10 @@ def upload_file_to_cache(filename, hash=None, client=None):
     if hash is None:
         hash = md5sum(filename)
 
+    last_two_digits_of_hash = ("0" + hash.split("-")[-1])[-2:]
+
     hash_path = ypath_join(get_config(client)["remote_temp_files_directory"], "hash")
-    destination = ypath_join(hash_path, hash)
+    destination = ypath_join(hash_path, last_two_digits_of_hash, hash)
 
     attributes = None
     try:
@@ -200,11 +202,11 @@ def upload_file_to_cache(filename, hash=None, client=None):
 
     if link_exists:
         logger.debug("Link %s of file %s exists, skipping upload and set /@touched attribute", destination, filename)
-        set(destination + "/@touched", "true", client=client)
-        set(destination + "&/@touched", "true", client=client)
+        set(destination + "/@touched", True, client=client)
+        set(destination + "&/@touched", True, client=client)
     else:
         logger.debug("Link %s of file %s missing, uploading file", destination, filename)
-        prefix = ypath_join(get_config(client)["remote_temp_files_directory"], os.path.basename(filename))
+        prefix = ypath_join(get_config(client)["remote_temp_files_directory"], last_two_digits_of_hash, os.path.basename(filename))
         real_destination = find_free_subpath(prefix, client=client)
         create("file",
                real_destination,
