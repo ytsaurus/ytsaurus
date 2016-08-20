@@ -4,9 +4,6 @@ from setuptools import setup
 
 from setuptools.dist import Distribution
 
-import os
-import shutil
-
 class BinaryDistribution(Distribution):
     def is_pure(self):
         return False
@@ -24,6 +21,7 @@ def main():
         keywords = "yt python bindings yson",
         include_package_data = True,
         distclass = BinaryDistribution,
+        install_requires = ["yandex-yt >= 0.7.0"],
     )
 
 if __name__ == "__main__":
