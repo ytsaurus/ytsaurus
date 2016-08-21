@@ -1,4 +1,4 @@
-from helpers import TEST_DIR, get_test_file_path, get_environment_for_binary_test, set_config_option
+from helpers import TEST_DIR, get_test_file_path, get_environment_for_binary_test, set_config_option, subprocess
 
 from yt.wrapper.table_commands import copy_table, move_table
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
@@ -9,11 +9,11 @@ import yt.yson as yson
 
 import yt.wrapper as yt
 
+import pytest
+
 import os
 import string
-import subprocess
 from itertools import imap, izip, starmap
-import pytest
 
 @pytest.mark.usefixtures("yt_env_for_yamr")
 class TestYamrMode(object):

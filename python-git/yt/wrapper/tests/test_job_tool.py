@@ -1,4 +1,4 @@
-from helpers import TESTS_SANDBOX, TEST_DIR, TESTS_LOCATION
+from helpers import TESTS_SANDBOX, TEST_DIR, TESTS_LOCATION, subprocess
 
 import yt.wrapper.job_runner as job_runner
 import yt.yson as yson
@@ -7,7 +7,6 @@ from yt.common import makedirp
 import yt.wrapper as yt
 
 import os
-import subprocess
 import tempfile
 import shutil
 import pytest
