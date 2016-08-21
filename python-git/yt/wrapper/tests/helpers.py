@@ -1,13 +1,23 @@
+from __future__ import print_function
+
 from yt.packages.six import iteritems
 
 import yt.wrapper as yt
 
 import os
+import sys
 import glob
 import shutil
-import subprocess
 import tempfile
 from contextlib import contextmanager
+
+try:
+    import subprocess32 as subprocess
+except ImportError:
+    if sys.version_info[:2] <= (2, 6):
+        print("Script may not work properly on python of version <= 2.6 "
+              "because subprocess32 library is not installed.", file=sys.stderr)
+    import subprocess
 
 TEST_DIR = "//home/wrapper_tests"
 

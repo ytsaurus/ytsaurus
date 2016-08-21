@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from helpers import TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, \
-                    build_python_egg, TESTS_SANDBOX
+                    build_python_egg, TESTS_SANDBOX, subprocess
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
 from yt.common import which, makedirp
@@ -21,13 +21,6 @@ import tempfile
 import random
 import logging
 import pytest
-try:
-    import subprocess32 as subprocess
-except ImportError:
-    if sys.version_info[:2] <= (2, 6):
-        print("Script may not work properly on python of version <= 2.6 "
-              "because subprocess32 library is not installed.", file=sys.stderr)
-    import subprocess
 
 class AggregateMapper(object):
     def __init__(self):

@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from helpers import TEST_DIR, TESTS_SANDBOX, TESTS_LOCATION, \
-                    get_environment_for_binary_test, check
+                    get_environment_for_binary_test, check, subprocess
 
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
@@ -22,7 +22,6 @@ import string
 import os
 import sys
 import uuid
-import subprocess
 import tempfile
 import time
 import pytest
