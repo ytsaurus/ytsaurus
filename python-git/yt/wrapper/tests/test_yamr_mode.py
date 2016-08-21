@@ -1,10 +1,10 @@
-from helpers import TEST_DIR, get_test_file_path, get_environment_for_binary_test, set_config_option, subprocess
+from helpers import TEST_DIR, TESTS_SANDBOX, get_test_file_path, get_environment_for_binary_test, set_config_option, subprocess
 
 from yt.wrapper.table_commands import copy_table, move_table
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.common import parse_bool
 from yt.wrapper import Record, dumps_row, TablePath
-from yt.common import flatten
+from yt.common import flatten, makedirp
 import yt.yson as yson
 
 import yt.wrapper as yt
@@ -202,10 +202,15 @@ class TestYamrMode(object):
                    files=map(get_test_file_path, ["my_op.py", "helpers.py"]))
         assert yt.row_count(other_table) == 2 * yt.row_count(table)
 
+        test_run_operations_dir = os.path.join(TESTS_SANDBOX, "test_run_operations")
+        makedirp(test_run_operations_dir)
+
+        cpp_file = get_test_file_path("bin.cpp")
+        cpp_bin = os.path.join(test_run_operations_dir, "cpp_bin")
+        subprocess.check_call(["g++", cpp_file, "-O2", "-static-libgcc", "-L.", "-o", cpp_bin])
+
         yt.run_sort(table)
-        yt.run_reduce("./cpp_bin",
-                      table, other_table,
-                      files=get_test_file_path("cpp_bin"))
+        yt.run_reduce("./cpp_bin", table, other_table, files=cpp_bin)
         assert sorted(yt.read_table(other_table)) == \
                ["key{0}\tsubkey\tvalue=value\n".format(i) for i in xrange(5)]
 
