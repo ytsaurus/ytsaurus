@@ -1,14 +1,12 @@
-all:
-	g++ -O2 -static-libgcc -L. -o tests/files/cpp_bin tests/files/bin.cpp
-
 clean:
-	rm -rf *.pyc tests/*.pyc tests/files/cpp_bin tests/sandbox/* build dist YtWrapper.egg-info
+	rm -rf *.pyc tests/*.pyc tests.sandbox/*
 
-test: all
+test:
 	py.test -sv
 
 test_mapreduce:
 	./test_mapreduce.sh
 
-killytservers:
+kill_yt:
 	ps aux | grep ytserver | awk '{print $$2}' | xargs kill
+	ps aux | grep node | awk '{print $$2}' | xargs kill

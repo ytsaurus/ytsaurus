@@ -1000,7 +1000,7 @@ if __name__ == "__main__":
         makedirp(libs_dir)
 
         get_number_lib = get_test_file_path("getnumber.cpp")
-        subprocess.check_call(["g++", get_number_lib, "-shared", "-o", os.path.join(libs_dir, "libgetnumber.so")])
+        subprocess.check_call(["g++", get_number_lib, "-shared", "-fPIC", "-o", os.path.join(libs_dir, "libgetnumber.so")])
 
         dependant_lib = get_test_file_path("yt_test_lib.cpp")
         dependant_lib_output = os.path.join(libs_dir, "yt_test_dynamic_libraries_collection.so")
