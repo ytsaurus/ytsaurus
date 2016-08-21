@@ -2,6 +2,7 @@ from __future__ import print_function
 
 from yt.packages.six import iteritems
 
+import yt.yson as yson
 import yt.wrapper as yt
 
 import os
@@ -62,16 +63,27 @@ def check(rowsA, rowsB, ordered=True):
     lhs, rhs = prepare(rowsA), prepare(rowsB)
     assert lhs == rhs
 
+def _filter_simple_types(obj):
+    if isinstance(obj, int) or \
+            isinstance(obj, long) or \
+            isinstance(obj, float) or \
+            obj is None or \
+            isinstance(obj, yson.YsonType) or \
+            isinstance(obj, basestring):
+        return obj
+    elif isinstance(obj, list):
+        return [_filter_simple_types(item) for item in obj]
+    elif hasattr(obj, "iteritems"):
+        return dict([(key, _filter_simple_types(value)) for key, value in obj.iteritems()])
+    return None
+
 def get_environment_for_binary_test():
     env = {
         "PYTHONPATH": os.environ["PYTHONPATH"],
         "YT_USE_TOKEN": "0",
         "YT_VERSION": yt.config["api_version"]
     }
-    if yt.config["proxy"]["url"] is not None:
-        env["YT_PROXY"] = yt.config["proxy"]["url"]
-    if yt.config["driver_config_path"] is not None:
-        env["YT_DRIVER_CONFIG_PATH"] = yt.config["driver_config_path"]
+    env["YT_CONFIG_PATCHES"] = yson.dumps(_filter_simple_types(yt.config.config))
     return env
 
 def build_python_egg(egg_contents_dir, temp_dir=None):
