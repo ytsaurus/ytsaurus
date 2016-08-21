@@ -524,3 +524,25 @@ class TestResponseStream(object):
 
         with pytest.raises(StopIteration):
             stream.next()
+
+@pytest.mark.usefixtures("yt_env")
+class TestExecuteBatch(object):
+    def test_simple(self):
+        if yt.config["api_version"] == "v2":
+            pytest.skip()
+
+        yt.mkdir("//tmp/test_dir")
+        rsp = yt.execute_batch(requests=[
+            {"command": "list", "parameters": {"path": "//tmp"}},
+            {"command": "list", "parameters": {"path": "//tmp/test_dir"}},
+            {"command": "list", "parameters": {"path": "//tmp/missing"}},
+        ])
+
+        assert rsp[0]["output"] == ["test_dir"]
+
+        assert rsp[1]["output"] == []
+
+        err = yt.YtResponseError(rsp[2]["error"])
+        assert err.is_resolve_error()
+
+
