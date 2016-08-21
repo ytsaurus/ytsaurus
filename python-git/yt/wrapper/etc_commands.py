@@ -27,4 +27,5 @@ def parse_ypath(path, client=None):
     return result
 
 def execute_batch(requests, client=None):
+    """ Executes `requests` in parallel as one batch request """
     return make_formatted_request("execute_batch", params={"requests": requests}, format=None, client=client)
