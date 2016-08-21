@@ -597,7 +597,7 @@ class YamrFormat(Format):
         return fields
 
     def _dump_row(self, row, stream):
-        fields = list(iteritems(row))
+        fields = row.items()
 
         if self.lenval:
             for field in fields:
