@@ -246,7 +246,7 @@ def create_modules_archive_default(tempfiles_manager, client):
 
     files_to_compress = {}
     module_filter = get_config(client)["pickling"]["module_filter"]
-    for module in itervalues(sys.modules):
+    for module in list(itervalues(sys.modules)):
         if module_filter is not None and not module_filter(module):
             continue
         if hasattr(module, "__file__"):

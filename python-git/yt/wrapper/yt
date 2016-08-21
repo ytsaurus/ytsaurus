@@ -16,6 +16,7 @@ import fnmatch
 import shlex
 from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
 
+import __builtin__
 
 DESCRIPTION = '''Shell utility to work with YT system.\n
 Cypress (metainformation tree) commands:
@@ -279,7 +280,7 @@ def find(**args):
     result = yt.search(args["path"],
                        node_type=args["type"],
                        path_filter=path_filter,
-                       attributes=list(attributes),
+                       attributes=__builtin__.list(attributes),
                        object_filter=object_filter,
                        depth_bound=args["depth"])
 
