@@ -225,6 +225,10 @@ default_config = {
     "remote_temp_files_directory": "//tmp/yt_wrapper/file_storage",
     "remote_temp_tables_directory": "//tmp/yt_wrapper/table_storage",
 
+    "file_cache": {
+        "replication_factor": 10,
+    },
+
     "operation_tracker": {
         # Operation state check interval.
         "poll_period": 5000,
