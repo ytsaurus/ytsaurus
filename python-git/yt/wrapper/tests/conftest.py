@@ -110,6 +110,7 @@ class YtTestEnvironment(object):
         self.config["retry_backoff"]["policy"] = "constant_time"
         self.config["retry_backoff"]["constant_time"] = 500
         self.config["enable_token"] = False
+        self.config["file_cache"]["replication_factor"] = 1
         self.config["pickling"]["enable_tmpfs_archive"] = ENABLE_JOB_CONTROL
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__
         self.config["driver_config"] = self.env.configs["console_driver"][0]["driver"]
