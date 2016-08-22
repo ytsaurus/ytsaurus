@@ -64,6 +64,12 @@ struct TTimeoutOptions
     TNullable<TDuration> Timeout;
 };
 
+struct TCacheOptions
+{
+    TDuration ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(15);
+    TDuration ExpireAfterFailedUpdateTime = TDuration::Seconds(15);
+};
+
 struct TTabletRangeOptions
 {
     TNullable<int> FirstTabletIndex;
@@ -244,6 +250,7 @@ struct TSelectRowsOptions
 
 struct TGetNodeOptions
     : public TTimeoutOptions
+    , public TCacheOptions
     , public TTransactionalOptions
     , public TMasterReadOptions
     , public TSuppressableAccessTrackingOptions
@@ -274,6 +281,7 @@ struct TRemoveNodeOptions
 
 struct TListNodeOptions
     : public TTimeoutOptions
+    , public TCacheOptions
     , public TTransactionalOptions
     , public TMasterReadOptions
     , public TSuppressableAccessTrackingOptions
