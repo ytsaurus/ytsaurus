@@ -25,6 +25,7 @@
 
 #include <yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/row_buffer.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 
@@ -360,13 +361,17 @@ private:
 
         auto nodeDirectory = New<TNodeDirectory>();
 
-        auto fetcher = New<TSamplesFetcher>(
+        // TODO(babenko): improve
+        auto rowBuffer = New<TRowBuffer>();
+
+        auto samplesFetcher = New<TSamplesFetcher>(
             Config_->SamplesFetcher,
             maxSampleCount,
             tablet->Schema().GetKeyColumns(),
-            std::numeric_limits<i64>::max(),
+            NTableClient::MaxSampleSize,
             nodeDirectory,
             GetCurrentInvoker(),
+            rowBuffer,
             TScrapeChunksCallback(),
             Bootstrap_->GetMasterClient(),
             Logger);
@@ -426,7 +431,7 @@ private:
                 auto storeIt = storeMap.find(chunkId);
                 YCHECK(storeIt != storeMap.end());
                 auto store = storeIt->second;
-                fetcher->AddChunk(
+                samplesFetcher->AddChunk(
                     New<TInputChunk>(
                         chunkId,
                         NYT::FromProto<TChunkReplicaList>(subresponse.replicas()),
@@ -437,14 +442,15 @@ private:
             }
         }
 
-        WaitFor(fetcher->Fetch())
+        WaitFor(samplesFetcher->Fetch())
             .ThrowOnError();
 
         std::vector<TOwningKey> samples;
-        for (const auto& sample : fetcher->GetSamples()) {
+        for (const auto& sample : samplesFetcher->GetSamples()) {
             YCHECK(!sample.Incomplete);
             YCHECK(sample.Weight == 1);
-            samples.push_back(sample.Key);
+            // TODO(babenko): optimize
+            samples.push_back(TOwningKey(sample.Key));
         }
 
         // NB(psushin): This filtering is typically redundant (except for the first pivot), 

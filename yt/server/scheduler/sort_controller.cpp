@@ -40,7 +40,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NChunkClient;
 
-using NTableClient::TOwningKey;
+using NTableClient::TKey;
 using NNodeTrackerClient::TNodeId;
 
 ////////////////////////////////////////////////////////////////////
@@ -181,8 +181,12 @@ protected:
             , ChunkPoolOutput(nullptr)
         { }
 
-        TPartition(TSortControllerBase* controller, int index)
+        TPartition(
+            TSortControllerBase* controller,
+            int index,
+            TKey key = TKey())
             : Index(index)
+            , Key(key)
             , Completed(false)
             , CachedSortedMergeNeeded(false)
             , Maniac(false)
@@ -207,6 +211,10 @@ protected:
 
         //! Sequential index (zero based).
         int Index;
+
+        //! Starting key of this partition.
+        //! Always null for map-reduce operation.
+        TKey Key;
 
         //! Is partition completed?
         bool Completed;
@@ -238,6 +246,7 @@ protected:
             using NYT::Persist;
 
             Persist(context, Index);
+            Persist(context, Key);
 
             Persist(context, Completed);
 
@@ -455,6 +464,13 @@ protected:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
+            auto* partitionJobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+            for (const auto& partition : Controller->Partitions) {
+                auto key = partition->Key;
+                if (key && key != MinKey()) {
+                    ToProto(partitionJobSpecExt->add_partition_keys(), key);
+                }
+            }
             AddSequentialInputSpec(jobSpec, joblet);
             AddIntermediateOutputSpec(jobSpec, joblet, TKeyColumns());
         }
@@ -1837,9 +1853,6 @@ private:
 
     TSortOperationSpecPtr Spec;
 
-    //! |PartitionCount - 1| separating keys.
-    std::vector<TOwningKey> PartitionKeys;
-
     // Custom bits of preparation pipeline.
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -1929,6 +1942,7 @@ private:
                 Options->MaxSampleSize,
                 InputNodeDirectory,
                 GetCancelableInvoker(),
+                RowBuffer,
                 scraperCallback,
                 Host->GetMasterClient(),
                 Logger);
@@ -2041,19 +2055,15 @@ private:
         SortStartThresholdReached = true;
     }
 
-    void AddPartition(const TOwningKey& key)
+    void AddPartition(TKey key)
     {
-        using NChunkClient::ToString;
-
         int index = static_cast<int>(Partitions.size());
         LOG_DEBUG("Partition %v has starting key %v",
             index,
             key);
 
-        YCHECK(PartitionKeys.empty() || CompareRows(PartitionKeys.back(), key) < 0);
-
-        PartitionKeys.push_back(key);
-        Partitions.push_back(New<TPartition>(this, index));
+        YCHECK(CompareRows(Partitions.back()->Key, key) < 0);
+        Partitions.push_back(New<TPartition>(this, index, key));
     }
 
     void BuildMulitplePartitions(const std::vector<const TSample*>& sortedSamples, int partitionCount)
@@ -2083,27 +2093,27 @@ private:
         }
 
         // Construct the leftmost partition.
-        Partitions.push_back(New<TPartition>(this, 0));
+        Partitions.push_back(New<TPartition>(this, 0, MinKey()));
 
         // Invariant:
         //   lastPartition = Partitions.back()
-        //   lastKey = PartitionKeys.back()
+        //   lastKey = Partition.back()->Key
         //   lastPartition receives keys in [lastKey, ...)
         //
-        // Initially PartitionKeys is empty so lastKey is assumed to be -inf.
+        // Initially Partitions consists of the leftmost partition are empty so lastKey is assumed to be -inf.
 
         int sampleIndex = 0;
         while (sampleIndex < selectedSamples.size()) {
             auto* sample = selectedSamples[sampleIndex];
             // Check for same keys.
-            if (PartitionKeys.empty() || CompareRows(sample->Key, PartitionKeys.back()) != 0) {
+            if (CompareRows(sample->Key, Partitions.back()->Key) != 0) {
                 AddPartition(sample->Key);
                 ++sampleIndex;
             } else {
                 // Skip same keys.
                 int skippedCount = 0;
                 while (sampleIndex < selectedSamples.size() &&
-                    CompareRows(selectedSamples[sampleIndex]->Key, PartitionKeys.back()) == 0)
+                    CompareRows(selectedSamples[sampleIndex]->Key, Partitions.back()->Key) == 0)
                 {
                     ++sampleIndex;
                     ++skippedCount;
@@ -2122,7 +2132,7 @@ private:
 
                     // NB: in partitioner we compare keys with the whole rows,
                     // so key prefix successor in required here.
-                    auto successorKey = GetKeyPrefixSuccessor(sample->Key, Spec->SortBy.size());
+                    auto successorKey = GetKeyPrefixSuccessor(sample->Key, Spec->SortBy.size(), RowBuffer);
                     AddPartition(successorKey);
                 } else {
                     // If sample keys are incomplete, we cannot use UnorderedMerge,
@@ -2205,9 +2215,6 @@ private:
 
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_partition_count(Partitions.size());
-            for (const auto& key : PartitionKeys) {
-                ToProto(partitionJobSpecExt->add_partition_keys(), key);
-            }
             partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), Spec->SortBy);
         }

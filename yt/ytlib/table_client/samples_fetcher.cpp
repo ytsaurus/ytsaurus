@@ -19,6 +19,7 @@
 namespace NYT {
 namespace NTableClient {
 
+using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
@@ -48,15 +49,23 @@ bool operator<(const TSample& lhs, const TSample& rhs)
 
 TSamplesFetcher::TSamplesFetcher(
     TFetcherConfigPtr config,
-    i64 desiredSampleCount,
+    int desiredSampleCount,
     const TKeyColumns& keyColumns,
-    i32 maxSampleSize,
+    i64 maxSampleSize,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
+    TRowBufferPtr rowBuffer,
     TScrapeChunksCallback scraperCallback,
     NApi::IClientPtr client,
     const NLogging::TLogger& logger)
-    : TFetcherBase(config, nodeDirectory, invoker, scraperCallback, client, logger)
+    : TFetcherBase(
+        config,
+        nodeDirectory,
+        invoker,
+        rowBuffer,
+        scraperCallback,
+        client,
+        logger)
     , KeyColumns_(keyColumns)
     , DesiredSampleCount_(desiredSampleCount)
     , MaxSampleSize_(maxSampleSize)
@@ -174,8 +183,11 @@ void TSamplesFetcher::OnResponse(
             requestedChunkIndexes[index]);
 
         for (const auto& protoSample : sampleResponse.samples()) {
+            TKey key;
+            FromProto(&key, protoSample.key(), RowBuffer_);
+
             TSample sample{
-                FromProto<TOwningKey>(protoSample.key()),
+                key,
                 protoSample.incomplete(),
                 protoSample.weight()
             };
