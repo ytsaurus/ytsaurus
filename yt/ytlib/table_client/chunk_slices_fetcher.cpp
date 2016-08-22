@@ -44,11 +44,17 @@ TChunkSliceFetcher::TChunkSliceFetcher(
     NApi::IClientPtr client,
     TRowBufferPtr rowBuffer,
     const NLogging::TLogger& logger)
-    : TFetcherBase(config, nodeDirectory, invoker, scraperCallback, client, logger)
+    : TFetcherBase(
+        config,
+        nodeDirectory,
+        invoker,
+        rowBuffer,
+        scraperCallback,
+        client,
+        logger)
     , ChunkSliceSize_(chunkSliceSize)
     , KeyColumns_(keyColumns)
     , SliceByKeys_(sliceByKeys)
-    , RowBuffer_(rowBuffer)
 {
     YCHECK(ChunkSliceSize_ > 0);
 }
