@@ -62,18 +62,55 @@ function YtApplicationVersions(driver)
         });
     }
 
+    function getListAndDataFromOrchid(entity, nameExtractor)
+    {
+        nameExtractor = nameExtractor || _.keys;
+
+        return executeWithTimeout("get", { path: "//sys/" + entity })
+        .then(function(names) {
+            __DBG("Got " + entity + ": " + names);
+
+            names = nameExtractor(names);
+
+            var requests = names.map(function(name) {
+                return {
+                    command: "get",
+                    parameters: { path: "//sys/" + entity + "/" + name + "/orchid/service"}
+                }
+            });
+
+            return executeWithTimeout("execute_batch", {requests: requests})
+            .then(function(values) {
+                var result = {};
+                for (var i = 0, len = values.length; i < len; ++i) {
+                    if (values[i].error) {
+                        result[names[i]] = {error: values[i].error};
+                    } else {
+                        result[names[i]] = utils.pick(utils.getYsonValue(values[i].output), ["start_time", "version"]);
+                    }
+                }
+                return result;
+            });
+        })
+        .catch(function(err) {
+            return Q.reject(new YtError(
+                "Failed to get list of " + entity + " names",
+                err));
+        });
+    }
+
     this.get_versions = function() {
         return Q.props({
-            "primary_masters": getListAndData("primary_masters", getDataFromOrchid),
-            "secondary_masters": getListAndData("secondary_masters", getDataFromOrchid, function (data) {
+            "primary_masters": getListAndDataFromOrchid("primary_masters"),
+            "secondary_masters": getListAndDataFromOrchid("secondary_masters", function (data) {
                 return _.flatten(_.map(data, function (value, cell_name) {
                     return _.map(value, function (value, name) {
                         return cell_name + "/" + name;
                     })
                 }));
             }),
-            "nodes": getListAndData("nodes", getDataFromOrchid),
-            "schedulers": getListAndData("scheduler/instances", getDataFromOrchid),
+            "nodes": getListAndDataFromOrchid("nodes"),
+            "schedulers": getListAndDataFromOrchid("scheduler/instances"),
             "proxies": getListAndData("proxies", function(entity, name) {
                 var parsed_url = url.parse("http://" + name);
                 return new YtHttpRequest(parsed_url.hostname, parsed_url.port)
