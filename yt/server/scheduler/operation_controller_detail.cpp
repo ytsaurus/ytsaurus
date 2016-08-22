@@ -1151,6 +1151,13 @@ void TOperationControllerBase::Materialize()
 
         AddAllTaskPendingHints();
 
+        if (Config->EnableSnapshotCycleAfterMaterialization) {
+            TStringStream stringStream;
+            SaveSnapshot(&stringStream);
+            auto sharedRef = TSharedRef::FromString(stringStream.Str());
+            DoLoadSnapshot(sharedRef);
+        }
+
         // Input chunk scraper initialization should be the last step to avoid races,
         // because input chunk scraper works in control thread.
         InitInputChunkScraper();
