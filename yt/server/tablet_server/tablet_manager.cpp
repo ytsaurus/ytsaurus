@@ -441,7 +441,7 @@ public:
         }
         auto* table = replica->GetTable();
 
-        LOG_DEBUG("Table replica enabled (TableId: %v, ReplicaId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica enabled (TableId: %v, ReplicaId: %v)",
             table->GetId(),
             replica->GetId());
 
@@ -488,7 +488,7 @@ public:
             }
         }
 
-        LOG_DEBUG("Disabling table replica (TableId: %v, ReplicaId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Disabling table replica (TableId: %v, ReplicaId: %v)",
             table->GetId(),
             replica->GetId());
 
@@ -2140,7 +2140,7 @@ private:
         replicaInfo.SetState(ETableReplicaState::Disabled);
         PopulateTableReplicaInfoFromStatistics(&replicaInfo, response->statistics());
 
-        LOG_DEBUG("Table replica tablet disabled (TabletId: %v, ReplicaId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica tablet disabled (TabletId: %v, ReplicaId: %v, "
             "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %v)",
             tabletId,
             replicaId,
@@ -2159,7 +2159,7 @@ private:
 
         auto* table = replica->GetTable();
 
-        LOG_DEBUG("Table replica disabled (TableId: %v, ReplicaId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica disabled (TableId: %v, ReplicaId: %v)",
             table->GetId(),
             replica->GetId());
 
