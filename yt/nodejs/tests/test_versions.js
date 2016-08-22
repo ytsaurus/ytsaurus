@@ -19,7 +19,7 @@ describe("YtApplicationVersions - discover versions", function() {
         var driver = this.driver;
         var mock = sinon.mock(driver);
 
-        function makeNamesList(entity, names) {
+               function makeNamesList(entity, names) {
             var name_result = {};
             names.forEach(function (name) {
                 var current = name_result;
@@ -45,23 +45,33 @@ describe("YtApplicationVersions - discover versions", function() {
 
             makeNamesList(entity, names); 
 
+            var requests = [];
+            var responses = [];
             for (var i = 0, length = names.length; i < length; ++i) {
                 var name = names[i];
                 var version_data = result[name];
 
-                var request_mock = mock
-                    .expects("executeSimple")
-                    .once()
-                    .withExactArgs("get", sinon.match({
+                requests.push({
+                    command: "get",
+                    parameters: {
                         path: "//sys/" + entity + "/" + name + "/orchid/service"
-                    }));
+                    }
+                });
 
                 if (!version_data.hasOwnProperty("error")) {
-                    request_mock.returns(Q.resolve({ "$value": version_data }));
+                    responses.push({output: {"$value": version_data }});
                 } else {
-                    request_mock.returns(Q.reject("Some error from orchid"));
+                    responses.push({error: version_data.error});
                 }
             }
+
+            mock
+                .expects("executeSimple")
+                .once()
+                .withExactArgs("execute_batch", sinon.match({
+                    requests: requests
+                }))
+                .returns(Q.resolve(responses));
 
             return result;
         }
@@ -127,8 +137,8 @@ describe("YtApplicationVersions - discover versions", function() {
         application_versions.get_versions().then(function(result) {
             JSON.stringify(result).should.equal(JSON.stringify(versions));
             mock.verify();
-            done();
-        });
+        })
+        .then(done, done);
     });
 });
 
