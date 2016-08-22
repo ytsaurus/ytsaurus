@@ -20,7 +20,7 @@ size_t TBoundaryKeys::SpaceUsed() const
        MaxKey.GetSpaceUsed() - sizeof(MaxKey);
 }
 
-void TBoundaryKeys::Persist(const NPhoenix::TPersistenceContext& context)
+void TBoundaryKeys::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, MinKey);
@@ -29,7 +29,9 @@ void TBoundaryKeys::Persist(const NPhoenix::TPersistenceContext& context)
 
 Stroka ToString(const TBoundaryKeys& keys)
 {
-    return Format("MinKey: %v, MaxKey: %v", keys.MinKey, keys.MaxKey);
+    return Format("MinKey: %v, MaxKey: %v",
+        keys.MinKey,
+        keys.MaxKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

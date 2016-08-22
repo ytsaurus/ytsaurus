@@ -29,6 +29,7 @@
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/value_consumer.h>
+#include <yt/ytlib/table_client/row_buffer.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
@@ -76,11 +77,10 @@ DEFINE_ENUM(EControllerState,
     (Finished)
 );
 
-
 class TOperationControllerBase
     : public IOperationController
     , public TEventLogHostBase
-    , public NPhoenix::IPersistent
+    , public IPersistent
     , public NPhoenix::TFactoryTag<NPhoenix::TNullFactory>
 {
 public:
@@ -209,6 +209,10 @@ protected:
     NApi::ITransactionPtr OutputTransaction;
 
     TSharedRef Snapshot;
+
+    struct TRowBufferTag { };
+    const NTableClient::TRowBufferPtr RowBuffer = New<NTableClient::TRowBuffer>(TRowBufferTag());
+
 
     struct TLivePreviewTableBase
     {
@@ -402,7 +406,7 @@ protected:
 
     class TTask
         : public TRefCounted
-        , public NPhoenix::IPersistent
+        , public IPersistent
     {
     public:
         //! For persistence only.

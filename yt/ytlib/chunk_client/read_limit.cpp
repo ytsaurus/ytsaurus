@@ -159,7 +159,7 @@ bool TReadLimit::IsTrivial() const
     return NChunkClient::IsTrivial(ReadLimit_);
 }
 
-void TReadLimit::Persist(const NPhoenix::TPersistenceContext& context)
+void TReadLimit::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, ReadLimit_);
@@ -192,40 +192,6 @@ void TReadLimit::MergeUpperRowIndex(i64 rowIndex)
     if (!HasRowIndex() || GetRowIndex() > rowIndex) {
         SetRowIndex(rowIndex);
     }   
-}
-
-void TReadLimit::MergeLowerLimit(const NProto::TReadLimit& readLimit)
-{
-    if (readLimit.has_row_index()) {
-        MergeLowerRowIndex(readLimit.row_index());
-    }
-    if (readLimit.has_chunk_index() && (!HasChunkIndex() || GetChunkIndex() < readLimit.chunk_index())) {
-        SetChunkIndex(readLimit.chunk_index());
-    }
-    if (readLimit.has_offset() && (!HasOffset() || GetOffset() < readLimit.offset())) {
-        SetOffset(readLimit.offset());
-    }
-    if (readLimit.has_key()) {
-        auto key = FromProto<TOwningKey>(readLimit.key());
-        MergeLowerKey(key);
-    }
-}
-
-void TReadLimit::MergeUpperLimit(const NProto::TReadLimit& readLimit)
-{
-    if (readLimit.has_row_index()) {
-        MergeUpperRowIndex(readLimit.row_index());
-    }
-    if (readLimit.has_chunk_index() && (!HasChunkIndex() || GetChunkIndex() > readLimit.chunk_index())) {
-        SetChunkIndex(readLimit.chunk_index());
-    }
-    if (readLimit.has_offset() && (!HasOffset() || GetOffset() > readLimit.offset())) {
-        SetOffset(readLimit.offset());
-    }
-    if (readLimit.has_key()) {
-        auto key = FromProto<TOwningKey>(readLimit.key());
-        MergeUpperKey(key);
-    }
 }
 
 void TReadLimit::InitKey()
@@ -293,16 +259,6 @@ Stroka ToString(const TReadLimit& limit)
 
     builder.AppendChar('}');
     return builder.Flush();
-}
-
-bool IsNontrivial(const TReadLimit& limit)
-{
-    return !IsTrivial(limit);
-}
-
-bool IsNontrivial(const NProto::TReadLimit& limit)
-{
-    return !IsTrivial(limit);
 }
 
 bool IsTrivial(const TReadLimit& limit)
