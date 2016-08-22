@@ -141,6 +141,7 @@ def get_scheduler_config():
         };
 
         enable_snapshot_loading = %true;
+        enable_snapshot_cycle_after_materialization = %true;
         snapshot_timeout = 1000;
     };
 }
