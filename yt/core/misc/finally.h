@@ -17,6 +17,17 @@ public:
         : Finally_(std::forward<T>(finally))
     { }
 
+    TFinallyGuard(TFinallyGuard&& guard)
+        : Released_(guard.Released_)
+        , Finally_(std::move(guard.Finally_))
+    {
+        guard.Release();
+    }
+
+    TFinallyGuard(const TFinallyGuard&) = delete;
+    TFinallyGuard& operator=(const TFinallyGuard&) = delete;
+    TFinallyGuard& operator=(TFinallyGuard&&) = delete;
+
     void Release()
     {
         Released_ = true;
