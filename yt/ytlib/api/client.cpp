@@ -2125,6 +2125,12 @@ private:
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
 
+        if (options.ReadFrom == EMasterChannelKind::Cache) {
+            auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+            cachingHeaderExt->set_success_expiration_time(ToProto(options.ExpireAfterSuccessfulUpdateTime));
+            cachingHeaderExt->set_failure_expiration_time(ToProto(options.ExpireAfterFailedUpdateTime));
+        }
+
         if (options.Attributes) {
             ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
         }
@@ -2191,6 +2197,12 @@ private:
         auto req = TYPathProxy::List(path);
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
+
+        if (options.ReadFrom == EMasterChannelKind::Cache) {
+            auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+            cachingHeaderExt->set_success_expiration_time(ToProto(options.ExpireAfterSuccessfulUpdateTime));
+            cachingHeaderExt->set_failure_expiration_time(ToProto(options.ExpireAfterFailedUpdateTime));
+        }
 
         if (options.Attributes) {
             ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
