@@ -3,6 +3,7 @@
 #include "proxy_input.h"
 
 #include <library/yson/parser.h>
+
 #include <mapreduce/yt/common/node_builder.h>
 #include <mapreduce/yt/common/log.h>
 
@@ -352,6 +353,10 @@ void TNodeTableReader::NextKey()
     }
 
     Valid_ = true;
+
+    if (RowIndex_) {
+        --*RowIndex_;
+    }
 }
 
 void TNodeTableReader::PrepareParsing()
