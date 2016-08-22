@@ -713,7 +713,7 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, token_storage
     if "fastbone" in kwargs:
         del kwargs["fastbone"]
 
-    tmp_dir = tempfile.mkdtemp(dir=kwargs.get("tmp_dir"))
+    tmp_dir = tempfile.mkdtemp(dir=kwargs.get("default_tmp_dir"))
     enable_row_count_check = get_value(kwargs.pop("enable_row_count_check", None), False)
     kiwi_transmittor.create("map_node", token_storage_path, ignore_existing=True, recursive=True)
     try:
