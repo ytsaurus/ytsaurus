@@ -537,7 +537,7 @@ class TestExecuteBatch(object):
             {"command": "list", "parameters": {"path": "//tmp/missing"}},
         ])
 
-        assert rsp[0]["output"] == ["test_dir"]
+        assert "test_dir" in rsp[0]["output"]
 
         assert rsp[1]["output"] == []
 
