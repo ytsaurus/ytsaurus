@@ -81,7 +81,7 @@ public:
     { }
 
     // Persistence.
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TOperationControllerBase::Persist(context);
 
@@ -233,7 +233,7 @@ protected:
         IChunkPoolOutput* ChunkPoolOutput;
 
 
-        void Persist(TPersistenceContext& context)
+        void Persist(const TPersistenceContext& context)
         {
             using NYT::Persist;
 
@@ -342,7 +342,7 @@ protected:
             return ChunkPool.get();
         }
 
-        virtual void Persist(TPersistenceContext& context) override
+        virtual void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
 
@@ -607,7 +607,7 @@ protected:
             , Partition(partition)
         { }
 
-        virtual void Persist(TPersistenceContext& context) override
+        virtual void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
 
@@ -1033,7 +1033,7 @@ protected:
             return ChunkPool.get();
         }
 
-        virtual void Persist(TPersistenceContext& context) override
+        virtual void Persist(const TPersistenceContext& context) override
         {
             TMergeTask::Persist(context);
 

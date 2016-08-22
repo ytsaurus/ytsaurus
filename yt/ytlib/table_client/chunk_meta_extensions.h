@@ -40,7 +40,7 @@ struct TBoundaryKeys
     TOwningKey MinKey;
     TOwningKey MaxKey;
 
-    void Persist(NPhoenix::TPersistenceContext& context);
+    void Persist(const NPhoenix::TPersistenceContext& context);
 
     size_t SpaceUsed() const;
 };

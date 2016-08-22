@@ -139,7 +139,7 @@ public:
 
     TNullable<NYson::TYsonString> BuildInputPathYson(const TJobId& jobId) const override;
 
-    virtual void Persist(TPersistenceContext& context) override;
+    virtual void Persist(const TPersistenceContext& context) override;
 
 protected:
     // Forward declarations.
@@ -215,7 +215,7 @@ protected:
         // Live preview table id.
         NCypressClient::TNodeId LivePreviewTableId;
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
     };
 
     struct TInputTable
@@ -237,7 +237,7 @@ protected:
             return !IsForeign();
         }
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
     };
 
     std::vector<TInputTable> InputTables;
@@ -249,7 +249,7 @@ protected:
         NTableClient::TOwningKey MaxKey;
         NChunkClient::TChunkTreeId ChunkTreeId;
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
 
     };
 
@@ -279,7 +279,7 @@ protected:
 
         NYson::TYsonString EffectiveAcl;
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
     };
 
     std::vector<TOutputTable> OutputTables;
@@ -288,7 +288,7 @@ protected:
     struct TIntermediateTable
         : public TLivePreviewTableBase
     {
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
     };
 
     TIntermediateTable IntermediateTable;
@@ -304,7 +304,7 @@ protected:
         bool Executable = false;
         NYson::TYsonString Format;
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
     };
 
     std::vector<TUserFile> Files;
@@ -353,7 +353,7 @@ protected:
         TInstant StartTime;
         TInstant FinishTime;
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
     };
 
     struct TCompletedJob
@@ -396,7 +396,7 @@ protected:
 
         TExecNodeDescriptor NodeDescriptor;
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
 
     };
 
@@ -476,7 +476,7 @@ protected:
         virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
         virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
 
-        virtual void Persist(TPersistenceContext& context) override;
+        virtual void Persist(const TPersistenceContext& context) override;
 
     private:
         TOperationControllerBase* Controller;
@@ -594,7 +594,7 @@ protected:
             MinNeededResources.SetUserSlots(1);
         }
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
 
     };
 
@@ -744,7 +744,7 @@ protected:
             : Cookie(IChunkPoolInput::NullCookie)
         { }
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
 
     };
 
@@ -759,7 +759,7 @@ protected:
             : State(EInputChunkState::Active)
         { }
 
-        void Persist(TPersistenceContext& context);
+        void Persist(const TPersistenceContext& context);
 
     };
 

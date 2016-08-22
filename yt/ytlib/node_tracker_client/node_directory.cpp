@@ -64,7 +64,7 @@ TNullable<Stroka> TNodeDescriptor::FindAddress(const TNetworkPreferenceList& net
     return NNodeTrackerClient::FindAddress(Addresses(), networks);
 }
 
-void TNodeDescriptor::Persist(TStreamPersistenceContext& context)
+void TNodeDescriptor::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Addresses_);
@@ -254,7 +254,7 @@ const TNodeDescriptor& TNodeDirectory::GetDescriptor(const Stroka& address)
     return *result;
 }
 
-void TNodeDirectory::Persist(TStreamPersistenceContext& context)
+void TNodeDirectory::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, IdToDescriptor_);

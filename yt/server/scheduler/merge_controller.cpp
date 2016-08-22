@@ -66,7 +66,7 @@ public:
 
     // Persistence.
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TOperationControllerBase::Persist(context);
 
@@ -187,7 +187,7 @@ protected:
             return ChunkPool.get();
         }
 
-        virtual void Persist(TPersistenceContext& context) override
+        virtual void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
 
@@ -616,7 +616,7 @@ public:
     }
 
     // Persistence.
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TOrderedMergeControllerBase::Persist(context);
 
@@ -1039,7 +1039,7 @@ public:
     { }
 
     // Persistence.
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TMergeControllerBase::Persist(context);
 
@@ -1067,7 +1067,7 @@ protected:
             , Controller(controller)
         { }
 
-        virtual void Persist(TPersistenceContext& context) override
+        virtual void Persist(const TPersistenceContext& context) override
         {
             TMergeTask::Persist(context);
 
@@ -1097,7 +1097,7 @@ public:
         TOwningKey MaxBoundaryKey;
         bool IsTeleport;
 
-        void Persist(TPersistenceContext& context)
+        void Persist(const TPersistenceContext& context)
         {
             using NYT::Persist;
             Persist(context, Type);
@@ -1704,7 +1704,7 @@ public:
     }
 
     // Persistence.
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TSortedMergeControllerBase::Persist(context);
 
@@ -1945,7 +1945,7 @@ public:
     { }
 
     // Persistence.
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TReduceControllerBase::Persist(context);
     }
@@ -2246,7 +2246,7 @@ public:
     { }
 
     // Persistence.
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TReduceControllerBase::Persist(context);
     }

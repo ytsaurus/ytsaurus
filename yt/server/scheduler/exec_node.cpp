@@ -103,7 +103,7 @@ bool TExecNodeDescriptor::CanSchedule(const TNullable<Stroka>& tag) const
     return !tag || Tags.find(*tag) != Tags.end();
 }
 
-void TExecNodeDescriptor::Persist(TStreamPersistenceContext& context)
+void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 
