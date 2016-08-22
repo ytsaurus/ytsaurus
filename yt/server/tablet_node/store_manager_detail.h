@@ -55,7 +55,7 @@ public:
     virtual IChunkStorePtr PeekStoreForPreload() override;
     virtual void BeginStorePreload(
         IChunkStorePtr store,
-        TFuture<void> future) override;
+        TCallback<TFuture<void>()> callbackFuture) override;
     virtual void EndStorePreload(IChunkStorePtr store) override;
     virtual void BackoffStorePreload(IChunkStorePtr store) override;
 

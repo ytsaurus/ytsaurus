@@ -27,6 +27,7 @@
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/misc/finally.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -204,65 +205,54 @@ private:
             auto store = storeManager->PeekStoreForPreload();
             if (!store)
                 break;
-            if (!ScanStore(slot, tablet, store))
+            auto guard = TAsyncSemaphoreGuard::TryAcquire(PreloadSemaphore_);
+            if (!guard) {
                 break;
+            }
+            ScanStore(slot, tablet, store, std::move(guard));
         }
     }
 
-    bool ScanStore(TTabletSlotPtr slot, TTablet* tablet, IChunkStorePtr store)
+    void ScanStore(TTabletSlotPtr slot, TTablet* tablet, IChunkStorePtr store, TAsyncSemaphoreGuard guard)
     {
-        auto guard = TAsyncSemaphoreGuard::TryAcquire(PreloadSemaphore_);
-        if (!guard) {
-            return false;
-        }
-
         auto storeManager = tablet->GetStoreManager();
-        auto storeCallback = BIND(&GuardedInvoke,
-            GetSyncInvoker(),
-            BIND(&IStoreManager::EndStorePreload, storeManager, store),
-            BIND(&IStoreManager::BackoffStorePreload, storeManager, store)
-                .Via(tablet->GetEpochAutomatonInvoker()));
-
-        // XXX(sandello): Slightly racy; PreloadStore could start to execute before
-        // BeginStorePreload changes preload store state below.
-        auto future =
+        auto preloadStoreCallback =
             BIND(
                 &TImpl::PreloadStore,
                 MakeStrong(this),
                 Passed(std::move(guard)),
-                Passed(std::move(storeCallback)),
                 slot,
                 tablet,
-                store)
-            .AsyncVia(tablet->GetEpochAutomatonInvoker())
-            .Run();
+                store,
+                storeManager)
+            .AsyncVia(tablet->GetEpochAutomatonInvoker());
 
-        storeManager->BeginStorePreload(store, future);
-
-        return true;
+        storeManager->BeginStorePreload(store, preloadStoreCallback);
     }
 
     void PreloadStore(
         TAsyncSemaphoreGuard /*guard*/,
-        TClosure callback,
         TTabletSlotPtr slot,
         TTablet* tablet,
-        IChunkStorePtr store)
+        IChunkStorePtr store,
+        IStoreManagerPtr storeManager)
     {
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, StoreId: %v",
             tablet->GetId(),
             store->GetId());
-
         try {
+            auto finalizer = Finally(
+                [&] {
+                    storeManager->BackoffStorePreload(store);
+                });
             GuardedPreloadStore(tablet, store, Logger);
-            callback.Run();
+            finalizer.Release();
+            storeManager->EndStorePreload(store);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error preloading tablet store, backing off");
-            callback.Reset();
+            LOG_ERROR(ex, "Error preloading tablet store, backed off");
         } catch (...) {
             LOG_ERROR("Error preloading tablet store for unknown reason, backing off");
-            callback.Reset();
             throw;
         }
 
