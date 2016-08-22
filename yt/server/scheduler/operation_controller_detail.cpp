@@ -1527,6 +1527,7 @@ void TOperationControllerBase::DoLoadSnapshot(TSharedRef snapshot)
 
     TLoadContext context;
     context.SetInput(&input);
+    context.SetRowBuffer(RowBuffer);
 
     NPhoenix::TSerializer::InplaceLoad(context, this);
 
