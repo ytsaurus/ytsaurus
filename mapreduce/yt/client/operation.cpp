@@ -596,7 +596,10 @@ void CreateOutputTable(
     const TTransactionId& transactionId,
     const TRichYPath& path)
 {
-    Create(auth, transactionId, AddPathPrefix(path).Path_, "table");
+    if (!path.Path_) {
+        ythrow yexception() << "Output table is not set";
+    }
+    Create(auth, transactionId, AddPathPrefix(path).Path_, "table", true, true);
 }
 
 void CreateOutputTables(
@@ -604,6 +607,9 @@ void CreateOutputTables(
     const TTransactionId& transactionId,
     const yvector<TRichYPath>& paths)
 {
+    if (paths.empty()) {
+        ythrow yexception() << "Output tables are not set";
+    }
     for (auto& path : paths) {
         CreateOutputTable(auth, transactionId, path);
     }
