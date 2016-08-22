@@ -159,7 +159,7 @@ bool TReadLimit::IsTrivial() const
     return NChunkClient::IsTrivial(ReadLimit_);
 }
 
-void TReadLimit::Persist(NPhoenix::TPersistenceContext& context)
+void TReadLimit::Persist(const NPhoenix::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, ReadLimit_);

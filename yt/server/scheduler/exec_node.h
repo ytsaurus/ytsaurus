@@ -143,7 +143,7 @@ struct TExecNodeDescriptor
     TJobResources ResourceLimits;
     yhash_set<Stroka> Tags;
 
-    void Persist(TStreamPersistenceContext& context);
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

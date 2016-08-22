@@ -48,7 +48,7 @@ void Serialize(const TExtendedJobResources& resources, IYsonConsumer* consumer)
         .EndMap();
 }
 
-void TExtendedJobResources::Persist(TStreamPersistenceContext& context)
+void TExtendedJobResources::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -83,7 +83,7 @@ TNodeResources TJobResources::ToNodeResources() const
     return result;
 }
 
-void TJobResources::Persist(TStreamPersistenceContext& context)
+void TJobResources::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 

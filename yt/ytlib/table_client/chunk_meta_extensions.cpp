@@ -20,7 +20,7 @@ size_t TBoundaryKeys::SpaceUsed() const
        MaxKey.GetSpaceUsed() - sizeof(MaxKey);
 }
 
-void TBoundaryKeys::Persist(NPhoenix::TPersistenceContext& context)
+void TBoundaryKeys::Persist(const NPhoenix::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, MinKey);

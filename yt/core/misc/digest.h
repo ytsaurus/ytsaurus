@@ -20,7 +20,7 @@ struct IDigest
 
     virtual double GetQuantile(double alpha) const = 0;
 
-    virtual void Persist(NPhoenix::TPersistenceContext& context) = 0;
+    virtual void Persist(const NPhoenix::TPersistenceContext& context) = 0;
 };
 
 std::unique_ptr<IDigest> CreateLogDigest(TLogDigestConfigPtr config);

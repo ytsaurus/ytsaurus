@@ -59,7 +59,7 @@ TEST(TPhoenixTest, Scalar)
         int A;
         double B;
 
-        void Persist(TPersistenceContext& context)
+        void Persist(const TPersistenceContext& context)
         {
             using NYT::Persist;
             Persist(context, A);
@@ -117,7 +117,7 @@ struct A
     TIntrusivePtr<B> X;
     TIntrusivePtr<B> Y;
 
-    void Persist(TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
         Persist(context, X);
@@ -135,7 +135,7 @@ struct B
 
     int V;
 
-    void Persist(TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
         Persist(context, V);
@@ -172,7 +172,7 @@ struct A
 {
     TIntrusivePtr<A> X;
 
-    void Persist(TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
         Persist(context, X);
@@ -202,7 +202,7 @@ struct A
 {
     TIntrusivePtr<A> X;
 
-    void Persist(TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
         Persist(context, X);
@@ -237,7 +237,7 @@ struct A
 
     A* X;
 
-    void Persist(TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
         Persist(context, X);
@@ -277,7 +277,7 @@ struct A
     B* X;
     TIntrusivePtr<B> Y;
 
-    void Persist(TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
         Persist(context, X);
@@ -294,7 +294,7 @@ struct B
 
     int V;
 
-    void Persist(TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
         Persist(context, V);
@@ -338,7 +338,7 @@ struct TDerived1
 
     int V;
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, V);
@@ -359,7 +359,7 @@ struct TDerived2
 
     double V;
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, V);
@@ -402,7 +402,7 @@ struct TNonConstructable
 
     int X;
 
-    void Persist(TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
         Persist(context, X);
@@ -441,7 +441,7 @@ struct A
     int X;
     std::unique_ptr<B> T;
 
-    void Persist(TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
         Persist(context, X);
@@ -456,7 +456,7 @@ struct B
     int Y;
     A* Z;
 
-    void Persist(TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
         Persist(context, Y);
@@ -501,7 +501,7 @@ struct A
 
     virtual void Foo() = 0;
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, X);
@@ -525,7 +525,7 @@ struct B
     virtual void Foo() override
     { }
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         A::Persist(context);
@@ -574,7 +574,7 @@ struct TBase
 
     int X;
 
-    virtual void Persist(TPersistenceContext& context)
+    virtual void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
         Persist(context, X);
@@ -589,7 +589,7 @@ struct TDerived
 
     int Y;
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TBase::Persist(context);
 
