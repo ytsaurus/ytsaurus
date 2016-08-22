@@ -72,13 +72,13 @@ def check_response_is_decodable(response, format):
     if format == "json":
         try:
             response.json()
-        except json.JSONDecodeError:
-            raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)", response)
+        except (json.JSONDecodeError, TypeError):
+            raise YtIncorrectResponse("Response body can not be decoded from JSON", response)
     elif format == "yson":
         try:
             yson.loads(response.text)
-        except yson.YsonError:
-            raise YtIncorrectResponse("Response body can not be decoded from YSON (bug in proxy)", response)
+        except (yson.YsonError, TypeError):
+            raise YtIncorrectResponse("Response body can not be decoded from YSON", response)
 
 
 def create_response(response, request_info, client):
