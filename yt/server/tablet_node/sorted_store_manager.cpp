@@ -469,6 +469,10 @@ bool TSortedStoreManager::IsStoreCompactable(IStorePtr store) const
         return false;
     }
 
+    if (sortedChunkStore->GetLastCompactionAttemptTimestamp() + Config_->ErrorBackoffTime > Now()) {
+        return false;
+    }
+
     return true;
 }
 

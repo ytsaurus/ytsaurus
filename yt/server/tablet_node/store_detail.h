@@ -131,6 +131,9 @@ public:
     virtual i64 GetPoolSize() const;
     virtual i64 GetPoolCapacity() const;
 
+    virtual TInstant GetLastFlushAttemptTimestamp() const override;
+    virtual void UpdateFlushAttemptTimestamp() override;
+
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
     virtual bool IsDynamic() const override;
@@ -144,6 +147,7 @@ protected:
     const NTableClient::TRowBufferPtr RowBuffer_;
 
     EStoreFlushState FlushState_ = EStoreFlushState::None;
+    TInstant LastFlushAttemptTimestamp_;
 
     i64 StoreLockCount_ = 0;
     i64 StoreValueCount_ = 0;
@@ -191,11 +195,17 @@ public:
     virtual EStorePreloadState GetPreloadState() const override;
     virtual void SetPreloadState(EStorePreloadState state) override;
 
+    virtual TInstant GetLastPreloadAttemptTimestamp() const override;
+    virtual void UpdatePreloadAttemptTimestamp() override;
+
     virtual TFuture<void> GetPreloadFuture() const override;
     virtual void SetPreloadFuture(TFuture<void> future) override;
 
     virtual EStoreCompactionState GetCompactionState() const override;
     virtual void SetCompactionState(EStoreCompactionState state) override;
+
+    virtual TInstant GetLastCompactionAttemptTimestamp() const override;
+    virtual void UpdateCompactionAttemptTimestamp() override;
 
     virtual bool IsChunk() const override;
     virtual IChunkStorePtr AsChunk() override;
@@ -210,8 +220,10 @@ protected:
     const NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
     EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;
+    TInstant LastPreloadAttemptTimestamp_;
     TFuture<void> PreloadFuture_;
     EStoreCompactionState CompactionState_ = EStoreCompactionState::None;
+    TInstant LastCompactionAttemptTimestamp_;
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
 
