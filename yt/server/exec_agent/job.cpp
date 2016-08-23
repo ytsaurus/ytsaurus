@@ -686,7 +686,7 @@ private:
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-            if (userJobSpec.has_tmpfs_path()) {
+            if (userJobSpec.has_tmpfs_path() && Bootstrap_->GetConfig()->ExecAgent->SlotManager->EnableTmpfs) {
                 TmpfsPath_ = WaitFor(Slot_->PrepareTmpfs(
                     ESandboxKind::User, 
                     userJobSpec.tmpfs_size(), 
