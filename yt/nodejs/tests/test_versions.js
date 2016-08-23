@@ -19,7 +19,7 @@ describe("YtApplicationVersions - discover versions", function() {
         var driver = this.driver;
         var mock = sinon.mock(driver);
 
-               function makeNamesList(entity, names) {
+        function makeNamesList(entity, names) {
             var name_result = {};
             names.forEach(function (name) {
                 var current = name_result;
