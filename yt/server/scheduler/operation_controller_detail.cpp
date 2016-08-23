@@ -1477,7 +1477,7 @@ void TOperationControllerBase::ReinstallLivePreview()
                 childIds.push_back(pair.second);
             }
             masterConnector->AttachToLivePreview(
-                Operation->GetId(),
+                OperationId,
                 table.LivePreviewTableId,
                 childIds);
         }
@@ -1492,7 +1492,7 @@ void TOperationControllerBase::ReinstallLivePreview()
             }
         }
         masterConnector->AttachToLivePreview(
-            Operation->GetId(),
+            OperationId,
             IntermediateTable.LivePreviewTableId,
             childIds);
     }
@@ -1738,7 +1738,7 @@ void TOperationControllerBase::OnJobStarted(const TJobId& jobId, TInstant startT
 
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(jobId)
-        .Item("operation_id").Value(Operation->GetId())
+        .Item("operation_id").Value(OperationId)
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType);
@@ -1945,7 +1945,7 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
 {
     return LogEventFluently(eventType)
         .Item("job_id").Value(joblet->JobId)
-        .Item("operation_id").Value(Operation->GetId())
+        .Item("operation_id").Value(OperationId)
         .Item("start_time").Value(joblet->StartTime)
         .Item("finish_time").Value(joblet->FinishTime)
         .Item("resource_limits").Value(joblet->ResourceLimits)
@@ -3824,7 +3824,7 @@ void TOperationControllerBase::RegisterOutput(
     if (IsOutputLivePreviewSupported()) {
         auto masterConnector = Host->GetMasterConnector();
         masterConnector->AttachToLivePreview(
-            Operation->GetId(),
+            OperationId,
             table.LivePreviewTableId,
             {chunkTreeId});
     }
@@ -3953,7 +3953,7 @@ void TOperationControllerBase::RegisterIntermediate(
         if (attachToLivePreview && IsIntermediateLivePreviewSupported()) {
             auto masterConnector = Host->GetMasterConnector();
             masterConnector->AttachToLivePreview(
-                Operation->GetId(),
+                OperationId,
                 IntermediateTable.LivePreviewTableId,
                 {chunkId});
         }
