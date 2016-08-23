@@ -123,10 +123,7 @@ protected:
             keys.push_back(lookupKey);
         }
 
-        return EliminatePredicate(
-            keys,
-            expr,
-            keyColumns);
+        return EliminatePredicate(keys, expr, keyColumns);
     }
 };
 
@@ -248,10 +245,7 @@ protected:
             rowRanges.emplace_back(keyRange.first.Get(), keyRange.second.Get());
         }
 
-        return EliminatePredicate(
-            rowRanges,
-            expr,
-            keyColumns);
+        return EliminatePredicate(rowRanges, expr, keyColumns);
     }
 };
 
