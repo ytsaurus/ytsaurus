@@ -189,7 +189,7 @@ struct TJobStartRequest
         EJobType type,
         const TJobResources& resourceLimits,
         bool restarted,
-        const TJobSpecBuilder& specBuilder,
+        TJobSpecBuilder specBuilder,
         const Stroka& account);
 
     const TJobId Id;
