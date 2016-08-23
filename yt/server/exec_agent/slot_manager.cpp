@@ -78,10 +78,11 @@ void TSlotManager::Initialize(int slotCount)
     for (auto& location : AliveLocations_) {
         try {
             for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-                location->CleanSandboxes(slotIndex);
+                WaitFor(location->CleanSandboxes(slotIndex))
+                    .ThrowOnError();
             }
         } catch (const std::exception& ex) {
-            LOG_WARNING("Failed do clean up processes on slot manager initialization");
+            LOG_WARNING(ex, "Failed do clean up processes on slot manager initialization");
         }
     }
 
