@@ -25,12 +25,10 @@ public:
     TTreeVisitor(
         IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
-        bool sortKeys,
-        bool ignoreOpaque)
+        bool sortKeys)
         : Consumer(consumer)
         , AttributeKeys(attributeKeys)
         , SortKeys(sortKeys)
-        , IgnoreOpaque(ignoreOpaque)
     { }
 
     void Visit(const INodePtr& root)
@@ -42,15 +40,12 @@ private:
     IAsyncYsonConsumer* const Consumer;
     const TNullable<std::vector<Stroka>> AttributeKeys;
     const bool SortKeys;
-    const bool IgnoreOpaque;
-
 
     void VisitAny(const INodePtr& node, bool isRoot = false)
     {
         node->WriteAttributes(Consumer, AttributeKeys, SortKeys);
 
         if (!isRoot &&
-            !IgnoreOpaque &&
             node->Attributes().Get<bool>("opaque", false))
         {
             // This node is opaque, i.e. replaced by entity during tree traversal.
@@ -156,30 +151,26 @@ void VisitTree(
     INodePtr root,
     IYsonConsumer* consumer,
     const TNullable<std::vector<Stroka>>& attributeKeys,
-    bool sortKeys,
-    bool ignoreOpaque)
+    bool sortKeys)
 {
     TAsyncYsonConsumerAdapter adapter(consumer);
     VisitTree(
         std::move(root),
         &adapter,
         attributeKeys,
-        sortKeys,
-        ignoreOpaque);
+        sortKeys);
 }
 
 void VisitTree(
     INodePtr root,
     IAsyncYsonConsumer* consumer,
     const TNullable<std::vector<Stroka>>& attributeKeys,
-    bool sortKeys,
-    bool ignoreOpaque)
+    bool sortKeys)
 {
     TTreeVisitor treeVisitor(
         consumer,
         attributeKeys,
-        sortKeys,
-        ignoreOpaque);
+        sortKeys);
     treeVisitor.Visit(root);
 }
 

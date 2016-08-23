@@ -20,8 +20,9 @@ public:
 
     void Enqueue(const T& value);
     bool Dequeue(T* value);
-    std::vector<T> DequeueAll();
-    bool DequeueAll(bool reverse, std::function<void(T&)> functor);
+    std::vector<T> DequeueAll(bool reverse = false);
+    template <class F>
+    bool DequeueAll(bool reverse, F functor);
 
     bool IsEmpty() const;
 

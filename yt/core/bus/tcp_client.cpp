@@ -102,16 +102,12 @@ class TTcpBusClient
 public:
     explicit TTcpBusClient(TTcpBusClientConfigPtr config)
         : Config_(config)
-        , InterfaceType_(Config_->UnixDomainName || IsLocalServiceAddress(*Config_->Address)
-            ? ETcpInterfaceType::Local
-            : ETcpInterfaceType::Remote)
         , EndpointDescription_(Config_->Address
             ? *Config_->Address
             : Format("unix://%v", *Config_->UnixDomainName))
         , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
                 .Item("address").Value(EndpointDescription_)
-                .Item("interface_type").Value(InterfaceType_)
             .EndMap()))
     { }
 
@@ -132,10 +128,9 @@ public:
         auto id = TConnectionId::Create();
         auto dispatcherThread = TTcpDispatcher::TImpl::Get()->GetClientThread();
 
-        LOG_DEBUG("Connecting to server (Address: %v, ConnectionId: %v, InterfaceType: %v)",
+        LOG_DEBUG("Connecting to server (Address: %v, ConnectionId: %v)",
             EndpointDescription_,
-            id,
-            InterfaceType_);
+            id);
 
         auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
@@ -147,7 +142,7 @@ public:
             Config_,
             dispatcherThread,
             EConnectionType::Client,
-            InterfaceType_,
+            Null,
             id,
             INVALID_SOCKET,
             EndpointDescription_,
@@ -164,9 +159,6 @@ public:
 
 private:
     const TTcpBusClientConfigPtr Config_;
-
-    const ETcpInterfaceType InterfaceType_;
-
     const Stroka EndpointDescription_;
     const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
 

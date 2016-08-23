@@ -26,8 +26,6 @@ public:
         // TODO(babenko): rename to "limit"
         RegisterParameter("max_size", Options.MaxSize)
             .Optional();
-        RegisterParameter("ignore_opaque", Options.IgnoreOpaque)
-            .Optional();
     }
 
     void Execute(ICommandContextPtr context);
