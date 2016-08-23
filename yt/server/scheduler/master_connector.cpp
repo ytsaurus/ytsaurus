@@ -229,13 +229,13 @@ public:
     }
 
     TFuture<void> AttachToLivePreview(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         const TNodeId& tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
         return BIND(&TImpl::DoAttachToLivePreview, MakeStrong(this))
             .AsyncVia(CancelableControlInvoker)
-            .Run(operation, tableId, childIds);
+            .Run(operationId, tableId, childIds);
     }
 
     TFuture<TSharedRef> DownloadSnapshot(const TOperationId& operationId)
@@ -1922,22 +1922,22 @@ private:
     }
 
     void DoAttachToLivePreview(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         const TNodeId& tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto* list = FindUpdateList(operation->GetId());
+        auto* list = FindUpdateList(operationId);
         if (!list) {
             LOG_DEBUG("Operation node is not registered, omitting live preview attach (OperationId: %v)",
-                operation->GetId());
+                operationId);
             return;
         }
 
         LOG_DEBUG("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
-            operation->GetId(),
+            operationId,
             tableId,
             childIds.size());
 
@@ -2023,11 +2023,11 @@ void TMasterConnector::AttachJobContext(
 }
 
 TFuture<void> TMasterConnector::AttachToLivePreview(
-    TOperationPtr operation,
+    const TOperationId& operationId,
     const TNodeId& tableId,
     const std::vector<TChunkTreeId>& childIds)
 {
-    return Impl->AttachToLivePreview(operation, tableId, childIds);
+    return Impl->AttachToLivePreview(operationId, tableId, childIds);
 }
 
 void TMasterConnector::AddGlobalWatcherRequester(TWatcherRequester requester)
