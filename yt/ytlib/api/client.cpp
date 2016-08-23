@@ -1598,6 +1598,14 @@ private:
         }
     }
 
+    static void SetCachingHeader(
+        IClientRequestPtr request,
+        const TCacheOptions& options)
+    {
+        auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+        cachingHeaderExt->set_success_expiration_time(ToProto(options.ExpireAfterSuccessfulUpdateTime));
+        cachingHeaderExt->set_failure_expiration_time(ToProto(options.ExpireAfterFailedUpdateTime));
+    }
 
     template <class TProxy>
     std::unique_ptr<TProxy> CreateReadProxy(
@@ -2126,11 +2134,8 @@ private:
         SetSuppressAccessTracking(req, options);
 
         if (options.ReadFrom == EMasterChannelKind::Cache) {
-            auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-            cachingHeaderExt->set_success_expiration_time(ToProto(options.ExpireAfterSuccessfulUpdateTime));
-            cachingHeaderExt->set_failure_expiration_time(ToProto(options.ExpireAfterFailedUpdateTime));
+            SetCachingHeader(req, options);
         }
-
         if (options.Attributes) {
             ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
         }
@@ -2199,11 +2204,8 @@ private:
         SetSuppressAccessTracking(req, options);
 
         if (options.ReadFrom == EMasterChannelKind::Cache) {
-            auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-            cachingHeaderExt->set_success_expiration_time(ToProto(options.ExpireAfterSuccessfulUpdateTime));
-            cachingHeaderExt->set_failure_expiration_time(ToProto(options.ExpireAfterFailedUpdateTime));
+            SetCachingHeader(req, options);
         }
-
         if (options.Attributes) {
             ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
         }
