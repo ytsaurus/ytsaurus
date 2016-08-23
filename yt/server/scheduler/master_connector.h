@@ -77,7 +77,7 @@ public:
         const TJobId& jobId);
 
     TFuture<void> AttachToLivePreview(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         const NCypressClient::TNodeId& tableId,
         const std::vector<NChunkClient::TChunkTreeId>& childIds);
 

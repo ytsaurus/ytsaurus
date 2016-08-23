@@ -1477,7 +1477,7 @@ void TOperationControllerBase::ReinstallLivePreview()
                 childIds.push_back(pair.second);
             }
             masterConnector->AttachToLivePreview(
-                Operation,
+                Operation->GetId(),
                 table.LivePreviewTableId,
                 childIds);
         }
@@ -1492,7 +1492,7 @@ void TOperationControllerBase::ReinstallLivePreview()
             }
         }
         masterConnector->AttachToLivePreview(
-            Operation,
+            Operation->GetId(),
             IntermediateTable.LivePreviewTableId,
             childIds);
     }
@@ -3824,7 +3824,7 @@ void TOperationControllerBase::RegisterOutput(
     if (IsOutputLivePreviewSupported()) {
         auto masterConnector = Host->GetMasterConnector();
         masterConnector->AttachToLivePreview(
-            Operation,
+            Operation->GetId(),
             table.LivePreviewTableId,
             {chunkTreeId});
     }
@@ -3953,7 +3953,7 @@ void TOperationControllerBase::RegisterIntermediate(
         if (attachToLivePreview && IsIntermediateLivePreviewSupported()) {
             auto masterConnector = Host->GetMasterConnector();
             masterConnector->AttachToLivePreview(
-                Operation,
+                Operation->GetId(),
                 IntermediateTable.LivePreviewTableId,
                 {chunkId});
         }
