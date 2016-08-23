@@ -23,7 +23,8 @@ protected:
         LogDigest_ = CreateLogDigest(config);
     }
 
-    bool LogNear(double a, double b) {
+    bool LogNear(double a, double b)
+    {
         return a < b * (1 + Epsilon_) * (1 + Epsilon_) && b < a * (1 + Epsilon_) * (1 + Epsilon_);
     }
 
@@ -32,8 +33,6 @@ protected:
 
     std::unique_ptr<IDigest> LogDigest_;
 };
-
-#ifndef _darwin_
 
 TEST_F(TLogDigestTest, TestStrictFixture1)
 {
