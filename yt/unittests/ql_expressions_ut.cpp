@@ -226,60 +226,6 @@ INSTANTIATE_TEST_CASE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEliminatePredicateTest0
-    : public ::testing::Test
-    , public ::testing::WithParamInterface<std::vector<const char*>>
-    , public TCompareExpressionTest
-{
-protected:
-    TConstExpressionPtr Eliminate(
-        const TKeyRange& keyRange,
-        TConstExpressionPtr expr,
-        const TTableSchema& tableSchema,
-        const TKeyColumns& keyColumns)
-    {
-        auto rowRange = TRowRange(keyRange.first, keyRange.second);
-
-        return EliminatePredicate(
-            MakeRange(&rowRange, 1),
-            expr,
-            keyColumns);
-    }
-};
-
-TEST_P(TEliminatePredicateTest0, Simple)
-{
-    const auto& args = GetParam();
-    const auto& schemaString = args[0];
-    const auto& keyString = args[1];
-    const auto& predicateString = args[2];
-    const auto& refinedString = args[3];
-    const auto& lowerString = args[4];
-    const auto& upperString = args[5];
-
-    TTableSchema tableSchema;
-    TKeyColumns keyColumns;
-    Deserialize(tableSchema, ConvertToNode(TYsonString(schemaString)));
-    Deserialize(keyColumns, ConvertToNode(TYsonString(keyString)));
-
-    auto predicate = PrepareExpression(predicateString, tableSchema);
-    auto expected = PrepareExpression(refinedString, tableSchema);
-    auto range = TKeyRange{BuildKey(lowerString), BuildKey(upperString)};
-    auto refined = Eliminate(range, predicate, tableSchema, keyColumns);
-
-    EXPECT_TRUE(Equal(refined, expected))
-        << "schema: " << schemaString << std::endl
-        << "key_columns: " << keyString << std::endl
-        << "range: [" << lowerString << ", " << upperString << "]" << std::endl
-        << "predicate: " << predicateString << std::endl
-        << "refined: " << ::testing::PrintToString(refined) << std::endl
-        << "expected: " << ::testing::PrintToString(expected);
-}
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TEliminatePredicateTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
@@ -328,7 +274,6 @@ TEST_P(TEliminatePredicateTest, Simple)
 
     auto predicate = PrepareExpression(predicateString, tableSchema);
     auto expected = PrepareExpression(refinedString, tableSchema);
-    auto range = TKeyRange{BuildKey(lowerString), BuildKey(upperString)};
 
     std::vector<TKeyRange> owningRanges;
     for (size_t i = 0; i < keyStrings.size() / 2; ++i) {
@@ -1072,10 +1017,6 @@ TEST_P(TEvaluateAggregationTest, Basic)
     auto aggregate = registry->GetAggregate(aggregateName);
     auto callbacks = CodegenAggregate(aggregate->Profile(type, type, type, aggregateName));
 
-    auto permanentBuffer = New<TRowBuffer>();
-    auto outputBuffer = New<TRowBuffer>();
-    auto intermediateBuffer = New<TRowBuffer>();
-
     auto buffer = New<TRowBuffer>();
 
     TUnversionedValue tmp;
@@ -1310,7 +1251,6 @@ TEST_F(TFormatTimestampExpressionTest, TooSmallTimestamp)
 TEST_F(TFormatTimestampExpressionTest, TooLargeTimestamp)
 {
     TTableSchema schema;
-    TKeyColumns keyColumns;
 
     auto expr = PrepareExpression("format_timestamp(253402300800, '%Y%m%d')", schema);
     auto buffer = New<TRowBuffer>();
@@ -1325,7 +1265,6 @@ TEST_F(TFormatTimestampExpressionTest, TooLargeTimestamp)
 TEST_F(TFormatTimestampExpressionTest, InvalidFormat)
 {
     TTableSchema schema;
-    TKeyColumns keyColumns;
 
     auto expr = PrepareExpression("format_timestamp(0, '11111111112222222222333333333344')", schema);
     auto buffer = New<TRowBuffer>();
