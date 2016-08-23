@@ -287,6 +287,12 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
         for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
             const auto& sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
             try {
+                if (!NFS::Exists(sandboxPath)) {
+                    continue;
+                }
+
+                LOG_DEBUG("Cleaning sandbox directory (Path: %v)", sandboxPath);
+
                 auto sandboxFullPath = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), sandboxPath);
 
                 // Unmount all known tmpfs.
@@ -318,13 +324,10 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                     }
                 }
 
-                if (NFS::Exists(sandboxPath)) {
-                    LOG_DEBUG("Cleaning sandbox directory (Path: %v)", sandboxPath);
-                    if (HasRootPermissions_) {
-                        RunTool<TRemoveDirAsRootTool>(sandboxPath);
-                    } else {
-                        NFS::RemoveRecursive(sandboxPath);
-                    }
+                if (HasRootPermissions_) {
+                    RunTool<TRemoveDirAsRootTool>(sandboxPath);
+                } else {
+                    NFS::RemoveRecursive(sandboxPath);
                 }
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to clean sandbox directory %v", sandboxPath) << ex;
