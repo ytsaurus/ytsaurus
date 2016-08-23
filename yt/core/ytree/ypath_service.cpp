@@ -57,8 +57,7 @@ private:
 
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override
     {
-        bool ignoreOpaque = request->ignore_opaque();
-        if (!ignoreOpaque || request->has_attributes())  {
+        if (request->has_attributes())  {
             // Execute fallback.
             auto node = BuildNodeFromProducer();
             ExecuteVerb(node, IServiceContextPtr(context));
@@ -193,8 +192,7 @@ private:
             auto asyncYson = AsyncYPathGet(
                 UnderlyingService_,
                 TYPath(),
-                Null,
-                true);
+                Null);
 
             auto yson = WaitFor(asyncYson)
                 .ValueOrThrow();

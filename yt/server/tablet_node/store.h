@@ -84,6 +84,9 @@ struct IDynamicStore
 
     virtual EStoreFlushState GetFlushState() const = 0;
     virtual void SetFlushState(EStoreFlushState state) = 0;
+
+    virtual TInstant GetLastFlushAttemptTimestamp() const = 0;
+    virtual void UpdateFlushAttemptTimestamp() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDynamicStore)
@@ -100,6 +103,9 @@ struct IChunkStore
     virtual EStorePreloadState GetPreloadState() const = 0;
     virtual void SetPreloadState(EStorePreloadState state) = 0;
 
+    virtual TInstant GetLastPreloadAttemptTimestamp() const = 0;
+    virtual void UpdatePreloadAttemptTimestamp() = 0;
+
     virtual TFuture<void> GetPreloadFuture() const = 0;
     virtual void SetPreloadFuture(TFuture<void> future) = 0;
 
@@ -112,6 +118,9 @@ struct IChunkStore
 
     virtual EStoreCompactionState GetCompactionState() const = 0;
     virtual void SetCompactionState(EStoreCompactionState state) = 0;
+
+    virtual TInstant GetLastCompactionAttemptTimestamp() const = 0;
+    virtual void UpdateCompactionAttemptTimestamp() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStore)
