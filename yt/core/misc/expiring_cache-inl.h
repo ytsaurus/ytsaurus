@@ -163,17 +163,17 @@ void TExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEntry, 
     auto it = Map_.find(key);
     Y_ASSERT(it != Map_.end() && it->second == entry);
 
-    if (TInstant::Now() > entry->AccessDeadline) {
-        Map_.erase(key);
-        return;
-    }
-
     auto expirationTime = valueOrError.IsOK() ? Config_->ExpireAfterSuccessfulUpdateTime : Config_->ExpireAfterFailedUpdateTime;
     entry->UpdateDeadline = TInstant::Now() + expirationTime;
     if (entry->Promise.IsSet()) {
         entry->Promise = MakePromise(valueOrError);
     } else {
         entry->Promise.Set(valueOrError);
+    }
+
+    if (TInstant::Now() > entry->AccessDeadline) {
+        Map_.erase(key);
+        return;
     }
 
     if (valueOrError.IsOK()) {
