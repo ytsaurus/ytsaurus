@@ -972,6 +972,9 @@ class TestSchedulerSnapshots(YTEnvSetup):
             assert len(read_file(snapshot_backup_path, verbose=False)) > 0
             op.resume_jobs()
 
+        for op in ops:
+            op.track()
+
 class TestSchedulerPreemption(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
