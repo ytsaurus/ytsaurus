@@ -94,6 +94,8 @@ public:
     int LightPoolSize;
     int HeavyPoolSize;
 
+    int MaxConcurrentRequests;
+
     TConnectionConfig();
 
 };
