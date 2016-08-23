@@ -251,13 +251,13 @@ TJobStartRequest::TJobStartRequest(
     EJobType type,
     const TJobResources& resourceLimits,
     bool restarted,
-    const TJobSpecBuilder& specBuilder,
+    TJobSpecBuilder specBuilder,
     const Stroka& account)
     : Id(id)
     , Type(type)
     , ResourceLimits(resourceLimits)
     , Restarted(restarted)
-    , SpecBuilder(specBuilder)
+    , SpecBuilder(std::move(specBuilder))
     , Account(account)
 { }
 
