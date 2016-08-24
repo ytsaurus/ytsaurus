@@ -249,12 +249,11 @@ protected:
 
     struct TJobBoundaryKeys
     {
-        NTableClient::TOwningKey MinKey;
-        NTableClient::TOwningKey MaxKey;
+        NTableClient::TKey MinKey;
+        NTableClient::TKey MaxKey;
         NChunkClient::TChunkTreeId ChunkTreeId;
 
         void Persist(const TPersistenceContext& context);
-
     };
 
     struct TOutputTable
