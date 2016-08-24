@@ -45,9 +45,6 @@ using NChunkClient::TReadLimit;
 
 static const auto& Logger = TableClientLogger;
 
-static const i64 CacheSize = 32 * 1024;
-static const i64 MinRowsPerRead = 32;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkLookupHashTable
