@@ -1073,17 +1073,20 @@ private:
             return;
         }
 
-        auto candidates = PickPeerCandidates(
-            Config_->ProbePeerCount,
-            [&] (const Stroka& address) {
-                return HasUnfetchedBlocks(address, blockIndexes);
-            },
-            reader);
+        TNullable<TPeer> maybePeer;
+        while (!maybePeer) {
+            auto candidates = PickPeerCandidates(
+                Config_->ProbePeerCount,
+                [&] (const Stroka& address) {
+                    return HasUnfetchedBlocks(address, blockIndexes);
+                },
+                reader);
+            if (candidates.empty()) {
+                OnPassCompleted();
+                return;
+            }
 
-        auto maybePeer = SelectBestPeer(candidates, blockIndexes, reader);
-        if (!maybePeer) {
-            OnPassCompleted();
-            return;
+            maybePeer = SelectBestPeer(candidates, blockIndexes, reader);
         }
 
         const auto& peerAddress = maybePeer->Address;
