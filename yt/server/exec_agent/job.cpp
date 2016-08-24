@@ -597,11 +597,12 @@ private:
         if (Slot_) {
             try {
                 Slot_->Cleanup();
-                Bootstrap_->GetExecSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
             } catch (const std::exception& ex) {
-                // Errors during cleanup phase do not affert job outcome.
+                // Errors during cleanup phase do not affect job outcome.
                 LOG_ERROR(ex, "Failed to clean up slot %v", Slot_->GetSlotIndex());
             }
+
+            Bootstrap_->GetExecSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
         }
 
         JobPhase_ = EJobPhase::Finished;
