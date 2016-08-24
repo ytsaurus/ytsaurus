@@ -213,6 +213,8 @@ protected:
     {
         this->RegisterParameter("prerequisite_transaction_ids", this->Options.PrerequisiteTransactionIds)
             .Optional();
+        this->RegisterParameter("prerequisite_revisions", this->Options.PrerequisiteRevisions)
+            .Optional();
     }
 };
 

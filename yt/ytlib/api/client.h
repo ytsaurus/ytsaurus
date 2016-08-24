@@ -32,6 +32,8 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/nullable.h>
 
+#include <yt/core/ytree/yson_serializable.h>
+
 #include <yt/core/rpc/public.h>
 
 #include <yt/core/ytree/permission.h>
@@ -103,9 +105,27 @@ struct TMasterReadOptions
     EMasterChannelKind ReadFrom = EMasterChannelKind::Follower;
 };
 
+struct TPrerequisiteRevisionConfig
+    : public NYTree::TYsonSerializable
+{
+    NYTree::TYPath Path;
+    NTransactionClient::TTransactionId TransactionId;
+    i64 Revision;
+
+    TPrerequisiteRevisionConfig()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("transaction_id", TransactionId);
+        RegisterParameter("revision", Revision);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPrerequisiteRevisionConfig)
+
 struct TPrerequisiteOptions
 {
     std::vector<NTransactionClient::TTransactionId> PrerequisiteTransactionIds;
+    std::vector<TPrerequisiteRevisionConfigPtr> PrerequisiteRevisions;
 };
 
 struct TMountTableOptions
