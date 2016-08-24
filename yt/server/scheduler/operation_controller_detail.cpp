@@ -3906,22 +3906,22 @@ void TOperationControllerBase::RegisterBoundaryKeys(
     YCHECK(boundaryKeys.sorted());
     YCHECK(!outputTable->Options->ValidateUniqueKeys || boundaryKeys.unique_keys());
 
-    auto minKey = FromProto<TOwningKey>(boundaryKeys.min());
-    auto maxKey = FromProto<TOwningKey>(boundaryKeys.max());
+    auto trimAndCaptureKey = [&] (const TOwningKey& key) {
+        int limit = outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount();
+        if (key.GetCount() > limit) {
+            // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
+            YCHECK(!outputTable->Options->ValidateUniqueKeys);
+            return RowBuffer->Capture(key.Begin(), limit);
+        } else {
+            return RowBuffer->Capture(key.Begin(), key.GetCount());
+        }
+    };
 
-    // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
-    if (minKey.GetCount() > outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount() ||
-        maxKey.GetCount() > outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount())
-    {
-        YCHECK(!outputTable->Options->ValidateUniqueKeys);
-
-        int minKeyLength = std::min(minKey.GetCount(), outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount());
-        int maxKeyLength = std::min(maxKey.GetCount(), outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount());
-        minKey = TOwningRow(minKey.Begin(), minKey.Begin() + minKeyLength);
-        maxKey = TOwningRow(maxKey.Begin(), maxKey.Begin() + maxKeyLength);
-    }
-
-    outputTable->BoundaryKeys.push_back(TJobBoundaryKeys{minKey, maxKey, chunkTreeId});
+    outputTable->BoundaryKeys.push_back(TJobBoundaryKeys{
+        trimAndCaptureKey(FromProto<TOwningKey>(boundaryKeys.min())),
+        trimAndCaptureKey(FromProto<TOwningKey>(boundaryKeys.max())),
+        chunkTreeId
+    });
 }
 
 void TOperationControllerBase::RegisterOutput(
