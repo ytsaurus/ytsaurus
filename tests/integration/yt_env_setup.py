@@ -204,20 +204,11 @@ class YTEnvSetup(object):
     def teardown_method(self, method):
         self.Env.check_liveness(callback_func=_pytest_finalize_func)
         if self.NUM_MASTERS > 0:
-            for tx in yt_commands.ls("//sys/transactions", attributes=["title"]):
-                title = tx.attributes.get("title", "")
-                if "Scheduler lock" in title or "Lease for node" in title:
-                    continue
-                try:
-                    yt_commands.abort_transaction(tx)
-                except:
-                    pass
-
+            self._abort_transactions()
             yt_commands.set('//tmp', {})
             self._remove_operations()
             yt_commands.gc_collect()
             yt_commands.clear_metadata_caches()
-
             self._reset_nodes()
             self._reenable_chunk_replicator()
             self._remove_accounts()
@@ -291,10 +282,16 @@ class YTEnvSetup(object):
         print "Waiting for tablets to become compacted..."
         wait(lambda: len(chunk_ids.intersection(__builtin__.set(yt_commands.get(path + "/@chunk_ids")))) == 0)
 
-    def _abort_transactions(self, txs):
-        for tx in txs:
+    def _abort_transactions(self):
+         for tx in yt_commands.ls("//sys/transactions", attributes=["title"]):
+            title = tx.attributes.get("title", "")
+            id = str(tx)
+            if "Scheduler lock" in title:
+                continue
+            if "Lease for node" in title:
+                continue
             try:
-                yt_commands.abort_transaction(tx)
+                yt_commands.abort_transaction(id)
             except:
                 pass
 
