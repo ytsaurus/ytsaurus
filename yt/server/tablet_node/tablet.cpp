@@ -90,6 +90,12 @@ std::vector<ISortedStorePtr> TTabletSnapshot::GetEdenStores()
     return stores;
 }
 
+TTableReplicaSnapshotPtr TTabletSnapshot::FindReplicaSnapshot(const TTableReplicaId& replicaId)
+{
+    auto it = Replicas.find(replicaId);
+    return it == Replicas.end() ? nullptr : it->second;
+}
+
 void TTabletSnapshot::ValidateCellId(const TCellId& cellId)
 {
     if (CellId != cellId) {
@@ -128,8 +134,8 @@ void TTableReplicaInfo::Save(TSaveContext& context) const
     Save(context, ClusterName_);
     Save(context, ReplicaPath_);
     Save(context, State_);
-    Save(context, CurrentReplicationRowIndex_);
-    Save(context, PreparedReplicationRowIndex_);
+    Save(context, RuntimeData_->CurrentReplicationRowIndex);
+    Save(context, RuntimeData_->PreparedReplicationRowIndex);
     Save(context, CurrentReplicationTimestamp_);
 }
 
@@ -140,9 +146,36 @@ void TTableReplicaInfo::Load(TLoadContext& context)
     Load(context, ClusterName_);
     Load(context, ReplicaPath_);
     Load(context, State_);
-    Load(context, CurrentReplicationRowIndex_);
-    Load(context, PreparedReplicationRowIndex_);
+    Load(context, RuntimeData_->CurrentReplicationRowIndex);
+    Load(context, RuntimeData_->PreparedReplicationRowIndex);
     Load(context, CurrentReplicationTimestamp_);
+}
+
+i64 TTableReplicaInfo::GetCurrentReplicationRowIndex() const
+{
+    return RuntimeData_->CurrentReplicationRowIndex;
+}
+
+void TTableReplicaInfo::SetCurrentReplicationRowIndex(i64 value)
+{
+    RuntimeData_->CurrentReplicationRowIndex = value;
+}
+
+i64 TTableReplicaInfo::GetPreparedReplicationRowIndex() const
+{
+    return RuntimeData_->PreparedReplicationRowIndex;
+}
+
+void TTableReplicaInfo::SetPreparedReplicationRowIndex(i64 value)
+{
+    RuntimeData_->PreparedReplicationRowIndex = value;
+}
+
+TTableReplicaSnapshotPtr TTableReplicaInfo::BuildSnapshot() const
+{
+    auto snapshot = New<TTableReplicaSnapshot>();
+    snapshot->RuntimeData = RuntimeData_;
+    return snapshot;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -836,6 +869,10 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->PerformanceCounters = PerformanceCounters_;
     snapshot->ColumnEvaluator = ColumnEvaluator_;
     snapshot->RuntimeData = RuntimeData_;
+
+    for (const auto& pair : Replicas_) {
+        YCHECK(snapshot->Replicas.emplace(pair.first, pair.second.BuildSnapshot()).second);
+    }
 
     return snapshot;
 }

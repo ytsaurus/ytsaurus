@@ -90,6 +90,10 @@ public:
 
     bool EnableLookupHashTable;
 
+    int MaxRowsPerReplicationCommit;
+    i64 MaxDataWeightPerReplicationCommit;
+    bool EnableReplicationLogging;
+
     TTableMountConfig()
     {
         RegisterParameter("max_dynamic_store_row_count", MaxDynamicStoreRowCount)
@@ -181,6 +185,13 @@ public:
         RegisterParameter("enable_lookup_hash_table", EnableLookupHashTable)
             .Default(false);
 
+        RegisterParameter("max_rows_per_replication_commit", MaxRowsPerReplicationCommit)
+            .Default(1024 * 1024);
+        RegisterParameter("max_data_weight_per_replication_commit", MaxDataWeightPerReplicationCommit)
+            .Default((i64) 128 * 1024 * 1024);
+        RegisterParameter("enable_replication_logging", EnableReplicationLogging)
+            .Default(false);
+
         RegisterValidator([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
                 THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
@@ -262,6 +273,9 @@ public:
     TTabletChunkReaderConfigPtr ChunkReader;
     NTableClient::TTableWriterConfigPtr ChunkWriter;
 
+    int ReplicatorThreadPoolSize;
+    TDuration ReplicatorSoftBackoffTime;
+    TDuration ReplicatorHardBackoffTime;
 
     TTabletManagerConfig()
     {
@@ -289,6 +303,14 @@ public:
             .DefaultNew();
         RegisterParameter("chunk_writer", ChunkWriter)
             .DefaultNew();
+
+        RegisterParameter("replicator_thread_pool_size", ReplicatorThreadPoolSize)
+            .GreaterThan(0)
+            .Default(1);
+        RegisterParameter("replicator_soft_backoff_time", ReplicatorSoftBackoffTime)
+            .Default(TDuration::Seconds(3));
+        RegisterParameter("replicator_hard_backoff_time", ReplicatorHardBackoffTime)
+            .Default(TDuration::Seconds(60));
 
         RegisterInitializer([&] () {
             // Override default workload descriptors.

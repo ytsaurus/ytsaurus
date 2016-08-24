@@ -193,13 +193,16 @@ DECLARE_REFCOUNTED_CLASS(TTabletManager)
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 
 class TPartition;
+class TTableReplicaInfo;
 
 DECLARE_REFCOUNTED_STRUCT(TRuntimeTabletData)
+DECLARE_REFCOUNTED_STRUCT(TRuntimeTableReplicaData)
 DECLARE_ENTITY_TYPE(TTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
 
 DECLARE_REFCOUNTED_STRUCT(TSampleKeyList)
 DECLARE_REFCOUNTED_STRUCT(TPartitionSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TTabletSnapshot)
+DECLARE_REFCOUNTED_STRUCT(TTableReplicaSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TTabletPerformanceCounters)
 
 DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, ::THash<TTransactionId>)

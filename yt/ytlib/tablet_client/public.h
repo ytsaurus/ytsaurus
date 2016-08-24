@@ -51,17 +51,18 @@ static const int MaxPeerCount = 10;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+DEFINE_BIT_ENUM(EReplicationLogDataFlags,
+    ((None)    (0x0000))
+    ((Missing) (0x0001))
+);
+
 struct TReplicationLogTable
 {
     static const Stroka ChangeTypeColumnName;
     static const Stroka KeyColumnNamePrefix;
     static const Stroka ValueColumnNamePrefix;
+    static const Stroka FlagsColumnNamePrefix;
 };
-
-DEFINE_ENUM(EReplicationLogChangeType,
-    ((Write) (0))
-    ((Delete)(1))
-);
 
 ///////////////////////////////////////////////////////////////////////////////
 
