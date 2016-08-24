@@ -266,43 +266,43 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class C>
-void Save(C& context, const T& value);
+template <class T, class C, class... TArgs>
+void Save(C& context, const T& value, TArgs&&... args);
 
-template <class T, class C>
-void Load(C& context, T& value);
+template <class T, class C, class... TArgs>
+void Load(C& context, T& value, TArgs&&... args);
 
-template <class T, class C>
-T Load(C& context);
+template <class T, class C, class... TArgs>
+T Load(C& context, TArgs&&... args);
 
 ////////////////////////////////////////////////////////////////////////////////
 // TODO(babenko): move to inl
 
-template <class T, class C>
-void Save(C& context, const T& value)
+template <class T, class C, class... TArgs>
+void Save(C& context, const T& value, TArgs&&... args)
 {
-    TSerializerTraits<T, C>::TSerializer::Save(context, value);
+    TSerializerTraits<T, C>::TSerializer::Save(context, value, std::forward<TArgs>(args)...);
 }
 
-template <class T, class C>
-void Load(C& context, T& value)
+template <class T, class C, class... TArgs>
+void Load(C& context, T& value, TArgs&&... args)
 {
-    TSerializerTraits<T, C>::TSerializer::Load(context, value);
+    TSerializerTraits<T, C>::TSerializer::Load(context, value, std::forward<TArgs>(args)...);
 }
 
-template <class T, class C>
-T Load(C& context)
+template <class T, class C, class... TArgs>
+T Load(C& context, TArgs&&... args)
 {
     T value;
-    Load(context, value);
+    Load(context, value, std::forward<TArgs>(args)...);
     return value;
 }
 
-template <class T, class C>
-T LoadSuspended(C& context)
+template <class T, class C, class... TArgs>
+T LoadSuspended(C& context, TArgs&&... args)
 {
     SERIALIZATION_DUMP_SUSPEND(context) {
-        return Load<T, C>(context);
+        return Load<T, C, TArgs...>(context, std::forward<TArgs>(args)...);
     }
 }
 
