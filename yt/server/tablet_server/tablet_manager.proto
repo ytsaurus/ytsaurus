@@ -66,12 +66,19 @@ message TReqUpdateTabletTrimmedRowCount
     required int64 trimmed_row_count = 3;
 }
 
-message TRspDisableTableReplica
+message TReqUpdateTableReplicaStatistics
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid replica_id = 2;
     required int64 mount_revision = 3;
     required NTabletNode.NProto.TTableReplicaStatistics statistics = 4;
+}
+
+message TRspDisableTableReplica
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid replica_id = 2;
+    required int64 mount_revision = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

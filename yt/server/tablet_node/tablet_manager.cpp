@@ -879,6 +879,11 @@ private:
                     StopTabletEpoch(tablet);
                 }
 
+                for (const auto& pair : tablet->Replicas()) {
+                    const auto& replicaInfo = pair.second;
+                    PostTableReplicaStatistics(tablet, replicaInfo);
+                }
+
                 TabletMap_.Remove(tabletId);
                 YCHECK(UnmountingTablets_.erase(tablet) == 1);
 
@@ -2465,14 +2470,25 @@ private:
             replicaInfo->GetReplicator()->Disable();
         }
 
+        PostTableReplicaStatistics(tablet, *replicaInfo);
+
         {
             TRspDisableTableReplica response;
             ToProto(response.mutable_tablet_id(), tablet->GetId());
             ToProto(response.mutable_replica_id(), replicaInfo->GetId());
             response.set_mount_revision(tablet->GetMountRevision());
-            PopulateTableReplicaStatisticsFromInfo(response.mutable_statistics(), *replicaInfo);
             PostMasterMutation(response);
         }
+    }
+
+    void PostTableReplicaStatistics(TTablet* tablet, const TTableReplicaInfo& replicaInfo)
+    {
+        TReqUpdateTableReplicaStatistics request;
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        ToProto(request.mutable_replica_id(), replicaInfo.GetId());
+        request.set_mount_revision(tablet->GetMountRevision());
+        PopulateTableReplicaStatisticsFromInfo(request.mutable_statistics(), replicaInfo);
+        PostMasterMutation(request);
     }
 
 
