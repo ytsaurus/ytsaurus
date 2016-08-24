@@ -304,6 +304,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                 }
 
                 for (const auto& path : tmpfsPaths) {
+                    LOG_DEBUG("Remove known mount point (Path: %v)", path);
                     TmpfsPaths_.erase(path);
                     removeMountPoint(path);
                 }
@@ -319,6 +320,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                     auto mountPoints = NFS::GetMountPoints();
                     for (const auto& mountPoint : mountPoints) {
                         if (sandboxFullPath.is_prefix(mountPoint.Path)) {
+                            LOG_DEBUG("Remove unknown mount point (Path: %v)", mountPoint.Path);
                             removeMountPoint(mountPoint.Path);
                         }
                     }
