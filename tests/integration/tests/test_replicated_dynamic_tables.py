@@ -14,6 +14,20 @@ class TestReplicatedDynamicTables(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "cluster_directory_synchronizer": {
             "sync_period": 500
+        },
+        "cluster_connection": {
+            # Disable cache
+            "table_mount_cache": {
+                "expire_after_successful_update_time": 0,
+                "expire_after_failed_update_time": 0,
+                "expire_after_access_time": 0,
+                "refresh_time": 0
+            }
+        },
+        "tablet_node": {
+            "tablet_manager": {
+                "replicator_soft_backoff_time": 100
+            }
         }
     }
 
@@ -140,6 +154,50 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         delete_rows("//tmp/t", [{"key": 1}])
         sleep(1.0)
         assert select_rows("* from [//tmp/r]") == []
+
+    def test_disable_propagates_replication_row_index(self):
+        self.sync_create_cells(1)
+        self._create_simple_replicated_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        self._create_simple_replica_table("//tmp/r")
+        self.sync_mount_table("//tmp/r")
+
+        replica_id = create_table_replica("//tmp/t", "r1", "//tmp/r")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        enable_table_replica(replica_id)
+   
+        assert get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id, tablet_id)) == 0
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
+        sleep(1.0)
+        assert select_rows("* from [//tmp/r]") == [{"key": 1, "value1": "test", "value2": 123}]
+
+        self.sync_disable_table_replica(replica_id)
+
+        assert get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id, tablet_id)) == 1
+
+    def test_unmount_propagates_replication_row_index(self):
+        self.sync_create_cells(1)
+        self._create_simple_replicated_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        self._create_simple_replica_table("//tmp/r")
+        self.sync_mount_table("//tmp/r")
+
+        replica_id = create_table_replica("//tmp/t", "r1", "//tmp/r")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        enable_table_replica(replica_id)
+   
+        assert get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id, tablet_id)) == 0
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
+        sleep(1.0)
+        assert select_rows("* from [//tmp/r]") == [{"key": 1, "value1": "test", "value2": 123}]
+
+        self.sync_unmount_table("//tmp/t")
+
+        assert get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id, tablet_id)) == 1
 
 
 ##################################################################
