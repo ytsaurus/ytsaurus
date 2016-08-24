@@ -67,7 +67,7 @@ void TSlotManager::Initialize(int slotCount)
             JobEnviroment_->CleanProcesses(slotIndex);
         }
     } catch (const std::exception& ex) {
-        LOG_WARNING("Failed to clean up processes on slot manager initialization");
+        LOG_WARNING(ex, "Failed to clean up processes on slot manager initialization");
     }
 
     if (!JobEnviroment_->IsEnabled()) {
