@@ -19,6 +19,7 @@
 #include "tablet_slot.h"
 #include "transaction.h"
 #include "transaction_manager.h"
+#include "table_replicator.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 
@@ -1480,6 +1481,8 @@ private:
 
     void HydraPrepareReplicateRows(TReqReplicateRows* request, bool persistent)
     {
+        YCHECK(persistent);
+
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
@@ -1490,6 +1493,11 @@ private:
         auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
         if (!replicaInfo) {
             return;
+        }
+
+        if (replicaInfo->GetState() != ETableReplicaState::Enabled) {
+            THROW_ERROR_EXCEPTION("Replica %v is not enabled",
+                replicaId);
         }
 
         if (replicaInfo->GetPreparedReplicationRowIndex() != -1) {
@@ -1503,7 +1511,7 @@ private:
         YCHECK(replicaInfo->GetPreparedReplicationRowIndex() <= request->new_replication_row_index());
         replicaInfo->SetPreparedReplicationRowIndex(request->new_replication_row_index());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows aborted (TabletId: %v, ReplicaId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows prepared (TabletId: %v, ReplicaId: %v, "
             "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v)",
             tabletId,
             replicaId,
@@ -1558,7 +1566,6 @@ private:
             return;
         }
 
-        YCHECK(replicaInfo->GetPreparedReplicationRowIndex() == request->new_replication_row_index());
         replicaInfo->SetPreparedReplicationRowIndex(-1);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows aborted (TabletId: %v, ReplicaId: %v, "
@@ -2011,6 +2018,11 @@ private:
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->RegisterTabletSnapshot(Slot_, tablet);
+
+        for (auto& pair : tablet->Replicas()) {
+            auto& replicaInfo = pair.second;
+            StartTableReplicaEpoch(tablet, &replicaInfo);
+        }
     }
 
     void StopTabletEpoch(TTablet* tablet)
@@ -2020,6 +2032,33 @@ private:
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->UnregisterTabletSnapshot(Slot_, tablet);
+
+        for (auto& pair : tablet->Replicas()) {
+            auto& replicaInfo = pair.second;
+            StopTableReplicaEpoch(&replicaInfo);
+        }
+    }
+
+
+    void StartTableReplicaEpoch(TTablet* tablet, TTableReplicaInfo* replicaInfo)
+    {
+        replicaInfo->SetReplicator(New<TTableReplicator>(
+            Config_,
+            tablet,
+            replicaInfo,
+            Bootstrap_->GetClusterDirectory(),
+            Bootstrap_->GetMasterClient()->GetNativeConnection(),
+            Slot_,
+            Bootstrap_->GetTabletSlotManager(),
+            CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker())));
+    }
+
+    void StopTableReplicaEpoch(TTableReplicaInfo* replicaInfo)
+    {
+        if (replicaInfo->GetReplicator()) {
+            replicaInfo->GetReplicator()->Disable();
+        }
+        replicaInfo->SetReplicator(nullptr);
     }
 
 
@@ -2355,6 +2394,12 @@ private:
         replicaInfo.SetState(ETableReplicaState::Disabled);
         PopulateTableReplicaInfoFromStatistics(&replicaInfo, descriptor.statistics());
 
+        if (IsLeader()) {
+            StartTableReplicaEpoch(tablet, &replicaInfo);
+        }
+
+        UpdateTabletSnapshot(tablet);
+
         LOG_INFO_UNLESS(IsRecovery(), "Table replica added (TabletId: %v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v, "
             "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
             tablet->GetId(),
@@ -2376,7 +2421,15 @@ private:
             return;
         }
 
+        auto& replicaInfo = it->second;
+
+        if (IsLeader()) {
+            StopTableReplicaEpoch(&replicaInfo);
+        }
+
         replicas.erase(it);
+
+        UpdateTabletSnapshot(tablet);
 
         LOG_INFO_UNLESS(IsRecovery(), "Table replica removed (TabletId: %v, ReplicaId: %v)",
             tablet->GetId(),
@@ -2391,6 +2444,10 @@ private:
             replicaInfo->GetId());
 
         replicaInfo->SetState(ETableReplicaState::Enabled);
+
+        if (IsLeader()) {
+            replicaInfo->GetReplicator()->Enable();
+        }
     }
 
     void DisableTableReplica(TTablet* tablet, TTableReplicaInfo* replicaInfo)
@@ -2403,6 +2460,10 @@ private:
             replicaInfo->GetCurrentReplicationTimestamp());
 
         replicaInfo->SetState(ETableReplicaState::Disabled);
+
+        if (IsLeader()) {
+            replicaInfo->GetReplicator()->Disable();
+        }
 
         {
             TRspDisableTableReplica response;

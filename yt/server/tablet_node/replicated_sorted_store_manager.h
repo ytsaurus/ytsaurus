@@ -5,9 +5,8 @@
 
 #include <yt/server/cell_node/public.h>
 
-#include <yt/ytlib/table_client/public.h>
-
 #include <yt/ytlib/tablet_client/public.h>
+
 #include <yt/ytlib/table_client/unversioned_row.h>
 
 #include <yt/core/misc/chunked_memory_pool.h>
@@ -123,11 +122,10 @@ private:
     const NLogging::TLogger Logger;
     const TOrderedStoreManagerPtr Underlying_;
 
-    TChunkedMemoryPool LogRowPool_;
-    NTableClient::TMutableUnversionedRow LogRow_;
+    NTableClient::TUnversionedRowBuilder LogRowBuilder_;
 
 
-    TUnversionedRow BuildLogRow(TUnversionedRow row, NTabletClient::EReplicationLogChangeType changeType);
+    TUnversionedRow BuildLogRow(TUnversionedRow row, NApi::ERowModificationType changeType);
 
 };
 

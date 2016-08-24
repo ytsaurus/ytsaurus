@@ -27,6 +27,28 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Cf. TRuntimeTabletData.
+struct TRuntimeTableReplicaData
+    : public TIntrinsicRefCounted
+{
+    std::atomic<i64> CurrentReplicationRowIndex = {0};
+    std::atomic<i64> PreparedReplicationRowIndex = {-1};
+};
+
+DEFINE_REFCOUNTED_TYPE(TRuntimeTableReplicaData)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTableReplicaSnapshot
+    : public TIntrinsicRefCounted
+{
+    TRuntimeTableReplicaDataPtr RuntimeData;
+};
+
+DEFINE_REFCOUNTED_TYPE(TTableReplicaSnapshot)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! All fields must be atomic since they're being accessed both
 //! from the writer and from readers concurrently.
 struct TRuntimeTabletData
@@ -84,6 +106,8 @@ struct TTabletSnapshot
 
     TRuntimeTabletDataPtr RuntimeData;
 
+    yhash_map<TTableReplicaId, TTableReplicaSnapshotPtr> Replicas;
+
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
         const TOwningKey& lowerBound,
@@ -93,12 +117,14 @@ struct TTabletSnapshot
     //! |nullptr| is there's none.
     TPartitionSnapshotPtr FindContainingPartition(TKey key);
 
-    void ValiateCellId(const NElection::TCellId& cellId);
-    void ValiateMountRevision(i64 mountRevision);
-
     //! For sorted tablets only.
     //! This includes both regular and locked Eden stores.
     std::vector<ISortedStorePtr> GetEdenStores();
+
+    TTableReplicaSnapshotPtr FindReplicaSnapshot(const TTableReplicaId& replicaId);
+
+    void ValidateCellId(const NElection::TCellId& cellId);
+    void ValidateMountRevision(i64 mountRevision);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
@@ -144,9 +170,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, ReplicaPath);
 
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State);
-    DEFINE_BYVAL_RW_PROPERTY(i64, CurrentReplicationRowIndex, 0);
-    DEFINE_BYVAL_RW_PROPERTY(i64, PreparedReplicationRowIndex, -1);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CurrentReplicationTimestamp, NullTimestamp);
+
+    DEFINE_BYVAL_RW_PROPERTY(TTableReplicatorPtr, Replicator);
 
 public:
     TTableReplicaInfo();
@@ -154,6 +180,18 @@ public:
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
+
+    i64 GetCurrentReplicationRowIndex() const;
+    void SetCurrentReplicationRowIndex(i64 value);
+
+    i64 GetPreparedReplicationRowIndex() const;
+    void SetPreparedReplicationRowIndex(i64 value);
+
+    TTableReplicaSnapshotPtr BuildSnapshot() const;
+
+private:
+    const TRuntimeTableReplicaDataPtr RuntimeData_ = New<TRuntimeTableReplicaData>();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -91,6 +91,7 @@ public:
     TKeyColumns GetKeyColumns() const;
     int GetColumnCount() const;
     int GetKeyColumnCount() const;
+    int GetValueColumnCount() const;
 
     //! Constructs a non-strict schema from #keyColumns assigning all components EValueType::Any type.
     //! #keyColumns could be empty, in which case an empty non-strict schema is returned.
@@ -120,7 +121,7 @@ public:
     //! Returns the non-key columns.
     TTableSchema ToValues() const;
 
-    //! Returns the schema with UniqueKeys set to true.
+    //! Returns the schema with UniqueKeys set to |true|.
     TTableSchema ToUniqueKeys() const;
 
     //! Returns the schema with all column attributes unset (expect Name and Type).
@@ -133,8 +134,7 @@ public:
     TTableSchema ToSorted(const TKeyColumns& keyColumns) const;
 
     //! Only applies to sorted replicated tables.
-    //! Prepends change type column.
-    //! Makes all columns non-key and prepends their names appropriately.
+    //! Returns the ordered schema used in replication logs.
     TTableSchema ToReplicationLog() const;
 
     void Save(TStreamSaveContext& context) const;

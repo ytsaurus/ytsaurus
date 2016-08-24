@@ -298,6 +298,11 @@ int TTableSchema::GetKeyColumnCount() const
     return KeyColumnCount_;
 }
 
+int TTableSchema::GetValueColumnCount() const
+{
+    return GetColumnCount() - GetKeyColumnCount();
+}
+
 TTableSchema TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
 {
     TTableSchema schema;
@@ -438,10 +443,12 @@ TTableSchema TTableSchema::ToReplicationLog() const
     columns.push_back(TColumnSchema(TimestampColumnName, EValueType::Uint64));
     columns.push_back(TColumnSchema(TReplicationLogTable::ChangeTypeColumnName, EValueType::Int64));
     for (const auto& column : Columns_) {
-        const auto& prefix = column.SortOrder
-            ? TReplicationLogTable::KeyColumnNamePrefix
-            : TReplicationLogTable::ValueColumnNamePrefix;
-        columns.push_back(TColumnSchema(prefix + column.Name, column.Type));
+        if (column.SortOrder) {
+            columns.push_back(TColumnSchema(TReplicationLogTable::KeyColumnNamePrefix + column.Name, column.Type));
+        } else {
+            columns.push_back(TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + column.Name, column.Type));
+            columns.push_back(TColumnSchema(TReplicationLogTable::FlagsColumnNamePrefix + column.Name, EValueType::Uint64));
+        }
     }
     return TTableSchema(std::move(columns), true, false);
 }

@@ -203,6 +203,10 @@ void TBootstrap::DoRun()
         Config->QueryAgent->ThreadPoolSize,
         "Query");
 
+    TableReplicatorThreadPool = New<TThreadPool>(
+        Config->TabletNode->TabletManager->ReplicatorThreadPoolSize,
+        "Replicator");
+
     BusServer = CreateTcpBusServer(Config->BusServer);
 
     RpcServer = CreateBusServer(BusServer);
@@ -519,6 +523,11 @@ IInvokerPtr TBootstrap::GetControlInvoker() const
 IInvokerPtr TBootstrap::GetQueryPoolInvoker() const
 {
     return QueryThreadPool->GetInvoker();
+}
+
+IInvokerPtr TBootstrap::GetTableReplicatorPoolInvoker() const
+{
+    return TableReplicatorThreadPool->GetInvoker();
 }
 
 INativeClientPtr TBootstrap::GetMasterClient() const

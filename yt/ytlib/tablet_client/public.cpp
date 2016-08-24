@@ -8,6 +8,7 @@ namespace NTabletClient {
 const Stroka TReplicationLogTable::ChangeTypeColumnName("change_type");
 const Stroka TReplicationLogTable::KeyColumnNamePrefix("key:");
 const Stroka TReplicationLogTable::ValueColumnNamePrefix("value:");
+const Stroka TReplicationLogTable::FlagsColumnNamePrefix("flags:");
 
 ////////////////////////////////////////////////////////////////////////////////
 
