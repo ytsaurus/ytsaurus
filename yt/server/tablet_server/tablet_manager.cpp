@@ -149,6 +149,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletFrozen, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnfrozen, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateTableReplicaStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTableReplicaDisabled, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletStores, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletTrimmedRowCount, Unretained(this)));
@@ -2108,6 +2109,36 @@ private:
         tablet->SetState(ETabletState::Mounted);
     }
 
+    void HydraUpdateTableReplicaStatistics(TReqUpdateTableReplicaStatistics* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
+        auto* replica = FindTableReplica(replicaId);
+        if (!IsObjectAlive(replica)) {
+            return;
+        }
+
+        auto mountRevision = request->mount_revision();
+        if (tablet->GetMountRevision() != mountRevision) {
+            return;
+        }
+
+        auto& replicaInfo = tablet->GetReplicaInfo(replica);
+        PopulateTableReplicaInfoFromStatistics(&replicaInfo, request->statistics());
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica statistics updated (TabletId: %v, ReplicaId: %v, "
+            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %v)",
+            tabletId,
+            replicaId,
+            replicaInfo.GetCurrentReplicationRowIndex(),
+            replicaInfo.GetCurrentReplicationTimestamp());
+    }
+
     void HydraOnTableReplicaDisabled(TRspDisableTableReplica* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
@@ -2138,14 +2169,10 @@ private:
         }
 
         replicaInfo.SetState(ETableReplicaState::Disabled);
-        PopulateTableReplicaInfoFromStatistics(&replicaInfo, response->statistics());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica tablet disabled (TabletId: %v, ReplicaId: %v, "
-            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica tablet disabled (TabletId: %v, ReplicaId: %v)",
             tabletId,
-            replicaId,
-            replicaInfo.GetCurrentReplicationRowIndex(),
-            replicaInfo.GetCurrentReplicationTimestamp());
+            replicaId);
 
         YCHECK(replica->DisablingTablets().erase(tablet) == 1);
         CheckForReplicaDisabled(replica);
