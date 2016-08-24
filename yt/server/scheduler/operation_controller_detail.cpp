@@ -3915,8 +3915,8 @@ void TOperationControllerBase::RegisterBoundaryKeys(
     {
         YCHECK(!outputTable->Options->ValidateUniqueKeys);
 
-        int minKeyLength = std::min(minKey.GetCount(), static_cast<int>(outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount()));
-        int maxKeyLength = std::min(maxKey.GetCount(), static_cast<int>(outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount()));
+        int minKeyLength = std::min(minKey.GetCount(), outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount());
+        int maxKeyLength = std::min(maxKey.GetCount(), outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount());
         minKey = TOwningRow(minKey.Begin(), minKey.Begin() + minKeyLength);
         maxKey = TOwningRow(maxKey.Begin(), maxKey.Begin() + maxKeyLength);
     }
