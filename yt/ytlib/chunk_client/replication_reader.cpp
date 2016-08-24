@@ -741,13 +741,7 @@ private:
                 return 1;
             }
         } else if (lhs.Locality < rhs.Locality) {
-            if (Config_->PreferLocalHost && lhs.Locality < EAddressLocality::SameHost) {
-                return -1;
-            }
-
-            if (Config_->PreferLocalRack && lhs.Locality < EAddressLocality::SameRack) {
-                return -1;
-            }
+            return -ComparePeerLocality(rhs, lhs);
         }
 
         return 0;
@@ -1011,6 +1005,7 @@ private:
                     bestPeer->Address, 
                     bestPeer->Type);
                 ReinstallPeer(bestPeer->Address);
+                bestPeer = Null;
             } else {
                 LOG_DEBUG("Best peer selected (Address: %v, DiskQueueSize: %v, NetQueueSize: %v)", 
                     bestPeer->Address, 
