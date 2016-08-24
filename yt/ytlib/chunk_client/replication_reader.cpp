@@ -461,26 +461,27 @@ protected:
     }
 
     //! Register peer and install into the peer queue if neccessary.
-    void AddPeer(const Stroka& address, const TNodeDescriptor& descriptor, EPeerType type)
+    bool AddPeer(const Stroka& address, const TNodeDescriptor& descriptor, EPeerType type)
     {
         auto reader = Reader_.Lock();
         if (!reader) {
-            return;
+            return false;
         }
 
         TPeer peer(address, descriptor, type, GetNodeLocality(descriptor));
         auto pair = Peers_.insert({address, peer});
         if (!pair.second) {
             // Peer was already handled on current pass.
-            return;
+            return false;
         }
 
         if (IsPeerBanned(address)) {
             // Peer is banned.
-            return;
+            return false;
         }
 
         PeerQueue_.push(TPeerQueueEntry(peer, reader->GetBanCount(address)));
+        return true;
     }
 
     //! Reinstall peer in the peer queue.
@@ -565,10 +566,17 @@ protected:
                 continue;
             }
 
-            // Here we ensure that peers with best locality are always requested first.
-            // Locality is compared w.r.t. config options.
-            if (!candidates.empty() && ComparePeerLocality(candidates.front(), top.Peer) < 0) {
-                break;
+            if (!candidates.empty()) {
+                if (candidates.front().Type == EPeerType::Peer) {
+                    // If we have peer candidate, ask it first.
+                    break;
+                }
+
+                // Ensure that peers with best locality are always asked first.
+                // Locality is compared w.r.t. config options.
+                if (ComparePeerLocality(top.Peer, candidates.front()) < 0) {
+                    break;
+                }
             }
 
             if (filter(top.Peer.Address) && !IsPeerBanned(top.Peer.Address)) {
@@ -726,19 +734,19 @@ private:
     {
         if (lhs.Locality > rhs.Locality) {
             if (Config_->PreferLocalHost && rhs.Locality < EAddressLocality::SameHost) {
-                return -1;
+                return 1;
             }
 
             if (Config_->PreferLocalRack && rhs.Locality < EAddressLocality::SameRack) {
-                return -1;
+                return 1;
             }
         } else if (lhs.Locality < rhs.Locality) {
             if (Config_->PreferLocalHost && lhs.Locality < EAddressLocality::SameHost) {
-                return 1;
+                return -1;
             }
 
             if (Config_->PreferLocalRack && lhs.Locality < EAddressLocality::SameRack) {
-                return 1;
+                return -1;
             }
         }
 
@@ -752,8 +760,19 @@ private:
             return result;
         }
 
+        if (lhs.Peer.Type != rhs.Peer.Type) {
+            // Prefer Peers to Seeds to make most use of P2P.
+            if (lhs.Peer.Type == EPeerType::Peer) {
+                return 1;
+            } else {
+                YCHECK(lhs.Peer.Type == EPeerType::Seed);
+                return -1;
+            }
+        }
+
         if (lhs.BanCount != rhs.BanCount) {
-            return lhs.BanCount - rhs.BanCount;
+            // The less - the better.
+            return rhs.BanCount - lhs.BanCount;
         }
 
         return lhs.Random - rhs.Random;
@@ -945,6 +964,12 @@ private:
         TDataNodeServiceProxy::TRspGetBlockSetPtr bestRsp;
         TNullable<TPeer> bestPeer;
 
+        auto getLoad = [&] (const TDataNodeServiceProxy::TRspGetBlockSetPtr& rsp) {
+            return Config_->NetQueueSizeFactor * rsp->net_queue_size() + 
+                Config_->DiskQueueSizeFactor * rsp->disk_queue_size();
+        };
+
+        bool receivedNewPeers = false;
         for (int i = 0; i < probePeers.size(); ++i) {
             const auto& peer = probePeers[i];
             const auto& rspOrError = results[i];
@@ -954,10 +979,12 @@ private:
             }
 
             const auto& rsp = rspOrError.Value();
-            UpdatePeerBlockMap(rsp, reader);
+            if (UpdatePeerBlockMap(rsp, reader)) {
+                receivedNewPeers = true;
+            }
 
             // Exclude throttling peers from current pass.
-            if (rsp->throttling()) {
+            if (rsp->net_throttling() || rsp->disk_throttling()) {
                 LOG_DEBUG("Peer is throttling (Address: %v)", peer.Address);
                 continue;
             }
@@ -968,32 +995,27 @@ private:
                 continue;
             }
 
-            // If #bestRsp has no info about queue size, stay with it.
-            if (!bestRsp->has_disk_queue_size()) {
-                ReinstallPeer(peer.Address);
-                continue;
-            }
-
-            if (!rsp->has_disk_queue_size() || (rsp->disk_queue_size() < bestRsp->disk_queue_size())) {
+            if (getLoad(rsp) < getLoad(bestRsp)) {
                 ReinstallPeer(bestPeer->Address);
 
                 bestRsp = rsp;
                 bestPeer = peer;
-                continue;
             } else {
                 ReinstallPeer(peer.Address);
             }
         }
 
         if (bestPeer) {
-            if (bestRsp->has_disk_queue_size() && bestRsp->has_net_queue_size()) {
+            if (receivedNewPeers) {
+                LOG_DEBUG("Discard best peer since p2p was activated (Address: %v, PeerType: %v)", 
+                    bestPeer->Address, 
+                    bestPeer->Type);
+                ReinstallPeer(bestPeer->Address);
+            } else {
                 LOG_DEBUG("Best peer selected (Address: %v, DiskQueueSize: %v, NetQueueSize: %v)", 
                     bestPeer->Address, 
                     bestRsp->disk_queue_size(), 
                     bestRsp->net_queue_size());
-            } else {
-                LOG_DEBUG("Best peer selected, queue length probing is not supported (Address: %v)", 
-                    bestPeer->Address);
             }
         } else {
             LOG_DEBUG("All peer candidates were discarded");
@@ -1009,13 +1031,14 @@ private:
             .Run();
     }
 
-    void UpdatePeerBlockMap(TDataNodeServiceProxy::TRspGetBlockSetPtr rsp, TReplicationReaderPtr reader)
+    bool UpdatePeerBlockMap(TDataNodeServiceProxy::TRspGetBlockSetPtr rsp, TReplicationReaderPtr reader)
     {
         if (!Config_->FetchFromPeers && rsp->peer_descriptors_size() > 0) {
             LOG_DEBUG("Peer suggestions received but ignored");
-            return;
+            return false;
         }
 
+        bool addedNewPeers = false;
         for (const auto& peerDescriptor : rsp->peer_descriptors()) {
             int blockIndex = peerDescriptor.block_index();
             TBlockId blockId(reader->ChunkId_, blockIndex);
@@ -1023,7 +1046,9 @@ private:
                 auto suggestedDescriptor = FromProto<TNodeDescriptor>(protoPeerDescriptor);
                 auto suggestedAddress = suggestedDescriptor.FindAddress(Networks_);
                 if (suggestedAddress) {
-                    AddPeer(*suggestedAddress, suggestedDescriptor, EPeerType::Peer);
+                    if (AddPeer(*suggestedAddress, suggestedDescriptor, EPeerType::Peer)) {
+                        addedNewPeers = true;
+                    }
                     PeerBlocksMap_[*suggestedAddress].insert(blockIndex);
                     LOG_DEBUG("Peer descriptor received (Block: %v, SuggestedAddress: %v)",
                         blockIndex,
@@ -1035,6 +1060,8 @@ private:
                 }
             }
         }
+
+        return addedNewPeers;
     }
 
     void DoRequestBlocks()
@@ -1101,7 +1128,7 @@ private:
         const auto& rsp = rspOrError.Value();
         UpdatePeerBlockMap(rsp, reader);
 
-        if (rsp->throttling()) {
+        if (rsp->net_throttling() || rsp->disk_throttling()) {
             LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
         }
 
@@ -1314,7 +1341,7 @@ private:
 
         BanSeedIfUncomplete(rsp, peerAddress);
 
-        if (rsp->throttling()) {
+        if (rsp->net_throttling() || rsp->disk_throttling()) {
             LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
         } else if (blocksReceived == 0) {
             LOG_DEBUG("Peer has no relevant blocks (Address: %v)", peerAddress);
