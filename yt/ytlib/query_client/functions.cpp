@@ -76,8 +76,8 @@ EValueType TypingFunction(
         if (!unify(*expectedArg, *arg)) {
             THROW_ERROR_EXCEPTION(
                 "Wrong type for argument %v to function %Qv: expected %Qv, got %Qv",
-                functionName,
                 argIndex,
+                functionName,
                 TypeToString(*expectedArg, genericAssignments),
                 TypeToString(*arg, genericAssignments))
                 << TErrorAttribute("expression", source);
