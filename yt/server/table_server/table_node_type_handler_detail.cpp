@@ -150,6 +150,10 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     ICypressNodeFactory* factory,
     ENodeCloneMode mode)
 {
+    if (sourceNode->IsDynamic() && factory->GetTransaction()) {
+        THROW_ERROR_EXCEPTION("Operation cannot be performed in transaction");
+    }
+
     auto tabletManager = this->Bootstrap_->GetTabletManager();
 
     TBase::DoClone(sourceNode, clonedNode, factory, mode);
