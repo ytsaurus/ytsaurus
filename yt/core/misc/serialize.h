@@ -509,8 +509,14 @@ struct TSharedRefSerializer
     template <class C>
     static void Load(C& context, TSharedRef& value)
     {
+        return Load(context, value, TDefaultSharedBlobTag());
+    }
+
+    template <class C, class TTag>
+    static void Load(C& context, TSharedRef& value, TTag tag)
+    {
         size_t size = TSizeSerializer::LoadSuspended(context);
-        auto mutableValue = TSharedMutableRef::Allocate(size, false);
+        auto mutableValue = TSharedMutableRef::Allocate<TTag>(size, false);
 
         auto* input = context.GetInput();
         YCHECK(input->Load(mutableValue.Begin(), mutableValue.Size()) == mutableValue.Size());
