@@ -19,6 +19,7 @@
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/helpers.h>
 #include <yt/core/rpc/dispatcher.h>
+#include <yt/core/rpc/retrying_channel.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/delayed_executor.h>
@@ -57,14 +58,8 @@ public:
             TChunkServiceProxy::GetProtocolVersion())
         , ServiceConfig_(std::move(serviceConfig))
         , ConnectionConfig_(std::move(connectionConfig))
-        , LeaderChannel_(CreatePeerChannel(
-            ConnectionConfig_,
-            channelFactory,
-            EPeerKind::Leader))
-        , FollowerChannel_(CreatePeerChannel(
-            ConnectionConfig_,
-            channelFactory,
-            EPeerKind::Follower))
+        , LeaderChannel_(CreateMasterChannel(channelFactory, ConnectionConfig_, EPeerKind::Leader))
+        , FollowerChannel_(CreateMasterChannel(channelFactory, ConnectionConfig_, EPeerKind::Follower))
         , CostThrottler_(CreateReconfigurableThroughputThrottler(ServiceConfig_->CostThrottler))
         , LocateChunksBatcher_(New<TLocateChunksBatcher>(this))
         , AllocateWriteTargetsBatcher_(New<TAllocateWriteTargetsBatcher>(this))
@@ -86,6 +81,16 @@ private:
 
     const IThroughputThrottlerPtr CostThrottler_;
 
+
+    static IChannelPtr CreateMasterChannel(
+        IChannelFactoryPtr channelFactory,
+        TMasterConnectionConfigPtr config,
+        EPeerKind peerKind)
+    {
+        return CreateRetryingChannel(
+            config,
+            CreatePeerChannel(config, channelFactory, peerKind));
+    }
 
     template <class TRequestMessage, class TResponseMessage, class TState>
     class TBatcherBase
