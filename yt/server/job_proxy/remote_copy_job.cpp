@@ -317,6 +317,7 @@ private:
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 GetCumulativeError(batchRspOrError),
+                NChunkClient::EErrorCode::MasterCommunicationFailed,
                 "Failed to confirm chunk %v",
                 outputChunkId);
         }
