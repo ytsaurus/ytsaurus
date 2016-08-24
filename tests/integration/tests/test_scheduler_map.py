@@ -676,7 +676,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         op = map(
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat > /dev/null; python -c 'print \"0\" * 10000000; print \"1\" * 10000000' >&2;",
+            command="cat > /dev/null; python -c 'print \"head\" + \"0\" * 10000000; print \"1\" * 10000000 + \"tail\"' >&2;",
             spec={"max_failed_job_count": 1, "mapper": {"max_stderr_size": 1000000}})
 
         jobs_path = "//sys/operations/{0}/jobs".format(op.id)
@@ -686,8 +686,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         # Stderr buffer size is equal to 1000000, we should add it to limit
         assert len(stderr) <= 4000000
-        assert stderr[:1000] == "0" * 1000
-        assert stderr[-1000:] == "1" * 1000
+        assert stderr[:1004] == "head" + "0" * 1000
+        assert stderr[-1004:] == "1" * 1000 + "tail"
+        assert "skipped" in stderr
 
     @unix_only
     def test_stderr_of_failed_jobs(self):

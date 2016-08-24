@@ -32,11 +32,16 @@ private:
 
     const i64 SizeLimit_;
 
-    std::deque<TBlob> Blobs_;
-    i64 AccumulatedSize_ = 0;
+    // Written size before head overflowed.
     i64 WrittenSize_ = 0;
-    bool HasSkippedData_ = false;
     bool Failed_ = false;
+
+    // Cyclic buffer for keeping tail.
+    TBlob CyclicBuffer_;
+    i64 Position_ = 0;
+    bool BufferOverflowed_ = false;
+    bool BufferInitialized_ = false;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

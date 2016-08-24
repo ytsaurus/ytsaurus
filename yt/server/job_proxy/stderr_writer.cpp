@@ -8,13 +8,18 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStderrWriter::DoWrite(const void* buf, size_t len)
+void TStderrWriter::DoWrite(const void* buf_, size_t len)
 {
     if (Failed_) {
         return;
     }
 
-    if (WrittenSize_ < SizeLimit_ / 2) {
+    auto buf = static_cast<const char*>(buf_);
+
+    // Limit for tail and head are the half of total limit.
+    i64 limit = SizeLimit_ / 2;
+
+    if (WrittenSize_ < limit) {
         try {
             TFileChunkOutput::DoWrite(buf, len);
         } catch (const std::exception& ex) {
@@ -24,12 +29,24 @@ void TStderrWriter::DoWrite(const void* buf, size_t len)
         }
         WrittenSize_ += len;
     } else {
-        AccumulatedSize_ += len;
-        Blobs_.push_back(TBlob(TDefaultBlobTag(), buf, len));
-        while (AccumulatedSize_ - Blobs_.front().Size() > SizeLimit_ / 2) {
-            AccumulatedSize_ -= Blobs_.front().Size();
-            Blobs_.pop_front();
-            HasSkippedData_ = true;
+        if (!BufferInitialized_) {
+            CyclicBuffer_ = TBlob(TDefaultBlobTag(), limit);
+            BufferInitialized_ = true;
+        }
+
+        if (Position_ + len <= CyclicBuffer_.Size()) {
+            std::copy(buf, buf + len, CyclicBuffer_.Begin() + Position_);
+            Position_ += len;
+        } else {
+            BufferOverflowed_ = true;
+            if (len >= limit) {
+                Position_ = 0;
+                std::copy(buf + len - limit, buf + len, CyclicBuffer_.Begin());
+            } else {
+                std::copy(buf, buf + CyclicBuffer_.Size() - Position_, CyclicBuffer_.Begin() + Position_);
+                std::copy(buf + CyclicBuffer_.Size() - Position_, buf + len, CyclicBuffer_.Begin());
+                Position_ += len - CyclicBuffer_.Size();
+            }
         }
     }
 }
@@ -39,11 +56,12 @@ void TStderrWriter::DoFinish()
     try {
         if (!Failed_) {
             static const auto skipped = STRINGBUF("\n...skipped...\n");
-            if (HasSkippedData_) {
+            if (BufferOverflowed_) {
                 TFileChunkOutput::DoWrite(skipped.data(), skipped.length());
-            }
-            for (const auto& ref : Blobs_) {
-                TFileChunkOutput::DoWrite(ref.Begin(), ref.Size());
+                TFileChunkOutput::DoWrite(CyclicBuffer_.Begin() + Position_, CyclicBuffer_.Size() - Position_);
+                TFileChunkOutput::DoWrite(CyclicBuffer_.Begin(), Position_);
+            } else {
+                TFileChunkOutput::DoWrite(CyclicBuffer_.Begin(), Position_);
             }
         }
         TFileChunkOutput::DoFinish();
