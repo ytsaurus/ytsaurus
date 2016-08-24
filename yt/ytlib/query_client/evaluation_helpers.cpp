@@ -144,7 +144,7 @@ std::vector<TMutableRow> TTopCollector::GetRows(int rowSize) const
 
 TJoinEvaluator GetJoinEvaluator(
     const TJoinClause& joinClause,
-    TConstExpressionPtr predicate,
+    TConstExpressionPtr foreignPredicate,
     const TTableSchema& selfTableSchema)
 {
     const auto& equations = joinClause.Equations;
@@ -157,7 +157,6 @@ TJoinEvaluator GetJoinEvaluator(
     auto& renamedTableSchema = joinClause.RenamedTableSchema;
     auto& joinedTableSchema = joinClause.JoinedTableSchema;
     auto& foreignDataId = joinClause.ForeignDataId;
-    auto foreignPredicate = ExtractPredicateForColumnSubset(predicate, renamedTableSchema);
 
     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
     auto subquery = New<TQuery>(std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
