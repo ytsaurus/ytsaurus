@@ -5,6 +5,8 @@
 
 #include <mapreduce/yt/interface/extension.pb.h>
 
+#include <util/string/escape.h>
+
 namespace NYT {
 
 using ::google::protobuf::FieldDescriptor;
@@ -81,7 +83,17 @@ void ReadMessageFromNode(const TNode& node, Message* row)
                 checkType(TNode::BOOL, actualType);
                 reflection->SetBool(row, fieldDesc, it->second.AsBool());
                 break;
-            case FieldDescriptor::TYPE_MESSAGE:
+            case FieldDescriptor::TYPE_ENUM: {
+                checkType(TNode::STRING, actualType);
+                const auto& v = it->second.AsString();
+                if (const auto* const p = fieldDesc->enum_type()->FindValueByName(v)) {
+                    reflection->SetEnum(row, fieldDesc, p);
+                } else {
+                    ythrow yexception() << "Failed to parse \"" << EscapeC(v)
+                                        << "\" as " << fieldDesc->enum_type()->full_name();
+                }
+                break;
+            } case FieldDescriptor::TYPE_MESSAGE:
             {
                 checkType(TNode::STRING, actualType);
                 google::protobuf::Message* message = reflection->MutableMessage(row, fieldDesc);
