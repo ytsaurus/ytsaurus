@@ -248,10 +248,10 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5, v6]
 
-    def sort_with_options(self, **kwargs):
+    def sort_with_options(self, optimize_for, **kwargs):
         input = "//tmp/in"
         output = "//tmp/out"
-        create("table", input)
+        create("table", input, attributes={"optimize_for" : optimize_for})
         create("table", output)
         for i in xrange(20, 0, -1):
             write_table("<append=true>" + input, [{"key": i, "value" : [1, 2]}])
@@ -264,19 +264,23 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert read_table(output + '{key}') == [{"key": i} for i in xrange(1, 21)]
 
     def test_one_partition_no_merge(self):
-        self.sort_with_options()
+        self.sort_with_options('lookup')
 
-    def test_one_partition_with_merge(self):
-        self.sort_with_options(spec={"data_size_per_sort_job": 1})
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_one_partition_with_merge(self, optimize_for):
+        self.sort_with_options(optimize_for, spec={"data_size_per_sort_job": 1})
 
-    def test_two_partitions_no_merge(self):
-        self.sort_with_options(spec={"partition_count": 2})
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_two_partitions_no_merge(self, optimize_for):
+        self.sort_with_options(optimize_for, spec={"partition_count": 2})
 
-    def test_ten_partitions_no_merge(self):
-        self.sort_with_options(spec={"partition_count": 10})
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_ten_partitions_no_merge(self, optimize_for):
+        self.sort_with_options(optimize_for, spec={"partition_count": 10})
 
-    def test_two_partitions_with_merge(self):
-        self.sort_with_options(spec={"partition_count": 2, "partition_data_size": 1, "data_size_per_sort_job": 1})
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_two_partitions_with_merge(self, optimize_for):
+        self.sort_with_options(optimize_for, spec={"partition_count": 2, "partition_data_size": 1, "data_size_per_sort_job": 1})
 
     def test_inplace_sort(self):
         create("table", "//tmp/t")
@@ -371,8 +375,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         with pytest.raises(YtError):
             sort(in_="//tmp/input",
                 out="//tmp/output",
-                sort_by="key",
-                spec={"schema_inference_mode" : "from_output"})
+                sort_by="key")
 
     def test_unique_keys_validation(self):
         create("table", "//tmp/input")
