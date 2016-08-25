@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import config
 from config import get_config
 from pickling import Pickler
@@ -28,8 +30,14 @@ import hashlib
 import sys
 import time
 import logging
-import subprocess
 import pickle as standard_pickle
+try:
+    import subprocess32 as subprocess
+except ImportError:
+    if sys.version_info[:2] <= (2, 6):
+        print("Script may not work properly on python of version <= 2.6 "
+              "because subprocess32 library is not installed.", file=sys.stderr)
+    import subprocess
 
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 TMPFS_SIZE_MULTIPLIER = 1.01
