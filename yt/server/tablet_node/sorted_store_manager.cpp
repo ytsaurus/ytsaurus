@@ -523,11 +523,11 @@ void TSortedStoreManager::MergePartitions(
 
 void TSortedStoreManager::UpdatePartitionSampleKeys(
     TPartition* partition,
-    const std::vector<TOwningKey>& keys)
+    const TSharedRange<TKey>& keys)
 {
-    YCHECK(keys.empty() || keys[0] > partition->GetPivotKey());
+    YCHECK(keys.Empty() || keys[0] > partition->GetPivotKey());
 
-    auto keyList = New<TKeyList>();
+    auto keyList = New<TSampleKeyList>();
     keyList->Keys = keys;
     partition->SetSampleKeys(keyList);
 
