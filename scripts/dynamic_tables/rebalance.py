@@ -53,7 +53,7 @@ class Tablet(namedtuple("Tablet", ["tablet_id", "cell_id", "index", "pivot_key",
             "//sys/nodes/{}/orchid/tablet_cells/{}/tablets/{}".format(
                 leading_peers[0]["address"], self.cell_id, self.tablet_id),
             format=yt.JsonFormat())
-        self.attributes.update(json.loads(attributes))
+        self.attributes.update(json.loads(attributes)["$value"])
 
     def _ensure_attributes(self):
         if len(self.attributes) == 0:
@@ -700,6 +700,7 @@ def main_improve(table, old_spans, new_spans, delta_coefs, yes):
         for span in reversed(new_spans):
             if yes:
                 logging.info("Resharding tablets %s-%s in table %s", span.first_index, span.last_index, table)
+                # TODO(sandello): Schematize keys here.
                 yt.reshard_table(table, span.pivot_keys,
                                  first_tablet_index=span.first_index, last_tablet_index=span.last_index)
             else:
