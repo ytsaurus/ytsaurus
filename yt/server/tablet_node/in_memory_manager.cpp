@@ -243,7 +243,8 @@ private:
             store->GetId());
         try {
             auto finalizer = Finally(
-                [&] {
+                [&, invoker = tablet->GetEpochAutomatonInvoker()] {
+                    SwitchTo(invoker);
                     storeManager->BackoffStorePreload(store);
                 });
             GuardedPreloadStore(tablet, store, Logger);
