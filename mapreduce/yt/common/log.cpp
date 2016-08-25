@@ -41,7 +41,7 @@ public:
         }
 
         TStringStream stream;
-        stream << TInstant::Now() << " ";
+        stream << TInstant::Now().ToStringLocal() << " ";
         Printf(stream, format, args);
         stream << Endl;
 
