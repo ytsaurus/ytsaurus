@@ -452,6 +452,22 @@ Stroka ToString(TUnversionedRow row);
 Stroka ToString(TMutableUnversionedRow row);
 Stroka ToString(const TUnversionedOwningRow& row);
 
+//! Constructs a shared range of rows from a non-shared one.
+/*!
+ *  The values contained in the rows are also captured.
+ *  The underlying storage allocation has just the right size to contain the captured
+ *  data and is marked with #tagCookie.
+ */
+TSharedRange<TUnversionedRow> CaptureRows(
+    const TRange<TUnversionedRow>& rows,
+    TRefCountedTypeCookie tagCookie);
+
+template <class TTag>
+TSharedRange<TUnversionedRow> CaptureRows(const TRange<TUnversionedRow>& rows)
+{
+    return CaptureRows(rows, GetRefCountedTypeCookie<TTag>());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A variant of TUnversionedRow that enables mutating access to its content.
