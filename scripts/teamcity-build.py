@@ -277,7 +277,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
                 "--verbose",
                 "--capture=fd",
                 "--tb=native",
-                "--timeout=600",
+                "--timeout=3000",
                 "--debug",
                 "--junitxml={0}".format(handle.name)]
                 + pytest_args,

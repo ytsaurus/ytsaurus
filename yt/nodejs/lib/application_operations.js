@@ -25,6 +25,8 @@ var OPERATIONS_RUNTIME_PATH = "//sys/scheduler/orchid/scheduler/operations";
 var SCHEDULING_INFO_PATH = "//sys/scheduler/orchid/scheduler";
 var MAX_SIZE_LIMIT = 100;
 var TIME_SPAN_LIMIT = 10 * 24 * 3600 * 1000000;
+var CYPRESS_OPERATIONS_SUCCESS_EXPIRATION_TIME = 1000;
+var CYPRESS_OPERATIONS_FAILURE_EXPIRATION_TIME = 1000;
 
 var INTERMEDIATE_STATES = [
     "initializing",
@@ -489,7 +491,10 @@ function YtApplicationOperations$list(parameters)
         "list",
         {
             path: OPERATIONS_CYPRESS_PATH, 
-            attributes: OPERATION_ATTRIBUTES
+            attributes: OPERATION_ATTRIBUTES,
+            read_from: "cache",
+            success_expiration_time: CYPRESS_OPERATIONS_SUCCESS_EXPIRATION_TIME,
+            failure_expiration_time: CYPRESS_OPERATIONS_FAILURE_EXPIRATION_TIME
         })
         .catch(makeErrorHandler("Failed to fetch operations from Cypress"))
         .finally(function() {

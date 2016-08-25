@@ -347,9 +347,6 @@ private:
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
         response->set_net_throttling(netThrottling);
 
-        bool throttling = netThrottling || diskThrottling;
-        response->set_throttling(throttling);
-
         // Try suggesting other peers. This can never hurt.
         auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
         for (int blockIndex : request->block_indexes()) {
@@ -462,9 +459,6 @@ private:
 
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
         response->set_net_throttling(netThrottling);
-
-        bool throttling = netThrottling || diskThrottling;
-        response->set_throttling(throttling);
 
         if (fetchFromCache || fetchFromDisk) {
             TBlockReadOptions options;

@@ -1598,6 +1598,14 @@ private:
         }
     }
 
+    static void SetCachingHeader(
+        IClientRequestPtr request,
+        const TCacheOptions& options)
+    {
+        auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+        cachingHeaderExt->set_success_expiration_time(ToProto(options.ExpireAfterSuccessfulUpdateTime));
+        cachingHeaderExt->set_failure_expiration_time(ToProto(options.ExpireAfterFailedUpdateTime));
+    }
 
     template <class TProxy>
     std::unique_ptr<TProxy> CreateReadProxy(
@@ -2125,13 +2133,15 @@ private:
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
 
+        if (options.ReadFrom == EMasterChannelKind::Cache) {
+            SetCachingHeader(req, options);
+        }
         if (options.Attributes) {
             ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
         }
         if (options.MaxSize) {
             req->set_limit(*options.MaxSize);
         }
-        req->set_ignore_opaque(options.IgnoreOpaque);
         if (options.Options) {
             ToProto(req->mutable_options(), *options.Options);
         }
@@ -2193,6 +2203,9 @@ private:
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
 
+        if (options.ReadFrom == EMasterChannelKind::Cache) {
+            SetCachingHeader(req, options);
+        }
         if (options.Attributes) {
             ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
         }

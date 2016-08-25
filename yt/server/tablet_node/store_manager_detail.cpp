@@ -99,8 +99,7 @@ void TStoreManagerBase::StopEpoch()
             chunkStore->SetCompactionState(EStoreCompactionState::None);
             auto preloadState = chunkStore->GetPreloadState();
             if (preloadState == EStorePreloadState::Scheduled ||
-                preloadState == EStorePreloadState::Running ||
-                preloadState == EStorePreloadState::Failed)
+                preloadState == EStorePreloadState::Running)
             {
                 chunkStore->SetPreloadState(EStorePreloadState::None);
                 chunkStore->SetPreloadFuture(TFuture<void>());
@@ -154,28 +153,31 @@ void TStoreManagerBase::RemoveStore(IStorePtr store)
 
 void TStoreManagerBase::BackoffStoreRemoval(IStorePtr store)
 {
-    NConcurrency::TDelayedExecutor::Submit(
-        BIND([=] () {
-            switch (store->GetType()) {
-                case EStoreType::SortedDynamic:
-                case EStoreType::OrderedDynamic: {
-                    auto dynamicStore = store->AsDynamic();
-                    if (dynamicStore->GetFlushState() == EStoreFlushState::Complete) {
-                        dynamicStore->SetFlushState(EStoreFlushState::None);
-                    }
-                    break;
-                }
-                case EStoreType::SortedChunk:
-                case EStoreType::OrderedChunk: {
-                    auto chunkStore = store->AsChunk();
-                    if (chunkStore->GetCompactionState() == EStoreCompactionState::Complete) {
-                        chunkStore->SetCompactionState(EStoreCompactionState::None);
-                    }
-                    break;
-                }
+    switch (store->GetType()) {
+        case EStoreType::SortedDynamic:
+        case EStoreType::OrderedDynamic: {
+            auto dynamicStore = store->AsDynamic();
+            EStoreFlushState flushState = dynamicStore->GetFlushState();
+            YCHECK(flushState == EStoreFlushState::Complete || flushState == EStoreFlushState::None);
+            if (flushState == EStoreFlushState::Complete) {
+                dynamicStore->SetFlushState(EStoreFlushState::None);
+                dynamicStore->UpdateFlushAttemptTimestamp();
             }
-        }).Via(Tablet_->GetEpochAutomatonInvoker()),
-        Config_->ErrorBackoffTime);
+            break;
+        }
+        case EStoreType::SortedChunk:
+        case EStoreType::OrderedChunk: {
+            auto chunkStore = store->AsChunk();
+            EStoreCompactionState compactionState = chunkStore->GetCompactionState();
+            YCHECK(compactionState == EStoreCompactionState::Complete ||
+                compactionState == EStoreCompactionState::None);
+            if (compactionState == EStoreCompactionState::Complete) {
+                chunkStore->SetCompactionState(EStoreCompactionState::None);
+                chunkStore->UpdateCompactionAttemptTimestamp();
+            }
+            break;
+        }
+    }
 }
 
 bool TStoreManagerBase::IsStoreFlushable(IStorePtr store) const
@@ -186,6 +188,10 @@ bool TStoreManagerBase::IsStoreFlushable(IStorePtr store) const
 
     auto dynamicStore = store->AsDynamic();
     if (dynamicStore->GetFlushState() != EStoreFlushState::None) {
+        return false;
+    }
+
+    if (dynamicStore->GetLastFlushAttemptTimestamp() + Config_->ErrorBackoffTime > Now()) {
         return false;
     }
 
@@ -210,13 +216,8 @@ void TStoreManagerBase::EndStoreFlush(IDynamicStorePtr store)
 void TStoreManagerBase::BackoffStoreFlush(IDynamicStorePtr store)
 {
     YCHECK(store->GetFlushState() == EStoreFlushState::Running);
-    store->SetFlushState(EStoreFlushState::Failed);
-    NConcurrency::TDelayedExecutor::Submit(
-        BIND([store] () {
-            YCHECK(store->GetFlushState() == EStoreFlushState::Failed);
-            store->SetFlushState(EStoreFlushState::None);
-        }).Via(Tablet_->GetEpochAutomatonInvoker()),
-        Config_->ErrorBackoffTime);
+    store->SetFlushState(EStoreFlushState::None);
+    store->UpdateFlushAttemptTimestamp();
 }
 
 void TStoreManagerBase::BeginStoreCompaction(IChunkStorePtr store)
@@ -234,13 +235,8 @@ void TStoreManagerBase::EndStoreCompaction(IChunkStorePtr store)
 void TStoreManagerBase::BackoffStoreCompaction(IChunkStorePtr store)
 {
     YCHECK(store->GetCompactionState() == EStoreCompactionState::Running);
-    store->SetCompactionState(EStoreCompactionState::Failed);
-    NConcurrency::TDelayedExecutor::Submit(
-        BIND([store] () {
-            YCHECK(store->GetCompactionState() == EStoreCompactionState::Failed);
-            store->SetCompactionState(EStoreCompactionState::None);
-        }).Via(Tablet_->GetEpochAutomatonInvoker()),
-        Config_->ErrorBackoffTime);
+    store->SetCompactionState(EStoreCompactionState::None);
+    store->UpdateCompactionAttemptTimestamp();
 }
 
 void TStoreManagerBase::ScheduleStorePreload(IChunkStorePtr store)
@@ -248,7 +244,7 @@ void TStoreManagerBase::ScheduleStorePreload(IChunkStorePtr store)
     auto state = store->GetPreloadState();
     YCHECK(state != EStorePreloadState::Disabled);
 
-    if (state != EStorePreloadState::None && state != EStorePreloadState::Failed) {
+    if (state != EStorePreloadState::None) {
         return;
     }
 
@@ -304,6 +300,9 @@ IChunkStorePtr TStoreManagerBase::PeekStoreForPreload()
         if (store) {
             auto chunkStore = store->AsChunk();
             if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled) {
+                if (chunkStore->GetLastPreloadAttemptTimestamp() + Config_->ErrorBackoffTime > Now()) {
+                    return nullptr;
+                }
                 return chunkStore;
             }
         }
@@ -312,14 +311,14 @@ IChunkStorePtr TStoreManagerBase::PeekStoreForPreload()
     return nullptr;
 }
 
-void TStoreManagerBase::BeginStorePreload(IChunkStorePtr store, TFuture<void> future)
+void TStoreManagerBase::BeginStorePreload(IChunkStorePtr store, TCallback<TFuture<void>()> callbackFuture)
 {
     YCHECK(store->GetId() == Tablet_->PreloadStoreIds().front());
     Tablet_->PreloadStoreIds().pop_front();
 
     YCHECK(store->GetPreloadState() == EStorePreloadState::Scheduled);
     store->SetPreloadState(EStorePreloadState::Running);
-    store->SetPreloadFuture(future);
+    store->SetPreloadFuture(callbackFuture.Run());
 }
 
 void TStoreManagerBase::EndStorePreload(IChunkStorePtr store)
@@ -332,15 +331,10 @@ void TStoreManagerBase::EndStorePreload(IChunkStorePtr store)
 void TStoreManagerBase::BackoffStorePreload(IChunkStorePtr store)
 {
     YCHECK(store->GetPreloadState() == EStorePreloadState::Running);
-    store->SetPreloadState(EStorePreloadState::Failed);
+    store->SetPreloadState(EStorePreloadState::None);
+    store->UpdatePreloadAttemptTimestamp();
     store->SetPreloadFuture(TFuture<void>());
-    NConcurrency::TDelayedExecutor::Submit(
-        BIND([=] () {
-            if (store->GetPreloadState() == EStorePreloadState::Failed) {
-                ScheduleStorePreload(store);
-            }
-        }).Via(Tablet_->GetEpochAutomatonInvoker()),
-        Config_->ErrorBackoffTime);
+    ScheduleStorePreload(store);
 }
 
 void TStoreManagerBase::Mount(const std::vector<TAddStoreDescriptor>& storeDescriptors)

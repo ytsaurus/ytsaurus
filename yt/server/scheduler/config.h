@@ -570,6 +570,9 @@ public:
     // User job block IO read value that is considered insignificant when checking if job is suspicious.
     i64 SuspiciousUserJobBlockIOReadThreshold;
 
+    // Testing option that enables snapshot build/load cycle after operation materialization.
+    bool EnableSnapshotCycleAfterMaterialization;
+
     TSchedulerConfig()
     {
         RegisterParameter("controller_thread_count", ControllerThreadCount)
@@ -793,6 +796,9 @@ public:
             .Default(10);
         RegisterParameter("suspicious_user_job_block_io_read_threshold", SuspiciousUserJobBlockIOReadThreshold)
             .Default(20);
+
+        RegisterParameter("enable_snapshot_cycle_after_materialization", EnableSnapshotCycleAfterMaterialization)
+            .Default(false);
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

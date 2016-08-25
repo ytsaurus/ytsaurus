@@ -326,7 +326,6 @@ public:
                 while (enqueuedEvents > WrittenEvents_.load() &&
                     TInstant::Now() - now < Config_->ShutdownGraceTimeout)
                 {
-                    EventCount_->NotifyOne();
                     SchedYield();
                 }
             }
@@ -384,13 +383,6 @@ public:
         }
 
         PushLogEvent(std::move(event));
-        ++EnqueuedEvents_;
-
-        bool expected = false;
-        if (Notified_.compare_exchange_strong(expected, true)) {
-            EventCount_->NotifyOne();
-        }
-
     }
 
     void Reopen()
@@ -719,6 +711,12 @@ private:
     void PushLogEvent(TLogEvent&& event)
     {
         LoggerQueue_.Enqueue(std::move(event));
+        ++EnqueuedEvents_;
+
+        bool expected = false;
+        if (Notified_.compare_exchange_strong(expected, true)) {
+            EventCount_->NotifyOne();
+        }
     }
 
     void OnProfiling()

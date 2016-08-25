@@ -299,6 +299,8 @@ private:
 
             storeManager->EndStoreFlush(store);
 
+            // NB: No exceptions must be thrown beyond this point!
+
             TReqCommitTabletStoresUpdate hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
             hydraRequest.set_mount_revision(mountRevision);
