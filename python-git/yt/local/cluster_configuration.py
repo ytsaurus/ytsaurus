@@ -42,6 +42,11 @@ MASTER_CONFIG_PATCHES = [
             "calibration_period": 10
         }
     },
+    {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
+        }
+    },
 ]
 
 MASTER_18_PATCH = {
