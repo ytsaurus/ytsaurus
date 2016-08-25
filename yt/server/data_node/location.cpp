@@ -443,7 +443,8 @@ void TLocation::OnHealthCheckFailed(const TError& error)
 
 void TLocation::MarkAsDisabled(const TError& error)
 {
-    auto alert = TError("Location at %v is disabled", GetPath()) << error;
+    auto alert = TError("Chunk location at %v is disabled", GetPath())
+        << error;
     auto masterConnector = Bootstrap_->GetMasterConnector();
     masterConnector->RegisterAlert(alert);
 
