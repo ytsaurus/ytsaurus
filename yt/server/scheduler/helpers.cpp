@@ -6,7 +6,7 @@
 #include "operation_controller.h"
 #include "chunk_pool.h"
 
-#include <yt/ytlib/chunk_client/input_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
@@ -127,17 +127,17 @@ void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer)
 }
 
 static void BuildInputSliceLimit(
-    const TInputSlicePtr& slice,
+    const TInputDataSlicePtr& slice,
     const TInputSliceLimit& limit,
     TNullable<i64> rowIndex,
     NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .DoIf(limit.RowIndex.operator bool() || rowIndex, [&] (TFluentMap fluent) {
+            .DoIf((limit.RowIndex.operator bool() || rowIndex) && slice->IsTrivial(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("row_index").Value(
-                        limit.RowIndex.Get(rowIndex.Get(0)) + slice->GetInputChunk()->GetTableRowIndex());
+                        limit.RowIndex.Get(rowIndex.Get(0)) + slice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex());
             })
             .DoIf(limit.Key.operator bool(), [&] (TFluentMap fluent) {
                 fluent
@@ -153,10 +153,10 @@ TNullable<TYsonString> BuildInputPaths(
     EJobType jobType)
 {
     bool hasSlices = false;
-    std::vector<std::vector<TInputSlicePtr>> slicesByTable(inputPaths.size());
+    std::vector<std::vector<TInputDataSlicePtr>> slicesByTable(inputPaths.size());
     for (const auto& stripe : inputStripeList->Stripes) {
-        for (const auto& slice : stripe->ChunkSlices) {
-            auto tableIndex = slice->GetInputChunk()->GetTableIndex();
+        for (const auto& slice : stripe->DataSlices) {
+            auto tableIndex = slice->GetTableIndex();
             if (tableIndex >= 0) {
                 slicesByTable[tableIndex].push_back(slice);
                 hasSlices = true;
@@ -174,14 +174,14 @@ TNullable<TYsonString> BuildInputPaths(
         isForeignTable.begin(),
         [](const TRichYPath& path) { return path.GetForeign(); });
 
-    std::vector<std::vector<std::pair<TInputSlicePtr, TInputSlicePtr>>> rangesByTable(inputPaths.size());
+    std::vector<std::vector<std::pair<TInputDataSlicePtr, TInputDataSlicePtr>>> rangesByTable(inputPaths.size());
     bool mergeByRows = !(
         operationType == EOperationType::Reduce ||
         (operationType == EOperationType::Merge && jobType == EJobType::SortedMerge));
     for (int tableIndex = 0; tableIndex < static_cast<int>(slicesByTable.size()); ++tableIndex) {
         auto& tableSlices = slicesByTable[tableIndex];
 
-        std::sort(tableSlices.begin(), tableSlices.end(), &CompareSlicesByLowerLimit);
+        std::sort(tableSlices.begin(), tableSlices.end(), &CompareDataSlicesByLowerLimit);
 
         int firstSlice = 0;
         while (firstSlice < static_cast<int>(tableSlices.size())) {
@@ -200,10 +200,10 @@ TNullable<TYsonString> BuildInputPaths(
     }
 
     return BuildYsonStringFluently()
-        .DoListFor(rangesByTable, [&] (TFluentList fluent, const std::vector<std::pair<TInputSlicePtr, TInputSlicePtr>>& tableRanges) {
+        .DoListFor(rangesByTable, [&] (TFluentList fluent, const std::vector<std::pair<TInputDataSlicePtr, TInputDataSlicePtr>>& tableRanges) {
             fluent
                 .DoIf(!tableRanges.empty(), [&] (TFluentList fluent) {
-                    int tableIndex = tableRanges[0].first->GetInputChunk()->GetTableIndex();
+                    int tableIndex = tableRanges[0].first->GetTableIndex();
                     fluent
                         .Item()
                         .BeginAttributes()
@@ -212,7 +212,7 @@ TNullable<TYsonString> BuildInputPaths(
                                     .Item("foreign").Value(true);
                             })
                             .Item("ranges")
-                            .DoListFor(tableRanges, [&] (TFluentList fluent, const std::pair<TInputSlicePtr, TInputSlicePtr>& range) {
+                            .DoListFor(tableRanges, [&] (TFluentList fluent, const std::pair<TInputDataSlicePtr, TInputDataSlicePtr>& range) {
                                 fluent
                                     .Item()
                                     .BeginMap()
@@ -227,7 +227,7 @@ TNullable<TYsonString> BuildInputPaths(
                                                 &BuildInputSliceLimit,
                                                 range.second,
                                                 range.second->UpperLimit(),
-                                                TNullable<i64>(mergeByRows && !isForeignTable[tableIndex], range.second->GetInputChunk()->GetRowCount())))
+                                                TNullable<i64>(mergeByRows && !isForeignTable[tableIndex], range.second->GetRowCount())))
                                     .EndMap();
                             })
                         .EndAttributes()

@@ -1,4 +1,4 @@
-#include "input_slice.h"
+#include "input_chunk_slice.h"
 #include "private.h"
 #include "chunk_meta_extensions.h"
 #include "schema.h"
@@ -126,7 +126,7 @@ void ToProto(NProto::TReadLimit* protoLimit, const TInputSliceLimit& limit)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInputSlice::TInputSlice(
+TInputChunkSlice::TInputChunkSlice(
     const TInputChunkPtr& inputChunk,
     TKey lowerKey,
     TKey upperKey)
@@ -149,8 +149,8 @@ TInputSlice::TInputSlice(
     }
 }
 
-TInputSlice::TInputSlice(
-    const TInputSlice& inputSlice,
+TInputChunkSlice::TInputChunkSlice(
+    const TInputChunkSlice& inputSlice,
     TKey lowerKey,
     TKey upperKey)
     : InputChunk_(inputSlice.GetInputChunk())
@@ -169,8 +169,8 @@ TInputSlice::TInputSlice(
     }
 }
 
-TInputSlice::TInputSlice(
-    const TInputSlice& chunkSlice,
+TInputChunkSlice::TInputChunkSlice(
+    const TInputChunkSlice& chunkSlice,
     i64 lowerRowIndex,
     i64 upperRowIndex,
     i64 dataSize)
@@ -184,7 +184,7 @@ TInputSlice::TInputSlice(
     SetDataSize(dataSize);
 }
 
-TInputSlice::TInputSlice(
+TInputChunkSlice::TInputChunkSlice(
     const TInputChunkPtr& inputChunk,
     int partIndex,
     i64 lowerRowIndex,
@@ -207,11 +207,11 @@ TInputSlice::TInputSlice(
     SetDataSize(dataSize);
 }
 
-TInputSlice::TInputSlice(
+TInputChunkSlice::TInputChunkSlice(
     const TInputChunkPtr& inputChunk,
     const TRowBufferPtr& rowBuffer,
     const NProto::TChunkSlice& protoChunkSlice)
-    : TInputSlice(inputChunk)
+    : TInputChunkSlice(inputChunk)
 {
     LowerLimit_.MergeLowerLimit(TInputSliceLimit(protoChunkSlice.lower_limit(), rowBuffer));
     UpperLimit_.MergeUpperLimit(TInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer));
@@ -223,7 +223,7 @@ TInputSlice::TInputSlice(
     }
 }
 
-std::vector<TInputSlicePtr> TInputSlice::SliceEvenly(i64 sliceDataSize) const
+std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataSize) const
 {
     YCHECK(sliceDataSize > 0);
 
@@ -236,12 +236,12 @@ std::vector<TInputSlicePtr> TInputSlice::SliceEvenly(i64 sliceDataSize) const
     
     int count = std::max(std::min(GetDataSize() / sliceDataSize, rowCount), static_cast<i64>(1));
 
-    std::vector<TInputSlicePtr> result;
+    std::vector<TInputChunkSlicePtr> result;
     for (int i = 0; i < count; ++i) {
         i64 sliceLowerRowIndex = lowerRowIndex + rowCount * i / count;
         i64 sliceUpperRowIndex = lowerRowIndex + rowCount * (i + 1) / count;
         if (sliceLowerRowIndex < sliceUpperRowIndex) {
-            result.push_back(New<TInputSlice>(
+            result.push_back(New<TInputChunkSlice>(
                 *this,
                 sliceLowerRowIndex,
                 sliceUpperRowIndex,
@@ -251,7 +251,7 @@ std::vector<TInputSlicePtr> TInputSlice::SliceEvenly(i64 sliceDataSize) const
     return result;
 }
 
-i64 TInputSlice::GetLocality(int replicaPartIndex) const
+i64 TInputChunkSlice::GetLocality(int replicaPartIndex) const
 {
     i64 result = GetDataSize();
 
@@ -271,44 +271,44 @@ i64 TInputSlice::GetLocality(int replicaPartIndex) const
     return result;
 }
 
-int TInputSlice::GetPartIndex() const
+int TInputChunkSlice::GetPartIndex() const
 {
     return PartIndex_;
 }
 
-i64 TInputSlice::GetMaxBlockSize() const
+i64 TInputChunkSlice::GetMaxBlockSize() const
 {
     return InputChunk_->GetMaxBlockSize();
 }
 
-bool TInputSlice::GetSizeOverridden() const
+bool TInputChunkSlice::GetSizeOverridden() const
 {
     return SizeOverridden_;
 }
 
-i64 TInputSlice::GetDataSize() const
+i64 TInputChunkSlice::GetDataSize() const
 {
     return DataSize_;
 }
 
-i64 TInputSlice::GetRowCount() const
+i64 TInputChunkSlice::GetRowCount() const
 {
     return RowCount_;
 }
 
-void TInputSlice::SetDataSize(i64 dataSize)
+void TInputChunkSlice::SetDataSize(i64 dataSize)
 {
     DataSize_ = dataSize;
     SizeOverridden_ = true;
 }
 
-void TInputSlice::SetRowCount(i64 rowCount)
+void TInputChunkSlice::SetRowCount(i64 rowCount)
 {
     RowCount_ = rowCount;
     SizeOverridden_ = true;
 }
 
-void TInputSlice::Persist(const TPersistenceContext& context)
+void TInputChunkSlice::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, InputChunk_);
@@ -322,7 +322,7 @@ void TInputSlice::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TInputSlicePtr& slice)
+Stroka ToString(const TInputChunkSlicePtr& slice)
 {
     return Format("ChunkId: %v, LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataSize: %v, PartIndex: %v",
         slice->GetInputChunk()->ChunkId(),
@@ -333,84 +333,37 @@ Stroka ToString(const TInputSlicePtr& slice)
         slice->GetPartIndex());
 }
 
-bool CompareSlicesByLowerLimit(const TInputSlicePtr& slice1, const TInputSlicePtr& slice2)
-{
-    const auto& limit1 = slice1->LowerLimit();
-    const auto& limit2 = slice2->LowerLimit();
-
-    i64 diff = slice1->GetInputChunk()->GetRangeIndex() - slice2->GetInputChunk()->GetRangeIndex();
-    if (diff != 0) {
-        return diff < 0;
-    }
-
-    diff = (limit1.RowIndex.Get(0) + slice1->GetInputChunk()->GetTableRowIndex()) -
-        (limit2.RowIndex.Get(0) + slice2->GetInputChunk()->GetTableRowIndex());
-    if (diff != 0) {
-        return diff < 0;
-    }
-
-    diff = CompareRows(limit1.Key, limit2.Key);
-    return diff < 0;
-}
-
-bool CanMergeSlices(const TInputSlicePtr& slice1, const TInputSlicePtr& slice2)
-{
-    if (slice1->GetInputChunk()->GetRangeIndex() != slice2->GetInputChunk()->GetRangeIndex()) {
-        return false;
-    }
-
-    const auto& limit1 = slice1->UpperLimit();
-    const auto& limit2 = slice2->LowerLimit();
-
-    if ((limit1.RowIndex || limit1.Key) &&
-        limit1.RowIndex.operator bool() == limit2.RowIndex.operator bool() &&
-        limit1.Key.operator bool() == limit2.Key.operator bool())
-    {
-        if (limit1.RowIndex &&
-            *limit1.RowIndex + slice1->GetInputChunk()->GetTableRowIndex() !=
-            *limit2.RowIndex + slice2->GetInputChunk()->GetTableRowIndex())
-        {
-            return false;
-        }
-        if (limit1.Key && limit1.Key < limit2.Key) {
-            return false;
-        }
-        return true;
-    }
-    return false;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TInputSlicePtr CreateInputSlice(
+TInputChunkSlicePtr CreateInputChunkSlice(
     const TInputChunkPtr& inputChunk,
     TKey lowerKey,
     TKey upperKey)
 {
-    return New<TInputSlice>(inputChunk, lowerKey, upperKey);
+    return New<TInputChunkSlice>(inputChunk, lowerKey, upperKey);
 }
 
-TInputSlicePtr CreateInputSlice(
-    const TInputSlice& inputSlice,
+TInputChunkSlicePtr CreateInputChunkSlice(
+    const TInputChunkSlice& inputSlice,
     TKey lowerKey,
     TKey upperKey)
 {
-    return New<TInputSlice>(inputSlice, lowerKey, upperKey);
+    return New<TInputChunkSlice>(inputSlice, lowerKey, upperKey);
 }
 
-TInputSlicePtr CreateInputSlice(
+TInputChunkSlicePtr CreateInputChunkSlice(
     const TInputChunkPtr& inputChunk,
     const TRowBufferPtr& rowBuffer,
     const NProto::TChunkSlice& protoChunkSlice)
 {
-    return New<TInputSlice>(inputChunk, rowBuffer, protoChunkSlice);
+    return New<TInputChunkSlice>(inputChunk, rowBuffer, protoChunkSlice);
 }
 
-std::vector<TInputSlicePtr> CreateErasureInputSlices(
+std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
     const TInputChunkPtr& inputChunk,
     NErasure::ECodec codecId)
 {
-    std::vector<TInputSlicePtr> slices;
+    std::vector<TInputChunkSlicePtr> slices;
 
     i64 dataSize = inputChunk->GetUncompressedDataSize();
     i64 rowCount = inputChunk->GetRowCount();
@@ -422,7 +375,7 @@ std::vector<TInputSlicePtr> CreateErasureInputSlices(
         i64 sliceLowerRowIndex = rowCount * partIndex / dataPartCount;
         i64 sliceUpperRowIndex = rowCount * (partIndex + 1) / dataPartCount;
         if (sliceLowerRowIndex < sliceUpperRowIndex) {
-            auto chunkSlice = New<TInputSlice>(
+            auto chunkSlice = New<TInputChunkSlice>(
                 inputChunk,
                 partIndex,
                 sliceLowerRowIndex,
@@ -435,14 +388,14 @@ std::vector<TInputSlicePtr> CreateErasureInputSlices(
     return slices;
 }
 
-std::vector<TInputSlicePtr> SliceChunkByRowIndexes(
+std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
     const TInputChunkPtr& inputChunk,
     i64 sliceDataSize)
 {
-    return CreateInputSlice(inputChunk)->SliceEvenly(sliceDataSize);
+    return CreateInputChunkSlice(inputChunk)->SliceEvenly(sliceDataSize);
 }
 
-void ToProto(NProto::TChunkSpec* chunkSpec, const TInputSlicePtr& inputSlice)
+void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlice)
 {
     // The chunk spec in the slice has arrived from master, so it can't possibly contain any extensions
     // except misc and boundary keys (in sorted merge or reduce). Jobs request boundary keys

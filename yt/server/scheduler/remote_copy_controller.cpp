@@ -8,7 +8,7 @@
 #include <yt/ytlib/api/config.h>
 #include <yt/ytlib/api/native_connection.h>
 
-#include <yt/ytlib/chunk_client/input_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -223,13 +223,17 @@ private:
             inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
             auto list = joblet->InputStripeList;
             for (const auto& stripe : list->Stripes) {
-                for (const auto& chunkSlice : stripe->ChunkSlices) {
-                    auto chunkSpec = ToProto<NChunkClient::NProto::TChunkSpec>(chunkSlice);
-                    TDataSliceDescriptor dataSliceDescriptor(EDataSliceDescriptorType::UnversionedTable, {chunkSpec});
-                    ToProto(inputSpec->add_data_slice_descriptors(), dataSliceDescriptor);
+                for (const auto& dataSlice : stripe->DataSlices) {
+                    ToProto(
+                        inputSpec->add_data_slice_descriptors(),
+                        dataSlice,
+                        GetInputTableSchema(dataSlice->GetTableIndex()),
+                        AsyncLastCommittedTimestamp);
 
-                    auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
-                    directoryBuilder.Add(replicas);
+                    for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                        auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
+                        directoryBuilder.Add(replicas);
+                    }
                 }
             }
             UpdateInputSpecTotals(jobSpec, joblet);
@@ -348,13 +352,14 @@ private:
         LOG_INFO("Processing inputs");
 
         std::vector<TChunkStripePtr> stripes;
-        for (const auto& chunkSpec : CollectPrimaryInputChunks()) {
+        for (const auto& dataSlice : CollectPrimaryInputChunks()) {
+            const auto& chunkSpec = dataSlice->GetSingleUnversionedChunkOrThrow();
             if (chunkSpec->LowerLimit() && !IsTrivial(*chunkSpec->LowerLimit()) ||
                 chunkSpec->UpperLimit() && !IsTrivial(*chunkSpec->UpperLimit()))
             {
                 THROW_ERROR_EXCEPTION("Remote copy operation does not support non-trivial table limits");
             }
-            stripes.push_back(New<TChunkStripe>(CreateInputSlice(chunkSpec)));
+            stripes.push_back(New<TChunkStripe>(dataSlice));
         }
 
         TJobSizeLimits jobSizeLimits(

@@ -1627,6 +1627,23 @@ TOwningKey WidenKey(const TOwningKey& key, int keyColumnCount)
     return builder.FinishRow();
 }
 
+TKey WidenKey(const TKey& key, int keyColumnCount, const TRowBufferPtr& rowBuffer)
+{
+    YCHECK(keyColumnCount >= key.GetCount());
+
+    auto wideKey = rowBuffer->Allocate(keyColumnCount);
+
+    for (int index = 0; index < key.GetCount(); ++index) {
+        wideKey[index] = key[index];
+    }
+
+    for (int index = key.GetCount(); index < keyColumnCount; ++index) {
+        wideKey[index] = MakeUnversionedSentinelValue(EValueType::Null);
+    }
+
+    return wideKey;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TUnversionedOwningRow BuildRow(

@@ -10,7 +10,8 @@
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/input_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -90,8 +91,10 @@ void TOperationControllerBase::TInputTable::Persist(const TPersistenceContext& c
     using NYT::Persist;
     Persist(context, ChunkCount);
     Persist(context, Chunks);
+    Persist(context, DataSlices);
     Persist(context, Schema);
     Persist(context, SchemaMode);
+    Persist(context, IsDynamic);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -759,18 +762,34 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
     UpdateInputSpecTotals(jobSpec, joblet);
 }
 
+const TTableSchema& TOperationControllerBase::TTask::GetInputTableSchema(int tableIndex) const
+{
+    static TTableSchema trivialSchema;
+    if (tableIndex == -1) {
+        return trivialSchema;
+    } else {
+        YCHECK(tableIndex >= 0 && tableIndex < Controller->InputTables.size());
+        return Controller->InputTables[tableIndex].Schema;
+    }
+}
+
 void TOperationControllerBase::TTask::AddChunksToInputSpec(
     TNodeDirectoryBuilder* directoryBuilder,
     TTableInputSpec* inputSpec,
     TChunkStripePtr stripe)
 {
-    for (const auto& chunkSlice : stripe->ChunkSlices) {
-        auto chunkSpec = ToProto<NChunkClient::NProto::TChunkSpec>(chunkSlice);
-        TDataSliceDescriptor dataSliceDescriptor(EDataSliceDescriptorType::UnversionedTable, {std::move(chunkSpec)});
-        ToProto(inputSpec->add_data_slice_descriptors(), dataSliceDescriptor);
+    for (const auto& dataSlice : stripe->DataSlices) {
+        //FIXME(savrus) Get appropriate timestamp for a table.
+        ToProto(
+            inputSpec->add_data_slice_descriptors(),
+            dataSlice,
+            GetInputTableSchema(dataSlice->GetTableIndex()),
+            AsyncLastCommittedTimestamp);
 
-        auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
-        directoryBuilder->Add(replicas);
+        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+            auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
+            directoryBuilder->Add(replicas);
+        }
     }
 }
 
@@ -924,8 +943,8 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
 {
     auto stripe = New<TChunkStripe>();
     for (auto& chunkSpec : *chunkSpecs) {
-        auto chunkSlice = CreateInputSlice(New<TInputChunk>(std::move(chunkSpec)));
-        stripe->ChunkSlices.push_back(chunkSlice);
+        auto chunkSlice = CreateInputChunkSlice(New<TInputChunk>(std::move(chunkSpec)));
+        stripe->DataSlices.push_back(CreateInputDataSlice(chunkSlice));
     }
     return stripe;
 }
@@ -1236,6 +1255,8 @@ void TOperationControllerBase::Materialize()
         LockLivePreviewTables();
 
         CollectTotals();
+
+        PrepareInputTablesDataSlices();
 
         CustomPrepare();
 
@@ -2096,15 +2117,20 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
                 inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
 
                 // Remove given chunk from the stripe list.
-                SmallVector<TInputSlicePtr, 1> slices;
-                std::swap(inputStripe.Stripe->ChunkSlices, slices);
+                SmallVector<TInputDataSlicePtr, 1> slices;
+                std::swap(inputStripe.Stripe->DataSlices, slices);
 
                 std::copy_if(
                     slices.begin(),
                     slices.end(),
-                    inputStripe.Stripe->ChunkSlices.begin(),
-                    [&] (TInputSlicePtr slice) {
-                        return chunkId != slice->GetInputChunk()->ChunkId();
+                    inputStripe.Stripe->DataSlices.begin(),
+                    [&] (TInputDataSlicePtr slice) {
+                        try {
+                            return chunkId != slice->GetSingleUnversionedChunkOrThrow()->ChunkId();
+                        } catch (const std::exception& ex) {
+                            //FIXME(savrus) allow data slices to be unavailable.
+                            THROW_ERROR_EXCEPTION("Dynamic table chunk became unavailable") << ex;
+                        }
                     });
 
                 // Reinstall patched stripe.
@@ -2376,11 +2402,13 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TNodeId nodeId
 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
-    for (const auto& chunkSlice : stripe->ChunkSlices) {
-        for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
-            auto locality = chunkSlice->GetLocality(replica.GetIndex());
-            if (locality > 0) {
-                DoAddTaskLocalityHint(task, replica.GetNodeId());
+    for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+            for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
+                auto locality = chunkSlice->GetLocality(replica.GetIndex());
+                if (locality > 0) {
+                    DoAddTaskLocalityHint(task, replica.GetNodeId());
+                }
             }
         }
     }
@@ -2977,35 +3005,55 @@ void TOperationControllerBase::FetchInputTables()
         auto batchReq = proxy.ExecuteBatch();
         std::vector<int> rangeIndices;
 
-        for (int rangeIndex = 0; rangeIndex < static_cast<int>(ranges.size()); ++rangeIndex) {
-            for (i64 index = 0; index * Config->MaxChunksPerFetch < table.ChunkCount; ++index) {
-                auto adjustedRange = ranges[rangeIndex];
-                auto chunkCountLowerLimit = index * Config->MaxChunksPerFetch;
-                if (adjustedRange.LowerLimit().HasChunkIndex()) {
-                    chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
-                }
-                adjustedRange.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
+        if (!table.IsDynamic) {
+            for (int rangeIndex = 0; rangeIndex < static_cast<int>(ranges.size()); ++rangeIndex) {
+                for (i64 index = 0; index * Config->MaxChunksPerFetch < table.ChunkCount; ++index) {
+                    auto adjustedRange = ranges[rangeIndex];
+                    auto chunkCountLowerLimit = index * Config->MaxChunksPerFetch;
+                    if (adjustedRange.LowerLimit().HasChunkIndex()) {
+                        chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
+                    }
+                    adjustedRange.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
 
-                auto chunkCountUpperLimit = (index + 1) * Config->MaxChunksPerFetch;
-                if (adjustedRange.UpperLimit().HasChunkIndex()) {
-                    chunkCountUpperLimit = std::min(chunkCountUpperLimit, adjustedRange.UpperLimit().GetChunkIndex());
-                }
-                adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
+                    auto chunkCountUpperLimit = (index + 1) * Config->MaxChunksPerFetch;
+                    if (adjustedRange.UpperLimit().HasChunkIndex()) {
+                        chunkCountUpperLimit = std::min(chunkCountUpperLimit, adjustedRange.UpperLimit().GetChunkIndex());
+                    }
+                    adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
 
-                auto req = TTableYPathProxy::Fetch(FromObjectId(table.ObjectId));
-                InitializeFetchRequest(req.Get(), table.Path);
-                ToProto(req->mutable_ranges(), std::vector<TReadRange>({adjustedRange}));
-                req->set_fetch_all_meta_extensions(false);
-                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                if (IsBoundaryKeysFetchEnabled()) {
-                    req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
-                    req->add_extension_tags(TProtoExtensionTag<TOldBoundaryKeysExt>::Value);
+                    auto req = TTableYPathProxy::Fetch(FromObjectId(table.ObjectId));
+                    InitializeFetchRequest(req.Get(), table.Path);
+                    ToProto(req->mutable_ranges(), std::vector<TReadRange>({adjustedRange}));
+                    req->set_fetch_all_meta_extensions(false);
+                    req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                    if (IsBoundaryKeysFetchEnabled()) {
+                        req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
+                        req->add_extension_tags(TProtoExtensionTag<TOldBoundaryKeysExt>::Value);
+                    }
+                    req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
+                    SetTransactionId(req, InputTransaction->GetId());
+                    batchReq->AddRequest(req, "fetch");
+                    rangeIndices.push_back(rangeIndex);
                 }
-                req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
-                SetTransactionId(req, InputTransaction->GetId());
-                batchReq->AddRequest(req, "fetch");
-                rangeIndices.push_back(rangeIndex);
             }
+        } else {
+            if (ranges.size() != 1 || !ranges[0].LowerLimit().IsTrivial() || !ranges[0].UpperLimit().IsTrivial()) {
+                THROW_ERROR_EXCEPTION("Ranges are not supported for dynamic table inputs")
+                    << TErrorAttribute("table_path", table.Path.GetPath());
+            }
+
+            rangeIndices.push_back(0);
+
+            auto req = TTableYPathProxy::Fetch(FromObjectId(table.ObjectId));
+            InitializeFetchRequest(req.Get(), table.Path);
+            // TODO: support ranges
+            //ToProto(req->mutable_ranges(), std::vector<TReadRange>(ranges[0]));
+            req->set_fetch_all_meta_extensions(false);
+            req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+            req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
+            req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
+            SetTransactionId(req, InputTransaction->GetId());
+            batchReq->AddRequest(req, "fetch");
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -3037,6 +3085,91 @@ void TOperationControllerBase::FetchInputTables()
         LOG_INFO("Input table fetched (Path: %v, ChunkCount: %v)",
             path,
             table.Chunks.size());
+    }
+}
+
+void TOperationControllerBase::PrepareInputTablesDataSlices()
+{
+    for (auto& table : InputTables) {
+        if (!table.IsDynamic) {
+            for (auto& chunkSpec : table.Chunks) {
+                table.DataSlices.push_back(CreateInputDataSlice(CreateInputChunkSlice(chunkSpec)));
+            }
+        } else {
+            std::vector<std::tuple<TKey, bool, int>> boundaries;
+            boundaries.reserve(table.Chunks.size());
+            for (int index = 0; index < table.Chunks.size(); ++index) {
+                auto minKey = WidenKey(
+                    table.Chunks[index]->BoundaryKeys()->MinKey.Get(),
+                    table.Schema.GetKeyColumnCount(),
+                    RowBuffer);
+                auto maxKey = WidenKey(
+                    table.Chunks[index]->BoundaryKeys()->MaxKey.Get(),
+                    table.Schema.GetKeyColumnCount(),
+                    RowBuffer);
+
+                boundaries.emplace_back(minKey, false, index);
+                boundaries.emplace_back(maxKey, true, index);
+            }
+            std::sort(boundaries.begin(), boundaries.end());
+            yhash_set<int> currentChunks;
+
+            int currentIndex = 0;
+            while (currentIndex < boundaries.size()) {
+                const auto& boundary = boundaries[currentIndex];
+                auto& currentKey = std::get<0>(boundary);
+
+                int index = currentIndex;
+
+                while (index < boundaries.size()) {
+                    const auto& boundary = boundaries[index];
+                    auto& key = std::get<0>(boundary);
+                    int chunkIndex = std::get<2>(boundary);
+
+                    if (key != currentKey) {
+                        break;
+                    }
+
+                    currentChunks.insert(chunkIndex);
+                    ++index;
+                }
+
+                if (!currentChunks.empty()) {
+                    std::vector<TInputChunkPtr> chunks;
+                    for (int chunkIndex : currentChunks) {
+                        chunks.push_back(table.Chunks[chunkIndex]);
+                    }
+
+                    auto upper = index == boundaries.size() ? MaxKey().Get() : std::get<0>(boundaries[index]);
+
+                    LOG_DEBUG("Add data slice for table %v (Range: <%v:%v>, Chunks: %v)", currentKey, upper, chunks);
+
+                    auto slice = CreateInputDataSlice(
+                        EDataSliceDescriptorType::VersionedTable,
+                        std::move(chunks),
+                        currentKey,
+                        upper);
+
+                    table.DataSlices.push_back(std::move(slice));
+                }
+
+                int end = index;
+                index = currentIndex;
+                for (index = currentIndex; index < end; ++index) {
+                    const auto& boundary = boundaries[index];
+                    bool right = std::get<1>(boundary);
+                    int chunkIndex = std::get<2>(boundary);
+
+                    if (right) {
+                        currentChunks.erase(chunkIndex);
+                    }
+                }
+
+                currentIndex = end;
+            }
+
+            LOG_DEBUG("Prepared %v data slices for dynamic input table %v", table.DataSlices.size(), table.Path.GetPath());
+        }
     }
 }
 
@@ -3102,15 +3235,15 @@ void TOperationControllerBase::LockInputTables()
                 const auto& rsp = getInAttributesRspsOrError[index].Value();
                 auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-                if (attributes->Get<bool>("dynamic")) {
-                    THROW_ERROR_EXCEPTION("Expected a static table, but got dynamic")
-                        << TErrorAttribute("input_table", path);
-                }
-
+                table.IsDynamic = attributes->Get<bool>("dynamic");
                 table.Schema = attributes->Get<TTableSchema>("schema");
                 table.SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
-
                 table.ChunkCount = attributes->Get<int>("chunk_count");
+
+                if (table.IsForeign() && table.IsDynamic) {
+                    THROW_ERROR_EXCEPTION("Dynamic table %v cannot be foreign",
+                        table.Path.GetPath());
+                }
             }
             LOG_INFO("Input table locked (Path: %v, Schema: %v, ChunkCount: %v)",
                 path,
@@ -3628,8 +3761,13 @@ void TOperationControllerBase::CollectTotals()
 {
     for (const auto& table : InputTables) {
         for (const auto& chunkSpec : table.Chunks) {
-            if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
-                const auto& chunkId = chunkSpec->ChunkId();
+            if (const auto& chunkId = IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
+                if (table.IsDynamic) {
+                    THROW_ERROR_EXCEPTION("Input chunk %v of dynamic table %v is unavailable",
+                        chunkId,
+                        table.Path.GetPath());
+                }
+
                 switch (Spec->UnavailableChunkStrategy) {
                     case EUnavailableChunkAction::Fail:
                         THROW_ERROR_EXCEPTION("Input chunk %v is unavailable",
@@ -3682,13 +3820,13 @@ void TOperationControllerBase::ClearInputChunkBoundaryKeys()
 }
 
 // NB: must preserve order of chunks in the input tables, no shuffling.
-std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryInputChunks() const
+std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryInputChunks() const
 {
-    std::vector<TInputChunkPtr> result;
+    std::vector<TInputDataSlicePtr> result;
     for (const auto& table : InputTables) {
         if (!table.IsForeign()) {
-            for (const auto& chunkSpec : table.Chunks) {
-                if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
+            for (const auto& dataSlice : table.DataSlices) {
+                if (IsUnavailable(dataSlice, IsParityReplicasFetchEnabled())) {
                     switch (Spec->UnavailableChunkStrategy) {
                         case EUnavailableChunkAction::Skip:
                             continue;
@@ -3701,7 +3839,7 @@ std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryInputChunks(
                             Y_UNREACHABLE();
                     }
                 }
-                result.push_back(chunkSpec);
+                result.push_back(dataSlice);
             }
         }
     }
@@ -3714,7 +3852,8 @@ std::vector<std::deque<TInputChunkPtr>> TOperationControllerBase::CollectForeign
     for (const auto& table : InputTables) {
         if (table.IsForeign()) {
             result.push_back(std::deque<TInputChunkPtr>());
-            for (const auto& chunkSpec : table.Chunks) {
+            for (const auto& dataSlice : table.DataSlices) {
+                const auto& chunkSpec = dataSlice->GetSingleUnversionedChunkOrThrow();
                 if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
                     switch (Spec->UnavailableChunkStrategy) {
                         case EUnavailableChunkAction::Skip:
@@ -3736,14 +3875,14 @@ std::vector<std::deque<TInputChunkPtr>> TOperationControllerBase::CollectForeign
 }
 
 std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
-    const std::vector<TInputChunkPtr>& chunkSpecs,
+    const std::vector<TInputDataSlicePtr>& dataSlices,
     i64 maxSliceDataSize,
     TJobSizeLimits* jobSizeLimits)
 {
     std::vector<TChunkStripePtr> result;
-    auto appendStripes = [&] (const std::vector<TInputSlicePtr>& slices) {
+    auto appendStripes = [&] (const std::vector<TInputChunkSlicePtr>& slices) {
         for (const auto& slice : slices) {
-            result.push_back(New<TChunkStripe>(slice));
+            result.push_back(New<TChunkStripe>(CreateInputDataSlice(slice)));
         }
     };
 
@@ -3755,7 +3894,13 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
     }
     i64 sliceDataSize = Clamp(static_cast<i64>(jobSizeLimits->GetDataSizePerJob() * multiplier), 1, maxSliceDataSize); 
 
-    for (const auto& chunkSpec : chunkSpecs) {
+    for (const auto& dataSlice : dataSlices) {
+        if (dataSlice->Type == EDataSliceDescriptorType::VersionedTable) {
+            result.push_back(New<TChunkStripe>(dataSlice));
+            continue;
+        }
+        const auto& chunkSpec = dataSlice->GetSingleUnversionedChunkOrThrow();
+
         int oldSize = result.size();
 
         bool hasNontrivialLimits = !chunkSpec->IsCompleteChunk();
@@ -3765,7 +3910,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
             auto slices = SliceChunkByRowIndexes(chunkSpec, sliceDataSize);
             appendStripes(slices);
         } else {
-            for (const auto& slice : CreateErasureInputSlices(chunkSpec, codecId)) {
+            for (const auto& slice : CreateErasureInputChunkSlices(chunkSpec, codecId)) {
                 auto slices = slice->SliceEvenly(sliceDataSize);
                 appendStripes(slices);
             }
@@ -3998,23 +4143,25 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
     stripeDescriptor.Task = task;
     stripeDescriptor.Cookie = task->GetChunkPoolInput()->Add(stripe);
 
-    for (const auto& slice : stripe->ChunkSlices) {
-        auto chunkSpec = slice->GetInputChunk();
-        const auto& chunkId = chunkSpec->ChunkId();
+    for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& slice : dataSlice->ChunkSlices) {
+            auto chunkSpec = slice->GetInputChunk();
+            const auto& chunkId = chunkSpec->ChunkId();
 
-        // Insert an empty TInputChunkDescriptor if a new chunkId is encountered.
-        auto& chunkDescriptor = InputChunkMap[chunkId];
+            // Insert an empty TInputChunkDescriptor if a new chunkId is encountered.
+            auto& chunkDescriptor = InputChunkMap[chunkId];
 
-        if (InputChunkSpecs.insert(chunkSpec).second) {
-            chunkDescriptor.InputChunks.push_back(chunkSpec);
-        }
+            if (InputChunkSpecs.insert(chunkSpec).second) {
+                chunkDescriptor.InputChunks.push_back(chunkSpec);
+            }
 
-        if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
-            chunkDescriptor.State = EInputChunkState::Waiting;
-        }
+            if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
+                chunkDescriptor.State = EInputChunkState::Waiting;
+            }
 
-        if (visitedChunks.insert(chunkId).second) {
-            chunkDescriptor.InputStripes.push_back(stripeDescriptor);
+            if (visitedChunks.insert(chunkId).second) {
+                chunkDescriptor.InputStripes.push_back(stripeDescriptor);
+            }
         }
     }
 }
@@ -4025,8 +4172,9 @@ void TOperationControllerBase::RegisterIntermediate(
     TChunkStripePtr stripe,
     bool attachToLivePreview)
 {
-    for (const auto& chunkSlice : stripe->ChunkSlices) {
-        const auto& chunkId = chunkSlice->GetInputChunk()->ChunkId();
+    for (const auto& dataSlice : stripe->DataSlices) {
+        // NB: intermediate slice must be trivial.
+        const auto& chunkId = dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId();
         YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
 
         if (attachToLivePreview && IsIntermediateLivePreviewSupported()) {
@@ -4271,7 +4419,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->add_environment(Format("YT_OPERATION_ID=%v", OperationId));
 
     for (const auto& file : files) {
-        auto *descriptor = jobSpec->add_files();
+        auto* descriptor = jobSpec->add_files();
         descriptor->set_type(static_cast<int>(file.Type));
         descriptor->set_file_name(file.FileName);
 

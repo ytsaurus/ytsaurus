@@ -1,7 +1,7 @@
 #include "helpers.h"
 #include "private.h"
 #include "config.h"
-#include "input_slice.h"
+#include "input_chunk_slice.h"
 #include "erasure_reader.h"
 #include "replication_reader.h"
 

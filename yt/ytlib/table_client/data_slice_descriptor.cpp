@@ -24,8 +24,7 @@ void ToProto(NProto::TDataSliceDescriptor* protoDataSliceDescriptor, const TData
 {
     protoDataSliceDescriptor->set_type(static_cast<int>(dataSliceDescriptor.Type));
     for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
-        auto* protoChunkSpec = protoDataSliceDescriptor->add_chunks();
-        *protoChunkSpec = chunkSpec;
+        *protoDataSliceDescriptor->add_chunks() = chunkSpec;
     }
     if (dataSliceDescriptor.Type == EDataSliceDescriptorType::UnversionedTable ||
         dataSliceDescriptor.Type == EDataSliceDescriptorType::VersionedTable)

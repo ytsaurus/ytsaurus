@@ -31,7 +31,7 @@ public:
         const NLogging::TLogger& logger);
 
     virtual TFuture<void> Fetch() override;
-    std::vector<NChunkClient::TInputSlicePtr> GetChunkSlices();
+    std::vector<NChunkClient::TInputChunkSlicePtr> GetChunkSlices();
 
 private:
     const i64 ChunkSliceSize_;
@@ -39,7 +39,7 @@ private:
     const bool SliceByKeys_;
 
     //! All slices fetched so far.
-    std::vector<std::vector<NChunkClient::TInputSlicePtr>> SlicesByChunkIndex_;
+    std::vector<std::vector<NChunkClient::TInputChunkSlicePtr>> SlicesByChunkIndex_;
 
     //! Number of slices in SlicesByChunkIndex_.
     i64 SliceCount_ = 0;

@@ -1407,10 +1407,20 @@ protected:
         return CompletedPartitionCount == Partitions.size();
     }
 
+    bool InputHasDynamicTables() const
+    {
+        for (const auto& table : InputTables) {
+            if (table.IsDynamic) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     virtual void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
-            if (IsRowCountPreserved()) {
+            if (IsRowCountPreserved() && !InputHasDynamicTables()) {
                 i64 totalInputRowCount = 0;
                 for (auto partition : Partitions) {
                     totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
@@ -1932,7 +1942,7 @@ private:
 
         TFuture<void> asyncSamplesResult;
         PROFILE_TIMING ("/input_processing_time") {
-            auto chunks = CollectPrimaryInputChunks();
+            auto slices = CollectPrimaryInputChunks();
             int sampleCount = SuggestPartitionCount() * Spec->SamplesPerPartition;
 
             TScrapeChunksCallback scraperCallback;
@@ -1958,8 +1968,10 @@ private:
                 Host->GetMasterClient(),
                 Logger);
 
-            for (const auto& chunk : chunks) {
-                samplesFetcher->AddChunk(chunk);
+            for (const auto& slice : slices) {
+                for (const auto& chunk: slice->ChunkSlices) {
+                    samplesFetcher->AddChunk(chunk->GetInputChunk());
+                }
             }
 
             asyncSamplesResult = samplesFetcher->Fetch();

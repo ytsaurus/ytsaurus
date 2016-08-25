@@ -8,7 +8,7 @@
 #include "operation_controller_detail.h"
 #include "job_size_manager.h"
 
-#include <yt/ytlib/chunk_client/input_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/ytlib/table_client/config.h>
 
@@ -239,21 +239,27 @@ protected:
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
-            std::vector<TInputChunkPtr> mergedChunks;
+            std::vector<TInputDataSlicePtr> mergedChunks;
 
-            for (const auto& chunkSpec : CollectPrimaryInputChunks()) {
-                if (IsTeleportChunk(chunkSpec)) {
-                    // Chunks not requiring merge go directly to the output chunk list.
-                    LOG_TRACE("Teleport chunk added (ChunkId: %v, Partition: %v)",
-                        chunkSpec->ChunkId(),
-                        currentPartitionIndex);
+            for (const auto& dataSlice : CollectPrimaryInputChunks()) {
+                if (dataSlice->Type == EDataSliceDescriptorType::UnversionedTable) {
+                    const auto& chunkSpec = dataSlice->GetSingleUnversionedChunkOrThrow();
+                    if (IsTeleportChunk(chunkSpec)) {
+                        // Chunks not requiring merge go directly to the output chunk list.
+                        LOG_TRACE("Teleport chunk added (ChunkId: %v, Partition: %v)",
+                            chunkSpec->ChunkId(),
+                            currentPartitionIndex);
 
-                    // Place the chunk directly to the output table.
-                    RegisterOutput(chunkSpec, currentPartitionIndex, 0);
-                    ++currentPartitionIndex;
-                } else {
-                    mergedChunks.push_back(chunkSpec);
-                    totalDataSize += chunkSpec->GetUncompressedDataSize();
+                        // Place the chunk directly to the output table.
+                        RegisterOutput(chunkSpec, currentPartitionIndex, 0);
+                        ++currentPartitionIndex;
+                        continue;
+                    }
+                }
+                mergedChunks.push_back(dataSlice);
+                //FIXME(savrus): compute total data size before (in PrepareInputTables)
+                for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                    totalDataSize += chunkSlice->GetInputChunk()->GetUncompressedDataSize();
                 }
             }
 

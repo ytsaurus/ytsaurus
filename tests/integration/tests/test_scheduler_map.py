@@ -1857,6 +1857,66 @@ print row + table_index
         with pytest.raises(YtError):
             op.track()
 
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_map_on_dynamic_table(self, ordered):
+        def _create_dynamic_table(path):
+            create("table", path,
+                attributes = {
+                    "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "string"}],
+                    "dynamic": True
+                })
+
+        self.sync_create_cells(1)
+        _create_dynamic_table("//tmp/t")
+
+        create("table", "//tmp/t_out")
+
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        self.sync_unmount_table("//tmp/t")
+
+        map(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            ordered=ordered,
+            command="cat")
+
+        assert_items_equal(read_table("//tmp/t_out"), rows)
+
+        rows1 = [{"key": i, "value": str(i+1)} for i in range(3)]
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows1)
+        self.sync_unmount_table("//tmp/t")
+
+        rows2 = [{"key": i, "value": str(i+2)} for i in range(2,6)]
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows2)
+        self.sync_unmount_table("//tmp/t")
+
+        rows3 = [{"key": i, "value": str(i+3)} for i in range(7,8)]
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows3)
+        self.sync_unmount_table("//tmp/t")
+
+        def update(new):
+            for row in new:
+                for r in rows:
+                    if r["key"] == row["key"]:
+                        r["value"] = row["value"]
+        update(rows1)
+        update(rows2)
+        update(rows3)
+
+        map(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            ordered=ordered,
+            command="cat")
+
+        assert_items_equal(read_table("//tmp/t_out"), rows)
+
+
 class TestSchedulerControllerThrottling(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5

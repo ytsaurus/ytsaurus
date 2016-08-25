@@ -46,7 +46,7 @@ void ToProto(NProto::TReadLimit* protoLimit, const TInputSliceLimit& limit);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInputSlice
+class TInputChunkSlice
     : public TIntrinsicRefCounted
 {
     DECLARE_BYVAL_RW_PROPERTY(i64, DataSize);
@@ -61,39 +61,39 @@ class TInputSlice
     DEFINE_BYREF_RO_PROPERTY(TInputSliceLimit, UpperLimit);
 
 public:
-    TInputSlice() = default;
-    TInputSlice(TInputSlice&& other) = default;
+    TInputChunkSlice() = default;
+    TInputChunkSlice(TInputChunkSlice&& other) = default;
 
-    TInputSlice(
+    TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
         NTableClient::TKey lowerKey = NTableClient::TKey(),
         NTableClient::TKey upperKey = NTableClient::TKey());
 
-    explicit TInputSlice(
-        const TInputSlice& inputSlice,
+    explicit TInputChunkSlice(
+        const TInputChunkSlice& inputSlice,
         NTableClient::TKey lowerKey = NTableClient::TKey(),
         NTableClient::TKey upperKey = NTableClient::TKey());
 
-    TInputSlice(
-        const TInputSlice& inputSlice,
+    TInputChunkSlice(
+        const TInputChunkSlice& inputSlice,
         i64 lowerRowIndex,
         i64 upperRowIndex,
         i64 dataSize);
 
-    TInputSlice(
+    TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
         int partIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
         i64 dataSize);
 
-    TInputSlice(
+    TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
         const NTableClient::TRowBufferPtr& rowBuffer,
         const NProto::TChunkSlice& protoChunkSlice);
 
     //! Tries to split chunk slice into parts of almost equal size, about #sliceDataSize.
-    std::vector<TInputSlicePtr> SliceEvenly(i64 sliceDataSize) const;
+    std::vector<TInputChunkSlicePtr> SliceEvenly(i64 sliceDataSize) const;
 
     i64 GetLocality(int replicaIndex) const;
 
@@ -107,52 +107,45 @@ private:
     i64 RowCount_ = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TInputSlice)
+DEFINE_REFCOUNTED_TYPE(TInputChunkSlice)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TInputSlicePtr& slice);
-
-bool CompareSlicesByLowerLimit(
-    const TInputSlicePtr& slice1,
-    const TInputSlicePtr& slice2);
-bool CanMergeSlices(
-    const TInputSlicePtr& slice1,
-    const TInputSlicePtr& slice2);
+Stroka ToString(const TInputChunkSlicePtr& slice);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Constructs a new chunk slice from the chunk spec, restricting
 //! it to a given range. The original chunk may already contain non-trivial limits.
-TInputSlicePtr CreateInputSlice(
+TInputChunkSlicePtr CreateInputChunkSlice(
     const TInputChunkPtr& inputChunk,
     NTableClient::TKey lowerKey = NTableClient::TKey(),
     NTableClient::TKey upperKey = NTableClient::TKey());
 
 //! Constructs a new chunk slice from another slice, restricting
 //! it to a given range. The original chunk may already contain non-trivial limits.
-TInputSlicePtr CreateInputSlice(
-    const TInputSlice& inputSlice,
+TInputChunkSlicePtr CreateInputChunkSlice(
+    const TInputChunkSlice& inputSlice,
     NTableClient::TKey lowerKey = NTableClient::TKey(),
     NTableClient::TKey upperKey = NTableClient::TKey());
 
-TInputSlicePtr CreateInputSlice(
+TInputChunkSlicePtr CreateInputChunkSlice(
     const TInputChunkPtr& inputChunk,
     const NTableClient::TRowBufferPtr& rowBuffer,
     const NProto::TChunkSlice& protoChunkSlice);
 
 //! Constructs separate chunk slice for each part of erasure chunk.
-std::vector<TInputSlicePtr> CreateErasureInputSlices(
+std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
     const TInputChunkPtr& inputChunk,
     NErasure::ECodec codecId);
 
-std::vector<TInputSlicePtr> SliceChunkByRowIndexes(
+std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
     const TInputChunkPtr& inputChunk,
     i64 sliceDataSize);
 
 void ToProto(
     NProto::TChunkSpec* chunkSpec,
-    const TInputSlicePtr& inputSlice);
+    const TInputChunkSlicePtr& inputSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 
