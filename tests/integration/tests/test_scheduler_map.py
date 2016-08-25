@@ -2136,7 +2136,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                 })
 
 
-    def test_remove_failed(self):
+    def test_tmpfs_remove_failed(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
@@ -2168,6 +2168,24 @@ class TestSandboxTmpfs(YTEnvSetup):
                     },
                     "max_failed_job_count": 1
                 })
+
+    def test_memory_reserve_and_tmpfs(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(command="python -c 'import time; x = \"0\" * (200 * 1000 * 1000); time.sleep(2)'",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_path": "tmpfs",
+                    "memory_limit": 250 * 1000 * 1000
+                },
+                "max_failed_job_count": 1
+            })
+
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 0
 
 
 class TestFilesInSandbox(YTEnvSetup):
