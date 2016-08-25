@@ -1108,6 +1108,59 @@ Stroka ToString(const TUnversionedOwningRow& row)
     return ToString(row.Get());
 }
 
+TSharedRange<TUnversionedRow> CaptureRows(
+    const TRange<TUnversionedRow>& rows,
+    TRefCountedTypeCookie tagCookie)
+{
+    size_t bufferSize = 0;
+    bufferSize += sizeof (TUnversionedRow) * rows.Size();
+    for (auto row : rows) {
+        bufferSize += GetUnversionedRowByteSize(row.GetCount());
+        for (const auto& value : row) {
+            if (IsStringLikeType(value.Type)) {
+                bufferSize += value.Length;
+            }
+        }
+    }
+    auto buffer = TSharedMutableRef::Allocate(bufferSize, false, tagCookie);
+
+    char* alignedPtr = buffer.Begin();
+    auto allocateAligned = [&] (size_t size) {
+        auto* result = alignedPtr;
+        alignedPtr += size;
+        return result;
+    };
+
+    char* unalignedPtr = buffer.End();
+    auto allocateUnaligned = [&] (size_t size) {
+        unalignedPtr -= size;
+        return unalignedPtr;
+    };
+
+    auto* capturedRows = reinterpret_cast<TUnversionedRow*>(allocateAligned(sizeof (TUnversionedRow) * rows.Size()));
+    for (size_t index = 0; index < rows.Size(); ++index) {
+        auto row = rows[index];
+        int valueCount = row.GetCount();
+        auto* capturedHeader = reinterpret_cast<TUnversionedRowHeader*>(allocateAligned(GetUnversionedRowByteSize(valueCount)));
+        capturedHeader->Capacity = valueCount;
+        capturedHeader->Count = valueCount;
+        auto capturedRow = TMutableUnversionedRow(capturedHeader);
+        capturedRows[index] = capturedRow;
+        ::memcpy(capturedRow.Begin(), row.Begin(), sizeof (TUnversionedValue) * row.GetCount());
+        for (auto& capturedValue : capturedRow) {
+            if (IsStringLikeType(capturedValue.Type)) {
+                auto* capturedString = allocateUnaligned(capturedValue.Length);
+                ::memcpy(capturedString, capturedValue.Data.String, capturedValue.Length);
+                capturedValue.Data.String = capturedString;
+            }
+        }
+    }
+
+    YCHECK(alignedPtr == unalignedPtr);
+
+    return MakeSharedRange(MakeRange(capturedRows, rows.Size()), std::move(buffer));
+}
+
 void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey)
 {
     TUnversionedOwningRowBuilder rowBuilder(protoKey.parts_size());
