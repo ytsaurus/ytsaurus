@@ -388,6 +388,7 @@ TKey GetKeyPrefix(TKey key, int prefixLength, const TRowBufferPtr& rowBuffer);
 
 //! Makes a new, wider key padded with null values.
 TOwningKey WidenKey(const TOwningKey& key, int keyColumnCount);
+TKey WidenKey(const TKey& key, int keyColumnCount, const TRowBufferPtr& rowBuffer);
 
 //! Returns the key with no components.
 const TOwningKey EmptyKey();

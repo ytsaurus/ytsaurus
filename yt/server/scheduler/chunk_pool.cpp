@@ -2,7 +2,7 @@
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/ytlib/chunk_client/input_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -48,21 +48,23 @@ void AddStripeToList(
     list->Stripes.push_back(stripe);
     list->TotalDataSize += stripeDataSize;
     list->TotalRowCount += stripeRowCount;
-    list->TotalChunkCount += stripe->ChunkSlices.size();
-    for (const auto& chunkSlice : stripe->ChunkSlices) {
-        bool isLocal = false;
-        for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
-            if (replica.GetNodeId() == nodeId) {
-                i64 locality = chunkSlice->GetLocality(replica.GetIndex());
-                if (locality > 0) {
-                    list->LocalDataSize += locality;
-                    isLocal = true;
+    list->TotalChunkCount += stripe->GetChunkCount();
+    for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+            bool isLocal = false;
+            for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
+                if (replica.GetNodeId() == nodeId) {
+                    i64 locality = chunkSlice->GetLocality(replica.GetIndex());
+                    if (locality > 0) {
+                        list->LocalDataSize += locality;
+                        isLocal = true;
+                    }
                 }
             }
-        }
 
-        if (isLocal) {
-            ++list->LocalChunkCount;
+            if (isLocal) {
+                ++list->LocalChunkCount;
+            }
         }
     }
 }
@@ -75,30 +77,39 @@ TChunkStripe::TChunkStripe(bool foreign)
     : Foreign(foreign)
 { }
 
-TChunkStripe::TChunkStripe(TInputSlicePtr chunkSlice, bool foreign)
+TChunkStripe::TChunkStripe(TInputDataSlicePtr dataSlice, bool foreign)
     : Foreign(foreign)
 {
-    ChunkSlices.emplace_back(std::move(chunkSlice));
+    DataSlices.emplace_back(std::move(dataSlice));
 }
 
 TChunkStripeStatistics TChunkStripe::GetStatistics() const
 {
     TChunkStripeStatistics result;
 
-    for (const auto& chunkSlice : ChunkSlices) {
-        result.DataSize += chunkSlice->GetDataSize();
-        result.RowCount += chunkSlice->GetRowCount();
+    for (const auto& dataSlice : DataSlices) {
+        result.DataSize += dataSlice->GetDataSize();
+        result.RowCount += dataSlice->GetRowCount();
         ++result.ChunkCount;
-        result.MaxBlockSize = std::max(result.MaxBlockSize, chunkSlice->GetMaxBlockSize());
+        result.MaxBlockSize = std::max(result.MaxBlockSize, dataSlice->GetMaxBlockSize());
     }
 
+    return result;
+}
+
+int TChunkStripe::GetChunkCount() const
+{
+    int result = 0;
+    for (const auto& dataSlice : DataSlices) {
+        result += dataSlice->GetChunkCount();
+    }
     return result;
 }
 
 void TChunkStripe::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, ChunkSlices);
+    Persist(context, DataSlices);
     Persist(context, WaitingChunkCount);
     Persist(context, Foreign);
 }
@@ -541,10 +552,12 @@ private:
 
     void UpdateLocality(TChunkStripePtr stripe, int delta)
     {
-        for (const auto& chunkSlice : stripe->ChunkSlices) {
-            for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
-                i64 localityDelta = chunkSlice->GetLocality(replica.GetIndex()) * delta;
-                NodeIdToLocality[replica.GetNodeId()] += localityDelta;
+        for (const auto& dataSlice : stripe->DataSlices) {
+            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
+                    i64 localityDelta = chunkSlice->GetLocality(replica.GetIndex()) * delta;
+                    NodeIdToLocality[replica.GetNodeId()] += localityDelta;
+                }
             }
         }
     }
@@ -1009,15 +1022,17 @@ private:
         YCHECK(suspendableStripe.GetExtractedCookie() == IChunkPoolOutput::NullCookie);
 
         auto stripe = suspendableStripe.GetStripe();
-        for (const auto& chunkSlice : stripe->ChunkSlices) {
-            for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
-                auto locality = chunkSlice->GetLocality(replica.GetIndex());
-                if (locality > 0) {
-                    auto& entry = NodeIdToEntry[replica.GetNodeId()];
-                    // NB: do not check that stripe is unique, it may have already been inserted,
-                    // since different replicas may reside on the same node during rebalancing.
-                    entry.StripeIndexes.insert(stripeIndex);
-                    entry.Locality += locality;
+        for (const auto& dataSlice : stripe->DataSlices) {
+            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
+                    auto locality = chunkSlice->GetLocality(replica.GetIndex());
+                    if (locality > 0) {
+                        auto& entry = NodeIdToEntry[replica.GetNodeId()];
+                        // NB: do not check that stripe is unique, it may have already been inserted,
+                        // since different replicas may reside on the same node during rebalancing.
+                        entry.StripeIndexes.insert(stripeIndex);
+                        entry.Locality += locality;
+                    }
                 }
             }
         }
@@ -1031,16 +1046,18 @@ private:
         auto& suspendableStripe = Stripes[stripeIndex];
 
         auto stripe = suspendableStripe.GetStripe();
-        for (const auto& chunkSlice : stripe->ChunkSlices) {
-            for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
-                auto locality = chunkSlice->GetLocality(replica.GetIndex());
-                if (locality > 0) {
-                    auto& entry = NodeIdToEntry[replica.GetNodeId()];
-                    auto it = entry.StripeIndexes.find(stripeIndex);
-                    if (it != entry.StripeIndexes.end()) {
-                        entry.StripeIndexes.erase(it);
+        for (const auto& dataSlice : stripe->DataSlices) {
+            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
+                    auto locality = chunkSlice->GetLocality(replica.GetIndex());
+                    if (locality > 0) {
+                        auto& entry = NodeIdToEntry[replica.GetNodeId()];
+                        auto it = entry.StripeIndexes.find(stripeIndex);
+                        if (it != entry.StripeIndexes.end()) {
+                            entry.StripeIndexes.erase(it);
+                        }
+                        entry.Locality -= locality;
                     }
-                    entry.Locality -= locality;
                 }
             }
         }
@@ -1178,12 +1195,15 @@ public:
         TInputStripe inputStripe;
         inputStripe.ElementaryIndexBegin = static_cast<int>(ElementaryStripes.size());
 
-        for (const auto& chunkSlice : stripe->ChunkSlices) {
+        for (const auto& dataSlice : stripe->DataSlices) {
+            // NB: TShuffleChunkPool contains only chunks from unversioned tables.
+            const auto& chunkSpec = dataSlice->GetSingleUnversionedChunkOrThrow();
+
             int elementaryIndex = static_cast<int>(ElementaryStripes.size());
-            auto elementaryStripe = New<TChunkStripe>(chunkSlice);
+            auto elementaryStripe = New<TChunkStripe>(dataSlice);
             ElementaryStripes.push_back(elementaryStripe);
 
-            auto partitionsExt = chunkSlice->GetInputChunk()->PartitionsExt().get();
+            auto partitionsExt = chunkSpec->PartitionsExt().get();
             YCHECK(partitionsExt);
             YCHECK(partitionsExt->partitions_size() == Outputs.size());
 
@@ -1196,8 +1216,8 @@ public:
                     partitionAttributes.row_count());
             }
 
-            chunkSlice->GetInputChunk()->ReleaseBoundaryKeys();
-            chunkSlice->GetInputChunk()->ReleasePartitionsExt();
+            chunkSpec->ReleaseBoundaryKeys();
+            chunkSpec->ReleasePartitionsExt();
         }
 
         inputStripe.ElementaryIndexEnd = static_cast<int>(ElementaryStripes.size());
@@ -1219,9 +1239,11 @@ public:
     virtual void Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
     {
         // Remove all partition extensions.
-        for (auto chunkSlice : stripe->ChunkSlices) {
-            chunkSlice->GetInputChunk()->ReleaseBoundaryKeys();
-            chunkSlice->GetInputChunk()->ReleasePartitionsExt();
+        for (const auto& dataSlice : stripe->DataSlices) {
+            // NB: TShuffleChunkPool contains only chunks from unversioned tables.
+            const auto& chunkSpec = dataSlice->GetSingleUnversionedChunkOrThrow();
+            chunkSpec->ReleaseBoundaryKeys();
+            chunkSpec->ReleasePartitionsExt();
         }
 
         // Although the sizes and even the row count may have changed (mind unordered reader and
@@ -1230,13 +1252,13 @@ public:
         // incorrect memory consumption estimates but significant bias is very unlikely.
         const auto& inputStripe = InputStripes[cookie];
         int stripeCount = inputStripe.ElementaryIndexEnd - inputStripe.ElementaryIndexBegin;
-        int limit = std::min(static_cast<int>(stripe->ChunkSlices.size()), stripeCount - 1);
+        int limit = std::min(static_cast<int>(stripe->DataSlices.size()), stripeCount - 1);
 
         // Fill the initial range of elementary stripes with new chunks (one per stripe).
         for (int index = 0; index < limit; ++index) {
-            auto chunkSlice = stripe->ChunkSlices[index];
+            auto dataSlice = stripe->DataSlices[index];
             int elementaryIndex = index + inputStripe.ElementaryIndexBegin;
-            ElementaryStripes[elementaryIndex] = New<TChunkStripe>(chunkSlice);
+            ElementaryStripes[elementaryIndex] = New<TChunkStripe>(dataSlice);
         }
 
         // Cleanup the rest of elementary stripes.
@@ -1249,9 +1271,9 @@ public:
 
         // Put remaining chunks (if any) into the last stripe.
         auto& lastElementaryStripe = ElementaryStripes[inputStripe.ElementaryIndexBegin + limit];
-        for (int index = limit; index < static_cast<int>(stripe->ChunkSlices.size()); ++index) {
-            auto chunkSlice = stripe->ChunkSlices[index];
-            lastElementaryStripe->ChunkSlices.push_back(chunkSlice);
+        for (int index = limit; index < static_cast<int>(stripe->DataSlices.size()); ++index) {
+            auto dataSlice = stripe->DataSlices[index];
+            lastElementaryStripe->DataSlices.push_back(dataSlice);
         }
 
         for (int elementaryIndex = inputStripe.ElementaryIndexBegin;
@@ -1462,7 +1484,7 @@ private:
             for (int index = run.ElementaryIndexBegin; index < run.ElementaryIndexEnd; ++index) {
                 auto stripe = Owner->ElementaryStripes[index];
                 list->Stripes.push_back(stripe);
-                list->TotalChunkCount += stripe->ChunkSlices.size();
+                list->TotalChunkCount += stripe->GetChunkCount();
             }
 
             // NB: never ever make TotalDataSize and TotalBoostFactor approximate.

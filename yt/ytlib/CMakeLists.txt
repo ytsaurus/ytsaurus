@@ -57,7 +57,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/format.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_chunk.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_slice.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_chunk_slice.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_data_slice.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/job.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_writer.cpp
@@ -293,6 +294,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_chunk_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_partition_sort_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_reader_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_row_reorderer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorted_merging_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorting_reader.cpp

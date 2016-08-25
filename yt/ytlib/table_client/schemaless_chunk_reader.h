@@ -119,7 +119,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TTableSchema& tableSchema,
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
+    TTimestamp timestamp = AsyncLastCommittedTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 

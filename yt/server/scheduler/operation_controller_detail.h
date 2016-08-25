@@ -229,8 +229,10 @@ protected:
         //! Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
         std::vector<NChunkClient::TInputChunkPtr> Chunks;
+        std::vector<NChunkClient::TInputDataSlicePtr> DataSlices;
         NTableClient::TTableSchema Schema;
         NTableClient::ETableSchemaMode SchemaMode;
+        bool IsDynamic;
 
         bool IsForeign() const
         {
@@ -482,6 +484,8 @@ protected:
         virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
         virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
 
+        const NTableClient::TTableSchema& GetInputTableSchema(int tableIndex) const;
+
         virtual void Persist(const TPersistenceContext& context) override;
 
     private:
@@ -532,7 +536,7 @@ protected:
         void AddParallelInputSpec(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet);
-        static void AddChunksToInputSpec(
+        void AddChunksToInputSpec(
             NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
             NScheduler::NProto::TTableInputSpec* inputSpec,
             TChunkStripePtr stripe);
@@ -675,6 +679,7 @@ protected:
     // Preparation.
     void FetchInputTables();
     void LockInputTables();
+    void PrepareInputTablesDataSlices();
     void GetOutputTablesSchema();
     virtual void PrepareOutputTables();
     void BeginUploadOutputTables();
@@ -873,7 +878,7 @@ protected:
     void ClearInputChunkBoundaryKeys();
 
     //! Returns the list of all input chunks collected from all primary input tables.
-    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryInputChunks() const;
+    std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryInputChunks() const;
 
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
     std::vector<std::deque<NChunkClient::TInputChunkPtr>> CollectForeignInputChunks() const;
@@ -886,7 +891,7 @@ protected:
     //! list contains less than |jobCount| stripes then |jobCount| is decreased
     //! appropriately.
     std::vector<TChunkStripePtr> SliceChunks(
-        const std::vector<NChunkClient::TInputChunkPtr>& chunkSpecs,
+        const std::vector<NChunkClient::TInputDataSlicePtr>& chunkSpecs,
         i64 maxSliceDataSize,
         TJobSizeLimits* jobSizeLimits);
 

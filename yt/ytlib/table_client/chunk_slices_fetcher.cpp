@@ -6,7 +6,7 @@
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/ytlib/chunk_client/input_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -66,9 +66,9 @@ TFuture<void> TChunkSliceFetcher::Fetch()
     return TFetcherBase::Fetch();
 }
 
-std::vector<TInputSlicePtr> TChunkSliceFetcher::GetChunkSlices()
+std::vector<TInputChunkSlicePtr> TChunkSliceFetcher::GetChunkSlices()
 {
-    std::vector<NChunkClient::TInputSlicePtr> chunkSlices;
+    std::vector<NChunkClient::TInputChunkSlicePtr> chunkSlices;
     chunkSlices.reserve(SliceCount_);
     for (const auto& slices : SlicesByChunkIndex_) {
         chunkSlices.insert(chunkSlices.end(), slices.begin(), slices.end());
@@ -112,12 +112,12 @@ TFuture<void> TChunkSliceFetcher::DoFetchFromNode(TNodeId nodeId, const std::vec
         if (chunkDataSize < ChunkSliceSize_ ||
             (SliceByKeys_ && CompareRows(minKey, maxKey, keyColumnCount) == 0))
         {
-            auto slice = CreateInputSlice(
+            auto slice = CreateInputChunkSlice(
                 chunk,
                 GetKeyPrefix(minKey, keyColumnCount, RowBuffer_),
                 GetKeyPrefixSuccessor(maxKey, keyColumnCount, RowBuffer_));
             if (SlicesByChunkIndex_.size() <= index) {
-                SlicesByChunkIndex_.resize(index + 1, std::vector<NChunkClient::TInputSlicePtr>());
+                SlicesByChunkIndex_.resize(index + 1, std::vector<NChunkClient::TInputChunkSlicePtr>());
             }
             SlicesByChunkIndex_[index].push_back(slice);
             SliceCount_++;
@@ -182,10 +182,10 @@ void TChunkSliceFetcher::OnResponse(
             index);
 
         if (SlicesByChunkIndex_.size() <= index) {
-            SlicesByChunkIndex_.resize(index + 1, std::vector<NChunkClient::TInputSlicePtr>());
+            SlicesByChunkIndex_.resize(index + 1, std::vector<NChunkClient::TInputChunkSlicePtr>());
         }
         for (const auto& protoChunkSlice : slices.chunk_slices()) {
-            auto slice = CreateInputSlice(chunk, RowBuffer_, protoChunkSlice);
+            auto slice = CreateInputChunkSlice(chunk, RowBuffer_, protoChunkSlice);
             SlicesByChunkIndex_[index].push_back(slice);
             SliceCount_++;
         }

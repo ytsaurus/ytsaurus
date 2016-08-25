@@ -11,7 +11,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
-#include <yt/ytlib/chunk_client/input_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/chunk_slices_fetcher.h>
@@ -356,21 +356,26 @@ protected:
     }
 
     //! Add chunk to the current task's pool.
-    virtual void AddPendingChunkSlice(TInputSlicePtr chunkSlice)
+    virtual void AddPendingDataSlice(TInputDataSlicePtr dataSlice)
     {
-        auto tableIndex = chunkSlice->GetInputChunk()->GetTableIndex();
+        auto tableIndex = dataSlice->GetTableIndex();
         auto stripe = CurrentTaskStripes[tableIndex];
         if (!stripe) {
             stripe = CurrentTaskStripes[tableIndex] = New<TChunkStripe>(InputTables[tableIndex].IsForeign());
         }
 
-        i64 chunkDataSize = chunkSlice->GetDataSize();
-        TotalDataSize += chunkDataSize;
-        ++TotalChunkCount;
+        TotalDataSize += dataSlice->GetDataSize();
+        TotalChunkCount += dataSlice->GetChunkCount();
 
-        CurrentTaskDataSize += chunkDataSize;
-        ++CurrentChunkCount;
-        stripe->ChunkSlices.push_back(chunkSlice);
+        CurrentTaskDataSize += dataSlice->GetDataSize();
+        CurrentChunkCount += dataSlice->GetChunkCount();
+
+        stripe->DataSlices.push_back(dataSlice);
+    }
+
+    void AddPendingChunkSlice(TInputChunkSlicePtr chunkSlice)
+    {
+        AddPendingDataSlice(CreateInputDataSlice(chunkSlice));
     }
 
     //! Add chunk directly to the output.
@@ -438,8 +443,8 @@ protected:
 
             InitTeleportableInputTables();
             ClearCurrentTaskStripes();
-            for (auto chunk : CollectPrimaryInputChunks()) {
-                ProcessInputChunk(chunk);
+            for (auto slice : CollectPrimaryInputChunks()) {
+                ProcessInputDataSlice(slice);
             }
         }
     }
@@ -456,7 +461,7 @@ protected:
     }
 
     //! Called for each input chunk.
-    virtual void ProcessInputChunk(TInputChunkPtr chunkSpec) = 0;
+    virtual void ProcessInputDataSlice(TInputDataSlicePtr dataSlice) = 0;
 
     //! Called at the end of input chunks scan.
     void EndInputChunks()
@@ -546,10 +551,12 @@ protected:
         auto tableIndex = GetTeleportTableIndex();
         if (tableIndex) {
             for (int index = 0; index < InputTables.size(); ++index) {
-                IsInputTableTeleportable[index] = ValidateTableSchemaCompatibility(
-                    InputTables[index].Schema,
-                    OutputTables[*tableIndex].TableUploadOptions.TableSchema,
-                    false).IsOK();
+                if (!InputTables[index].IsDynamic) {
+                    IsInputTableTeleportable[index] = ValidateTableSchemaCompatibility(
+                        InputTables[index].Schema,
+                        OutputTables[*tableIndex].TableUploadOptions.TableSchema,
+                        false).IsOK();
+                }
             }
         }
     }
@@ -574,18 +581,24 @@ public:
     { }
 
 private:
-    virtual void ProcessInputChunk(TInputChunkPtr chunkSpec) override
+    virtual void ProcessInputDataSlice(TInputDataSlicePtr slice) override
     {
-        if (IsTeleportChunk(chunkSpec)) {
-            // Merge is not needed. Copy the chunk directly to the output.
-            EndTaskIfActive();
-            AddTeleportChunk(chunkSpec);
-            return;
-        }
+        if (slice->Type == EDataSliceDescriptorType::UnversionedTable) {
+            const auto& chunkSpec = slice->GetSingleUnversionedChunkOrThrow();
+            if (IsTeleportChunk(chunkSpec)) {
+                // Merge is not needed. Copy the chunk directly to the output.
+                EndTaskIfActive();
+                AddTeleportChunk(chunkSpec);
+                return;
+            }
 
-        // NB: During ordered merge all chunks go to a single chunk stripe.
-        for (const auto& slice : SliceChunkByRowIndexes(chunkSpec, ChunkSliceSize)) {
-            AddPendingChunkSlice(slice);
+            // NB: During ordered merge all chunks go to a single chunk stripe.
+            for (const auto& chunkSlice : SliceChunkByRowIndexes(chunkSpec, ChunkSliceSize)) {
+                AddPendingChunkSlice(chunkSlice);
+                EndTaskIfLarge();
+            }
+        } else {
+            AddPendingDataSlice(slice);
             EndTaskIfLarge();
         }
     }
@@ -1095,7 +1108,7 @@ protected:
     struct TKeyEndpoint
     {
         EEndpointType Type;
-        TInputSlicePtr ChunkSlice;
+        TInputDataSlicePtr DataSlice;
         TKey MinBoundaryKey;
         TKey MaxBoundaryKey;
         bool Teleport;
@@ -1104,7 +1117,7 @@ protected:
         {
             using NYT::Persist;
             Persist(context, Type);
-            Persist(context, ChunkSlice);
+            Persist(context, DataSlice);
             Persist(context, MinBoundaryKey);
             Persist(context, MaxBoundaryKey);
             Persist(context, Teleport);
@@ -1126,6 +1139,8 @@ protected:
     TChunkSliceFetcherPtr ChunkSliceFetcher;
 
     TJobSpec ManiacJobSpecTemplate;
+
+    std::vector<TInputDataSlicePtr> VersionedDataSlices;
 
     virtual bool ShouldSlicePrimaryTableByKeys()
     {
@@ -1202,9 +1217,14 @@ protected:
         ClearInputChunkBoundaryKeys();
     }
 
-    virtual void ProcessInputChunk(TInputChunkPtr inputChunk) override
+    virtual void ProcessInputDataSlice(TInputDataSlicePtr slice) override
     {
-        ChunkSliceFetcher->AddChunk(inputChunk);
+        if (slice->Type == EDataSliceDescriptorType::UnversionedTable) {
+            const auto& chunk = slice->GetSingleUnversionedChunkOrThrow();
+            ChunkSliceFetcher->AddChunk(chunk);
+        } else {
+            VersionedDataSlices.push_back(slice);
+        }
     }
 
     virtual void AdjustKeyColumns() = 0;
@@ -1214,11 +1234,10 @@ protected:
 
     void CollectEndpoints()
     {
-        auto slices = ChunkSliceFetcher->GetChunkSlices();
-        for (const auto& slice : slices) {
+        auto processSlice = [&] (const TInputDataSlicePtr& slice) {
             TKeyEndpoint leftEndpoint;
             leftEndpoint.Type = EEndpointType::Left;
-            leftEndpoint.ChunkSlice = slice;
+            leftEndpoint.DataSlice = slice;
             leftEndpoint.MinBoundaryKey = slice->LowerLimit().Key;
             leftEndpoint.MaxBoundaryKey = slice->UpperLimit().Key;
 
@@ -1228,7 +1247,7 @@ protected:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(
                     "Error validating sample key in input table %v",
-                    GetInputTablePaths()[slice->GetInputChunk()->GetTableIndex()])
+                    GetInputTablePaths()[slice->GetTableIndex()])
                     << ex;
             }
 
@@ -1238,6 +1257,14 @@ protected:
             TKeyEndpoint rightEndpoint = leftEndpoint;
             rightEndpoint.Type = EEndpointType::Right;
             Endpoints.push_back(rightEndpoint);
+        };
+
+        for (const auto& chunkSlice : ChunkSliceFetcher->GetChunkSlices()) {
+            processSlice(CreateInputDataSlice(chunkSlice));
+        }
+
+        for (const auto& slice : VersionedDataSlices) {
+            processSlice(slice);
         }
     }
 
@@ -1323,11 +1350,16 @@ private:
                     return cmpResult < 0;
                 }
 
-                // ChunkSpec address is used to identify the slices of one chunk.
-                auto cmpPtr = reinterpret_cast<intptr_t>(lhs.ChunkSlice->GetInputChunk().Get())
-                    - reinterpret_cast<intptr_t>(rhs.ChunkSlice->GetInputChunk().Get());
-                if (cmpPtr != 0) {
-                    return cmpPtr < 0;
+                try {
+                    // ChunkSpec address is used to identify the slices of one chunk.
+                    auto cmpPtr = reinterpret_cast<intptr_t>(lhs.DataSlice->GetSingleUnversionedChunkOrThrow().Get())
+                        - reinterpret_cast<intptr_t>(rhs.DataSlice->GetSingleUnversionedChunkOrThrow().Get());
+                    if (cmpPtr != 0) {
+                        return cmpPtr < 0;
+                    }
+                } catch (const std::exception& ex) {
+                    // FIXME(savrus): Do something if failed.
+                    THROW_ERROR_EXCEPTION("Failed to compare data slices") << ex;
                 }
 
                 return lhs.Type < rhs.Type;
@@ -1344,31 +1376,40 @@ private:
         TInputChunkPtr currentChunkSpec;
         int startTeleportIndex = -1;
         for (int i = 0; i < static_cast<int>(Endpoints.size()); ++i) {
-            auto& endpoint = Endpoints[i];
-            auto& chunkSlice = endpoint.ChunkSlice;
+            const auto& endpoint = Endpoints[i];
+            const auto& dataSlice = endpoint.DataSlice;
+
+            if (dataSlice->Type == EDataSliceDescriptorType::VersionedTable) {
+                currentChunkSpec.Reset();
+                continue;
+            }
+
+            // NB: Only unversioned tables can be teleported.
+            YCHECK(dataSlice->IsTrivial());
+            const auto& chunkSpec = dataSlice->GetSingleUnversionedChunkOrThrow();
 
             openedSlicesCount += endpoint.Type == EEndpointType::Left ? 1 : -1;
 
-            YCHECK(chunkSlice->GetInputChunk()->BoundaryKeys());
-            const auto& minKey = chunkSlice->GetInputChunk()->BoundaryKeys()->MinKey;
-            const auto& maxKey = chunkSlice->GetInputChunk()->BoundaryKeys()->MaxKey;
+            YCHECK(chunkSpec->BoundaryKeys());
+            const auto& minKey = chunkSpec->BoundaryKeys()->MinKey;
+            const auto& maxKey = chunkSpec->BoundaryKeys()->MaxKey;
 
             if (currentChunkSpec) {
-                if (chunkSlice->GetInputChunk() == currentChunkSpec) {
+                if (chunkSpec == currentChunkSpec) {
                     if (endpoint.Type == EEndpointType::Right &&
                         CompareRows(maxKey, endpoint.MaxBoundaryKey, SortKeyColumns.size()) == 0)
                     {
                         // The last slice of a full chunk.
                         currentChunkSpec.Reset();
-                        auto completeChunk = chunkSlice->GetInputChunk();
 
                         bool isManiacTeleport = CompareRows(
                             Endpoints[startTeleportIndex].GetKey(),
                             endpoint.GetKey(),
                             SortKeyColumns.size()) == 0;
 
-                        if (IsLargeEnoughToTeleport(completeChunk) &&
-                            (openedSlicesCount == 0 || isManiacTeleport)) {
+                        if (IsLargeEnoughToTeleport(chunkSpec) &&
+                            (openedSlicesCount == 0 || isManiacTeleport))
+                        {
                             for (int j = startTeleportIndex; j <= i; ++j) {
                                 Endpoints[j].Teleport = true;
                             }
@@ -1381,16 +1422,15 @@ private:
                 }
             }
 
-            const auto& chunkSpec = endpoint.ChunkSlice->GetInputChunk();
 
             // No current Teleport candidate.
             if (IsInputTableTeleportable[chunkSpec->GetTableIndex()] &&
                 endpoint.Type == EEndpointType::Left &&
                 CompareRows(minKey, endpoint.MinBoundaryKey, SortKeyColumns.size()) == 0 &&
-                IsTeleportCandidate(chunkSlice->GetInputChunk()))
+                IsTeleportCandidate(chunkSpec))
             {
                 // The first slice of a full chunk.
-                currentChunkSpec = chunkSlice->GetInputChunk();
+                currentChunkSpec = chunkSpec;
                 startTeleportIndex = i;
             }
         }
@@ -1400,7 +1440,7 @@ private:
     {
         const int prefixLength = static_cast<int>(SortKeyColumns.size());
 
-        yhash_set<TInputSlicePtr> globalOpenedSlices;
+        yhash_set<TInputDataSlicePtr> globalOpenedSlices;
         TKey lastBreakpoint;
 
         int startIndex = 0;
@@ -1408,10 +1448,10 @@ private:
             auto key = Endpoints[startIndex].GetKey();
 
             std::vector<TInputChunkPtr> teleportChunks;
-            yhash_set<TInputSlicePtr> localOpenedSlices;
+            yhash_set<TInputDataSlicePtr> localOpenedSlices;
 
             // Slices with equal left and right boundaries.
-            std::vector<TInputSlicePtr> maniacs;
+            std::vector<TInputDataSlicePtr> maniacs;
 
             int currentIndex = startIndex;
             while (currentIndex < static_cast<int>(Endpoints.size())) {
@@ -1425,11 +1465,11 @@ private:
                 }
 
                 if (endpoint.Teleport) {
-                    auto chunkSpec = endpoint.ChunkSlice->GetInputChunk();
+                    auto chunkSpec = endpoint.DataSlice->GetSingleUnversionedChunkOrThrow();
                     teleportChunks.push_back(chunkSpec);
                     while (currentIndex < static_cast<int>(Endpoints.size()) &&
                         Endpoints[currentIndex].Teleport &&
-                        Endpoints[currentIndex].ChunkSlice->GetInputChunk() == chunkSpec)
+                        Endpoints[currentIndex].DataSlice->GetSingleUnversionedChunkOrThrow() == chunkSpec)
                     {
                         ++currentIndex;
                     }
@@ -1437,23 +1477,23 @@ private:
                 }
 
                 if (endpoint.Type == EEndpointType::Left) {
-                    YCHECK(localOpenedSlices.insert(endpoint.ChunkSlice).second);
+                    YCHECK(localOpenedSlices.insert(endpoint.DataSlice).second);
                     ++currentIndex;
                     continue;
                 }
 
                 // Right non-Teleport endpoint.
                 {
-                    auto it = globalOpenedSlices.find(endpoint.ChunkSlice);
+                    auto it = globalOpenedSlices.find(endpoint.DataSlice);
                     if (it != globalOpenedSlices.end()) {
-                        AddPendingChunkSlice(CreateInputSlice(**it, lastBreakpoint));
+                        AddPendingDataSlice(CreateInputDataSlice(*it, lastBreakpoint));
                         globalOpenedSlices.erase(it);
                         ++currentIndex;
                         continue;
                     }
                 }
                 {
-                    auto it = localOpenedSlices.find(endpoint.ChunkSlice);
+                    auto it = localOpenedSlices.find(endpoint.DataSlice);
                     YCHECK(it != localOpenedSlices.end());
                     maniacs.push_back(*it);
                     localOpenedSlices.erase(it);
@@ -1477,8 +1517,8 @@ private:
                     globalOpenedSlices.size(),
                     nextBreakpoint);
 
-                for (const auto& chunkSlice : globalOpenedSlices) {
-                    AddPendingChunkSlice(CreateInputSlice(*chunkSlice, lastBreakpoint, nextBreakpoint));
+                for (const auto& dataSlice : globalOpenedSlices) {
+                    AddPendingDataSlice(CreateInputDataSlice(dataSlice, lastBreakpoint, nextBreakpoint));
                 }
                 lastBreakpoint = nextBreakpoint;
 
@@ -1491,15 +1531,15 @@ private:
             };
 
             while (!hasLargeActiveTask() && !maniacs.empty()) {
-                AddPendingChunkSlice(maniacs.back());
+                AddPendingDataSlice(maniacs.back());
                 maniacs.pop_back();
             }
 
             if (!maniacs.empty()) {
                 endTask();
 
-                for (auto& chunkSlice : maniacs) {
-                    AddPendingChunkSlice(chunkSlice);
+                for (auto& dataSlice : maniacs) {
+                    AddPendingDataSlice(dataSlice);
                     if (HasLargeActiveTask()) {
                         EndManiacTask();
                     }
@@ -1792,28 +1832,28 @@ protected:
                 if (CompareRows(foreignMaxKey, minKey, ForeignKeyColumnCount) < 0) {
                     break;
                 }
-                AddPendingChunkSlice(CreateInputSlice(chunkSpec, foreignMinKey, foreignMaxKey));
+                AddPendingChunkSlice(CreateInputChunkSlice(chunkSpec, foreignMinKey, foreignMaxKey));
             }
             tableChunks.erase(tableChunks.cbegin(), firstUsed);
         }
     }
 
-    virtual void AddPendingChunkSlice(TInputSlicePtr chunkSlice) override
+    virtual void AddPendingDataSlice(TInputDataSlicePtr dataSlice) override
     {
         if (ForeignKeyColumnCount > 0) {
             if (!CurrentTaskMinForeignKey ||
-                CompareRows(CurrentTaskMinForeignKey, chunkSlice->LowerLimit().Key, ForeignKeyColumnCount) > 0)
+                CompareRows(CurrentTaskMinForeignKey, dataSlice->LowerLimit().Key, ForeignKeyColumnCount) > 0)
             {
-                CurrentTaskMinForeignKey = GetKeyPrefix(chunkSlice->LowerLimit().Key, ForeignKeyColumnCount, RowBuffer);
+                CurrentTaskMinForeignKey = GetKeyPrefix(dataSlice->LowerLimit().Key, ForeignKeyColumnCount, RowBuffer);
             }
             if (!CurrentTaskMaxForeignKey ||
-                CompareRows(CurrentTaskMaxForeignKey, chunkSlice->UpperLimit().Key, ForeignKeyColumnCount) < 0)
+                CompareRows(CurrentTaskMaxForeignKey, dataSlice->UpperLimit().Key, ForeignKeyColumnCount) < 0)
             {
-                CurrentTaskMaxForeignKey = GetKeyPrefixSuccessor(chunkSlice->UpperLimit().Key, ForeignKeyColumnCount, RowBuffer);
+                CurrentTaskMaxForeignKey = GetKeyPrefixSuccessor(dataSlice->UpperLimit().Key, ForeignKeyColumnCount, RowBuffer);
             }
         }
 
-        TSortedMergeControllerBase::AddPendingChunkSlice(chunkSlice);
+        TSortedMergeControllerBase::AddPendingDataSlice(dataSlice);
     }
 
     virtual void EndTaskIfActive() override
@@ -2040,16 +2080,29 @@ private:
                     return cmpResult < 0;
                 }
 
-                // If keys (trimmed to key columns) are equal, we put slices in
-                // the same order they are in the original table.
-                cmpResult = lhs.ChunkSlice->GetInputChunk()->GetTableRowIndex() -
-                    rhs.ChunkSlice->GetInputChunk()->GetTableRowIndex();
+                cmpResult = lhs.DataSlice->GetTableIndex() - rhs.DataSlice->GetTableIndex();
                 if (cmpResult != 0) {
                     return cmpResult < 0;
                 }
 
-                return (reinterpret_cast<intptr_t>(lhs.ChunkSlice->GetInputChunk().Get())
-                    - reinterpret_cast<intptr_t>(rhs.ChunkSlice->GetInputChunk().Get())) < 0;
+                try {
+                    // If keys (trimmed to key columns) are equal, we put slices in
+                    // the same order they are in the original table.
+                    const auto& lhsChunk = lhs.DataSlice->GetSingleUnversionedChunkOrThrow();
+                    const auto& rhsChunk = rhs.DataSlice->GetSingleUnversionedChunkOrThrow();
+
+                    cmpResult = lhsChunk->GetTableRowIndex() -
+                        rhsChunk->GetTableRowIndex();
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
+
+                    return (reinterpret_cast<intptr_t>(lhsChunk.Get())
+                        - reinterpret_cast<intptr_t>(rhsChunk.Get())) < 0;
+                } catch (const std::exception& ex) {
+                    // XXX(savrus): If failed here, do something with comparison. 
+                    THROW_ERROR_EXCEPTION("Failed to compare data slices") << ex;
+                }
             });
     }
 
@@ -2066,11 +2119,17 @@ private:
         for (int i = 0; i < static_cast<int>(Endpoints.size()); ++i) {
             const auto& endpoint = Endpoints[i];
             auto key = endpoint.GetKey();
+            const auto& dataSlice = endpoint.DataSlice;
+
+            if (dataSlice->Type == EDataSliceDescriptorType::VersionedTable) {
+                currentChunkSpec.Reset();
+                continue;
+            }
 
             openedSlicesCount += endpoint.Type == EEndpointType::Left ? 1 : -1;
 
             if (currentChunkSpec &&
-                endpoint.ChunkSlice->GetInputChunk() == currentChunkSpec)
+                dataSlice->GetSingleUnversionedChunkOrThrow() == currentChunkSpec)
             {
                 previousKey = key;
                 continue;
@@ -2084,7 +2143,7 @@ private:
 
             if (currentChunkSpec) {
                 const auto& previousEndpoint = Endpoints[i - 1];
-                const auto& chunkSpec = previousEndpoint.ChunkSlice->GetInputChunk();
+                const auto& chunkSpec = previousEndpoint.DataSlice->GetSingleUnversionedChunkOrThrow();
 
                 YCHECK(chunkSpec->BoundaryKeys());
                 const auto& maxKey = chunkSpec->BoundaryKeys()->MaxKey;
@@ -2101,7 +2160,7 @@ private:
             previousKey = key;
 
             // No current teleport candidate.
-            const auto& chunkSpec = endpoint.ChunkSlice->GetInputChunk();
+            const auto& chunkSpec = endpoint.DataSlice->GetSingleUnversionedChunkOrThrow();
             YCHECK(chunkSpec->BoundaryKeys());
             const auto& minKey = chunkSpec->BoundaryKeys()->MinKey;
             if (IsInputTableTeleportable[chunkSpec->GetTableIndex()] &&
@@ -2110,7 +2169,7 @@ private:
                 IsTeleportCandidate(chunkSpec) &&
                 openedSlicesCount == 1)
             {
-                currentChunkSpec = endpoint.ChunkSlice->GetInputChunk();
+                currentChunkSpec = chunkSpec;
                 startTeleportIndex = i;
             }
         }
@@ -2118,7 +2177,7 @@ private:
         if (currentChunkSpec) {
             // Last Teleport candidate.
             auto& previousEndpoint = Endpoints.back();
-            const auto& chunkSpec = previousEndpoint.ChunkSlice->GetInputChunk();
+            const auto& chunkSpec = previousEndpoint.DataSlice->GetSingleUnversionedChunkOrThrow();
             YCHECK(previousEndpoint.Type == EEndpointType::Right);
             YCHECK(chunkSpec->BoundaryKeys());
             const auto& maxKey = chunkSpec->BoundaryKeys()->MaxKey;
@@ -2134,7 +2193,7 @@ private:
     {
         const int prefixLength = ReduceKeyColumnCount;
 
-        yhash_set<TInputSlicePtr> openedSlices;
+        yhash_set<TInputDataSlicePtr> openedSlices;
         TKey lastBreakpoint;
 
         auto hasLargeActiveTask = [&] () {
@@ -2161,12 +2220,12 @@ private:
                     YCHECK(openedSlices.empty());
                     EndTaskIfActive();
 
-                    auto chunkSpec = endpoint.ChunkSlice->GetInputChunk();
+                    auto chunkSpec = endpoint.DataSlice->GetSingleUnversionedChunkOrThrow();
                     AddTeleportChunk(chunkSpec);
 
                     while (currentIndex < static_cast<int>(Endpoints.size()) &&
                         Endpoints[currentIndex].Teleport &&
-                        Endpoints[currentIndex].ChunkSlice->GetInputChunk() == chunkSpec)
+                        Endpoints[currentIndex].DataSlice->GetSingleUnversionedChunkOrThrow() == chunkSpec)
                     {
                         ++currentIndex;
                     }
@@ -2174,7 +2233,7 @@ private:
                 }
 
                 if (endpoint.Type == EEndpointType::Left) {
-                    YCHECK(openedSlices.insert(endpoint.ChunkSlice).second);
+                    YCHECK(openedSlices.insert(endpoint.DataSlice).second);
                     ++currentIndex;
                     continue;
                 }
@@ -2182,9 +2241,9 @@ private:
                 // Right non-Teleport endpoint.
                 YCHECK(endpoint.Type == EEndpointType::Right);
 
-                auto it = openedSlices.find(endpoint.ChunkSlice);
+                auto it = openedSlices.find(endpoint.DataSlice);
                 YCHECK(it != openedSlices.end());
-                AddPendingChunkSlice(CreateInputSlice(**it, lastBreakpoint));
+                AddPendingDataSlice(CreateInputDataSlice(*it, lastBreakpoint));
                 openedSlices.erase(it);
                 ++currentIndex;
             }
@@ -2198,8 +2257,8 @@ private:
                     openedSlices.size(),
                     nextBreakpoint);
 
-                for (const auto& chunkSlice : openedSlices) {
-                    AddPendingChunkSlice(CreateInputSlice(*chunkSlice, lastBreakpoint, nextBreakpoint));
+                for (const auto& dataSlice : openedSlices) {
+                    AddPendingDataSlice(CreateInputDataSlice(dataSlice, lastBreakpoint, nextBreakpoint));
                 }
 
                 lastBreakpoint = nextBreakpoint;

@@ -6,7 +6,7 @@
 
 #include <yt/server/chunk_server/public.h>
 
-#include <yt/ytlib/chunk_client/input_slice.h>
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/core/misc/small_vector.h>
@@ -46,13 +46,14 @@ struct TChunkStripe
     : public TIntrinsicRefCounted
 {
     explicit TChunkStripe(bool foreign = false);
-    explicit TChunkStripe(NChunkClient::TInputSlicePtr chunkSlice, bool foreign = false);
+    explicit TChunkStripe(NChunkClient::TInputDataSlicePtr dataSlice, bool foreign = false);
 
     TChunkStripeStatistics GetStatistics() const;
+    int GetChunkCount() const;
 
     void Persist(const TPersistenceContext& context);
 
-    SmallVector<NChunkClient::TInputSlicePtr, 1> ChunkSlices;
+    SmallVector<NChunkClient::TInputDataSlicePtr, 1> DataSlices;
     int WaitingChunkCount = 0;
     bool Foreign = false;
 

@@ -471,6 +471,47 @@ print "x={0}\ty={1}".format(x, y)
         actual = read_table("//tmp/t_output")
         assert_items_equal(actual, expected)
 
+    def test_map_reduce_on_dynamic_table(self):
+        def _create_dynamic_table(path):
+            create("table", path,
+                attributes = {
+                    "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "string"}],
+                    "dynamic": True
+                })
+
+        self.sync_create_cells(1)
+        _create_dynamic_table("//tmp/t")
+
+        create("table", "//tmp/t_out")
+
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        self.sync_unmount_table("//tmp/t")
+
+        map_reduce(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            sort_by="key",
+            mapper_command="cat",
+            reducer_command="cat")
+
+        assert_items_equal(read_table("//tmp/t_out"), rows)
+
+        rows = [{"key": i, "value": str(i+1)} for i in range(10)]
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        self.sync_unmount_table("//tmp/t")
+
+        map_reduce(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            sort_by="key",
+            mapper_command="cat",
+            reducer_command="cat")
+
+        assert_items_equal(read_table("//tmp/t_out"), rows)
+
 ##################################################################
 
 class TestSchedulerMapReduceCommandsMulticell(TestSchedulerMapReduceCommands):
