@@ -891,7 +891,8 @@ protected:
     void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
         TUserJobSpecPtr config,
-        const std::vector<TUserFile>& files);
+        const std::vector<TUserFile>& files,
+        const Stroka& fileAccount);
 
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,

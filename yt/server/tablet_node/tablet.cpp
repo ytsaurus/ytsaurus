@@ -718,9 +718,6 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
                     case EStorePreloadState::Complete:
                         ++snapshot->PreloadCompletedStoreCount;
                         break;
-                    case EStorePreloadState::Failed:
-                        ++snapshot->PreloadFailedStoreCount;
-                        break;
                     default:
                         break;
                 }

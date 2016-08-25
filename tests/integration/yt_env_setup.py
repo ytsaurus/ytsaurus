@@ -204,19 +204,11 @@ class YTEnvSetup(object):
     def teardown_method(self, method):
         self.Env.check_liveness(callback_func=_pytest_finalize_func)
         if self.NUM_MASTERS > 0:
-            for tx in yt_commands.ls("//sys/transactions", attributes=["title"]):
-                title = tx.attributes.get("title", "")
-                if "Scheduler lock" in title or "Lease for node" in title:
-                    continue
-                try:
-                    yt_commands.abort_transaction(tx)
-                except:
-                    pass
-
+            self._abort_transactions()
             yt_commands.set('//tmp', {})
+            self._remove_operations()
             yt_commands.gc_collect()
             yt_commands.clear_metadata_caches()
-
             self._reset_nodes()
             self._reenable_chunk_replicator()
             self._remove_accounts()
@@ -290,10 +282,16 @@ class YTEnvSetup(object):
         print "Waiting for tablets to become compacted..."
         wait(lambda: len(chunk_ids.intersection(__builtin__.set(yt_commands.get(path + "/@chunk_ids")))) == 0)
 
-    def _abort_transactions(self, txs):
-        for tx in txs:
+    def _abort_transactions(self):
+         for tx in yt_commands.ls("//sys/transactions", attributes=["title"]):
+            title = tx.attributes.get("title", "")
+            id = str(tx)
+            if "Scheduler lock" in title:
+                continue
+            if "Lease for node" in title:
+                continue
             try:
-                yt_commands.abort_transaction(tx)
+                yt_commands.abort_transaction(id)
             except:
                 pass
 
@@ -306,26 +304,31 @@ class YTEnvSetup(object):
             if node.attributes["resource_limits_overrides"] != {}:
                 yt_commands.set("//sys/nodes/%s/@resource_limits_overrides" % node_name, {})
 
+    def _remove_operations(self):
+        for operation in yt_commands.ls("//sys/operations"):
+            yt_commands.remove("//sys/operations/" + operation, recursive=True)
+
     def _reenable_chunk_replicator(self):
         if yt_commands.exists("//sys/@disable_chunk_replicator"):
             yt_commands.remove("//sys/@disable_chunk_replicator")
 
     def _remove_accounts(self):
-        accounts = yt_commands.ls('//sys/accounts', attributes=['builtin'])
+        accounts = yt_commands.ls("//sys/accounts", attributes=["builtin", "resource_usage"])
         for account in accounts:
-            if not account.attributes['builtin']:
+            if not account.attributes["builtin"]:
+                print >>sys.stderr, account.attributes["resource_usage"]
                 yt_commands.remove_account(str(account))
 
     def _remove_users(self):
-        users = yt_commands.ls('//sys/users', attributes=['builtin'])
+        users = yt_commands.ls("//sys/users", attributes=["builtin"])
         for user in users:
-            if not user.attributes['builtin']:
+            if not user.attributes["builtin"]:
                 yt_commands.remove_user(str(user))
 
     def _remove_groups(self):
-        groups = yt_commands.ls('//sys/groups', attributes=['builtin'])
+        groups = yt_commands.ls("//sys/groups", attributes=["builtin"])
         for group in groups:
-            if not group.attributes['builtin']:
+            if not group.attributes["builtin"]:
                 yt_commands.remove_group(str(group))
 
     def _remove_tablet_cells(self):

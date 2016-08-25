@@ -2694,7 +2694,8 @@ private:
                 InitUserJobSpecTemplate(
                     schedulerJobSpecExt->mutable_user_job_spec(),
                     Spec->Mapper,
-                    MapperFiles);
+                    MapperFiles,
+                    Spec->JobNodeAccount);
             }
         }
 
@@ -2715,7 +2716,8 @@ private:
                 InitUserJobSpecTemplate(
                     schedulerJobSpecExt->mutable_user_job_spec(),
                     Spec->ReduceCombiner,
-                    ReduceCombinerFiles);
+                    ReduceCombinerFiles,
+                    Spec->JobNodeAccount);
             } else {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::IntermediateSort));
                 auto* sortJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
@@ -2741,7 +2743,8 @@ private:
             InitUserJobSpecTemplate(
                 schedulerJobSpecExt->mutable_user_job_spec(),
                 Spec->Reducer,
-                ReducerFiles);
+                ReducerFiles,
+                Spec->JobNodeAccount);
         }
 
         {
@@ -2762,7 +2765,8 @@ private:
             InitUserJobSpecTemplate(
                 schedulerJobSpecExt->mutable_user_job_spec(),
                 Spec->Reducer,
-                ReducerFiles);
+                ReducerFiles,
+                Spec->JobNodeAccount);
         }
     }
 

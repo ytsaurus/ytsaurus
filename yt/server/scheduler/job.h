@@ -101,6 +101,9 @@ class TJob
     //! Last time when brief statistics changed in comparison to their previous values.
     DEFINE_BYVAL_RO_PROPERTY(TInstant, LastActivityTime);
 
+    //! Account for node in cypress.
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Account);
+
 public:
     TJob(
         const TJobId& id,
@@ -110,7 +113,8 @@ public:
         TInstant startTime,
         const TJobResources& resourceLimits,
         bool restarted,
-        TJobSpecBuilder specBuilder);
+        TJobSpecBuilder specBuilder,
+        const Stroka& account);
 
     //! The difference between |FinishTime| and |StartTime|.
     TDuration GetDuration() const;
@@ -185,13 +189,15 @@ struct TJobStartRequest
         EJobType type,
         const TJobResources& resourceLimits,
         bool restarted,
-        const TJobSpecBuilder& specBuilder);
+        TJobSpecBuilder specBuilder,
+        const Stroka& account);
 
     const TJobId Id;
     const EJobType Type;
     const TJobResources ResourceLimits;
     const bool Restarted;
     const TJobSpecBuilder SpecBuilder;
+    const Stroka Account;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

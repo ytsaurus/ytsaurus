@@ -452,7 +452,8 @@ void TOperationControllerBase::TTask::ScheduleJob(
         jobType,
         neededResources,
         restarted,
-        jobSpecBuilder);
+        jobSpecBuilder,
+        Controller->Spec->JobNodeAccount);
 
     joblet->JobType = jobType;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
@@ -1150,6 +1151,13 @@ void TOperationControllerBase::Materialize()
 
         AddAllTaskPendingHints();
 
+        if (Config->EnableSnapshotCycleAfterMaterialization) {
+            TStringStream stringStream;
+            SaveSnapshot(&stringStream);
+            auto sharedRef = TSharedRef::FromString(stringStream.Str());
+            DoLoadSnapshot(sharedRef);
+        }
+
         // Input chunk scraper initialization should be the last step to avoid races,
         // because input chunk scraper works in control thread.
         InitInputChunkScraper();
@@ -1476,7 +1484,7 @@ void TOperationControllerBase::ReinstallLivePreview()
                 childIds.push_back(pair.second);
             }
             masterConnector->AttachToLivePreview(
-                Operation,
+                OperationId,
                 table.LivePreviewTableId,
                 childIds);
         }
@@ -1491,7 +1499,7 @@ void TOperationControllerBase::ReinstallLivePreview()
             }
         }
         masterConnector->AttachToLivePreview(
-            Operation,
+            OperationId,
             IntermediateTable.LivePreviewTableId,
             childIds);
     }
@@ -1737,7 +1745,7 @@ void TOperationControllerBase::OnJobStarted(const TJobId& jobId, TInstant startT
 
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(jobId)
-        .Item("operation_id").Value(Operation->GetId())
+        .Item("operation_id").Value(OperationId)
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType);
@@ -1944,7 +1952,7 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
 {
     return LogEventFluently(eventType)
         .Item("job_id").Value(joblet->JobId)
-        .Item("operation_id").Value(Operation->GetId())
+        .Item("operation_id").Value(OperationId)
         .Item("start_time").Value(joblet->StartTime)
         .Item("finish_time").Value(joblet->FinishTime)
         .Item("resource_limits").Value(joblet->ResourceLimits)
@@ -3823,7 +3831,7 @@ void TOperationControllerBase::RegisterOutput(
     if (IsOutputLivePreviewSupported()) {
         auto masterConnector = Host->GetMasterConnector();
         masterConnector->AttachToLivePreview(
-            Operation,
+            OperationId,
             table.LivePreviewTableId,
             {chunkTreeId});
     }
@@ -3952,7 +3960,7 @@ void TOperationControllerBase::RegisterIntermediate(
         if (attachToLivePreview && IsIntermediateLivePreviewSupported()) {
             auto masterConnector = Host->GetMasterConnector();
             masterConnector->AttachToLivePreview(
-                Operation,
+                OperationId,
                 IntermediateTable.LivePreviewTableId,
                 {chunkId});
         }
@@ -4133,7 +4141,8 @@ int TOperationControllerBase::SuggestJobCount(
 void TOperationControllerBase::InitUserJobSpecTemplate(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TUserJobSpecPtr config,
-    const std::vector<TUserFile>& files)
+    const std::vector<TUserFile>& files,
+    const Stroka& fileAccount)
 {
     jobSpec->set_shell_command(config->Command);
     jobSpec->set_memory_limit(config->MemoryLimit);
@@ -4145,6 +4154,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
     jobSpec->set_copy_files(config->CopyFiles);
+    jobSpec->set_file_account(fileAccount);
 
     if (config->TmpfsPath && Config->EnableTmpfs) {
         auto tmpfsSize = config->TmpfsSize

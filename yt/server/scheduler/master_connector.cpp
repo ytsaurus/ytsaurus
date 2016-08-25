@@ -229,13 +229,13 @@ public:
     }
 
     TFuture<void> AttachToLivePreview(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         const TNodeId& tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
         return BIND(&TImpl::DoAttachToLivePreview, MakeStrong(this))
             .AsyncVia(CancelableControlInvoker)
-            .Run(operation, tableId, childIds);
+            .Run(operationId, tableId, childIds);
     }
 
     TFuture<TSharedRef> DownloadSnapshot(const TOperationId& operationId)
@@ -1340,7 +1340,6 @@ private:
                         }
                         attributes->Set("vital", false);
                         attributes->Set("replication_factor", 1);
-                        attributes->Set("account", TmpAccountName);
                         attributes->Set(
                             "description", BuildYsonStringFluently()
                                 .BeginMap()
@@ -1614,9 +1613,15 @@ private:
         try {
             CreateJobNodes(operation, jobRequests);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error creating job nodes for operation %v",
+            auto error = TError("Error creating job nodes for operation %v",
                 operation->GetId())
                 << ex;
+            if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
+                LOG_DEBUG(error);
+                return;
+            } else {
+                THROW_ERROR error;
+            }
         }
 
         try {
@@ -1917,22 +1922,22 @@ private:
     }
 
     void DoAttachToLivePreview(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         const TNodeId& tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto* list = FindUpdateList(operation->GetId());
+        auto* list = FindUpdateList(operationId);
         if (!list) {
             LOG_DEBUG("Operation node is not registered, omitting live preview attach (OperationId: %v)",
-                operation->GetId());
+                operationId);
             return;
         }
 
         LOG_DEBUG("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
-            operation->GetId(),
+            operationId,
             tableId,
             childIds.size());
 
@@ -2018,11 +2023,11 @@ void TMasterConnector::AttachJobContext(
 }
 
 TFuture<void> TMasterConnector::AttachToLivePreview(
-    TOperationPtr operation,
+    const TOperationId& operationId,
     const TNodeId& tableId,
     const std::vector<TChunkTreeId>& childIds)
 {
-    return Impl->AttachToLivePreview(operation, tableId, childIds);
+    return Impl->AttachToLivePreview(operationId, tableId, childIds);
 }
 
 void TMasterConnector::AddGlobalWatcherRequester(TWatcherRequester requester)

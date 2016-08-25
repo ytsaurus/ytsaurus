@@ -3,6 +3,7 @@
 #include "config.h"
 #include "job_detail.h"
 #include "stracer.h"
+#include "stderr_writer.h"
 #include "table_output.h"
 #include "user_job_io.h"
 
@@ -204,20 +205,26 @@ public:
         }
 
         auto jobResultError = JobErrorPromise_.TryGet();
+        auto jobError = jobResultError
+            ? TError("User job failed") << *jobResultError
+            : TError();
 
         TJobResult result;
-        ToProto(result.mutable_error(), jobResultError
-            ? TError("User job failed") << *jobResultError
-            : TError());
         auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
         SaveErrorChunkId(schedulerResultExt);
 
         if (jobResultError) {
-            DumpFailContexts(schedulerResultExt);
+            try {
+                DumpFailContexts(schedulerResultExt);
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Failed to dump input context");
+            }
         } else {
             JobIO_->PopulateResult(schedulerResultExt);
         }
+
+        ToProto(result.mutable_error(), jobError);
 
         return result;
     }
@@ -294,7 +301,7 @@ private:
     std::vector<TAsyncWriterPtr> TablePipeWriters_;
     TAsyncReaderPtr ControlPipeReader_;
     TAsyncReaderPtr StatisticsPipeReader_;
-    TAsyncReaderPtr StdErrPipeReader_;
+    TAsyncReaderPtr StderrPipeReader_;
 
     std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
 
@@ -412,7 +419,9 @@ private:
     TMultiChunkWriterOptionsPtr CreateFileOptions()
     {
         auto options = New<TMultiChunkWriterOptions>();
-        options->Account = NSecurityClient::TmpAccountName;
+        options->Account = UserJobSpec_.has_file_account()
+            ? UserJobSpec_.file_account()
+            : NSecurityClient::TmpAccountName;
         options->ReplicationFactor = 1;
         options->ChunksVital = false;
         return options;
@@ -420,7 +429,7 @@ private:
 
     TOutputStream* CreateErrorOutput()
     {
-        ErrorOutput_.reset(new TFileChunkOutput(
+        ErrorOutput_.reset(new TStderrWriter(
             Config_->JobIO->ErrorFileWriter,
             CreateFileOptions(),
             Host_->GetClient(),
@@ -618,7 +627,7 @@ private:
             // In case of YAMR jobs dup 1 and 3 fd for YAMR compatibility
             auto reader = (UserJobSpec_.use_yamr_descriptors() && jobDescriptor == 3)
                 ? PrepareOutputPipe({1, jobDescriptor}, TableOutputs_[i].get())
-                : PrepareOutputPipe(jobDescriptor, TableOutputs_[i].get());
+                : PrepareOutputPipe({jobDescriptor}, TableOutputs_[i].get());
             TablePipeReaders_.push_back(reader);
         }
 
@@ -659,11 +668,6 @@ private:
         }));
 
         return asyncInput;
-    }
-
-    TAsyncReaderPtr PrepareOutputPipe(int jobDescriptor, TOutputStream* output)
-    {
-        return PrepareOutputPipe(std::vector<int>{jobDescriptor}, output);
     }
 
     void CreateControlPipe()
@@ -835,12 +839,12 @@ private:
         CreateControlPipe();
 
         // Configure stderr pipe.
-        StdErrPipeReader_ = PrepareOutputPipe(STDERR_FILENO, CreateErrorOutput());
+        StderrPipeReader_ = PrepareOutputPipe({STDERR_FILENO}, CreateErrorOutput());
 
         PrepareOutputTablePipes();
 
         if (!UserJobSpec_.use_yamr_descriptors()) {
-            StatisticsPipeReader_ = PrepareOutputPipe(JobStatisticsFD, CreateStatisticsOutput());
+            StatisticsPipeReader_ = PrepareOutputPipe({JobStatisticsFD}, CreateStatisticsOutput());
         }
 
         PrepareInputTablePipe();
@@ -996,7 +1000,7 @@ private:
         if (!JobStarted_) {
             // If start action didn't finish successfully, stderr could have stayed closed,
             // and output action may hang.
-            StdErrPipeReader_->Abort();
+            StderrPipeReader_->Abort();
         }
     }
 

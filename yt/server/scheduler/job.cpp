@@ -95,7 +95,8 @@ TJob::TJob(
     TInstant startTime,
     const TJobResources& resourceLimits,
     bool restarted,
-    TJobSpecBuilder specBuilder)
+    TJobSpecBuilder specBuilder,
+    const Stroka& account)
     : Id_(id)
     , Type_(type)
     , OperationId_(operationId)
@@ -107,6 +108,7 @@ TJob::TJob(
     , ResourceLimits_(resourceLimits)
     , SpecBuilder_(std::move(specBuilder))
     , LastActivityTime_(startTime)
+    , Account_(account)
 { }
 
 TDuration TJob::GetDuration() const
@@ -249,12 +251,14 @@ TJobStartRequest::TJobStartRequest(
     EJobType type,
     const TJobResources& resourceLimits,
     bool restarted,
-    const TJobSpecBuilder& specBuilder)
+    TJobSpecBuilder specBuilder,
+    const Stroka& account)
     : Id(id)
     , Type(type)
     , ResourceLimits(resourceLimits)
     , Restarted(restarted)
-    , SpecBuilder(specBuilder)
+    , SpecBuilder(std::move(specBuilder))
+    , Account(account)
 { }
 
 ////////////////////////////////////////////////////////////////////

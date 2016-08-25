@@ -70,7 +70,7 @@ void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
         .Item("state").Value(FormatEnum(state))
         .Item("address").Value(job->GetNode()->GetDefaultAddress())
         .Item("start_time").Value(job->GetStartTime())
-        .Item("account").Value(TmpAccountName)
+        .Item("account").Value(job->GetAccount())
         .Item("progress").Value(job->GetProgress())
         .DoIf(static_cast<bool>(job->GetBriefStatistics()), [=] (TFluentMap fluent) {
             fluent.Item("brief_statistics").Value(*job->GetBriefStatistics());
