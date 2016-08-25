@@ -147,7 +147,6 @@ struct TFairShareContext
     TDuration TotalScheduleJobDuration;
     TDuration ExecScheduleJobDuration;
     TEnumIndexedVector<int, EScheduleJobFailReason> FailedScheduleJob;
-    yhash_map<TJobPtr, TOperationElementPtr> JobToOperationElement;
     bool HasAggressivelyStarvingNodes = false;
 };
 

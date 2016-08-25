@@ -1675,7 +1675,6 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     context.SchedulingContext->ResourceUsage() += jobStartRequest.ResourceLimits;
     OnJobStarted(jobStartRequest.Id, jobStartRequest.ResourceLimits);
     auto job = context.SchedulingContext->StartJob(OperationId_, jobStartRequest);
-    context.JobToOperationElement[job] = this;
 
     UpdateDynamicAttributes(context.DynamicAttributesList);
     updateAncestorsAttributes();
