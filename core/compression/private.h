@@ -1,0 +1,17 @@
+#pragma once
+
+#include <yt/core/logging/log.h>
+
+#include <yt/core/misc/assert.h>
+
+namespace NYT {
+namespace NCompression {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLogging::TLogger CompressionLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NCompression
+} // namespace NYT

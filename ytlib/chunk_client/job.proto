@@ -1,0 +1,56 @@
+package NYT.NChunkClient.NProto;
+
+import "yt/ytlib/job_tracker_client/job.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/core/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TChunkJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TChunkJobSpecExt chunk_job_spec_ext = 200;
+    }
+
+    required NYT.NProto.TGuid chunk_id = 1;
+}
+
+message TReplicateChunkJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TReplicateChunkJobSpecExt replicate_chunk_job_spec_ext = 201;
+    }
+
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+    repeated fixed32 targets = 2;
+}
+
+message TRepairChunkJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TRepairChunkJobSpecExt repair_chunk_job_spec_ext = 202;
+    }
+
+    required int32 erasure_codec = 1;
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
+    repeated fixed32 replicas = 3;
+    repeated int32 erased_indexes = 4;
+    repeated fixed32 targets = 5;
+}
+
+message TSealChunkJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TSealChunkJobSpecExt seal_chunk_job_spec_ext = 203;
+    }
+
+    required int64 row_count = 1;
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
+    repeated fixed32 replicas = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

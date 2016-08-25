@@ -1,0 +1,16 @@
+#pragma once
+
+#include <yt/core/misc/public.h>
+
+namespace NYT {
+namespace NMonitoring {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMonitoringManager;
+typedef TIntrusivePtr<TMonitoringManager> TMonitoringManagerPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NMonitoring
+} // namespace NYT

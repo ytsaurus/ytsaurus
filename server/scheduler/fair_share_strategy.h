@@ -1,0 +1,17 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT {
+namespace NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchedulerStrategyPtr CreateFairShareStrategy(
+    TFairShareStrategyConfigPtr config,
+    ISchedulerStrategyHost* host);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NScheduler
+} // namespace NYT

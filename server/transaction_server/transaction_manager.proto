@@ -1,0 +1,26 @@
+package NYT.NTransactionServer.NProto;
+
+import "yt/core/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPrepareTransactionCommit
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required int64 prepare_timestamp = 2;
+}
+
+message TReqCommitTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required int64 commit_timestamp = 2;
+}
+
+message TReqAbortTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required bool force = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
