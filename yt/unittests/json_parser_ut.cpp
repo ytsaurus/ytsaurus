@@ -4,8 +4,6 @@
 
 #include <yt/core/yson/consumer_mock.h>
 
-#include <library/string_utils/base64/base64.h>
-
 namespace NYT {
 namespace NFormats {
 namespace {

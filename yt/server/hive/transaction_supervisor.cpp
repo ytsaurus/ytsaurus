@@ -376,7 +376,7 @@ private:
         } catch (const std::exception& ex) {
             if (commit) {
                 YCHECK(!commit->GetPersistent());
-                SetCommitSucceeded(commit, commitTimestamp);
+                SetCommitFailed(commit, ex);
                 TransientCommitMap_.Remove(transactionId);
             }
             LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error committing simple transaction (TransactionId: %v)",

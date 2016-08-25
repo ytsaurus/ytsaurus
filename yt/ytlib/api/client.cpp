@@ -61,6 +61,7 @@
 #include <yt/core/compression/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/async_semaphore.h>
 
 #include <yt/core/profiling/scoped_timer.h>
 
@@ -1070,6 +1071,7 @@ public:
         const TClientOptions& options)
         : Connection_(std::move(connection))
         , Options_(options)
+        , ConcurrentRequestsSemaphore_(New<TAsyncSemaphore>(Connection_->GetConfig()->MaxConcurrentRequests))
     {
         auto wrapChannel = [&] (IChannelPtr channel) {
             channel = CreateAuthenticatedChannel(channel, options.User);
@@ -1437,6 +1439,8 @@ private:
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
     std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
 
+    TAsyncSemaphorePtr ConcurrentRequestsSemaphore_;
+
     NLogging::TLogger Logger = ApiLogger;
 
 
@@ -1446,8 +1450,13 @@ private:
         const TTimeoutOptions& options,
         TCallback<T()> callback)
     {
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(ConcurrentRequestsSemaphore_);
+        if (!guard) {
+            return MakeFuture<T>(TError(EErrorCode::TooManyConcurrentRequests, "Too many concurrent requests"));
+        }
+
         return
-            BIND([commandName, callback = std::move(callback), this_ = MakeWeak(this)] () {
+            BIND([commandName, callback = std::move(callback), this_ = MakeWeak(this), guard = std::move(guard)] () {
                 auto client = this_.Lock();
                 if (!client) {
                     THROW_ERROR_EXCEPTION("Client was abandoned");
