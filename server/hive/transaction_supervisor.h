@@ -1,0 +1,54 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/server/hydra/public.h>
+
+#include <yt/core/actions/public.h>
+
+#include <yt/core/rpc/public.h>
+
+namespace NYT {
+namespace NHive {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTransactionSupervisor
+    : public TRefCounted
+{
+public:
+    TTransactionSupervisor(
+        TTransactionSupervisorConfigPtr config,
+        IInvokerPtr automatonInvoker,
+        IInvokerPtr trackerInvoker,
+        NHydra::IHydraManagerPtr hydraManager,
+        NHydra::TCompositeAutomatonPtr automaton,
+        NRpc::TResponseKeeperPtr responseKeeper,
+        THiveManagerPtr hiveManager,
+        ITransactionManagerPtr transactionManager,
+        NTransactionClient::ITimestampProviderPtr timestampProvider);
+
+    ~TTransactionSupervisor();
+
+    NRpc::IServicePtr GetRpcService();
+
+    TFuture<void> CommitTransaction(
+        const TTransactionId& transactionId,
+        const std::vector<NHydra::TCellId>& participantCellIds = std::vector<NHydra::TCellId>());
+
+    TFuture<void> AbortTransaction(
+        const TTransactionId& transactionId,
+        bool force = false);
+
+private:
+    class TImpl;
+    const TIntrusivePtr<TImpl> Impl_;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TTransactionSupervisor)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NHive
+} // namespace NYT
