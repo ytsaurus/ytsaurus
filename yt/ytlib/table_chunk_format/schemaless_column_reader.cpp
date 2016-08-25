@@ -21,11 +21,9 @@ public:
     TSchemalessSegmentReader(
         TRef data, 
         const TSegmentMeta& meta,
-        const std::vector<TColumnIdMapping>& idMapping,
-        int schemaColumnCount)
+        const std::vector<TColumnIdMapping>& idMapping)
         : Meta_(meta)
         , IdMapping_(idMapping)
-        , SchemaColumnCount_(schemaColumnCount)
         , SegmentStartRowIndex_(meta.chunk_row_count() - meta.row_count())
     { 
         const char* ptr = data.Begin();
@@ -93,7 +91,6 @@ public:
 private:
     const NProto::TSegmentMeta& Meta_;
     const std::vector<TColumnIdMapping>& IdMapping_;
-    const int SchemaColumnCount_;
 
     const i64 SegmentStartRowIndex_;
 
@@ -132,11 +129,9 @@ class TSchemalessColumnReader
 public:
     TSchemalessColumnReader(
         const TColumnMeta& meta, 
-        const std::vector<TColumnIdMapping>& idMapping, 
-        int schemaColumnCount)
+        const std::vector<TColumnIdMapping>& idMapping)
         : TColumnReaderBase(meta)
         , IdMapping_(idMapping)
-        , SchemaColumnCount_(schemaColumnCount)
     { }
 
     virtual void ReadValues(TMutableRange<TMutableUnversionedRow> rows) override
@@ -160,7 +155,6 @@ private:
     std::unique_ptr<TSchemalessSegmentReader> SegmentReader_;
 
     std::vector<TColumnIdMapping> IdMapping_;
-    const int SchemaColumnCount_;
 
     virtual void ResetSegmentReader() override
     {
@@ -174,8 +168,7 @@ private:
             SegmentReader_ = std::make_unique<TSchemalessSegmentReader>(
                 TRef(Block_.Begin() + meta.offset(), meta.size()),
                 meta,
-                IdMapping_,
-                SchemaColumnCount_);
+                IdMapping_);
         }
         SegmentReader_->SkipToRowIndex(CurrentRowIndex_);
     }
@@ -185,13 +178,9 @@ private:
 
 std::unique_ptr<ISchemalessColumnReader> CreateSchemalessColumnReader(
     const TColumnMeta& meta,
-    const std::vector<TColumnIdMapping>& idMapping,
-    int schemaColumnCount)
+    const std::vector<TColumnIdMapping>& idMapping)
 {
-    return std::make_unique<TSchemalessColumnReader>(
-        meta,
-        idMapping,
-        schemaColumnCount);
+    return std::make_unique<TSchemalessColumnReader>(meta, idMapping);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
