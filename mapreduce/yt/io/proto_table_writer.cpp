@@ -64,6 +64,9 @@ TNode MakeNodeFromMessage(const Message& row)
             case FieldDescriptor::TYPE_BOOL:
                 builder.OnBooleanScalar(reflection->GetBool(row, fieldDesc));
                 break;
+            case FieldDescriptor::TYPE_ENUM:
+                builder.OnStringScalar(reflection->GetEnum(row, fieldDesc)->name());
+                break;
             case FieldDescriptor::TYPE_MESSAGE:
                 builder.OnStringScalar(reflection->GetMessage(row, fieldDesc).SerializeAsString());
                 break;
