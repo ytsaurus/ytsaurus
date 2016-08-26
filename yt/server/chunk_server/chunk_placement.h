@@ -77,6 +77,7 @@ private:
         TChunk* chunk,
         int desiredCount,
         int minCount,
+        bool forceRackAwareness,
         TNullable<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes = nullptr,
         const TNullable<Stroka>& preferredHostName = Null);
