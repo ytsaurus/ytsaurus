@@ -3033,6 +3033,11 @@ public:
         return Transaction_->GetTimeout();
     }
 
+    virtual TTimestamp GetCommitTimestamp() const override
+    {
+        return Transaction_->GetCommitTimestamp();
+    }
+
 
     virtual TFuture<void> Ping() override
     {

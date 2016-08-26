@@ -76,6 +76,8 @@ public:
     //! Returns the transaction timeout.
     TDuration GetTimeout() const;
 
+    TTimestamp GetCommitTimestamp() const;
+
 
     //! Marks a given cell as a transaction participant.
     //! The transaction must have already been started at the participant.
